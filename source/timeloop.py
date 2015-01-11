@@ -3,8 +3,8 @@
 from commons import *
 
 # Use a Matplotlib backend compatible with interactive plotting
-from matplotlib import use as matplotlib_backend
-matplotlib_backend('TkAgg')
+#from matplotlib import use as matplotlib_backend
+#matplotlib_backend('TkAgg')
 
 # Imports
 # Scientific libraries (Numpy, Scipy, Matplotlib)
