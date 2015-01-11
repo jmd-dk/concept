@@ -32,4 +32,4 @@ git commit -m "Comitted from $(dirname ${this_dir})"
 git push -f origin master
 
 # Remove created content
-#rm -rf source Nbody_installer
+rm -rf source Nbody_installer

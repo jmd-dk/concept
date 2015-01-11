@@ -1,6 +1,6 @@
 # This module contains imports, Cython declarations and values
 # of parameters common to all other modules. Each module should have
-# 'from commons import *' as its first statement.
+# 'from commons import *' as its first statement
 
 ##############################################################################
 # Imports common to pure Python and Cython                                   #
