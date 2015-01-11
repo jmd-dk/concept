@@ -48,7 +48,7 @@ particles = Particles(pos=random((3, N))*boxsize, vel=0.7*(2*random((3, N))-1), 
 #    gca().set_zlabel(r'$z$')
     #ax.view_init(90, 0)
 #    show(block=False)
-
+#
 # Run main loop
 cython.declare(i='size_t')
 for i in range(10):
