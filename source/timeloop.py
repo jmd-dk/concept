@@ -10,11 +10,11 @@ matplotlib_backend('TkAgg')
 # Scientific libraries (Numpy, Scipy, Matplotlib)
 from numpy.random import random
 from numpy import transpose
-from matplotlib.pyplot import figure, gca, draw, show
+#from matplotlib.pyplot import figure, gca, draw, show
 
 # 3D plotting
-from mpl_toolkits.mplot3d import Axes3D
-from mpl_toolkits.mplot3d.art3d import juggle_axes
+#from mpl_toolkits.mplot3d import Axes3D
+#from mpl_toolkits.mplot3d.art3d import juggle_axes
 # For timing
 from time import time
 
