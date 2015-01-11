@@ -1,0 +1,123 @@
+#!/bin/bash
+
+# This script runs the Nbody code.
+# Run the script with the -h option to get help
+
+# Filenames
+this_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+top_dir=$(dirname ${this_dir})
+this_file=$(readlink -f "$0")
+python=${top_dir}/anaconda/bin/python
+mpiexec=${top_dir}/openmpi/bin/mpiexec
+
+# Default values of command-line arguments
+nprocs=1
+params=${this_dir}/params/default
+main=${this_dir}/main.py
+pure_python=0
+
+# Use Python's argparse module to handle command-line arguments
+args=(`${python} -c "
+import argparse
+import sys
+from os.path import basename, dirname
+# Enables Python to write directly to screen when asked for help
+if any(h in sys.argv for h in ['-h', '--he', '--hel', '--help']):
+    sys.stdout = sys.stderr
+# Set the filename of the script
+sys.argv[0] = '${this_file}'
+# Setup command-line arguments
+parser = argparse.ArgumentParser(description='Run the Nbody code.')
+parser.add_argument('-n', '--nprocs',
+                    help='Number of processes. Must be a power of 2.',
+                    type=int,
+                    default=${nprocs},
+                    )
+parser.add_argument('-p', '--params',
+                    help='Parameterfile to use',
+                    default='${params}',
+                    )
+parser.add_argument('-m', '--main',
+                    help='Entry point of the code',
+                    default='${main}',
+                    )
+parser.add_argument('--pure-python',
+                    help='Run in pure Python mode',
+                    default=${pure_python},
+                    action='store_true',
+                    )
+args = parser.parse_args()
+# Display warnings when basic parameters are not supplied
+arg = '--nprocs'
+if not any(n in sys.argv for n in ['-n'] + [arg[:i] for i in range(4, len(arg) + 1)]):
+    print('Number of processes not specified - Will use ${nprocs}', file=sys.stderr)
+arg = '--params'
+if not any(p in sys.argv for p in ['-p'] + [arg[:i] for i in range(4, len(arg) + 1)]):
+    if basename(dirname(args.main)) == 'tests':
+        # Running a test but no parameterfile specified!
+        args.params = dirname(args.main) + '/params_' + basename(args.main)
+    else:
+        print('Parameterfile not specified - Will use ${params}', file=sys.stderr)
+# Print out the arguments. These will be captured in the bash 'args' variable
+print(args.nprocs, args.params, args.main, int(args.pure_python))
+" "$@"`)
+nprocs=${args[0]}
+params=${args[1]}
+main=${args[2]}
+pure_python=${args[3]}
+if [ ${#args[@]} -ne 4 ]; then
+    exit 1
+fi
+
+# When running tests in the tests directory, params should be tests/params_${main} if not otherwize stated:
+
+
+# Is nprocs a power of 2?
+legal_nprocs=`${python} -c "
+from numpy import log2
+exponent = log2(${nprocs})
+if exponent == int(exponent):
+    legal_nprocs = 1
+else:
+    legal_nprocs = 0
+print(legal_nprocs)
+"`
+if [ ${legal_nprocs} -eq 0 ]; then
+    echo "Error: Number of processes ${nprocs} is not a power of 2!"
+    exit 1
+fi
+
+# Do the parameterfile and the main file exist?
+if [ ! -f "${params}" ]; then
+    echo "Error: ${params} does not exist!"
+    exit 1
+fi
+if [ ! -f "${main}" ]; then
+    echo "Error: ${main} does not exist!"
+    exit 1
+fi
+
+# Compile or do cleanup from last compilation
+if [ ${pure_python} -eq 0 ] ; then
+    # Compile with Cython
+    (cd ${this_dir} && make paramsfile=${params})
+else
+    # Remove compiled Cython modules
+    (cd ${this_dir} && rm -f *.so)
+    # Copy the passed parameter file to _params_active.py
+    (cd ${this_dir} && cp ${params} params.py)
+fi
+
+# Run!
+echo
+if [ ${pure_python} -eq 0 ] ; then
+    echo -e "##################\n# Running N-body #\n##################"
+else
+    echo -e "#####################################\n# Running Nbody in Pure Python mode #\n#####################################"
+fi
+echo "Entry point:   ${main}"
+echo "Parameterfile: ${params}"
+echo "Nr. of CPUs:   ${nprocs}"
+cd ${this_dir}
+${mpiexec} -n ${nprocs} ${python} ${main}
+
