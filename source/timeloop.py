@@ -67,7 +67,7 @@ with h5py.File('ICs/test_snapshot', mode='r') as hdf5_file:
 #                 TEST
 ##########################################
 print(particles.N)
-
+"""
 if rank == 0:
     sendbuf = array([1, 2, 3])
     recvbuf = array([4, 6, 7, -1, -2])
@@ -82,12 +82,12 @@ if rank == 1:
     Sendrecv(sendbuf, dest=0, recvbuf=recvbuf, source=0)
 
 print('rank', rank, 'is done', recvbuf)
-
+"""
 
 
 
 # Setting up figure and plot the particles
-if False:
+if True:
     fig = figure()
     ax = fig.add_subplot(111, projection='3d')
     h = ax.scatter(*particles.pos, color='purple', alpha=0.25)
@@ -102,11 +102,11 @@ if False:
 
 # Run main loop
 cython.declare(i='size_t')
-for i in range(10):
+for i in range(25):
     t0 = time()
     particles.kick()
     print(time() - t0)
     particles.drift()
-    if False:
+    if True:
         h._offsets3d = juggle_axes(*particles.pos, zdir='z')
         draw()
