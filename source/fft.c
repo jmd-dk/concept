@@ -2,6 +2,10 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+/*!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+gridstart_local_x AND ptrdiff_t gridstart_local_y ARE INCLUDED IN THE RETURN STRUCT, BUT NOT USED (RIGHT?)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*/
+
 
 /* This file defines the functions fftw_setup and fftw_clean, which
 together with fftw_execute (included in fftw3-mpi.h) constitutes the
@@ -13,7 +17,7 @@ transforms through Cython.
 /* Note on indexing.
 - In real space, before any transformations:
   grid[i, j, k] --> grid[((i - gridstart_local_x)*gridsize_y + j)*gridsize_padding + k], provided we execute this on the correct process, where (gridstart_local_x <= i && i < gridstart_local_x + gridsize_local_x)
-  That is, each process can acces every element in its slap by:
+  That is, each process can acces every element in its slab by:
   for (i = 0; i < gridsize_local_x; ++i)
   {
     for (j = 0; j < gridsize_y; ++j)
@@ -26,7 +30,7 @@ transforms through Cython.
   }
 - After a forward, inplace r2c transformation:
   grid[i, j, k] --> grid[((j - gridstart_local_y)*gridsize_x + i)*gridsize_padding + k], provided we execute this on the correct process, where (gridstart_local_y <= j && j < gridstart_local_y + gridsize_local_y)
-  That is, each process can acces every element in its slap by:
+  That is, each process can acces every element in its slab by:
   for (i = 0; i < gridsize_x; ++i)
   {
     for (j = 0; j < gridsize_local_y; ++j)
@@ -42,11 +46,11 @@ transforms through Cython.
 
 // Struct for return type of the fftw_setup function
 struct fftw_return_struct {
-  double* grid;
   ptrdiff_t gridsize_local_x;
   ptrdiff_t gridsize_local_y;
   ptrdiff_t gridstart_local_x;
   ptrdiff_t gridstart_local_y;
+  double* grid;
   fftw_plan plan_forward;
   fftw_plan plan_backward;
 };
@@ -107,7 +111,7 @@ struct fftw_return_struct fftw_setup(ptrdiff_t gridsize_x, ptrdiff_t gridsize_y,
   }
 
   // Return a struct with variables
-  struct fftw_return_struct fftw_struct = {grid, gridsize_local_x, gridsize_local_y, gridstart_local_x, gridstart_local_y, plan_forward, plan_backward};
+  struct fftw_return_struct fftw_struct = {gridsize_local_x, gridsize_local_y, gridstart_local_x, gridstart_local_y, grid, plan_forward, plan_backward};
   return fftw_struct;
 }
 

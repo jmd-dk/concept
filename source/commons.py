@@ -6,7 +6,7 @@
 # Imports common to pure Python and Cython                                   #
 ##############################################################################
 from __future__ import division  # Needed for Python3 division in Cython
-from numpy import array, empty
+from numpy import array, empty, zeros, concatenate, delete
 import h5py
 
 ##############################################################################
@@ -62,17 +62,20 @@ else:
 ##############################################################################
 # Derived and internally defined constants                                   #
 ##############################################################################
-
-cython.declare(ewald_file='str',
+cython.declare(use_PM='bint',
+               ewald_file='str',
                boxsize2='double',
                two_ewald_gridsize='int',
+               PM_gridsize3='ptrdiff_t',
                softening2='double',
                machine_ϵ='double',
                two_machine_ϵ='double',
                )
+use_PM = True  # Flag specifying wheter the PM method is used or not. THIS SHOULD BE COMPUTED BASED ON PARTICLES CHOSEN IN THE PARAMETER FILE!!!!!!!!!!!
 ewald_file = '.ewald_gridsize=' + str(ewald_gridsize) + '.hdf5'  # Name of file storing the Ewald grid
 boxsize2 = boxsize**2
 two_ewald_gridsize = 2*ewald_gridsize
+PM_gridsize3 = PM_gridsize**3
 softening2 = softening**2
 from numpy import finfo
 machine_ϵ = finfo('float64').eps  # Machine epsilon
@@ -90,10 +93,12 @@ cython.declare(nprocs='int',
 comm = MPI.COMM_WORLD
 Abort = comm.Abort
 Allgather = comm.Allgather
+Allgatherv = comm.Allgatherv
 Allreduce = comm.Allreduce
 Bcast = comm.Bcast
 Reduce = comm.Reduce
 Scatter = comm.Scatter
+Sendrecv = comm.Sendrecv
 nprocs = comm.size  # Number of processes started with mpiexec
 rank = comm.rank    # The unique rank of the running process
 master = not rank   # Flag identifying the master/root process (that which have rank 0)

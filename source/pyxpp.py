@@ -51,7 +51,8 @@ def cythonstring2code(filename):
         for line in pyxfile:
             if unindent and line.rstrip() != '' and line[0] != ' ':
                 unindent = False
-            if line.startswith('if not cython.compiled:'):
+            if line.lstrip().startswith('if not cython.compiled:'):
+                indentation = len(line) - len(line.lstrip())
                 in_purePythonsection = True
             if not in_purePythonsection:
                 if unindent:
@@ -60,7 +61,7 @@ def cythonstring2code(filename):
                         new_lines.append(line_without_triple_quotes[4:])
                 else:
                     new_lines.append(line)
-            if in_purePythonsection and line.startswith('else:'):
+            if in_purePythonsection and line.startswith(' '*indentation + 'else:'):
                 in_purePythonsection = False
                 unindent = True
     with open(filename, 'w') as pyxfile:

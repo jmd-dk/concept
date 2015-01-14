@@ -93,23 +93,21 @@ recursive: $(pyfile).so
 ##############################################################################################################
 # Targets handling the cythonizing, compiling and linking of an arbitrary .py file with basename $(pyfile)   #
 ##############################################################################################################
-# Copy the specified parameterfile to params.py and inserts a header,
-# telling which parameterfile it is a copy of.
+# Copy the specified parameterfile to params.py and inserts a header, telling which parameterfile it is a
+# copy of. Also import everything from numpy in the header, enabling the use of math in parameter files
 params.py: $(paramsfile)
 	@echo
 	@echo "Processing parameters from $(paramsfile) ..."
 	@cp $(paramsfile) $@
-	@sed -i '1i# The following is an exact copy of $(paramsfile)' $@
+	@sed -i '1i# The following is an exact copy of $(paramsfile)\nfrom numpy import *\n#Original parameter file below ...\n' $@
 # Make a .pyx copy of the .py file with the cython_import triple quotes removed and a
 # hard copy of the content of commons.py in place of 'from commons import *'.
 # Other tweeks are performed by the .pyx preprocessor script as well.
 $(pyfile).pyx: $(pyfile).py $(MAKEFILE_LIST) commons.py $(pyxpp)
-	@echo
-	@$(python) -c "s = '# Building the $(pyfile) module #'; print('#'*len(s)); print(s); print('#'*len(s))"
+	@printf "\n\033[1m\033[93mBuilding the $(pyfile) module\033[0m\n"  # Print module in progress in yellow
 	@echo 'Processing $< into $@ ...'
 	@cp $< $@
-	@# Run the .pyx preprocessor on the .pyx file
-	@$(python) $(pyxpp) $@ $(paramsfile)
+	@$(python) $(pyxpp) $@ $(paramsfile)  # Run the .pyx preprocessor on the .pyx file
 # Cythonize .pyx
 $(pyfile).c: $(pyfile).pyx $(pyfile).pxd
 	$(cython) $(cythonflags) $@ $<

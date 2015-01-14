@@ -15,18 +15,21 @@ hdf5_dir=hdf5
 fftw_dir=fftw
 Nbody_dir=Nbody
 
-# Set up error trap
+# Set up error trapping
 abort()
 {
-    echo -e >&2 "\n#########\n# ERROR #\n#########"
-    echo -e >&2 "During installation of the N-body code an error occurred!"
+    #echo -e >&2 "\n#########\n# ERROR #\n#########"
+    #echo -e >&2 "During installation of the N-body code an error occurred!"
+    printf "\n\e[1m\e[91mAn error occurred during ${current_step}!\e[0m\n"
     exit 1
 }
 trap 'abort' EXIT
 set -e
 
 # Creating top level directory
-echo "This is the installation script to the N-body code by Jeppe Dakin."
+current_step="setup of top level directory"
+#echo "This is the installation script to the N-body code by Jeppe Dakin."
+printf "This is the installation script to the \e[3mN\e[0m-body code by Jeppe Dakin.\n"
 if [ -z $1 ]; then
     read -p "Where should I install the code?`echo $'\n> '`" -e top_dir
 else 
@@ -38,28 +41,31 @@ top_dir=$(readlink -f "${top_dir}")  # Convert to absolute path
 echo "The code will be installed in ${top_dir}"
 mkdir -p "${top_dir}"
 cd "${top_dir}"
-echo
 
 # Anaconda3 2.1.0 (via Miniconda3 3.7.0)
-echo -e "#######################\n# Installing Anaconda #\n#######################"
+current_step="installation of Anaconda"
+#echo -e "#######################\n# Installing Anaconda #\n#######################"
+printf "\n\e[1m\e[93mInstalling Anaconda\e[0m\n"
 wget -nc -O anaconda.sh --no-check-certificate http://repo.continuum.io/miniconda/Miniconda3-3.7.0-Linux-x86_64.sh
 bash anaconda.sh -b -p "${top_dir}/${anaconda_dir}"
 rm anaconda.sh
 # Update Conda
 "${top_dir}/${anaconda_dir}/bin/conda" update --yes conda
-echo
 
 # Cython, Matplotlib, Numpy and Scipy via Conda
-echo -e "################################################\n# Installing Cython, Matplotlib, Numpy & Scipy #\n################################################"
+current_step="installation of Cython, Matplotlib, Numpy and Scipy"
+#echo -e "################################################\n# Installing Cython, Matplotlib, Numpy & Scipy #\n################################################"
+printf "\n\e[1m\e[93mInstalling Cython, Matplotlib, Numpy & Scipy\e[0m\n"
 "${top_dir}/${anaconda_dir}/bin/conda" install --yes cython matplotlib numpy scipy  
 # Update all packages in Anaconda
 "${top_dir}/${anaconda_dir}/bin/conda" update --yes --all
 # Do some cleanup in the Anaconda distribution
 "${top_dir}/${anaconda_dir}/bin/conda" clean --yes -i -l -t -p
-echo
 
 # Open MPI 1.8.3
-echo -e "#######################\n# Installing Open MPI #\n#######################"
+current_step="installation of Open MPI"
+#echo -e "#######################\n# Installing Open MPI #\n#######################"
+printf "\n\e[1m\e[93mInstalling Open MPI\e[0m\n"
 mkdir "${openmpi_dir}"
 mkdir tmp
 cd tmp
@@ -71,10 +77,11 @@ make all
 make install
 cd ../../
 rm -rf tmp
-echo
 
 # The mpi4py 1.3.1 Python package (cannot use conda, as it installs an outdated version)
-echo -e "#####################\n# Installing mpi4py #\n#####################"
+current_step="installation of mpi4py"
+#echo -e "#####################\n# Installing mpi4py #\n#####################"
+printf "\n\e[1m\e[93mInstalling mpi4py\e[0m\n"
 wget -nc -O mpi4py.tar.gz --no-check-certificate https://bitbucket.org/mpi4py/mpi4py/downloads/mpi4py-1.3.1.tar.gz
 tar xf mpi4py.tar.gz
 cd mpi4py*
@@ -83,10 +90,11 @@ export MPICC="${top_dir}/${openmpi_dir}/bin/mpicc"
 "${top_dir}/${anaconda_dir}/bin/python" setup.py install
 cd ..
 rm -rf mpi4py*
-echo
 
 # HDF5 (latest stable version)
-echo -e "####################\n# Installing HDF5 #\n####################"
+current_step="installation of HDF5"
+#echo -e "####################\n# Installing HDF5 #\n####################"
+printf "\n\e[1m\e[93mInstalling HDF5\e[0m\n"
 mkdir tmp
 cd tmp
 wget -nc -O hdf5.tar.bz2 --no-check-certificate ftp://ftp.hdfgroup.org/HDF5/current/src/hdf5*tar.bz2
@@ -97,10 +105,11 @@ make
 make install
 cd ../../
 rm -rf tmp
-echo
 
 # The h5py 2.4.0 Python package (cannot use conda, as it does not install the parallel version)
-echo -e "###################\n# Installing h5py #\n###################"
+current_step="installation of h5py"
+#echo -e "###################\n# Installing h5py #\n###################"
+printf "\n\e[1m\e[93mInstalling h5py\e[0m\n"
 wget -nc -O h5py.tar.gz --no-check-certificate https://pypi.python.org/packages/source/h/h5py/h5py-2.4.0.tar.gz
 tar xf h5py.tar.gz
 cd h5py*
@@ -110,10 +119,11 @@ export CC="${top_dir}/${openmpi_dir}/bin/mpicc"
 "${top_dir}/${anaconda_dir}/bin/python" setup.py install
 cd ..
 rm -rf h5py*
-echo
 
 # FFTW 3.3.4
-echo -e "###################\n# Installing FFTW #\n###################"
+current_step="installation of FFTW"
+#echo -e "###################\n# Installing FFTW #\n###################"
+printf "\n\e[1m\e[93mInstalling FFTW\e[0m\n"
 mkdir tmp
 cd tmp
 wget -nc -O fftw.tar.gz http://www.fftw.org/fftw-3.3.4.tar.gz
@@ -129,26 +139,28 @@ make install
 #make install
 cd ../../
 rm -rf tmp
-echo
 
 # Download and build the Nbody code
-echo -e "#############################\n# Installing the N-body code #\n#############################"
+current_step="installation of the \e[3mN\e[0m\e[1m\e[91m-body code"
+#echo -e "#############################\n# Installing the N-body code #\n#############################"
+printf "\n\e[1m\e[93mInstalling the \e[3mN\e[0m\e[1m\e[93m-body code\e[0m\n"
 wget -nc -O Nbody.zip --no-check-certificate https://github.com/jmd-dk/Nbody/archive/master.zip
 unzip Nbody.zip
 rm Nbody.zip
 mv Nbody-master/source "${Nbody_dir}"
 rm -r Nbody-master
-echo
 
 # Test the installation
-echo -e "#######################\n# Performing test run #\n#######################"
+current_step="testrun of the \e[3mN\e[0m\e[1m\e[91m-body code"
+#echo -e "#######################\n# Performing test run #\n#######################"
+printf "\n\e[1m\e[93mPerforming test run\e[0m\n"
 cd "${Nbody_dir}"
 ./run
 make distclean
-echo 
 
 # Installation complete. Deactivate trap before exiting.
 trap : 0
-echo -e "########\n# DONE #\n########"
-echo "N-body code successfully installed!"
+#echo -e "########\n# DONE #\n########"
+#echo "N-body code successfully installed!"
+printf "\n\e[1m\e[92m\e[3mN\e[0m\e[1m\e[92m-body code successfully installed!\e[0m\n"
 

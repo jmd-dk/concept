@@ -16,6 +16,9 @@ params=${this_dir}/params/default
 main=${this_dir}/main.py
 pure_python=0
 
+# Exit on error
+set -e
+
 # Use Python's argparse module to handle command-line arguments
 args=(`${python} -c "
 import argparse
@@ -83,8 +86,8 @@ else:
 print(legal_nprocs)
 "`
 if [ ${legal_nprocs} -eq 0 ]; then
-    echo "Error: Number of processes ${nprocs} is not a power of 2!"
-    exit 1
+    echo "Error: Number of processes (${nprocs}) is not a power of 2!"
+    #exit 1
 fi
 
 # Do the parameterfile and the main file exist?
@@ -109,11 +112,10 @@ else
 fi
 
 # Run!
-echo
 if [ ${pure_python} -eq 0 ] ; then
-    echo -e "##################\n# Running N-body #\n##################"
+    printf "\n\e[1m\e[93mRunning \e[3mN\e[0m\e[1m\e[93m-body\e[0m\n"
 else
-    echo -e "#####################################\n# Running Nbody in Pure Python mode #\n#####################################"
+    printf "\n\e[1m\e[93mRunning \e[3mN\e[0m\e[1m\e[93m-body in pure Python mode\e[0m\n"
 fi
 echo "Entry point:   ${main}"
 echo "Parameterfile: ${params}"

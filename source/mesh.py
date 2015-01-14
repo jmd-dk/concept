@@ -233,7 +233,12 @@ def CIC_coordinates2grid(grid, particles):
         x = posx[i]*gridsize_over_boxsize
         y = posy[i]*gridsize_over_boxsize
         z = posz[i]*gridsize_over_boxsize
-        # Indices of the 8 vertices (6 faces) of the grid
+        # Translate coordinates so they appear to be in the first domain (got a better name?),
+        # to ensure appropriate indexing.
+        #x -= gridstart_local_x
+
+        # Indices of the 8 vertices (6 faces) in the grid,
+        # constituting the cell in which the particle is located
         x_lower = int(x)
         y_lower = int(y)
         z_lower = int(z)
