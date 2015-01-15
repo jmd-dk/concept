@@ -18,8 +18,6 @@ Nbody_dir=Nbody
 # Set up error trapping
 abort()
 {
-    #echo -e >&2 "\n#########\n# ERROR #\n#########"
-    #echo -e >&2 "During installation of the N-body code an error occurred!"
     printf "\n\e[1m\e[91mAn error occurred during ${current_step}!\e[0m\n"
     exit 1
 }
@@ -44,7 +42,6 @@ cd "${top_dir}"
 
 # Anaconda3 2.1.0 (via Miniconda3 3.7.0)
 current_step="installation of Anaconda"
-#echo -e "#######################\n# Installing Anaconda #\n#######################"
 printf "\n\e[1m\e[93mInstalling Anaconda\e[0m\n"
 wget -nc -O anaconda.sh --no-check-certificate http://repo.continuum.io/miniconda/Miniconda3-3.7.0-Linux-x86_64.sh
 bash anaconda.sh -b -p "${top_dir}/${anaconda_dir}"
@@ -54,7 +51,6 @@ rm anaconda.sh
 
 # Cython, Matplotlib, Numpy and Scipy via Conda
 current_step="installation of Cython, Matplotlib, Numpy and Scipy"
-#echo -e "################################################\n# Installing Cython, Matplotlib, Numpy & Scipy #\n################################################"
 printf "\n\e[1m\e[93mInstalling Cython, Matplotlib, Numpy & Scipy\e[0m\n"
 "${top_dir}/${anaconda_dir}/bin/conda" install --yes cython matplotlib numpy scipy  
 # Update all packages in Anaconda
@@ -64,7 +60,6 @@ printf "\n\e[1m\e[93mInstalling Cython, Matplotlib, Numpy & Scipy\e[0m\n"
 
 # Open MPI 1.8.3
 current_step="installation of Open MPI"
-#echo -e "#######################\n# Installing Open MPI #\n#######################"
 printf "\n\e[1m\e[93mInstalling Open MPI\e[0m\n"
 mkdir "${openmpi_dir}"
 mkdir tmp
@@ -80,7 +75,6 @@ rm -rf tmp
 
 # The mpi4py 1.3.1 Python package (cannot use conda, as it installs an outdated version)
 current_step="installation of mpi4py"
-#echo -e "#####################\n# Installing mpi4py #\n#####################"
 printf "\n\e[1m\e[93mInstalling mpi4py\e[0m\n"
 wget -nc -O mpi4py.tar.gz --no-check-certificate https://bitbucket.org/mpi4py/mpi4py/downloads/mpi4py-1.3.1.tar.gz
 tar xf mpi4py.tar.gz
@@ -93,7 +87,6 @@ rm -rf mpi4py*
 
 # HDF5 (latest stable version)
 current_step="installation of HDF5"
-#echo -e "####################\n# Installing HDF5 #\n####################"
 printf "\n\e[1m\e[93mInstalling HDF5\e[0m\n"
 mkdir tmp
 cd tmp
@@ -108,7 +101,6 @@ rm -rf tmp
 
 # The h5py 2.4.0 Python package (cannot use conda, as it does not install the parallel version)
 current_step="installation of h5py"
-#echo -e "###################\n# Installing h5py #\n###################"
 printf "\n\e[1m\e[93mInstalling h5py\e[0m\n"
 wget -nc -O h5py.tar.gz --no-check-certificate https://pypi.python.org/packages/source/h/h5py/h5py-2.4.0.tar.gz
 tar xf h5py.tar.gz
@@ -122,7 +114,6 @@ rm -rf h5py*
 
 # FFTW 3.3.4
 current_step="installation of FFTW"
-#echo -e "###################\n# Installing FFTW #\n###################"
 printf "\n\e[1m\e[93mInstalling FFTW\e[0m\n"
 mkdir tmp
 cd tmp
@@ -142,7 +133,6 @@ rm -rf tmp
 
 # Download and build the Nbody code
 current_step="installation of the \e[3mN\e[0m\e[1m\e[91m-body code"
-#echo -e "#############################\n# Installing the N-body code #\n#############################"
 printf "\n\e[1m\e[93mInstalling the \e[3mN\e[0m\e[1m\e[93m-body code\e[0m\n"
 wget -nc -O Nbody.zip --no-check-certificate https://github.com/jmd-dk/Nbody/archive/master.zip
 unzip Nbody.zip
@@ -152,7 +142,6 @@ rm -r Nbody-master
 
 # Test the installation
 current_step="testrun of the \e[3mN\e[0m\e[1m\e[91m-body code"
-#echo -e "#######################\n# Performing test run #\n#######################"
 printf "\n\e[1m\e[93mPerforming test run\e[0m\n"
 cd "${Nbody_dir}"
 ./run
@@ -160,7 +149,5 @@ make distclean
 
 # Installation complete. Deactivate trap before exiting.
 trap : 0
-#echo -e "########\n# DONE #\n########"
-#echo "N-body code successfully installed!"
 printf "\n\e[1m\e[92m\e[3mN\e[0m\e[1m\e[92m-body code successfully installed!\e[0m\n"
 
