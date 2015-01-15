@@ -1,5 +1,5 @@
-# Import everything from the _params_active module (including cython).
-# In the .pyx file, this line will be replaced by the content of _params_active.py itself 
+# Import everything from the commons module.
+# In the .pyx file, this line will be replaced by the content of commons.py itself.
 from commons import *
 
 # Seperate but equivalent imports in pure Python and Cython

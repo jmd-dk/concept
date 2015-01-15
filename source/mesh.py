@@ -1,5 +1,5 @@
-# Import everything from the _params_active module (including cython).
-# In the .pyx file, this line will be replaced by the content of _params_active.py itself 
+# Import everything from the commons module.
+# In the .pyx file, this line will be replaced by the content of commons.py itself.
 from commons import *
 
 # Seperate but equivalent imports in pure Python and Cython
@@ -62,7 +62,7 @@ def tabulate_vectorfield(gridsize, func, factor, filename):
     with h5py.File(filename, mode='w', driver='mpio', comm=comm) as hdf5_file:
         dset = hdf5_file.create_dataset('data', shape, dtype='float64')
         dset[i_start:i_end, j_start:j_end, k_start:k_end, :] = grid_local
-    # Gathering point for the grid tabulation processes
+    # Every process gets to know the entire grid
     Allgather(grid_local, grid)
     return grid
 

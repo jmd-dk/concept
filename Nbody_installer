@@ -18,7 +18,7 @@ Nbody_dir=Nbody
 # Set up error trapping
 abort()
 {
-    printf "\n\e[1m\e[91mAn error occurred during ${current_step}!\e[0m\n"
+    printf "\n\e[1m\e[91mAn error occurred during ${current_step}!\e[0m\n" >&2
     exit 1
 }
 trap 'abort' EXIT
@@ -26,7 +26,6 @@ set -e
 
 # Creating top level directory
 current_step="setup of top level directory"
-#echo "This is the installation script to the N-body code by Jeppe Dakin."
 printf "This is the installation script to the \e[3mN\e[0m-body code by Jeppe Dakin.\n"
 if [ -z $1 ]; then
     read -p "Where should I install the code?`echo $'\n> '`" -e top_dir

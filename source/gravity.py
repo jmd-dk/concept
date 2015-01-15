@@ -1,5 +1,5 @@
-# Import everything from the _params_active module (including cython).
-# In the .pyx file, this line will be replaced by the content of _params_active.py itself 
+# Import everything from the commons module.
+# In the .pyx file, this line will be replaced by the content of commons.py itself.
 from commons import *
 
 # Seperate but equivalent imports in pure Python and Cython
@@ -78,13 +78,13 @@ def PP(particles):
     velx = particles.velx
     vely = particles.vely
     velz = particles.velz
-    N = particles.N
+    N_local = particles.N_local
     # Direct gravity solver
-    for i in range(0, N - 1):
+    for i in range(0, N_local - 1):
         xi = posx[i]
         yi = posy[i]
         zi = posz[i]
-        for j in range(i + 1, N):
+        for j in range(i + 1, N_local):
             x = posx[j] - xi
             y = posy[j] - yi
             z = posz[j] - zi

@@ -29,12 +29,10 @@ from os.path import isfile
 
 def import_params(filename):
     new_lines = []
-    #import_line = 'from ' + active_params_module + ' import *'
     import_line = 'from ' + 'commons' + ' import *'
     with open(filename, 'r') as pyxfile:
         for line in pyxfile:
             if line.startswith(import_line):
-                #with open(active_params_module + '.py', 'r') as active_params_file:
                 with open('commons' + '.py', 'r') as active_params_file:
                     for active_params_line in active_params_file:
                         new_lines.append(active_params_line)
@@ -48,12 +46,14 @@ def cythonstring2code(filename):
     with open(filename, 'r') as pyxfile:
         in_purePythonsection = False
         unindent = False
-        for line in pyxfile:
+        purePythonsection_start = 0
+        for i, line in enumerate(pyxfile):
             if unindent and line.rstrip() != '' and line[0] != ' ':
                 unindent = False
             if line.lstrip().startswith('if not cython.compiled:'):
                 indentation = len(line) - len(line.lstrip())
                 in_purePythonsection = True
+                purePythonsection_start = i
             if not in_purePythonsection:
                 if unindent:
                     line_without_triple_quotes = line.replace('"""', '').replace("'''", '')
@@ -61,9 +61,13 @@ def cythonstring2code(filename):
                         new_lines.append(line_without_triple_quotes[4:])
                 else:
                     new_lines.append(line)
-            if in_purePythonsection and line.startswith(' '*indentation + 'else:'):
+            if i != purePythonsection_start and in_purePythonsection and len(line) > indentation and line[indentation + 1] != ' ':
                 in_purePythonsection = False
-                unindent = True
+                if 'else:' in line:
+                    unindent = True
+                else:
+                    new_lines.append(line)
+                    unindent = False
     with open(filename, 'w') as pyxfile:
         pyxfile.writelines(new_lines)
 

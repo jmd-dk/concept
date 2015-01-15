@@ -16,9 +16,6 @@ params=${this_dir}/params/default
 main=${this_dir}/main.py
 pure_python=0
 
-# Exit on error
-set -e
-
 # Use Python's argparse module to handle command-line arguments
 args=(`${python} -c "
 import argparse
@@ -71,9 +68,6 @@ pure_python=${args[3]}
 if [ ${#args[@]} -ne 4 ]; then
     exit 1
 fi
-
-# When running tests in the tests directory, params should be tests/params_${main} if not otherwize stated:
-
 
 # Is nprocs a power of 2?
 legal_nprocs=`${python} -c "

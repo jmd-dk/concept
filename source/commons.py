@@ -6,7 +6,8 @@
 # Imports common to pure Python and Cython                                   #
 ##############################################################################
 from __future__ import division  # Needed for Python3 division in Cython
-from numpy import array, empty, zeros, concatenate, delete
+from numpy import arange, array, concatenate, delete, empty, prod, sum, unravel_index, zeros
+from numpy.random import random
 import h5py
 
 ##############################################################################
@@ -30,6 +31,8 @@ else:
     """
     # Get full access to all of Cython
     cimport cython
+    # Mathematical functions
+    from libc.math cimport round
     # Import the signed integer type ptrdiff_t
     from libc.stddef cimport ptrdiff_t
     # Function type definitions
@@ -95,15 +98,16 @@ Abort = comm.Abort
 Allgather = comm.Allgather
 Allgatherv = comm.Allgatherv
 Allreduce = comm.Allreduce
+allreduce = comm.allreduce
 Bcast = comm.Bcast
 Reduce = comm.Reduce
 Scatter = comm.Scatter
 Sendrecv = comm.Sendrecv
+sendrecv = comm.sendrecv
 nprocs = comm.size  # Number of processes started with mpiexec
 rank = comm.rank    # The unique rank of the running process
 master = not rank   # Flag identifying the master/root process (that which have rank 0)
 # Function for easily partitioning of multidimensional arrays
-from numpy import prod, unravel_index
 @cython.locals(# Arguments
                array_shape='tuple',
                # Locals

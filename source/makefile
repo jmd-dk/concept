@@ -5,7 +5,7 @@
 # Specification of filenames                                                                                #
 #############################################################################################################
 # List of .py files which should be cythonized and compiled to modules
-pyfiles = timeloop ewald gravity species mesh params
+pyfiles = ewald gravity IO mesh params species timeloop
 # The default parameterfile to use (never needed when invoked via the run script)
 params_default = params/default
 # Filename of the .pyx preprocessor script
@@ -97,7 +97,7 @@ recursive: $(pyfile).so
 # copy of. Also import everything from numpy in the header, enabling the use of math in parameter files
 params.py: $(paramsfile)
 	@echo
-	@echo "Processing parameters from $(paramsfile) ..."
+	@echo "Processing parameters from $(paramsfile)..."
 	@cp $(paramsfile) $@
 	@sed -i '1i# The following is an exact copy of $(paramsfile)\nfrom numpy import *\n#Original parameter file below ...\n' $@
 # Make a .pyx copy of the .py file with the cython_import triple quotes removed and a
@@ -105,7 +105,7 @@ params.py: $(paramsfile)
 # Other tweeks are performed by the .pyx preprocessor script as well.
 $(pyfile).pyx: $(pyfile).py $(MAKEFILE_LIST) commons.py $(pyxpp)
 	@printf "\n\033[1m\033[93mBuilding the $(pyfile) module\033[0m\n"  # Print module in progress in yellow
-	@echo 'Processing $< into $@ ...'
+	@echo 'Processing $< into $@...'
 	@cp $< $@
 	@$(python) $(pyxpp) $@ $(paramsfile)  # Run the .pyx preprocessor on the .pyx file
 # Cythonize .pyx
