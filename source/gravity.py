@@ -52,7 +52,7 @@ import numpy as np
                velx='double*',
                vely='double*',
                velz='double*',
-               N='size_t',
+               N_local='size_t',
                i='size_t',
                xi='double',
                yi='double',

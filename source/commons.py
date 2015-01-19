@@ -35,6 +35,8 @@ else:
     from libc.math cimport round
     # Import the signed integer type ptrdiff_t
     from libc.stddef cimport ptrdiff_t
+    # Functions for memory management
+    from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
     # Function type definitions
     ctypedef double  (*scalar_func)(double, double, double)
     ctypedef double* (*vector_func)(double, double, double)
@@ -55,7 +57,6 @@ else:
     from libc.math cimport M_PI as pi
     from libc.math cimport sqrt, exp, sin, erfc
     # Allocate a (module level) global vector
-    from cpython.mem cimport PyMem_Malloc
     cython.declare(vector='double*')
     vector = <double*> PyMem_Malloc(3*sizeof(double))
     # Import all user specified constants 
@@ -101,6 +102,7 @@ Allreduce = comm.Allreduce
 allreduce = comm.allreduce
 Bcast = comm.Bcast
 Reduce = comm.Reduce
+reduce = comm.reduce
 Scatter = comm.Scatter
 Sendrecv = comm.Sendrecv
 sendrecv = comm.sendrecv

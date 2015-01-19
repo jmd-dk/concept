@@ -61,7 +61,7 @@ def cythonstring2code(filename):
                         new_lines.append(line_without_triple_quotes[4:])
                 else:
                     new_lines.append(line)
-            if i != purePythonsection_start and in_purePythonsection and len(line) > indentation and line[indentation + 1] != ' ':
+            if i != purePythonsection_start and in_purePythonsection and len(line) >= indentation and line[indentation] != ' ':
                 in_purePythonsection = False
                 if 'else:' in line:
                     unindent = True

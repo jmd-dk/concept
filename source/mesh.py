@@ -233,7 +233,7 @@ def CIC_coordinates2grid(grid, particles):
         x = posx[i]*gridsize_over_boxsize
         y = posy[i]*gridsize_over_boxsize
         z = posz[i]*gridsize_over_boxsize
-        # Translate coordinates so they appear to be in the first domain (got a better name?),
+        # Translate coordinates so they appear to be in the first domain,
         # to ensure appropriate indexing.
         #x -= gridstart_local_x
 

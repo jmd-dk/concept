@@ -29,6 +29,7 @@ else:
     from IO cimport load, save
     """
 
+
 # Construct
 cython.declare(particles_ori='Particles')
 particles_ori = construct_random('some typename', 'dark matter', N=1717)
@@ -40,12 +41,17 @@ save(particles_ori, 'ICs/test')
 cython.declare(particles='Particles')
 particles = load('ICs/test')
 
-
 # Setting up figure and plot the particles
+#########################################################################################################################################
+# COMMUNICATE PARTICLES TO THE MASTER PROCESS AND LET IT HANDLE THE PLOTTING. USE DIFFERENT COLORS FOR PARTICLES FROM DIFFERENT PROCESSES
+#########################################################################################################################################
 if True:
     fig = figure()
     ax = fig.add_subplot(111, projection='3d')
-    h = ax.scatter(*particles.pos, color='purple', alpha=0.25)
+    h = ax.scatter(particles.posx_mw[:particles.N_local],
+                   particles.posy_mw[:particles.N_local],
+                   particles.posz_mw[:particles.N_local],
+                   color='purple', alpha=0.25)
     gca().set_xlim3d(0, boxsize)
     gca().set_ylim3d(0, boxsize)
     gca().set_zlim3d(0, boxsize)
@@ -57,12 +63,15 @@ if True:
 
 # Run main loop
 cython.declare(i='size_t')
-for i in range(100):
+for i in range(10000):
     t0 = time()
     particles.kick()
-    #print(time() - t0)
+    print(time() - t0)
     particles.drift()
     if True:
-        h._offsets3d = juggle_axes(*particles.pos, zdir='z')
+        h._offsets3d = juggle_axes(particles.posx_mw[:particles.N_local],
+                                   particles.posy_mw[:particles.N_local],
+                                   particles.posz_mw[:particles.N_local],
+                                   zdir='z')
         draw()
 

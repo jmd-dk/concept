@@ -1,0 +1,150 @@
+
+[1m[93mBuilding the ewald module[0m
+Processing ewald.py into ewald.pyx...
+../anaconda/bin/cython -3 -a -o ewald.c ewald.pyx
+../openmpi/bin/mpicc -pthread -DNDEBUG -g -std=c99 -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC -fassociative-math -fno-trapping-math -fno-signed-zeros   -I../anaconda/include/python3.4m -I../openmpi/include -I../fftw/include   -c -o ewald.o ewald.c
+../openmpi/bin/mpicc -pthread -shared ewald.o  -L../anaconda/lib -L../anaconda/bin/python3.4m -L../openmpi/lib -Wl,"-rpath=../openmpi/lib" -lmpi -L../fftw/lib -Wl,"-rpath=../fftw/lib" -lfftw3_mpi -lfftw3 -lm -o ewald.so
+
+[1m[93mBuilding the gravity module[0m
+Processing gravity.py into gravity.pyx...
+../anaconda/bin/cython -3 -a -o gravity.c gravity.pyx
+../openmpi/bin/mpicc -pthread -DNDEBUG -g -std=c99 -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC -fassociative-math -fno-trapping-math -fno-signed-zeros   -I../anaconda/include/python3.4m -I../openmpi/include -I../fftw/include   -c -o gravity.o gravity.c
+../openmpi/bin/mpicc -pthread -shared gravity.o  -L../anaconda/lib -L../anaconda/bin/python3.4m -L../openmpi/lib -Wl,"-rpath=../openmpi/lib" -lmpi -L../fftw/lib -Wl,"-rpath=../fftw/lib" -lfftw3_mpi -lfftw3 -lm -o gravity.so
+
+[1m[93mBuilding the IO module[0m
+Processing IO.py into IO.pyx...
+../anaconda/bin/cython -3 -a -o IO.c IO.pyx
+../openmpi/bin/mpicc -pthread -DNDEBUG -g -std=c99 -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC -fassociative-math -fno-trapping-math -fno-signed-zeros   -I../anaconda/include/python3.4m -I../openmpi/include -I../fftw/include   -c -o IO.o IO.c
+../openmpi/bin/mpicc -pthread -shared IO.o  -L../anaconda/lib -L../anaconda/bin/python3.4m -L../openmpi/lib -Wl,"-rpath=../openmpi/lib" -lmpi -L../fftw/lib -Wl,"-rpath=../fftw/lib" -lfftw3_mpi -lfftw3 -lm -o IO.so
+
+[1m[93mBuilding the mesh module[0m
+Processing mesh.py into mesh.pyx...
+../anaconda/bin/cython -3 -a -o mesh.c mesh.pyx
+../openmpi/bin/mpicc -pthread -DNDEBUG -g -std=c99 -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC -fassociative-math -fno-trapping-math -fno-signed-zeros   -I../anaconda/include/python3.4m -I../openmpi/include -I../fftw/include   -c -o mesh.o mesh.c
+../openmpi/bin/mpicc -pthread -shared mesh.o  -L../anaconda/lib -L../anaconda/bin/python3.4m -L../openmpi/lib -Wl,"-rpath=../openmpi/lib" -lmpi -L../fftw/lib -Wl,"-rpath=../fftw/lib" -lfftw3_mpi -lfftw3 -lm -o mesh.so
+
+Processing parameters from /home/jeppe/Documents/Uni/Speciale/Nbody0.1/Nbody/params/default...
+
+[1m[93mBuilding the params module[0m
+Processing params.py into params.pyx...
+../anaconda/bin/cython -3 -a -o params.c params.pyx
+../openmpi/bin/mpicc -pthread -DNDEBUG -g -std=c99 -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC -fassociative-math -fno-trapping-math -fno-signed-zeros   -I../anaconda/include/python3.4m -I../openmpi/include -I../fftw/include   -c -o params.o params.c
+../openmpi/bin/mpicc -pthread -shared params.o  -L../anaconda/lib -L../anaconda/bin/python3.4m -L../openmpi/lib -Wl,"-rpath=../openmpi/lib" -lmpi -L../fftw/lib -Wl,"-rpath=../fftw/lib" -lfftw3_mpi -lfftw3 -lm -o params.so
+
+[1m[93mBuilding the species module[0m
+Processing species.py into species.pyx...
+../anaconda/bin/cython -3 -a -o species.c species.pyx
+../openmpi/bin/mpicc -pthread -DNDEBUG -g -std=c99 -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC -fassociative-math -fno-trapping-math -fno-signed-zeros   -I../anaconda/include/python3.4m -I../openmpi/include -I../fftw/include   -c -o species.o species.c
+../openmpi/bin/mpicc -pthread -shared species.o  -L../anaconda/lib -L../anaconda/bin/python3.4m -L../openmpi/lib -Wl,"-rpath=../openmpi/lib" -lmpi -L../fftw/lib -Wl,"-rpath=../fftw/lib" -lfftw3_mpi -lfftw3 -lm -o species.so
+
+[1m[93mBuilding the timeloop module[0m
+Processing timeloop.py into timeloop.pyx...
+../anaconda/bin/cython -3 -a -o timeloop.c timeloop.pyx
+../openmpi/bin/mpicc -pthread -DNDEBUG -g -std=c99 -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC -fassociative-math -fno-trapping-math -fno-signed-zeros   -I../anaconda/include/python3.4m -I../openmpi/include -I../fftw/include   -c -o timeloop.o timeloop.c
+../openmpi/bin/mpicc -pthread -shared timeloop.o  -L../anaconda/lib -L../anaconda/bin/python3.4m -L../openmpi/lib -Wl,"-rpath=../openmpi/lib" -lmpi -L../fftw/lib -Wl,"-rpath=../fftw/lib" -lfftw3_mpi -lfftw3 -lm -o timeloop.so
+
+[1m[93mRunning [3mN[0m[1m[93m-body[0m
+Entry point:   /home/jeppe/Documents/Uni/Speciale/Nbody0.1/Nbody/main.py
+Parameterfile: /home/jeppe/Documents/Uni/Speciale/Nbody0.1/Nbody/params/default
+Nr. of CPUs:   1
+0.002716541290283203
+0.0027201175689697266
+0.002562284469604492
+0.0025568008422851562
+0.0027022361755371094
+0.0028150081634521484
+0.0027370452880859375
+0.002552032470703125
+0.002516031265258789
+0.002584218978881836
+0.0025224685668945312
+0.002515077590942383
+0.0026383399963378906
+0.002632617950439453
+0.0026044845581054688
+0.0026025772094726562
+0.0026407241821289062
+0.0024912357330322266
+0.002620697021484375
+0.002696514129638672
+0.0031125545501708984
+0.0026397705078125
+0.002651691436767578
+0.002666950225830078
+0.0027246475219726562
+0.0026671886444091797
+0.002611875534057617
+0.002722501754760742
+0.0026569366455078125
+0.002681732177734375
+0.002726316452026367
+0.0027103424072265625
+0.002612590789794922
+0.0026865005493164062
+0.002749204635620117
+0.0027990341186523438
+0.0026314258575439453
+0.0024673938751220703
+0.0026102066040039062
+0.002656221389770508
+0.0028274059295654297
+0.0026640892028808594
+0.0026040077209472656
+0.002521514892578125
+0.0026619434356689453
+0.0026798248291015625
+0.002700328826904297
+0.002760171890258789
+0.002793550491333008
+0.002789735794067383
+0.0027832984924316406
+0.0028793811798095703
+0.002922534942626953
+0.0026693344116210938
+0.002573251724243164
+0.0027093887329101562
+0.002668619155883789
+0.0025839805603027344
+0.002807140350341797
+0.002666950225830078
+0.002668142318725586
+0.002801179885864258
+0.002513885498046875
+0.002725362777709961
+0.002519369125366211
+0.0025200843811035156
+0.0025322437286376953
+0.003344297409057617
+0.0032308101654052734
+0.0032248497009277344
+0.00342559814453125
+0.0032243728637695312
+0.0031991004943847656
+0.003228902816772461
+0.0032804012298583984
+0.0031938552856445312
+0.0034177303314208984
+0.003245830535888672
+0.003223419189453125
+0.0032312870025634766
+0.003593921661376953
+0.0033257007598876953
+0.0033283233642578125
+0.003412008285522461
+0.003213644027709961
+0.0031800270080566406
+0.003179788589477539
+0.003244638442993164
+0.0032057762145996094
+0.003214597702026367
+0.003364086151123047
+0.0031740665435791016
+0.003214597702026367
+0.0031745433807373047
+0.0031783580780029297
+0.0032312870025634766
+0.0032608509063720703
+0.0032227039337158203
+0.0032529830932617188
+0.0032303333282470703
+[1m[92m[3mN[0m[1m[92m-body ran successfully[0m

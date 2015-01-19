@@ -10,9 +10,12 @@ else:
     """
     from mesh cimport CIC_grid2coordinates_vector, tabulate_vectorfield
     """
+
 # Imports and definitions common to pure Python and Cython
 from os.path import isfile
 from sys import path
+
+
 # Adjustable parameters for the Ewald summation. The values chosen match those listed in the article
 # mentioned in the docstring of the summation function. These are also those used (in effect) in Gadget2.
 cython.declare(rs='double')
@@ -169,6 +172,7 @@ def ewald(x, y, z):
 # Initialize the grid at import time
 cython.declare(i='int',
                p='str',
+               filepath='str',
                grid='double[:, :, :, ::1]',
                )
 for i, p in enumerate(path):

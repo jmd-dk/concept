@@ -16,6 +16,21 @@ params=${this_dir}/params/default
 main=${this_dir}/main.py
 pure_python=0
 
+# Set up error trapping
+ctrl_c()
+{
+    trap : 0
+    exit 2
+}
+abort()
+{
+    printf "\e[1m\e[91mAn error occurred!\e[0m\n" >&2
+    exit 1
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
+
 # Use Python's argparse module to handle command-line arguments
 args=(`${python} -c "
 import argparse
@@ -47,26 +62,37 @@ parser.add_argument('--pure-python',
                     action='store_true',
                     )
 args = parser.parse_args()
-# Display warnings when basic parameters are not supplied
+# Warnings when basic parameters are not supplied
+unspecified_nprocs = False
+unspecified_params = False
 arg = '--nprocs'
 if not any(n in sys.argv for n in ['-n'] + [arg[:i] for i in range(4, len(arg) + 1)]):
-    print('Number of processes not specified - Will use ${nprocs}', file=sys.stderr)
+    unspecified_nprocs = True
 arg = '--params'
 if not any(p in sys.argv for p in ['-p'] + [arg[:i] for i in range(4, len(arg) + 1)]):
     if basename(dirname(args.main)) == 'tests':
         # Running a test but no parameterfile specified!
         args.params = dirname(args.main) + '/params_' + basename(args.main)
     else:
-        print('Parameterfile not specified - Will use ${params}', file=sys.stderr)
+        unspecified_params = True
 # Print out the arguments. These will be captured in the bash 'args' variable
-print(args.nprocs, args.params, args.main, int(args.pure_python))
+print(args.nprocs, args.params, args.main, int(args.pure_python), int(unspecified_nprocs), int(unspecified_params))
 " "$@"`)
 nprocs=${args[0]}
 params=${args[1]}
 main=${args[2]}
 pure_python=${args[3]}
-if [ ${#args[@]} -ne 4 ]; then
+unspecified_nprocs=${args[4]}
+unspecified_params=${args[5]}
+if [ ${#args[@]} -ne 6 ]; then
     exit 1
+fi
+# Print warnings for unspecified parameters
+if [ ${unspecified_nprocs} == 1 ]; then
+    echo "Number of processes not specified - Will use ${nprocs}"
+fi
+if [ ${unspecified_params} == 1 ]; then
+    echo "Parameterfile not specified - Will use ${params}"
 fi
 
 # Is nprocs a power of 2?
@@ -116,4 +142,8 @@ echo "Parameterfile: ${params}"
 echo "Nr. of CPUs:   ${nprocs}"
 cd ${this_dir}
 ${mpiexec} -n ${nprocs} ${python} ${main}
+
+# Run complete. Deactivate trap before exiting.
+trap : 0
+printf "\e[1m\e[92m\e[3mN\e[0m\e[1m\e[92m-body ran successfully\e[0m\n"
 

@@ -1,10 +1,15 @@
 cdef class Particles:
     # Data attributes
-    cdef double[:, ::1] pos
-    cdef double[:, ::1] vel
     cdef double mass
     cdef size_t N
     cdef size_t N_local
+    cdef size_t N_allocated
+    cdef double[::1] posx_mw
+    cdef double[::1] posy_mw
+    cdef double[::1] posz_mw
+    cdef double[::1] velx_mw
+    cdef double[::1] vely_mw
+    cdef double[::1] velz_mw
     cdef double* posx
     cdef double* posy
     cdef double* posz
@@ -16,7 +21,9 @@ cdef class Particles:
     # Methods
     cdef drift(self)
     cdef kick(self)
+    cdef resize(self, size_t N_allocated)
+    cdef populate(self, double[::1] mw, str coord)
 
-cdef Particles construct(str type_name, str species_name, double[:, ::1] pos, double[:, ::1] vel, double mass, size_t N)
+cdef Particles construct(str type_name, str species_name, double mass, size_t N)
 
 cdef Particles construct_random(str type_name, str species_name, size_t N)
