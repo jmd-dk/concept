@@ -7,9 +7,9 @@ without the need of cythonization, C compilation and linking.
 The code has the following non-standard but open source dependencies:
 - An **MPI3** implementation (e.g. Open MPI).
 - The **HDF5** library, linked to the installed MPI implementation and
-  configured parallel.
+  configured to be parallel.
 - The **FFTW** library, version 3.3 or newer, linked to the installed MPI
-  implementation and configured parallel.
+  implementation and configured to be parallel.
 - **(C)Python3** with the following site-packages:
   - **cython**.
   - **numpy**.
@@ -18,7 +18,7 @@ The code has the following non-standard but open source dependencies:
   - **mpi4py** version 1.3.1 or newer, linked to the
     installed MPI implementation.
   - **h5py** version 2.4 or newer, linked to the HDF5
-    library and configured parallel.
+    library and configured to be parallel.
 
 #### Easy installation
 The installation script `installer` automates the process of setting up
