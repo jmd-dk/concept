@@ -4,7 +4,7 @@
 # with all dependencies. If run without an argument, it will prompt for
 # an installation directory. This can also be passed as an argument.
 # You can also download and run this script via the following command:
-# bash <(wget -O- --no-ch tiny.cc/nbody)
+# <(wget -O- --no-ch tiny.cc/nbody)
 # The above uses a URL shortener. If it does not work, use the full URL:
 # https://raw.githubusercontent.com/jmd-dk/Nbody/master/Nbody_installer
 
