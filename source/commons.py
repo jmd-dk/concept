@@ -46,7 +46,7 @@ if not cython.compiled:
         if new_a.size >= p.size:
             new_a[:p.size] = p
         else:
-            new_a[:] = p[:new_a.size] 
+            new_a[:] = p[:new_a.size]
         return new_a
     def free(a):
         pass
