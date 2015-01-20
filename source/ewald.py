@@ -18,14 +18,15 @@ from sys import path
 
 # Adjustable parameters for the Ewald summation. The values chosen match those listed in the article
 # mentioned in the docstring of the summation function. These are also those used (in effect) in Gadget2.
-cython.declare(rs='double')
-cython.declare(maxdist='double')
-cython.declare(maxh2='double')
-cython.declare(maxh='double')
-cython.declare(n_lower='int')
-cython.declare(n_upper='int')
-cython.declare(h_lower='int')
-cython.declare(h_upper='int')
+cython.declare(rs='double',
+               maxdist='double',
+               maxh2='double',
+               maxh='double',
+               n_lower='int',
+               n_upper='int',
+               h_lower='int',
+               h_upper='int',
+               )
 rs = 1/4  # Corresponds to alpha = 2
 maxdist = 3.6
 maxh2 = 10
@@ -35,18 +36,16 @@ maxh = sqrt(maxh2)
 h_lower = int(-maxh)
 h_upper = int(maxh) + 1
 # Further constants for the Ewald summation
-cython.declare(rs2='double')
-cython.declare(reciprocal_2rs='double')
-cython.declare(reciprocal_sqrt_pi_rs='double')
-cython.declare(minus_reciprocal_4rs2='double')
-cython.declare(two_pi='double')
-cython.declare(minus_4pi='double')
+cython.declare(rs2='double',
+               reciprocal_2rs='double',
+               reciprocal_sqrt_pi_rs='double',
+               minus_reciprocal_4rs2='double',
+               )
 rs2 = rs**2
 reciprocal_2rs = 1/(2*rs)
-reciprocal_sqrt_pi_rs = 1/(sqrt(pi)*rs)
+reciprocal_sqrt_pi_rs = 1/(sqrt_pi*rs)
 minus_reciprocal_4rs2 = -1/(4*rs**2)
-two_pi = 2*pi
-minus_4pi = -4*pi
+
 
 
 # Cython function for computing Ewald correction

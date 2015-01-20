@@ -6,7 +6,8 @@
 # Imports common to pure Python and Cython                                   #
 ##############################################################################
 from __future__ import division  # Needed for Python3 division in Cython
-from numpy import arange, array, concatenate, delete, empty, prod, sum, unravel_index, zeros
+from numpy import (arange, array, asarray, concatenate, cumsum, delete, empty,
+                   linspace, prod, sum, unravel_index, zeros)
 from numpy.random import random
 import h5py
 
@@ -26,6 +27,32 @@ if not cython.compiled:
     # Dummy Cython functions
     for func in ('address', ):
         setattr(cython, func, lambda _: _)
+    # C allocation syntax for memory management
+    def sizeof(dtype):
+        # C dtype names to Numpy dtype names
+        if dtype == 'int':
+            dtype == 'int32'
+        elif dtype == 'double':
+            dtype == 'float64'
+        elif dtype == 'size_t':
+            dtype == 'uintp'
+        else:
+            raise TypeError(dtype + ' not implemented as a Numpy dtype in commons.py')
+        return array([1], dtype=dtype)
+    def malloc(a):
+        return empty(a[0], dtype=a.dtype)
+    def realloc(p, a):
+        new_a = empty(a[0], dtype=a.dtype)
+        if new_a.size >= p.size:
+            new_a[:p.size] = p
+        else:
+            new_a[:] = p[:new_a.size]
+        return new_a
+    def free(a):
+        pass
+    # Array casting
+    def cast(a, dtype):
+        return a
 else:
     # Lines in triple quotes will be executed in .pyx files.
     """
@@ -35,7 +62,7 @@ else:
     from libc.math cimport round
     # Import the signed integer type ptrdiff_t
     from libc.stddef cimport ptrdiff_t
-    # Functions for memory management
+    # Functions for manual memory management
     from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
     # Function type definitions
     ctypedef double  (*scalar_func)(double, double, double)
@@ -44,10 +71,8 @@ else:
 # Seperate but equivalent imports and definitions in pure Python and Cython
 if not cython.compiled:
     # Mathematical functions
-    from numpy import pi, sqrt, exp, sin
+    from numpy import pi, sqrt, exp, sin, log
     from scipy.special import erfc
-    # Allocate a (module level) global vector
-    vector = empty(3)
     # Import all user specified constants
     from params import *
 else:
@@ -55,13 +80,30 @@ else:
     """
     # Mathematical functions
     from libc.math cimport M_PI as pi
-    from libc.math cimport sqrt, exp, sin, erfc
-    # Allocate a (module level) global vector
-    cython.declare(vector='double*')
-    vector = <double*> PyMem_Malloc(3*sizeof(double))
+    from libc.math cimport sqrt, exp, sin, log, erfc
     # Import all user specified constants 
     from params cimport *
     """
+
+##############################################################################
+# Global (module level) allocations                                          #
+##############################################################################
+# A 3D vector
+cython.declare(vector='double*')
+vector = malloc(3*sizeof('double'))
+
+##############################################################################
+# Pure numbers                                                               #
+##############################################################################
+cython.declare(one_third='double',
+               two_pi='double',
+               minus_4pi='double',
+               sqrt_pi='double',
+               )
+one_third = 1.0/3.0
+two_pi = 2*pi
+minus_4pi = -4*pi
+sqrt_pi = sqrt(pi)
 
 ##############################################################################
 # Derived and internally defined constants                                   #
@@ -98,6 +140,8 @@ comm = MPI.COMM_WORLD
 Abort = comm.Abort
 Allgather = comm.Allgather
 Allgatherv = comm.Allgatherv
+Gather = comm.Gather
+Gatherv = comm.Gatherv
 Allreduce = comm.Allreduce
 allreduce = comm.allreduce
 Bcast = comm.Bcast

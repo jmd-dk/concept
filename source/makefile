@@ -5,7 +5,7 @@
 # Specification of filenames                                                                                #
 #############################################################################################################
 # List of .py files which should be cythonized and compiled to modules
-pyfiles = ewald gravity IO mesh params species timeloop
+pyfiles = communication ewald gravity IO mesh params species timeloop
 # The default parameterfile to use (never needed when invoked via the run script)
 params_default = params/default
 # Filename of the .pyx preprocessor script
@@ -80,7 +80,7 @@ all: recursive
 # Extra dependencies to any of the files                                                                    #
 #############################################################################################################
 # Timeloop should probably not be dependent on species.pxd in the end!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-gravity.c IO.c mesh.c timeloop.c: species.pxd
+gravity.c IO.c mesh.c timeloop.c communication.c: species.pxd
 gravity.c: fft.c
 
 #############################################################################################################

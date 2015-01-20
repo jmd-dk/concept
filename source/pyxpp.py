@@ -18,6 +18,9 @@ changed in the following ways:
   put parentheses manually, as needed. Also, only one % operator is allowed on
   a single line.
 - Replaces : with 0 when taking the address of arrays.
+- Replaces alloc, realloc and free with the corresponding PyMem_ functions and
+  takes care of the casting from the void* to the appropriate pointer type.
+- Replaced the cast() function with actual Cython syntax, e.g. <double[::1]>.
 
   This script is not written very elegantly, and do not leave
   the modified code in a very clean state.
@@ -359,6 +362,67 @@ def colon2zero_in_addresses(filename):
     with open(filename, 'w') as pyxfile:
         pyxfile.writelines(new_lines)
 
+def malloc_realloc(filename):
+    new_lines = []
+    with open(filename, 'r') as pyxfile:
+        for line in pyxfile:
+            found_alloc = False
+            for alloc in ('malloc(', 'realloc('):
+                if alloc in line and 'sizeof(' in line:
+                    found_alloc = True
+                    paren = 1
+                    dtype = ''
+                    for i in range(line.find('sizeof(') + 7, len(line)):
+                        symbol = line[i]
+                        if symbol == '(':
+                            paren += 1
+                        elif symbol == ')':
+                            paren -= 1
+                        if paren == 0:
+                            break
+                        dtype += symbol
+                    dtype = dtype.replace("'", '').replace('"', '')
+                    line = line.replace(alloc, '<' + dtype + '*> PyMem_' + alloc.capitalize())
+                    new_lines.append(line)
+                    # Add exception
+                    LHS = line[:line.find('=')].strip()
+                    indentation = len(line[:line.find('=')]) - len(line[:line.find('=')].lstrip())
+                    new_lines.append(' '*indentation + 'if not ' + LHS + ':\n')
+                    new_lines.append(' '*(indentation + 4) + "raise MemoryError('Could not " + alloc[:-1] + ' ' + LHS + "')\n")
+            if not found_alloc:
+                line = line.replace(' free(', ' PyMem_Free(')
+                new_lines.append(line)
+    with open(filename, 'w') as pyxfile:
+        pyxfile.writelines(new_lines)
+
+def C_casting(filename):
+    new_lines = []
+    with open(filename, 'r') as pyxfile:
+        for line in pyxfile:
+            if 'cast(' in line:
+                paren = 1
+                in_quotes = [False, False]
+                for i in range(line.find('cast(') + 5, len(line)):
+                    symbol = line[i]
+                    if symbol == "'":
+                        in_quotes[0] = not in_quotes[0]
+                    if symbol == '"':
+                        in_quotes[1] = not in_quotes[1]
+                    if symbol == '(':
+                        paren += 1
+                    elif symbol == ')':
+                        paren -= 1
+                    if paren == 0:
+                        break
+                    if symbol == ',' and not in_quotes[0] and not in_quotes[1]:
+                        comma_index = i
+                cast_to = '<' + line[(comma_index + 1):i].replace("'", '').replace('"', '').strip() + '>'
+                obj_to_cast = '(' + line[(line.find('cast(') + 5):comma_index] + ')'
+                line = line[:line.find('cast(')] + cast_to + obj_to_cast + line[(i + 1):]
+            new_lines.append(line)
+    with open(filename, 'w') as pyxfile:
+        pyxfile.writelines(new_lines)
+
 # Edit the .pyx file
 filename = sys.argv[1]
 active_params_module = sys.argv[2][:-3]
@@ -375,4 +439,6 @@ else:
     del_ctypedef_redeclarations(filename)
     fix_modulus(filename)
     colon2zero_in_addresses(filename)
+    malloc_realloc(filename)
+    C_casting(filename)
 

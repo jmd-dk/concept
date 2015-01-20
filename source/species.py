@@ -36,19 +36,19 @@ class Particles:
         # Instantiate Particles instances with just a single particle member
         self.N_allocated = 1
         # Manually allocate memory for particle data
-        self.posx = <double*> PyMem_Malloc(self.N_allocated*sizeof(double))
-        self.posy = <double*> PyMem_Malloc(self.N_allocated*sizeof(double))
-        self.posz = <double*> PyMem_Malloc(self.N_allocated*sizeof(double))
-        self.velx = <double*> PyMem_Malloc(self.N_allocated*sizeof(double))
-        self.vely = <double*> PyMem_Malloc(self.N_allocated*sizeof(double))
-        self.velz = <double*> PyMem_Malloc(self.N_allocated*sizeof(double))
+        self.posx = malloc(self.N_allocated*sizeof('double'))
+        self.posy = malloc(self.N_allocated*sizeof('double'))
+        self.posz = malloc(self.N_allocated*sizeof('double'))
+        self.velx = malloc(self.N_allocated*sizeof('double'))
+        self.vely = malloc(self.N_allocated*sizeof('double'))
+        self.velz = malloc(self.N_allocated*sizeof('double'))
         # Memory views around the allocated data
-        self.posx_mw = <double[:self.N_allocated]>self.posx
-        self.posy_mw = <double[:self.N_allocated]>self.posy
-        self.posz_mw = <double[:self.N_allocated]>self.posz
-        self.velx_mw = <double[:self.N_allocated]>self.velx
-        self.vely_mw = <double[:self.N_allocated]>self.vely
-        self.velz_mw = <double[:self.N_allocated]>self.velz
+        self.posx_mw = cast(self.posx, 'double[:self.N_allocated]')
+        self.posy_mw = cast(self.posy, 'double[:self.N_allocated]')
+        self.posz_mw = cast(self.posz, 'double[:self.N_allocated]')
+        self.velx_mw = cast(self.velx, 'double[:self.N_allocated]')
+        self.vely_mw = cast(self.vely, 'double[:self.N_allocated]')
+        self.velz_mw = cast(self.velz, 'double[:self.N_allocated]')
         # Store particle meta data
         self.mass = mass
         self.N = N
@@ -73,40 +73,28 @@ class Particles:
         self.N_local = self.N_allocated
         # Update the attribute corresponding to the passed string
         if coord == 'posx':
-            self.posx = <double*>PyMem_Realloc(self.posx, self.N_allocated*sizeof(double))
-            if not self.posx:
-                raise MemoryError('Could not reallocate "' + coord + '" of particle type "' + self.type + '"!')
-            self.posx_mw = <double[:self.N_local]>self.posx
+            self.posx = realloc(self.posx, self.N_allocated*sizeof('double'))
+            self.posx_mw = cast(self.posx, 'double[:self.N_local]')
             self.posx_mw[...] = mw[...]
         elif coord == 'posy':
-            self.posy = <double*>PyMem_Realloc(self.posy, self.N_allocated*sizeof(double))
-            if not self.posy:
-                raise MemoryError('Could not reallocate "' + coord + '" of particle type "' + self.type + '"!')
-            self.posy_mw = <double[:self.N_local]>self.posy
+            self.posy = realloc(self.posy, self.N_allocated*sizeof('double'))
+            self.posy_mw = cast(self.posy, 'double[:self.N_local]')
             self.posy_mw[...] = mw[...]
         elif coord == 'posz':
-            self.posz = <double*>PyMem_Realloc(self.posz, self.N_allocated*sizeof(double))
-            if not self.posz:
-                raise MemoryError('Could not reallocate "' + coord + '" of particle type "' + self.type + '"!')
-            self.posz_mw = <double[:self.N_local]>self.posz
+            self.posz = realloc(self.posz, self.N_allocated*sizeof('double'))
+            self.posz_mw = cast(self.posz, 'double[:self.N_local]')
             self.posz_mw[...] = mw[...]
         elif coord == 'velx':
-            self.velx = <double*>PyMem_Realloc(self.velx, self.N_allocated*sizeof(double))
-            if not self.velx:
-                raise MemoryError('Could not reallocate "' + coord + '" of particle type "' + self.type + '"!')
-            self.velx_mw = <double[:self.N_local]>self.velx
+            self.velx = realloc(self.velx, self.N_allocated*sizeof('double'))
+            self.velx_mw = cast(self.velx, 'double[:self.N_local]')
             self.velx_mw[...] = mw[...]
         elif coord == 'vely':
-            self.vely = <double*>PyMem_Realloc(self.vely, self.N_allocated*sizeof(double))
-            if not self.vely:
-                raise MemoryError('Could not reallocate "' + coord + '" of particle type "' + self.type + '"!')
-            self.vely_mw = <double[:self.N_local]>self.vely
+            self.vely = realloc(self.vely, self.N_allocated*sizeof('double'))
+            self.vely_mw = cast(self.vely, 'double[:self.N_local]')
             self.vely_mw[...] = mw[...]
         elif coord == 'velz':
-            self.velz = <double*>PyMem_Realloc(self.velz, self.N_allocated*sizeof(double))
-            if not self.velz:
-                raise MemoryError('Could not reallocate "' + coord + '" of particle type "' + self.type + '"!')
-            self.velz_mw = <double[:self.N_local]>self.velz
+            self.velz = realloc(self.velz, self.N_allocated*sizeof('double'))
+            self.velz_mw = cast(self.velz, 'double[:self.N_local]')
             self.velz_mw[...] = mw[...]
         else:
             raise ValueError('Wrong attribute name "' + coord + '"!')
@@ -123,19 +111,19 @@ class Particles:
     def resize(self, N_allocated):
         self.N_allocated = N_allocated
         # Reallocate data
-        self.posx = <double*>PyMem_Realloc(self.posx, self.N_allocated*sizeof(double))
-        self.posy = <double*>PyMem_Realloc(self.posy, self.N_allocated*sizeof(double))
-        self.posz = <double*>PyMem_Realloc(self.posz, self.N_allocated*sizeof(double))
-        self.velx = <double*>PyMem_Realloc(self.velx, self.N_allocated*sizeof(double))
-        self.vely = <double*>PyMem_Realloc(self.vely, self.N_allocated*sizeof(double))
-        self.velz = <double*>PyMem_Realloc(self.velz, self.N_allocated*sizeof(double))
+        self.posx = realloc(self.posx, self.N_allocated*sizeof('double'))
+        self.posy = realloc(self.posy, self.N_allocated*sizeof('double'))
+        self.posz = realloc(self.posz, self.N_allocated*sizeof('double'))
+        self.velx = realloc(self.velx, self.N_allocated*sizeof('double'))
+        self.vely = realloc(self.vely, self.N_allocated*sizeof('double'))
+        self.velz = realloc(self.velz, self.N_allocated*sizeof('double'))
         # Reassign memory views
-        self.posx_mw = <double[:self.N_allocated]> self.posx
-        self.posy_mw = <double[:self.N_allocated]> self.posy
-        self.posz_mw = <double[:self.N_allocated]> self.posz
-        self.velx_mw = <double[:self.N_allocated]> self.velx
-        self.vely_mw = <double[:self.N_allocated]> self.vely
-        self.velz_mw = <double[:self.N_allocated]> self.velz
+        self.posx_mw = cast(self.posx, 'double[:self.N_allocated]')
+        self.posy_mw = cast(self.posy, 'double[:self.N_allocated]')
+        self.posz_mw = cast(self.posz, 'double[:self.N_allocated]')
+        self.velx_mw = cast(self.velx, 'double[:self.N_allocated]')
+        self.vely_mw = cast(self.vely, 'double[:self.N_allocated]')
+        self.velz_mw = cast(self.velz, 'double[:self.N_allocated]')
 
     # Method for integrating particle positions forward in time
     @cython.cfunc
@@ -188,17 +176,17 @@ class Particles:
     # is garbage collected. All manually allocated mmeory is freed.
     def __dealloc__(self):
         if self.posx:
-            PyMem_Free(self.posx)
+            free(self.posx)
         if self.posy:
-            PyMem_Free(self.posy)
+            free(self.posy)
         if self.posz:
-            PyMem_Free(self.posz)
+            free(self.posz)
         if self.velx:
-            PyMem_Free(self.velx)
+            free(self.velx)
         if self.vely:
-            PyMem_Free(self.vely)
+            free(self.vely)
         if self.velz:
-            PyMem_Free(self.velz)
+            free(self.velz)
 
 
 # Constructor function for Particles instances

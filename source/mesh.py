@@ -167,14 +167,14 @@ def CIC_grid2coordinates_vector(grid, x, y, z):
     zl = 1 - zu
     # Assign the weighted grid values to the vector components
     for dim in range(3):
-        vector[dim] = (grid[x_lower, y_lower, z_lower, dim]*xl*yl*zl +
-                       grid[x_lower, y_lower, z_upper, dim]*xl*yl*zu +
-                       grid[x_lower, y_upper, z_lower, dim]*xl*yu*zl +
-                       grid[x_lower, y_upper, z_upper, dim]*xl*yu*zu +
-                       grid[x_upper, y_lower, z_lower, dim]*xu*yl*zl +
-                       grid[x_upper, y_lower, z_upper, dim]*xu*yl*zu +
-                       grid[x_upper, y_upper, z_lower, dim]*xu*yu*zl +
-                       grid[x_upper, y_upper, z_upper, dim]*xu*yu*zu)
+        vector[dim] = (  grid[x_lower, y_lower, z_lower, dim]*xl*yl*zl
+                       + grid[x_lower, y_lower, z_upper, dim]*xl*yl*zu
+                       + grid[x_lower, y_upper, z_lower, dim]*xl*yu*zl
+                       + grid[x_lower, y_upper, z_upper, dim]*xl*yu*zu
+                       + grid[x_upper, y_lower, z_lower, dim]*xu*yl*zl
+                       + grid[x_upper, y_lower, z_upper, dim]*xu*yl*zu
+                       + grid[x_upper, y_upper, z_lower, dim]*xu*yu*zl
+                       + grid[x_upper, y_upper, z_upper, dim]*xu*yu*zu)
     # Put the sign back in for negative input
     if isnegative_x:
         vector[0] *= -1
