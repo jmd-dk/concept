@@ -29,7 +29,7 @@ of any of the above libraries, though no conflicts will happen.
 For even more automatization, simply execute this command to download
 and run the `install` script:
 
-    <(wget -O- --no-ch tiny.cc/nbody) [installdir]
+    bash <(wget -O- --no-ch tiny.cc/nbody) [installdir]
 
 By using `installer` to install the code you also avoid having to fiddle
 with the `makefile` and `run` script, as the paths to the various files
