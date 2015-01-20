@@ -1,0 +1,152 @@
+#!/bin/bash
+
+# Run this script to download and install the Nbody code with all
+# dependencies. If run without an argument, it will prompt for an
+# installation directory. This can also be passed as an argument.
+# You can also download and run this script via the following command:
+# bash <(wget -O- --no-ch tiny.cc/nbody)
+# The above uses a URL shortener. If it does not work, use the full URL:
+# https://raw.githubusercontent.com/jmd-dk/Nbody/master/Nbody_installer
+
+# Specify installation directories relative to ${top_dir}
+anaconda_dir=anaconda
+openmpi_dir=openmpi
+hdf5_dir=hdf5
+fftw_dir=fftw
+Nbody_dir=Nbody
+
+# Set up error trapping
+abort()
+{
+    printf "\n\e[1m\e[91mAn error occurred during ${current_step}!\e[0m\n" >&2
+    exit 1
+}
+trap 'abort' EXIT
+set -e
+
+# Creating top level directory
+current_step="setup of top level directory"
+printf "This is the installation script to the \e[3mN\e[0m-body code by Jeppe Dakin.\n"
+if [ -z $1 ]; then
+    read -p "Where should I install the code?`echo $'\n> '`" -e top_dir
+else 
+    top_dir=$1
+fi
+top_dir=${top_dir//[ ]/\\ }          # Places backslashes before spaces. These are needed when expanding tilde, but they will not persist!
+eval top_dir="${top_dir}"            # Expand tilde
+top_dir=$(readlink -f "${top_dir}")  # Convert to absolute path
+echo "The code will be installed in ${top_dir}"
+mkdir -p "${top_dir}"
+cd "${top_dir}"
+
+# Anaconda3 2.1.0 (via Miniconda3 3.7.0)
+current_step="installation of Anaconda"
+printf "\n\e[1m\e[93mInstalling Anaconda\e[0m\n"
+wget -nc -O anaconda.sh --no-check-certificate http://repo.continuum.io/miniconda/Miniconda3-3.7.0-Linux-x86_64.sh
+bash anaconda.sh -b -p "${top_dir}/${anaconda_dir}"
+rm anaconda.sh
+# Update Conda
+"${top_dir}/${anaconda_dir}/bin/conda" update --yes conda
+
+# Cython, Matplotlib, Numpy and Scipy via Conda
+current_step="installation of Cython, Matplotlib, Numpy and Scipy"
+printf "\n\e[1m\e[93mInstalling Cython, Matplotlib, Numpy & Scipy\e[0m\n"
+"${top_dir}/${anaconda_dir}/bin/conda" install --yes cython matplotlib numpy scipy  
+# Update all packages in Anaconda
+"${top_dir}/${anaconda_dir}/bin/conda" update --yes --all
+# Do some cleanup in the Anaconda distribution
+"${top_dir}/${anaconda_dir}/bin/conda" clean --yes -i -l -t -p
+
+# Open MPI 1.8.3
+current_step="installation of Open MPI"
+printf "\n\e[1m\e[93mInstalling Open MPI\e[0m\n"
+mkdir "${openmpi_dir}"
+mkdir tmp
+cd tmp
+wget -nc -O openmpi.tar.bz2 --no-check-certificate http://www.open-mpi.org/software/ompi/v1.8/downloads/openmpi-1.8.3.tar.bz2
+tar xjf openmpi.tar.bz2
+cd openmpi*
+./configure --prefix="${top_dir}/${openmpi_dir}"
+make all
+make install
+cd ../../
+rm -rf tmp
+
+# The mpi4py 1.3.1 Python package (cannot use conda, as it installs an outdated version)
+current_step="installation of mpi4py"
+printf "\n\e[1m\e[93mInstalling mpi4py\e[0m\n"
+wget -nc -O mpi4py.tar.gz --no-check-certificate https://bitbucket.org/mpi4py/mpi4py/downloads/mpi4py-1.3.1.tar.gz
+tar xf mpi4py.tar.gz
+cd mpi4py*
+export LD_LIBRARY_PATH="${top_dir}/${openmpi_dir}/lib":$LD_LIBRARY_PATH
+export MPICC="${top_dir}/${openmpi_dir}/bin/mpicc"
+"${top_dir}/${anaconda_dir}/bin/python" setup.py install
+cd ..
+rm -rf mpi4py*
+
+# HDF5 (latest stable version)
+current_step="installation of HDF5"
+printf "\n\e[1m\e[93mInstalling HDF5\e[0m\n"
+mkdir tmp
+cd tmp
+wget -nc -O hdf5.tar.bz2 --no-check-certificate ftp://ftp.hdfgroup.org/HDF5/current/src/hdf5*tar.bz2
+tar xjf hdf5.tar.bz2
+cd hdf5*
+CC="${top_dir}/${openmpi_dir}/bin/mpicc" ./configure --enable-shared --enable-parallel --prefix="${top_dir}/${hdf5_dir}"
+make
+make install
+cd ../../
+rm -rf tmp
+
+# The h5py 2.4.0 Python package (cannot use conda, as it does not install the parallel version)
+current_step="installation of h5py"
+printf "\n\e[1m\e[93mInstalling h5py\e[0m\n"
+wget -nc -O h5py.tar.gz --no-check-certificate https://pypi.python.org/packages/source/h/h5py/h5py-2.4.0.tar.gz
+tar xf h5py.tar.gz
+cd h5py*
+export CC="${top_dir}/${openmpi_dir}/bin/mpicc"
+"${top_dir}/${anaconda_dir}/bin/python" setup.py configure --mpi --hdf5="${top_dir}/${hdf5_dir}"
+"${top_dir}/${anaconda_dir}/bin/python" setup.py build
+"${top_dir}/${anaconda_dir}/bin/python" setup.py install
+cd ..
+rm -rf h5py*
+
+# FFTW 3.3.4
+current_step="installation of FFTW"
+printf "\n\e[1m\e[93mInstalling FFTW\e[0m\n"
+mkdir tmp
+cd tmp
+wget -nc -O fftw.tar.gz http://www.fftw.org/fftw-3.3.4.tar.gz
+tar xf fftw.tar.gz
+cd fftw*
+# Double-precision
+CC="${top_dir}/${openmpi_dir}/bin/mpicc" MPICC="${top_dir}/${openmpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I${top_dir}/${openmpi_dir}/include" LDFLAGS="-L${top_dir}/${openmpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --prefix="${top_dir}/${fftw_dir}"
+make
+make install
+# Single-precision
+#CC=${top_dir}/${openmpi_dir}/bin/mpicc MPICC=${top_dir}/${openmpi_dir}/bin/mpicc CFLAGS="-O3 -fPIC" CPPFLAGS=-I${top_dir}/${openmpi_dir}/include LDFLAGS=-L${top_dir}/${openmpi_dir}/lib MPILIBS=-lmpi ./configure --enable-float --enable-shared --enable-mpi --enable-openmp --enable-threads --prefix=${top_dir}/${fftw_dir}
+#make
+#make install
+cd ../../
+rm -rf tmp
+
+# Download and build the Nbody code
+current_step="installation of the \e[3mN\e[0m\e[1m\e[91m-body code"
+printf "\n\e[1m\e[93mInstalling the \e[3mN\e[0m\e[1m\e[93m-body code\e[0m\n"
+wget -nc -O Nbody.zip --no-check-certificate https://github.com/jmd-dk/Nbody/archive/master.zip
+unzip Nbody.zip
+rm Nbody.zip
+mv Nbody-master/source "${Nbody_dir}"
+rm -r Nbody-master
+
+# Test the installation
+current_step="testrun of the \e[3mN\e[0m\e[1m\e[91m-body code"
+printf "\n\e[1m\e[93mPerforming test run\e[0m\n"
+cd "${Nbody_dir}"
+./run
+make distclean
+
+# Installation complete. Deactivate trap before exiting.
+trap : 0
+printf "\n\e[1m\e[92m\e[3mN\e[0m\e[1m\e[92m-body code successfully installed!\e[0m\n"
+
