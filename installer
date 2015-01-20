@@ -136,7 +136,8 @@ printf "\n\e[1m\e[93mInstalling the \e[3mN\e[0m\e[1m\e[93m-body code\e[0m\n"
 wget -nc -O Nbody.tar.gz --no-check-certificate https://github.com/jmd-dk/Nbody/archive/master.tar.gz
 tar xf Nbody.tar.gz
 rm Nbody.tar.gz
-mv Nbody-master/source/* "${Nbody_dir}"
+mv Nbody-master/* "${top_dir}"
+mv "${top_dir}"/source "${top_dir}"/"${Nbody_dir}"
 rm -r Nbody-master
 
 # Test the installation
