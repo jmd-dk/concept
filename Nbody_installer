@@ -133,10 +133,10 @@ rm -rf tmp
 # Download and build the Nbody code
 current_step="installation of the \e[3mN\e[0m\e[1m\e[91m-body code"
 printf "\n\e[1m\e[93mInstalling the \e[3mN\e[0m\e[1m\e[93m-body code\e[0m\n"
-wget -nc -O Nbody.zip --no-check-certificate https://github.com/jmd-dk/Nbody/archive/master.zip
-unzip Nbody.zip
-rm Nbody.zip
-mv Nbody-master/source "${Nbody_dir}"
+wget -nc -O Nbody.tar.gz --no-check-certificate https://github.com/jmd-dk/Nbody/archive/master.tar.gz
+tar xf Nbody.tar.gz
+rm Nbody.tar.gz
+mv Nbody-master/source/* "${Nbody_dir}"
 rm -r Nbody-master
 
 # Test the installation
