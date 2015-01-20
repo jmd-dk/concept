@@ -2,4 +2,4 @@ from species cimport Particles
 
 cdef Particles load(str filename)
 
-git test
+cdef Particles save(Particles particles, str filename)
