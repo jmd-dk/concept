@@ -39,7 +39,7 @@ or it can be given as an argument.
 
 As everything is installed in one directory, uninstallation is done simply
 by removing this directory.
-
+##### Dependency licenses
 By using `installer` it is expected that the license terms for the use of
-Anaconda, Open MPI (the new BSD license), FFTW (GNU GPL)
-and HDF5 are agreed upon.
+Anaconda, Open MPI, FFTW and HDF5 are agreed upon. Copies of these licenses
+are included with the installation.
