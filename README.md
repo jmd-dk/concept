@@ -9,7 +9,7 @@ Depenencies
 The code has the following non-standard dependencies:
 - An **MPI3** implementation (e.g. Open MPI).
 - The **HDF5** library, linked to the installed MPI implementation and configured parallel.
-- The *FFTW* library, version 3.3.4 or newer, linked to the installed MPI implementation and configured parallel.
+- The **FFTW** library, version 3.3.4 or newer, linked to the installed MPI implementation and configured parallel.
 - **(C)Python3** with the following site-packages:
   - **Cython**.
   - **Numpy**.
