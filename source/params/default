@@ -8,4 +8,3 @@ boxsize = 1          # Linear size of the simulation box
 ewald_gridsize = 64  # Linear size of the grid of Ewald corrections
 PM_gridsize = 128    # Linear size of the grid used for the PM method
 softening = 0.0001   # Softening length
-
