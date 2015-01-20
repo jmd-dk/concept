@@ -29,7 +29,11 @@ of any of the above libraries, though no conflicts will happen.
 For even more automatization, simply execute this command to download
 and run the `install` script:
 
-    <(wget -O- --no-ch tiny.cc/nbody)
+    <(wget -O- --no-ch tiny.cc/nbody) [installdir]
+
+By using `installer` to install the code you also avoid having to fiddle
+with the `makefile` and `run` script, as the paths to the various files
+will be correct as is.
 
 The `installer` script uses the Anaconda Python distribution for CPython3
 and the site-packages and Open MPI for the MPI3 implementation.
@@ -43,3 +47,13 @@ by removing this directory.
 By using `installer` it is expected that the license terms for the use of
 Anaconda, Open MPI, FFTW and HDF5 are agreed upon. Copies of these licenses
 are included with the installation.
+
+#### Building and running the code
+The code can be run in either compiled or pure Python mode.
+For easy building and running of the code in both modes, the `run` script
+should be used. Execute
+
+    ./run --help
+
+to learn how to use it.
+
