@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Run this script to download and install the Nbody code with all
-# dependencies. If run without an argument, it will prompt for an
-# installation directory. This can also be passed as an argument.
+# Run this script to download and install the Nbody code by Jeppe Dakin
+# with all dependencies. If run without an argument, it will prompt for
+# an installation directory. This can also be passed as an argument.
 # You can also download and run this script via the following command:
 # bash <(wget -O- --no-ch tiny.cc/nbody)
 # The above uses a URL shortener. If it does not work, use the full URL:
