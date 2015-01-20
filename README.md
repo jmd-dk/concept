@@ -8,7 +8,7 @@ The code has the following non-standard but open source dependencies:
 - An **MPI3** implementation (e.g. Open MPI).
 - The **HDF5** library, linked to the installed MPI implementation and
   configured parallel.
-- The **FFTW** library, version 3.x, linked to the installed MPI
+- The **FFTW** library, version 3.3 or newer, linked to the installed MPI
   implementation and configured parallel.
 - **(C)Python3** with the following site-packages:
   - **cython**.
@@ -24,10 +24,17 @@ The code has the following non-standard but open source dependencies:
 The installation script `installer` automates the process of setting up
 all dependencies by downloading and installing everything in one place.
 The `installer` script will not take into account preinstalled versions
-of any of the above libraries.
+of any of the above libraries, though no conflicts will happen.
 
 The `installer` script uses the Anaconda Python distribution for CPython3
 and the site-packages and Open MPI for the MPI3 implementation.
 
 The `installer` script will prompt for the installation directory when run,
 or it can be given as an argument.
+
+As everything is installed in one directory, uninstallation is done simply
+by removing this directory.
+
+By using `installer` it is expected that the license terms for the use of
+Anaconda, Open MPI (the new BSD license), FFTW (GNU GPL)
+and HDF5 are agreed upon.
