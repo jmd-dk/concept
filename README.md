@@ -3,8 +3,7 @@
 
 This is the readme file for the *N*-body code by Jeppe Dakin.
 The code is written in Cython and C, but can also be run in pure Python.
-
-Depenencies
+Dependencies
 -----------
 The code has the following non-standard dependencies:
 - An **MPI3** implementation (e.g. Open MPI).
