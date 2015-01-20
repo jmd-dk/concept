@@ -36,7 +36,7 @@ with the `makefile` and `run` script, as the paths to the various files
 will be correct as is.
 
 The `installer` script uses the Anaconda Python distribution for CPython3
-and the site-packages and Open MPI for the MPI3 implementation.
+with the site-packages and Open MPI for the MPI3 implementation.
 
 The `installer` script will prompt for the installation directory when run,
 or it can be given as an argument.
