@@ -28,6 +28,7 @@ of any of the above libraries, though no conflicts will happen.
 
 For even more automatization you can simply execute this command to download
 and run the `install` script:
+
     bash <(wget -O- --no-ch tiny.cc/nbody)
 
 The `installer` script uses the Anaconda Python distribution for CPython3
