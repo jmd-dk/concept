@@ -1,0 +1,11 @@
+# This is a parameterfile to the Nbody code.
+# Parameters can be specified as any valid Python3 expression.
+# Functions an constants from Numpy can be used.
+
+dt = 0.002           # The time step
+G_Newton = 0.01      # Newtons constant
+boxsize = 1          # Linear size of the simulation box
+ewald_gridsize = 16  # Linear size of the grid of Ewald corrections
+PM_gridsize = 64    # Linear size of the grid used for the PM method
+softening = 0.0001   # Softening length
+
