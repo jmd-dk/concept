@@ -148,8 +148,8 @@ cd "${Nbody_dir}"
 make clean_files_generated
 ./run -n 2 -p params/default_purePython --pure-python
 make clean_files_generated
-./run -n 3 -p params/default_purePython --pure-python
-make clean_files_generated
+#./run -n 3 -p params/default_purePython --pure-python
+#make clean_files_generated
 ./run -n 4 -p params/default_purePython --pure-python
 make clean_files_generated
 current_step="testruns of the compiled \e[3mN\e[0m\e[1m\e[91m-body code"
