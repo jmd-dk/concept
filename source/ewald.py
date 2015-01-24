@@ -16,38 +16,6 @@ from os.path import isfile
 from sys import path
 
 
-# Adjustable parameters for the Ewald summation. The values chosen match those listed in the article
-# mentioned in the docstring of the summation function. These are also those used (in effect) in Gadget2.
-cython.declare(rs='double',
-               maxdist='double',
-               maxh2='double',
-               maxh='double',
-               n_lower='int',
-               n_upper='int',
-               h_lower='int',
-               h_upper='int',
-               )
-rs = 1/4  # Corresponds to alpha = 2
-maxdist = 3.6
-maxh2 = 10
-n_lower = -int(maxdist - 1) - 1
-n_upper = int(maxdist + 1) + 1
-maxh = sqrt(maxh2)
-h_lower = int(-maxh)
-h_upper = int(maxh) + 1
-# Further constants for the Ewald summation
-cython.declare(rs2='double',
-               reciprocal_2rs='double',
-               reciprocal_sqrt_pi_rs='double',
-               minus_reciprocal_4rs2='double',
-               )
-rs2 = rs**2
-reciprocal_2rs = 1/(2*rs)
-reciprocal_sqrt_pi_rs = 1/(sqrt_pi*rs)
-minus_reciprocal_4rs2 = -1/(4*rs**2)
-
-
-
 # Cython function for computing Ewald correction
 @cython.cfunc
 @cython.cdivision(True)
@@ -168,6 +136,38 @@ def ewald(x, y, z):
     force[2] += z/r3
     return force
 
+
+# Set parameters for the Ewald summation at import time
+cython.declare(h_lower='int',
+               h_upper='int',
+               maxdist='double',
+               maxh='double',
+               maxh2='double',
+               minus_reciprocal_4rs2='double',
+               n_lower='int',
+               n_upper='int',
+               reciprocal_2rs='double',
+               reciprocal_sqrt_pi_rs='double',
+               rs='double',
+               rs2='double',
+               )
+# The values chosen match those listed in the article mentioned in the
+# docstring of the summation function. These are also those used
+# (in effect) in Gadget2.
+rs = 1/4  # Corresponds to alpha = 2
+maxdist = 3.6
+maxh2 = 10
+# Derived constants
+maxh = sqrt(maxh2)
+h_lower = int(-maxh)
+h_upper = int(maxh) + 1
+minus_reciprocal_4rs2 = -1/(4*rs**2)
+n_lower = -int(maxdist - 1) - 1
+n_upper = int(maxdist + 1) + 1
+reciprocal_2rs = 1/(2*rs)
+reciprocal_sqrt_pi_rs = 1/(sqrt_pi*rs)
+rs2 = rs**2
+
 # Initialize the grid at import time
 cython.declare(i='int',
                p='str',
@@ -185,6 +185,6 @@ for i, p in enumerate(path):
         # No tabulated Ewald grid found. Compute it.The factor 0.5 ensures
         # that only the first octant of the box is tabulated
         if master:
-            print('Tabulating Ewald grid of linear size', ewald_gridsize, '...')
+            print('Tabulating Ewald grid of linear size ' + str(ewald_gridsize))
         grid = tabulate_vectorfield(ewald_gridsize, summation, 0.5/ewald_gridsize, ewald_file)
 

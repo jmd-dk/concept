@@ -5,6 +5,7 @@ from commons import *
 # Seperate but equivalent imports in pure Python and Cython
 if not cython.compiled:
     from ewald import ewald
+    from communication import find_N_recv
     from mesh import CIC_coordinates2grid
     # FFT functionality via Numpy
     #from scipy.fftpack import fftn, ifftn
@@ -13,6 +14,7 @@ else:
     # Lines in triple quotes will be executed in the .pyx file.
     """
     from ewald cimport ewald
+    from communication cimport find_N_recv
     from mesh cimport CIC_coordinates2grid
     # FFT functionality via FFTW from fft.c
     cdef extern from "fft.c":
@@ -30,64 +32,87 @@ else:
             fftw_plan plan_forward
             fftw_plan plan_backward
         # Functions
-        fftw_return_struct fftw_setup(ptrdiff_t gridsize_x, ptrdiff_t gridsize_y, ptrdiff_t gridsize_z)
+        fftw_return_struct fftw_setup(ptrdiff_t gridsize_x,
+                                      ptrdiff_t gridsize_y,
+                                      ptrdiff_t gridsize_z)
         void fftw_execute(fftw_plan plan)
-        void fftw_clean(double* grid, fftw_plan plan_forward, fftw_plan plan_backward)
+        void fftw_clean(double* grid, fftw_plan plan_forward,
+                                      fftw_plan plan_backward)
     """
 
-import numpy as np
 
-# Function for computing the gravitational force by direct summation on all particles
+# Function for direct summation of gravitational forces between particles
 @cython.cfunc
 @cython.cdivision(True)
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.locals(# Arguments
-               particles='Particles',
+               N_local_i='size_t',
+               N_local_j='size_t',
+               flag_input='int',
+               mass_i='double',
+               mass_j='double',
+               posx_i='double[::1]',
+               posy_i='double[::1]',
+               posz_i='double[::1]',
+               posx_j='double[::1]',
+               posy_j='double[::1]',
+               posz_j='double[::1]',
+               velx_i='double[::1]',
+               vely_i='double[::1]',
+               velz_i='double[::1]',
                # Locals
-               force_factor='double',
-               posx='double*',
-               posy='double*',
-               posz='double*',
-               velx='double*',
-               vely='double*',
-               velz='double*',
-               N_local='size_t',
-               i='size_t',
-               xi='double',
-               yi='double',
-               zi='double',
-               j='size_t',
-               x='double',
-               y='double',
-               z='double',
+               dim='int',
+               factor_i='double',
+               factor_j='double',
                force='double*',
+               i='size_t',
+               j='size_t',
                r3='double',
-               dim='size_t',
+               x='double',
+               xi='double',
+               y='double',
+               yi='double',
+               z='double',
+               zi='double',
+               Δvelx_j='double[::1]',
+               Δvely_j='double[::1]',
+               Δvelz_j='double[::1]',
                )
-def PP(particles):
-    """ This function updates the velocities of all particles via the
-    particle-particle (PP) method. 
+def direct_summation(posx_i, posy_i, posz_i, velx_i, vely_i, velz_i,
+                     mass_i, N_local_i,
+                     posx_j, posy_j, posz_j, Δvelx_j, Δvely_j, Δvelz_j,
+                     mass_j, N_local_j,
+                     flag_input=0):
+    """This function takes in positions and velocities of particles located in
+    the domain designated the calling process, as well as positions and
+    preallocated nullified velocity changes for particles located in another
+    domian.
+    The two sets of particles are denoted i and j. The function computes the
+    velocity changes due to gravity via direct summation. The two sets of
+    particles can be the same, which is signalled by flag_input=0. That is,
+    this function can also be used to compute interactions within a single
+    domain. Use flag_input=1 when using two different domains. Here, set i
+    should be the particles belonging to the caller process. For these,
+    velocity changes are added to the velocities. For set j, the velocity
+    changes are computed but not added to the velocities, as these reside on a
+    different process. Use flag_input=2 to skip the computation of the
+    velocity changes of set j.
     """
 
-    # Extract variables
-    force_factor = G_Newton*particles.mass*dt
-    posx = particles.posx
-    posy = particles.posy
-    posz = particles.posz
-    velx = particles.velx
-    vely = particles.vely
-    velz = particles.velz
-    N_local = particles.N_local
-    # Direct gravity solver
-    for i in range(0, N_local - 1):
-        xi = posx[i]
-        yi = posy[i]
-        zi = posz[i]
-        for j in range(i + 1, N_local):
-            x = posx[j] - xi
-            y = posy[j] - yi
-            z = posz[j] - zi
+    # The factor G*m_j*dt in the equations of motion
+    # v_i = a_i*dt = F_i/m_i*dt = (G*m_i*m_j/r**2)/m_i*dt = G*m_j*dt/r**2
+    factor_i = G_Newton*mass_j*dt
+    factor_j = G_Newton*mass_i*dt
+    # Direct summation
+    for i in range(0, N_local_i if (flag_input > 0) else (N_local_i - 1)):
+        xi = posx_i[i]
+        yi = posy_i[i]
+        zi = posz_i[i]
+        for j in range(0 if (flag_input > 0) else (i + 1), N_local_j):
+            x = posx_j[j] - xi
+            y = posy_j[j] - yi
+            z = posz_j[j] - zi
             # The Ewald correction force
             force = ewald(x, y, z)
             # Add in the force from the actual particle
@@ -95,17 +120,161 @@ def PP(particles):
             force[0] -= x/r3
             force[1] -= y/r3
             force[2] -= z/r3
-            # Multiply by G*M*m*dt to get the velocity change
-            for dim in range(3):
-                force[dim] *= force_factor
-            # Update velocities
-            velx[i] -= force[0]
-            vely[i] -= force[1]
-            velz[i] -= force[2]
-            velx[j] += force[0]
-            vely[j] += force[1]
-            velz[j] += force[2]
+            # Update velocities for group i and velocity changes for group j
+            if flag_input == 0:
+                # Group i and j are the same.
+                # Update velocities of both particles in the pair
+                for dim in range(3):
+                    force[dim] *= factor_i
+                velx_i[i] -= force[0]
+                vely_i[i] -= force[1]
+                velz_i[i] -= force[2]
+                velx_i[j] += force[0]
+                vely_i[j] += force[1]
+                velz_i[j] += force[2]
+            else:
+                # Group i and j are different.
+                # Update local velocities
+                velx_i[i] -= force[0]*factor_i
+                vely_i[i] -= force[1]*factor_i
+                velz_i[i] -= force[2]*factor_i
+                if flag_input == 1:
+                   # Also update external velocity changes
+                   Δvelx_j[j] += force[0]*factor_j
+                   Δvely_j[j] += force[1]*factor_j
+                   Δvelz_j[j] += force[2]*factor_j
 
+
+# Function for computing the gravitational force
+# by direct summation on all particles
+@cython.cfunc
+@cython.cdivision(True)
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.locals(# Arguments
+               particles='Particles',
+               # Locals
+               ID_recv='int',
+               ID_send='int',
+               N_extrn='size_t',
+               N_extrn_max='size_t',
+               N_extrns='size_t[::1]',
+               N_local='size_t',
+               N_partnerproc_pairs='int',
+               even_nprocs='bint',
+               i='size_t',
+               j='int',
+               mass='double',
+               posx_extrn='double[::1]',
+               posx_local='double[::1]',
+               posy_extrn='double[::1]',
+               posy_local='double[::1]',
+               posz_extrn='double[::1]',
+               posz_local='double[::1]',
+               velx_local='double[::1]',
+               vely_local='double[::1]',
+               velz_local='double[::1]',
+               Δvelx_extrn='double[::1]',
+               Δvelx_local='double[::1]',
+               Δvely_extrn='double[::1]',
+               Δvely_local='double[::1]',
+               Δvelz_extrn='double[::1]',
+               Δvelz_local='double[::1]',
+               )
+def PP(particles):
+    """ This function updates the velocities of all particles via the
+    particle-particle (PP) method. 
+    """
+
+    # Extract variables from particles
+    posx_local = particles.posx_mw
+    posy_local = particles.posy_mw
+    posz_local = particles.posz_mw
+    velx_local = particles.velx_mw
+    vely_local = particles.vely_mw
+    velz_local = particles.velz_mw
+    mass = particles.mass
+    N_local = particles.N_local
+    # Update local velocities due to forces between local particles.
+    # Note that vector_mw is not actually used due to flag_input=0
+    direct_summation(posx_local, posy_local, posz_local,
+                     velx_local, vely_local, velz_local,
+                     mass, N_local,
+                     posx_local, posy_local, posz_local,
+                     vector_mw, vector_mw, vector_mw,
+                     mass, N_local)
+    # All work done if only one domain exists
+    if nprocs == 1:
+        return
+    # Update local velocities and compute and send external velocity changes
+    # due to forces between local and external particles.
+    # Find out how many particles will be recieved from each process
+    N_extrns = find_N_recv(array([N_local], dtype='uintp'))
+    N_extrn_max = N_extrns[rank]
+    # Allocate position recieve buffers and velocity change buffers
+    posx_extrn = empty(N_extrn_max)
+    posy_extrn = empty(N_extrn_max)
+    posz_extrn = empty(N_extrn_max)
+    Δvelx_local = empty(N_local)
+    Δvely_local = empty(N_local)
+    Δvelz_local = empty(N_local)
+    Δvelx_extrn = zeros(N_extrn_max)
+    Δvely_extrn = zeros(N_extrn_max)
+    Δvelz_extrn = zeros(N_extrn_max)
+    # Number of pairs of process partners to send/recieve data to/from
+    even_nprocs = not (nprocs%2)
+    flag_input = 1
+    N_partnerproc_pairs = 1 + nprocs//2
+    N_partnerproc_pairs_minus_1 = N_partnerproc_pairs - 1
+    for j in range(1, N_partnerproc_pairs):
+        # Process ranks to send/recieve to/from
+        ID_send = ((rank + j)%nprocs)
+        ID_recv = ((rank - j)%nprocs)
+        N_extrn = N_extrns[ID_recv]
+        # Send and recieve positions
+        Sendrecv(posx_local[:N_local], dest=ID_send,
+                 recvbuf=posx_extrn, source=ID_recv)
+        Sendrecv(posy_local[:N_local], dest=ID_send,
+                 recvbuf=posy_extrn, source=ID_recv)
+        Sendrecv(posz_local[:N_local], dest=ID_send,
+                 recvbuf=posz_extrn, source=ID_recv)
+        # In the end in the case of even nprocs, a single (not a pair)
+        # process remains. Flag to compute velocites for local particles
+        # only, as the results will not be sent afterwards.
+        if even_nprocs and j == N_partnerproc_pairs_minus_1:
+            flag_input = 2
+        # Do direct summation between local and external particles
+        direct_summation(posx_local, posy_local, posz_local,
+                         velx_local, vely_local, velz_local,
+                         mass, N_local,
+                         posx_extrn, posy_extrn, posz_extrn,
+                         Δvelx_extrn, Δvely_extrn, Δvelz_extrn,
+                         mass, N_extrn,
+                         flag_input=flag_input)
+        # When flag_input == 2, no velocity updates has been computed.
+        # Do not sent or recieve these noncomputed updates.
+        if flag_input == 2:
+            return
+        # Send velocity updates back to the process from which positions
+        # were recieved. Recieve velocity updates from the process which
+        # the local positions were send to.
+        Sendrecv(Δvelx_extrn[:N_extrn], dest=ID_recv,
+                 recvbuf=Δvelx_local, source=ID_send)
+        Sendrecv(Δvely_extrn[:N_extrn], dest=ID_recv,
+                 recvbuf=Δvely_local, source=ID_send)
+        Sendrecv(Δvelz_extrn[:N_extrn], dest=ID_recv,
+                 recvbuf=Δvelz_local, source=ID_send)
+        # Apply local velocity updates recieved from other process
+        for i in range(N_local):
+            velx_local[i] += Δvelx_local[i]
+            vely_local[i] += Δvely_local[i]
+            velz_local[i] += Δvelz_local[i]
+        # Reset external velocity change buffers
+        if j != N_partnerproc_pairs_minus_1:
+            for i in range(N_extrns[((rank - j - 1)%nprocs)]):
+                Δvelx_extrn[i] = 0
+                Δvely_extrn[i] = 0
+                Δvelz_extrn[i] = 0
 
 # Function for computing the gravitational force by direct summation on all particles
 @cython.cfunc

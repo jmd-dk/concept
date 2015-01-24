@@ -6,10 +6,13 @@
 # Imports common to pure Python and Cython                                   #
 ##############################################################################
 from __future__ import division  # Needed for Python3 division in Cython
-from numpy import (arange, array, asarray, concatenate, cumsum, delete, empty,
-                   linspace, prod, sum, unravel_index, zeros)
+from numpy import (arange, array, asarray, concatenate, cumsum, delete, finfo,
+                   empty, linspace, max, prod, sum, unravel_index, zeros)
 from numpy.random import random
 import h5py
+
+# WHILE DEVELOPING
+from time import time, sleep
 
 ##############################################################################
 # Cython-related stuff                                                       #
@@ -88,52 +91,54 @@ else:
 ##############################################################################
 # Global (module level) allocations                                          #
 ##############################################################################
-# A 3D vector
-cython.declare(vector='double*')
+# Useful for temporary storage of 3D vector
+cython.declare(vector='double*',
+               vector_mw='double[::1]',
+               )
 vector = malloc(3*sizeof('double'))
+vector_mw = cast(vector, 'double[:3]')
 
 ##############################################################################
 # Pure numbers                                                               #
 ##############################################################################
-cython.declare(one_third='double',
-               two_pi='double',
-               minus_4pi='double',
+cython.declare(minus_4pi='double',
+               one_third='double',
                sqrt_pi='double',
+               two_pi='double',
                )
-one_third = 1.0/3.0
-two_pi = 2*pi
 minus_4pi = -4*pi
+one_third = 1.0/3.0
 sqrt_pi = sqrt(pi)
+two_pi = 2*pi
 
 ##############################################################################
 # Derived and internally defined constants                                   #
 ##############################################################################
-cython.declare(use_PM='bint',
-               ewald_file='str',
+cython.declare(PM_gridsize3='ptrdiff_t',
                boxsize2='double',
-               two_ewald_gridsize='int',
-               PM_gridsize3='ptrdiff_t',
-               softening2='double',
+               ewald_file='str',
                machine_ϵ='double',
+               softening2='double',
+               two_ewald_gridsize='int',
                two_machine_ϵ='double',
+               use_PM='bint',
                )
-use_PM = True  # Flag specifying wheter the PM method is used or not. THIS SHOULD BE COMPUTED BASED ON PARTICLES CHOSEN IN THE PARAMETER FILE!!!!!!!!!!!
-ewald_file = '.ewald_gridsize=' + str(ewald_gridsize) + '.hdf5'  # Name of file storing the Ewald grid
-boxsize2 = boxsize**2
-two_ewald_gridsize = 2*ewald_gridsize
 PM_gridsize3 = PM_gridsize**3
-softening2 = softening**2
-from numpy import finfo
+boxsize2 = boxsize**2
+ewald_file = '.ewald_gridsize=' + str(ewald_gridsize) + '.hdf5'  # Name of file storing the Ewald grid
 machine_ϵ = finfo('float64').eps  # Machine epsilon
+softening2 = softening**2
+two_ewald_gridsize = 2*ewald_gridsize
 two_machine_ϵ = 2*machine_ϵ
+use_PM = True  # Flag specifying wheter the PM method is used or not. THIS SHOULD BE COMPUTED BASED ON PARTICLES CHOSEN IN THE PARAMETER FILE!!!!!!!!!!!
 
 ##############################################################################
 # MPI setup                                                                  #
 ##############################################################################
 from mpi4py import MPI
-cython.declare(nprocs='int',
+cython.declare(master='bint',
+               nprocs='int',
                rank='int',
-               master='bint',
                )
 # Functions for (collective) communication
 comm = MPI.COMM_WORLD

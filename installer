@@ -141,10 +141,27 @@ mv "${top_dir}"/source "${top_dir}"/"${Nbody_dir}"
 rm -r Nbody-master
 
 # Test the installation
-current_step="testrun of the \e[3mN\e[0m\e[1m\e[91m-body code"
-printf "\n\e[1m\e[93mPerforming test run\e[0m\n"
+current_step="testruns of the pure Python \e[3mN\e[0m\e[1m\e[91m-body code"
+printf "\n\e[1m\e[93mPerforming test runs in pure Python\e[0m\n"
 cd "${Nbody_dir}"
-./run
+./run -n 1 -p params/default_purePython --pure-python
+make clean_files_generated
+./run -n 2 -p params/default_purePython --pure-python
+make clean_files_generated
+./run -n 3 -p params/default_purePython --pure-python
+make clean_files_generated
+./run -n 4 -p params/default_purePython --pure-python
+make clean_files_generated
+current_step="testruns of the compiled \e[3mN\e[0m\e[1m\e[91m-body code"
+printf "\n\e[1m\e[93mPerforming test runs in pure Python\e[0m\n"
+cd "${Nbody_dir}"
+./run -n 1 -p params/default
+make clean_files_generated
+./run -n 2 -p params/default
+make clean_files_generated
+./run -n 3 -p params/default
+make clean_files_generated
+./run -n 4 -p params/default
 make distclean
 
 # Installation complete. Deactivate trap before exiting.

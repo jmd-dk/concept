@@ -223,17 +223,22 @@ def construct(type_name, species_name, mass, N):
                species_name='str',
                N='size_t',
                # Locals
-               vmax='double',
-               N_locals='tuple',
                N_local='size_t',
+               N_locals='tuple',
+               mmin='double',
+               mmax='double',
                particles='Particles',
+               vmax='double',
                )
 @cython.returns('Particles')
 def construct_random(type_name, species_name, N):
+    # Print out message
+    if master:
+        print('Initializes particles of type "' + type_name + '"')
     # Minimum and maximum mass and maximum velocity
     mmin = 0.1
     mmax = 1
-    vmax = 0.001
+    vmax = 2
     # Compute a fair distribution of particle data to the processes
     N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
                 + (N//nprocs + 1, )*(N % nprocs))

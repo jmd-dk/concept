@@ -126,9 +126,10 @@ clean:
 	$(RM) -r $(addsuffix .pyx, $(pyfiles)) $(addsuffix .c, $(pyfiles)) $(addsuffix .o, $(pyfiles)) \
 	$(addsuffix .html, $(pyfiles)) $(addsuffix .so, $(pyfiles)) params.py __pycache__ 
 # Remove files produced by running tests
-clean./tests:
+clean_tests:
 	$(RM) -r tests/*.pdf tests/__pycache__ tests/ewaldforce_gadget.c tests/ewaldforce_gadget
 # Remove everything that can be recreated by running this makefile and the resulting program
-distclean: clean clean./tests
+clean_files_generated:
 	$(RM) $(files_generated)
+distclean: clean clean_tests clean_files_generated
 

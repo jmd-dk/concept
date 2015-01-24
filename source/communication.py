@@ -10,6 +10,59 @@ else:
     """
     """
 
+# Function for communicating sizes of recieve buffers
+@cython.cfunc
+@cython.cdivision(True)
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.locals(# Arguments
+               N_send='size_t[::1]',
+               # Locals
+               ID_recv='int',
+               ID_send='int',
+               N_recv_max='size_t',
+               j='int',
+               k='int',
+               same_N_send='bint',
+               max_bfore_rank='size_t',
+               max_after_rank='size_t',
+               )
+@cython.returns('size_t[::1]')
+def find_N_recv(N_send):
+    """Given the size of arrays to send, N_send, which itself has a length of
+    either 1 (same data size to send to every process) or n_procs (individual
+    data sizes to send to the processes), this function communicates this to
+    all processes, so that everyone knows how much to recieve from every
+    process. The entrance number rank is unused (the process do not send to
+    itself). The maximum number to recieve is useful when allocating recieve
+    buffers, so this number is stored in this otherwize unused entrance.
+    """
+    N_recv = empty(nprocs, dtype='uintp')
+    # Check whether N_send is the same for each process to send to
+    same_N_send = (N_send.size == 1)
+    # If N_send is the same for each process, an Allgather will suffice
+    if same_N_send:
+        Allgather(N_send, N_recv)
+        # Store the max N_recv_in the unused entrance in N_recv
+        max_bfore_rank = 0 if rank == 0 else max(N_recv[:rank])
+        max_after_rank = 0 if rank == nprocs - 1 else max(N_recv[(rank + 1):])
+        N_recv[rank] = max_bfore_rank if max_bfore_rank > max_after_rank else max_after_rank
+        return N_recv
+    # Find out how many particles will be recieved from each process
+    N_recv_max = 0
+    for j in range(1, nprocs):
+        # Process ranks to send/recieve to/from
+        ID_send = (rank + j) % nprocs
+        ID_recv = (rank - j) % nprocs
+        # Send and recieve nr of particles to be exchanged
+        N_recv[ID_recv] = sendrecv(N_send[ID_send],
+                                   dest=ID_send, source=ID_recv)
+        if N_recv[ID_recv] > N_recv_max:
+            N_recv_max = N_recv[ID_recv]
+    # Store N_recv_max in the unused entrance in N_recv
+    N_recv[rank] = N_recv_max
+    return N_recv
+
 # This function examines every particle and communicates them to the
 # process governing the domain in which the particle is located
 @cython.cfunc
@@ -69,11 +122,11 @@ def exchange_all(particles):
     # Initialize some variables
     flag_hold = -1
     N_send = zeros(nprocs, dtype='uintp')
-    N_recv = empty(nprocs, dtype='uintp')
-    if not cython.compiled:
-        N_recv = asarray(N_recv, dtype='int32')
+    #N_recv = empty(nprocs, dtype='uintp')
+    #if not cython.compiled:
+    #    N_recv = asarray(N_recv, dtype='int32')
     N_send_max = 0
-    N_recv_max = 0
+    #N_recv_max = 0
     N_send_tot = 0
     N_recv_tot = 0
     N_recv_cum = 0
@@ -103,16 +156,14 @@ def exchange_all(particles):
         print('Exchanging', N_send_tot_global, 'particles')
     # Allocate send buffer to its maximum needed size
     sendbuf = empty(N_send_max)
-    # Find out how many particles will be recieved
-    for j in range(1, nprocs):
-        # Process ranks to send/recieve to/from
-        ID_send = (rank + j) % nprocs
-        ID_recv = (rank - j) % nprocs
-        # Send and recieve nr of particles to be exchanged
-        N_recv[ID_recv] = sendrecv(N_send[ID_send], dest=ID_send, source=ID_recv)
-        N_recv_tot += N_recv[ID_recv]
-        if N_recv[ID_recv] > N_recv_max:
-            N_recv_max = N_recv[ID_recv]
+    # Find out how many particles will be recieved from each process
+    N_recv = find_N_recv(N_send)
+    # Pure Python has a hard time understanding uintp as an integer
+    if not cython.compiled:
+        N_recv = asarray(N_recv, dtype='int64')
+    # The maximum number of particles to recieve is stored in entrance rank
+    N_recv_max = N_recv[rank]
+    N_recv_tot = sum(N_recv) - N_recv_max
     # Enlarge the Particles data attributes, if needed
     N_needed = N_local + N_recv_tot
     if N_allocated < N_needed:
@@ -203,37 +254,6 @@ def exchange_all(particles):
                 break
 
 
-# Function for prime checking. Used by the cutout_domains function.
-@cython.cfunc
-@cython.cdivision(True)
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
-               n='int',
-               # Locals
-               f='int',
-               len_primeset='int',
-               r='int',
-               )
-@cython.returns('list')
-def isprime(n):
-    if n == 2 or n == 3:
-        return True
-    if n < 2 or (n%2) == 0:
-        return False
-    if n < 9:
-        return True
-    if (n%3) == 0:
-        return False
-    r = int(sqrt(n))
-    f = 5
-    while f <= r:
-        if (n%f) == 0 or (n%(f + 2)) == 0:
-            return False
-        f += 6
-    return True
-
-
 # Function for cutting out domains as rectangular boxes in the best possible
 # way. When all dimensions cannot be divided equally, the x-dimension is
 # subdivided the most, then the y-dimension and lastly the z-dimension.
@@ -246,16 +266,44 @@ def isprime(n):
                basecall='bint',
                # Locals
                N_primes='int',
+               f='int',
                i='int',
+               r='int',
+               len_primeset='int',
                primeset='list',
                )
 @cython.returns('list')
 def cutout_domains(n, basecall=True):
+    """This function works by computing a prime factorization of n
+    and then multiplying the smallest factors until 3 remain.
+    """
+    # Factorize n
     primeset  = []
     while n > 1:
         for i in range(2, int(n + 1)):
             if (n%i) == 0:
-                if isprime(i):
+                # Check whether i is prime
+                if i == 2 or i == 3:
+                    i_is_prime = True
+                elif i < 2 or (i%2) == 0:
+                    i_is_prime = False
+                elif i < 9:
+                    i_is_prime = True
+                elif (i%3) == 0:
+                    i_is_prime = False
+                else:
+                    r = int(sqrt(i))
+                    f = 5
+                    while f <= r:
+                        if (i%f) == 0 or (i%(f + 2)) == 0:
+                            i_is_prime = False
+                            break
+                        f += 6
+                    else:
+                        i_is_prime = True
+                # If i is prime it is a prime factor of n. If not, factorize
+                # i to get its prime factors
+                if i_is_prime:
                     primeset.append(i)
                 else:
                     primeset += cutout_domains(i, basecall=False)

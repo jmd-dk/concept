@@ -87,11 +87,11 @@ struct fftw_return_struct fftw_setup(ptrdiff_t gridsize_x, ptrdiff_t gridsize_y,
       // Grammar is important!
       if (nprocs == 1)
       {
-        printf("Acquiring FFTW wisdom for grid of linear size %td on %i process ...\n", gridsize_x, nprocs);
+        printf("Acquiring FFTW wisdom for grid of linear size %td on %i process\n", gridsize_x, nprocs);
       }
       else
       {
-        printf("Acquiring FFTW wisdom for grid of linear size %td on %i processes ...\n", gridsize_x, nprocs);
+        printf("Acquiring FFTW wisdom for grid of linear size %td on %i processes\n", gridsize_x, nprocs);
       }
     }
   }

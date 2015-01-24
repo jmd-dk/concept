@@ -13,7 +13,6 @@ else:
     from communication cimport exchange_all
     """
 
-from time import sleep
 
 # Function that saves particle data to an hdf5 file
 @cython.cfunc
@@ -27,8 +26,8 @@ from time import sleep
                N='size_t',
                N_local='size_t',
                N_locals='size_t[::1]',
-               start_local='size_t',
                end_local='size_t',
+               start_local='size_t',
                )
 @cython.returns('Particles')
 def save(particles, filename):
@@ -56,16 +55,15 @@ def save(particles, filename):
             start_local = int(start_local)
             end_local = int(end_local)
         # Save the local slices of the particle data and the attributes
-        posx_h5[start_local:end_local] = particles.posx_mw
-        posy_h5[start_local:end_local] = particles.posy_mw
-        posz_h5[start_local:end_local] = particles.posz_mw
-        velx_h5[start_local:end_local] = particles.velx_mw
-        vely_h5[start_local:end_local] = particles.vely_mw
-        velz_h5[start_local:end_local] = particles.velz_mw
+        posx_h5[start_local:end_local] = particles.posx_mw[:N_local]
+        posy_h5[start_local:end_local] = particles.posy_mw[:N_local]
+        posz_h5[start_local:end_local] = particles.posz_mw[:N_local]
+        velx_h5[start_local:end_local] = particles.velx_mw[:N_local]
+        vely_h5[start_local:end_local] = particles.vely_mw[:N_local]
+        velz_h5[start_local:end_local] = particles.velz_mw[:N_local]
         particles_h5.attrs['type'] = particles.type
         particles_h5.attrs['species'] = particles.species
         particles_h5.attrs['mass'] = particles.mass
-
 
 # Function that loads particle data from an hdf5 file and instantiate a
 # Particles instance on each process, storing the particles within its domain.
@@ -77,54 +75,12 @@ def save(particles, filename):
                filename='str',
                # Locals
                N='size_t',
-               N_locals='tuple',
                N_local='size_t',
-               start_local='size_t',
+               N_locals='tuple',
                end_local='size_t',
+               particle_type='str',
                particles='Particles',
-               nr_domain_cuts='int',
-               domain_size='double',
-               domain_layout='int[:, :, ::1]',
-               indices_send='size_t[:, ::1]',
-               N_send='size_t[::1]',
-               N_send_max='size_t',
-               posx='double*',
-               posy='double*',
-               posz='double*',
-               i='size_t',
-               posx_domain='int',
-               posy_domain='int',
-               posz_domain='int',
-               owner='int',
-               sendbuf='double[::1]',
-               N_recv='size_t[::1]',
-               N_recv_max='size_t',
-               free_slots='ptrdiff_t',
-               N_recv_tot='ptrdiff_t',
-               N_recv_cum='size_t',
-               j='int',
-               ID_send='int',
-               ID_recv='int',
-               N_send_j='size_t',
-               indices_send_j='size_t[::1]',
-               N_recv_j='size_t',
-               index_send='size_t',
-               N_send_tot='size_t',
-               velx='double*',
-               vely='double*',
-               velz='double*',
-               posx_mw='double[::1]',
-               posy_mw='double[::1]',
-               posz_mw='double[::1]',
-               velx_mw='double[::1]',
-               vely_mw='double[::1]',
-               velz_mw='double[::1]',
-               index_recv_j='size_t',
-               N_allocated='size_t',
-               N_needed='size_t',
-               indices_holds='size_t[::1]',
-               indices_holds_count='size_t',
-               flag_hold='double',
+               start_local='size_t',
                )
 @cython.returns('Particles')
 def load(filename):
@@ -145,8 +101,8 @@ def load(filename):
             velz_h5 = particles_h5['velz']
             # Compute a fair distribution of particle data to the processes
             N = posx_h5.size
-            N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
-                        + (N//nprocs + 1, )*(N % nprocs))
+            N_locals = ((N//nprocs, )*(nprocs - (N%nprocs))
+                        + (N//nprocs + 1, )*(N%nprocs))
             N_local = N_locals[rank]
             start_local = sum(N_locals[:rank])
             end_local = start_local + N_local

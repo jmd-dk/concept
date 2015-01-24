@@ -11,9 +11,6 @@ from matplotlib.pyplot import figure, draw, show
 import matplotlib.cm as cm
 from matplotlib import animation
 
-# For timing
-from time import time, sleep
-
 # Seperate but equivalent imports in pure Python and Cython
 if not cython.compiled:
     from species import construct, construct_random
@@ -28,9 +25,7 @@ else:
 
 # Construct
 cython.declare(particles='Particles')
-particles = construct_random('some typename', 'dark matter', N=100)
-
-
+particles = construct_random('some typename', 'dark matter', N=200)
 
 # Save
 save(particles, 'ICs/test')
@@ -38,9 +33,6 @@ save(particles, 'ICs/test')
 # Load (and thereby order them correctly)
 particles = load('ICs/test')
 
-
-# Set up animation
-visualize = True
 # Setting up figure and plot the particles
 @cython.cfunc
 @cython.cdivision(True)
@@ -80,11 +72,14 @@ def animate(particles, artist=None):
             # Set up figure
             fig = figure()
             ax = fig.add_subplot(111, projection='3d')
-            if nprocs == 1:
-                colors = zeros(N_local)
-            else:
-                colors = [i/(nprocs - 1.0) for i in range(nprocs) for j in range(N_locals[i])]
-            artist = ax.scatter(X, Y, Z, c=colors, cmap=cm.nipy_spectral, alpha=0.1)
+            colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'gray'][:nprocs]
+            artist = ax.scatter(X, Y, Z,
+                                lw=0,
+                                alpha=0.2,
+                                c=[colors[(i%nprocs)]
+                                   for i in range(nprocs)
+                                   for j in range(N_locals[i])],
+                                )
             ax.set_xlim3d(0, boxsize)
             ax.set_ylim3d(0, boxsize)
             ax.set_zlim3d(0, boxsize)
@@ -98,21 +93,26 @@ def animate(particles, artist=None):
             artist._offsets3d = juggle_axes(X, Y, Z, zdir='z')
             draw()
     return artist
+
+# Set up animation
+visualize = True
+frameskip = 1
 if visualize:
     artist = animate(particles)
 
 # Run main loop
 cython.declare(i='size_t')
-for i in range(10000000):
+for i in range(50):
     if master:
         t0 = time()
     particles.kick()
     particles.drift()
-    if master:
+    if master and False:
         t1 = time()
         print('Computing time:', t1 - t0)
     # Animate
-    if visualize:
+    if visualize and not (i%frameskip):
         artist = animate(particles, artist)
-        if master:
+        if master and False:
             print('Plot time:', time() - t1)
+
