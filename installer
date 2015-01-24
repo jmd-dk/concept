@@ -154,7 +154,6 @@ make clean_files_generated
 make clean_files_generated
 current_step="testruns of the compiled \e[3mN\e[0m\e[1m\e[91m-body code"
 printf "\n\e[1m\e[93mPerforming test runs in pure Python\e[0m\n"
-cd "${Nbody_dir}"
 ./run -n 1 -p params/default
 make clean_files_generated
 ./run -n 2 -p params/default
