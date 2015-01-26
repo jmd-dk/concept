@@ -1,0 +1,97 @@
+This method is for dual booting Windows and Linux on a single physical hard disk.
+This method will erase any existing data and partitions on the disk!
+This method has been tested for dual booting Windows 7 64bit and Linux Mint 14 64bit.
+
+
+----- Step 1: Acquiring the needed bootable media -----
+You need bootable installation media for both Windows and Linux. In the case of Windows, you probably have a bought CD/DVD.
+In the case of Linux, you can download an ISO file with your distribution of choice from the web. You have to burn the ISO
+to a CD/DVD or to a USB flash drive (called a Live CD/DVD/USB). The last (and preferable) case requires your BIOS to have
+support for booting from USB flash drives, which is standard on not-too-old machines.
+
+To burn the Linux ISO to a CD/DVD:
+One simple way is to use Windows built-in (at least for Windows 7) ISO-burner: Right click the ISO, choose "Open with" and
+then "Windows Disk Image Burner" to launch the program.
+
+To put the Linux ISO on a USB flash drive:
+Download the free program called Universal USB installer, which run on Windows. From within the program you select your
+Linux distribution and the matching ISO file. Preferably, tick off "Format" to erase existing content on the USB flash drive.
+
+
+----- Step 2: Installing Windows -----
+Boot up on your Windows installation media.
+    If your machine does not automatically allow you to boot up on the CD/DVD (or whatever), you have to go into the BIOS and
+    change the boot options. You can access the BIOS by pressing some key at some early point of your machine’s startup
+    process. The key is usually one of the f-keys or esc. In the BIOS, enable booting from the CD/DVD-drive (or whatever
+    matches your Windows installation media), and maybe even put it as the first priority.
+Once booted up on the Windows installation media begin the installation of Windows. Let it partition and format the disk as
+it pleases, using up the entire disk. It will probably create a 100 MB NTFS system for recovery and use the remaining disk
+space for the C-drive.
+
+
+----- Step 3: Make space for Linux -----
+Remove the Windows installation media and boot into Windows. From Windows, launch the "Create and format hard disk partitions"
+application (that is what it is called in Windows 7, anyway). From here, right click the C-drive and click "Shrink Volume".
+After some time, you will be prompted by a menu where you can select the amount of MB to shrink. This is the amount of disk
+space you give to Linux. Note that Linux will need at least three partitions; one for boot (~256 MB), one for swap (comparable
+to your machines amount of RAM) and the primary partition for all the rest. Enter the desired amount of disk space for the
+Linux partitions and click OK.
+
+
+----- Step 4: Installing Linux -----
+Boot into your Linux Live CD/DVD/USB. If your machine does not let you boot from the required media, you have to change the
+settings in the BIOS, see step 2. Also, if your machine uses UEFI boot, this has to be deactivated from the BIOS. This may
+cause your machine to be unable to boot from USB flash drive!
+Once in Linux, double click the Linux installation icon located on the desktop. The
+installation should reqocnize Windows as already being installed. You can choose to install Linux alongside Windows, replace
+Windows with Linux or "Something else". Do not choose the "Linux alongside Windows" option, as this will override the Windows
+boot loader and create problems for Windows (at least this is the case for Windows 7). Choose "Something else".
+    Note: If your Linux distribution does not allow for the following via the installation of Linux, the same steps can be
+    done by partitioning software from the live CD/DVD/USB, such as Gparted.
+When the partitions are displayed, click the "free space" and then on the Add button. First create the boot partition. Set
+the type to Primary, give it about 256 MB, locate the partition at the beginning, use as Ext2 and set the mount point to
+/boot. Click OK. Next create the swap partition, with these settings: Disk space equivalent to your machines amount of RAM
+(more of less), locate it at the beginning, use as swap area. Finally create the root partition, using the remaining disk
+space, make it of type Logical, locate it at the beginning, use as Ext4, mount point /. With all three partitions created,
+you should see 5 partitions in total. Make sure that "Format?" is ticked off next to /boot and /. Lastly, select the device
+for boot loader installation corresponding to /boot (proberbly /dev/sda3). Click Install Now. After the installation is
+complete, boot into Windows.
+
+
+----- Step 5: Adding boot entry for Linux -----
+Because we changed the boot loader installation device, the active boot loader (the one that ships with Windows) remains
+untouched. That is, the Windows boot loader used does not know about the Linux installatin. To add an entry for Linux in the
+Windows boot loader, download and install the free program called EasyBCD and run it from Windows. Click Add New Entry. Then
+click the Linux/BSD tab, choose GRUB 2 as the type, name the boot entry appropriatly for yuor Linux distribution and click
+Add Entry. By clicking Edit Boot Menu you can also change the boot tieout of the boot loader menu. Exit EasyBCD and you can
+reboot into Linux.
+
+
+----- Step 5.5: Installing the newest nvidia graphics driver -----
+You should now be able to boot up into Linux. If you cannot log in, it may be because you need to install graphics drivers.
+If you have no problem logging in, skip this step!
+Restart your machine, boot into linux while pressing shift, and a menu should appear. Choose the repair option. After some
+time, choose "Continue", the top entry. In this mode, you should be able to log in perfectly. Establish internet connection
+and run these commands from the terminal, to download and install the newest nvidia drivers:
+sudo apt-get purge nvidia-current
+sudo apt-get install nvidia-current
+After this, you shuld be able to log into linux normally.
+
+
+----- Step 6: Making Linux partitions visible to Windows -----
+Windows does not natively support Ext2/3/4 partitions. If you want to be able to read/write to the Linux partitions from
+Windows, do the following. If not, skip this step. Install the free program Ext2Fsd, which can assign a permanent drive
+letter to the a Linux partition. Choose to run the program automatically at bootup. Once the program is installed, run it
+and locate the / partition. For some reason, Ext2Fsd writes "EXT3" as the file system, even though it really is Ext4. Right
+click this partition and select Change Drive Letter. Click Add, select drive letter and use the option "Create a permanent
+MountPoint via SessionManager". Click OK and then Done. Click Tools and then Service Management, click the Start button and
+then Apply. Close the program, and the Linux partition should be visible.
+
+----- Step 7: Making Windows partitions invisible to Linux -----
+To hide/ignore a disk/partition permanently, create a file named
+99-hide-disks.rules with the following content:
+KERNEL=="X", ENV{UDISKS_IGNORE}="1"
+where X refers to the disk/partition in question (for example, X=sda1).
+Place the file in
+/etc/udev/rules.d/
+and you are done (after a reboot).
