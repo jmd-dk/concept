@@ -47,20 +47,21 @@ else:
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.locals(# Arguments
-               N_local_i='size_t',
-               N_local_j='size_t',
-               flag_input='int',
-               mass_i='double',
-               mass_j='double',
                posx_i='double[::1]',
                posy_i='double[::1]',
                posz_i='double[::1]',
-               posx_j='double[::1]',
-               posy_j='double[::1]',
-               posz_j='double[::1]',
                velx_i='double[::1]',
                vely_i='double[::1]',
                velz_i='double[::1]',
+               mass_i='double',
+               N_local_i='size_t',
+               posx_j='double[::1]',
+               posy_j='double[::1]',
+               posz_j='double[::1]',
+               mass_j='double',
+               N_local_j='size_t',
+               dt='double',
+               flag_input='int',
                # Locals
                dim='int',
                factor_i='double',
@@ -83,7 +84,7 @@ def direct_summation(posx_i, posy_i, posz_i, velx_i, vely_i, velz_i,
                      mass_i, N_local_i,
                      posx_j, posy_j, posz_j, Δvelx_j, Δvely_j, Δvelz_j,
                      mass_j, N_local_j,
-                     flag_input=0):
+                     dt, flag_input=0):
     """This function takes in positions and velocities of particles located in
     the domain designated the calling process, as well as positions and
     preallocated nullified velocity changes for particles located in another
@@ -153,6 +154,7 @@ def direct_summation(posx_i, posy_i, posz_i, velx_i, vely_i, velz_i,
 @cython.wraparound(False)
 @cython.locals(# Arguments
                particles='Particles',
+               dt='double',
                # Locals
                ID_recv='int',
                ID_send='int',
@@ -181,7 +183,7 @@ def direct_summation(posx_i, posy_i, posz_i, velx_i, vely_i, velz_i,
                Δvelz_extrn='double[::1]',
                Δvelz_local='double[::1]',
                )
-def PP(particles):
+def PP(particles, dt):
     """ This function updates the velocities of all particles via the
     particle-particle (PP) method. 
     """
@@ -202,7 +204,8 @@ def PP(particles):
                      mass, N_local,
                      posx_local, posy_local, posz_local,
                      vector_mw, vector_mw, vector_mw,
-                     mass, N_local)
+                     mass, N_local,
+                     dt)
     # All work done if only one domain exists
     if nprocs == 1:
         return
@@ -250,7 +253,7 @@ def PP(particles):
                          posx_extrn, posy_extrn, posz_extrn,
                          Δvelx_extrn, Δvely_extrn, Δvelz_extrn,
                          mass, N_extrn,
-                         flag_input=flag_input)
+                         dt, flag_input=flag_input)
         # When flag_input == 2, no velocity updates has been computed.
         # Do not sent or recieve these noncomputed updates.
         if flag_input == 2:
@@ -283,12 +286,13 @@ def PP(particles):
 @cython.wraparound(False)
 @cython.locals(# Arguments
                particles='Particles',
+               dt='double',
                # Locals
                i='ptrdiff_t',
                j='ptrdiff_t',
                k='ptrdiff_t',
                )
-def PM(particles):
+def PM(particles, dt):
     """ This function updates the velocities of all particles via the
     particle-mesh (PM) method. 
     """

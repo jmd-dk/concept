@@ -7,7 +7,7 @@ from matplotlib import use as matplotlib_backend
 matplotlib_backend('TkAgg')
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import juggle_axes
-from matplotlib.pyplot import figure, draw, show
+from matplotlib.pyplot import figure, draw, show, savefig
 import matplotlib.cm as cm
 from matplotlib import animation
 
@@ -25,13 +25,38 @@ else:
 
 # Construct
 cython.declare(particles='Particles')
-particles = construct_random('some typename', 'dark matter', N=200)
+particles = construct_random('some typename', 'dark matter', N=20000)
+
+
+H0 = 70*units.km/units.s/units.Mpc
+particles.mass = 3*H0**2/(8*pi*G_Newton)*boxsize**3/particles.N
+
+
+"""
+particles.mass = 1
+particles.posx[0] = 5 - 0.1
+particles.posx[1] = 5 + 0.1
+particles.posy[0] = 5
+particles.posy[1] = 5
+particles.posz[0] = 5
+particles.posz[1] = 5
+particles.velx[0] = 0
+particles.velx[1] = 0
+particles.vely[0] = 0.21
+particles.vely[1] = -0.21
+particles.velz[0] = 0
+particles.velz[1] = 0
+"""
+
+
+
 
 # Save
 save(particles, 'ICs/test')
 
 # Load (and thereby order them correctly)
 particles = load('ICs/test')
+
 
 # Setting up figure and plot the particles
 @cython.cfunc
@@ -71,22 +96,26 @@ def animate(particles, artist=None):
         if artist is None:
             # Set up figure
             fig = figure()
-            ax = fig.add_subplot(111, projection='3d')
-            colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'gray'][:nprocs]
+            ax = fig.add_subplot(111, projection='3d', axisbg='black')
+            colors = ['purple']*nprocs#['b', 'g', 'r', 'c', 'm', 'y', 'k', 'gray'][:nprocs]
             artist = ax.scatter(X, Y, Z,
                                 lw=0,
-                                alpha=0.2,
+                                alpha=0.05,
                                 c=[colors[(i%nprocs)]
                                    for i in range(nprocs)
                                    for j in range(N_locals[i])],
+                                s=20,
                                 )
-            ax.set_xlim3d(0, boxsize)
-            ax.set_ylim3d(0, boxsize)
+            ax.set_xlim3d(0, boxsize)#(5-3, 5+3)
+            ax.set_ylim3d(0, boxsize)#(5-3, 5+3)
             ax.set_zlim3d(0, boxsize)
             ax.set_xlabel(r'$x$')
             ax.set_ylabel(r'$y$')
             ax.set_zlabel(r'$z$')
             #ax.view_init(90, 0)
+            ax.grid(False)
+            ax.set_axis_off()
+            fig.patch.set_facecolor('black')
             show(block=False)
         else:
             # Update figure
@@ -96,23 +125,48 @@ def animate(particles, artist=None):
 
 # Set up animation
 visualize = True
-frameskip = 1
+frameskip = 3
 if visualize:
     artist = animate(particles)
 
-# Run main loop
-cython.declare(i='size_t')
-for i in range(50):
+
+
+
+cython.declare(i='size_t',
+               dt='double',
+               a='double',
+               )
+dt = 100*units.Myr
+a = 0
+i = 0
+
+# First leapfrog kick
+particles.kick(dt/2)
+# Main time loop
+while True:
+    i += 1
     if master:
         t0 = time()
-    particles.kick()
-    particles.drift()
-    if master and False:
+
+    # Update the scale factor   FIND OUT HOW TO DO THIS CORRECTLY! FIRST IMPLEMENT UNITS THOUGH
+    a += 0.000001*dt    *0
+
+    # Leapfrog integration step
+    particles.drift(dt)
+    if a < 1:
+        particles.kick(dt)
+    else:
+        # Last leapfrog kick
+        particles.kick(dt/2)
+        break
+    
+    if master and True:
         t1 = time()
         print('Computing time:', t1 - t0)
+
     # Animate
     if visualize and not (i%frameskip):
         artist = animate(particles, artist)
-        if master and False:
+        if master and True:
+            savefig('frames/' + str(i) + '.png', bbox_inches='tight')
             print('Plot time:', time() - t1)
-

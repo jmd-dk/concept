@@ -127,9 +127,9 @@ if [ ${pure_python} -eq 0 ] ; then
     (cd ${this_dir} && make paramsfile=${params})
 else
     # Remove compiled Cython modules
-    (cd ${this_dir} && rm -f *.so)
-    # Copy the passed parameter file to _params_active.py
-    (cd ${this_dir} && cp ${params} params.py)
+    (cd ${this_dir} && make clean_so)
+    # Process the passed parameter file
+    (cd ${this_dir} && make params.py paramsfile=${params})
 fi
 
 # Run!

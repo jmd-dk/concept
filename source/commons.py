@@ -76,6 +76,8 @@ if not cython.compiled:
     # Mathematical functions
     from numpy import pi, sqrt, exp, sin, log
     from scipy.special import erfc
+    # Import the units module
+    import units
     # Import all user specified constants
     from params import *
 else:
@@ -84,6 +86,8 @@ else:
     # Mathematical functions
     from libc.math cimport M_PI as pi
     from libc.math cimport sqrt, exp, sin, log, erfc
+    # Import the units module
+    cimport units
     # Import all user specified constants 
     from params cimport *
     """
@@ -114,7 +118,8 @@ two_pi = 2*pi
 ##############################################################################
 # Derived and internally defined constants                                   #
 ##############################################################################
-cython.declare(PM_gridsize3='ptrdiff_t',
+cython.declare(G_Newton='double',
+               PM_gridsize3='ptrdiff_t',
                boxsize2='double',
                ewald_file='str',
                machine_ϵ='double',
@@ -123,6 +128,7 @@ cython.declare(PM_gridsize3='ptrdiff_t',
                two_machine_ϵ='double',
                use_PM='bint',
                )
+G_Newton = 6.6738e-11*units.m**3/units.kg/units.s**2  # Newtons constant
 PM_gridsize3 = PM_gridsize**3
 boxsize2 = boxsize**2
 ewald_file = '.ewald_gridsize=' + str(ewald_gridsize) + '.hdf5'  # Name of file storing the Ewald grid
@@ -140,7 +146,7 @@ cython.declare(master='bint',
                nprocs='int',
                rank='int',
                )
-# Functions for (collective) communication
+# Functions for communication
 comm = MPI.COMM_WORLD
 Abort = comm.Abort
 Allgather = comm.Allgather
@@ -155,6 +161,7 @@ reduce = comm.reduce
 Scatter = comm.Scatter
 Sendrecv = comm.Sendrecv
 sendrecv = comm.sendrecv
+# Constants
 nprocs = comm.size  # Number of processes started with mpiexec
 rank = comm.rank    # The unique rank of the running process
 master = not rank   # Flag identifying the master/root process (that which have rank 0)

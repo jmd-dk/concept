@@ -5,7 +5,7 @@
 # Specification of filenames                                                                                #
 #############################################################################################################
 # List of .py files which should be cythonized and compiled to modules
-pyfiles = communication ewald gravity IO mesh params species timeloop
+pyfiles = communication ewald gravity IO mesh params species timeloop units
 # The default parameterfile to use (never needed when invoked via the run script)
 params_default = params/default
 # Filename of the .pyx preprocessor script
@@ -96,12 +96,24 @@ recursive: $(pyfile).so
 # Targets handling the cythonizing, compiling and linking of an arbitrary .py file with basename $(pyfile)   #
 ##############################################################################################################
 # Copy the specified parameterfile to params.py and inserts a header, telling which parameterfile it is a
-# copy of. Also import everything from numpy in the header, enabling the use of math in parameter files
+# copy of. Also import everything from numpy and the units moddule in the header, enabling the use of math
+# and units in parameter files
 params.py: $(paramsfile)
 	@echo
 	@echo "Processing parameters from $(paramsfile)"
 	@cp $(paramsfile) $@
-	@sed -i '1i# The following is an exact copy of $(paramsfile)\nfrom numpy import *\n#Original parameter file below\n' $@
+	@sed -i '1i# The following is an exact copy of $(paramsfile)\
+	from numpy import pi, e, sqrt, sin, cos, tan, arcsin, arccos, arctan, sinh, cosh, tanh, arcsinh, arccosh, arctanh, exp, log, log10, log2, abs, floor, ceil\
+	# Seperate but equivalent imports in pure Python and Cython\
+	import cython\
+	if not cython.compiled:\
+	    from units import *\
+	else:\
+	    # Lines in triple quotes will be executed in the .pyx file\
+	    """\
+	    from units cimport *\
+	    """\
+	#Original parameter file below\n' $@
 # Make a .pyx copy of the .py file with the cython_import triple quotes removed and a
 # hard copy of the content of commons.py in place of 'from commons import *'.
 # Other tweeks are performed by the .pyx preprocessor script as well.
@@ -124,7 +136,10 @@ $(pyfile).so: $(pyfile).o
 # Remove all compiled files
 clean:
 	$(RM) -r $(addsuffix .pyx, $(pyfiles)) $(addsuffix .c, $(pyfiles)) $(addsuffix .o, $(pyfiles)) \
-	$(addsuffix .html, $(pyfiles)) $(addsuffix .so, $(pyfiles)) params.py __pycache__ 
+	$(addsuffix .html, $(pyfiles)) $(addsuffix .so, $(pyfiles)) params.py __pycache__
+# Remove compiled modules only
+clean_so:
+	$(RM) -r $(addsuffix .so, $(pyfiles))
 # Remove files produced by running tests
 clean_tests:
 	$(RM) -r tests/*.pdf tests/__pycache__ tests/ewaldforce_gadget.c tests/ewaldforce_gadget

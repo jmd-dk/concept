@@ -12,6 +12,7 @@ else:
     """
 
 
+
 # The class representing a collection of particles of a given type
 @cython.cclass
 class Particles:
@@ -130,7 +131,9 @@ class Particles:
     @cython.cdivision(True)
     @cython.boundscheck(False)
     @cython.wraparound(False)
-    @cython.locals(# Locals
+    @cython.locals(# Arguments
+                   dt='double',
+                   # Locals
                    posx='double*',
                    posy='double*',
                    posz='double*',
@@ -139,7 +142,7 @@ class Particles:
                    velz='double*',
                    i='size_t',
                    )
-    def drift(self):
+    def drift(self, dt):
         # Extracting variables
         posx = self.posx
         posy = self.posy
@@ -162,10 +165,13 @@ class Particles:
     @cython.cdivision(True)
     @cython.boundscheck(False)
     @cython.wraparound(False)
-    def kick(self):
+    @cython.locals(# Arguments
+                   dt='double',
+                   )
+    def kick(self, dt):
         # Delegate the work to the appropriate function based on species
         if self.species == 'dark matter':
-            PP(self)  # or PM(self)
+            PP(self, dt)  # or PM(self, dt)
         elif self.species == 'dark energy':
             # NOT YET IMPLEMENTED
             pass
@@ -236,9 +242,9 @@ def construct_random(type_name, species_name, N):
     if master:
         print('Initializes particles of type "' + type_name + '"')
     # Minimum and maximum mass and maximum velocity
-    mmin = 0.1
-    mmax = 1
-    vmax = 2
+    mmin = 1e+11*units.m_sun
+    mmax = 1e+12*units.Mpc
+    vmax = 0*units.km/units.s
     # Compute a fair distribution of particle data to the processes
     N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
                 + (N//nprocs + 1, )*(N % nprocs))

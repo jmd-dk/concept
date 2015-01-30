@@ -19,8 +19,8 @@ cdef class Particles:
     cdef str type
     cdef str species
     # Methods
-    cdef drift(self)
-    cdef kick(self)
+    cdef drift(self, double dt)
+    cdef kick(self, double dt)
     cdef resize(self, size_t N_allocated)
     cdef populate(self, double[::1] mw, str coord)
 
