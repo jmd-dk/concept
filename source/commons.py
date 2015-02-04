@@ -67,9 +67,10 @@ else:
     from libc.stddef cimport ptrdiff_t
     # Functions for manual memory management
     from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
-    # Function type definitions
-    ctypedef double  (*scalar_func)(double, double, double)
-    ctypedef double* (*vector_func)(double, double, double)
+    # Function type definitions of the form func_returntype_argumenttypes
+    ctypedef double  (*func_d_dd)(double, double)
+    ctypedef double  (*func_d_ddd)(double, double, double)
+    ctypedef double* (*func_ddd_ddd)(double, double, double)
     """
 # Seperate but equivalent imports and definitions in pure Python and Cython
 if not cython.compiled:

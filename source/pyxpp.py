@@ -7,7 +7,7 @@ changed in the following ways:
   including these lines themselves. Also removes the triple quotes around the
   Cython statements in the else body.
 - Integer powers will be replaced by products.
-- Greek letters will be replaced with ASCII-strings.
+- Unicode non-ASCII letters will be replaced with ASCII-strings.
 - __init__ methods in cclasses are renamed to __cinit__.
 - Removes ctypedef's if it already exists in the .pxd file.
 - Fixes the way the % operator works when the left operand is negative
@@ -189,71 +189,111 @@ def power2product(filename):
     with open(filename, 'w') as pyxfile:
         pyxfile.writelines(new_lines)
 
-def greek2ASCII(filename):
+def unicode2ASCII(filename):
     # From http://en.wikipedia.org/wiki/Greek_letters_used_in_mathematics,_science,_and_engineering
-    alphabet = {'α': 'alpha',
-                'β': 'beta',
-                'γ': 'gamma',
-                'δ': 'delta',
-                'ϵ': 'epsilon',
-                'ε': 'varepsilon',
-                'ɛ': 'varepsilon',  # This IS different from the above
-                'ϝ': 'digamma',
-                'ζ': 'zeta',
-                'η': 'eta',
-                'θ': 'theta',
-                'ϑ': 'vartheta',
-                'ι': 'iota',
-                'κ': 'kappa',
-                'ϰ': 'varkappa',
-                'λ': 'lambda',
-                'μ': 'mu',
-                'ν': 'nu',
-                'ξ': 'xi',
-                'ο': 'omicron',
-                'π': 'pi',
-                'ϖ': 'varpi',
-                'ρ': 'rho',
-                'ϱ': 'varrho',
-                'σ': 'sigma',
-                'ς': 'varsigma',
-                'τ': 'tau',
-                'υ': 'upsilon',
-                'φ': 'phi',
-                'ϕ': 'varphi',
-                'χ': 'chi',
-                'ψ': 'psi',
-                'ω': 'omega',
-                'Α': 'Alpha',
-                'Β': 'Beta',
-                'Γ': 'Gamma',
-                'Δ': 'Delta',
-                'Ε': 'Epsilon',
-                'Ϝ': 'Digamma',
-                'Ζ': 'Zeta',
-                'Η': 'Eta',
-                'Θ': 'Theta',
-                'Ι': 'Iota',
-                'Κ': 'Kappa',
-                'Λ': 'Lambda',
-                'Μ': 'Mu',
-                'Ν': 'Nu',
-                'Ξ': 'Xi',
-                'Ο': 'Omicron',
-                'Π': 'Pi',
-                'Ρ': 'Rho',
-                'Σ': 'Sigma',
-                'Τ': 'Tau',
-                'Υ': 'Upsilon',
-                'Φ': 'Phi',
-                'Χ': 'Chi',
-                'Ψ': 'Psi',
-                'Ω': 'Omega'}
+    # and  http://en.wikipedia.org/wiki/Dot_%28diacritic%29
+    symbols = {'α': 'greek_alpha',
+               'β': 'greek_beta',
+               'γ': 'greek_gamma',
+               'δ': 'greek_delta',
+               'ϵ': 'greek_epsilon',
+               'ε': 'greek_varepsilon',
+               'ɛ': 'greek_varepsilon',  # This IS different from the above
+               'ϝ': 'greek_digamma',
+               'ζ': 'greek_zeta',
+               'η': 'greek_eta',
+               'θ': 'greek_theta',
+               'ϑ': 'greek_vartheta',
+               'ι': 'greek_iota',
+               'κ': 'greek_kappa',
+               'ϰ': 'greek_varkappa',
+               'λ': 'greek_lambda',
+               'μ': 'greek_mu',
+               'ν': 'greek_nu',
+               'ξ': 'greek_xi',
+               'ο': 'greek_omicron',
+               'π': 'greek_pi',
+               'ϖ': 'greek_varpi',
+               'ρ': 'greek_rho',
+               'ϱ': 'greek_varrho',
+               'σ': 'greek_sigma',
+               'ς': 'greek_varsigma',
+               'τ': 'greek_tau',
+               'υ': 'greek_upsilon',
+               'φ': 'greek_phi',
+               'ϕ': 'greek_varphi',
+               'χ': 'greek_chi',
+               'ψ': 'greek_psi',
+               'ω': 'greek_omega',
+               'Α': 'greek_Alpha',
+               'Β': 'greek_Beta',
+               'Γ': 'greek_Gamma',
+               'Δ': 'greek_Delta',
+               'Ε': 'greek_Epsilon',
+               'Ϝ': 'greek_Digamma',
+               'Ζ': 'greek_Zeta',
+               'Η': 'greek_Eta',
+               'Θ': 'greek_Theta',
+               'Ι': 'greek_Iota',
+               'Κ': 'greek_Kappa',
+               'Λ': 'greek_Lambda',
+               'Μ': 'greek_Mu',
+               'Ν': 'greek_Nu',
+               'Ξ': 'greek_Xi',
+               'Ο': 'greek_Omicron',
+               'Π': 'greek_Pi',
+               'Ρ': 'greek_Rho',
+               'Σ': 'greek_Sigma',
+               'Τ': 'greek_Tau',
+               'Υ': 'greek_Upsilon',
+               'Φ': 'greek_Phi',
+               'Χ': 'greek_Chi',
+               'Ψ': 'greek_Psi',
+               'Ω': 'greek_Omega',
+               'ȧ': 'dot_a',
+               'ḃ': 'dot_b',
+               'ċ': 'dot_c',
+               'ḋ': 'dot_d',
+               'ė': 'dot_e',
+               'ḟ': 'dot_f',
+               'ġ': 'dot_g',
+               'ḣ': 'dot_h',
+               'ṁ': 'dot_m',
+               'ṅ': 'dot_n',
+               'ȯ': 'dot_o',
+               'ṗ': 'dot_p',
+               'ṙ': 'dot_r',
+               'ṡ': 'dot_s',
+               'ṫ': 'dot_t',
+               'ẇ': 'dot_w',
+               'ẋ': 'dot_x',
+               'ẏ': 'dot_y',
+               'ż': 'dot_z',
+               'Ȧ': 'dot_A',
+               'Ḃ': 'dot_B',
+               'Ċ': 'dot_C',
+               'Ḋ': 'dot_D',
+               'Ė': 'dot_E',
+               'Ḟ': 'dot_F',
+               'Ġ': 'dot_G',
+               'Ḣ': 'dot_H',
+               'Ṁ': 'dot_M',
+               'Ṅ': 'dot_N',
+               'Ȯ': 'dot_O',
+               'Ṗ': 'dot_P',
+               'Ṙ': 'dot_R',
+               'Ṡ': 'dot_S',
+               'Ṫ': 'dot_T',
+               'Ẇ': 'dot_W',
+               'Ẋ': 'dot_X',
+               'Ẏ': 'dot_Y',
+               'Ż': 'dot_Z',
+               }
     new_lines = []
     with open(filename, 'r') as pyxfile:
         for line in pyxfile:
-            for key, value in alphabet.items():
-                line = line.replace(key, '__pyxpp_greek_' + value)
+            for key, value in symbols.items():
+                line = line.replace(key, '__ASCII_repr_of_unicode__' + value)
             new_lines.append(line)
     with open(filename, 'w') as pyxfile:
         pyxfile.writelines(new_lines)
@@ -434,7 +474,7 @@ else:
     import_params(filename)
     cythonstring2code(filename)
     power2product(filename)
-    greek2ASCII(filename)
+    unicode2ASCII(filename)
     __init__2__cinit__(filename)
     del_ctypedef_redeclarations(filename)
     fix_modulus(filename)

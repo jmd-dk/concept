@@ -3,8 +3,21 @@
 # Units defined in the units module as well as Numpy functions
 # and constants can be used.
 
-boxsize = 100*Mpc    # Linear size of the simulation box
-ewald_gridsize = 64  # Linear size of the grid of Ewald corrections
-PM_gridsize = 128    # Linear size of the grid used for the PM method
-softening = 1        # Softening length
+# Numerical parameters
+boxsize = 100*Mpc                      # Linear size of the simulation box
+ewald_gridsize = 64                    # Linear size of the grid of Ewald corrections
+PM_gridsize = 128                      # Linear size of the grid used for the PM method
+softening = 10*kpc                     # Softening length
 
+# Cosmological parameters
+H0 = 70*km/s/Mpc                       # The Hubble constant
+Ωm = 0.3                               # Density parameter for matter
+ΩΛ = 0.7                               # Density parameter for dark energy
+a_begin = 0.000015                     # Scale factor at beginning of simulation
+a_end = 1                              # Scale factor at end of simulation
+
+# Graphics
+visualize = True                       # Toggle live plotting
+framespace = 5                         # The plot is updated every framespace iteration
+framefolder = ''                       # Folder to save frames. Use empty string to not save the frames
+liveframe='/mnt/lifa/public_html/master/simulation.png'  # Name of file (path and extension included) of which to save the latest (live) frame. Use an empty string to not save a live frame

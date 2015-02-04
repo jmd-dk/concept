@@ -18,7 +18,7 @@ else:
 @cython.wraparound(False)
 @cython.locals(# Arguments
                gridsize='int',
-               func='vector_func',
+               func='func_ddd_ddd',
                factor='double',
                filename='str',
                # Locals

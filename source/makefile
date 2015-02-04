@@ -5,7 +5,7 @@
 # Specification of filenames                                                                                #
 #############################################################################################################
 # List of .py files which should be cythonized and compiled to modules
-pyfiles = communication ewald gravity IO mesh params species timeloop units
+pyfiles = communication ewald graphics gravity integration IO mesh params species timeloop units
 # The default parameterfile to use (never needed when invoked via the run script)
 params_default = params/default
 # Filename of the .pyx preprocessor script
