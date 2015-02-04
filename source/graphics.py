@@ -7,7 +7,7 @@ from matplotlib import use as matplotlib_backend
 matplotlib_backend('TkAgg')
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import juggle_axes
-from matplotlib.pyplot import figure, draw, show, savefig
+from matplotlib.pyplot import figure, savefig#, draw, show
 
 # Seperate but equivalent imports in pure Python and Cython
 if not cython.compiled:
@@ -67,18 +67,18 @@ def animate(particles, timestep):
                                 lw=0,
                                 alpha=0.2,
                                 c='purple',
-                                s=10,
+                                s=20,
                                 )
             ax.set_xlim3d(0, boxsize)
             ax.set_ylim3d(0, boxsize)
             ax.set_zlim3d(0, boxsize)
             #ax.view_init(90, 0)
             ax.set_axis_off()
-            show(block=False)
+            #show(block=False)
         else:
             # Update figure
             artist._offsets3d = juggle_axes(X, Y, Z, zdir='z')
-            draw()
+            #draw()
             if saveframes:
                 savefig(framefolder + str(timestep) + '.png',
                         bbox_inches='tight', pad_inches=0, dpi=160)

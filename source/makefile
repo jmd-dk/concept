@@ -19,6 +19,7 @@ files_generated = .ewald_gridsize* .fftw_wisdom_gridsize*
 anaconda_dir = ../anaconda
 openmpi_dir  = ../openmpi
 fftw_dir     = ../fftw
+gsl_dir      = ../gsl
 pyversion = $(shell $(anaconda_dir)/bin/python -c "from sys import version_info as v; print(str(v.major) + '.' + str(v.minor))")
 python = $(anaconda_dir)/bin/python$(pyversion)
 cython = $(anaconda_dir)/bin/cython
@@ -32,7 +33,8 @@ cythonflags = -3 -a -o
 anaconda_incl = -I$(anaconda_dir)/include/python$(pyversion)m
 openmpi_incl  = -I$(openmpi_dir)/include
 fftw_incl     = -I$(fftw_dir)/include
-includes = $(anaconda_incl) $(openmpi_incl) $(fftw_incl)
+gsl_incl      = -I$(gsl_dir)/include
+includes = $(anaconda_incl) $(openmpi_incl) $(fftw_incl) $(gsl_incl)
 # Compiler options
 CC = $(openmpi_dir)/bin/mpicc
 mathoptimizations = -fassociative-math -fno-trapping-math -fno-signed-zeros  # Is this smart?
@@ -41,7 +43,8 @@ CFLAGS = -pthread -DNDEBUG -g -std=c99 -fwrapv -O3 -Wall -Wstrict-prototypes -fP
 anaconda_libs = -L$(anaconda_dir)/lib -L$(python)m
 openmpi_libs  = -L$(openmpi_dir)/lib -Wl,"-rpath=$(openmpi_dir)/lib" -lmpi
 fftw_libs     = -L$(fftw_dir)/lib -Wl,"-rpath=$(fftw_dir)/lib" -lfftw3_mpi -lfftw3
-LDLIBS = $(anaconda_libs) $(openmpi_libs) $(fftw_libs) -lm
+gsl_libs      = -L$(gsl_dir)/lib -Wl,"-rpath=$(gsl_dir)/lib" -lgsl -lgslcblas
+LDLIBS = $(anaconda_libs) $(openmpi_libs) $(fftw_libs) $(gsl_libs) -lm
 # Linker options
 LDFLAGS = -pthread -shared
 

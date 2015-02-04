@@ -6,21 +6,21 @@ from commons import *
 if not cython.compiled:
     from species import construct, construct_random
     from IO import load, save
-    from integration import expand, cosmic_time
+    from integration import expand, cosmic_time, scalefactor_integral
     from graphics import animate, timestep_message
 else:
     # Lines in triple quotes will be executed in the .pyx file.
     """
     from species cimport construct, construct_random
     from IO cimport load, save
-    from integration cimport ȧ, expand, cosmic_time
+    from integration cimport expand, cosmic_time, scalefactor_integral
     from graphics cimport animate, timestep_message
     """
 
 
 # Construct
 cython.declare(particles='Particles')
-particles = construct_random('some typename', 'dark matter', N=20000)
+particles = construct_random('some typename', 'dark matter', N=200)
 particles.mass = 3*H0**2/(8*pi*G_Newton)*boxsize**3/particles.N
 # Save
 save(particles, 'ICs/test')
@@ -58,6 +58,10 @@ while a < a_end:
         a_next = a_end
     a = a_next
     t += Δt
+    # Integral
+    if timestep == 10:
+        area = scalefactor_integral(-2)
+        print('area', area)
     # Leapfrog integration
     particles.drift(Δt)
     if a < a_end:

@@ -50,8 +50,9 @@ def cythonstring2code(filename):
         in_purePythonsection = False
         unindent = False
         purePythonsection_start = 0
+        indentation = 0
         for i, line in enumerate(pyxfile):
-            if unindent and line.rstrip() != '' and line[0] != ' ':
+            if unindent and line.rstrip() != '' and (len(line) > indentation and line[indentation] != ' '):
                 unindent = False
             if line.lstrip().startswith('if not cython.compiled:'):
                 indentation = len(line) - len(line.lstrip())
@@ -149,6 +150,21 @@ def power2product(filename):
                     before_base = expression_base[::-1][i + 1:][::-1]
                 else:
                     # Base not in parentheses
+                    brackets_width_content = ''
+                    if expression_base.replace(' ', '')[-1] == ']':
+                        # Base ends with a bracket
+                        done = False
+                        brackets = 0
+                        for i, symbol in enumerate(reversed(expression_base)):
+                            if symbol == '[':
+                                brackets += 1
+                            elif symbol == ']':
+                                brackets -= 1
+                                done = True
+                            if brackets == 0 and done:
+                                break
+                        brackets_width_content = expression_base[(len(expression_base) - i - 1):].rstrip()
+                        expression_base = expression_base[:(len(expression_base) - i - 1)]
                     for i, symbol in enumerate(reversed(expression_base)):
                         try:
                             base = symbol + base
@@ -156,7 +172,7 @@ def power2product(filename):
                         except:
                             if symbol not in '.0123456789' and base != ' '*len(base):
                                 break
-                    base = base[1:].replace(' ', '')
+                    base = base[1:].replace(' ', '') + brackets_width_content
                     before_base = expression_base[::-1][i:][::-1]
                 # Replaces ** with a string of multiplications for integer powers
                 if integer_power:

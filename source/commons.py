@@ -7,7 +7,7 @@
 ##############################################################################
 from __future__ import division  # Needed for Python3 division in Cython
 from numpy import (arange, array, asarray, concatenate, cumsum, delete, finfo,
-                   empty, linspace, max, prod, sum, unravel_index, zeros)
+                   empty, linspace, max, prod, trapz, sum, unravel_index, zeros)
 from numpy.random import random
 import h5py
 
@@ -61,6 +61,8 @@ else:
     """
     # Get full access to all of Cython
     cimport cython
+    # GNU Scientific Library
+    from cython_gsl cimport *
     # Mathematical functions
     from libc.math cimport round
     # Import the signed integer type ptrdiff_t
