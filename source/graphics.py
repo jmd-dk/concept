@@ -91,31 +91,31 @@ def animate(particles, timestep):
                     # scp the live frame
                     scpp = pexpect.spawn(scp_cmd, timeout=10)
                     try:
-                        msg = scpp.expect(['password:', 'continue connecting (yes/no)?'])
-                        if msg == 0:
-                            # scp asks for password. Send it
+                        msg = scpp.expect(['password:', 'passphrase', pexpect.EOF, 'continue connecting (yes/no)?'])
+                        if msg < 2:
+                            # scp asks for password/passphrase. Send it
                             scpp.sendline(scp_password)
                             msg = scpp.expect(['password:', pexpect.EOF])
                             if msg == 0:
                                 # Incorrect password. Kill scp
-                                scpp.terminate(force=False)
+                                scpp.terminate(force=True)
                                 os.system(r'printf "\033[1m\033[91m'
                                           + 'Warning: Permission to '
                                           + scp_liveframe[:scp_liveframe.find(':')]
                                           + " denied\nFrames will not be scp'ed"
                                           + '\033[0m\n" >&2')
                                 scp_save_liveframe = False
-                        elif msg == 1:
+                        elif msg == 3:
                             # scp cannot authenticate host. Connect anyway
                             scpp.sendline('yes')
-                            msg = scpp.expect(['password:', pexpect.EOF])
-                            if msg == 0:
-                                # scp asks for password. Send it
+                            msg = scpp.expect(['password:', 'passphrase', pexpect.EOF])
+                            if msg < 2:
+                                # scp asks for password/passphrase. Send it
                                 scpp.sendline(scp_password)
-                                msg = scpp.expect(['password:', pexpect.EOF])
-                                if msg == 0:
-                                    # Incorrect password. Kill scp
-                                    scpp.terminate(force=False)
+                                msg = scpp.expect(['password:', 'passphrase', pexpect.EOF])
+                                if msg < 2:
+                                    # Incorrect password/passphrase. Kill scp
+                                    scpp.terminate(force=True)
                                     os.system(r'printf "\033[1m\033[91m'
                                               + 'Warning: Permission to '
                                               + scp_liveframe[:scp_liveframe.find(':')]

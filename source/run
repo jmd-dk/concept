@@ -60,8 +60,15 @@ if not any(p in sys.argv for p in ['-p'] + [arg[:i] for i in range(4, len(arg) +
         args.params = dirname(args.main) + '/params_' + basename(args.main)
     else:
         unspecified_params = True
-# Print out the arguments. These will be captured in the bash 'args' variable
-print(args.nprocs, args.params, args.main, int(args.pure_python), int(unspecified_nprocs), int(unspecified_params))
+# Print out the arguments.
+# These will be captured in the bash 'args' variable
+print(args.nprocs,
+      args.params,
+      args.main,
+      int(args.pure_python),
+      int(unspecified_nprocs),
+      int(unspecified_params)
+      )
 " "$@"`)
 nprocs=${args[0]}
 params=${args[1]}
@@ -128,12 +135,37 @@ fi
 args=(`${python} -c "
 from params import liveframe, scp_liveframe
 from getpass import getpass
+import pexpect
 password = ''
 if liveframe != '' and scp_liveframe != '':
+    # Get scp authentication message
+    scp_cmd = 'scp ${this_file} ' + scp_liveframe
+    scpp = pexpect.spawn(scp_cmd, timeout=10)
+    msg = scpp.expect(['password:', 'passphrase', pexpect.EOF, 'continue connecting (yes/no)?'])
+    prompt = ''
+    if msg == 0:
+        # scp asks for password
+        prompt = scpp.before.decode('utf-8') + 'password: '
+    elif msg == 1:
+        # scp asks for passphrase
+        prompt = 'Enter passphrase' + scpp.after.decode('utf-8')
+    elif msg == 3:
+        # scp cannot authenticate host. Connect anyway
+        scpp.sendline('yes')
+        msg = scpp.expect(['password:', 'passphrase', pexpect.EOF])
+        if msg == 0:
+            # scp asks for password
+            prompt = scpp.before.decode('utf-8') + 'password: '
+        elif msg == 1:
+            # scp asks for passphrase
+            prompt = 'Enter passphrase' + scpp.after.decode('utf-8')
+    scpp.terminate(force=True)
+    # Prompt the user for the password/passphrase
     password = getpass('\nThe latest frame will continuously be scp\'ed to '
                        + scp_liveframe[(scp_liveframe.find('@') + 1):] + '\n'
-                       + scp_liveframe[:scp_liveframe.find(':')] + '\'s password: ')
-# Print out the password. This will be captured in the bash 'args' variable
+                       + prompt)
+# Print out the password/passphrase.
+# This will be captured in the bash 'args' variable.
 print(password)
 " "$@"`)
 password=${args[0]}
