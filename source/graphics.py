@@ -2,12 +2,13 @@
 # In the .pyx file, this line will be replaced by the content of commons.py itself.
 from commons import *
 
+# Use a matplotlib backend that does not require a running X-server
+import matplotlib
+matplotlib.use('Agg')
 # Imports for plotting
-from matplotlib import use as matplotlib_backend
-matplotlib_backend('TkAgg')
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import juggle_axes
-from matplotlib.pyplot import figure, savefig#, draw, show
+from matplotlib.pyplot import figure, savefig
 
 # Seperate but equivalent imports in pure Python and Cython
 if not cython.compiled:

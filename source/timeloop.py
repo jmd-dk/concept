@@ -43,7 +43,7 @@ animate(particles, 0)
 a = a_begin
 t = cosmic_time(a)
 # DETERMINE THE TIME STEP SIZE SOMEHOW  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
-Δt = 100*units.Myr
+Δt = 100*units.Myr*30
 # First leapfrog kick
 particles.kick(Δt/2)
 # Main time loop
