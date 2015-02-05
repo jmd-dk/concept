@@ -49,10 +49,10 @@ rm anaconda.sh
 # Update Conda
 "${top_dir}/${anaconda_dir}/bin/conda" update --yes conda
 
-# Cython, Matplotlib, Numpy and Scipy via Conda
-current_step="installation of Cython, Matplotlib, Numpy and Scipy"
-printf "\n\e[1m\e[93mInstalling Cython, Matplotlib, Numpy & Scipy\e[0m\n"
-"${top_dir}/${anaconda_dir}/bin/conda" install --yes cython matplotlib numpy scipy #pexpect
+# Cython, Matplotlib, Numpy, Pexpect and Scipy via Conda
+current_step="installation of Cython, Matplotlib, NumPy, Pexpect and SciPy"
+printf "\n\e[1m\e[93mInstalling Cython, Matplotlib, NumPy, Pexpect and SciPy\e[0m\n"
+"${top_dir}/${anaconda_dir}/bin/conda" install --yes cython matplotlib numpy pexpect scipy
 # Update all packages in Anaconda
 "${top_dir}/${anaconda_dir}/bin/conda" update --yes --all
 # Do some cleanup in the Anaconda distribution
@@ -74,8 +74,8 @@ cd ../../
 rm -rf tmp
 
 # The cython_gsl Python package (latest version)
-current_step="installation of cython_gsl"
-printf "\n\e[1m\e[93mInstalling cython_gsl\e[0m\n"
+current_step="installation of Cython_GSL"
+printf "\n\e[1m\e[93mInstalling Cython_GSL\e[0m\n"
 wget -nc -O CythonGSL.tar.gz --no-check-certificate https://github.com/twiecki/CythonGSL/archive/master.tar.gz
 tar xf CythonGSL.tar.gz
 cd CythonGSL*
@@ -101,8 +101,8 @@ cd ../../
 rm -rf tmp
 
 # The mpi4py 1.3.1 Python package (cannot use conda, as it installs an outdated version)
-current_step="installation of mpi4py"
-printf "\n\e[1m\e[93mInstalling mpi4py\e[0m\n"
+current_step="installation of MPI4Py"
+printf "\n\e[1m\e[93mInstalling MPI4Py\e[0m\n"
 wget -nc -O mpi4py.tar.gz --no-check-certificate https://bitbucket.org/mpi4py/mpi4py/downloads/mpi4py-1.3.1.tar.gz
 tar xf mpi4py.tar.gz
 cd mpi4py*
