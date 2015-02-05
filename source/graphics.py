@@ -20,6 +20,8 @@ else:
 
 # Imports and definitions common to pure Python and Cython
 import os
+import sys
+import pexpect
 
 # Setting up figure and plot the particles
 @cython.cfunc
@@ -40,7 +42,7 @@ import os
                j='int',
                )
 def animate(particles, timestep):
-    global artist
+    global artist, scp_save_liveframe
     if not visualize or (timestep%framespace):
         return
     N = particles.N
@@ -73,20 +75,63 @@ def animate(particles, timestep):
             ax.set_xlim3d(0, boxsize)
             ax.set_ylim3d(0, boxsize)
             ax.set_zlim3d(0, boxsize)
-            #ax.view_init(90, 0)
             ax.set_axis_off()
-            #show(block=False)
         else:
             # Update figure
             artist._offsets3d = juggle_axes(X, Y, Z, zdir='z')
-            #draw()
-            if saveframes:
-                savefig(framefolder + str(timestep) + '.png',
+            if save_frames:
+                # Save the frame in framefolder
+                savefig(framefolder + str(timestep) + suffix,
                         bbox_inches='tight', pad_inches=0, dpi=160)
-            if liveframes:
+            if save_liveframe:
                 # Save the live frame
-                savefig(liveframe,
+                savefig(liveframe_full,
                         bbox_inches='tight', pad_inches=0, dpi=160)
+                if scp_save_liveframe:
+                    # scp the live frame
+                    scpp = pexpect.spawn(scp_cmd, timeout=10)
+                    try:
+                        msg = scpp.expect(['password:', 'continue connecting (yes/no)?'])
+                        if msg == 0:
+                            # scp asks for password. Send it
+                            scpp.sendline(scp_password)
+                            msg = scpp.expect(['password:', pexpect.EOF])
+                            if msg == 0:
+                                # Incorrect password. Kill scp
+                                scpp.terminate(force=False)
+                                os.system(r'printf "\033[1m\033[91m'
+                                          + 'Warning: Permission to '
+                                          + scp_liveframe[:scp_liveframe.find(':')]
+                                          + " denied\nFrames will not be scp'ed"
+                                          + '\033[0m\n" >&2')
+                                scp_save_liveframe = False
+                        elif msg == 1:
+                            # scp cannot authenticate host. Connect anyway
+                            scpp.sendline('yes')
+                            msg = scpp.expect(['password:', pexpect.EOF])
+                            if msg == 0:
+                                # scp asks for password. Send it
+                                scpp.sendline(scp_password)
+                                msg = scpp.expect(['password:', pexpect.EOF])
+                                if msg == 0:
+                                    # Incorrect password. Kill scp
+                                    scpp.terminate(force=False)
+                                    os.system(r'printf "\033[1m\033[91m'
+                                              + 'Warning: Permission to '
+                                              + scp_liveframe[:scp_liveframe.find(':')]
+                                              + " denied\nFrames will not be scp'ed"
+                                              + r'\033[0m\n" >&2')
+                                    scp_save_liveframe = False
+                        scpp.close()
+                    except KeyboardInterrupt:
+                        raise KeyboardInterrupt
+                    except:
+                        # An error occurred during scp. 
+                        scpp.terminate(force=False)
+                        os.system(r'printf "\033[1m\033[91m'
+                                  + 'Warning: An error occurred during scp to '
+                                  + scp_liveframe[:scp_liveframe.find(':')]
+                                  + '\033[0m\n" >&2')
 
 # This function formats a floating point number f to have the length n
 @cython.cfunc
@@ -122,20 +167,40 @@ def timestep_message(timestep, t_iter, a, t):
 
 # Set the artist as uninitialized at import time
 artist = None
+# Preparation for saving frames done at import time
+cython.declare(liveframe_full='str',
+               save_liveframe='bint',
+               save_frames='bint',
+               scp_cmd='str',
+               scp_password='str',
+               scp_save_liveframe='bint',
+               suffix='str',
+               visualize='bint',
+               )
+suffix = '.' + image_format
+visualize = False
 # Check whether frames should be stored and create the
 # framefolder folder at import time
-cython.declare(saveframes='bint')
-if framefolder == '':
-    saveframes = False
-else:
-    saveframes = True
+save_frames = False
+if framefolder != '':
+    visualize = True
+    save_frames = True
     if not os.path.exists(framefolder):
         os.makedirs(framefolder)
     if framefolder[-1] != '/':
         framefolder += '/'
-# Check whether the latest frame should be broadcasted live
-cython.declare(liveframes='bint')
-if liveframe == '':
-    liveframes = False
-else:
-    liveframes = True
+# Check whether to save a live frame
+liveframe_full = ''
+save_liveframe = False
+scp_cmd=''
+scp_save_liveframe = False
+scp_password = ''
+if liveframe != '':
+    visualize = True
+    save_liveframe = True
+    liveframe_full = liveframe + suffix
+    # Check whether to scp the live frame to a remote host
+    if sys.argv[1] != '':
+        scp_save_liveframe = True
+        scp_password = sys.argv[1]
+        scp_cmd = 'scp ' + liveframe_full + ' ' + scp_liveframe

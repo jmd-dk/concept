@@ -17,7 +17,6 @@ else:
     from graphics cimport animate, timestep_message
     """
 
-
 # Construct
 cython.declare(particles='Particles')
 particles = construct_random('some typename', 'dark matter', N=200)
@@ -26,8 +25,6 @@ particles.mass = 3*H0**2/(8*pi*G_Newton)*boxsize**3/particles.N
 save(particles, 'ICs/test')
 # Load (and thereby order them correctly)
 particles = load('ICs/test')
-
-
 
 
 cython.declare(a='double',
@@ -43,7 +40,7 @@ animate(particles, 0)
 a = a_begin
 t = cosmic_time(a)
 # DETERMINE THE TIME STEP SIZE SOMEHOW  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
-Δt = 100*units.Myr*30
+Δt = 100*units.Myr
 # First leapfrog kick
 particles.kick(Δt/2)
 # Main time loop

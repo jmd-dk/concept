@@ -17,7 +17,29 @@ a_begin = 0.000015                     # Scale factor at beginning of simulation
 a_end = 1                              # Scale factor at end of simulation
 
 # Graphics
-visualize = True                       # Toggle live plotting
-framespace = 5                         # The plot is updated every framespace iteration
-framefolder = ''                       # Folder to save frames. Use empty string to not save the frames
-liveframe='simulation.png'#'/mnt/lifa/public_html/master/simulation.png'  # Name of file (path and extension included) of which to save the latest (live) frame. Use an empty string to not save a live frame
+image_format='png'                     # The image format of the saved frames
+framefolder = ''                       # Folder to save frames
+liveframe='simulation'                 # Filename of saved live frame
+tmp = 'jmd@lifa.phys.au.dk:/usr/users/jmd/public_html/master/simulation.png'
+scp_liveframe=tmp                      # Where to scp the live frame
+framespace = 5                         # The plot is updated every framespace time step
+
+
+
+###############################################
+# Additional information about the parameters #
+###############################################
+############
+# Graphics #
+############
+# image_format
+#     Supported formats are eps, pdf, pgf, png, ps, raw, rgba, svg, svgz.
+# frame_folder
+#     Use empty string to not save the frames.
+# liveframe
+#     The filename should be without extension.
+#     Use an empty string to disable this feature.
+# scp_liveframe
+#     This should be of the form 'user@host:/path/to/liveframe.ext'.
+#     The live frame can not be scp'ed if liveframe is disabled.
+#     Use an empty string to disable this feature.

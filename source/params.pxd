@@ -13,7 +13,8 @@ cdef:
     double a_end
 
     # Graphics
-    bint visualize
-    size_t framespace
+    str image_format
     str framefolder
     str liveframe
+    str scp_liveframe
+    size_t framespace

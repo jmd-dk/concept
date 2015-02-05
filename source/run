@@ -113,13 +113,30 @@ fi
 
 # Do the parameterfile and the main file exist?
 if [ ! -f "${params}" ]; then
-    echo "Error: ${params} does not exist!"
+    echo "Error: "${params}" does not exist!"
     exit 1
 fi
 if [ ! -f "${main}" ]; then
-    echo "Error: ${main} does not exist!"
+    echo "Error: "${main}" does not exist!"
     exit 1
 fi
+
+# Prompt the user for the secure shell password,
+# if the live frame should be scp'ed.
+(cd ${this_dir} && make clean_params_so >/dev/null)
+(cd ${this_dir} && make params.py paramsfile=${params} >/dev/null)
+args=(`${python} -c "
+from params import liveframe, scp_liveframe
+from getpass import getpass
+password = ''
+if liveframe != '' and scp_liveframe != '':
+    password = getpass('\nThe latest frame will continuously be scp\'ed to '
+                       + scp_liveframe[(scp_liveframe.find('@') + 1):] + '\n'
+                       + scp_liveframe[:scp_liveframe.find(':')] + '\'s password: ')
+# Print out the password. This will be captured in the bash 'args' variable
+print(password)
+" "$@"`)
+password=${args[0]}
 
 # Compile or do cleanup from last compilation
 if [ ${pure_python} -eq 0 ] ; then
@@ -127,7 +144,7 @@ if [ ${pure_python} -eq 0 ] ; then
     (cd ${this_dir} && make paramsfile=${params})
 else
     # Remove compiled Cython modules
-    (cd ${this_dir} && make clean_so)
+    (cd ${this_dir} && make clean_so >/dev/null)
     # Process the passed parameter file
     (cd ${this_dir} && make params.py paramsfile=${params})
 fi
@@ -142,7 +159,7 @@ echo "Entry point:   ${main}"
 echo "Parameterfile: ${params}"
 echo "Nr. of CPUs:   ${nprocs}"
 cd ${this_dir}
-${mpiexec} -n ${nprocs} ${python} ${main}
+${mpiexec} -n ${nprocs} ${python} ${main} "${password}"
 
 # Run complete. Deactivate trap before exiting.
 trap : 0

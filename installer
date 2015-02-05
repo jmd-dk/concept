@@ -52,7 +52,7 @@ rm anaconda.sh
 # Cython, Matplotlib, Numpy and Scipy via Conda
 current_step="installation of Cython, Matplotlib, Numpy and Scipy"
 printf "\n\e[1m\e[93mInstalling Cython, Matplotlib, Numpy & Scipy\e[0m\n"
-"${top_dir}/${anaconda_dir}/bin/conda" install --yes cython matplotlib numpy scipy  
+"${top_dir}/${anaconda_dir}/bin/conda" install --yes cython matplotlib numpy scipy #pexpect
 # Update all packages in Anaconda
 "${top_dir}/${anaconda_dir}/bin/conda" update --yes --all
 # Do some cleanup in the Anaconda distribution
