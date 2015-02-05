@@ -31,6 +31,7 @@ import pexpect
 @cython.locals(# Arguments
                particles='Particles',
                timestep='size_t',
+               a='double',
                # Locals
                N='size_t',
                N_local='size_t',
@@ -41,8 +42,8 @@ import pexpect
                i='int',
                j='int',
                )
-def animate(particles, timestep):
-    global artist, scp_save_liveframe
+def animate(particles, timestep, a):
+    global artist, scp_save_liveframe, ax
     if not visualize or (timestep%framespace):
         return
     N = particles.N
@@ -66,8 +67,7 @@ def animate(particles, timestep):
             # Set up figure
             fig = figure()
             ax = fig.add_subplot(111, projection='3d', axisbg='black')
-            artist = ax.scatter(X, Y, Z,
-                                lw=0,
+            artist = ax.scatter(X, Y, Z, lw=0,
                                 alpha=0.2,
                                 c='purple',
                                 s=20,
@@ -75,10 +75,20 @@ def animate(particles, timestep):
             ax.set_xlim3d(0, boxsize)
             ax.set_ylim3d(0, boxsize)
             ax.set_zlim3d(0, boxsize)
-            ax.set_axis_off()
+            ax.w_xaxis.set_pane_color(zeros(4))
+            ax.w_yaxis.set_pane_color(zeros(4))
+            ax.w_zaxis.set_pane_color(zeros(4))
+            ax.w_xaxis.gridlines.set_lw(0)
+            ax.w_yaxis.gridlines.set_lw(0)
+            ax.w_zaxis.gridlines.set_lw(0)
+            # Print the scale factor at the location of the xlabel
+            ax.xaxis.set_rotate_label(False)
+            ax.set_xlabel('$a = ' + format_number(a, 4) + '$', rotation=0)
+            ax.xaxis.label.set_color('white')
         else:
             # Update figure
             artist._offsets3d = juggle_axes(X, Y, Z, zdir='z')
+            ax.set_xlabel('$a = ' + format_number(a, 4) + '$', rotation=0)
             if save_frames:
                 # Save the frame in framefolder
                 savefig(framefolder + str(timestep) + suffix,

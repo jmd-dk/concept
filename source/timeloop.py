@@ -35,7 +35,7 @@ cython.declare(a='double',
                t_iter='double',
                )
 # Plot the initial configuration
-animate(particles, 0)
+animate(particles, 0, 0)
 # Compute initial cosmic time t, where a(t) = a_begin
 a = a_begin
 t = cosmic_time(a)
@@ -66,9 +66,11 @@ while a < a_end:
     else:
         particles.kick(Δt/2)
     # Animate
-    animate(particles, timestep)
+    animate(particles, timestep, a)
     # Print out message
     timestep_message(timestep, t_iter, a, t)
     # Update iteration timestamp and number
     t_iter = time()
     timestep += 1
+# Plot the final configuration
+animate(particles, timestep, a)

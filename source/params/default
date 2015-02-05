@@ -21,7 +21,7 @@ image_format='png'                     # The image format of the saved frames
 framefolder = ''                       # Folder to save frames
 liveframe='simulation'                 # Filename of saved live frame
 tmp = 'jmd@lifa.phys.au.dk:/usr/users/jmd/public_html/master/simulation.png'
-scp_liveframe=tmp                      # Where to scp the live frame
+scp_liveframe=''                       # Where to scp the live frame
 framespace = 5                         # The plot is updated every framespace time step
 
 
