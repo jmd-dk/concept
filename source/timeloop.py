@@ -19,7 +19,7 @@ else:
 
 # Construct
 cython.declare(particles='Particles')
-particles = construct_random('some typename', 'dark matter', N=200)
+particles = construct_random('some typename', 'dark matter', N=2000)
 particles.mass = 3*H0**2/(8*pi*G_Newton)*boxsize**3/particles.N
 # Save
 save(particles, 'ICs/test')

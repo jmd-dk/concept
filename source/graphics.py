@@ -91,7 +91,7 @@ def animate(particles, timestep):
                     # scp the live frame
                     scpp = pexpect.spawn(scp_cmd, timeout=10)
                     try:
-                        msg = scpp.expect(['password:', 'passphrase', pexpect.EOF, 'continue connecting (yes/no)?'])
+                        msg = scpp.expect(['password', 'passphrase', pexpect.EOF, 'continue connecting'])
                         if msg < 2:
                             # scp asks for password/passphrase. Send it
                             scpp.sendline(scp_password)

@@ -141,24 +141,18 @@ if liveframe != '' and scp_liveframe != '':
     # Get scp authentication message
     scp_cmd = 'scp ${this_file} ' + scp_liveframe
     scpp = pexpect.spawn(scp_cmd, timeout=10)
-    msg = scpp.expect(['password:', 'passphrase', pexpect.EOF, 'continue connecting (yes/no)?'])
+    msg = scpp.expect(['password.*', 'passphrase.*', pexpect.EOF, 'continue connecting'])
     prompt = ''
-    if msg == 0:
-        # scp asks for password
-        prompt = scpp.before.decode('utf-8') + 'password: '
-    elif msg == 1:
-        # scp asks for passphrase
-        prompt = 'Enter passphrase' + scpp.after.decode('utf-8')
+    if msg < 2:
+        # scp asks for password or passphrase
+        prompt = (scpp.before + scpp.after).decode('utf-8')
     elif msg == 3:
         # scp cannot authenticate host. Connect anyway
         scpp.sendline('yes')
-        msg = scpp.expect(['password:', 'passphrase', pexpect.EOF])
-        if msg == 0:
-            # scp asks for password
-            prompt = scpp.before.decode('utf-8') + 'password: '
-        elif msg == 1:
-            # scp asks for passphrase
-            prompt = 'Enter passphrase' + scpp.after.decode('utf-8')
+        msg = scpp.expect(['password.*', 'passphrase.*', pexpect.EOF])
+        if msg < 2:
+            # scp asks for password or passphrase
+            prompt = (scpp.before + scpp.after).decode('utf-8')
     scpp.terminate(force=True)
     # Prompt the user for the password/passphrase
     password = getpass('\nThe latest frame will continuously be scp\'ed to '
