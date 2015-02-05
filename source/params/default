@@ -20,4 +20,4 @@ a_end = 1                              # Scale factor at end of simulation
 visualize = True                       # Toggle live plotting
 framespace = 5                         # The plot is updated every framespace iteration
 framefolder = ''                       # Folder to save frames. Use empty string to not save the frames
-liveframe='/mnt/lifa/public_html/master/simulation.png'  # Name of file (path and extension included) of which to save the latest (live) frame. Use an empty string to not save a live frame
+liveframe='simulation.png'#'/mnt/lifa/public_html/master/simulation.png'  # Name of file (path and extension included) of which to save the latest (live) frame. Use an empty string to not save a live frame

@@ -1,11 +1,23 @@
-# This is a parameterfile to the Nbody code.
+# This is a parameterfile to the N-body code.
 # Parameters can be specified as any valid Python3 expression.
 # Units defined in the units module as well as Numpy functions
 # and constants can be used.
 
-G_Newton = 0.01      # Newtons constant
-boxsize = 1          # Linear size of the simulation box
-ewald_gridsize = 16  # Linear size of the grid of Ewald corrections
-PM_gridsize = 64    # Linear size of the grid used for the PM method
-softening = 0.0001   # Softening length
+# Numerical parameters
+boxsize = 100*Mpc                      # Linear size of the simulation box
+ewald_gridsize = 16                    # Linear size of the grid of Ewald corrections
+PM_gridsize = 64                       # Linear size of the grid used for the PM method
+softening = 10*kpc                     # Softening length
 
+# Cosmological parameters
+H0 = 70*km/s/Mpc                       # The Hubble constant
+Ωm = 0.3                               # Density parameter for matter
+ΩΛ = 0.7                               # Density parameter for dark energy
+a_begin = 0.000015                     # Scale factor at beginning of simulation
+a_end = 1                              # Scale factor at end of simulation
+
+# Graphics
+visualize = True                       # Toggle live plotting
+framespace = 5                         # The plot is updated every framespace iteration
+framefolder = ''                       # Folder to save frames. Use empty string to not save the frames
+liveframe='simulation.png'  # Name of file (path and extension included) of which to save the latest (live) frame. Use an empty string to not save a live frame
