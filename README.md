@@ -53,5 +53,5 @@ should be used. Execute
 
     ./run --help
 
-to learn how to use it. hej
+to learn how to use it.
 
