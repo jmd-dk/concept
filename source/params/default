@@ -1,7 +1,8 @@
 # This is a parameterfile to the N-body code.
 # Parameters can be specified as any valid Python3 expression.
 # Units defined in the units module as well as Numpy functions
-# and constants can be used.
+# and constants can be used. For more information about the different
+# parameters, see the bottom of this file.
 
 # Numerical parameters
 boxsize = 100*Mpc                      # Linear size of the simulation box
@@ -18,11 +19,11 @@ a_end = 1                              # Scale factor at end of simulation
 
 # Graphics
 image_format='png'                     # The image format of the saved frames
-framefolder = 'frames'                       # Folder to save frames
-liveframe=''                 # Filename of saved live frame
+framefolder = ''                       # Folder to save frames
+liveframe=''                           # Filename of saved live frame
 tmp = 'jmd@lifa.phys.au.dk:/usr/users/jmd/public_html/master/simulation.png'
 scp_liveframe=''                       # Where to scp the live frame
-framespace = 1                         # The plot is updated every framespace time step
+framespace = 5                         # The plot is updated every framespace time step
 
 
 
