@@ -19,7 +19,7 @@ else:
 
 # Construct
 cython.declare(particles='Particles')
-particles = construct_random('some typename', 'dark matter', N=2000)
+particles = construct_random('some typename', 'dark matter', N=20000)
 particles.mass = 3*H0**2/(8*pi*G_Newton)*boxsize**3/particles.N
 # Save
 save(particles, 'ICs/test')
@@ -40,7 +40,7 @@ animate(particles, 0, 0)
 a = a_begin
 t = cosmic_time(a)
 # DETERMINE THE TIME STEP SIZE SOMEHOW  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
-Δt = 100*units.Myr
+Δt = 50*units.Myr
 # First leapfrog kick
 particles.kick(Δt/2)
 # Main time loop

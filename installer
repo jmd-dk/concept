@@ -70,6 +70,7 @@ cd gsl*
 ./configure --prefix="${top_dir}/${gsl_dir}"
 make
 make install
+cp COPYING README "${top_dir}/${gsl_dir}"
 cd ../../
 rm -rf tmp
 
@@ -97,6 +98,7 @@ cd openmpi*
 ./configure --prefix="${top_dir}/${openmpi_dir}"
 make all
 make install
+cp LICENSE README "${top_dir}/${openmpi_dir}"
 cd ../../
 rm -rf tmp
 
@@ -123,6 +125,7 @@ cd hdf5*
 CC="${top_dir}/${openmpi_dir}/bin/mpicc" ./configure --enable-shared --enable-parallel --prefix="${top_dir}/${hdf5_dir}"
 make
 make install
+cp COPYING README.txt "${top_dir}/${hdf5_dir}"
 cd ../../
 rm -rf tmp
 
@@ -155,6 +158,7 @@ make install
 #CC=${top_dir}/${openmpi_dir}/bin/mpicc MPICC=${top_dir}/${openmpi_dir}/bin/mpicc CFLAGS="-O3 -fPIC" CPPFLAGS=-I${top_dir}/${openmpi_dir}/include LDFLAGS=-L${top_dir}/${openmpi_dir}/lib MPILIBS=-lmpi ./configure --enable-float --enable-shared --enable-mpi --enable-openmp --enable-threads --prefix=${top_dir}/${fftw_dir}
 #make
 #make install
+cp COPYING README "${top_dir}/${fftw_dir}"
 cd ../../
 rm -rf tmp
 
@@ -190,6 +194,15 @@ make clean_files_generated
 make clean_files_generated
 ./run -n 4 -p params/default
 make distclean
+
+# Copyright notice
+current_step="copyright notice"
+printf "\n\e[1m\e[93mCopyright notice\e[0m\n"
+echo "Anaconda, GSL, Open MPI, HDF5 and FFTW has been installed into seperate"
+echo "folders in ${top_dir}$."
+echo "Any use of the \e[3mN\e[0m\e[1m\e[91m-body code must conform to the license terms"
+echo "of the above software. These can be found in their"
+echo "seperate installation directories."
 
 # Installation complete. Deactivate trap before exiting.
 trap : 0

@@ -18,11 +18,11 @@ a_end = 1                              # Scale factor at end of simulation
 
 # Graphics
 image_format='png'                     # The image format of the saved frames
-framefolder = ''                       # Folder to save frames
-liveframe='simulation'                 # Filename of saved live frame
+framefolder = 'frames'                       # Folder to save frames
+liveframe=''                 # Filename of saved live frame
 tmp = 'jmd@lifa.phys.au.dk:/usr/users/jmd/public_html/master/simulation.png'
 scp_liveframe=''                       # Where to scp the live frame
-framespace = 5                         # The plot is updated every framespace time step
+framespace = 1                         # The plot is updated every framespace time step
 
 
 

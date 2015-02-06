@@ -68,9 +68,9 @@ def animate(particles, timestep, a):
             fig = figure()
             ax = fig.add_subplot(111, projection='3d', axisbg='black')
             artist = ax.scatter(X, Y, Z, lw=0,
-                                alpha=0.2,
+                                alpha=0.075,
                                 c='purple',
-                                s=20,
+                                s=7.5,
                                 )
             ax.set_xlim3d(0, boxsize)
             ax.set_ylim3d(0, boxsize)
@@ -83,12 +83,12 @@ def animate(particles, timestep, a):
             ax.w_zaxis.gridlines.set_lw(0)
             # Print the scale factor at the location of the xlabel
             ax.xaxis.set_rotate_label(False)
-            ax.set_xlabel('$a = ' + format_number(a, 4) + '$', rotation=0)
+            ax.set_xlabel('$a = ' + significant_figures(a, 4, just=0, scientific=True) + '$', rotation=0)
             ax.xaxis.label.set_color('white')
         else:
             # Update figure
             artist._offsets3d = juggle_axes(X, Y, Z, zdir='z')
-            ax.set_xlabel('$a = ' + format_number(a, 4) + '$', rotation=0)
+            ax.set_xlabel('$a = ' + significant_figures(a, 4, just=0, scientific=True) + '$', rotation=0)
             if save_frames:
                 # Save the frame in framefolder
                 savefig(framefolder + str(timestep) + suffix,
@@ -143,7 +143,8 @@ def animate(particles, timestep, a):
                                   + scp_liveframe[:scp_liveframe.find(':')]
                                   + '\033[0m\n" >&2')
 
-# This function formats a floating point number f to have the length n
+# This function formats a floating point number f to only
+# have n significant figures.
 @cython.cfunc
 @cython.cdivision(True)
 @cython.boundscheck(False)
@@ -151,10 +152,61 @@ def animate(particles, timestep, a):
 @cython.locals(# Arguments
                f='double',
                n='int',
+               just='int',
+               scientific='bint',
+               # Locals
+               e_index='int',
+               f_str='str',
+               power='int',
+               power10='double',
+               sign='int',
                )
 @cython.returns('str')
-def format_number(f, n):
-    return ('{:.' + str(n - len(str(int(f)))) + 'f}').format(f).ljust(n + 1)
+def significant_figures(f, n, just=0, scientific=False):
+    sign = 1
+    if f == 0:
+        # Nothing fancy happens to zero
+        return '0'.ljust(n + 1)
+    elif f < 0:
+        # Remove the minus sign, for now
+        sign = -1
+        f *= sign
+    # Round to significant digits
+    power = n - 1 - int(floor(log10(f)))
+    power10 = 10.0**power
+    f = round(f*power10)/power10
+    f_str = str(f)
+    # Convert to e notation if f is very large or very small
+    if (len(f_str) - 1 - (f_str[(len(f_str) - 2):] == '.0') > n
+        and not (len(f_str) > 2
+                 and f_str[:2] == '0.'
+                 and f_str[2] != '0')):
+        f_str = ('{:.' + str(n) + 'e}').format(f)
+    if 'e' in f_str:
+        # In scientific (e) notation
+        e_index = f_str.find('e')
+        f_str = f_str[:min((n + 1), e_index)] + f_str[e_index:]
+        if scientific:
+            e_index = f_str.find('e')
+            f_str = f_str.replace('e', r'\times 10^{' + f_str[(e_index + 1):].replace('+', '') + '}')
+            f_str = f_str[:(f_str.find('}') + 1)]
+        # Put sign back in
+        if sign == -1:
+            f_str = '-' + f_str
+        return f_str.ljust(just)
+    else:
+        # Numbers which do not need *10^? to be nicely expressed
+        if len(f_str) == n + 2 and (f_str[(len(f_str) - 2):] == '.0'):
+            # Unwanted .0
+            f_str = f_str[:n]
+        elif (len(f_str) - 1 - (f_str[:2] == '0.')) < n:
+            # Pad with zeros to get correct amount of figures
+            f_str += '0'*(n - (len(f_str) - 1) + (f_str[:2] == '0.'))
+        # Put sign back in
+        if sign == -1:
+            f_str = '-' + f_str
+        return f_str.ljust(just)
+
 
 # This function pretty prints information gathered through a time step
 @cython.cfunc
@@ -170,9 +222,9 @@ def format_number(f, n):
 def timestep_message(timestep, t_iter, a, t):
     if master:
         print('Time step ' + str(timestep) + ':',
-              'Computation time: ' + format_number(time() - t_iter, 5) + ' s',
-              'Scale factor:     ' + format_number(a, 5),
-              'Cosmic time:      ' + format_number(t/units.Gyr, 5) + ' Gyr',
+              'Computation time: ' + significant_figures(time() - t_iter, 4, just=7) + ' s',
+              'Scale factor:     ' + significant_figures(a, 4, just=7),
+              'Cosmic time:      ' + significant_figures(t/units.Gyr, 4, just=7) + ' Gyr',
               sep='\n    ')
 
 # Set the artist as uninitialized at import time
