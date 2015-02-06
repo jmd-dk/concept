@@ -5,7 +5,7 @@ without the need of cythonization, C compilation and linking.
 
 #### Dependencies
 The code has the following non-standard but open source dependencies:
-- **GSL**
+- The **GSL** library.
 - An **MPI3** implementation (e.g. Open MPI).
 - The **HDF5** library, linked to the installed MPI implementation and
   configured to be parallel.
@@ -13,20 +13,21 @@ The code has the following non-standard but open source dependencies:
   implementation and configured to be parallel.
 - **(C)Python3** with the following site-packages:
   - **cython**.
-  - **numpy**.
-  - **scipy**.
-  - **matplotlib**.
-  - **cython_gsl**.
-  - **mpi4py** version 1.3.1 or newer, linked to the
-    installed MPI implementation.
+  - **cython_gsl** linked to the GSL library.
   - **h5py** version 2.4 or newer, linked to the HDF5
     library and configured to be parallel.
+  - **matplotlib**.
+  - **mpi4py** version 1.3.1 or newer, linked to the
+    installed MPI implementation.
+  - **numpy**.
+  - **pexpect**.
+  - **scipy**.
 
 #### Easy installation
 The installation script `installer` automates the process of setting up
 all dependencies by downloading and installing everything in one place.
 The `installer` script will not take into account preinstalled versions
-of any of the above libraries, though no conflicts will happen.
+of any of the above libraries, though no conflicts will occur.
 
 For even more automatization, simply execute this command to download
 and run the `installer` script:

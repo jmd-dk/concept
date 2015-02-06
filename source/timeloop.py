@@ -28,43 +28,47 @@ particles = load('ICs/test')
 
 
 cython.declare(a='double',
+               a_before='double',
                a_next='double',
+               leap='double',
                t='double',
+               t_iter='double',
+               t_before='double',
                timestep='size_t',
                Δt='double',
-               t_iter='double',
                )
 # Plot the initial configuration
 animate(particles, 0, 0)
 # Compute initial cosmic time t, where a(t) = a_begin
 a = a_begin
 t = cosmic_time(a)
-# DETERMINE THE TIME STEP SIZE SOMEHOW  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
-Δt = 50*units.Myr
+# DETERMINE THE TIME STEP SIZE SOMEHOW  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Δt = 100*units.Myr
 # First leapfrog kick
-particles.kick(Δt/2)
+a_next = expand(a, t, Δt/2)
+leap = Δt/2
+particles.kick(scalefactor_integral(-1))
 # Main time loop
 timestep = 0
 t_iter = time()
 while a < a_end:
     # Update the scale factor, the time step size and the cosmic time
     a_next = expand(a, t, Δt)
-    if a_next > a_end:
+    if a_next >= a_end:
+        a_before = a
+        t_before = t
         t_next = cosmic_time(a_end, a, t, t + Δt)
         Δt = t_next - t
         a_next = a_end
     a = a_next
     t += Δt
-    # Integral
-    if timestep == 10:
-        area = scalefactor_integral(-2)
-        print('area', area)
     # Leapfrog integration
-    particles.drift(Δt)
+    particles.drift(scalefactor_integral(-2))
     if a < a_end:
-        particles.kick(Δt)
+        particles.kick(scalefactor_integral(-1))
     else:
-        particles.kick(Δt/2)
+        a_next = expand(a_before, t_before, Δt - leap)
+        particles.kick(scalefactor_integral(-1))
     # Animate
     animate(particles, timestep, a)
     # Print out message

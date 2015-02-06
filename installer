@@ -197,12 +197,12 @@ make distclean
 
 # Copyright notice
 current_step="copyright notice"
-printf "\n\e[1m\e[93mCopyright notice\e[0m\n"
-echo "Anaconda, GSL, Open MPI, HDF5 and FFTW has been installed into seperate"
-echo "folders in ${top_dir}$."
-echo "Any use of the \e[3mN\e[0m\e[1m\e[91m-body code must conform to the license terms"
-echo "of the above software. These can be found in their"
-echo "seperate installation directories."
+printf "\n\e[1m\e[93mCopyright notice\e[0m
+Anaconda, GSL, Open MPI, HDF5 and FFTW has been installed into seperate
+folders in ${top_dir}.
+Any use of the \e[3mN\e[0m-body code must conform to the license terms
+of the above software. These can be found in their
+seperate installation directories.\n"
 
 # Installation complete. Deactivate trap before exiting.
 trap : 0
