@@ -40,16 +40,16 @@ class Particles:
         self.posx = malloc(self.N_allocated*sizeof('double'))
         self.posy = malloc(self.N_allocated*sizeof('double'))
         self.posz = malloc(self.N_allocated*sizeof('double'))
-        self.velx = malloc(self.N_allocated*sizeof('double'))
-        self.vely = malloc(self.N_allocated*sizeof('double'))
-        self.velz = malloc(self.N_allocated*sizeof('double'))
+        self.momx = malloc(self.N_allocated*sizeof('double'))
+        self.momy = malloc(self.N_allocated*sizeof('double'))
+        self.momz = malloc(self.N_allocated*sizeof('double'))
         # Memory views around the allocated data
         self.posx_mw = cast(self.posx, 'double[:self.N_allocated]')
         self.posy_mw = cast(self.posy, 'double[:self.N_allocated]')
         self.posz_mw = cast(self.posz, 'double[:self.N_allocated]')
-        self.velx_mw = cast(self.velx, 'double[:self.N_allocated]')
-        self.vely_mw = cast(self.vely, 'double[:self.N_allocated]')
-        self.velz_mw = cast(self.velz, 'double[:self.N_allocated]')
+        self.momx_mw = cast(self.momx, 'double[:self.N_allocated]')
+        self.momy_mw = cast(self.momy, 'double[:self.N_allocated]')
+        self.momz_mw = cast(self.momz, 'double[:self.N_allocated]')
         # Store particle meta data
         self.mass = mass
         self.N = N
@@ -57,7 +57,7 @@ class Particles:
         self.type = 'generic particle type'
         self.species = 'generic particle species'
 
-    # This method populate the Particles pos/vel attributes with data.
+    # This method populate the Particles pos/mom attributes with data.
     # It is deliberately designed so that you have to make a call for each
     # attribute. You should consruct the mw array within the call itself,
     # as this will minimize memory usage.
@@ -85,18 +85,18 @@ class Particles:
             self.posz = realloc(self.posz, self.N_allocated*sizeof('double'))
             self.posz_mw = cast(self.posz, 'double[:self.N_local]')
             self.posz_mw[...] = mw[...]
-        elif coord == 'velx':
-            self.velx = realloc(self.velx, self.N_allocated*sizeof('double'))
-            self.velx_mw = cast(self.velx, 'double[:self.N_local]')
-            self.velx_mw[...] = mw[...]
-        elif coord == 'vely':
-            self.vely = realloc(self.vely, self.N_allocated*sizeof('double'))
-            self.vely_mw = cast(self.vely, 'double[:self.N_local]')
-            self.vely_mw[...] = mw[...]
-        elif coord == 'velz':
-            self.velz = realloc(self.velz, self.N_allocated*sizeof('double'))
-            self.velz_mw = cast(self.velz, 'double[:self.N_local]')
-            self.velz_mw[...] = mw[...]
+        elif coord == 'momx':
+            self.momx = realloc(self.momx, self.N_allocated*sizeof('double'))
+            self.momx_mw = cast(self.momx, 'double[:self.N_local]')
+            self.momx_mw[...] = mw[...]
+        elif coord == 'momy':
+            self.momy = realloc(self.momy, self.N_allocated*sizeof('double'))
+            self.momy_mw = cast(self.momy, 'double[:self.N_local]')
+            self.momy_mw[...] = mw[...]
+        elif coord == 'momz':
+            self.momz = realloc(self.momz, self.N_allocated*sizeof('double'))
+            self.momz_mw = cast(self.momz, 'double[:self.N_local]')
+            self.momz_mw[...] = mw[...]
         else:
             raise ValueError('Wrong attribute name "' + coord + '"!')
 
@@ -115,16 +115,16 @@ class Particles:
         self.posx = realloc(self.posx, self.N_allocated*sizeof('double'))
         self.posy = realloc(self.posy, self.N_allocated*sizeof('double'))
         self.posz = realloc(self.posz, self.N_allocated*sizeof('double'))
-        self.velx = realloc(self.velx, self.N_allocated*sizeof('double'))
-        self.vely = realloc(self.vely, self.N_allocated*sizeof('double'))
-        self.velz = realloc(self.velz, self.N_allocated*sizeof('double'))
+        self.momx = realloc(self.momx, self.N_allocated*sizeof('double'))
+        self.momy = realloc(self.momy, self.N_allocated*sizeof('double'))
+        self.momz = realloc(self.momz, self.N_allocated*sizeof('double'))
         # Reassign memory views
         self.posx_mw = cast(self.posx, 'double[:self.N_allocated]')
         self.posy_mw = cast(self.posy, 'double[:self.N_allocated]')
         self.posz_mw = cast(self.posz, 'double[:self.N_allocated]')
-        self.velx_mw = cast(self.velx, 'double[:self.N_allocated]')
-        self.vely_mw = cast(self.vely, 'double[:self.N_allocated]')
-        self.velz_mw = cast(self.velz, 'double[:self.N_allocated]')
+        self.momx_mw = cast(self.momx, 'double[:self.N_allocated]')
+        self.momy_mw = cast(self.momy, 'double[:self.N_allocated]')
+        self.momz_mw = cast(self.momz, 'double[:self.N_allocated]')
 
     # Method for integrating particle positions forward in time
     @cython.cfunc
@@ -132,51 +132,56 @@ class Particles:
     @cython.boundscheck(False)
     @cython.wraparound(False)
     @cython.locals(# Arguments
-                   dt='double',
+                   Δt='double',
                    # Locals
                    posx='double*',
                    posy='double*',
                    posz='double*',
-                   velx='double*',
-                   vely='double*',
-                   velz='double*',
+                   momx='double*',
+                   momy='double*',
+                   momz='double*',
                    i='size_t',
                    )
-    def drift(self, dt):
+    def drift(self, Δt):
+        """Note that the time step size Δt is really ∫_t^(t + Δt) dt/a**2.
+        """
         # Extracting variables
         posx = self.posx
         posy = self.posy
         posz = self.posz
-        velx = self.velx
-        vely = self.vely
-        velz = self.velz
+        momx = self.momx
+        momy = self.momy
+        momz = self.momz
+        mass = self.mass
         # Update positions
         for i in range(self.N_local):
-            posx[i] += velx[i]*dt
-            posy[i] += vely[i]*dt
-            posz[i] += velz[i]*dt
+            posx[i] += momx[i]/mass*Δt
+            posy[i] += momy[i]/mass*Δt
+            posz[i] += momz[i]/mass*Δt
             # Toroidal boundaries
             posx[i] %= boxsize
             posy[i] %= boxsize
             posz[i] %= boxsize
 
-    # Method for updating particle velocities
+    # Method for updating particle momenta
     @cython.cfunc
     @cython.cdivision(True)
     @cython.boundscheck(False)
     @cython.wraparound(False)
     @cython.locals(# Arguments
-                   dt='double',
+                   Δt='double',
                    )
-    def kick(self, dt):
+    def kick(self, Δt):
+        """Note that the time step size Δt is really ∫_t^(t + Δt) dt/a.
+        """
         # Delegate the work to the appropriate function based on species
         if self.species == 'dark matter':
-            PP(self, dt)  # or PM(self, dt)
+            PP(self, Δt)  # or PM(self, Δt)
         elif self.species == 'dark energy':
             # NOT YET IMPLEMENTED
             pass
         else:
-            raise ValueError('Species "' + self.species + '" do not have an assigned kick method!')
+            raise ValueError('Species "' + self.species + '" do not have an assigned kick function!')
 
     # This method is automaticlly called when a Particles instance
     # is garbage collected. All manually allocated mmeory is freed.
@@ -187,12 +192,12 @@ class Particles:
             free(self.posy)
         if self.posz:
             free(self.posz)
-        if self.velx:
-            free(self.velx)
-        if self.vely:
-            free(self.vely)
-        if self.velz:
-            free(self.velz)
+        if self.momx:
+            free(self.momx)
+        if self.momy:
+            free(self.momy)
+        if self.momz:
+            free(self.momz)
 
 
 # Constructor function for Particles instances
@@ -218,7 +223,7 @@ def construct(type_name, species_name, mass, N):
     return particles
 
 # Function that constructs a Particles instance with random
-# positions, velocities and masses. The particle data is
+# positions, momenta and masses. The particle data is
 # scattered fair among the processes.
 @cython.cfunc
 @cython.cdivision(True)
@@ -241,10 +246,11 @@ def construct_random(type_name, species_name, N):
     # Print out message
     if master:
         print('Initializes particles of type "' + type_name + '"')
-    # Minimum and maximum mass and maximum velocity
+    # Minimum and maximum mass and maximum
+    # momentum (in any of the three directions)
     mmin = 1e+11*units.m_sun
-    mmax = 1e+12*units.Mpc
-    vmax = 0*units.km/units.s
+    mmax = 1e+12*units.m_sun
+    pmax = 0*units.m_sun*units.km/units.s
     # Compute a fair distribution of particle data to the processes
     N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
                 + (N//nprocs + 1, )*(N % nprocs))
@@ -259,7 +265,7 @@ def construct_random(type_name, species_name, N):
     particles.populate(random(N_local)*boxsize, 'posx')
     particles.populate(random(N_local)*boxsize, 'posy')
     particles.populate(random(N_local)*boxsize, 'posz')
-    particles.populate((2*random(N_local) - 1)*vmax, 'velx')
-    particles.populate((2*random(N_local) - 1)*vmax, 'vely')
-    particles.populate((2*random(N_local) - 1)*vmax, 'velz')
+    particles.populate((2*random(N_local) - 1)*pmax, 'momx')
+    particles.populate((2*random(N_local) - 1)*pmax, 'momy')
+    particles.populate((2*random(N_local) - 1)*pmax, 'momz')
     return particles

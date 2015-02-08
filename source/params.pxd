@@ -13,8 +13,9 @@ cdef:
     double a_end
 
     # Graphics
-    str image_format
     str framefolder
     str liveframe
-    str scp_liveframe
+    str image_format
     size_t framespace
+    str remote_liveframe
+    str protocol

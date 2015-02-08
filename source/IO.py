@@ -41,9 +41,9 @@ def save(particles, filename):
         posx_h5 = particles_h5.create_dataset('posx', [N], dtype='float64')
         posy_h5 = particles_h5.create_dataset('posy', [N], dtype='float64')
         posz_h5 = particles_h5.create_dataset('posz', [N], dtype='float64')
-        velx_h5 = particles_h5.create_dataset('velx', [N], dtype='float64')
-        vely_h5 = particles_h5.create_dataset('vely', [N], dtype='float64')
-        velz_h5 = particles_h5.create_dataset('velz', [N], dtype='float64')
+        momx_h5 = particles_h5.create_dataset('momx', [N], dtype='float64')
+        momy_h5 = particles_h5.create_dataset('momy', [N], dtype='float64')
+        momz_h5 = particles_h5.create_dataset('momz', [N], dtype='float64')
         # Get local indices of the particle data
         N_local = particles.N_local
         N_locals = empty(nprocs, dtype='uintp')
@@ -58,9 +58,9 @@ def save(particles, filename):
         posx_h5[start_local:end_local] = particles.posx_mw[:N_local]
         posy_h5[start_local:end_local] = particles.posy_mw[:N_local]
         posz_h5[start_local:end_local] = particles.posz_mw[:N_local]
-        velx_h5[start_local:end_local] = particles.velx_mw[:N_local]
-        vely_h5[start_local:end_local] = particles.vely_mw[:N_local]
-        velz_h5[start_local:end_local] = particles.velz_mw[:N_local]
+        momx_h5[start_local:end_local] = particles.momx_mw[:N_local]
+        momy_h5[start_local:end_local] = particles.momy_mw[:N_local]
+        momz_h5[start_local:end_local] = particles.momz_mw[:N_local]
         particles_h5.attrs['type'] = particles.type
         particles_h5.attrs['species'] = particles.species
         particles_h5.attrs['mass'] = particles.mass
@@ -96,9 +96,9 @@ def load(filename):
             posx_h5 = particles_h5['posx']
             posy_h5 = particles_h5['posy']
             posz_h5 = particles_h5['posz']
-            velx_h5 = particles_h5['velx']
-            vely_h5 = particles_h5['vely']
-            velz_h5 = particles_h5['velz']
+            momx_h5 = particles_h5['momx']
+            momy_h5 = particles_h5['momy']
+            momz_h5 = particles_h5['momz']
             # Compute a fair distribution of particle data to the processes
             N = posx_h5.size
             N_locals = ((N//nprocs, )*(nprocs - (N%nprocs))
@@ -120,9 +120,9 @@ def load(filename):
             particles.populate(posx_h5[start_local:end_local], 'posx')
             particles.populate(posy_h5[start_local:end_local], 'posy')
             particles.populate(posz_h5[start_local:end_local], 'posz')
-            particles.populate(velx_h5[start_local:end_local], 'velx')
-            particles.populate(vely_h5[start_local:end_local], 'vely')
-            particles.populate(velz_h5[start_local:end_local], 'velz')
+            particles.populate(momx_h5[start_local:end_local], 'momx')
+            particles.populate(momy_h5[start_local:end_local], 'momy')
+            particles.populate(momz_h5[start_local:end_local], 'momz')
     # Scatter particles to the correct domain-specific process
     exchange_all(particles)
 

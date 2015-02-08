@@ -133,13 +133,18 @@ fi
 (cd ${this_dir} && make clean_params_so >/dev/null)
 (cd ${this_dir} && make params.py paramsfile=${params} >/dev/null)
 args=(`${python} -c "
-from params import liveframe, scp_liveframe
+from params import liveframe, remote_liveframe, protocol
 from getpass import getpass
 import pexpect
 password = ''
-if liveframe != '' and scp_liveframe != '':
+if liveframe != '' and remote_liveframe != '':
     # Get scp authentication message
-    scp_cmd = 'scp ${this_file} ' + scp_liveframe
+    if protocol == 'scp':
+        scp_cmd = 'scp ${this_file} ' + remote_liveframe
+    elif protocol == 'sftp':
+        scp_cmd = 'sftp ' + remote_liveframe
+    else:
+        raise Exception('Unknown protocol \"' + protocol + '\".')
     scpp = pexpect.spawn(scp_cmd, timeout=10)
     msg = scpp.expect(['password.*', 'passphrase.*', pexpect.EOF, 'continue connecting'])
     prompt = ''
@@ -155,8 +160,8 @@ if liveframe != '' and scp_liveframe != '':
             prompt = (scpp.before + scpp.after).decode('utf-8')
     scpp.terminate(force=True)
     # Prompt the user for the password/passphrase
-    password = getpass('\nThe latest frame will continuously be scp\'ed to '
-                       + scp_liveframe[(scp_liveframe.find('@') + 1):] + '\n'
+    password = getpass('\nThe latest frame will continuously be ' + protocol + '\'ed to '
+                       + remote_liveframe[(remote_liveframe.find('@') + 1):] + '\n'
                        + prompt)
 # Print out the password/passphrase.
 # This will be captured in the bash 'args' variable.

@@ -4,7 +4,7 @@ from commons import *
 
 # Use a matplotlib backend that does not require a running X-server
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use('TkAgg')
 # Imports for plotting
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import juggle_axes
@@ -22,6 +22,7 @@ else:
 import os
 import sys
 import pexpect
+from os.path import basename
 
 # Setting up figure and plot the particles
 @cython.cfunc
@@ -44,7 +45,7 @@ import pexpect
                )
 def animate(particles, timestep, a):
     global artist, scp_save_liveframe, ax
-    if not visualize or (timestep%framespace):
+    if not visualize or ((timestep%framespace) and a < a_end):
         return
     N = particles.N
     N_local = particles.N_local
@@ -68,9 +69,9 @@ def animate(particles, timestep, a):
             fig = figure()
             ax = fig.add_subplot(111, projection='3d', axisbg='black')
             artist = ax.scatter(X, Y, Z, lw=0,
-                                alpha=0.075,
-                                c='purple',
-                                s=7.5,
+                                alpha=0.2,
+                                c=(64.0/256, 224.0/256, 208.0/256),#'purple',
+                                s=20,
                                 )
             ax.set_xlim3d(0, boxsize)
             ax.set_ylim3d(0, boxsize)
@@ -105,14 +106,22 @@ def animate(particles, timestep, a):
                         if msg < 2:
                             # scp asks for password/passphrase. Send it
                             scpp.sendline(scp_password)
-                            msg = scpp.expect(['password:', pexpect.EOF])
-                            if msg == 0:
+                            msg = scpp.expect(['password', 'passphrase', pexpect.EOF, 'sftp>'])
+                            if msg == 3:
+                                # Logged in to remote host via sftp. Upload file
+                                scpp.sendline(sftp_cmd2)
+                                msg = scpp.expect(['sftp>', pexpect.EOF])
+                                if msg == 0:
+                                    scpp.sendline('bye')
+                                else:
+                                    raise Exception
+                            elif msg < 2:
                                 # Incorrect password. Kill scp
                                 scpp.terminate(force=True)
                                 os.system(r'printf "\033[1m\033[91m'
                                           + 'Warning: Permission to '
-                                          + scp_liveframe[:scp_liveframe.find(':')]
-                                          + " denied\nFrames will not be scp'ed"
+                                          + remote_liveframe[:remote_liveframe.find(':')]
+                                          + " denied\nFrames will not be " + protocol + "'ed"
                                           + '\033[0m\n" >&2')
                                 scp_save_liveframe = False
                         elif msg == 3:
@@ -128,8 +137,8 @@ def animate(particles, timestep, a):
                                     scpp.terminate(force=True)
                                     os.system(r'printf "\033[1m\033[91m'
                                               + 'Warning: Permission to '
-                                              + scp_liveframe[:scp_liveframe.find(':')]
-                                              + " denied\nFrames will not be scp'ed"
+                                              + remote_liveframe[:remote_liveframe.find(':')]
+                                              + " denied\nFrames will not be " + protocol + "'ed"
                                               + r'\033[0m\n" >&2')
                                     scp_save_liveframe = False
                         scpp.close()
@@ -140,7 +149,7 @@ def animate(particles, timestep, a):
                         scpp.terminate(force=False)
                         os.system(r'printf "\033[1m\033[91m'
                                   + 'Warning: An error occurred during scp to '
-                                  + scp_liveframe[:scp_liveframe.find(':')]
+                                  + remote_liveframe[:remote_liveframe.find(':')]
                                   + '\033[0m\n" >&2')
 
 # This function formats a floating point number f to only
@@ -236,6 +245,7 @@ cython.declare(liveframe_full='str',
                scp_cmd='str',
                scp_password='str',
                scp_save_liveframe='bint',
+               sftp_cmd2='str',
                suffix='str',
                visualize='bint',
                )
@@ -265,4 +275,15 @@ if liveframe != '':
     if sys.argv[1] != '':
         scp_save_liveframe = True
         scp_password = sys.argv[1]
-        scp_cmd = 'scp ' + liveframe_full + ' ' + scp_liveframe
+        if protocol == 'scp':
+            scp_cmd = 'scp ' + liveframe_full + ' ' + remote_liveframe
+        elif protocol == 'sftp':
+            if remote_liveframe.endswith('.' + image_format):
+                # Full filename given in remote_liveframe
+                scp_cmd = 'sftp ' + remote_liveframe[:remote_liveframe.rfind('/')]
+                sftp_cmd2 = 'put ' + liveframe_full + ' ' + basename(remote_liveframe)
+            else:
+                # Folder given in remote_liveframe
+                scp_cmd = 'sftp ' +  remote_liveframe
+                sftp_cmd2 = 'put ' + liveframe_full
+

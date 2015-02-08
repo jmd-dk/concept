@@ -7,20 +7,20 @@ cdef class Particles:
     cdef double[::1] posx_mw
     cdef double[::1] posy_mw
     cdef double[::1] posz_mw
-    cdef double[::1] velx_mw
-    cdef double[::1] vely_mw
-    cdef double[::1] velz_mw
+    cdef double[::1] momx_mw
+    cdef double[::1] momy_mw
+    cdef double[::1] momz_mw
     cdef double* posx
     cdef double* posy
     cdef double* posz
-    cdef double* velx
-    cdef double* vely
-    cdef double* velz
+    cdef double* momx
+    cdef double* momy
+    cdef double* momz
     cdef str type
     cdef str species
     # Methods
-    cdef drift(self, double dt)
-    cdef kick(self, double dt)
+    cdef drift(self, double __ASCII_repr_of_unicode__greek_Deltat)
+    cdef kick(self, double __ASCII_repr_of_unicode__greek_Deltat)
     cdef resize(self, size_t N_allocated)
     cdef populate(self, double[::1] mw, str coord)
 

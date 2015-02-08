@@ -108,12 +108,12 @@ def find_N_recv(N_send):
                posz_domain='int',
                posz_mw='double[::1]',
                sendbuf='double[::1]',
-               velx='double*',
-               velx_mw='double[::1]',
-               vely='double*',
-               vely_mw='double[::1]',
-               velz='double*',
-               velz_mw='double[::1]',
+               momx='double*',
+               momx_mw='double[::1]',
+               momy='double*',
+               momy_mw='double[::1]',
+               momz='double*',
+               momz_mw='double[::1]',
                )
 def exchange_all(particles):
     # No need to consider exchange of particles if running serial
@@ -173,16 +173,16 @@ def exchange_all(particles):
         posx = particles.posx
         posy = particles.posy
         posz = particles.posz
-    # Also extract velocites and memory views
-    velx = particles.velx
-    vely = particles.vely
-    velz = particles.velz
+    # Also extract momenta and memory views
+    momx = particles.momx
+    momy = particles.momy
+    momz = particles.momz
     posx_mw = particles.posx_mw
     posy_mw = particles.posy_mw
     posz_mw = particles.posz_mw
-    velx_mw = particles.velx_mw
-    vely_mw = particles.vely_mw
-    velz_mw = particles.velz_mw
+    momx_mw = particles.momx_mw
+    momy_mw = particles.momy_mw
+    momz_mw = particles.momz_mw
     # Exchange particles between processes
     indices_holds = empty(N_send_tot, dtype='uintp')
     for j in range(1, nprocs):
@@ -212,18 +212,18 @@ def exchange_all(particles):
         for i in range(N_send_j):
             sendbuf[i] = posz[indices_send_j[i]]
         Sendrecv(sendbuf[:N_send_j], dest=ID_send, recvbuf=posz_mw[index_recv_j:], source=ID_recv)
-        # Fill send buffer and send/recieve velx
+        # Fill send buffer and send/recieve momx
         for i in range(N_send_j):
-            sendbuf[i] = velx[indices_send_j[i]]
-        Sendrecv(sendbuf[:N_send_j], dest=ID_send, recvbuf=velx_mw[index_recv_j:], source=ID_recv)
-        # Fill send buffer and send/recieve vely
+            sendbuf[i] = momx[indices_send_j[i]]
+        Sendrecv(sendbuf[:N_send_j], dest=ID_send, recvbuf=momx_mw[index_recv_j:], source=ID_recv)
+        # Fill send buffer and send/recieve momy
         for i in range(N_send_j):
-            sendbuf[i] = vely[indices_send_j[i]]
-        Sendrecv(sendbuf[:N_send_j], dest=ID_send, recvbuf=vely_mw[index_recv_j:], source=ID_recv)
-        # Fill send buffer and send/recieve velz
+            sendbuf[i] = momy[indices_send_j[i]]
+        Sendrecv(sendbuf[:N_send_j], dest=ID_send, recvbuf=momy_mw[index_recv_j:], source=ID_recv)
+        # Fill send buffer and send/recieve momz
         for i in range(N_send_j):
-            sendbuf[i] = velz[indices_send_j[i]]
-        Sendrecv(sendbuf[:N_send_j], dest=ID_send, recvbuf=velz_mw[index_recv_j:], source=ID_recv)
+            sendbuf[i] = momz[indices_send_j[i]]
+        Sendrecv(sendbuf[:N_send_j], dest=ID_send, recvbuf=momz_mw[index_recv_j:], source=ID_recv)
         # Update the cummulative counter
         N_recv_cum += N_recv_j
     # Update N_local
@@ -243,9 +243,9 @@ def exchange_all(particles):
             posx[index_hold] = posx[index_move]
             posy[index_hold] = posy[index_move]
             posz[index_hold] = posz[index_move]
-            velx[index_hold] = velx[index_move]
-            vely[index_hold] = vely[index_move]
-            velz[index_hold] = velz[index_move]
+            momx[index_hold] = momx[index_move]
+            momy[index_hold] = momy[index_move]
+            momz[index_hold] = momz[index_move]
             # Update index of particle to move
             index_move -= 1
             # Break out if all remaining holes lie outside of the
