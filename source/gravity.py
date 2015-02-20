@@ -124,12 +124,15 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
             force[0] -= x/r3
             force[1] -= y/r3
             force[2] -= z/r3
+            # Multiply the force by (G*m_i*m_j*∫_t^(t + Δt) dt/a).
+            # Note that "force" is now really the momentum change
+            force[0] *= eom_factor
+            force[1] *= eom_factor
+            force[2] *= eom_factor
             # Update momenta for group i and momentum changes for group j
             if flag_input == 0:
                 # Group i and j are the same.
                 # Update momenta of both particles in the pair
-                for dim in range(3):
-                    force[dim] *= eom_factor
                 momx_i[i] -= force[0]
                 momy_i[i] -= force[1]
                 momz_i[i] -= force[2]
@@ -139,15 +142,14 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
             else:
                 # Group i and j are different.
                 # Update local momenta
-                momx_i[i] -= force[0]*eom_factor
-                momy_i[i] -= force[1]*eom_factor
-                momz_i[i] -= force[2]*eom_factor
+                momx_i[i] -= force[0]
+                momy_i[i] -= force[1]
+                momz_i[i] -= force[2]
                 if flag_input == 1:
                    # Also update external momentum changes
-                   Δmomx_j[j] += force[0]*eom_factor
-                   Δmomy_j[j] += force[1]*eom_factor
-                   Δmomz_j[j] += force[2]*eom_factor
-
+                   Δmomx_j[j] += force[0]
+                   Δmomy_j[j] += force[1]
+                   Δmomz_j[j] += force[2]
 
 # Function for computing the gravitational force
 # by direct summation on all particles
@@ -167,6 +169,7 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
                N_local='size_t',
                N_partnerproc_pairs='int',
                even_nprocs='bint',
+               factor='double',
                i='size_t',
                j='int',
                mass='double',
@@ -201,6 +204,20 @@ def PP(particles, Δt):
     momz_local = particles.momz_mw
     mass = particles.mass
     N_local = particles.N_local
+
+
+    # DET MÆRKELIGE LED PROPORTIONALT MED x
+    factor = 0.5*H0**2*mass*Δt
+    for i in range(N_local):
+        momx_local[i] += factor*posx_local[i]
+        momy_local[i] += factor*posy_local[i]
+        momz_local[i] += factor*posz_local[i]
+
+
+
+
+
+
     # Update local momenta due to forces between local particles.
     # Note that vector_mw is not actually used due to flag_input=0
     direct_summation(posx_local, posy_local, posz_local,

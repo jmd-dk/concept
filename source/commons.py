@@ -6,9 +6,10 @@
 # Imports common to pure Python and Cython                                   #
 ##############################################################################
 from __future__ import division  # Needed for Python3 division in Cython
-from numpy import (arange, array, asarray, concatenate, cumsum, delete, finfo,
-                   empty, linspace, max, prod, trapz, sum, unravel_index, zeros)
+from numpy import (arange, array, asarray, concatenate, cumsum, delete, empty,
+                   linspace, max, prod, trapz, sum, unravel_index, zeros)
 from numpy.random import random
+import numpy as np
 import h5py
 
 # WHILE DEVELOPING
@@ -126,20 +127,25 @@ cython.declare(G_Newton='double',
                boxsize2='double',
                ewald_file='str',
                machine_ϵ='double',
+               softening='double',
                softening2='double',
                two_ewald_gridsize='int',
                two_machine_ϵ='double',
                use_PM='bint',
+               ϱ='double',
                )
 G_Newton = 6.6738e-11*units.m**3/units.kg/units.s**2  # Newtons constant
+ϱ = 3*H0**2/(8*pi*G_Newton) # The average, comoing density (the critical comoving density since we only study flat universes)
+softening = (boxsize/30)*2000**(-one_third)  # 2000 should be the particle Number. Source: http://popia.ft.uam.es/aknebe/page3/files/ComputationalAstrophysics/PhysicalProcesses.pdf page 85
+
 PM_gridsize3 = PM_gridsize**3
 boxsize2 = boxsize**2
 ewald_file = '.ewald_gridsize=' + str(ewald_gridsize) + '.hdf5'  # Name of file storing the Ewald grid
-machine_ϵ = finfo('float64').eps  # Machine epsilon
+machine_ϵ = np.finfo('float64').eps  # Machine epsilon
 softening2 = softening**2
 two_ewald_gridsize = 2*ewald_gridsize
 two_machine_ϵ = 2*machine_ϵ
-use_PM = True  # Flag specifying wheter the PM method is used or not. THIS SHOULD BE COMPUTED BASED ON PARTICLES CHOSEN IN THE PARAMETER FILE!!!!!!!!!!!
+use_PM = True  # Flag specifying whether the PM method is used or not. THIS SHOULD BE COMPUTED BASED ON PARTICLES CHOSEN IN THE PARAMETER FILE!!!!!!!!!!!
 
 ##############################################################################
 # MPI setup                                                                  #

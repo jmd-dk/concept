@@ -128,47 +128,6 @@ if [ ! -f "${main}" ]; then
     exit 1
 fi
 
-# Prompt the user for the secure shell password,
-# if the live frame should be scp'ed.
-(cd ${this_dir} && make clean_params_so >/dev/null)
-(cd ${this_dir} && make params.py paramsfile=${params} >/dev/null)
-args=(`${python} -c "
-from params import liveframe, remote_liveframe, protocol
-from getpass import getpass
-import pexpect
-password = ''
-if liveframe != '' and remote_liveframe != '':
-    # Get scp authentication message
-    if protocol == 'scp':
-        scp_cmd = 'scp ${this_file} ' + remote_liveframe
-    elif protocol == 'sftp':
-        scp_cmd = 'sftp ' + remote_liveframe
-    else:
-        raise Exception('Unknown protocol \"' + protocol + '\".')
-    scpp = pexpect.spawn(scp_cmd, timeout=10)
-    msg = scpp.expect(['password.*', 'passphrase.*', pexpect.EOF, 'continue connecting'])
-    prompt = ''
-    if msg < 2:
-        # scp asks for password or passphrase
-        prompt = (scpp.before + scpp.after).decode('utf-8')
-    elif msg == 3:
-        # scp cannot authenticate host. Connect anyway
-        scpp.sendline('yes')
-        msg = scpp.expect(['password.*', 'passphrase.*', pexpect.EOF])
-        if msg < 2:
-            # scp asks for password or passphrase
-            prompt = (scpp.before + scpp.after).decode('utf-8')
-    scpp.terminate(force=True)
-    # Prompt the user for the password/passphrase
-    password = getpass('\nThe latest frame will continuously be ' + protocol + '\'ed to '
-                       + remote_liveframe[(remote_liveframe.find('@') + 1):] + '\n'
-                       + prompt)
-# Print out the password/passphrase.
-# This will be captured in the bash 'args' variable.
-print(password)
-" "$@"`)
-password=${args[0]}
-
 # Compile or do cleanup from last compilation
 if [ ${pure_python} -eq 0 ] ; then
     # Compile with Cython
@@ -180,7 +139,53 @@ else
     (cd ${this_dir} && make params.py paramsfile=${params})
 fi
 
-# Run!
+# Prompt the user for the secure shell password,
+# if the live frame should be uploaded.
+args=(`${python} -c "
+# Import parameters from the .py file rather than the .so file
+import imp
+params = imp.load_source('params', '${this_dir}/params.py')
+vars = ('liveframe', 'remote_liveframe', 'protocol')
+for var in vars:
+    exec(var + ' = params.' + var)
+# Other, normal imports
+from getpass import getpass
+import pexpect
+# Ask for password, if upload is requested
+password = ''
+if liveframe != '' and remote_liveframe != '':
+    # Get protocol authentication message
+    if protocol == 'scp':
+        cmd = 'scp ${this_file} ' + remote_liveframe
+    elif protocol == 'sftp':
+        cmd = 'sftp ' + remote_liveframe
+    else:
+        raise Exception('Unknown protocol \"' + protocol + '\".')
+    child = pexpect.spawn(cmd, timeout=10)
+    msg = child.expect(['password.*', 'passphrase.*', pexpect.EOF, 'continue connecting'])
+    prompt = ''
+    if msg < 2:
+        # Protocol asks for password or passphrase
+        prompt = (child.before + child.after).decode('utf-8')
+    elif msg == 3:
+        # Protocol cannot authenticate host. Connect anyway
+        child.sendline('yes')
+        msg = child.expect(['password.*', 'passphrase.*', pexpect.EOF])
+        if msg < 2:
+            # Protocol asks for password or passphrase
+            prompt = (child.before + child.after).decode('utf-8')
+    child.terminate(force=True)
+    # Prompt the user for the password/passphrase
+    password = getpass('\nThe latest frame will continuously be ' + protocol + '\'ed to '
+                       + remote_liveframe[(remote_liveframe.find('@') + 1):] + '\n'
+                       + prompt)
+# Print out the password/passphrase.
+# This will be captured in the bash 'args' variable.
+print(password)
+" "$@"`)
+password=${args[0]}
+
+# Run the code. Note that password is passed as an argument
 if [ ${pure_python} -eq 0 ] ; then
     printf "\n\e[1m\e[93mRunning \e[3mN\e[0m\e[1m\e[93m-body\e[0m\n"
 else

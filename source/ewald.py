@@ -51,9 +51,9 @@ def summation(x, y, z):
     (corresponding to boxsize = 1). The equation being solved corresponds to
     (8) in Ralf Klessen's 'GRAPESPH with Fully Periodic Boundary
     Conditions: Fragmentation of Molecular Clouds', though it is written
-    without the normalization. The result is stored in 'force'. The
-    actual Ewald force is then given by force/boxsize**2. This force will be
-    the total force, not just the correction.
+    without the normalization. The actual Ewald force is then given by
+    force/boxsize**2. This force will be the total force,
+    not just the correction.
     """
 
     # The Ewald force vector and components

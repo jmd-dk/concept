@@ -110,7 +110,15 @@ params.py: $(paramsfile)
 	# Seperate but equivalent imports in pure Python and Cython\
 	import cython\
 	if not cython.compiled:\
-	    from units import *\
+	    # Import units from the non-compiled .py file\
+	    import imp\
+	    units = imp.load_source("units", "units.py")\
+	    for key, value in units.__dict__.items():\
+	        if isinstance(key, str):\
+	            try:\
+	                exec(key + "= value")\
+	            except:\
+	                pass\
 	else:\
 	    # Lines in triple quotes will be executed in the .pyx file\
 	    """\
@@ -122,9 +130,9 @@ params.py: $(paramsfile)
 # Other tweeks are performed by the .pyx preprocessor script as well.
 $(pyfile).pyx: $(pyfile).py $(MAKEFILE_LIST) commons.py $(pyxpp)
 	@printf "\n\033[1m\033[93mBuilding the $(pyfile) module\033[0m\n"  # Print module in progress in yellow
-	@echo 'Processing $< into $@'
-	@cp $< $@
-	@$(python) $(pyxpp) $@ $(paramsfile)  # Run the .pyx preprocessor on the .pyx file
+	cp $< $@
+	@# Run the .pyx preprocessor on the .pyx file
+	$(python) $(pyxpp) $@ $(paramsfile)
 # Cythonize .pyx
 $(pyfile).c: $(pyfile).pyx $(pyfile).pxd
 	$(cython) $(cythonflags) $@ $<
@@ -143,9 +151,6 @@ clean:
 # Remove compiled modules only
 clean_so:
 	$(RM) $(addsuffix .so, $(pyfiles))
-# Remove the compiled version of params.py and units.py. Now params can be imported in pure Python.
-clean_params_so:
-	$(RM) params.so units.so
 # Remove files produced by running tests
 clean_tests:
 	$(RM) -r tests/*.pdf tests/__pycache__ tests/ewaldforce_gadget.c tests/ewaldforce_gadget

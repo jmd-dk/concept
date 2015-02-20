@@ -13,6 +13,8 @@ else:
     from communication cimport exchange_all
     """
 
+# Imports and definitions common to pure Python and Cython
+import struct
 
 # Function that saves particle data to an hdf5 file
 @cython.cfunc
@@ -130,4 +132,225 @@ def load(filename):
     # THE PARTICLES VARIABLE SHOULD BE A TUPLE OF PARTICLES OR SOMETHING
     # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     return particles
+
+
+
+
+
+
+@cython.cclass
+class Gadget_snapshot:
+    """
+    """
+
+    # Initialization method. Note that data attributes are declared in the .pxd file.
+    @cython.cdivision(True)
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    def __init__(self):
+        self.HEAD = {}
+
+    # Method for loading in a Gadget snapshot of type 2 from disk
+    @cython.cfunc
+    @cython.cdivision(True)
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    @cython.locals(# Arguments
+                   filename='str',
+                   # Locals
+                   name='str',
+                   size='int',
+                   N='size_t',
+                   N_local='size_t',
+                   N_locals='tuple',
+                   file_position='size_t',
+                   gadget_H0='double',
+                   gadget_boxsize='double',
+                   gadget_Ωm='double',
+                   gadget_ΩΛ='double',
+                   start_local='size_t',
+                   conversion_fac='double',
+                   )
+    def load(self, filename):
+        """ It is assumed that the snapshot on the disk is a Gadget snapshot
+        of type 2 and that it uses single precision. The Gadget_snapshot
+        instance stores the data (positions and velocities) in double
+        precision. Only Gadget type 1 (halo) particles, corresponding to
+        dark matter particles, are supported.
+        """
+        self.offset = 0
+        with open(filename, 'rb') as self.f:
+            # Read in the HEAD block. No unit conversion will be done.
+            self.new_block()
+            name = self.read('4s').decode('utf8').rstrip()  # HEAD
+            size = self.read('i')  # 264
+            self.new_block()
+            self.HEAD['Npart']         = self.read('6I')
+            self.HEAD['Massarr']       = self.read('6d')
+            self.HEAD['Time']          = self.read('d')
+            self.HEAD['Redshift']      = self.read('d')
+            self.HEAD['FlagSfr']       = self.read('i')
+            self.HEAD['FlagFeedback']  = self.read('i')
+            self.HEAD['Nall']          = self.read('6i')
+            self.HEAD['FlagCooling']   = self.read('i')
+            self.HEAD['NumFiles']      = self.read('i')
+            self.HEAD['BoxSize']       = self.read('d')
+            self.HEAD['Omega0']        = self.read('d')
+            self.HEAD['OmegaLambda']   = self.read('d')
+            self.HEAD['HubbleParam']   = self.read('d')
+            self.HEAD['FlagAge']       = self.read('i')
+            self.HEAD['FlagMetals']    = self.read('i')
+            self.HEAD['NallHW']        = self.read('6i')
+            self.HEAD['flag_entr_ics'] = self.read('i')
+            # Check if the cosmology of the snapshot matches
+            # that of the current simulation run. Display a
+            # warning if it does not.
+            tol = 1e-5
+            gadget_boxsize = (self.HEAD['BoxSize']*units.kpc
+                              /self.HEAD['HubbleParam'])
+            gadget_H0 = (self.HEAD['HubbleParam']*100*units.km
+                         /(units.s*units.Mpc))
+            gadget_Ωm = self.HEAD['Omega0']
+            gadget_ΩΛ = self.HEAD['OmegaLambda']
+            if any([abs(gadget_param/param - 1) > tol for gadget_param, param
+                    in zip((gadget_boxsize, gadget_H0, gadget_Ωm, gadget_ΩΛ),
+                           (boxsize, H0, Ωm, ΩΛ))]):
+                print('\033[91m\033[1m' + 'Warning: Mismatch between current '
+                      + 'parameters and those in the Gadget snapshot "'
+                      + filename + '":' + '\033[0m')
+            if abs(gadget_boxsize/boxsize - 1) > tol:
+                print('\033[91m\033[1m' + '    boxsize: ' + str(boxsize)
+                       + ' vs ' + str(gadget_boxsize) + ' (kpc)' + '\033[0m')
+            if abs(gadget_H0/H0 - 1) > tol:
+                print('\033[91m\033[1m' + '    H0: '
+                       + str(H0/(units.km/(units.s*units.Mpc)))
+                       + ' vs ' + str(gadget_H0/(units.km/(units.s*units.Mpc)))
+                       + ' (km/s/Mpc)' + '\033[0m')
+            if abs(gadget_Ωm/Ωm - 1) > tol:
+                print('\033[91m\033[1m' + '    \N{GREEK CAPITAL LETTER OMEGA}m: '
+                       + str(Ωm) + ' vs ' + str(gadget_Ωm) + '\033[0m')
+            if abs(gadget_ΩΛ/ΩΛ - 1) > tol:
+                print('\033[91m\033[1m' + '    \N{GREEK CAPITAL LETTER OMEGA}'
+                       + '\N{GREEK CAPITAL LETTER LAMDA}: '
+                       + str(ΩΛ) + ' vs ' + str(gadget_ΩΛ) + '\033[0m')
+            # Compute a fair distribution of particle data to the processes
+            N = self.HEAD['Npart'][1]
+            N_locals = ((N//nprocs, )*(nprocs - (N%nprocs))
+                        + (N//nprocs + 1, )*(N%nprocs))
+            N_local = N_locals[rank]
+            start_local = sum(N_locals[:rank])
+            # In pure Python, the index must be a Python integer
+            if not cython.compiled:
+                start_local = int(start_local)
+            # Construct a Particles instance
+            self.particles = construct('from Gadget snapshot',
+                                       'dark matter',
+                                       mass=(self.HEAD['Massarr'][1]
+                                             /self.HEAD['HubbleParam']),
+                                       N=N,
+                                       )
+            # Read in the POS block. The positions are given in kpc/h.
+            conversion_fac = units.kpc/self.HEAD['HubbleParam']
+            self.new_block()
+            name = self.read('4s').decode('utf8').rstrip()  # POS
+            size = (self.read('i') - 8)//struct.calcsize('f')
+            self.new_block()
+            self.f.seek(12*start_local, 1)  # 12 = sizeof(float32) x Ndims
+            file_position = self.f.tell()
+            self.particles.populate(asarray(np.fromfile(self.f,
+                                                        dtype='float32',
+                                                        count=3*N_local)
+                                            [0::3], dtype='float64')
+                                    *conversion_fac,
+                                    'posx')
+            self.f.seek(file_position)
+            self.particles.populate(asarray(np.fromfile(self.f,
+                                                        dtype='float32',
+                                                        count=3*N_local)
+                                            [1::3], dtype='float64')
+                                    *conversion_fac,
+                                    'posy')
+            self.f.seek(file_position)
+            self.particles.populate(asarray(np.fromfile(self.f,
+                                                        dtype='float32',
+                                                        count=3*N_local)
+                                            [2::3], dtype='float64')
+                                    *conversion_fac,
+                                    'posz')
+            # Read in the VEL block. The velocities are peculiar
+            # velocities u=a*dx/dt divided by sqrt(a), given in km/s.
+            convertion_fac = units.km/units.s*self.particles.mass*self.HEAD['Time']**1.5
+            self.new_block()
+            name = self.read('4s').decode('utf8').rstrip()  # VEL
+            size = (self.read('i') - 8)//struct.calcsize('f')
+            self.new_block()
+            self.f.seek(12*start_local, 1)  # 12 = sizeof(float32) x Ndims
+            file_position = self.f.tell()
+            self.particles.populate(asarray(np.fromfile(self.f,
+                                                        dtype='float32',
+                                                        count=3*N_local)
+                                            [0::3], dtype='float64')
+                                    *conversion_fac,
+                                    'momx')
+            self.f.seek(file_position)
+            self.particles.populate(asarray(np.fromfile(self.f,
+                                                        dtype='float32',
+                                                        count=3*N_local)
+                                            [1::3], dtype='float64')
+                                    *conversion_fac,
+                                    'momy')
+            self.f.seek(file_position)
+            self.particles.populate(asarray(np.fromfile(self.f,
+                                                        dtype='float32',
+                                                        count=3*N_local)
+                                            [2::3], dtype='float64')
+                                    *conversion_fac,
+                                    'momz')
+            # Possible additional meta data
+            while True:
+                try:
+                    # READ IN MASSES AND STUFF
+                    self.new_block()
+                    name = self.read('4s').decode('utf8').rstrip()
+                    size = self.read('i')
+                except:
+                    break
+
+    # Method used for reading series of bytes from the snapshot file
+    @cython.cfunc
+    @cython.cdivision(True)
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    @cython.locals(# Arguments
+                   fmt='str',
+                   # Locals
+                   t='tuple',
+                   )
+    def read(self, fmt):
+        # Convert bytes to python objects and store them in a tuple
+        t = struct.unpack(fmt, self.f.read(struct.calcsize(fmt))) 
+        # If the tuple contains just a single element, return this
+        # element rather than the tuple.
+        if len(t) == 1:
+            return t[0]
+        return t
+
+    # Method that handles the file object's position in the snapshot file
+    # during loading. Call it when the next block should be read.
+    @cython.cfunc
+    @cython.cdivision(True)
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    def new_block(self):
+        # Set the current position in the file
+        self.f.seek(self.offset)
+        # Each block is bracketed with a 4-byte int
+        # containing the size of the block
+        self.offset += 8 + self.read('i')
+
+
+cython.declare(snap='Gadget_snapshot')
+snap = Gadget_snapshot()
+snap.load('snapshot_005')
+
 

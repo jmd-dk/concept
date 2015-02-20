@@ -5,26 +5,25 @@
 # parameters, see the bottom of this file.
 
 # Numerical parameters
-boxsize = 100*Mpc                      # Linear size of the simulation box
+boxsize = 20*Mpc                      # Linear size of the simulation box
 ewald_gridsize = 64                    # Linear size of the grid of Ewald corrections
 PM_gridsize = 128                      # Linear size of the grid used for the PM method
-softening = 10*kpc                     # Softening length
 
 # Cosmological parameters
 H0 = 70*km/s/Mpc                       # The Hubble constant
 Ωm = 0.3                               # Density parameter for matter
 ΩΛ = 0.7                               # Density parameter for dark energy
-a_begin = 0.000015                     # Scale factor at beginning of simulation
+a_begin = 0.02                         # Scale factor at beginning of simulation
 a_end = 1                              # Scale factor at end of simulation
 
 # Graphics
 framefolder = ''                       # Folder to save frames
-liveframe='pic'                 # Filename of saved live frame
+liveframe='simulation'                 # Filename of saved live frame
 image_format='png'                     # The image format of the saved frames
 tmp = 'jmd@lifa.phys.au.dk:/usr/users/jmd/public_html/master/simulation.png'
-remote_liveframe=tmp                       # Where to upload the live frame
-protocol = 'sftp'                      # Protocol for live frame file transfer
-framespace = 5                       # The plot is updated every framespace time step
+remote_liveframe=''                       # Where to upload the live frame
+protocol = 'scp'                      # Protocol for live frame file transfer
+framespace = 1                       # The plot is updated every framespace time step
 
 
 

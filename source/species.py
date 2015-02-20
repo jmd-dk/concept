@@ -134,6 +134,7 @@ class Particles:
     @cython.locals(# Arguments
                    Δt='double',
                    # Locals
+                   fac='double',
                    posx='double*',
                    posy='double*',
                    posz='double*',
@@ -152,12 +153,13 @@ class Particles:
         momx = self.momx
         momy = self.momy
         momz = self.momz
-        mass = self.mass
+        # The factor 1/mass*∫_t^(t + Δt) dt/a**2
+        fac = Δt/self.mass
         # Update positions
         for i in range(self.N_local):
-            posx[i] += momx[i]/mass*Δt
-            posy[i] += momy[i]/mass*Δt
-            posz[i] += momz[i]/mass*Δt
+            posx[i] += momx[i]*fac
+            posy[i] += momy[i]*fac
+            posz[i] += momz[i]*fac
             # Toroidal boundaries
             posx[i] %= boxsize
             posy[i] %= boxsize
@@ -236,10 +238,10 @@ def construct(type_name, species_name, mass, N):
                # Locals
                N_local='size_t',
                N_locals='tuple',
-               mmin='double',
-               mmax='double',
+               mass_min='double',
+               mass_max='double',
+               mom_max='double',
                particles='Particles',
-               vmax='double',
                )
 @cython.returns('Particles')
 def construct_random(type_name, species_name, N):
@@ -247,10 +249,10 @@ def construct_random(type_name, species_name, N):
     if master:
         print('Initializes particles of type "' + type_name + '"')
     # Minimum and maximum mass and maximum
-    # momentum (in any of the three directions)
-    mmin = 1e+11*units.m_sun
-    mmax = 1e+12*units.m_sun
-    pmax = 0*units.m_sun*units.km/units.s
+    # momenta (in any of the three directions)
+    mass_min = 1e+11*units.m_sun
+    mass_max = 1e+12*units.m_sun
+    mom_max = 0*units.m_sun*units.km/units.s
     # Compute a fair distribution of particle data to the processes
     N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
                 + (N//nprocs + 1, )*(N % nprocs))
@@ -258,14 +260,14 @@ def construct_random(type_name, species_name, N):
     # Construct a Particles instance
     particles = construct(type_name,
                           species_name,
-                          mass=(mmin + random()*(mmax - mmin)),
+                          mass=(mass_min + random()*(mass_max - mass_min)),
                           N=N,
                           )
     # Populate the Particles instance with random data
     particles.populate(random(N_local)*boxsize, 'posx')
     particles.populate(random(N_local)*boxsize, 'posy')
     particles.populate(random(N_local)*boxsize, 'posz')
-    particles.populate((2*random(N_local) - 1)*pmax, 'momx')
-    particles.populate((2*random(N_local) - 1)*pmax, 'momy')
-    particles.populate((2*random(N_local) - 1)*pmax, 'momz')
+    particles.populate((2*random(N_local) - 1)*mom_max, 'momx')
+    particles.populate((2*random(N_local) - 1)*mom_max, 'momy')
+    particles.populate((2*random(N_local) - 1)*mom_max, 'momz')
     return particles
