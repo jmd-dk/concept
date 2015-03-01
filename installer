@@ -195,15 +195,15 @@ wget -nc -O fftw.tar.gz http://www.fftw.org/fftw-2.1.5.tar.gz
 tar xf fftw.tar.gz
 cd fftw*
 # Double-precision
-CC="${openmpi_dir}/bin/mpicc" MPICC="${openmpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I${openmpi_dir}/include" LDFLAGS="-L${openmpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --enable-type-prefix --prefix="${gadget_dir}/${fftw_dir}"
+CC="${openmpi_dir}/bin/mpicc" MPICC="${openmpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I${openmpi_dir}/include" LDFLAGS="-L${openmpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --enable-type-prefix --prefix="${gadget_dir}/fftw"
 make
 make install
 # Single-precision
 make clean
-CC="${openmpi_dir}/bin/mpicc" MPICC="${openmpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I${openmpi_dir}/include" LDFLAGS="-L${openmpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --enable-float --enable-type-prefix --prefix="${gadget_dir}/${fftw_dir}"
+CC="${openmpi_dir}/bin/mpicc" MPICC="${openmpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I${openmpi_dir}/include" LDFLAGS="-L${openmpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --enable-float --enable-type-prefix --prefix="${gadget_dir}/fftw"
 make
 make install
-cp COPYING README "${gadget_dir}/${fftw_dir}"
+cp COPYING README "${gadget_dir}/fftw"
 cd ../../
 rm -rf tmp
 
@@ -246,11 +246,11 @@ rm -rf tmp
 # Copyright notice
 current_step="copyright notice"
 printf "\n\e[1m\e[93mCopyright notice\e[0m
-Anaconda, GSL, Open MPI, HDF5 and FFTW has been installed into seperate
-folders in ${top_dir}.
+Anaconda, GSL, Open MPI, HDF5, FFTW and Gadget (along with its own
+version of FFTW) has been installed into seperate folders in ${top_dir}.
 Any use of the \e[3mN\e[0m-body code must conform to the license terms
-of the above software. These can be found in their
-seperate installation directories.\n"
+of the above software. These can be found in their seperate installation
+directories.\n"
 
 # Installation complete. Deactivate trap before exiting.
 trap : 0
