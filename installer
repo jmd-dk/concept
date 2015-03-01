@@ -60,6 +60,9 @@ bash anaconda.sh -b -p "${anaconda_dir}"
 rm anaconda.sh
 # Update Conda
 "${anaconda_dir}/bin/conda" update --yes conda
+# Create a python variable, storing the path to the newly installed Python interpreter
+python_version=`"${anaconda_dir}/bin/python" -c "from sys import version_info as v; print(str(v.major) + '.' + str(v.minor))"`
+python="${anaconda_dir}/bin/python${python_version}"
 
 # Cython, Matplotlib, Numpy, Pexpect and Scipy via Conda
 current_step="installation of Cython, Matplotlib, NumPy, Pexpect and SciPy"
@@ -187,8 +190,6 @@ printf "\nWriting paths to .paths\n"
 Gadget2_dir="${gadget_dir}/Gadget2"
 cython="${anaconda_dir}/bin/cython"
 mpiexec="${openmpi_dir}/bin/mpiexec"
-python_version=`"${anaconda_dir}/bin/python" -c "from sys import version_info as v; print(str(v.major) + '.' + str(v.minor))"`
-python="${anaconda_dir}/bin/python${python_version}"
 python_incl_m="${anaconda_dir}/include/python${python_version}m"
 run="${Nbody_dir}/run"
 tests_dir="${Nbody_dir}/tests"

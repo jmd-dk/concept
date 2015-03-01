@@ -20,3 +20,4 @@ python_incl_m='/home/jeppe/Documents/Uni/Speciale/Nbody0.1/anaconda/include/pyth
 cython='/home/jeppe/Documents/Uni/Speciale/Nbody0.1/anaconda/bin/cython'
 mpiexec='/home/jeppe/Documents/Uni/Speciale/Nbody0.1/openmpi/bin/mpiexec'
 run='/home/jeppe/Documents/Uni/Speciale/Nbody0.1/Nbody/run'
+
