@@ -1,0 +1,22 @@
+# This file contains absolute paths to directories and files used by the
+# program. You must manually edit the paths below. All other files rely on
+# these paths, as they are not given anywhere else.
+
+# Directories
+Gadget2_dir='/home/jeppe/Documents/Uni/Speciale/Nbody0.1/gadget/Gadget2'
+Nbody_dir='/home/jeppe/Documents/Uni/Speciale/Nbody0.1/Nbody'
+anaconda_dir='/home/jeppe/Documents/Uni/Speciale/Nbody0.1/anaconda'
+fftw_dir='/home/jeppe/Documents/Uni/Speciale/Nbody0.1/fftw'
+gadget_dir='/home/jeppe/Documents/Uni/Speciale/Nbody0.1/gadget'
+gsl_dir='/home/jeppe/Documents/Uni/Speciale/Nbody0.1/gsl'
+hdf5_dir='/home/jeppe/Documents/Uni/Speciale/Nbody0.1/hdf5'
+openmpi_dir='/home/jeppe/Documents/Uni/Speciale/Nbody0.1/openmpi'
+tests_dir='/home/jeppe/Documents/Uni/Speciale/Nbody0.1/Nbody/tests'
+top_dir='/home/jeppe/Documents/Uni/Speciale/Nbody0.1'
+
+# Files
+python='/home/jeppe/Documents/Uni/Speciale/Nbody0.1/anaconda/bin/python3.4'
+python_incl_m='/home/jeppe/Documents/Uni/Speciale/Nbody0.1/anaconda/include/python3.4m'
+cython='/home/jeppe/Documents/Uni/Speciale/Nbody0.1/anaconda/bin/cython'
+mpiexec='/home/jeppe/Documents/Uni/Speciale/Nbody0.1/openmpi/bin/mpiexec'
+run='/home/jeppe/Documents/Uni/Speciale/Nbody0.1/Nbody/run'
