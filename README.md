@@ -38,9 +38,9 @@ and run the `installer` script:
 
     bash <(wget -O- --no-ch tiny.cc/nbody) [installdir]
 
-By using `installer` to install the code you also avoid having to fiddle
-with the `makefile` and `run` script, as the paths to the various files
-will be correct as is.
+To keep track of all the components, `installer` writes a bunch of absolute
+paths to a file called `.paths`. If you choose to manually install some or
+all components, you must also edit this file accordingly.
 
 The `installer` script uses the Anaconda Python distribution for CPython3
 with the site-packages and Open MPI for the MPI3 implementation.

@@ -180,7 +180,10 @@ rm Nbody.tar.gz
 mv Nbody-master/* "${top_dir}"
 mv "${top_dir}"/source "${Nbody_dir}"
 rm -r Nbody-master
+
 # Create the .paths file, storing important paths used by the program
+current_step="creataion of the .paths file"
+printf "\nWriting paths to .paths\n"
 Gadget2_dir="${gadget_dir}/Gadget2"
 cython="${anaconda_dir}/bin/cython"
 mpiexec="${openmpi_dir}/bin/mpiexec"
@@ -253,6 +256,7 @@ rm -rf tmp
 #########################
 # Test the installation #
 #########################
+
 #current_step="testruns of the pure Python \e[3mN\e[0m\e[1m\e[91m-body code"
 #printf "\n\e[1m\e[93mPerforming test runs in pure Python\e[0m\n"
 #cd "${Nbody_dir}"
