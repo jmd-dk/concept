@@ -1,5 +1,5 @@
-# Import everything from the commons module.
-# In the .pyx file, this line will be replaced by the content of commons.py itself.
+# Import everything from the commons module. In the .pyx file,
+# this line will be replaced by the content of commons.py itself.
 from commons import *
 
 # Seperate but equivalent imports in pure Python and Cython
@@ -22,7 +22,8 @@ else:
                )
 @cython.returns('double')
 def ȧ(t, a):
-    return a*H0*sqrt(Ωm/(a**3 +  machine_ϵ) + ΩΛ)
+    return a*H0*sqrt(Ωm/(a**3 + machine_ϵ) + ΩΛ)
+
 
 # Function for solving ODEs of the form ḟ(t, f)
 @cython.cfunc
@@ -63,10 +64,12 @@ def rkf45(ḟ, f_start, t_start, t_end, δ, ϵ, save_intermediate):
     intermediate values optained during the integration will be kept in
     t_cum, f_cum.
     """
-    global alloc_cum, f_cum, f_cum_mw, integrand_cum, integrand_cum_mw, size_cum, t_cum, t_cum_mw
-    # The maximum step size
+    global alloc_cum, f_cum, f_cum_mw, integrand_cum, integrand_cum_mw
+    global size_cum, t_cum, t_cum_mw
+    # The maximum and minimum step size
     Δt = t_end - t_start
-    h_max = Δt/10
+    h_max = 0.1*Δt
+    h_min = 5*machine_ϵ
     # Initial values
     h = h_max*ϵ
     i = 0
@@ -109,11 +112,14 @@ def rkf45(ḟ, f_start, t_start, t_end, δ, ϵ, save_intermediate):
         h *= 0.95*(tolerence/error)**0.25
         if h > h_max:
             h = h_max
+        if h < h_min:
+            h = h_min
         if t + h > t_end:
             h = t_end - t
     if save_intermediate:
         size_cum = i
     return f
+
 
 # Function for updating the scale factor
 @cython.cfunc
@@ -132,6 +138,7 @@ def expand(a, t, Δt):
     """
     return rkf45(ȧ, a, t, t + Δt, δ=1e-9, ϵ=1e-9, save_intermediate=True)
 
+
 # Function for calculating integrals of the sort ∫_t^(t + Δt) a^power dt
 @cython.cfunc
 @cython.cdivision(True)
@@ -146,7 +153,7 @@ def expand(a, t, Δt):
                )
 @cython.returns('double')
 def scalefactor_integral(power):
-    """This function returns the factor ∫_t^(t + Δt) a^power dt used
+    """This function returns the factor ∫_t^(t + Δt) a**power dt used
     in the drift (power = -2) and kick (power = -1) operations.
     It is important that the expand function expand(a, t, Δt) has been
     called prior to calling this function, as expand generates the a
@@ -173,11 +180,16 @@ def scalefactor_integral(power):
         # Initialize spline
         gsl_spline_init(spline, t_cum, integrand_cum, size_cum)
         # Integrate the splined function
-        integral = gsl_spline_eval_integ(spline, t_cum[0], t_cum[size_cum - 1], acc)
+        #print('t_cum,', [t_cum[i] for i in range(size_cum)])
+        integral = gsl_spline_eval_integ(spline,
+                                         t_cum[0],
+                                         t_cum[size_cum - 1],
+                                         acc)
         # Free the accelerator and the spline object
         gsl_spline_free(spline)
         gsl_interp_accel_free(acc)
     return integral
+
 
 # Function for computing the cosmic time t at some given scale factor a
 @cython.cfunc
@@ -208,12 +220,14 @@ def cosmic_time(a, a_lower=machine_ϵ, t_lower=machine_ϵ, t_upper=20*units.Gyr)
     a_test = t = -1
     while abs(a_test - a) > machine_ϵ and (t_upper - t_lower) > machine_ϵ:
         t = (t_upper + t_lower)/2
-        a_test = rkf45(ȧ, a_lower, t_lowest, t, δ=1e-9, ϵ=1e-9, save_intermediate=False)
+        a_test = rkf45(ȧ, a_lower, t_lowest, t, δ=1e-9, ϵ=1e-9,
+                       save_intermediate=False)
         if a_test > a:
             t_upper = t
         else:
             t_lower = t
     return t
+
 
 # Initialize the Butcher tableau for the Runge–Kutta–Fehlberg
 # method at import time
@@ -254,6 +268,7 @@ c5 = 1;       a51 = 439.0/216;   a52 = -8;           a53 = 3680.0/513;   a54= -8
 c6 = 1.0/2;   a61 = -8.0/27;     a62 = 2;            a63 = -3544.0/2565; a64 = 1859.0/4104;  a65 = -11.0/40
 b1 = 16.0/135;                                        b3 = 6656.0/12825;  b4 = 28561.0/56430; b5 = -9.0/50;  b6 = 2.0/55
 d1 = 25.0/216;                                        d3 = 1408.0/2565;   d4 = 2197.0/4104;   d5 = -1.0/5
+
 # Allocate t_cum, f_cum and integrand_cum at import time.
 # t_cum and f_cum are used to store intermediate values of t, f,
 # in the Runge–Kutta–Fehlberg method. integrand_cum stores the associated

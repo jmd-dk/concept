@@ -1,5 +1,5 @@
-# Import everything from the commons module.
-# In the .pyx file, this line will be replaced by the content of commons.py itself.
+# Import everything from the commons module. In the .pyx file,
+# this line willbe replaced by the content of commons.py itself.
 from commons import *
 
 # Seperate but equivalent imports in pure Python and Cython
@@ -9,6 +9,7 @@ else:
     # Lines in triple quotes will be executed in the .pyx file.
     """
     """
+
 
 # Function for communicating sizes of recieve buffers
 @cython.cfunc
@@ -46,7 +47,8 @@ def find_N_recv(N_send):
         # Store the max N_recv_in the unused entrance in N_recv
         max_bfore_rank = 0 if rank == 0 else max(N_recv[:rank])
         max_after_rank = 0 if rank == nprocs - 1 else max(N_recv[(rank + 1):])
-        N_recv[rank] = max_bfore_rank if max_bfore_rank > max_after_rank else max_after_rank
+        N_recv[rank] = (max_bfore_rank if max_bfore_rank > max_after_rank
+                        else max_after_rank)
         return N_recv
     # Find out how many particles will be recieved from each process
     N_recv_max = 0
@@ -62,6 +64,7 @@ def find_N_recv(N_send):
     # Store N_recv_max in the unused entrance in N_recv
     N_recv[rank] = N_recv_max
     return N_recv
+
 
 # This function examines every particle and communicates them to the
 # process governing the domain in which the particle is located
@@ -81,7 +84,7 @@ def find_N_recv(N_send):
                N_recv_cum='size_t',
                N_recv_j='size_t',
                N_recv_max='size_t',
-               N_recv_tot='size_t',  # Used to be ptrdiff_t
+               N_recv_tot='size_t',
                N_send='size_t[::1]',
                N_send_j='size_t',
                N_send_max='size_t',
@@ -122,11 +125,7 @@ def exchange_all(particles):
     # Initialize some variables
     flag_hold = -1
     N_send = zeros(nprocs, dtype='uintp')
-    #N_recv = empty(nprocs, dtype='uintp')
-    #if not cython.compiled:
-    #    N_recv = asarray(N_recv, dtype='int32')
     N_send_max = 0
-    #N_recv_max = 0
     N_send_tot = 0
     N_recv_tot = 0
     N_recv_cum = 0
@@ -203,27 +202,45 @@ def exchange_all(particles):
             # Save index of the now missing particle (hold)
             indices_holds[indices_holds_count] = index_send
             indices_holds_count += 1
-        Sendrecv(sendbuf[:N_send_j], dest=ID_send, recvbuf=posx_mw[index_recv_j:], source=ID_recv)
+        Sendrecv(sendbuf[:N_send_j],
+                 dest=ID_send,
+                 recvbuf=posx_mw[index_recv_j:],
+                 source=ID_recv)
         # Fill send buffer and send/recieve posy
         for i in range(N_send_j):
             sendbuf[i] = posy[indices_send_j[i]]
-        Sendrecv(sendbuf[:N_send_j], dest=ID_send, recvbuf=posy_mw[index_recv_j:], source=ID_recv)
+        Sendrecv(sendbuf[:N_send_j],
+                 dest=ID_send,
+                 recvbuf=posy_mw[index_recv_j:],
+                 source=ID_recv)
         # Fill send buffer and send/recieve posz
         for i in range(N_send_j):
             sendbuf[i] = posz[indices_send_j[i]]
-        Sendrecv(sendbuf[:N_send_j], dest=ID_send, recvbuf=posz_mw[index_recv_j:], source=ID_recv)
+        Sendrecv(sendbuf[:N_send_j],
+                 dest=ID_send,
+                 recvbuf=posz_mw[index_recv_j:],
+                 source=ID_recv)
         # Fill send buffer and send/recieve momx
         for i in range(N_send_j):
             sendbuf[i] = momx[indices_send_j[i]]
-        Sendrecv(sendbuf[:N_send_j], dest=ID_send, recvbuf=momx_mw[index_recv_j:], source=ID_recv)
+        Sendrecv(sendbuf[:N_send_j],
+                 dest=ID_send,
+                 recvbuf=momx_mw[index_recv_j:],
+                 source=ID_recv)
         # Fill send buffer and send/recieve momy
         for i in range(N_send_j):
             sendbuf[i] = momy[indices_send_j[i]]
-        Sendrecv(sendbuf[:N_send_j], dest=ID_send, recvbuf=momy_mw[index_recv_j:], source=ID_recv)
+        Sendrecv(sendbuf[:N_send_j],
+                 dest=ID_send,
+                 recvbuf=momy_mw[index_recv_j:],
+                 source=ID_recv)
         # Fill send buffer and send/recieve momz
         for i in range(N_send_j):
             sendbuf[i] = momz[indices_send_j[i]]
-        Sendrecv(sendbuf[:N_send_j], dest=ID_send, recvbuf=momz_mw[index_recv_j:], source=ID_recv)
+        Sendrecv(sendbuf[:N_send_j],
+                 dest=ID_send,
+                 recvbuf=momz_mw[index_recv_j:],
+                 source=ID_recv)
         # Update the cummulative counter
         N_recv_cum += N_recv_j
     # Update N_local
@@ -278,24 +295,24 @@ def cutout_domains(n, basecall=True):
     and then multiplying the smallest factors until 3 remain.
     """
     # Factorize n
-    primeset  = []
+    primeset = []
     while n > 1:
         for i in range(2, int(n + 1)):
-            if (n%i) == 0:
+            if (n % i) == 0:
                 # Check whether i is prime
                 if i == 2 or i == 3:
                     i_is_prime = True
-                elif i < 2 or (i%2) == 0:
+                elif i < 2 or (i % 2) == 0:
                     i_is_prime = False
                 elif i < 9:
                     i_is_prime = True
-                elif (i%3) == 0:
+                elif (i % 3) == 0:
                     i_is_prime = False
                 else:
                     r = int(sqrt(i))
                     f = 5
                     while f <= r:
-                        if (i%f) == 0 or (i%(f + 2)) == 0:
+                        if (i % f) == 0 or (i % (f + 2)) == 0:
                             i_is_prime = False
                             break
                         f += 6

@@ -1,5 +1,5 @@
-# Import everything from the commons module.
-# In the .pyx file, this line will be replaced by the content of commons.py itself.
+# Import everything from the commons module. In the .pyx file,
+# this line will be replaced by the content of commons.py itself.
 from commons import *
 
 # Seperate but equivalent imports in pure Python and Cython
@@ -76,8 +76,9 @@ def summation(x, y, z):
                 dist = sqrt(dist2)
                 if dist > maxdist:
                     continue
-                scalarpart = -dist**-3*(erfc(dist*reciprocal_2rs) +
-                                        dist*reciprocal_sqrt_pi_rs*exp(dist2*minus_reciprocal_4rs2))
+                scalarpart = -dist**(-3)*(erfc(dist*recp_2rs)
+                                          + dist*recp_sqrt_pi_rs
+                                          * exp(dist2*minus_recp_4rs2))
                 force_x += dist_x*scalarpart
                 force_y += dist_y*scalarpart
                 force_z += dist_z*scalarpart
@@ -103,7 +104,7 @@ def summation(x, y, z):
     return force
 
 
-# Cython master function of this module. Returns the Ewald force correction.
+# Master function of this module. Returns the Ewald force correction.
 @cython.cfunc
 @cython.cdivision(True)
 @cython.boundscheck(False)
@@ -121,7 +122,7 @@ def summation(x, y, z):
 def ewald(x, y, z):
     """ Call this function to get the Ewald correction to the fully periodic
     gravitational force (corresponding to 1/r**2) between two particles
-    seperated by x, y, z, inside a box of length boxsize.
+    seperated by x, y, z.
     """
 
     # Look up Ewald force and do a CIC interpolation
@@ -130,7 +131,7 @@ def ewald(x, y, z):
     for dim in range(3):
         force[dim] /= boxsize2
     # Remove the direct force, leaving only the Ewald correction
-    r3 = (x**2 + y**2 + z**2 + softening2)**1.5
+    r3 = (x**2 + y**2 + z**2)**1.5
     force[0] += x/r3
     force[1] += y/r3
     force[2] += z/r3
@@ -143,11 +144,11 @@ cython.declare(h_lower='int',
                maxdist='double',
                maxh='double',
                maxh2='double',
-               minus_reciprocal_4rs2='double',
+               minus_recp_4rs2='double',
                n_lower='int',
                n_upper='int',
-               reciprocal_2rs='double',
-               reciprocal_sqrt_pi_rs='double',
+               recp_2rs='double',
+               recp_sqrt_pi_rs='double',
                rs='double',
                rs2='double',
                )
@@ -161,11 +162,11 @@ maxh2 = 10
 maxh = sqrt(maxh2)
 h_lower = int(-maxh)
 h_upper = int(maxh) + 1
-minus_reciprocal_4rs2 = -1/(4*rs**2)
+minus_recp_4rs2 = -1/(4*rs**2)
 n_lower = -int(maxdist - 1) - 1
 n_upper = int(maxdist + 1) + 1
-reciprocal_2rs = 1/(2*rs)
-reciprocal_sqrt_pi_rs = 1/(sqrt_pi*rs)
+recp_2rs = 1/(2*rs)
+recp_sqrt_pi_rs = 1/(sqrt_pi*rs)
 rs2 = rs**2
 
 # Initialize the grid at import time
@@ -185,6 +186,10 @@ for i, p in enumerate(path):
         # No tabulated Ewald grid found. Compute it.The factor 0.5 ensures
         # that only the first octant of the box is tabulated
         if master:
-            print('Tabulating Ewald grid of linear size ' + str(ewald_gridsize))
-        grid = tabulate_vectorfield(ewald_gridsize, summation, 0.5/ewald_gridsize, ewald_file)
-
+            print('Tabulating Ewald grid of linear size '
+                  + str(ewald_gridsize))
+        grid = tabulate_vectorfield(ewald_gridsize,
+                                    summation,
+                                    0.5/ewald_gridsize,
+                                    ewald_file,
+                                    )

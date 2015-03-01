@@ -1,4 +1,11 @@
 cdef:
+    # Input/output
+    str IC_file
+    str output_dir
+    str output_type
+    str snapshot_base
+    tuple outputtimes
+
     # Numerical parameters
     double boxsize
     int ewald_gridsize
@@ -10,7 +17,6 @@ cdef:
     double __ASCII_repr_of_unicode__greek_Omegam
     double __ASCII_repr_of_unicode__greek_Omega__ASCII_repr_of_unicode__greek_Lambda
     double a_begin
-    double a_end
 
     # Graphics
     str framefolder

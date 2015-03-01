@@ -30,6 +30,7 @@ import sys
 import re
 from os.path import isfile
 
+
 def import_params(filename):
     new_lines = []
     import_line = 'from ' + 'commons' + ' import *'
@@ -44,6 +45,7 @@ def import_params(filename):
     with open(filename, 'w') as pyxfile:
         pyxfile.writelines(new_lines)
 
+
 def cythonstring2code(filename):
     new_lines = []
     with open(filename, 'r') as pyxfile:
@@ -52,7 +54,9 @@ def cythonstring2code(filename):
         purePythonsection_start = 0
         indentation = 0
         for i, line in enumerate(pyxfile):
-            if unindent and line.rstrip() != '' and (len(line) > indentation and line[indentation] != ' '):
+            if (unindent and line.rstrip() != ''
+                         and (len(line) > indentation
+                         and line[indentation] != ' ')):
                 unindent = False
             if line.lstrip().startswith('if not cython.compiled:'):
                 indentation = len(line) - len(line.lstrip())
@@ -65,7 +69,9 @@ def cythonstring2code(filename):
                         new_lines.append(line_without_triple_quotes[4:])
                 else:
                     new_lines.append(line)
-            if i != purePythonsection_start and in_purePythonsection and len(line) >= indentation and line[indentation] != ' ':
+            if (i != purePythonsection_start and in_purePythonsection
+                                             and len(line) >= indentation
+                                             and line[indentation] != ' '):
                 in_purePythonsection = False
                 if 'else:' in line:
                     unindent = True
@@ -75,21 +81,26 @@ def cythonstring2code(filename):
     with open(filename, 'w') as pyxfile:
         pyxfile.writelines(new_lines)
 
+
 def power2product(filename):
     pyxpp_power = '__pyxpp_power__'
+
     def pow2prod(line, firstcall=True):
         if '**' in line or pyxpp_power in line:
             line = line.rstrip('\n')
             line = line.replace(pyxpp_power, '**', 1)
             # Place spaces before and after **
-            indices = [starstar.start() for starstar in re.finditer('\*\*', line)]
+            indices = [starstar.start() for starstar
+                       in re.finditer('\*\*', line)]
             for i, index in enumerate(indices):
                 line = line[:(index + 2*i)] + ' ** ' + line[(index + 2*i) + 2:]
             # Split line into segments containing ** operators
-            indices = [-2] + [starstar.start() for starstar in re.finditer('\*\*', line + '** **')]
-            expressions = [line[indices[i-1] + 2:indices[i+1]] for i, index in enumerate(indices[:-2]) if i > 0]
+            indices = [-2] + [starstar.start() for starstar
+                              in re.finditer('\*\*', line + '** **')]
+            expressions = [line[indices[i-1] + 2:indices[i+1]] for i, index
+                           in enumerate(indices[:-2]) if i > 0]
             modified_line = ''
-            # Only change nonvariable, integer powers. This also excludes **kwargs
+            # Only change nonvariable, int powers. This also excludes **kwargs
             for ex, expression in enumerate(expressions):
                 power = None
                 expression_power = expression[expression.find('**') + 2:]
@@ -109,11 +120,13 @@ def power2product(filename):
                     after_power = expression_power[i + 1:]
                 else:
                     # Power not in parentheses
-                    power_with_sign = True if expression_power.replace(' ', '')[0] in '+-' else False
+                    power_with_sign = (True if
+                                       expression_power.replace(' ', '')[0]
+                                       in '+-' else False)
                     nr_of_signs = 0
                     for i, symbol in enumerate(expression_power):
                         nr_of_signs += symbol in '+-'
-                        if nr_of_signs > power_with_sign or symbol not in '+- .0123456789':
+                        if (nr_of_signs > power_with_sign or symbol not in '+- .0123456789'):
                             break
                     if i == len(expression_power) - 1:
                         i += 1
@@ -174,12 +187,14 @@ def power2product(filename):
                                 break
                     base = base[1:].replace(' ', '') + brackets_width_content
                     before_base = expression_base[::-1][i:][::-1]
-                # Replaces ** with a string of multiplications for integer powers
+                # Replaces ** with a string of multiplications 
+                # for integer powers
                 if integer_power:
                     if nested_power and firstcall:
                         operation = expression_base + pyxpp_power + power
                     else:
-                        operation = '(' + ((base + '*') * int(abs(eval(power))))[:-1] + ')'
+                        operation = ('(' + ((base + '*')
+                                     *int(abs(eval(power))))[:-1] + ')')
                         if eval(power) < 0:
                             operation = '(1/' + operation + ')'
                 else:
@@ -204,6 +219,7 @@ def power2product(filename):
             new_lines.append(line)
     with open(filename, 'w') as pyxfile:
         pyxfile.writelines(new_lines)
+
 
 def unicode2ASCII(filename):
     # From http://en.wikipedia.org/wiki/Greek_letters_used_in_mathematics,_science,_and_engineering
@@ -314,6 +330,7 @@ def unicode2ASCII(filename):
     with open(filename, 'w') as pyxfile:
         pyxfile.writelines(new_lines)
 
+
 def __init__2__cinit__(filename):
     new_lines = []
     with open(filename, 'r') as pyxfile:
@@ -321,13 +338,17 @@ def __init__2__cinit__(filename):
         for line in pyxfile:
             if len(line) > 13 and line[:14] == '@cython.cclass':
                 in_cclass = True
-            elif line[0] not in ' \n' and not (len(line) > 4 and line[:5] == 'class'):
+            elif (line[0] not in ' \n'
+                  and not (len(line) > 4
+                  and line[:5] == 'class')):
                 in_cclass = False
-            if in_cclass and len(line) > 16 and line[:17] == '    def __init__(':
+            if (in_cclass and len(line) > 16
+                          and line[:17] == '    def __init__('):
                 line = '    def __cinit__(' + line[17:]
             new_lines.append(line)
     with open(filename, 'w') as pyxfile:
         pyxfile.writelines(new_lines)
+
 
 def del_ctypedef_redeclarations(filename):
     pxdfilename = filename[:-3] + 'pxd'
@@ -342,11 +363,13 @@ def del_ctypedef_redeclarations(filename):
             with open(filename, 'r') as pyxfile:
                 for line in pyxfile:
                     if line.rstrip() in ctypedefs:
-                        new_lines.append('# ctypedef redeclaration. Commented by pyxpp: ' + line)
+                        new_lines.append('# ctypedef redeclaration'
+                                         + '. Commented by pyxpp: ' + line)
                     else:
                         new_lines.append(line)
             with open(filename, 'w') as pyxfile:
                 pyxfile.writelines(new_lines)
+
 
 def fix_modulus(filename):
     new_lines = []
@@ -355,7 +378,8 @@ def fix_modulus(filename):
             if '%=' in line:
                 left_operand = line[:line.find('%=')]
                 right_operand = line[line.find('%=') + 2:]
-                line = left_operand + '= ' + left_operand.strip() + ' % ' + '(' + right_operand.rstrip() + ')\n'
+                line = (left_operand + '= ' + left_operand.strip()
+                        + ' % ' + '(' + right_operand.rstrip() + ')\n')
             if '%' in line:
                 right_operand = ''
                 parentheses = 0
@@ -396,12 +420,16 @@ def fix_modulus(filename):
                         break
                 left_operand = left_operand[::-1]
                 left_operand = '(' + left_operand.strip() + ')'
-                modified_line = line[:left_end] + ' (' + left_operand + ' % ' + right_operand + ' + (' + left_operand + ' < 0)*' + right_operand + ') ' + line[right_end:]
+                modified_line = (line[:left_end] + ' (' + left_operand + ' % '
+                                 + right_operand + ' + (' + left_operand
+                                 + ' < 0)*' + right_operand + ') '
+                                 + line[right_end:])
                 new_lines.append(modified_line)
             else:
                 new_lines.append(line)
     with open(filename, 'w') as pyxfile:
         pyxfile.writelines(new_lines)
+
 
 def colon2zero_in_addresses(filename):
     new_lines = []
@@ -417,6 +445,7 @@ def colon2zero_in_addresses(filename):
             new_lines.append(line)
     with open(filename, 'w') as pyxfile:
         pyxfile.writelines(new_lines)
+
 
 def malloc_realloc(filename):
     new_lines = []
@@ -438,18 +467,23 @@ def malloc_realloc(filename):
                             break
                         dtype += symbol
                     dtype = dtype.replace("'", '').replace('"', '')
-                    line = line.replace(alloc, '<' + dtype + '*> PyMem_' + alloc.capitalize())
+                    line = (line.replace(alloc, '<' + dtype
+                            + '*> PyMem_' + alloc.capitalize()))
                     new_lines.append(line)
                     # Add exception
                     LHS = line[:line.find('=')].strip()
-                    indentation = len(line[:line.find('=')]) - len(line[:line.find('=')].lstrip())
+                    indentation = (len(line[:line.find('=')])
+                                   - len(line[:line.find('=')].lstrip()))
                     new_lines.append(' '*indentation + 'if not ' + LHS + ':\n')
-                    new_lines.append(' '*(indentation + 4) + "raise MemoryError('Could not " + alloc[:-1] + ' ' + LHS + "')\n")
+                    new_lines.append(' '*(indentation + 4)
+                                     + "raise MemoryError('Could not "
+                                     + alloc[:-1] + ' ' + LHS + "')\n")
             if not found_alloc:
                 line = line.replace(' free(', ' PyMem_Free(')
                 new_lines.append(line)
     with open(filename, 'w') as pyxfile:
         pyxfile.writelines(new_lines)
+
 
 def C_casting(filename):
     new_lines = []
@@ -472,12 +506,16 @@ def C_casting(filename):
                         break
                     if symbol == ',' and not in_quotes[0] and not in_quotes[1]:
                         comma_index = i
-                cast_to = '<' + line[(comma_index + 1):i].replace("'", '').replace('"', '').strip() + '>'
-                obj_to_cast = '(' + line[(line.find('cast(') + 5):comma_index] + ')'
-                line = line[:line.find('cast(')] + cast_to + obj_to_cast + line[(i + 1):]
+                cast_to = ('<' + line[(comma_index + 1):i]
+                           .replace("'", '').replace('"', '').strip() + '>')
+                obj_to_cast = ('(' + line[(line.find('cast(') + 5):comma_index]
+                               + ')')
+                line = (line[:line.find('cast(')] + cast_to + obj_to_cast
+                        + line[(i + 1):])
             new_lines.append(line)
     with open(filename, 'w') as pyxfile:
         pyxfile.writelines(new_lines)
+
 
 # Edit the .pyx file
 filename = sys.argv[1]
@@ -497,4 +535,3 @@ else:
     colon2zero_in_addresses(filename)
     malloc_realloc(filename)
     C_casting(filename)
-

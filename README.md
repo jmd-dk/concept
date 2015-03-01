@@ -1,3 +1,6 @@
+### TODO
+Make a print function which prints red text to stderr.
+
 ### *N*-body code
 This is the readme file for the *N*-body code by Jeppe Dakin.
 The code is written in Cython and C, but can also be run purely in Python,

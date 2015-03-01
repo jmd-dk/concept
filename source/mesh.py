@@ -1,5 +1,5 @@
-# Import everything from the commons module.
-# In the .pyx file, this line will be replaced by the content of commons.py itself.
+# Import everything from the commons module. In the .pyx file,
+# this line will be replaced by the content of commons.py itself.
 from commons import *
 
 # Seperate but equivalent imports in pure Python and Cython
@@ -50,14 +50,18 @@ def tabulate_vectorfield(gridsize, func, factor, filename):
     grid = empty(shape)
     # Each process tabulate its part of the grid
     (i_start, j_start, k_start), (i_end, j_end, k_end) = partition(shape[:3])
-    grid_local = empty([i_end - i_start, j_end - j_start, k_end - k_start] + [3])
+    grid_local = empty([i_end - i_start,
+                        j_end - j_start,
+                        k_end - k_start] + [3])
     for i in range(i_start, i_end):
         for j in range(j_start, j_end):
             for k in range(k_start, k_end):
                 # Compute the vector values via the passed function
                 vector = func(i*factor, j*factor, k*factor)
                 for dim in range(3):
-                    grid_local[i - i_start, j - j_start, k - k_start, dim] = vector[dim]
+                    grid_local[i - i_start,
+                               j - j_start,
+                               k - k_start, dim] = vector[dim]
     # Save grid to disk using parallel hdf5
     with h5py.File(filename, mode='w', driver='mpio', comm=comm) as hdf5_file:
         dset = hdf5_file.create_dataset('data', shape, dtype='float64')
@@ -104,14 +108,16 @@ def CIC_grid2coordinates_vector(grid, x, y, z):
     (x, y, z) via the clouds-in-cell (CIC) method. Input arguments must be
     normalized so that 0 <= |x|, |y|, |z| < 1 (corresponding to boxsize = 1).
     It is assumed that only the (+++) octant of the total simulation box is
-    represented by the grid, and that the same symmetries as in the Ewald method apply.
+    represented by the grid, and that the same symmetries as in the Ewald
+    method apply.
     """
 
     # Extract the size of the regular, cubic grid
     gridsize = grid.shape[0]
     two_gridsize = 2*gridsize
-    # Shift x, y, z along the grid (in steps of the (normalized) boxsize, 1) so that the two
-    # real particles are as close as they can get (only one octant of the box is tabulated).
+    # Shift x, y, z along the grid (in steps of the (normalized) boxsize, 1)
+    # so that the two real particles are as close as they can get (only one
+    # octant of the box is tabulated).
     if x > 0.5:
         x -= 1
     elif x < -0.5:
@@ -185,7 +191,8 @@ def CIC_grid2coordinates_vector(grid, x, y, z):
     return vector
 
 
-# Function for CIC-interpolating particle coordinates to a cubic grid with scalar values
+# Function for CIC-interpolating particle coordinates
+# to a cubic grid with scalar values.
 @cython.cfunc
 @cython.cdivision(True)
 @cython.boundscheck(False)
@@ -261,7 +268,3 @@ def CIC_coordinates2grid(grid, particles):
         grid[x_upper, y_lower, z_upper] += xu*yl*zu
         grid[x_upper, y_upper, z_lower] += xu*yu*zl
         grid[x_upper, y_upper, z_upper] += xu*yu*zu
-
-
-
-

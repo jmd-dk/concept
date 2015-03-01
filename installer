@@ -8,20 +8,18 @@
 # The above uses a URL shortener. If it does not work, use the full URL:
 # https://raw.githubusercontent.com/jmd-dk/Nbody/master/Nbody_installer
 
-# Specify installation directories relative to ${top_dir}
-anaconda_dir=anaconda
-gsl_dir=gsl
-openmpi_dir=openmpi
-hdf5_dir=hdf5
-fftw_dir=fftw
-Nbody_dir=Nbody
-
 # Set up error trapping
+ctrl_c()
+{
+    trap : 0
+    exit 2
+}
 abort()
 {
     printf "\n\e[1m\e[91mAn error occurred during ${current_step}!\e[0m\n" >&2
     exit 1
 }
+trap 'ctrl_c' SIGINT
 trap 'abort' EXIT
 set -e
 
@@ -40,23 +38,37 @@ echo "The code will be installed in ${top_dir}"
 mkdir -p "${top_dir}"
 cd "${top_dir}"
 
+# Specify installation directories
+anaconda_dir="${top_dir}/anaconda"
+gsl_dir="${top_dir}/gsl"
+openmpi_dir="${top_dir}/openmpi"
+hdf5_dir="${top_dir}/hdf5"
+fftw_dir="${top_dir}/fftw"
+Nbody_dir="${top_dir}/Nbody"
+gadget_dir="${top_dir}/gadget"
+
+
+#############################
+# Installing the Nbody code #
+#############################
+
 # Anaconda3 2.1.0 (via Miniconda3 3.7.0)
 current_step="installation of Anaconda"
 printf "\n\e[1m\e[93mInstalling Anaconda\e[0m\n"
 wget -nc -O anaconda.sh --no-check-certificate http://repo.continuum.io/miniconda/Miniconda3-3.7.0-Linux-x86_64.sh
-bash anaconda.sh -b -p "${top_dir}/${anaconda_dir}"
+bash anaconda.sh -b -p "${anaconda_dir}"
 rm anaconda.sh
 # Update Conda
-"${top_dir}/${anaconda_dir}/bin/conda" update --yes conda
+"${anaconda_dir}/bin/conda" update --yes conda
 
 # Cython, Matplotlib, Numpy, Pexpect and Scipy via Conda
 current_step="installation of Cython, Matplotlib, NumPy, Pexpect and SciPy"
 printf "\n\e[1m\e[93mInstalling Cython, Matplotlib, NumPy, Pexpect and SciPy\e[0m\n"
-"${top_dir}/${anaconda_dir}/bin/conda" install --yes cython matplotlib numpy pexpect scipy
+"${anaconda_dir}/bin/conda" install --yes cython matplotlib numpy pexpect scipy
 # Update all packages in Anaconda
-"${top_dir}/${anaconda_dir}/bin/conda" update --yes --all
+"${anaconda_dir}/bin/conda" update --yes --all
 # Do some cleanup in the Anaconda distribution
-"${top_dir}/${anaconda_dir}/bin/conda" clean --yes -i -l -t -p
+"${anaconda_dir}/bin/conda" clean --yes -i -l -t -p
 
 # GSL (latest stable version)
 current_step="installation of GSL"
@@ -67,10 +79,10 @@ cd tmp
 wget -nc -O gsl.tar.gz --no-check-certificate http://mirrors.dotsrc.org/gnu/gsl/gsl-latest.tar.gz
 tar xf gsl.tar.gz
 cd gsl*
-./configure --prefix="${top_dir}/${gsl_dir}"
+./configure --prefix="${gsl_dir}"
 make
 make install
-cp COPYING README "${top_dir}/${gsl_dir}"
+cp COPYING README "${gsl_dir}"
 cd ../../
 rm -rf tmp
 
@@ -80,9 +92,9 @@ printf "\n\e[1m\e[93mInstalling Cython_GSL\e[0m\n"
 wget -nc -O CythonGSL.tar.gz --no-check-certificate https://github.com/twiecki/CythonGSL/archive/master.tar.gz
 tar xf CythonGSL.tar.gz
 cd CythonGSL*
-export LD_LIBRARY_PATH="${top_dir}/${gsl_dir}/lib":"$LD_LIBRARY_PATH"
-"${top_dir}/${anaconda_dir}/bin/python" setup.py build
-"${top_dir}/${anaconda_dir}/bin/python" setup.py install
+export LD_LIBRARY_PATH="${gsl_dir}/lib":"$LD_LIBRARY_PATH"
+"${anaconda_dir}/bin/python" setup.py build
+"${anaconda_dir}/bin/python" setup.py install
 cd ..
 rm -rf CythonGSL*
 
@@ -95,10 +107,10 @@ cd tmp
 wget -nc -O openmpi.tar.bz2 --no-check-certificate http://www.open-mpi.org/software/ompi/v1.8/downloads/openmpi-1.8.3.tar.bz2
 tar xjf openmpi.tar.bz2
 cd openmpi*
-./configure --prefix="${top_dir}/${openmpi_dir}"
+./configure --prefix="${openmpi_dir}"
 make all
 make install
-cp LICENSE README "${top_dir}/${openmpi_dir}"
+cp LICENSE README "${openmpi_dir}"
 cd ../../
 rm -rf tmp
 
@@ -108,9 +120,9 @@ printf "\n\e[1m\e[93mInstalling MPI4Py\e[0m\n"
 wget -nc -O mpi4py.tar.gz --no-check-certificate https://bitbucket.org/mpi4py/mpi4py/downloads/mpi4py-1.3.1.tar.gz
 tar xf mpi4py.tar.gz
 cd mpi4py*
-export LD_LIBRARY_PATH="${top_dir}/${openmpi_dir}/lib":"$LD_LIBRARY_PATH"
-export MPICC="${top_dir}/${openmpi_dir}/bin/mpicc"
-"${top_dir}/${anaconda_dir}/bin/python" setup.py install
+export LD_LIBRARY_PATH="${openmpi_dir}/lib":"$LD_LIBRARY_PATH"
+export MPICC="${openmpi_dir}/bin/mpicc"
+"${anaconda_dir}/bin/python" setup.py install
 cd ..
 rm -rf mpi4py*
 
@@ -122,10 +134,10 @@ cd tmp
 wget -nc -O hdf5.tar.bz2 --no-check-certificate ftp://ftp.hdfgroup.org/HDF5/current/src/hdf5*tar.bz2
 tar xjf hdf5.tar.bz2
 cd hdf5*
-CC="${top_dir}/${openmpi_dir}/bin/mpicc" ./configure --enable-shared --enable-parallel --prefix="${top_dir}/${hdf5_dir}"
+CC="${openmpi_dir}/bin/mpicc" ./configure --enable-shared --enable-parallel --prefix="${hdf5_dir}"
 make
 make install
-cp COPYING README.txt "${top_dir}/${hdf5_dir}"
+cp COPYING README.txt "${hdf5_dir}"
 cd ../../
 rm -rf tmp
 
@@ -135,10 +147,10 @@ printf "\n\e[1m\e[93mInstalling h5py\e[0m\n"
 wget -nc -O h5py.tar.gz --no-check-certificate https://pypi.python.org/packages/source/h/h5py/h5py-2.4.0.tar.gz
 tar xf h5py.tar.gz
 cd h5py*
-export CC="${top_dir}/${openmpi_dir}/bin/mpicc"
-"${top_dir}/${anaconda_dir}/bin/python" setup.py configure --mpi --hdf5="${top_dir}/${hdf5_dir}"
-"${top_dir}/${anaconda_dir}/bin/python" setup.py build
-"${top_dir}/${anaconda_dir}/bin/python" setup.py install
+export CC="${openmpi_dir}/bin/mpicc"
+"${anaconda_dir}/bin/python" setup.py configure --mpi --hdf5="${hdf5_dir}"
+"${anaconda_dir}/bin/python" setup.py build
+"${anaconda_dir}/bin/python" setup.py install
 cd ..
 rm -rf h5py*
 
@@ -151,49 +163,85 @@ wget -nc -O fftw.tar.gz http://www.fftw.org/fftw-3.3.4.tar.gz
 tar xf fftw.tar.gz
 cd fftw*
 # Double-precision
-CC="${top_dir}/${openmpi_dir}/bin/mpicc" MPICC="${top_dir}/${openmpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I${top_dir}/${openmpi_dir}/include" LDFLAGS="-L${top_dir}/${openmpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --prefix="${top_dir}/${fftw_dir}"
+CC="${openmpi_dir}/bin/mpicc" MPICC="${openmpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I/${openmpi_dir}/include" LDFLAGS="-L${openmpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --prefix="${fftw_dir}"
 make
 make install
-# Single-precision
-#CC=${top_dir}/${openmpi_dir}/bin/mpicc MPICC=${top_dir}/${openmpi_dir}/bin/mpicc CFLAGS="-O3 -fPIC" CPPFLAGS=-I${top_dir}/${openmpi_dir}/include LDFLAGS=-L${top_dir}/${openmpi_dir}/lib MPILIBS=-lmpi ./configure --enable-float --enable-shared --enable-mpi --enable-openmp --enable-threads --prefix=${top_dir}/${fftw_dir}
-#make
-#make install
-cp COPYING README "${top_dir}/${fftw_dir}"
+# Single-precision goes here ..........................
+cp COPYING README "${fftw_dir}"
 cd ../../
 rm -rf tmp
 
-# Download and build the Nbody code
+# The Nbody code
 current_step="installation of the \e[3mN\e[0m\e[1m\e[91m-body code"
 printf "\n\e[1m\e[93mInstalling the \e[3mN\e[0m\e[1m\e[93m-body code\e[0m\n"
 wget -nc -O Nbody.tar.gz --no-check-certificate https://github.com/jmd-dk/Nbody/archive/master.tar.gz
 tar xf Nbody.tar.gz
 rm Nbody.tar.gz
 mv Nbody-master/* "${top_dir}"
-mv "${top_dir}"/source "${top_dir}"/"${Nbody_dir}"
+mv "${top_dir}"/source "${Nbody_dir}"
 rm -r Nbody-master
 
-# Test the installation
-current_step="testruns of the pure Python \e[3mN\e[0m\e[1m\e[91m-body code"
-printf "\n\e[1m\e[93mPerforming test runs in pure Python\e[0m\n"
-cd "${Nbody_dir}"
-./run -n 1 -p params/default_purePython --pure-python
-make clean_files_generated
-./run -n 2 -p params/default_purePython --pure-python
-make clean_files_generated
-#./run -n 3 -p params/default_purePython --pure-python
+
+####################################################
+# Install Gadget2, used for testing the Nbody code #
+####################################################
+
+# FFTW 2.1.5 (Gadget2 is incompatible with FFTW 3.x)
+current_step="installation of FFTW2 used by Gadget"
+printf "\n\e[1m\e[93mInstalling FFTW2, used by Gadget\e[0m\n"
+mkdir tmp
+cd tmp
+wget -nc -O fftw.tar.gz http://www.fftw.org/fftw-2.1.5.tar.gz
+tar xf fftw.tar.gz
+cd fftw*
+# Double-precision
+CC="${openmpi_dir}/bin/mpicc" MPICC="${openmpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I${openmpi_dir}/include" LDFLAGS="-L${openmpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --enable-type-prefix --prefix="${gadget_dir}/${fftw_dir}"
+make
+make install
+# Single-precision
+make clean
+CC="${openmpi_dir}/bin/mpicc" MPICC="${openmpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I${openmpi_dir}/include" LDFLAGS="-L${openmpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --enable-float --enable-type-prefix --prefix="${gadget_dir}/${fftw_dir}"
+make
+make install
+cp COPYING README "${gadget_dir}/${fftw_dir}"
+cd ../../
+rm -rf tmp
+
+# Gadget2
+current_step="installation of Gadget"
+printf "\n\e[1m\e[93mInstalling Gadget\e[0m\n"
+mkdir tmp
+cd tmp
+wget -nc -O gadget2.tar.gz http://www.mpa-garching.mpg.de/gadget/gadget-2.0.7.tar.gz
+tar xf gadget2.tar.gz
+mv Gadget*/* "${gadget_dir}"
+cd ..
+rm -rf tmp
+
+#########################
+# Test the installation #
+#########################
+#current_step="testruns of the pure Python \e[3mN\e[0m\e[1m\e[91m-body code"
+#printf "\n\e[1m\e[93mPerforming test runs in pure Python\e[0m\n"
+#cd "${Nbody_dir}"
+#./run -n 1 -p params/default_purePython --pure-python
 #make clean_files_generated
-./run -n 4 -p params/default_purePython --pure-python
-make clean_files_generated
-current_step="testruns of the compiled \e[3mN\e[0m\e[1m\e[91m-body code"
-printf "\n\e[1m\e[93mPerforming test runs in pure Python\e[0m\n"
-./run -n 1 -p params/default
-make clean_files_generated
-./run -n 2 -p params/default
-make clean_files_generated
-./run -n 3 -p params/default
-make clean_files_generated
-./run -n 4 -p params/default
-make distclean
+#./run -n 2 -p params/default_purePython --pure-python
+#make clean_files_generated
+##./run -n 3 -p params/default_purePython --pure-python
+##make clean_files_generated
+#./run -n 4 -p params/default_purePython --pure-python
+#make clean_files_generated
+#current_step="testruns of the compiled \e[3mN\e[0m\e[1m\e[91m-body code"
+#printf "\n\e[1m\e[93mPerforming test runs in pure Python\e[0m\n"
+#./run -n 1 -p params/default
+#make clean_files_generated
+#./run -n 2 -p params/default
+#make clean_files_generated
+#./run -n 3 -p params/default
+#make clean_files_generated
+#./run -n 4 -p params/default
+#make distclean
 
 # Copyright notice
 current_step="copyright notice"

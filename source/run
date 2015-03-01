@@ -8,7 +8,8 @@ this_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 top_dir=$(dirname ${this_dir})
 this_file=$(readlink -f "$0")
 python=${top_dir}/anaconda/bin/python
-mpiexec=${top_dir}/openmpi/bin/mpiexec
+mpi_dir=${top_dir}/openmpi
+mpiexec=${mpi_dir}/bin/mpiexec
 
 # Default values of command-line arguments
 nprocs=1
@@ -46,6 +47,11 @@ parser.add_argument('--pure-python',
                     default=${pure_python},
                     action='store_true',
                     )
+parser.add_argument('--exit',
+                    help='Exit as soon as all auxiliary files have been created',
+                    default=False,
+                    action='store_true',
+                    )
 args = parser.parse_args()
 # Warnings when basic parameters are not supplied
 unspecified_nprocs = False
@@ -67,7 +73,8 @@ print(args.nprocs,
       args.main,
       int(args.pure_python),
       int(unspecified_nprocs),
-      int(unspecified_params)
+      int(unspecified_params),
+      int(args.exit),
       )
 " "$@"`)
 nprocs=${args[0]}
@@ -76,7 +83,8 @@ main=${args[2]}
 pure_python=${args[3]}
 unspecified_nprocs=${args[4]}
 unspecified_params=${args[5]}
-if [ ${#args[@]} -ne 6 ]; then
+exit=${args[6]}
+if [ ${#args[@]} -ne 7 ]; then
     exit 1
 fi
 
@@ -195,7 +203,7 @@ echo "Entry point:   ${main}"
 echo "Parameterfile: ${params}"
 echo "Nr. of CPUs:   ${nprocs}"
 cd ${this_dir}
-${mpiexec} -n ${nprocs} ${python} ${main} "${password}"
+${mpiexec} -n ${nprocs} --prefix ${mpi_dir} ${python} ${main} "${password}" "${exit}"
 
 # Run complete. Deactivate trap before exiting.
 trap : 0

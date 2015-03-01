@@ -106,7 +106,7 @@ params.py: $(paramsfile)
 	@echo "Processing parameters from $(paramsfile)"
 	@cp $(paramsfile) $@
 	@sed -i '1i# The following is an exact copy of $(paramsfile)\
-	from numpy import pi, e, sqrt, sin, cos, tan, arcsin, arccos, arctan, sinh, cosh, tanh, arcsinh, arccosh, arctanh, exp, log, log10, log2, abs, floor, ceil\
+	from numpy import pi, e, sqrt, sin, cos, tan, arcsin, arccos, arctan, sinh, cosh, tanh, arcsinh, arccosh, arctanh, exp, log, log10, log2, abs, floor, ceil, arange, linspace\
 	# Seperate but equivalent imports in pure Python and Cython\
 	import cython\
 	if not cython.compiled:\

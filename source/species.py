@@ -1,5 +1,5 @@
-# Import everything from the commons module.
-# In the .pyx file, this line will be replaced by the content of commons.py itself.
+# Import everything from the commons module. In the .pyx file,
+# this line will be replaced by the content of commons.py itself.
 from commons import *
 
 # Seperate but equivalent imports in pure Python and Cython
@@ -10,7 +10,6 @@ else:
     """
     from gravity cimport PP, PM
     """
-
 
 
 # The class representing a collection of particles of a given type
@@ -25,7 +24,8 @@ class Particles:
     a flag to allow different species to behave differently.
     """
 
-    # Initialization method. Note that data attributes are declared in the .pxd file.
+    # Initialization method.
+    # Note that data attributes are declared in the .pxd file.
     @cython.cdivision(True)
     @cython.boundscheck(False)
     @cython.wraparound(False)
@@ -183,7 +183,8 @@ class Particles:
             # NOT YET IMPLEMENTED
             pass
         else:
-            raise ValueError('Species "' + self.species + '" do not have an assigned kick function!')
+            raise ValueError('Species "' + self.species
+                             + '" do not have an assigned kick function!')
 
     # This method is automaticlly called when a Particles instance
     # is garbage collected. All manually allocated mmeory is freed.
@@ -223,6 +224,7 @@ def construct(type_name, species_name, mass, N):
     particles.type = type_name
     particles.species = species_name
     return particles
+
 
 # Function that constructs a Particles instance with random
 # positions, momenta and masses. The particle data is

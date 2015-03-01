@@ -1,5 +1,5 @@
-# Import everything from the commons module.
-# In the .pyx file, this line will be replaced by the content of commons.py itself.
+# Import everything from the commons module. In the .pyx file,
+# this line will be replaced by the content of commons.py itself.
 from commons import *
 
 # Seperate but equivalent imports in pure Python and Cython
@@ -8,7 +8,6 @@ if not cython.compiled:
     from communication import find_N_recv
     from mesh import CIC_coordinates2grid
     # FFT functionality via Numpy
-    #from scipy.fftpack import fftn, ifftn
     from numpy.fft import rfftn, irfftn
 else:
     # Lines in triple quotes will be executed in the .pyx file.
@@ -101,7 +100,7 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
     momentum changes of set j.
     Note that the time step size Δt is really ∫_t^(t + Δt) dt/a.
     """
-  
+
     # The factor (G*m_i*m_j*∫_t^(t + Δt) dt/a) in the
     # comoving equations of motion
     # p_i --> p_i + ∫_t^(t + Δt) F/a*dt = p_i + m_i*F*∫_t^(t + Δt) dt/a
@@ -109,6 +108,7 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
     #       = p_i - 1/r**2*(G*m_i*m_j*∫_t^(t + Δt) dt/a)
     eom_factor = G_Newton*mass_i*mass_j*Δt
     # Direct summation
+    #print('N_local_i/j', N_local_i, N_local_j)
     for i in range(0, N_local_i if (flag_input > 0) else (N_local_i - 1)):
         xi = posx_i[i]
         yi = posy_i[i]
@@ -124,6 +124,9 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
             force[0] -= x/r3
             force[1] -= y/r3
             force[2] -= z/r3
+            #force[0] = -x/r3
+            #force[1] = -y/r3
+            #force[2] = -z/r3
             # Multiply the force by (G*m_i*m_j*∫_t^(t + Δt) dt/a).
             # Note that "force" is now really the momentum change
             force[0] *= eom_factor
@@ -146,10 +149,11 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
                 momy_i[i] -= force[1]
                 momz_i[i] -= force[2]
                 if flag_input == 1:
-                   # Also update external momentum changes
-                   Δmomx_j[j] += force[0]
-                   Δmomy_j[j] += force[1]
-                   Δmomz_j[j] += force[2]
+                    # Also update external momentum changes
+                    Δmomx_j[j] += force[0]
+                    Δmomy_j[j] += force[1]
+                    Δmomz_j[j] += force[2]
+
 
 # Function for computing the gravitational force
 # by direct summation on all particles
@@ -194,7 +198,6 @@ def PP(particles, Δt):
     particle-particle (PP) method.
     Note that the time step size Δt is really ∫_t^(t + Δt) dt/a.
     """
-
     # Extract variables from particles
     posx_local = particles.posx_mw
     posy_local = particles.posy_mw
@@ -204,20 +207,6 @@ def PP(particles, Δt):
     momz_local = particles.momz_mw
     mass = particles.mass
     N_local = particles.N_local
-
-
-    # DET MÆRKELIGE LED PROPORTIONALT MED x
-    factor = 0.5*H0**2*mass*Δt
-    for i in range(N_local):
-        momx_local[i] += factor*posx_local[i]
-        momy_local[i] += factor*posy_local[i]
-        momz_local[i] += factor*posz_local[i]
-
-
-
-
-
-
     # Update local momenta due to forces between local particles.
     # Note that vector_mw is not actually used due to flag_input=0
     direct_summation(posx_local, posy_local, posz_local,
@@ -246,14 +235,14 @@ def PP(particles, Δt):
     Δmomy_extrn = zeros(N_extrn_max)
     Δmomz_extrn = zeros(N_extrn_max)
     # Number of pairs of process partners to send/recieve data to/from
-    even_nprocs = not (nprocs%2)
+    even_nprocs = not (nprocs % 2)
     flag_input = 1
     N_partnerproc_pairs = 1 + nprocs//2
     N_partnerproc_pairs_minus_1 = N_partnerproc_pairs - 1
     for j in range(1, N_partnerproc_pairs):
         # Process ranks to send/recieve to/from
-        ID_send = ((rank + j)%nprocs)
-        ID_recv = ((rank - j)%nprocs)
+        ID_send = ((rank + j) % nprocs)
+        ID_recv = ((rank - j) % nprocs)
         N_extrn = N_extrns[ID_recv]
         # Send and recieve positions
         Sendrecv(posx_local[:N_local], dest=ID_send,
@@ -295,10 +284,11 @@ def PP(particles, Δt):
             momz_local[i] += Δmomz_local[i]
         # Reset external momentum change buffers
         if j != N_partnerproc_pairs_minus_1:
-            for i in range(N_extrns[((rank - j - 1)%nprocs)]):
+            for i in range(N_extrns[((rank - j - 1) % nprocs)]):
                 Δmomx_extrn[i] = 0
                 Δmomy_extrn[i] = 0
                 Δmomz_extrn[i] = 0
+
 
 # Function for computing the gravitational force by the particle mesh method
 @cython.cfunc
@@ -322,10 +312,10 @@ def PM(particles, Δt):
 
     # Reset the mesh
     PM_grid[...] = 0
-             
+
     # Interpolate particle masses to meshpoints
     #CIC_coordinates2grid(PM_grid, particles)
- 
+
     # Fourier transform the grid forwards to Fourier space
     fftw_execute(plan_forward)
 
@@ -342,7 +332,7 @@ def PM(particles, Δt):
         for j in range(PM_gridsize):
             for k in range(PM_gridsize):
                 PM_grid[i, j, k] /= PM_gridsize3
-    
+
 
 
     # multiply by the Greens function and the
@@ -370,20 +360,24 @@ if use_PM:
         # Initialization of the PM mesh in pure Python.
         PM_gridsize_local_x = PM_gridsize_local_y = int(PM_gridsize/nprocs)
         if PM_gridsize_local_x != PM_gridsize/nprocs:
-            raise ValueError('The PM method in pure Python mode only works when\n' + 
-                            'PM_gridsize is divisible by the number of processes!')
+            raise ValueError('The PM method in pure Python mode only works'
+                             + 'when\nPM_gridsize is divisible by the number'
+                             + 'of processes!')
         PM_gridstart_local_x = PM_gridstart_local_y = PM_gridsize_local_x*rank
         PM_gridsize_padding = 2*(PM_gridsize//2 + 1)
-        PM_grid = empty((PM_gridsize_local_x, PM_gridsize, PM_gridsize_padding))
+        PM_grid = empty((PM_gridsize_local_x, PM_gridsize,
+                         PM_gridsize_padding))
         # The output of the following function is formatted just
         # like that of the MPI implementation of FFTW.
         plan_backward = 'plan_backward'
         plan_forward = 'plan_forward'
+
         def fftw_execute(plan):
             global PM_grid
             # The pure Python FFT implementation is serial. Every process
-            # computes the entire FFT, of the temporary varaible PM_grid_global.
-            PM_grid_global = empty((PM_gridsize, PM_gridsize, PM_gridsize_padding))
+            # computes the entire FFT of the temporary varaible PM_grid_global.
+            PM_grid_global = empty((PM_gridsize, PM_gridsize,
+                                    PM_gridsize_padding))
             Allgatherv(PM_grid, PM_grid_global)
             if plan == plan_forward:
                 # Delete the padding on last dimension
@@ -401,9 +395,12 @@ if use_PM:
                     else:
                         tmp[:, :, i] = PM_grid_global.real[:, :, i//2]
                 PM_grid_global = tmp
-                # As in FFTW, distribute the slabs along the y-dimension
+                # As in FFTW, distribute the slabs along the y-dimensio(n
                 # (which is the first dimension now, due to transposing)
-                PM_grid = PM_grid_global[PM_gridstart_local_y:(PM_gridstart_local_y + PM_gridsize_local_y), :, :]
+                PM_grid = PM_grid_global[PM_gridstart_local_y:
+                                         (PM_gridstart_local_y
+                                          + PM_gridsize_local_y),
+                                         :, :]
             elif plan == plan_backward:
                 # FFTW represents the complex array by doubles only.
                 # Go back to using complex entries
@@ -428,10 +425,13 @@ if use_PM:
                                  ))
                 PM_grid_global = concatenate((PM_grid_global, padding), axis=2)
                 # As in FFTW, distribute the slabs along the x-dimension
-                PM_grid = PM_grid_global[PM_gridstart_local_x:(PM_gridstart_local_x + PM_gridsize_local_x), :, :]
+                PM_grid = PM_grid_global[PM_gridstart_local_x:
+                                         (PM_gridstart_local_x
+                                          + PM_gridsize_local_x),
+                                         :, :]
     else:
         """
-        # Initialization of the PM mesh in Cython       
+        # Initialization of the PM mesh in Cython
         cython.declare(fftw_struct='fftw_return_struct',
                        PM_gridsize_padding='ptrdiff_t',
                        PM_gridsize_local_x='ptrdiff_t',
@@ -451,8 +451,9 @@ if use_PM:
         PM_gridsize_local_y = fftw_struct.gridsize_local_y
         PM_gridstart_local_x = fftw_struct.gridstart_local_x
         PM_gridstart_local_y = fftw_struct.gridstart_local_y
-        # Wrap a memryview around the grid. Loop as noted in fft.c,
-        # but use PM_grid[i, j, k] when in real space and PM_grid[j, i, k] when in Fourier space
+        # Wrap a memryview around the grid. Loop as noted in fft.c, but use
+        # PM_grid[i, j, k] when in real space and PM_grid[j, i, k] when in
+        # Fourier space
         if PM_gridsize_local_x > 0:
             PM_grid = <double[:PM_gridsize_local_x, :PM_gridsize, :PM_gridsize_padding]> fftw_struct.grid
         else:

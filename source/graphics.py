@@ -1,5 +1,5 @@
-# Import everything from the commons module.
-# In the .pyx file, this line will be replaced by the content of commons.py itself.
+# Import everything from the commons module. In the .pyx file,
+# this line will be replaced by the content of commons.py itself.
 from commons import *
 
 # Use a matplotlib backend that does not require a running X-server
@@ -19,10 +19,9 @@ else:
     """
 
 # Imports and definitions common to pure Python and Cython
-import os
-import sys
 import pexpect
 from os.path import basename
+
 
 # Setting up figure and plot the particles
 @cython.cfunc
@@ -33,6 +32,7 @@ from os.path import basename
                particles='Particles',
                timestep='size_t',
                a='double',
+               a_snapshot='double',
                # Locals
                N='size_t',
                N_local='size_t',
@@ -43,9 +43,9 @@ from os.path import basename
                i='int',
                j='int',
                )
-def animate(particles, timestep, a):
+def animate(particles, timestep, a, a_snapshot):
     global artist, upload_liveframe, ax
-    if not visualize or ((timestep%framespace) and a < a_end):
+    if not visualize or ((timestep % framespace) and a != a_snapshot):
         return
     N = particles.N
     N_local = particles.N_local
@@ -60,10 +60,11 @@ def animate(particles, timestep, a):
     Gatherv(sendbuf=sendbuf, recvbuf=(X, N_locals))
     sendbuf = particles.posy_mw[:N_local]
     Gatherv(sendbuf=sendbuf, recvbuf=(Y, N_locals))
-    sendbuf = particles.posz_mw[:N_local] 
+    sendbuf = particles.posz_mw[:N_local]
     Gatherv(sendbuf=sendbuf, recvbuf=(Z, N_locals))
     # The master process plots the particle data
     if master:
+        # Set up figure. This is only done in the first call.
         if artist is None:
             # Set up figure
             fig = figure()
@@ -88,96 +89,90 @@ def animate(particles, timestep, a):
                           + significant_figures(a, 4, just=0, scientific=True)
                           + '$', rotation=0)
             ax.xaxis.label.set_color('white')
-        else:
-            # Update figure
-            artist._offsets3d = juggle_axes(X, Y, Z, zdir='z')
-            ax.set_xlabel('$a = ' + significant_figures(a, 4, just=0,
-                                                        scientific=True)
-                                  + '$', rotation=0)
-            if save_frames:
-                # Save the frame in framefolder
-                savefig(framefolder + str(timestep) + suffix,
-                        bbox_inches='tight', pad_inches=0, dpi=160)
-            if save_liveframe:
-                # Save the live frame
-                savefig(liveframe_full,
-                        bbox_inches='tight', pad_inches=0, dpi=160)
-                if upload_liveframe:
-                    # Upload the live frame
-                    child = pexpect.spawn(cmd1, timeout=10)
-                    try:
+        # Update figure
+        artist._offsets3d = juggle_axes(X, Y, Z, zdir='z')
+        ax.set_xlabel('$a = ' + significant_figures(a, 4, just=0,
+                                                    scientific=True)
+                              + '$', rotation=0)
+        if save_frames:
+            # Save the frame in framefolder
+            savefig(framefolder + str(timestep) + suffix,
+                    bbox_inches='tight', pad_inches=0, dpi=160)
+        if save_liveframe:
+            # Save the live frame
+            savefig(liveframe_full,
+                    bbox_inches='tight', pad_inches=0, dpi=160)
+            if upload_liveframe:
+                # Upload the live frame
+                child = pexpect.spawn(cmd1, timeout=10)
+                try:
+                    msg = child.expect(['password',
+                                        'passphrase',
+                                        pexpect.EOF,
+                                        'continue connecting',
+                                        ])
+                    if msg < 2:
+                        # The protocol asks for password/passphrase.
+                        # Send it.
+                        child.sendline(password)
                         msg = child.expect(['password',
                                             'passphrase',
                                             pexpect.EOF,
-                                            'continue connecting',
+                                            'sftp>',
+                                            ])
+                        if msg == 3:
+                            # Logged in to remote host via sftp.
+                            # Upload file.
+                            child.sendline(cmd2)
+                            msg = child.expect(['sftp>', pexpect.EOF])
+                            if msg == 0:
+                                child.sendline('bye')
+                            else:
+                                raise Exception
+                        elif msg < 2:
+                            # Incorrect password. Kill protocol
+                            child.terminate(force=True)
+                            os.system('printf "\033[1m\033[91m'
+                                      + 'Warning: Permission to '
+                                      + user_at_host
+                                      + " denied\nFrames will not be "
+                                      + protocol + "'ed"
+                                      + '\033[0m\n" >&2')
+                            upload_liveframe = False
+                    elif msg == 3:
+                        # The protocol cannot authenticate host.
+                        # Connect anyway.
+                        child.sendline('yes')
+                        msg = child.expect(['password:',
+                                            'passphrase',
+                                            pexpect.EOF,
                                             ])
                         if msg < 2:
                             # The protocol asks for password/passphrase.
                             # Send it.
                             child.sendline(password)
-                            msg = child.expect(['password',
-                                                'passphrase',
-                                                pexpect.EOF,
-                                                'sftp>',
-                                                ])
-                            if msg == 3:
-                                # Logged in to remote host via sftp.
-                                # Upload file.
-                                child.sendline(cmd2)
-                                msg = child.expect(['sftp>', pexpect.EOF])
-                                if msg == 0:
-                                    child.sendline('bye')
-                                else:
-                                    raise Exception
-                            elif msg < 2:
-                                # Incorrect password. Kill protocol
-                                child.terminate(force=True)
-                                os.system(r'printf "\033[1m\033[91m'
-                                          + 'Warning: Permission to '
-                                          + user_at_host
-                                          + " denied\nFrames will not be "
-                                          + protocol + "'ed"
-                                          + '\033[0m\n" >&2')
-                                upload_liveframe = False
-                        elif msg == 3:
-                            # The protocol cannot authenticate host.
-                            # Connect anyway.
-                            child.sendline('yes')
                             msg = child.expect(['password:',
                                                 'passphrase',
                                                 pexpect.EOF,
                                                 ])
                             if msg < 2:
-                                # The protocol asks for password/passphrase.
-                                # Send it.
-                                child.sendline(password)
-                                msg = child.expect(['password:',
-                                                    'passphrase',
-                                                    pexpect.EOF,
-                                                    ])
-                                if msg < 2:
-                                    # Incorrect password/passphrase.
-                                    # Kill the protocol
-                                    child.terminate(force=True)
-                                    os.system(r'printf "\033[1m\033[91m'
-                                              + 'Warning: Permission to '
-                                              + user_at_host
-                                              + " denied\nFrames will not be "
-                                              + protocol + "'ed"
-                                              + r'\033[0m\n" >&2')
-                                    upload_liveframe = False
-                        child.close()
-                    except KeyboardInterrupt:
-                        # User tried to kill the program. Let her
-                        raise KeyboardInterrupt
-                    except:
-                        # An error occurred during uploading. Print warning 
-                        child.terminate(force=False)
-                        os.system(r'printf "\033[1m\033[91m'
-                                  + 'Warning: An error occurred during '
-                                  + protocol + ' to '
-                                  + user_at_host
-                                  + '\033[0m\n" >&2')
+                                # Incorrect password/passphrase.
+                                # Kill the protocol
+                                child.terminate(force=True)
+                                warn('Permission to ' + user_at_host
+                                     + ' denied\nFrames will not be '
+                                     + protocol + "'ed.")
+                                upload_liveframe = False
+                    child.close()
+                except KeyboardInterrupt:
+                    # User tried to kill the program. Let her.
+                    raise KeyboardInterrupt
+                except:
+                    # An error occurred during uploading. Print warning.
+                    child.terminate(force=False)
+                    warn('An error occurred during ' + protocol
+                         + ' to ' + user_at_host)
+
 
 # This function formats a floating point number f to only
 # have n significant figures.
@@ -315,9 +310,9 @@ if liveframe != '':
             if remote_liveframe.endswith('.' + image_format):
                 # Full filename given in remote_liveframe
                 cmd1 = 'sftp ' + remote_liveframe[:remote_liveframe.rfind('/')]
-                cmd2 = 'put ' + liveframe_full + ' ' + basename(remote_liveframe)
+                cmd2 = ('put ' + liveframe_full + ' '
+                        + basename(remote_liveframe))
             else:
                 # Folder given in remote_liveframe
-                cmd1 = 'sftp ' +  remote_liveframe
+                cmd1 = 'sftp ' + remote_liveframe
                 cmd2 = 'put ' + liveframe_full
-

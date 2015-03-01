@@ -7,10 +7,12 @@
 ##############################################################################
 from __future__ import division  # Needed for Python3 division in Cython
 from numpy import (arange, array, asarray, concatenate, cumsum, delete, empty,
-                   linspace, max, prod, trapz, sum, unravel_index, zeros)
+                   linspace, max, ones, prod, trapz, sum, unravel_index, zeros)  # FIND OUT WHY min CANNOT BE IMPORTED WITHOUT SCREWING UP EVERYTHING!!!
 from numpy.random import random
 import numpy as np
 import h5py
+import os
+import sys
 
 # WHILE DEVELOPING
 from time import time, sleep
@@ -136,7 +138,7 @@ cython.declare(G_Newton='double',
                )
 G_Newton = 6.6738e-11*units.m**3/units.kg/units.s**2  # Newtons constant
 ϱ = 3*H0**2/(8*pi*G_Newton) # The average, comoing density (the critical comoving density since we only study flat universes)
-softening = (boxsize/30)*2000**(-one_third)  # 2000 should be the particle Number. Source: http://popia.ft.uam.es/aknebe/page3/files/ComputationalAstrophysics/PhysicalProcesses.pdf page 85
+softening = 0.02*boxsize/(8000**one_third) #(boxsize/30)*2000**(-one_third)  # 2000 should be the particle Number. Source: http://popia.ft.uam.es/aknebe/page3/files/ComputationalAstrophysics/PhysicalProcesses.pdf page 85. Or maybe use 2-4% of the mean-interparticle distance (V/N)**(1/3), http://www.ast.cam.ac.uk/~puchwein/NumericalCosmology02.pdf page 13.
 
 PM_gridsize3 = PM_gridsize**3
 boxsize2 = boxsize**2
@@ -160,15 +162,16 @@ comm = MPI.COMM_WORLD
 Abort = comm.Abort
 Allgather = comm.Allgather
 Allgatherv = comm.Allgatherv
+Allreduce = comm.Allreduce
+Barrier = comm.Barrier
+Bcast = comm.Bcast
 Gather = comm.Gather
 Gatherv = comm.Gatherv
-Allreduce = comm.Allreduce
-allreduce = comm.allreduce
-Bcast = comm.Bcast
 Reduce = comm.Reduce
-reduce = comm.reduce
 Scatter = comm.Scatter
 Sendrecv = comm.Sendrecv
+allreduce = comm.allreduce
+reduce = comm.reduce
 sendrecv = comm.sendrecv
 # Constants
 nprocs = comm.size  # Number of processes started with mpiexec
@@ -203,3 +206,10 @@ def partition(array_shape):
     indices_end = array(unravel_index(local_size*(rank + 1) - 1, array_shape), dtype='uint64') + 1
     return indices_start, indices_end
 
+
+##############################################################################
+# Useful functions                                                           #
+##############################################################################
+# Function for printing warnings
+def warn(msg):
+    os.system('printf "\033[1m\033[91mWarning: ' + msg + '\033[0m\n" >&2')
