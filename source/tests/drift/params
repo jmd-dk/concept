@@ -12,8 +12,8 @@ snapshot_base = 'snapshot'		# File basename for output snapshots
 outputtimes = tuple(linspace(0.03, 1, 25))	# Times at which to dump snapshots to disk
 
 # Numerical parameters
-boxsize = 20*Mpc/0.7			# Linear size of the simulation box
-ewald_gridsize = 32			# Linear size of the grid of Ewald corrections
+boxsize = 21*Mpc/0.7 # (30 Mpc. Gadget implicitly uses length/h)	# Linear size of the simulation box
+ewald_gridsize = 64			# Linear size of the grid of Ewald corrections
 PM_gridsize = 8				# Linear size of the grid used for the PM method
 
 # Cosmological parameters

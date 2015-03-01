@@ -677,5 +677,5 @@ def save_gadget(particles, a, filename):
 cython.declare(output_type_fmt='str')
 output_type_fmt = output_type.lower().replace(' ', '')
 # If output_dir does not exist, create it
-if not os.path.exists(output_dir):
+if master and not os.path.exists(output_dir):
     os.makedirs(output_dir)

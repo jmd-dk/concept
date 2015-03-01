@@ -16,7 +16,7 @@ particles = construct('drift test', 'dark matter', mass, N)
 particles.populate(array([0.1]*N)*boxsize, 'posx')
 particles.populate(array([0.25, 0.25, 0.75, 0.75])*boxsize, 'posy')
 particles.populate(array([0.25, 0.75, 0.75, 0.25])*boxsize, 'posz')
-particles.populate(ones(4)*70*units.km/units.s*mass, 'momx')
+particles.populate(ones(4)*100*units.km/units.s*mass, 'momx')
 particles.populate(zeros(N), 'momy')
 particles.populate(zeros(N), 'momz')
 
