@@ -1,0 +1,53 @@
+#!/bin/bash
+
+# Set up error trapping
+ctrl_c()
+{
+    trap : 0
+    exit 2
+}
+abort()
+{
+    printf "\e[1m\e[91mAn error occurred during drift test!\e[0m\n" >&2
+    exit 1
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
+
+# Paths
+this_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+top_dir="$(dirname $(dirname $(dirname "$this_dir")))"
+python="${top_dir}/anaconda/bin/python"
+mpi_dir="${top_dir}/openmpi"
+Gadget2_dir="${top_dir}/gadget/Gadget2"
+mpiexec="${mpi_dir}/bin/mpiexec"
+Nbody_dir="${top_dir}/Nbody"
+
+# Create the Ewald grid using Cython, if it does not already exist
+cd ${Nbody_dir}
+./run -n 4 -p "${this_dir}/params" --exit
+
+# Generate ICs
+./run -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python
+
+# Run ICs through the N-body code
+./run -n 1 -p "${this_dir}"/params
+
+# Run ICs through Gadget2
+cd "${this_dir}"
+"${python}" -c "import numpy as np; np.savetxt('outputlist', np.linspace(0.03, 1, 25))"
+cp Makefile_gadget "${Gadget2_dir}"
+cd "${Gadget2_dir}"
+make clean
+make
+
+#cd "${gadget_dir}"
+#"${mpiexec}" -n 1 --prefix "${mpi_dir}" Gadget2 parameterfiles/params
+
+# Analyze the output snapshots
+#./run -n 1 -p ${this_dir}/params -m ${this_dir}/analyze.py --pure-python 2>/dev/null
+
+# Test run complete. Deactivate trap before exiting.
+trap : 0
+printf "\e[1m\e[92mTest ran successfully\e[0m\n"
