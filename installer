@@ -39,13 +39,13 @@ mkdir -p "${top_dir}"
 cd "${top_dir}"
 
 # Specify installation directories
-anaconda_dir="${top_dir}/anaconda"
-gsl_dir="${top_dir}/gsl"
-openmpi_dir="${top_dir}/openmpi"
-hdf5_dir="${top_dir}/hdf5"
-fftw_dir="${top_dir}/fftw"
 Nbody_dir="${top_dir}/Nbody"
+anaconda_dir="${top_dir}/anaconda"
+fftw_dir="${top_dir}/fftw"
 gadget_dir="${top_dir}/gadget"
+gsl_dir="${top_dir}/gsl"
+hdf5_dir="${top_dir}/hdf5"
+openmpi_dir="${top_dir}/openmpi"
 
 
 #############################
@@ -93,8 +93,8 @@ wget -nc -O CythonGSL.tar.gz --no-check-certificate https://github.com/twiecki/C
 tar xf CythonGSL.tar.gz
 cd CythonGSL*
 export LD_LIBRARY_PATH="${gsl_dir}/lib":"$LD_LIBRARY_PATH"
-"${anaconda_dir}/bin/python" setup.py build
-"${anaconda_dir}/bin/python" setup.py install
+"${python}" setup.py build
+"${python}" setup.py install
 cd ..
 rm -rf CythonGSL*
 
@@ -122,7 +122,7 @@ tar xf mpi4py.tar.gz
 cd mpi4py*
 export LD_LIBRARY_PATH="${openmpi_dir}/lib":"$LD_LIBRARY_PATH"
 export MPICC="${openmpi_dir}/bin/mpicc"
-"${anaconda_dir}/bin/python" setup.py install
+"${python}" setup.py install
 cd ..
 rm -rf mpi4py*
 
@@ -148,9 +148,9 @@ wget -nc -O h5py.tar.gz --no-check-certificate https://pypi.python.org/packages/
 tar xf h5py.tar.gz
 cd h5py*
 export CC="${openmpi_dir}/bin/mpicc"
-"${anaconda_dir}/bin/python" setup.py configure --mpi --hdf5="${hdf5_dir}"
-"${anaconda_dir}/bin/python" setup.py build
-"${anaconda_dir}/bin/python" setup.py install
+"${python}" setup.py configure --mpi --hdf5="${hdf5_dir}"
+"${python}" setup.py build
+"${python}" setup.py install
 cd ..
 rm -rf h5py*
 
@@ -180,6 +180,38 @@ rm Nbody.tar.gz
 mv Nbody-master/* "${top_dir}"
 mv "${top_dir}"/source "${Nbody_dir}"
 rm -r Nbody-master
+# Create the .paths file, storing important paths used by the program
+Gadget2_dir="${gadget_dir}/Gadget2"
+cython="${anaconda_dir}/bin/cython"
+mpiexec="${openmpi_dir}/bin/mpiexec"
+python_version=`"${anaconda_dir}/bin/python" -c "from sys import version_info as v; print(str(v.major) + '.' + str(v.minor))"`
+python="${anaconda_dir}/bin/python${python_version}"
+python_incl_m="${anaconda_dir}/include/python${python_version}m"
+run="${Nbody_dir}/run"
+tests_dir="${Nbody_dir}/tests"
+echo "# This file contains absolute paths to directories and files used by the
+# program. You must manually edit the paths below. All other files rely on
+# these paths, as they are not given anywhere else.
+
+# Directories
+Gadget2_dir='${Gadget2_dir}'
+Nbody_dir='${Nbody_dir}'
+anaconda_dir='${anaconda_dir}'
+fftw_dir='${fftw_dir}'
+gadget_dir='${gadget_dir}'
+gsl_dir='${gsl_dir}'
+hdf5_dir='${hdf5_dir}'
+openmpi_dir='${openmpi_dir}'
+tests_dir='${tests_dir}'
+top_dir='${top_dir}'
+
+# Files
+python='${python}'
+python_incl_m='${python_incl_m}'
+cython='${cython}'
+mpiexec='${mpiexec}'
+run='${run}'
+" > "${top_dir}/.paths"
 
 
 ####################################################
