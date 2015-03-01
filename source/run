@@ -16,7 +16,7 @@ params=${this_dir}/params/default
 main=${this_dir}/main.py
 pure_python=0
 
-# cd to the code directory
+# cd to the code directory 
 cd "${this_dir}"
 
 # Use Python's argparse module to handle command-line arguments
