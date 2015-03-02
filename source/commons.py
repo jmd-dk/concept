@@ -2,9 +2,9 @@
 # of parameters common to all other modules. Each module should have
 # 'from commons import *' as its first statement.
 
-##############################################################################
-# Imports common to pure Python and Cython                                   #
-##############################################################################
+############################################
+# Imports common to pure Python and Cython #
+############################################
 from __future__ import division  # Needed for Python3 division in Cython
 from numpy import (arange, array, asarray, concatenate, cumsum, delete, empty,
                    linspace, max, ones, prod, trapz, sum, unravel_index, zeros)  # FIND OUT WHY min CANNOT BE IMPORTED WITHOUT SCREWING UP EVERYTHING!!!
@@ -17,9 +17,9 @@ import sys
 # WHILE DEVELOPING
 from time import time, sleep
 
-##############################################################################
-# Cython-related stuff                                                       #
-##############################################################################
+########################
+# Cython-related stuff #
+########################
 import cython
 # Declarations exclusively to either pure Python or Cython
 if not cython.compiled:
@@ -98,9 +98,9 @@ else:
     from params cimport *
     """
 
-##############################################################################
-# Global (module level) allocations                                          #
-##############################################################################
+#####################################
+# Global (module level) allocations #
+#####################################
 # Useful for temporary storage of 3D vector
 cython.declare(vector='double*',
                vector_mw='double[::1]',
@@ -108,9 +108,9 @@ cython.declare(vector='double*',
 vector = malloc(3*sizeof('double'))
 vector_mw = cast(vector, 'double[:3]')
 
-##############################################################################
-# Pure numbers                                                               #
-##############################################################################
+################
+# Pure numbers #
+################
 cython.declare(minus_4pi='double',
                one_third='double',
                sqrt_pi='double',
@@ -121,9 +121,9 @@ one_third = 1.0/3.0
 sqrt_pi = sqrt(pi)
 two_pi = 2*pi
 
-##############################################################################
-# Derived and internally defined constants                                   #
-##############################################################################
+############################################
+# Derived and internally defined constants #
+############################################
 cython.declare(G_Newton='double',
                PM_gridsize3='ptrdiff_t',
                boxsize2='double',
@@ -149,9 +149,9 @@ two_ewald_gridsize = 2*ewald_gridsize
 two_machine_ϵ = 2*machine_ϵ
 use_PM = True  # Flag specifying whether the PM method is used or not. THIS SHOULD BE COMPUTED BASED ON PARTICLES CHOSEN IN THE PARAMETER FILE!!!!!!!!!!!
 
-##############################################################################
-# MPI setup                                                                  #
-##############################################################################
+#############
+# MPI setup #
+#############
 from mpi4py import MPI
 cython.declare(master='bint',
                nprocs='int',
@@ -207,9 +207,19 @@ def partition(array_shape):
     return indices_start, indices_end
 
 
-##############################################################################
-# Useful functions                                                           #
-##############################################################################
+####################
+# Useful functions #
+####################
 # Function for printing warnings
 def warn(msg):
     os.system('printf "\033[1m\033[91mWarning: ' + msg + '\033[0m\n" >&2')
+
+
+###########################################
+# Absolute paths to directories and files #
+###########################################
+# The paths are stored in the top_dir/.paths file
+import imp
+paths_module = imp.load_source('paths', '../.paths')
+paths = paths_module.__dict__
+

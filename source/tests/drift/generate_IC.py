@@ -1,10 +1,17 @@
 # This file has to be run in pure Python mode!
 
-# Include the actual code directory in the searched paths
+# Include the code directory in the searched paths
 import sys, os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))[:-1]))
+Nbody_dir = os.path.realpath(__file__)
+while True:
+    if Nbody_dir == '/':
+        raise Exception('Cannot find the .paths file!')
+    if '.paths' in os.listdir(os.path.dirname(Nbody_dir)):
+        break
+    Nbody_dir = os.path.dirname(Nbody_dir)
+sys.path.append(Nbody_dir)
 
-# Imports
+# Imports from the N-body code
 from commons import *
 from species import construct
 from IO import save

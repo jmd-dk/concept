@@ -1,8 +1,15 @@
 # This file has to be run in pure Python mode!
 
-# Include the actual code directory in the searched paths
+# Include the code directory in the searched paths
 import sys, os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))[:-1]))
+Nbody_dir = os.path.realpath(__file__)
+while True:
+    if Nbody_dir == '/':
+        raise Exception('Cannot find the .paths file!')
+    if '.paths' in os.listdir(os.path.dirname(Nbody_dir)):
+        break
+    Nbody_dir = os.path.dirname(Nbody_dir)
+sys.path.append(Nbody_dir)
 
 # Imports from the N-body code
 from commons import *
@@ -37,7 +44,7 @@ for i in range(N_snapshots):
     x_std_gadget[i] = np.std(snapshot.particles.posx)
 
 # Plot
-fig_file = 'tests/drift/result.pdf'
+fig_file = paths['tests_dir'] + '/drift/result.pdf'
 plt.text(0.5*max(a), 0.93*boxsize, r'$\uparrow$ End of simulation box $\uparrow$', ha='center')
 plt.errorbar(a, x/units.kpc, yerr=x_std/units.kpc, fmt='-or', label='$N$-body')
 plt.errorbar(a_gadget, x_gadget/units.kpc, yerr=x_std_gadget/units.kpc, fmt='--xb', label='Gadget')
@@ -64,3 +71,4 @@ if max(np.abs(x/x_gadget - 1)) > tol:
     print('\033[1m\033[91m' + 'The results from the N-body code disagree with those from Gadget. '
           + 'See ' + fig_file + ' for a visualization.' + '\033[0m')
     sys.exit(1)
+
