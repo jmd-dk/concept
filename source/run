@@ -4,11 +4,10 @@
 # Run the script with the -h option to get help
 
 # Absolute paths to this file an its directory
-this_file=$(readlink -f "$0")
+this_file=$(readlink -f "${0}")
 this_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # Load paths from the .paths file
-#source "`dirname \"${this_dir}\"`/.paths"
 # Load paths from the .paths file
 curr="${this_dir}"
 while [ 1 ]; do
@@ -25,8 +24,8 @@ done
 
 # Default values of command-line arguments
 nprocs=1
-params=${this_dir}/params/default
-main=${this_dir}/main.py
+params="${this_dir}/params/default"
+main="${this_dir}/main.py"
 pure_python=0
 
 # cd to the code directory
@@ -92,14 +91,14 @@ print(args.nprocs,
       int(args.exit),
       )
 " "$@"`)
-nprocs=${args[0]}
-params=${args[1]}
-main=${args[2]}
-pure_python=${args[3]}
-unspecified_nprocs=${args[4]}
-unspecified_params=${args[5]}
-exit=${args[6]}
-if [ ${#args[@]} -ne 7 ]; then
+nprocs="${args[0]}"
+params="${args[1]}"
+main="${args[2]}"
+pure_python="${args[3]}"
+unspecified_nprocs="${args[4]}"
+unspecified_params="${args[5]}"
+exit="${args[6]}"
+if [ "${#args[@]}" -ne 7 ]; then
     exit 1
 fi
 
@@ -119,15 +118,15 @@ trap 'abort' EXIT
 set -e
 
 # Print warnings for unspecified parameters
-if [ ${unspecified_nprocs} == 1 ]; then
+if [ "${unspecified_nprocs}" == 1 ]; then
     echo "Number of processes not specified - Will use ${nprocs}"
 fi
-if [ ${unspecified_params} == 1 ]; then
+if [ "${unspecified_params}" == 1 ]; then
     echo "Parameterfile not specified - Will use ${params}"
 fi
 
 # Is nprocs a power of 2?
-legal_nprocs=`${python} -c "
+legal_nprocs=`"${python}" -c "
 from numpy import log2
 exponent = log2(${nprocs})
 if exponent == int(exponent):
@@ -136,7 +135,7 @@ else:
     legal_nprocs = 0
 print(legal_nprocs)
 "`
-if [ ${legal_nprocs} -eq 0 ]; then
+if [ "${legal_nprocs}" -eq 0 ]; then
     echo "Error: Number of processes (${nprocs}) is not a power of 2!"
     #exit 1
 fi
@@ -152,19 +151,19 @@ if [ ! -f "${main}" ]; then
 fi
 
 # Compile or do cleanup from last compilation
-if [ ${pure_python} -eq 0 ] ; then
+if [ "${pure_python}" -eq 0 ] ; then
     # Compile with Cython
-    (cd ${this_dir} && make paramsfile=${params})
+    (cd "${this_dir}" && make paramsfile="${params}")
 else
     # Remove compiled Cython modules
-    (cd ${this_dir} && make clean_so >/dev/null)
+    (cd "${this_dir}" && make clean_so >/dev/null)
     # Process the passed parameter file
-    (cd ${this_dir} && make params.py paramsfile=${params})
+    (cd "${this_dir}" && make params.py paramsfile="${params}")
 fi
 
 # Prompt the user for the secure shell password,
 # if the live frame should be uploaded.
-args=(`${python} -c "
+args=(`"${python}" -c "
 # Import parameters from the .py file rather than the .so file
 import imp
 params = imp.load_source('params', '${this_dir}/params.py')
@@ -179,7 +178,7 @@ password = ''
 if liveframe != '' and remote_liveframe != '':
     # Get protocol authentication message
     if protocol == 'scp':
-        cmd = 'scp ${this_file} ' + remote_liveframe
+        cmd = 'scp \"${this_file}\" ' + remote_liveframe
     elif protocol == 'sftp':
         cmd = 'sftp ' + remote_liveframe
     else:
@@ -206,10 +205,10 @@ if liveframe != '' and remote_liveframe != '':
 # This will be captured in the bash 'args' variable.
 print(password)
 " "$@"`)
-password=${args[0]}
+password="${args[0]}"
 
 # Run the code. Note that password is passed as an argument
-if [ ${pure_python} -eq 0 ] ; then
+if [ "${pure_python}" -eq 0 ] ; then
     printf "\n\e[1m\e[93mRunning \e[3mN\e[0m\e[1m\e[93m-body\e[0m\n"
 else
     printf "\n\e[1m\e[93mRunning \e[3mN\e[0m\e[1m\e[93m-body in pure Python mode\e[0m\n"
@@ -217,8 +216,8 @@ fi
 echo "Entry point:   ${main}"
 echo "Parameterfile: ${params}"
 echo "Nr. of CPUs:   ${nprocs}"
-cd ${this_dir}
-${mpiexec} -n ${nprocs} --prefix ${openmpi_dir} ${python} ${main} "${password}" "${exit}"
+cd "${this_dir}"
+"${mpiexec}" -n "${nprocs}" --prefix "${openmpi_dir}" "${python}" "${main}" "${password}" "${exit}"
 
 # Run complete. Deactivate trap before exiting.
 trap : 0

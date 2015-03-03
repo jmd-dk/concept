@@ -26,12 +26,12 @@ set -e
 # Creating top level directory
 current_step="setup of top level directory"
 printf "This is the installation script to the \e[3mN\e[0m-body code by Jeppe Dakin.\n"
-if [ -z $1 ]; then
+if [ -z "${1}" ]; then
     read -p "Where should I install the code?`echo $'\n> '`" -e top_dir
 else 
-    top_dir=$1
+    top_dir="${1}"
 fi
-top_dir=${top_dir//[ ]/\\ }          # Places backslashes before spaces. These are needed when expanding tilde, but they will not persist!
+top_dir="${top_dir//[ ]/\\ }"          # Places backslashes before spaces. These are needed when expanding tilde, but they will not persist!
 eval top_dir="${top_dir}"            # Expand tilde
 top_dir=$(readlink -f "${top_dir}")  # Convert to absolute path
 echo "The code will be installed in ${top_dir}"
@@ -95,7 +95,7 @@ printf "\n\e[1m\e[93mInstalling Cython_GSL\e[0m\n"
 wget -nc -O CythonGSL.tar.gz --no-check-certificate https://github.com/twiecki/CythonGSL/archive/master.tar.gz
 tar xf CythonGSL.tar.gz
 cd CythonGSL*
-export LD_LIBRARY_PATH="${gsl_dir}/lib":"$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="${gsl_dir}/lib:$LD_LIBRARY_PATH"
 "${python}" setup.py build
 "${python}" setup.py install
 cd ..
