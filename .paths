@@ -1,6 +1,6 @@
 # This file contains absolute paths to directories and files used by the
-# program. You must manually edit the paths below. All other files rely on
-# these paths, as they are not given anywhere else.
+# program. If any of the paths below are not already correct you must
+# manually edit them. These paths are heavily used by the code
 
 # Directories
 Gadget2_dir='/home/jeppe/Documents/Uni/Speciale/Nbody0.1/gadget/Gadget2'
