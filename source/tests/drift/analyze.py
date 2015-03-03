@@ -28,7 +28,7 @@ a = zeros(N_snapshots)
 x = zeros(N_snapshots)
 x_std = zeros(N_snapshots)
 for i in range(N_snapshots):
-    snapshot.load('tests/drift/output/snapshot_' + str(i))
+    snapshot.load(paths['tests_dir'] + '/drift/output/snapshot_' + str(i))
     a[i] = snapshot.header['Time']
     x[i] = np.mean(snapshot.particles.posx)
     x_std[i] = np.std(snapshot.particles.posx)
@@ -38,7 +38,7 @@ a_gadget = zeros(N_snapshots)
 x_gadget = zeros(N_snapshots)
 x_std_gadget = zeros(N_snapshots)
 for i in range(N_snapshots):
-    snapshot.load('tests/drift/output/snapshot_gadget_' + '0'*(3-len(str(i))) + str(i))
+    snapshot.load(paths['tests_dir'] + '/drift/output/snapshot_gadget_' + '0'*(3-len(str(i))) + str(i))
     a_gadget[i] = snapshot.header['Time']
     x_gadget[i] = np.mean(snapshot.particles.posx)
     x_std_gadget[i] = np.std(snapshot.particles.posx)
@@ -47,7 +47,7 @@ for i in range(N_snapshots):
 fig_file = paths['tests_dir'] + '/drift/result.pdf'
 plt.text(0.5*max(a), 0.93*boxsize, r'$\uparrow$ End of simulation box $\uparrow$', ha='center')
 plt.errorbar(a, x/units.kpc, yerr=x_std/units.kpc, fmt='-or', label='$N$-body')
-plt.errorbar(a_gadget, x_gadget/units.kpc, yerr=x_std_gadget/units.kpc, fmt='--xb', label='Gadget')
+plt.errorbar(a_gadget, x_gadget/units.kpc, yerr=x_std_gadget/units.kpc, fmt='--3b', label='Gadget')
 plt.legend(loc='best')
 plt.xlabel('$a$')
 plt.ylabel(r'$x\,\mathrm{[kpc]}$')
@@ -58,17 +58,17 @@ plt.savefig(fig_file)
 # There should be no variance on the x positions
 tol = N_snapshots*100*np.finfo('float32').eps
 if np.sum(x_std_gadget) > tol:
-    print('\033[1m\033[91m' + 'Unequal x-positions for the 4 particles in the Gadget snapshots. '
+    print('\033[1m\033[91m' + 'Unequal x-positions for the 4 particles in the Gadget snapshots.\n'
           + 'It is no good to compare the N-body results to these.' + '\033[0m')
     sys.exit(1)
 if np.sum(x_std) > tol:
-    print('\033[1m\033[91m' + 'Unequal x-positions for the 4 particles in the snapshots. '
+    print('\033[1m\033[91m' + 'Unequal x-positions for the 4 particles in the snapshots.\n'
           + 'The symmetric initial conditions has produced nonsymmetric results!' + '\033[0m')
     sys.exit(1)
 # Compare N-body to Gadget
 tol = 1e-3
 if max(np.abs(x/x_gadget - 1)) > tol:
-    print('\033[1m\033[91m' + 'The results from the N-body code disagree with those from Gadget. '
+    print('\033[1m\033[91m' + 'The results from the N-body code disagree with those from Gadget.\n'
           + 'See ' + fig_file + ' for a visualization.' + '\033[0m')
     sys.exit(1)
 

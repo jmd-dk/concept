@@ -8,7 +8,20 @@ this_file=$(readlink -f "$0")
 this_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # Load paths from the .paths file
-source "`dirname \"${this_dir}\"`/.paths"
+#source "`dirname \"${this_dir}\"`/.paths"
+# Load paths from the .paths file
+curr="${this_dir}"
+while [ 1 ]; do
+    if [ -f "${curr}/.paths" ]; then
+        source "${curr}/.paths"
+        break
+    fi
+    if [ "${curr}" == "/" ]; then
+        printf "\e[1m\e[91mCould not find the .paths file!\e[0m\n" >&2
+        exit 1
+    fi
+    curr="`dirname \"${curr}\"`"
+done
 
 # Default values of command-line arguments
 nprocs=1

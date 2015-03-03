@@ -43,6 +43,7 @@ Nbody_dir="${top_dir}/Nbody"
 anaconda_dir="${top_dir}/anaconda"
 fftw_dir="${top_dir}/fftw"
 gadget_dir="${top_dir}/gadget"
+fftw_for_gadget_dir="${gadget_dir}/fftw"
 gsl_dir="${top_dir}/gsl"
 hdf5_dir="${top_dir}/hdf5"
 openmpi_dir="${top_dir}/openmpi"
@@ -51,7 +52,6 @@ openmpi_dir="${top_dir}/openmpi"
 #############################
 # Installing the Nbody code #
 #############################
-
 # Anaconda3 2.1.0 (via Miniconda3 3.7.0)
 current_step="installation of Anaconda"
 printf "\n\e[1m\e[93mInstalling Anaconda\e[0m\n"
@@ -189,6 +189,7 @@ current_step="creataion of the .paths file"
 printf "\nWriting paths to .paths\n"
 Gadget2_dir="${gadget_dir}/Gadget2"
 cython="${anaconda_dir}/bin/cython"
+mpicc="${openmpi_dir}/bin/mpicc"
 mpiexec="${openmpi_dir}/bin/mpiexec"
 python_incl_m="${anaconda_dir}/include/python${python_version}m"
 run="${Nbody_dir}/run"
@@ -202,6 +203,7 @@ Gadget2_dir='${Gadget2_dir}'
 Nbody_dir='${Nbody_dir}'
 anaconda_dir='${anaconda_dir}'
 fftw_dir='${fftw_dir}'
+fftw_for_gadget_dir='${fftw_for_gadget_dir}'
 gadget_dir='${gadget_dir}'
 gsl_dir='${gsl_dir}'
 hdf5_dir='${hdf5_dir}'
@@ -213,6 +215,7 @@ top_dir='${top_dir}'
 python='${python}'
 python_incl_m='${python_incl_m}'
 cython='${cython}'
+mpicc='${mpicc}'
 mpiexec='${mpiexec}'
 run='${run}'
 " > "${top_dir}/.paths"
@@ -221,7 +224,6 @@ run='${run}'
 ####################################################
 # Install Gadget2, used for testing the Nbody code #
 ####################################################
-
 # FFTW 2.1.5 (Gadget2 is incompatible with FFTW 3.x)
 current_step="installation of FFTW2 used by Gadget"
 printf "\n\e[1m\e[93mInstalling FFTW2, used by Gadget\e[0m\n"
@@ -231,15 +233,15 @@ wget -nc -O fftw.tar.gz http://www.fftw.org/fftw-2.1.5.tar.gz
 tar xf fftw.tar.gz
 cd fftw*
 # Double-precision
-CC="${openmpi_dir}/bin/mpicc" MPICC="${openmpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I${openmpi_dir}/include" LDFLAGS="-L${openmpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --enable-type-prefix --prefix="${gadget_dir}/fftw"
+CC="${openmpi_dir}/bin/mpicc" MPICC="${openmpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I${openmpi_dir}/include" LDFLAGS="-L${openmpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --enable-type-prefix --prefix="${fftw_for_gadget_dir}"
 make
 make install
 # Single-precision
 make clean
-CC="${openmpi_dir}/bin/mpicc" MPICC="${openmpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I${openmpi_dir}/include" LDFLAGS="-L${openmpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --enable-float --enable-type-prefix --prefix="${gadget_dir}/fftw"
+CC="${openmpi_dir}/bin/mpicc" MPICC="${openmpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I${openmpi_dir}/include" LDFLAGS="-L${openmpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --enable-float --enable-type-prefix --prefix="${fftw_for_gadget_dir}"
 make
 make install
-cp COPYING README "${gadget_dir}/fftw"
+cp COPYING README "${fftw_for_gadget_dir}"
 cd ../../
 rm -rf tmp
 
@@ -257,7 +259,6 @@ rm -rf tmp
 #########################
 # Test the installation #
 #########################
-
 #current_step="testruns of the pure Python \e[3mN\e[0m\e[1m\e[91m-body code"
 #printf "\n\e[1m\e[93mPerforming test runs in pure Python\e[0m\n"
 #cd "${Nbody_dir}"

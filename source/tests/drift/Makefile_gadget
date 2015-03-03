@@ -77,18 +77,18 @@ OPT   +=  -DSYNCHRONIZATION
 #----------------------------------------------------------------------
 
 #--------------------------------------- Select some defaults
-CC       =  ../../openmpi/bin/mpicc
-OPTIMIZE =  -Wall -g -O3
+CC=        ?
+OPTIMIZE=  -Wall -g -O3
 
-MPI_LIBS= -L../../openmpi/lib -Wl,"-rpath=../../openmpi/lib"
-MPI_INCL= -I../../openmpi/include
-GSL_INCL =  -I../../gsl/include
-GSL_LIBS =  -L../../gsl/lib -Wl,"-rpath=../../gsl/lib"
-FFTW_INCL =  -I../fftw/include
-FFTW_LIBS =  -L../fftw/lib -Wl,"-rpath=../fftw/lib"
-HDF5INCL =  
-HDF5LIB  = 
-MPICHLIB = # -lmpich
+MPI_INCL=  ?
+MPI_LIBS=  ?
+GSL_INCL=  ?
+GSL_LIBS=  ?
+FFTW_INCL= ?
+FFTW_LIBS= ?
+HDF5INCL=  
+HDF5LIB= 
+MPICHLIB= # -lmpich
 
 
 ifneq (HAVE_HDF5,$(findstring HAVE_HDF5,$(OPT))) 

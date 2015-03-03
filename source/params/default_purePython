@@ -1,8 +1,10 @@
 # This is a parameterfile to the N-body code.
 # Parameters can be specified as any valid Python3 expression.
-# Units defined in the units module as well as Numpy functions
-# and constants can be used. For more information about the different
-# parameters, see the bottom of this file.
+# Numpy functions and constants as well as units defined in the units module
+# may be used. Absolute paths defined in the .paths file may be used via the
+# paths dict.
+# For more information about the different parameters,
+# see the bottom of this file.
 
 # Numerical parameters
 boxsize = 100*Mpc                      # Linear size of the simulation box

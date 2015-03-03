@@ -1,7 +1,7 @@
 %  Relevant files
 
-InitCondFile  	   ../../Nbody/tests/drift/IC
-OutputDir          ../../Nbody/tests/drift/output
+InitCondFile       ?  % Will be inserted by the run_test script
+OutputDir          ?  % Will be inserted by the run_test script
 
 EnergyFile         energy.txt
 InfoFile           info.txt
@@ -11,7 +11,7 @@ CpuFile            cpu.txt
 RestartFile        restart
 SnapshotFileBase   snapshot_gadget
 
-OutputListFilename ../../Nbody/tests/drift/outputlist
+OutputListFilename ?  % Will be inserted by the run_test script
 
 % CPU time -limit
 
@@ -40,7 +40,7 @@ Omega0	              0.3
 OmegaLambda           0.7
 OmegaBaryon           0.01
 HubbleParam           0.7
-BoxSize               21000.0
+BoxSize               21000.0  # in kpc/h
 
 % Output frequency
 

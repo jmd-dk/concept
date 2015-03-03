@@ -1,15 +1,17 @@
 # This is a parameterfile to the N-body code.
 # Parameters can be specified as any valid Python3 expression.
-# Units defined in the units module as well as Numpy functions
-# and constants can be used. For more information about the different
-# parameters, see the bottom of this file.
+# Numpy functions and constants as well as units defined in the units module
+# may be used. Absolute paths defined in the .paths file may be used via the
+# paths dict.
+# For more information about the different parameters,
+# see the bottom of this file.
 
 # Input/output
-IC_file = 'tests/drift/IC'		# Initial condition snapshot
-output_dir = 'tests/drift/output'	# Directory for storing output snapshots
+IC_file = paths['tests_dir'] + '/drift/IC'	# Initial condition snapshot
+output_dir = paths['tests_dir'] + '/drift/output'	# Directory for storing output snapshots
 output_type = 'Gadget 2'		# Type of output snapshot
 snapshot_base = 'snapshot'		# File basename for output snapshots
-outputtimes = tuple(linspace(0.03, 1, 25))	# Times at which to dump snapshots to disk
+outputtimes = tuple(loadtxt(paths['tests_dir'] + '/drift/outputlist'))	# Times at which to dump snapshots to disk
 
 # Numerical parameters
 boxsize = 21*Mpc/0.7 # (30 Mpc. Gadget implicitly uses length/h)	# Linear size of the simulation box
@@ -26,7 +28,6 @@ a_begin = 0.02				# Scale factor at beginning of simulation
 framefolder = ''			# Folder to save frames
 liveframe=''				# Filename of saved live frame
 image_format='png'			# The image format of the saved frames
-tmp = 'jmd@lifa.phys.au.dk:/usr/users/jmd/public_html/master/simulation.png'
 remote_liveframe=''			# Where to upload the live frame
 protocol = 'scp'			# Protocol for live frame file transfer
 framespace = 100			# The plot is updated every framespace time step

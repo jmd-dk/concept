@@ -20,16 +20,33 @@ pyxpp = pyxpp.py
 files_generated = .ewald_gridsize* .fftw_wisdom_gridsize*
 
 
-###############################################
-# Environment information from the .path file #
-###############################################
-anaconda_dir  = $(shell source ../.paths; echo $${anaconda_dir})
-openmpi_dir   = $(shell source ../.paths; echo $${openmpi_dir})
-fftw_dir      = $(shell source ../.paths; echo $${fftw_dir})
-gsl_dir       = $(shell source ../.paths; echo $${gsl_dir})
-python        = $(shell source ../.paths; echo $${python})
-python_incl_m = $(shell source ../.paths; echo $${python_incl_m})
-cython        = $(shell source ../.paths; echo $${cython})
+################################################
+# Environment information from the .paths file #
+################################################
+paths=$(shell this_dir="$$( cd "$$( dirname "$${BASH_SOURCE[0]}" )" && pwd )"; \
+          curr="$${this_dir}"; \
+          while [ 1 ]; do \
+              if [ -f "$${curr}/.paths" ]; then \
+                  paths="$${curr}/.paths"; \
+                  break; \
+              fi; \
+              if [ "$${curr}" == "/" ]; then \
+                  paths='fail'; \
+                  break; \
+              fi; \
+              curr="`dirname \"$${curr}\"`"; \
+          done; \
+          echo "$${paths}")
+ifeq ($(paths), fail)
+    $(error Could not find .paths file)
+endif
+anaconda_dir  = $(shell source $(paths); echo $${anaconda_dir})
+openmpi_dir   = $(shell source $(paths); echo $${openmpi_dir})
+fftw_dir      = $(shell source $(paths); echo $${fftw_dir})
+gsl_dir       = $(shell source $(paths); echo $${gsl_dir})
+python        = $(shell source $(paths); echo $${python})
+python_incl_m = $(shell source $(paths); echo $${python_incl_m})
+cython        = $(shell source $(paths); echo $${cython})
 
 
 #########################
@@ -113,19 +130,36 @@ recursive: $(pyfile).so
 # Targets handling the cythonizing, compiling and linking of an arbitrary .py file with basename $(pyfile) #
 ############################################################################################################
 # Copy the specified parameterfile to params.py and inserts a header, telling which parameterfile it is a
-# copy of. Also import everything from numpy and the units moddule in the header, enabling the use of math
-# and units in parameter files
+# copy of. Also include imports of some useful numpy functions and constants, imports of everything from the
+# units moddule and all paths from .path file in the header, enabling the use of math, units and absolute
+# paths in parameter files.
 params.py: $(paramsfile)
 	@echo
 	@echo "Processing parameters from $(paramsfile)"
 	@cp $(paramsfile) $@
 	@sed -i '1i# The following is an exact copy of $(paramsfile)\
-	from numpy import pi, e, sqrt, sin, cos, tan, arcsin, arccos, arctan, sinh, cosh, tanh, arcsinh, arccosh, arctanh, exp, log, log10, log2, abs, floor, ceil, arange, linspace\
+	# Import useful numpy functions and constants\
+	from numpy import abs, arange, arccos, arccosh, arcsin, arcsinh, arctan, arctanh, ceil, cos, cosh, e, exp, floor, linspace, loadtxt, log, log10, log2, pi, sqrt, sin, sinh, tan, tanh\
+	# Get access to the absolute paths stored in the .paths file\
+	import os, imp\
+	top_dir = "."\
+	ls_prev = []\
+	possible_root_dir = 0\
+	while True:\
+	    ls = os.listdir(top_dir)\
+	    possible_root_dir = (possible_root_dir + 1) if ls == ls_prev else 0\
+	    if possible_root_dir == 3:  # 3 ../ and still the same files. "Must" be /.\
+	        raise Exception("Cannot find the .paths file!")\
+	    if ".paths" in ls:\
+	        break\
+	    top_dir = "../" +  top_dir\
+	    ls_prev = ls\
+	paths_module = imp.load_source("paths", top_dir + "/.paths")\
+	paths = paths_module.__dict__\
 	# Seperate but equivalent imports in pure Python and Cython\
 	import cython\
 	if not cython.compiled:\
 	    # Import units from the non-compiled .py file\
-	    import imp\
 	    units = imp.load_source("units", "units.py")\
 	    for key, value in units.__dict__.items():\
 	        if isinstance(key, str):\
@@ -142,7 +176,7 @@ params.py: $(paramsfile)
 # Make a .pyx copy of the .py file with the cython_import triple quotes removed and a
 # hard copy of the content of commons.py in place of 'from commons import *'.
 # Other tweeks are performed by the .pyx preprocessor script as well.
-$(pyfile).pyx: $(pyfile).py $(MAKEFILE_LIST) commons.py $(pyxpp)
+$(pyfile).pyx: $(pyfile).py commons.py $(pyxpp) $(MAKEFILE_LIST) $(paths)
 	@printf "\n\033[1m\033[93mBuilding the $(pyfile) module\033[0m\n"  # Print module in progress in yellow
 	cp $< $@
 	@# Run the .pyx preprocessor on the .pyx file
@@ -169,7 +203,7 @@ clean_so:
 # Remove files produced by running tests
 clean_tests:
 	$(RM) -r tests/*.pdf tests/__pycache__ tests/ewaldforce_gadget.c tests/ewaldforce_gadget
-	tests/*/clean
+	$(addsuffix ;, $(shell find tests/ -type f -name 'clean'))
 # Remove files generated by running the program
 clean_files_generated:
 	$(RM) $(files_generated)

@@ -61,9 +61,9 @@ def summation(x, y, z):
     force_x = force_y = force_z = 0
     # Two particles on top of each other: No force
     if x == y == z == 0:
-        force[0] = force_x
-        force[1] = force_y
-        force[2] = force_z
+        force[0] = 0
+        force[1] = 0
+        force[2] = 0
         return force
     # The short range (real space) sum
     for sumindex_x in range(n_lower, n_upper):

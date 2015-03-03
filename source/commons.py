@@ -138,7 +138,7 @@ cython.declare(G_Newton='double',
                )
 G_Newton = 6.6738e-11*units.m**3/units.kg/units.s**2  # Newtons constant
 ϱ = 3*H0**2/(8*pi*G_Newton) # The average, comoing density (the critical comoving density since we only study flat universes)
-softening = 0.02*boxsize/(8000**one_third) #(boxsize/30)*2000**(-one_third)  # 2000 should be the particle Number. Source: http://popia.ft.uam.es/aknebe/page3/files/ComputationalAstrophysics/PhysicalProcesses.pdf page 85. Or maybe use 2-4% of the mean-interparticle distance (V/N)**(1/3), http://www.ast.cam.ac.uk/~puchwein/NumericalCosmology02.pdf page 13.
+softening = 300*units.kpc #0.02*boxsize/(8000**one_third) #(boxsize/30)*2000**(-one_third)  # 2000 should be the particle Number. Source: http://popia.ft.uam.es/aknebe/page3/files/ComputationalAstrophysics/PhysicalProcesses.pdf page 85. Or maybe use 2-4% of the mean-interparticle distance (V/N)**(1/3), http://www.ast.cam.ac.uk/~puchwein/NumericalCosmology02.pdf page 13.
 
 PM_gridsize3 = PM_gridsize**3
 boxsize2 = boxsize**2
@@ -220,6 +220,19 @@ def warn(msg):
 ###########################################
 # The paths are stored in the top_dir/.paths file
 import imp
-paths_module = imp.load_source('paths', '../.paths')
+cython.declare(paths='dict')
+top_dir = '.'
+ls_prev = []
+possible_root_dir = 0
+while True:
+    ls = os.listdir(top_dir)
+    possible_root_dir = (possible_root_dir + 1) if ls == ls_prev else 0
+    if possible_root_dir == 3:  # 3 ../ and still the same files. "Must" be /.
+        raise Exception('Cannot find the .paths file!')
+    if '.paths' in ls:
+        break
+    top_dir = '../' +  top_dir
+    ls_prev = ls
+paths_module = imp.load_source('paths', top_dir + '/.paths')
 paths = paths_module.__dict__
 

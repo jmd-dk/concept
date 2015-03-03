@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# This script does cleanup after a drift test
+# This script does cleanup after a test
 this_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd "${this_dir}"
-rm -rf IC output outputlist params_gadget-usedvalues result.pdf
+(cd "${this_dir}" && rm -rf IC Makefile_gadget_edited output outputlist params_gadget_edited params_gadget_edited-usedvalues result.pdf)
+

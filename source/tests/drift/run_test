@@ -6,6 +6,10 @@
 # initial velocity in the x-direction is given. The particles will pass
 # through the periodic edge of the box during the simulation.
 
+# The name of this test (the directory name)
+this_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+test_name=$(basename "${this_dir}")
+
 # Set up error trapping
 ctrl_c()
 {
@@ -14,7 +18,7 @@ ctrl_c()
 }
 abort()
 {
-    printf "\e[1m\e[91mAn error occurred during drift test!\e[0m\n" >&2
+    printf "\e[1m\e[91mAn error occurred during ${test_name} test!\e[0m\n" >&2
     exit 1
 }
 trap 'ctrl_c' SIGINT
@@ -22,7 +26,6 @@ trap 'abort' EXIT
 set -e
 
 # Load paths from the .paths file
-this_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 curr="${this_dir}"
 while [ 1 ]; do
     if [ -f "${curr}/.paths" ]; then
@@ -35,27 +38,50 @@ while [ 1 ]; do
     curr="`dirname \"${curr}\"`"
 done
 
+# Create list of output times, used both by the N-body code and Gadget
+"${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', np.linspace(0.03, 1, 25))"
+
 # Create the Ewald grid using Cython, if it does not already exist
+# (for fast IC generation).
 ${run} -n 4 -p "${this_dir}/params" --exit
 
 # Generate ICs
 ${run} -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python
 
-# Run ICs through the N-body code
+# Run the N-body code on the generated ICs
 ${run} -n 1 -p "${this_dir}/params"
 
-# Run ICs through Gadget2
-"${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', np.linspace(0.03, 1, 25))"
-cp "${this_dir}/Makefile_gadget" "${Gadget2_dir}/Makefile"
-cd "${Gadget2_dir}"
-make clean
-make
-"${mpiexec}" -n 1 --prefix "${openmpi_dir}" Gadget2 "${this_dir}/params_gadget"
+# Create an edited version of params_gadget with correct path information
+cp "${this_dir}/params_gadget" "${this_dir}/params_gadget_edited"
+sed -i "/^ *InitCondFile / s/ [^# ]/ ${this_dir//\//\\/}\/IC/" "${this_dir}/params_gadget_edited"
+sed -i "/^ *OutputDir / s/ [^# ]/ ${this_dir//\//\\/}\/output/" "${this_dir}/params_gadget_edited"
+sed -i "/^ *OutputListFilename / s/ [^# ]/ ${this_dir//\//\\/}\/outputlist/" "${this_dir}/params_gadget_edited"
+
+# Create an edited version of Makefile_gadget with correct parth information
+# and replace the Makefile in the Gadget2 directory with this edited version.
+cp "${this_dir}/Makefile_gadget" "${this_dir}/Makefile_gadget_edited"
+sed -i "/^ *CC= / s/ [^# ]/ ${mpicc//\//\\/}/" "${this_dir}/Makefile_gadget_edited"
+path="${openmpi_dir}/include"
+sed -i "/^ *MPI_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+path="${openmpi_dir}/lib"
+sed -i "/^ *MPI_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+path="${gsl_dir}/include"
+sed -i "/^ *GSL_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+path="${gsl_dir}/lib"
+sed -i "/^ *GSL_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+path="${fftw_for_gadget_dir}/include"
+sed -i "/^ *FFTW_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+path="${fftw_for_gadget_dir}/lib"
+sed -i "/^ *FFTW_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+cp "${this_dir}/Makefile_gadget_edited" "${Gadget2_dir}/Makefile"
+
+# Build Gadget and run simulation based on the ICs
+(cd "${Gadget2_dir}" && make clean && make && "${mpiexec}" -n 1 --prefix "${openmpi_dir}" Gadget2 "${this_dir}/params_gadget_edited")
 
 # Analyze the output snapshots
 ${run} -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python 2>/dev/null
 
 # Test run complete. Deactivate trap before exiting.
 trap : 0
-printf "\e[1m\e[92mDrift test ran successfully\e[0m\n"
+printf "\e[1m\e[92m${test_name^} test ran successfully\e[0m\n"
 
