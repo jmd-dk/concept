@@ -1,7 +1,7 @@
 %  Relevant files
 
-InitCondFile       ?  % Will be inserted by the run_test script
-OutputDir          ?  % Will be inserted by the run_test script
+InitCondFile       ../IC
+OutputDir          ../output
 
 EnergyFile         energy.txt
 InfoFile           info.txt
@@ -11,7 +11,7 @@ CpuFile            cpu.txt
 RestartFile        restart
 SnapshotFileBase   snapshot_gadget
 
-OutputListFilename ?  % Will be inserted by the run_test script
+OutputListFilename ../outputlist
 
 % CPU time -limit
 

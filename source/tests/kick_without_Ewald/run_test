@@ -50,28 +50,21 @@ ${run} -n 4 -p "${this_dir}/params" --exit
 ${run} -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python
 
 # Make a local copy of the files in the code directory
-edited_source_dir="${this_dir}/source_edited"
-mkdir -p "${edited_source_dir}"
-find "${Nbody_dir}" -maxdepth 1 -type f -exec cp '{}' "${edited_source_dir}" \;
+source_edited_dir="${this_dir}/source_edited"
+mkdir -p "${source_edited_dir}"
+find "${Nbody_dir}" -maxdepth 1 -type f -exec cp '{}' "${source_edited_dir}" \;
 
 # Edit the ewald.py file so that the returned Ewald corrections are zero
-sed -i "/force\[0\] += x\/r3/c\    force\[0\] = 0" "${edited_source_dir}/ewald.py"
-sed -i "/force\[1\] += y\/r3/c\    force\[1\] = 0" "${edited_source_dir}/ewald.py"
-sed -i "/force\[2\] += z\/r3/c\    force\[2\] = 0" "${edited_source_dir}/ewald.py"
+sed -i "/force\[0\] += x\/r3/c\    force\[0\] = 0" "${source_edited_dir}/ewald.py"
+sed -i "/force\[1\] += y\/r3/c\    force\[1\] = 0" "${source_edited_dir}/ewald.py"
+sed -i "/force\[2\] += z\/r3/c\    force\[2\] = 0" "${source_edited_dir}/ewald.py"
 
 # Run the N-body code on the generated ICs
-"${edited_source_dir}/run" -n 1 -p "${this_dir}/params"
-
-# Create an edited version of params_gadget with correct path information
-cp "${this_dir}/params_gadget" "${this_dir}/params_gadget_edited"
-sed -i "/^ *InitCondFile / s/ [^# ]/ ${this_dir//\//\\/}\/IC/" "${this_dir}/params_gadget_edited"
-sed -i "/^ *OutputDir / s/ [^# ]/ ${this_dir//\//\\/}\/output/" "${this_dir}/params_gadget_edited"
-sed -i "/^ *OutputListFilename / s/ [^# ]/ ${this_dir//\//\\/}\/outputlist/" "${this_dir}/params_gadget_edited"
+"${source_edited_dir}/run" -n 1 -p "${this_dir}/params"
 
 # Create an edited version of Makefile_gadget with correct parth information
-# and replace the Makefile in the Gadget2 directory with this edited version.
 cp "${this_dir}/Makefile_gadget" "${this_dir}/Makefile_gadget_edited"
-sed -i "/^ *CC= / s/ [^# ]/ ${mpicc//\//\\/}/" "${this_dir}/Makefile_gadget_edited"
+sed -i "/^ *CC= / s/ [^# ]/ \"${mpicc//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
 path="${openmpi_dir}/include"
 sed -i "/^ *MPI_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
 path="${openmpi_dir}/lib"
@@ -84,10 +77,22 @@ path="${fftw_for_gadget_dir}/include"
 sed -i "/^ *FFTW_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
 path="${fftw_for_gadget_dir}/lib"
 sed -i "/^ *FFTW_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
-cp "${this_dir}/Makefile_gadget_edited" "${Gadget2_dir}/Makefile"
+
+# Make a local copy of the files in the Gadget2 directory and copy the edited Makefile
+Gadget2_edited_dir="${this_dir}/Gadget2_edited"
+mkdir -p "${Gadget2_edited_dir}"
+find "${Gadget2_dir}" -maxdepth 1 -type f -exec cp '{}' "${Gadget2_edited_dir}" \;
+cp "${this_dir}/Makefile_gadget_edited" "${Gadget2_edited_dir}/Makefile"
+
+# Remove the tabulated Ewald grid from the local Gadget2 directory
+# and edit forcetree.c so that future generated Ewald corrections are set to zero.
+rm -f "${Gadget2_edited_dir}/ewald_spc_table_64.dat"
+sed -i "/fcorrx\[i\]\[j\]\[k\] = force\[0\];/c\fcorrx\[i\]\[j\]\[k\] = 0.0;" "${Gadget2_edited_dir}/forcetree.c"
+sed -i "/fcorry\[i\]\[j\]\[k\] = force\[1\];/c\fcorry\[i\]\[j\]\[k\] = 0.0;" "${Gadget2_edited_dir}/forcetree.c"
+sed -i "/fcorrz\[i\]\[j\]\[k\] = force\[2\];/c\fcorrz\[i\]\[j\]\[k\] = 0.0;" "${Gadget2_edited_dir}/forcetree.c"
 
 # Build Gadget and run simulation based on the ICs
-(cd "${Gadget2_dir}" && make clean && make && "${mpiexec}" -n 1 --prefix "${openmpi_dir}" Gadget2 "${this_dir}/params_gadget_edited")
+(cd "${Gadget2_edited_dir}" && make clean && make && "${mpiexec}" -n 1 --prefix "${openmpi_dir}" Gadget2 ../params_gadget)  # It is crucial to use a relative path as the path has a max allowed length in Gadget
 
 # Analyze the output snapshots
 "${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python 2>/dev/null

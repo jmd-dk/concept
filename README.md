@@ -4,6 +4,8 @@ The code is written in Cython and C, but can also be run purely in Python,
 without the need of cythonization, C compilation and linking.
 
 #### Dependencies
+The code should be able to compile and run on any POSIX system
+with GCC and GNU make.
 The code has the following non-standard but open source dependencies:
 - The **GSL** library.
 - An **MPI3** implementation (e.g. Open MPI).
@@ -40,7 +42,7 @@ and run the `installer` script:
 
 To keep track of all the components, `installer` writes a bunch of absolute
 paths to a file called `.paths`. If you choose to manually install some or
-all components, you must also edit this file accordingly.
+all components, you must edit this file accordingly.
 
 The `installer` script uses the Anaconda Python distribution for CPython3
 with the site-packages and Open MPI for the MPI3 implementation.

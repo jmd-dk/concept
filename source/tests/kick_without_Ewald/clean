@@ -2,5 +2,5 @@
 
 # This script does cleanup after a test
 this_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-(cd "${this_dir}" && rm -rf IC Makefile_gadget_edited output outputlist params_gadget_edited params_gadget_edited-usedvalues result.pdf source_edited)
+(cd "${this_dir}" && rm -rf Gadget2_edited IC Makefile_gadget_edited output outputlist params_gadget-usedvalues result.pdf source_edited)
 
