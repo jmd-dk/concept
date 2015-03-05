@@ -24,7 +24,7 @@ import matplotlib.pyplot as plt
 # Determine the number of snapshots from the outputlist file
 N_snapshots = len(np.loadtxt(this_dir + '/outputlist'))
 
-# Instantiate a Gadget_snapshot instance which will be reused for all Gadget snapshots
+# Instantiate a Gadget_snapshot instance which will be reused for all GADGET snapshots
 snapshot = Gadget_snapshot()
 
 # Read in data from the CONCEPT snapshots
@@ -37,7 +37,7 @@ for i in range(N_snapshots):
     x[i] = np.mean(snapshot.particles.posx)
     x_std[i] = np.std(snapshot.particles.posx)
 
-# Read in data from the Gadget snapshots
+# Read in data from the GADGET snapshots
 a_gadget = zeros(N_snapshots)
 x_gadget = zeros(N_snapshots)
 x_std_gadget = zeros(N_snapshots)
@@ -62,7 +62,7 @@ plt.savefig(fig_file)
 # There should be no variance on the x positions
 tol = N_snapshots*100*np.finfo('float32').eps
 if np.sum(x_std_gadget) > tol:
-    print('\033[1m\033[91m' + 'Unequal x-positions for the 4 particles in the Gadget snapshots.\n'
+    print('\033[1m\033[91m' + 'Unequal x-positions for the 4 particles in the GADGET snapshots.\n'
           + 'It is no good to compare the CONCEPT results to these.' + '\033[0m')
     sys.exit(1)
 if np.sum(x_std) > tol:

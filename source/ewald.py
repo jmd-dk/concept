@@ -194,17 +194,17 @@ cython.declare(h_lower='int',
                )
 # The values chosen match those listed in the article mentioned in the
 # docstring of the summation function. These are also those used
-# (in effect) in Gadget2.
+# (in effect) in GADGET2.
 rs = 1/4  # Corresponds to alpha = 2
 maxdist = 3.6
 maxh2 = 10
 # Derived constants
 maxh = sqrt(maxh2)
-h_lower = int(-maxh)  # Gadget: -4 (also the case here for maxh2=10)
-h_upper = int(maxh) + 1  # Gadget: 5 (also the case here for maxh2=10)
+h_lower = int(-maxh)  # GADGET: -4 (also the case here for maxh2=10)
+h_upper = int(maxh) + 1  # GADGET: 5 (also the case here for maxh2=10)
 minus_recp_4rs2 = -1/(4*rs**2)
-n_lower = int(-(maxdist + 1))  # Gadget: -4 (also the case here for maxdist=3.6)
-n_upper = int(maxdist + 1) + 1  # Gadget: 5 (also the case here for maxdist=3.6)
+n_lower = int(-(maxdist + 1))  # GADGET: -4 (also the case here for maxdist=3.6)
+n_upper = int(maxdist + 1) + 1  # GADGET: 5 (also the case here for maxdist=3.6)
 recp_2rs = 1/(2*rs)
 recp_sqrt_pi_rs = 1/(sqrt_pi*rs)
 rs2 = rs**2

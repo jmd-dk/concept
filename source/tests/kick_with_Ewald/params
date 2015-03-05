@@ -46,14 +46,14 @@ use_Ewald = True
 # IC_file
 #     Path to the file containing the initial conditions for the simulation.
 #     This is just a regular snapshot, either of the codes own HDF5 type or
-#     of the Gadget2 2 type.
+#     of the GADGET2 2 type.
 # output_dir
 #     Path (absolute or relative to the concept directory) to the directory
 #     where output snapshots should be stored.
 # output_type
 #     Determines the type of the produced snapshots. Can be either 'standard'
-#     or 'Gadget 2', referring to the codes own HDF5 snapshot type and
-#     Gadget2's snapshot type 2, respectively.
+#     or 'GADGET 2', referring to the codes own HDF5 snapshot type and
+#     GADGET2's snapshot type 2, respectively.
 # snapshot_base
 #     File basename (prefix) for the produced snapshots. The snapshots will be
 #     named "snapshot_base"_0, "snapshot_base"_1, "snapshot_base"_2, ...

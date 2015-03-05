@@ -25,9 +25,9 @@ GNU make. The code has the following non-standard but open source dependencies:
   - **numpy**.
   - **pexpect**.
   - **scipy**.
-- The **Gadget2** *N*-body code. This is only needed for running some
-  tests and can be omitted. Gadget2 is also dependent on GSL, MPI and
-  FFTW. Note that Gadget2 is incompatible with FFTW 3.x, so a seperate
+- The **GADGET2** *N*-body code. This is only needed for running some
+  tests and can be omitted. GADGET2 is also dependent on GSL, MPI and
+  FFTW. Note that GADGET2 is incompatible with FFTW 3.x, so a seperate
   FFTW 2.x must also be installed.
 
 #### Easy installation

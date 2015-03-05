@@ -224,7 +224,7 @@ run='${run}'
 ######################################################
 # Install GADGET2, used for testing the CONCEPT code #
 ######################################################
-# FFTW 2.1.5 (Gadget2 is incompatible with FFTW 3.x)
+# FFTW 2.1.5 (GADGET2 is incompatible with FFTW 3.x)
 current_step="installation of FFTW2 used by GADGET"
 printf "\n\e[1m\e[93mInstalling FFTW2, used by GADGET\e[0m\n"
 mkdir tmp
@@ -245,9 +245,9 @@ cp COPYING README "${fftw_for_gadget_dir}"
 cd ../../
 rm -rf tmp
 
-# Gadget2
-current_step="installation of Gadget"
-printf "\n\e[1m\e[93mInstalling Gadget\e[0m\n"
+# GADGET2
+current_step="installation of GADGET"
+printf "\n\e[1m\e[93mInstalling GADGET\e[0m\n"
 mkdir tmp
 cd tmp
 wget -nc -O gadget2.tar.gz http://www.mpa-garching.mpg.de/gadget/gadget-2.0.7.tar.gz
@@ -284,7 +284,7 @@ rm -rf tmp
 # Copyright notice
 current_step="copyright notice"
 printf "\n\e[1m\e[93mCopyright notice\e[0m
-Anaconda, GSL, Open MPI, HDF5, FFTW and Gadget (along with its own
+Anaconda, GSL, Open MPI, HDF5, FFTW and GADGET (along with its own
 version of FFTW) has been installed into seperate folders in ${top_dir}.
 Any use of CO\e[3mN\e[0mCEPT must conform to the license terms of the
 above software. These can be found in their seperate installation

@@ -52,7 +52,7 @@ done
 "${run}" -n 1 -p "${this_dir}/params"
 
 # Create an edited version of Makefile_gadget with correct parth information
-# and replace the Makefile in the Gadget2 directory with this edited version.
+# and replace the Makefile in the GADGET2 directory with this edited version.
 cp "${this_dir}/Makefile_gadget" "${this_dir}/Makefile_gadget_edited"
 sed -i "/^ *CC= / s/ [^# ]/ ${mpicc//\//\\/}/" "${this_dir}/Makefile_gadget_edited"
 path="${openmpi_dir}/include"
@@ -75,7 +75,7 @@ find "${Gadget2_dir}" -maxdepth 1 -type f -exec cp '{}' "${Gadget2_local_dir}" \
 cp "${this_dir}/Makefile_gadget_edited" "${Gadget2_local_dir}/Makefile"
 
 # Build Gadget and run simulation based on the ICs
-(cd "${Gadget2_local_dir}" && make clean && make && "${mpiexec}" -n 1 --prefix "${openmpi_dir}" Gadget2 ../params_gadget)  # It is crucial to use a relative path as the path has a max allowed length in Gadget
+(cd "${Gadget2_local_dir}" && make clean && make && "${mpiexec}" -n 1 --prefix "${openmpi_dir}" Gadget2 ../params_gadget)  # It is crucial to use a relative path as the path has a max allowed length in GADGET
 
 # Analyze the output snapshots
 "${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python 2>/dev/null

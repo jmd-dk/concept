@@ -24,7 +24,7 @@ import matplotlib.pyplot as plt
 # Determine the number of snapshots from the outputlist file
 N_snapshots = len(np.loadtxt(this_dir + '/outputlist'))
 
-# Instantiate a Gadget_snapshot instance which will be reused for all Gadget snapshots
+# Instantiate a Gadget_snapshot instance which will be reused for all GADGET snapshots
 snapshot = Gadget_snapshot()
 
 # Read in data from the CONCEPT snapshots
@@ -41,7 +41,7 @@ for i in range(N_snapshots):
     x1[i] = np.mean(snapshot.particles.posx[4:])
     x1_std[i] = np.std(snapshot.particles.posx[4:])
 
-# Read in data from the Gadget snapshots
+# Read in data from the GADGET snapshots
 a_gadget = zeros(N_snapshots)
 x0_gadget = zeros(N_snapshots)
 x0_std_gadget = zeros(N_snapshots)

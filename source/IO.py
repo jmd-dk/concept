@@ -221,20 +221,20 @@ def load_standard(filename):
                )
 @cython.returns('Particles')
 def load(filename):
-    # Determine whether input snapshot is in standard or Gadget 2 format
+    # Determine whether input snapshot is in standard or GADGET2 2 format
     # by searching for a HEAD identifier.
     input_type = 'standard'
     with open(filename, 'rb') as f:
         try:
             f.seek(4)
             if struct.unpack('4s', f.read(struct.calcsize('4s')))[0] == b'HEAD':
-                input_type = 'Gadget 2'
+                input_type = 'GADGET 2'
         except:
             pass
     # Dispatches the work to the appropriate function
     if input_type == 'standard':
         return load_standard(filename)
-    elif input_type == 'Gadget 2':
+    elif input_type == 'GADGET 2':
         return load_gadget(filename)
 
 @cython.cclass
@@ -309,7 +309,7 @@ class Gadget_snapshot:
         self.header['NallHW'] = [0]*6
         self.header['flag_entr_ics'] = 1
 
-    # Method for saving a Gadget snapshot of type 2 to disk
+    # Method for saving a GADGET snapshot of type 2 to disk
     @cython.cfunc
     @cython.cdivision(True)
     @cython.boundscheck(False)
@@ -322,7 +322,7 @@ class Gadget_snapshot:
                    )
     def save(self, filename):
         """The snapshot data (positions and velocities) are stored in single
-        precision. Only Gadget type 1 (halo) particles, corresponding to
+        precision. Only GADGET type 1 (halo) particles, corresponding to
         dark matter particles, are supported.
         """
         N = self.header['Nall'][1]
@@ -413,7 +413,7 @@ class Gadget_snapshot:
                     if i == (nprocs - 1):
                         f.write(struct.pack('i', N*4))
 
-    # Method for loading in a Gadget snapshot of type 2 from disk
+    # Method for loading in a GADGET snapshot of type 2 from disk
     @cython.cfunc
     @cython.cdivision(True)
     @cython.boundscheck(False)
@@ -439,10 +439,10 @@ class Gadget_snapshot:
                    unit='double',
                    )
     def load(self, filename):
-        """ It is assumed that the snapshot on the disk is a Gadget snapshot
+        """ It is assumed that the snapshot on the disk is a GADGET snapshot
         of type 2 and that it uses single precision. The Gadget_snapshot
         instance stores the data (positions and velocities) in double
-        precision. Only Gadget type 1 (halo) particles, corresponding to
+        precision. Only GADGET type 1 (halo) particles, corresponding to
         dark matter particles, are supported.
         """
         offset = 0
@@ -484,7 +484,7 @@ class Gadget_snapshot:
                             gadget_ΩΛ),
                            (a_begin, boxsize, H0, Ωm, ΩΛ))]):
                 msg = ('Mismatch between current parameters and those in the'
-                       + ' Gadget snapshot "' + filename + '":')
+                       + ' GADGET snapshot "' + filename + '":')
                 if abs(gadget_a/a_begin - 1) > tol:
                     msg += ('\n    a_begin: ' + str(a_begin)
                             + ' vs ' + str(gadget_a))
@@ -516,7 +516,7 @@ class Gadget_snapshot:
                 start_local = int(start_local)
             # Construct a Particles instance
             unit = 1e+10*units.m_sun/self.header['HubbleParam']
-            self.particles = construct('from Gadget snapshot',
+            self.particles = construct('from GADGET snapshot',
                                        'dark matter',
                                        mass=self.header['Massarr'][1]*unit,
                                        N=N,
@@ -628,7 +628,7 @@ class Gadget_snapshot:
         return offset
 
 
-# Function for loading a Gadget snapshot into a Particles instance
+# Function for loading a GADGET snapshot into a Particles instance
 @cython.cfunc
 @cython.cdivision(True)
 @cython.boundscheck(False)
@@ -642,12 +642,12 @@ class Gadget_snapshot:
 def load_gadget(filename):
     # Print out message
     if master:
-        print('Loading Gadget snapshot:', filename)
+        print('Loading GADGET snapshot:', filename)
     snapshot = Gadget_snapshot()
     snapshot.load(filename)
     return snapshot.particles
 
-# Function for saving the current state as a Gadget snapshot
+# Function for saving the current state as a GADGET snapshot
 @cython.cfunc
 @cython.cdivision(True)
 @cython.boundscheck(False)
@@ -665,11 +665,11 @@ def load_gadget(filename):
 def save_gadget(particles, a, filename):
     # Print out message
     if master:
-        print('Saving Gadget snapshot:', filename)
-    # Instantiate Gadget snapshot
+        print('Saving GADGET snapshot:', filename)
+    # Instantiate GADGET snapshot
     snapshot = Gadget_snapshot()
     snapshot.populate(particles, a)
-    # Write Gadget snapshot to disk
+    # Write GADGET snapshot to disk
     snapshot.save(filename)
 
 
@@ -679,3 +679,4 @@ output_type_fmt = output_type.lower().replace(' ', '')
 # If output_dir does not exist, create it
 if master and not os.path.exists(output_dir):
     os.makedirs(output_dir)
+
