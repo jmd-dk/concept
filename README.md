@@ -1,5 +1,5 @@
 # Description
-**CO*N*CEPT** (**C**osm**O**logical ***N***body **C**od**E** in **P**y**T**hon)
+**CO*N*CEPT** (**C**osm**O**logical ***N***-body **C**od**E** in **P**y**T**hon)
 is a code for cosmological *N*-body simulations on massively parallel computers
 with distributed memory. The code is written in Cython and C, but can also be
 run purely in Python, without the need of cythonization, C compilation and
