@@ -8,8 +8,6 @@
 # The above uses a URL shortener. If it does not work, use the full URL:
 # https://raw.githubusercontent.com/jmd-dk/concept/master/installer
 
-# TEST2
-
 # Set up error trapping
 ctrl_c()
 {
