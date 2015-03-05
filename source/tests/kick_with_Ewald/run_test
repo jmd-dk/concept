@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# This script performs a kick test of the N-body code, by comparison with
+# This script performs a kick test of the CONCEPT code, by comparison with
 # Gadget. ICs are generated, containing 8 particles placed symetrically
 # so that a force only exist in the x-direction. The particles start out
 # with zero velocity.
@@ -38,7 +38,7 @@ while [ 1 ]; do
     curr="`dirname \"${curr}\"`"
 done
 
-# Create list of output times, used both by the N-body code and Gadget
+# Create list of output times, used by both CONCEPT and GADGET
 "${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', np.linspace(0.03, 0.5, 10))"
 
 # Create the Ewald grid using Cython, if it does not already exist
@@ -48,7 +48,7 @@ done
 # Generate ICs
 "${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python
 
-# Run the N-body code on the generated ICs
+# Run the CONCEPT code on the generated ICs
 "${run}" -n 1 -p "${this_dir}/params"
 
 # Create an edited version of Makefile_gadget with correct parth information

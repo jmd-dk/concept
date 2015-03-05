@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# Run this script to download and install the Nbody code by Jeppe Dakin
+# Run this script to download and install the CONCEPT code by Jeppe Dakin
 # with all dependencies. If run without an argument, it will prompt for
 # an installation directory. This can also be passed as an argument.
 # You can also download and run this script via the following command:
-# bash <(wget -O- --no-ch tiny.cc/nbody)
+# bash <(wget -O- --no-ch tiny.cc/concept)
 # The above uses a URL shortener. If it does not work, use the full URL:
-# https://raw.githubusercontent.com/jmd-dk/Nbody/master/Nbody_installer
+# https://raw.githubusercontent.com/jmd-dk/concept/master/installer
 
 # Set up error trapping
 ctrl_c()
@@ -25,13 +25,13 @@ set -e
 
 # Creating top level directory
 current_step="setup of top level directory"
-printf "This is the installation script to the \e[3mN\e[0m-body code by Jeppe Dakin.\n"
+printf "This is the installation script to CO\e[3mN\e[0mCEPT code by Jeppe Dakin.\n"
 if [ -z "${1}" ]; then
     read -p "Where should I install the code?`echo $'\n> '`" -e top_dir
 else 
     top_dir="${1}"
 fi
-top_dir="${top_dir//[ ]/\\ }"          # Places backslashes before spaces. These are needed when expanding tilde, but they will not persist!
+top_dir="${top_dir//[ ]/\\ }"        # Places backslashes before spaces. These are needed when expanding tilde, but they will not persist!
 eval top_dir="${top_dir}"            # Expand tilde
 top_dir=$(readlink -f "${top_dir}")  # Convert to absolute path
 echo "The code will be installed in ${top_dir}"
@@ -39,7 +39,7 @@ mkdir -p "${top_dir}"
 cd "${top_dir}"
 
 # Specify installation directories
-Nbody_dir="${top_dir}/Nbody"
+concept_dir="${top_dir}/concept"
 anaconda_dir="${top_dir}/anaconda"
 fftw_dir="${top_dir}/fftw"
 gadget_dir="${top_dir}/gadget"
@@ -49,9 +49,9 @@ hdf5_dir="${top_dir}/hdf5"
 openmpi_dir="${top_dir}/openmpi"
 
 
-#############################
-# Installing the Nbody code #
-#############################
+######################
+# Installing CONCEPT #
+######################
 # Anaconda3 2.1.0 (via Miniconda3 3.7.0)
 current_step="installation of Anaconda"
 printf "\n\e[1m\e[93mInstalling Anaconda\e[0m\n"
@@ -174,15 +174,15 @@ cp COPYING README "${fftw_dir}"
 cd ../../
 rm -rf tmp
 
-# The Nbody code
-current_step="installation of the \e[3mN\e[0m\e[1m\e[91m-body code"
-printf "\n\e[1m\e[93mInstalling the \e[3mN\e[0m\e[1m\e[93m-body code\e[0m\n"
-wget -nc -O Nbody.tar.gz --no-check-certificate https://github.com/jmd-dk/Nbody/archive/master.tar.gz
-tar xf Nbody.tar.gz
-rm Nbody.tar.gz
-mv Nbody-master/* "${top_dir}"
-mv "${top_dir}"/source "${Nbody_dir}"
-rm -r Nbody-master
+# The CONCEPT code
+current_step="installation of CO\e[3mN\e[0m\e[1m\e[91mCEPT"
+printf "\n\e[1m\e[93mInstalling CO\e[3mN\e[0m\e[1m\e[93mCEPT\e[0m\n"
+wget -nc -O concept.tar.gz --no-check-certificate https://github.com/jmd-dk/Nbody/archive/master.tar.gz
+tar xf concept.tar.gz
+rm concept.tar.gz
+mv CONCEPT-master/* "${top_dir}"
+mv "${top_dir}"/source "${concept_dir}"
+rm -r CONCEPT-master
 
 # Create the .paths file, storing important paths used by the program
 current_step="creataion of the .paths file"
@@ -192,15 +192,15 @@ cython="${anaconda_dir}/bin/cython"
 mpicc="${openmpi_dir}/bin/mpicc"
 mpiexec="${openmpi_dir}/bin/mpiexec"
 python_incl_m="${anaconda_dir}/include/python${python_version}m"
-run="${Nbody_dir}/run"
-tests_dir="${Nbody_dir}/tests"
+run="${concept_dir}/run"
+tests_dir="${concept_dir}/tests"
 echo "# This file contains absolute paths to directories and files used by the
 # program. You must manually edit the paths below. All other files rely on
 # these paths, as they are not given anywhere else.
 
 # Directories
 Gadget2_dir='${Gadget2_dir}'
-Nbody_dir='${Nbody_dir}'
+concept_dir='${concept_dir}'
 anaconda_dir='${anaconda_dir}'
 fftw_dir='${fftw_dir}'
 fftw_for_gadget_dir='${fftw_for_gadget_dir}'
@@ -221,12 +221,12 @@ run='${run}'
 " > "${top_dir}/.paths"
 
 
-####################################################
-# Install Gadget2, used for testing the Nbody code #
-####################################################
+######################################################
+# Install GADGET2, used for testing the CONCEPT code #
+######################################################
 # FFTW 2.1.5 (Gadget2 is incompatible with FFTW 3.x)
-current_step="installation of FFTW2 used by Gadget"
-printf "\n\e[1m\e[93mInstalling FFTW2, used by Gadget\e[0m\n"
+current_step="installation of FFTW2 used by GADGET"
+printf "\n\e[1m\e[93mInstalling FFTW2, used by GADGET\e[0m\n"
 mkdir tmp
 cd tmp
 wget -nc -O fftw.tar.gz http://www.fftw.org/fftw-2.1.5.tar.gz
@@ -261,7 +261,7 @@ rm -rf tmp
 #########################
 #current_step="testruns of the pure Python \e[3mN\e[0m\e[1m\e[91m-body code"
 #printf "\n\e[1m\e[93mPerforming test runs in pure Python\e[0m\n"
-#cd "${Nbody_dir}"
+#cd "${concept_dir}"
 #./run -n 1 -p params/default_purePython --pure-python
 #make clean_files_generated
 #./run -n 2 -p params/default_purePython --pure-python
@@ -286,11 +286,11 @@ current_step="copyright notice"
 printf "\n\e[1m\e[93mCopyright notice\e[0m
 Anaconda, GSL, Open MPI, HDF5, FFTW and Gadget (along with its own
 version of FFTW) has been installed into seperate folders in ${top_dir}.
-Any use of the \e[3mN\e[0m-body code must conform to the license terms
-of the above software. These can be found in their seperate installation
+Any use of CO\e[3mN\e[0mCEPT must conform to the license terms of the
+above software. These can be found in their seperate installation
 directories.\n"
 
 # Installation complete. Deactivate trap before exiting.
 trap : 0
-printf "\n\e[1m\e[92m\e[3mN\e[0m\e[1m\e[92m-body code successfully installed!\e[0m\n"
+printf "\n\e[1m\e[92mCO\e[3mN\e[0m\e[1m\e[92mCEPT successfully installed\e[0m\n"
 

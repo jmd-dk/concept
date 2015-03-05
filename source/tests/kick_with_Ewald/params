@@ -1,4 +1,4 @@
-# This is a parameterfile to the N-body code.
+# This is a parameterfile to the CONCEPT code.
 # Parameters can be specified as any valid Python3 expression.
 # Numpy functions and constants as well as units defined in the units module
 # may be used. Absolute paths defined in the .paths file may be used via the
@@ -48,7 +48,7 @@ use_Ewald = True
 #     This is just a regular snapshot, either of the codes own HDF5 type or
 #     of the Gadget2 2 type.
 # output_dir
-#     Path (absolute or relative to the Nbody directory) to the directory
+#     Path (absolute or relative to the concept directory) to the directory
 #     where output snapshots should be stored.
 # output_type
 #     Determines the type of the produced snapshots. Can be either 'standard'

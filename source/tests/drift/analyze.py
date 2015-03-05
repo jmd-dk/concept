@@ -2,17 +2,17 @@
 
 # Include the code directory in the searched paths
 import sys, os
-Nbody_dir = os.path.realpath(__file__)
-this_dir = os.path.dirname(Nbody_dir)
+concept_dir = os.path.realpath(__file__)
+this_dir = os.path.dirname(concept_dir)
 while True:
-    if Nbody_dir == '/':
+    if concept_dir == '/':
         raise Exception('Cannot find the .paths file!')
-    if '.paths' in os.listdir(os.path.dirname(Nbody_dir)):
+    if '.paths' in os.listdir(os.path.dirname(concept_dir)):
         break
-    Nbody_dir = os.path.dirname(Nbody_dir)
-sys.path.append(Nbody_dir)
+    concept_dir = os.path.dirname(concept_dir)
+sys.path.append(concept_dir)
 
-# Imports from the N-body code
+# Imports from the CONCEPT code
 from commons import *
 from IO import Gadget_snapshot
 
@@ -27,7 +27,7 @@ N_snapshots = len(np.loadtxt(this_dir + '/outputlist'))
 # Instantiate a Gadget_snapshot instance which will be reused for all Gadget snapshots
 snapshot = Gadget_snapshot()
 
-# Read in data from the N-body snapshots
+# Read in data from the CONCEPT snapshots
 a = zeros(N_snapshots)
 x = zeros(N_snapshots)
 x_std = zeros(N_snapshots)
@@ -50,8 +50,8 @@ for i in range(N_snapshots):
 # Plot
 fig_file = paths['tests_dir'] + '/drift/result.pdf'
 plt.text(0.5*max(a), 0.93*boxsize, r'$\uparrow$ End of simulation box $\uparrow$', ha='center')
-plt.errorbar(a, x/units.kpc, yerr=x_std/units.kpc, fmt='-sr', label='$N$-body')
-plt.errorbar(a_gadget, x_gadget/units.kpc, yerr=x_std_gadget/units.kpc, fmt='--*b', label='Gadget')
+plt.errorbar(a, x/units.kpc, yerr=x_std/units.kpc, fmt='-sr', label='CO$N$CEPT')
+plt.errorbar(a_gadget, x_gadget/units.kpc, yerr=x_std_gadget/units.kpc, fmt='--*b', label='GADGET')
 plt.legend(loc='best')
 plt.xlabel('$a$')
 plt.ylabel(r'$x\,\mathrm{[kpc]}$')
@@ -63,16 +63,16 @@ plt.savefig(fig_file)
 tol = N_snapshots*100*np.finfo('float32').eps
 if np.sum(x_std_gadget) > tol:
     print('\033[1m\033[91m' + 'Unequal x-positions for the 4 particles in the Gadget snapshots.\n'
-          + 'It is no good to compare the N-body results to these.' + '\033[0m')
+          + 'It is no good to compare the CONCEPT results to these.' + '\033[0m')
     sys.exit(1)
 if np.sum(x_std) > tol:
     print('\033[1m\033[91m' + 'Unequal x-positions for the 4 particles in the snapshots.\n'
           + 'The symmetric initial conditions has produced nonsymmetric results!' + '\033[0m')
     sys.exit(1)
-# Compare N-body to Gadget
+# Compare CONCEPT to GADGET
 tol = 1e-3
 if max(np.abs(x/x_gadget - 1)) > tol:
-    print('\033[1m\033[91m' + 'The results from the N-body code disagree with those from Gadget.\n'
+    print('\033[1m\033[91m' + 'The results from CONCEPT disagree with those from GADGET.\n'
           + 'See ' + fig_file + ' for a visualization.' + '\033[0m')
     sys.exit(1)
 

@@ -1,4 +1,4 @@
-# This is a parameterfile to the N-body code.
+# This is a parameterfile to the CONCEPT code.
 # Parameters can be specified as any valid Python3 expression.
 # Numpy functions and constants as well as units defined in the units module
 # may be used. Absolute paths defined in the .paths file may be used via the

@@ -2,17 +2,17 @@
 
 # Include the code directory in the searched paths
 import sys, os
-Nbody_dir = os.path.realpath(__file__)
-this_dir = os.path.dirname(Nbody_dir)
+concept_dir = os.path.realpath(__file__)
+this_dir = os.path.dirname(concept_dir)
 while True:
-    if Nbody_dir == '/':
+    if concept_dir == '/':
         raise Exception('Cannot find the .paths file!')
-    if '.paths' in os.listdir(os.path.dirname(Nbody_dir)):
+    if '.paths' in os.listdir(os.path.dirname(concept_dir)):
         break
-    Nbody_dir = os.path.dirname(Nbody_dir)
-sys.path.append(Nbody_dir)
+    concept_dir = os.path.dirname(concept_dir)
+sys.path.append(concept_dir)
 
-# Imports from the N-body code
+# Imports from the CONCEPT code
 from commons import *
 from IO import Gadget_snapshot
 
@@ -24,10 +24,10 @@ import matplotlib.pyplot as plt
 # Determine the number of snapshots from the outputlist file
 N_snapshots = len(np.loadtxt(this_dir + '/outputlist'))
 
-# Instantiate a Gadget_snapshot instance which will be reused for all Gadget snapshots
+# Instantiate a Gadget_snapshot instance which will be reused for all GADGET snapshots
 snapshot = Gadget_snapshot()
 
-# Read in data from the N-body snapshots
+# Read in data from the CONCEPT snapshots
 a = zeros(N_snapshots)
 x0 = zeros(N_snapshots)
 x0_std = zeros(N_snapshots)
@@ -41,7 +41,7 @@ for i in range(N_snapshots):
     x1[i] = np.mean(snapshot.particles.posx[4:])
     x1_std[i] = np.std(snapshot.particles.posx[4:])
 
-# Read in data from the Gadget snapshots
+# Read in data from the GADGET snapshots
 a_gadget = zeros(N_snapshots)
 x0_gadget = zeros(N_snapshots)
 x0_std_gadget = zeros(N_snapshots)
@@ -58,10 +58,10 @@ for i in range(N_snapshots):
 
 # Plot
 fig_file = this_dir + '/result.pdf'
-plt.errorbar(a, x0/units.kpc, yerr=x0_std/units.kpc, fmt='-sr', label='$N$-body (left)')
-plt.errorbar(a, x1/units.kpc, yerr=x1_std/units.kpc, fmt='-Dr', label='$N$-body (right)')
-plt.errorbar(a_gadget, x0_gadget/units.kpc, yerr=x0_std_gadget/units.kpc, fmt='--<b', label='Gadget (left)')
-plt.errorbar(a_gadget, x1_gadget/units.kpc, yerr=x1_std_gadget/units.kpc, fmt='-->b', label='Gadget (right)')
+plt.errorbar(a, x0/units.kpc, yerr=x0_std/units.kpc, fmt='-sr', label='CO$N$CEPT (left)')
+plt.errorbar(a, x1/units.kpc, yerr=x1_std/units.kpc, fmt='-Dr', label='CO$N$CEPT (right)')
+plt.errorbar(a_gadget, x0_gadget/units.kpc, yerr=x0_std_gadget/units.kpc, fmt='--<b', label='GADGET (left)')
+plt.errorbar(a_gadget, x1_gadget/units.kpc, yerr=x1_std_gadget/units.kpc, fmt='-->b', label='GADGET (right)')
 plt.legend(loc='best')
 plt.xlabel('$a$')
 plt.ylabel(r'$x\,\mathrm{[kpc]}$')
@@ -72,17 +72,17 @@ plt.savefig(fig_file)
 # There should be no variance on the x positions
 tol = N_snapshots*100*np.finfo('float32').eps
 if np.sum(x0_std_gadget) > tol or np.sum(x1_std_gadget) > tol:
-    print('\033[1m\033[91m' + 'Unequal x-positions for the 2*4 particles in the Gadget snapshots.\n'
-          + 'It is no good to compare the N-body results to these.' + '\033[0m')
+    print('\033[1m\033[91m' + 'Unequal x-positions for the 2*4 particles in the GADGET snapshots.\n'
+          + 'It is no good to compare the CONCEPT results to these.' + '\033[0m')
     sys.exit(1)
 if np.sum(x0_std) > tol or np.sum(x1_std) > tol:
     print('\033[1m\033[91m' + 'Unequal x-positions for the 2*4 particles in the snapshots.\n'
           + 'The symmetric initial conditions has produced nonsymmetric results!' + '\033[0m')
     sys.exit(1)
-# Compare N-body to Gadget
+# Compare CONCEPT to GADGET
 tol = 1e-2
 if max(np.abs(x0/x0_gadget - 1)) > tol or max(np.abs(x1/x1_gadget - 1)) > tol:
-    print('\033[1m\033[91m' + 'The results from the N-body code disagree with those from Gadget.\n'
+    print('\033[1m\033[91m' + 'The results from CONCEPT disagree with those from GADGET.\n'
           + 'See ' + fig_file + ' for a visualization.' + '\033[0m')
     sys.exit(1)
 

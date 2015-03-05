@@ -1,4 +1,4 @@
-# This is the makefile for the N-body code. Preferebly you should not interact
+# This is the makefile for the CONCEPT code. Preferebly you should not interact
 # with this file directly, but rather through the run script.
 # It is exspedted that you call this makefile with the paramsfile=paramfile option.
 # Otherwise $(params_default) will be used as parameterfile.

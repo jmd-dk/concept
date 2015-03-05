@@ -1,12 +1,13 @@
-### *N*-body code
-This is the readme file for the *N*-body code by Jeppe Dakin.
-The code is written in Cython and C, but can also be run purely in Python,
-without the need of cythonization, C compilation and linking.
+### Description
+**CO*N*CEPT** (**C**osm**O**logical ***N***body **C**od**E** in **P**y**T**hon)
+is a code for cosmological *N*-body simulations on massively parallel computers
+with distributed memory. The code is written in Cython and C, but can also be
+run purely in Python, without the need of cythonization, C compilation and
+linking.
 
 #### Dependencies
-The code should be able to compile and run on any POSIX system
-with GCC and GNU make.
-The code has the following non-standard but open source dependencies:
+The code should be able to compile and run on any POSIX system with GCC and
+GNU make. The code has the following non-standard but open source dependencies:
 - The **GSL** library.
 - An **MPI3** implementation (e.g. Open MPI).
 - The **HDF5** library, linked to the installed MPI implementation and
