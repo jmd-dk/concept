@@ -26,23 +26,24 @@ from sys import path
                y='double',
                z='double',
                # Locals
-               force='double*',
-               force_x='double',
-               force_y='double',
-               force_z='double',
-               sumindex_x='int',
-               sumindex_y='int',
-               sumindex_z='int',
                dim='Py_ssize_t',
+               dist='double',
                dist_x='double',
                dist_y='double',
                dist_z='double',
                dist2='double',
-               dist='double',
-               scalarpart='double',
+               force='double*',
+               force_x='double',
+               force_y='double',
+               force_z='double',
                kx='double',
                ky='double',
                kz='double',
+               r3='double',
+               scalarpart='double',
+               sumindex_x='int',
+               sumindex_y='int',
+               sumindex_z='int',
                )
 @cython.returns('double*')
 def summation(x, y, z):
@@ -52,15 +53,22 @@ def summation(x, y, z):
     (8) in Ralf Klessen's 'GRAPESPH with Fully Periodic Boundary
     Conditions: Fragmentation of Molecular Clouds', though it is written
     without the normalization. The actual Ewald force is then given by
-    force/boxsize**2. This force will be the total force,
-    not just the correction.
+    force/boxsize**2. What is returned is the Ewald correction,
+    corresponding to (9) in the mentioned paper. That is, the return value is
+    not the total force, but the force from all particle images except the
+    nearest one. Note that this nearest image need not be the actual particle. 
     """
 
-    # The Ewald force vector and components
+    # The Ewald force vector and its components
     force = vector
     force_x = force_y = force_z = 0
-    # Two particles on top of each other: No force
-    if x == y == z == 0:
+    # Remove the direct force, as we are interested in the correction only
+    r3 = (x**2 + y**2 + z**2)**1.5
+    force_x += x/r3
+    force_y += y/r3
+    force_z += z/r3
+    # The image is on top of the particle: No force
+    if x == 0 and y == 0 and z == 0:
         force[0] = 0
         force[1] = 0
         force[2] = 0
@@ -114,27 +122,59 @@ def summation(x, y, z):
                y='double',
                z='double',
                # Locals
-               r3='double',
-               force='double*',
                dim='size_t',
+               force='double*',
+               isnegative_x='bint',
+               isnegative_y='bint',
+               isnegative_z='bint',
+               r3='double',
                )
 @cython.returns('double*')
 def ewald(x, y, z):
-    """ Call this function to get the Ewald correction to the fully periodic
-    gravitational force (corresponding to 1/r**2) between two particles
-    seperated by x, y, z.
+    """This function performs a look up of the Ewald correction to the
+    fully periodic gravitational force (corresponding to 1/r**2) on a particle
+    due to some other particle at a position (x, y, z) relative to the first
+    particle. It is important that the passed coordinates are of the nearest
+    periodic image of the other particle, and not necessarily of the particle
+    itself. This means that 0 <= |x|, |y|, |z| < boxsize/2. The returned value
+    is thus the force arising on the first particle due to all periodic images
+    of the second particle, except for the nearest one.
     """
 
-    # Look up Ewald force and do a CIC interpolation
-    force = CIC_grid2coordinates_vector(grid, x/boxsize, y/boxsize, z/boxsize)
-    # Scale the force to match the boxsize
+    # Only the positive octant of the box is tabulated. Flip the sign of the
+    # coordinates so that they reside inside this octant.
+    if x > 0:
+        isnegative_x = False
+    else:
+        x *= -1
+        isnegative_x = True
+    if y > 0:
+        isnegative_y = False
+    else:
+        y *= -1
+        isnegative_y = True
+    if z > 0:
+        isnegative_z = False
+    else:
+        z *= -1
+        isnegative_z = True
+    # Look up Ewald force and do a CIC interpolation. Since the coordinates
+    # is to the nearest image, they must be scaled by 2/boxsize to reside
+    # in the range 0 <= x, y, z < 1.
+    force = CIC_grid2coordinates_vector(grid, x*two_recp_boxsize,
+                                              y*two_recp_boxsize,
+                                              z*two_recp_boxsize,
+                                        )
+    # Put the sign back in for negative input
+    if isnegative_x:
+        force[0] *= -1
+    if isnegative_y:
+        force[1] *= -1
+    if isnegative_z:
+        force[2] *= -1
+    # The tabulated force is for a unit box. Du rescaling
     for dim in range(3):
         force[dim] /= boxsize2
-    # Remove the direct force, leaving only the Ewald correction
-    r3 = (x**2 + y**2 + z**2)**1.5
-    force[0] += x/r3
-    force[1] += y/r3
-    force[2] += z/r3
     return force
 
 
@@ -160,15 +200,14 @@ maxdist = 3.6
 maxh2 = 10
 # Derived constants
 maxh = sqrt(maxh2)
-h_lower = int(-maxh)
-h_upper = int(maxh) + 1
+h_lower = int(-maxh)  # Gadget: -4 (also the case here for maxh2=10)
+h_upper = int(maxh) + 1  # Gadget: 5 (also the case here for maxh2=10)
 minus_recp_4rs2 = -1/(4*rs**2)
-n_lower = -int(maxdist - 1) - 1
-n_upper = int(maxdist + 1) + 1
+n_lower = int(-(maxdist + 1))  # Gadget: -4 (also the case here for maxdist=3.6)
+n_upper = int(maxdist + 1) + 1  # Gadget: 5 (also the case here for maxdist=3.6)
 recp_2rs = 1/(2*rs)
 recp_sqrt_pi_rs = 1/(sqrt_pi*rs)
 rs2 = rs**2
-
 # Initialize the grid at import time
 cython.declare(i='int',
                p='str',
@@ -190,6 +229,6 @@ for i, p in enumerate(path):
                   + str(ewald_gridsize))
         grid = tabulate_vectorfield(ewald_gridsize,
                                     summation,
-                                    0.5/ewald_gridsize,
+                                    0.5/(ewald_gridsize - 1),
                                     ewald_file,
                                     )

@@ -25,3 +25,6 @@ cdef:
     size_t framespace
     str remote_liveframe
     str protocol
+
+    # Simulation options
+    bint use_Ewald

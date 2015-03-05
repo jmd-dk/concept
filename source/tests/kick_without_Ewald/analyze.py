@@ -21,7 +21,10 @@ import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
-N_snapshots = 5
+# Determine the number of snapshots from the outputlist file
+N_snapshots = len(np.loadtxt(this_dir + '/outputlist'))
+
+# Instantiate a Gadget_snapshot instance which will be reused for all Gadget snapshots
 snapshot = Gadget_snapshot()
 
 # Read in data from the N-body snapshots
@@ -55,10 +58,10 @@ for i in range(N_snapshots):
 
 # Plot
 fig_file = this_dir + '/result.pdf'
-plt.errorbar(a, x0/units.kpc, yerr=x0_std/units.kpc, fmt='-or', label='$N$-body (left)')
-plt.errorbar(a, x1/units.kpc, yerr=x1_std/units.kpc, fmt='-dr', label='$N$-body (right)')
-plt.errorbar(a_gadget, x0_gadget/units.kpc, yerr=x0_std_gadget/units.kpc, fmt='--3b', label='Gadget (left)')
-plt.errorbar(a_gadget, x1_gadget/units.kpc, yerr=x1_std_gadget/units.kpc, fmt='--4b', label='Gadget (right)')
+plt.errorbar(a, x0/units.kpc, yerr=x0_std/units.kpc, fmt='-sr', label='$N$-body (left)')
+plt.errorbar(a, x1/units.kpc, yerr=x1_std/units.kpc, fmt='-Dr', label='$N$-body (right)')
+plt.errorbar(a_gadget, x0_gadget/units.kpc, yerr=x0_std_gadget/units.kpc, fmt='--<b', label='Gadget (left)')
+plt.errorbar(a_gadget, x1_gadget/units.kpc, yerr=x1_std_gadget/units.kpc, fmt='-->b', label='Gadget (right)')
 plt.legend(loc='best')
 plt.xlabel('$a$')
 plt.ylabel(r'$x\,\mathrm{[kpc]}$')

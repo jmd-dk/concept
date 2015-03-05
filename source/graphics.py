@@ -284,7 +284,7 @@ save_frames = False
 if framefolder != '':
     visualize = True
     save_frames = True
-    if not os.path.exists(framefolder):
+    if master and not os.path.exists(framefolder):
         os.makedirs(framefolder)
     if framefolder[-1] != '/':
         framefolder += '/'

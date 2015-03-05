@@ -7,11 +7,11 @@
 # see the bottom of this file.
 
 # Input/output
-IC_file = paths['tests_dir'] + '/kick_without_Ewald/IC'	# Initial condition snapshot
-output_dir = paths['tests_dir'] + '/kick_without_Ewald/output'	# Directory for storing output snapshots
+IC_file = paths['tests_dir'] + '/kick_with_Ewald/IC'	# Initial condition snapshot
+output_dir = paths['tests_dir'] + '/kick_with_Ewald/output'	# Directory for storing output snapshots
 output_type = 'Gadget 2'		# Type of output snapshot
 snapshot_base = 'snapshot'		# File basename for output snapshots
-outputtimes = tuple(loadtxt(paths['tests_dir'] + '/kick_without_Ewald/outputlist'))	# Times at which to dump snapshots to disk
+outputtimes = tuple(loadtxt(paths['tests_dir'] + '/kick_with_Ewald/outputlist'))	# Times at which to dump snapshots to disk
 
 # Numerical parameters
 boxsize = 21*Mpc/0.7 # (30 Mpc. Gadget implicitly uses length/h)	# Linear size of the simulation box
@@ -33,7 +33,7 @@ protocol = 'scp'			# Protocol for live frame file transfer
 framespace = 1				# The plot is updated every framespace time step
 
 # Simulation options
-use_Ewald = False
+use_Ewald = True
 
 
 ###############################################

@@ -18,13 +18,14 @@ from species import construct
 from IO import save
 
 # Create the particles
-N = 4
+N = 8
 mass = Ωm*ϱ*boxsize**3/N
 particles = construct(this_dir + ' test', 'dark matter', mass, N)
-particles.populate(array([0.1]*N)*boxsize, 'posx')
-particles.populate(array([0.25, 0.25, 0.75, 0.75])*boxsize, 'posy')
-particles.populate(array([0.25, 0.75, 0.75, 0.25])*boxsize, 'posz')
-particles.populate(ones(4)*100*units.km/units.s*mass, 'momx')
+d = -0.005
+particles.populate(array([0.25 - d]*4 + [0.75 + d]*4)*boxsize, 'posx')
+particles.populate(array([0.25, 0.25, 0.75, 0.75]*2)*boxsize, 'posy')
+particles.populate(array([0.25, 0.75, 0.75, 0.25]*2)*boxsize, 'posz')
+particles.populate(zeros(N), 'momx')
 particles.populate(zeros(N), 'momy')
 particles.populate(zeros(N), 'momz')
 

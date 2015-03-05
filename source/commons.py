@@ -128,26 +128,34 @@ cython.declare(G_Newton='double',
                PM_gridsize3='ptrdiff_t',
                boxsize2='double',
                ewald_file='str',
+               half_boxsize='double',
                machine_ϵ='double',
+               minus_half_boxsize='double',
                softening='double',
                softening2='double',
                two_ewald_gridsize='int',
                two_machine_ϵ='double',
+               two_recp_boxsize='double',
+               use_Ewald ='bint',
                use_PM='bint',
                ϱ='double',
                )
 G_Newton = 6.6738e-11*units.m**3/units.kg/units.s**2  # Newtons constant
 ϱ = 3*H0**2/(8*pi*G_Newton) # The average, comoing density (the critical comoving density since we only study flat universes)
-softening = 300*units.kpc #0.02*boxsize/(8000**one_third) #(boxsize/30)*2000**(-one_third)  # 2000 should be the particle Number. Source: http://popia.ft.uam.es/aknebe/page3/files/ComputationalAstrophysics/PhysicalProcesses.pdf page 85. Or maybe use 2-4% of the mean-interparticle distance (V/N)**(1/3), http://www.ast.cam.ac.uk/~puchwein/NumericalCosmology02.pdf page 13.
-
+softening = 300*units.kpc  # A few percent0.02*boxsize/(N**one_third). Source: http://popia.ft.uam.es/aknebe/page3/files/ComputationalAstrophysics/PhysicalProcesses.pdf page 85 and http://www.ast.cam.ac.uk/~puchwein/NumericalCosmology02.pdf page 13.
 PM_gridsize3 = PM_gridsize**3
 boxsize2 = boxsize**2
+half_boxsize = 0.5*boxsize
+minus_half_boxsize = -half_boxsize
+two_recp_boxsize = 2/boxsize
 ewald_file = '.ewald_gridsize=' + str(ewald_gridsize) + '.hdf5'  # Name of file storing the Ewald grid
 machine_ϵ = np.finfo('float64').eps  # Machine epsilon
 softening2 = softening**2
 two_ewald_gridsize = 2*ewald_gridsize
 two_machine_ϵ = 2*machine_ϵ
+#use_Ewald = True
 use_PM = True  # Flag specifying whether the PM method is used or not. THIS SHOULD BE COMPUTED BASED ON PARTICLES CHOSEN IN THE PARAMETER FILE!!!!!!!!!!!
+
 
 #############
 # MPI setup #
@@ -231,8 +239,7 @@ while True:
         raise Exception('Cannot find the .paths file!')
     if '.paths' in ls:
         break
-    top_dir = '../' +  top_dir
+    top_dir = '../' + top_dir
     ls_prev = ls
 paths_module = imp.load_source('paths', top_dir + '/.paths')
 paths = paths_module.__dict__
-

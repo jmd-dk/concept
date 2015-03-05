@@ -30,8 +30,10 @@ liveframe=''				# Filename of saved live frame
 image_format='png'			# The image format of the saved frames
 remote_liveframe=''			# Where to upload the live frame
 protocol = 'scp'			# Protocol for live frame file transfer
-framespace = 100			# The plot is updated every framespace time step
+framespace = 1				# The plot is updated every framespace time step
 
+# Simulation options
+use_Ewald = True
 
 
 

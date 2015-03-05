@@ -38,7 +38,7 @@ else:
                )
 @cython.returns('double[:, :, :, ::1]')
 def tabulate_vectorfield(gridsize, func, factor, filename):
-    """ This function creates and tabulates a cubic grid of size
+    """ This function tabulates a cubic grid of size
     gridsize*gridsize*gridsize with vector values computed by the
     function func, as grid[i, j, k] = func(i*factor, j*factor, k*factor).
     The tabulated grid is saved to a hdf5 file named filename.
@@ -83,113 +83,69 @@ def tabulate_vectorfield(gridsize, func, factor, filename):
                y='double',
                z='double',
                # Locals
+               Wxl='double',
+               Wxu='double',
+               Wyl='double',
+               Wyu='double',
+               Wzl='double',
+               Wzu='double',
                dim='size_t',
-               gridsize='int',
-               isnegative_x='bint',
-               isnegative_y='bint',
-               isnegative_z='bint',
-               two_gridsize='int',
+               gridsize_minus_1='int',
                x_lower='size_t',
                x_upper='size_t',
-               xl='double',
-               xu='double',
                y_lower='size_t',
                y_upper='size_t',
-               yl='double',
-               yu='double',
                z_lower='size_t',
                z_upper='size_t',
-               zl='double',
-               zu='double',
                )
 @cython.returns('double*')
 def CIC_grid2coordinates_vector(grid, x, y, z):
-    """ This function look up tabulated vectors in a cubic grid and interpolates to
-    (x, y, z) via the clouds-in-cell (CIC) method. Input arguments must be
-    normalized so that 0 <= |x|, |y|, |z| < 1 (corresponding to boxsize = 1).
-    It is assumed that only the (+++) octant of the total simulation box is
-    represented by the grid, and that the same symmetries as in the Ewald
-    method apply.
+    """This function look up tabulated vectors in a cubic grid and interpolates 
+    to (x, y, z) via the cloud in cell (CIC) method. Input arguments must be
+    normalized so that 0 <= x, y, z < 1. If x, y or z is exactly equal to 1,
+    they will be corrected to 1 - ϵ. It is assumed that the grid is
+    nonperiodic.
     """
 
     # Extract the size of the regular, cubic grid
-    gridsize = grid.shape[0]
-    two_gridsize = 2*gridsize
-    # Shift x, y, z along the grid (in steps of the (normalized) boxsize, 1)
-    # so that the two real particles are as close as they can get (only one
-    # octant of the box is tabulated).
-    if x > 0.5:
-        x -= 1
-    elif x < -0.5:
-        x += 1
-    if y > 0.5:
-        y -= 1
-    elif y < -0.5:
-        y += 1
-    if z > 0.5:
-        z -= 1
-    elif z < -0.5:
-        z += 1
-    # Only the positive part of the box is tabulated
-    if x > 0:
-        isnegative_x = False
-    else:
-        x *= -1
-        isnegative_x = True
-    if y > 0:
-        isnegative_y = False
-    else:
-        y *= -1
-        isnegative_y = True
-    if z > 0:
-        isnegative_z = False
-    else:
-        z *= -1
-        isnegative_z = True
-    # It causes trouble when x, y, z is  exactly equal 0.5
-    if x == 0.5:
-        x -= two_machine_ϵ
-    if y == 0.5:
-        y -= two_machine_ϵ
-    if z == 0.5:
-        z -= two_machine_ϵ
-    # Scale the coordinates so that 0 <= x, y, z < gridsize
-    x *= two_gridsize
-    y *= two_gridsize
-    z *= two_gridsize
-    # Indices of the 8 vertices (6 faces) of the grid
+    gridsize_minus_1 = grid.shape[0] - 1
+    # Correct for extreme values in the passed coordinates. This is to catch
+    # inputs which are slighly larger than 1 due to numerical errors
+    if x >= 1:
+        x = 1 - two_machine_ϵ
+    if y >= 1:
+        y = 1 - two_machine_ϵ
+    if z >= 1:
+        z = 1 - two_machine_ϵ
+    # Scale the coordinates so that 0 <= x, y, z < (gridsize - 1)
+    x *= gridsize_minus_1
+    y *= gridsize_minus_1
+    z *= gridsize_minus_1
+    # Indices of the 8 vertices (6 faces) of the grid surrounding (x, y, z)
     x_lower = int(x)
     y_lower = int(y)
     z_lower = int(z)
-    x_upper = (x_lower + 1) % gridsize
-    y_upper = (y_lower + 1) % gridsize
-    z_upper = (z_lower + 1) % gridsize
-    # The side length of the 8 regions
-    xu = x - x_lower
-    yu = y - y_lower
-    zu = z - z_lower
-    xl = 1 - xu
-    yl = 1 - yu
-    zl = 1 - zu
+    x_upper = x_lower + 1
+    y_upper = y_lower + 1
+    z_upper = z_lower + 1
+    # The linear weights according to the CIC rule W = 1 - |dist| if |dist| < 1
+    Wxl = x_upper - x  # = 1 - (x - x_lower)
+    Wyl = y_upper - y  # = 1 - (y - y_lower)
+    Wzl = z_upper - z  # = 1 - (z - z_lower)
+    Wxu = x - x_lower  # = 1 - (x_upper - x)
+    Wyu = y - y_lower  # = 1 - (y_upper - y)
+    Wzu = z - z_lower  # = 1 - (z_upper - z)
     # Assign the weighted grid values to the vector components
     for dim in range(3):
-        vector[dim] = (  grid[x_lower, y_lower, z_lower, dim]*xl*yl*zl
-                       + grid[x_lower, y_lower, z_upper, dim]*xl*yl*zu
-                       + grid[x_lower, y_upper, z_lower, dim]*xl*yu*zl
-                       + grid[x_lower, y_upper, z_upper, dim]*xl*yu*zu
-                       + grid[x_upper, y_lower, z_lower, dim]*xu*yl*zl
-                       + grid[x_upper, y_lower, z_upper, dim]*xu*yl*zu
-                       + grid[x_upper, y_upper, z_lower, dim]*xu*yu*zl
-                       + grid[x_upper, y_upper, z_upper, dim]*xu*yu*zu)
-    # Put the sign back in for negative input
-    if isnegative_x:
-        vector[0] *= -1
-    if isnegative_y:
-        vector[1] *= -1
-    if isnegative_z:
-        vector[2] *= -1
+        vector[dim] = ( grid[x_lower, y_lower, z_lower, dim]*Wxl*Wyl*Wzl
+                      + grid[x_lower, y_lower, z_upper, dim]*Wxl*Wyl*Wzu
+                      + grid[x_lower, y_upper, z_lower, dim]*Wxl*Wyu*Wzl
+                      + grid[x_lower, y_upper, z_upper, dim]*Wxl*Wyu*Wzu
+                      + grid[x_upper, y_lower, z_lower, dim]*Wxu*Wyl*Wzl
+                      + grid[x_upper, y_lower, z_upper, dim]*Wxu*Wyl*Wzu
+                      + grid[x_upper, y_upper, z_lower, dim]*Wxu*Wyu*Wzl
+                      + grid[x_upper, y_upper, z_upper, dim]*Wxu*Wyu*Wzu)
     return vector
-
 
 # Function for CIC-interpolating particle coordinates
 # to a cubic grid with scalar values.

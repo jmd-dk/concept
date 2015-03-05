@@ -101,6 +101,7 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
     Note that the time step size Δt is really ∫_t^(t + Δt) dt/a.
     """
 
+    force = vector
     # The factor (G*m_i*m_j*∫_t^(t + Δt) dt/a) in the
     # comoving equations of motion
     # p_i --> p_i + ∫_t^(t + Δt) F/a*dt = p_i + m_i*F*∫_t^(t + Δt) dt/a
@@ -108,7 +109,6 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
     #       = p_i - 1/r**2*(G*m_i*m_j*∫_t^(t + Δt) dt/a)
     eom_factor = G_Newton*mass_i*mass_j*Δt
     # Direct summation
-    #print('N_local_i/j', N_local_i, N_local_j)
     for i in range(0, N_local_i if (flag_input > 0) else (N_local_i - 1)):
         xi = posx_i[i]
         yi = posy_i[i]
@@ -117,16 +117,35 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
             x = posx_j[j] - xi
             y = posy_j[j] - yi
             z = posz_j[j] - zi
-            # The Ewald correction force
-            force = ewald(x, y, z)
-            # Add in the force from the actual particle
-            r3 = (x**2 + y**2 + z**2 + softening2)**1.5
-            force[0] -= x/r3
-            force[1] -= y/r3
-            force[2] -= z/r3
-            #force[0] = -x/r3
-            #force[1] = -y/r3
-            #force[2] = -z/r3
+            # Compute the gravitational force (corresponding to 1/r**2)
+            if use_Ewald:
+                # Translate coordinates so they correspond to the nearest image
+                if x > half_boxsize:
+                    x -= boxsize
+                elif x < minus_half_boxsize:
+                    x += boxsize
+                if y > half_boxsize:
+                    y -= boxsize
+                elif y < minus_half_boxsize:
+                    y += boxsize
+                if z > half_boxsize:
+                    z -= boxsize
+                elif z < minus_half_boxsize:
+                    z += boxsize
+                # The Ewald correction force for all images except the nearest
+                # one, which may not be the actual particle.
+                force = ewald(x, y, z)
+                # Add in the force from the particle's nearest image
+                r3 = (x**2 + y**2 + z**2 + softening2)**1.5
+                force[0] -= x/r3
+                force[1] -= y/r3
+                force[2] -= z/r3
+            else:
+                # The force from the actual particle, without periodic images
+                r3 = (x**2 + y**2 + z**2 + softening2)**1.5
+                force[0] = -x/r3
+                force[1] = -y/r3
+                force[2] = -z/r3
             # Multiply the force by (G*m_i*m_j*∫_t^(t + Δt) dt/a).
             # Note that "force" is now really the momentum change
             force[0] *= eom_factor
