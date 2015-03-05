@@ -1,0 +1,113 @@
+# This is a parameterfile to the CONCEPT code.
+# Parameters can be specified as any valid Python3 expression.
+# Numpy functions and constants as well as units defined in the units module
+# may be used. Absolute paths defined in the .paths file may be used via the
+# paths dict.
+# For more information about the different parameters,
+# see the bottom of this file.
+
+# Input/output
+IC_file = paths['tests_dir'] + '/kick_with_Ewald/IC'	# Initial condition snapshot
+output_dir = paths['tests_dir'] + '/kick_with_Ewald/output'	# Directory for storing output snapshots
+output_type = 'Gadget 2'		# Type of output snapshot
+snapshot_base = 'snapshot'		# File basename for output snapshots
+outputtimes = tuple(loadtxt(paths['tests_dir'] + '/kick_with_Ewald/outputlist'))	# Times at which to dump snapshots to disk
+
+# Numerical parameters
+boxsize = 21*Mpc/0.7 # (30 Mpc. Gadget implicitly uses length/h)	# Linear size of the simulation box
+ewald_gridsize = 64			# Linear size of the grid of Ewald corrections
+PM_gridsize = 8				# Linear size of the grid used for the PM method
+
+# Cosmological parameters
+H0 = 70*km/s/Mpc			# The Hubble constant
+Ωm = 0.3				# Density parameter for matter
+ΩΛ = 0.7				# Density parameter for dark energy
+a_begin = 0.02				# Scale factor at beginning of simulation
+
+# Graphics
+framefolder = ''			# Folder to save frames
+liveframe=''				# Filename of saved live frame
+image_format='png'			# The image format of the saved frames
+remote_liveframe=''			# Where to upload the live frame
+protocol = 'scp'			# Protocol for live frame file transfer
+framespace = 1				# The plot is updated every framespace time step
+
+# Simulation options
+use_Ewald = True
+
+
+###############################################
+# Additional information about the parameters #
+###############################################
+
+################
+# Input/output #
+################
+# IC_file
+#     Path to the file containing the initial conditions for the simulation.
+#     This is just a regular snapshot, either of the codes own HDF5 type or
+#     of the GADGET2 2 type.
+# output_dir
+#     Path (absolute or relative to the concept directory) to the directory
+#     where output snapshots should be stored.
+# output_type
+#     Determines the type of the produced snapshots. Can be either 'standard'
+#     or 'GADGET 2', referring to the codes own HDF5 snapshot type and
+#     GADGET2's snapshot type 2, respectively.
+# snapshot_base
+#     File basename (prefix) for the produced snapshots. The snapshots will be
+#     named "snapshot_base"_0, "snapshot_base"_1, "snapshot_base"_2, ...
+# outputtimes
+#     Tuple of values of the scale factor, for which to dump a snapshot to
+#     disk. The minimum value should be larger than a_begin.
+
+########################
+# Numerical parameters #
+########################
+# boxsize
+#     The linear size of the simulated cubic box. The simulated volume is
+#     then boxsize**3. Remember to provide the unit explicitly!
+# ewald_gridsize
+#     Linear size of the grid of Ewald corrections. A total of
+#     ewald_gridsize**3 Ewald corrections will be tabulated and stored
+#     in the file .ewald_gridsize="ewald_gridsize".hdf5
+# PM_gridsize
+#     Linear size of the mesh used for the PM method. There will then be a
+#     total of PM_gridsize**3 mesh points within the simulated box.
+
+###########################
+# Cosmological parameters #
+###########################
+# H0
+#     The Hubble parameter at the present time (a = 1).
+#     Remember to provide the unit explicitly! This should match the
+#     corresponding value in IC_file!
+# Ωm
+#     The matter (baryonic + dark) density parameter at the
+#     present time (a = 1). This should match the corresponding
+#     value in IC_file!
+# ΩΛ
+#     The dark energy density parameter at the present time (a = 1).
+#     This should match the corresponding value in IC_file!
+# a_begin
+#     The value of the scale factor at the beginning of the simulation.
+#     This should match the value scale factor value in IC_file!
+
+############
+# Graphics #
+############
+# frame_folder
+#     Use empty string to not save the frames.
+# liveframe
+#     The filename should be without extension.
+#     Use an empty string to disable this feature.
+# image_format
+#     Supported formats are eps, pdf, pgf, png, ps, raw, rgba, svg, svgz.
+# remote_liveframe
+#     This should either be of the form 'user@host:/path/to/liveframe.ext' or
+#     'user@host:/path/to/'. In the latter case, the remote file will have
+#     the same name as the local file. 
+#     The live frame can not be uploaded if liveframe is disabled.
+#     Use an empty string to disable this feature.
+# protocol
+#     Can be either scp or sftp
