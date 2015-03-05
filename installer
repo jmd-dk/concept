@@ -177,12 +177,11 @@ rm -rf tmp
 # The CONCEPT code
 current_step="installation of CO\e[3mN\e[0m\e[1m\e[91mCEPT"
 printf "\n\e[1m\e[93mInstalling CO\e[3mN\e[0m\e[1m\e[93mCEPT\e[0m\n"
-wget -nc -O concept.tar.gz --no-check-certificate https://github.com/jmd-dk/Nbody/archive/master.tar.gz
+wget -nc -O concept.tar.gz --no-check-certificate https://github.com/jmd-dk/concept/archive/master.tar.gz
 tar xf concept.tar.gz
 rm concept.tar.gz
-mv CONCEPT-master/* "${top_dir}"
-mv "${top_dir}"/source "${concept_dir}"
-rm -r CONCEPT-master
+mv concept-master/* "${top_dir}"  # This leaves the .paths file behind in the concept-master folder
+rm -r concept-master
 
 # Create the .paths file, storing important paths used by the program
 current_step="creataion of the .paths file"
@@ -198,25 +197,46 @@ echo "# This file contains absolute paths to directories and files used by the
 # program. You must manually edit the paths below. All other files rely on
 # these paths, as they are not given anywhere else.
 
-# Directories
+###############
+# Directories #
+###############
+# Directory containing the GADGET2 source code
 Gadget2_dir='${Gadget2_dir}'
+# Directory containing the CONCEPT source code
 concept_dir='${concept_dir}'
+# Directory of the Anaconda Python distribution
 anaconda_dir='${anaconda_dir}'
+# Directory of FFTW
 fftw_dir='${fftw_dir}'
+# Directory of FFTW2, used by GADGET
 fftw_for_gadget_dir='${fftw_for_gadget_dir}'
+# Directory of Gadget2
 gadget_dir='${gadget_dir}'
+# Directory of GSL
 gsl_dir='${gsl_dir}'
+# Directory of HDF5
 hdf5_dir='${hdf5_dir}'
+# Directory of MPI
 openmpi_dir='${openmpi_dir}'
+# Directory containing tests for the CONCEPT code
 tests_dir='${tests_dir}'
+# Top level directory, containing e.g. README.md
 top_dir='${top_dir}'
 
-# Files
+#########
+# Files #
+#########
+# The Python3 interpreter
 python='${python}'
+# The python3.xm file within the include directory of Anaconda
 python_incl_m='${python_incl_m}'
+# The Cython executable
 cython='${cython}'
+# The MPI C compiler
 mpicc='${mpicc}'
+# The MPI executable
 mpiexec='${mpiexec}'
+# The run script of the CONCEPT code
 run='${run}'
 " > "${top_dir}/.paths"
 
@@ -255,31 +275,6 @@ tar xf gadget2.tar.gz
 mv Gadget*/* "${gadget_dir}"
 cd ..
 rm -rf tmp
-
-#########################
-# Test the installation #
-#########################
-#current_step="testruns of the pure Python \e[3mN\e[0m\e[1m\e[91m-body code"
-#printf "\n\e[1m\e[93mPerforming test runs in pure Python\e[0m\n"
-#cd "${concept_dir}"
-#./run -n 1 -p params/default_purePython --pure-python
-#make clean_files_generated
-#./run -n 2 -p params/default_purePython --pure-python
-#make clean_files_generated
-##./run -n 3 -p params/default_purePython --pure-python
-##make clean_files_generated
-#./run -n 4 -p params/default_purePython --pure-python
-#make clean_files_generated
-#current_step="testruns of the compiled \e[3mN\e[0m\e[1m\e[91m-body code"
-#printf "\n\e[1m\e[93mPerforming test runs in pure Python\e[0m\n"
-#./run -n 1 -p params/default
-#make clean_files_generated
-#./run -n 2 -p params/default
-#make clean_files_generated
-#./run -n 3 -p params/default
-#make clean_files_generated
-#./run -n 4 -p params/default
-#make distclean
 
 # Copyright notice
 current_step="copyright notice"
