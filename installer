@@ -25,7 +25,7 @@ set -e
 
 # Creating top level directory
 current_step="setup of top level directory"
-echo -e "This is the installation script to CO\e[3mN\e[0mCEPT by Jeppe Dakin"
+printf "\nThis is the installation script to CO\e[3mN\e[0mCEPT by Jeppe Dakin\n"
 if [ -z "${1}" ]; then
     read -p "Where should I install the code?`echo $'\n> '`" -e top_dir
 else 
