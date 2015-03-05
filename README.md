@@ -1,11 +1,11 @@
-### Description
+# Description
 **CO*N*CEPT** (**C**osm**O**logical ***N***body **C**od**E** in **P**y**T**hon)
 is a code for cosmological *N*-body simulations on massively parallel computers
 with distributed memory. The code is written in Cython and C, but can also be
 run purely in Python, without the need of cythonization, C compilation and
 linking.
 
-#### Dependencies
+## Dependencies
 The code should be able to compile and run on any POSIX system with GCC and
 GNU make. The code has the following non-standard but open source dependencies:
 - The **GSL** library.
@@ -30,7 +30,7 @@ GNU make. The code has the following non-standard but open source dependencies:
   FFTW. Note that GADGET2 is incompatible with FFTW 3.x, so a seperate
   FFTW 2.x must also be installed.
 
-#### Easy installation
+## Easy installation
 The installation script `installer` automates the process of setting up
 all dependencies by downloading and installing everything in one place.
 The `installer` script will not take into account preinstalled versions
@@ -54,7 +54,7 @@ or it can be given as an argument.
 As everything is installed in one directory, uninstallation is done simply
 by removing this directory.
 
-#### Building and running the code
+## Building and running the code
 The code can be run in either compiled or pure Python mode.
 For easy building and running of the code in both modes, the `run` script
 should be used. Execute
