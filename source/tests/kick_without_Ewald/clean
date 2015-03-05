@@ -1,6 +1,0 @@
-#!/bin/bash
-
-# This script does cleanup after a test
-this_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-(cd "${this_dir}" && rm -rf Gadget2_edited IC Makefile_gadget_edited output outputlist params_gadget-usedvalues result.pdf)
-
