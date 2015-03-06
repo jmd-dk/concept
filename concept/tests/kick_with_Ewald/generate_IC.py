@@ -21,7 +21,7 @@ from IO import save
 N = 8
 mass = Ωm*ϱ*boxsize**3/N
 particles = construct(this_dir + ' test', 'dark matter', mass, N)
-d = -0.005
+d = 0.005
 particles.populate(array([0.25 - d]*4 + [0.75 + d]*4)*boxsize, 'posx')
 particles.populate(array([0.25, 0.25, 0.75, 0.75]*2)*boxsize, 'posy')
 particles.populate(array([0.25, 0.75, 0.75, 0.25]*2)*boxsize, 'posz')

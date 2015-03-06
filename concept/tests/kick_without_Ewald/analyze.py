@@ -80,7 +80,7 @@ if np.sum(x0_std) > tol or np.sum(x1_std) > tol:
           + 'The symmetric initial conditions has produced nonsymmetric results!' + '\033[0m')
     sys.exit(1)
 # Compare CONCEPT to GADGET
-tol = 1e-3
+tol = 1e-2
 if max(np.abs(x0/x0_gadget - 1)) > tol or max(np.abs(x1/x1_gadget - 1)) > tol:
     print('\033[1m\033[91m' + 'The results from CONCEPT disagree with those from GADGET.\n'
           + 'See ' + fig_file + ' for a visualization.' + '\033[0m')

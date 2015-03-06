@@ -28,11 +28,8 @@ params="${this_dir}/params/default"
 main="${this_dir}/main.py"
 pure_python=0
 
-# cd to the code directory
-cd "${this_dir}"
-
 # Use Python's argparse module to handle command-line arguments
-args=(`${python} -c "
+args=(`${python} -B -c "
 import argparse
 import sys
 from os.path import basename, dirname
@@ -126,7 +123,7 @@ if [ "${unspecified_params}" == 1 ]; then
 fi
 
 # Is nprocs a power of 2?
-legal_nprocs=`"${python}" -c "
+legal_nprocs=`"${python}" -B -c "
 from numpy import log2
 exponent = log2(${nprocs})
 if exponent == int(exponent):
@@ -163,7 +160,8 @@ fi
 
 # Prompt the user for the secure shell password,
 # if the live frame should be uploaded.
-args=(`"${python}" -c "
+cd "${this_dir}"
+args=(`"${python}" -B -c "
 # Import parameters from the .py file rather than the .so file
 import imp
 params = imp.load_source('params', '${this_dir}/params.py')
@@ -207,7 +205,7 @@ print(password)
 " "$@"`)
 password="${args[0]}"
 
-# Run the code. Note that password is passed as an argument
+# Run the code. Note that password and whether to exit is passed as arguments
 if [ "${pure_python}" -eq 0 ] ; then
     printf "\n\e[1m\e[93mRunning CO\e[3mN\e[0m\e[1m\e[93mCEPT\e[0m\n"
 else
@@ -217,7 +215,7 @@ echo "Entry point:   ${main}"
 echo "Parameterfile: ${params}"
 echo "Nr. of CPUs:   ${nprocs}"
 cd "${this_dir}"
-"${mpiexec}" -n "${nprocs}" --prefix "${openmpi_dir}" "${python}" "${main}" "${password}" "${exit}"
+"${mpiexec}" -n "${nprocs}" --prefix "${openmpi_dir}" "${python}" -B "${main}" "${password}" "${exit}"
 
 # Run complete. Deactivate trap before exiting.
 trap : 0

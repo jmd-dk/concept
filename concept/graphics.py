@@ -70,9 +70,9 @@ def animate(particles, timestep, a, a_snapshot):
             fig = figure()
             ax = fig.add_subplot(111, projection='3d', axisbg='black')
             artist = ax.scatter(X, Y, Z, lw=0,
-                                alpha=0.2,
+                                alpha=0.05,
                                 c=(64.0/256, 224.0/256, 208.0/256),
-                                s=20,
+                                s=8,
                                 )
             ax.set_xlim3d(0, boxsize)
             ax.set_ylim3d(0, boxsize)
