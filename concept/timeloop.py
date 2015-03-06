@@ -70,7 +70,7 @@ def timeloop():
     # Plot the initial configuration
     animate(particles, 0, a, min(outputtimes))
     # DETERMINE THE TIME STEP SIZE SOMEHOW  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    Δt = 1*units.Myr
+    Δt = 10*units.Myr
     # The main time loop (in actuality two nested loops)
     if master:
         print('Begin main time loop')

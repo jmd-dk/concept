@@ -142,7 +142,7 @@ cython.declare(G_Newton='double',
                )
 G_Newton = 6.6738e-11*units.m**3/units.kg/units.s**2  # Newtons constant
 ϱ = 3*H0**2/(8*pi*G_Newton) # The average, comoing density (the critical comoving density since we only study flat universes)
-softening = 300*units.kpc  # A few percent0.02*boxsize/(N**one_third). Source: http://popia.ft.uam.es/aknebe/page3/files/ComputationalAstrophysics/PhysicalProcesses.pdf page 85 and http://www.ast.cam.ac.uk/~puchwein/NumericalCosmology02.pdf page 13.
+softening = 30/0.7*units.kpc  # A few percent0.02*boxsize/(N**one_third). Source: http://popia.ft.uam.es/aknebe/page3/files/ComputationalAstrophysics/PhysicalProcesses.pdf page 85 and http://www.ast.cam.ac.uk/~puchwein/NumericalCosmology02.pdf page 13.
 PM_gridsize3 = PM_gridsize**3
 boxsize2 = boxsize**2
 half_boxsize = 0.5*boxsize

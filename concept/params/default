@@ -7,7 +7,7 @@
 # see the bottom of this file.
 
 # Input/output
-IC_file = 'ICs/four'			# Initial condition snapshot
+IC_file = 'ICs/default'			# Initial condition snapshot
 output_dir = 'output'			# Directory for storing output snapshots
 output_type = 'standard'		# Type of output snapshot
 snapshot_base = 'snapshot'		# File basename for output snapshots
@@ -33,6 +33,9 @@ remote_liveframe=''			# Where to upload the live frame
 protocol = 'scp'			# Protocol for live frame file transfer
 framespace = 10				# The plot is updated every framespace time step
 
+# Simulation options
+use_Ewald = True
+
 
 
 
@@ -53,7 +56,7 @@ framespace = 10				# The plot is updated every framespace time step
 # output_type
 #     Determines the type of the produced snapshots. Can be either 'standard'
 #     or 'GADGET 2', referring to the codes own HDF5 snapshot type and
-#     GADGET2's snapshot type 2, respectively.
+#     Gadget2's snapshot type 2, respectively.
 # snapshot_base
 #     File basename (prefix) for the produced snapshots. The snapshots will be
 #     named "snapshot_base"_0, "snapshot_base"_1, "snapshot_base"_2, ...

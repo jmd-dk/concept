@@ -56,23 +56,23 @@ def summation(x, y, z):
     force/boxsize**2. What is returned is the Ewald correction,
     corresponding to (9) in the mentioned paper. That is, the return value is
     not the total force, but the force from all particle images except the
-    nearest one. Note that this nearest image need not be the actual particle. 
+    nearest one. Note that this nearest image need not be the actual particle.
     """
 
     # The Ewald force vector and its components
     force = vector
     force_x = force_y = force_z = 0
-    # Remove the direct force, as we are interested in the correction only
-    r3 = (x**2 + y**2 + z**2)**1.5
-    force_x += x/r3
-    force_y += y/r3
-    force_z += z/r3
     # The image is on top of the particle: No force
     if x == 0 and y == 0 and z == 0:
         force[0] = 0
         force[1] = 0
         force[2] = 0
         return force
+    # Remove the direct force, as we are interested in the correction only
+    r3 = (x**2 + y**2 + z**2)**1.5
+    force_x += x/r3
+    force_y += y/r3
+    force_z += z/r3
     # The short range (real space) sum
     for sumindex_x in range(n_lower, n_upper):
         for sumindex_y in range(n_lower, n_upper):
