@@ -7,16 +7,17 @@
 # see the bottom of this file.
 
 # Input/output
-IC_file = 'ICs/default'			# Initial condition snapshot
+IC_file = 'ICs/small'			# Initial condition snapshot
 output_dir = 'output'			# Directory for storing output snapshots
 output_type = 'standard'		# Type of output snapshot
 snapshot_base = 'snapshot'		# File basename for output snapshots
 outputtimes = (1, )			# Times at which to dump snapshots to disk
 
 # Numerical parameters
-boxsize = 20*Mpc/0.7			# Linear size of the simulation box
+boxsize = 20/0.7*Mpc			# Linear size of the simulation box
 ewald_gridsize = 64			# Linear size of the grid of Ewald corrections
 PM_gridsize = 128			# Linear size of the grid used for the PM method
+softenings = {'dark matter': 30*kpc}
 
 # Cosmological parameters
 H0 = 70*km/s/Mpc			# The Hubble constant
@@ -26,12 +27,12 @@ a_begin = 0.02				# Scale factor at beginning of simulation
 
 # Graphics
 framefolder = ''			# Folder to save frames
-liveframe=''		# Filename of saved live frame
+liveframe=''				# Filename of saved live frame
 image_format='png'			# The image format of the saved frames
 tmp = 'jmd@lifa.phys.au.dk:/usr/users/jmd/public_html/master/simulation.png'
 remote_liveframe=''			# Where to upload the live frame
 protocol = 'scp'			# Protocol for live frame file transfer
-framespace = 10				# The plot is updated every framespace time step
+framespace = 1				# The plot is updated every framespace time step
 
 # Simulation options
 use_Ewald = True

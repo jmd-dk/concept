@@ -7,16 +7,16 @@
 # see the bottom of this file.
 
 # Input/output
-IC_file = paths['tests_dir'] + '/kick_with_Ewald/IC'	# Initial condition snapshot
-output_dir = paths['tests_dir'] + '/kick_with_Ewald/output'	# Directory for storing output snapshots
-output_type = 'Gadget 2'		# Type of output snapshot
+IC_file = 'ICs/default'			# Initial condition snapshot
+output_dir = 'output'			# Directory for storing output snapshots
+output_type = 'standard'		# Type of output snapshot
 snapshot_base = 'snapshot'		# File basename for output snapshots
-outputtimes = tuple(loadtxt(paths['tests_dir'] + '/kick_with_Ewald/outputlist'))	# Times at which to dump snapshots to disk
+outputtimes = (1, )			# Times at which to dump snapshots to disk
 
 # Numerical parameters
-boxsize = 21*Mpc/0.7 # (30 Mpc. Gadget implicitly uses length/h)	# Linear size of the simulation box
+boxsize = 100*Mpc			# Linear size of the simulation box
 ewald_gridsize = 64			# Linear size of the grid of Ewald corrections
-PM_gridsize = 8				# Linear size of the grid used for the PM method
+PM_gridsize = 128			# Linear size of the grid used for the PM method
 softenings = {'dark matter': 30*kpc}
 
 # Cosmological parameters
@@ -29,12 +29,15 @@ a_begin = 0.02				# Scale factor at beginning of simulation
 framefolder = ''			# Folder to save frames
 liveframe=''				# Filename of saved live frame
 image_format='png'			# The image format of the saved frames
+tmp = 'jmd@lifa.phys.au.dk:/usr/users/jmd/public_html/master/simulation.png'
 remote_liveframe=''			# Where to upload the live frame
 protocol = 'scp'			# Protocol for live frame file transfer
 framespace = 1				# The plot is updated every framespace time step
 
 # Simulation options
 use_Ewald = True
+
+
 
 
 ###############################################
@@ -54,7 +57,7 @@ use_Ewald = True
 # output_type
 #     Determines the type of the produced snapshots. Can be either 'standard'
 #     or 'GADGET 2', referring to the codes own HDF5 snapshot type and
-#     GADGET2's snapshot type 2, respectively.
+#     Gadget2's snapshot type 2, respectively.
 # snapshot_base
 #     File basename (prefix) for the produced snapshots. The snapshots will be
 #     named "snapshot_base"_0, "snapshot_base"_1, "snapshot_base"_2, ...

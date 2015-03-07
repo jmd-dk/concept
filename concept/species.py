@@ -30,12 +30,17 @@ class Particles:
     @cython.boundscheck(False)
     @cython.wraparound(False)
     @cython.locals(# Arguments
-                   mass='double',
                    N='size_t',
                    )
-    def __init__(self, mass, N):
-        # Instantiate Particles instances with just a single particle member
+    def __init__(self, N):
+        # Store particle meta data
+        self.N = N
         self.N_allocated = 1
+        self.N_local = 1
+        self.mass = 1*units.m_sun
+        self.softening = 1*units.kpc
+        self.species = 'generic particle species'
+        self.type = 'generic particle type'
         # Manually allocate memory for particle data
         self.posx = malloc(self.N_allocated*sizeof('double'))
         self.posy = malloc(self.N_allocated*sizeof('double'))
@@ -50,12 +55,6 @@ class Particles:
         self.momx_mw = cast(self.momx, 'double[:self.N_allocated]')
         self.momy_mw = cast(self.momy, 'double[:self.N_allocated]')
         self.momz_mw = cast(self.momz, 'double[:self.N_allocated]')
-        # Store particle meta data
-        self.mass = mass
-        self.N = N
-        self.N_local = 1
-        self.type = 'generic particle type'
-        self.species = 'generic particle species'
 
     # This method populate the Particles pos/mom attributes with data.
     # It is deliberately designed so that you have to make a call for each
@@ -219,10 +218,16 @@ class Particles:
 @cython.returns('Particles')
 def construct(type_name, species_name, mass, N):
     # Instantiate Particles instance
-    particles = Particles(mass, N)
-    # Attach the type and species information to the particles
-    particles.type = type_name
+    particles = Particles(N)
+    # Attach information to the particles
+    particles.mass = mass
     particles.species = species_name
+    particles.type = type_name
+    if species_name in softenings:
+        particles.softening = softenings[species_name]
+    else:
+        raise ValueError('Species "' + species_name
+                         + '" do not have an assigned softening length!')
     return particles
 
 
@@ -240,8 +245,7 @@ def construct(type_name, species_name, mass, N):
                # Locals
                N_local='size_t',
                N_locals='tuple',
-               mass_min='double',
-               mass_max='double',
+               mass='double',
                mom_max='double',
                particles='Particles',
                )
@@ -252,9 +256,8 @@ def construct_random(type_name, species_name, N):
         print('Initializes particles of type "' + type_name + '"')
     # Minimum and maximum mass and maximum
     # momenta (in any of the three directions)
-    mass_min = 1e+11*units.m_sun
-    mass_max = 1e+12*units.m_sun
-    mom_max = 0*units.m_sun*units.km/units.s
+    mass = Ωm*ϱ*boxsize**3/N
+    mom_max = 1e+3*units.km/units.s*mass
     # Compute a fair distribution of particle data to the processes
     N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
                 + (N//nprocs + 1, )*(N % nprocs))
@@ -262,7 +265,7 @@ def construct_random(type_name, species_name, N):
     # Construct a Particles instance
     particles = construct(type_name,
                           species_name,
-                          mass=(mass_min + random()*(mass_max - mass_min)),
+                          mass=mass,
                           N=N,
                           )
     # Populate the Particles instance with random data

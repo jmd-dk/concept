@@ -10,6 +10,7 @@ cdef:
     double boxsize
     int ewald_gridsize
     ptrdiff_t PM_gridsize
+    dict softenings
 
     # Cosmological parameters
     double H0
