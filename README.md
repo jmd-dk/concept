@@ -1,3 +1,5 @@
+![32](https://cloud.githubusercontent.com/assets/9202794/6539067/b05d4cbc-c46b-11e4-9aa0-9925967e6258.png)
+
 # Description
 **CO*N*CEPT** (**CO**smological ***N***-body **C**od**E** in **P**y**T**hon)
 is a code for cosmological *N*-body simulations on massively parallel computers
