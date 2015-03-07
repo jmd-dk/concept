@@ -67,12 +67,17 @@ def animate(particles, timestep, a, a_snapshot):
         # Set up figure. This is only done in the first call.
         if artist is None:
             # Set up figure
+            inch2pts = 72.27  # Number of points in an inch
             fig = figure()
             ax = fig.add_subplot(111, projection='3d', axisbg='black')
+            # The alpha value is chosen so that a column of particles in a
+            # homogeneous universe will appear to have alpha = 1 (more or
+            # less). The size of a particle is plotted so that the particles
+            # stand side by side in a homogeneous unvierse (more or less).
             artist = ax.scatter(X, Y, Z, lw=0,
-                                alpha=0.05,
-                                c=(64.0/256, 224.0/256, 208.0/256),
-                                s=8,
+                                alpha=N**(-one_third), #0.05,
+                                c=(180.0/256, 248.0/256, 95.0/256),
+                                s=prod(fig.get_size_inches())*inch2pts**2/N,
                                 )
             ax.set_xlim3d(0, boxsize)
             ax.set_ylim3d(0, boxsize)
