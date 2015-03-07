@@ -263,7 +263,7 @@ else
     remote=0
 fi
 
-if [ "${remote}" -eq 0 ]; then
+if [ "${remote}" -eq 1 ]; then
     # Run remotely
     # If no queue is explicitly chosen, use one with enough free nodes
     if [ "${queue}" == "none" ]; then
