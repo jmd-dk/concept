@@ -77,7 +77,8 @@ def animate(particles, timestep, a, a_snapshot):
             artist = ax.scatter(X, Y, Z, lw=0,
                                 alpha=N**(-one_third), #0.05,
                                 c=(180.0/256, 248.0/256, 95.0/256),
-                                s=prod(fig.get_size_inches())*inch2pts**2/N,
+                                s=min(50, prod(fig.get_size_inches())
+                                          *inch2pts**2/N),
                                 )
             ax.set_xlim3d(0, boxsize)
             ax.set_ylim3d(0, boxsize)

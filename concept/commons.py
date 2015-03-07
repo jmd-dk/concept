@@ -150,10 +150,8 @@ minus_half_boxsize = -half_boxsize
 two_recp_boxsize = 2/boxsize
 ewald_file = '.ewald_gridsize=' + str(ewald_gridsize) + '.hdf5'  # Name of file storing the Ewald grid
 machine_ϵ = np.finfo('float64').eps  # Machine epsilon
-softening2 = softening**2
 two_ewald_gridsize = 2*ewald_gridsize
 two_machine_ϵ = 2*machine_ϵ
-#use_Ewald = True
 use_PM = True  # Flag specifying whether the PM method is used or not. THIS SHOULD BE COMPUTED BASED ON PARTICLES CHOSEN IN THE PARAMETER FILE!!!!!!!!!!!
 
 

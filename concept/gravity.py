@@ -69,6 +69,7 @@ else:
                i='size_t',
                j='size_t',
                r3='double',
+               softening2='double',
                x='double',
                xi='double',
                y='double',
@@ -83,7 +84,7 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
                      mass_i, N_local_i,
                      posx_j, posy_j, posz_j, Δmomx_j, Δmomy_j, Δmomz_j,
                      mass_j, N_local_j,
-                     Δt, flag_input=0):
+                     Δt, softening2, flag_input=0):
     """This function takes in positions and momenta of particles located in
     the domain designated the calling process, as well as positions and
     preallocated nullified momentum changes for particles located in another
@@ -101,7 +102,6 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
     Note that the time step size Δt is really ∫_t^(t + Δt) dt/a.
     """
 
-    force = vector
     # The factor (G*m_i*m_j*∫_t^(t + Δt) dt/a) in the
     # comoving equations of motion
     # p_i --> p_i + ∫_t^(t + Δt) F/a*dt = p_i + m_i*F*∫_t^(t + Δt) dt/a
@@ -109,6 +109,7 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
     #       = p_i - 1/r**2*(G*m_i*m_j*∫_t^(t + Δt) dt/a)
     eom_factor = G_Newton*mass_i*mass_j*Δt
     # Direct summation
+    force = vector
     for i in range(0, N_local_i if (flag_input > 0) else (N_local_i - 1)):
         xi = posx_i[i]
         yi = posy_i[i]
@@ -196,15 +197,16 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
                i='size_t',
                j='int',
                mass='double',
+               momx_local='double[::1]',
+               momy_local='double[::1]',
+               momz_local='double[::1]',
                posx_extrn='double[::1]',
                posx_local='double[::1]',
                posy_extrn='double[::1]',
                posy_local='double[::1]',
                posz_extrn='double[::1]',
                posz_local='double[::1]',
-               momx_local='double[::1]',
-               momy_local='double[::1]',
-               momz_local='double[::1]',
+               softening2='double',
                Δmomx_extrn='double[::1]',
                Δmomx_local='double[::1]',
                Δmomy_extrn='double[::1]',
@@ -218,14 +220,15 @@ def PP(particles, Δt):
     Note that the time step size Δt is really ∫_t^(t + Δt) dt/a.
     """
     # Extract variables from particles
-    posx_local = particles.posx_mw
-    posy_local = particles.posy_mw
-    posz_local = particles.posz_mw
+    N_local = particles.N_local
+    mass = particles.mass
     momx_local = particles.momx_mw
     momy_local = particles.momy_mw
     momz_local = particles.momz_mw
-    mass = particles.mass
-    N_local = particles.N_local
+    posx_local = particles.posx_mw
+    posy_local = particles.posy_mw
+    posz_local = particles.posz_mw
+    softening2 = particles.softening**2
     # Update local momenta due to forces between local particles.
     # Note that vector_mw is not actually used due to flag_input=0
     direct_summation(posx_local, posy_local, posz_local,
@@ -234,7 +237,7 @@ def PP(particles, Δt):
                      posx_local, posy_local, posz_local,
                      vector_mw, vector_mw, vector_mw,
                      mass, N_local,
-                     Δt)
+                     Δt, softening2)
     # All work done if only one domain exists
     if nprocs == 1:
         return
@@ -282,7 +285,7 @@ def PP(particles, Δt):
                          posx_extrn, posy_extrn, posz_extrn,
                          Δmomx_extrn, Δmomy_extrn, Δmomz_extrn,
                          mass, N_extrn,
-                         Δt, flag_input=flag_input)
+                         Δt, softening2, flag_input=flag_input)
         # When flag_input == 2, no momentum updates has been computed.
         # Do not sent or recieve these noncomputed updates.
         if flag_input == 2:
@@ -379,7 +382,7 @@ if use_PM:
         # Initialization of the PM mesh in pure Python.
         PM_gridsize_local_x = PM_gridsize_local_y = int(PM_gridsize/nprocs)
         if PM_gridsize_local_x != PM_gridsize/nprocs:
-            raise ValueError('The PM method in pure Python mode only works'
+            warn('The PM method in pure Python mode only works '
                              + 'when\nPM_gridsize is divisible by the number'
                              + 'of processes!')
         PM_gridstart_local_x = PM_gridstart_local_y = PM_gridsize_local_x*rank

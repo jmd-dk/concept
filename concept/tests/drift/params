@@ -17,6 +17,7 @@ outputtimes = tuple(loadtxt(paths['tests_dir'] + '/drift/outputlist'))	# Times a
 boxsize = 21*Mpc/0.7 # (30 Mpc. Gadget implicitly uses length/h)	# Linear size of the simulation box
 ewald_gridsize = 64			# Linear size of the grid of Ewald corrections
 PM_gridsize = 8				# Linear size of the grid used for the PM method
+softenings = {'dark matter': 30*kpc}
 
 # Cosmological parameters
 H0 = 70*km/s/Mpc			# The Hubble constant

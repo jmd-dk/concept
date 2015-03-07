@@ -22,7 +22,7 @@ matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
 # Determine the number of snapshots from the outputlist file
-N_snapshots = len(np.loadtxt(this_dir + '/outputlist'))
+N_snapshots = np.loadtxt(this_dir + '/outputlist').size
 
 # Instantiate a Gadget_snapshot instance which will be reused for all GADGET snapshots
 snapshot = Gadget_snapshot()

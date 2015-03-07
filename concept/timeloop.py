@@ -19,6 +19,9 @@ else:
 
 # Exit the program if called with the --exit flag
 if int(sys.argv[2]):
+    if master:
+        os.system('printf "\033[1m\033[92mCO\033[3mN\033[0m\033[1m\033[92mCEPT'
+                  + ' ran successfully\033[0m\n"')
     sys.exit()
 # Load initial conditions
 cython.declare(particles='Particles')
