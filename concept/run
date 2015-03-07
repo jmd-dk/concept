@@ -8,7 +8,6 @@ this_file=$(readlink -f "${0}")
 this_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # Load paths from the .paths file
-# Load paths from the .paths file
 curr="${this_dir}"
 while [ 1 ]; do
     if [ -f "${curr}/.paths" ]; then
@@ -23,11 +22,11 @@ while [ 1 ]; do
 done
 
 # Default values of command-line arguments
-walltime=24
 nprocs=1
 params="${this_dir}/params/default"
 main="${this_dir}/main.py"
 pure_python=0
+walltime=24
 
 # List of remote queues and number of CPU per node. The first queue is the default queue. 
 queues=(q8n q8 q4)
@@ -74,7 +73,11 @@ parser.add_argument('--pure-python',
                     action='store_true',
                     )
 parser.add_argument('-t', '--test',
-                    help='run test TEST. TEST can be any subdirectory of the tests directory. Use TEST=all to run all tests.',
+                    help='run test TEST. TEST can be any subdirectory of the tests directory. Use TEST=all to run all tests',
+                    default='none',
+                    )
+parser.add_argument('-q', '--queue',
+                    help='Queue for submition of the remote job. If omitted the script will try to choose the best.',
                     default='none',
                     )
 args = parser.parse_args()
@@ -102,6 +105,7 @@ print(args.nprocs,
       int(args.exit),
       args.test,
       args.walltime,
+      args.queue,
       )
 " "$@"`)
 nprocs="${args[0]}"
@@ -113,7 +117,8 @@ unspecified_params="${args[5]}"
 exit="${args[6]}"
 test="${args[7]}"
 walltime="${args[8]}"
-if [ "${#args[@]}" -ne 9 ]; then
+queue="${args[9]}"
+if [ "${#args[@]}" -ne 10 ]; then
     exit 1
 fi
 
@@ -247,6 +252,10 @@ print(password)
 " "$@"`)
 password="${args[0]}"
 
+# Create the logs dir and go to the code directory
+mkdir -p "${this_dir}/logs"
+cd "${this_dir}"
+
 # Determine whether this script is run locally or remotely via ssh
 if [ -n "${SSH_CLIENT}" ] || [ -n "${SSH_TTY}" ]; then
     remote=1
@@ -254,26 +263,36 @@ else
     remote=0
 fi
 
-# Run the code. Note that password and whether to exit is passed as arguments
-mkdir -p "${this_dir}/logs"
-cd "${this_dir}"
-if [ ${remote} -eq 1 ]; then
-    # The first queue in the list is the default queue
-    queue="${queues[0]}"
-    ppn="${ppns[0]}"
-    # Change to the queue that has enogh free CPUS to begin job immediately
-    node_table=$(nodes)
-    for i in $(eval echo "{0..${#queues[@]}}" | sed s/'\w*$'//)
-    do
-        free_nodes=$(echo "${node_table}" | grep -o -P "(?<= ${queues[${i}]}:).*(?= free)" | awk '{print $NF}')
-        free_cpus=$(echo "$((${free_nodes} * ${ppns[${i}]}))")
-        if [ "${free_cpus}" -ge "${nprocs}" ] && [ "$((${nprocs} % ${ppns[${i}]}))" -eq 0 ]; then
-            queue="${queues[${i}]}"
-            ppn="${ppns[${i}]}"
-            break
-        fi
-    done
-    # Check that the chosen queue can be run with all the node's cpu's in use
+if [ "${remote}" -eq 0 ]; then
+    # Run remotely
+    # If no queue is explicitly chosen, use one with enough free nodes
+    if [ "${queue}" == "none" ]; then
+        # The first queue in the list is the default queue
+        queue="${queues[0]}"
+        ppn="${ppns[0]}"
+        # Change to the queue that has enogh free CPUS to begin job immediately
+        node_table=$(nodes)
+        for i in $(eval echo "{0..${#queues[@]}}" | sed s/'\w*$'//)
+        do
+            free_nodes=$(echo "${node_table}" | grep -o -P "(?<= ${queues[${i}]}:).*(?= free)" | awk '{print $NF}')
+            free_cpus=$(echo "$((${free_nodes} * ${ppns[${i}]}))")
+            if [ "${free_cpus}" -ge "${nprocs}" ] && [ "$((${nprocs} % ${ppns[${i}]}))" -eq 0 ]; then
+                queue="${queues[${i}]}"
+                ppn="${ppns[${i}]}"
+                break
+            fi
+        done
+    else
+        # How many CPU's does the explicitly chosen queue have per node?
+        for i in $(eval echo "{0..${#queues[@]}}" | sed s/'\w*$'//)
+        do
+            if [ "${queue}" == "${queues[${i}]}" ]; then
+                ppn="${ppns[${i}]}"
+                break
+            fi
+        done
+    fi
+    # Check that the chosen queue can be run with all the nodes' cpu's in use
     if [ "$((${nprocs} % ${ppn}))" != 0 ]; then
         printf "\e[1m\e[91mJob submition refused:\nNo queue has the right amount of processors per node\e[0m\n" >&2
         exit 1
@@ -295,10 +314,9 @@ jobid=\"\${PBS_JOBID%.in1}\"
 
 cd \"\${PBS_O_WORKDIR}\"
 
-# Run
+# Run the code. Note that password and whether to exit is passed as arguments
 \"${mpiexec}\" --prefix \"${openmpi_dir}\" \"${python}\" -B \"${main}\" \"${password}\" \"${exit}\" > \"${this_dir}/logs/remote_\${jobid}\"
 " > "${this_dir}/jobscript"
-
     # Submit the remote job
     qsub "${jobscript}"
 else
@@ -311,6 +329,7 @@ else
     echo "Entry point:   ${main}"
     echo "Parameterfile: ${params}"
     echo "Nr. of CPUs:   ${nprocs}"
+    # Run the code. Note that password and whether to exit is passed as arguments
     "${mpiexec}" -n "${nprocs}" --prefix "${openmpi_dir}" "${python}" -B "${main}" "${password}" "${exit}"
 fi
 
