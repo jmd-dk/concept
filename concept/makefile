@@ -40,7 +40,7 @@ paths=$(shell this_dir="$$( cd "$$( dirname "$${BASH_SOURCE[0]}" )" && pwd )"; \
 ifeq ($(paths), fail)
     $(error Could not find .paths file)
 endif
-anaconda_dir  = $(shell source $(paths); echo $${anaconda_dir})
+miniconda_dir  = $(shell source $(paths); echo $${miniconda_dir})
 openmpi_dir   = $(shell source $(paths); echo $${openmpi_dir})
 fftw_dir      = $(shell source $(paths); echo $${fftw_dir})
 gsl_dir       = $(shell source $(paths); echo $${gsl_dir})
@@ -55,21 +55,21 @@ cython        = $(shell source $(paths); echo $${cython})
 # Options passed when cynthonizing .pyx files
 cythonflags = -3 -a -o
 # Includes
-anaconda_incl = -I$(python_incl_m)
+miniconda_incl = -I$(python_incl_m)
 openmpi_incl  = -I$(openmpi_dir)/include
 fftw_incl     = -I$(fftw_dir)/include
 gsl_incl      = -I$(gsl_dir)/include
-includes = $(anaconda_incl) $(openmpi_incl) $(fftw_incl) $(gsl_incl)
+includes = $(miniconda_incl) $(openmpi_incl) $(fftw_incl) $(gsl_incl)
 # Compiler options
 CC = $(openmpi_dir)/bin/mpicc
 mathoptimizations = -fassociative-math -fno-trapping-math -fno-signed-zeros  # Is this smart?
 CFLAGS = -pthread -DNDEBUG -g -std=c99 -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC $(mathoptimizations) $(includes)
 # Libraries to link
-anaconda_libs = -L$(anaconda_dir)/lib -L$(python)m
+miniconda_libs = -L$(miniconda_dir)/lib -L$(python)m
 openmpi_libs  = -L$(openmpi_dir)/lib -Wl,"-rpath=$(openmpi_dir)/lib" -lmpi
 fftw_libs     = -L$(fftw_dir)/lib -Wl,"-rpath=$(fftw_dir)/lib" -lfftw3_mpi -lfftw3
 gsl_libs      = -L$(gsl_dir)/lib -Wl,"-rpath=$(gsl_dir)/lib" -lgsl -lgslcblas
-LDLIBS = $(anaconda_libs) $(openmpi_libs) $(fftw_libs) $(gsl_libs) -lm
+LDLIBS = $(miniconda_libs) $(openmpi_libs) $(fftw_libs) $(gsl_libs) -lm
 # Linker options
 LDFLAGS = -pthread -shared
 

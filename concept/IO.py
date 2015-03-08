@@ -426,7 +426,7 @@ class Gadget_snapshot:
                    N_locals='tuple',
                    file_position='size_t',
                    gadget_H0='double',
-                   gadget_a='double',
+                   #gadget_a='double',
                    gadget_boxsize='double',
                    gadget_Ωm='double',
                    gadget_ΩΛ='double',
@@ -472,7 +472,7 @@ class Gadget_snapshot:
             # Check if the parameters of the snapshot matches those of the
             # current simulation run. Display a warning if they do not.
             tol = 1e-5
-            gadget_a = self.header['Time']
+            #gadget_a = self.header['Time']
             unit = units.kpc/self.header['HubbleParam']
             gadget_boxsize = self.header['BoxSize']*unit
             unit = 100*units.km/(units.s*units.Mpc)
@@ -480,14 +480,14 @@ class Gadget_snapshot:
             gadget_Ωm = self.header['Omega0']
             gadget_ΩΛ = self.header['OmegaLambda']
             if any([abs(gadget_param/param - 1) > tol for gadget_param, param
-                    in zip((gadget_a, gadget_boxsize, gadget_H0, gadget_Ωm,
+                    in zip((gadget_boxsize, gadget_H0, gadget_Ωm,
                             gadget_ΩΛ),
-                           (a_begin, boxsize, H0, Ωm, ΩΛ))]):
+                           (boxsize, H0, Ωm, ΩΛ))]):
                 msg = ('Mismatch between current parameters and those in the'
                        + ' GADGET snapshot "' + filename + '":')
-                if abs(gadget_a/a_begin - 1) > tol:
-                    msg += ('\n    a_begin: ' + str(a_begin)
-                            + ' vs ' + str(gadget_a))
+                #if abs(gadget_a/a_begin - 1) > tol:
+                #    msg += ('\n    a_begin: ' + str(a_begin)
+                #            + ' vs ' + str(gadget_a))
                 if abs(gadget_boxsize/boxsize - 1) > tol:
                     msg += ('\n    boxsize: ' + str(boxsize) + ' vs '
                             + str(gadget_boxsize) + ' (kpc)')

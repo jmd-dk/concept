@@ -49,10 +49,10 @@ parser.add_argument('-e', '--exit',
                     default=False,
                     action='store_true',
                     )
-parser.add_argument('-w', '--walltime',
-                    help='Set the PBS walltime in whole hours',
-                    type=int,
-                    default=${walltime},
+parser.add_argument('--local',
+                    help='Force the run to be dun locally, without the use of PBS',
+                    default=False,
+		    action='store_true',
                     )
 parser.add_argument('-m', '--main',
                     help='entry point of the code',
@@ -80,6 +80,11 @@ parser.add_argument('-q', '--queue',
                     help='Queue for submition of the remote job. If omitted the script will try to choose the best.',
                     default='none',
                     )
+parser.add_argument('-w', '--walltime',
+                     help='Set the PBS walltime in whole hours',
+                     type=int,
+                     default=${walltime},
+                     )
 args = parser.parse_args()
 # Warnings when basic parameters are not supplied
 unspecified_nprocs = False
@@ -106,6 +111,7 @@ print(args.nprocs,
       args.test,
       args.walltime,
       args.queue,
+      int(args.local),
       )
 " "$@"`)
 nprocs="${args[0]}"
@@ -118,7 +124,8 @@ exit="${args[6]}"
 test="${args[7]}"
 walltime="${args[8]}"
 queue="${args[9]}"
-if [ "${#args[@]}" -ne 10 ]; then
+local="${args[10]}"
+if [ "${#args[@]}" -ne 11 ]; then
     exit 1
 fi
 
@@ -175,7 +182,7 @@ if [ "${test}" != "none" ]; then
         for dir in "${this_dir}/tests/"*/
         do
             dir=${dir%*/}
-           printf "\e[1m\e[93mRunning $(basename ${dir}) test\e[0m\n"
+           printf "\n\e[1m\e[93mRunning $(basename ${dir}) test\e[0m\n"
            "${dir}/run_test"
         done
         printf "\e[1m\e[92mAll tests ran successfully\e[0m\n"
@@ -258,7 +265,7 @@ cd "${this_dir}"
 
 # Determine whether this script is run locally or remotely via ssh.
 # Always treat tests as if they were run locally.
-if [ "${test}" == "none" ] && ([ -n "${SSH_CLIENT}" ] || [ -n "${SSH_TTY}" ]); then
+if [ "${local}" == 0 ] && [ "${test}" == "none" ] && ([ -n "${SSH_CLIENT}" ] || [ -n "${SSH_TTY}" ]); then
     remote=1
 else
     remote=0
@@ -268,7 +275,7 @@ fi
 if [ "${remote}" -eq 1 ]; then
     # Run remotely
     # First do some cleanup from a potentially previously killed job
-    if [ $(echo "${this_dir}/"*.o[0-9]* | awk '{print $1}') ]; then
+    if [ $(echo "${this_dir}/"*.o[0-9]* | awk '{print $1}') != "${this_dir}/*.o[0-9]*" ]; then
         mv "${this_dir}/"*.o[0-9]* "${this_dir}/logs"
     fi
     # If no queue is explicitly chosen, use one with enough free nodes
@@ -351,11 +358,11 @@ else
         ((jobid += 1))
     done
     # Print start message
-    echo
+    echo "" 2>&1 | tee "${this_dir}/logs/local_${jobid}"
     if [ "${pure_python}" -eq 0 ] ; then
-        printf "\e[1m\e[93mRunning CO\e[3mN\e[0m\e[1m\e[93mCEPT\e[0m\n" 2>&1 | tee "${this_dir}/logs/local_${jobid}"
+        printf "\n\e[1m\e[93mRunning CO\e[3mN\e[0m\e[1m\e[93mCEPT\e[0m\n" 2>&1 | tee -a "${this_dir}/logs/local_${jobid}"
     else
-        printf "\e[1m\e[93mRunning CO\e[3mN\e[0m\e[1m\e[93mCEPT in pure Python mode\e[0m\n" 2>&1 | tee "${this_dir}/logs/local_${jobid}"
+        printf "\n\e[1m\e[93mRunning CO\e[3mN\e[0m\e[1m\e[93mCEPT in pure Python mode\e[0m\n" 2>&1 | tee -a "${this_dir}/logs/local_${jobid}"
     fi
     echo "Entry point:   ${main}" 2>&1 | tee -a "${this_dir}/logs/local_${jobid}"
     echo "Parameterfile: ${params}" 2>&1 | tee -a "${this_dir}/logs/local_${jobid}"

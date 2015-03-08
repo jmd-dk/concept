@@ -43,13 +43,13 @@ done
 
 # Create the Ewald grid using Cython, if it does not already exist
 # (for fast IC generation).
-"${run}" -n 1 -p "${this_dir}/params" --exit
+"${run}" -n 1 -p "${this_dir}/params" --exit --local
 
 # Generate ICs
-"${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python
+"${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local
 
 # Run the CONCEPT code on the generated ICs
-"${run}" -n 1 -p "${this_dir}/params"
+"${run}" -n 1 -p "${this_dir}/params" --local
 
 # Create an edited version of Makefile_gadget with correct parth information
 # and replace the Makefile in the GADGET2 directory with this edited version.
@@ -78,7 +78,7 @@ cp "${this_dir}/Makefile_gadget_edited" "${Gadget2_local_dir}/Makefile"
 (cd "${Gadget2_local_dir}" && make clean && make && "${mpiexec}" -n 1 --prefix "${openmpi_dir}" Gadget2 ../params_gadget)  # It is crucial to use a relative path as the path has a max allowed length in GADGET
 
 # Analyze the output snapshots
-"${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python 2>/dev/null
+"${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python
 
 # Copy the tabulated Ewald corrections to the Gadget2 directory if it does not
 # already exists there, to save time later.

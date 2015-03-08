@@ -40,22 +40,22 @@ done
 
 # Clean and run in pure Python with different number of cpus
 (cd "${concept_dir}" && make distclean)
-"${run}" -p "${this_dir}/params_pure_python" --pure-python --exit
-"${run}" -n 1 -p "${this_dir}/params_pure_python" --pure-python --exit
-"${run}" -n 2 -p "${this_dir}/params_pure_python" --pure-python --exit
-"${run}" -n 3 -p "${this_dir}/params_pure_python" --pure-python --exit
-"${run}" -n 4 -p "${this_dir}/params_pure_python" --pure-python --exit
+"${run}" -p "${this_dir}/params_pure_python" --pure-python --exit --local
+"${run}" -n 1 -p "${this_dir}/params_pure_python" --pure-python --exit --local
+"${run}" -n 2 -p "${this_dir}/params_pure_python" --pure-python --exit --local
+"${run}" -n 3 -p "${this_dir}/params_pure_python" --pure-python --exit --local
+"${run}" -n 4 -p "${this_dir}/params_pure_python" --pure-python --exit --local
 
 # Build and run in compiled mode with different number of cpus
-"${run}" -p "${this_dir}/params" --exit
-"${run}" -n 1 -p "${this_dir}/params" --exit
-"${run}" -n 2 -p "${this_dir}/params" --exit
-"${run}" -n 3 -p "${this_dir}/params" --exit
-"${run}" -n 4 -p "${this_dir}/params" --exit
+"${run}" -p "${this_dir}/params" --exit --local
+"${run}" -n 1 -p "${this_dir}/params" --exit --local
+"${run}" -n 2 -p "${this_dir}/params" --exit --local
+"${run}" -n 3 -p "${this_dir}/params" --exit --local
+"${run}" -n 4 -p "${this_dir}/params" --exit --local
 
 # Call with nu -n or -p arguments
-"${run}" --exit
-"${run}" -m "${concept_dir}/main.py" --exit
+"${run}" --exit --local
+"${run}" -m "${concept_dir}/main.py" --exit --local
 
 # Do cleanup before exiting
 (cd "${concept_dir}" && make distclean)
