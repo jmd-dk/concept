@@ -131,11 +131,12 @@ def timeloop():
                 # Last drift step reached a = a_snapshot.
                 # Kick the remaining little bit to synchronize.
                 particles.kick(itg_kick1)
-                # Save snapshot, animate, print out time step message and
-                # break out, beginning iteration towards the next snapshot.
-                save(particles, a, snapshot_filename)
+                # Render particle configuration, print timestep message,
+                # save snapshot and break out, beginning iteration towards the
+                # next snapshot.
                 animate(particles, timestep, a, a_snapshot)
                 timestep_message(timestep, t_iter, a, t)
+                save(particles, a, snapshot_filename)
                 break
             else:
                 # Do the kick and drift intetrals
@@ -155,7 +156,7 @@ def timeloop():
                 itg_drift0 = scalefactor_integral(-2)
                 # Kick a complete step, overtaking the drifts
                 particles.kick(itg_kick0 + itg_kick1)
-                # Animate and print out time step message
+                # Render particle configuration and print timestep message
                 animate(particles, timestep, a, a_snapshot)
                 timestep_message(timestep, t_iter, a, t)
 
