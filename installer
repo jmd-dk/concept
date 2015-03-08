@@ -8,6 +8,8 @@
 # The above uses a URL shortener. If it does not work, use the full URL:
 # https://raw.githubusercontent.com/jmd-dk/concept/master/installer
 
+# A small pause is needed when executing as the result of wget,
+# if installation directory is not supplied as an argument.
 sleep 1
 
 # Set up error trapping
@@ -146,8 +148,6 @@ printf "\n\e[1m\e[93mInstalling Cython, Matplotlib, NumPy, Pexpect and SciPy\e[0
 "${miniconda_dir}/bin/conda" update --yes --all
 # Do some cleanup in the Miniconda distribution
 "${miniconda_dir}/bin/conda" clean --yes -i -l -t -p
-
-exit 0
 
 # GSL
 current_step="installation of GSL"
