@@ -30,7 +30,7 @@ set -e
 # Creating top level directory
 current_step="setup of top level directory"
 printf "\nThis is the installation script to CO\e[3mN\e[0mCEPT,
-the cosmological N-body code by Jeppe Dakin\n"
+the cosmological N-body code by Jeppe Dakin.\n\n"
 if [ -z "${1}" ]; then
     read -p "Where should I install the code?`echo $'\n> '`" -e top_dir
 else 
@@ -113,7 +113,7 @@ printf "  Cython_GSL\t${cython_gsl_version}\n"
 printf "  Matplotlib\t${matplotlib_version}\n"
 printf "  Numpy\t\t${numpy_version}\n"
 printf "  Pexpect\t${pexpect_version}\n"
-printf "  Python\t\t${python_version}\n"
+printf "  Python\t${python_version}\n"
 printf "  SciPy\t\t${scipy_version}\n"
 printf "  MPI4Py\t${mpi4py_version}\n"
 printf "FFTW\t\t${fftw_version}\t\t${fftw_dir}\n"
@@ -183,7 +183,7 @@ printf "\n\e[1m\e[93mInstalling Open MPI\e[0m\n"
 mkdir "${openmpi_dir}"
 mkdir tmp
 cd tmp
-wget -nc -O openmpi.tar.bz2 --no-check-certificate "${url}"
+wget -nc -O openmpi.tar.bz2 --no-check-certificate "${openmpi_url}"
 tar xjf openmpi.tar.bz2
 cd openmpi*
 ./configure --prefix="${openmpi_dir}"
