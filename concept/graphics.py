@@ -4,7 +4,7 @@ from commons import *
 
 # Use a matplotlib backend that does not require a running X-server
 import matplotlib
-matplotlib.use('TkAgg')
+matplotlib.use('Agg')
 # Imports for plotting
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import juggle_axes

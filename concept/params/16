@@ -10,7 +10,7 @@
 IC_file = 'ICs/16'			# Initial condition snapshot
 output_dir = 'output'			# Directory for storing output snapshots
 output_type = 'standard'		# Type of output snapshot
-snapshot_base = 'snapshot'		# File basename for output snapshots
+snapshot_base = 'snapshot16'		# File basename for output snapshots
 outputtimes = (1, )			# Times at which to dump snapshots to disk
 
 # Numerical parameters

@@ -19,7 +19,7 @@ from graphics import animate
 
 # Use a matplotlib backend that does not require a running X-server
 import matplotlib
-matplotlib.use('TkAgg')
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 # Determine the number of snapshots from the outputlist file
