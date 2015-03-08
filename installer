@@ -41,7 +41,7 @@ cd "${top_dir}"
 
 # Specify installation directories
 concept_dir="${top_dir}/concept"
-anaconda_dir="${top_dir}/anaconda"
+miniconda_dir="${top_dir}/miniconda"
 fftw_dir="${top_dir}/fftw"
 gadget_dir="${top_dir}/gadget"
 fftw_for_gadget_dir="${gadget_dir}/fftw"
@@ -49,38 +49,111 @@ gsl_dir="${top_dir}/gsl"
 hdf5_dir="${top_dir}/hdf5"
 openmpi_dir="${top_dir}/openmpi"
 
+# URL's to the latest stable versions of the different software
+current_step="setup of dependency versions and download URL's"
+printf "\n\e[1m\e[93mSearching for latest versions of dependencies\e[0m\n"
+# Miniconda (3.7.0 is known to work)
+miniconda_version=$(wget -O- --no-check-certificate "http://repo.continuum.io/miniconda/.files.json" | grep -o -P "(?<=Miniconda3-).*(?=-Linux-x86_64)")
+miniconda_version=$(echo ${miniconda_version} | awk '{print $(NF-1)}')
+miniconda_url="http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh"
+# The Python version. Python will be updated to the newest stable version by Conda, though this version may not yet be listed on their website.
+# Note that this variable will be overwritten later!
+python_version=$(wget -O- --no-check-certificate "https://www.python.org/downloads/" | grep -o -P "(?<=Python-).*(?=.tar.xz)" | head -1)
+# Version of Python packages in the Conda package manager
+miniconda_pkgdocs=$(wget -O- --no-check-certificate "http://docs.continuum.io/anaconda/pkg-docs.html" | grep -o -P "(?<=<td>).*(?=</td>)")
+cython_version=$(echo ${miniconda_pkgdocs} | grep -Po '(?<=cython\s)[^\s]*' | tail -1)
+matplotlib_version=$(echo ${miniconda_pkgdocs} | grep -Po '(?<=matplotlib\s)[^\s]*' | tail -1)
+numpy_version=$(echo ${miniconda_pkgdocs} | grep -Po '(?<=numpy\s)[^\s]*' | tail -1)
+scipy_version=$(echo ${miniconda_pkgdocs} | grep -Po '(?<=scipy\s)[^\s]*' | tail -1)
+# Pexpect is not listed on the Anaconda website, but it is included
+pexpect_version=$(wget -O- --no-check-certificate "https://pypi.python.org/pypi/pexpect/#downloads" | grep -m 1 -o -P "(?<=pexpect-).*(?=.tar.gz#)")
+# GSL (1.16 is known to work)
+gsl_version=$(wget -O- --no-check-certificate "http://mirrors.dotsrc.org/gnu/gsl/" | grep -o -P "(?<=gsl-[0-9]).*(?=.tar.gz)")
+gsl_version="${gsl_version##*gsl-}"
+gsl_url="http://mirrors.dotsrc.org/gnu/gsl/gsl-latest.tar.gz"
+# Cython_GSL (0.2.1 is known to work)
+cython_gsl_version=$(wget -O- --no-check-certificate "https://raw.githubusercontent.com/twiecki/CythonGSL/master/README.rst" | grep ":Version:" | awk '{print $NF}')
+cython_gsl_url="https://github.com/twiecki/CythonGSL/archive/master.tar.gz"
+# Open MPI (1.8.3 is known to work)
+openmpi_version=$(wget -O- --no-check-certificate "http://www.open-mpi.org/software/" | grep -m 1 -o -P "(?<=Version).*(?=<)")
+openmpi_version=${openmpi_version//[[:blank:]]/}
+openmpi_url="http://www.open-mpi.org/software/ompi/v${openmpi_version%.*}/downloads/openmpi-${openmpi_version}.tar.bz2"
+# MPI4Py (1.3.1 is known to work)
+mpi4py_version=$(wget -O- --no-check-certificate "https://bitbucket.org/mpi4py/mpi4py/downloads/" | grep -m 1 -o -P "(?<=mpi4py/get/).*(?=.tar.gz)")
+mpi4py_url="https://bitbucket.org/mpi4py/mpi4py/get/${mpi4py_version}.tar.gz"
+# HDF5 (1.8.14 is known to work)
+hdf5_version=$(wget -O- --no-check-certificate "ftp://ftp.hdfgroup.org/HDF5/current/src/" | grep -m 1 -o -P "(?<=hdf5-).*(?=.tar.bz2\")")
+hdf5_url="ftp://ftp.hdfgroup.org/HDF5/current/src/hdf5-${hdf5_version}.tar.bz2"
+# h5py (2.4.0 is known to work)
+h5py_version=$(wget -O- --no-check-certificate "https://pypi.python.org/pypi/h5py/#downloads" | grep -m 1 -o -P "(?<=h5py-).*(?=.tar.gz#)")
+h5py_url="https://pypi.python.org/packages/source/h/h5py/h5py-${h5py_version}.tar.gz"
+# FFTW (3.3.4 is known to work)
+fftw_version=$(wget -O- --no-check-certificate "http://www.fftw.org/download.html" | grep -m 1 -o -P "(?<=fftw-).*(?=.tar.gz\")")
+fftw_url="http://www.fftw.org/fftw-${fftw_version}.tar.gz"
+# CONCEPT
+concept_url="https://github.com/jmd-dk/concept/archive/master.tar.gz"
+# FFTW 2.1.5 for Gadget
+fftw_for_gadget_version="2.1.5"
+fftw_for_gadget_url="http://www.fftw.org/fftw-${fftw_for_gadget_version}.tar.gz"
+# Gadget2
+gadget_version="2.0.7"
+gadget_url="http://www.mpa-garching.mpg.de/gadget/gadget-${gadget_version}.tar.gz"
+
+# Write out installation overview
+printf "\n\e[1m\e[93mInstallation overview\e[0m\n"
+printf "The following software will be installed\n"
+printf "Name:\t\tVersion:\tPath:\n"
+printf "Miniconda\t${miniconda_version}\t\t${miniconda_dir}\n"
+printf "  Cython\t${cython_version}\n"
+printf "  Cython_GSL\t${cython_gsl_version}\n"
+printf "  Matplotlib\t${matplotlib_version}\n"
+printf "  Numpy\t\t${numpy_version}\n"
+printf "  Pexpect\t${pexpect_version}\n"
+printf "  Python\t\t${python_version}\n"
+printf "  SciPy\t\t${scipy_version}\n"
+printf "  MPI4Py\t${mpi4py_version}\n"
+printf "FFTW\t\t${fftw_version}\t\t${fftw_dir}\n"
+printf "FFTW\t\t${fftw_for_gadget_version}\t\t${fftw_for_gadget_dir}\n"
+printf "GADGET\t\t${gadget_version}\t\t${gadget_dir}\n"
+printf "GSL\t\t${gsl_version}\t\t${gsl_dir}\n"
+printf "HDF5\t\t${hdf5_version}\t\t${hdf5_dir}\n"
+printf "Open MPI\t${openmpi_version}\t\t${openmpi_dir}\n"
+sleep 5
+
 
 ######################
 # Installing CONCEPT #
 ######################
-# Anaconda3 2.1.0 (via Miniconda3 3.7.0)
-current_step="installation of Anaconda"
-printf "\n\e[1m\e[93mInstalling Anaconda\e[0m\n"
-wget -nc -O anaconda.sh --no-check-certificate http://repo.continuum.io/miniconda/Miniconda3-3.7.0-Linux-x86_64.sh
-bash anaconda.sh -b -p "${anaconda_dir}"
-rm anaconda.sh
+# Miniconda
+current_step="installation of Miniconda"
+printf "\n\e[1m\e[93mInstalling Miniconda\e[0m\n"
+wget -nc -O miniconda.sh --no-check-certificate "${miniconda_url}"
+bash miniconda.sh -b -p "${miniconda_dir}"
+rm miniconda.sh
 # Update Conda
-"${anaconda_dir}/bin/conda" update --yes conda
+"${miniconda_dir}/bin/conda" update --yes conda
 # Create a python variable, storing the path to the newly installed Python interpreter
-python_version=`"${anaconda_dir}/bin/python" -c "from sys import version_info as v; print(str(v.major) + '.' + str(v.minor))"`
-python="${anaconda_dir}/bin/python${python_version}"
+python_version=`"${miniconda_dir}/bin/python" -c "from sys import version_info as v; print(str(v.major) + '.' + str(v.minor))"`
+python="${miniconda_dir}/bin/python${python_version}"
 
-# Cython, Matplotlib, Numpy, Pexpect and Scipy via Conda
+# Cython, Matplotlib, NumPy, Pexpect and SciPy via Conda
 current_step="installation of Cython, Matplotlib, NumPy, Pexpect and SciPy"
 printf "\n\e[1m\e[93mInstalling Cython, Matplotlib, NumPy, Pexpect and SciPy\e[0m\n"
-"${anaconda_dir}/bin/conda" install --yes cython matplotlib numpy pexpect scipy
-# Update all packages in Anaconda
-"${anaconda_dir}/bin/conda" update --yes --all
-# Do some cleanup in the Anaconda distribution
-"${anaconda_dir}/bin/conda" clean --yes -i -l -t -p
+"${miniconda_dir}/bin/conda" install --yes cython matplotlib numpy pexpect scipy
+# Update all packages in Miniconda
+"${miniconda_dir}/bin/conda" update --yes --all
+# Do some cleanup in the Miniconda distribution
+"${miniconda_dir}/bin/conda" clean --yes -i -l -t -p
 
-# GSL (latest stable version)
+exit 0
+
+# GSL
 current_step="installation of GSL"
 printf "\n\e[1m\e[93mInstalling GSL\e[0m\n"
 mkdir "${gsl_dir}"
 mkdir tmp
 cd tmp
-wget -nc -O gsl.tar.gz --no-check-certificate http://mirrors.dotsrc.org/gnu/gsl/gsl-latest.tar.gz
+wget -nc -O gsl.tar.gz --no-check-certificate "${gsl_url}"
 tar xf gsl.tar.gz
 cd gsl*
 ./configure --prefix="${gsl_dir}"
@@ -90,10 +163,10 @@ cp COPYING README "${gsl_dir}"
 cd ../../
 rm -rf tmp
 
-# The cython_gsl Python package (latest version)
+# The cython_gsl Python package
 current_step="installation of Cython_GSL"
 printf "\n\e[1m\e[93mInstalling Cython_GSL\e[0m\n"
-wget -nc -O CythonGSL.tar.gz --no-check-certificate https://github.com/twiecki/CythonGSL/archive/master.tar.gz
+wget -nc -O CythonGSL.tar.gz --no-check-certificate "${cython_gsl_url}"
 tar xf CythonGSL.tar.gz
 cd CythonGSL*
 export LD_LIBRARY_PATH="${gsl_dir}/lib:$LD_LIBRARY_PATH"
@@ -102,13 +175,13 @@ export LD_LIBRARY_PATH="${gsl_dir}/lib:$LD_LIBRARY_PATH"
 cd ..
 rm -rf CythonGSL*
 
-# Open MPI 1.8.3
+# Open MPI
 current_step="installation of Open MPI"
 printf "\n\e[1m\e[93mInstalling Open MPI\e[0m\n"
 mkdir "${openmpi_dir}"
 mkdir tmp
 cd tmp
-wget -nc -O openmpi.tar.bz2 --no-check-certificate http://www.open-mpi.org/software/ompi/v1.8/downloads/openmpi-1.8.3.tar.bz2
+wget -nc -O openmpi.tar.bz2 --no-check-certificate "${url}"
 tar xjf openmpi.tar.bz2
 cd openmpi*
 ./configure --prefix="${openmpi_dir}"
@@ -118,10 +191,10 @@ cp LICENSE README "${openmpi_dir}"
 cd ../../
 rm -rf tmp
 
-# The mpi4py 1.3.1 Python package (cannot use conda, as it installs an outdated version)
+# The mpi4py Python package (cannot use conda, as it installs an outdated version)
 current_step="installation of MPI4Py"
 printf "\n\e[1m\e[93mInstalling MPI4Py\e[0m\n"
-wget -nc -O mpi4py.tar.gz --no-check-certificate https://bitbucket.org/mpi4py/mpi4py/downloads/mpi4py-1.3.1.tar.gz
+wget -nc -O mpi4py.tar.gz --no-check-certificate "${mpi4py_url}"
 tar xf mpi4py.tar.gz
 cd mpi4py*
 export LD_LIBRARY_PATH="${openmpi_dir}/lib":"$LD_LIBRARY_PATH"
@@ -130,12 +203,12 @@ export MPICC="${openmpi_dir}/bin/mpicc"
 cd ..
 rm -rf mpi4py*
 
-# HDF5 (latest stable version)
+# HDF5
 current_step="installation of HDF5"
 printf "\n\e[1m\e[93mInstalling HDF5\e[0m\n"
 mkdir tmp
 cd tmp
-wget -nc -O hdf5.tar.bz2 --no-check-certificate ftp://ftp.hdfgroup.org/HDF5/current/src/hdf5*tar.bz2
+wget -nc -O hdf5.tar.bz2 --no-check-certificate "${hdf5_url}"
 tar xjf hdf5.tar.bz2
 cd hdf5*
 CC="${openmpi_dir}/bin/mpicc" ./configure --enable-shared --enable-parallel --prefix="${hdf5_dir}"
@@ -145,10 +218,10 @@ cp COPYING README.txt "${hdf5_dir}"
 cd ../../
 rm -rf tmp
 
-# The h5py 2.4.0 Python package (cannot use conda, as it does not install the parallel version)
+# The h5py Python package (cannot use conda, as it does not install the parallel version)
 current_step="installation of h5py"
 printf "\n\e[1m\e[93mInstalling h5py\e[0m\n"
-wget -nc -O h5py.tar.gz --no-check-certificate https://pypi.python.org/packages/source/h/h5py/h5py-2.4.0.tar.gz
+wget -nc -O h5py.tar.gz --no-check-certificate "${h5py_url}"
 tar xf h5py.tar.gz
 cd h5py*
 export CC="${openmpi_dir}/bin/mpicc"
@@ -158,12 +231,12 @@ export CC="${openmpi_dir}/bin/mpicc"
 cd ..
 rm -rf h5py*
 
-# FFTW 3.3.4
+# FFTW
 current_step="installation of FFTW"
 printf "\n\e[1m\e[93mInstalling FFTW\e[0m\n"
 mkdir tmp
 cd tmp
-wget -nc -O fftw.tar.gz http://www.fftw.org/fftw-3.3.4.tar.gz
+wget -nc -O fftw.tar.gz "${fftw_url}"
 tar xf fftw.tar.gz
 cd fftw*
 # Double-precision
@@ -178,7 +251,7 @@ rm -rf tmp
 # The CONCEPT code
 current_step="installation of CO\e[3mN\e[0m\e[1m\e[91mCEPT"
 printf "\n\e[1m\e[93mInstalling CO\e[3mN\e[0m\e[1m\e[93mCEPT\e[0m\n"
-wget -nc -O concept.tar.gz --no-check-certificate https://github.com/jmd-dk/concept/archive/master.tar.gz
+wget -nc -O concept.tar.gz --no-check-certificate "${concept_url}"
 tar xf concept.tar.gz
 rm concept.tar.gz
 mv concept-master/* "${top_dir}"  # This leaves the .paths file behind in the concept-master folder
@@ -188,10 +261,10 @@ rm -r concept-master
 current_step="creataion of the .paths file"
 printf "\nWriting paths to .paths\n"
 Gadget2_dir="${gadget_dir}/Gadget2"
-cython="${anaconda_dir}/bin/cython"
+cython="${miniconda_dir}/bin/cython"
 mpicc="${openmpi_dir}/bin/mpicc"
 mpiexec="${openmpi_dir}/bin/mpiexec"
-python_incl_m="${anaconda_dir}/include/python${python_version}m"
+python_incl_m="${miniconda_dir}/include/python${python_version}m"
 run="${concept_dir}/run"
 tests_dir="${concept_dir}/tests"
 echo "# This file contains absolute paths to directories and files used by the
@@ -205,8 +278,8 @@ echo "# This file contains absolute paths to directories and files used by the
 Gadget2_dir='${Gadget2_dir}'
 # Directory containing the CONCEPT source code
 concept_dir='${concept_dir}'
-# Directory of the Anaconda Python distribution
-anaconda_dir='${anaconda_dir}'
+# Directory of the Miniconda Python distribution
+mini_dir='${miniconda_dir}'
 # Directory of FFTW
 fftw_dir='${fftw_dir}'
 # Directory of FFTW2, used by GADGET
@@ -229,7 +302,7 @@ top_dir='${top_dir}'
 #########
 # The Python3 interpreter
 python='${python}'
-# The python3.xm file within the include directory of Anaconda
+# The python3.xm file within the include directory of Miniconda
 python_incl_m='${python_incl_m}'
 # The Cython executable
 cython='${cython}'
@@ -250,7 +323,7 @@ current_step="installation of FFTW2 used by GADGET"
 printf "\n\e[1m\e[93mInstalling FFTW2, used by GADGET\e[0m\n"
 mkdir tmp
 cd tmp
-wget -nc -O fftw.tar.gz http://www.fftw.org/fftw-2.1.5.tar.gz
+wget -nc -O fftw.tar.gz "${fftw_for_gadget_url}"
 tar xf fftw.tar.gz
 cd fftw*
 # Double-precision
@@ -271,7 +344,7 @@ current_step="installation of GADGET"
 printf "\n\e[1m\e[93mInstalling GADGET\e[0m\n"
 mkdir tmp
 cd tmp
-wget -nc -O gadget2.tar.gz http://www.mpa-garching.mpg.de/gadget/gadget-2.0.7.tar.gz
+wget -nc -O gadget2.tar.gz "${gadget_url}"
 tar xf gadget2.tar.gz
 mv Gadget*/* "${gadget_dir}"
 cd ..
@@ -280,7 +353,7 @@ rm -rf tmp
 # Copyright notice
 current_step="copyright notice"
 printf "\n\e[1m\e[93mCopyright notice\e[0m
-Anaconda, GSL, Open MPI, HDF5, FFTW and GADGET (along with its own
+Miniconda, GSL, Open MPI, HDF5, FFTW and GADGET (along with its own
 version of FFTW) has been installed into seperate folders in ${top_dir}.
 Any use of CO\e[3mN\e[0mCEPT must conform to the license terms of the
 above software. These can be found in their seperate installation
