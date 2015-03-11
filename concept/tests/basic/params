@@ -17,7 +17,8 @@ outputtimes = (1, )			# Times at which to dump snapshots to disk
 boxsize = 100*Mpc			# Linear size of the simulation box
 ewald_gridsize = 64			# Linear size of the grid of Ewald corrections
 PM_gridsize = 128			# Linear size of the grid used for the PM method
-softenings = {'dark matter': 30*kpc}
+softeningfactors = {'dark matter': 0.03}	# The amount of gravitational softening for each species
+Δt_factor = 0.01				# The maximum time step size
 
 # Cosmological parameters
 H0 = 70*km/s/Mpc			# The Hubble constant
@@ -78,6 +79,15 @@ use_Ewald = True
 # PM_gridsize
 #     Linear size of the mesh used for the PM method. There will then be a
 #     total of PM_gridsize**3 mesh points within the simulated box.
+# softeningfactors
+#     Dictionary mapping names of species to their respective gravitational
+#     softening. The values given correspond to radius of the softening
+#     Plummer sphere, in units of the mean interparticle
+#     distance (boxsize/N**(1/3)).
+# Δt_factor
+#     The time step size at any time, given in units of the instantaneous age
+#     of the universe.
+
 
 ###########################
 # Cosmological parameters #
