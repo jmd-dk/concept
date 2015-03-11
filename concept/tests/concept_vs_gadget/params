@@ -17,7 +17,8 @@ outputtimes = (float(loadtxt(paths['tests_dir'] + '/concept_vs_gadget/outputlist
 boxsize = 8*Mpc/0.7 # (Gadget implicitly uses length/h)	# Linear size of the simulation box
 ewald_gridsize = 64			# Linear size of the grid of Ewald corrections
 PM_gridsize = 8				# Linear size of the grid used for the PM method
-softenings = {'dark matter': 30*kpc}
+softeningfactors = {'dark matter': 0.03}	# The amount of gravitational softening for each species
+Δt_factor = 0.01				# The maximum time step size
 
 # Cosmological parameters
 H0 = 70*km/s/Mpc			# The Hubble constant
@@ -26,12 +27,12 @@ H0 = 70*km/s/Mpc			# The Hubble constant
 a_begin = 0.02				# Scale factor at beginning of simulation
 
 # Graphics
-framefolder = ''			# Folder to save frames
+framefolder = paths['tests_dir'] + '/concept_vs_gadget/output'			# Folder to save frames
 liveframe=''				# Filename of saved live frame
 image_format='png'			# The image format of the saved frames
 remote_liveframe=''			# Where to upload the live frame
 protocol = 'scp'			# Protocol for live frame file transfer
-framespace = 1				# The plot is updated every framespace time step
+framespace = 1000000000			# The plot is updated every framespace time step
 
 # Simulation options
 use_Ewald = True
@@ -54,7 +55,7 @@ use_Ewald = True
 # output_type
 #     Determines the type of the produced snapshots. Can be either 'standard'
 #     or 'GADGET 2', referring to the codes own HDF5 snapshot type and
-#     GADGET2's snapshot type 2, respectively.
+#     Gadget2's snapshot type 2, respectively.
 # snapshot_base
 #     File basename (prefix) for the produced snapshots. The snapshots will be
 #     named "snapshot_base"_0, "snapshot_base"_1, "snapshot_base"_2, ...
@@ -75,6 +76,15 @@ use_Ewald = True
 # PM_gridsize
 #     Linear size of the mesh used for the PM method. There will then be a
 #     total of PM_gridsize**3 mesh points within the simulated box.
+# softeningfactors
+#     Dictionary mapping names of species to their respective gravitational
+#     softening. The values given correspond to radius of the softening
+#     Plummer sphere, in units of the mean interparticle
+#     distance (boxsize/N**(1/3)).
+# Δt_factor
+#     The time step size at any time, given in units of the instantaneous age
+#     of the universe.
+
 
 ###########################
 # Cosmological parameters #

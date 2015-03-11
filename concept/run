@@ -358,11 +358,11 @@ else
         ((jobid += 1))
     done
     # Print start message
-    echo "" 2>&1 | tee "${this_dir}/logs/local_${jobid}"
+    echo ""
     if [ "${pure_python}" -eq 0 ] ; then
-        printf "\n\e[1m\e[93mRunning CO\e[3mN\e[0m\e[1m\e[93mCEPT\e[0m\n" 2>&1 | tee -a "${this_dir}/logs/local_${jobid}"
+        printf "\e[1m\e[93mRunning CO\e[3mN\e[0m\e[1m\e[93mCEPT\e[0m\n" 2>&1 | tee "${this_dir}/logs/local_${jobid}"
     else
-        printf "\n\e[1m\e[93mRunning CO\e[3mN\e[0m\e[1m\e[93mCEPT in pure Python mode\e[0m\n" 2>&1 | tee -a "${this_dir}/logs/local_${jobid}"
+        printf "\e[1m\e[93mRunning CO\e[3mN\e[0m\e[1m\e[93mCEPT in pure Python mode\e[0m\n" 2>&1 | tee "${this_dir}/logs/local_${jobid}"
     fi
     echo "Entry point:   ${main}" 2>&1 | tee -a "${this_dir}/logs/local_${jobid}"
     echo "Parameterfile: ${params}" 2>&1 | tee -a "${this_dir}/logs/local_${jobid}"

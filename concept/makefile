@@ -1,6 +1,6 @@
 # This is the makefile for the CONCEPT code. Preferebly you should not interact
 # with this file directly, but rather through the run script.
-# It is exspedted that you call this makefile with the paramsfile=paramfile option.
+# It is expected that you call this makefile with the paramsfile=paramfile option.
 # Otherwise $(params_default) will be used as parameterfile.
 
 # Use the bash shell rather than sh

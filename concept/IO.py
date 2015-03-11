@@ -114,7 +114,7 @@ def save_standard(particles, a, filename):
                N_locals='tuple',
                end_local='size_t',
                file_H0='double',
-               file_a='double',
+               #file_a='double',
                file_boxsize='double',
                file_Ωm='double',
                file_ΩΛ='double',
@@ -135,7 +135,7 @@ def load_standard(filename):
         for particle_type in all_particles:
             # Load global attributes
             file_H0 = hdf5_file.attrs['H0']
-            file_a = hdf5_file.attrs['a']
+            #file_a = hdf5_file.attrs['a']
             file_boxsize = hdf5_file.attrs['boxsize']
             file_Ωm = hdf5_file.attrs['\N{GREEK CAPITAL LETTER OMEGA}m']
             file_ΩΛ = hdf5_file.attrs['\N{GREEK CAPITAL LETTER OMEGA}'
@@ -144,13 +144,13 @@ def load_standard(filename):
             # current simulation run. Display a warning if they do not.
             tol = 1e-5
             if any([abs(file_param/param - 1) > tol for file_param, param
-                    in zip((file_a, file_boxsize, file_H0, file_Ωm, file_ΩΛ),
-                           (a_begin, boxsize, H0, Ωm, ΩΛ))]):
+                    in zip((file_boxsize, file_H0, file_Ωm, file_ΩΛ),
+                           (boxsize, H0, Ωm, ΩΛ))]):
                 msg = ('Mismatch between current parameters and those in the '
                        + 'snapshot "' + filename + '":')
-                if abs(file_a/a_begin - 1) > tol:
-                    msg += ('\n    a_begin: ' + str(a_begin)
-                            + ' vs ' + str(file_a))
+                #if abs(file_a/a_begin - 1) > tol:
+                #    msg += ('\n    a_begin: ' + str(a_begin)
+                #            + ' vs ' + str(file_a))
                 if abs(file_boxsize/boxsize - 1) > tol:
                     msg += ('\n    boxsize: ' + str(boxsize) + ' vs '
                             + str(file_boxsize) + ' (kpc)')

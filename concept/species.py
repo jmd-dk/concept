@@ -223,8 +223,9 @@ def construct(type_name, species_name, mass, N):
     particles.mass = mass
     particles.species = species_name
     particles.type = type_name
-    if species_name in softenings:
-        particles.softening = softenings[species_name]
+    if species_name in softeningfactors:
+        particles.softening = (softeningfactors[species_name]
+                               *boxsize/(N**one_third))
     else:
         raise ValueError('Species "' + species_name
                          + '" do not have an assigned softening length!')
@@ -269,9 +270,11 @@ def construct_random(type_name, species_name, N):
                           N=N,
                           )
     # Populate the Particles instance with random data
+    particles.populate(zeros(N_local), 'acc')
     particles.populate(random(N_local)*boxsize, 'posx')
     particles.populate(random(N_local)*boxsize, 'posy')
     particles.populate(random(N_local)*boxsize, 'posz')
+    particles.populate(zeros(N_local, dtype='int32'), 'rung')
     particles.populate((2*random(N_local) - 1)*mom_max, 'momx')
     particles.populate((2*random(N_local) - 1)*mom_max, 'momy')
     particles.populate((2*random(N_local) - 1)*mom_max, 'momz')

@@ -107,8 +107,8 @@ GravityConstantInternal  0
 
 MinGasHsmlFractional 0.25
 
-SofteningGas       30.0
-SofteningHalo      30.0
+SofteningGas       240.0
+SofteningHalo      240.0
 SofteningDisk      0
 SofteningBulge     0           
 SofteningStars     0

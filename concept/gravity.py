@@ -115,6 +115,8 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
         yi = posy_i[i]
         zi = posz_i[i]
         for j in range(0 if (flag_input > 0) else (i + 1), N_local_j):
+            # Skip the force computation if neither particle i nor particle j
+            # should be kicked
             x = posx_j[j] - xi
             y = posy_j[j] - yi
             z = posz_j[j] - zi
@@ -152,10 +154,10 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
             force[0] *= eom_factor
             force[1] *= eom_factor
             force[2] *= eom_factor
-            # Update momenta for group i and momentum changes for group j
+            # Update momenta and momentum changes
             if flag_input == 0:
-                # Group i and j are the same.
-                # Update momenta of both particles in the pair
+                # Group i and j are the same (and belongs to the local domain).
+                # Update momenta of both particles in the pair.
                 momx_i[i] -= force[0]
                 momy_i[i] -= force[1]
                 momz_i[i] -= force[2]
@@ -238,78 +240,76 @@ def PP(particles, Δt):
                      vector_mw, vector_mw, vector_mw,
                      mass, N_local,
                      Δt, softening2)
-    # All work done if only one domain exists
-    if nprocs == 1:
-        return
-    # Update local momenta and compute and send external momentum changes
-    # due to forces between local and external particles.
-    # Find out how many particles will be recieved from each process
-    N_extrns = find_N_recv(array([N_local], dtype='uintp'))
-    N_extrn_max = N_extrns[rank]
-    # Allocate position recieve buffers and momentum change buffers
-    posx_extrn = empty(N_extrn_max)
-    posy_extrn = empty(N_extrn_max)
-    posz_extrn = empty(N_extrn_max)
-    Δmomx_local = empty(N_local)
-    Δmomy_local = empty(N_local)
-    Δmomz_local = empty(N_local)
-    Δmomx_extrn = zeros(N_extrn_max)
-    Δmomy_extrn = zeros(N_extrn_max)
-    Δmomz_extrn = zeros(N_extrn_max)
-    # Number of pairs of process partners to send/recieve data to/from
-    even_nprocs = not (nprocs % 2)
-    flag_input = 1
-    N_partnerproc_pairs = 1 + nprocs//2
-    N_partnerproc_pairs_minus_1 = N_partnerproc_pairs - 1
-    for j in range(1, N_partnerproc_pairs):
-        # Process ranks to send/recieve to/from
-        ID_send = ((rank + j) % nprocs)
-        ID_recv = ((rank - j) % nprocs)
-        N_extrn = N_extrns[ID_recv]
-        # Send and recieve positions
-        Sendrecv(posx_local[:N_local], dest=ID_send,
-                 recvbuf=posx_extrn, source=ID_recv)
-        Sendrecv(posy_local[:N_local], dest=ID_send,
-                 recvbuf=posy_extrn, source=ID_recv)
-        Sendrecv(posz_local[:N_local], dest=ID_send,
-                 recvbuf=posz_extrn, source=ID_recv)
-        # In the end in the case of even nprocs, a single (not a pair)
-        # process remains. Flag to compute momenta for local particles
-        # only, as the results will not be sent afterwards.
-        if even_nprocs and j == N_partnerproc_pairs_minus_1:
-            flag_input = 2
-        # Do direct summation between local and external particles
-        direct_summation(posx_local, posy_local, posz_local,
-                         momx_local, momy_local, momz_local,
-                         mass, N_local,
-                         posx_extrn, posy_extrn, posz_extrn,
-                         Δmomx_extrn, Δmomy_extrn, Δmomz_extrn,
-                         mass, N_extrn,
-                         Δt, softening2, flag_input=flag_input)
-        # When flag_input == 2, no momentum updates has been computed.
-        # Do not sent or recieve these noncomputed updates.
-        if flag_input == 2:
-            return
-        # Send momentum updates back to the process from which positions
-        # were recieved. Recieve momentum updates from the process which
-        # the local positions were send to.
-        Sendrecv(Δmomx_extrn[:N_extrn], dest=ID_recv,
-                 recvbuf=Δmomx_local, source=ID_send)
-        Sendrecv(Δmomy_extrn[:N_extrn], dest=ID_recv,
-                 recvbuf=Δmomy_local, source=ID_send)
-        Sendrecv(Δmomz_extrn[:N_extrn], dest=ID_recv,
-                 recvbuf=Δmomz_local, source=ID_send)
-        # Apply local momentum updates recieved from other process
-        for i in range(N_local):
-            momx_local[i] += Δmomx_local[i]
-            momy_local[i] += Δmomy_local[i]
-            momz_local[i] += Δmomz_local[i]
-        # Reset external momentum change buffers
-        if j != N_partnerproc_pairs_minus_1:
-            for i in range(N_extrns[((rank - j - 1) % nprocs)]):
-                Δmomx_extrn[i] = 0
-                Δmomy_extrn[i] = 0
-                Δmomz_extrn[i] = 0
+    # All work done if only one domain exists (if run on a single process)
+    if nprocs != 1:
+        # Update local momenta and compute and send external momentum changes
+        # due to forces between local and external particles.
+        # Find out how many particles will be recieved from each process
+        N_extrns = find_N_recv(array([N_local], dtype='uintp'))
+        N_extrn_max = N_extrns[rank]
+        # Allocate position recieve buffers and momentum change buffers
+        posx_extrn = empty(N_extrn_max)
+        posy_extrn = empty(N_extrn_max)
+        posz_extrn = empty(N_extrn_max)
+        Δmomx_local = empty(N_local)
+        Δmomy_local = empty(N_local)
+        Δmomz_local = empty(N_local)
+        Δmomx_extrn = zeros(N_extrn_max)
+        Δmomy_extrn = zeros(N_extrn_max)
+        Δmomz_extrn = zeros(N_extrn_max)
+        # Number of pairs of process partners to send/recieve data to/from
+        even_nprocs = not (nprocs % 2)
+        flag_input = 1
+        N_partnerproc_pairs = 1 + nprocs//2
+        N_partnerproc_pairs_minus_1 = N_partnerproc_pairs - 1
+        for j in range(1, N_partnerproc_pairs):
+            # Process ranks to send/recieve to/from
+            ID_send = ((rank + j) % nprocs)
+            ID_recv = ((rank - j) % nprocs)
+            N_extrn = N_extrns[ID_recv]
+            # Send and recieve positions
+            Sendrecv(posx_local[:N_local], dest=ID_send,
+                     recvbuf=posx_extrn, source=ID_recv)
+            Sendrecv(posy_local[:N_local], dest=ID_send,
+                     recvbuf=posy_extrn, source=ID_recv)
+            Sendrecv(posz_local[:N_local], dest=ID_send,
+                     recvbuf=posz_extrn, source=ID_recv)
+            # In the end in the case of even nprocs, a single (not a pair)
+            # process remains. Flag to compute momenta for local particles
+            # only, as the results will not be sent afterwards.
+            if even_nprocs and j == N_partnerproc_pairs_minus_1:
+                flag_input = 2
+            # Do direct summation between local and external particles
+            direct_summation(posx_local, posy_local, posz_local,
+                             momx_local, momy_local, momz_local,
+                             mass, N_local,
+                             posx_extrn, posy_extrn, posz_extrn,
+                             Δmomx_extrn, Δmomy_extrn, Δmomz_extrn,
+                             mass, N_extrn,
+                             Δt, softening2, flag_input=flag_input)
+            # When flag_input == 2, no momentum updates has been computed.
+            # Do not sent or recieve these noncomputed updates.
+            if flag_input != 2:
+                # Send momentum updates back to the process from which
+                # positions were recieved. Recieve momentum updates from the
+                # process which the local positions were send to.
+                Sendrecv(Δmomx_extrn[:N_extrn], dest=ID_recv,
+                         recvbuf=Δmomx_local, source=ID_send)
+                Sendrecv(Δmomy_extrn[:N_extrn], dest=ID_recv,
+                         recvbuf=Δmomy_local, source=ID_send)
+                Sendrecv(Δmomz_extrn[:N_extrn], dest=ID_recv,
+                         recvbuf=Δmomz_local, source=ID_send)
+                # Apply local momentum updates recieved from other process
+                for i in range(N_local):
+                    momx_local[i] += Δmomx_local[i]
+                    momy_local[i] += Δmomy_local[i]
+                    momz_local[i] += Δmomz_local[i]
+                # Reset external momentum change buffers
+                if j != N_partnerproc_pairs_minus_1:
+                    for i in range(N_extrns[((rank - j - 1) % nprocs)]):
+                        Δmomx_extrn[i] = 0
+                        Δmomy_extrn[i] = 0
+                        Δmomz_extrn[i] = 0
 
 
 # Function for computing the gravitational force by the particle mesh method
