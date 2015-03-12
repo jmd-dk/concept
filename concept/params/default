@@ -16,7 +16,7 @@ outputtimes = (1, )				# Times at which to dump snapshots to disk
 # Numerical parameters
 boxsize = 16/0.7*Mpc				# Linear size of the simulation box
 ewald_gridsize = 64				# Linear size of the grid of Ewald corrections
-PM_gridsize = 128				# Linear size of the grid used for the PM method
+PM_gridsize = 4				# Linear size of the grid used for the PM method
 softeningfactors = {'dark matter': 0.03}	# The amount of gravitational softening for each species
 Δt_factor = 0.01				# The maximum time step size
 
