@@ -346,7 +346,7 @@ cd \"${this_dir}/logs\"
     echo "You can now kill (Ctrl-C) this script without cancelling the job"
     # Call the watch script so we can follow the output of the run
     trap : 0
-    "${this_dir}/watch" "${jobid}"
+    "${this_dir}/utilities/watch" "${jobid}"
 else
     # Run locally
     # Construct a jobid that does not conflict with the content of the logs dir
