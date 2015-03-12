@@ -338,23 +338,33 @@ def PM(particles, Δt):
     # Interpolate particle masses to meshpoints
     #CIC_coordinates2grid(PM_grid, particles)
 
+    for i in range(PM_gridsize_local_x):
+        for j in range(PM_gridsize):
+            for k in range(PM_gridsize):
+                PM_grid[i, j, k] = 1.2*i + 0.7*j + 1.7*k + 0.3 + 0.7*i*sqrt(j + 1)*k*k
+    print('Normalt rum:')
+    print(array(PM_grid))
+
     # Fourier transform the grid forwards to Fourier space
     fftw_execute(plan_forward)
-
 
     #for i in range(PM_gridsize):
     #    for j in range(PM_gridsize_local_y):
     #        for k in range(PM_gridsize):
     #            PM_grid[j, i, k] *= i**2 + (j + PM_gridstart_local_y)**2 + k**2
 
+    print('Fourier-rum:')
+    print(array(PM_grid))
+
     # Fourier transform the grid back to real space
     fftw_execute(plan_backward)
-
     for i in range(PM_gridsize_local_x):
         for j in range(PM_gridsize):
             for k in range(PM_gridsize):
                 PM_grid[i, j, k] /= PM_gridsize3
 
+    print('Normalt rum igen')
+    print(array(PM_grid))
 
 
     # multiply by the Greens function and the
@@ -473,7 +483,7 @@ if use_PM:
         PM_gridsize_local_y = fftw_struct.gridsize_local_y
         PM_gridstart_local_x = fftw_struct.gridstart_local_x
         PM_gridstart_local_y = fftw_struct.gridstart_local_y
-        # Wrap a memryview around the grid. Loop as noted in fft.c, but use
+        # Wrap a memoryview around the grid. Loop as noted in fft.c, but use
         # PM_grid[i, j, k] when in real space and PM_grid[j, i, k] when in
         # Fourier space
         if PM_gridsize_local_x > 0:

@@ -11,7 +11,7 @@ else:
     from gravity cimport PP, PM
     """
 
-
+# Hej Peter
 # The class representing a collection of particles of a given type
 @cython.cclass
 class Particles:
