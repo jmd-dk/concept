@@ -32,7 +32,7 @@ a = zeros(N_snapshots)
 x = zeros(N_snapshots)
 x_std = zeros(N_snapshots)
 for i in range(N_snapshots):
-    snapshot.load(paths['tests_dir'] + '/drift/output/snapshot_' + str(i))
+    snapshot.load(this_dir + '/output/snapshot_' + str(i))
     a[i] = snapshot.header['Time']
     x[i] = np.mean(snapshot.particles.posx)
     x_std[i] = np.std(snapshot.particles.posx)
@@ -42,13 +42,13 @@ a_gadget = zeros(N_snapshots)
 x_gadget = zeros(N_snapshots)
 x_std_gadget = zeros(N_snapshots)
 for i in range(N_snapshots):
-    snapshot.load(paths['tests_dir'] + '/drift/output/snapshot_gadget_' + '0'*(3-len(str(i))) + str(i))
+    snapshot.load(this_dir + '/output/snapshot_gadget_' + '0'*(3-len(str(i))) + str(i))
     a_gadget[i] = snapshot.header['Time']
     x_gadget[i] = np.mean(snapshot.particles.posx)
     x_std_gadget[i] = np.std(snapshot.particles.posx)
 
 # Plot
-fig_file = paths['tests_dir'] + '/drift/result.pdf'
+fig_file = this_dir + '/result.pdf'
 plt.text(0.5*max(a), 0.93*boxsize, r'$\uparrow$ End of simulation box $\uparrow$', ha='center')
 plt.errorbar(a, x/units.kpc, yerr=x_std/units.kpc, fmt='-sr', label='CO$N$CEPT')
 plt.errorbar(a_gadget, x_gadget/units.kpc, yerr=x_std_gadget/units.kpc, fmt='--*b', label='GADGET')

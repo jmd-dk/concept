@@ -25,8 +25,10 @@ from os.path import basename
 
 # Setting up figure and plot the particles
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Arguments
                particles='Particles',
@@ -45,7 +47,7 @@ from os.path import basename
                )
 def animate(particles, timestep, a, a_snapshot):
     global artist, upload_liveframe, ax
-    if not visualize or ((timestep % framespace) and a != a_snapshot):
+    if not visualize or (timestep % framespace and a != a_snapshot):
         return
     N = particles.N
     N_local = particles.N_local
@@ -183,8 +185,10 @@ def animate(particles, timestep, a, a_snapshot):
 # This function formats a floating point number f to only
 # have n significant figures.
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Arguments
                f='double',
@@ -248,8 +252,10 @@ def significant_figures(f, n, just=0, scientific=False):
 
 # This function pretty prints information gathered through a time step
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Arguments
                timestep='int',

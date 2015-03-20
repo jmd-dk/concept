@@ -30,4 +30,3 @@ km = 1e+3*m
 s = yr/31557600  # Here yr is supposed to be a Julian year
 kg = m_sun/1.989e+30
 g = 1e-3*kg
-

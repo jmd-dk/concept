@@ -5,34 +5,29 @@ from commons import *
 # Seperate but equivalent imports in pure Python and Cython
 if not cython.compiled:
     from species import construct
-    from communication import exchange_all
+    from communication import exchange
 else:
     # Lines in triple quotes will be executed in the .pyx file.
     """
     from species cimport construct
-    from communication cimport exchange_all
+    from communication cimport exchange
     """
 
 # Imports and definitions common to pure Python and Cython
 import struct
-import sys
 
 
 # Function that saves particle data to an hdf5 file
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Argument
                particles='Particles',
                a='double',
                filename='str',
-               # Locals
-               N='size_t',
-               N_local='size_t',
-               N_locals='size_t[::1]',
-               end_local='size_t',
-               start_local='size_t',
                )
 def save(particles, a, filename):
     if output_type_fmt == 'standard':
@@ -40,12 +35,15 @@ def save(particles, a, filename):
     elif output_type_fmt == 'gadget2':
         save_gadget(particles, a, filename)
     else:
-        raise Exception('Error: Does not recognize output type "' + output_type + '".')
+        raise Exception('Error: Does not recognize output type "'
+                        + output_type + '".')
 
 # Function that saves particle data to an hdf5 file
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Argument
                particles='Particles',
@@ -103,8 +101,10 @@ def save_standard(particles, a, filename):
 # Function that loads particle data from an hdf5 file and instantiate a
 # Particles instance on each process, storing the particles within its domain.
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Argument
                filename='str',
@@ -181,7 +181,7 @@ def load_standard(filename):
             N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
                         + (N//nprocs + 1, )*(N % nprocs))
             N_local = N_locals[rank]
-            start_local = sum(N_locals[:rank])
+            start_local = np.sum(N_locals[:rank])
             end_local = start_local + N_local
             # In pure Python, the indices must be Python integers
             if not cython.compiled:
@@ -200,9 +200,6 @@ def load_standard(filename):
             particles.populate(momx_h5[start_local:end_local], 'momx')
             particles.populate(momy_h5[start_local:end_local], 'momy')
             particles.populate(momz_h5[start_local:end_local], 'momz')
-    # Scatter particles to the correct domain-specific process
-    exchange_all(particles)
-
     # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     # THE PARTICLES VARIABLE SHOULD BE A TUPLE OF PARTICLES OR SOMETHING
     # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -211,13 +208,16 @@ def load_standard(filename):
 # Function that loads particle data from an hdf5 file and instantiate a
 # Particles instance on each process, storing the particles within its domain.
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Argument
                filename='str',
                # Locals
                input_type='str',
+               particles='Particles',
                )
 @cython.returns('Particles')
 def load(filename):
@@ -227,15 +227,23 @@ def load(filename):
     with open(filename, 'rb') as f:
         try:
             f.seek(4)
-            if struct.unpack('4s', f.read(struct.calcsize('4s')))[0] == b'HEAD':
+            if struct.unpack('4s',
+                             f.read(struct.calcsize('4s')))[0] == b'HEAD':
                 input_type = 'GADGET 2'
         except:
             pass
     # Dispatches the work to the appropriate function
     if input_type == 'standard':
-        return load_standard(filename)
+        particles = load_standard(filename)
     elif input_type == 'GADGET 2':
-        return load_gadget(filename)
+        particles = load_gadget(filename)
+    # Scatter particles to the correct domain-specific process.
+    # Setting reset_indices_send == True ensures that buffers will be reset
+    # afterwards, as this initial exchange is not representable for those
+    # to come.
+    exchange(particles, reset_buffers=True)
+    return particles
+
 
 @cython.cclass
 class Gadget_snapshot:
@@ -244,8 +252,9 @@ class Gadget_snapshot:
 
     # Initialization method.
     # Note that data attributes are declared in the .pxd file.
-    @cython.cdivision(True)
     @cython.boundscheck(False)
+    @cython.cdivision(True)
+    @cython.initializedcheck(False)
     @cython.wraparound(False)
     def __init__(self):
         self.header = {}
@@ -253,8 +262,10 @@ class Gadget_snapshot:
     # This method populate the snapshot with particle data as well as ID's
     # (which are not used by this code) and additional header information.
     @cython.cfunc
-    @cython.cdivision(True)
+    @cython.inline
     @cython.boundscheck(False)
+    @cython.cdivision(True)
+    @cython.initializedcheck(False)
     @cython.wraparound(False)
     @cython.locals(# Arguments
                    particles='Particles',
@@ -311,8 +322,10 @@ class Gadget_snapshot:
 
     # Method for saving a GADGET snapshot of type 2 to disk
     @cython.cfunc
-    @cython.cdivision(True)
+    @cython.inline
     @cython.boundscheck(False)
+    @cython.cdivision(True)
+    @cython.initializedcheck(False)
     @cython.wraparound(False)
     @cython.locals(# Arguments
                    filename='str',
@@ -326,12 +339,15 @@ class Gadget_snapshot:
         dark matter particles, are supported.
         """
         N = self.header['Nall'][1]
+        N_local = self.particles.N_local
         # The master process write the HEAD block
         if master:
             with open(filename, 'wb') as f:
-                f.write(struct.pack('i', 8))  # 8 = 4*1 + 4 = 4*sizeof(s) + sizeof(i)
+                # 8 = 4*1 + 4 = 4*sizeof(s) + sizeof(i)
+                f.write(struct.pack('i', 8))
                 f.write(struct.pack('4s', b'HEAD'))
-                f.write(struct.pack('i', 4 + 256 + 4))  # sizeof(i) + 256 + sizeof(i)
+                # sizeof(i) + 256 + sizeof(i)
+                f.write(struct.pack('i', 4 + 256 + 4))
                 f.write(struct.pack('i', 8))
                 f.write(struct.pack('i', 256))
                 f.write(struct.pack('6I', *self.header['Npart']))
@@ -351,7 +367,8 @@ class Gadget_snapshot:
                 f.write(struct.pack('i', self.header['FlagMetals']))
                 f.write(struct.pack('6i', *self.header['NallHW']))
                 f.write(struct.pack('i', self.header['flag_entr_ics']))
-                f.write(struct.pack('60s', b' '*60))  # Padding to fill out the 256 bytes
+                # Padding to fill out the 256 bytes
+                f.write(struct.pack('60s', b' '*60))
                 f.write(struct.pack('i', 256))
         # Write the POS block in serial, one process at a time
         unit = units.kpc/self.header['HubbleParam']
@@ -361,15 +378,18 @@ class Gadget_snapshot:
                 with open(filename, 'ab') as f:
                     # The identifier
                     if i == 0:
-                        f.write(struct.pack('i', 8))  # 8 = 4*1 + 4 = 4*sizeof(s) + sizeof(i)
+                        # 8 = 4*1 + 4 = 4*sizeof(s) + sizeof(i)
+                        f.write(struct.pack('i', 8))
                         f.write(struct.pack('4s', b'POS '))
-                        f.write(struct.pack('i', 4 + 3*N*4 + 4))  # sizeof(i) + 3*N*sizeof(f) + sizeof(i)
+                        # sizeof(i) + 3*N*sizeof(f) + sizeof(i)
+                        f.write(struct.pack('i', 4 + 3*N*4 + 4))
                         f.write(struct.pack('i', 8))
                         f.write(struct.pack('i', 3*N*4))
                     # The data
-                    (asarray(np.vstack((self.particles.posx_mw,
-                                        self.particles.posy_mw,
-                                        self.particles.posz_mw)).T.flatten(),
+                    (asarray(np.vstack((self.particles.posx_mw[:N_local],
+                                        self.particles.posy_mw[:N_local],
+                                        self.particles.posz_mw[:N_local])
+                                       ).T.flatten(),
                              dtype='float32')/unit).tofile(f)
                     # The closing int
                     if i == (nprocs - 1):
@@ -382,15 +402,18 @@ class Gadget_snapshot:
                 with open(filename, 'ab') as f:
                     # The identifier
                     if i == 0:
-                        f.write(struct.pack('i', 8))  # 8 = 4*1 + 4 = 4*sizeof(s) + sizeof(i)
+                        # 8 = 4*1 + 4 = 4*sizeof(s) + sizeof(i)
+                        f.write(struct.pack('i', 8))
                         f.write(struct.pack('4s', b'VEL '))
-                        f.write(struct.pack('i', 4 + 3*N*4 + 4))  # sizeof(i) + 3*N*sizeof(f) + sizeof(i)
+                        # sizeof(i) + 3*N*sizeof(f) + sizeof(i)
+                        f.write(struct.pack('i', 4 + 3*N*4 + 4))
                         f.write(struct.pack('i', 8))
                         f.write(struct.pack('i', 3*N*4))
                     # The data
-                    (asarray(np.vstack((self.particles.momx_mw,
-                                        self.particles.momy_mw,
-                                        self.particles.momz_mw)).T.flatten(),
+                    (asarray(np.vstack((self.particles.momx_mw[:N_local],
+                                        self.particles.momy_mw[:N_local],
+                                        self.particles.momz_mw[:N_local])
+                                       ).T.flatten(),
                              dtype='float32')/unit).tofile(f)
                     # The closing int
                     if i == (nprocs - 1):
@@ -402,9 +425,11 @@ class Gadget_snapshot:
                 with open(filename, 'ab') as f:
                     # The identifier
                     if i == 0:
-                        f.write(struct.pack('i', 8))  # 8 = 4*1 + 4 = 4*sizeof(s) + sizeof(i)
+                        # 8 = 4*1 + 4 = 4*sizeof(s) + sizeof(i)
+                        f.write(struct.pack('i', 8))
                         f.write(struct.pack('4s', b'ID  '))
-                        f.write(struct.pack('i', 4 + N*4 + 4))  # sizeof(i) + N*sizeof(I) + sizeof(i)
+                        # sizeof(i) + N*sizeof(I) + sizeof(i)
+                        f.write(struct.pack('i', 4 + N*4 + 4))
                         f.write(struct.pack('i', 8))
                         f.write(struct.pack('i', N*4))
                     # The data
@@ -415,8 +440,10 @@ class Gadget_snapshot:
 
     # Method for loading in a GADGET snapshot of type 2 from disk
     @cython.cfunc
-    @cython.cdivision(True)
+    @cython.inline
     @cython.boundscheck(False)
+    @cython.cdivision(True)
+    @cython.initializedcheck(False)
     @cython.wraparound(False)
     @cython.locals(# Arguments
                    filename='str',
@@ -510,7 +537,7 @@ class Gadget_snapshot:
             N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
                         + (N//nprocs + 1, )*(N % nprocs))
             N_local = N_locals[rank]
-            start_local = sum(N_locals[:rank])
+            start_local = np.sum(N_locals[:rank])
             # In pure Python, the index must be a Python integer
             if not cython.compiled:
                 start_local = int(start_local)
@@ -591,10 +618,13 @@ class Gadget_snapshot:
 
     # Method used for reading series of bytes from the snapshot file
     @cython.cfunc
-    @cython.cdivision(True)
+    @cython.inline
     @cython.boundscheck(False)
+    @cython.cdivision(True)
+    @cython.initializedcheck(False)
     @cython.wraparound(False)
     @cython.locals(# Arguments
+                   f='object',  # io.TextIOWrapper instance
                    fmt='str',
                    # Locals
                    t='tuple',
@@ -612,8 +642,10 @@ class Gadget_snapshot:
     # Method that handles the file object's position in the snapshot file
     # during loading. Call it when the next block should be read.
     @cython.cfunc
-    @cython.cdivision(True)
+    @cython.inline
     @cython.boundscheck(False)
+    @cython.cdivision(True)
+    @cython.initializedcheck(False)
     @cython.wraparound(False)
     @cython.locals(# Argments
                    offset='size_t',
@@ -627,11 +659,12 @@ class Gadget_snapshot:
         offset += 8 + self.read(f, 'i')
         return offset
 
-
 # Function for loading a GADGET snapshot into a Particles instance
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Arguments
                filename='str',
@@ -649,8 +682,10 @@ def load_gadget(filename):
 
 # Function for saving the current state as a GADGET snapshot
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Arguments
                particles='Particles',
@@ -679,4 +714,3 @@ output_type_fmt = output_type.lower().replace(' ', '')
 # If output_dir does not exist, create it
 if master and not os.path.exists(output_dir):
     os.makedirs(output_dir)
-

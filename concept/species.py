@@ -5,13 +5,14 @@ from commons import *
 # Seperate but equivalent imports in pure Python and Cython
 if not cython.compiled:
     from gravity import PP, PM
+    from communication import exchange
 else:
     # Lines in triple quotes will be executed in the .pyx file.
     """
     from gravity cimport PP, PM
+    from communication cimport exchange
     """
 
-# Hej Peter
 # The class representing a collection of particles of a given type
 @cython.cclass
 class Particles:
@@ -26,8 +27,9 @@ class Particles:
 
     # Initialization method.
     # Note that data attributes are declared in the .pxd file.
-    @cython.cdivision(True)
     @cython.boundscheck(False)
+    @cython.cdivision(True)
+    @cython.initializedcheck(False)
     @cython.wraparound(False)
     @cython.locals(# Arguments
                    N='size_t',
@@ -61,8 +63,10 @@ class Particles:
     # attribute. You should consruct the mw array within the call itself,
     # as this will minimize memory usage.
     @cython.cfunc
-    @cython.cdivision(True)
+    @cython.inline
     @cython.boundscheck(False)
+    @cython.cdivision(True)
+    @cython.initializedcheck(False)
     @cython.wraparound(False)
     @cython.locals(# Arguments
                    mw='double[::1]',
@@ -102,33 +106,38 @@ class Particles:
     # This method will grow/shrink the data attributes.
     # Note that it will not update the N_local attribute.
     @cython.cfunc
-    @cython.cdivision(True)
+    @cython.inline
     @cython.boundscheck(False)
+    @cython.cdivision(True)
+    @cython.initializedcheck(False)
     @cython.wraparound(False)
     @cython.locals(# Arguments
                    N_allocated='size_t',
                    )
     def resize(self, N_allocated):
-        self.N_allocated = N_allocated
-        # Reallocate data
-        self.posx = realloc(self.posx, self.N_allocated*sizeof('double'))
-        self.posy = realloc(self.posy, self.N_allocated*sizeof('double'))
-        self.posz = realloc(self.posz, self.N_allocated*sizeof('double'))
-        self.momx = realloc(self.momx, self.N_allocated*sizeof('double'))
-        self.momy = realloc(self.momy, self.N_allocated*sizeof('double'))
-        self.momz = realloc(self.momz, self.N_allocated*sizeof('double'))
-        # Reassign memory views
-        self.posx_mw = cast(self.posx, 'double[:self.N_allocated]')
-        self.posy_mw = cast(self.posy, 'double[:self.N_allocated]')
-        self.posz_mw = cast(self.posz, 'double[:self.N_allocated]')
-        self.momx_mw = cast(self.momx, 'double[:self.N_allocated]')
-        self.momy_mw = cast(self.momy, 'double[:self.N_allocated]')
-        self.momz_mw = cast(self.momz, 'double[:self.N_allocated]')
+        if N_allocated != self.N_allocated:
+            self.N_allocated = N_allocated
+            # Reallocate data
+            self.posx = realloc(self.posx, self.N_allocated*sizeof('double'))
+            self.posy = realloc(self.posy, self.N_allocated*sizeof('double'))
+            self.posz = realloc(self.posz, self.N_allocated*sizeof('double'))
+            self.momx = realloc(self.momx, self.N_allocated*sizeof('double'))
+            self.momy = realloc(self.momy, self.N_allocated*sizeof('double'))
+            self.momz = realloc(self.momz, self.N_allocated*sizeof('double'))
+            # Reassign memory views
+            self.posx_mw = cast(self.posx, 'double[:self.N_allocated]')
+            self.posy_mw = cast(self.posy, 'double[:self.N_allocated]')
+            self.posz_mw = cast(self.posz, 'double[:self.N_allocated]')
+            self.momx_mw = cast(self.momx, 'double[:self.N_allocated]')
+            self.momy_mw = cast(self.momy, 'double[:self.N_allocated]')
+            self.momz_mw = cast(self.momz, 'double[:self.N_allocated]')
 
     # Method for integrating particle positions forward in time
     @cython.cfunc
-    @cython.cdivision(True)
+    @cython.inline
     @cython.boundscheck(False)
+    @cython.cdivision(True)
+    @cython.initializedcheck(False)
     @cython.wraparound(False)
     @cython.locals(# Arguments
                    Δt='double',
@@ -160,14 +169,19 @@ class Particles:
             posy[i] += momy[i]*fac
             posz[i] += momz[i]*fac
             # Toroidal boundaries
-            posx[i] %= boxsize
-            posy[i] %= boxsize
-            posz[i] %= boxsize
+            posx[i] = mod(posx[i], boxsize)
+            posy[i] = mod(posy[i], boxsize)
+            posz[i] = mod(posz[i], boxsize)
+        # Some partiles may have drifted out of the local domain.
+        # Exchange particles to the correct processes.
+        exchange(self)
 
     # Method for updating particle momenta
     @cython.cfunc
-    @cython.cdivision(True)
+    @cython.inline
     @cython.boundscheck(False)
+    @cython.cdivision(True)
+    @cython.initializedcheck(False)
     @cython.wraparound(False)
     @cython.locals(# Arguments
                    Δt='double',
@@ -177,7 +191,7 @@ class Particles:
         """
         # Delegate the work to the appropriate function based on species
         if self.species == 'dark matter':
-            PP(self, Δt)  # or PM(self, Δt)
+            PP(self, Δt)
         elif self.species == 'dark energy':
             # NOT YET IMPLEMENTED
             pass
@@ -204,8 +218,10 @@ class Particles:
 
 # Constructor function for Particles instances
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Argument
                type_name='str',
@@ -236,8 +252,10 @@ def construct(type_name, species_name, mass, N):
 # positions, momenta and masses. The particle data is
 # scattered fair among the processes.
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Argument
                type_name='str',

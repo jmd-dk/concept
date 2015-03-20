@@ -5,16 +5,16 @@ from commons import *
 # Seperate but equivalent imports in pure Python and Cython
 if not cython.compiled:
     from ewald import ewald
-    from communication import find_N_recv
-    from mesh import CIC_coordinates2grid
+    from communication import cutout_domains, find_N_recv
+    from mesh import CIC_particles2grid
     # FFT functionality via Numpy
     from numpy.fft import rfftn, irfftn
 else:
     # Lines in triple quotes will be executed in the .pyx file.
     """
     from ewald cimport ewald
-    from communication cimport find_N_recv
-    from mesh cimport CIC_coordinates2grid
+    from communication cimport cutout_domains, find_N_recv
+    from mesh cimport CIC_particles2grid
     # FFT functionality via FFTW from fft.c
     cdef extern from "fft.c":
         # The fftw_plan type
@@ -43,8 +43,10 @@ else:
 # Function for direct summation of gravitational forces between particles
 # in two domains.
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Arguments
                posx_i='double[::1]',
@@ -67,7 +69,9 @@ else:
                eom_factor='double',
                force='double*',
                i='size_t',
+               i_end='size_t',
                j='size_t',
+               j_start='size_t',
                r3='double',
                softening2='double',
                x='double',
@@ -79,6 +83,7 @@ else:
                Δmomx_j='double[::1]',
                Δmomy_j='double[::1]',
                Δmomz_j='double[::1]',
+               N_tot='size_t',
                )
 def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
                      mass_i, N_local_i,
@@ -101,7 +106,6 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
     momentum changes of set j.
     Note that the time step size Δt is really ∫_t^(t + Δt) dt/a.
     """
-
     # The factor (G*m_i*m_j*∫_t^(t + Δt) dt/a) in the
     # comoving equations of motion
     # p_i --> p_i + ∫_t^(t + Δt) F/a*dt = p_i + m_i*F*∫_t^(t + Δt) dt/a
@@ -110,11 +114,14 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
     eom_factor = G_Newton*mass_i*mass_j*Δt
     # Direct summation
     force = vector
-    for i in range(0, N_local_i if (flag_input > 0) else (N_local_i - 1)):
+    i_end = N_local_i if (flag_input > 0) else (N_local_i - 1)
+    #print('rank', rank, 'i_end:', i_end, 'N_local_j', N_local_j, 'N_local_i', N_local_i)
+    for i in range(0, i_end):
         xi = posx_i[i]
         yi = posy_i[i]
         zi = posz_i[i]
-        for j in range(0 if (flag_input > 0) else (i + 1), N_local_j):
+        j_start = 0 if (flag_input > 0) else (i + 1)
+        for j in range(j_start, N_local_j):
             # Skip the force computation if neither particle i nor particle j
             # should be kicked
             x = posx_j[j] - xi
@@ -180,8 +187,10 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
 # Function for computing the gravitational force
 # by direct summation on all particles
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Arguments
                particles='Particles',
@@ -264,8 +273,8 @@ def PP(particles, Δt):
         N_partnerproc_pairs_minus_1 = N_partnerproc_pairs - 1
         for j in range(1, N_partnerproc_pairs):
             # Process ranks to send/recieve to/from
-            ID_send = ((rank + j) % nprocs)
-            ID_recv = ((rank - j) % nprocs)
+            ID_send = mod(rank + j, nprocs)
+            ID_recv = mod(rank - j, nprocs)
             N_extrn = N_extrns[ID_recv]
             # Send and recieve positions
             Sendrecv(posx_local[:N_local], dest=ID_send,
@@ -306,7 +315,7 @@ def PP(particles, Δt):
                     momz_local[i] += Δmomz_local[i]
                 # Reset external momentum change buffers
                 if j != N_partnerproc_pairs_minus_1:
-                    for i in range(N_extrns[((rank - j - 1) % nprocs)]):
+                    for i in range(N_extrns[mod(rank - j - 1, nprocs)]):
                         Δmomx_extrn[i] = 0
                         Δmomy_extrn[i] = 0
                         Δmomz_extrn[i] = 0
@@ -314,8 +323,10 @@ def PP(particles, Δt):
 
 # Function for computing the gravitational force by the particle mesh method
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Arguments
                particles='Particles',
@@ -326,45 +337,118 @@ def PP(particles, Δt):
                k='ptrdiff_t',
                )
 def PM(particles, Δt):
-    """ This function updates the momenta of all particles via the
+    """This function updates the momenta of all particles via the
     particle-mesh (PM) method.
     Note that the time step size Δt is really ∫_t^(t + Δt) dt/a.
     """
     global PM_grid
-
     # Reset the mesh
     PM_grid[...] = 0
+    cython.declare(domain_cuts='int[::1]',
+                   domain_layout='int[:, :, ::1]',
+                   domain_local='int[::1]',
+                   domain_size_x='double',
+                   domain_size_y='double',
+                   domain_size_z='double',
+                   domain_start_x='double',
+                   domain_start_y='double',
+                   domain_start_z='double',
+                   domain_end_x='double',
+                   domain_end_y='double',
+                   domain_end_z='double',
+                   domain_grid='double[:, :, ::1]',
+                   )
+    # Number of domains in all three dimensions
+    domain_cuts = array(cutout_domains(nprocs), dtype='int32')
+    # The 3D layout of the division of the box
+    domain_layout = arange(nprocs, dtype='int32').reshape(domain_cuts)
+    # The indices in domain_layout of the local domain
+    domain_local = array(np.unravel_index(rank, domain_cuts), dtype='int32')
+    # The linear size of the domains, which are the same for all of them
+    domain_size_x = boxsize/domain_cuts[0]
+    domain_size_y = boxsize/domain_cuts[1]
+    domain_size_z = boxsize/domain_cuts[2]
+    # The start and end positions of the local domain
+    domain_start_x = domain_local[0]*domain_size_x
+    domain_start_y = domain_local[1]*domain_size_y
+    domain_start_z = domain_local[2]*domain_size_z
+    domain_end_x = domain_start_x + domain_size_x
+    domain_end_y = domain_start_x + domain_size_x
+    domain_end_z = domain_start_x + domain_size_x
+    # A grid over the local domain. The endpoints is actually the startpoints
+    # of the next domain.
+    domain_grid = empty([PM_gridsize//domain_cuts[i] + 1 for i in range(3)],
+                        dtype='float64')
+    # Test if the grid has been constructed correctly. If not it is because
+    # nprocs and PM_gridsize are incompatible.
+    for i in range(3):
+        if PM_gridsize != domain_cuts[i]*(domain_grid.shape[i] - 1):
+            msg = ('A PM_gridsize of ' + str(PM_gridsize) + ' cannot be'
+                   + ' equally shared among ' + str(nprocs) + ' processes')
+            raise ValueError(msg)
+    # Nullifies the domain grid
+    for i in range(domain_grid.shape[0]):
+        for j in range(domain_grid.shape[1]):
+            for k in range(domain_grid.shape[2]):
+                domain_grid[i, j, k] = 0
+    # Interpolate particle masses to domain gridpoints
+    CIC_particles2grid(particles, domain_grid, domain_size_x,
+                                               domain_size_y,
+                                               domain_size_z,
+                                               domain_start_x,
+                                               domain_start_y,
+                                               domain_start_z)
+    # Communicate the upper three surfaces of the domain to the respective
+    # processes that has these surfaces as their lower surfaces and add the
+    # communicated values to the ones computed locally.
+    rank_right = domain_layout[mod(domain_local[0] + 1, domain_cuts[0]),
+                               domain_local[1],
+                               domain_local[2]]
+    rank_left = domain_layout[mod(domain_local[0] - 1, domain_cuts[0]),
+                               domain_local[1],
+                               domain_local[2]]
+    rank_forward = domain_layout[domain_local[0],
+                                 mod(domain_local[1] + 1, domain_cuts[1]),
+                                 domain_local[2]]
+    rank_backward = domain_layout[domain_local[0],
+                                  mod(domain_local[1] - 1, domain_cuts[1]),
+                                  domain_local[2]]
+    rank_up = domain_layout[domain_local[0],
+                            domain_local[1],
+                            mod(domain_local[2] + 1, domain_cuts[2])]
+    rank_down = domain_layout[domain_local[0],
+                              domain_local[1],
+                              mod(domain_local[2] - 1, domain_cuts[2])]
+    Sendrecv(domain_grid[domain_grid.shape[0] - 1, :, :],
+                 dest=rank_right,
+                 recvbuf=None,
+                 source=rank_left)
 
-    # Interpolate particle masses to meshpoints
-    #CIC_coordinates2grid(PM_grid, particles)
+
+
+    sys.exit()
 
     for i in range(PM_gridsize_local_x):
         for j in range(PM_gridsize):
             for k in range(PM_gridsize):
-                PM_grid[i, j, k] = 1.2*i + 0.7*j + 1.7*k + 0.3 + 0.7*i*sqrt(j + 1)*k*k
-    print('Normalt rum:')
-    print(array(PM_grid))
+                PM_grid[i, j, k] = 1.2*(i + PM_gridstart_local_x) + 0.7*j + 1.7*k + 0.3 + 0.7*(i + PM_gridstart_local_x)*sqrt(j + 1)*k*k
+    print('Normalt rum rank ' + str(rank) + ':', array(PM_grid))
 
     # Fourier transform the grid forwards to Fourier space
     fftw_execute(plan_forward)
 
-    #for i in range(PM_gridsize):
-    #    for j in range(PM_gridsize_local_y):
-    #        for k in range(PM_gridsize):
-    #            PM_grid[j, i, k] *= i**2 + (j + PM_gridstart_local_y)**2 + k**2
-
-    print('Fourier-rum:')
-    print(array(PM_grid))
+    print('Fourier-rum rank ' + str(rank) + ':', array(PM_grid))
 
     # Fourier transform the grid back to real space
     fftw_execute(plan_backward)
     for i in range(PM_gridsize_local_x):
         for j in range(PM_gridsize):
             for k in range(PM_gridsize):
-                PM_grid[i, j, k] /= PM_gridsize3
+               PM_grid[i, j, k] /= PM_gridsize3
 
-    print('Normalt rum igen')
-    print(array(PM_grid))
+
+
+    print('Normalt rum igen rank ' + str(rank) + ':', array(PM_grid))
 
 
     # multiply by the Greens function and the
@@ -392,13 +476,19 @@ if use_PM:
         # Initialization of the PM mesh in pure Python.
         PM_gridsize_local_x = PM_gridsize_local_y = int(PM_gridsize/nprocs)
         if PM_gridsize_local_x != PM_gridsize/nprocs:
-            warn('The PM method in pure Python mode only works '
-                             + 'when\nPM_gridsize is divisible by the number'
-                             + 'of processes!')
+            # If PM_gridsize is not divisible by nprocs, the code cannot
+            # figure out exactly how FFTW distribute the grid among the
+            # processes. In stead of guessing, do not even try to emulate
+            # the behaviour of FFTW.
+            if master:
+                warn('The PM method in pure Python mode only works '
+                     + 'when\nPM_gridsize is divisible by the number'
+                     + 'of processes!')
+            sys.exit(1)
         PM_gridstart_local_x = PM_gridstart_local_y = PM_gridsize_local_x*rank
         PM_gridsize_padding = 2*(PM_gridsize//2 + 1)
         PM_grid = empty((PM_gridsize_local_x, PM_gridsize,
-                         PM_gridsize_padding))
+                         PM_gridsize_padding), dtype='float64')
         # The output of the following function is formatted just
         # like that of the MPI implementation of FFTW.
         plan_backward = 'plan_backward'
