@@ -13,8 +13,10 @@ else:
 
 # Function for tabulating a cubic grid with vector values
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Arguments
                gridsize='int',
@@ -74,8 +76,10 @@ def tabulate_vectorfield(gridsize, func, factor, filename):
 # Function for doing lookup in a cubic grid with vector values and
 # CIC-interpolating to specified coordinates
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Argument
                grid='double[:, :, :, ::1]',
@@ -150,77 +154,110 @@ def CIC_grid2coordinates_vector(grid, x, y, z):
 # Function for CIC-interpolating particle coordinates
 # to a cubic grid with scalar values.
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Argument
-               grid='double[:, :, ::1]',
                particles='Particles',
+               grid='double[:, :, ::1]',
+               domain_size_x='double',
+               domain_size_y='double',
+               domain_size_z='double',
+               gridstart_x='double',
+               gridstart_y='double',
+               gridstart_z='double',
                # Locals
-               gridsize='int',
-               gridsize_over_boxsize='double',
-               i='size_t',
                posx='double*',
                posy='double*',
                posz='double*',
+               gridsize_x='int',
+               gridsize_y='int',
+               gridsize_z='int',
+               gridsize_x_minus_1='int',
+               gridsize_y_minus_1='int',
+               gridsize_z_minus_1='int',
+               gridsize_x_minus_1_over_domain_size_x='double',
+               gridsize_y_minus_1_over_domain_size_y='double',
+               gridsize_z_minus_1_over_domain_size_z='double',
+               i='size_t',
+               j='size_t',
                x='double',
-               x_lower='size_t',
-               x_upper='size_t',
-               xl='double',
-               xu='double',
                y='double',
-               y_lower='size_t',
-               y_upper='size_t',
-               yl='double',
-               yu='double',
                z='double',
-               z_lower='size_t',
-               z_upper='size_t',
-               zl='double',
-               zu='double',
+               x_lower='int',
+               y_lower='int',
+               z_lower='int',
+               x_upper='int',
+               y_upper='int',
+               z_upper='int',
+               Wxl='double',
+               Wyl='double',
+               Wzl='double',
+               Wxu='double',
+               Wyu='double',
+               Wzu='double',
                )
-def CIC_coordinates2grid(grid, particles):
-    """ This function CIC-interpolates particle coordinates to a grid storing
-    scalar values. Input arguments should not be normalized.
+def CIC_particles2grid(particles, grid, domain_size_x,
+                                        domain_size_y,
+                                        domain_size_z,
+                                        gridstart_x,
+                                        gridstart_y,
+                                        gridstart_z):
+    """This function CIC-interpolates particle coordinates to grid storing
+    scalar values. The passed grid should be nullified beforehand.
     """
-
     # Extract variables
     posx = particles.posx
     posy = particles.posy
     posz = particles.posz
-    gridsize = grid.shape[0]
-    gridsize_over_boxsize = gridsize/boxsize
+    gridsize_x = grid.shape[0]
+    gridsize_y = grid.shape[1]
+    gridsize_z = grid.shape[2]
+    # The conversion factors between comoving length and grid units
+    gridsize_x_minus_1 = gridsize_x - 1
+    gridsize_y_minus_1 = gridsize_y - 1
+    gridsize_z_minus_1 = gridsize_z - 1
+    gridsize_x_minus_1_over_domain_size_x = gridsize_x_minus_1/domain_size_x
+    gridsize_y_minus_1_over_domain_size_y = gridsize_y_minus_1/domain_size_y
+    gridsize_z_minus_1_over_domain_size_z = gridsize_z_minus_1/domain_size_z
     # Interpolate each particle
-    for i in range(particles.N):
-        # Get and scale the coordinates so that 0 <= x, y, z < gridsize
-        x = posx[i]*gridsize_over_boxsize
-        y = posy[i]*gridsize_over_boxsize
-        z = posz[i]*gridsize_over_boxsize
-        # Translate coordinates so they appear to be in the first domain,
-        # to ensure appropriate indexing.
-        #x -= gridstart_local_x
-
-        # Indices of the 8 vertices (6 faces) in the grid,
-        # constituting the cell in which the particle is located
-        x_lower = int(x)
-        y_lower = int(y)
-        z_lower = int(z)
-        x_upper = (x_lower + 1) % gridsize
-        y_upper = (y_lower + 1) % gridsize
-        z_upper = (z_lower + 1) % gridsize
-        # The side length of the 8 regions
-        xu = x - x_lower
-        yu = y - y_lower
-        zu = z - z_lower
-        xl = 1 - xu
-        yl = 1 - yu
-        zl = 1 - zu
-        # Assign the weighted grid values to the vector components
-        grid[x_lower, y_lower, z_lower] += xl*yl*zl
-        grid[x_lower, y_lower, z_upper] += xl*yl*zu
-        grid[x_lower, y_upper, z_lower] += xl*yu*zl
-        grid[x_lower, y_upper, z_upper] += xl*yu*zu
-        grid[x_upper, y_lower, z_lower] += xu*yl*zl
-        grid[x_upper, y_lower, z_upper] += xu*yl*zu
-        grid[x_upper, y_upper, z_lower] += xu*yu*zl
-        grid[x_upper, y_upper, z_upper] += xu*yu*zu
+    for j in range(100000):
+        for i in range(particles.N_local):
+            # Get, translate and scale the coordinates so that
+            # 0 <= i < gridsize_i - 1 for i = {x, y, z}.
+            x = (posx[i] - gridstart_x)*gridsize_x_minus_1_over_domain_size_x
+            y = (posy[i] - gridstart_y)*gridsize_y_minus_1_over_domain_size_y
+            z = (posz[i] - gridstart_z)*gridsize_z_minus_1_over_domain_size_z
+            # Correct for coordinates which are exactly at an upper domain boundary
+            if x == gridsize_x_minus_1:
+                x -= two_machine_ϵ
+            if y == gridsize_y_minus_1:
+                y -= two_machine_ϵ
+            if z == gridsize_z_minus_1:
+                z -= two_machine_ϵ
+            # Indices of the 8 vertices (6 faces) of the grid surrounding (x, y, z)
+            x_lower = int(x)
+            y_lower = int(y)
+            z_lower = int(z)
+            x_upper = x_lower + 1
+            y_upper = y_lower + 1
+            z_upper = z_lower + 1
+            # The linear weights according to the
+            # CIC rule W = 1 - |dist| if |dist| < 1.
+            Wxl = x_upper - x  # = 1 - (x - x_lower)
+            Wyl = y_upper - y  # = 1 - (y - y_lower)
+            Wzl = z_upper - z  # = 1 - (z - z_lower)
+            Wxu = x - x_lower  # = 1 - (x_upper - x)
+            Wyu = y - y_lower  # = 1 - (y_upper - y)
+            Wzu = z - z_lower  # = 1 - (z_upper - z)
+            # Assign the weighted grid values to the vector components
+            grid[x_lower, y_lower, z_lower] += Wxl*Wyl*Wzl
+            grid[x_lower, y_lower, z_upper] += Wxl*Wyl*Wzu
+            grid[x_lower, y_upper, z_lower] += Wxl*Wyu*Wzl
+            grid[x_lower, y_upper, z_upper] += Wxl*Wyu*Wzu
+            grid[x_upper, y_lower, z_lower] += Wxu*Wyl*Wzl
+            grid[x_upper, y_lower, z_upper] += Wxu*Wyl*Wzu
+            grid[x_upper, y_upper, z_lower] += Wxu*Wyu*Wzl
+            grid[x_upper, y_upper, z_upper] += Wxu*Wyu*Wzu

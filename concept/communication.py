@@ -13,14 +13,17 @@ else:
 
 # Function for communicating sizes of recieve buffers
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Arguments
                N_send='size_t[::1]',
                # Locals
                ID_recv='int',
                ID_send='int',
+               N_recv='size_t[::1]',
                N_recv_max='size_t',
                j='int',
                k='int',
@@ -54,8 +57,8 @@ def find_N_recv(N_send):
     N_recv_max = 0
     for j in range(1, nprocs):
         # Process ranks to send/recieve to/from
-        ID_send = (rank + j) % nprocs
-        ID_recv = (rank - j) % nprocs
+        ID_send = mod(rank + j, nprocs)
+        ID_recv = mod(rank - j, nprocs)
         # Send and recieve nr of particles to be exchanged
         N_recv[ID_recv] = sendrecv(N_send[ID_send],
                                    dest=ID_send, source=ID_recv)
@@ -66,96 +69,110 @@ def find_N_recv(N_send):
     return N_recv
 
 
+
 # This function examines every particle and communicates them to the
 # process governing the domain in which the particle is located
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Arguments
                particles='Particles',
+               reset_buffers='bint',
                # Locals
                ID_recv='int',
                ID_send='int',
-               N_allocated='size_t',
                N_local='size_t',
                N_needed='size_t',
                N_recv='size_t[::1]',
-               N_recv_cum='size_t',
                N_recv_j='size_t',
                N_recv_max='size_t',
                N_recv_tot='size_t',
-               N_send='size_t[::1]',
                N_send_j='size_t',
                N_send_max='size_t',
+               N_send_owner='size_t',
                N_send_tot='size_t',
-               flag_hold='double',
+               N_send_tot_global='size_t',
                i='size_t',
-               index_hold='size_t',
-               index_move='ptrdiff_t',
                index_recv_j='size_t',
-               index_send='size_t',
-               indices_holds='size_t[::1]',
-               indices_holds_count='size_t',
-               indices_send='size_t[:, ::1]',
-               indices_send_j='size_t[::1]',
+               indices_send_j='size_t*',
+               indices_send_owner='size_t*',
+               indices_send_size='size_t',
                j='int',
-               owner='int',
-               posx='double*',
-               posx_domain='int',
-               posx_mw='double[::1]',
-               posy='double*',
-               posy_domain='int',
-               posy_mw='double[::1]',
-               posz='double*',
-               posz_domain='int',
-               posz_mw='double[::1]',
-               sendbuf='double[::1]',
+               k='size_t',
+               k_start='size_t',
                momx='double*',
                momx_mw='double[::1]',
                momy='double*',
                momy_mw='double[::1]',
                momz='double*',
                momz_mw='double[::1]',
+               owner='int',
+               posx='double*',
+               posx_mw='double[::1]',
+               posy='double*',
+               posy_mw='double[::1]',
+               posz='double*',
+               posz_mw='double[::1]',
+               Δmemory='size_t',
                )
-def exchange_all(particles):
+def exchange(particles, reset_buffers=False):
+    """This function will do an exchange of particles between processes, so
+    that every particle resides on the process in charge of the domian where
+    the particle is located. The variable indices_send holds arrays of indices
+    of particles to send to the different processes, while particle data is
+    copied to sendbuf before it is send. These two variables will grow in size
+    if needed. Call with reset_buffers=True to reset these variables to their
+    most basic forms, freeing up memory. 
+    """
+    global N_send, indices_send, indices_send_sizes, sendbuf, sendbuf_mw
     # No need to consider exchange of particles if running serial
     if nprocs == 1:
         return
-    # Initialize some variables
-    flag_hold = -1
-    N_send = zeros(nprocs, dtype='uintp')
-    N_send_max = 0
-    N_send_tot = 0
-    N_recv_tot = 0
-    N_recv_cum = 0
+    # Extract some variables from particles
     N_local = particles.N_local
-    N_allocated = particles.N_allocated
-    indices_send = empty((nprocs, N_local), dtype='uintp')  # Overkill to make room for N_local particles to be send!
-    indices_holds_count = 0
     posx = particles.posx
     posy = particles.posy
     posz = particles.posz
+    # The index buffers indices_send[:] increase in size by this amount
+    Δmemory = int(1 + ceil(0.01*N_local/nprocs))
+    # Reset the number of particles to be sent
+    for j in range(nprocs):
+        N_send[j] = 0
     # Find out where to send which particle
     for i in range(N_local):
-        posx_domain = int(posx[i]//domain_size_x)
-        posy_domain = int(posy[i]//domain_size_y)
-        posz_domain = int(posz[i]//domain_size_z)
-        owner = domain_layout[posx_domain, posy_domain, posz_domain]
-        indices_send[owner, N_send[owner]] = i
-        # Update N_send, N_send_tot and N_send_max if particle should be sent
+        # Rank of the process that local particle i belongs to
+        owner = domain(posx[i], posy[i], posz[i])
         if owner != rank:
+            # Particle owned by nonlocal process owner.
+            # Append the owner's index buffer with the particle index.
+            indices_send[owner][N_send[owner]] = i
+            # Increase the number of particle to send to this process.            
             N_send[owner] += 1
-            N_send_tot += 1
-            if N_send[owner] > N_send_max:
-                N_send_max = N_send[owner]
-    # Print out message
-    N_send_tot_global = reduce(N_send_tot, op=MPI.SUM)
+            # Enlarge the index buffer indices_send[owner] if needed
+            #indices_send_size = indices_send_sizes[owner]
+            if N_send[owner] == indices_send_sizes[owner]:
+                indices_send_sizes[owner] += Δmemory
+                indices_send[owner] = realloc(indices_send[owner], indices_send_sizes[owner]*sizeof('size_t'))
+    # No need to continue if no particles should be exchanged
+    N_send_tot = sum(N_send)
+    N_send_tot_global = allreduce(N_send_tot, op=MPI.SUM)
+    if N_send_tot_global == 0:
+        return
+    # Print out exchange message
     if master:
-        print('Exchanging', N_send_tot_global, 'particles')
-    # Allocate send buffer to its maximum needed size
-    sendbuf = empty(N_send_max)
-    # Find out how many particles will be recieved from each process
+        if N_send_tot_global == 1:
+            print('Exchanging 1 particle')
+        elif N_send_tot_global > 1:
+            print('Exchanging', N_send_tot_global, 'particles')
+    # Enlarge sendbuf, if necessary
+    N_send_max = max(N_send)
+    if N_send_max > sendbuf_mw.size:
+        sendbuf = realloc(sendbuf, N_send_max*sizeof('double'))
+        sendbuf_mw = cast(sendbuf, 'double[:N_send_max]')
+    # Find out how many particles to recieve
     N_recv = find_N_recv(N_send)
     # Pure Python has a hard time understanding uintp as an integer
     if not cython.compiled:
@@ -163,16 +180,16 @@ def exchange_all(particles):
     # The maximum number of particles to recieve is stored in entrance rank
     N_recv_max = N_recv[rank]
     N_recv_tot = sum(N_recv) - N_recv_max
-    # Enlarge the Particles data attributes, if needed
+    # Enlarge the Particles data attributes, if needed. This may not be
+    # strcitly necessary as more particles may be send than recieved.
     N_needed = N_local + N_recv_tot
-    if N_allocated < N_needed:
+    if particles.N_allocated < N_needed:
         particles.resize(N_needed)
-        N_allocated = N_needed
         # Reextract position pointers
         posx = particles.posx
         posy = particles.posy
         posz = particles.posz
-    # Also extract momenta and memory views
+    # Extract momenta and memory views of the possibly resized data
     momx = particles.momx
     momy = particles.momy
     momz = particles.momz
@@ -183,100 +200,109 @@ def exchange_all(particles):
     momy_mw = particles.momy_mw
     momz_mw = particles.momz_mw
     # Exchange particles between processes
-    indices_holds = empty(N_send_tot, dtype='uintp')
+    index_recv_j = N_local
     for j in range(1, nprocs):
         # Process ranks to send/recieve to/from
-        ID_send = (rank + j) % nprocs
-        ID_recv = (rank - j) % nprocs
-        # Extract number of particles to send/recieve and their (send-)indices
+        ID_send = mod(rank + j, nprocs)
+        ID_recv = mod(rank - j, nprocs)
+        # Number of particles to send/recieve
         N_send_j = N_send[ID_send]
         N_recv_j = N_recv[ID_recv]
-        indices_send_j = indices_send[ID_send, :N_send_j]
-        # Fill send buffer and send/recieve posx
-        index_recv_j = N_local + N_recv_cum
+        # The indices of particles to send and the index from which received
+        # particles are allowed to be appended.
+        indices_send_j = indices_send[ID_send]  #indices_send[ID_send][:N_send_j]
+        # Send/receive posx
         for i in range(N_send_j):
-            index_send = indices_send_j[i]
-            sendbuf[i] = posx[index_send]
-            # Flag missing particles (holds) by setting posx equal to flag_hold
-            posx[index_send] = flag_hold
-            # Save index of the now missing particle (hold)
-            indices_holds[indices_holds_count] = index_send
-            indices_holds_count += 1
-        Sendrecv(sendbuf[:N_send_j],
+            sendbuf[i] = posx[indices_send_j[i]]
+        Sendrecv(sendbuf_mw[:N_send_j],
                  dest=ID_send,
                  recvbuf=posx_mw[index_recv_j:],
                  source=ID_recv)
-        # Fill send buffer and send/recieve posy
+        # Send/receive posy
         for i in range(N_send_j):
             sendbuf[i] = posy[indices_send_j[i]]
-        Sendrecv(sendbuf[:N_send_j],
+        Sendrecv(sendbuf_mw[:N_send_j],
                  dest=ID_send,
                  recvbuf=posy_mw[index_recv_j:],
                  source=ID_recv)
-        # Fill send buffer and send/recieve posz
+        # Send/receive posz
         for i in range(N_send_j):
             sendbuf[i] = posz[indices_send_j[i]]
-        Sendrecv(sendbuf[:N_send_j],
+        Sendrecv(sendbuf_mw[:N_send_j],
                  dest=ID_send,
                  recvbuf=posz_mw[index_recv_j:],
                  source=ID_recv)
-        # Fill send buffer and send/recieve momx
+        # Send/receive momx
         for i in range(N_send_j):
             sendbuf[i] = momx[indices_send_j[i]]
-        Sendrecv(sendbuf[:N_send_j],
+        Sendrecv(sendbuf_mw[:N_send_j],
                  dest=ID_send,
                  recvbuf=momx_mw[index_recv_j:],
                  source=ID_recv)
-        # Fill send buffer and send/recieve momy
+        # Send/receive momy
         for i in range(N_send_j):
             sendbuf[i] = momy[indices_send_j[i]]
-        Sendrecv(sendbuf[:N_send_j],
+        Sendrecv(sendbuf_mw[:N_send_j],
                  dest=ID_send,
                  recvbuf=momy_mw[index_recv_j:],
                  source=ID_recv)
-        # Fill send buffer and send/recieve momz
+        # Send/receive momz
         for i in range(N_send_j):
             sendbuf[i] = momz[indices_send_j[i]]
-        Sendrecv(sendbuf[:N_send_j],
+        Sendrecv(sendbuf_mw[:N_send_j],
                  dest=ID_send,
                  recvbuf=momz_mw[index_recv_j:],
                  source=ID_recv)
-        # Update the cummulative counter
-        N_recv_cum += N_recv_j
+        # Update the start index for received data
+        index_recv_j += N_recv_j
+        # Mark the holes in the data by setting posx[hole] = -1
+        for k in range(N_send_j):
+            posx[indices_send_j[k]] = -1
+    # Move particle data to fill holes
+    k_start = 0
+    for i in range(index_recv_j - 1, -1, -1):  # Loop backward over particles
+        # Index i should be a particle
+        if posx[i] == -1:
+            continue
+        # When the two loops meet, all holes has been filled
+        if i == k_start:
+            break
+        for k in range(k_start, index_recv_j):  # Loop forward over holes
+            # Index k should be a hole
+            if posx[k] != -1:
+                continue
+            # Particle i and hole k found. Fill the hole with the particle
+            posx[k] = posx[i]
+            posy[k] = posy[i]
+            posz[k] = posz[i]
+            momx[k] = momx[i]
+            momy[k] = momy[i]
+            momz[k] = momz[i]
+            k_start = k + 1
+            break
     # Update N_local
-    N_local = N_needed - N_send_tot
-    particles.N_local = N_local
-    # Rearrange particle data elements furthest towards the end to fill holds
-    index_move = N_allocated - 1
-    for i in range(N_send_tot):
-        index_hold = indices_holds[i]
-        if index_hold < N_local:
-            # Hold which should be filled is located
-            for index_move in range(index_move, -1, -1):
-                if posx[index_move] != flag_hold:
-                    # The particle furthest from index 0 is located
-                    break
-            # Move particle data
-            posx[index_hold] = posx[index_move]
-            posy[index_hold] = posy[index_move]
-            posz[index_hold] = posz[index_move]
-            momx[index_hold] = momx[index_move]
-            momy[index_hold] = momy[index_move]
-            momz[index_hold] = momz[index_move]
-            # Update index of particle to move
-            index_move -= 1
-            # Break out if all remaining holes lie outside of the
-            # region containing actual particles
-            if index_move < N_local:
-                break
-
+    particles.N_local = N_needed - N_send_tot
+    # Pure Python has a hard time understanding uintp as an integer
+    if not cython.compiled:
+        particles.N_local = asarray(particles.N_local, dtype='int64')
+    # If reset_buffers == True, reset the global indices_send and sendbuf
+    # to their basic forms. This buffer will then be rebuild in future calls.
+    if reset_buffers:
+        for j in range(nprocs):
+            indices_send[j] = realloc(indices_send[j], 1*sizeof('size_t'))
+            indices_send_sizes[j] = 1
+            sendbuf = realloc(sendbuf, 1*sizeof('double'))
+            sendbuf_mw = cast(sendbuf, 'double[:1]')
+    
 
 # Function for cutting out domains as rectangular boxes in the best possible
 # way. When all dimensions cannot be divided equally, the x-dimension is
 # subdivided the most, then the y-dimension and lastly the z-dimension.
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Arguments
                n='int',
@@ -298,21 +324,21 @@ def cutout_domains(n, basecall=True):
     primeset = []
     while n > 1:
         for i in range(2, int(n + 1)):
-            if (n % i) == 0:
+            if n % i == 0:
                 # Check whether i is prime
                 if i == 2 or i == 3:
                     i_is_prime = True
-                elif i < 2 or (i % 2) == 0:
+                elif i < 2 or i % 2 == 0:
                     i_is_prime = False
                 elif i < 9:
                     i_is_prime = True
-                elif (i % 3) == 0:
+                elif i % 3 == 0:
                     i_is_prime = False
                 else:
                     r = int(sqrt(i))
                     f = 5
                     while f <= r:
-                        if (i % f) == 0 or (i % (f + 2)) == 0:
+                        if i % f == 0 or i % (f + 2) == 0:
                             i_is_prime = False
                             break
                         f += 6
@@ -340,16 +366,74 @@ def cutout_domains(n, basecall=True):
             return sorted(primeset, reverse=True)
     return primeset
 
+# This function takes coordinates as arguments and returns the rank of the
+# process that governs the domain in which the coordinates reside.
+@cython.cfunc
+@cython.inline
+@cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
+@cython.wraparound(False)
+@cython.locals(# Arguments
+               x='double',
+               y='double',
+               z='double',
+               # Locals
+               x_index='int',
+               y_index='int',
+               z_index='int',
+               )
+@cython.returns('int')
+def domain(x, y, z):
+    x_index = int(x/domain_size_x)
+    y_index = int(y/domain_size_y)
+    z_index = int(z/domain_size_z)
+    return domain_layout[x_index, y_index, z_index]
+
 
 # Cutout domains at import time
 cython.declare(domain_cuts='list',
                domain_layout='int[:, :, ::1]',
+               domain_local='int[::1]',
                domain_size_x='double',
                domain_size_y='double',
                domain_size_z='double',
+               i='int',
+               j='int',
+               k='int',
+               neighbor_domains='int[::1]',
+               x_index='int',
+               y_index='int',
+               z_index='int',
                )
+# Number of domains of the box in all three dimensions
 domain_cuts = cutout_domains(nprocs)
+# The 3D layout of the division of the box
+domain_layout = arange(nprocs, dtype='int32').reshape(domain_cuts)
+# The indices in domain_layout of the local domain
+domain_local = array(np.unravel_index(rank, domain_cuts), dtype='int32')
+# The size of the domain, which are the same for all of them
 domain_size_x = boxsize/domain_cuts[0]
 domain_size_y = boxsize/domain_cuts[1]
 domain_size_z = boxsize/domain_cuts[2]
-domain_layout = arange(nprocs, dtype='int32').reshape(domain_cuts)
+
+# Initialize the variables used in the exchange function at import time
+cython.declare(N_send='size_t[::1]',
+               indices_send='size_t**',
+               indices_send_sizes='size_t[::1]',
+               sendbuf='double*',
+               sendbuf_mw='double[::1]',
+               )
+# This variable stores the number of particles to send to each prcess
+N_send = zeros(nprocs, dtype='uintp')
+# This size_t** variable stores the indices of particles to be send to other
+# processes. That is, indices_send[other_rank][i] is the local index of
+# some particle which should be send to other_rank.
+indices_send = malloc(nprocs*sizeof('size_t*'))
+for j in range(nprocs):
+    indices_send[j] = malloc(1*sizeof('size_t'))
+# The size of the allocated indices_send[:] memory
+indices_send_sizes = ones(nprocs, dtype='uintp')
+# The send buffer for the particle data
+sendbuf = malloc(1*sizeof('double'))
+sendbuf_mw = cast(sendbuf, 'double[:1]')

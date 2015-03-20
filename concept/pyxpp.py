@@ -531,7 +531,8 @@ else:
     unicode2ASCII(filename)
     __init__2__cinit__(filename)
     del_ctypedef_redeclarations(filename)
-    fix_modulus(filename)
+    # Modulus no longer need fixing due to the mod function!
+    #fix_modulus(filename)
     colon2zero_in_addresses(filename)
     malloc_realloc(filename)
     C_casting(filename)

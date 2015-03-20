@@ -6,8 +6,9 @@
 # Imports common to pure Python and Cython #
 ############################################
 from __future__ import division  # Needed for Python3 division in Cython
-from numpy import (arange, array, asarray, concatenate, cumsum, delete, empty,
-                   linspace, max, ones, prod, trapz, sum, unravel_index, zeros)  # FIND OUT WHY min CANNOT BE IMPORTED WITHOUT SCREWING UP EVERYTHING!!!
+from numpy import (arange, array, asarray, concatenate, cumsum, ceil, delete,
+                   empty, linspace, ones, prod, trapz, unravel_index,
+                   zeros)  # FIND OUT WHY min CANNOT BE IMPORTED WITHOUT SCREWING UP EVERYTHING!!!
 from numpy.random import random
 import numpy as np
 import h5py
@@ -28,7 +29,11 @@ if not cython.compiled:
         def dummy_decorator(func):
             return func
         return dummy_decorator
-    for directive in ('boundscheck', 'wraparound', 'cdivision'):
+    for directive in ('boundscheck',
+                      'cdivision',
+                      'initializedcheck',
+                      'wraparound',
+                      ):
         setattr(cython, directive, dummy_function)
     # Dummy Cython functions
     for func in ('address', ):
@@ -37,15 +42,22 @@ if not cython.compiled:
     def sizeof(dtype):
         # C dtype names to Numpy dtype names
         if dtype == 'int':
-            dtype == 'int32'
+            dtype = 'int32'
         elif dtype == 'double':
-            dtype == 'float64'
+            dtype = 'float64'
         elif dtype == 'size_t':
-            dtype == 'uintp'
+            dtype = 'uintp'
+        elif dtype[-1] == '*':
+            # Allocate pointer array of pointers (eg. int**).
+            # Emulate these as lists of arrays.
+            return [empty(1, dtype=sizeof(dtype[:-1]).dtype)]
         else:
             raise TypeError(dtype + ' not implemented as a Numpy dtype in commons.py')
         return array([1], dtype=dtype)
     def malloc(a):
+        if isinstance(a, list):
+            # Pointer to pointer represented as list of arrays
+            return a
         return empty(a[0], dtype=a.dtype)
     def realloc(p, a):
         new_a = empty(a[0], dtype=a.dtype)
@@ -59,6 +71,8 @@ if not cython.compiled:
     # Array casting
     def cast(a, dtype):
         return a
+    # Dummy fused types
+    number = number2 = integer = floating = []
 else:
     # Lines in triple quotes will be executed in .pyx files.
     """
@@ -76,6 +90,26 @@ else:
     ctypedef double  (*func_d_dd)(double, double)
     ctypedef double  (*func_d_ddd)(double, double, double)
     ctypedef double* (*func_ddd_ddd)(double, double, double)
+    # Create a fused number type containing all necessary numerical types
+    ctypedef fused number:
+        cython.int
+        cython.size_t
+        cython.float
+        cython.double
+    # Create another fused number type, so that function arguments can have
+    # different specializations.
+    ctypedef fused number2:
+        cython.int
+        cython.size_t
+        cython.float
+        cython.double
+    # Create integer and floating fused types
+    ctypedef fused integer:
+        cython.int
+        cython.size_t
+    ctypedef fused floating:
+        cython.float
+        cython.double
     """
 # Seperate but equivalent imports and definitions in pure Python and Cython
 if not cython.compiled:
@@ -215,6 +249,76 @@ def partition(array_shape):
 ####################
 # Useful functions #
 ####################
+# Max function for memory views of numbers
+if not cython.compiled:
+    # Pure Python already have a generic max function
+    pass
+else:
+    """
+    @cython.cfunc
+    @cython.cdivision(True)
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    @cython.returns(number)
+    def max(number[::1] a):
+        cdef:
+            number m
+            size_t N
+            size_t i
+        N = a.shape[0]
+        m = a[0]
+        for i in range(1, N):
+            if a[i] > m:
+                m = a[i]
+        return m
+    """
+# Modulo function for numbers
+@cython.cfunc
+@cython.inline
+@cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
+@cython.wraparound(False)
+@cython.locals(# Arguments
+               x=number,
+               length=number2,
+               )
+@cython.returns(number)
+def mod(x, length):
+    # mod(integer, floating) not possible. Note that no error will occur if
+    # called with illegal types!
+    if not (number in integer and number2 in floating):
+        # Note that -length < x < 2*length must be true for this to work.
+        if x < 0:
+            x += length
+        elif x >= length:
+            x -= length
+        # A general prescription would be x = (x % length) + (x < 0)*length
+        return x
+# Sum function for memory views of numbers
+if not cython.compiled:
+    # Pure Python already have a generic sum function
+    pass
+else:
+    """
+    @cython.cfunc
+    @cython.inline
+    @cython.boundscheck(False)
+    @cython.cdivision(True)
+    @cython.initializedcheck(False)
+    @cython.wraparound(False)
+    @cython.returns(number)
+    def sum(number[::1] a):
+        cdef:
+            number Σ
+            size_t N
+            size_t i
+        N = a.shape[0]
+        Σ = a[0]
+        for i in range(1, N):
+            Σ += a[i]
+        return Σ
+    """
 # Function for printing warnings
 def warn(msg):
     os.system('printf "\033[1m\033[91mWarning: ' + msg + '\033[0m\n" >&2')

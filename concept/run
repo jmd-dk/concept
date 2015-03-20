@@ -369,6 +369,10 @@ else
     echo "Nr. of CPUs:   ${nprocs}" 2>&1 | tee -a "${this_dir}/logs/local_${jobid}"
     # Run the code. Note that password and whether to exit is passed as arguments
     "${mpiexec}" -n "${nprocs}" --prefix "${openmpi_dir}" "${python}" -B "${main}" "${password}" "${exit}" 2>&1 | tee -a "${this_dir}/logs/local_${jobid}"
+    # The above pipep tee command hijacks the exit code. Need to test the mpiexec exit code explicitly
+    if [ "${PIPESTATUS[0]}" != 0 ]; then
+        exit 1
+    fi
     # Run complete. Deactivate trap before exiting.
     trap : 0
 fi

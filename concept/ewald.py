@@ -18,8 +18,10 @@ from sys import path
 
 # Cython function for computing Ewald correction
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Argument
                x='double',
@@ -114,8 +116,10 @@ def summation(x, y, z):
 
 # Master function of this module. Returns the Ewald force correction.
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Arguments
                x='double',

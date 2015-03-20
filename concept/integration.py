@@ -14,8 +14,10 @@ else:
 # The Friedmann equation, used to integrate
 # the scale factor forwards in time
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(t='double',
                a='double',
@@ -27,8 +29,10 @@ def ȧ(t, a):
 
 # Function for solving ODEs of the form ḟ(t, f)
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Arguments
                ḟ='func_d_dd',
@@ -123,8 +127,10 @@ def rkf45(ḟ, f_start, t_start, t_end, δ, ϵ, save_intermediate):
 
 # Function for updating the scale factor
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Arguments
                a='double',
@@ -141,8 +147,10 @@ def expand(a, t, Δt):
 
 # Function for calculating integrals of the sort ∫_t^(t + Δt) a^power dt
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Arguments
                power='int',
@@ -180,7 +188,6 @@ def scalefactor_integral(power):
         # Initialize spline
         gsl_spline_init(spline, t_cum, integrand_cum, size_cum)
         # Integrate the splined function
-        #print('t_cum,', [t_cum[i] for i in range(size_cum)])
         integral = gsl_spline_eval_integ(spline,
                                          t_cum[0],
                                          t_cum[size_cum - 1],
@@ -193,8 +200,10 @@ def scalefactor_integral(power):
 
 # Function for computing the cosmic time t at some given scale factor a
 @cython.cfunc
-@cython.cdivision(True)
+@cython.inline
 @cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Arguments
                a='double',
@@ -218,7 +227,7 @@ def cosmic_time(a, a_lower=machine_ϵ, t_lower=machine_ϵ, t_upper=20*units.Gyr)
     # Compute the cosmic time at which the scale factor had the value a,
     # using a binary search
     a_test = t = -1
-    while abs(a_test - a) > machine_ϵ and (t_upper - t_lower) > machine_ϵ:
+    while abs(a_test - a) > two_machine_ϵ and (t_upper - t_lower) > two_machine_ϵ:
         t = (t_upper + t_lower)/2
         a_test = rkf45(ȧ, a_lower, t_lowest, t, δ=1e-9, ϵ=1e-9,
                        save_intermediate=False)
