@@ -320,6 +320,7 @@ def unicode2ASCII(filename):
                'Ẋ': 'dot_X',
                'Ẏ': 'dot_Y',
                'Ż': 'dot_Z',
+               'ℓ': 'script_l',
                }
     new_lines = []
     with open(filename, 'r') as pyxfile:

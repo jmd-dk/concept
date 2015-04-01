@@ -191,7 +191,7 @@ class Particles:
         """
         # Delegate the work to the appropriate function based on species
         if self.species == 'dark matter':
-            PP(self, Δt)
+            PM(self, Δt)
         elif self.species == 'dark energy':
             # NOT YET IMPLEMENTED
             pass
@@ -288,11 +288,9 @@ def construct_random(type_name, species_name, N):
                           N=N,
                           )
     # Populate the Particles instance with random data
-    particles.populate(zeros(N_local), 'acc')
     particles.populate(random(N_local)*boxsize, 'posx')
     particles.populate(random(N_local)*boxsize, 'posy')
     particles.populate(random(N_local)*boxsize, 'posz')
-    particles.populate(zeros(N_local, dtype='int32'), 'rung')
     particles.populate((2*random(N_local) - 1)*mom_max, 'momx')
     particles.populate((2*random(N_local) - 1)*mom_max, 'momy')
     particles.populate((2*random(N_local) - 1)*mom_max, 'momz')
