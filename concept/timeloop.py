@@ -40,6 +40,32 @@ if len(outputtimes) > len(set(outputtimes)):
 a_max = np.max(outputtimes)
 
 
+"""
+particles = construct_random('hm', 'dark matter', 256)
+posx = []
+posy = []
+posz = []
+if rank == nprocs - 1:
+    for i in range(2, 4):
+        for j in range(4):
+            for k in range(4):
+                posx.append((i + 0.5)/4*boxsize)
+                posy.append((j + 0.5)/4*boxsize)
+                posz.append((k + 0.5)/4*boxsize)
+posx = array(posx)
+posy = array(posy)
+posz = array(posz)
+momx = zeros(posx.size)
+momy = zeros(posx.size)
+momz = zeros(posx.size)
+particles.populate(posx, 'posx')
+particles.populate(posy, 'posy')
+particles.populate(posz, 'posz')
+particles.populate(momx, 'momx')
+particles.populate(momy, 'momy')
+particles.populate(momz, 'momz')
+"""
+
 
 @cython.cfunc
 @cython.inline
