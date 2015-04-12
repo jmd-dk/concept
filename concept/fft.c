@@ -99,9 +99,9 @@ struct fftw_return_struct fftw_setup(ptrdiff_t gridsize_i, ptrdiff_t gridsize_j,
 
   // Create the two plans
   fftw_plan plan_forward  = fftw_mpi_plan_dft_r2c_3d(gridsize_i, gridsize_j, gridsize_k,  // In order of patience: FFTW_ESTIMATE, FFTW_MEASURE, FFTW_PATIENT, FFTW_EXHAUSTIVE
-                                                     grid, (fftw_complex*) grid, MPI_COMM_WORLD, FFTW_ESTIMATE | FFTW_MPI_TRANSPOSED_OUT);
+                                                     grid, (fftw_complex*) grid, MPI_COMM_WORLD, FFTW_PATIENT | FFTW_MPI_TRANSPOSED_OUT);
   fftw_plan plan_backward = fftw_mpi_plan_dft_c2r_3d(gridsize_i, gridsize_j, gridsize_k,
-                                                     (fftw_complex*) grid, grid, MPI_COMM_WORLD, FFTW_ESTIMATE | FFTW_MPI_TRANSPOSED_IN);
+                                                     (fftw_complex*) grid, grid, MPI_COMM_WORLD, FFTW_PATIENT | FFTW_MPI_TRANSPOSED_IN);
 
   // If new wisdom is acquired, the master process saves it to disk
   fftw_mpi_gather_wisdom(MPI_COMM_WORLD);

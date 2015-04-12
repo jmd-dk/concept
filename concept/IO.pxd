@@ -8,7 +8,7 @@ cdef class Gadget_snapshot:
     # Methods
     cdef populate(self, Particles particles, double a)
     cdef save(self, str filename)
-    cdef load(self, str filename)
+    cdef load(self, str filename, bint write_msg=*)
     cdef read(self, object f, str fmt)  # f is an io.TextIOWrapper instance
     cdef size_t new_block(self, object f, size_t offset)  # f is an io.TextIOWrapper instance
 

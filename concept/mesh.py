@@ -74,7 +74,85 @@ def tabulate_vectorfield(gridsize, func, factor, filename):
     return grid
 
 
-# Function for doing lookup in a cubic grid with vector values and
+# Function for doing lookup in a grid with vector values and
+# CIC-interpolating to specified coordinates
+@cython.cfunc
+@cython.inline
+@cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
+@cython.wraparound(False)
+@cython.locals(# Argument
+               grid='double[:, :, ::1]',
+               x='double',
+               y='double',
+               z='double',
+               # Locals
+               Wxl='double',
+               Wxu='double',
+               Wyl='double',
+               Wyu='double',
+               Wzl='double',
+               Wzu='double',
+               gridsize_x_minus_1='int',
+               gridsize_y_minus_1='int',
+               gridsize_z_minus_1='int',
+               x_lower='size_t',
+               x_upper='size_t',
+               y_lower='size_t',
+               y_upper='size_t',
+               z_lower='size_t',
+               z_upper='size_t',
+               )
+@cython.returns('double')
+def CIC_grid2coordinates_scalar(grid, x, y, z):
+    """This function look up tabulated scalars in a grid and interpolates
+    to (x, y, z) via the cloud in cell (CIC) method. Input arguments must be
+    normalized so that 0 <= x, y, z < 1. If x, y or z is exactly equal to 1,
+    they will be corrected to 1 - ϵ. It is assumed that the grid is
+    nonperiodic (that is, the grid has closed ends).
+    """
+    # Extract the size of the regular grid
+    gridsize_x_minus_1 = grid.shape[0] - 1
+    gridsize_y_minus_1 = grid.shape[1] - 1
+    gridsize_z_minus_1 = grid.shape[2] - 1
+    # Correct for extreme values in the passed coordinates. This is to catch
+    # inputs which are slighly larger than 1 due to numerical errors
+    if x >= 1:
+        x = 1 - two_machine_ϵ
+    if y >= 1:
+        y = 1 - two_machine_ϵ
+    if z >= 1:
+        z = 1 - two_machine_ϵ
+    # Scale the coordinates so that 0 <= x, y, z < (gridsize - 1)
+    x *= gridsize_x_minus_1
+    y *= gridsize_y_minus_1
+    z *= gridsize_z_minus_1
+    # Indices of the 8 vertices (6 faces) of the grid surrounding (x, y, z)
+    x_lower = int(x)
+    y_lower = int(y)
+    z_lower = int(z)
+    x_upper = x_lower + 1
+    y_upper = y_lower + 1
+    z_upper = z_lower + 1
+    # The linear weights according to the CIC rule W = 1 - |dist| if |dist| < 1
+    Wxl = x_upper - x  # = 1 - (x - x_lower)
+    Wyl = y_upper - y  # = 1 - (y - y_lower)
+    Wzl = z_upper - z  # = 1 - (z - z_lower)
+    Wxu = x - x_lower  # = 1 - (x_upper - x)
+    Wyu = y - y_lower  # = 1 - (y_upper - y)
+    Wzu = z - z_lower  # = 1 - (z_upper - z)
+    # Return the sum of the weighted grid values
+    return (  grid[x_lower, y_lower, z_lower]*Wxl*Wyl*Wzl
+            + grid[x_lower, y_lower, z_upper]*Wxl*Wyl*Wzu
+            + grid[x_lower, y_upper, z_lower]*Wxl*Wyu*Wzl
+            + grid[x_lower, y_upper, z_upper]*Wxl*Wyu*Wzu
+            + grid[x_upper, y_lower, z_lower]*Wxu*Wyl*Wzl
+            + grid[x_upper, y_lower, z_upper]*Wxu*Wyl*Wzu
+            + grid[x_upper, y_upper, z_lower]*Wxu*Wyu*Wzl
+            + grid[x_upper, y_upper, z_upper]*Wxu*Wyu*Wzu)
+
+# Function for doing lookup in a grid with vector values and
 # CIC-interpolating to specified coordinates
 @cython.cfunc
 @cython.inline
@@ -95,7 +173,9 @@ def tabulate_vectorfield(gridsize, func, factor, filename):
                Wzl='double',
                Wzu='double',
                dim='size_t',
-               gridsize_minus_1='int',
+               gridsize_x_minus_1='int',
+               gridsize_y_minus_1='int',
+               gridsize_z_minus_1='int',
                x_lower='size_t',
                x_upper='size_t',
                y_lower='size_t',
@@ -105,15 +185,17 @@ def tabulate_vectorfield(gridsize, func, factor, filename):
                )
 @cython.returns('double*')
 def CIC_grid2coordinates_vector(grid, x, y, z):
-    """This function look up tabulated vectors in a cubic grid and interpolates 
+    """This function look up tabulated vectors in a grid and interpolates
     to (x, y, z) via the cloud in cell (CIC) method. Input arguments must be
     normalized so that 0 <= x, y, z < 1. If x, y or z is exactly equal to 1,
     they will be corrected to 1 - ϵ. It is assumed that the grid is
-    nonperiodic.
+    nonperiodic (that is, the first and the last gridpoint in any dimension
+    are physical distinct and that the grid has closed ends).
     """
-
-    # Extract the size of the regular, cubic grid
-    gridsize_minus_1 = grid.shape[0] - 1
+    # Extract the size of the regular grid
+    gridsize_x_minus_1 = grid.shape[0] - 1
+    gridsize_y_minus_1 = grid.shape[1] - 1
+    gridsize_z_minus_1 = grid.shape[2] - 1
     # Correct for extreme values in the passed coordinates. This is to catch
     # inputs which are slighly larger than 1 due to numerical errors
     if x >= 1:
@@ -123,9 +205,9 @@ def CIC_grid2coordinates_vector(grid, x, y, z):
     if z >= 1:
         z = 1 - two_machine_ϵ
     # Scale the coordinates so that 0 <= x, y, z < (gridsize - 1)
-    x *= gridsize_minus_1
-    y *= gridsize_minus_1
-    z *= gridsize_minus_1
+    x *= gridsize_x_minus_1
+    y *= gridsize_y_minus_1
+    z *= gridsize_z_minus_1
     # Indices of the 8 vertices (6 faces) of the grid surrounding (x, y, z)
     x_lower = int(x)
     y_lower = int(y)
@@ -167,15 +249,12 @@ def CIC_grid2coordinates_vector(grid, x, y, z):
                posx='double*',
                posy='double*',
                posz='double*',
-               gridsize_x='int',
-               gridsize_y='int',
-               gridsize_z='int',
-               gridsize_x_minus_1='int',
-               gridsize_y_minus_1='int',
-               gridsize_z_minus_1='int',
-               gridsize_x_minus_1_over_domain_size_x='double',
-               gridsize_y_minus_1_over_domain_size_y='double',
-               gridsize_z_minus_1_over_domain_size_z='double',
+               gridsize_i_minus_1='int',
+               gridsize_j_minus_1='int',
+               gridsize_k_minus_1='int',
+               gridsize_i_minus_1_over_domain_size_x='double',
+               gridsize_j_minus_1_over_domain_size_y='double',
+               gridsize_k_minus_1_over_domain_size_z='double',
                i='size_t',
                x='double',
                y='double',
@@ -201,29 +280,27 @@ def CIC_particles2grid(particles, grid):
     posx = particles.posx
     posy = particles.posy
     posz = particles.posz
-    gridsize_x = grid.shape[0]
-    gridsize_y = grid.shape[1]
-    gridsize_z = grid.shape[2]
+    # Extract the size of the regular grid
+    gridsize_i_minus_1 = grid.shape[0] - 1
+    gridsize_j_minus_1 = grid.shape[1] - 1
+    gridsize_k_minus_1 = grid.shape[2] - 1
     # The conversion factors between comoving length and grid units
-    gridsize_x_minus_1 = gridsize_x - 1
-    gridsize_y_minus_1 = gridsize_y - 1
-    gridsize_z_minus_1 = gridsize_z - 1
-    gridsize_x_minus_1_over_domain_size_x = gridsize_x_minus_1/domain_size_x
-    gridsize_y_minus_1_over_domain_size_y = gridsize_y_minus_1/domain_size_y
-    gridsize_z_minus_1_over_domain_size_z = gridsize_z_minus_1/domain_size_z
+    gridsize_i_minus_1_over_domain_size_x = gridsize_i_minus_1/domain_size_x
+    gridsize_j_minus_1_over_domain_size_y = gridsize_j_minus_1/domain_size_y
+    gridsize_k_minus_1_over_domain_size_z = gridsize_k_minus_1/domain_size_z
     # Interpolate each particle
     for i in range(particles.N_local):
         # Get, translate and scale the coordinates so that
         # 0 <= i < gridsize_i - 1 for i in (x, y, z).
-        x = (posx[i] - domain_start_x)*gridsize_x_minus_1_over_domain_size_x
-        y = (posy[i] - domain_start_y)*gridsize_y_minus_1_over_domain_size_y
-        z = (posz[i] - domain_start_z)*gridsize_z_minus_1_over_domain_size_z
+        x = (posx[i] - domain_start_x)*gridsize_i_minus_1_over_domain_size_x
+        y = (posy[i] - domain_start_y)*gridsize_j_minus_1_over_domain_size_y
+        z = (posz[i] - domain_start_z)*gridsize_k_minus_1_over_domain_size_z
         # Correct for coordinates which are exactly at an upper domain boundary
-        if x == gridsize_x_minus_1:
+        if x == gridsize_i_minus_1:
             x -= two_machine_ϵ
-        if y == gridsize_y_minus_1:
+        if y == gridsize_j_minus_1:
             y -= two_machine_ϵ
-        if z == gridsize_z_minus_1:
+        if z == gridsize_k_minus_1:
             z -= two_machine_ϵ
         # Indices of the 8 vertices (6 faces) of the grid surrounding (x, y, z)
         x_lower = int(x)
@@ -251,13 +328,7 @@ def CIC_particles2grid(particles, grid):
         grid[x_upper, y_upper, z_upper] += Wxu*Wyu*Wzu
 
 
-
-
-
-
-
-# Function for communicating boundary values between processes after a CIC
-# interpolation to the grid.
+# Function for communicating boundary values of a grid between processes
 @cython.cfunc
 @cython.inline
 @cython.boundscheck(False)
@@ -265,106 +336,277 @@ def CIC_particles2grid(particles, grid):
 @cython.initializedcheck(False)
 @cython.wraparound(False)
 @cython.locals(# Arguments
-               domain_grid='double[:, :, ::1]',
+               grid='double[:, :, ::1]',
+               mode='int',
                # Locals
                i='int',
                j='int',
                k='int',
-               domain_grid_slice_backward='double[:, ::1]',
-               domain_grid_slice_backwarddown='double[:]',
-               domain_grid_slice_down='double[:, :]',
-               domain_grid_slice_forward='double[:, ::1]',
-               domain_grid_slice_forwardup='double[:]',
-               domain_grid_slice_left='double[:, ::1]',
-               domain_grid_slice_leftbackward='double[::1]',
-               domain_grid_slice_leftdown='double[:]',
-               domain_grid_slice_right='double[:, ::1]',
-               domain_grid_slice_rightup='double[:]',
-               domain_grid_slice_rightforward='double[::1]',
-               domain_grid_slice_up='double[:, :]',
+               grid_slice_backward='double[:, ::1]',
+               grid_slice_backwarddown='double[:]',
+               grid_slice_down='double[:, :]',
+               grid_slice_forward='double[:, ::1]',
+               grid_slice_forwardup='double[:]',
+               grid_slice_left='double[:, ::1]',
+               grid_slice_leftbackward='double[::1]',
+               grid_slice_leftdown='double[:]',
+               grid_slice_right='double[:, ::1]',
+               grid_slice_rightup='double[:]',
+               grid_slice_rightforward='double[::1]',
+               grid_slice_up='double[:, :]',
                )
-def communicate_domain_grid(domain_grid):
-    """The upper three surfaces (right, forward, up) of domain_grid as well as
-    the upper three edges (right forward, right upward, forward upward) and
-    the right, forward, upward point need to be communicated.
+def communicate_boundaries(grid, mode=0):
+    """This function can operate in either mode 0 or mode 1.
+    Mode 0: The upper three faces (right, forward, up) of the grid as well as
+    the upper three edges (right forward, right upward, forward upward) and the
+    right, forward, upward point is communicated to the processes where these
+    correspond to the lower faces/edges/point. The received values are added
+    to the existing lower faces/edges/point.
+    Mode 1: The lower three faces (left, backward, down) of the grid as well as
+    the lower three edges (left backward, left downward, backward downward) and
+    the left, backward, downward point is communicated to the processes where
+    these correspond to the upper faces/edges/point. The received values
+    replace the existing upper faces/edges/point.
     """
     global sendbuf_faceij, sendbuf_faceik, sendbuf_facejk
     global recvbuf_faceij, recvbuf_faceik, recvbuf_facejk
     global sendbuf_edge, recvbuf_edge
     # 2D slices (contiguous and noncontiguous) of the domain grid
-    domain_grid_slice_right = domain_grid[domain_size_i, :, :]
-    domain_grid_slice_left = domain_grid[0, :, :]
-    domain_grid_slice_forward = domain_grid[:, domain_size_j, :]
-    domain_grid_slice_backward = domain_grid[:, 0, :]
-    domain_grid_slice_up = domain_grid[:, :, domain_size_k]
-    domain_grid_slice_down = domain_grid[:, :, 0]
+    grid_slice_right = grid[domain_size_i, :, :]
+    grid_slice_left = grid[0, :, :]
+    grid_slice_forward = grid[:, domain_size_j, :]
+    grid_slice_backward = grid[:, 0, :]
+    grid_slice_up = grid[:, :, domain_size_k]
+    grid_slice_down = grid[:, :, 0]
     # 1D slices (contiguous and noncontiguous) of the domain grid
-    domain_grid_slice_rightforward = domain_grid[domain_size_i, domain_size_j, :]
-    domain_grid_slice_leftbackward = domain_grid[0, 0, :]
-    domain_grid_slice_rightup = domain_grid[domain_size_i, :, domain_size_k]
-    domain_grid_slice_leftdown = domain_grid[0, :, 0]
-    domain_grid_slice_forwardup = domain_grid[:, domain_size_j, domain_size_k]
-    domain_grid_slice_backwarddown = domain_grid[:, 0, 0]
-    # Cummunicate the right face
-    for j in range(domain_size_j):
+    grid_slice_rightforward = grid[domain_size_i, domain_size_j, :]
+    grid_slice_leftbackward = grid[0, 0, :]
+    grid_slice_rightup = grid[domain_size_i, :, domain_size_k]
+    grid_slice_leftdown = grid[0, :, 0]
+    grid_slice_forwardup = grid[:, domain_size_j, domain_size_k]
+    grid_slice_backwarddown = grid[:, 0, 0]
+    # If mode == 0, communicate the upper faces/edges/point to the
+    # corresponding processes. Add the received data to the existing
+    # lower values.
+    if mode == 0:
+        # Cummunicate the right face
+        for j in range(domain_size_j):
+            for k in range(domain_size_k):
+                sendbuf_facejk[j, k] = grid_slice_right[j, k]
+        Sendrecv(sendbuf_facejk, dest=rank_right, recvbuf=recvbuf_facejk,
+                 source=rank_left)
+        # Add the received contribution to the left face
+        for j in range(domain_size_j):
+            for k in range(domain_size_k):
+                grid_slice_left[j, k] += recvbuf_facejk[j, k]
+        # Cummunicate the forward face
+        for i in range(domain_size_i):
+            for k in range(domain_size_k):
+                sendbuf_faceik[i, k] = grid_slice_forward[i, k]
+        Sendrecv(sendbuf_faceik, dest=rank_forward, recvbuf=recvbuf_faceik,
+                 source=rank_backward)
+        # Add the received contribution to the backward face
+        for i in range(domain_size_i):
+            for k in range(domain_size_k):
+                grid_slice_backward[i, k] += recvbuf_faceik[i, k]
+        # Cummunicate the upward face
+        for i in range(domain_size_i):
+            for j in range(domain_size_j):
+                sendbuf_faceij[i, j] = grid_slice_up[i, j]
+        Sendrecv(sendbuf_faceij, dest=rank_up, recvbuf=recvbuf_faceij,
+                 source=rank_down)
+        # Add the received contribution to the lower face
+        for i in range(domain_size_i):
+            for j in range(domain_size_j):
+                grid_slice_down[i, j] += recvbuf_faceij[i, j]
+        # Communicate the right, forward edge
         for k in range(domain_size_k):
-            sendbuf_facejk[j, k] = domain_grid_slice_right[j, k]
-    Sendrecv(sendbuf_facejk, dest=rank_right, recvbuf=recvbuf_facejk,
+            sendbuf_edge[k] = grid_slice_rightforward[k]
+        Sendrecv(sendbuf_edge[:domain_size_k], dest=rank_rightforward,
+                 recvbuf=recvbuf_edge, source=rank_leftbackward)
+        # Add the received contribution to the left, backward edge
+        for k in range(domain_size_k):
+            grid_slice_leftbackward[k] += recvbuf_edge[k]
+        # Communicate the right, upward edge
+        for j in range(domain_size_j):
+            sendbuf_edge[j] = grid_slice_rightup[j]
+        Sendrecv(sendbuf_edge[:domain_size_j], dest=rank_rightup,
+                 recvbuf=recvbuf_edge, source=rank_leftdown)
+        # Add the received contribution to the left, downward edge
+        for j in range(domain_size_j):
+            grid_slice_leftdown[j] += recvbuf_edge[j]
+        # Communicate the forward, upward edge
+        for i in range(domain_size_i):
+            sendbuf_edge[i] = grid_slice_forwardup[i]
+        Sendrecv(sendbuf_edge[:domain_size_i], dest=rank_forwardup,
+                 recvbuf=recvbuf_edge, source=rank_backwarddown)
+        # Add the received contribution to the backward, downward edge
+        for i in range(domain_size_i):
+            grid_slice_backwarddown[i] += recvbuf_edge[i]
+        # Communicate the right, forward, upward point
+        grid[0, 0, 0] += sendrecv(grid[domain_size_i,
+                                       domain_size_j,
+                                       domain_size_k],
+                                  dest=rank_rightforwardup,
+                                  source=rank_leftbackwarddown)
+    # If mode == 1, communicate the lower faces/edges/point to the
+    # corresponding processes. Replace the existing upper values with the
+    # received data.
+    elif mode == 1:
+        # Cummunicate the left face
+        for j in range(domain_size_j):
+            for k in range(domain_size_k):
+                sendbuf_facejk[j, k] = grid_slice_left[j, k]
+        Sendrecv(sendbuf_facejk, dest=rank_left, recvbuf=recvbuf_facejk,
+                 source=rank_right)
+        # Copy the received contribution to the right face
+        for j in range(domain_size_j):
+            for k in range(domain_size_k):
+                grid_slice_right[j, k] = recvbuf_facejk[j, k]
+        # Cummunicate the backward face
+        for i in range(domain_size_i):
+            for k in range(domain_size_k):
+                sendbuf_faceik[i, k] = grid_slice_backward[i, k]
+        Sendrecv(sendbuf_faceik, dest=rank_backward, recvbuf=recvbuf_faceik,
+                 source=rank_forward)
+        # Copy the received contribution to the forward face
+        for i in range(domain_size_i):
+            for k in range(domain_size_k):
+                grid_slice_forward[i, k] = recvbuf_faceik[i, k]
+        # Cummunicate the downward face
+        for i in range(domain_size_i):
+            for j in range(domain_size_j):
+                sendbuf_faceij[i, j] = grid_slice_down[i, j]
+        Sendrecv(sendbuf_faceij, dest=rank_down, recvbuf=recvbuf_faceij,
+                 source=rank_up)
+        # Copy the received contribution to the upper face
+        for i in range(domain_size_i):
+            for j in range(domain_size_j):
+                grid_slice_up[i, j] = recvbuf_faceij[i, j]
+        # Communicate the left, backward edge
+        for k in range(domain_size_k):
+            sendbuf_edge[k] = grid_slice_leftbackward[k]
+        Sendrecv(sendbuf_edge[:domain_size_k], dest=rank_leftbackward,
+                 recvbuf=recvbuf_edge, source=rank_rightforward)
+        # Copy the received contribution to the right, forward edge
+        for k in range(domain_size_k):
+            grid_slice_rightforward[k] = recvbuf_edge[k]
+        # Communicate the left, downward edge
+        for j in range(domain_size_j):
+            sendbuf_edge[j] = grid_slice_leftdown[j]
+        Sendrecv(sendbuf_edge[:domain_size_j], dest=rank_leftdown,
+                 recvbuf=recvbuf_edge, source=rank_rightup)
+        # Copy the received contribution to the right, upward edge
+        for j in range(domain_size_j):
+            grid_slice_rightup[j] = recvbuf_edge[j]
+        # Communicate the backward, downward edge
+        for i in range(domain_size_i):
+            sendbuf_edge[i] = grid_slice_backwarddown[i]
+        Sendrecv(sendbuf_edge[:domain_size_i], dest=rank_backwarddown,
+                 recvbuf=recvbuf_edge, source=rank_forwardup)
+        # Copy the received contribution to the forward, upward edge
+        for i in range(domain_size_i):
+            grid_slice_forwardup[i] = recvbuf_edge[i]
+        # Communicate the left, backward, downward point
+        grid[domain_size_i,
+             domain_size_j,
+             domain_size_k] = sendrecv(grid[0, 0, 0],
+                                       dest=rank_leftbackwarddown,
+                                       source=rank_rightforwardup)
+
+
+# Function for communicating ghost layers of a grid between processes
+@cython.cfunc
+@cython.inline
+@cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
+@cython.wraparound(False)
+@cython.locals(# Arguments
+               grid='double[:, :, ::1]',
+               # Locals
+               ghost_backward='double[:, :, ::1]',
+               ghost_down='double[:, :, ::1]',
+               ghost_forward='double[:, :, ::1]',
+               ghost_left='double[:, :, ::1]',
+               ghost_right='double[:, :, ::1]',
+               ghost_up='double[:, :, ::1]',
+               grid_noghosts='double[:, :, ::1]',
+               layer_backward='double[:, :, ::1]',
+               layer_down='double[:, :, ::1]',
+               layer_forward='double[:, :, ::1]',
+               layer_left='double[:, :, ::1]',
+               layer_right='double[:, :, ::1]',
+               layer_up='double[:, :, ::1]',
+               )
+def communicate_ghosts(grid):
+    """The ghost layers are two gridpoints in thickness.
+    """
+    global sendbuf_ghostij, sendbuf_ghostik, sendbuf_ghostjk
+    global recvbuf_ghostij, recvbuf_ghostik, recvbuf_ghostjk
+
+    # Memoryview of the grid without the ghost envelope of thickness 2
+    grid_noghosts = grid[2:(grid.shape[0] - 2),
+                         2:(grid.shape[1] - 2),
+                         2:(grid.shape[2] - 2)]
+    # The boundary layers (faces of thickness 2) which should be send to other
+    # processes and used as ghost layers.
+    layer_right = grid_noghosts[(grid_noghosts.shape[0]-3):(grid_noghosts.shape[0]-1), :, :]
+    layer_left = grid_noghosts[1:3, :, :]
+    layer_forward = grid_noghosts[:, (grid_noghosts.shape[1]-3):(grid_noghosts.shape[1]-1), :]
+    layer_backward = grid_noghosts[:, 1:3, :]
+    layer_up = grid_noghosts[:, :, (grid_noghosts.shape[2]-3):(grid_noghosts.shape[2]-1)]
+    layer_down = grid_noghosts[:, :, 1:3]
+    # Ghost layers of the local domain grid
+    ghost_right = grid[(grid.shape[0] - 2):,
+                      2:(grid.shape[1] - 2),
+                      2:(grid.shape[2] - 2)]
+    ghost_left = grid[:2,
+                      2:(grid.shape[1] - 2),
+                      2:(grid.shape[2] - 2)]
+    ghost_forward = grid[2:(grid.shape[0] - 2),
+                         (grid.shape[1] - 2):,
+                         2:(grid.shape[2] - 2)]
+    ghost_backward = grid[2:(grid.shape[0] - 2),
+                          :2,
+                          2:(grid.shape[2] - 2)]
+    ghost_up = grid[2:(grid.shape[0] - 2),
+                    2:(grid.shape[1] - 2),
+                    (grid.shape[2] - 2):]
+    ghost_down = grid[2:(grid.shape[0] - 2),
+                      2:(grid.shape[1] - 2),
+                      :2]
+    # Cummunicate the right boundary layer
+    sendbuf_ghostjk[...] = layer_right[...]
+    Sendrecv(sendbuf_ghostjk, dest=rank_right, recvbuf=recvbuf_ghostjk,
              source=rank_left)
-    # Add the received contribution to the left face
-    for j in range(domain_size_j):
-        for k in range(domain_size_k):
-            domain_grid_slice_left[j, k] += recvbuf_facejk[j, k]
-    # Cummunicate the forward face
-    for i in range(domain_size_i):
-        for k in range(domain_size_k):
-            sendbuf_faceik[i, k] = domain_grid_slice_forward[i, k]
-    Sendrecv(sendbuf_faceik, dest=rank_forward, recvbuf=recvbuf_faceik,
+    ghost_left[...] = recvbuf_ghostjk[...]
+    # Cummunicate the left boundary layer
+    sendbuf_ghostjk[...] = layer_left[...]
+    Sendrecv(sendbuf_ghostjk, dest=rank_left, recvbuf=recvbuf_ghostjk,
+             source=rank_right)
+    ghost_right[...] = recvbuf_ghostjk[...]
+    # Cummunicate the forward boundary layer
+    sendbuf_ghostik[...] = layer_forward[...]
+    Sendrecv(sendbuf_ghostik, dest=rank_forward, recvbuf=recvbuf_ghostik,
              source=rank_backward)
-    # Add the received contribution to the backward face
-    for i in range(domain_size_i):
-        for k in range(domain_size_k):
-            domain_grid_slice_backward[i, k] += recvbuf_faceik[i, k]
-    # Cummunicate the upward face
-    for i in range(domain_size_i):
-        for j in range(domain_size_j):
-            sendbuf_faceij[i, j] = domain_grid_slice_up[i, j]
-    Sendrecv(sendbuf_faceij, dest=rank_up, recvbuf=recvbuf_faceij,
+    ghost_backward[...] = recvbuf_ghostik[...]
+    # Cummunicate the backward boundary layer
+    sendbuf_ghostik[...] = layer_backward[...]
+    Sendrecv(sendbuf_ghostik, dest=rank_backward, recvbuf=recvbuf_ghostik,
+             source=rank_forward)
+    ghost_forward[...] = recvbuf_ghostik[...]
+    # Cummunicate the upward boundary layer
+    sendbuf_ghostij[...] = layer_up[...]
+    Sendrecv(sendbuf_ghostij, dest=rank_up, recvbuf=recvbuf_ghostij,
              source=rank_down)
-    # Add the received contribution to the lower face
-    for i in range(domain_size_i):
-        for j in range(domain_size_j):
-            domain_grid_slice_down[i, j] += recvbuf_faceij[i, j]
-    # Communicate the right, forward edge
-    for k in range(domain_size_k):
-        sendbuf_edge[k] = domain_grid_slice_rightforward[k]
-    Sendrecv(sendbuf_edge[:domain_size_k], dest=rank_rightforward,
-             recvbuf=recvbuf_edge, source=rank_leftbackward)
-    # Add the received contribution to the left, backward edge
-    for k in range(domain_size_k):
-        domain_grid_slice_leftbackward[k] += recvbuf_edge[k]
-    # Communicate the right, upward edge
-    for j in range(domain_size_j):
-        sendbuf_edge[j] = domain_grid_slice_rightup[j]
-    Sendrecv(sendbuf_edge[:domain_size_j], dest=rank_rightup, recvbuf=recvbuf_edge,
-             source=rank_leftdown)
-    # Add the received contribution to the left, downward edge
-    for j in range(domain_size_j):
-        domain_grid_slice_leftdown[j] += recvbuf_edge[j]
-    # Communicate the forward, upward edge
-    for i in range(domain_size_i):
-        sendbuf_edge[i] = domain_grid_slice_forwardup[i]
-    Sendrecv(sendbuf_edge[:domain_size_i], dest=rank_forwardup, recvbuf=recvbuf_edge,
-             source=rank_backwarddown)
-    # Add the received contribution to the backward, downward edge
-    for i in range(domain_size_i):
-        domain_grid_slice_backwarddown[i] += recvbuf_edge[i]
-    # Communicate the right, forward, upward point
-    domain_grid[0, 0, 0] += sendrecv(domain_grid[domain_size_i,
-                                                 domain_size_j,
-                                                 domain_size_k],
-                                     dest=rank_rightforwardup,
-                                     source=rank_leftbackwarddown)
+    ghost_down[...] = recvbuf_ghostij[...]
+    # Cummunicate the downward boundary layer
+    sendbuf_ghostij[...] = layer_down[...]
+    Sendrecv(sendbuf_ghostij, dest=rank_down, recvbuf=recvbuf_ghostij,
+             source=rank_up)
+    ghost_up[...] = recvbuf_ghostij[...]
+
 
 # Function for transfering the interpolated data
 # in the domain grid to the PM grid.
@@ -386,6 +628,7 @@ def communicate_domain_grid(domain_grid):
                ℓ='int',
                )
 def domain2PM(domain_grid, PM_grid):
+    global domainPM_sendbuf, domainPM_recvbuf
     # Communicate the interpolated domain grid to the PM grid
     for ℓ in range(ℓmax):
         # Send part of the local domain grid to the corresponding process
@@ -394,16 +637,78 @@ def domain2PM(domain_grid, PM_grid):
             for i in range(PM_send_i_start[ℓ], PM_send_i_end[ℓ]):
                 for j in range(domain_size_j):
                     for k in range(domain_size_k):
-                        domainPM_sendbuf[i - PM_send_i_start[ℓ], j, k] = domain_grid[i, j, k]
-            Send(domainPM_sendbuf, dest=ID_send)
-        # The lower ranks storing the PM mesh reveives the message
+                        domainPM_sendbuf[i - PM_send_i_start[ℓ],
+                                         j,
+                                         k] = domain_grid[i, j, k]
+            # A non-blocking send is used. Otherwise the program will
+            # hang on large messages.
+            #print('rank', rank, 'will send to', ID_send)
+            Isend(domainPM_sendbuf, dest=ID_send)
+        # The lower ranks storing the PM mesh receives the message
         if ℓ < PM_recv_rank.shape[0]:
             ID_recv = PM_recv_rank[ℓ]
+            #print('rank', rank, 'will recv from', ID_recv)
             Recv(domainPM_recvbuf, source=ID_recv)
             for i in range(PM_recv_i_start[ℓ], PM_recv_i_end[ℓ]):
                 for j in range(PM_recv_j_start[ℓ], PM_recv_j_end[ℓ]):
                     for k in range(PM_recv_k_start[ℓ], PM_recv_k_end[ℓ]):
-                        PM_grid[i, j, k] = domainPM_recvbuf[i, j - PM_recv_j_start[ℓ], k - PM_recv_k_start[ℓ]]
+                        PM_grid[i, j, k] = domainPM_recvbuf[i,
+                                                            j - PM_recv_j_start[ℓ],
+                                                            k - PM_recv_k_start[ℓ]]
+        # Catch-up point for the processes. This ensures that the communication
+        # is complete, and hence that the non-blocking send is done.
+        Barrier()
+
+
+# Function for transfering the data
+# in the PM grid to the domain grid.
+@cython.cfunc
+@cython.inline
+@cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
+@cython.wraparound(False)
+@cython.locals(# Arguments
+               domain_grid='double[:, :, ::1]',
+               PM_grid='double[:, :, ::1]',
+               # Locals
+               ID_send='int',
+               ID_recv='int',
+               i='int',
+               j='int',
+               k='int',
+               ℓ='int',
+               )
+def PM2domain(domain_grid, PM_grid):
+    global domainPM_sendbuf, domainPM_recvbuf
+    # Communicate the interpolated domain grid to the PM grid
+    for ℓ in range(ℓmax):
+        # The lower ranks storing the PM mesh sends part of their slab
+        if ℓ < PM_recv_rank.shape[0]:
+            ID_send = PM_recv_rank[ℓ]
+            for i in range(PM_recv_i_start[ℓ], PM_recv_i_end[ℓ]):
+                for j in range(PM_recv_j_start[ℓ], PM_recv_j_end[ℓ]):
+                    for k in range(PM_recv_k_start[ℓ], PM_recv_k_end[ℓ]):
+                        domainPM_recvbuf[i,
+                                         j - PM_recv_j_start[ℓ],
+                                         k - PM_recv_k_start[ℓ],
+                                         ] = PM_grid[i, j, k]
+            # A non-blocking send is used. Otherwise the program will
+            # hang on large messages.
+            Isend(domainPM_recvbuf, dest=ID_send)
+        # The corresponding process receives the message
+        if ℓ < PM_send_rank.shape[0]:
+            ID_recv = PM_send_rank[ℓ]
+            Recv(domainPM_sendbuf, source=ID_recv)
+            for i in range(PM_send_i_start[ℓ], PM_send_i_end[ℓ]):
+                for j in range(domain_size_j):
+                    for k in range(domain_size_k):
+                        domain_grid[i, j, k] = domainPM_sendbuf[i - PM_send_i_start[ℓ],
+                                                                j,
+                                                                k]
+        # Catch-up point for the processes. This ensures that the communication
+        # is complete, and hence that the non-blocking send is done.
+        Barrier()
 
 
 if use_PM:
@@ -463,7 +768,6 @@ if use_PM:
     domain_end_x = domain_start_x + domain_size_x
     domain_end_y = domain_start_x + domain_size_x
     domain_end_z = domain_start_x + domain_size_x
-
     # Get the ranks of the 6 neighboring processes
     rank_right = domain_layout[mod(domain_local[0] + 1, domain_cuts[0]),
                                domain_local[1],
@@ -597,6 +901,9 @@ if use_PM:
     PM_send_i_start_list = list(np.roll(PM_send_i_start_list, -rank))
     PM_send_i_end_list = list(np.roll(PM_send_i_end_list, -rank))
     PM_send_rank_list = list(np.roll(PM_send_rank_list, -rank))
+    #
+    # THIS IS NOT SUFFICIENT! IF nprocs > PM_grid THE PROGRAM WILL HALT AT domain2PM and PM2domain !!!!!!!!!!!!!!!!!!
+    #
     # Communicate the start and end (j, k)-indices of the PM grid, where
     # future parts of the local domains should be received into.
     PM_recv_i_start_list = []
@@ -612,7 +919,7 @@ if use_PM:
         ID_recv = mod(rank - ℓ, nprocs)
         # Send the global y and z start and end indices of the region to be
         # send, if anything should be send to process ID_send.
-        # Otherwize send None.      
+        # Otherwize send None.
         sendbuf = (domain_start_j,
                    domain_start_k,
                    domain_end_j,
@@ -644,5 +951,18 @@ if use_PM:
     # ℓ will be the communication loop index. It runs from 0 t0 ℓmax - 1
     ℓmax = np.max([PM_send_rank.shape[0], PM_recv_rank.shape[0]])
 
-
-
+    # Send/recieve buffers used in the communicate_ghosts function.
+    # Separate buffers for each face is needed to ensure contiguousity.
+    cython.declare(sendbuf_ghostij='double[:, :, ::1]',
+                   recvbuf_ghostij='double[:, :, ::1]',
+                   sendbuf_ghostik='double[:, :, ::1]',
+                   recvbuf_ghostik='double[:, :, ::1]',
+                   sendbuf_ghostjk='double[:, :, ::1]',
+                   recvbuf_ghostjk='double[:, :, ::1]',
+                   )
+    sendbuf_ghostij = empty((domain_size_i + 1, domain_size_j + 1, 2), dtype='float64')
+    recvbuf_ghostij = empty((domain_size_i + 1, domain_size_j + 1, 2), dtype='float64')
+    sendbuf_ghostik = empty((domain_size_i + 1, 2, domain_size_k + 1), dtype='float64')
+    recvbuf_ghostik = empty((domain_size_i + 1, 2, domain_size_k + 1), dtype='float64')
+    sendbuf_ghostjk = empty((2, domain_size_j + 1, domain_size_k + 1), dtype='float64')
+    recvbuf_ghostjk = empty((2, domain_size_j + 1, domain_size_k + 1), dtype='float64')

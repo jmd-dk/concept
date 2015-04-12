@@ -30,3 +30,4 @@ cdef:
 
     # Simulation options
     bint use_Ewald
+    dict kick_algorithms

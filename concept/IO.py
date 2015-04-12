@@ -17,7 +17,8 @@ else:
 import struct
 
 
-# Function that saves particle data to an hdf5 file
+# Function that saves particle data to an hdf5 file or a gadget snapshot file,
+# based on the "output_type" parameter
 @cython.cfunc
 @cython.inline
 @cython.boundscheck(False)
@@ -37,6 +38,45 @@ def save(particles, a, filename):
     else:
         raise Exception('Error: Does not recognize output type "'
                         + output_type + '".')
+
+# Function that loads particle data from an hdf5 file and instantiate a
+# Particles instance on each process, storing the particles within its domain.
+@cython.cfunc
+@cython.inline
+@cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
+@cython.wraparound(False)
+@cython.locals(# Argument
+               filename='str',
+               # Locals
+               input_type='str',
+               particles='Particles',
+               )
+@cython.returns('Particles')
+def load(filename):
+    # Determine whether input snapshot is in standard or GADGET2 2 format
+    # by searching for a HEAD identifier.
+    input_type = 'standard'
+    with open(filename, 'rb') as f:
+        try:
+            f.seek(4)
+            if struct.unpack('4s',
+                             f.read(struct.calcsize('4s')))[0] == b'HEAD':
+                input_type = 'GADGET 2'
+        except:
+            pass
+    # Dispatches the work to the appropriate function
+    if input_type == 'standard':
+        particles = load_standard(filename)
+    elif input_type == 'GADGET 2':
+        particles = load_gadget(filename)
+    # Scatter particles to the correct domain-specific process.
+    # Setting reset_indices_send == True ensures that buffers will be reset
+    # afterwards, as this initial exchange is not representable for those
+    # to come.
+    exchange(particles, reset_buffers=True)
+    return particles
 
 # Function that saves particle data to an hdf5 file
 @cython.cfunc
@@ -176,8 +216,12 @@ def load_standard(filename):
             momx_h5 = particles_h5['momx']
             momy_h5 = particles_h5['momy']
             momz_h5 = particles_h5['momz']
-            # Compute a fair distribution of particle data to the processes
+            # Write out message
             N = posx_h5.size
+            if master:
+                print('    Found', N, particles_h5.attrs['species'],
+                      'particles', '(' + particles_h5.attrs['type'] + ')')
+            # Compute a fair distribution of particle data to the processes
             N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
                         + (N//nprocs + 1, )*(N % nprocs))
             N_local = N_locals[rank]
@@ -205,49 +249,61 @@ def load_standard(filename):
     # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     return particles
 
-# Function that loads particle data from an hdf5 file and instantiate a
-# Particles instance on each process, storing the particles within its domain.
+# Function for saving the current state as a GADGET snapshot
 @cython.cfunc
 @cython.inline
 @cython.boundscheck(False)
 @cython.cdivision(True)
 @cython.initializedcheck(False)
 @cython.wraparound(False)
-@cython.locals(# Argument
+@cython.locals(# Arguments
+               particles='Particles',
+               a='double',
                filename='str',
                # Locals
-               input_type='str',
-               particles='Particles',
+               N='size_t',
+               i='int',
+               snapshot='Gadget_snapshot',
+               unit='double',
+               )
+def save_gadget(particles, a, filename):
+    # Print out message
+    if master:
+        print('Saving GADGET snapshot:', filename)
+    # Instantiate GADGET snapshot
+    snapshot = Gadget_snapshot()
+    snapshot.populate(particles, a)
+    # Write GADGET snapshot to disk
+    snapshot.save(filename)
+
+# Function for loading a GADGET snapshot into a Particles instance
+@cython.cfunc
+@cython.inline
+@cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
+@cython.wraparound(False)
+@cython.locals(# Arguments
+               filename='str',
+               # Locals
+               snapshot='Gadget_snapshot',
                )
 @cython.returns('Particles')
-def load(filename):
-    # Determine whether input snapshot is in standard or GADGET2 2 format
-    # by searching for a HEAD identifier.
-    input_type = 'standard'
-    with open(filename, 'rb') as f:
-        try:
-            f.seek(4)
-            if struct.unpack('4s',
-                             f.read(struct.calcsize('4s')))[0] == b'HEAD':
-                input_type = 'GADGET 2'
-        except:
-            pass
-    # Dispatches the work to the appropriate function
-    if input_type == 'standard':
-        particles = load_standard(filename)
-    elif input_type == 'GADGET 2':
-        particles = load_gadget(filename)
-    # Scatter particles to the correct domain-specific process.
-    # Setting reset_indices_send == True ensures that buffers will be reset
-    # afterwards, as this initial exchange is not representable for those
-    # to come.
-    exchange(particles, reset_buffers=True)
-    return particles
+def load_gadget(filename):
+    # Print out message
+    if master:
+        print('Loading GADGET snapshot:', filename)
+    snapshot = Gadget_snapshot()
+    snapshot.load(filename, write_msg=True)
+    return snapshot.particles
 
-
+# Class storing a Gadget snapshot. Besides holding methods for saving/loading,
+# it stores particle data (positions, momenta, mass) and also Gadget ID's
+# and the Gadget header.
 @cython.cclass
 class Gadget_snapshot:
-    """
+    """Only Gadget type 1 (halo) particles, corresponding to dark matter
+    particles, are supported.
     """
 
     # Initialization method.
@@ -447,6 +503,7 @@ class Gadget_snapshot:
     @cython.wraparound(False)
     @cython.locals(# Arguments
                    filename='str',
+                   write_msg='bint',
                    # Locals
                    N='size_t',
                    N_local='size_t',
@@ -465,7 +522,7 @@ class Gadget_snapshot:
                    tol='double',
                    unit='double',
                    )
-    def load(self, filename):
+    def load(self, filename, write_msg=False):
         """ It is assumed that the snapshot on the disk is a GADGET snapshot
         of type 2 and that it uses single precision. The Gadget_snapshot
         instance stores the data (positions and velocities) in double
@@ -532,8 +589,12 @@ class Gadget_snapshot:
                             + '\N{GREEK CAPITAL LETTER LAMDA}: '
                             + str(ΩΛ) + ' vs ' + str(gadget_ΩΛ))
                 warn(msg)
-            # Compute a fair distribution of particle data to the processes
+            # Write out message
             N = self.header['Npart'][1]
+            if master and write_msg:
+                print('    Found', N, 'dark matter particles',
+                      '(Gadget halos)')
+            # Compute a fair distribution of particle data to the processes
             N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
                         + (N//nprocs + 1, )*(N % nprocs))
             N_local = N_locals[rank]
@@ -543,7 +604,7 @@ class Gadget_snapshot:
                 start_local = int(start_local)
             # Construct a Particles instance
             unit = 1e+10*units.m_sun/self.header['HubbleParam']
-            self.particles = construct('from GADGET snapshot',
+            self.particles = construct('Gadget halos',
                                        'dark matter',
                                        mass=self.header['Massarr'][1]*unit,
                                        N=N,
@@ -658,54 +719,6 @@ class Gadget_snapshot:
         # containing the size of the block
         offset += 8 + self.read(f, 'i')
         return offset
-
-# Function for loading a GADGET snapshot into a Particles instance
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
-               filename='str',
-               # Locals
-               snapshot='Gadget_snapshot',
-               )
-@cython.returns('Particles')
-def load_gadget(filename):
-    # Print out message
-    if master:
-        print('Loading GADGET snapshot:', filename)
-    snapshot = Gadget_snapshot()
-    snapshot.load(filename)
-    return snapshot.particles
-
-# Function for saving the current state as a GADGET snapshot
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
-               particles='Particles',
-               a='double',
-               filename='str',
-               # Locals
-               N='size_t',
-               i='int',
-               snapshot='Gadget_snapshot',
-               unit='double',
-               )
-def save_gadget(particles, a, filename):
-    # Print out message
-    if master:
-        print('Saving GADGET snapshot:', filename)
-    # Instantiate GADGET snapshot
-    snapshot = Gadget_snapshot()
-    snapshot.populate(particles, a)
-    # Write GADGET snapshot to disk
-    snapshot.save(filename)
 
 
 # Create a formated version of output_type at import time

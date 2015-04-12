@@ -15,7 +15,7 @@ import h5py
 import os
 import sys
 
-# WHILE DEVELOPING
+# For development purposes only
 from time import time, sleep
 
 ########################
@@ -149,9 +149,13 @@ cython.declare(minus_4pi='double',
                one_third='double',
                sqrt_pi='double',
                two_pi='double',
+               one_thirds='double',
+               one_twelfth='double',
                )
 minus_4pi = -4*pi
 one_third = 1.0/3.0
+one_twelfth = 1.0/12.0
+two_thirds = 2.0/3.0
 sqrt_pi = sqrt(pi)
 two_pi = 2*pi
 
@@ -160,8 +164,11 @@ two_pi = 2*pi
 ############################################
 cython.declare(G_Newton='double',
                PM_gridsize3='ptrdiff_t',
+               PM_gridsize_padding='ptrdiff_t',
                boxsize2='double',
                ewald_file='str',
+               half_PM_gridsize='ptrdiff_t',
+               half_PM_gridsize_padding='ptrdiff_t',
                half_boxsize='double',
                machine_ϵ='double',
                minus_half_boxsize='double',
@@ -171,12 +178,13 @@ cython.declare(G_Newton='double',
                use_Ewald ='bint',
                use_PM='bint',
                ϱ='double',
-               half_PM_gridsize='ptrdiff_t',
                )
 G_Newton = 6.6738e-11*units.m**3/units.kg/units.s**2  # Newtons constant
 ϱ = 3*H0**2/(8*pi*G_Newton) # The average, comoing density (the critical comoving density since we only study flat universes)
 PM_gridsize3 = PM_gridsize**3
+PM_gridsize_padding = 2*(PM_gridsize//2 + 1)
 half_PM_gridsize = PM_gridsize//2
+half_PM_gridsize_padding = PM_gridsize_padding//2
 boxsize2 = boxsize**2
 half_boxsize = 0.5*boxsize
 minus_half_boxsize = -half_boxsize
@@ -185,7 +193,7 @@ ewald_file = '.ewald_gridsize=' + str(ewald_gridsize) + '.hdf5'  # Name of file 
 machine_ϵ = np.finfo('float64').eps  # Machine epsilon
 two_ewald_gridsize = 2*ewald_gridsize
 two_machine_ϵ = 2*machine_ϵ
-use_PM = True  # Flag specifying whether the PM method is used or not. THIS SHOULD BE COMPUTED BASED ON PARTICLES CHOSEN IN THE PARAMETER FILE!!!!!!!!!!!
+use_PM = True if 'PM' in kick_algorithms.values() else False  # Flag specifying whether the PM method is used or not
 
 
 
@@ -207,6 +215,7 @@ Barrier = comm.Barrier
 Bcast = comm.Bcast
 Gather = comm.Gather
 Gatherv = comm.Gatherv
+Isend = comm.Isend
 Reduce = comm.Reduce
 Recv = comm.Recv
 Scatter = comm.Scatter
@@ -322,6 +331,23 @@ else:
             Σ += a[i]
         return Σ
     """
+# Unnormalized sinc function (faster than gsl_sf_sinc)
+@cython.cfunc
+@cython.inline
+@cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
+@cython.wraparound(False)
+@cython.locals(x='double',
+               y='double')
+@cython.returns('double')
+def sinc(x):
+    y = sin(x)
+    if y != x:
+        y /= x
+    else:
+        y = 1
+    return y
 # Function for printing warnings
 def warn(msg):
     os.system('printf "\033[1m\033[91mWarning: ' + msg + '\033[0m\n" >&2')
