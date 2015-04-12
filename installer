@@ -89,7 +89,8 @@ mpi4py_url="https://bitbucket.org/mpi4py/mpi4py/get/${mpi4py_version}.tar.gz"
 hdf5_version=$(wget -O- --no-check-certificate "ftp://ftp.hdfgroup.org/HDF5/current/src/" | grep -m 1 -o -P "(?<=hdf5-).*(?=.tar.bz2\")")
 hdf5_url="ftp://ftp.hdfgroup.org/HDF5/current/src/hdf5-${hdf5_version}.tar.bz2"
 # h5py (2.4.0 is known to work)
-h5py_version=$(wget -O- --no-check-certificate "https://pypi.python.org/pypi/h5py/#downloads" | grep -m 1 -o -P "(?<=h5py-).*(?=.tar.gz#)")
+h5py_version=$(wget -O- --no-check-certificate "https://pypi.python.org/pypi/h5py/#downloads" | grep -m 1 -o -P "(?<=h5py/).*(?=\"\>h5py)")
+            #$(wget -O- --no-check-certificate "https://pypi.python.org/pypi/h5py/#downloads" | grep -m 1 -o -P "(?<=h5py-).*(?=.tar.gz#)")
 h5py_url="https://pypi.python.org/packages/source/h/h5py/h5py-${h5py_version}.tar.gz"
 # FFTW (3.3.4 is known to work)
 fftw_version=$(wget -O- --no-check-certificate "http://www.fftw.org/download.html" | grep -m 1 -o -P "(?<=fftw-).*(?=.tar.gz\")")
