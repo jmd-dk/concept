@@ -1,0 +1,91 @@
+#!/bin/bash
+
+# This script performs a kick test of the CONCEPT code, by comparison with
+# GADGET. ICs are generated, containing 8 particles placed symetrically
+# so that a force only exist in the x-direction. The particles start out
+# with zero velocity.
+
+# The name of this test (the directory name)
+this_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+test_name=$(basename "${this_dir}")
+
+# Set up error trapping
+ctrl_c()
+{
+    trap : 0
+    exit 2
+}
+abort()
+{
+    printf "\e[1m\e[91mAn error occurred during ${test_name} test!\e[0m\n" >&2
+    exit 1
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
+
+# Load paths from the .paths file
+curr="${this_dir}"
+while [ 1 ]; do
+    if [ -f "${curr}/.paths" ]; then
+        source "${curr}/.paths"
+        break
+    fi
+    if [ "${curr}" == "/" ]; then
+        printf "\e[1m\e[91mCould not find the .paths file!\e[0m\n" >&2
+        exit 1
+    fi
+    curr="`dirname \"${curr}\"`"
+done
+
+# Create list of output times, used by both CONCEPT and GADGET
+"${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', np.linspace(0.03, 0.5, 10))"
+
+# Create the Ewald grid using Cython, if it does not already exist
+# (for fast IC generation).
+"${run}" -n 1 -p "${this_dir}/params" --exit --local
+
+# Generate ICs
+"${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local
+
+# Run the CONCEPT code on the generated ICs
+"${run}" -n 1 -p "${this_dir}/params" --local
+
+# Create an edited version of Makefile_gadget with correct parth information
+cp "${this_dir}/Makefile_gadget" "${this_dir}/Makefile_gadget_edited"
+sed -i "/^ *CC= / s/ [^# ]/ \"${mpicc//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+path="${openmpi_dir}/include"
+sed -i "/^ *MPI_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+path="${openmpi_dir}/lib"
+sed -i "/^ *MPI_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+path="${gsl_dir}/include"
+sed -i "/^ *GSL_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+path="${gsl_dir}/lib"
+sed -i "/^ *GSL_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+path="${fftw_for_gadget_dir}/include"
+sed -i "/^ *FFTW_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+path="${fftw_for_gadget_dir}/lib"
+sed -i "/^ *FFTW_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+
+# Make a local copy of the files in the GADGET2 directory and copy the edited Makefile
+Gadget2_local_dir="${this_dir}/Gadget2_local"
+mkdir -p "${Gadget2_local_dir}"
+find "${Gadget2_dir}" -maxdepth 1 -type f -exec cp '{}' "${Gadget2_local_dir}" \;
+cp "${this_dir}/Makefile_gadget_edited" "${Gadget2_local_dir}/Makefile"
+
+# Build Gadget and run simulation based on the ICs
+(cd "${Gadget2_local_dir}" && make clean && make && "${mpiexec}" -n 1 --prefix "${openmpi_dir}" Gadget2 ../params_gadget)  # It is crucial to use a relative path as the path has a max allowed length in GADGET
+
+# Analyze the output snapshots
+"${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
+
+# Copy the tabulated Ewald corrections to the Gadget2 directory if it does not
+# already exists there, to save time later.
+if [ ! -f "${Gadget2_dir}/ewald_spc_table_64.dat" ]; then
+    cp "${Gadget2_local_dir}/ewald_spc_table_64.dat" "${Gadget2_dir}/ewald_spc_table_64.dat"
+fi
+
+# Test run complete. Deactivate trap before exiting.
+trap : 0
+printf "\e[1m\e[92m${test_name^} test ran successfully\e[0m\n"
+
