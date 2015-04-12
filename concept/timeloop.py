@@ -66,7 +66,6 @@ particles.populate(momy, 'momy')
 particles.populate(momz, 'momz')
 """
 
-
 @cython.cfunc
 @cython.inline
 @cython.boundscheck(False)

@@ -128,7 +128,8 @@ def power2product(filename):
                         nr_of_signs += symbol in '+-'
                         if (nr_of_signs > power_with_sign or symbol not in '+- .0123456789'):
                             break
-                    if i == len(expression_power) - 1:
+                    # I'm not sure if "expression_power[-1] != ')'" is safe!
+                    if i == len(expression_power) - 1 and expression_power[-1] != ')':
                         i += 1
                     power = expression_power[:i]
                     after_power = expression_power[i:]

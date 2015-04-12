@@ -169,9 +169,9 @@ class Particles:
             posy[i] += momy[i]*fac
             posz[i] += momz[i]*fac
             # Toroidal boundaries
-            posx[i] = mod(posx[i], boxsize)
-            posy[i] = mod(posy[i], boxsize)
-            posz[i] = mod(posz[i], boxsize)
+            posx[i] = np.mod(posx[i], boxsize)
+            posy[i] = np.mod(posy[i], boxsize)
+            posz[i] = np.mod(posz[i], boxsize)
         # Some partiles may have drifted out of the local domain.
         # Exchange particles to the correct processes.
         exchange(self)
@@ -185,19 +185,22 @@ class Particles:
     @cython.wraparound(False)
     @cython.locals(# Arguments
                    Δt='double',
+                   # Locals
+                   kick_algorithm='str',
                    )
     def kick(self, Δt):
         """Note that the time step size Δt is really ∫_t^(t + Δt) dt/a.
         """
+        kick_algorithm = kick_algorithms[self.species]
         # Delegate the work to the appropriate function based on species
-        if self.species == 'dark matter':
+        if kick_algorithm == 'PP':
+            PP(self, Δt)
+        elif kick_algorithm == 'PM':
             PM(self, Δt)
-        elif self.species == 'dark energy':
-            # NOT YET IMPLEMENTED
-            pass
         else:
-            raise ValueError('Species "' + self.species
-                             + '" do not have an assigned kick function!')
+            raise ValueError('Species "' + self.species + '" has assigned '
+                             + 'the kick algorithm "' + kick_algorithm
+                             + '", which is not implemented!')
 
     # This method is automaticlly called when a Particles instance
     # is garbage collected. All manually allocated mmeory is freed.

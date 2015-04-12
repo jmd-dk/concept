@@ -6,7 +6,7 @@ from commons import *
 if not cython.compiled:
     from ewald import ewald
     from communication import cutout_domains, find_N_recv
-    from mesh import CIC_particles2grid, communicate_domain_grid, domain2PM
+    from mesh import CIC_grid2coordinates_scalar, CIC_grid2coordinates_vector, CIC_particles2grid, communicate_boundaries, communicate_ghosts, domain2PM, PM2domain
     # FFT functionality via Numpy
     from numpy.fft import rfftn, irfftn
 else:
@@ -14,7 +14,7 @@ else:
     """
     from ewald cimport ewald
     from communication cimport cutout_domains, find_N_recv
-    from mesh cimport CIC_particles2grid, communicate_domain_grid, domain2PM
+    from mesh cimport CIC_grid2coordinates_scalar, CIC_grid2coordinates_vector, CIC_particles2grid, communicate_boundaries, communicate_ghosts, domain2PM, PM2domain
     # FFT functionality via FFTW from fft.c
     cdef extern from "fft.c":
         # The fftw_plan type
@@ -115,15 +115,12 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
     # Direct summation
     force = vector
     i_end = N_local_i if (flag_input > 0) else (N_local_i - 1)
-    #print('rank', rank, 'i_end:', i_end, 'N_local_j', N_local_j, 'N_local_i', N_local_i)
     for i in range(0, i_end):
         xi = posx_i[i]
         yi = posy_i[i]
         zi = posz_i[i]
         j_start = 0 if (flag_input > 0) else (i + 1)
         for j in range(j_start, N_local_j):
-            # Skip the force computation if neither particle i nor particle j
-            # should be kicked
             x = posx_j[j] - xi
             y = posy_j[j] - yi
             z = posz_j[j] - zi
@@ -157,7 +154,7 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
                 force[1] = -y/r3
                 force[2] = -z/r3
             # Multiply the force by (G*m_i*m_j*∫_t^(t + Δt) dt/a).
-            # Note that "force" is now really the momentum change
+            # Note that "force" is now really the momentum change.
             force[0] *= eom_factor
             force[1] *= eom_factor
             force[2] *= eom_factor
@@ -320,6 +317,41 @@ def PP(particles, Δt):
                         Δmomy_extrn[i] = 0
                         Δmomz_extrn[i] = 0
 
+# Function for updating all particle momenta in a particular direction,
+# used in the PM algorithm.
+@cython.cfunc
+@cython.inline
+@cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
+@cython.wraparound(False)
+@cython.locals(# Arguments
+               N_local='size_t',
+               PM_fac='double',
+               force_grid='double[:, :, ::1]',
+               posx='double*',
+               posy='double*',
+               posz='double*',
+               mom='double*',
+               # Locals
+               i='size_t',
+               x='double',
+               y='double',
+               z='double',
+               force='double'
+               )
+@cython.returns('double')
+def PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, mom):
+    for i in range(N_local):
+        # The coordinates of the i'th particle,
+        # transformed so that 0 <= x, y, z < 1.
+        x = (posx[i] - domain_start_x)/domain_size_x
+        y = (posy[i] - domain_start_y)/domain_size_y
+        z = (posz[i] - domain_start_z)/domain_size_z
+        # Look up the force via a CIC interpolation in the force grid
+        force = CIC_grid2coordinates_scalar(force_grid, x, y, z)
+        # Update the i'th momentum
+        mom[i] += force*PM_fac
 
 # Function for computing the gravitational force by the particle mesh method
 @cython.cfunc
@@ -332,98 +364,163 @@ def PP(particles, Δt):
                particles='Particles',
                Δt='double',
                # Locals
+               Greens_deconvolution_fac='double',
+               Greens_i='double',
+               Greens_ij='double',
+               Greens_ijk='double',
+               PM_fac='double',
+               force='double',
+               posx='double*',
+               posy='double*',
+               posz='double*',
+               momx='double*',
+               momy='double*',
+               momz='double*',
                i='ptrdiff_t',
                j='ptrdiff_t',
                j_global='ptrdiff_t',
                k='ptrdiff_t',
-               ki='ptrdiff_t',
-               kj='ptrdiff_t',
-               kk='ptrdiff_t',
-               k2='ptrdiff_t',
+               ki='double',
+               kj='double',
+               kk='double',
+               k2='double',
+               x='double',
+               y='double',
+               z='double',
                )
 def PM(particles, Δt):
     """This function updates the momenta of all particles via the
     particle-mesh (PM) method.
     Note that the time step size Δt is really ∫_t^(t + Δt) dt/a.
     """
-    global PM_grid, domain_grid
+    global PM_grid, domain_grid, domain_grid_noghosts, force_grid
+    # Extract variables from particles
+    N_local = particles.N_local
+    mass = particles.mass
+    posx = particles.posx
+    posy = particles.posy
+    posz = particles.posz
+    momx = particles.momx
+    momy = particles.momy
+    momz = particles.momz
     # Nullify the PM mesh and the domain grid
     PM_grid[...] = 0
     domain_grid[...] = 0
     # Interpolate particle coordinates to the domain grid
-    CIC_particles2grid(particles, domain_grid)
-    # External particles will contribute to the boundaries of domain_grid
-    # on other processes. Do the needed communication.
-    communicate_domain_grid(domain_grid)
+    # (without the ghost layers).
+    CIC_particles2grid(particles, domain_grid_noghosts)
+    # External particles will contribute to the upper boundaries (not the ghost
+    # layers) of domain_grid on other processes. Do the needed communication.
+    communicate_boundaries(domain_grid_noghosts)
     # Communicate the interpolated data in the domain grid into the PM grid
-    domain2PM(domain_grid, PM_grid)
+    domain2PM(domain_grid_noghosts, PM_grid)
     # Fourier transform the grid forwards to Fourier space
     fftw_execute(plan_forward)
-    # Multiply by the Greens function and the SHORT-RANGE CUTOFF FACTOR !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    # and do a double deconvolution (one for the mesh mass assignment and one
-    # for the upcoming particle force assignment).
+    # Loop through the complete i-dimension
     for i in range(PM_gridsize):
         # The i-component of the wave vector
         if i > half_PM_gridsize:
             ki = i - PM_gridsize
         else:
             ki = i
+        # The i-component of the Greens function
+        Greens_i = sinc(pi*ki/PM_gridsize)
+        # Loop through the local j-dimension
         for j in range(PM_gridsize_local_j):
-            # The j-component of the wave vector
+            # The j-component of the wave vector. Since PM_grid is distributed
+            # along the j-dimension, an offset must be used.
             j_global = j + PM_gridstart_local_j
             if j_global > half_PM_gridsize:
                 kj = j_global - PM_gridsize
             else:
                 kj = j_global
-            for k in range(PM_gridsize):
+            # The product of the i- and the j-component of the Greens function
+            Greens_ij = Greens_i*sinc(pi*kj/PM_gridsize)
+            # Loop through the complete, padded k-dimension in steps of 2
+            # (one complex number at a time).
+            for k in range(0, PM_gridsize_padding, 2):
                 # The k-component of the wave vector
-                if k > half_PM_gridsize:
-                    kk = k - PM_gridsize
-                else:
-                    kk = k
-                # Multiply by the Greens function of the potential
+                kk = k//2
+                # Zero-division is illegal in pure Python. The [0, 0, 0]
+                # element of the PM grid will be set later.
+                if not cython.compiled:
+                    if ki == kj == kk == 0:
+                        continue
+                # The product of all components of the Greens function
+                Greens_ijk = Greens_ij*sinc(pi*kk/PM_gridsize)
+                # Multiply by the Greens function 1/k2 to get the the
+                # potential. Deconvolve for the CIC interpolation.
+                # Remember that PM_grid is transposed in the first two
+                # dimensions due to the forward FFT.
                 k2 = ki**2 + kj**2 + kk**2
-                PM_grid[j, i, k] /= k2
+                Greens_deconvolution_fac = 1/(k2*Greens_ijk**4)
+                PM_grid[j, i, k] *= Greens_deconvolution_fac      # Real part
+                PM_grid[j, i, k + 1] *= Greens_deconvolution_fac  # Imaginary part
     # The global [0, 0, 0] element of the PM grid should be zero
     if PM_gridstart_local_j == 0:
-        PM_grid[0, 0, 0] = 0
-
-
-
+        PM_grid[0, 0, 0] = 0  # re
+        PM_grid[0, 0, 1] = 0  # im
     # Fourier transform the grid back to coordinate space.
     # Now the grid stores potential values.
     fftw_execute(plan_backward)
-    for i in range(PM_gridsize_local_i):
-        for j in range(PM_gridsize):
-            for k in range(PM_gridsize):
-               PM_grid[i, j, k] /= PM_gridsize3
-    Barrier()
-    if master:
-        print('PM grid:')
-    Barrier()
-    sleep(rank*0.1); print('rank', rank, ':')
-    print(array(PM_grid[:, :, :PM_gridsize]))
-
-    sys.exit()
-
-
-
-
-
-    # Get the forces at the meshpoints via finite differences
-
-    # Interpolate forces from the mesh points to the particles
-
-    # Add in short range force contributions via the PP method
-
+    for i in range(PM_grid.shape[0]):
+        for j in range(PM_grid.shape[1]):
+            for k in range(PM_grid.shape[2]):
+                PM_grid[i, j, k] /= PM_gridsize3
+    # Communicate the potential stored in the PM mesh to the domain grid
+    PM2domain(domain_grid_noghosts, PM_grid)
+    # The upper boundaries (not the ghost layers) of the domain grid should be
+    # a copy of the lower boundaries of the next domain. Do the needed
+    # communication.
+    communicate_boundaries(domain_grid_noghosts, mode=1)
+    # Communicate the ghost layers of the domain grid
+    communicate_ghosts(domain_grid)
+    # The factor which shold be multiplied on the PM grid to get actual units
+    PM_fac = PM_fac_const*mass**2*Δt
+    # Compute the local forces in the x-direction via the four point rule
+    for i in range(2, domain_grid.shape[0] - 2):
+        for j in range(2, domain_grid.shape[1] - 2):
+            for k in range(2, domain_grid.shape[2] - 2):
+                force_grid[i - 2,
+                           j - 2,
+                           k - 2] = (two_thirds*(domain_grid[i + 1, j, k]
+                                             - domain_grid[i - 1, j, k])
+                                 - one_twelfth*(domain_grid[i + 2, j, k]
+                                                - domain_grid[i - 2, j, k]))
+    # Update local x-momenta
+    PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, momx)
+    # Compute the forces in the y-direction via the four point rule
+    for i in range(2, domain_grid.shape[0] - 2):
+        for j in range(2, domain_grid.shape[1] - 2):
+            for k in range(2, domain_grid.shape[2] - 2):
+                force_grid[i - 2,
+                           j - 2,
+                           k - 2] = (two_thirds*(domain_grid[i, j + 1, k]
+                                             - domain_grid[i, j - 1, k])
+                                 - one_twelfth*(domain_grid[i, j + 2, k]
+                                                - domain_grid[i, j - 2, k]))
+    # Update local y-momenta
+    PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, momy)
+    # Compute the forces in the z-direction via the four point rule
+    for i in range(2, domain_grid.shape[0] - 2):
+        for j in range(2, domain_grid.shape[1] - 2):
+            for k in range(2, domain_grid.shape[2] - 2):
+                force_grid[i - 2,
+                           j - 2,
+                           k - 2] = (two_thirds*(domain_grid[i, j, k + 1]
+                                             - domain_grid[i, j, k - 1])
+                                 - one_twelfth*(domain_grid[i, j, k + 2]
+                                                - domain_grid[i, j, k - 2]))
+    # Update local z-momenta
+    PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, momz)
 
     # Done performing FFT's. Cleanup
     #fftw_clean(cython.address(PM_grid[0, 0, 0]), plan_forward, plan_backward)
 
-
 # Initializes stuff for the PM algorithm at import time,
 # if the PM method is to be used.
 if use_PM:
+
     # The PM mesh and functions on it
     if not cython.compiled:
         # Initialization of the PM mesh in pure Python.
@@ -433,13 +530,10 @@ if use_PM:
             # figure out exactly how FFTW distribute the grid among the
             # processes. In stead of guessing, do not even try to emulate
             # the behaviour of FFTW.
-            if master:
-                warn('The PM method in pure Python mode only works '
+            raise ValueError('The PM method in pure Python mode only works '
                      + 'when\nPM_gridsize is divisible by the number'
                      + 'of processes!')
-            sys.exit(1)
         PM_gridstart_local_i = PM_gridstart_local_j = PM_gridsize_local_i*rank
-        PM_gridsize_padding = 2*(PM_gridsize//2 + 1)
         PM_grid = empty((PM_gridsize_local_i, PM_gridsize,
                          PM_gridsize_padding), dtype='float64')
         # The output of the following function is formatted just
@@ -507,7 +601,6 @@ if use_PM:
         """
         # Initialization of the PM mesh in Cython
         cython.declare(fftw_struct='fftw_return_struct',
-                       PM_gridsize_padding='ptrdiff_t',
                        PM_gridsize_local_i='ptrdiff_t',
                        PM_gridsize_local_j='ptrdiff_t',
                        PM_gridstart_local_i='ptrdiff_t',
@@ -520,7 +613,6 @@ if use_PM:
         # local grid sizes and start indices and do FFTW planning.
         fftw_struct = fftw_setup(PM_gridsize, PM_gridsize, PM_gridsize)
         # Unpack fftw_struct
-        PM_gridsize_padding = 2*(PM_gridsize//2 + 1)
         PM_gridsize_local_i = fftw_struct.gridsize_local_i
         PM_gridsize_local_j = fftw_struct.gridsize_local_j
         PM_gridstart_local_i = fftw_struct.gridstart_local_i
@@ -536,25 +628,71 @@ if use_PM:
         plan_forward  = fftw_struct.plan_forward
         plan_backward = fftw_struct.plan_backward
         """
-
+    # All constant factors across the PM scheme is gathered in the PM_fac
+    # variable. It's contributions are:
+    # For CIC interpolating particle masses/volume to the grid points:
+    #     particles.mass/(boxsize/PM_gridsize)**3
+    # Factor in the Greens function:
+    #     -4*pi*G_Newton/((2*pi/((boxsize/PM_gridsize)*PM_gridsize))**2)   
+    # From finite differencing to get the forces:
+    #     -PM_gridsize/boxsize
+    # For converting acceleration to momentum
+    #     particles.mass*Δt
+    # Everything except the mass and the time are constant, and is condensed
+    # into the PM_fac_const variable.
+    cython.declare(PM_fac_const='double')
+    PM_fac_const = G_Newton*PM_gridsize**4/(pi*boxsize**2)
     # The domain grid
     cython.declare(domain_cuts='list',
                    i='int',
                    domain_grid='double[:, :, ::1]',
+                   domain_grid_noghosts='double[:, :, ::1]',
+                   force_grid='double[:, :, ::1]',
+                   domain_local='int[::1]',
+                   domain_size_x='double',
+                   domain_size_y='double',
+                   domain_size_z='double',
+                   domain_start_x='double',
+                   domain_start_y='double',
+                   domain_start_z='double',
                    )
     # Number of domains in all three dimensions
     domain_cuts = cutout_domains(nprocs)
-    # A grid over the local domain. The endpoints is actually the startpoints
-    # of the next domain.
-    domain_grid = empty([PM_gridsize//domain_cuts[i] + 1 for i in range(3)],
+    # The indices in domain_layout of the local domain
+    domain_local = array(np.unravel_index(rank, domain_cuts), dtype='int32')
+    # A grid over the local domain. An additional layer of thickness 1 is given
+    # to the domain grid, so that these outer points corresponds to the same
+    # physical coordinates as the first points in the next domain.
+    # Also, an additional layer of thickness 2 is given on top of the previous
+    # layer. This shall be used as a ghost layer for finite differencing.
+    domain_grid = zeros([PM_gridsize//domain_cuts[i] + 1 + 2*2 for i in range(3)],
                         dtype='float64')
+    # Memoryview of the domain grid without the ghost layers
+    domain_grid_noghosts = domain_grid[2:(domain_grid.shape[0] - 2),
+                                       2:(domain_grid.shape[1] - 2),
+                                       2:(domain_grid.shape[2] - 2)]
+    # The linear size of the domains, which are the same for all of them
+    domain_size_x = boxsize/domain_cuts[0]
+    domain_size_y = boxsize/domain_cuts[1]
+    domain_size_z = boxsize/domain_cuts[2]
+    # The start positions of the local domain
+    domain_start_x = domain_local[0]*domain_size_x
+    domain_start_y = domain_local[1]*domain_size_y
+    domain_start_z = domain_local[2]*domain_size_z
     # Test if the grid has been constructed correctly. If not it is because
     # nprocs and PM_gridsize are incompatible.
     for i in range(3):
-        if PM_gridsize != domain_cuts[i]*(domain_grid.shape[i] - 1):
+        if PM_gridsize != domain_cuts[i]*(domain_grid.shape[i] - 1 - 2*2):
             msg = ('A PM_gridsize of ' + str(PM_gridsize) + ' cannot be'
                    + ' equally shared among ' + str(nprocs) + ' processes')
             raise ValueError(msg)
+        if np.min([domain_grid.shape[i] for i in range(3)]) < 2 + 1 + 2*2:
+            msg = ('A PM_gridsize of ' + str(PM_gridsize) + ' is too small'
+                   + ' for ' + str(nprocs) + ' processes')
+            raise ValueError(msg)
+    force_grid = zeros((domain_grid_noghosts.shape[0],
+                        domain_grid_noghosts.shape[1],
+                        domain_grid_noghosts.shape[2]), dtype='float64')
 
 
 

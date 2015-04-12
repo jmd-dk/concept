@@ -7,37 +7,40 @@
 # see the bottom of this file.
 
 # Input/output
-IC_file = 'ICs/default'			# Initial condition snapshot
-output_dir = 'output'			# Directory for storing output snapshots
-output_type = 'standard'		# Type of output snapshot
-snapshot_base = 'snapshot'		# File basename for output snapshots
-outputtimes = (1, )			# Times at which to dump snapshots to disk
+IC_file = 'ICs/default'				# Initial condition snapshot
+output_dir = 'output'				# Directory for storing output snapshots
+output_type = 'standard'			# Type of output snapshot
+snapshot_base = 'snapshot'			# File basename for output snapshots
+outputtimes = (1, )				# Times at which to dump snapshots to disk
 
 # Numerical parameters
-boxsize = 100*Mpc			# Linear size of the simulation box
-ewald_gridsize = 64			# Linear size of the grid of Ewald corrections
-PM_gridsize = 1*2*3*4*5			# Linear size of the grid used for the PM method
-softeningfactors = {'dark matter': 0.03}	# The amount of gravitational softening for each species
-Δt_factor = 0.01				# The maximum time step size
+boxsize = 100*Mpc				# Linear size of the simulation box
+ewald_gridsize = 64				# Linear size of the grid of Ewald corrections
+PM_gridsize = 1*2*3*4*5				# Linear size of the grid used for the PM method
+softeningfactors = {'dark matter': 0.03,	# The amount of gravitational softening for each species
+                    'dark energy': 0,
+                   }
+Δt_factor = 0.01				# The time step size
 
 # Cosmological parameters
-H0 = 70*km/s/Mpc			# The Hubble constant
-Ωm = 0.3				# Density parameter for matter
-ΩΛ = 0.7				# Density parameter for dark energy
-a_begin = 0.02				# Scale factor at beginning of simulation
+H0 = 70*km/s/Mpc				# The Hubble constant
+Ωm = 0.3					# Density parameter for matter
+ΩΛ = 0.7					# Density parameter for dark energy
+a_begin = 0.02					# Scale factor at beginning of simulation
 
 # Graphics
-framefolder = ''			# Folder to save frames
-liveframe=''				# Filename of saved live frame
-image_format='png'			# The image format of the saved frames
-tmp = 'jmd@lifa.phys.au.dk:/usr/users/jmd/public_html/master/simulation.png'
-remote_liveframe=''			# Where to upload the live frame
-protocol = 'scp'			# Protocol for live frame file transfer
-framespace = 1				# The plot is updated every framespace time step
+framefolder = ''				# Folder to save frames
+liveframe=''					# Filename of saved live frame
+image_format='png'				# The image format of the saved frames
+remote_liveframe=''				# Where to upload the live frame
+protocol = 'scp'				# Protocol for live frame file transfer
+framespace = 1					# The plot is updated every framespace time step
 
 # Simulation options
-use_Ewald = True
-
+kick_algorithms = {'dark matter': 'PP',		# The algorithm which should be used to kick each species
+                   'dark energy': 'PM',
+                  }
+use_Ewald = True				# Turn Ewald corrections on or off
 
 
 
@@ -88,7 +91,6 @@ use_Ewald = True
 #     The time step size at any time, given in units of the instantaneous age
 #     of the universe.
 
-
 ###########################
 # Cosmological parameters #
 ###########################
@@ -125,3 +127,12 @@ use_Ewald = True
 #     Use an empty string to disable this feature.
 # protocol
 #     Can be either scp or sftp
+
+######################
+# Simulation options #
+######################
+# kick_algorithms
+#     Algorithms include 'PP', 'PM' and 'P3M'.
+# use_Ewald
+#     If set to False, no Ewald corrections will be computed in the PP
+#     algorithm, removing the periodicity of gravity.
