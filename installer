@@ -64,13 +64,13 @@ miniconda_url="http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64
 # Note that this variable will be overwritten later!
 python_version=$(wget -O- --no-check-certificate "https://www.python.org/downloads/" | grep -o -P "(?<=Python-).*(?=.tar.xz)" | head -1)
 # Version of Python packages in the Conda package manager
-miniconda_pkgdocs= #$(wget -O- --no-check-certificate "http://docs.continuum.io/anaconda/pkg-docs.html" | grep -o -P "(?<=<td>).*(?=</td>)")
-cython_version= #$(echo ${miniconda_pkgdocs} | grep -Po '(?<=cython\s)[^\s]*' | tail -1)
-matplotlib_version= #$(echo ${miniconda_pkgdocs} | grep -Po '(?<=matplotlib\s)[^\s]*' | tail -1)
-numpy_version= #$(echo ${miniconda_pkgdocs} | grep -Po '(?<=numpy\s)[^\s]*' | tail -1)
-scipy_version= #$(echo ${miniconda_pkgdocs} | grep -Po '(?<=scipy\s)[^\s]*' | tail -1)
+miniconda_pkgdocs="..." #$(wget -O- --no-check-certificate "http://docs.continuum.io/anaconda/pkg-docs.html" | grep -o -P "(?<=<td>).*(?=</td>)")
+cython_version="..." #$(echo ${miniconda_pkgdocs} | grep -Po '(?<=cython\s)[^\s]*' | tail -1)
+matplotlib_version="..." #$(echo ${miniconda_pkgdocs} | grep -Po '(?<=matplotlib\s)[^\s]*' | tail -1)
+numpy_version="..." #$(echo ${miniconda_pkgdocs} | grep -Po '(?<=numpy\s)[^\s]*' | tail -1)
+scipy_version="..." #$(echo ${miniconda_pkgdocs} | grep -Po '(?<=scipy\s)[^\s]*' | tail -1)
 # Pexpect is not listed on the Anaconda website, but it is included
-pexpect_version= #$(wget -O- --no-check-certificate "https://pypi.python.org/pypi/pexpect/#downloads" | grep -m 1 -o -P "(?<=pexpect-).*(?=.tar.gz#)")
+pexpect_version="..." #$(wget -O- --no-check-certificate "https://pypi.python.org/pypi/pexpect/#downloads" | grep -m 1 -o -P "(?<=pexpect-).*(?=.tar.gz#)")
 # GSL (1.16 is known to work)
 gsl_version=$(wget -O- --no-check-certificate "http://mirrors.dotsrc.org/gnu/gsl/" | grep -o -P "(?<=gsl-[0-9]).*(?=.tar.gz)")
 gsl_version="${gsl_version##*gsl-}"

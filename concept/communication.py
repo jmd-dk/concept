@@ -391,6 +391,186 @@ def domain(x, y, z):
     return domain_layout[x_index, y_index, z_index]
 
 
+# This function computes the ranks of the processes governing the 27
+# neighboring domains.
+@cython.cfunc
+@cython.inline
+@cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
+@cython.wraparound(False)
+@cython.locals(# Locals
+               domain_cuts='int[::1]',
+               domain_layout='int[:, :, ::1]',
+               rank_right='int',
+               rank_left='int',
+               rank_forward='int',
+               rank_backward='int',
+               rank_up='int',
+               rank_down='int',
+               rank_rightforward='int',
+               rank_rightbackward='int',
+               rank_rightup='int',
+               rank_rightdown='int',
+               rank_leftforward='int',
+               rank_leftbackward='int',
+               rank_leftup='int',
+               rank_leftdown='int',
+               rank_forwardup='int',
+               rank_forwarddown='int',
+               rank_backwardup='int',
+               rank_backwarddown='int',
+               rank_rightforwardup='int',
+               rank_rightforwarddown='int',
+               rank_rightbackwardup='int',
+               rank_rightbackwarddown='int',
+               rank_leftforwardup='int',
+               rank_leftforwarddown='int',
+               rank_leftbackwardup='int',
+               rank_leftbackwarddown='int',
+               )
+@cython.returns('dict')
+def neighboring_ranks():
+    # Number of domains in all three dimensions
+    domain_cuts = array(cutout_domains(nprocs), dtype='int32')
+    # The 3D layout of the division of the box
+    domain_layout = arange(nprocs, dtype='int32').reshape(domain_cuts)
+    # Get the ranks of the 6 face-to-face neighboring processes
+    rank_right = domain_layout[mod(domain_local[0] + 1, domain_cuts[0]),
+                               domain_local[1],
+                               domain_local[2]]
+    rank_left = domain_layout[mod(domain_local[0] - 1, domain_cuts[0]),
+                               domain_local[1],
+                               domain_local[2]]
+    rank_forward = domain_layout[domain_local[0],
+                                 mod(domain_local[1] + 1, domain_cuts[1]),
+                                 domain_local[2]]
+    rank_backward = domain_layout[domain_local[0],
+                                  mod(domain_local[1] - 1, domain_cuts[1]),
+                                  domain_local[2]]
+    rank_up = domain_layout[domain_local[0],
+                            domain_local[1],
+                            mod(domain_local[2] + 1, domain_cuts[2])]
+    rank_down = domain_layout[domain_local[0],
+                              domain_local[1],
+                              mod(domain_local[2] - 1, domain_cuts[2])]
+    # Get the ranks of the 12 edge-to-edge neighboring processes
+    rank_rightforward = domain_layout[mod(domain_local[0] + 1, domain_cuts[0]),
+                                      mod(domain_local[1] + 1, domain_cuts[1]),
+                                      domain_local[2]]
+    rank_rightbackward = domain_layout[mod(domain_local[0] + 1, domain_cuts[0]),
+                                       mod(domain_local[1] - 1, domain_cuts[1]),
+                                       domain_local[2]]
+    rank_rightup = domain_layout[mod(domain_local[0] + 1, domain_cuts[0]),
+                                 domain_local[1],
+                                 mod(domain_local[2] + 1, domain_cuts[2])]
+    rank_rightdown = domain_layout[mod(domain_local[0] + 1, domain_cuts[0]),
+                                   domain_local[1],
+                                   mod(domain_local[2] - 1, domain_cuts[2])]
+    rank_leftforward = domain_layout[mod(domain_local[0] - 1, domain_cuts[0]),
+                                     mod(domain_local[1] + 1, domain_cuts[1]),
+                                     domain_local[2]]
+    rank_leftbackward = domain_layout[mod(domain_local[0] - 1, domain_cuts[0]),
+                                      mod(domain_local[1] - 1, domain_cuts[1]),
+                                      domain_local[2]]
+    rank_leftup = domain_layout[mod(domain_local[0] - 1, domain_cuts[0]),
+                                domain_local[1],
+                                mod(domain_local[2] + 1, domain_cuts[2])]
+    rank_leftdown = domain_layout[mod(domain_local[0] - 1, domain_cuts[0]),
+                                  domain_local[1],
+                                  mod(domain_local[2] - 1, domain_cuts[2])]
+    rank_forwardup = domain_layout[domain_local[0],
+                                   mod(domain_local[1] + 1, domain_cuts[1]),
+                                   mod(domain_local[2] + 1, domain_cuts[2])]
+    rank_forwarddown = domain_layout[domain_local[0],
+                                     mod(domain_local[1] + 1, domain_cuts[1]),
+                                     mod(domain_local[2] - 1, domain_cuts[2])]
+    rank_backwardup = domain_layout[domain_local[0],
+                                      mod(domain_local[1] - 1, domain_cuts[1]),
+                                      mod(domain_local[2] + 1, domain_cuts[2])]
+    rank_backwarddown = domain_layout[domain_local[0],
+                                      mod(domain_local[1] - 1, domain_cuts[1]),
+                                      mod(domain_local[2] - 1, domain_cuts[2])]
+    # Get the ranks of the 8 point-to-point neighboring processes
+    rank_rightforwardup = domain_layout[mod(domain_local[0] + 1,
+                                            domain_cuts[0]),
+                                        mod(domain_local[1] + 1,
+                                            domain_cuts[1]),
+                                        mod(domain_local[2] + 1,
+                                            domain_cuts[2])]
+    rank_rightforwarddown = domain_layout[mod(domain_local[0] + 1,
+                                              domain_cuts[0]),
+                                          mod(domain_local[1] + 1,
+                                              domain_cuts[1]),
+                                          mod(domain_local[2] - 1,
+                                              domain_cuts[2])]
+    rank_rightbackwardup = domain_layout[mod(domain_local[0] + 1,
+                                             domain_cuts[0]),
+                                         mod(domain_local[1] - 1,
+                                             domain_cuts[1]),
+                                         mod(domain_local[2] + 1,
+                                             domain_cuts[2])]
+    rank_rightbackwarddown = domain_layout[mod(domain_local[0] + 1,
+                                               domain_cuts[0]),
+                                           mod(domain_local[1] - 1,
+                                               domain_cuts[1]),
+                                           mod(domain_local[2] - 1,
+                                               domain_cuts[2])]
+    rank_leftforwardup = domain_layout[mod(domain_local[0] - 1,
+                                           domain_cuts[0]),
+                                       mod(domain_local[1] + 1,
+                                           domain_cuts[1]),
+                                       mod(domain_local[2] + 1,
+                                           domain_cuts[2])]
+    rank_leftforwarddown = domain_layout[mod(domain_local[0] - 1,
+                                             domain_cuts[0]),
+                                         mod(domain_local[1] + 1,
+                                             domain_cuts[1]),
+                                         mod(domain_local[2] - 1,
+                                             domain_cuts[2])]
+    rank_leftbackwardup = domain_layout[mod(domain_local[0] - 1,
+                                            domain_cuts[0]),
+                                        mod(domain_local[1] - 1,
+                                            domain_cuts[1]),
+                                        mod(domain_local[2] + 1,
+                                            domain_cuts[2])]
+    rank_leftbackwarddown = domain_layout[mod(domain_local[0] - 1,
+                                              domain_cuts[0]),
+                                          mod(domain_local[1] - 1,
+                                              domain_cuts[1]),
+                                          mod(domain_local[2] - 1,
+                                              domain_cuts[2])]
+    # Return dict
+    return {'right': rank_right,
+            'left': rank_left,
+            'forward': rank_forward,
+            'backward': rank_backward,
+            'up': rank_up,
+            'down': rank_down,
+            'rightforward': rank_rightforward,
+            'rightbackward': rank_rightbackward,
+            'rightup': rank_rightup,
+            'rightdown': rank_rightdown,
+            'leftforward': rank_leftforward,
+            'leftbackward': rank_leftbackward,
+            'leftup': rank_leftup,
+            'leftdown': rank_leftdown,
+            'forwardup': rank_forwardup,
+            'forwarddown': rank_forwarddown,
+            'backwardup': rank_backwardup,
+            'backwarddown': rank_backwarddown,
+            'rightforwardup': rank_rightforwardup,
+            'rightforwarddown': rank_rightforwarddown,
+            'rightbackwardup': rank_rightbackwardup,
+            'rightbackwarddown': rank_rightbackwarddown,
+            'leftforwardup': rank_leftforwardup,
+            'leftforwarddown': rank_leftforwarddown,
+            'leftbackwardup': rank_leftbackwardup,
+            'leftbackwarddown': rank_leftbackwarddown,
+            }
+
+
+
 # Cutout domains at import time
 cython.declare(domain_cuts='list',
                domain_layout='int[:, :, ::1]',

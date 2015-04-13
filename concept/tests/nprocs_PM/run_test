@@ -41,10 +41,6 @@ done
 # Create list of output times, used by both CONCEPT and GADGET
 "${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', np.linspace(0.03, 1, 2))"
 
-# Create the Ewald grid using Cython, if it does not already exist
-# (for fast IC generation).
-"${run}" -n 1 -p "${this_dir}/params" --exit --local
-
 # Generate ICs
 "${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local
 
@@ -64,12 +60,6 @@ mv "${this_dir}/output" "${this_dir}/output_8"
 
 # Analyze the output snapshots
 "${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python
-
-# Copy the tabulated Ewald corrections to the Gadget2 directory if it does not
-# already exists there, to save time later.
-if [ ! -f "${Gadget2_dir}/ewald_spc_table_64.dat" ]; then
-    cp "${Gadget2_local_dir}/ewald_spc_table_64.dat" "${Gadget2_dir}/ewald_spc_table_64.dat"
-fi
 
 # Test run complete. Deactivate trap before exiting.
 trap : 0

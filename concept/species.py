@@ -4,12 +4,12 @@ from commons import *
 
 # Seperate but equivalent imports in pure Python and Cython
 if not cython.compiled:
-    from gravity import PP, PM
+    from gravity import PP, PM, P3M
     from communication import exchange
 else:
     # Lines in triple quotes will be executed in the .pyx file.
     """
-    from gravity cimport PP, PM
+    from gravity cimport PP, PM, P3M
     from communication cimport exchange
     """
 
@@ -197,6 +197,8 @@ class Particles:
             PP(self, Δt)
         elif kick_algorithm == 'PM':
             PM(self, Δt)
+        elif kick_algorithm == 'P3M':
+            P3M(self, Δt)
         else:
             raise ValueError('Species "' + self.species + '" has assigned '
                              + 'the kick algorithm "' + kick_algorithm

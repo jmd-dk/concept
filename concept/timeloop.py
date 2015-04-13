@@ -7,14 +7,14 @@ if not cython.compiled:
     from species import construct, construct_random
     from IO import save, load
     from integration import expand, cosmic_time, scalefactor_integral
-    from graphics import animate, timestep_message
+    from graphics import animate, significant_figures
 else:
     # Lines in triple quotes will be executed in the .pyx file.
     """
     from species cimport construct, construct_random
     from IO cimport load, save, load_gadget, save_gadget
     from integration cimport expand, cosmic_time, scalefactor_integral, ȧ
-    from graphics cimport animate, timestep_message
+    from graphics cimport animate, significant_figures
     """
 
 # Exit the program if called with the --exit option
@@ -40,31 +40,28 @@ if len(outputtimes) > len(set(outputtimes)):
 a_max = np.max(outputtimes)
 
 
-"""
-particles = construct_random('hm', 'dark matter', 256)
-posx = []
-posy = []
-posz = []
-if rank == nprocs - 1:
-    for i in range(2, 4):
-        for j in range(4):
-            for k in range(4):
-                posx.append((i + 0.5)/4*boxsize)
-                posy.append((j + 0.5)/4*boxsize)
-                posz.append((k + 0.5)/4*boxsize)
-posx = array(posx)
-posy = array(posy)
-posz = array(posz)
-momx = zeros(posx.size)
-momy = zeros(posx.size)
-momz = zeros(posx.size)
-particles.populate(posx, 'posx')
-particles.populate(posy, 'posy')
-particles.populate(posz, 'posz')
-particles.populate(momx, 'momx')
-particles.populate(momy, 'momy')
-particles.populate(momz, 'momz')
-"""
+# This function pretty prints information gathered through a time step
+@cython.cfunc
+@cython.inline
+@cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
+@cython.wraparound(False)
+@cython.locals(# Arguments
+               timestep='int',
+               t_iter='double',
+               a='double',
+               t='double',
+               )
+def timestep_message(timestep, t_iter, a, t):
+    if master:
+        print('Time step ' + str(timestep),
+              'Computation time: ' + significant_figures(time() - t_iter, 4,
+                                                         just=7) + ' s',
+              'Scale factor:     ' + significant_figures(a, 4, just=7),
+              'Cosmic time:      ' + significant_figures(t/units.Gyr, 4,
+                                                         just=7) + ' Gyr',
+              sep='\n    ')
 
 @cython.cfunc
 @cython.inline
@@ -107,7 +104,7 @@ def timeloop():
     # The main time loop (in actuality two nested loops)
     if master:
         print('Begin main time loop')
-    timestep = 0
+    timestep = 1
     timer = time()
     # Loop over all output snapshots
     for i_snapshot, a_snapshot in enumerate(sorted(set(outputtimes))):

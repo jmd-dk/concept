@@ -10,6 +10,8 @@ cdef:
     double boxsize
     int ewald_gridsize
     ptrdiff_t PM_gridsize
+    double P3M_scale
+    double P3M_cutoff
     dict softeningfactors
     double __ASCII_repr_of_unicode__greek_Deltat_factor
 

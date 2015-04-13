@@ -212,27 +212,28 @@ n_upper = int(maxdist + 1) + 1  # GADGET: 5 (also the case here for maxdist=3.6)
 recp_2rs = 1/(2*rs)
 recp_sqrt_pi_rs = 1/(sqrt_pi*rs)
 rs2 = rs**2
-# Initialize the grid at import time
+# Initialize the grid at import time, if Ewald summation is to be used
 cython.declare(i='int',
                p='str',
                filepath='str',
                grid='double[:, :, :, ::1]',
                )
-for i, p in enumerate(path):
-    filepath = p + '/' + ewald_file
-    if isfile(filepath):
-        # Ewald grid already tabulated. Load it
-        with h5py.File(filepath, mode='r') as hdf5_file:
-            grid = hdf5_file['data'][...]
-        break
-    elif i == len(path) - 1:
-        # No tabulated Ewald grid found. Compute it.The factor 0.5 ensures
-        # that only the first octant of the box is tabulated
-        if master:
-            print('Tabulating Ewald grid of linear size '
-                  + str(ewald_gridsize))
-        grid = tabulate_vectorfield(ewald_gridsize,
-                                    summation,
-                                    0.5/(ewald_gridsize - 1),
-                                    ewald_file,
-                                    )
+if 'PP' in kick_algorithms.values() and use_Ewald:
+    for i, p in enumerate(path):
+        filepath = p + '/' + ewald_file
+        if isfile(filepath):
+            # Ewald grid already tabulated. Load it
+            with h5py.File(filepath, mode='r') as hdf5_file:
+                grid = hdf5_file['data'][...]
+            break
+        elif i == len(path) - 1:
+            # No tabulated Ewald grid found. Compute it.The factor 0.5 ensures
+            # that only the first octant of the box is tabulated
+            if master:
+                print('Tabulating Ewald grid of linear size '
+                      + str(ewald_gridsize))
+            grid = tabulate_vectorfield(ewald_gridsize,
+                                        summation,
+                                        0.5/(ewald_gridsize - 1),
+                                        ewald_file,
+                                        )
