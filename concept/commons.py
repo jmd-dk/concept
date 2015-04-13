@@ -87,6 +87,7 @@ else:
     # Functions for manual memory management
     from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
     # Function type definitions of the form func_returntype_argumenttypes
+    ctypedef bint  (*func_b_ddd)(double, double, double)
     ctypedef double  (*func_d_dd)(double, double)
     ctypedef double  (*func_d_ddd)(double, double, double)
     ctypedef double* (*func_ddd_ddd)(double, double, double)
@@ -178,6 +179,9 @@ cython.declare(G_Newton='double',
                use_Ewald ='bint',
                use_PM='bint',
                ϱ='double',
+               PM_fac_const='double',
+               longrange_exponent_fac='double',
+               P3M_cutoff_phys='double',
                )
 G_Newton = 6.6738e-11*units.m**3/units.kg/units.s**2  # Newtons constant
 ϱ = 3*H0**2/(8*pi*G_Newton) # The average, comoing density (the critical comoving density since we only study flat universes)
@@ -193,7 +197,33 @@ ewald_file = '.ewald_gridsize=' + str(ewald_gridsize) + '.hdf5'  # Name of file 
 machine_ϵ = np.finfo('float64').eps  # Machine epsilon
 two_ewald_gridsize = 2*ewald_gridsize
 two_machine_ϵ = 2*machine_ϵ
-use_PM = True if 'PM' in kick_algorithms.values() else False  # Flag specifying whether the PM method is used or not
+use_PM = False  # Flag specifying whether the PM method is used or not
+for kick_algorithm in kick_algorithms.values():
+    if kick_algorithm in ('PM', 'P3M'):
+        use_PM = True  
+        break
+# All constant factors across the PM scheme is gathered in the PM_fac
+# variable. It's contributions are:
+# For CIC interpolating particle masses/volume to the grid points:
+#     particles.mass/(boxsize/PM_gridsize)**3
+# Factor in the Greens function:
+#     -4*pi*G_Newton/((2*pi/((boxsize/PM_gridsize)*PM_gridsize))**2)   
+# From finite differencing to get the forces:
+#     -PM_gridsize/boxsize
+# For converting acceleration to momentum
+#     particles.mass*Δt
+# Everything except the mass and the time are constant, and is condensed
+# into the PM_fac_const variable.
+PM_fac_const = G_Newton*PM_gridsize**4/(pi*boxsize**2)
+# The exponential cutoff for the long-range force looks like exp(-k2*rs2).
+# In the code, the wave vector is in grid units in stead of radians. The
+# conversion is this 2*pi/PM_gridsize. The total factor on k2 in the
+# exponential is then
+longrange_exponent_fac = -(2*pi/PM_gridsize*P3M_scale)**2
+# Particles within this distance to the surface of the domain should
+# interact with particles in the neighboring domain via the shortrange
+# force, when the P3M algorithm is used.
+P3M_cutoff_phys = P3M_scale*P3M_cutoff*boxsize/PM_gridsize
 
 
 

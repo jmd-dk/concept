@@ -49,6 +49,11 @@ def animate(particles, timestep, a, a_snapshot):
     global artist, upload_liveframe, ax
     if not visualize or (timestep % framespace and a != a_snapshot):
         return
+    # Frame should be animated. Print out message
+    if master:
+        if save_frames:
+            print('Producing visualization: ' + framefolder
+                                              + str(timestep) + suffix)
     N = particles.N
     N_local = particles.N_local
     # The master process gathers N_local from all processes
@@ -77,7 +82,7 @@ def animate(particles, timestep, a, a_snapshot):
             # less). The size of a particle is plotted so that the particles
             # stand side by side in a homogeneous unvierse (more or less).
             artist = ax.scatter(X, Y, Z, lw=0,
-                                alpha=N**(-one_third), #0.05,
+                                alpha=N**(-one_third),
                                 c=(180.0/256, 248.0/256, 95.0/256),
                                 s=min(50, prod(fig.get_size_inches())
                                           *inch2pts**2/N),
@@ -107,10 +112,14 @@ def animate(particles, timestep, a, a_snapshot):
             savefig(framefolder + str(timestep) + suffix,
                     bbox_inches='tight', pad_inches=0, dpi=160)
         if save_liveframe:
+            # Print out message
+            print('    Updating live frame: ' + liveframe_full)
             # Save the live frame
             savefig(liveframe_full,
                     bbox_inches='tight', pad_inches=0, dpi=160)
             if upload_liveframe:
+                # Print out message
+                print('    Uploading live frame: ' + remote_liveframe)
                 # Upload the live frame
                 child = pexpect.spawn(cmd1, timeout=10)
                 try:
@@ -248,31 +257,6 @@ def significant_figures(f, n, just=0, scientific=False):
         if sign == -1:
             f_str = '-' + f_str
         return f_str.ljust(just)
-
-
-# This function pretty prints information gathered through a time step
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
-               timestep='int',
-               t_iter='double',
-               a='double',
-               t='double',
-               )
-def timestep_message(timestep, t_iter, a, t):
-    if master:
-        print('Time step ' + str(timestep) + ':',
-              'Computation time: ' + significant_figures(time() - t_iter, 4,
-                                                         just=7) + ' s',
-              'Scale factor:     ' + significant_figures(a, 4, just=7),
-              'Cosmic time:      ' + significant_figures(t/units.Gyr, 4,
-                                                         just=7) + ' Gyr',
-              sep='\n    ')
-
 
 # Set the artist as uninitialized at import time
 artist = None

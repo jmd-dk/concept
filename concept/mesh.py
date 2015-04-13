@@ -4,11 +4,11 @@ from commons import *
 
 # Seperate but equivalent imports in pure Python and Cython
 if not cython.compiled:
-    from communication import cutout_domains
+    from communication import cutout_domains, neighboring_ranks
 else:
     # Lines in triple quotes will be executed in the .pyx file
     """
-    from communication cimport cutout_domains
+    from communication cimport cutout_domains, neighboring_ranks
     """
 
 
@@ -769,56 +769,23 @@ if use_PM:
     domain_end_y = domain_start_x + domain_size_x
     domain_end_z = domain_start_x + domain_size_x
     # Get the ranks of the 6 neighboring processes
-    rank_right = domain_layout[mod(domain_local[0] + 1, domain_cuts[0]),
-                               domain_local[1],
-                               domain_local[2]]
-    rank_left = domain_layout[mod(domain_local[0] - 1, domain_cuts[0]),
-                               domain_local[1],
-                               domain_local[2]]
-    rank_forward = domain_layout[domain_local[0],
-                                 mod(domain_local[1] + 1, domain_cuts[1]),
-                                 domain_local[2]]
-    rank_backward = domain_layout[domain_local[0],
-                                  mod(domain_local[1] - 1, domain_cuts[1]),
-                                  domain_local[2]]
-    rank_up = domain_layout[domain_local[0],
-                            domain_local[1],
-                            mod(domain_local[2] + 1, domain_cuts[2])]
-    rank_down = domain_layout[domain_local[0],
-                              domain_local[1],
-                              mod(domain_local[2] - 1, domain_cuts[2])]
+    neighbors = neighboring_ranks()
+    rank_right = neighbors['right']
+    rank_left = neighbors['left']
+    rank_forward = neighbors['forward']
+    rank_backward = neighbors['backward']
+    rank_up = neighbors['up']
+    rank_down = neighbors['down']
     # Now get the ranks of the 6 diagonal neighboring processes
-    rank_rightforward = domain_layout[mod(domain_local[0] + 1, domain_cuts[0]),
-                                      mod(domain_local[1] + 1, domain_cuts[1]),
-                                      domain_local[2]]
-    rank_leftbackward = domain_layout[mod(domain_local[0] - 1, domain_cuts[0]),
-                                      mod(domain_local[1] - 1, domain_cuts[1]),
-                                      domain_local[2]]
-    rank_rightup = domain_layout[mod(domain_local[0] + 1, domain_cuts[0]),
-                                 domain_local[1],
-                                 mod(domain_local[2] + 1, domain_cuts[2])]
-    rank_leftdown = domain_layout[mod(domain_local[0] - 1, domain_cuts[0]),
-                                  domain_local[1],
-                                  mod(domain_local[2] - 1, domain_cuts[2])]
-    rank_forwardup = domain_layout[domain_local[0],
-                                   mod(domain_local[1] + 1, domain_cuts[1]),
-                                   mod(domain_local[2] + 1, domain_cuts[2])]
-    rank_backwarddown = domain_layout[domain_local[0],
-                                      mod(domain_local[1] - 1, domain_cuts[1]),
-                                      mod(domain_local[2] - 1, domain_cuts[2])]
+    rank_rightforward = neighbors['rightforward']
+    rank_leftbackward = neighbors['leftbackward']
+    rank_rightup = neighbors['rightup']
+    rank_leftdown = neighbors['leftdown']
+    rank_forwardup = neighbors['forwardup']
+    rank_backwarddown = neighbors['backwarddown']
     # Finally get the ranks of the two 3D-diagonal neighboring processes
-    rank_rightforwardup = domain_layout[mod(domain_local[0] + 1,
-                                            domain_cuts[0]),
-                                        mod(domain_local[1] + 1,
-                                            domain_cuts[1]),
-                                        mod(domain_local[2] + 1,
-                                            domain_cuts[2])]
-    rank_leftbackwarddown = domain_layout[mod(domain_local[0] - 1,
-                                              domain_cuts[0]),
-                                          mod(domain_local[1] - 1,
-                                              domain_cuts[1]),
-                                          mod(domain_local[2] - 1,
-                                              domain_cuts[2])]
+    rank_rightforwardup = neighbors['rightforwardup']
+    rank_leftbackwarddown = neighbors['leftbackwarddown']
     # The actual size of the domain grid. This is 1 less than the allocated
     # size in each dimension, as the last element is actually the first element
     # of the domain on some other process.
