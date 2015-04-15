@@ -7,8 +7,7 @@
 ############################################
 from __future__ import division  # Needed for Python3 division in Cython
 from numpy import (arange, array, asarray, concatenate, cumsum, ceil, delete,
-                   empty, linspace, ones, prod, trapz, unravel_index,
-                   zeros)  # FIND OUT WHY min CANNOT BE IMPORTED WITHOUT SCREWING UP EVERYTHING!!!
+                   empty, linspace, ones, trapz, unravel_index, zeros)
 from numpy.random import random
 import numpy as np
 import h5py
@@ -47,6 +46,8 @@ if not cython.compiled:
             dtype = 'float64'
         elif dtype == 'size_t':
             dtype = 'uintp'
+        elif dtype in ('func_b_ddd', 'func_d_dd', 'func_d_ddd', 'func_ddd_ddd'):
+            dtype='object'
         elif dtype[-1] == '*':
             # Allocate pointer array of pointers (eg. int**).
             # Emulate these as lists of arrays.
@@ -87,9 +88,9 @@ else:
     # Functions for manual memory management
     from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
     # Function type definitions of the form func_returntype_argumenttypes
-    ctypedef bint  (*func_b_ddd)(double, double, double)
-    ctypedef double  (*func_d_dd)(double, double)
-    ctypedef double  (*func_d_ddd)(double, double, double)
+    ctypedef bint    (*func_b_ddd)  (double, double, double)
+    ctypedef double  (*func_d_dd)   (double, double)
+    ctypedef double  (*func_d_ddd)  (double, double, double)
     ctypedef double* (*func_ddd_ddd)(double, double, double)
     # Create a fused number type containing all necessary numerical types
     ctypedef fused number:
@@ -111,11 +112,15 @@ else:
     ctypedef fused floating:
         cython.float
         cython.double
+    # Custom classes
+    from species cimport Particles
+    from IO cimport Gadget_snapshot
     """
 # Seperate but equivalent imports and definitions in pure Python and Cython
 if not cython.compiled:
-    # Mathematical functions
-    from numpy import pi, sqrt, exp, sin, log
+    # Mathematical constants and functions
+    from numpy import pi as π
+    from numpy import sqrt, exp, sin, log
     from scipy.special import erfc
     # Import the units module
     import units
@@ -124,8 +129,8 @@ if not cython.compiled:
 else:
     # Lines in triple quotes will be executed in .pyx files.
     """
-    # Mathematical functions
-    from libc.math cimport M_PI as pi
+    # Mathematical constants and functions
+    from libc.math cimport M_PI as π
     from libc.math cimport sqrt, exp, sin, log, erfc
     # Import the units module
     cimport units
@@ -138,27 +143,27 @@ else:
 #####################################
 # Useful for temporary storage of 3D vector
 cython.declare(vector='double*',
-               vector_mw='double[::1]',
+               vector_mv='double[::1]',
                )
 vector = malloc(3*sizeof('double'))
-vector_mw = cast(vector, 'double[:3]')
+vector_mv = cast(vector, 'double[:3]')
 
 ################
 # Pure numbers #
 ################
-cython.declare(minus_4pi='double',
+cython.declare(minus_4π='double',
                one_third='double',
-               sqrt_pi='double',
-               two_pi='double',
-               one_thirds='double',
                one_twelfth='double',
+               sqrt_π='double',
+               two_π='double',
+               two_thirds='double',
                )
-minus_4pi = -4*pi
+minus_4π = -4*π
 one_third = 1.0/3.0
 one_twelfth = 1.0/12.0
+sqrt_π = sqrt(π)
 two_thirds = 2.0/3.0
-sqrt_pi = sqrt(pi)
-two_pi = 2*pi
+two_π = 2*π
 
 ############################################
 # Derived and internally defined constants #
@@ -182,9 +187,10 @@ cython.declare(G_Newton='double',
                PM_fac_const='double',
                longrange_exponent_fac='double',
                P3M_cutoff_phys='double',
+               P3M_scale_phys='double',
                )
 G_Newton = 6.6738e-11*units.m**3/units.kg/units.s**2  # Newtons constant
-ϱ = 3*H0**2/(8*pi*G_Newton) # The average, comoing density (the critical comoving density since we only study flat universes)
+ϱ = 3*H0**2/(8*π*G_Newton) # The average, comoing density (the critical comoving density since we only study flat universes)
 PM_gridsize3 = PM_gridsize**3
 PM_gridsize_padding = 2*(PM_gridsize//2 + 1)
 half_PM_gridsize = PM_gridsize//2
@@ -207,23 +213,25 @@ for kick_algorithm in kick_algorithms.values():
 # For CIC interpolating particle masses/volume to the grid points:
 #     particles.mass/(boxsize/PM_gridsize)**3
 # Factor in the Greens function:
-#     -4*pi*G_Newton/((2*pi/((boxsize/PM_gridsize)*PM_gridsize))**2)   
+#     -4*π*G_Newton/((2*π/((boxsize/PM_gridsize)*PM_gridsize))**2)   
 # From finite differencing to get the forces:
 #     -PM_gridsize/boxsize
 # For converting acceleration to momentum
 #     particles.mass*Δt
 # Everything except the mass and the time are constant, and is condensed
 # into the PM_fac_const variable.
-PM_fac_const = G_Newton*PM_gridsize**4/(pi*boxsize**2)
+PM_fac_const = G_Newton*PM_gridsize**4/(π*boxsize**2)
 # The exponential cutoff for the long-range force looks like exp(-k2*rs2).
 # In the code, the wave vector is in grid units in stead of radians. The
-# conversion is this 2*pi/PM_gridsize. The total factor on k2 in the
+# conversion is this 2*π/PM_gridsize. The total factor on k2 in the
 # exponential is then
-longrange_exponent_fac = -(2*pi/PM_gridsize*P3M_scale)**2
+longrange_exponent_fac = -(2*π/PM_gridsize*P3M_scale)**2
+# The short-range/long-range force scale
+P3M_scale_phys = P3M_scale*boxsize/PM_gridsize
 # Particles within this distance to the surface of the domain should
 # interact with particles in the neighboring domain via the shortrange
 # force, when the P3M algorithm is used.
-P3M_cutoff_phys = P3M_scale*P3M_cutoff*boxsize/PM_gridsize
+P3M_cutoff_phys = P3M_scale_phys*P3M_cutoff
 
 
 
@@ -258,48 +266,21 @@ sendrecv = comm.sendrecv
 nprocs = comm.size  # Number of processes started with mpiexec
 rank = comm.rank    # The unique rank of the running process
 master = not rank   # Flag identifying the master/root process (that which have rank 0)
-# Function for easily partitioning of multidimensional arrays
-@cython.locals(# Arguments
-               array_shape='tuple',
-               # Locals
-               problem_size='int',
-               local_size='int',
-               errmsg='str',
-               indices_start='size_t[::1]',
-               indices_end='size_t[::1]',
-               )
-def partition(array_shape):
-    """ This function takes in the shape of an array as the argument
-    and returns the start and end indices corresponding to the local chunk
-    of the array which should be processed by running process,
-    base on rank and nprocs.
-    """
-    # Raise an exception if nprocs > problem_size
-    problem_size = prod(array_shape)
-    if problem_size < nprocs:
-        errmsg = ('Cannot partition the workload because the number of\nprocesses ('
-                  + str(nprocs) + ') is larger than the problem size (' + str(problem_size) + ').')
-        raise ValueError(errmsg)
-    # Partition the local shape based on the rank.
-    # size_t should correspond to uint64 un a 64 bit machine. Otherwize a ValueError will be thrown.
-    local_size = int(problem_size/nprocs)
-    indices_start = array(unravel_index(local_size*rank, array_shape), dtype='uint64')
-    indices_end = array(unravel_index(local_size*(rank + 1) - 1, array_shape), dtype='uint64') + 1
-    return indices_start, indices_end
 
 
 ####################
 # Useful functions #
 ####################
-# Max function for memory views of numbers
+# Max function for 1D memory views of numbers
 if not cython.compiled:
     # Pure Python already have a generic max function
     pass
 else:
     """
     @cython.cfunc
-    @cython.cdivision(True)
+    @cython.inline
     @cython.boundscheck(False)
+    @cython.cdivision(True)
     @cython.wraparound(False)
     @cython.returns(number)
     def max(number[::1] a):
@@ -314,6 +295,31 @@ else:
                 m = a[i]
         return m
     """
+
+# Min function for 1D memory views of numbers
+if not cython.compiled:
+    # Pure Python already have a generic min function
+    pass
+else:
+    """
+    @cython.cfunc
+    @cython.cdivision(True)
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    @cython.returns(number)
+    def min(number[::1] a):
+        cdef:
+            number m
+            size_t N
+            size_t i
+        N = a.shape[0]
+        m = a[0]
+        for i in range(1, N):
+            if a[i] < m:
+                m = a[i]
+        return m
+    """
+
 # Modulo function for numbers
 @cython.cfunc
 @cython.inline
@@ -330,14 +336,15 @@ def mod(x, length):
     # mod(integer, floating) not possible. Note that no error will occur if
     # called with illegal types!
     if not (number in integer and number2 in floating):
-        # Note that -length < x < 2*length must be true for this to work.
+        # Note that -length < x < 2*length must be true for this to work
         if x < 0:
             x += length
         elif x >= length:
             x -= length
         # A general prescription would be x = (x % length) + (x < 0)*length
         return x
-# Sum function for memory views of numbers
+
+# Sum function for 1D memory views of numbers
 if not cython.compiled:
     # Pure Python already have a generic sum function
     pass
@@ -361,6 +368,32 @@ else:
             Σ += a[i]
         return Σ
     """
+
+# Prod function for 1D memory views of numbers
+if not cython.compiled:
+    # Utilize the prod function from numpy for pure Python
+    prod = np.prod
+else:
+    """
+    @cython.cfunc
+    @cython.inline
+    @cython.boundscheck(False)
+    @cython.cdivision(True)
+    @cython.initializedcheck(False)
+    @cython.wraparound(False)
+    @cython.returns(number)
+    def prod(number[::1] a):
+        cdef:
+            number Π
+            size_t N
+            size_t i
+        N = a.shape[0]
+        Π = a[0]
+        for i in range(1, N):
+            Π *= a[i]
+        return Π
+    """
+
 # Unnormalized sinc function (faster than gsl_sf_sinc)
 @cython.cfunc
 @cython.inline
@@ -378,6 +411,7 @@ def sinc(x):
     else:
         y = 1
     return y
+
 # Function for printing warnings
 def warn(msg):
     os.system('printf "\033[1m\033[91mWarning: ' + msg + '\033[0m\n" >&2')

@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# This script performs a compariosn test betwen the CONCEPT code in compiled
-# and pure Python mode. ICs are generated randomly, containing 4**3 particles.
+# This script performs a comparioson test betwen the CONCEPT code PM algorithm
+# in compiled and pure Python mode. ICs are generated randomly,
+# containing 8**3 particles.
 
 # The name of this test (the directory name)
 this_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"

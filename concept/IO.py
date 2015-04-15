@@ -36,7 +36,7 @@ def save(particles, a, filename):
     elif output_type_fmt == 'gadget2':
         save_gadget(particles, a, filename)
     else:
-        raise Exception('Error: Does not recognize output type "'
+        raise Exception('Does not recognize output type "'
                         + output_type + '".')
 
 # Function that loads particle data from an hdf5 file and instantiate a
@@ -128,12 +128,12 @@ def save_standard(particles, a, filename):
             start_local = int(start_local)
             end_local = int(end_local)
         # Save the local slices of the particle data and the attributes
-        posx_h5[start_local:end_local] = particles.posx_mw[:N_local]
-        posy_h5[start_local:end_local] = particles.posy_mw[:N_local]
-        posz_h5[start_local:end_local] = particles.posz_mw[:N_local]
-        momx_h5[start_local:end_local] = particles.momx_mw[:N_local]
-        momy_h5[start_local:end_local] = particles.momy_mw[:N_local]
-        momz_h5[start_local:end_local] = particles.momz_mw[:N_local]
+        posx_h5[start_local:end_local] = particles.posx_mv[:N_local]
+        posy_h5[start_local:end_local] = particles.posy_mv[:N_local]
+        posz_h5[start_local:end_local] = particles.posz_mv[:N_local]
+        momx_h5[start_local:end_local] = particles.momx_mv[:N_local]
+        momy_h5[start_local:end_local] = particles.momy_mv[:N_local]
+        momz_h5[start_local:end_local] = particles.momz_mv[:N_local]
         particles_h5.attrs['mass'] = particles.mass
         particles_h5.attrs['species'] = particles.species
         particles_h5.attrs['type'] = particles.type
@@ -313,6 +313,18 @@ class Gadget_snapshot:
     @cython.initializedcheck(False)
     @cython.wraparound(False)
     def __init__(self):
+        """
+        # Data attributes
+        dict header
+        Particles particles
+        unsigned int[::1] ID
+        # Methods (f is an io.TextIOWrapper instance)
+        populate(self, Particles particles, double a)
+        save(self, str filename)
+        load(self, str filename, bint write_msg=*)
+        read(self, object f, str fmt)  
+        size_t new_block(self, object f, size_t offset)
+        """
         self.header = {}
 
     # This method populate the snapshot with particle data as well as ID's
@@ -442,9 +454,9 @@ class Gadget_snapshot:
                         f.write(struct.pack('i', 8))
                         f.write(struct.pack('i', 3*N*4))
                     # The data
-                    (asarray(np.vstack((self.particles.posx_mw[:N_local],
-                                        self.particles.posy_mw[:N_local],
-                                        self.particles.posz_mw[:N_local])
+                    (asarray(np.vstack((self.particles.posx_mv[:N_local],
+                                        self.particles.posy_mv[:N_local],
+                                        self.particles.posz_mv[:N_local])
                                        ).T.flatten(),
                              dtype='float32')/unit).tofile(f)
                     # The closing int
@@ -466,9 +478,9 @@ class Gadget_snapshot:
                         f.write(struct.pack('i', 8))
                         f.write(struct.pack('i', 3*N*4))
                     # The data
-                    (asarray(np.vstack((self.particles.momx_mw[:N_local],
-                                        self.particles.momy_mw[:N_local],
-                                        self.particles.momz_mw[:N_local])
+                    (asarray(np.vstack((self.particles.momx_mv[:N_local],
+                                        self.particles.momy_mv[:N_local],
+                                        self.particles.momz_mv[:N_local])
                                        ).T.flatten(),
                              dtype='float32')/unit).tofile(f)
                     # The closing int

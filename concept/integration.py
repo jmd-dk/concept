@@ -68,8 +68,8 @@ def rkf45(ḟ, f_start, t_start, t_end, δ, ϵ, save_intermediate):
     intermediate values optained during the integration will be kept in
     t_cum, f_cum.
     """
-    global alloc_cum, f_cum, f_cum_mw, integrand_cum, integrand_cum_mw
-    global size_cum, t_cum, t_cum_mw
+    global alloc_cum, f_cum, f_cum_mv, integrand_cum, integrand_cum_mv
+    global size_cum, t_cum, t_cum_mv
     # The maximum and minimum step size
     Δt = t_end - t_start
     h_max = 0.1*Δt
@@ -109,9 +109,9 @@ def rkf45(ḟ, f_start, t_start, t_end, δ, ϵ, save_intermediate):
                     t_cum = realloc(t_cum, alloc_cum*sizeof('double'))
                     f_cum = realloc(f_cum, alloc_cum*sizeof('double'))
                     integrand_cum = realloc(integrand_cum, alloc_cum*sizeof('double'))
-                    t_cum_mw = cast(t_cum, 'double[:alloc_cum]')
-                    f_cum_mw = cast(f_cum, 'double[:alloc_cum]')
-                    integrand_cum_mw = cast(integrand_cum, 'double[:alloc_cum]')
+                    t_cum_mv = cast(t_cum, 'double[:alloc_cum]')
+                    f_cum_mv = cast(f_cum, 'double[:alloc_cum]')
+                    integrand_cum_mv = cast(integrand_cum, 'double[:alloc_cum]')
         # Updating step size
         h *= 0.95*(tolerence/error)**0.25
         if h > h_max:
@@ -180,7 +180,7 @@ def scalefactor_integral(power):
             integrand_cum[i] = 1/f_cum[i]**2
     # Integrate integrand_cum in pure Python or Cython
     if not cython.compiled:
-        integral = trapz(integrand_cum_mw[:size_cum], t_cum_mw[:size_cum])
+        integral = trapz(integrand_cum_mv[:size_cum], t_cum_mv[:size_cum])
     else:
         # Allocate an interpolation accelerator and a cubic spline object
         acc = gsl_interp_accel_alloc()
@@ -284,18 +284,18 @@ d1 = 25.0/216;                                        d3 = 1408.0/2565;   d4 = 2
 # values of the integrand in ∫_t^(t + Δt) 1/a dt and ∫_t^(t + Δt) 1/a^2 dt.
 cython.declare(alloc_cum='int',
                f_cum='double*',
-               f_cum_mw='double[::1]',
+               f_cum_mv='double[::1]',
                integrand_cum='double*',
-               integrand_cum_mw='double[::1]',
+               integrand_cum_mv='double[::1]',
                size_cum='int',
                t_cum='double*',
-               t_cum_mw='double[::1]'
+               t_cum_mv='double[::1]'
                )
 alloc_cum = 100
 size_cum = 0
 t_cum = malloc(alloc_cum*sizeof('double'))
 f_cum = malloc(alloc_cum*sizeof('double'))
 integrand_cum = malloc(alloc_cum*sizeof('double'))
-t_cum_mw = cast(t_cum, 'double[:alloc_cum]')
-f_cum_mw = cast(f_cum, 'double[:alloc_cum]')
-integrand_cum_mw = cast(integrand_cum, 'double[:alloc_cum]')
+t_cum_mv = cast(t_cum, 'double[:alloc_cum]')
+f_cum_mv = cast(f_cum, 'double[:alloc_cum]')
+integrand_cum_mv = cast(integrand_cum, 'double[:alloc_cum]')

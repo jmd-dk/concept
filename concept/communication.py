@@ -11,7 +11,7 @@ else:
     """
 
 
-# Function for communicating sizes of recieve buffers
+# Function for communicating sizes of receive buffers
 @cython.cfunc
 @cython.inline
 @cython.boundscheck(False)
@@ -36,9 +36,9 @@ def find_N_recv(N_send):
     """Given the size of arrays to send, N_send, which itself has a length of
     either 1 (same data size to send to every process) or n_procs (individual
     data sizes to send to the processes), this function communicates this to
-    all processes, so that everyone knows how much to recieve from every
+    all processes, so that everyone knows how much to receive from every
     process. The entrance number rank is unused (the process do not send to
-    itself). The maximum number to recieve is useful when allocating recieve
+    itself). The maximum number to receive is useful when allocating receive
     buffers, so this number is stored in this otherwize unused entrance.
     """
     N_recv = empty(nprocs, dtype='uintp')
@@ -53,13 +53,13 @@ def find_N_recv(N_send):
         N_recv[rank] = (max_bfore_rank if max_bfore_rank > max_after_rank
                         else max_after_rank)
         return N_recv
-    # Find out how many particles will be recieved from each process
+    # Find out how many particles will be received from each process
     N_recv_max = 0
     for j in range(1, nprocs):
-        # Process ranks to send/recieve to/from
+        # Process ranks to send/receive to/from
         ID_send = mod(rank + j, nprocs)
         ID_recv = mod(rank - j, nprocs)
-        # Send and recieve nr of particles to be exchanged
+        # Send and receive nr of particles to be exchanged
         N_recv[ID_recv] = sendrecv(N_send[ID_send],
                                    dest=ID_send, source=ID_recv)
         if N_recv[ID_recv] > N_recv_max:
@@ -67,8 +67,6 @@ def find_N_recv(N_send):
     # Store N_recv_max in the unused entrance in N_recv
     N_recv[rank] = N_recv_max
     return N_recv
-
-
 
 # This function examines every particle and communicates them to the
 # process governing the domain in which the particle is located
@@ -104,18 +102,18 @@ def find_N_recv(N_send):
                k='size_t',
                k_start='size_t',
                momx='double*',
-               momx_mw='double[::1]',
+               momx_mv='double[::1]',
                momy='double*',
-               momy_mw='double[::1]',
+               momy_mv='double[::1]',
                momz='double*',
-               momz_mw='double[::1]',
+               momz_mv='double[::1]',
                owner='int',
                posx='double*',
-               posx_mw='double[::1]',
+               posx_mv='double[::1]',
                posy='double*',
-               posy_mw='double[::1]',
+               posy_mv='double[::1]',
                posz='double*',
-               posz_mw='double[::1]',
+               posz_mv='double[::1]',
                Δmemory='size_t',
                )
 def exchange(particles, reset_buffers=False):
@@ -127,7 +125,7 @@ def exchange(particles, reset_buffers=False):
     if needed. Call with reset_buffers=True to reset these variables to their
     most basic forms, freeing up memory. 
     """
-    global N_send, indices_send, indices_send_sizes, sendbuf, sendbuf_mw
+    global N_send, indices_send, indices_send_sizes, sendbuf, sendbuf_mv
     # No need to consider exchange of particles if running serial
     if nprocs == 1:
         return
@@ -166,22 +164,23 @@ def exchange(particles, reset_buffers=False):
         if N_send_tot_global == 1:
             print('Exchanging 1 particle')
         elif N_send_tot_global > 1:
-            print('Exchanging', N_send_tot_global, 'particles')
+            # The int casting is necessary in pure Python
+            print('Exchanging', int(N_send_tot_global), 'particles')
     # Enlarge sendbuf, if necessary
     N_send_max = max(N_send)
-    if N_send_max > sendbuf_mw.size:
+    if N_send_max > sendbuf_mv.size:
         sendbuf = realloc(sendbuf, N_send_max*sizeof('double'))
-        sendbuf_mw = cast(sendbuf, 'double[:N_send_max]')
-    # Find out how many particles to recieve
+        sendbuf_mv = cast(sendbuf, 'double[:N_send_max]')
+    # Find out how many particles to receive
     N_recv = find_N_recv(N_send)
     # Pure Python has a hard time understanding uintp as an integer
     if not cython.compiled:
         N_recv = asarray(N_recv, dtype='int64')
-    # The maximum number of particles to recieve is stored in entrance rank
+    # The maximum number of particles to receive is stored in entrance rank
     N_recv_max = N_recv[rank]
     N_recv_tot = sum(N_recv) - N_recv_max
     # Enlarge the Particles data attributes, if needed. This may not be
-    # strcitly necessary as more particles may be send than recieved.
+    # strcitly necessary as more particles may be send than received.
     N_needed = N_local + N_recv_tot
     if particles.N_allocated < N_needed:
         particles.resize(N_needed)
@@ -193,19 +192,19 @@ def exchange(particles, reset_buffers=False):
     momx = particles.momx
     momy = particles.momy
     momz = particles.momz
-    posx_mw = particles.posx_mw
-    posy_mw = particles.posy_mw
-    posz_mw = particles.posz_mw
-    momx_mw = particles.momx_mw
-    momy_mw = particles.momy_mw
-    momz_mw = particles.momz_mw
+    posx_mv = particles.posx_mv
+    posy_mv = particles.posy_mv
+    posz_mv = particles.posz_mv
+    momx_mv = particles.momx_mv
+    momy_mv = particles.momy_mv
+    momz_mv = particles.momz_mv
     # Exchange particles between processes
     index_recv_j = N_local
     for j in range(1, nprocs):
-        # Process ranks to send/recieve to/from
+        # Process ranks to send/receive to/from
         ID_send = mod(rank + j, nprocs)
         ID_recv = mod(rank - j, nprocs)
-        # Number of particles to send/recieve
+        # Number of particles to send/receive
         N_send_j = N_send[ID_send]
         N_recv_j = N_recv[ID_recv]
         # The indices of particles to send and the index from which received
@@ -214,44 +213,44 @@ def exchange(particles, reset_buffers=False):
         # Send/receive posx
         for i in range(N_send_j):
             sendbuf[i] = posx[indices_send_j[i]]
-        Sendrecv(sendbuf_mw[:N_send_j],
+        Sendrecv(sendbuf_mv[:N_send_j],
                  dest=ID_send,
-                 recvbuf=posx_mw[index_recv_j:],
+                 recvbuf=posx_mv[index_recv_j:],
                  source=ID_recv)
         # Send/receive posy
         for i in range(N_send_j):
             sendbuf[i] = posy[indices_send_j[i]]
-        Sendrecv(sendbuf_mw[:N_send_j],
+        Sendrecv(sendbuf_mv[:N_send_j],
                  dest=ID_send,
-                 recvbuf=posy_mw[index_recv_j:],
+                 recvbuf=posy_mv[index_recv_j:],
                  source=ID_recv)
         # Send/receive posz
         for i in range(N_send_j):
             sendbuf[i] = posz[indices_send_j[i]]
-        Sendrecv(sendbuf_mw[:N_send_j],
+        Sendrecv(sendbuf_mv[:N_send_j],
                  dest=ID_send,
-                 recvbuf=posz_mw[index_recv_j:],
+                 recvbuf=posz_mv[index_recv_j:],
                  source=ID_recv)
         # Send/receive momx
         for i in range(N_send_j):
             sendbuf[i] = momx[indices_send_j[i]]
-        Sendrecv(sendbuf_mw[:N_send_j],
+        Sendrecv(sendbuf_mv[:N_send_j],
                  dest=ID_send,
-                 recvbuf=momx_mw[index_recv_j:],
+                 recvbuf=momx_mv[index_recv_j:],
                  source=ID_recv)
         # Send/receive momy
         for i in range(N_send_j):
             sendbuf[i] = momy[indices_send_j[i]]
-        Sendrecv(sendbuf_mw[:N_send_j],
+        Sendrecv(sendbuf_mv[:N_send_j],
                  dest=ID_send,
-                 recvbuf=momy_mw[index_recv_j:],
+                 recvbuf=momy_mv[index_recv_j:],
                  source=ID_recv)
         # Send/receive momz
         for i in range(N_send_j):
             sendbuf[i] = momz[indices_send_j[i]]
-        Sendrecv(sendbuf_mw[:N_send_j],
+        Sendrecv(sendbuf_mv[:N_send_j],
                  dest=ID_send,
-                 recvbuf=momz_mw[index_recv_j:],
+                 recvbuf=momz_mv[index_recv_j:],
                  source=ID_recv)
         # Update the start index for received data
         index_recv_j += N_recv_j
@@ -292,7 +291,7 @@ def exchange(particles, reset_buffers=False):
             indices_send[j] = realloc(indices_send[j], 1*sizeof('size_t'))
             indices_send_sizes[j] = 1
             sendbuf = realloc(sendbuf, 1*sizeof('double'))
-            sendbuf_mw = cast(sendbuf, 'double[:1]')
+            sendbuf_mv = cast(sendbuf, 'double[:1]')
     
 
 # Function for cutting out domains as rectangular boxes in the best possible
@@ -602,7 +601,7 @@ cython.declare(N_send='size_t[::1]',
                indices_send='size_t**',
                indices_send_sizes='size_t[::1]',
                sendbuf='double*',
-               sendbuf_mw='double[::1]',
+               sendbuf_mv='double[::1]',
                )
 # This variable stores the number of particles to send to each prcess
 N_send = zeros(nprocs, dtype='uintp')
@@ -616,4 +615,4 @@ for j in range(nprocs):
 indices_send_sizes = ones(nprocs, dtype='uintp')
 # The send buffer for the particle data
 sendbuf = malloc(1*sizeof('double'))
-sendbuf_mw = cast(sendbuf, 'double[:1]')
+sendbuf_mv = cast(sendbuf, 'double[:1]')

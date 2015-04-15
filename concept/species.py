@@ -25,8 +25,7 @@ class Particles:
     a flag to allow different species to behave differently.
     """
 
-    # Initialization method.
-    # Note that data attributes are declared in the .pxd file.
+    # Initialization method
     @cython.boundscheck(False)
     @cython.cdivision(True)
     @cython.initializedcheck(False)
@@ -35,6 +34,36 @@ class Particles:
                    N='size_t',
                    )
     def __init__(self, N):
+        # The triple quoted string below served as the type declaration
+        # for the Particles type. It will get picked up by the pyxpp
+        # script and indluded in the .pxd file.
+        """
+        # Data attributes
+        size_t N
+        size_t N_local
+        size_t N_allocated
+        double mass
+        double softening
+        str species
+        str type
+        double[::1] posx_mv
+        double[::1] posy_mv
+        double[::1] posz_mv
+        double[::1] momx_mv
+        double[::1] momy_mv
+        double[::1] momz_mv
+        double* posx
+        double* posy
+        double* posz
+        double* momx
+        double* momy
+        double* momz
+        # Methods
+        drift(self, double Δt)
+        kick(self, double Δt)
+        resize(self, size_t N_allocated)
+        populate(self, double[::1] mv, str coord)
+        """
         # Store particle meta data
         self.N = N
         self.N_allocated = 1
@@ -51,16 +80,16 @@ class Particles:
         self.momy = malloc(self.N_allocated*sizeof('double'))
         self.momz = malloc(self.N_allocated*sizeof('double'))
         # Memory views around the allocated data
-        self.posx_mw = cast(self.posx, 'double[:self.N_allocated]')
-        self.posy_mw = cast(self.posy, 'double[:self.N_allocated]')
-        self.posz_mw = cast(self.posz, 'double[:self.N_allocated]')
-        self.momx_mw = cast(self.momx, 'double[:self.N_allocated]')
-        self.momy_mw = cast(self.momy, 'double[:self.N_allocated]')
-        self.momz_mw = cast(self.momz, 'double[:self.N_allocated]')
+        self.posx_mv = cast(self.posx, 'double[:self.N_allocated]')
+        self.posy_mv = cast(self.posy, 'double[:self.N_allocated]')
+        self.posz_mv = cast(self.posz, 'double[:self.N_allocated]')
+        self.momx_mv = cast(self.momx, 'double[:self.N_allocated]')
+        self.momy_mv = cast(self.momy, 'double[:self.N_allocated]')
+        self.momz_mv = cast(self.momz, 'double[:self.N_allocated]')
 
     # This method populate the Particles pos/mom attributes with data.
     # It is deliberately designed so that you have to make a call for each
-    # attribute. You should consruct the mw array within the call itself,
+    # attribute. You should consruct the mv array within the call itself,
     # as this will minimize memory usage.
     @cython.cfunc
     @cython.inline
@@ -69,37 +98,37 @@ class Particles:
     @cython.initializedcheck(False)
     @cython.wraparound(False)
     @cython.locals(# Arguments
-                   mw='double[::1]',
+                   mv='double[::1]',
                    coord='str',
                    )
-    def populate(self, mw, coord):
-        self.N_allocated = mw.size
+    def populate(self, mv, coord):
+        self.N_allocated = mv.size
         self.N_local = self.N_allocated
         # Update the attribute corresponding to the passed string
         if coord == 'posx':
             self.posx = realloc(self.posx, self.N_allocated*sizeof('double'))
-            self.posx_mw = cast(self.posx, 'double[:self.N_local]')
-            self.posx_mw[...] = mw[...]
+            self.posx_mv = cast(self.posx, 'double[:self.N_local]')
+            self.posx_mv[...] = mv[...]
         elif coord == 'posy':
             self.posy = realloc(self.posy, self.N_allocated*sizeof('double'))
-            self.posy_mw = cast(self.posy, 'double[:self.N_local]')
-            self.posy_mw[...] = mw[...]
+            self.posy_mv = cast(self.posy, 'double[:self.N_local]')
+            self.posy_mv[...] = mv[...]
         elif coord == 'posz':
             self.posz = realloc(self.posz, self.N_allocated*sizeof('double'))
-            self.posz_mw = cast(self.posz, 'double[:self.N_local]')
-            self.posz_mw[...] = mw[...]
+            self.posz_mv = cast(self.posz, 'double[:self.N_local]')
+            self.posz_mv[...] = mv[...]
         elif coord == 'momx':
             self.momx = realloc(self.momx, self.N_allocated*sizeof('double'))
-            self.momx_mw = cast(self.momx, 'double[:self.N_local]')
-            self.momx_mw[...] = mw[...]
+            self.momx_mv = cast(self.momx, 'double[:self.N_local]')
+            self.momx_mv[...] = mv[...]
         elif coord == 'momy':
             self.momy = realloc(self.momy, self.N_allocated*sizeof('double'))
-            self.momy_mw = cast(self.momy, 'double[:self.N_local]')
-            self.momy_mw[...] = mw[...]
+            self.momy_mv = cast(self.momy, 'double[:self.N_local]')
+            self.momy_mv[...] = mv[...]
         elif coord == 'momz':
             self.momz = realloc(self.momz, self.N_allocated*sizeof('double'))
-            self.momz_mw = cast(self.momz, 'double[:self.N_local]')
-            self.momz_mw[...] = mw[...]
+            self.momz_mv = cast(self.momz, 'double[:self.N_local]')
+            self.momz_mv[...] = mv[...]
         else:
             raise ValueError('Wrong attribute name "' + coord + '"!')
 
@@ -125,12 +154,12 @@ class Particles:
             self.momy = realloc(self.momy, self.N_allocated*sizeof('double'))
             self.momz = realloc(self.momz, self.N_allocated*sizeof('double'))
             # Reassign memory views
-            self.posx_mw = cast(self.posx, 'double[:self.N_allocated]')
-            self.posy_mw = cast(self.posy, 'double[:self.N_allocated]')
-            self.posz_mw = cast(self.posz, 'double[:self.N_allocated]')
-            self.momx_mw = cast(self.momx, 'double[:self.N_allocated]')
-            self.momy_mw = cast(self.momy, 'double[:self.N_allocated]')
-            self.momz_mw = cast(self.momz, 'double[:self.N_allocated]')
+            self.posx_mv = cast(self.posx, 'double[:self.N_allocated]')
+            self.posy_mv = cast(self.posy, 'double[:self.N_allocated]')
+            self.posz_mv = cast(self.posz, 'double[:self.N_allocated]')
+            self.momx_mv = cast(self.momx, 'double[:self.N_allocated]')
+            self.momy_mv = cast(self.momy, 'double[:self.N_allocated]')
+            self.momz_mv = cast(self.momz, 'double[:self.N_allocated]')
 
     # Method for integrating particle positions forward in time
     @cython.cfunc
@@ -169,9 +198,9 @@ class Particles:
             posy[i] += momy[i]*fac
             posz[i] += momz[i]*fac
             # Toroidal boundaries
-            posx[i] = np.mod(posx[i], boxsize)
-            posy[i] = np.mod(posy[i], boxsize)
-            posz[i] = np.mod(posz[i], boxsize)
+            posx[i] = mod(posx[i], boxsize)
+            posy[i] = mod(posy[i], boxsize)
+            posz[i] = mod(posz[i], boxsize)
         # Some partiles may have drifted out of the local domain.
         # Exchange particles to the correct processes.
         exchange(self)

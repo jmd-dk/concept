@@ -31,7 +31,7 @@ particles = load(IC_file)
 # Check that the values in outputtimes are legal
 if np.min(outputtimes) <= a_begin:
     raise Exception('The first snapshot is set at a = '
-                    + str(min(outputtimes))
+                    + str(np.min(outputtimes))
                     + ',\nbut the simulation starts at a = '
                     + str(a_begin) + '.')
 if len(outputtimes) > len(set(outputtimes)):
@@ -94,7 +94,7 @@ def timeloop():
     a = a_begin
     t = cosmic_time(a)
     # Plot the initial configuration
-    animate(particles, 0, a, min(outputtimes))
+    animate(particles, 0, a, np.min(outputtimes))
     # The time step size should be a small fraction of the age of the universe
     Δt = Δt_factor*t
     # Arrays containing the drift and kick factors ∫_t^(t + Δt/2)dt/a

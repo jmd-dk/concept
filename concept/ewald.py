@@ -87,7 +87,7 @@ def summation(x, y, z):
                 if dist > maxdist:
                     continue
                 scalarpart = -dist**(-3)*(erfc(dist*recp_2rs)
-                                          + dist*recp_sqrt_pi_rs
+                                          + dist*recp_sqrt_π_rs
                                           * exp(dist2*minus_recp_4rs2))
                 force_x += dist_x*scalarpart
                 force_y += dist_y*scalarpart
@@ -99,11 +99,11 @@ def summation(x, y, z):
                 h2 = sumindex_x**2 + sumindex_y**2 + sumindex_z**2
                 if h2 > maxh2 or h2 == 0:
                     continue
-                kx = two_pi*sumindex_x
-                ky = two_pi*sumindex_y
-                kz = two_pi*sumindex_z
+                kx = two_π*sumindex_x
+                ky = two_π*sumindex_y
+                kz = two_π*sumindex_z
                 k2 = kx**2 + ky**2 + kz**2
-                scalarpart = minus_4pi/k2*exp(-k2*rs2)*sin(kx*x + ky*y + kz*z)
+                scalarpart = minus_4π/k2*exp(-k2*rs2)*sin(kx*x + ky*y + kz*z)
                 force_x += kx*scalarpart
                 force_y += ky*scalarpart
                 force_z += kz*scalarpart
@@ -192,7 +192,7 @@ cython.declare(h_lower='int',
                n_lower='int',
                n_upper='int',
                recp_2rs='double',
-               recp_sqrt_pi_rs='double',
+               recp_sqrt_π_rs='double',
                rs='double',
                rs2='double',
                )
@@ -210,7 +210,7 @@ minus_recp_4rs2 = -1/(4*rs**2)
 n_lower = int(-(maxdist + 1))  # GADGET: -4 (also the case here for maxdist=3.6)
 n_upper = int(maxdist + 1) + 1  # GADGET: 5 (also the case here for maxdist=3.6)
 recp_2rs = 1/(2*rs)
-recp_sqrt_pi_rs = 1/(sqrt_pi*rs)
+recp_sqrt_π_rs = 1/(sqrt_π*rs)
 rs2 = rs**2
 # Initialize the grid at import time, if Ewald summation is to be used
 cython.declare(i='int',

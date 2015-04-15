@@ -78,7 +78,9 @@ else:
                i_end='size_t',
                j='size_t',
                j_start='size_t',
+               r_scaled='double',
                r3='double',
+               shortrange_fac='double',
                x='double',
                xi='double',
                y='double',
@@ -115,17 +117,17 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
     eom_factor = G_Newton*mass_i*mass_j*Δt
     # Direct summation
     force = vector
-    i_end = N_local_i if (flag_input > 0) else (N_local_i - 1)
+    i_end = N_local_i if flag_input > 0 else N_local_i - 1
     for i in range(0, i_end):
         xi = posx_i[i]
         yi = posy_i[i]
         zi = posz_i[i]
-        j_start = 0 if (flag_input > 0) else (i + 1)
+        j_start = 0 if flag_input > 0 else i + 1
         for j in range(j_start, N_local_j):
             x = posx_j[j] - xi
             y = posy_j[j] - yi
             z = posz_j[j] - zi
-            # Compute the gravitational force in one on three ways: Just the
+            # Evaluate the gravitational force in one of three ways: Just the
             # short range force, the total force with Ewald corrections or
             # the total force without Ewald corrections.
             if only_short_range:
@@ -144,8 +146,8 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
                     z += boxsize
                 r = sqrt(x**2 + y**2 + z**2 + softening2)
                 r3 = r**3
-                r_scaled = r/(P3M_scale*boxsize/PM_gridsize)
-                shortrange_fac = r_scaled/sqrt(pi)*exp(-0.25*r_scaled**2) + erfc(0.5*r_scaled)
+                r_scaled = r/P3M_scale_phys
+                shortrange_fac = r_scaled/sqrt_π*exp(-0.25*r_scaled**2) + erfc(0.5*r_scaled)
                 force[0] = -x/r3*shortrange_fac
                 force[1] = -y/r3*shortrange_fac
                 force[2] = -z/r3*shortrange_fac
@@ -265,9 +267,9 @@ def PP(particles, Δt, only_short_range=False):
     posx_local = particles.posx
     posy_local = particles.posy
     posz_local = particles.posz
-    posx_local_mv = particles.posx_mw
-    posy_local_mv = particles.posy_mw
-    posz_local_mv = particles.posz_mw
+    posx_local_mv = particles.posx_mv
+    posy_local_mv = particles.posy_mv
+    posz_local_mv = particles.posz_mv
     softening2 = particles.softening**2
     # Update local momenta due to forces between local particles.
     # Note that "vector" is not actually used due to flag_input=0.
@@ -390,7 +392,6 @@ def PP(particles, Δt, only_short_range=False):
                z='double',
                force='double'
                )
-@cython.returns('double')
 def PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, mom):
     for i in range(N_local):
         # The coordinates of the i'th particle,
@@ -475,7 +476,7 @@ def PM(particles, Δt, only_long_range=False):
         else:
             ki = i
         # The i-component of the Greens function
-        deconvolution_i = sinc(pi*ki/PM_gridsize)
+        deconvolution_i = sinc(π*ki/PM_gridsize)
         # Loop through the local j-dimension
         for j in range(PM_gridsize_local_j):
             # The j-component of the wave vector. Since PM_grid is distributed
@@ -486,7 +487,7 @@ def PM(particles, Δt, only_long_range=False):
             else:
                 kj = j_global
             # The product of the i- and the j-component of the Greens function
-            deconvolution_ij = deconvolution_i*sinc(pi*kj/PM_gridsize)
+            deconvolution_ij = deconvolution_i*sinc(π*kj/PM_gridsize)
             # Loop through the complete, padded k-dimension in steps of 2
             # (one complex number at a time).
             for k in range(0, PM_gridsize_padding, 2):
@@ -498,7 +499,7 @@ def PM(particles, Δt, only_long_range=False):
                     if ki == kj == kk == 0:
                         continue
                 # The product of all components of the Greens function
-                deconvolution_ijk = deconvolution_ij*sinc(pi*kk/PM_gridsize)
+                deconvolution_ijk = deconvolution_ij*sinc(π*kk/PM_gridsize)
                 # Multiply by the Greens function 1/k2 to get the the
                 # potential. Deconvolve for the CIC interpolation.
                 # Remember that PM_grid is transposed in the first two
@@ -1000,7 +1001,6 @@ def in_boundary_leftbackwarddown(posx_local_i, posy_local_i, posz_local_i):
                posy_local_i='double',
                posz_local='double*',
                posz_local_i='double',
-               posx_local_i='double',
                rank_send='int',
                rank_recv='int',
                softening2='double',
@@ -1126,6 +1126,9 @@ def P3M(particles, Δt):
                     Δmomz_local_mv = cast(Δmomz_local, 'double[:(N_boundary2 + Δmemory)]')
         # Communicate the number of particles to be communicated
         N_extrn = sendrecv(N_boundary2, dest=rank_send, source=rank_recv)
+        # No interactions if one of the two groups of particles is empty
+        if N_boundary2 == 0 or N_extrn == 0:
+            continue
         # Enlarge the receive buffers if needed
         if posx_extrn_mv.shape[0] < N_extrn:
             posx_extrn = realloc(posx_extrn, N_extrn*sizeof('double'))
@@ -1301,27 +1304,44 @@ if use_PM:
         plan_forward  = fftw_struct.plan_forward
         plan_backward = fftw_struct.plan_backward
         """
-    # The domain grid
-    cython.declare(domain_cuts='list',
-                   i='int',
+# Cut out the domains at import time
+cython.declare(domain_cuts='list',
+               domain_local='int[::1]',
+               domain_size_i='int',
+               domain_size_j='int',
+               domain_size_k='int',
+               domain_size_x='double',
+               domain_size_y='double',
+               domain_size_z='double',
+               domain_start_x='double',
+               domain_start_y='double',
+               domain_start_z='double',
+               )
+# Number of domains in all three dimensions
+domain_cuts = cutout_domains(nprocs)
+# The indices in domain_layout of the local domain
+domain_local = array(np.unravel_index(rank, domain_cuts), dtype='int32')
+# The linear size of the domains, which are the same for all of them
+domain_size_x = boxsize/domain_cuts[0]
+domain_size_y = boxsize/domain_cuts[1]
+domain_size_z = boxsize/domain_cuts[2]
+# The start positions of the local domain
+domain_start_x = domain_local[0]*domain_size_x
+domain_start_y = domain_local[1]*domain_size_y
+domain_start_z = domain_local[2]*domain_size_z
+# The size of the domain grid in PM grid units (actually needed for
+# the P3M, not the PM, algorithm).
+domain_size_i = PM_gridsize//domain_cuts[0]
+domain_size_j = PM_gridsize//domain_cuts[1]
+domain_size_k = PM_gridsize//domain_cuts[2]
+# Initialize the domain grid and the force grid, if the PM method
+# should be used.
+if use_PM:
+    cython.declare(i='int',
                    domain_grid='double[:, :, ::1]',
                    domain_grid_noghosts='double[:, :, ::1]',
                    force_grid='double[:, :, ::1]',
-                   domain_local='int[::1]',
-                   domain_size_i='int',
-                   domain_size_j='int',
-                   domain_size_k='int',
-                   domain_size_x='double',
-                   domain_size_y='double',
-                   domain_size_z='double',
-                   domain_start_x='double',
-                   domain_start_y='double',
-                   domain_start_z='double',
                    )
-    # Number of domains in all three dimensions
-    domain_cuts = cutout_domains(nprocs)
-    # The indices in domain_layout of the local domain
-    domain_local = array(np.unravel_index(rank, domain_cuts), dtype='int32')
     # A grid over the local domain. An additional layer of thickness 1 is given
     # to the domain grid, so that these outer points corresponds to the same
     # physical coordinates as the first points in the next domain.
@@ -1333,19 +1353,11 @@ if use_PM:
     domain_grid_noghosts = domain_grid[2:(domain_grid.shape[0] - 2),
                                        2:(domain_grid.shape[1] - 2),
                                        2:(domain_grid.shape[2] - 2)]
-    # The linear size of the domains, which are the same for all of them
-    domain_size_x = boxsize/domain_cuts[0]
-    domain_size_y = boxsize/domain_cuts[1]
-    domain_size_z = boxsize/domain_cuts[2]
-    # The start positions of the local domain
-    domain_start_x = domain_local[0]*domain_size_x
-    domain_start_y = domain_local[1]*domain_size_y
-    domain_start_z = domain_local[2]*domain_size_z
-    # The size of the domain grid in PM grid units (actually needed for
-    # the P3M, not the PM, algorithm).
-    domain_size_i = PM_gridsize//domain_cuts[0]
-    domain_size_j = PM_gridsize//domain_cuts[1]
-    domain_size_k = PM_gridsize//domain_cuts[2]
+    # The grid containing the forces in the PM algorithm,
+    # one component at a time.
+    force_grid = zeros((domain_grid_noghosts.shape[0],
+                        domain_grid_noghosts.shape[1],
+                        domain_grid_noghosts.shape[2]), dtype='float64')
     # Test if the grid has been constructed correctly. If not it is because
     # nprocs and PM_gridsize are incompatible.
     for i in range(3):
@@ -1357,55 +1369,51 @@ if use_PM:
             msg = ('A PM_gridsize of ' + str(PM_gridsize) + ' is too small'
                    + ' for ' + str(nprocs) + ' processes')
             raise ValueError(msg)
-    force_grid = zeros((domain_grid_noghosts.shape[0],
-                        domain_grid_noghosts.shape[1],
-                        domain_grid_noghosts.shape[2]), dtype='float64')
-    # Check if PM_grid is large enough for P3M to work, if the P3M
-    # algorithm is to be used.
-    for kick_algorithm in kick_algorithms.values():
-        if kick_algorithm == 'P3M':
-            if (   domain_size_i < P3M_scale*P3M_cutoff
-                or domain_size_j < P3M_scale*P3M_cutoff
-                or domain_size_k < P3M_scale*P3M_cutoff):
-                msg = ('A PM_gridsize of ' + str(PM_gridsize) + ' and '
-                       + str(nprocs) + ' processes results in following domain'
-                       + ' partition: ' + str(list(domain_cuts))
-                       + '.\nThe smallest domain width is '
-                       + str(np.min([domain_size_i, domain_size_j,
-                                     domain_size_k]))
-                       + ' grid cells, while the choice of P3M_scale ('
-                       + str(P3M_scale) + ') and P3M_cutoff ('
-                       + str(P3M_cutoff) + ')\nmeans that the domains must be '
-                       + 'at least '
-                       + str(P3M_scale*P3M_cutoff) + ' grid cells for the '
-                       + 'P3M algorithm to work.'
-                    )
-                raise ValueError(msg)
-            if (  (domain_size_i < 2*P3M_scale*P3M_cutoff
-                or domain_size_j < 2*P3M_scale*P3M_cutoff
-                or domain_size_k < 2*P3M_scale*P3M_cutoff)
-                and np.min(domain_cuts) < 3):
-                # This is only allowed if domain_cuts are at least 3 in each
-                # direction. Otherwise the left and the right (say) process
-                # is the same, and the boundaries will be send to it twize,
-                # and these will overlap with each other in the left/right
-                # domain and gravity will be applied twize.
-                msg = ('A PM_gridsize of ' + str(PM_gridsize) + ' and '
-                       + str(nprocs) + ' processes results in following domain'
-                       + ' partition: ' + str(list(domain_cuts))
-                       + '.\nThe smallest domain width is '
-                       + str(np.min([domain_size_i, domain_size_j,
-                                     domain_size_k]))
-                       + ' grid cells, while the choice of P3M_scale ('
-                       + str(P3M_scale) + ') and P3M_cutoff ('
-                       + str(P3M_cutoff) + ')\nmeans that the domains must be '
-                       + 'at least '
-                       + str(2*P3M_scale*P3M_cutoff) + ' grid cells for the '
-                       + 'P3M algorithm to work.'
-                    )
-                raise ValueError(msg)
-            break
-
+# Check if PM_grid is large enough for P3M to work, if the P3M
+# algorithm is to be used.
+for kick_algorithm in kick_algorithms.values():
+    if kick_algorithm == 'P3M':
+        if (   domain_size_i < P3M_scale*P3M_cutoff
+            or domain_size_j < P3M_scale*P3M_cutoff
+            or domain_size_k < P3M_scale*P3M_cutoff):
+            msg = ('A PM_gridsize of ' + str(PM_gridsize) + ' and '
+                   + str(nprocs) + ' processes results in following domain'
+                   + ' partition: ' + str(list(domain_cuts))
+                   + '.\nThe smallest domain width is '
+                   + str(np.min([domain_size_i, domain_size_j,
+                                 domain_size_k]))
+                   + ' grid cells, while the choice of P3M_scale ('
+                   + str(P3M_scale) + ') and P3M_cutoff ('
+                   + str(P3M_cutoff) + ')\nmeans that the domains must be '
+                   + 'at least '
+                   + str(P3M_scale*P3M_cutoff) + ' grid cells for the '
+                   + 'P3M algorithm to work.'
+                )
+            raise ValueError(msg)
+        if (  (domain_size_i < 2*P3M_scale*P3M_cutoff
+            or domain_size_j < 2*P3M_scale*P3M_cutoff
+            or domain_size_k < 2*P3M_scale*P3M_cutoff)
+            and np.min(domain_cuts) < 3):
+            # This is only allowed if domain_cuts are at least 3 in each
+            # direction. Otherwise the left and the right (say) process
+            # is the same, and the boundaries will be send to it twize,
+            # and these will overlap with each other in the left/right
+            # domain and gravity will be applied twize.
+            msg = ('A PM_gridsize of ' + str(PM_gridsize) + ' and '
+                   + str(nprocs) + ' processes results in following domain'
+                   + ' partition: ' + str(list(domain_cuts))
+                   + '.\nThe smallest domain width is '
+                   + str(np.min([domain_size_i, domain_size_j,
+                                 domain_size_k]))
+                   + ' grid cells, while the choice of P3M_scale ('
+                   + str(P3M_scale) + ') and P3M_cutoff ('
+                   + str(P3M_cutoff) + ')\nmeans that the domains must be '
+                   + 'at least '
+                   + str(2*P3M_scale*P3M_cutoff) + ' grid cells for the '
+                   + 'P3M algorithm to work.'
+                )
+            raise ValueError(msg)
+        break
 # Initialize stuff for the PP and P3M algorithms at import time
 cython.declare(boundary_ranks_recv='int[::1]',
                boundary_ranks_send='int[::1]',  
@@ -1462,22 +1470,22 @@ cython.declare(boundary_ranks_recv='int[::1]',
                rank_leftbackwarddown='int',
                Δmomx_extrn='double*',
                Δmomx_extrn_mv='double[::1]',
-               Δmomy_extrn='double*',
-               Δmomy_extrn_mv='double[::1]',
-               Δmomz_extrn='double*',
-               Δmomz_extrn_mv='double[::1]',
                Δmomx_local='double*',
-               Δmomx_local_mv='double[::1]',
-               Δmomy_local='double*',
-               Δmomy_local_mv='double[::1]',
-               Δmomz_local='double*',
-               Δmomz_local_mv='double[::1]',
                Δmomx_local_boundary='double*',
                Δmomx_local_boundary_mv='double[::1]',
+               Δmomx_local_mv='double[::1]',
+               Δmomy_extrn='double*',
+               Δmomy_extrn_mv='double[::1]',
+               Δmomy_local='double*',
                Δmomy_local_boundary='double*',
                Δmomy_local_boundary_mv='double[::1]',
+               Δmomy_local_mv='double[::1]',
+               Δmomz_extrn='double*',
+               Δmomz_extrn_mv='double[::1]',               
+               Δmomz_local='double*',
                Δmomz_local_boundary='double*',
                Δmomz_local_boundary_mv='double[::1]',
+               Δmomz_local_mv='double[::1]',
                )
 # For storing positions of particles received from external domains
 posx_extrn = malloc(1*sizeof('double'))

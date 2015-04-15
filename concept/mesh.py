@@ -11,6 +11,41 @@ else:
     from communication cimport cutout_domains, neighboring_ranks
     """
 
+# Function for easy partitioning of multidimensional arrays
+@cython.cfunc
+@cython.inline
+@cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
+@cython.wraparound(False)
+@cython.locals(# Arguments
+               array_shape='tuple',
+               # Locals
+               problem_size='int',
+               local_size='int',
+               errmsg='str',
+               indices_start='size_t[::1]',
+               indices_end='size_t[::1]',
+               )
+@cython.returns('tuple')
+def partition(array_shape):
+    """ This function takes in the shape of an array as the argument
+    and returns the start and end indices corresponding to the local chunk
+    of the array which should be processed by the running process,
+    based on rank and nprocs.
+    """
+    # Raise an exception if nprocs > problem_size
+    problem_size = np.prod(array_shape)
+    if problem_size < nprocs:
+        errmsg = ('Cannot partition the workload because the number of\nprocesses ('
+                  + str(nprocs) + ') is larger than the problem size (' + str(problem_size) + ').')
+        raise ValueError(errmsg)
+    # Partition the local shape based on the rank.
+    # size_t should correspond to uint64 un a 64 bit machine. Otherwize a ValueError will be thrown.
+    local_size = int(problem_size/nprocs)
+    indices_start = array(unravel_index(local_size*rank, array_shape), dtype='uint64')
+    indices_end = array(unravel_index(local_size*(rank + 1) - 1, array_shape), dtype='uint64') + 1
+    return (indices_start, indices_end)
 
 # Function for tabulating a cubic grid with vector values
 @cython.cfunc
