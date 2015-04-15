@@ -313,6 +313,9 @@ class Gadget_snapshot:
     @cython.initializedcheck(False)
     @cython.wraparound(False)
     def __init__(self):
+        # The triple quoted string below serves as the type declaration
+        # for the Gadget_snapshot type. It will get picked up by the pyxpp
+        # script and indluded in the .pxd file.
         """
         # Data attributes
         dict header

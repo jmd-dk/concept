@@ -1,10 +1,28 @@
 #!/bin/bash
 
 # Running this script after submitting a remote job will print out the output
-# of the code as it is run.
+# of the code as it is being run.
 
-# The code directory
+# Exit if this script is not run remotely via ssh
+if ([ -z "${SSH_CLIENT}" ] && [ -z "${SSH_TTY}" ]); then
+    printf "\e[1m\e[91mCannot watch remote job as you are working on a local machine\e[0m\n" >&2
+    exit 1
+fi
+
+# Load paths from the .paths file
 this_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+curr="${this_dir}"
+while [ 1 ]; do
+    if [ -f "${curr}/.paths" ]; then
+        source "${curr}/.paths"
+        break
+    fi
+    if [ "${curr}" == "/" ]; then
+        printf "\e[1m\e[91mCould not find the .paths file!\e[0m\n" >&2
+        exit 1
+    fi
+    curr="`dirname \"${curr}\"`"
+done
 
 # Get the jobid
 if [ "$#" -lt 1 ]; then
@@ -12,7 +30,7 @@ if [ "$#" -lt 1 ]; then
     jobid=$(mj | grep ".in1" | awk '{print $1}')
     Njobs=$(echo "${jobid}" | wc -w)
     if [ "${Njobs}" == 0 ]; then
-        echo "You currently have nu jobs submitted"
+        echo "You currently have no jobs submitted"
         exit 0
     fi
     if [ "${Njobs}" -gt 1 ]; then
@@ -25,20 +43,22 @@ else
 fi
 jobid="${jobid%.in1}"
 
-# Function for continuously print out the tail of logs/remote_jobid
+# Function for continuous printout of the tail of logs/remote_jobid
 function read_tail {
-    echo "Job ${jobid} is running..."
-    echo
-    sleep 10
+    echo "Job ${jobid} is running"
     # Wait for logs/remote_jobid to be created
-    while :; do
-        if [ -f "${this_dir}/logs/remote_${jobid}" ]; then
-            break
-        fi
-        sleep 300
-    done
+    if [ ! -f "${concept_dir}/logs/remote_${jobid}" ]; then
+        sleep 10
+        while :; do
+            if [ -f "${concept_dir}/logs/remote_${jobid}" ]; then
+                break
+            fi
+            sleep 300
+        done
+    fi
     # Continuously print out the tail of subdir/log/jobid.output
-    tail -n 1000 -f "${this_dir}/logs/remote_${jobid}" &
+    echo
+    tail -n 1000 -f "${concept_dir}/logs/remote_${jobid}" &
     # Trap possible future Ctrl-C and make it kill above tail command before exiting this script
     tail_pid=$!
     trap 'kill -9 $tail_pid; echo ; exit 130; echo ' SIGINT
@@ -59,14 +79,22 @@ if [[ -z $(je | grep "${jobid}") ]]; then
     # Job not running
     if [[ -z $(js | grep "${jobid}") ]]; then
         # Job not in progress
-        echo "Job ${jobid} has ended"
+        cat "${concept_dir}/logs/remote_${jobid}"
+        exit 0
     else
         # Job is in queue
-        echo "Job ${jobid} is queued..."
-        sleep 10
+        echo "Job ${jobid} is queued"
+        # Some time will always be spend in the queue
+        sleep 20
         while :; do
             if [[ -n $(je | grep "${jobid}") ]]; then
                 break
+            fi
+            sleep 1
+            if [[ -z $(mj | grep "${jobid}") ]]; then
+                # Job already done
+                cat "${concept_dir}/logs/remote_${jobid}"
+                exit 0
             fi
             sleep 300
         done

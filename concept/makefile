@@ -107,23 +107,25 @@ pyfile = $(word $(pyfile_nr), $(pyfiles))
 # Make everything. First create the .pyx and .pxd files with the pyxpp script, then
 all: $(addsuffix .pyx, $(pyfiles)) $(addsuffix .pxd, $(pyfiles)) recursive
 
+
+##########################################
+# Extra dependencies to any of the files #
+##########################################
+gravity.c IO.c mesh.c timeloop.c communication.c: species.pxd
+gravity.c: fft.c
+
+
+###############################################################
+# Preprocessing with pyxpp, creating both .pyx and .pxd filed #
+###############################################################
 $(addsuffix .pyx, $(pyfiles)) $(addsuffix .pxd, $(pyfiles)): $(addsuffix .py, $(pyfiles)) commons.py $(pyxpp) $(MAKEFILE_LIST) $(paths)
-	@printf "\n\033[1m\033[93mPreprocessing the Cython modules\033[0m\n"
+	@echo "Preprocessing the Cython modules"
 	@for x in $(pyfiles); do\
 	    # Copy the .py files to .pyx\
 	    cp $$x.py $$x.pyx; \
 	    # Run the .pyx preprocessor on the .pyx files\
 	    $(python) $(pyxpp) $$x.pyx $(paramsfile); \
 	done
-	
-
-##########################################
-# Extra dependencies to any of the files #
-##########################################
-# Timeloop should probably not be dependent on species.pxd in the end!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-gravity.c IO.c mesh.c timeloop.c communication.c: species.pxd
-gravity.c: fft.c
-
 
 ##########################################################################################################
 # This target cythonizes and compiles all .py files in $(pyfiles) recursively, passing $(pyfile_nr) down #
