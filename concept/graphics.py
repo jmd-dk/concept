@@ -42,6 +42,7 @@ from os.path import basename
                X='double[::1]',
                Y='double[::1]',
                Z='double[::1]',
+               figsize='double[::1]',
                i='int',
                j='int',
                )
@@ -51,9 +52,7 @@ def animate(particles, timestep, a, a_snapshot):
         return
     # Frame should be animated. Print out message
     if master:
-        if save_frames:
-            print('Producing visualization: ' + framefolder
-                                              + str(timestep) + suffix)
+        print('Rendering image')
     N = particles.N
     N_local = particles.N_local
     # The master process gathers N_local from all processes
@@ -63,11 +62,11 @@ def animate(particles, timestep, a, a_snapshot):
     X = empty(N if master else 0)
     Y = empty(N if master else 0)
     Z = empty(N if master else 0)
-    sendbuf = particles.posx_mw[:N_local]
+    sendbuf = particles.posx_mv[:N_local]
     Gatherv(sendbuf=sendbuf, recvbuf=(X, N_locals))
-    sendbuf = particles.posy_mw[:N_local]
+    sendbuf = particles.posy_mv[:N_local]
     Gatherv(sendbuf=sendbuf, recvbuf=(Y, N_locals))
-    sendbuf = particles.posz_mw[:N_local]
+    sendbuf = particles.posz_mv[:N_local]
     Gatherv(sendbuf=sendbuf, recvbuf=(Z, N_locals))
     # The master process plots the particle data
     if master:
@@ -81,11 +80,11 @@ def animate(particles, timestep, a, a_snapshot):
             # homogeneous universe will appear to have alpha = 1 (more or
             # less). The size of a particle is plotted so that the particles
             # stand side by side in a homogeneous unvierse (more or less).
+            figsize = fig.get_size_inches()
             artist = ax.scatter(X, Y, Z, lw=0,
                                 alpha=N**(-one_third),
                                 c=(180.0/256, 248.0/256, 95.0/256),
-                                s=min(50, prod(fig.get_size_inches())
-                                          *inch2pts**2/N),
+                                s=np.min((50, prod(figsize)*inch2pts**2/N)),
                                 )
             ax.set_xlim3d(0, boxsize)
             ax.set_ylim3d(0, boxsize)
@@ -108,6 +107,8 @@ def animate(particles, timestep, a, a_snapshot):
                                                     scientific=True)
                               + '$', rotation=0)
         if save_frames:
+            # Print out message
+            print('    Saving: ' + framefolder + str(timestep) + suffix)
             # Save the frame in framefolder
             savefig(framefolder + str(timestep) + suffix,
                     bbox_inches='tight', pad_inches=0, dpi=160)
@@ -149,12 +150,8 @@ def animate(particles, timestep, a, a_snapshot):
                         elif msg < 2:
                             # Incorrect password. Kill protocol
                             child.terminate(force=True)
-                            os.system('printf "\033[1m\033[91m'
-                                      + 'Warning: Permission to '
-                                      + user_at_host
-                                      + " denied\nFrames will not be "
-                                      + protocol + "'ed"
-                                      + '\033[0m\n" >&2')
+                            warn('Permission to ' + user_at_host + ' denied\n'
+                                 + 'Frames will not be ' + protocol + "'ed")
                             upload_liveframe = False
                     elif msg == 3:
                         # The protocol cannot authenticate host.
@@ -174,11 +171,11 @@ def animate(particles, timestep, a, a_snapshot):
                                                 ])
                             if msg < 2:
                                 # Incorrect password/passphrase.
-                                # Kill the protocol
+                                # Kill the protocol.
                                 child.terminate(force=True)
-                                warn('Permission to ' + user_at_host
+                                warn('Permission to ' + user_at_host +
                                      + ' denied\nFrames will not be '
-                                     + protocol + "'ed.")
+                                     + protocol + "'ed")
                                 upload_liveframe = False
                     child.close()
                 except KeyboardInterrupt:
@@ -235,7 +232,7 @@ def significant_figures(f, n, just=0, scientific=False):
     if 'e' in f_str:
         # In scientific (e) notation
         e_index = f_str.find('e')
-        f_str = f_str[:min((n + 1), e_index)] + f_str[e_index:]
+        f_str = f_str[:np.min(((n + 1), e_index))] + f_str[e_index:]
         if scientific:
             e_index = f_str.find('e')
             f_str = (f_str.replace('e', r'\times 10^{'

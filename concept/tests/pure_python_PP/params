@@ -1,22 +1,25 @@
 # This is a parameterfile to the CONCEPT code.
 # Parameters can be specified as any valid Python3 expression.
 # Numpy functions and constants as well as units defined in the units module
-# may be used. Absolute paths defined in the .paths file may be used via the
-# paths dict.
+# may be used.
+# Absolute paths defined in the .paths file may be used via the paths dict.
+# Additionally, paths['params_dir'] refers to the directory of this file.
 # For more information about the different parameters,
 # see the bottom of this file.
 
 # Input/output
-IC_file = paths['tests_dir'] + '/pure_python_PP/IC'	# Initial condition snapshot
-output_dir = paths['tests_dir'] + '/pure_python_PP/output'	# Directory for storing output snapshots
+IC_file = paths['params_dir'] + '/IC'	# Initial condition snapshot
+output_dir = paths['params_dir'] + '/output'	# Directory for storing output snapshots
 output_type = 'Gadget 2'			# Type of output snapshot
 snapshot_base = 'snapshot'			# File basename for output snapshots
-outputtimes = tuple(loadtxt(paths['tests_dir'] + '/pure_python_PP/outputlist'))	# Times at which to dump snapshots to disk
+outputtimes = tuple(loadtxt(paths['params_dir'] + '/outputlist'))	# Times at which to dump snapshots to disk
 
 # Numerical parameters
 boxsize = 8*Mpc/0.7 # (Gadget implicitly uses length/h)	# Linear size of the simulation box
 ewald_gridsize = 64				# Linear size of the grid of Ewald corrections
 PM_gridsize = 8					# Linear size of the grid used for the PM method
+P3M_scale = 1.25				# The long/short-range force split scale
+P3M_cutoff = 4.8				# Maximum reach of short-range force
 softeningfactors = {'dark matter': 0.03,	# The amount of gravitational softening for each species
                     'dark energy': 0,
                    }	
@@ -29,7 +32,7 @@ H0 = 70*km/s/Mpc				# The Hubble constant
 a_begin = 0.02					# Scale factor at beginning of simulation
 
 # Graphics
-framefolder = paths['tests_dir'] + '/pure_python_PP/output'		# Folder to save frames
+framefolder = paths['params_dir'] + '/output'	# Folder to save frames
 liveframe=''					# Filename of saved live frame
 image_format='png'				# The image format of the saved frames
 remote_liveframe=''					# Where to upload the live frame
@@ -81,6 +84,15 @@ use_Ewald = True				# Turn Ewald corrections on or off
 # PM_gridsize
 #     Linear size of the mesh used for the PM method. There will then be a
 #     total of PM_gridsize**3 mesh points within the simulated box.
+# P3M_scale
+#     The scale of the gravitational force split into a long-range
+#     and a short-range component, given in units of the size of a PM cell.
+#     In Gadget the standard value for this is 1.25.
+# P3M_cutoff
+#     Beyond the distance P3M_cutoff*P3M_scale (in units of PM cells),
+#     the short-range force is ignored. Gadget uses a value of 4.5.
+#     A value of 4.8 guarantees that the unaccounted part of the force
+#     is less than 1% of the total force.
 # softeningfactors
 #     Dictionary mapping names of species to their respective gravitational
 #     softening. The values given correspond to radius of the softening

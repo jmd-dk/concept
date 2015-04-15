@@ -29,6 +29,7 @@ changed in the following ways:
 import sys
 import re
 from os.path import isfile
+from copy import deepcopy
 
 
 def import_params(filename):
@@ -518,6 +519,209 @@ def C_casting(filename):
     with open(filename, 'w') as pyxfile:
         pyxfile.writelines(new_lines)
 
+def make_pxd(filename):
+    commons_functions = ('max', 'min', 'mod', 'sum', 'prod', 'sinc', 'warn')
+    customs = {'Particles': 'from species cimport Particles',
+               'func_b_ddd': 'ctypedef bint    (*func_b_ddd_pxd)  (double, double, double)',
+               'func_d_dd': 'ctypedef double  (*func_d_dd_pxd)   (double, double)',
+               'func_d_ddd': 'ctypedef double  (*func_d_ddd_pxd)  (double, double, double)',
+               'func_ddd_ddd': 'ctypedef double* (*func_ddd_ddd_pxd)(double, double, double)',
+               }
+    header_lines = []
+    pdx_filename = filename[:-3] + 'pxd'
+    pxd_lines = []
+    with open(filename, 'r') as pyxfile:
+        code = pyxfile.read().split('\n')
+    # Find pxd hints of the form 'pxd = """'
+    pxd_lines.append('cdef:\n')
+    for i, line in enumerate(code):
+        if line.startswith('pxd = """'):
+            for j, line in enumerate(code[(i + 1):]):
+                if line.startswith('"""'):
+                    pxd_lines.append('\n')
+                    break
+                pxd_lines.append('    ' + line + '\n')
+    # Find classes
+    for i, line in enumerate(code):
+        if line.startswith('@cython.cclass'):
+            # Class found
+            class_name = None
+            for j0, line in enumerate(code[(i + 1):]):
+                if len(line) > 6 and line[:6] == 'class ':
+                    class_name = line[6:line.index(':')].strip()
+                    break
+            if class_name is None:
+                break
+            # Classname found. Now find __cinit__
+            for j, line in enumerate(code[(j0 + i + 1):]):
+                if line.startswith('    def __cinit__('):
+                    # __cinit__ found. Locate triple quoted string
+                    for k, line in enumerate(code[(j + j0 + i + 2):]):
+                        if len(line) > 0 and line[0] != ' ':
+                            # Out of class
+                            break
+                        if line.startswith(' '*8 + '"""'):
+                            pxd_lines.append('cdef class ' + class_name + ':\n')
+                            pxd_lines.append('    cdef:\n')
+                            for l, line in enumerate(code[(k + j + j0 + i + 3):]):
+                                if line.startswith('        """'):
+                                    break
+                                pxd_lines.append(line + '\n')
+                            pxd_lines.append('\n')
+                            break
+                    break
+    # Find functions
+    pxd_lines.append('cdef:\n')
+    for i, line in enumerate(code):
+        if line.startswith('def '):
+            # Function definition found
+            open_paren = line.index('(')
+            function_name = line[3:open_paren].strip()
+            if function_name in commons_functions:
+                continue
+            try:
+                closed_paren = line.index(')')
+                function_args = line[(open_paren + 1):closed_paren]
+            except ValueError:
+                # Closed paren on a later line
+                function_args = []
+                for line in code[i:]:
+                    function_args.append(line)
+                    if ')' in line:
+                        closed_paren = line.index(')')
+                        function_args[0] = function_args[0][(open_paren + 1):]
+                        function_args[-1] = function_args[-1][:closed_paren]
+                        function_args = re.sub(' +', ' ', ' '.join(function_args))
+                        break
+            function_args = function_args.strip()
+            if len(function_args) > 0 and function_args[-1] == ',':
+                function_args = function_args[:-1]
+                function_args = function_args.strip()
+            # Function name and args found.
+            # Replace default keyword argument values with an asterisk.
+            for j, c in enumerate(function_args):
+                if c == '=':
+                    if function_args[j + 1] == ' ':
+                        function_args = function_args[:(j + 1)] + function_args[(j + 2):]
+                    if function_args[j - 1] == ' ':
+                        function_args = function_args[:(j - 1)] + function_args[j:]
+            from_top = False
+            function_args_bak = ''
+            while function_args_bak != function_args:
+                function_args_bak = deepcopy(function_args)
+                for j, c in enumerate(function_args):
+                    if c == '=' and function_args[j + 1] != '*':
+                        for k in range(j + 1, len(function_args)):
+                            if function_args[k] in (',', ' '):
+                                function_args = function_args[:(j + 1)] + '*' + function_args[k:]
+                                break
+                            elif k == len(function_args) - 1:
+                                function_args = function_args[:(j + 1)] + '*'
+                                break
+                        break
+            # Find types for the arguments and write them in
+            # front of the arguments in function_args.
+            function_args = function_args.split(',')
+            return_vals = [None]*len(function_args)
+            for j in range(len(function_args)):
+                function_args[j] = function_args[j].strip()
+            line_before = deepcopy(code[i - 1])
+            for j, arg in enumerate(function_args):
+                if '=*' in arg:
+                    arg = arg[:-2]
+                for k, line in enumerate(reversed(code[:i])):
+                    break_k = False
+                    if len(line) > 0 and line[0] not in ('@', ' ', '#'):
+                        # Above function decorators
+                        break
+                    if line.startswith('@cython.returns(') and return_vals[j] is None:
+                        # Return value found. Assume it is a one-liner
+                        return_val = line[16:].strip()
+                        if return_val[-1] == ')':
+                            return_val = return_val[:-1].strip()
+                        return_val = return_val.replace('"', '')
+                        return_val = return_val.replace("'", '')
+                        return_vals[j] = return_val
+                    if k != 0 and line.startswith('def '):
+                        # Previous function reached. The current function
+                        # must be a pure Python function
+                        function_args[j] = None
+                        break
+                    line = line.replace(' ', '')
+                    if (arg + '=') in line:
+                        for l in range(len(line) - len(arg + '=')):
+                            if line[l:(l + len(arg + '='))] == (arg + '='):
+                                if l == 0 or line[l - 1] in (' ', ',', '('):
+                                    argtype = deepcopy(line[(l + len(arg + '=')):])
+                                    if ',' in argtype:
+                                        commas = [m for m, c in enumerate(range(len(argtype))) if c == ',']
+                                        for m in commas:
+                                            a = argtype[:m]
+                                            if a.count('[') == a.count(']'):
+                                                break
+                                        else:
+                                            a = argtype
+                                        argtype = a
+                                    argtype = argtype.strip()
+                                    argtype = argtype.strip(',')
+                                    argtype = argtype.strip()
+                                    argtype = argtype.replace('"', '')
+                                    argtype = argtype.replace("'", '')
+                                    # Add suffix _pxd to the "func_" types
+                                    if argtype in customs:
+                                        header_lines.append(customs[argtype])
+                                    if 'func_' in argtype:
+                                        argtype += '_pxd'
+                                    function_args[j] = function_args[j].strip()
+                                    function_args[j] = function_args[j].strip(',')
+                                    function_args[j] = function_args[j].strip()
+                                    function_args[j] = argtype + ' ' + function_args[j]
+                                    break_k = True
+                                    break
+                        if break_k:
+                            ine_before = deepcopy(line)
+                            break
+                    line_before = deepcopy(line)
+            # None's in function_args means pure Python functions
+            if None in function_args:
+                continue
+            # Remove quotes from function arguments
+            for j in range(len(function_args)):
+                function_args[j] = function_args[j].replace('"', '')
+                function_args[j] = function_args[j].replace("'", '')
+            # Add the function definition
+            s = '    '
+            if return_vals[j] is not None:
+                s += return_vals[j] + ' '
+            s += function_name + '('
+            for arg in function_args:
+                s += arg + ', '
+            if len(s) > 1 and s[-2:] == ', ':
+                s = s[:-2]
+            s += ')\n'
+            pxd_lines.append(s)
+    pxd_lines_backup = []
+    while pxd_lines_backup != pxd_lines:
+        pxd_lines_backup = deepcopy(pxd_lines)
+        for i, line in enumerate(pxd_lines):
+            OK = False
+            if line.startswith('cdef:'):
+                if len(pxd_lines) > (i + 1):
+                    if len(pxd_lines[i + 1]) > 4:
+                        if pxd_lines[i + 1][:4] == '    ' and pxd_lines[i + 1][4] != ' ':
+                            OK = True
+                if not OK:
+                    pxd_lines.pop(i)
+                    break
+
+    header_lines = list(set(header_lines))
+    for i in range(len(header_lines)):
+        header_lines[i] += '\n'
+    with open(pdx_filename, 'w') as pxdfile:
+        pxdfile.writelines(header_lines)
+        if header_lines != []:
+            pxdfile.writelines(['\n'])
+        pxdfile.writelines(pxd_lines)
 
 # Edit the .pyx file
 filename = sys.argv[1]
@@ -538,3 +742,4 @@ else:
     colon2zero_in_addresses(filename)
     malloc_realloc(filename)
     C_casting(filename)
+    make_pxd(filename)
