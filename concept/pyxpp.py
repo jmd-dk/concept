@@ -1,7 +1,8 @@
 """
 This is the .pyx preprocessor script. Run it with a .pyx file as the first
-argument and the parameterfile as the second, and the .pyx file will be
-changed in the following ways:
+argument, the parameterfile as the second and the mode ("pyx" or "pxd") as
+the third. When mode is "pxd", a .pxd file will be created. When the mode is
+"pyx", the preexisting .pyx file will be changed in the following ways:
 - Replace 'from _params_active import *' with the content itself.
 - Removes pure Python commands between 'if not cython.compiled:' and 'else:',
   including these lines themselves. Also removes the triple quotes around the
@@ -528,7 +529,7 @@ def make_pxd(filename):
                'func_ddd_ddd': 'ctypedef double* (*func_ddd_ddd_pxd)(double, double, double)',
                }
     header_lines = []
-    pdx_filename = filename[:-3] + 'pxd'
+    pxd_filename = filename[:-3] + 'pxd'
     pxd_lines = []
     with open(filename, 'r') as pyxfile:
         code = pyxfile.read().split('\n')
@@ -713,24 +714,38 @@ def make_pxd(filename):
                 if not OK:
                     pxd_lines.pop(i)
                     break
-
     header_lines = list(set(header_lines))
     for i in range(len(header_lines)):
         header_lines[i] += '\n'
-    with open(pdx_filename, 'w') as pxdfile:
-        pxdfile.writelines(header_lines)
-        if header_lines != []:
-            pxdfile.writelines(['\n'])
-        pxdfile.writelines(pxd_lines)
+    total_lines = header_lines
+    if total_lines != []:
+        total_lines.append('\n')
+    total_lines += pxd_lines
+    # Do not write to .pxd if it already has the correct content.
+    # This is important as the .pxd files are used by the makefile.
+    if isfile(pxd_filename):
+        total_lines_nonewlines = deepcopy(total_lines)
+        for i in range(len(total_lines_nonewlines)):
+            total_lines_nonewlines[i] = total_lines_nonewlines[i].replace('\n', '')
+        with open(pxd_filename, 'r') as pxdfile:
+            existing = pxdfile.read().split('\n')
+        if len(existing) == 1 + len(total_lines_nonewlines) and existing[-1] == '':
+            existing.pop(-1)
+        if existing == total_lines_nonewlines:
+            return
+    # Update/create .pxd
+    with open(pxd_filename, 'w') as pxdfile:
+        pxdfile.writelines(total_lines)
 
 # Edit the .pyx file
 filename = sys.argv[1]
 active_params_module = sys.argv[2][:-3]
+mode = sys.argv[3]
 if filename[-3:] == '.py':
     # For safety reasons
     print(filename + ' is a source code (.py) file.')
     print('You probably do not want pyxpp to edit this. Aborting.')
-else:
+elif mode == 'pyx':
     import_params(filename)
     cythonstring2code(filename)
     power2product(filename)
@@ -742,4 +757,5 @@ else:
     colon2zero_in_addresses(filename)
     malloc_realloc(filename)
     C_casting(filename)
+elif mode == 'pxd':
     make_pxd(filename)

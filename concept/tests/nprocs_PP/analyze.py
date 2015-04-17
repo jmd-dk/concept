@@ -89,7 +89,7 @@ plt.setp([ax.get_xticklabels() for ax in fig.axes[:-1]], visible=False)
 plt.savefig(fig_file)
 
 # Compare the different runs
-tol = 1e-9
+tol = 1e-6
 if any(np.mean(dist[j]/boxsize) > tol for j in range(4)):
     print('\033[1m\033[91m' + 'Runs with different numbers of processes yield different results!\n'
           + 'See ' + fig_file + ' for a visualization.' + '\033[0m')
