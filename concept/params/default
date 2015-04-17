@@ -32,16 +32,15 @@ H0 = 70*km/s/Mpc				# The Hubble constant
 a_begin = 0.02					# Scale factor at beginning of simulation
 
 # Graphics
-framefolder = 'output'				# Folder to save frames
-liveframe=''					# Filename of saved live frame
+framefolder = 'output'			# Folder to save frames
+liveframe='' #'output/live'					# Filename of saved live frame
 image_format='png'				# The image format of the saved frames
-tmp = 'jmd@lifa.phys.au.dk:/usr/users/jmd/public_html/master/simulation.png'
-remote_liveframe=''				# Where to upload the live frame
+remote_liveframe='' #'jmd@lifa.phys.au.dk:/usr/users/jmd/public_html/master/simulation.png'				# Where to upload the live frame
 protocol = 'sftp'				# Protocol for live frame file transfer
-framespace = 1000				# The plot is updated every framespace time step
+framespace = 10000				# The plot is updated every framespace time step
 
 # Simulation options
-kick_algorithms = {'dark matter': 'P3M',	# The algorithm which should be used to kick each species
+kick_algorithms = {'dark matter': 'PP',	# The algorithm which should be used to kick each species
                    'dark energy': '',
                    }
 use_Ewald = True				# Turn Ewald corrections on or off

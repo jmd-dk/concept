@@ -13,6 +13,42 @@ else:
     from communication cimport exchange
     """
 
+
+# Cython function for computing Ewald correction
+@cython.cfunc
+@cython.inline
+@cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
+@cython.wraparound(False)
+@cython.locals(# Argument
+               x='double',
+               y='double',
+               z='double',
+               # Locals
+               dim='Py_ssize_t',
+               dist='double',
+               dist_x='double',
+               dist_y='double',
+               dist_z='double',
+               dist2='double',
+               force='double*',
+               force_x='double',
+               force_y='double',
+               force_z='double',
+               kx='double',
+               ky='double',
+               kz='double',
+               r3='double',
+               scalarpart='double',
+               sumindex_x='int',
+               sumindex_y='int',
+               sumindex_z='int',
+               )
+@cython.returns('bint')
+def summation(x, y, z):
+    return True
+
 # The class representing a collection of particles of a given type
 @cython.cclass
 class Particles:
@@ -34,7 +70,7 @@ class Particles:
                    N='size_t',
                    )
     def __init__(self, N):
-        # The triple quoted string below served as the type declaration
+        # The triple quoted string below serves as the type declaration
         # for the Particles type. It will get picked up by the pyxpp
         # script and indluded in the .pxd file.
         """

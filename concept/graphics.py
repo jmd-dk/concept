@@ -39,14 +39,13 @@ from os.path import basename
                N='size_t',
                N_local='size_t',
                N_locals='size_t[::1]',
-               X='double[::1]',
-               Y='double[::1]',
-               Z='double[::1]',
                figsize='double[::1]',
                i='int',
+               inch2pts='double',
                j='int',
                )
 def animate(particles, timestep, a, a_snapshot):
+    global all_posx, all_posy, all_posz, all_posx_mv, all_posy_mv, all_posz_mv
     global artist, upload_liveframe, ax
     if not visualize or (timestep % framespace and a != a_snapshot):
         return
@@ -58,134 +57,142 @@ def animate(particles, timestep, a, a_snapshot):
     # The master process gathers N_local from all processes
     N_locals = empty(nprocs if master else 0, dtype='uintp')
     Gather(array(N_local, dtype='uintp'), N_locals)
-    # The master process gathers all particle data
-    X = empty(N if master else 0)
-    Y = empty(N if master else 0)
-    Z = empty(N if master else 0)
-    sendbuf = particles.posx_mv[:N_local]
-    Gatherv(sendbuf=sendbuf, recvbuf=(X, N_locals))
-    sendbuf = particles.posy_mv[:N_local]
-    Gatherv(sendbuf=sendbuf, recvbuf=(Y, N_locals))
-    sendbuf = particles.posz_mv[:N_local]
-    Gatherv(sendbuf=sendbuf, recvbuf=(Z, N_locals))
-    # The master process plots the particle data
-    if master:
-        # Set up figure. This is only done in the first call.
-        if artist is None:
-            # Set up figure
-            inch2pts = 72.27  # Number of points in an inch
-            fig = figure()
-            ax = fig.add_subplot(111, projection='3d', axisbg='black')
-            # The alpha value is chosen so that a column of particles in a
-            # homogeneous universe will appear to have alpha = 1 (more or
-            # less). The size of a particle is plotted so that the particles
-            # stand side by side in a homogeneous unvierse (more or less).
-            figsize = fig.get_size_inches()
-            artist = ax.scatter(X, Y, Z, lw=0,
-                                alpha=N**(-one_third),
-                                c=(180.0/256, 248.0/256, 95.0/256),
-                                s=np.min((50, prod(figsize)*inch2pts**2/N)),
-                                )
-            ax.set_xlim3d(0, boxsize)
-            ax.set_ylim3d(0, boxsize)
-            ax.set_zlim3d(0, boxsize)
-            ax.w_xaxis.set_pane_color(zeros(4))
-            ax.w_yaxis.set_pane_color(zeros(4))
-            ax.w_zaxis.set_pane_color(zeros(4))
-            ax.w_xaxis.gridlines.set_lw(0)
-            ax.w_yaxis.gridlines.set_lw(0)
-            ax.w_zaxis.gridlines.set_lw(0)
-            # Print the scale factor at the location of the xlabel
-            ax.xaxis.set_rotate_label(False)
-            ax.set_xlabel('$a = '
-                          + significant_figures(a, 4, just=0, scientific=True)
+    # Increase the buffer sizes
+    if all_posx_mv.shape[0] < N:
+        all_posx = realloc(all_posx, N*sizeof('double'))
+        all_posy = realloc(all_posy, N*sizeof('double'))
+        all_posz = realloc(all_posz, N*sizeof('double'))
+        all_posx_mv = cast(all_posx, 'double[:N]')
+        all_posy_mv = cast(all_posy, 'double[:N]')
+        all_posz_mv = cast(all_posz, 'double[:N]')
+    # The master process gathers all particle positions
+    Gatherv(sendbuf=particles.posx_mv[:N_local],
+            recvbuf=(all_posx_mv, N_locals))
+    Gatherv(sendbuf=particles.posy_mv[:N_local],
+            recvbuf=(all_posy_mv, N_locals))
+    Gatherv(sendbuf=particles.posz_mv[:N_local],
+            recvbuf=(all_posz_mv, N_locals))
+    # Only the master process plots the particle data
+    if not master:
+        return
+    # Set up figure. This is only done in the first call.
+    if artist is None:
+        # Set up figure
+        inch2pts = 72.27  # Number of points in an inch
+        fig = figure()
+        ax = fig.add_subplot(111, projection='3d', axisbg='black')
+        # The alpha value is chosen so that a column of particles in a
+        # homogeneous universe will appear to have alpha = 1 (more or
+        # less). The size of a particle is plotted so that the particles
+        # stand side by side in a homogeneous unvierse (more or less).
+        figsize = fig.get_size_inches()
+        artist = ax.scatter(all_posx_mv, all_posy_mv, all_posz_mv,
+                            lw=0,
+                            alpha=N**(-one_third),
+                            c=(180.0/256, 248.0/256, 95.0/256),
+                            s=np.min((50, prod(figsize)*inch2pts**2/N)),
+                            )
+        ax.set_xlim3d(0, boxsize)
+        ax.set_ylim3d(0, boxsize)
+        ax.set_zlim3d(0, boxsize)
+        ax.w_xaxis.set_pane_color(zeros(4))
+        ax.w_yaxis.set_pane_color(zeros(4))
+        ax.w_zaxis.set_pane_color(zeros(4))
+        ax.w_xaxis.gridlines.set_lw(0)
+        ax.w_yaxis.gridlines.set_lw(0)
+        ax.w_zaxis.gridlines.set_lw(0)
+        # Print the scale factor at the location of the xlabel
+        ax.xaxis.set_rotate_label(False)
+        ax.set_xlabel('$a = '
+                      + significant_figures(a, 4, just=0, scientific=True)
+                      + '$', rotation=0)
+        ax.xaxis.label.set_color('white')
+    # Update figure
+    artist._offsets3d = juggle_axes(all_posx_mv, all_posy_mv, all_posz_mv,
+                                    zdir='z')
+    ax.set_xlabel('$a = ' + significant_figures(a, 4, just=0,
+                                                scientific=True)
                           + '$', rotation=0)
-            ax.xaxis.label.set_color('white')
-        # Update figure
-        artist._offsets3d = juggle_axes(X, Y, Z, zdir='z')
-        ax.set_xlabel('$a = ' + significant_figures(a, 4, just=0,
-                                                    scientific=True)
-                              + '$', rotation=0)
-        if save_frames:
+    if save_frames:
+        # Print out message
+        print('    Saving: ' + framefolder + str(timestep) + suffix)
+        # Save the frame in framefolder
+        savefig(framefolder + str(timestep) + suffix,
+                bbox_inches='tight', pad_inches=0, dpi=160)
+    if save_liveframe:
+        # Print out message
+        print('    Updating live frame: ' + liveframe_full)
+        # Save the live frame
+        savefig(liveframe_full,
+                bbox_inches='tight', pad_inches=0, dpi=160)
+        if upload_liveframe:
             # Print out message
-            print('    Saving: ' + framefolder + str(timestep) + suffix)
-            # Save the frame in framefolder
-            savefig(framefolder + str(timestep) + suffix,
-                    bbox_inches='tight', pad_inches=0, dpi=160)
-        if save_liveframe:
-            # Print out message
-            print('    Updating live frame: ' + liveframe_full)
-            # Save the live frame
-            savefig(liveframe_full,
-                    bbox_inches='tight', pad_inches=0, dpi=160)
-            if upload_liveframe:
-                # Print out message
-                print('    Uploading live frame: ' + remote_liveframe)
-                # Upload the live frame
-                child = pexpect.spawn(cmd1, timeout=10)
-                try:
+            print('    Uploading live frame: ' + remote_liveframe)
+            # Upload the live frame
+            child = pexpect.spawn(cmd1, timeout=10)
+            try:
+                msg = child.expect(['password',
+                                    'passphrase',
+                                    pexpect.EOF,
+                                    'continue connecting',
+                                    ])
+                if msg < 2:
+                    # The protocol asks for password/passphrase.
+                    # Send it.
+                    child.sendline(password)
                     msg = child.expect(['password',
                                         'passphrase',
                                         pexpect.EOF,
-                                        'continue connecting',
+                                        'sftp>',
+                                        ])
+                    if msg == 3:
+                        # Logged in to remote host via sftp.
+                        # Upload file.
+                        child.sendline(cmd2)
+                        msg = child.expect(['sftp>', pexpect.EOF])
+                        if msg == 0:
+                            child.sendline('bye')
+                        else:
+                            raise Exception
+                    elif msg < 2:
+                        # Incorrect password. Kill protocol
+                        child.terminate(force=True)
+                        warn('Permission to ' + user_at_host + ' denied\n'
+                             + 'Frames will not be ' + protocol + "'ed")
+                        upload_liveframe = False
+                elif msg == 3:
+                    # The protocol cannot authenticate host.
+                    # Connect anyway.
+                    child.sendline('yes')
+                    msg = child.expect(['password:',
+                                        'passphrase',
+                                        pexpect.EOF,
                                         ])
                     if msg < 2:
                         # The protocol asks for password/passphrase.
                         # Send it.
                         child.sendline(password)
-                        msg = child.expect(['password',
-                                            'passphrase',
-                                            pexpect.EOF,
-                                            'sftp>',
-                                            ])
-                        if msg == 3:
-                            # Logged in to remote host via sftp.
-                            # Upload file.
-                            child.sendline(cmd2)
-                            msg = child.expect(['sftp>', pexpect.EOF])
-                            if msg == 0:
-                                child.sendline('bye')
-                            else:
-                                raise Exception
-                        elif msg < 2:
-                            # Incorrect password. Kill protocol
-                            child.terminate(force=True)
-                            warn('Permission to ' + user_at_host + ' denied\n'
-                                 + 'Frames will not be ' + protocol + "'ed")
-                            upload_liveframe = False
-                    elif msg == 3:
-                        # The protocol cannot authenticate host.
-                        # Connect anyway.
-                        child.sendline('yes')
                         msg = child.expect(['password:',
                                             'passphrase',
                                             pexpect.EOF,
                                             ])
                         if msg < 2:
-                            # The protocol asks for password/passphrase.
-                            # Send it.
-                            child.sendline(password)
-                            msg = child.expect(['password:',
-                                                'passphrase',
-                                                pexpect.EOF,
-                                                ])
-                            if msg < 2:
-                                # Incorrect password/passphrase.
-                                # Kill the protocol.
-                                child.terminate(force=True)
-                                warn('Permission to ' + user_at_host +
-                                     + ' denied\nFrames will not be '
-                                     + protocol + "'ed")
-                                upload_liveframe = False
-                    child.close()
-                except KeyboardInterrupt:
-                    # User tried to kill the program. Let her.
-                    raise KeyboardInterrupt
-                except:
-                    # An error occurred during uploading. Print warning.
-                    child.terminate(force=False)
-                    warn('An error occurred during ' + protocol
-                         + ' to ' + user_at_host)
+                            # Incorrect password/passphrase.
+                            # Kill the protocol.
+                            child.terminate(force=True)
+                            warn('Permission to ' + user_at_host +
+                                 + ' denied\nFrames will not be '
+                                 + protocol + "'ed")
+                            upload_liveframe = False
+                child.close()
+            except KeyboardInterrupt:
+                # User tried to kill the program. Let her.
+                raise KeyboardInterrupt
+            except:
+                # An error occurred during uploading. Print warning.
+                child.terminate(force=False)
+                warn('An error occurred during ' + protocol
+                     + ' to ' + user_at_host)
 
 
 # This function formats a floating point number f to only
@@ -258,7 +265,13 @@ def significant_figures(f, n, just=0, scientific=False):
 # Set the artist as uninitialized at import time
 artist = None
 # Preparation for saving frames done at import time
-cython.declare(liveframe_full='str',
+cython.declare(all_posx='double*',
+               all_posx_mv='double[::1]',
+               all_posy='double*',
+               all_posy_mv='double[::1]',
+               all_posz='double*',
+               all_posz_mv='double[::1]',
+               liveframe_full='str',
                save_liveframe='bint',
                save_frames='bint',
                cmd1='str',
@@ -269,10 +282,17 @@ cython.declare(liveframe_full='str',
                suffix='str',
                visualize='bint',
                )
-suffix = '.' + image_format
-visualize = False
+# Buffers for particle positions
+all_posx = malloc(1*sizeof('double'))
+all_posy = malloc(1*sizeof('double'))
+all_posz = malloc(1*sizeof('double'))
+all_posx_mv = cast(all_posx, 'double[:1]')
+all_posy_mv = cast(all_posy, 'double[:1]')
+all_posz_mv = cast(all_posz, 'double[:1]')
 # Check whether frames should be stored and create the
 # framefolder folder at import time
+suffix = '.' + image_format
+visualize = False
 save_frames = False
 if framefolder != '':
     visualize = True

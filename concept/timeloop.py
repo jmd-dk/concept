@@ -22,6 +22,7 @@ if int(sys.argv[2]):
     if master:
         os.system('printf "\033[1m\033[92mCO\033[3mN\033[0m\033[1m\033[92mCEPT'
                   + ' ran successfully\033[0m\n"')
+    Barrier()
     sys.exit(0)
 # Load initial conditions
 cython.declare(particles='Particles',
@@ -38,6 +39,7 @@ if len(outputtimes) > len(set(outputtimes)):
     warn('Values in outputtimes are not unique.\n'
          + 'Extra values will be ignored.')
 a_max = np.max(outputtimes)
+
 
 
 # This function pretty prints information gathered through a time step
@@ -99,8 +101,8 @@ def timeloop():
     Δt = Δt_factor*t
     # Arrays containing the drift and kick factors ∫_t^(t + Δt/2)dt/a
     # and ∫_t^(t + Δt/2)dt/a**2.
-    drift_fac = empty(2)
-    kick_fac = empty(2)
+    drift_fac = empty(2, dtype='float64')
+    kick_fac = empty(2, dtype='float64')
     # The main time loop (in actuality two nested loops)
     if master:
         print('Begin main time loop')
