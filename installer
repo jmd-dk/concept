@@ -29,8 +29,8 @@ set -e
 
 # Creating top level directory
 current_step="setup of top level directory"
-printf "\nThis is the installation script to CO\e[3mN\e[0mCEPT,
-the cosmological N-body code by Jeppe Dakin.\n\n"
+printf "This is the installation script to CO\e[3mN\e[0mCEPT,
+the cosmological \e[3mN\e[0m-body code by Jeppe Dakin.\n\n"
 if [ -z "${1}" ]; then
     read -p "Where should I install the code?`echo $'\n> '`" -e top_dir
 else 
@@ -55,54 +55,144 @@ openmpi_dir="${top_dir}/openmpi"
 
 # URL's to the latest stable versions of the different software
 current_step="setup of dependency versions and download URL's"
-printf "\n\e[1m\e[93mSearching for latest versions of dependencies\e[0m\n"
-# Miniconda (3.7.0 is known to work)
-miniconda_version=$(wget -O- --no-check-certificate "http://repo.continuum.io/miniconda/.files.json" | grep -o -P "(?<=Miniconda3-).*(?=-Linux-x86_64)")
+echo -e "\nSearching for latest versions of dependencies"
+# Function for checking that a given url actually exists
+function validate_url(){
+    text=$(wget -S --spider "${1}" 2>&1)
+    text_http=$(echo "${text}" | grep "HTTP/1.1 200 OK")
+    text_ftp=$(echo "${text}" | grep "Can't check for file existence")
+    if [ -n "${text_http}" ] || ([[ "${1}" == "ftp://"* ]] && [ -z "${text_ftp}" ]); then
+        echo 1
+    else
+        echo 0
+    fi
+}
+# Miniconda (3.7.0 with Python 3.4 is known to work)
+miniconda_version=$(wget -q -O- --no-check-certificate "http://repo.continuum.io/miniconda/.files.json" | grep -o -P "(?<=Miniconda3-).*(?=-Linux-x86_64)" || echo "")
 miniconda_version=$(echo ${miniconda_version} | awk '{print $(NF-1)}')
+if [ -z "${miniconda_version}" ]; then
+    echo "Could not identify the version number of the latest Miniconda."
+    miniconda_version="..."
+fi
 miniconda_url="http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh"
+if [ $(validate_url "${miniconda_url}") -eq 0 ]; then
+    echo "Error: The Miniconda link is broken!"
+    exit 1
+fi
 # The Python version. Python will be updated to the newest stable version by Conda, though this version may not yet be listed on their website.
 # Note that this variable will be overwritten later!
-python_version=$(wget -O- --no-check-certificate "https://www.python.org/downloads/" | grep -o -P "(?<=Python-).*(?=.tar.xz)" | head -1)
+python_version=$(wget -q -O- --no-check-certificate "https://www.python.org/downloads/" | grep -o -P "(?<=Python-).*(?=.tar.xz)" | head -1  || echo "")
+if [ -z "${python_version}" ]; then
+    echo "Could not identify the version number of the latest Python."
+    python_version="..."
+fi
 # Version of Python packages in the Conda package manager
-miniconda_pkgdocs="..." #$(wget -O- --no-check-certificate "http://docs.continuum.io/anaconda/pkg-docs.html" | grep -o -P "(?<=<td>).*(?=</td>)")
-cython_version="..." #$(echo ${miniconda_pkgdocs} | grep -Po '(?<=cython\s)[^\s]*' | tail -1)
-matplotlib_version="..." #$(echo ${miniconda_pkgdocs} | grep -Po '(?<=matplotlib\s)[^\s]*' | tail -1)
-numpy_version="..." #$(echo ${miniconda_pkgdocs} | grep -Po '(?<=numpy\s)[^\s]*' | tail -1)
-scipy_version="..." #$(echo ${miniconda_pkgdocs} | grep -Po '(?<=scipy\s)[^\s]*' | tail -1)
+miniconda_pkgdocs="..."
+cython_version="..."
+matplotlib_version="..."
+numpy_version="..."
+scipy_version="..."
 # Pexpect is not listed on the Anaconda website, but it is included
-pexpect_version="..." #$(wget -O- --no-check-certificate "https://pypi.python.org/pypi/pexpect/#downloads" | grep -m 1 -o -P "(?<=pexpect-).*(?=.tar.gz#)")
+pexpect_version="..."
 # GSL (1.16 is known to work)
-gsl_version=$(wget -O- --no-check-certificate "http://mirrors.dotsrc.org/gnu/gsl/" | grep -o -P "(?<=gsl-[0-9]).*(?=.tar.gz)")
+gsl_version=$(wget -q -O- --no-check-certificate "http://mirrors.dotsrc.org/gnu/gsl/" | grep -o -P "(?<=gsl-[0-9]).*(?=.tar.gz)" || echo "")
 gsl_version="${gsl_version##*gsl-}"
+if [ -z "${gsl_version}" ]; then
+    echo "Could not identify the version number of the latest GSL."
+    gsl_version="..."
+fi
 gsl_url="http://mirrors.dotsrc.org/gnu/gsl/gsl-latest.tar.gz"
+if [ $(validate_url "${gsl_url}") -eq 0 ]; then
+    echo "Error: The GSL link is broken!"
+    exit 1
+fi
 # Cython_GSL (0.2.1 is known to work)
-cython_gsl_version=$(wget -O- --no-check-certificate "https://raw.githubusercontent.com/twiecki/CythonGSL/master/README.rst" | grep ":Version:" | awk '{print $NF}')
+cython_gsl_version=$(wget -q -O- --no-check-certificate "https://raw.githubusercontent.com/twiecki/CythonGSL/master/README.rst" | grep ":Version:" | awk '{print $NF}' || echo "")
+if [ -z "${cython_gsl_version}" ]; then
+    echo "Could not identify the version number of the latest Cython_GSL."
+    cython_gsl_version="..."
+fi
 cython_gsl_url="https://github.com/twiecki/CythonGSL/archive/master.tar.gz"
+if [ $(validate_url "${cython_gsl_url}") -eq 0 ]; then
+    echo "Error: The Cython_GSL link is broken!"
+    exit 1
+fi
 # Open MPI (1.8.3 is known to work)
-openmpi_version=$(wget -O- --no-check-certificate "http://www.open-mpi.org/software/" | grep -m 1 -o -P "(?<=Version).*(?=<)")
+openmpi_version=$(wget -q -O- --no-check-certificate "http://www.open-mpi.org/software/" | grep -m 1 -o -P "(?<=Version).*(?=<)" || echo "")
 openmpi_version=${openmpi_version//[[:blank:]]/}
+if [ -z "${openmpi_version}" ]; then
+    echo "Could not identify the version number of the latest Open MPI."
+    openmpi_version="..."
+fi
 openmpi_url="http://www.open-mpi.org/software/ompi/v${openmpi_version%.*}/downloads/openmpi-${openmpi_version}.tar.bz2"
+if [ $(validate_url "${openmpi_url}") -eq 0 ]; then
+    echo "Error: The Open MPI link is broken!"
+    exit 1
+fi
 # MPI4Py (1.3.1 is known to work)
-mpi4py_version=$(wget -O- --no-check-certificate "https://bitbucket.org/mpi4py/mpi4py/downloads/" | grep -m 1 -o -P "(?<=mpi4py/get/).*(?=.tar.gz)")
+mpi4py_version=$(wget -q -O- --no-check-certificate "https://bitbucket.org/mpi4py/mpi4py/downloads/" | grep -m 1 -o -P "(?<=mpi4py/get/).*(?=.tar.gz)" || echo "")
+if [ -z "${mpi4py_version}" ]; then
+    echo "Could not identify the version number of the latest MPI4Py."
+    mpi4py_version="..."
+fi
 mpi4py_url="https://bitbucket.org/mpi4py/mpi4py/get/${mpi4py_version}.tar.gz"
+if [ $(validate_url "${mpi4py_url}") -eq 0 ]; then
+    echo "Error: The MPI4Py link is broken!"
+    exit 1
+fi
 # HDF5 (1.8.14 is known to work)
-hdf5_version=$(wget -O- --no-check-certificate "ftp://ftp.hdfgroup.org/HDF5/current/src/" | grep -m 1 -o -P "(?<=hdf5-).*(?=.tar.bz2\")")
+hdf5_version=$(wget -q -O- --no-check-certificate "ftp://ftp.hdfgroup.org/HDF5/current/src/" | grep -m 1 -o -P "(?<=hdf5-).*(?=.tar.bz2\")" || echo "")
+if [ -z "${hdf5_version}" ]; then
+    echo "Could not identify the version number of the latest HDF5."
+    hdf5_version="..."
+fi
 hdf5_url="ftp://ftp.hdfgroup.org/HDF5/current/src/hdf5-${hdf5_version}.tar.bz2"
+if [ $(validate_url "${hdf5_url}") -eq 0 ]; then
+    echo "Error: The HDF5 link is broken!"
+    exit 1
+fi
 # h5py (2.4.0 is known to work)
-h5py_version=$(wget -O- --no-check-certificate "https://pypi.python.org/pypi/h5py/#downloads" | grep -m 1 -o -P "(?<=h5py/).*(?=\"\>h5py)")
-            #$(wget -O- --no-check-certificate "https://pypi.python.org/pypi/h5py/#downloads" | grep -m 1 -o -P "(?<=h5py-).*(?=.tar.gz#)")
+h5py_version=$(wget -q -O- --no-check-certificate "https://pypi.python.org/pypi/h5py/#downloads" | grep -m 1 -o -P "(?<=h5py/).*(?=\"\>h5py)" || echo "")
+if [ -z "${h5py_version}" ]; then
+    echo "Could not identify the version number of the latest H5Py."
+    h5py_version="..."
+fi
 h5py_url="https://pypi.python.org/packages/source/h/h5py/h5py-${h5py_version}.tar.gz"
+if [ $(validate_url "${h5py_url}") -eq 0 ]; then
+    echo "Error: The H5Py link is broken!"
+    exit 1
+fi
 # FFTW (3.3.4 is known to work)
-fftw_version=$(wget -O- --no-check-certificate "http://www.fftw.org/download.html" | grep -m 1 -o -P "(?<=fftw-).*(?=.tar.gz\")")
+fftw_version=$(wget -q -O- --no-check-certificate "http://www.fftw.org/download.html" | grep -m 1 -o -P "(?<=fftw-).*(?=.tar.gz\")" || echo "")
+if [ -z "${fftw_version}" ]; then
+    echo "Could not identify the version number of the latest FFTW."
+    fftw_version="..."
+fi
 fftw_url="http://www.fftw.org/fftw-${fftw_version}.tar.gz"
+if [ $(validate_url "${fftw_url}") -eq 0 ]; then
+    echo "Error: The FFTW link is broken!"
+    exit 1
+fi
 # CONCEPT
 concept_url="https://github.com/jmd-dk/concept/archive/master.tar.gz"
+if [ $(validate_url "${concept_url}") -eq 0 ]; then
+    printf "Error: The CO\e[3mN\e[0mCEPT link is broken!\n"
+    exit 1
+fi
 # FFTW 2.1.5 for Gadget
 fftw_for_gadget_version="2.1.5"
 fftw_for_gadget_url="http://www.fftw.org/fftw-${fftw_for_gadget_version}.tar.gz"
+if [ $(validate_url "${fftw_for_gadget_url}") -eq 0 ]; then
+    echo "Error: The FFTW for GADGET link is broken!"
+    exit 1
+fi
 # Gadget2
 gadget_version="2.0.7"
 gadget_url="http://www.mpa-garching.mpg.de/gadget/gadget-${gadget_version}.tar.gz"
+if [ $(validate_url "${gadget_url}") -eq 0 ]; then
+    echo "Error: The GADGET link is broken!"
+    exit 1
+fi
 
 # Write out installation overview
 printf "\n\e[1m\e[93mInstallation overview\e[0m\n"

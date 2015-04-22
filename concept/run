@@ -26,11 +26,12 @@ nprocs=1
 params="${this_dir}/params/default"
 main="${this_dir}/main.py"
 pure_python=0
-walltime=24
-
+walltime=72
 # List of remote queues and number of CPU per node. The first queue is the default queue. 
 queues=(q8n q8 q4)
 ppns=(8 8 4)
+# Should PBS be used to submitting remote jobs?
+use_PBS=1
 
 # Use Python's argparse module to handle command-line arguments
 args=(`${python} -B -c "
@@ -50,7 +51,7 @@ parser.add_argument('-e', '--exit',
                     action='store_true',
                     )
 parser.add_argument('--local',
-                    help='Force the run to be dun locally, without the use of PBS',
+                    help='Force the run to be done locally, without submitting it via PBS',
                     default=False,
 		    action='store_true',
                     )
@@ -77,7 +78,7 @@ parser.add_argument('-t', '--test',
                     default='none',
                     )
 parser.add_argument('-q', '--queue',
-                    help='Queue for submition of the remote job. If omitted the script will try to choose the best.',
+                    help='Queue for submission of the remote job. If omitted the script will try to choose the best.',
                     default='none',
                     )
 parser.add_argument('-w', '--walltime',
@@ -206,10 +207,10 @@ if [ "${pure_python}" -eq 0 ] ; then
     # Compile with Cython
     (cd "${this_dir}" && make paramsfile="${params}")
 else
-    # Remove compiled Cython modules
-    (cd "${this_dir}" && make clean_so >/dev/null)
     # Process the passed parameter file
-    (cd "${this_dir}" && make params.py paramsfile="${params}")
+    (cd "${this_dir}" && make params.py paramsfile="${params}" --silent)
+    # Remove compiled Cython modules
+    (cd "${this_dir}" && make clean_so paramsfile="${params}" >/dev/null)
 fi
 
 # Prompt the user for the secure shell password,
@@ -271,8 +272,12 @@ else
     remote=0
 fi
 
-# Either submit job or run it locally
-if [ "${remote}" -eq 1 ]; then
+# Either stop doing further actions, submit job or run it locally
+if [ "${use_PBS}" -eq 0 ] && [ "${remote}" -eq 1 ]; then
+    # Run remotely but do not use PBS
+    printf "The CO\e[3mN\e[0mCEPT code has been build and is ready to run."
+    trap : 0
+elif [ "${use_PBS}" -eq 1 ] && [ "${remote}" -eq 1 ]; then
     # Run remotely.
     # First do some cleanup from a potentially killed, previous job.
     if [ $(echo "${this_dir}/"*.o[0-9]* | awk '{print $1}') != "${this_dir}/*.o[0-9]*" ]; then
@@ -296,7 +301,7 @@ if [ "${remote}" -eq 1 ]; then
             fi
         done
     else
-        # How many CPU's does the explicitly chosen queue have per node?
+        # How many CPUs does the explicitly chosen queue have per node?
         for i in $(eval echo "{0..${#queues[@]}}" | sed s/'\w*$'//)
         do
             if [ "${queue}" == "${queues[${i}]}" ]; then
@@ -305,9 +310,9 @@ if [ "${remote}" -eq 1 ]; then
             fi
         done
     fi
-    # Check that the chosen queue can be run with all the nodes' cpu's in use
+    # Check that the chosen queue can be run with all the nodes' CPUs in use
     if [ "$((${nprocs} % ${ppn}))" != 0 ]; then
-        printf "\e[1m\e[91mJob submition refused:\nNo queue has the right amount of processors per node\e[0m\n" >&2
+        printf "\e[1m\e[91mJob submission refused:\nNo queue has the right amount of processors per node\e[0m\n" >&2
         exit 1
     fi
     nodes="$((${nprocs} / ${ppn}))"
@@ -368,8 +373,17 @@ else
     echo "Parameterfile: ${params}" 2>&1 | tee -a "${this_dir}/logs/local_${jobid}"
     echo "Nr. of CPUs:   ${nprocs}" 2>&1 | tee -a "${this_dir}/logs/local_${jobid}"
     # Run the code. Note that password and whether to exit is passed as arguments
-    "${mpiexec}" -n "${nprocs}" --prefix "${openmpi_dir}" "${python}" -B "${main}" "${password}" "${exit}" 2>&1 | tee -a "${this_dir}/logs/local_${jobid}"
-    # The above pipep tee command hijacks the exit code. Need to test the mpiexec exit code explicitly
+    if [ "${pure_python}" -eq 0 ] ; then
+        # Run as compiled library module
+        main_as_library=$(basename "${main%.*}.so")
+        m_flag="-m"
+    else
+        # Run as normal Python script
+        main_as_library="${main}"
+        m_flag=""
+    fi
+    "${mpiexec}" -n "${nprocs}" --prefix "${openmpi_dir}" "${python}" -B ${m_flag} "${main_as_library}" "${password}" "${exit}" 2>&1 | tee -a "${this_dir}/logs/local_${jobid}"
+    # The above piped tee command hijacks the exit code. Need to test the mpiexec exit code explicitly
     if [ "${PIPESTATUS[0]}" != 0 ]; then
         exit 1
     fi

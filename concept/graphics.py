@@ -43,6 +43,7 @@ from os.path import basename
                i='int',
                inch2pts='double',
                j='int',
+               size='double',
                )
 def animate(particles, timestep, a, a_snapshot):
     global all_posx, all_posy, all_posz, all_posx_mv, all_posy_mv, all_posz_mv
@@ -86,11 +87,16 @@ def animate(particles, timestep, a, a_snapshot):
         # less). The size of a particle is plotted so that the particles
         # stand side by side in a homogeneous unvierse (more or less).
         figsize = fig.get_size_inches()
+        size = 3*prod(figsize)*inch2pts**2/N
+        if size > 50:
+            size = 50
+        elif size < 0.5:
+            size = 0.5
         artist = ax.scatter(all_posx_mv, all_posy_mv, all_posz_mv,
                             lw=0,
                             alpha=N**(-one_third),
                             c=(180.0/256, 248.0/256, 95.0/256),
-                            s=np.min((50, prod(figsize)*inch2pts**2/N)),
+                            s=size,
                             )
         ax.set_xlim3d(0, boxsize)
         ax.set_ylim3d(0, boxsize)
@@ -118,13 +124,13 @@ def animate(particles, timestep, a, a_snapshot):
         print('    Saving: ' + framefolder + str(timestep) + suffix)
         # Save the frame in framefolder
         savefig(framefolder + str(timestep) + suffix,
-                bbox_inches='tight', pad_inches=0, dpi=160)
+                bbox_inches='tight', pad_inches=0, dpi=320)
     if save_liveframe:
         # Print out message
         print('    Updating live frame: ' + liveframe_full)
         # Save the live frame
         savefig(liveframe_full,
-                bbox_inches='tight', pad_inches=0, dpi=160)
+                bbox_inches='tight', pad_inches=0, dpi=320)
         if upload_liveframe:
             # Print out message
             print('    Uploading live frame: ' + remote_liveframe)

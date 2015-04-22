@@ -3,7 +3,7 @@ This is the .pyx preprocessor script. Run it with a .pyx file as the first
 argument, the parameterfile as the second and the mode ("pyx" or "pxd") as
 the third. When mode is "pxd", a .pxd file will be created. When the mode is
 "pyx", the preexisting .pyx file will be changed in the following ways:
-- Replace 'from _params_active import *' with the content itself.
+- Replace 'from commons import *' with the content itself.
 - Removes pure Python commands between 'if not cython.compiled:' and 'else:',
   including these lines themselves. Also removes the triple quotes around the
   Cython statements in the else body.
@@ -31,6 +31,7 @@ import sys
 import re
 from os.path import isfile
 from copy import deepcopy
+import unicodedata
 
 
 def import_params(filename):
@@ -225,114 +226,15 @@ def power2product(filename):
 
 
 def unicode2ASCII(filename):
-    # From http://en.wikipedia.org/wiki/Greek_letters_used_in_mathematics,_science,_and_engineering
-    # and  http://en.wikipedia.org/wiki/Dot_%28diacritic%29
-    symbols = {'α': 'greek_alpha',
-               'β': 'greek_beta',
-               'γ': 'greek_gamma',
-               'δ': 'greek_delta',
-               'ϵ': 'greek_epsilon',
-               'ε': 'greek_varepsilon',
-               'ɛ': 'greek_varepsilon',  # This IS different from the above
-               'ϝ': 'greek_digamma',
-               'ζ': 'greek_zeta',
-               'η': 'greek_eta',
-               'θ': 'greek_theta',
-               'ϑ': 'greek_vartheta',
-               'ι': 'greek_iota',
-               'κ': 'greek_kappa',
-               'ϰ': 'greek_varkappa',
-               'λ': 'greek_lambda',
-               'μ': 'greek_mu',
-               'ν': 'greek_nu',
-               'ξ': 'greek_xi',
-               'ο': 'greek_omicron',
-               'π': 'greek_pi',
-               'ϖ': 'greek_varpi',
-               'ρ': 'greek_rho',
-               'ϱ': 'greek_varrho',
-               'σ': 'greek_sigma',
-               'ς': 'greek_varsigma',
-               'τ': 'greek_tau',
-               'υ': 'greek_upsilon',
-               'φ': 'greek_phi',
-               'ϕ': 'greek_varphi',
-               'χ': 'greek_chi',
-               'ψ': 'greek_psi',
-               'ω': 'greek_omega',
-               'Α': 'greek_Alpha',
-               'Β': 'greek_Beta',
-               'Γ': 'greek_Gamma',
-               'Δ': 'greek_Delta',
-               'Ε': 'greek_Epsilon',
-               'Ϝ': 'greek_Digamma',
-               'Ζ': 'greek_Zeta',
-               'Η': 'greek_Eta',
-               'Θ': 'greek_Theta',
-               'Ι': 'greek_Iota',
-               'Κ': 'greek_Kappa',
-               'Λ': 'greek_Lambda',
-               'Μ': 'greek_Mu',
-               'Ν': 'greek_Nu',
-               'Ξ': 'greek_Xi',
-               'Ο': 'greek_Omicron',
-               'Π': 'greek_Pi',
-               'Ρ': 'greek_Rho',
-               'Σ': 'greek_Sigma',
-               'Τ': 'greek_Tau',
-               'Υ': 'greek_Upsilon',
-               'Φ': 'greek_Phi',
-               'Χ': 'greek_Chi',
-               'Ψ': 'greek_Psi',
-               'Ω': 'greek_Omega',
-               'ȧ': 'dot_a',
-               'ḃ': 'dot_b',
-               'ċ': 'dot_c',
-               'ḋ': 'dot_d',
-               'ė': 'dot_e',
-               'ḟ': 'dot_f',
-               'ġ': 'dot_g',
-               'ḣ': 'dot_h',
-               'ṁ': 'dot_m',
-               'ṅ': 'dot_n',
-               'ȯ': 'dot_o',
-               'ṗ': 'dot_p',
-               'ṙ': 'dot_r',
-               'ṡ': 'dot_s',
-               'ṫ': 'dot_t',
-               'ẇ': 'dot_w',
-               'ẋ': 'dot_x',
-               'ẏ': 'dot_y',
-               'ż': 'dot_z',
-               'Ȧ': 'dot_A',
-               'Ḃ': 'dot_B',
-               'Ċ': 'dot_C',
-               'Ḋ': 'dot_D',
-               'Ė': 'dot_E',
-               'Ḟ': 'dot_F',
-               'Ġ': 'dot_G',
-               'Ḣ': 'dot_H',
-               'Ṁ': 'dot_M',
-               'Ṅ': 'dot_N',
-               'Ȯ': 'dot_O',
-               'Ṗ': 'dot_P',
-               'Ṙ': 'dot_R',
-               'Ṡ': 'dot_S',
-               'Ṫ': 'dot_T',
-               'Ẇ': 'dot_W',
-               'Ẋ': 'dot_X',
-               'Ẏ': 'dot_Y',
-               'Ż': 'dot_Z',
-               'ℓ': 'script_l',
-               }
-    new_lines = []
     with open(filename, 'r') as pyxfile:
-        for line in pyxfile:
-            for key, value in symbols.items():
-                line = line.replace(key, '__ASCII_repr_of_unicode__' + value)
-            new_lines.append(line)
+        text = [char for char in pyxfile.read()]
+    for i, char in enumerate(text):
+        if ord(char) > 127:
+            text[i] = unicodedata.name(char).replace(' ', '_')
+    text = ''.join(text)
     with open(filename, 'w') as pyxfile:
-        pyxfile.writelines(new_lines)
+        pyxfile.write(text)
+    return
 
 
 def __init__2__cinit__(filename):
@@ -751,7 +653,7 @@ elif mode == 'pyx':
     power2product(filename)
     unicode2ASCII(filename)
     __init__2__cinit__(filename)
-    del_ctypedef_redeclarations(filename)
+    #del_ctypedef_redeclarations(filename)
     # Modulus no longer need fixing due to the mod function!
     #fix_modulus(filename)
     colon2zero_in_addresses(filename)

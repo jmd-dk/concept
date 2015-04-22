@@ -43,4 +43,3 @@ mpicc='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/openmpi/bin/mpicc'
 mpiexec='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/openmpi/bin/mpiexec'
 # The run script of the CONCEPT code
 run='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/run'
-
