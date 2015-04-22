@@ -8,7 +8,7 @@ matplotlib.use('Agg')
 # Imports for plotting
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import juggle_axes
-from matplotlib.pyplot import figure, savefig
+from matplotlib.pyplot import figure, imread, savefig
 
 # Seperate but equivalent imports in pure Python and Cython
 if not cython.compiled:
@@ -20,7 +20,7 @@ else:
 
 # Imports and definitions common to pure Python and Cython
 import pexpect
-from os.path import basename
+from os.path import basename, dirname
 
 
 # Setting up figure and plot the particles
@@ -38,21 +38,28 @@ from os.path import basename
                # Locals
                N='size_t',
                N_local='size_t',
-               N_locals='size_t[::1]',
+               alpha='double',
+               alpha_min='double',
+               c='int',
+               color='tuple',
+               combined='double[:, :, ::1]',
                figsize='double[::1]',
+               framepart='double[:, :, ::1]',
                i='int',
                inch2pts='double',
-               j='int',
+               r='int',
                size='double',
+               size_max='double',
+               size_min='double',
                )
 def animate(particles, timestep, a, a_snapshot):
-    global all_posx, all_posy, all_posz, all_posx_mv, all_posy_mv, all_posz_mv
     global artist, upload_liveframe, ax
     if not visualize or (timestep % framespace and a != a_snapshot):
         return
     # Frame should be animated. Print out message
     if master:
         print('Rendering image')
+    '''
     N = particles.N
     N_local = particles.N_local
     # The master process gathers N_local from all processes
@@ -76,6 +83,11 @@ def animate(particles, timestep, a, a_snapshot):
     # Only the master process plots the particle data
     if not master:
         return
+    '''
+
+    # Extract particle data
+    N = particles.N
+    N_local = particles.N_local
     # Set up figure. This is only done in the first call.
     if artist is None:
         # Set up figure
@@ -86,16 +98,29 @@ def animate(particles, timestep, a, a_snapshot):
         # homogeneous universe will appear to have alpha = 1 (more or
         # less). The size of a particle is plotted so that the particles
         # stand side by side in a homogeneous unvierse (more or less).
+        # Determine the alpha value of a particle.
+        alpha_min = 0.001
+        alpha = N**(-one_third)
+        if alpha < alpha_min:
+            alpha = alpha_min
+        # Determine the size of a single particle
+        size_max = 50
+        size_min = 0.5
         figsize = fig.get_size_inches()
         size = 3*prod(figsize)*inch2pts**2/N
-        if size > 50:
-            size = 50
-        elif size < 0.5:
-            size = 0.5
-        artist = ax.scatter(all_posx_mv, all_posy_mv, all_posz_mv,
+        if size > size_max:
+            size = size_max
+        elif size < size_min:
+            size = size_min
+        # The color of the particles
+        color = (180.0/256, 248.0/256, 95.0/256)
+        # Create the plot of the particles
+        artist = ax.scatter(particles.posx_mv[:N_local],
+                            particles.posy_mv[:N_local],
+                            particles.posz_mv[:N_local],
                             lw=0,
-                            alpha=N**(-one_third),
-                            c=(180.0/256, 248.0/256, 95.0/256),
+                            alpha=alpha,
+                            c=color,
                             s=size,
                             )
         ax.set_xlim3d(0, boxsize)
@@ -107,21 +132,47 @@ def animate(particles, timestep, a, a_snapshot):
         ax.w_xaxis.gridlines.set_lw(0)
         ax.w_yaxis.gridlines.set_lw(0)
         ax.w_zaxis.gridlines.set_lw(0)
-        # Print the scale factor at the location of the xlabel
+        # Prepare for the xlabel
         ax.xaxis.set_rotate_label(False)
-        ax.set_xlabel('$a = '
-                      + significant_figures(a, 4, just=0, scientific=True)
-                      + '$', rotation=0)
+        ax.set_xlabel('')
         ax.xaxis.label.set_color('white')
-    # Update figure
-    artist._offsets3d = juggle_axes(all_posx_mv, all_posy_mv, all_posz_mv,
-                                    zdir='z')
-    ax.set_xlabel('$a = ' + significant_figures(a, 4, just=0,
-                                                scientific=True)
-                          + '$', rotation=0)
-    if save_frames:
-        # Print out message
+    else:
+        # Update figure
+        artist._offsets3d = juggle_axes(particles.posx_mv[:N_local],
+                                        particles.posy_mv[:N_local],
+                                        particles.posz_mv[:N_local],
+                                        zdir='z')
+    # The master process prints the current scale factor on the figure
+    # and prints a saving message to the screen.
+    if master:
         print('    Saving: ' + framefolder + str(timestep) + suffix)
+        ax.set_xlabel('$a = ' + significant_figures(a, 4, just=0,
+                                                    scientific=True)
+                              + '$', rotation=0)
+    # All processes saves their image
+    savefig(frameparts_folder + '.rank' + str(rank) + suffix,
+            bbox_inches='tight', pad_inches=0, dpi=320)
+    # When done saving the image, all processes but the master is done
+    Barrier()
+    if not master:
+        return
+    # The master process combines the images into one
+    combined = imread(frameparts_folder + '.rank0' + suffix)
+    for i in range(1, nprocs):
+        framepart = imread(frameparts_folder + '.rank' + str(i) + suffix)
+        for r in range(combined.shape[0]):
+            for c in range(combined.shape[1]):
+                for rgb in range(3):
+                    combined[r, c, rgb] += framepart[r, c, rgb]
+    print(combined)
+    sleep(10000)
+        
+
+    
+
+
+
+    if save_frames:
         # Save the frame in framefolder
         savefig(framefolder + str(timestep) + suffix,
                 bbox_inches='tight', pad_inches=0, dpi=320)
@@ -271,12 +322,13 @@ def significant_figures(f, n, just=0, scientific=False):
 # Set the artist as uninitialized at import time
 artist = None
 # Preparation for saving frames done at import time
-cython.declare(all_posx='double*',
-               all_posx_mv='double[::1]',
-               all_posy='double*',
-               all_posy_mv='double[::1]',
-               all_posz='double*',
-               all_posz_mv='double[::1]',
+cython.declare(#all_posx='double*',
+               #all_posx_mv='double[::1]',
+               #all_posy='double*',
+               #all_posy_mv='double[::1]',
+               #all_posz='double*',
+               #all_posz_mv='double[::1]',
+               frameparts_folder='str',
                liveframe_full='str',
                save_liveframe='bint',
                save_frames='bint',
@@ -288,15 +340,9 @@ cython.declare(all_posx='double*',
                suffix='str',
                visualize='bint',
                )
-# Buffers for particle positions
-all_posx = malloc(1*sizeof('double'))
-all_posy = malloc(1*sizeof('double'))
-all_posz = malloc(1*sizeof('double'))
-all_posx_mv = cast(all_posx, 'double[:1]')
-all_posy_mv = cast(all_posy, 'double[:1]')
-all_posz_mv = cast(all_posz, 'double[:1]')
 # Check whether frames should be stored and create the
 # framefolder folder at import time
+frameparts_folder = ''
 suffix = '.' + image_format
 visualize = False
 save_frames = False
@@ -307,6 +353,7 @@ if framefolder != '':
         os.makedirs(framefolder)
     if framefolder[-1] != '/':
         framefolder += '/'
+    frameparts_folder = framefolder
 # Check whether to save a live frame
 liveframe_full = ''
 save_liveframe = False
@@ -318,6 +365,8 @@ if liveframe != '':
     visualize = True
     save_liveframe = True
     liveframe_full = liveframe + suffix
+    if frameparts_folder == '':
+        frameparts_folder = dirname(liveframe) + '/'
     # Check whether to upload the live frame to a remote host
     if sys.argv[1] != '':
         upload_liveframe = True
