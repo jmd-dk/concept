@@ -37,7 +37,7 @@ if [ "$#" -lt 1 ]; then
     fi
     if [ "${Njobs}" -gt 1 ]; then
         echo "You currently have ${Njobs} jobs submitted. The latest will be watched"
-        jobid=$(echo "${jobid}" | awk '{print $NF}')
+        jobid=$(echo "${jobid}" | awk -F'.in1' '{ print $1 }' | awk '{if($1>max) {max=$1}; count+=1} END {print max}')
     fi
 else
     # The jobid was supplied as an argument
