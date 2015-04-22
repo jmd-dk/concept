@@ -91,6 +91,7 @@ miniconda_pkgdocs="..."
 cython_version="..."
 matplotlib_version="..."
 numpy_version="..."
+pillow_version="..."
 scipy_version="..."
 # Pexpect is not listed on the Anaconda website, but it is included
 pexpect_version="..."
@@ -174,6 +175,7 @@ if [ $(validate_url "${fftw_url}") -eq 0 ]; then
     exit 1
 fi
 # CONCEPT
+concept_version="..."
 concept_url="https://github.com/jmd-dk/concept/archive/master.tar.gz"
 if [ $(validate_url "${concept_url}") -eq 0 ]; then
     printf "Error: The CO\e[3mN\e[0mCEPT link is broken!\n"
@@ -198,15 +200,17 @@ fi
 printf "\n\e[1m\e[93mInstallation overview\e[0m\n"
 printf "The following software will be installed\n"
 printf "Name:\t\tVersion:\tPath:\n"
+printf "CO\e[3mN\e[0mCEPT\t\t${concept_version}\t\t${concept_dir}\n"
 printf "Miniconda\t${miniconda_version}\t\t${miniconda_dir}\n"
 printf "  Cython\t${cython_version}\n"
 printf "  Cython_GSL\t${cython_gsl_version}\n"
 printf "  Matplotlib\t${matplotlib_version}\n"
+printf "  MPI4Py\t${mpi4py_version}\n"
 printf "  Numpy\t\t${numpy_version}\n"
 printf "  Pexpect\t${pexpect_version}\n"
+printf "  Pillow\t${pillow_version}\n"
 printf "  Python\t${python_version}\n"
 printf "  SciPy\t\t${scipy_version}\n"
-printf "  MPI4Py\t${mpi4py_version}\n"
 printf "FFTW\t\t${fftw_version}\t\t${fftw_dir}\n"
 printf "FFTW\t\t${fftw_for_gadget_version}\t\t${fftw_for_gadget_dir}\n"
 printf "GADGET\t\t${gadget_version}\t\t${gadget_dir}\n"
@@ -216,13 +220,13 @@ printf "Open MPI\t${openmpi_version}\t\t${openmpi_dir}\n"
 sleep 5
 
 
-######################
-# Installing CONCEPT #
-######################
+################################################################
+# Installing CONCEPT dependencies and download the code itself #
+################################################################
 # Miniconda
 current_step="installation of Miniconda"
 printf "\n\e[1m\e[93mInstalling Miniconda\e[0m\n"
-wget -nc -O miniconda.sh --no-check-certificate "${miniconda_url}"
+wget -c -O miniconda.sh --no-check-certificate "${miniconda_url}"
 bash miniconda.sh -b -p "${miniconda_dir}"
 rm miniconda.sh
 # Update Conda
@@ -230,11 +234,10 @@ rm miniconda.sh
 # Create a python variable, storing the path to the newly installed Python interpreter
 python_version=`"${miniconda_dir}/bin/python" -c "from sys import version_info as v; print(str(v.major) + '.' + str(v.minor))"`
 python="${miniconda_dir}/bin/python${python_version}"
-
-# Cython, Matplotlib, NumPy, Pexpect and SciPy via Conda
+# Cython, Matplotlib, NumPy, Pexpect, Pillow and SciPy via Conda
 current_step="installation of Cython, Matplotlib, NumPy, Pexpect and SciPy"
 printf "\n\e[1m\e[93mInstalling Cython, Matplotlib, NumPy, Pexpect and SciPy\e[0m\n"
-"${miniconda_dir}/bin/conda" install --yes cython matplotlib numpy pexpect scipy
+"${miniconda_dir}/bin/conda" install --yes cython matplotlib numpy pexpect pillow scipy
 # Update all packages in Miniconda
 "${miniconda_dir}/bin/conda" update --yes --all
 # Do some cleanup in the Miniconda distribution
@@ -246,7 +249,7 @@ printf "\n\e[1m\e[93mInstalling GSL\e[0m\n"
 mkdir "${gsl_dir}"
 mkdir tmp
 cd tmp
-wget -nc -O gsl.tar.gz --no-check-certificate "${gsl_url}"
+wget -c -O gsl.tar.gz --no-check-certificate "${gsl_url}"
 tar xf gsl.tar.gz
 cd gsl*
 ./configure --prefix="${gsl_dir}"
@@ -259,7 +262,7 @@ rm -rf tmp
 # The cython_gsl Python package
 current_step="installation of Cython_GSL"
 printf "\n\e[1m\e[93mInstalling Cython_GSL\e[0m\n"
-wget -nc -O CythonGSL.tar.gz --no-check-certificate "${cython_gsl_url}"
+wget -c -O CythonGSL.tar.gz --no-check-certificate "${cython_gsl_url}"
 tar xf CythonGSL.tar.gz
 cd CythonGSL*
 export LD_LIBRARY_PATH="${gsl_dir}/lib:$LD_LIBRARY_PATH"
@@ -274,7 +277,7 @@ printf "\n\e[1m\e[93mInstalling Open MPI\e[0m\n"
 mkdir "${openmpi_dir}"
 mkdir tmp
 cd tmp
-wget -nc -O openmpi.tar.bz2 --no-check-certificate "${openmpi_url}"
+wget -c -O openmpi.tar.bz2 --no-check-certificate "${openmpi_url}"
 tar xjf openmpi.tar.bz2
 cd openmpi*
 ./configure --prefix="${openmpi_dir}"
@@ -287,7 +290,7 @@ rm -rf tmp
 # The mpi4py Python package (cannot use conda, as it installs an outdated version)
 current_step="installation of MPI4Py"
 printf "\n\e[1m\e[93mInstalling MPI4Py\e[0m\n"
-wget -nc -O mpi4py.tar.gz --no-check-certificate "${mpi4py_url}"
+wget -c -O mpi4py.tar.gz --no-check-certificate "${mpi4py_url}"
 tar xf mpi4py.tar.gz
 cd mpi4py*
 export LD_LIBRARY_PATH="${openmpi_dir}/lib":"$LD_LIBRARY_PATH"
@@ -301,7 +304,7 @@ current_step="installation of HDF5"
 printf "\n\e[1m\e[93mInstalling HDF5\e[0m\n"
 mkdir tmp
 cd tmp
-wget -nc -O hdf5.tar.bz2 --no-check-certificate "${hdf5_url}"
+wget -c -O hdf5.tar.bz2 --no-check-certificate "${hdf5_url}"
 tar xjf hdf5.tar.bz2
 cd hdf5*
 CC="${openmpi_dir}/bin/mpicc" ./configure --enable-shared --enable-parallel --prefix="${hdf5_dir}"
@@ -314,7 +317,7 @@ rm -rf tmp
 # The h5py Python package (cannot use conda, as it does not install the parallel version)
 current_step="installation of h5py"
 printf "\n\e[1m\e[93mInstalling h5py\e[0m\n"
-wget -nc -O h5py.tar.gz --no-check-certificate "${h5py_url}"
+wget -c -O h5py.tar.gz --no-check-certificate "${h5py_url}"
 tar xf h5py.tar.gz
 cd h5py*
 export CC="${openmpi_dir}/bin/mpicc"
@@ -329,7 +332,7 @@ current_step="installation of FFTW"
 printf "\n\e[1m\e[93mInstalling FFTW\e[0m\n"
 mkdir tmp
 cd tmp
-wget -nc -O fftw.tar.gz "${fftw_url}"
+wget -c -O fftw.tar.gz "${fftw_url}"
 tar xf fftw.tar.gz
 cd fftw*
 # Double-precision
@@ -344,7 +347,7 @@ rm -rf tmp
 # The CONCEPT code
 current_step="installation of CO\e[3mN\e[0m\e[1m\e[91mCEPT"
 printf "\n\e[1m\e[93mInstalling CO\e[3mN\e[0m\e[1m\e[93mCEPT\e[0m\n"
-wget -nc -O concept.tar.gz --no-check-certificate "${concept_url}"
+wget -c -O concept.tar.gz --no-check-certificate "${concept_url}"
 tar xf concept.tar.gz
 rm concept.tar.gz
 mv concept-master/* "${top_dir}"  # This leaves the .paths file behind in the concept-master folder
@@ -416,7 +419,7 @@ current_step="installation of FFTW2 used by GADGET"
 printf "\n\e[1m\e[93mInstalling FFTW2, used by GADGET\e[0m\n"
 mkdir tmp
 cd tmp
-wget -nc -O fftw.tar.gz "${fftw_for_gadget_url}"
+wget -c -O fftw.tar.gz "${fftw_for_gadget_url}"
 tar xf fftw.tar.gz
 cd fftw*
 # Double-precision
@@ -437,7 +440,7 @@ current_step="installation of GADGET"
 printf "\n\e[1m\e[93mInstalling GADGET\e[0m\n"
 mkdir tmp
 cd tmp
-wget -nc -O gadget2.tar.gz "${gadget_url}"
+wget -c -O gadget2.tar.gz "${gadget_url}"
 tar xf gadget2.tar.gz
 mv Gadget*/* "${gadget_dir}"
 cd ..

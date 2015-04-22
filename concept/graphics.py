@@ -8,7 +8,7 @@ matplotlib.use('Agg')
 # Imports for plotting
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import juggle_axes
-from matplotlib.pyplot import figure, imread, savefig
+from matplotlib.pyplot import figure, imread, imsave, savefig
 
 # Seperate but equivalent imports in pure Python and Cython
 if not cython.compiled:
@@ -59,32 +59,6 @@ def animate(particles, timestep, a, a_snapshot):
     # Frame should be animated. Print out message
     if master:
         print('Rendering image')
-    '''
-    N = particles.N
-    N_local = particles.N_local
-    # The master process gathers N_local from all processes
-    N_locals = empty(nprocs if master else 0, dtype='uintp')
-    Gather(array(N_local, dtype='uintp'), N_locals)
-    # Increase the buffer sizes
-    if all_posx_mv.shape[0] < N:
-        all_posx = realloc(all_posx, N*sizeof('double'))
-        all_posy = realloc(all_posy, N*sizeof('double'))
-        all_posz = realloc(all_posz, N*sizeof('double'))
-        all_posx_mv = cast(all_posx, 'double[:N]')
-        all_posy_mv = cast(all_posy, 'double[:N]')
-        all_posz_mv = cast(all_posz, 'double[:N]')
-    # The master process gathers all particle positions
-    Gatherv(sendbuf=particles.posx_mv[:N_local],
-            recvbuf=(all_posx_mv, N_locals))
-    Gatherv(sendbuf=particles.posy_mv[:N_local],
-            recvbuf=(all_posy_mv, N_locals))
-    Gatherv(sendbuf=particles.posz_mv[:N_local],
-            recvbuf=(all_posz_mv, N_locals))
-    # Only the master process plots the particle data
-    if not master:
-        return
-    '''
-
     # Extract particle data
     N = particles.N
     N_local = particles.N_local
@@ -143,45 +117,59 @@ def animate(particles, timestep, a, a_snapshot):
                                         particles.posz_mv[:N_local],
                                         zdir='z')
     # The master process prints the current scale factor on the figure
-    # and prints a saving message to the screen.
     if master:
-        print('    Saving: ' + framefolder + str(timestep) + suffix)
+        t0 = time()
         ax.set_xlabel('$a = ' + significant_figures(a, 4, just=0,
                                                     scientific=True)
                               + '$', rotation=0)
-    # All processes saves their image
-    savefig(frameparts_folder + '.rank' + str(rank) + suffix,
-            bbox_inches='tight', pad_inches=0, dpi=320)
-    # When done saving the image, all processes but the master is done
-    Barrier()
-    if not master:
-        return
-    # The master process combines the images into one
-    combined = imread(frameparts_folder + '.rank0' + suffix)
-    for i in range(1, nprocs):
-        framepart = imread(frameparts_folder + '.rank' + str(i) + suffix)
+    # When run on multiple processes, each process saves its part of the total
+    # frame to disk, which is then read in by the master process and combined
+    # to produce the total frame.
+    if nprocs > 1:
+        savefig(frameparts_folder + '.rank' + str(rank) + suffix,
+                bbox_inches='tight', pad_inches=0, dpi=320)
+        # When done saving the image, all processes but the master is done
+        Barrier()
+        if not master:
+            return
+        # The master process combines the images into one
+        combined = np.asarray(imread(frameparts_folder + '.rank0' + suffix), dtype='float64')
+        for i in range(1, nprocs):
+            framepart = np.asarray(imread(frameparts_folder + '.rank' + str(i) + suffix), dtype='float64')
+            for r in range(combined.shape[0]):
+                for c in range(combined.shape[1]):
+                    for rgb in range(3):
+                        combined[r, c, rgb] += framepart[r, c, rgb]
+        # Normalize the image. Values should not be above pixelval_max
         for r in range(combined.shape[0]):
             for c in range(combined.shape[1]):
-                for rgb in range(3):
-                    combined[r, c, rgb] += framepart[r, c, rgb]
-    print(combined)
-    sleep(10000)
-        
-
-    
-
-
-
+                for i in range(3):
+                    if combined[r, c, i] > pixelval_max:
+                        combined[r, c, i] = pixelval_max
+                    if pixelval_max > 1:
+                        combined[r, c, i] /= pixelval_max
+    # When at the last frame, delete the auxiliary
+    # image files of partial frames.
+    if nprocs > 1 and a == a_max:
+        for i in range(nprocs):
+            os.remove(frameparts_folder + '.rank' + str(i) + suffix)
+    # Save the frame in framefolder
     if save_frames:
-        # Save the frame in framefolder
-        savefig(framefolder + str(timestep) + suffix,
-                bbox_inches='tight', pad_inches=0, dpi=320)
+        print('    Saving: ' + framefolder + str(timestep) + suffix)
+        if nprocs > 1:
+            imsave(framefolder + str(timestep) + suffix, combined)
+        else:
+            savefig(framefolder + str(timestep) + suffix,
+                    bbox_inches='tight', pad_inches=0, dpi=320)
     if save_liveframe:
         # Print out message
         print('    Updating live frame: ' + liveframe_full)
         # Save the live frame
-        savefig(liveframe_full,
-                bbox_inches='tight', pad_inches=0, dpi=320)
+        if nprocs > 1:
+            imsave(liveframe_full, combined)
+        else:
+            savefig(liveframe_full,
+                    bbox_inches='tight', pad_inches=0, dpi=320)
         if upload_liveframe:
             # Print out message
             print('    Uploading live frame: ' + remote_liveframe)
@@ -319,15 +307,9 @@ def significant_figures(f, n, just=0, scientific=False):
             f_str = '-' + f_str
         return f_str.ljust(just)
 
-# Set the artist as uninitialized at import time
-artist = None
+
 # Preparation for saving frames done at import time
-cython.declare(#all_posx='double*',
-               #all_posx_mv='double[::1]',
-               #all_posy='double*',
-               #all_posy_mv='double[::1]',
-               #all_posz='double*',
-               #all_posz_mv='double[::1]',
+cython.declare(a_max='double',
                frameparts_folder='str',
                liveframe_full='str',
                save_liveframe='bint',
@@ -335,11 +317,23 @@ cython.declare(#all_posx='double*',
                cmd1='str',
                cmd2='str',
                password='str',
+               pixelval_max='double',
+               suffix='str',
                upload_liveframe='bint',
                user_at_host='str',
-               suffix='str',
                visualize='bint',
                )
+# Set the artist as uninitialized at import time
+artist = None
+# The scale factor at the last snapshot/frame
+a_max = np.max(outputtimes)
+# The maximum pixel value depends on the image format
+if image_format in ('png', ):
+    pixelval_max = 1
+elif image_format in ('jpg', 'jpeg', 'tif', 'tiff'):
+    pixelval_max = 255
+else:
+    raise ValueError('Unrecognized image format "' + image_format + '".')
 # Check whether frames should be stored and create the
 # framefolder folder at import time
 frameparts_folder = ''

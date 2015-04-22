@@ -1,4 +1,4 @@
-![alt text](http://s22.postimg.org/pk9uedb5d/simulation.png)
+![alt text](http://i.imgur.com/4PsQx3K.png)
 
 # Description
 **CO*N*CEPT** (**CO**smological ***N***-body **C**od**E** in **P**y**T**hon)
@@ -26,6 +26,7 @@ GNU make. The code has the following non-standard but open source dependencies:
     installed MPI implementation.
   - **numpy**.
   - **pexpect**.
+  - **pillow**.
   - **scipy**.
 - The **GADGET2** *N*-body code. This is only needed for running some
   tests and can be omitted. GADGET2 is also dependent on GSL, MPI and
