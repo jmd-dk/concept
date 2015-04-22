@@ -9,8 +9,8 @@
 Gadget2_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/gadget/Gadget2'
 # Directory containing the CONCEPT source code
 concept_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept'
-# Directory of the Anaconda Python distribution
-anaconda_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/anaconda'
+# Directory of the Miniconda Python distribution
+mini_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/miniconda'
 # Directory of FFTW
 fftw_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/fftw'
 # Directory of FFTW2, used by GADGET
@@ -32,14 +32,15 @@ top_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept'
 # Files #
 #########
 # The Python3 interpreter
-python='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/anaconda/bin/python3.4'
-# The python3.xm file within the include directory of Anaconda
-python_incl_m='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/anaconda/include/python3.4m'
+python='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/miniconda/bin/python3.4'
+# The python3.xm file within the include directory of Miniconda
+python_incl_m='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/miniconda/include/python3.4m'
 # The Cython executable
-cython='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/anaconda/bin/cython'
+cython='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/miniconda/bin/cython'
 # The MPI C compiler
 mpicc='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/openmpi/bin/mpicc'
 # The MPI executable
 mpiexec='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/openmpi/bin/mpiexec'
 # The run script of the CONCEPT code
 run='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/run'
+
