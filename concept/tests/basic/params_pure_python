@@ -35,6 +35,8 @@ a_begin = 0.02					# Scale factor at beginning of simulation
 framefolder = ''				# Folder to save frames
 liveframe=''					# Filename of saved live frame
 image_format='png'				# The image format of the saved frames
+color = (0.70, 0.97, 0.37)      		# Color of the particles as an RGB triple
+resolution = 1080				# The image height and width
 remote_liveframe=''				# Where to upload the live frame
 protocol = 'scp'				# Protocol for live frame file transfer
 framespace = 1					# The plot is updated every framespace time step
@@ -131,7 +133,12 @@ use_Ewald = True				# Turn Ewald corrections on or off
 #     The filename should be without extension.
 #     Use an empty string to disable this feature.
 # image_format
-#     Supported formats are 'eps', 'pdf', 'pgf', 'png', 'ps', 'raw', 'rgba', 'svg', 'svgz'.
+#     Supported formats are 'jpeg', 'jpg', 'png', 'tif' and 'tiff'.
+# color
+#    Tuple of RGB values, each ranging from 0 to 1.
+# resolution
+#    The height and width of the images, measured in pixels.
+#    Note that the images will always be square.
 # remote_liveframe
 #     This should either be of the form 'user@host:/path/to/liveframe.ext' or
 #     'user@host:/path/to/'. In the latter case, the remote file will have

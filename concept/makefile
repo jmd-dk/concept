@@ -140,6 +140,7 @@ params.py: $(paramsfile) $(MAKEFILE_LIST)
 	@sed -i '1i# The following is an exact copy of $(paramsfile)\
 	# Import useful numpy functions and constants\
 	from numpy import abs, arange, arccos, arccosh, arcsin, arcsinh, arctan, arctanh, ceil, cos, cosh, e, exp, floor, linspace, loadtxt, log, log10, log2, pi, sqrt, sin, sinh, tan, tanh\
+	from numpy import pi as π\
 	# Get access to the absolute paths stored in the .paths file\
 	import imp, os\
 	top_dir = "."\
@@ -204,6 +205,8 @@ params.py: $(paramsfile) $(MAKEFILE_LIST)
 	str liveframe\
 	str image_format\
 	size_t framespace\
+	tuple color\
+	int resolution\
 	str remote_liveframe\
 	str protocol\
 	# Simulation options\
