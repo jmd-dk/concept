@@ -11,7 +11,7 @@ IC_file = 'ICs/default'				# Initial condition snapshot
 output_dir = 'output'				# Directory for storing output snapshots
 output_type = 'gadget2'				# Type of output snapshot
 snapshot_base = 'snapshot'			# File basename for output snapshots
-outputtimes = (1, )				# Times at which to dump snapshots to disk
+outputtimes = (0.1, )				# Times at which to dump snapshots to disk
 
 # Numerical parameters
 boxsize = 16/0.7*Mpc				# Linear size of the simulation box
@@ -32,15 +32,17 @@ H0 = 70*km/s/Mpc				# The Hubble constant
 a_begin = 0.02					# Scale factor at beginning of simulation
 
 # Graphics
-framefolder = 'output'			# Folder to save frames
-liveframe='' #'output/live'					# Filename of saved live frame
-image_format='jpg'				# The image format of the saved frames
+framefolder = 'output'				# Folder to save frames
+liveframe=''					# Filename of saved live frame
+image_format='png'				# The image format of the saved frames
+color = (0.70, 0.97, 0.37)      		# Color of the particles as an RGB triple
+resolution = 1080				# The image height and width
 remote_liveframe='' #'jmd@lifa.phys.au.dk:/usr/users/jmd/public_html/master/simulation.png'				# Where to upload the live frame
 protocol = 'sftp'				# Protocol for live frame file transfer
-framespace = 100				# The plot is updated every framespace time step
+framespace = 100					# The plot is updated every framespace time step
 
 # Simulation options
-kick_algorithms = {'dark matter': 'PP',	# The algorithm which should be used to kick each species
+kick_algorithms = {'dark matter': 'P3M',	# The algorithm which should be used to kick each species
                    'dark energy': '',
                    }
 use_Ewald = True				# Turn Ewald corrections on or off
@@ -133,6 +135,11 @@ use_Ewald = True				# Turn Ewald corrections on or off
 #     Use an empty string to disable this feature.
 # image_format
 #     Supported formats are 'jpeg', 'jpg', 'png', 'tif' and 'tiff'.
+# color
+#    Tuple of RGB values, each ranging from 0 to 1.
+# resolution
+#    The height and width of the images, measured in pixels.
+#    Note that the images will always be square.
 # remote_liveframe
 #     This should either be of the form 'user@host:/path/to/liveframe.ext' or
 #     'user@host:/path/to/'. In the latter case, the remote file will have

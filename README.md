@@ -1,4 +1,4 @@
-![alt text](http://i.imgur.com/4PsQx3K.png)
+![alt text](http://gifyu.com/images/animationdfad0.gif)
 
 # Description
 **CO*N*CEPT** (**CO**smological ***N***-body **C**od**E** in **P**y**T**hon)

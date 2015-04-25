@@ -39,9 +39,7 @@ from os.path import basename, dirname
                N='size_t',
                N_local='size_t',
                alpha='double',
-               alpha_min='double',
                c='int',
-               color='tuple',
                combined='double[:, :, ::1]',
                figsize='double[::1]',
                framepart='double[:, :, ::1]',
@@ -53,7 +51,7 @@ from os.path import basename, dirname
                size_min='double',
                )
 def animate(particles, timestep, a, a_snapshot):
-    global artist, upload_liveframe, ax
+    global artist_particles, artist_text, upload_liveframe, ax, size_fac
     if not visualize or (timestep % framespace and a != a_snapshot):
         return
     # Frame should be animated. Print out message
@@ -63,91 +61,106 @@ def animate(particles, timestep, a, a_snapshot):
     N = particles.N
     N_local = particles.N_local
     # Set up figure. This is only done in the first call.
-    if artist is None:
+    if artist_particles is None:
         # Set up figure
-        inch2pts = 72.27  # Number of points in an inch
-        fig = figure()
-        ax = fig.add_subplot(111, projection='3d', axisbg='black')
-        # The alpha value is chosen so that a column of particles in a
-        # homogeneous universe will appear to have alpha = 1 (more or
-        # less). The size of a particle is plotted so that the particles
+        fig = figure(figsize=[resolution/77.50]*2)
+        ax = fig.gca(projection='3d', axisbg='black')
+        ax.set_aspect('equal')
+        ax.dist = 8.5
+        # The size of a particle is plotted so that the particles
         # stand side by side in a homogeneous unvierse (more or less).
-        # Determine the alpha value of a particle.
-        alpha_min = 0.001
-        alpha = N**(-one_third)
-        if alpha < alpha_min:
-            alpha = alpha_min
-        # Determine the size of a single particle
-        size_max = 50
-        size_min = 0.5
+        inch2pts = 72.27  # Number of points in an inch
         figsize = fig.get_size_inches()
-        size = 3*prod(figsize)*inch2pts**2/N
-        if size > size_max:
-            size = size_max
-        elif size < size_min:
-            size = size_min
-        # The color of the particles
-        color = (180.0/256, 248.0/256, 95.0/256)
+        size_fac = 0.05*prod(figsize)*inch2pts**2/N**two_thirds
+        size = size_fac/sqrt(a)
+        # The alpha value is chosen so that a column of particles in a
+        # homogeneous universe will appear to have alpha = 0.75 (more or
+        # less).
+        alpha = 0.75*N**(-one_third)
+        # For some reason, an alpha below 0.0059
+        # is rendered as completely transparent.
+        if alpha < 0.0059:
+            alpha = 0.0059
         # Create the plot of the particles
-        artist = ax.scatter(particles.posx_mv[:N_local],
-                            particles.posy_mv[:N_local],
-                            particles.posz_mv[:N_local],
-                            lw=0,
-                            alpha=alpha,
-                            c=color,
-                            s=size,
-                            )
-        ax.set_xlim3d(0, boxsize)
-        ax.set_ylim3d(0, boxsize)
-        ax.set_zlim3d(0, boxsize)
+        artist_particles = ax.scatter(particles.posx_mv[:N_local],
+                                      particles.posy_mv[:N_local],
+                                      particles.posz_mv[:N_local],
+                                      alpha=alpha,
+                                      lw=0,
+                                      c=color,
+                                      s=size,
+                                      )
+        ax.set_xlim(0, boxsize)
+        ax.set_ylim(0, boxsize)
+        ax.set_zlim(0, boxsize)
         ax.w_xaxis.set_pane_color(zeros(4))
         ax.w_yaxis.set_pane_color(zeros(4))
         ax.w_zaxis.set_pane_color(zeros(4))
         ax.w_xaxis.gridlines.set_lw(0)
         ax.w_yaxis.gridlines.set_lw(0)
         ax.w_zaxis.gridlines.set_lw(0)
-        # Prepare for the xlabel
-        ax.xaxis.set_rotate_label(False)
-        ax.set_xlabel('')
-        ax.xaxis.label.set_color('white')
+        # Prepare the text
+        artist_text = ax.text(+0.25*boxsize,
+                              -0.3*boxsize,
+                              0,
+                              '',
+                              color='white',
+                              fontsize=16,
+                              )
     else:
-        # Update figure
-        artist._offsets3d = juggle_axes(particles.posx_mv[:N_local],
-                                        particles.posy_mv[:N_local],
-                                        particles.posz_mv[:N_local],
-                                        zdir='z')
+        # Update particle positions on figure
+        artist_particles._offsets3d = juggle_axes(particles.posx_mv[:N_local],
+                                                  particles.posy_mv[:N_local],
+                                                  particles.posz_mv[:N_local],
+                                                  zdir='z')
+    # Size
+    artist_particles._sizes[0] = size_fac*np.log(np.e/a)
+    #artist_particles.set_alpha(alpha)
     # The master process prints the current scale factor on the figure
     if master:
         t0 = time()
-        ax.set_xlabel('$a = ' + significant_figures(a, 4, just=0,
-                                                    scientific=True)
-                              + '$', rotation=0)
+        artist_text.set_text('$a = ' + significant_figures(a,
+                                                           4,
+                                                           just=0,
+                                                           scientific=True,
+                                                           )
+                                     + '$')
     # When run on multiple processes, each process saves its part of the total
     # frame to disk, which is then read in by the master process and combined
     # to produce the total frame.
     if nprocs > 1:
         savefig(frameparts_folder + '.rank' + str(rank) + suffix,
-                bbox_inches='tight', pad_inches=0, dpi=320)
+                bbox_inches='tight', pad_inches=0)
         # When done saving the image, all processes but the master is done
         Barrier()
         if not master:
             return
         # The master process combines the images into one
-        combined = np.asarray(imread(frameparts_folder + '.rank0' + suffix), dtype='float64')
+        combined = np.asarray(imread(frameparts_folder + '.rank0' + suffix),
+                              dtype='float64')
         for i in range(1, nprocs):
-            framepart = np.asarray(imread(frameparts_folder + '.rank' + str(i) + suffix), dtype='float64')
+            framepart = np.asarray(imread(frameparts_folder + '.rank' + str(i)
+                                                            + suffix),
+                                   dtype='float64')
             for r in range(combined.shape[0]):
                 for c in range(combined.shape[1]):
                     for rgb in range(3):
                         combined[r, c, rgb] += framepart[r, c, rgb]
         # Normalize the image. Values should not be above pixelval_max
-        for r in range(combined.shape[0]):
-            for c in range(combined.shape[1]):
-                for i in range(3):
-                    if combined[r, c, i] > pixelval_max:
-                        combined[r, c, i] = pixelval_max
-                    if pixelval_max > 1:
-                        combined[r, c, i] /= pixelval_max
+        if pixelval_max > 1:
+            for r in range(combined.shape[0]):
+                for c in range(combined.shape[1]):
+                    for rgb in range(3):
+                        if combined[r, c, rgb] > pixelval_max:
+                            combined[r, c, rgb] = 1
+                        else:
+                            combined[r, c, rgb] /= pixelval_max
+        else:
+            for r in range(combined.shape[0]):
+                for c in range(combined.shape[1]):
+                    for rgb in range(3):
+                        if combined[r, c, rgb] > 1:
+                            combined[r, c, rgb] = 1
     # When at the last frame, delete the auxiliary
     # image files of partial frames.
     if nprocs > 1 and a == a_max:
@@ -160,7 +173,7 @@ def animate(particles, timestep, a, a_snapshot):
             imsave(framefolder + str(timestep) + suffix, combined)
         else:
             savefig(framefolder + str(timestep) + suffix,
-                    bbox_inches='tight', pad_inches=0, dpi=320)
+                    bbox_inches='tight', pad_inches=0)
     if save_liveframe:
         # Print out message
         print('    Updating live frame: ' + liveframe_full)
@@ -169,7 +182,7 @@ def animate(particles, timestep, a, a_snapshot):
             imsave(liveframe_full, combined)
         else:
             savefig(liveframe_full,
-                    bbox_inches='tight', pad_inches=0, dpi=320)
+                    bbox_inches='tight', pad_inches=0)
         if upload_liveframe:
             # Print out message
             print('    Uploading live frame: ' + remote_liveframe)
@@ -314,6 +327,7 @@ cython.declare(a_max='double',
                liveframe_full='str',
                save_liveframe='bint',
                save_frames='bint',
+               size_fac='double',
                cmd1='str',
                cmd2='str',
                password='str',
@@ -323,8 +337,10 @@ cython.declare(a_max='double',
                user_at_host='str',
                visualize='bint',
                )
-# Set the artist as uninitialized at import time
-artist = None
+size_fac = 0
+# Set the artists as uninitialized at import time
+artist_particles = None
+artist_text = None
 # The scale factor at the last snapshot/frame
 a_max = np.max(outputtimes)
 # The maximum pixel value depends on the image format
