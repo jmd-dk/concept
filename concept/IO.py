@@ -49,12 +49,13 @@ def save(particles, a, filename):
 @cython.wraparound(False)
 @cython.locals(# Argument
                filename='str',
+               write_msg='bint',
                # Locals
                input_type='str',
                particles='Particles',
                )
 @cython.returns('Particles')
-def load(filename):
+def load(filename, write_msg=True):
     # Determine whether input snapshot is in standard or GADGET2 2 format
     # by searching for a HEAD identifier.
     input_type = 'standard'
@@ -68,9 +69,9 @@ def load(filename):
             pass
     # Dispatches the work to the appropriate function
     if input_type == 'standard':
-        particles = load_standard(filename)
+        particles = load_standard(filename, write_msg)
     elif input_type == 'GADGET 2':
-        particles = load_gadget(filename)
+        particles = load_gadget(filename, write_msg)
     # Scatter particles to the correct domain-specific process.
     # Setting reset_indices_send == True ensures that buffers will be reset
     # afterwards, as this initial exchange is not representable for those
@@ -148,6 +149,7 @@ def save_standard(particles, a, filename):
 @cython.wraparound(False)
 @cython.locals(# Argument
                filename='str',
+               write_msg='bint',
                # Locals
                N='size_t',
                N_local='size_t',
@@ -165,7 +167,7 @@ def save_standard(particles, a, filename):
                tol='double',
                )
 @cython.returns('Particles')
-def load_standard(filename):
+def load_standard(filename, write_msg=True):
     # Print out message
     if master:
         print('Loading snapshot:', filename)
@@ -175,7 +177,7 @@ def load_standard(filename):
         for particle_type in all_particles:
             # Load global attributes
             file_H0 = hdf5_file.attrs['H0']
-            #file_a = hdf5_file.attrs['a']
+            file_a = hdf5_file.attrs['a']
             file_boxsize = hdf5_file.attrs['boxsize']
             file_Ωm = hdf5_file.attrs['\N{GREEK CAPITAL LETTER OMEGA}m']
             file_ΩΛ = hdf5_file.attrs['\N{GREEK CAPITAL LETTER OMEGA}'
@@ -183,14 +185,14 @@ def load_standard(filename):
             # Check if the parameters of the snapshot matches those of the
             # current simulation run. Display a warning if they do not.
             tol = 1e-5
-            if any([abs(file_param/param - 1) > tol for file_param, param
-                    in zip((file_boxsize, file_H0, file_Ωm, file_ΩΛ),
-                           (boxsize, H0, Ωm, ΩΛ))]):
+            if write_msg and any([abs(file_param/param - 1) > tol for
+                file_param, param in zip((file_boxsize, file_H0, file_Ωm, file_ΩΛ, file_a),
+                           (boxsize, H0, Ωm, ΩΛ, a_begin))]):
                 msg = ('Mismatch between current parameters and those in the '
                        + 'snapshot "' + filename + '":')
-                #if abs(file_a/a_begin - 1) > tol:
-                #    msg += ('\n    a_begin: ' + str(a_begin)
-                #            + ' vs ' + str(file_a))
+                if abs(file_a/a_begin - 1) > tol:
+                    msg += ('\n    a_begin: ' + str(a_begin)
+                            + ' vs ' + str(file_a))
                 if abs(file_boxsize/boxsize - 1) > tol:
                     msg += ('\n    boxsize: ' + str(boxsize) + ' vs '
                             + str(file_boxsize) + ' (kpc)')
@@ -218,7 +220,7 @@ def load_standard(filename):
             momz_h5 = particles_h5['momz']
             # Write out message
             N = posx_h5.size
-            if master:
+            if master and write_msg:
                 print('    Found', N, particles_h5.attrs['species'],
                       'particles', '(' + particles_h5.attrs['type'] + ')')
             # Compute a fair distribution of particle data to the processes
@@ -285,16 +287,17 @@ def save_gadget(particles, a, filename):
 @cython.wraparound(False)
 @cython.locals(# Arguments
                filename='str',
+               write_msg='bint',
                # Locals
                snapshot='Gadget_snapshot',
                )
 @cython.returns('Particles')
-def load_gadget(filename):
+def load_gadget(filename, write_msg=True):
     # Print out message
     if master:
         print('Loading GADGET snapshot:', filename)
     snapshot = Gadget_snapshot()
-    snapshot.load(filename, write_msg=True)
+    snapshot.load(filename, write_msg)
     return snapshot.particles
 
 # Class storing a Gadget snapshot. Besides holding methods for saving/loading,
@@ -525,7 +528,7 @@ class Gadget_snapshot:
                    N_locals='tuple',
                    file_position='size_t',
                    gadget_H0='double',
-                   #gadget_a='double',
+                   gadget_a='double',
                    gadget_boxsize='double',
                    gadget_Ωm='double',
                    gadget_ΩΛ='double',
@@ -537,7 +540,7 @@ class Gadget_snapshot:
                    tol='double',
                    unit='double',
                    )
-    def load(self, filename, write_msg=False):
+    def load(self, filename, write_msg=True):
         """ It is assumed that the snapshot on the disk is a GADGET snapshot
         of type 2 and that it uses single precision. The Gadget_snapshot
         instance stores the data (positions and velocities) in double
@@ -571,22 +574,22 @@ class Gadget_snapshot:
             # Check if the parameters of the snapshot matches those of the
             # current simulation run. Display a warning if they do not.
             tol = 1e-5
-            #gadget_a = self.header['Time']
+            gadget_a = self.header['Time']
             unit = units.kpc/self.header['HubbleParam']
             gadget_boxsize = self.header['BoxSize']*unit
             unit = 100*units.km/(units.s*units.Mpc)
             gadget_H0 = self.header['HubbleParam']*unit
             gadget_Ωm = self.header['Omega0']
             gadget_ΩΛ = self.header['OmegaLambda']
-            if any([abs(gadget_param/param - 1) > tol for gadget_param, param
-                    in zip((gadget_boxsize, gadget_H0, gadget_Ωm,
-                            gadget_ΩΛ),
-                           (boxsize, H0, Ωm, ΩΛ))]):
+            if write_msg and any([abs(gadget_param/param - 1) > tol for
+                gadget_param, param in zip((gadget_boxsize, gadget_H0, gadget_Ωm,
+                            gadget_ΩΛ, gadget_a),
+                           (boxsize, H0, Ωm, ΩΛ, a_begin))]):
                 msg = ('Mismatch between current parameters and those in the'
                        + ' GADGET snapshot "' + filename + '":')
-                #if abs(gadget_a/a_begin - 1) > tol:
-                #    msg += ('\n    a_begin: ' + str(a_begin)
-                #            + ' vs ' + str(gadget_a))
+                if abs(gadget_a/a_begin - 1) > tol:
+                    msg += ('\n    a_begin: ' + str(a_begin)
+                            + ' vs ' + str(gadget_a))
                 if abs(gadget_boxsize/boxsize - 1) > tol:
                     msg += ('\n    boxsize: ' + str(boxsize) + ' vs '
                             + str(gadget_boxsize) + ' (kpc)')
@@ -608,7 +611,7 @@ class Gadget_snapshot:
             N = self.header['Npart'][1]
             if master and write_msg:
                 print('    Found', N, 'dark matter particles',
-                      '(Gadget halos)')
+                      '(GADGET halos)')
             # Compute a fair distribution of particle data to the processes
             N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
                         + (N//nprocs + 1, )*(N % nprocs))

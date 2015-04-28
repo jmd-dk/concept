@@ -34,7 +34,7 @@ x0_std = zeros(N_snapshots)
 x1 = zeros(N_snapshots)
 x1_std = zeros(N_snapshots)
 for i in range(N_snapshots):
-    snapshot.load(this_dir + '/output/snapshot_' + str(i))
+    snapshot.load(this_dir + '/output/snapshot_' + str(i), write_msg=False)
     a[i] = snapshot.header['Time']
     x0[i] = np.mean(snapshot.particles.posx[:4])
     x0_std[i] = np.std(snapshot.particles.posx[:4])
@@ -48,7 +48,7 @@ x0_std_gadget = zeros(N_snapshots)
 x1_gadget = zeros(N_snapshots)
 x1_std_gadget = zeros(N_snapshots)
 for i in range(N_snapshots):
-    snapshot.load(this_dir + '/output/snapshot_gadget_' + '0'*(3-len(str(i))) + str(i))
+    snapshot.load(this_dir + '/output/snapshot_gadget_' + '0'*(3-len(str(i))) + str(i), write_msg=False)
     a_gadget[i] = snapshot.header['Time']
     x_gadget = snapshot.particles.posx[np.argsort(snapshot.ID)]
     x0_gadget[i] = np.mean(x_gadget[:4])

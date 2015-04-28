@@ -35,6 +35,7 @@ from os.path import basename, dirname
                timestep='size_t',
                a='double',
                a_snapshot='double',
+               filename='str',
                # Locals
                N='size_t',
                N_local='size_t',
@@ -50,7 +51,7 @@ from os.path import basename, dirname
                size_max='double',
                size_min='double',
                )
-def animate(particles, timestep, a, a_snapshot):
+def animate(particles, timestep, a, a_snapshot, filename=''):
     global artist_particles, artist_text, upload_liveframe, ax, size_fac
     if not visualize or (timestep % framespace and a != a_snapshot):
         return
@@ -166,6 +167,17 @@ def animate(particles, timestep, a, a_snapshot):
     if nprocs > 1 and a == a_max:
         for i in range(nprocs):
             os.remove(frameparts_folder + '.rank' + str(i) + suffix)
+    # If explicit filename is passed, save to this file and return. Also reset
+    # the particles artist, forcing the plot to setup from scratch the next
+    # time this function is called (important when called from external script).
+    if filename != '':
+        print('    Saving: ' + framefolder + filename)
+        artist_particles = None
+        if nprocs > 1:
+            imsave(framefolder + filename, combined)
+        else:
+            savefig(framefolder + filename, bbox_inches='tight', pad_inches=0)
+        return
     # Save the frame in framefolder
     if save_frames:
         print('    Saving: ' + framefolder + str(timestep) + suffix)

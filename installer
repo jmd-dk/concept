@@ -352,6 +352,9 @@ tar xf concept.tar.gz
 rm concept.tar.gz
 mv concept-master/* "${top_dir}"  # This leaves the .paths file behind in the concept-master folder
 rm -r concept-master
+# Create empty logs and output directories
+mkdir -p "${concept_dir}/logs"
+mkdir -p "${concept_dir}/output"
 
 # Create the .paths file, storing important paths used by the program
 current_step="creataion of the .paths file"
@@ -375,7 +378,7 @@ Gadget2_dir='${Gadget2_dir}'
 # Directory containing the CONCEPT source code
 concept_dir='${concept_dir}'
 # Directory of the Miniconda Python distribution
-mini_dir='${miniconda_dir}'
+miniconda_dir='${miniconda_dir}'
 # Directory of FFTW
 fftw_dir='${fftw_dir}'
 # Directory of FFTW2, used by GADGET

@@ -363,6 +363,8 @@ else:
             size_t N
             size_t i
         N = a.shape[0]
+        if N == 0:
+            return 0
         Σ = a[0]
         for i in range(1, N):
             Σ += a[i]
@@ -388,6 +390,8 @@ else:
             size_t N
             size_t i
         N = a.shape[0]
+        if N == 0:
+            return 1
         Π = a[0]
         for i in range(1, N):
             Π *= a[i]

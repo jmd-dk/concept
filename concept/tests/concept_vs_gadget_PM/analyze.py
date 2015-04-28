@@ -27,13 +27,13 @@ N_snapshots = np.loadtxt(this_dir + '/outputlist').size
 
 # Instantiate a Gadget_snapshot instance which will be reused for all GADGET snapshots
 snapshot = Gadget_snapshot()
-snapshot.load(this_dir + '/IC')
+snapshot.load(this_dir + '/IC', write_msg=False)
 
 # Read in data from the CONCEPT snapshots
 a = []
 particles = []
 for i in range(N_snapshots):
-    snapshot.load(this_dir + '/output/snapshot_' + str(i))
+    snapshot.load(this_dir + '/output/snapshot_' + str(i), write_msg=False)
     a.append(snapshot.header['Time'])
     particles.append(snapshot.particles)
 
@@ -41,7 +41,7 @@ for i in range(N_snapshots):
 a_gadget = []
 particles_gadget = []
 for i in range(N_snapshots):
-    snapshot.load(this_dir + '/output/snapshot_gadget_' + '0'*(3-len(str(i))) + str(i))
+    snapshot.load(this_dir + '/output/snapshot_gadget_' + '0'*(3-len(str(i))) + str(i), write_msg=False)
     a_gadget.append(snapshot.header['Time'])
     particles_gadget.append(snapshot.particles)
 

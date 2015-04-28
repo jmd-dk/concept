@@ -10,7 +10,7 @@ Gadget2_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/gadget/Gadget2'
 # Directory containing the CONCEPT source code
 concept_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept'
 # Directory of the Miniconda Python distribution
-mini_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/miniconda'
+miniconda_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/miniconda'
 # Directory of FFTW
 fftw_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/fftw'
 # Directory of FFTW2, used by GADGET

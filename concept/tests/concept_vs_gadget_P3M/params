@@ -1,29 +1,29 @@
 # This is a parameterfile to the CONCEPT code.
 # Parameters can be specified as any valid Python3 expression.
 # Numpy functions and constants as well as units defined in the units module
-# may be used. Absolute paths defined in the .paths file may be used via the
-# paths dict.
+# may be used.
+# Absolute paths defined in the .paths file may be used via the paths dict.
+# Additionally, paths['params_dir'] refers to the directory of this file.
 # For more information about the different parameters,
 # see the bottom of this file.
 
 # Input/output
-IC_file = 'ICs/default.gadget'				# Initial condition snapshot
-output_dir = 'output'				# Directory for storing output snapshots
-output_type = 'standard'			# Type of output snapshot
+IC_file = paths['params_dir'] + '/IC'		# Initial condition snapshot
+output_dir = paths['params_dir'] + '/output'	# Directory for storing output snapshots
+output_type = 'Gadget 2'			# Type of output snapshot
 snapshot_base = 'snapshot'			# File basename for output snapshots
-outputtimes = (0.1, )				# Times at which to dump snapshots to disk
+outputtimes = (float(loadtxt(paths['params_dir'] + '/outputlist')), )	# Times at which to dump snapshots to disk
 
 # Numerical parameters
-boxsize = 16/0.7*Mpc				# Linear size of the simulation box
+boxsize = 8*Mpc/0.7 # (Gadget implicitly uses length/h)	# Linear size of the simulation box
 ewald_gridsize = 64				# Linear size of the grid of Ewald corrections
-PM_gridsize = 32				# Linear size of the grid used for the PM method
+PM_gridsize = 32					# Linear size of the grid used for the PM method
 P3M_scale = 1.25				# The long/short-range force split scale
-P3M_cutoff = 4.8				# Maximum reach of short-range force
+P3M_cutoff = 4.5				# Maximum reach of short-range force
 softeningfactors = {'dark matter': 0.03,	# The amount of gravitational softening for each species
                     'dark energy': 0,
-                    }	
+                   }	
 Δt_factor = 0.01				# The time step size
-
 
 # Cosmological parameters
 H0 = 70*km/s/Mpc				# The Hubble constant
@@ -32,23 +32,20 @@ H0 = 70*km/s/Mpc				# The Hubble constant
 a_begin = 0.02					# Scale factor at beginning of simulation
 
 # Graphics
-framefolder = 'output'				# Folder to save frames
+framefolder = paths['params_dir'] + '/output'	# Folder to save frames
 liveframe=''					# Filename of saved live frame
 image_format='png'				# The image format of the saved frames
 color = (0.70, 0.97, 0.37)      		# Color of the particles as an RGB triple
 resolution = 1080				# The image height and width
-remote_liveframe='' #'jmd@lifa.phys.au.dk:/usr/users/jmd/public_html/master/simulation.png'				# Where to upload the live frame
-protocol = 'sftp'				# Protocol for live frame file transfer
-framespace = 100					# The plot is updated every framespace time step
+remote_liveframe=''				# Where to upload the live frame
+protocol = 'scp'				# Protocol for live frame file transfer
+framespace = 1000000000				# The plot is updated every framespace time step
 
 # Simulation options
 kick_algorithms = {'dark matter': 'P3M',	# The algorithm which should be used to kick each species
                    'dark energy': '',
-                   }
-use_Ewald = True				# Turn Ewald corrections on or off
-
-
-
+                  }
+use_Ewald = False				# Turn Ewald corrections on or off
 
 
 ###############################################

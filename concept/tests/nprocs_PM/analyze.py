@@ -28,7 +28,7 @@ N_snapshots = np.loadtxt(this_dir + '/outputlist').size
 # Read in data from the CONCEPT snapshots
 particles = []
 for i in range(N_snapshots):
-    particles.append([load(this_dir + '/output_' + str(j) + '/snapshot_' + str(i)) for j in (1, 2, 4, 8)])
+    particles.append([load(this_dir + '/output_' + str(j) + '/snapshot_' + str(i), write_msg=False) for j in (1, 2, 4, 8)])
 
 # Using the particle order of the 0'th snapshot as the standard, find the corresponding
 # ID's in the snapshots and order these particles accoringly.

@@ -26,9 +26,9 @@ import matplotlib.pyplot as plt
 N_snapshots = np.loadtxt(this_dir + '/outputlist').size
 
 # Read in data from the CONCEPT snapshots
-particles = [load(this_dir + '/output/snapshot_cython')]
+particles = [load(this_dir + '/output/snapshot_cython', write_msg=False)]
 for i in (1, 2, 4):
-    particles.append(load(this_dir + '/output/snapshot_python_' + str(i)))
+    particles.append(load(this_dir + '/output/snapshot_python_' + str(i), write_msg=False))
 
 # Using the particle order of the 0'th snapshot as the standard, find the corresponding
 # ID's in the snapshots and order these particles accoringly.
