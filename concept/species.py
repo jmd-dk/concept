@@ -345,8 +345,8 @@ def construct_random(type_name, species_name, N):
         print('Initializes particles of type "' + type_name + '"')
     # Minimum and maximum mass and maximum
     # momenta (in any of the three directions)
-    mass = Ωm*ϱ*boxsize**3/N
-    mom_max = 1e+3*units.km/units.s*mass
+    mass = Ωm*ϱ*boxsize3/N
+    mom_max = 1.5e+3*units.km/units.s*mass
     # Compute a fair distribution of particle data to the processes
     N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
                 + (N//nprocs + 1, )*(N % nprocs))

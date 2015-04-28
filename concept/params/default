@@ -7,7 +7,7 @@
 # see the bottom of this file.
 
 # Input/output
-IC_file = 'ICs/default.gadget'				# Initial condition snapshot
+IC_file = 'ICs/default'				# Initial condition snapshot
 output_dir = 'output'				# Directory for storing output snapshots
 output_type = 'standard'			# Type of output snapshot
 snapshot_base = 'snapshot'			# File basename for output snapshots

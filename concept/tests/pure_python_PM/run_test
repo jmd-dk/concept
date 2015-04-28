@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# This script performs a comparioson test betwen the CONCEPT code PM algorithm
+# This script performs a comparioson test betwen the CONCEPT code's PM algorithm
 # in compiled and pure Python mode. ICs are generated randomly,
 # containing 8**3 particles.
 
