@@ -41,7 +41,6 @@ if len(outputtimes) > len(set(outputtimes)):
 a_max = np.max(outputtimes)
 
 
-
 # This function pretty prints information gathered through a time step
 @cython.cfunc
 @cython.inline

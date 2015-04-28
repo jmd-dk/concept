@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# This script performs a comparison test between the CONCEPT code's PP implementation
-# and the GADGET code's Tree implementation.
+# This script performs a comparison test between the CONCEPT code's P3M implementation
+# and the GADGET code's TreePM implementation.
 
 # The name of this test (the directory name)
 this_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -39,9 +39,6 @@ done
 # Create list of output times, used by both CONCEPT and GADGET
 "${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', [1])"
 
-# Create the Ewald grid using Cython, if it does not already exist
-# (for fast IC generation).
-"${run}" -n 1 -p "${this_dir}/params" --exit --local
 # Generate ICs
 "${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local
 
@@ -76,19 +73,13 @@ cp "${this_dir}/Makefile_gadget_edited" "${Gadget2_local_dir}/Makefile"
 # Analyze the output snapshots
 "${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
 
-# Copy the tabulated Ewald corrections to the Gadget2 directory if it does not
-# already exists there, to save time later.
-if [ ! -f "${Gadget2_dir}/ewald_spc_table_64.dat" ]; then
-    cp "${Gadget2_local_dir}/ewald_spc_table_64.dat" "${Gadget2_dir}/ewald_spc_table_64.dat"
-fi
-
 # Plot
 rm "${this_dir}/output/"*.png
+#"${run}" -p "${this_dir}/params" -m "${concept_dir}/utilities/plot.py" --pure-python --local
 "${concept_dir}/utilities/plot" "${this_dir}/output/snapshot_0"
 "${concept_dir}/utilities/plot" "${this_dir}/output/snapshot_gadget_000"
 mv "${concept_dir}/utilities/plots/snapshot_0.png" "${this_dir}/output/snapshot_0.png"
 mv "${concept_dir}/utilities/plots/snapshot_gadget_000.png" "${this_dir}/output/snapshot_gadget_000.png"
-
 
 # Test run complete. Deactivate trap before exiting.
 trap : 0
