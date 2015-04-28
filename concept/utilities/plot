@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# This script takes in the path of a snapshot or a directory containing snapshots as an argument.
+# Given the path to a snapshot, a plot of the snapshot will be rendered and saved into
+# utilities/plots. Given a directory path, all snapshots within the directory will be
+# plotted and saved this way.
+
 # The name of this test (the directory name)
 this_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
