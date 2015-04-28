@@ -1,0 +1,163 @@
+#!/bin/bash
+
+# The name of this test (the directory name)
+this_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Set up error trapping
+ctrl_c()
+{
+    trap : 0
+    exit 2
+}
+abort()
+{
+    printf "\e[1m\e[91mAn error occurred during plotting!\e[0m\n" >&2
+    exit 1
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
+
+# Argument check
+if [ "$#" -gt 1 ]; then
+    echo "Too many arguments supplied."
+    exit 1
+elif [ "$#" -lt 1 ]; then
+    echo "You must pass in the path to a snapshot or a directory containing snapshots."
+    exit 1
+fi
+path="$1"
+path="${path//[ ]/\\ }"        # Places backslashes before spaces. These are needed when expanding tilde, but they will not persist!
+eval path="${path}"            # Expand tilde
+path=$(readlink -f "${path}")  # Convert to absolute path
+if [ -f "${path}" ]; then
+    file_or_dir="file"
+elif [ -d "${path}" ]; then
+    file_or_dir="dir"
+else
+    echo "The path $1 does not exist."
+    exit 1
+fi
+
+# Load paths from the .paths file
+curr="${this_dir}"
+while [ 1 ]; do
+    if [ -f "${curr}/.paths" ]; then
+        source "${curr}/.paths"
+        break
+    fi
+    if [ "${curr}" == "/" ]; then
+        printf "\e[1m\e[91mCould not find the .paths file!\e[0m\n" >&2
+        exit 1
+    fi
+    curr="`dirname \"${curr}\"`"
+done
+
+# Make temporary parameter file
+printf "
+# Input/output
+IC_file = '${path}'
+output_dir = 'output'
+output_type = '${file_or_dir}'
+snapshot_base = ''
+outputtimes = (1, )
+
+# Numerical parameters
+boxsize = 1
+ewald_gridsize = 1
+PM_gridsize = 1
+P3M_scale = 1
+P3M_cutoff = 1
+softeningfactors = {'dark matter': 1,
+                    'dark energy': 1,
+                    }
+Δt_factor = 1
+
+# Cosmological parameters
+H0 = 1
+Ωm = 1
+ΩΛ = 1
+a_begin = 0.02
+
+# Graphics
+framefolder = paths['params_dir'] + '/plots'
+liveframe=''
+image_format='png'
+color = (0.70, 0.97, 0.37)
+resolution = 1080
+remote_liveframe=''
+protocol = ''
+framespace = 1
+
+# Simulation options
+kick_algorithms = {}
+use_Ewald = False
+" > "${this_dir}/plot.params"
+
+# Make a Python script to do the plotting
+printf "
+# Include the code directory in the searched paths
+import sys, os
+concept_dir = os.path.realpath(__file__)
+this_dir = os.path.dirname(concept_dir)
+while True:
+    if concept_dir == '/':
+        raise Exception('Cannot find the .paths file!')
+    if '.paths' in os.listdir(os.path.dirname(concept_dir)):
+        break
+    concept_dir = os.path.dirname(concept_dir)
+sys.path.append(concept_dir)
+
+from commons import *
+from IO import load_standard, Gadget_snapshot
+import graphics
+from graphics import animate
+
+import struct
+
+def plot(filename):
+    # Detect whether the snapshot is of the standard type or of the Gadget 2 type
+    input_type = 'standard'
+    with open(filename, 'rb') as f:
+        try:
+            f.seek(4)
+            if struct.unpack('4s', f.read(struct.calcsize('4s')))[0] == b'HEAD':
+                input_type = 'GADGET 2'
+        except:
+            pass
+    # Load a, boxsize and the particles
+    if input_type == 'GADGET 2':
+        snapshot = Gadget_snapshot()
+        snapshot.load(filename, write_msg=False)
+        a = snapshot.header['Time']
+        boxsize = snapshot.header['BoxSize']*units.kpc/snapshot.header['HubbleParam']
+        particles = snapshot.particles
+    elif input_type == 'standard':
+        with h5py.File(filename, mode='r', driver='mpio', comm=comm) as hdf5_file:
+            a = hdf5_file.attrs['a']
+            boxsize = hdf5_file.attrs['boxsize']
+        particles = load_standard(filename, write_msg=False)
+    # Plot
+    graphics.boxsize = boxsize
+    animate(particles, 0, a, a, filename=(os.path.basename(filename) + '.' + image_format))
+
+if output_type == 'file':
+    # Plot the single snapshot file
+    filename = IC_file
+    plot(filename)
+elif output_type == 'dir':
+    # Plot every snapshot file in the directory
+    dirname = IC_file
+    files = os.listdir(dirname)
+    for filename in files:
+        try:
+            plot(dirname + '/' + filename)
+        except:
+            pass
+" > "${this_dir}/plot.py"
+
+"${run}" -n 1 -p "${this_dir}/plot.params" -m "${this_dir}/plot.py" --pure-python --local
+
+# Plot complete. Deactivate trap before exiting
+trap : 0
+
