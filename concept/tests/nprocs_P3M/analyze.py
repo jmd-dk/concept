@@ -28,7 +28,8 @@ N_snapshots = np.loadtxt(this_dir + '/outputlist').size
 # Read in data from the CONCEPT snapshots
 particles = []
 for i in range(N_snapshots):
-    particles.append([load(this_dir + '/output_' + str(j) + '/snapshot_' + str(i), write_msg=False) for j in (1, 2, 4, 8)])
+    fname = 'snapshot_a={:.3f}'.format(np.loadtxt(this_dir + '/outputlist')[i])
+    particles.append([load(this_dir + '/output_' + str(j) + '/' + fname, write_msg=False) for j in (1, 2, 4, 8)])
 
 # Using the particle order of the 0'th snapshot as the standard, find the corresponding
 # ID's in the snapshots and order these particles accoringly.
@@ -89,7 +90,7 @@ plt.setp([ax.get_xticklabels() for ax in fig.axes[:-1]], visible=False)
 plt.savefig(fig_file)
 
 # Compare the different runs
-tol = 1e-2
+tol = 2e-2
 if any(np.mean(dist[j]/boxsize) > tol for j in range(4)):
     print('\033[1m\033[91m' + 'Runs with different numbers of processes yield different results!\n'
           + 'See ' + fig_file + ' for a visualization.' + '\033[0m')

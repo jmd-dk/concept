@@ -4,6 +4,7 @@ from commons import *
 
 # Seperate but equivalent imports in pure Python and Cython
 if not cython.compiled:
+    from analysis import powerspectrum
     from species import construct, construct_random
     from IO import save, load
     from integration import expand, cosmic_time, scalefactor_integral
@@ -11,35 +12,35 @@ if not cython.compiled:
 else:
     # Lines in triple quotes will be executed in the .pyx file.
     """
+    from analysis cimport powerspectrum
     from species cimport construct, construct_random
     from IO cimport load, save, load_gadget, save_gadget
     from integration cimport expand, cosmic_time, scalefactor_integral, ȧ
     from graphics cimport animate, significant_figures
     """
 
-# Exit the program if called with the --exit option
-if int(sys.argv[2]):
-    if master:
-        os.system('printf "\033[1m\033[92mCO\033[3mN\033[0m\033[1m\033[92mCEPT'
-                  + ' ran successfully\033[0m\n"')
-    Barrier()
-    sys.exit()
-# Load initial conditions
-cython.declare(particles='Particles',
-               a_max='double',
-               )
-particles = load(IC_file)
-# Check that the values in outputtimes are legal
-if np.min(outputtimes) <= a_begin:
-    raise Exception('The first snapshot is set at a = '
-                    + str(np.min(outputtimes))
-                    + ',\nbut the simulation starts at a = '
-                    + str(a_begin) + '.')
-if len(outputtimes) > len(set(outputtimes)):
-    warn('Values in outputtimes are not unique.\n'
-         + 'Extra values will be ignored.')
-a_max = np.max(outputtimes)
 
+@cython.cfunc
+@cython.inline
+@cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
+@cython.wraparound(False)
+@cython.locals(# Arguments
+               times='tuple',
+               item='str',
+               )
+def check_outputtimes(times, item):
+    if len(times) == 0:
+        return
+    if np.min(times) <= a_begin:
+        raise Exception('The first ' + item + ' is set at a = '
+                        + str(np.min(times))
+                        + ',\nbut the simulation starts at a = '
+                        + str(a_begin) + '.')
+    if len(times) > len(set(times)):
+        warn(item.capitalize() + ' output times are not unique.\n'
+                               + 'Extra values will be ignored.')
 
 # This function pretty prints information gathered through a time step
 @cython.cfunc
@@ -72,16 +73,16 @@ def timestep_message(timestep, t_iter, a, t):
 @cython.wraparound(False)
 @cython.locals(# Locals
                a='double',
+               a_dump='double',
                a_next='double',
-               a_snapshot='double',
                drift_fac='double[::1]',
-               i_snapshot='int',
                itg_drift0='double',
                itg_drift1='double',
                itg_kick0='double',
                itg_kick1='double',
                kick_drift_index='int',
                kick_fac='double[::1]',
+               powerspec_filename='str',
                snapshot_filename='str',
                t='double',
                timer='double',
@@ -95,7 +96,8 @@ def timeloop():
     a = a_begin
     t = cosmic_time(a)
     # Plot the initial configuration
-    animate(particles, 0, a, np.min(outputtimes))
+    if len(snapshot_times) > 0:
+        animate(particles, 0, a, np.min(snapshot_times))
     # The time step size should be a small fraction of the age of the universe
     Δt = Δt_factor*t
     # Arrays containing the drift and kick factors ∫_t^(t + Δt/2)dt/a
@@ -107,18 +109,21 @@ def timeloop():
         print('Begin main time loop')
     timestep = 1
     timer = time()
-    # Loop over all output snapshots
-    for i_snapshot, a_snapshot in enumerate(sorted(set(outputtimes))):
+    # Loop over all output times
+    for a_dump in sorted(set(snapshot_times + powerspec_times)):
         # The filename of the current snapshot
-        snapshot_filename = (output_dir + '/' + snapshot_base
-                             + '_' + str(i_snapshot))
-        # Do the kick and drift intetrals
+        snapshot_filename = (snapshot_dir + '/' + snapshot_base
+                             + '_a=' + '{:.3f}'.format(a_dump))
+        # The filename of the current power spectrum
+        powerspec_filename = (powerspec_dir + '/' + powerspec_base
+                             + '_a=' + '{:.3f}'.format(a_dump))
+        # Do the kick and drift integrals
         # ∫_t^(t + Δt/2)dt/a and ∫_t^(t + Δt/2)dt/a**2.
         a = expand(a, t, 0.5*Δt)
-        if a > a_snapshot:
+        if a > a_dump:
             raise Exception('Finished time integration within a single step!')
         t += 0.5*Δt
-        # This variable flip between 0 and 1, telling whether a kick or a drift
+        # This variable flips between 0 and 1, telling whether a kick or a drift
         # should be performed, respectively.
         kick_drift_index = 0
         # Do the kick and drift integrals
@@ -127,21 +132,21 @@ def timeloop():
         drift_fac[kick_drift_index] = scalefactor_integral(-2)
         # The first, half kick
         particles.kick(kick_fac[kick_drift_index])
-        # Leapfrog until a == a_snapshot
-        while a < a_snapshot:
+        # Leapfrog until a == a_dump
+        while a < a_dump:
             # Flip the state of kick_drift_index
             kick_drift_index = 0 if kick_drift_index == 1 else 1
             # Update the scale factor and the cosmic time. This also tabulates
             # a(t), needed for the kick and drift integrals.
             a_next = expand(a, t, 0.5*Δt)
             t += 0.5*Δt
-            if a_next >= a_snapshot:
+            if a_next >= a_dump:
                 # Final step reached. A smaller time step than
-                # Δt/2 is needed to hit a_snapshot exactly.
+                # Δt/2 is needed to hit a_dump exactly.
                 t -= 0.5*Δt
-                t_end = cosmic_time(a_snapshot, a, t, t + 0.5*Δt)
+                t_end = cosmic_time(a_dump, a, t, t + 0.5*Δt)
                 expand(a, t, t_end - t)
-                a_next = a_snapshot
+                a_next = a_dump
                 t = t_end
             a = a_next
             # Do the kick and drift integrals
@@ -155,19 +160,23 @@ def timeloop():
             else:
                 # Kick a complete step, overtaking the drifts
                 particles.kick(kick_fac[0] + kick_fac[1])
-            # Dump snapshot if a == a_snapshot
-            if a == a_snapshot:
-                # Synchronize positions and momenta before dumping snapshot
+            # Dump output
+            if a == a_dump:
+                # Synchronize positions and momenta before dumping
                 if kick_drift_index:
                     particles.kick(kick_fac[kick_drift_index])
                 else:
                     particles.drift(drift_fac[kick_drift_index])
                 # Dump snapshot
-                save(particles, a, snapshot_filename)
+                if a in snapshot_times:
+                    save(particles, a, snapshot_filename)
+                # Dump powerspectrum
+                if a in powerspec_times:
+                    powerspectrum(particles, powerspec_filename)
             # After every second iteration (every whole time step):
             if kick_drift_index:
                 # Render particle configuration and print timestep message
-                animate(particles, timestep, a, a_snapshot)
+                animate(particles, timestep, a, a_dump)
                 timestep_message(timestep, timer, a, t)
                 # Refresh timer and update the time step nr
                 timer = time()
@@ -180,8 +189,8 @@ def timeloop():
                     # longer Δt/2 ahead of the kicking. Drift the missing
                     # distance.
                     a_next = expand(a, t, 0.5*(Δt - Δt_prev))
-                    if a_next < a_snapshot:
-                        # Only drift if a_snapshot is not reached by it
+                    if a_next < a_dump:
+                        # Only drift if a_dump is not reached by it
                         if master:
                             print('Updating time step size')
                         a = a_next
@@ -192,19 +201,27 @@ def timeloop():
                         particles.drift(scalefactor_integral(-2))
                     else:
                         # Do not alter Δt just before (or just after, in the
-                        # case of a == a_snapshot) snapshot dump.
+                        # case of a == a_dump) dumps.
                         Δt = Δt_prev
             # Always render particle configuration when at snapshot time
-            elif a == a_snapshot:
-                animate(particles, timestep, a, a_snapshot)
+            elif a == a_dump and a in snapshot_times:
+                animate(particles, timestep, a, a_dump)
                 if a == a_max:
                     timestep_message(timestep, timer, a, t)
 
 
-
+# Check that the snapshot times are legal
+check_outputtimes(snapshot_times, 'snapshot')
+check_outputtimes(powerspec_times, 'power spectrum')
+# Load initial conditions
+cython.declare(particles='Particles')
+particles = load(IC_file)
 # Run the time loop at import time
 timeloop()
-
+# Simulation done.
 # Due to an error having to do with the Python -m switch, the program must
 # explicitly be told to exit.
+if master:
+    os.system('printf "\033[1m\033[92mCO\033[3mN\033[0m\033[1m\033[92mCEPT'
+              + ' ran successfully\033[0m\n"')
 sys.exit()

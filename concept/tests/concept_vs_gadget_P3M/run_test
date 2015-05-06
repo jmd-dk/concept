@@ -76,9 +76,9 @@ cp "${this_dir}/Makefile_gadget_edited" "${Gadget2_local_dir}/Makefile"
 # Plot
 rm "${this_dir}/output/"*.png
 #"${run}" -p "${this_dir}/params" -m "${concept_dir}/utilities/plot.py" --pure-python --local
-"${concept_dir}/utilities/plot" "${this_dir}/output/snapshot_0"
+"${concept_dir}/utilities/plot" "${this_dir}/output/snapshot_a=1.000"
 "${concept_dir}/utilities/plot" "${this_dir}/output/snapshot_gadget_000"
-mv "${concept_dir}/utilities/plots/snapshot_0.png" "${this_dir}/output/snapshot_0.png"
+mv "${concept_dir}/utilities/plots/snapshot_a=1.000.png" "${this_dir}/output/snapshot_a=1.000.png"
 mv "${concept_dir}/utilities/plots/snapshot_gadget_000.png" "${this_dir}/output/snapshot_gadget_000.png"
 
 # Test run complete. Deactivate trap before exiting.

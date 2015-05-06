@@ -9,10 +9,13 @@
 
 # Input/output
 IC_file = paths['params_dir'] + '/IC'	# Initial condition snapshot
-output_dir = paths['params_dir'] + '/output'	# Directory for storing output snapshots
-output_type = 'Gadget 2'			# Type of output snapshot
+snapshot_type = 'Gadget 2'			# Type of output snapshot
+snapshot_dir = paths['params_dir'] + '/output'	# Directory for storing output snapshots
 snapshot_base = 'snapshot'			# File basename for output snapshots
-outputtimes = tuple(loadtxt(paths['params_dir'] + '/outputlist'))	# Times at which to dump snapshots to disk
+snapshot_times = tuple(loadtxt(paths['params_dir'] + '/outputlist'))	# Times at which to dump snapshots to disk
+powerspec_dir = 'output'			# Directory for storing output power spectra
+powerspec_base = 'powerspec'			# File basename for output power spectra
+powerspec_times = ()				# Times at which to dump power spectra to disk
 
 # Numerical parameters
 boxsize = 8*Mpc/0.7 # (Gadget implicitly uses length/h)	# Linear size of the simulation box
@@ -32,7 +35,7 @@ H0 = 70*km/s/Mpc				# The Hubble constant
 a_begin = 0.02					# Scale factor at beginning of simulation
 
 # Graphics
-framefolder = paths['params_dir'] + '/output'		# Folder to save frames
+frame_dir = paths['params_dir'] + '/output'	# Folder to save frames
 liveframe=''					# Filename of saved live frame
 image_format='png'				# The image format of the saved frames
 color = (0.70, 0.97, 0.37)      		# Color of the particles as an RGB triple

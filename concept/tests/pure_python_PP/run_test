@@ -42,13 +42,13 @@ done
 
 # Create the Ewald grid using Cython, if it does not already exist
 # (for fast IC generation).
-"${run}" -n 1 -p "${this_dir}/params" --exit --local
+"${run}" -n 1 -p "${this_dir}/../basic/params" --local
 # Generate ICs
 "${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local
 
 # Run the CONCEPT code on the generated ICs
 "${run}" -n 1 -p "${this_dir}/params" --local
-mv "${this_dir}/output/snapshot_0" "${this_dir}/output/snapshot_cython"
+mv "${this_dir}/output/snapshot_a=0.500" "${this_dir}/output/snapshot_cython"
 # Remove all frames except the latest
 (cd "${this_dir}/output" && (ls -t | grep "\.png" | head -n 1; ls| grep "\.png" ) | sort | uniq -u | xargs rm -f)
 mv "${this_dir}/output/"*.png "${this_dir}/output/cython-png"
@@ -56,15 +56,15 @@ mv "${this_dir}/output/"*.png "${this_dir}/output/cython-png"
 # Run the CONCEPT code in pure Python mode on the generated ICs, with 1, 2 and 4 processes.
 # Keep only the latest frame
 "${run}" -n 1 -p "${this_dir}/params" --pure-python --local
-mv "${this_dir}/output/snapshot_0" "${this_dir}/output/snapshot_python_1"
+mv "${this_dir}/output/snapshot_a=0.500" "${this_dir}/output/snapshot_python_1"
 (cd "${this_dir}/output" && (ls -t | grep "\.png" | head -n 1; ls| grep "\.png" ) | sort | uniq -u | xargs rm -f)
 mv "${this_dir}/output/"*.png "${this_dir}/output/python_1-png"
 "${run}" -n 2 -p "${this_dir}/params" --pure-python --local
-mv "${this_dir}/output/snapshot_0" "${this_dir}/output/snapshot_python_2"
+mv "${this_dir}/output/snapshot_a=0.500" "${this_dir}/output/snapshot_python_2"
 (cd "${this_dir}/output" && (ls -t | grep "\.png" | head -n 1; ls| grep "\.png" ) | sort | uniq -u | xargs rm -f)
 mv "${this_dir}/output/"*.png "${this_dir}/output/python_2-png"
 "${run}" -n 4 -p "${this_dir}/params" --pure-python --local
-mv "${this_dir}/output/snapshot_0" "${this_dir}/output/snapshot_python_4"
+mv "${this_dir}/output/snapshot_a=0.500" "${this_dir}/output/snapshot_python_4"
 (cd "${this_dir}/output" && (ls -t | grep "\.png" | head -n 1; ls| grep "\.png" ) | sort | uniq -u | xargs rm -f)
 mv "${this_dir}/output/"*.png "${this_dir}/output/python_4-png"
 mv "${this_dir}/output/cython-png" "${this_dir}/output/cython.png"

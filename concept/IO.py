@@ -18,7 +18,7 @@ import struct
 
 
 # Function that saves particle data to an hdf5 file or a gadget snapshot file,
-# based on the "output_type" parameter
+# based on the "snapshot_type" parameter
 @cython.cfunc
 @cython.inline
 @cython.boundscheck(False)
@@ -31,13 +31,13 @@ import struct
                filename='str',
                )
 def save(particles, a, filename):
-    if output_type_fmt == 'standard':
+    if snapshot_type_fmt == 'standard':
         save_standard(particles, a, filename)
-    elif output_type_fmt == 'gadget2':
+    elif snapshot_type_fmt == 'gadget2':
         save_gadget(particles, a, filename)
     else:
         raise Exception('Does not recognize output type "'
-                        + output_type + '".')
+                        + snapshot_type + '".')
 
 # Function that loads particle data from an hdf5 file and instantiate a
 # Particles instance on each process, storing the particles within its domain.
@@ -56,6 +56,9 @@ def save(particles, a, filename):
                )
 @cython.returns('Particles')
 def load(filename, write_msg=True):
+    # If no snapshot should be loaded, return immediately
+    if filename == '':
+        return
     # Determine whether input snapshot is in standard or GADGET2 2 format
     # by searching for a HEAD identifier.
     input_type = 'standard'
@@ -739,9 +742,11 @@ class Gadget_snapshot:
         return offset
 
 
-# Create a formated version of output_type at import time
-cython.declare(output_type_fmt='str')
-output_type_fmt = output_type.lower().replace(' ', '')
-# If output_dir does not exist, create it
-if master and not os.path.exists(output_dir):
-    os.makedirs(output_dir)
+# Create a formated version of snapshot_type at import time
+cython.declare(snapshot_type_fmt='str')
+snapshot_type_fmt = snapshot_type.lower().replace(' ', '')
+# If the output directories do not exist, create them
+if master:
+    for output_dir in (snapshot_dir, powerspec_dir):
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)

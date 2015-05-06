@@ -168,7 +168,8 @@ two_π = 2*π
 ############################################
 # Derived and internally defined constants #
 ############################################
-cython.declare(G_Newton='double',
+cython.declare(a_max='double',
+               G_Newton='double',
                PM_gridsize3='ptrdiff_t',
                PM_gridsize_padding='ptrdiff_t',
                boxsize2='double',
@@ -185,13 +186,20 @@ cython.declare(G_Newton='double',
                use_Ewald ='bint',
                use_PM='bint',
                ϱ='double',
+               ϱm='double',
                PM_fac_const='double',
                longrange_exponent_fac='double',
                P3M_cutoff_phys='double',
                P3M_scale_phys='double',
+               π_recp_PM_gridsize='double',
                )
 G_Newton = 6.6738e-11*units.m**3/units.kg/units.s**2  # Newtons constant
+if len(snapshot_times + powerspec_times) == 0:
+    a_max = a_begin
+else:
+    a_max = np.max(snapshot_times + powerspec_times)  # The scale factor at the last time step
 ϱ = 3*H0**2/(8*π*G_Newton) # The average, comoing density (the critical comoving density since we only study flat universes)
+ϱm = Ωm*ϱ  # The average, comoving matter density
 PM_gridsize3 = PM_gridsize**3
 PM_gridsize_padding = 2*(PM_gridsize//2 + 1)
 half_PM_gridsize = PM_gridsize//2
@@ -201,6 +209,7 @@ boxsize3 = boxsize**3
 half_boxsize = 0.5*boxsize
 minus_half_boxsize = -half_boxsize
 two_recp_boxsize = 2/boxsize
+π_recp_PM_gridsize = π/PM_gridsize
 ewald_file = '.ewald_gridsize=' + str(ewald_gridsize) + '.hdf5'  # Name of file storing the Ewald grid
 machine_ϵ = np.finfo('float64').eps  # Machine epsilon
 two_ewald_gridsize = 2*ewald_gridsize
