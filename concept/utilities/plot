@@ -62,10 +62,13 @@ done
 printf "
 # Input/output
 IC_file = '${path}'
-output_dir = 'output'
-output_type = '${file_or_dir}'
+snapshot_type = '${file_or_dir}'
+snapshot_dir = 'output'
 snapshot_base = ''
-outputtimes = (1, )
+snapshot_times = (1, )
+powerspec_dir = 'output'
+powerspec_base = ''
+powerspec_times = ()
 
 # Numerical parameters
 boxsize = 1
@@ -85,7 +88,7 @@ H0 = 1
 a_begin = 0.02
 
 # Graphics
-framefolder = paths['params_dir'] + '/plots'
+frame_dir = paths['params_dir'] + '/plots'
 liveframe=''
 image_format='png'
 color = (0.70, 0.97, 0.37)
@@ -146,11 +149,11 @@ def plot(filename):
     graphics.boxsize = boxsize
     animate(particles, 0, a, a, filename=(os.path.basename(filename) + '.' + image_format))
 
-if output_type == 'file':
+if snapshot_type == 'file':
     # Plot the single snapshot file
     filename = IC_file
     plot(filename)
-elif output_type == 'dir':
+elif snapshot_type == 'dir':
     # Plot every snapshot file in the directory
     dirname = IC_file
     files = os.listdir(dirname)

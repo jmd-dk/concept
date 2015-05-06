@@ -53,7 +53,7 @@ from os.path import basename, dirname
                )
 def animate(particles, timestep, a, a_snapshot, filename=''):
     global artist_particles, artist_text, upload_liveframe, ax, size_fac
-    if not visualize or (timestep % framespace and a != a_snapshot):
+    if not visualize or (timestep % framespace and (a != a_snapshot or a_snapshot not in snapshot_times)):
         return
     # Frame should be animated. Print out message
     if master:
@@ -61,7 +61,7 @@ def animate(particles, timestep, a, a_snapshot, filename=''):
     # Extract particle data
     N = particles.N
     N_local = particles.N_local
-    # Set up figure. This is only done in the first call.
+    # Set up figure. This is only done in the first call
     if artist_particles is None:
         # Set up figure
         fig = figure(figsize=[resolution/77.50]*2)
@@ -171,20 +171,20 @@ def animate(particles, timestep, a, a_snapshot, filename=''):
     # the particles artist, forcing the plot to setup from scratch the next
     # time this function is called (important when called from external script).
     if filename != '':
-        print('    Saving: ' + framefolder + filename)
+        print('    Saving: ' + frame_dir + filename)
         artist_particles = None
         if nprocs > 1:
-            imsave(framefolder + filename, combined)
+            imsave(frame_dir + filename, combined)
         else:
-            savefig(framefolder + filename, bbox_inches='tight', pad_inches=0)
+            savefig(frame_dir + filename, bbox_inches='tight', pad_inches=0)
         return
-    # Save the frame in framefolder
+    # Save the frame in frame_dir
     if save_frames:
-        print('    Saving: ' + framefolder + str(timestep) + suffix)
+        print('    Saving: ' + frame_dir + 'a={:.3f}'.format(a) + suffix)
         if nprocs > 1:
-            imsave(framefolder + str(timestep) + suffix, combined)
+            imsave(frame_dir + 'a={:.3f}'.format(a) + suffix, combined)
         else:
-            savefig(framefolder + str(timestep) + suffix,
+            savefig(frame_dir + 'a={:.3f}'.format(a) + suffix,
                     bbox_inches='tight', pad_inches=0)
     if save_liveframe:
         # Print out message
@@ -334,8 +334,7 @@ def significant_figures(f, n, just=0, scientific=False):
 
 
 # Preparation for saving frames done at import time
-cython.declare(a_max='double',
-               frameparts_folder='str',
+cython.declare(frameparts_folder='str',
                liveframe_full='str',
                save_liveframe='bint',
                save_frames='bint',
@@ -353,8 +352,6 @@ size_fac = 0
 # Set the artists as uninitialized at import time
 artist_particles = None
 artist_text = None
-# The scale factor at the last snapshot/frame
-a_max = np.max(outputtimes)
 # The maximum pixel value depends on the image format
 if image_format in ('png', ):
     pixelval_max = 1
@@ -363,19 +360,19 @@ elif image_format in ('jpg', 'jpeg', 'tif', 'tiff'):
 else:
     raise ValueError('Unrecognized image format "' + image_format + '".')
 # Check whether frames should be stored and create the
-# framefolder folder at import time
+# frame_dir folder at import time
 frameparts_folder = ''
 suffix = '.' + image_format
 visualize = False
 save_frames = False
-if framefolder != '':
+if frame_dir != '':
     visualize = True
     save_frames = True
-    if master and not os.path.exists(framefolder):
-        os.makedirs(framefolder)
-    if framefolder[-1] != '/':
-        framefolder += '/'
-    frameparts_folder = framefolder
+    if master and not os.path.exists(frame_dir):
+        os.makedirs(frame_dir)
+    if frame_dir[-1] != '/':
+        frame_dir += '/'
+    frameparts_folder = frame_dir
 # Check whether to save a live frame
 liveframe_full = ''
 save_liveframe = False

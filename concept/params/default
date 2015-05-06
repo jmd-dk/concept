@@ -7,14 +7,17 @@
 # see the bottom of this file.
 
 # Input/output
-IC_file = 'ICs/default'				# Initial condition snapshot
-output_dir = 'output'				# Directory for storing output snapshots
-output_type = 'standard'			# Type of output snapshot
+IC_file = '/home/jeppe/Documents/Uni/Speciale/gadget2/ICs/32_DM' #'ICs/default'				# Initial condition snapshot
+snapshot_type = 'standard'			# Type of output snapshot
+snapshot_dir = 'output'				# Directory for storing output snapshots
 snapshot_base = 'snapshot'			# File basename for output snapshots
-outputtimes = (0.1, )				# Times at which to dump snapshots to disk
+snapshot_times = (1, )				# Times at which to dump snapshots to disk
+powerspec_dir = 'output'			# Directory for storing output power spectra
+powerspec_base = 'powerspec'			# File basename for output power spectra
+powerspec_times = ()				# Times at which to dump power spectra to disk
 
 # Numerical parameters
-boxsize = 16/0.7*Mpc				# Linear size of the simulation box
+boxsize = 32/0.7*Mpc				# Linear size of the simulation box
 ewald_gridsize = 64				# Linear size of the grid of Ewald corrections
 PM_gridsize = 32				# Linear size of the grid used for the PM method
 P3M_scale = 1.25				# The long/short-range force split scale
@@ -24,7 +27,6 @@ softeningfactors = {'dark matter': 0.03,	# The amount of gravitational softening
                     }	
 Δt_factor = 0.01				# The time step size
 
-
 # Cosmological parameters
 H0 = 70*km/s/Mpc				# The Hubble constant
 Ωm = 0.3					# Density parameter for matter
@@ -32,7 +34,7 @@ H0 = 70*km/s/Mpc				# The Hubble constant
 a_begin = 0.02					# Scale factor at beginning of simulation
 
 # Graphics
-framefolder = 'output'				# Folder to save frames
+frame_dir = 'output'				# Folder to save frames
 liveframe=''					# Filename of saved live frame
 image_format='png'				# The image format of the saved frames
 color = (0.70, 0.97, 0.37)      		# Color of the particles as an RGB triple
@@ -42,7 +44,7 @@ protocol = 'sftp'				# Protocol for live frame file transfer
 framespace = 100					# The plot is updated every framespace time step
 
 # Simulation options
-kick_algorithms = {'dark matter': 'P3M',	# The algorithm which should be used to kick each species
+kick_algorithms = {'dark matter': 'PM',	# The algorithm which should be used to kick each species
                    'dark energy': '',
                    }
 use_Ewald = True				# Turn Ewald corrections on or off
@@ -62,19 +64,28 @@ use_Ewald = True				# Turn Ewald corrections on or off
 #     Path to the file containing the initial conditions for the simulation.
 #     This is just a regular snapshot, either of the codes own HDF5 type or
 #     of the GADGET2 2 type.
-# output_dir
-#     Path (absolute or relative to the concept directory) to the directory
-#     where output snapshots should be stored.
-# output_type
+# snapshot_type
 #     Determines the type of the produced snapshots. Can be either 'standard'
 #     or 'GADGET 2', referring to the codes own HDF5 snapshot type and
 #     Gadget2's snapshot type 2, respectively.
+# snapshot_dir
+#     Path (absolute or relative to the concept directory) to the directory
+#     where output snapshots should be stored.
 # snapshot_base
-#     File basename (prefix) for the produced snapshots. The snapshots will be
-#     named "snapshot_base"_0, "snapshot_base"_1, "snapshot_base"_2, ...
-# outputtimes
+#     File basename (prefix) for the produced snapshots.
+# snapshot_times
 #     Tuple of values of the scale factor, for which to dump a snapshot to
-#     disk. The minimum value should be larger than a_begin.
+#     disk. The minimum value should be larger than a_begin. Use an empty
+#     tuple if no snapshots should be produced.
+# powerspec_dir
+#     Path (absolute or relative to the concept directory) to the directory
+#     where output power spectrums should be stored.
+# powerspec_base
+#     File basename (prefix) for the produced power spectra.
+# powerspec_times
+#     Tuple of values of the scale factor, for which to compute and dump a power
+#     spectrum to disk. The minimum value should be larger than a_begin. Use an
+#     empty tuple if no power spectra should be produced.
 
 ########################
 # Numerical parameters #
@@ -128,7 +139,7 @@ use_Ewald = True				# Turn Ewald corrections on or off
 ############
 # Graphics #
 ############
-# frame_folder
+# frame_dir
 #     Use empty string to not save the frames.
 # liveframe
 #     The filename should be without extension.

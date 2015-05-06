@@ -41,7 +41,7 @@ done
 
 # Create the Ewald grid using Cython, if it does not already exist
 # (for fast IC generation).
-"${run}" -n 1 -p "${this_dir}/params" --exit --local
+"${run}" -n 1 -p "${this_dir}/../basic/params"  --local
 # Generate ICs
 "${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local
 
@@ -84,9 +84,9 @@ fi
 
 # Plot
 rm "${this_dir}/output/"*.png
-"${concept_dir}/utilities/plot" "${this_dir}/output/snapshot_0"
+"${concept_dir}/utilities/plot" "${this_dir}/output/snapshot_a=1.000"
 "${concept_dir}/utilities/plot" "${this_dir}/output/snapshot_gadget_000"
-mv "${concept_dir}/utilities/plots/snapshot_0.png" "${this_dir}/output/snapshot_0.png"
+mv "${concept_dir}/utilities/plots/snapshot_a=1.000.png" "${this_dir}/output/snapshot_a=1.000.png"
 mv "${concept_dir}/utilities/plots/snapshot_gadget_000.png" "${this_dir}/output/snapshot_gadget_000.png"
 
 

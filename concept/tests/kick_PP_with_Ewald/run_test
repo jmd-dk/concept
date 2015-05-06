@@ -43,7 +43,7 @@ done
 
 # Create the Ewald grid using Cython, if it does not already exist
 # (for fast IC generation).
-"${run}" -n 1 -p "${this_dir}/params" --exit --local
+"${run}" -n 1 -p "${this_dir}/../basic/params" --local
 
 # Generate ICs
 "${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local

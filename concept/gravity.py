@@ -409,6 +409,35 @@ def PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, mom):
         # Update the i'th momentum
         mom[i] += force*PM_fac
 
+
+# Function for CIC interpolating the particles to the PM mesh,
+# followed by a Fourier transformation.
+@cython.cfunc
+@cython.inline
+@cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.initializedcheck(False)
+@cython.wraparound(False)
+@cython.locals(# Arguments
+               particles='Particles',
+               )
+def PM_CIC_FFT(particles):
+    global PM_grid, domain_grid, domain_grid_noghosts
+    # Nullify the PM mesh and the domain grid
+    PM_grid[...] = 0
+    domain_grid[...] = 0
+    # Interpolate particle coordinates to the domain grid
+    # (without the ghost layers).
+    CIC_particles2grid(particles, domain_grid_noghosts)
+    # External particles will contribute to the upper boundaries (not the ghost
+    # layers) of domain_grid on other processes. Do the needed communication.
+    communicate_boundaries(domain_grid_noghosts)
+    # Communicate the interpolated data in the domain grid into the PM grid
+    domain2PM(domain_grid_noghosts, PM_grid)
+    # Fourier transform the grid forwards to Fourier space
+    fftw_execute(plan_forward)
+
+
 # Function for computing the gravitational force by the particle mesh method
 @cython.cfunc
 @cython.inline
@@ -422,9 +451,9 @@ def PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, mom):
                only_long_range='bint',
                # Locals
                Greens_deconvolution='double',
-               deconvolution_i='double',
                deconvolution_ij='double',
                deconvolution_ijk='double',
+               deconvolution_j='double',
                PM_fac='double',
                force='double',
                posx='double*',
@@ -433,14 +462,14 @@ def PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, mom):
                momx='double*',
                momy='double*',
                momz='double*',
-               i='ptrdiff_t',
-               j='ptrdiff_t',
-               j_global='ptrdiff_t',
-               k='ptrdiff_t',
-               ki='double',
-               kj='double',
-               kk='double',
-               k2='double',
+               i='int',
+               j='int',
+               j_global='int',
+               k='int',
+               ki='int',
+               kj='int',
+               kk='int',
+               k2='unsigned long int',
                x='double',
                y='double',
                z='double',
@@ -460,39 +489,29 @@ def PM(particles, Δt, only_long_range=False):
     momx = particles.momx
     momy = particles.momy
     momz = particles.momz
-    # Nullify the PM mesh and the domain grid
-    PM_grid[...] = 0
-    domain_grid[...] = 0
-    # Interpolate particle coordinates to the domain grid
-    # (without the ghost layers).
-    CIC_particles2grid(particles, domain_grid_noghosts)
-    # External particles will contribute to the upper boundaries (not the ghost
-    # layers) of domain_grid on other processes. Do the needed communication.
-    communicate_boundaries(domain_grid_noghosts)
-    # Communicate the interpolated data in the domain grid into the PM grid
-    domain2PM(domain_grid_noghosts, PM_grid)
-    # Fourier transform the grid forwards to Fourier space
-    fftw_execute(plan_forward)
-    # Loop through the complete i-dimension
-    for i in range(PM_gridsize):
-        # The i-component of the wave vector
-        if i > half_PM_gridsize:
-            ki = i - PM_gridsize
+    # CIC interpolate the particles and do forward Fourier transformation
+    PM_CIC_FFT(particles)
+    # Loop through the local j-dimension
+    for j in range(PM_gridsize_local_j):
+        # The j-component of the wave vector. Since PM_grid is distributed
+        # along the j-dimension, an offset must be used.
+        j_global = j + PM_gridstart_local_j
+        if j_global > half_PM_gridsize:
+            kj = j_global - PM_gridsize
         else:
-            ki = i
-        # The i-component of the Greens function
-        deconvolution_i = sinc(π*ki/PM_gridsize)
-        # Loop through the local j-dimension
-        for j in range(PM_gridsize_local_j):
-            # The j-component of the wave vector. Since PM_grid is distributed
-            # along the j-dimension, an offset must be used.
-            j_global = j + PM_gridstart_local_j
-            if j_global > half_PM_gridsize:
-                kj = j_global - PM_gridsize
+            kj = j_global
+        # (Square root of) the j-component of the deconvolution
+        deconvolution_j = sinc(kj*π_recp_PM_gridsize)
+        # Loop through the complete i-dimension
+        for i in range(PM_gridsize):
+            # The i-component of the wave vector
+            if i > half_PM_gridsize:
+                ki = i - PM_gridsize
             else:
-                kj = j_global
-            # The product of the i- and the j-component of the Greens function
-            deconvolution_ij = deconvolution_i*sinc(π*kj/PM_gridsize)
+                ki = i
+            # (Square root of) the product of the i- and the j-component of
+            # the deconvolution.
+            deconvolution_ij = sinc(ki*π_recp_PM_gridsize)*deconvolution_j
             # Loop through the complete, padded k-dimension in steps of 2
             # (one complex number at a time).
             for k in range(0, PM_gridsize_padding, 2):
@@ -503,10 +522,12 @@ def PM(particles, Δt, only_long_range=False):
                 if not cython.compiled:
                     if ki == kj == kk == 0:
                         continue
-                # The product of all components of the Greens function
-                deconvolution_ijk = deconvolution_ij*sinc(π*kk/PM_gridsize)
+                # (Square root of) the product of all components of
+                # the deconvolution.
+                deconvolution_ijk = deconvolution_ij*sinc(kk*π_recp_PM_gridsize)
                 # Multiply by the Greens function 1/k2 to get the the
-                # potential. Deconvolve for the CIC interpolation.
+                # potential. Deconvolve twice for the two CIC interpolations
+                # (the mass assignment and the upcomming force interpolation).
                 # Remember that PM_grid is transposed in the first two
                 # dimensions due to the forward FFT.
                 k2 = ki**2 + kj**2 + kk**2
@@ -1202,6 +1223,15 @@ def P3M(particles, Δt):
 
 # Initializes stuff for the PM algorithm at import time,
 # if the PM method is to be used.
+cython.declare(fftw_struct='fftw_return_struct',
+               PM_gridsize_local_i='ptrdiff_t',
+               PM_gridsize_local_j='ptrdiff_t',
+               PM_gridstart_local_i='ptrdiff_t',
+               PM_gridstart_local_j='ptrdiff_t',
+               PM_grid='double[:, :, ::1]',
+               plan_forward='fftw_plan',
+               plan_backward='fftw_plan',
+               )
 if use_PM:
     # The PM mesh and functions on it
     if not cython.compiled:
@@ -1281,16 +1311,6 @@ if use_PM:
                                          :, :]
     else:
         """
-        # Initialization of the PM mesh in Cython
-        cython.declare(fftw_struct='fftw_return_struct',
-                       PM_gridsize_local_i='ptrdiff_t',
-                       PM_gridsize_local_j='ptrdiff_t',
-                       PM_gridstart_local_i='ptrdiff_t',
-                       PM_gridstart_local_j='ptrdiff_t',
-                       PM_grid='double[:, :, ::1]',
-                       plan_forward='fftw_plan',
-                       plan_backward='fftw_plan',
-                       )
         # Initialize fftw_mpi, allocate the grid, initialize the
         # local grid sizes and start indices and do FFTW planning.
         fftw_struct = fftw_setup(PM_gridsize, PM_gridsize, PM_gridsize)
@@ -1310,6 +1330,11 @@ if use_PM:
         plan_forward  = fftw_struct.plan_forward
         plan_backward = fftw_struct.plan_backward
         """
+else:
+    # As these should be importable, they need to be assigned even if not used
+    PM_gridsize_local_j = 0
+    PM_gridstart_local_j = 0
+    PM_grid = empty((1, 1, 1), dtype='float64')
 # Cut out the domains at import time
 cython.declare(domain_cuts='list',
                domain_local='int[::1]',
@@ -1616,3 +1641,9 @@ boundary_y_max = domain_start_y + domain_size_y - P3M_cutoff_phys
 boundary_y_min = domain_start_y + P3M_cutoff_phys
 boundary_z_max = domain_start_z + domain_size_z - P3M_cutoff_phys
 boundary_z_min = domain_start_z + P3M_cutoff_phys
+
+
+pxd = """
+double[:, :, ::1] PM_grid
+ptrdiff_t PM_gridsize_local_j, PM_gridstart_local_j
+"""
