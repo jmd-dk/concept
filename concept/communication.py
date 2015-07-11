@@ -93,6 +93,7 @@ def find_N_recv(N_send):
                N_send_owner='size_t',
                N_send_tot='size_t',
                N_send_tot_global='size_t',
+               holes_filled='int',
                i='size_t',
                index_recv_j='size_t',
                indices_send_j='size_t*',
@@ -259,26 +260,31 @@ def exchange(particles, reset_buffers=False):
             posx[indices_send_j[k]] = -1
     # Move particle data to fill holes
     k_start = 0
-    for i in range(index_recv_j - 1, -1, -1):  # Loop backward over particles
-        # Index i should be a particle
-        if posx[i] == -1:
-            continue
-        # When the two loops meet, all holes has been filled
-        if i == k_start:
-            break
-        for k in range(k_start, index_recv_j):  # Loop forward over holes
-            # Index k should be a hole
-            if posx[k] != -1:
+    holes_filled = 0
+    if N_send_tot > 0:
+        # Loop backward over particles
+        for i in range(index_recv_j - 1, -1, -1):
+            # Index i should be a particle
+            if posx[i] == -1:
                 continue
-            # Particle i and hole k found. Fill the hole with the particle
-            posx[k] = posx[i]
-            posy[k] = posy[i]
-            posz[k] = posz[i]
-            momx[k] = momx[i]
-            momy[k] = momy[i]
-            momz[k] = momz[i]
-            k_start = k + 1
-            break
+            # Loop forward over holes
+            for k in range(k_start, index_recv_j):
+                # Index k should be a hole
+                if posx[k] != -1:
+                    continue
+                # Particle i and hole k found. Fill the hole with the particle
+                posx[k] = posx[i]
+                posy[k] = posy[i]
+                posz[k] = posz[i]
+                momx[k] = momx[i]
+                momy[k] = momy[i]
+                momz[k] = momz[i]
+                k_start = k + 1
+                holes_filled += 1
+                break
+            # All holes have been filled
+            if holes_filled == N_send_tot:
+                break
     # Update N_local
     particles.N_local = N_needed - N_send_tot
     # Pure Python has a hard time understanding uintp as an integer

@@ -64,6 +64,8 @@ python        = $(shell ${python_abs} -c "from os.path import relpath; print(rel
 python_incl_m = $(shell ${python_abs} -c "from os.path import relpath; print(relpath('${python_incl_m_abs}', '${concept_dir_abs}'))")
 cython        = $(shell ${python_abs} -c "from os.path import relpath; print(relpath('${cython_abs}',        '${concept_dir_abs}'))")
 concept_dir = .
+# The python-config program
+python_config=$(firstword $(shell echo ../miniconda/bin/python*-config))
 
 
 ########################################
@@ -72,7 +74,7 @@ concept_dir = .
 # Options passed when cynthonizing .pyx files
 cythonflags = -3 -a -o
 # Includes
-miniconda_incl = -I$(python_incl_m)
+miniconda_incl = -I$(shell $(python) -c "from distutils import sysconfig; print(sysconfig.get_python_inc())")
 openmpi_incl   = -I$(openmpi_dir)/include
 fftw_incl      = -I$(fftw_dir)/include
 gsl_incl       = -I$(gsl_dir)/include
@@ -80,15 +82,16 @@ includes = $(miniconda_incl) $(openmpi_incl) $(fftw_incl) $(gsl_incl)
 # Compiler options
 CC = $(openmpi_dir)/bin/mpicc
 mathoptimizations = -fassociative-math -fno-trapping-math -fno-signed-zeros  # Is this smart?
-CFLAGS = -pthread -DNDEBUG -g -std=c99 -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC $(mathoptimizations) $(includes)
+python_CFLAGS=$(shell $(python) -c "from distutils import sysconfig; print(sysconfig.get_config_var('CFLAGS'))")
+CFLAGS = $(python_CFLAGS) -pthread -std=c99 -fno-strict-aliasing -fPIC $(mathoptimizations) $(includes)
 # Libraries to link
-miniconda_libs = -L$(miniconda_dir)/lib -L$(python)m
+miniconda_libs = -L$(miniconda_dir)/lib $(shell $(python_config) --libs)
 openmpi_libs   = -L$(openmpi_dir)/lib -Wl,"-rpath=$(openmpi_dir)/lib" -lmpi
 fftw_libs      = -L$(fftw_dir)/lib -Wl,"-rpath=$(fftw_dir)/lib" -lfftw3_mpi -lfftw3
 gsl_libs       = -L$(gsl_dir)/lib -Wl,"-rpath=$(gsl_dir)/lib" -lgsl -lgslcblas
 LDLIBS = $(miniconda_libs) $(openmpi_libs) $(fftw_libs) $(gsl_libs) -lm
 # Linker options
-LDFLAGS = -pthread -shared
+LDFLAGS = -shared
 
 
 ################################
@@ -222,12 +225,15 @@ params.py: $(paramsfile) $(MAKEFILE_LIST)
 	str image_format\
 	size_t framespace\
 	tuple color\
+	str bgcolor\
 	int resolution\
 	str remote_liveframe\
 	str protocol\
 	# Simulation options\
 	bint use_Ewald\
 	dict kick_algorithms\
+	# Extra hidden feature\
+	str special\
 	"""\n' $@
 
 
@@ -249,8 +255,8 @@ $(addsuffix .pyx, $(pyfiles)): commons.py $(pyxpp) $(MAKEFILE_LIST)
 analysis.c: gravity.pxd
 communication.c:
 ewald.c: mesh.pxd
-graphics.c: fft.c
-gravity.c: ewald.pxd communication.pxd mesh.pxd
+graphics.c:
+gravity.c: ewald.pxd fft.c communication.pxd mesh.pxd
 integration.c:
 IO.c: species.pxd communication.pxd
 mesh.c: communication.pxd

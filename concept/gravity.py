@@ -429,8 +429,8 @@ def PM_CIC_FFT(particles):
     # Interpolate particle coordinates to the domain grid
     # (without the ghost layers).
     CIC_particles2grid(particles, domain_grid_noghosts)
-    # External particles will contribute to the upper boundaries (not the ghost
-    # layers) of domain_grid on other processes. Do the needed communication.
+    # Values of local pseudo mesh points contribute to the lower mesh points of
+    # domain_grid on other processes. Do the needed communication.
     communicate_boundaries(domain_grid_noghosts)
     # Communicate the interpolated data in the domain grid into the PM grid
     domain2PM(domain_grid_noghosts, PM_grid)

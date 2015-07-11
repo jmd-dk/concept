@@ -35,6 +35,7 @@ from os.path import basename, dirname
                timestep='size_t',
                a='double',
                a_snapshot='double',
+               kind='str',
                filename='str',
                # Locals
                N='size_t',
@@ -65,9 +66,9 @@ def animate(particles, timestep, a, a_snapshot, filename=''):
     if artist_particles is None:
         # Set up figure
         fig = figure(figsize=[resolution/77.50]*2)
-        ax = fig.gca(projection='3d', axisbg='black')
+        ax = fig.gca(projection='3d', axisbg='black')  # CHANGED
         ax.set_aspect('equal')
-        ax.dist = 8.5
+        ax.dist = 8.55
         # The size of a particle is plotted so that the particles
         # stand side by side in a homogeneous unvierse (more or less).
         inch2pts = 72.27  # Number of points in an inch
@@ -80,6 +81,8 @@ def animate(particles, timestep, a, a_snapshot, filename=''):
         alpha = 0.75*N**(-one_third)
         # For some reason, an alpha below 0.0059
         # is rendered as completely transparent.
+        alpha = 0.012  # CHANGED
+        size *= 3  # CHANGED
         if alpha < 0.0059:
             alpha = 0.0059
         # Create the plot of the particles
@@ -88,7 +91,7 @@ def animate(particles, timestep, a, a_snapshot, filename=''):
                                       particles.posz_mv[:N_local],
                                       alpha=alpha,
                                       lw=0,
-                                      c=color,
+                                      c=(0.87, 0.62, 0.99),  # CHANGED
                                       s=size,
                                       )
         ax.set_xlim(0, boxsize)
@@ -100,6 +103,37 @@ def animate(particles, timestep, a, a_snapshot, filename=''):
         ax.w_xaxis.gridlines.set_lw(0)
         ax.w_yaxis.gridlines.set_lw(0)
         ax.w_zaxis.gridlines.set_lw(0)
+        ax.grid(False)
+        ax.w_xaxis.line.set_visible(False)
+        ax.w_yaxis.line.set_visible(False)
+        ax.w_zaxis.line.set_visible(False)
+        ax.w_xaxis.pane.set_visible(False)
+        ax.w_yaxis.pane.set_visible(False)
+        ax.w_zaxis.pane.set_visible(False)
+        for tl in ax.w_xaxis.get_ticklines():
+            tl.set_visible(False)
+        for tl in ax.w_yaxis.get_ticklines():
+            tl.set_visible(False)
+        for tl in ax.w_zaxis.get_ticklines():
+            tl.set_visible(False)
+        for tl in ax.w_xaxis.get_ticklabels():
+            tl.set_visible(False)
+        for tl in ax.w_yaxis.get_ticklabels():
+            tl.set_visible(False)
+        for tl in ax.w_zaxis.get_ticklabels():
+            tl.set_visible(False)
+        # Gridlines on non-black backgrounds
+        if bgcolor != 'black' and False:  # CHANGED
+            for j in np.linspace(0, 1, 6):
+                # xy
+                ax.plot([0, boxsize], ones(2)*boxsize*j, [0, 0], color=ones(3)*0.8, zorder=-1, lw=1.5)
+                ax.plot(ones(2)*boxsize*j, [0, boxsize], [0, 0], color=ones(3)*0.8, zorder=-1, lw=1.5)
+                # xz
+                ax.plot(ones(2)*boxsize*j, ones(2)*boxsize, [0, boxsize], color=ones(3)*0.8, zorder=-1, lw=1.5)
+                ax.plot([0, boxsize], ones(2)*boxsize, ones(2)*boxsize*j, color=ones(3)*0.8, zorder=-1, lw=1.5)
+                # yz
+                ax.plot(zeros(2), ones(2)*boxsize*j, [0, boxsize], color=ones(3)*0.8, zorder=-1, lw=1.5)
+                ax.plot(zeros(2), [0, boxsize], ones(2)*boxsize*j, color=ones(3)*0.8, zorder=-1, lw=1.5)
         # Prepare the text
         artist_text = ax.text(+0.25*boxsize,
                               -0.3*boxsize,
@@ -116,9 +150,8 @@ def animate(particles, timestep, a, a_snapshot, filename=''):
                                                   zdir='z')
     # Size
     artist_particles._sizes[0] = size_fac*np.log(np.e/a)
-    #artist_particles.set_alpha(alpha)
     # The master process prints the current scale factor on the figure
-    if master:
+    if master and bgcolor != 'white':
         t0 = time()
         artist_text.set_text('$a = ' + significant_figures(a,
                                                            4,

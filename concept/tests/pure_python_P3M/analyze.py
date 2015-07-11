@@ -95,7 +95,7 @@ plt.setp([ax.get_xticklabels() for ax in fig.axes[:-1]], visible=False)
 plt.savefig(fig_file)
 
 # Compare CONCEPT to GADGET
-tol = 1e-3
+tol = 1e-2
 if any(np.mean(dist[j]/boxsize) > tol for j in range(3)):
     print('\033[1m\033[91m' + 'Some or all pure Python runs with nprocs = {1, 2, 4} yielded results\n'
           + 'different from the compiled run!\n'

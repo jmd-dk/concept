@@ -28,19 +28,12 @@ else:
                j_global='int',
                z_loop='ptrdiff_t',
                # Locals
-               pNorm='double',
-               Nyquist='int',
-               k2_max='int',
                i='int',
                k='int',
                ki='int',
                kj='int',
                kk='int',
                k2='unsigned long int',
-               k2_multi='int[::1]',
-               power_arr='double[::1]',
-               kNorm='double',
-               tophat_scale='double',
                kR='double',
                re_part='double',
                im_part='double',
@@ -49,25 +42,18 @@ else:
                power='double',
                )
 def powerspectrum(particles, filename):
-    global PM_grid
+    global PM_grid, k2_multi, power_arr
 
-    pNorm = 1/(ϱm*boxsize**3)
+    
 
     PM_CIC_FFT(particles)
 
-    Nyquist = PM_gridsize//2
-    # Maximum number of different k2 modes in box below Nyquist
-    k2_max = 3*Nyquist**2
-    zdim = PM_gridsize//2 + 1
-    k2_multi = empty(k2_max, dtype='int32')
-    power_arr = empty(k2_max, dtype='float64')
+
     if master:
         print('Calculating power spectrum')
     for k2 in range(k2_max):
         k2_multi[k2] = 0
         power_arr[k2] = 0
-    kNorm = two_π/boxsize
-    tophat_scale = 8*units.Mpc
     for j in range(PM_gridsize_local_j):
         j_global = j + PM_gridstart_local_j
         if j_global > Nyquist:
@@ -108,8 +94,8 @@ def powerspectrum(particles, filename):
                 re_part = PM_grid[j, i, k]
                 im_part = PM_grid[j, i, k + 1]
                 power_arr[k2] += re_part**2 + im_part**2  # This is the power. Will normalize later
-    Reduce(MPI.IN_PLACE, k2_multi, op=MPI.SUM)
-    Reduce(MPI.IN_PLACE, power_arr, op=MPI.SUM)
+    Allreduce(MPI.IN_PLACE, k2_multi, op=MPI.SUM)
+    Allreduce(MPI.IN_PLACE, power_arr, op=MPI.SUM)
     for k2 in range(k2_max):
         power_arr[k2] = power_arr[k2]/k2_multi[k2]*pNorm
     sigma = 0
@@ -120,19 +106,37 @@ def powerspectrum(particles, filename):
         kR = wavek*tophat_scale
         kR = 3*(sin(kR) - kR*cos(kR))/kR**3
         sigma += power_arr[k2]*kR**2*wavek**2
-    sigma = reduce(sigma, op=MPI.SUM)
+    #sigma = allreduce(sigma, op=MPI.SUM)
+    if not master:
+        return
     sigma *= 4.0/3.0/(2*π)*tophat_scale**3 
     sigma = sqrt(sigma)
-    if master:
-        print('    Saving:', filename)
-        header = ('sigma{} = {:.6e}, PM_gridsize = {}, boxsize = {:.3e} Mpc\n'
-                  + 'k\tmodes\tpower').format(int(round(tophat_scale/units.Mpc)),
-                                              sigma,
-                                              PM_gridsize,
-                                              boxsize/units.Mpc)
-        np.savetxt(filename,
-                   array((np.sqrt(arange(k2_max)),
-                          k2_multi,
-                          power_arr)).transpose()[array(k2_multi) != 0, :],
-                   fmt='%.6e\t%i\t%.6e',
-                   header=header)
+    print('    Saving:', filename)
+    header = ('sigma{} = {:.6e}, PM_gridsize = {}, boxsize = {:.3e} Mpc\n'
+              + 'k\tmodes\tpower').format(int(round(tophat_scale/units.Mpc)),
+                                          sigma,
+                                          PM_gridsize,
+                                          boxsize/units.Mpc)
+    np.savetxt(filename,
+               array((np.sqrt(arange(k2_max)),
+                      k2_multi,
+                      power_arr)).transpose()[array(k2_multi) != 0, :],
+               fmt='%.6e\t%i\t%.6e',
+               header=header)
+
+
+cython.declare(Nyquist='int',
+               k2_max='int',
+               k2_multi='int[::1]',
+               kNorm='double',
+               pNorm='double',
+               power_arr='double[::1]',
+               tophat_scale='double',
+               )
+Nyquist = PM_gridsize//2
+k2_max = 3*Nyquist**2
+k2_multi = empty(k2_max, dtype='int32')
+kNorm = two_π/boxsize
+pNorm = 1/(ϱm*boxsize**3)
+power_arr = empty(k2_max, dtype='float64')
+tophat_scale = 8*units.Mpc
