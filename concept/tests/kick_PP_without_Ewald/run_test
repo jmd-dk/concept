@@ -54,9 +54,9 @@ done
 # Create an edited version of Makefile_gadget with correct parth information
 cp "${this_dir}/Makefile_gadget" "${this_dir}/Makefile_gadget_edited"
 sed -i "/^ *CC= / s/ [^# ]/ \"${mpicc//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
-path="${openmpi_dir}/include"
+path="${mpi_dir}/include"
 sed -i "/^ *MPI_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
-path="${openmpi_dir}/lib"
+path="${mpi_dir}/lib"
 sed -i "/^ *MPI_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
 path="${gsl_dir}/include"
 sed -i "/^ *GSL_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
@@ -81,7 +81,7 @@ sed -i "/fcorry\[i\]\[j\]\[k\] = force\[1\];/c\fcorry\[i\]\[j\]\[k\] = 0.0;" "${
 sed -i "/fcorrz\[i\]\[j\]\[k\] = force\[2\];/c\fcorrz\[i\]\[j\]\[k\] = 0.0;" "${Gadget2_edited_dir}/forcetree.c"
 
 # Build GADGET and run simulation based on the ICs
-(cd "${Gadget2_edited_dir}" && make clean && make && "${mpiexec}" -n 1 --prefix "${openmpi_dir}" Gadget2 ../params_gadget)  # It is crucial to use a relative path as the path has a max allowed length in GADGET
+(cd "${Gadget2_edited_dir}" && make clean && make && "${mpiexec}" -n 1 "${Gadget2_local_dir}/Gadget2" ../params_gadget)  # It is crucial to use a relative path as the path has a max allowed length in GADGET
 
 # Analyze the output snapshots
 "${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local

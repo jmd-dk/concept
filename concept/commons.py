@@ -121,7 +121,7 @@ if not cython.compiled:
     # Mathematical constants and functions
     from numpy import pi as π
     from numpy import sqrt, exp, sin, log
-    from scipy.special import erfc
+    from math import erfc
     # Import the units module
     import units
     # Import all user specified constants

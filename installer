@@ -15,24 +15,62 @@ sleep 1
 # Set up error trapping
 ctrl_c()
 {
-    trap : 0
+    current_step="aborting"
+    sleep 0.5
+    kill -- -$$
     exit 2
 }
 abort()
 {
-    printf "\n\e[1m\e[91mAn error occurred during ${current_step}!\e[0m\n" >&2
+    kill -- -$$
     exit 1
 }
 trap 'ctrl_c' SIGINT
 trap 'abort' EXIT
 set -e
 
-# Creating top level directory
-current_step="setup of top level directory"
+# The current status
+status=""
+status_prefix="__new_status__="
+status_prefix_length=${#status_prefix}
+status_disable="disable"
+status_enable="enable"
+status_on="on"
+status_off="off"
+status_visible="${status_on}"
+
+# Installation message
 printf "This is the installation script to CO\e[3mN\e[0mCEPT,
 the cosmological \e[3mN\e[0m-body code by Jeppe Dakin.\n\n"
+
+# Check whether system dependencies are installed and located on PATH
+current_step="checking for preinstalled system dependencies"
+# Function for testing whether system dependencies are installed and located on PATH
+check_dependency()
+{
+    # Arguments: name, command, Debian package
+    path=$(which "${2}" || echo)
+    if [ -z "${path}" ]; then
+        echo "Error: Could not find '${1}'."
+        in_repo=$(apt-cache show "${3}" &> /dev/null; echo $?)
+        if [ ${in_repo} == 0 ]; then
+            echo "You can install it by typing:"
+            echo "sudo apt-get -y install ${3}"
+        fi
+        exit 1
+    fi
+}
+check_dependency "awk" "awk" "gawk"
+check_dependency "gcc" "gcc" "gcc"
+check_dependency "g++" "g++" "g++"
+check_dependency "gfortran" "gfortran" "gfortran"
+check_dependency "make" "make" "build-essential"
+check_dependency "freetype" "freetype-config" "libfreetype6-dev"
+
+# Creating top level directory
+current_step="setup of top level directory"
 if [ -z "${1}" ]; then
-    read -p "Where should I install the code?`echo $'\n> '`" -e top_dir
+    read -p "Where should I install the code?$(echo $'\n> ')" -e top_dir
 else 
     top_dir="${1}"
 fi
@@ -45,19 +83,53 @@ cd "${top_dir}"
 
 # Specify installation directories
 concept_dir="${top_dir}/concept"
-miniconda_dir="${top_dir}/miniconda"
+python_dir="${top_dir}/python"
 fftw_dir="${top_dir}/fftw"
 gadget_dir="${top_dir}/gadget"
 fftw_for_gadget_dir="${gadget_dir}/fftw"
 gsl_dir="${top_dir}/gsl"
 hdf5_dir="${top_dir}/hdf5"
-openmpi_dir="${top_dir}/openmpi"
+mpi_dir="${top_dir}/mpich"
 
-# URL's to the latest stable versions of the different software
+# The file in which to dump all printed output
+log="${top_dir}/install_log"
+
+
+
+###########################
+# Beginning of subprocess #
+###########################
+(
+# Set up error trapping
+ctrl_c_subprocess()
+{
+    trap : 0
+    ctrl_c
+    exit 0
+}
+abort_subprocess()
+{
+    trap : 0
+    if [ "${current_step}" != "aborting" ]; then
+        printf "\n\e[1m\e[91mAn error occurred during ${current_step}!\e[0m\n" >&2
+    fi
+    abort
+    exit 0
+}
+trap 'ctrl_c_subprocess' SIGINT
+trap 'abort_subprocess' EXIT
+set -e
+
+
+#################################################################
+# URL's to the latest stable versions of the different software #
+#################################################################
 current_step="setup of dependency versions and download URL's"
-echo -e "\nSearching for latest versions of dependencies"
+status="Searching for latest versions of dependencies"
+echo "${status_prefix}${status}"
 # Function for checking that a given url actually exists
-function validate_url(){
+validate_url()
+{
     text=$(wget -S --spider "${1}" 2>&1)
     text_http=$(echo "${text}" | grep "HTTP/1.1 200 OK")
     text_ftp=$(echo "${text}" | grep "Can't check for file existence")
@@ -67,36 +139,20 @@ function validate_url(){
         echo 0
     fi
 }
-# Miniconda (3.7.0 with Python 3.4 is known to work)
-miniconda_version=$(wget -q -O- --no-check-certificate "http://repo.continuum.io/miniconda/.files.json" | grep -o -P "(?<=Miniconda3-).*(?=-Linux-x86_64)" || echo "")
-miniconda_version=$(echo ${miniconda_version} | awk '{print $(NF-1)}')
-if [ -z "${miniconda_version}" ]; then
-    echo "Could not identify the version number of the latest Miniconda."
-    miniconda_version="..."
-fi
-miniconda_url="http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh"
-if [ $(validate_url "${miniconda_url}") -eq 0 ]; then
-    echo "Error: The Miniconda link is broken!"
+
+# Python (version 3.4 is known to work). Note that 'python_version' will be overwritten later!
+python_version=$(wget -q -O- --no-check-certificate "https://www.python.org/downloads/" | grep -o -P "(?<=Python-).*(?=.tar.xz)" | head -1  || echo)
+if [ -z "${python_version}" ]; then
+    echo "Error: Could not identify the version number of the latest Python!"
     exit 1
 fi
-# The Python version. Python will be updated to the newest stable version by Conda, though this version may not yet be listed on their website.
-# Note that this variable will be overwritten later!
-python_version=$(wget -q -O- --no-check-certificate "https://www.python.org/downloads/" | grep -o -P "(?<=Python-).*(?=.tar.xz)" | head -1  || echo "")
-if [ -z "${python_version}" ]; then
-    echo "Could not identify the version number of the latest Python."
-    python_version="..."
+python_url="https://www.python.org/ftp/python/${python_version}/Python-${python_version}.tar.xz"
+if [ $(validate_url "${python_url}") -eq 0 ]; then
+    echo "Error: The Python link is broken!"
+    exit 1
 fi
-# Version of Python packages in the Conda package manager
-miniconda_pkgdocs="..."
-cython_version="..."
-matplotlib_version="..."
-numpy_version="..."
-pillow_version="..."
-scipy_version="..."
-# Pexpect is not listed on the Anaconda website, but it is included
-pexpect_version="..."
 # GSL (1.16 is known to work)
-gsl_version=$(wget -q -O- --no-check-certificate "http://mirrors.dotsrc.org/gnu/gsl/" | grep -o -P "(?<=gsl-[0-9]).*(?=.tar.gz)" || echo "")
+gsl_version=$(wget -q -O- --no-check-certificate "http://mirrors.dotsrc.org/gnu/gsl/" | grep -o -P "(?<=gsl-[0-9]).*(?=.tar.gz)" || echo)
 gsl_version="${gsl_version##*gsl-}"
 if [ -z "${gsl_version}" ]; then
     echo "Could not identify the version number of the latest GSL."
@@ -108,7 +164,7 @@ if [ $(validate_url "${gsl_url}") -eq 0 ]; then
     exit 1
 fi
 # Cython_GSL (0.2.1 is known to work)
-cython_gsl_version=$(wget -q -O- --no-check-certificate "https://raw.githubusercontent.com/twiecki/CythonGSL/master/README.rst" | grep ":Version:" | awk '{print $NF}' || echo "")
+cython_gsl_version=$(wget -q -O- --no-check-certificate "https://raw.githubusercontent.com/twiecki/CythonGSL/master/README.rst" | grep ":Version:" | awk '{print $NF}' || echo)
 if [ -z "${cython_gsl_version}" ]; then
     echo "Could not identify the version number of the latest Cython_GSL."
     cython_gsl_version="..."
@@ -118,20 +174,19 @@ if [ $(validate_url "${cython_gsl_url}") -eq 0 ]; then
     echo "Error: The Cython_GSL link is broken!"
     exit 1
 fi
-# Open MPI (1.8.3 is known to work)
-openmpi_version=$(wget -q -O- --no-check-certificate "http://www.open-mpi.org/software/" | grep -m 1 -o -P "(?<=Version).*(?=<)" || echo "")
-openmpi_version=${openmpi_version//[[:blank:]]/}
-if [ -z "${openmpi_version}" ]; then
-    echo "Could not identify the version number of the latest Open MPI."
-    openmpi_version="..."
+# MPICH (3.1.4 is known to work)
+mpich_version=$(wget -q -O- --no-check-certificate "http://www.mpich.org/downloads" | grep -m 1 -o -P "(?<=mpich-).*(?=stable)" | awk '{print $1}' || echo "")
+if [ -z "${mpich_version}" ]; then
+    echo "Could not identify the version number of the latest MPICH."
+    mpich_version="..."
 fi
-openmpi_url="http://www.open-mpi.org/software/ompi/v${openmpi_version%.*}/downloads/openmpi-${openmpi_version}.tar.bz2"
-if [ $(validate_url "${openmpi_url}") -eq 0 ]; then
-    echo "Error: The Open MPI link is broken!"
+mpich_url="http://www.mpich.org/static/downloads/${mpich_version}/mpich-${mpich_version}.tar.gz"
+if [ $(validate_url "${mpich_url}") -eq 0 ]; then
+    echo "Error: The MPICH link is broken!"
     exit 1
 fi
 # MPI4Py (1.3.1 is known to work)
-mpi4py_version=$(wget -q -O- --no-check-certificate "https://bitbucket.org/mpi4py/mpi4py/downloads/" | grep -m 1 -o -P "(?<=mpi4py/get/).*(?=.tar.gz)" || echo "")
+mpi4py_version=$(wget -q -O- --no-check-certificate "https://bitbucket.org/mpi4py/mpi4py/downloads/" | grep -m 1 -o -P "(?<=mpi4py/get/).*(?=.tar.gz)" || echo)
 if [ -z "${mpi4py_version}" ]; then
     echo "Could not identify the version number of the latest MPI4Py."
     mpi4py_version="..."
@@ -152,8 +207,8 @@ if [ $(validate_url "${hdf5_url}") -eq 0 ]; then
     echo "Error: The HDF5 link is broken!"
     exit 1
 fi
-# h5py (2.4.0 is known to work)
-h5py_version=$(wget -q -O- --no-check-certificate "https://pypi.python.org/pypi/h5py/#downloads" | grep -m 1 -o -P "(?<=h5py/).*(?=\"\>h5py)" || echo "")
+# H5Py (2.4.0 is known to work)
+h5py_version=$(wget -q -O- --no-check-certificate "https://pypi.python.org/pypi/h5py/#downloads" | grep -m 1 -o -P "(?<=h5py/).*(?=\"\>h5py)" || echo)
 if [ -z "${h5py_version}" ]; then
     echo "Could not identify the version number of the latest H5Py."
     h5py_version="..."
@@ -164,7 +219,7 @@ if [ $(validate_url "${h5py_url}") -eq 0 ]; then
     exit 1
 fi
 # FFTW (3.3.4 is known to work)
-fftw_version=$(wget -q -O- --no-check-certificate "http://www.fftw.org/download.html" | grep -m 1 -o -P "(?<=fftw-).*(?=.tar.gz\")" || echo "")
+fftw_version=$(wget -q -O- --no-check-certificate "http://www.fftw.org/download.html" | grep -m 1 -o -P "(?<=fftw-).*(?=.tar.gz\")" || echo)
 if [ -z "${fftw_version}" ]; then
     echo "Could not identify the version number of the latest FFTW."
     fftw_version="..."
@@ -197,158 +252,260 @@ if [ $(validate_url "${gadget_url}") -eq 0 ]; then
 fi
 
 # Write out installation overview
+echo "${status_prefix}${status_disable}"
 printf "\n\e[1m\e[93mInstallation overview\e[0m\n"
 printf "The following software will be installed\n"
-printf "Name:\t\tVersion:\tPath:\n"
-printf "CO\e[3mN\e[0mCEPT\t\t${concept_version}\t\t${concept_dir}\n"
-printf "Miniconda\t${miniconda_version}\t\t${miniconda_dir}\n"
-printf "  Cython\t${cython_version}\n"
-printf "  Cython_GSL\t${cython_gsl_version}\n"
-printf "  Matplotlib\t${matplotlib_version}\n"
-printf "  MPI4Py\t${mpi4py_version}\n"
-printf "  NumPy\t\t${numpy_version}\n"
-printf "  Pexpect\t${pexpect_version}\n"
-printf "  Pillow\t${pillow_version}\n"
-printf "  Python\t${python_version}\n"
-printf "  SciPy\t\t${scipy_version}\n"
-printf "FFTW\t\t${fftw_version}\t\t${fftw_dir}\n"
-printf "FFTW\t\t${fftw_for_gadget_version}\t\t${fftw_for_gadget_dir}\n"
-printf "GADGET\t\t${gadget_version}\t\t${gadget_dir}\n"
-printf "GSL\t\t${gsl_version}\t\t${gsl_dir}\n"
-printf "HDF5\t\t${hdf5_version}\t\t${hdf5_dir}\n"
-printf "Open MPI\t${openmpi_version}\t\t${openmpi_dir}\n"
+printf "Name:{}Version:{}Installation path
+CONCEPT{}${concept_version}{}${concept_dir}
+Python{}${python_version}{}${python_dir}
+FFTW{}${fftw_version}{}${fftw_dir}
+FFTW{}${fftw_for_gadget_version}{}${fftw_for_gadget_dir}
+GADGET{}${gadget_version}{}${gadget_dir}
+GSL{}${gsl_version}{}${gsl_dir}
+HDF5{}${hdf5_version}{}${hdf5_dir}
+MPICH{}${mpich_version}{}${mpi_dir}\n" | column -t -s {}
 sleep 5
+echo "${status_prefix}${status_enable}"
+
+
+############################################
+# Installing Python and packages from PyPI #
+############################################
+# Python itself
+current_step="installation of Python"
+printf "\n\e[1m\e[93mInstalling Python\e[0m\n"
+status='Installing Python'
+echo "${status_prefix}${status}"
+mkdir "${python_dir}"
+mkdir tmp
+cd tmp
+echo "${status_prefix}${status_disable}"
+wget -c -O python.tar.xz --no-check-certificate "${python_url}"
+echo "${status_prefix}${status_enable}"
+tar -xJf python.tar.xz
+cd Python*
+./configure --prefix="${python_dir}" --with-ensurepip=install
+make
+make install
+cp LICENSE README "${python_dir}/"
+cd "${top_dir}"
+rm -rf tmp
+# Overwrite the 'python_version' variable with the major.minor version and create a python variable, storing the path to the newly installed Python interpreter
+python_version=$("${python_dir}/bin/python3" -c "from sys import version_info as v; print(str(v.major) + '.' + str(v.minor))")
+python="${python_dir}/bin/python${python_version}"
+# Update Python packages preinstalled with Python itself
+current_step="updating Python"
+echo "${status_prefix}${status_disable}"
+"${python}" -m pip install --upgrade pip
+"${python}" -m pip install yolk3k
+"${python}" -m pip install -U $("${python}" -m yolk -U | awk '{print $1}' | uniq)
+echo "${status_prefix}${status_enable}"
+
+# Versions of Python dependencies from PyPI
+current_step="owerview of Python packages"
+cython_version=$("${python}" -m yolk -V cython | head -n 1 | awk '{print $NF}')
+matplotlib_version=$("${python}" -m yolk -V matplotlib | head -n 1 | awk '{print $NF}')
+numpy_version=$("${python}" -m yolk -V numpy | head -n 1 | awk '{print $NF}')
+pexpect_version=$("${python}" -m yolk -V pexpect | head -n 1 | awk '{print $NF}')
+pillow_version=$("${python}" -m yolk -V pillow | head -n 1 | awk '{print $NF}')
+
+# Print out Python package installation overview
+echo "${status_prefix}${status_disable}"
+printf "\n\e[1m\e[93mPython packages overview\e[0m\n"
+printf "The following Python packages will be installed\n"
+printf "Name:{}Version:{}Installation path
+Cython{}${cython_version}{}${python_dir}/lib/python${python_version}/site-packages/Cython
+Cython_GSL{}${cython_gsl_version}{}${python_dir}/lib/python${python_version}/site-packages/Cython_GSL
+H5Py{}${h5py_version}{}${python_dir}/lib/python${python_version}/site-packages/h5py
+Matplotlib{}${matplotlib_version}{}${python_dir}/lib/python${python_version}/site-packages/matplotlib
+MPI4Py{}${mpi4py_version}{}${python_dir}/lib/python${python_version}/site-packages/mpi4py
+NumPy{}${numpy_version}{}${python_dir}/lib/python${python_version}/site-packages/numpy
+Pexpect{}${pexpect_version}{}${python_dir}/lib/python${python_version}/site-packages/pexpect
+Pillow{}${pillow_version}{}${python_dir}/lib/python${python_version}/site-packages/PIL\n" | column -t -s {}
+sleep 5
+echo "${status_prefix}${status_enable}"
+
+# Install Python packages from PyPI
+# Cython
+current_step="installing Cython"
+printf "\n\e[1m\e[93mInstalling Cython\e[0m\n"
+status="Installing Cython"
+echo "${status_prefix}${status}"
+"${python}" -m pip install -v -v -v cython
+# NumPy
+current_step="installing NumPy"
+printf "\n\e[1m\e[93mInstalling NumPy\e[0m\n"
+status="Installing Numpy"
+echo "${status_prefix}${status}"
+"${python}" -m pip install -v -v -v numpy
+# Pillow
+current_step="installing Pillow"
+printf "\n\e[1m\e[93mInstalling Pillow\e[0m\n"
+status="Installing Pillow"
+echo "${status_prefix}${status}"
+"${python}" -m pip install -v -v -v pillow
+# Matplotlib
+current_step="installing Matplotlib"
+printf "\n\e[1m\e[93mInstalling Matplotlib\e[0m\n"
+status="Installing Matplotlib"
+echo "${status_prefix}${status}"
+"${python}" -m pip install -v -v -v matplotlib
+# Pexpect
+current_step="installing Pexpect"
+printf "\n\e[1m\e[93mInstalling Pexpect\e[0m\n"
+status="Installing Pexpect"
+echo "${status_prefix}${status}"
+"${python}" -m pip install -v -v -v pexpect
+# Update Python packages
+current_step="updating Python packages"
+echo "${status_prefix}${status_disable}"
+"${python}" -m pip install -U $("${python}" -m yolk -U | awk '{print $1}' | uniq)
+echo "${status_prefix}${status_enable}"
 
 
 ################################################################
 # Installing CONCEPT dependencies and download the code itself #
 ################################################################
-# Miniconda
-current_step="installation of Miniconda"
-printf "\n\e[1m\e[93mInstalling Miniconda\e[0m\n"
-wget -c -O miniconda.sh --no-check-certificate "${miniconda_url}"
-bash miniconda.sh -b -p "${miniconda_dir}"
-rm miniconda.sh
-# Update Conda
-"${miniconda_dir}/bin/conda" update --yes conda
-# Create a python variable, storing the path to the newly installed Python interpreter
-python_version=`"${miniconda_dir}/bin/python" -c "from sys import version_info as v; print(str(v.major) + '.' + str(v.minor))"`
-python="${miniconda_dir}/bin/python${python_version}"
-# Cython, Matplotlib, NumPy, Pexpect, Pillow and SciPy via Conda
-current_step="installation of Cython, Matplotlib, NumPy, Pexpect and SciPy"
-printf "\n\e[1m\e[93mInstalling Cython, Matplotlib, NumPy, Pexpect and SciPy\e[0m\n"
-"${miniconda_dir}/bin/conda" install --yes cython matplotlib numpy pexpect pillow scipy
-# Update all packages in Miniconda
-"${miniconda_dir}/bin/conda" update --yes --all
-# Do some cleanup in the Miniconda distribution
-"${miniconda_dir}/bin/conda" clean --yes -i -l -t -p
-
 # GSL
 current_step="installation of GSL"
 printf "\n\e[1m\e[93mInstalling GSL\e[0m\n"
+status="Installing GSL"
+echo "${status_prefix}${status}"
 mkdir "${gsl_dir}"
 mkdir tmp
 cd tmp
+echo "${status_prefix}${status_disable}"
 wget -c -O gsl.tar.gz --no-check-certificate "${gsl_url}"
-tar xf gsl.tar.gz
+echo "${status_prefix}${status_enable}"
+tar xfz gsl.tar.gz
 cd gsl*
 ./configure --prefix="${gsl_dir}"
 make
 make install
 cp COPYING README "${gsl_dir}"
-cd ../../
+cd "${top_dir}"
 rm -rf tmp
 
-# The cython_gsl Python package
+# The Cython_GSL Python package
 current_step="installation of Cython_GSL"
 printf "\n\e[1m\e[93mInstalling Cython_GSL\e[0m\n"
+status="Installing Cython_GSL"
+echo "${status_prefix}${status}"
+echo "${status_prefix}${status_disable}"
 wget -c -O CythonGSL.tar.gz --no-check-certificate "${cython_gsl_url}"
-tar xf CythonGSL.tar.gz
+echo "${status_prefix}${status_enable}"
+tar xfz CythonGSL.tar.gz
 cd CythonGSL*
 export LD_LIBRARY_PATH="${gsl_dir}/lib:$LD_LIBRARY_PATH"
 "${python}" setup.py build
 "${python}" setup.py install
-cd ..
+cd "${top_dir}"
 rm -rf CythonGSL*
 
-# Open MPI
-current_step="installation of Open MPI"
-printf "\n\e[1m\e[93mInstalling Open MPI\e[0m\n"
-mkdir "${openmpi_dir}"
+# MPICH
+current_step="installation of MPICH"
+printf "\n\e[1m\e[93mInstalling MPICH\e[0m\n"
+status="Installing MPICH"
+echo "${status_prefix}${status}"
+mkdir "${mpi_dir}"
 mkdir tmp
 cd tmp
-wget -c -O openmpi.tar.bz2 --no-check-certificate "${openmpi_url}"
-tar xjf openmpi.tar.bz2
-cd openmpi*
-./configure --prefix="${openmpi_dir}"
-make all
+echo "${status_prefix}${status_disable}"
+wget -c -O mpich.tar.gz --no-check-certificate "${mpich_url}"
+echo "${status_prefix}${status_enable}"
+tar xfz mpich.tar.gz
+cd mpich*
+./configure --enable-shared --disable-fortran --prefix="${mpi_dir}"
+make
 make install
-cp LICENSE README "${openmpi_dir}"
-cd ../../
+cp COPYRIGHT "${mpi_dir}"
+cd "${top_dir}"
 rm -rf tmp
 
-# The mpi4py Python package (cannot use conda, as it installs an outdated version)
+# The MPI4Py Python package
 current_step="installation of MPI4Py"
 printf "\n\e[1m\e[93mInstalling MPI4Py\e[0m\n"
+status="Installing MPI4Py"
+echo "${status_prefix}${status}"
+echo "${status_prefix}${status_disable}"
 wget -c -O mpi4py.tar.gz --no-check-certificate "${mpi4py_url}"
-tar xf mpi4py.tar.gz
+echo "${status_prefix}${status_enable}"
+tar xfz mpi4py.tar.gz
 cd mpi4py*
-export LD_LIBRARY_PATH="${openmpi_dir}/lib":"$LD_LIBRARY_PATH"
-export MPICC="${openmpi_dir}/bin/mpicc"
+export MPI_DIR="${mpi_dir}"
+export PATH="${mpi_dir}/bin":"${PATH}"
+export LD_LIBRARY_PATH="${mpi_dir}/lib":"${LD_LIBRARY_PATH}"
+export DYLD_LIBRARY_PATH="${mpi_dir}/lib":"${DYLD_LIBRARY_PATH}"
 "${python}" setup.py install
-cd ..
+cd "${top_dir}"
 rm -rf mpi4py*
 
 # HDF5
 current_step="installation of HDF5"
 printf "\n\e[1m\e[93mInstalling HDF5\e[0m\n"
+status="Installing HDF5"
+echo "${status_prefix}${status}"
 mkdir tmp
 cd tmp
+echo "${status_prefix}${status_disable}"
 wget -c -O hdf5.tar.bz2 --no-check-certificate "${hdf5_url}"
+echo "${status_prefix}${status_enable}"
 tar xjf hdf5.tar.bz2
 cd hdf5*
-CC="${openmpi_dir}/bin/mpicc" ./configure --enable-shared --enable-parallel --prefix="${hdf5_dir}"
+CC="${mpi_dir}/bin/mpicc" ./configure --enable-shared --enable-parallel --prefix="${hdf5_dir}"
 make
 make install
 cp COPYING README.txt "${hdf5_dir}"
-cd ../../
+cd "${top_dir}"
 rm -rf tmp
 
-# The h5py Python package (cannot use conda, as it does not install the parallel version)
-current_step="installation of h5py"
-printf "\n\e[1m\e[93mInstalling h5py\e[0m\n"
+# The H5Py Python package
+current_step="installation of H5Py"
+printf "\n\e[1m\e[93mInstalling H5Py\e[0m\n"
+status="Installing H5Py"
+echo "${status_prefix}${status}"
+echo "${status_prefix}${status_disable}"
 wget -c -O h5py.tar.gz --no-check-certificate "${h5py_url}"
-tar xf h5py.tar.gz
+echo "${status_prefix}${status_enable}"
+tar xfz h5py.tar.gz
 cd h5py*
-export CC="${openmpi_dir}/bin/mpicc"
+export CC="${mpi_dir}/bin/mpicc"
 "${python}" setup.py configure --mpi --hdf5="${hdf5_dir}"
 "${python}" setup.py build
 "${python}" setup.py install
-cd ..
+cd "${top_dir}"
 rm -rf h5py*
 
 # FFTW
 current_step="installation of FFTW"
 printf "\n\e[1m\e[93mInstalling FFTW\e[0m\n"
+status="Installing FFTW"
+echo "${status_prefix}${status}"
 mkdir tmp
 cd tmp
+echo "${status_prefix}${status_disable}"
 wget -c -O fftw.tar.gz "${fftw_url}"
-tar xf fftw.tar.gz
+echo "${status_prefix}${status_enable}"
+tar xfz fftw.tar.gz
 cd fftw*
 # Double-precision
-CC="${openmpi_dir}/bin/mpicc" MPICC="${openmpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I/${openmpi_dir}/include" LDFLAGS="-L${openmpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --prefix="${fftw_dir}"
+CC="${mpi_dir}/bin/mpicc" MPICC="${mpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I/${mpi_dir}/include" LDFLAGS="-L${mpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --prefix="${fftw_dir}"
 make
 make install
 # Single-precision goes here ..........................
 cp COPYING README "${fftw_dir}"
-cd ../../
+cd "${top_dir}"
 rm -rf tmp
 
 # The CONCEPT code
 current_step="installation of CO\e[3mN\e[0m\e[1m\e[91mCEPT"
 printf "\n\e[1m\e[93mInstalling CO\e[3mN\e[0m\e[1m\e[93mCEPT\e[0m\n"
+status='Installing CO\\e[3mN\\e[0m\\e[1m\\e[93mCEPT'
+echo "${status_prefix}${status}"
+echo "${status_prefix}${status_disable}"
 wget -c -O concept.tar.gz --no-check-certificate "${concept_url}"
-tar xf concept.tar.gz
+echo "${status_prefix}${status_enable}"
+tar xfz concept.tar.gz
 rm concept.tar.gz
 mv concept-master/* "${top_dir}"  # This leaves the .paths file behind in the concept-master folder
 rm -r concept-master
@@ -359,13 +516,15 @@ mkdir -p "${concept_dir}/output"
 # Create the .paths file, storing important paths used by the program
 current_step="creataion of the .paths file"
 printf "\nWriting paths to .paths\n"
+status="Writing paths to .paths"
+echo "${status_prefix}${status}"
 Gadget2_dir="${gadget_dir}/Gadget2"
-cython="${miniconda_dir}/bin/cython"
-mpicc="${openmpi_dir}/bin/mpicc"
-mpiexec="${openmpi_dir}/bin/mpiexec"
-python_incl_m="${miniconda_dir}/include/python${python_version}m"
-run="${concept_dir}/run"
 tests_dir="${concept_dir}/tests"
+cython="${python_dir}/bin/cython"
+mpicc="${mpi_dir}/bin/mpicc"
+mpiexec="${mpi_dir}/bin/mpiexec"
+python_config="${python_dir}/bin/python${python_version}-config"
+run="${concept_dir}/run"
 echo "# This file contains absolute paths to directories and files used by the
 # program. You must manually edit the paths below. All other files rely on
 # these paths, as they are not given anywhere else.
@@ -373,24 +532,24 @@ echo "# This file contains absolute paths to directories and files used by the
 ###############
 # Directories #
 ###############
-# Directory containing the GADGET2 source code
-Gadget2_dir='${Gadget2_dir}'
 # Directory containing the CONCEPT source code
 concept_dir='${concept_dir}'
-# Directory of the Miniconda Python distribution
-miniconda_dir='${miniconda_dir}'
 # Directory of FFTW
 fftw_dir='${fftw_dir}'
 # Directory of FFTW2, used by GADGET
 fftw_for_gadget_dir='${fftw_for_gadget_dir}'
 # Directory of Gadget2
 gadget_dir='${gadget_dir}'
+# Directory containing the GADGET2 source code
+Gadget2_dir='${Gadget2_dir}'
 # Directory of GSL
 gsl_dir='${gsl_dir}'
 # Directory of HDF5
 hdf5_dir='${hdf5_dir}'
 # Directory of MPI
-openmpi_dir='${openmpi_dir}'
+mpi_dir='${mpi_dir}'
+# Directory of Python
+python_dir='${python_dir}'
 # Directory containing tests for the CONCEPT code
 tests_dir='${tests_dir}'
 # Top level directory, containing e.g. README.md
@@ -399,16 +558,16 @@ top_dir='${top_dir}'
 #########
 # Files #
 #########
-# The Python3 interpreter
-python='${python}'
-# The python3.xm file within the include directory of Miniconda
-python_incl_m='${python_incl_m}'
 # The Cython executable
 cython='${cython}'
 # The MPI C compiler
 mpicc='${mpicc}'
 # The MPI executable
 mpiexec='${mpiexec}'
+# The Python3 interpreter
+python='${python}'
+# The Python3 configuration executable
+python_config='${python_config}'
 # The run script of the CONCEPT code
 run='${run}'
 " > "${top_dir}/.paths"
@@ -419,44 +578,101 @@ run='${run}'
 ######################################################
 # FFTW 2.1.5 (GADGET2 is incompatible with FFTW 3.x)
 current_step="installation of FFTW2 used by GADGET"
-printf "\n\e[1m\e[93mInstalling FFTW2, used by GADGET\e[0m\n"
+printf "\n\e[1m\e[93mInstalling FFTW2 used by GADGET\e[0m\n"
+status="Installing FFTW2 used by GADGET"
+echo "${status_prefix}${status}"
 mkdir tmp
 cd tmp
+echo "${status_prefix}${status_disable}"
 wget -c -O fftw.tar.gz "${fftw_for_gadget_url}"
-tar xf fftw.tar.gz
+echo "${status_prefix}${status_enable}"
+tar xfz fftw.tar.gz
 cd fftw*
 # Double-precision
-CC="${openmpi_dir}/bin/mpicc" MPICC="${openmpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I${openmpi_dir}/include" LDFLAGS="-L${openmpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --enable-type-prefix --prefix="${fftw_for_gadget_dir}"
+CC="${mpi_dir}/bin/mpicc" MPICC="${mpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I${mpi_dir}/include" LDFLAGS="-L${mpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --enable-type-prefix --prefix="${fftw_for_gadget_dir}"
 make
 make install
 # Single-precision
 make clean
-CC="${openmpi_dir}/bin/mpicc" MPICC="${openmpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I${openmpi_dir}/include" LDFLAGS="-L${openmpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --enable-float --enable-type-prefix --prefix="${fftw_for_gadget_dir}"
+CC="${mpi_dir}/bin/mpicc" MPICC="${mpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I${mpi_dir}/include" LDFLAGS="-L${mpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --enable-float --enable-type-prefix --prefix="${fftw_for_gadget_dir}"
 make
 make install
 cp COPYING README "${fftw_for_gadget_dir}"
-cd ../../
+cd "${top_dir}"
 rm -rf tmp
 
 # GADGET2
 current_step="installation of GADGET"
 printf "\n\e[1m\e[93mInstalling GADGET\e[0m\n"
+status="Installing GADGET"
+echo "${status_prefix}${status}"
 mkdir tmp
 cd tmp
+echo "${status_prefix}${status_disable}"
 wget -c -O gadget2.tar.gz "${gadget_url}"
-tar xf gadget2.tar.gz
+echo "${status_prefix}${status_enable}"
+tar xfz gadget2.tar.gz
 mv Gadget*/* "${gadget_dir}"
-cd ..
+cd "${top_dir}"
 rm -rf tmp
 
 # Copyright notice
 current_step="copyright notice"
 printf "\n\e[1m\e[93mCopyright notice\e[0m
-Miniconda, GSL, Open MPI, HDF5, FFTW and GADGET (along with its own
+Python, GSL, MPICH, HDF5, FFTW and GADGET (along with its own
 version of FFTW) has been installed into seperate folders in ${top_dir}.
 Any use of CO\e[3mN\e[0mCEPT must conform to the license terms of the
 above software. These can be found in their seperate installation
 directories.\n"
+
+# Subprocess complete. Deactivate trap before exiting.
+trap : 0
+) > "${log}" &
+log_pid=$!
+#####################
+# End of subprocess #
+#####################
+
+
+# Display loop
+printf "\n\n"
+tail -f "${log}" --pid $log_pid | while read line; do
+    if [[ "${line}" == "${status_prefix}"* ]]; then
+        status_backup_="${status}"
+        status=${line:${status_prefix_length}}
+        # Enable/disable status
+        if [[ "${status}" == "${status_disable}" ]]; then
+            status_visible="${status_off}"
+            status_backup="${status_backup_}"
+            printf "\033[1A\033[K"
+            printf "\033[1A"
+        elif [[ "${status}" == "${status_enable}" ]]; then
+            status_visible="${status_on}"
+            status="${status_backup}"
+            printf "\n\e[1m\e[7m${status}\e[0m\n"
+        else
+            # Normal status update
+            if [[ "${status_visible}" == "${status_on}" ]]; then
+                printf "\033[1A\033[K"
+                printf "\033[1A"
+                printf "\n\e[1m\e[7m${status}\e[0m\n"
+            fi
+        fi
+    else
+        if [[ "${status_visible}" == "on" ]]; then
+            # Line with status enabled
+            printf "\033[1A\033[K"
+            printf "\033[1A"
+            echo -e "${line}"
+            printf "\n\e[1m\e[7m${status}\e[0m\n"
+        else
+            # Line with status disabled
+            echo -e "${line}"
+        fi
+    fi
+done
+printf "\033[1A\033[K"
+printf "\033[1A"
 
 # Installation complete. Deactivate trap before exiting.
 trap : 0
