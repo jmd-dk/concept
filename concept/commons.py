@@ -185,6 +185,7 @@ cython.declare(a_max='double',
                two_recp_boxsize='double',
                use_Ewald ='bint',
                use_PM='bint',
+               recp_boxsize2='double',
                ϱ='double',
                ϱm='double',
                PM_fac_const='double',
@@ -206,6 +207,7 @@ half_PM_gridsize = PM_gridsize//2
 half_PM_gridsize_padding = PM_gridsize_padding//2
 boxsize2 = boxsize**2
 boxsize3 = boxsize**3
+recp_boxsize2 = 1/boxsize2
 half_boxsize = 0.5*boxsize
 minus_half_boxsize = -half_boxsize
 two_recp_boxsize = 2/boxsize
@@ -215,10 +217,13 @@ machine_ϵ = np.finfo('float64').eps  # Machine epsilon
 two_ewald_gridsize = 2*ewald_gridsize
 two_machine_ϵ = 2*machine_ϵ
 use_PM = False  # Flag specifying whether the PM method is used or not
-for kick_algorithm in kick_algorithms.values():
-    if kick_algorithm in ('PM', 'P3M'):
-        use_PM = True  
-        break
+if len(powerspec_times) > 0:
+    use_PM = True
+else:
+    for kick_algorithm in kick_algorithms.values():
+        if kick_algorithm in ('PM', 'P3M'):
+            use_PM = True  
+            break
 # All constant factors across the PM scheme is gathered in the PM_fac
 # variable. It's contributions are:
 # For CIC interpolating particle masses/volume to the grid points:

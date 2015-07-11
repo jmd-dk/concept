@@ -60,6 +60,7 @@ done
 
 # Make temporary parameter file
 printf "
+import numpy as np
 # Input/output
 IC_file = '${path}'
 snapshot_type = '${file_or_dir}'
@@ -91,7 +92,8 @@ a_begin = 0.02
 frame_dir = paths['params_dir'] + '/plots'
 liveframe=''
 image_format='png'
-color = (0.70, 0.97, 0.37)
+color = np.array((0.66, 0.97, 0.37))*0.72
+bgcolor = 'white'
 resolution = 1080
 remote_liveframe=''
 protocol = ''

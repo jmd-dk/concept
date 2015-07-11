@@ -677,12 +677,10 @@ def domain2PM(domain_grid, PM_grid):
                                          k] = domain_grid[i, j, k]
             # A non-blocking send is used. Otherwise the program will
             # hang on large messages.
-            #print('rank', rank, 'will send to', ID_send)
             Isend(domainPM_sendbuf, dest=ID_send)
         # The lower ranks storing the PM mesh receives the message
         if ℓ < PM_recv_rank.shape[0]:
             ID_recv = PM_recv_rank[ℓ]
-            #print('rank', rank, 'will recv from', ID_recv)
             Recv(domainPM_recvbuf, source=ID_recv)
             for i in range(PM_recv_i_start[ℓ], PM_recv_i_end[ℓ]):
                 for j in range(PM_recv_j_start[ℓ], PM_recv_j_end[ℓ]):

@@ -19,6 +19,9 @@ else:
     from graphics cimport animate, significant_figures
     """
 
+# Imports and definitions common to pure Python and Cython
+from os.path import basename
+
 
 @cython.cfunc
 @cython.inline
@@ -29,15 +32,17 @@ else:
 @cython.locals(# Arguments
                times='tuple',
                item='str',
+               at_beginning='bint',
                )
-def check_outputtimes(times, item):
+def check_outputtimes(times, item, at_beginning=False):
     if len(times) == 0:
         return
-    if np.min(times) <= a_begin:
-        raise Exception('The first ' + item + ' is set at a = '
-                        + str(np.min(times))
-                        + ',\nbut the simulation starts at a = '
-                        + str(a_begin) + '.')
+    if ((at_beginning and np.min(times) < a_begin)
+        or (not at_beginning and np.min(times) <= a_begin)):
+            raise Exception('The first ' + item + ' is set at a = '
+                            + str(np.min(times))
+                            + ',\nbut the simulation starts at a = '
+                            + str(a_begin) + '.')
     if len(times) > len(set(times)):
         warn(item.capitalize() + ' output times are not unique.\n'
                                + 'Extra values will be ignored.')
@@ -110,7 +115,7 @@ def timeloop():
     timestep = 1
     timer = time()
     # Loop over all output times
-    for a_dump in sorted(set(snapshot_times + powerspec_times)):
+    for a_dump in dump_times:
         # The filename of the current snapshot
         snapshot_filename = (snapshot_dir + '/' + snapshot_base
                              + '_a=' + '{:.3f}'.format(a_dump))
@@ -209,12 +214,29 @@ def timeloop():
                 if a == a_max:
                     timestep_message(timestep, timer, a, t)
 
+# If anything special should happen, rather than starting the timeloop
+cython.declare(particles='Particles')
+if (cython.compiled and special is not None) or (not cython.compiled and 'special' in locals()):
+    particles = load(IC_file, write_msg=False)
+    if special == 'powerspectrum':
+        powerspectrum(particles, powerspec_dir + '/' + powerspec_base + '_'
+                                 + basename(IC_file))
+    sys.exit()
 
 # Check that the snapshot times are legal
 check_outputtimes(snapshot_times, 'snapshot')
-check_outputtimes(powerspec_times, 'power spectrum')
+check_outputtimes(powerspec_times, 'power spectrum', at_beginning=True)
+# Create list of dump times
+cython.declare(dump_times='list')
+dump_times = sorted(set(snapshot_times + powerspec_times))
+if len(dump_times) > 0 and dump_times[0] == a_begin:
+    dump_times = dump_times[1:]
+    # Power spectrum of the IC?
+    if np.min(powerspec_times) == a_begin:
+        powerspec_filename = (powerspec_dir + '/' + powerspec_base
+                              + '_a=' + '{:.3f}'.format(a_begin))
+        powerspectrum(particles, powerspec_filename)
 # Load initial conditions
-cython.declare(particles='Particles')
 particles = load(IC_file)
 # Run the time loop at import time
 timeloop()

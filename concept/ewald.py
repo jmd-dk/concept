@@ -176,7 +176,7 @@ def ewald(x, y, z):
         force[2] *= -1
     # The tabulated force is for a unit box. Du rescaling
     for dim in range(3):
-        force[dim] /= boxsize2
+        force[dim] *= recp_boxsize2
     return force
 
 
@@ -197,7 +197,7 @@ cython.declare(h_lower='int',
 # The values chosen match those listed in the article mentioned in the
 # docstring of the summation function. These are also those used
 # (in effect) in GADGET2.
-rs = 1/4  # Corresponds to alpha = 2
+rs = 0.25  # Corresponds to alpha = 2
 maxdist = 3.6
 maxh2 = 10
 # Derived constants
