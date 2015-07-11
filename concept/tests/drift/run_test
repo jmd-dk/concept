@@ -55,9 +55,9 @@ done
 # and replace the Makefile in the GADGET2 directory with this edited version.
 cp "${this_dir}/Makefile_gadget" "${this_dir}/Makefile_gadget_edited"
 sed -i "/^ *CC= / s/ [^# ]/ ${mpicc//\//\\/}/" "${this_dir}/Makefile_gadget_edited"
-path="${openmpi_dir}/include"
+path="${mpi_dir}/include"
 sed -i "/^ *MPI_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
-path="${openmpi_dir}/lib"
+path="${mpi_dir}/lib"
 sed -i "/^ *MPI_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
 path="${gsl_dir}/include"
 sed -i "/^ *GSL_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
@@ -75,7 +75,7 @@ find "${Gadget2_dir}" -maxdepth 1 -type f -exec cp '{}' "${Gadget2_local_dir}" \
 cp "${this_dir}/Makefile_gadget_edited" "${Gadget2_local_dir}/Makefile"
 
 # Build Gadget and run simulation based on the ICs
-(cd "${Gadget2_local_dir}" && make clean && make && "${mpiexec}" -n 1 --prefix "${openmpi_dir}" Gadget2 ../params_gadget)  # It is crucial to use a relative path as the path has a max allowed length in GADGET
+(cd "${Gadget2_local_dir}" && make clean && make && "${mpiexec}" -n 1 "${Gadget2_local_dir}/Gadget2" ../params_gadget)  # It is crucial to use a relative path as the path has a max allowed length in GADGET
 
 # Analyze the output snapshots
 "${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python
