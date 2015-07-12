@@ -30,7 +30,7 @@ trap 'abort' EXIT
 set -e
 
 # The current status
-status=""
+status="initialization"
 status_prefix="__new_status__="
 status_prefix_length=${#status_prefix}
 status_disable="disable"
@@ -39,9 +39,33 @@ status_on="on"
 status_off="off"
 status_visible="${status_on}"
 
-# Installation message
-printf "This is the installation script to CO\e[3mN\e[0mCEPT,
-the cosmological \e[3mN\e[0m-body code by Jeppe Dakin.\n\n"
+# ANSI/VT100 escape sequences
+esc="\033"
+# Text formatting
+esc_bold="${esc}[1m"
+esc_italic="${esc}[3m"
+esc_reverted="${esc}[7m"
+esc_normal="${esc}[0m"
+# Text colors
+esc_red="${esc}[91m"
+esc_green="${esc}[92m"
+esc_yellow="${esc}[93m"
+# Cursor movement
+esc_up="${esc}[1A"
+esc_erase="${esc}[K"
+# Functions for pretty printing text
+heading()
+{
+    printf "\n${esc_bold}${esc_yellow}${1}${esc_normal}\n"
+}
+error()
+{
+    printf "\n${esc_bold}${esc_red}An error occurred during ${current_step}!${esc_normal}""\n" >&2
+}
+
+# Welcome message
+printf "${esc_bold}${esc_yellow}This is the installation script to CO${esc_italic}N${esc_normal}${esc_bold}${esc_yellow}CEPT,${esc_normal}
+${esc_bold}${esc_yellow}the cosmological ${esc_italic}N${esc_normal}${esc_bold}${esc_yellow}-body code by Jeppe Dakin${esc_normal}\n\n"
 
 # Check whether system dependencies are installed and located on PATH
 current_step="checking for preinstalled system dependencies"
@@ -61,16 +85,19 @@ check_dependency()
     fi
 }
 check_dependency "awk" "awk" "gawk"
-check_dependency "gcc" "gcc" "gcc"
 check_dependency "g++" "g++" "g++"
+check_dependency "gcc" "gcc" "gcc"
 check_dependency "gfortran" "gfortran" "gfortran"
-check_dependency "make" "make" "build-essential"
 check_dependency "freetype" "freetype-config" "libfreetype6-dev"
+check_dependency "make" "make" "build-essential"
+check_dependency "sed" "sed" "sed"
+check_dependency "tar" "tar" "tar"
+check_dependency "wget" "wget" "wget"
 
 # Creating top level directory
 current_step="setup of top level directory"
 if [ -z "${1}" ]; then
-    read -p "Where should I install the code?$(echo $'\n> ')" -e top_dir
+    read -p "Where should the code be installed?$(echo $'\n> ')" -e top_dir
 else 
     top_dir="${1}"
 fi
@@ -81,7 +108,7 @@ echo "The code will be installed in ${top_dir}"
 mkdir -p "${top_dir}"
 cd "${top_dir}"
 
-# Specify installation directories
+# Specification of installation directories
 concept_dir="${top_dir}/concept"
 python_dir="${top_dir}/python"
 fftw_dir="${top_dir}/fftw"
@@ -111,7 +138,7 @@ abort_subprocess()
 {
     trap : 0
     if [ "${current_step}" != "aborting" ]; then
-        printf "\n\e[1m\e[91mAn error occurred during ${current_step}!\e[0m\n" >&2
+        error
     fi
     abort
     exit 0
@@ -120,13 +147,27 @@ trap 'ctrl_c_subprocess' SIGINT
 trap 'abort_subprocess' EXIT
 set -e
 
+# Functions for controlling the current status
+set_status()
+{
+    status="${1}"
+    echo "${status_prefix}${status}"
+}
+disable_status()
+{
+    echo "${status_prefix}${status_disable}"
+}
+enable_status()
+{
+    echo "${status_prefix}${status_enable}"
+}
+
 
 #################################################################
 # URL's to the latest stable versions of the different software #
 #################################################################
-current_step="setup of dependency versions and download URL's"
-status="Searching for latest versions of dependencies"
-echo "${status_prefix}${status}"
+current_step="search for latest versions of dependencies"
+set_status "Searching for latest versions of dependencies"
 # Function for checking that a given url actually exists
 validate_url()
 {
@@ -233,7 +274,7 @@ fi
 concept_version="..."
 concept_url="https://github.com/jmd-dk/concept/archive/master.tar.gz"
 if [ $(validate_url "${concept_url}") -eq 0 ]; then
-    printf "Error: The CO\e[3mN\e[0mCEPT link is broken!\n"
+    printf "Error: The CO${esc_italic}N${esc_normal}CEPT link is broken!""\n"
     exit 1
 fi
 # FFTW 2.1.5 for Gadget
@@ -252,8 +293,8 @@ if [ $(validate_url "${gadget_url}") -eq 0 ]; then
 fi
 
 # Write out installation overview
-echo "${status_prefix}${status_disable}"
-printf "\n\e[1m\e[93mInstallation overview\e[0m\n"
+disable_status
+printf "\n${esc_bold}${esc_yellow}Installation overview${esc_normal}\n"
 printf "The following software will be installed\n"
 printf "Name:{}Version:{}Installation path
 CONCEPT{}${concept_version}{}${concept_dir}
@@ -265,7 +306,7 @@ GSL{}${gsl_version}{}${gsl_dir}
 HDF5{}${hdf5_version}{}${hdf5_dir}
 MPICH{}${mpich_version}{}${mpi_dir}\n" | column -t -s {}
 sleep 5
-echo "${status_prefix}${status_enable}"
+enable_status
 
 
 ############################################
@@ -273,18 +314,18 @@ echo "${status_prefix}${status_enable}"
 ############################################
 # Python itself
 current_step="installation of Python"
-printf "\n\e[1m\e[93mInstalling Python\e[0m\n"
-status='Installing Python'
-echo "${status_prefix}${status}"
+heading "Installing Python"
+set_status 'Installing Python'
 mkdir "${python_dir}"
+mkdir "${python_dir}/lib"
 mkdir tmp
 cd tmp
-echo "${status_prefix}${status_disable}"
+disable_status
 wget -c -O python.tar.xz --no-check-certificate "${python_url}"
-echo "${status_prefix}${status_enable}"
+enable_status
 tar -xJf python.tar.xz
 cd Python*
-./configure --prefix="${python_dir}" --with-ensurepip=install
+./configure  --enable-shared --prefix="${python_dir}" --with-ensurepip=install LDFLAGS="-Wl,-rpath ${python_dir}/lib"
 make
 make install
 cp LICENSE README "${python_dir}/"
@@ -294,12 +335,12 @@ rm -rf tmp
 python_version=$("${python_dir}/bin/python3" -c "from sys import version_info as v; print(str(v.major) + '.' + str(v.minor))")
 python="${python_dir}/bin/python${python_version}"
 # Update Python packages preinstalled with Python itself
-current_step="updating Python"
-echo "${status_prefix}${status_disable}"
+current_step="update of Python"
+disable_status
 "${python}" -m pip install --upgrade pip
 "${python}" -m pip install yolk3k
 "${python}" -m pip install -U $("${python}" -m yolk -U | awk '{print $1}' | uniq)
-echo "${status_prefix}${status_enable}"
+enable_status
 
 # Versions of Python dependencies from PyPI
 current_step="owerview of Python packages"
@@ -310,8 +351,8 @@ pexpect_version=$("${python}" -m yolk -V pexpect | head -n 1 | awk '{print $NF}'
 pillow_version=$("${python}" -m yolk -V pillow | head -n 1 | awk '{print $NF}')
 
 # Print out Python package installation overview
-echo "${status_prefix}${status_disable}"
-printf "\n\e[1m\e[93mPython packages overview\e[0m\n"
+disable_status
+printf "\n${esc_bold}${esc_yellow}Python packages overview${esc_normal}\n"
 printf "The following Python packages will be installed\n"
 printf "Name:{}Version:{}Installation path
 Cython{}${cython_version}{}${python_dir}/lib/python${python_version}/site-packages/Cython
@@ -323,44 +364,40 @@ NumPy{}${numpy_version}{}${python_dir}/lib/python${python_version}/site-packages
 Pexpect{}${pexpect_version}{}${python_dir}/lib/python${python_version}/site-packages/pexpect
 Pillow{}${pillow_version}{}${python_dir}/lib/python${python_version}/site-packages/PIL\n" | column -t -s {}
 sleep 5
-echo "${status_prefix}${status_enable}"
+enable_status
 
 # Install Python packages from PyPI
 # Cython
 current_step="installing Cython"
-printf "\n\e[1m\e[93mInstalling Cython\e[0m\n"
-status="Installing Cython"
-echo "${status_prefix}${status}"
+heading "Installing Cython"
+set_status "Installing Cython"
 "${python}" -m pip install -v -v -v cython
 # NumPy
 current_step="installing NumPy"
-printf "\n\e[1m\e[93mInstalling NumPy\e[0m\n"
-status="Installing Numpy"
-echo "${status_prefix}${status}"
+heading "Installing NumPy"
+set_status "Installing Numpy"
 "${python}" -m pip install -v -v -v numpy
 # Pillow
 current_step="installing Pillow"
-printf "\n\e[1m\e[93mInstalling Pillow\e[0m\n"
-status="Installing Pillow"
-echo "${status_prefix}${status}"
+heading "Installing Pillow"
+set_status "Installing Pillow"
 "${python}" -m pip install -v -v -v pillow
 # Matplotlib
 current_step="installing Matplotlib"
-printf "\n\e[1m\e[93mInstalling Matplotlib\e[0m\n"
-status="Installing Matplotlib"
-echo "${status_prefix}${status}"
+heading "Installing Matplotlib"
+set_status "Installing Matplotlib"
 "${python}" -m pip install -v -v -v matplotlib
 # Pexpect
 current_step="installing Pexpect"
-printf "\n\e[1m\e[93mInstalling Pexpect\e[0m\n"
-status="Installing Pexpect"
-echo "${status_prefix}${status}"
+heading "Installing Pexpect"
+set_status "Installing Pexpect"
 "${python}" -m pip install -v -v -v pexpect
 # Update Python packages
 current_step="updating Python packages"
-echo "${status_prefix}${status_disable}"
-"${python}" -m pip install -U $("${python}" -m yolk -U | awk '{print $1}' | uniq)
-echo "${status_prefix}${status_enable}"
+disable_status
+"${python}" -m pip install -U $("${python}" -m yolk -U | awk '{print $1}' | sort -u)
+enable_status
+
 
 
 ################################################################
@@ -368,15 +405,14 @@ echo "${status_prefix}${status_enable}"
 ################################################################
 # GSL
 current_step="installation of GSL"
-printf "\n\e[1m\e[93mInstalling GSL\e[0m\n"
-status="Installing GSL"
-echo "${status_prefix}${status}"
+heading "Installing GSL"
+set_status "Installing GSL"
 mkdir "${gsl_dir}"
 mkdir tmp
 cd tmp
-echo "${status_prefix}${status_disable}"
+disable_status
 wget -c -O gsl.tar.gz --no-check-certificate "${gsl_url}"
-echo "${status_prefix}${status_enable}"
+enable_status
 tar xfz gsl.tar.gz
 cd gsl*
 ./configure --prefix="${gsl_dir}"
@@ -388,12 +424,11 @@ rm -rf tmp
 
 # The Cython_GSL Python package
 current_step="installation of Cython_GSL"
-printf "\n\e[1m\e[93mInstalling Cython_GSL\e[0m\n"
-status="Installing Cython_GSL"
-echo "${status_prefix}${status}"
-echo "${status_prefix}${status_disable}"
+heading "Installing Cython_GSL"
+set_status "Installing Cython_GSL"
+disable_status
 wget -c -O CythonGSL.tar.gz --no-check-certificate "${cython_gsl_url}"
-echo "${status_prefix}${status_enable}"
+enable_status
 tar xfz CythonGSL.tar.gz
 cd CythonGSL*
 export LD_LIBRARY_PATH="${gsl_dir}/lib:$LD_LIBRARY_PATH"
@@ -404,15 +439,14 @@ rm -rf CythonGSL*
 
 # MPICH
 current_step="installation of MPICH"
-printf "\n\e[1m\e[93mInstalling MPICH\e[0m\n"
-status="Installing MPICH"
-echo "${status_prefix}${status}"
+heading "Installing MPICH"
+set_status "Installing MPICH"
 mkdir "${mpi_dir}"
 mkdir tmp
 cd tmp
-echo "${status_prefix}${status_disable}"
+disable_status
 wget -c -O mpich.tar.gz --no-check-certificate "${mpich_url}"
-echo "${status_prefix}${status_enable}"
+enable_status
 tar xfz mpich.tar.gz
 cd mpich*
 ./configure --enable-shared --disable-fortran --prefix="${mpi_dir}"
@@ -424,12 +458,11 @@ rm -rf tmp
 
 # The MPI4Py Python package
 current_step="installation of MPI4Py"
-printf "\n\e[1m\e[93mInstalling MPI4Py\e[0m\n"
-status="Installing MPI4Py"
-echo "${status_prefix}${status}"
-echo "${status_prefix}${status_disable}"
+heading "Installing MPI4Py"
+set_status "Installing MPI4Py"
+disable_status
 wget -c -O mpi4py.tar.gz --no-check-certificate "${mpi4py_url}"
-echo "${status_prefix}${status_enable}"
+enable_status
 tar xfz mpi4py.tar.gz
 cd mpi4py*
 export MPI_DIR="${mpi_dir}"
@@ -442,14 +475,13 @@ rm -rf mpi4py*
 
 # HDF5
 current_step="installation of HDF5"
-printf "\n\e[1m\e[93mInstalling HDF5\e[0m\n"
-status="Installing HDF5"
-echo "${status_prefix}${status}"
+heading "Installing HDF5"
+set_status "Installing HDF5"
 mkdir tmp
 cd tmp
-echo "${status_prefix}${status_disable}"
+disable_status
 wget -c -O hdf5.tar.bz2 --no-check-certificate "${hdf5_url}"
-echo "${status_prefix}${status_enable}"
+enable_status
 tar xjf hdf5.tar.bz2
 cd hdf5*
 CC="${mpi_dir}/bin/mpicc" ./configure --enable-shared --enable-parallel --prefix="${hdf5_dir}"
@@ -461,12 +493,11 @@ rm -rf tmp
 
 # The H5Py Python package
 current_step="installation of H5Py"
-printf "\n\e[1m\e[93mInstalling H5Py\e[0m\n"
-status="Installing H5Py"
-echo "${status_prefix}${status}"
-echo "${status_prefix}${status_disable}"
+heading "Installing H5Py"
+set_status "Installing H5Py"
+disable_status
 wget -c -O h5py.tar.gz --no-check-certificate "${h5py_url}"
-echo "${status_prefix}${status_enable}"
+enable_status
 tar xfz h5py.tar.gz
 cd h5py*
 export CC="${mpi_dir}/bin/mpicc"
@@ -478,14 +509,13 @@ rm -rf h5py*
 
 # FFTW
 current_step="installation of FFTW"
-printf "\n\e[1m\e[93mInstalling FFTW\e[0m\n"
-status="Installing FFTW"
-echo "${status_prefix}${status}"
+heading "Installing FFTW"
+set_status "Installing FFTW"
 mkdir tmp
 cd tmp
-echo "${status_prefix}${status_disable}"
+disable_status
 wget -c -O fftw.tar.gz "${fftw_url}"
-echo "${status_prefix}${status_enable}"
+enable_status
 tar xfz fftw.tar.gz
 cd fftw*
 # Double-precision
@@ -499,12 +529,11 @@ rm -rf tmp
 
 # The CONCEPT code
 current_step="installation of CO\e[3mN\e[0m\e[1m\e[91mCEPT"
-printf "\n\e[1m\e[93mInstalling CO\e[3mN\e[0m\e[1m\e[93mCEPT\e[0m\n"
-status='Installing CO\\e[3mN\\e[0m\\e[1m\\e[93mCEPT'
-echo "${status_prefix}${status}"
-echo "${status_prefix}${status_disable}"
+printf "\n${esc_bold}${esc_yellow}Installing CO${esc_italic}N${esc_normal}${esc_bold}${esc_yellow}CEPT${esc_normal}\n"
+set_status 'Installing CONCEPT'
+disable_status
 wget -c -O concept.tar.gz --no-check-certificate "${concept_url}"
-echo "${status_prefix}${status_enable}"
+enable_status
 tar xfz concept.tar.gz
 rm concept.tar.gz
 mv concept-master/* "${top_dir}"  # This leaves the .paths file behind in the concept-master folder
@@ -515,9 +544,8 @@ mkdir -p "${concept_dir}/output"
 
 # Create the .paths file, storing important paths used by the program
 current_step="creataion of the .paths file"
-printf "\nWriting paths to .paths\n"
-status="Writing paths to .paths"
-echo "${status_prefix}${status}"
+heading "Writing paths to .paths"
+set_status "Writing paths to .paths"
 Gadget2_dir="${gadget_dir}/Gadget2"
 tests_dir="${concept_dir}/tests"
 cython="${python_dir}/bin/cython"
@@ -578,14 +606,13 @@ run='${run}'
 ######################################################
 # FFTW 2.1.5 (GADGET2 is incompatible with FFTW 3.x)
 current_step="installation of FFTW2 used by GADGET"
-printf "\n\e[1m\e[93mInstalling FFTW2 used by GADGET\e[0m\n"
-status="Installing FFTW2 used by GADGET"
-echo "${status_prefix}${status}"
+heading "Installing FFTW2 used by GADGET"
+set_status "Installing FFTW2 used by GADGET"
 mkdir tmp
 cd tmp
-echo "${status_prefix}${status_disable}"
+disable_status
 wget -c -O fftw.tar.gz "${fftw_for_gadget_url}"
-echo "${status_prefix}${status_enable}"
+enable_status
 tar xfz fftw.tar.gz
 cd fftw*
 # Double-precision
@@ -603,14 +630,13 @@ rm -rf tmp
 
 # GADGET2
 current_step="installation of GADGET"
-printf "\n\e[1m\e[93mInstalling GADGET\e[0m\n"
-status="Installing GADGET"
-echo "${status_prefix}${status}"
+heading "Installing GADGET"
+set_status "Installing GADGET"
 mkdir tmp
 cd tmp
-echo "${status_prefix}${status_disable}"
+disable_status
 wget -c -O gadget2.tar.gz "${gadget_url}"
-echo "${status_prefix}${status_enable}"
+enable_status
 tar xfz gadget2.tar.gz
 mv Gadget*/* "${gadget_dir}"
 cd "${top_dir}"
@@ -618,7 +644,7 @@ rm -rf tmp
 
 # Copyright notice
 current_step="copyright notice"
-printf "\n\e[1m\e[93mCopyright notice\e[0m
+printf "\n${esc_bold}${esc_yellow}Copyright notice${esc_normal}
 Python, GSL, MPICH, HDF5, FFTW and GADGET (along with its own
 version of FFTW) has been installed into seperate folders in ${top_dir}.
 Any use of CO\e[3mN\e[0mCEPT must conform to the license terms of the
@@ -644,37 +670,37 @@ tail -f "${log}" --pid $log_pid | while read line; do
         if [[ "${status}" == "${status_disable}" ]]; then
             status_visible="${status_off}"
             status_backup="${status_backup_}"
-            printf "\033[1A\033[K"
-            printf "\033[1A"
+            printf "${esc_up}${esc_erase}"
+            printf "${esc_up}"
         elif [[ "${status}" == "${status_enable}" ]]; then
             status_visible="${status_on}"
             status="${status_backup}"
-            printf "\n\e[1m\e[7m${status}\e[0m\n"
+            printf "\n${esc_bold}${esc_reverted}${status}${esc_normal}\n"
         else
             # Normal status update
             if [[ "${status_visible}" == "${status_on}" ]]; then
-                printf "\033[1A\033[K"
-                printf "\033[1A"
-                printf "\n\e[1m\e[7m${status}\e[0m\n"
+                printf "${esc_up}${esc_erase}"
+                printf "${esc_up}"
+                printf "\n${esc_bold}${esc_reverted}${status}${esc_normal}\n"
             fi
         fi
     else
         if [[ "${status_visible}" == "on" ]]; then
             # Line with status enabled
-            printf "\033[1A\033[K"
-            printf "\033[1A"
+            printf "${esc_up}${esc_erase}"
+            printf "${esc_up}"
             echo -e "${line}"
-            printf "\n\e[1m\e[7m${status}\e[0m\n"
+            printf "\n${esc_bold}${esc_reverted}${status}${esc_normal}\n"
         else
             # Line with status disabled
             echo -e "${line}"
         fi
     fi
 done
-printf "\033[1A\033[K"
-printf "\033[1A"
+printf "${esc_up}${esc_erase}"
+printf "${esc_up}"
 
 # Installation complete. Deactivate trap before exiting.
 trap : 0
-printf "\n\e[1m\e[92mCO\e[3mN\e[0m\e[1m\e[92mCEPT successfully installed\e[0m\n"
+printf "\n${esc_bold}${esc_green}CO${esc_italic}N${esc_normal}${esc_bold}${esc_green}CEPT successfully installed${esc_normal}\n"
 
