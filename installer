@@ -371,31 +371,31 @@ enable_status
 current_step="installing Cython"
 heading "Installing Cython"
 set_status "Installing Cython"
-"${python}" -m pip install -v -v -v cython
+"${python}" -m pip install -v -v -v --no-cache-dir cython
 # NumPy
 current_step="installing NumPy"
 heading "Installing NumPy"
 set_status "Installing Numpy"
-"${python}" -m pip install -v -v -v numpy
+"${python}" -m pip install -v -v -v --no-cache-dir numpy
 # Pillow
 current_step="installing Pillow"
 heading "Installing Pillow"
 set_status "Installing Pillow"
-"${python}" -m pip install -v -v -v pillow
+"${python}" -m pip install -v -v -v --no-cache-dir pillow
 # Matplotlib
 current_step="installing Matplotlib"
 heading "Installing Matplotlib"
 set_status "Installing Matplotlib"
-"${python}" -m pip install -v -v -v matplotlib
+"${python}" -m pip install -v -v -v --no-cache-dir matplotlib
 # Pexpect
 current_step="installing Pexpect"
 heading "Installing Pexpect"
 set_status "Installing Pexpect"
-"${python}" -m pip install -v -v -v pexpect
+"${python}" -m pip install -v -v -v --no-cache-dir pexpect
 # Update Python packages
 current_step="updating Python packages"
 disable_status
-"${python}" -m pip install -U $("${python}" -m yolk -U | awk '{print $1}' | sort -u)
+"${python}" -m pip install --no-cache-dir -U $("${python}" -m yolk -U | awk '{print $1}' | sort -u)
 enable_status
 
 
