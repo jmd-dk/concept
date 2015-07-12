@@ -349,8 +349,6 @@ CONCEPT{}${concept_version}{}${concept_dir}
 ├─FFTW{}${fftw_version}{}${fftw_dir}
 └─GADGET{}${gadget_version}{}${gadget_dir}
   └─FFTW{}${fftw_for_gadget_version}{}${fftw_for_gadget_dir}\n" | column -t -s {}  # Note that the two spaces at the beginning are "en quad" spaces rather than normal spaces
-
-
 sleep 10
 enable_status
 
@@ -394,6 +392,7 @@ export CPPFLAGS="-I${python_dir}/include -I${python_dir}/include/openssl"
 ./configure --enable-shared --prefix="${python_dir}" --with-ensurepip=install
 make
 make install
+unset LDFLAGS LD_LIBRARY_PATH CPPFLAGS
 cp LICENSE README "${python_dir}/"
 cd "${top_dir}"
 rm -rf tmp
@@ -497,9 +496,10 @@ wget -c -O CythonGSL.tar.gz --no-check-certificate "${cython_gsl_url}"
 enable_status
 tar xfz CythonGSL.tar.gz
 cd CythonGSL*
-export LD_LIBRARY_PATH="${gsl_dir}/lib:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="${gsl_dir}/lib"
 "${python}" setup.py build
 "${python}" setup.py install
+unset LD_LIBRARY_PATH
 cd "${top_dir}"
 rm -rf CythonGSL*
 
@@ -532,10 +532,11 @@ enable_status
 tar xfz mpi4py.tar.gz
 cd mpi4py*
 export MPI_DIR="${mpi_dir}"
-export PATH="${mpi_dir}/bin":"${PATH}"
-export LD_LIBRARY_PATH="${mpi_dir}/lib":"${LD_LIBRARY_PATH}"
-export DYLD_LIBRARY_PATH="${mpi_dir}/lib":"${DYLD_LIBRARY_PATH}"
+export PATH="${mpi_dir}/bin:${PATH}"
+export LD_LIBRARY_PATH="${mpi_dir}/lib"
+export DYLD_LIBRARY_PATH="${mpi_dir}/lib"
 "${python}" setup.py install
+unset MPI_DIR LD_LIBRARY_PATH DYLD_LIBRARY_PATH
 cd "${top_dir}"
 rm -rf mpi4py*
 
@@ -570,6 +571,7 @@ export CC="${mpi_dir}/bin/mpicc"
 "${python}" setup.py configure --mpi --hdf5="${hdf5_dir}"
 "${python}" setup.py build
 "${python}" setup.py install
+unset CC
 cd "${top_dir}"
 rm -rf h5py*
 
