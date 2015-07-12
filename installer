@@ -175,8 +175,6 @@ enable_status()
 #################################################################
 # URL's to the latest stable versions of the different software #
 #################################################################
-current_step="search for latest versions of dependencies"
-set_status "Searching for latest versions of dependencies"
 # Function for checking that a given url actually exists
 validate_url()
 {
@@ -191,6 +189,8 @@ validate_url()
 }
 
 # OpenSSL needed by pip (version 1.0.2d is known to work)
+current_step="search for latest version of OpenSSL"
+set_status "Searching for latest versions of OpenSSL"
 openssl_version=$(wget -q -O- --no-check-certificate "https://www.openssl.org/source/" | grep -o -P "(?<=openssl-).*(?=LATEST)" || echo)
 openssl_version="$(sed 's/.tar.gz.*//' <<< "${openssl_version}")"
 if [ -z "${openssl_version}" ]; then
@@ -203,6 +203,8 @@ if [ $(validate_url "${openssl_url}") -eq 0 ]; then
     exit 1
 fi
 # Python (version 3.4 is known to work). Note that 'python_version' will be overwritten later!
+current_step="search for latest version of Python"
+set_status "Searching for latest versions of Python"
 python_version=$(wget -q -O- --no-check-certificate "https://www.python.org/downloads/" | grep -o -P "(?<=Python-).*(?=.tar.xz)" | head -1  || echo)
 if [ -z "${python_version}" ]; then
     echo "Error: Could not identify the version number of the latest Python!"
@@ -214,6 +216,8 @@ if [ $(validate_url "${python_url}") -eq 0 ]; then
     exit 1
 fi
 # GSL (1.16 is known to work)
+current_step="search for latest version of GSL"
+set_status "Searching for latest versions of GSL"
 gsl_version=$(wget -q -O- --no-check-certificate "http://mirrors.dotsrc.org/gnu/gsl/" | grep -o -P "(?<=gsl-[0-9]).*(?=.tar.gz)" || echo)
 gsl_version="${gsl_version##*gsl-}"
 if [ -z "${gsl_version}" ]; then
@@ -226,6 +230,8 @@ if [ $(validate_url "${gsl_url}") -eq 0 ]; then
     exit 1
 fi
 # Cython_GSL (0.2.1 is known to work)
+current_step="search for latest version of Cython_GSL"
+set_status "Searching for latest versions of Cython_GSL"
 cython_gsl_version=$(wget -q -O- --no-check-certificate "https://raw.githubusercontent.com/twiecki/CythonGSL/master/README.rst" | grep ":Version:" | awk '{print $NF}' || echo)
 if [ -z "${cython_gsl_version}" ]; then
     echo "Could not identify the version number of the latest Cython_GSL."
@@ -237,6 +243,8 @@ if [ $(validate_url "${cython_gsl_url}") -eq 0 ]; then
     exit 1
 fi
 # MPICH (3.1.4 is known to work)
+current_step="search for latest version of MPICH"
+set_status "Searching for latest versions of MPICH"
 mpich_version=$(wget -q -O- --no-check-certificate "http://www.mpich.org/downloads" | grep -m 1 -o -P "(?<=mpich-).*(?=stable)" | awk '{print $1}' || echo "")
 if [ -z "${mpich_version}" ]; then
     echo "Could not identify the version number of the latest MPICH."
@@ -248,6 +256,8 @@ if [ $(validate_url "${mpich_url}") -eq 0 ]; then
     exit 1
 fi
 # MPI4Py (1.3.1 is known to work)
+current_step="search for latest version of MPI4Py"
+set_status "Searching for latest versions of MPI4Py"
 mpi4py_version=$(wget -q -O- --no-check-certificate "https://bitbucket.org/mpi4py/mpi4py/downloads/" | grep -m 1 -o -P "(?<=mpi4py/get/).*(?=.tar.gz)" || echo)
 if [ -z "${mpi4py_version}" ]; then
     echo "Could not identify the version number of the latest MPI4Py."
@@ -259,6 +269,8 @@ if [ $(validate_url "${mpi4py_url}") -eq 0 ]; then
     exit 1
 fi
 # HDF5 (1.8.14 is known to work)
+current_step="search for latest version of HDF5"
+set_status "Searching for latest versions of HDF5"
 hdf5_version=$(wget -q -O- --no-check-certificate "ftp://ftp.hdfgroup.org/HDF5/current/src/" | grep -m 1 -o -P "(?<=hdf5-).*(?=.tar.bz2\")" || echo "")
 if [ -z "${hdf5_version}" ]; then
     echo "Could not identify the version number of the latest HDF5."
@@ -270,6 +282,8 @@ if [ $(validate_url "${hdf5_url}") -eq 0 ]; then
     exit 1
 fi
 # H5Py (2.4.0 is known to work)
+current_step="search for latest version of HF5Py"
+set_status "Searching for latest versions of HF5Py"
 h5py_version=$(wget -q -O- --no-check-certificate "https://pypi.python.org/pypi/h5py/#downloads" | grep -m 1 -o -P "(?<=h5py/).*(?=\"\>h5py)" || echo)
 if [ -z "${h5py_version}" ]; then
     echo "Could not identify the version number of the latest H5Py."
@@ -281,6 +295,8 @@ if [ $(validate_url "${h5py_url}") -eq 0 ]; then
     exit 1
 fi
 # FFTW (3.3.4 is known to work)
+current_step="search for latest version of FFTW"
+set_status "Searching for latest versions of FFTW"
 fftw_version=$(wget -q -O- --no-check-certificate "http://www.fftw.org/download.html" | grep -m 1 -o -P "(?<=fftw-).*(?=.tar.gz\")" || echo)
 if [ -z "${fftw_version}" ]; then
     echo "Could not identify the version number of the latest FFTW."
@@ -292,6 +308,8 @@ if [ $(validate_url "${fftw_url}") -eq 0 ]; then
     exit 1
 fi
 # CONCEPT
+current_step="validation of CONCEPT link"
+set_status "Validating CONCEPT link"
 concept_version="..."
 concept_url="https://github.com/jmd-dk/concept/archive/master.tar.gz"
 if [ $(validate_url "${concept_url}") -eq 0 ]; then
@@ -299,13 +317,17 @@ if [ $(validate_url "${concept_url}") -eq 0 ]; then
     exit 1
 fi
 # FFTW 2.1.5 for Gadget
+current_step="validation of FFTW2 link"
+set_status "Validating FFTW2 link"
 fftw_for_gadget_version="2.1.5"
 fftw_for_gadget_url="http://www.fftw.org/fftw-${fftw_for_gadget_version}.tar.gz"
 if [ $(validate_url "${fftw_for_gadget_url}") -eq 0 ]; then
     echo "Error: The FFTW for GADGET link is broken!"
     exit 1
 fi
-# Gadget2
+# GADGET 2.0.7
+current_step="validation of GADGET link"
+set_status "Validating GADGET link"
 gadget_version="2.0.7"
 gadget_url="http://www.mpa-garching.mpg.de/gadget/gadget-${gadget_version}.tar.gz"
 if [ $(validate_url "${gadget_url}") -eq 0 ]; then
@@ -319,14 +341,17 @@ printf "\n${esc_bold}${esc_yellow}Installation overview${esc_normal}\n"
 printf "The following software will be installed\n"
 printf "Name:{}Version:{}Installation path
 CONCEPT{}${concept_version}{}${concept_dir}
-Python{}${python_version}{}${python_dir}
-FFTW{}${fftw_version}{}${fftw_dir}
-FFTW{}${fftw_for_gadget_version}{}${fftw_for_gadget_dir}
-GADGET{}${gadget_version}{}${gadget_dir}
-GSL{}${gsl_version}{}${gsl_dir}
-HDF5{}${hdf5_version}{}${hdf5_dir}
-MPICH{}${mpich_version}{}${mpi_dir}\n" | column -t -s {}
-sleep 5
+├─Python{}${python_version}{}${python_dir}
+│ └─OpenSSL{}${openssl_version}{}${python_dir}
+├─GSL{}${gsl_version}{}${gsl_dir}
+├─MPICH{}${mpich_version}{}${mpi_dir}
+├─HDF5{}${hdf5_version}{}${hdf5_dir}
+├─FFTW{}${fftw_version}{}${fftw_dir}
+└─GADGET{}${gadget_version}{}${gadget_dir}
+  └─FFTW{}${fftw_for_gadget_version}{}${fftw_for_gadget_dir}\n" | column -t -s {}  # Note that the two spaces at the beginning are "en quad" spaces rather than normal spaces
+
+
+sleep 10
 enable_status
 
 
@@ -404,7 +429,7 @@ MPI4Py{}${mpi4py_version}{}${python_dir}/lib/python${python_version}/site-packag
 NumPy{}${numpy_version}{}${python_dir}/lib/python${python_version}/site-packages/numpy
 Pexpect{}${pexpect_version}{}${python_dir}/lib/python${python_version}/site-packages/pexpect
 Pillow{}${pillow_version}{}${python_dir}/lib/python${python_version}/site-packages/PIL\n" | column -t -s {}
-sleep 5
+sleep 10
 enable_status
 
 # Install Python packages from PyPI
