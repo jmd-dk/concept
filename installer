@@ -6,7 +6,7 @@
 # You can also download and run this script via the following command:
 # bash <(wget -O- --no-ch tiny.cc/nbody)
 # The above uses a URL shortener. If it does not work, use the full URL:
-# https://raw.githubusercontent.com/jmd-dk/concept/master/installer
+# bash <(wget -O- --no-ch https://raw.githubusercontent.com/jmd-dk/concept/master/installer)
 
 # A small pause is needed when executing as the result of wget,
 # if installation directory is not supplied as an argument.
@@ -68,7 +68,7 @@ printf "${esc_bold}${esc_yellow}This is the installation script to CO${esc_itali
 ${esc_bold}${esc_yellow}the cosmological ${esc_italic}N${esc_normal}${esc_bold}${esc_yellow}-body code by Jeppe Dakin${esc_normal}\n\n"
 
 # Check whether system dependencies are installed and located on PATH
-current_step="checking for preinstalled system dependencies"
+current_step="check for preinstalled system dependencies"
 # Function for testing whether system dependencies are installed and located on PATH
 check_dependency()
 {
@@ -97,7 +97,6 @@ check_dependency "awk" "awk" "gawk"
 check_dependency "g++" "g++" "g++"
 check_dependency "gcc" "gcc" "gcc"
 check_dependency "gfortran" "gfortran" "gfortran"
-check_dependency "freetype" "freetype-config" "libfreetype6-dev"
 check_dependency "make" "make" "build-essential"
 check_dependency "sed" "sed" "sed"
 check_dependency "tar" "tar" "tar"
@@ -200,6 +199,20 @@ fi
 openssl_url="ftp://ftp.openssl.org/source/openssl-${openssl_version}.tar.gz"
 if [ $(validate_url "${openssl_url}") -eq 0 ]; then
     echo "Error: The OpenSSL link is broken!"
+    exit 1
+fi
+# Freetype is needed by matplotlib (version 2.6 is known to work)
+current_step="search for latest version of FreeType"
+set_status "Searching for latest versions of FreeType"
+freetype_version=$(wget -q -O- --no-check-certificate "http://download.savannah.gnu.org/releases/freetype/" | grep -o "freetype-[0-9.]*tar" | sort -u | tail -n 1 | grep -o [0-9.]*)
+freetype_version="${freetype_version::-1}"
+if [ -z "${freetype_version}" ]; then
+    echo "Error: Could not identify the version number of the latest FreeType!"
+    exit 1
+fi
+freetype_url="http://download.savannah.gnu.org/releases/freetype/freetype-${freetype_version}.tar.gz"
+if [ $(validate_url "${freetype_url}") -eq 0 ]; then
+    echo "Error: The FreeType link is broken!"
     exit 1
 fi
 # Python (version 3.4 is known to work). Note that 'python_version' will be overwritten later!
@@ -375,6 +388,23 @@ make install
 cd "${top_dir}"
 rm -rf tmp
 
+# FreeType is needed by matplotlib
+current_step="installation of FreeType"
+heading "Installing FreeType"
+set_status "Installing FreeType"
+mkdir tmp
+cd tmp
+disable_status
+wget -c -O freetype.tar.gz --no-check-certificate "${freetype_url}"
+enable_status
+tar xfz freetype.tar.gz
+cd freetype*
+./configure --prefix="${python_dir}"
+make
+make install
+cd "${top_dir}"
+rm -rf tmp
+
 # Python itself
 current_step="installation of Python"
 heading "Installing Python"
@@ -408,7 +438,7 @@ disable_status
 enable_status
 
 # Versions of Python dependencies from PyPI
-current_step="owerview of Python packages"
+current_step="generation of owerview of Python packages"
 cython_version=$("${python}" -m yolk -V cython | head -n 1 | awk '{print $NF}')
 matplotlib_version=$("${python}" -m yolk -V matplotlib | head -n 1 | awk '{print $NF}')
 numpy_version=$("${python}" -m yolk -V numpy | head -n 1 | awk '{print $NF}')
@@ -431,36 +461,39 @@ Pillow{}${pillow_version}{}${python_dir}/lib/python${python_version}/site-packag
 sleep 10
 enable_status
 
-# Install Python packages from PyPI
+# Install Python packages from PyPI.
+# Function for installing Python packages, utilizing pip.
+pip_install()
+{
+    # Arguments: Python package name
+    current_step="installation of ${1}"
+    heading "Installing ${1}"
+    set_status "Installing ${1}"
+    mkdir "${top_dir}/tmp"
+    "${python}" -m pip install -v -v -v --no-cache-dir --no-binary=:all: --download "${top_dir}/tmp" ${1}
+    "${python}" -m pip install -v -v -v --no-index --find-links="${top_dir}/tmp" ${1}
+    rm -rf "${top_dir}/tmp"
+}
 # Cython
-current_step="installing Cython"
-heading "Installing Cython"
-set_status "Installing Cython"
-"${python}" -m pip install -v -v -v --no-cache-dir cython
+pip_install "Cython"
 # NumPy
-current_step="installing NumPy"
-heading "Installing NumPy"
-set_status "Installing Numpy"
-"${python}" -m pip install -v -v -v --no-cache-dir numpy
+pip_install "NumPy"
 # Pillow
-current_step="installing Pillow"
-heading "Installing Pillow"
-set_status "Installing Pillow"
-"${python}" -m pip install -v -v -v --no-cache-dir pillow
+pip_install "Pillow"
 # Matplotlib
-current_step="installing Matplotlib"
-heading "Installing Matplotlib"
-set_status "Installing Matplotlib"
-"${python}" -m pip install -v -v -v --no-cache-dir matplotlib
+export LDFLAGS="-L${python_dir}/lib -Wl,-rpath ${python_dir}/lib"
+export LD_LIBRARY_PATH="${python_dir}/lib"
+PATH_backup="${PATH}"
+export PATH="${python_dir}/bin:${python_dir}/lib:${python_dir}/include:${python_dir}/include/freetype2:${PATH}"
+pip_install "Matplotlib"
+unset LDFLAGS LD_LIBRARY_PATH
+PATH="${PATH_backup}"
 # Pexpect
-current_step="installing Pexpect"
-heading "Installing Pexpect"
-set_status "Installing Pexpect"
-"${python}" -m pip install -v -v -v --no-cache-dir pexpect
+pip_install "Pexpect"
 # Update Python packages
-current_step="updating Python packages"
+current_step="update of Python packages"
 disable_status
-"${python}" -m pip install --no-cache-dir -U $("${python}" -m yolk -U | awk '{print $1}' | sort -u)
+"${python}" -m pip install -v -v -v --no-cache-dir -U $("${python}" -m yolk -U | awk '{print $1}' | sort -u)
 enable_status
 
 
@@ -532,11 +565,13 @@ enable_status
 tar xfz mpi4py.tar.gz
 cd mpi4py*
 export MPI_DIR="${mpi_dir}"
+PATH_backup="${PATH}"
 export PATH="${mpi_dir}/bin:${PATH}"
 export LD_LIBRARY_PATH="${mpi_dir}/lib"
 export DYLD_LIBRARY_PATH="${mpi_dir}/lib"
 "${python}" setup.py install
 unset MPI_DIR LD_LIBRARY_PATH DYLD_LIBRARY_PATH
+PATH="${PATH_backup}"
 cd "${top_dir}"
 rm -rf mpi4py*
 
