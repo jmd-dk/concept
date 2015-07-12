@@ -76,10 +76,19 @@ check_dependency()
     path=$(which "${2}" || echo)
     if [ -z "${path}" ]; then
         echo "Error: Could not find '${1}'."
-        in_repo=$(apt-cache show "${3}" &> /dev/null; echo $?)
-        if [ ${in_repo} == 0 ]; then
+        not_in_repo=$(apt-cache show "${3}" &> /dev/null; echo $?)
+        if [ ${not_in_repo} == 0 ]; then
             echo "You can install it by typing:"
             echo "sudo apt-get -y install ${3}"
+            while true; do
+                read -p "Run above command now? [Y/n] " yn
+                case $yn in
+                    [Yy]* ) sudo apt-get -y install ${3}; printf "${1} successfully installed\n\n"; return;;
+                    [Nn]* ) exit 1;;
+                    "" ) sudo apt-get -y install ${3}; printf "${1} successfully installed\n\n"; return;;
+                    * ) exit 1;;
+                esac
+            done
         fi
         exit 1
     fi
@@ -108,7 +117,7 @@ echo "The code will be installed in ${top_dir}"
 mkdir -p "${top_dir}"
 cd "${top_dir}"
 
-# Specification of installation directories
+# Specification of paths
 concept_dir="${top_dir}/concept"
 python_dir="${top_dir}/python"
 fftw_dir="${top_dir}/fftw"
@@ -117,9 +126,8 @@ fftw_for_gadget_dir="${gadget_dir}/fftw"
 gsl_dir="${top_dir}/gsl"
 hdf5_dir="${top_dir}/hdf5"
 mpi_dir="${top_dir}/mpich"
-
-# The file in which to dump all printed output
 log="${top_dir}/install_log"
+dotpaths="${top_dir}/.paths"
 
 
 
@@ -161,6 +169,7 @@ enable_status()
 {
     echo "${status_prefix}${status_enable}"
 }
+
 
 
 #################################################################
@@ -307,6 +316,7 @@ HDF5{}${hdf5_version}{}${hdf5_dir}
 MPICH{}${mpich_version}{}${mpi_dir}\n" | column -t -s {}
 sleep 5
 enable_status
+
 
 
 ############################################
@@ -536,7 +546,7 @@ wget -c -O concept.tar.gz --no-check-certificate "${concept_url}"
 enable_status
 tar xfz concept.tar.gz
 rm concept.tar.gz
-mv concept-master/* "${top_dir}"  # This leaves the .paths file behind in the concept-master folder
+mv concept-master/* "${top_dir}"  # Note: This leaves the .paths file behind in the concept-master folder
 rm -r concept-master
 # Create empty logs and output directories
 mkdir -p "${concept_dir}/logs"
@@ -598,7 +608,8 @@ python='${python}'
 python_config='${python_config}'
 # The run script of the CONCEPT code
 run='${run}'
-" > "${top_dir}/.paths"
+" > "${dotpaths}"
+
 
 
 ######################################################
@@ -658,6 +669,7 @@ log_pid=$!
 #####################
 # End of subprocess #
 #####################
+
 
 
 # Display loop

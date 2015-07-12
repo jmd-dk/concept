@@ -5,24 +5,24 @@
 ###############
 # Directories #
 ###############
-# Directory containing the GADGET2 source code
-Gadget2_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/gadget/Gadget2'
 # Directory containing the CONCEPT source code
 concept_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept'
-# Directory of the Miniconda Python distribution
-miniconda_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/miniconda'
 # Directory of FFTW
 fftw_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/fftw'
 # Directory of FFTW2, used by GADGET
 fftw_for_gadget_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/gadget/fftw'
 # Directory of Gadget2
 gadget_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/gadget'
+# Directory containing the GADGET2 source code
+Gadget2_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/gadget/Gadget2'
 # Directory of GSL
 gsl_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/gsl'
 # Directory of HDF5
 hdf5_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/hdf5'
 # Directory of MPI
-openmpi_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/openmpi'
+mpi_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/mpich'
+# Directory of Python
+python_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python'
 # Directory containing tests for the CONCEPT code
 tests_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/tests'
 # Top level directory, containing e.g. README.md
@@ -31,16 +31,16 @@ top_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept'
 #########
 # Files #
 #########
-# The Python3 interpreter
-python='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/miniconda/bin/python3.4'
-# The python3.xm file within the include directory of Miniconda
-python_incl_m='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/miniconda/include/python3.4m'
 # The Cython executable
-cython='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/miniconda/bin/cython'
+cython='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python/bin/cython'
 # The MPI C compiler
-mpicc='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/openmpi/bin/mpicc'
+mpicc='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/mpich/bin/mpicc'
 # The MPI executable
-mpiexec='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/openmpi/bin/mpiexec'
+mpiexec='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/mpich/bin/mpiexec'
+# The Python3 interpreter
+python='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python/bin/python3.4'
+# The Python3 configuration executable
+python_config='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python/bin/python3.4-config'
 # The run script of the CONCEPT code
 run='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/run'
 
