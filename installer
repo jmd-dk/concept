@@ -337,9 +337,9 @@ python="${python_dir}/bin/python${python_version}"
 # Update Python packages preinstalled with Python itself
 current_step="update of Python"
 disable_status
-"${python}" -m pip install --upgrade pip
-"${python}" -m pip install yolk3k
-"${python}" -m pip install -U $("${python}" -m yolk -U | awk '{print $1}' | uniq)
+"${python}" -m pip install --no-cache-dir --upgrade pip
+"${python}" -m pip install --no-cache-dir yolk3k
+"${python}" -m pip install --no-cache-dir -U $("${python}" -m yolk -U | awk '{print $1}' | uniq)
 enable_status
 
 # Versions of Python dependencies from PyPI
