@@ -700,6 +700,9 @@ done
 printf "${esc_up}${esc_erase}"
 printf "${esc_up}"
 
+# Remove the log file
+rm -f "${log}"
+
 # Installation complete. Deactivate trap before exiting.
 trap : 0
 printf "\n${esc_bold}${esc_green}CO${esc_italic}N${esc_normal}${esc_bold}${esc_green}CEPT successfully installed${esc_normal}\n"
