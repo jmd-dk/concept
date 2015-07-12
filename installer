@@ -190,6 +190,18 @@ validate_url()
     fi
 }
 
+# OpenSSL needed by pip (version 1.0.2d is known to work)
+openssl_version=$(wget -q -O- --no-check-certificate "https://www.openssl.org/source/" | grep -o -P "(?<=openssl-).*(?=LATEST)" || echo)
+openssl_version="$(sed 's/.tar.gz.*//' <<< "${openssl_version}")"
+if [ -z "${openssl_version}" ]; then
+    echo "Error: Could not identify the version number of the latest OpenSSL!"
+    exit 1
+fi
+openssl_url="ftp://ftp.openssl.org/source/openssl-${openssl_version}.tar.gz"
+if [ $(validate_url "${openssl_url}") -eq 0 ]; then
+    echo "Error: The OpenSSL link is broken!"
+    exit 1
+fi
 # Python (version 3.4 is known to work). Note that 'python_version' will be overwritten later!
 python_version=$(wget -q -O- --no-check-certificate "https://www.python.org/downloads/" | grep -o -P "(?<=Python-).*(?=.tar.xz)" | head -1  || echo)
 if [ -z "${python_version}" ]; then
@@ -322,12 +334,28 @@ enable_status
 ############################################
 # Installing Python and packages from PyPI #
 ############################################
+# OpenSSL needed by pip. This will be installed in the Python directory
+current_step="installation of OpenSSL"
+heading "Installing OpenSSL"
+set_status "Installing OpenSSL"
+mkdir "${python_dir}"
+mkdir tmp
+cd tmp
+disable_status
+wget -c -O openssl.tar.gz --no-check-certificate "${openssl_url}"
+enable_status
+tar xfz openssl.tar.gz
+cd openssl*
+./config shared --prefix="${python_dir}" --openssldir="${python_dir}/openssl"
+make
+make install
+cd "${top_dir}"
+rm -rf tmp
+
 # Python itself
 current_step="installation of Python"
 heading "Installing Python"
-set_status 'Installing Python'
-mkdir "${python_dir}"
-mkdir "${python_dir}/lib"
+set_status "Installing Python"
 mkdir tmp
 cd tmp
 disable_status
@@ -335,7 +363,10 @@ wget -c -O python.tar.xz --no-check-certificate "${python_url}"
 enable_status
 tar -xJf python.tar.xz
 cd Python*
-./configure  --enable-shared --prefix="${python_dir}" --with-ensurepip=install LDFLAGS="-Wl,-rpath ${python_dir}/lib"
+export LDFLAGS="-L${python_dir}/lib -Wl,-rpath ${python_dir}/lib"
+export LD_LIBRARY_PATH="${python_dir}/lib"
+export CPPFLAGS="-I${python_dir}/include -I${python_dir}/include/openssl"
+./configure --enable-shared --prefix="${python_dir}" --with-ensurepip=install
 make
 make install
 cp LICENSE README "${python_dir}/"

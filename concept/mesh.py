@@ -41,10 +41,9 @@ def partition(array_shape):
                   + str(nprocs) + ') is larger than the problem size (' + str(problem_size) + ').')
         raise ValueError(errmsg)
     # Partition the local shape based on the rank.
-    # size_t should correspond to uint64 un a 64 bit machine. Otherwize a ValueError will be thrown.
     local_size = int(problem_size/nprocs)
-    indices_start = array(unravel_index(local_size*rank, array_shape), dtype='uint64')
-    indices_end = array(unravel_index(local_size*(rank + 1) - 1, array_shape), dtype='uint64') + 1
+    indices_start = array(unravel_index(local_size*rank, array_shape), dtype='uintp')
+    indices_end = array(unravel_index(local_size*(rank + 1) - 1, array_shape), dtype='uintp') + 1
     return (indices_start, indices_end)
 
 # Function for tabulating a cubic grid with vector values
