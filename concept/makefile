@@ -48,25 +48,17 @@ paths = $(shell this_dir="$$( cd "$$( dirname "$${BASH_SOURCE[0]}" )" && pwd )";
 ifeq ($(paths), fail)
     $(error Could not find the .paths file)
 endif
-concept_dir_abs   = $(shell source $(paths); echo $${concept_dir})
-fftw_dir_abs      = $(shell source $(paths); echo $${fftw_dir})
-gsl_dir_abs       = $(shell source $(paths); echo $${gsl_dir})
-mpi_dir_abs       = $(shell source $(paths); echo $${mpi_dir})
-python_dir_abs    = $(shell source $(paths); echo $${python_dir})
-cython_abs        = $(shell source $(paths); echo $${cython})
-python_abs        = $(shell source $(paths); echo $${python})
-python_config_abs = $(shell source $(paths); echo $${python_config})
-# Make paths relative to this makefile (concept_dir), reducing screen clutter when making
-# (at least when everything is installed in one place, as the installer script does it).
-concept_dir   = $(shell ${python_abs} -c "from os.path import relpath; print(relpath('${concept_dir_abs}',   '${concept_dir_abs}'))")
-fftw_dir      = $(shell ${python_abs} -c "from os.path import relpath; print(relpath('${fftw_dir_abs}',      '${concept_dir_abs}'))")
-gsl_dir       = $(shell ${python_abs} -c "from os.path import relpath; print(relpath('${gsl_dir_abs}',       '${concept_dir_abs}'))")
-mpi_dir       = $(shell ${python_abs} -c "from os.path import relpath; print(relpath('${mpi_dir_abs}',       '${concept_dir_abs}'))")
-python_dir    = $(shell ${python_abs} -c "from os.path import relpath; print(relpath('${python_dir_abs}',    '${concept_dir_abs}'))")
-cython        = $(shell ${python_abs} -c "from os.path import relpath; print(relpath('${cython_abs}',        '${concept_dir_abs}'))")
-python        = $(shell ${python_abs} -c "from os.path import relpath; print(relpath('${python_abs}',        '${concept_dir_abs}'))")
-python_config = $(shell ${python_abs} -c "from os.path import relpath; print(relpath('${python_config_abs}', '${concept_dir_abs}'))")
-
+python        = $(shell source $(paths); echo $${python})
+concept_dir   = $(shell source $(paths); echo $${concept_dir})
+fftw_dir      = $(shell source $(paths); echo $${fftw_dir})
+gsl_dir       = $(shell source $(paths); echo $${gsl_dir})
+mpi_dir       = $(shell source $(paths); echo $${mpi_dir})
+python_dir    = $(shell source $(paths); echo $${python_dir})
+cython_abs    = $(shell source $(paths); echo $${cython})
+cython        = $(shell ${python} -c "from os.path import relpath; print(relpath('${cython_abs}', '${concept_dir}'))")# Make path relative to this makefile (concept_dir), reducing screen clutter when making
+mpicc_abs     = $(shell source $(paths); echo $${mpicc})
+mpicc         = $(shell ${python} -c "from os.path import relpath; print(relpath('${mpicc_abs}', '${concept_dir}'))")# Make path relative to this makefile (concept_dir), reducing screen clutter when making
+python_config = $(shell source $(paths); echo $${python_config})
 
 
 
@@ -76,24 +68,45 @@ python_config = $(shell ${python_abs} -c "from os.path import relpath; print(rel
 # Options passed when cynthonizing .pyx files
 cythonflags = -3 -a -o
 # Includes
-python_incl = -I$(shell $(python) -c "from distutils import sysconfig; print(sysconfig.get_python_inc())")
-mpi_incl    = -I$(mpi_dir)/include
 fftw_incl   = -I$(fftw_dir)/include
 gsl_incl    = -I$(gsl_dir)/include
-includes = $(python_incl) $(mpi_incl) $(fftw_incl) $(gsl_incl)
+mpi_incl    = -I$(mpi_dir)/include
+python_incl = $(shell $(python_config) --includes)
+includes    = $(python_incl) $(mpi_incl) $(fftw_incl) $(gsl_incl)
 # Compiler options
-CC = $(mpi_dir)/bin/mpicc
+CC = $(mpicc)
 mathoptimizations = -fassociative-math -fno-trapping-math -fno-signed-zeros  # Is this smart?
-python_CFLAGS=$(shell $(python) -c "from distutils import sysconfig; print(sysconfig.get_config_var('CFLAGS'))")
-CFLAGS = $(python_CFLAGS) -pthread -std=c99 -fno-strict-aliasing -fPIC $(mathoptimizations) $(includes)
+python_cflags     = $(shell $(python_config) --cflags)
+other_cflags      = -pthread -std=c99 -fno-strict-aliasing -fPIC
+CFLAGS_abs = $(shell echo $(python_cflags) $(other_cflags) $(mathoptimizations) $(includes))
+CFLAGS = $(shell ${python} -c "from os.path import relpath; import numpy as np; line = '${CFLAGS_abs}';\
+                               words = [word[:2] + relpath(word[2:], '${concept_dir}') if word.startswith('-I') or word.startswith('-L') else word for word in line.split(' ') if word];\
+                               words = [word[:11] + relpath(word[11:], '${concept_dir}') if word.startswith('-Wl,-rpath=') else word for word in words];\
+                               words = [relpath(word, '${concept_dir}') if word.startswith('/') else word for word in words];\
+                               _, indices = np.unique([word.strip() for word in words], return_index=True); words = np.array(words)[indices];\
+                               [print(word) for word in words]")# Make paths relative to this makefile (concept_dir), reducing screen clutter when making
 # Libraries to link
-python_libs = -L$(python_dir)/lib $(shell $(python_config) --libs)
-mpi_libs    = -L$(mpi_dir)/lib -Wl,"-rpath=$(mpi_dir)/lib" -lmpi
 fftw_libs   = -L$(fftw_dir)/lib -Wl,"-rpath=$(fftw_dir)/lib" -lfftw3_mpi -lfftw3
-gsl_libs    = -L$(gsl_dir)/lib -Wl,"-rpath=$(gsl_dir)/lib" -lgsl -lgslcblas
-LDLIBS = $(python_libs) $(mpi_libs) $(fftw_libs) $(gsl_libs) -lm
+gsl_libs    = -L$(gsl_dir)/lib -Wl,"-rpath=$(gsl_dir)/lib" -lgsl -lgslcblas -lm
+mpi_libs    = -L$(mpi_dir)/lib -Wl,"-rpath=$(mpi_dir)/lib" -lmpi
+python_libs = #-L$(python_dir)/lib $(shell $(python_config) --libs)
+LDLIBS_abs = $(shell echo $(python_libs) $(mpi_libs) $(fftw_libs) $(gsl_libs))
+LDLIBS = $(shell ${python} -c "from os.path import relpath; import numpy as np; line = '${LDLIBS_abs}';\
+                               words = [word[:2] + relpath(word[2:], '${concept_dir}') if word.startswith('-I') or word.startswith('-L') else word for word in line.split(' ') if word];\
+                               words = [word[:11] + relpath(word[11:], '${concept_dir}') if word.startswith('-Wl,-rpath=') else word for word in words];\
+                               words = [relpath(word, '${concept_dir}') if word.startswith('/') else word for word in words];\
+                               _, indices = np.unique([word.strip() for word in words], return_index=True); words = np.array(words)[indices];\
+                               [print(word) for word in words]")# Make paths relative to this makefile (concept_dir), reducing screen clutter when making
 # Linker options
-LDFLAGS = -shared
+python_ldflags = $(shell $(python_config) --ldflags)
+other_ldflags = -shared
+LDFLAGS_abs = $(shell echo $(python_ldflags) $(other_ldflags))
+LDFLAGS = $(shell ${python} -c "from os.path import relpath; import numpy as np; line = '${LDFLAGS_abs}';\
+                                words = [word[:2] + relpath(word[2:], '${concept_dir}') if word.startswith('-I') or word.startswith('-L') else word for word in line.split(' ') if word];\
+                                words = [word[:11] + relpath(word[11:], '${concept_dir}') if word.startswith('-Wl,-rpath=') else word for word in words];\
+                                words = [relpath(word, '${concept_dir}') if word.startswith('/') else word for word in words];\
+                                _, indices = np.unique([word.strip() for word in words], return_index=True); words = np.array(words)[indices];\
+                                [print(word) for word in words]")# Make paths relative to this makefile (concept_dir), reducing screen clutter when making
 
 
 
@@ -127,12 +140,13 @@ endif
 all: $(addsuffix .so, $(pyfiles))
 	@# This suppresses "make: Nothing to be done for `all'."
 
-# Make shared object Python modules (the rule is the same as the builtin implicit rule for .o to executable)
+# Make shared object Python modules (the rule is identical to the builtin implicit rule for .o to executable)
 $(addsuffix .so, $(pyfiles)): %.so: %.o
-	$(CC) $(LDFLAGS) $< $(LOADLIBES) $(LDLIBS) -o $@
+	$(CC) $(LDFLAGS) $< $(LDLIBS) -o $@
 
-# Compile c source files into object files
+# Compile c source files into object files (the rule is identical to the builtin implicit rule for .c to .o but without CPPFLAGS)
 $(addsuffix .o, $(pyfiles)): %.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 # Cythonize .pyx and .pxd files into c source files
 $(addsuffix .c, $(pyfiles)): %.c: %.pyx

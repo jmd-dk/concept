@@ -68,20 +68,20 @@ path="${fftw_for_gadget_dir}/lib"
 sed -i "/^ *FFTW_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
 
 # Make a local copy of the files in the Gadget2 directory and copy the edited Makefile
-Gadget2_edited_dir="${this_dir}/Gadget2_edited"
-mkdir -p "${Gadget2_edited_dir}"
-find "${Gadget2_dir}" -maxdepth 1 -type f -exec cp '{}' "${Gadget2_edited_dir}" \;
-cp "${this_dir}/Makefile_gadget_edited" "${Gadget2_edited_dir}/Makefile"
+Gadget2_local_dir="${this_dir}/Gadget2_local"
+mkdir -p "${Gadget2_local_dir}"
+find "${Gadget2_dir}" -maxdepth 1 -type f -exec cp '{}' "${Gadget2_local_dir}" \;
+cp "${this_dir}/Makefile_gadget_edited" "${Gadget2_local_dir}/Makefile"
 
 # Remove the tabulated Ewald grid from the local Gadget2 directory
 # and edit forcetree.c so that future generated Ewald corrections are set to zero.
-rm -f "${Gadget2_edited_dir}/ewald_spc_table_64.dat"
-sed -i "/fcorrx\[i\]\[j\]\[k\] = force\[0\];/c\fcorrx\[i\]\[j\]\[k\] = 0.0;" "${Gadget2_edited_dir}/forcetree.c"
-sed -i "/fcorry\[i\]\[j\]\[k\] = force\[1\];/c\fcorry\[i\]\[j\]\[k\] = 0.0;" "${Gadget2_edited_dir}/forcetree.c"
-sed -i "/fcorrz\[i\]\[j\]\[k\] = force\[2\];/c\fcorrz\[i\]\[j\]\[k\] = 0.0;" "${Gadget2_edited_dir}/forcetree.c"
+rm -f "${Gadget2_local_dir}/ewald_spc_table_64.dat"
+sed -i "/fcorrx\[i\]\[j\]\[k\] = force\[0\];/c\fcorrx\[i\]\[j\]\[k\] = 0.0;" "${Gadget2_local_dir}/forcetree.c"
+sed -i "/fcorry\[i\]\[j\]\[k\] = force\[1\];/c\fcorry\[i\]\[j\]\[k\] = 0.0;" "${Gadget2_local_dir}/forcetree.c"
+sed -i "/fcorrz\[i\]\[j\]\[k\] = force\[2\];/c\fcorrz\[i\]\[j\]\[k\] = 0.0;" "${Gadget2_local_dir}/forcetree.c"
 
 # Build GADGET and run simulation based on the ICs
-(cd "${Gadget2_edited_dir}" && make clean && make && "${mpiexec}" -n 1 "${Gadget2_local_dir}/Gadget2" ../params_gadget)  # It is crucial to use a relative path as the path has a max allowed length in GADGET
+(cd "${Gadget2_local_dir}" && make clean && make && "${mpiexec}" -n 1 "${Gadget2_local_dir}/Gadget2" ../params_gadget)  # It is crucial to use a relative path as the path has a max allowed length in GADGET
 
 # Analyze the output snapshots
 "${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
