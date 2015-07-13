@@ -7,7 +7,7 @@
 # see the bottom of this file.
 
 # Input/output
-IC_file = 'ICs/64' #'/home/jeppe/Documents/Uni/Speciale/gadget2/ICs/32_DM' #'ICs/default'				# Initial condition snapshot
+IC_file = 'ICs/default'				# Initial condition snapshot
 snapshot_type = 'standard'			# Type of output snapshot
 snapshot_dir = 'output'				# Directory for storing output snapshots
 snapshot_base = 'snapshot'			# File basename for output snapshots
@@ -17,7 +17,7 @@ powerspec_base = 'powerspec'			# File basename for output power spectra
 powerspec_times = ()				# Times at which to dump power spectra to disk
 
 # Numerical parameters
-boxsize = 64/0.7*Mpc				# Linear size of the simulation box
+boxsize = 16/0.7*Mpc				# Linear size of the simulation box
 ewald_gridsize = 64				# Linear size of the grid of Ewald corrections
 PM_gridsize = 64				# Linear size of the grid used for the PM method
 P3M_scale = 1.25				# The long/short-range force split scale
@@ -34,15 +34,15 @@ H0 = 70*km/s/Mpc				# The Hubble constant
 a_begin = 0.02					# Scale factor at beginning of simulation
 
 # Graphics
-frame_dir = ''				# Folder to save frames
+frame_dir = ''					# Folder to save frames
 liveframe=''					# Filename of saved live frame
 image_format='png'				# The image format of the saved frames
 color = (0.70, 0.97, 0.37)      		# Color of the particles as an RGB triple
 bgcolor='black'					# Color of the background as a string
 resolution = 1080				# The image height and width
-remote_liveframe='' #'jmd@lifa.phys.au.dk:/usr/users/jmd/public_html/master/simulation.png'				# Where to upload the live frame
+remote_liveframe=''				# Where to upload the live frame
 protocol = 'sftp'				# Protocol for live frame file transfer
-framespace = 10000					# The plot is updated every framespace time step
+framespace = 10000				# The plot is updated every framespace time step
 
 # Simulation options
 kick_algorithms = {'dark matter': 'PM',	# The algorithm which should be used to kick each species
