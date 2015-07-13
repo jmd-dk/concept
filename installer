@@ -205,7 +205,7 @@ fi
 current_step="search for latest version of FreeType"
 set_status "Searching for latest versions of FreeType"
 freetype_version=$(wget -q -O- --no-check-certificate "http://download.savannah.gnu.org/releases/freetype/" | grep -o "freetype-[0-9.]*tar" | sort -u | tail -n 1 | grep -o [0-9.]*)
-freetype_version="${freetype_version::-1}"
+freetype_version="${freetype_version%?}"
 if [ -z "${freetype_version}" ]; then
     echo "Error: Could not identify the version number of the latest FreeType!"
     exit 1
