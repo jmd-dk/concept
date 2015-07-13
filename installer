@@ -67,6 +67,15 @@ error()
 printf "${esc_bold}${esc_yellow}This is the installation script to CO${esc_italic}N${esc_normal}${esc_bold}${esc_yellow}CEPT,${esc_normal}
 ${esc_bold}${esc_yellow}the cosmological ${esc_italic}N${esc_normal}${esc_bold}${esc_yellow}-body code by Jeppe Dakin${esc_normal}\n\n"
 
+# Backup of initial environment variables
+CC_backup="${CC}"
+CFLAGS_backup="${CFLAGS}"
+CPPFLAGS_backup="${CPPFLAGS}"
+DYLD_LIBRARY_PATH_backup="${DYLD_LIBRARY_PATH}"
+LD_LIBRARY_PATH_backup="${LD_LIBRARY_PATH}"
+LDFLAGS_backup="${LDFLAGS}"
+PATH_backup="${PATH}"
+
 # Check whether system dependencies are installed and located on PATH
 current_step="check for preinstalled system dependencies"
 # Function for testing whether system dependencies are installed and located on PATH
@@ -417,12 +426,15 @@ enable_status
 tar -xJf python.tar.xz
 cd Python*
 export LDFLAGS="-L${python_dir}/lib -Wl,-rpath ${python_dir}/lib"
-export LD_LIBRARY_PATH="${python_dir}/lib"
+export LD_LIBRARY_PATH="${python_dir}/lib:${LD_LIBRARY_PATH}"
 export CPPFLAGS="-I${python_dir}/include -I${python_dir}/include/openssl"
 ./configure --enable-shared --prefix="${python_dir}" --with-ensurepip=install
 make
 make install
-unset LDFLAGS LD_LIBRARY_PATH CPPFLAGS
+#unset LDFLAGS LD_LIBRARY_PATH CPPFLAGS
+export LDFLAGS="${LDFLAGS_backup}"
+export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
+export CPPFLAGS="${CPPFLAGS_backup}"
 cp LICENSE README "${python_dir}/"
 cd "${top_dir}"
 rm -rf tmp
@@ -482,12 +494,13 @@ pip_install "NumPy"
 pip_install "Pillow"
 # Matplotlib
 export LDFLAGS="-L${python_dir}/lib -Wl,-rpath ${python_dir}/lib"
-export LD_LIBRARY_PATH="${python_dir}/lib"
-PATH_backup="${PATH}"
+export LD_LIBRARY_PATH="${python_dir}/lib:${LD_LIBRARY_PATH}"
 export PATH="${python_dir}/bin:${python_dir}/lib:${python_dir}/include:${python_dir}/include/freetype2:${PATH}"
 pip_install "Matplotlib"
-unset LDFLAGS LD_LIBRARY_PATH
-PATH="${PATH_backup}"
+#unset LDFLAGS LD_LIBRARY_PATH
+export LDFLAGS="${LDFLAGS_backup}"
+export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
+export PATH="${PATH_backup}"
 # Pexpect
 pip_install "Pexpect"
 # Update Python packages
@@ -529,10 +542,11 @@ wget -c -O CythonGSL.tar.gz --no-check-certificate "${cython_gsl_url}"
 enable_status
 tar xfz CythonGSL.tar.gz
 cd CythonGSL*
-export LD_LIBRARY_PATH="${gsl_dir}/lib"
+export LD_LIBRARY_PATH="${gsl_dir}/lib:${LD_LIBRARY_PATH}"
 "${python}" setup.py build
 "${python}" setup.py install
-unset LD_LIBRARY_PATH
+#unset LD_LIBRARY_PATH
+export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
 cd "${top_dir}"
 rm -rf CythonGSL*
 
@@ -564,14 +578,17 @@ wget -c -O mpi4py.tar.gz --no-check-certificate "${mpi4py_url}"
 enable_status
 tar xfz mpi4py.tar.gz
 cd mpi4py*
+MPI_DIR_backup="${MPI_DIR}"
 export MPI_DIR="${mpi_dir}"
-PATH_backup="${PATH}"
 export PATH="${mpi_dir}/bin:${PATH}"
-export LD_LIBRARY_PATH="${mpi_dir}/lib"
-export DYLD_LIBRARY_PATH="${mpi_dir}/lib"
+export LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}"
+export DYLD_LIBRARY_PATH="${mpi_dir}/lib:${DYLD_LIBRARY_PATH}"
 "${python}" setup.py install
-unset MPI_DIR LD_LIBRARY_PATH DYLD_LIBRARY_PATH
-PATH="${PATH_backup}"
+#unset MPI_DIR LD_LIBRARY_PATH DYLD_LIBRARY_PATH
+export MPI_DIR="${MPI_DIR_backup}"
+export PATH="${PATH_backup}"
+export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
+export DYLD_LIBRARY_PATH="${DYLD_LIBRARY_PATH_backup}"
 cd "${top_dir}"
 rm -rf mpi4py*
 
@@ -606,7 +623,8 @@ export CC="${mpi_dir}/bin/mpicc"
 "${python}" setup.py configure --mpi --hdf5="${hdf5_dir}"
 "${python}" setup.py build
 "${python}" setup.py install
-unset CC
+#unset CC
+export CC="${CC_backup}"
 cd "${top_dir}"
 rm -rf h5py*
 
