@@ -178,7 +178,7 @@ enable_status()
 validate_url()
 {
     text=$(wget -S --spider "${1}" 2>&1)
-    text_http=$(echo "${text}" | grep "HTTP/1.1 200 OK")
+    text_http=$(echo "${text}" | grep "Remote file exists")
     text_ftp=$(echo "${text}" | grep "Can't check for file existence")
     if [ -n "${text_http}" ] || ([[ "${1}" == "ftp://"* ]] && [ -z "${text_ftp}" ]); then
         echo 1
