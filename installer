@@ -276,7 +276,7 @@ if [ -z "${mpi4py_version}" ]; then
     echo "Could not identify the version number of the latest MPI4Py."
     mpi4py_version="..."
 fi
-mpi4py_url="https://bitbucket.org/mpi4py/mpi4py/get/${mpi4py_version}.tar.gz"
+mpi4py_url="https://pypi.python.org/packages/source/m/mpi4py/mpi4py-${mpi4py_version}.tar.gz"
 if [ $(validate_url "${mpi4py_url}") -eq 0 ]; then
     echo "Error: The MPI4Py link is broken!"
     exit 1
