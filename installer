@@ -603,7 +603,7 @@ wget -c -O hdf5.tar.bz2 --no-check-certificate "${hdf5_url}"
 enable_status
 tar xjf hdf5.tar.bz2
 cd hdf5*
-CC="${mpi_dir}/bin/mpicc" ./configure --enable-shared --enable-parallel --prefix="${hdf5_dir}"
+CC="${mpi_dir}/bin/mpicc" LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}" ./configure --enable-shared --enable-parallel --prefix="${hdf5_dir}"
 make
 make install
 cp COPYING README.txt "${hdf5_dir}"
