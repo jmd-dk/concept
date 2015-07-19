@@ -75,44 +75,63 @@ python_incl = $(shell $(python_config) --includes)
 includes    = $(python_incl) $(mpi_incl) $(fftw_incl) $(gsl_incl)
 # Compiler options
 CC = $(mpicc)
-mathoptimizations = -fassociative-math -fno-trapping-math -fno-signed-zeros  # Is this smart?
-python_cflags     = $(shell $(python_config) --cflags)
-other_cflags      = -pthread -std=c99 -fno-strict-aliasing -fPIC
-CFLAGS_abs = $(shell echo $(python_cflags) $(other_cflags) $(mathoptimizations) $(includes))
-CFLAGS = $(shell ${python} -c "from os.path import relpath; import numpy as np; line = '${CFLAGS_abs}';\
-                               words = [word[:2] + relpath(word[2:], '${concept_dir}') if word.startswith('-I') or word.startswith('-L') else word for word in line.split(' ') if word];\
-                               words = [word[:11] + relpath(word[11:], '${concept_dir}') if word.startswith('-Wl,-rpath=') else word for word in words];\
-                               words = [relpath(word, '${concept_dir}') if word.startswith('/') else word for word in words];\
-                               _, indices = np.unique([word.strip() for word in words], return_index=True); words = np.array(words)[indices];\
-                               [print(word) for word in words]")# Make paths relative to this makefile (concept_dir), reducing screen clutter when making
+python_cflags = $(shell $(python_config) --cflags)
+other_cflags  = -pthread -std=c99 -fno-strict-aliasing -fPIC
+CFLAGS_abs    = $(python_cflags) $(other_cflags) $(includes)
 # Libraries to link
 fftw_libs   = -L$(fftw_dir)/lib -Wl,"-rpath=$(fftw_dir)/lib" -lfftw3_mpi -lfftw3
 gsl_libs    = -L$(gsl_dir)/lib -Wl,"-rpath=$(gsl_dir)/lib" -lgsl -lgslcblas -lm
 mpi_libs    = -L$(mpi_dir)/lib -Wl,"-rpath=$(mpi_dir)/lib" -lmpi
-python_libs = #-L$(python_dir)/lib $(shell $(python_config) --libs)
-LDLIBS_abs = $(shell echo $(python_libs) $(mpi_libs) $(fftw_libs) $(gsl_libs))
-LDLIBS = $(shell ${python} -c "from os.path import relpath; import numpy as np; line = '${LDLIBS_abs}';\
-                               words = [word[:2] + relpath(word[2:], '${concept_dir}') if word.startswith('-I') or word.startswith('-L') else word for word in line.split(' ') if word];\
-                               words = [word[:11] + relpath(word[11:], '${concept_dir}') if word.startswith('-Wl,-rpath=') else word for word in words];\
-                               words = [relpath(word, '${concept_dir}') if word.startswith('/') else word for word in words];\
-                               _, indices = np.unique([word.strip() for word in words], return_index=True); words = np.array(words)[indices];\
-                               [print(word) for word in words]")# Make paths relative to this makefile (concept_dir), reducing screen clutter when making
+python_libs = -L$(python_dir)/lib -Wl,"-rpath=$(python_dir)/lib" $(shell $(python_config) --libs)
+LDLIBS_abs  = $(python_libs) $(mpi_libs) $(fftw_libs) $(gsl_libs)
 # Linker options
 python_ldflags = $(shell $(python_config) --ldflags)
-other_ldflags = -shared
-LDFLAGS_abs = $(shell echo $(python_ldflags) $(other_ldflags))
+other_ldflags  = -shared
+LDFLAGS_abs    = $(python_ldflags) $(other_ldflags)
+# Reduce screen clutter when making by using relative paths and removing duplicate linker options
+CFLAGS  = $(shell ${python} -c "from os.path import relpath; import numpy as np; line = '${CFLAGS_abs}';\
+                                words = [word[:2] + relpath(word[2:], '${concept_dir}')\
+                                         if word.startswith('-I') or word.startswith('-L')\
+                                         else word for word in line.split(' ') if word];\
+                                words = [word[:11] + relpath(word[11:], '${concept_dir}')\
+                                         if word.startswith('-Wl,-rpath=') else word for word in words];\
+                                words = [relpath(word, '${concept_dir}')\
+                                         if word.startswith('/') else word for word in words];\
+                                _, indices = np.unique([word.strip() for word in words], return_index=True);\
+                                words = np.array(words)[indices];\
+                                [print(word) for word in words]")
+LDLIBS  = $(shell ${python} -c "from os.path import relpath; import numpy as np; line = '${LDLIBS_abs}';\
+                               words = [word[:2] + relpath(word[2:], '${concept_dir}')\
+                                        if word.startswith('-I') or word.startswith('-L')\
+                                        else word for word in line.split(' ') if word];\
+                               words = [word[:11] + relpath(word[11:], '${concept_dir}')\
+                                        if word.startswith('-Wl,-rpath=') else word for word in words];\
+                               words = [relpath(word, '${concept_dir}')\
+                                        if word.startswith('/') else word for word in words];\
+                               _, indices = np.unique([word.strip() for word in words], return_index=True);\
+                               words = np.array(words)[indices];\
+                               [print(word) for word in words]")
 LDFLAGS = $(shell ${python} -c "from os.path import relpath; import numpy as np; line = '${LDFLAGS_abs}';\
-                                words = [word[:2] + relpath(word[2:], '${concept_dir}') if word.startswith('-I') or word.startswith('-L') else word for word in line.split(' ') if word];\
-                                words = [word[:11] + relpath(word[11:], '${concept_dir}') if word.startswith('-Wl,-rpath=') else word for word in words];\
-                                words = [relpath(word, '${concept_dir}') if word.startswith('/') else word for word in words];\
-                                _, indices = np.unique([word.strip() for word in words], return_index=True); words = np.array(words)[indices];\
-                                [print(word) for word in words]")# Make paths relative to this makefile (concept_dir), reducing screen clutter when making
+                                words = [word[:2] + relpath(word[2:], '${concept_dir}')\
+                                         if word.startswith('-I') or word.startswith('-L')\
+                                         else word for word in line.split(' ')\
+                                         if (word and word not in '${LDLIBS_abs}'.split(' '))];\
+                                words = [word[:11] + relpath(word[11:], '${concept_dir}')\
+                                         if word.startswith('-Wl,-rpath=') else word for word in words];\
+                                words = [relpath(word, '${concept_dir}')\
+                                         if word.startswith('/') else word for word in words];\
+                                _, indices = np.unique([word.strip() for word in words], return_index=True);\
+                                words = np.array(words)[indices];\
+                                [print(word) for word in words]")
 
 
 
 ################################
 # Preprocess the params module #
 ################################
+# The message to be inserted by the params.py target
+copy_msg = \# The following is an exact copy of
+copy_msg_len = $(shell ${python} -c "print(len('${copy_msg}') + 1)")
 # If no paramsfile argument is supplied, the default parameterfile will be used
 ifndef paramsfile
     paramsfile=$(params_default)
@@ -124,7 +143,7 @@ ifndef rebuild_params
     rebuild_params="no"
 endif
 .PHONY := $(shell if [ -f params.py ] && [ "$(paramsfile)" != "$$(head -n 1 \
-          params.py 2> /dev/null | cut -c 37-)" ] && [ $(rebuild_params) == "no" ] ; then \
+          params.py 2> /dev/null | cut -c $(copy_msg_len)-)" ] && [ $(rebuild_params) == "no" ] ; then \
           $(MAKE) --always-make paramsfile=$(paramsfile) rebuild_params="yes" params.py; fi)
 ifneq ($(.PHONY),)
     $(info )
@@ -140,11 +159,11 @@ endif
 all: $(addsuffix .so, $(pyfiles))
 	@# This suppresses "make: Nothing to be done for `all'."
 
-# Make shared object Python modules (the rule is identical to the builtin implicit rule for .o to executable)
+# Make shared object Python modules
 $(addsuffix .so, $(pyfiles)): %.so: %.o
-	$(CC) $(LDFLAGS) $< $(LDLIBS) -o $@
+	$(CC) $< -o $@ $(LDFLAGS) $(LDLIBS)
 
-# Compile c source files into object files (the rule is identical to the builtin implicit rule for .c to .o but without CPPFLAGS)
+# Compile c source files into object files
 $(addsuffix .o, $(pyfiles)): %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
@@ -171,7 +190,7 @@ params.py: $(paramsfile) $(MAKEFILE_LIST)
 	@echo
 	@echo "Processing parameters from $(paramsfile)"
 	@cp $(paramsfile) $@
-	@sed -i '1i# The following is an exact copy of $(paramsfile)\
+	@sed -i '1i$(copy_msg) $(paramsfile)\
 	# Import useful numpy functions and constants\
 	from numpy import abs, arange, arccos, arccosh, arcsin, arcsinh, arctan, arctanh, ceil, cos, cosh, e, exp, floor, linspace, loadtxt, log, log10, log2, pi, sqrt, sin, sinh, tan, tanh\
 	from numpy import pi as π\
