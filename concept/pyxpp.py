@@ -226,7 +226,7 @@ def power2product(filename):
 
 
 def unicode2ASCII(filename):
-    with open(filename, 'r') as pyxfile:
+    with open(filename, 'r', encoding='utf-8') as pyxfile:
         text = [char for char in pyxfile.read()]
     for i, char in enumerate(text):
         if ord(char) > 127:
