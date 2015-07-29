@@ -56,7 +56,7 @@ rm -rf "${this_dir}/output_8"
 mv "${this_dir}/output" "${this_dir}/output_8"
 
 # Analyze the output snapshots
-"${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python
+"${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
 
 # Test run complete. Deactivate trap before exiting.
 trap : 0
