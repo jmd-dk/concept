@@ -6,37 +6,9 @@
 # initial velocity in the x-direction is given. The particles will pass
 # through the periodic edge of the box during the simulation.
 
-# The name of this test (the directory name)
-this_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-test_name=$(basename "${this_dir}")
-
-# Set up error trapping
-ctrl_c()
-{
-    trap : 0
-    exit 2
-}
-abort()
-{
-    printf "\e[1m\e[91mAn error occurred during ${test_name} test!\e[0m\n" >&2
-    exit 1
-}
-trap 'ctrl_c' SIGINT
-trap 'abort' EXIT
-set -e
-
-# Load paths from the .paths file
-curr="${this_dir}"
-while [ 1 ]; do
-    if [ -f "${curr}/.paths" ]; then
-        source "${curr}/.paths"
-        break
-    fi
-    if [ "${curr}" == "/" ]; then
-        exit 1
-    fi
-    curr="`dirname \"${curr}\"`"
-done
+# Initialize test environment
+this_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${this_dir}/../environment"
 
 # Create list of output times, used by both CONCEPT and GADGET
 "${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', np.linspace(0.03, 1, 25))"
@@ -86,7 +58,6 @@ if [ ! -f "${Gadget2_dir}/ewald_spc_table_64.dat" ]; then
     cp "${Gadget2_local_dir}/ewald_spc_table_64.dat" "${Gadget2_dir}/ewald_spc_table_64.dat"
 fi
 
-# Test run complete. Deactivate trap before exiting.
-trap : 0
-printf "\e[1m\e[92m${test_name^} test ran successfully\e[0m\n"
+# Finalize test environment
+test_done=true source "${this_dir}/../environment"
 

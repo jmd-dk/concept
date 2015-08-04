@@ -72,7 +72,7 @@ fftw_incl   = -I$(fftw_dir)/include
 gsl_incl    = -I$(gsl_dir)/include
 mpi_incl    = -I$(mpi_dir)/include
 python_incl = $(shell $(python_config) --includes)
-includes    = $(python_incl) $(mpi_incl) $(fftw_incl) $(gsl_incl)
+includes    = $(fftw_incl) $(gsl_incl) $(mpi_incl) $(python_incl)
 # Compiler options
 CC = $(mpicc)
 python_cflags = $(shell $(python_config) --cflags)
@@ -83,7 +83,7 @@ fftw_libs   = -L$(fftw_dir)/lib -Wl,"-rpath=$(fftw_dir)/lib" -lfftw3_mpi -lfftw3
 gsl_libs    = -L$(gsl_dir)/lib -Wl,"-rpath=$(gsl_dir)/lib" -lgsl -lgslcblas -lm
 mpi_libs    = -L$(mpi_dir)/lib -Wl,"-rpath=$(mpi_dir)/lib" -lmpi
 python_libs = -L$(python_dir)/lib -Wl,"-rpath=$(python_dir)/lib" $(shell $(python_config) --libs)
-LDLIBS_abs  = $(python_libs) $(mpi_libs) $(fftw_libs) $(gsl_libs)
+LDLIBS_abs  = $(fftw_libs) $(gsl_libs) $(mpi_libs) $(python_libs)
 # Linker options
 python_ldflags = $(shell $(python_config) --ldflags)
 other_ldflags  = -shared
@@ -136,9 +136,8 @@ copy_msg_len = $(shell ${python} -c "print(len('${copy_msg}') + 1)")
 ifndef paramsfile
     paramsfile=$(params_default)
 endif
-# Force execution of the params.py target if the parameterfile passed as $(paramsfile)
-# differ from that of the last run. Here, 37 is 1 plus the length of the string
-# "# The following is an exact copy of ", used in the params.py target.
+# Force execution of the params.py target if the parameterfile
+# passed as $(paramsfile) differ from that of the last run.
 ifndef rebuild_params
     rebuild_params="no"
 endif
@@ -152,14 +151,14 @@ endif
 
 
 
-###########
-# Targets #
-###########
+###################
+# Primary targets #
+###################
 # Make everything
 all: $(addsuffix .so, $(pyfiles))
 	@# This suppresses "make: Nothing to be done for `all'."
 
-# Make shared object Python modules
+# Link object filed into shared object Python modules
 $(addsuffix .so, $(pyfiles)): %.so: %.o
 	$(CC) $< -o $@ $(LDFLAGS) $(LDLIBS)
 
@@ -169,7 +168,7 @@ $(addsuffix .o, $(pyfiles)): %.o: %.c
 
 # Cythonize .pyx and .pxd files into c source files
 $(addsuffix .c, $(pyfiles)): %.c: %.pyx
-	@printf "\n\033[1m\033[93mBuilding the $(subst .c,,$@) module\033[0m\n"
+	@$(python) -c "from blessings import Terminal; t = Terminal(); print('\n' + t.bold_yellow('Building the $(subst .c,,$@) module'))"
 	$(cython) $(cythonflags) $@ $<
 
 # Use declarations in .pyx files to create .pxd files
@@ -278,7 +277,7 @@ params.py: $(paramsfile) $(MAKEFILE_LIST)
 ###########################
 # Additional dependencies #
 ###########################
-# All c source files depend on their own header file
+# All Cython-generated c source files depend on their own header file
 $(addsuffix .c, $(pyfiles)): %.c: %.pxd
 # Lots of modules import the commons module, but it itself has imports
 $(addsuffix .c, $(do_import_commons)): $(addsuffix .pxd, $(commons_imports))

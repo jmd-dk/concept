@@ -13,9 +13,14 @@ import numpy as np
 import h5py
 import os
 import sys
-
 # For development purposes only
 from time import time, sleep
+
+# For fancy terminal output
+from blessings import Terminal
+terminal = Terminal(force_styling=True)
+terminal.CONCEPT = 'CO\x1b[3mN\x1b[23mCEPT'
+
 
 ########################
 # Cython-related stuff #
@@ -75,7 +80,7 @@ if not cython.compiled:
     # Dummy fused types
     number = number2 = integer = floating = []
 else:
-    # Lines in triple quotes will be executed in .pyx files.
+    # Lines in triple quotes will be executed in .pyx files
     """
     # Get full access to all of Cython
     cimport cython
@@ -138,6 +143,8 @@ else:
     from params cimport *
     """
 
+
+
 #####################################
 # Global (module level) allocations #
 #####################################
@@ -164,6 +171,8 @@ one_twelfth = 1.0/12.0
 sqrt_π = sqrt(π)
 two_thirds = 2.0/3.0
 two_π = 2*π
+
+
 
 ############################################
 # Derived and internally defined constants #
@@ -282,6 +291,7 @@ sendrecv = comm.sendrecv
 nprocs = comm.size  # Number of processes started with mpiexec
 rank = comm.rank    # The unique rank of the running process
 master = not rank   # Flag identifying the master/root process (that which have rank 0)
+
 
 
 ####################
@@ -434,7 +444,8 @@ def sinc(x):
 
 # Function for printing warnings
 def warn(msg):
-    os.system('printf "\033[1m\033[91mWarning: ' + msg + '\033[0m\n" >&2')
+    print(terminal.bold_red('Warning: ' + msg), file=sys.stderr)
+
 
 
 ###########################################
