@@ -42,10 +42,10 @@ status_visible="${status_on}"
 # ANSI/VT100 escape sequences
 esc="\033"
 # Text formatting
+esc_normal="${esc}[0m"
 esc_bold="${esc}[1m"
 esc_italic="${esc}[3m"
 esc_reverted="${esc}[7m"
-esc_normal="${esc}[0m"
 # Text colors
 esc_red="${esc}[91m"
 esc_green="${esc}[92m"
@@ -118,7 +118,7 @@ if [ -z "${1}" ]; then
 else 
     top_dir="${1}"
 fi
-top_dir="${top_dir//[ ]/\\ }"        # Places backslashes before spaces. These are needed when expanding tilde, but they will not persist!
+top_dir="${top_dir//[ ]/\\ }"        # Places backslashes before spaces. These are needed when expanding tilde, but they will not persist
 eval top_dir="${top_dir}"            # Expand tilde
 top_dir=$(readlink -f "${top_dir}")  # Convert to absolute path
 echo "The code will be installed in ${top_dir}"
@@ -128,6 +128,9 @@ cd "${top_dir}"
 # Specification of paths
 concept_dir="${top_dir}/concept"
 python_dir="${top_dir}/python"
+openssl_dir="${python_dir}/openssl"
+freetype_dir="${python_dir}"
+ncurses_dir="${python_dir}"
 fftw_dir="${top_dir}/fftw"
 gadget_dir="${top_dir}/gadget"
 fftw_for_gadget_dir="${gadget_dir}/fftw"
@@ -195,10 +198,9 @@ validate_url()
         echo 0
     fi
 }
-
 # OpenSSL needed by pip (version 1.0.2d is known to work)
 current_step="search for latest version of OpenSSL"
-set_status "Searching for latest versions of OpenSSL"
+set_status "Searching for latest version of OpenSSL"
 openssl_version=$(wget -q -O- --no-check-certificate "https://www.openssl.org/source/" | grep -o -P "(?<=openssl-).*(?=LATEST)" || echo)
 openssl_version="$(sed 's/.tar.gz.*//' <<< "${openssl_version}")"
 if [ -z "${openssl_version}" ]; then
@@ -210,9 +212,9 @@ if [ $(validate_url "${openssl_url}") -eq 0 ]; then
     echo "Error: The OpenSSL link is broken!"
     exit 1
 fi
-# Freetype is needed by matplotlib (version 2.6 is known to work)
+# FreeType is needed by matplotlib (version 2.6 is known to work)
 current_step="search for latest version of FreeType"
-set_status "Searching for latest versions of FreeType"
+set_status "Searching for latest version of FreeType"
 freetype_version=$(wget -q -O- --no-check-certificate "http://download.savannah.gnu.org/releases/freetype/" | grep -o "freetype-[0-9.]*tar" | sort -u | tail -n 1 | grep -o [0-9.]*)
 freetype_version="${freetype_version%?}"
 if [ -z "${freetype_version}" ]; then
@@ -224,9 +226,23 @@ if [ $(validate_url "${freetype_url}") -eq 0 ]; then
     echo "Error: The FreeType link is broken!"
     exit 1
 fi
+# ncurses is needed by _curses, which is needed by blessings (version 5.9 is known to work)
+current_step="search for latest version of ncurses"
+set_status "Searching for latest version of ncurses"
+ncurses_version=$(wget -q -O- --no-check-certificate "http://ftp.gnu.org/pub/gnu/ncurses/" | grep -o "ncurses-[0-9.]*tar" | sort -u | tail -n 1 | grep -o [0-9.]*)
+ncurses_version="${ncurses_version%?}"
+if [ -z "${ncurses_version}" ]; then
+    echo "Error: Could not identify the version number of the latest ncurses!"
+    exit 1
+fi
+ncurses_url="http://ftp.gnu.org/pub/gnu/ncurses/ncurses-${ncurses_version}.tar.gz"
+if [ $(validate_url "${ncurses_url}") -eq 0 ]; then
+    echo "Error: The ncurses link is broken!"
+    exit 1
+fi
 # Python (version 3.4 is known to work). Note that 'python_version' will be overwritten later!
 current_step="search for latest version of Python"
-set_status "Searching for latest versions of Python"
+set_status "Searching for latest version of Python"
 python_version=$(wget -q -O- --no-check-certificate "https://www.python.org/downloads/" | grep -o -P "(?<=Python-).*(?=.tar.xz)" | head -1  || echo)
 if [ -z "${python_version}" ]; then
     echo "Error: Could not identify the version number of the latest Python!"
@@ -239,7 +255,7 @@ if [ $(validate_url "${python_url}") -eq 0 ]; then
 fi
 # GSL (1.16 is known to work)
 current_step="search for latest version of GSL"
-set_status "Searching for latest versions of GSL"
+set_status "Searching for latest version of GSL"
 gsl_version=$(wget -q -O- --no-check-certificate "http://mirrors.dotsrc.org/gnu/gsl/" | grep -o -P "(?<=gsl-[0-9]).*(?=.tar.gz)" || echo)
 gsl_version="${gsl_version##*gsl-}"
 if [ -z "${gsl_version}" ]; then
@@ -251,22 +267,9 @@ if [ $(validate_url "${gsl_url}") -eq 0 ]; then
     echo "Error: The GSL link is broken!"
     exit 1
 fi
-# Cython_GSL (0.2.1 is known to work)
-current_step="search for latest version of Cython_GSL"
-set_status "Searching for latest versions of Cython_GSL"
-cython_gsl_version=$(wget -q -O- --no-check-certificate "https://raw.githubusercontent.com/twiecki/CythonGSL/master/README.rst" | grep ":Version:" | awk '{print $NF}' || echo)
-if [ -z "${cython_gsl_version}" ]; then
-    echo "Could not identify the version number of the latest Cython_GSL."
-    cython_gsl_version="..."
-fi
-cython_gsl_url="https://github.com/twiecki/CythonGSL/archive/master.tar.gz"
-if [ $(validate_url "${cython_gsl_url}") -eq 0 ]; then
-    echo "Error: The Cython_GSL link is broken!"
-    exit 1
-fi
 # MPICH (3.1.4 is known to work)
 current_step="search for latest version of MPICH"
-set_status "Searching for latest versions of MPICH"
+set_status "Searching for latest version of MPICH"
 mpich_version=$(wget -q -O- --no-check-certificate "http://www.mpich.org/downloads" | grep -m 1 -o -P "(?<=mpich-).*(?=stable)" | awk '{print $1}' || echo "")
 if [ -z "${mpich_version}" ]; then
     echo "Could not identify the version number of the latest MPICH."
@@ -277,22 +280,9 @@ if [ $(validate_url "${mpich_url}") -eq 0 ]; then
     echo "Error: The MPICH link is broken!"
     exit 1
 fi
-# MPI4Py (1.3.1 is known to work)
-current_step="search for latest version of MPI4Py"
-set_status "Searching for latest versions of MPI4Py"
-mpi4py_version=$(wget -q -O- --no-check-certificate "https://bitbucket.org/mpi4py/mpi4py/downloads/" | grep -m 1 -o -P "(?<=mpi4py/get/).*(?=.tar.gz)" || echo)
-if [ -z "${mpi4py_version}" ]; then
-    echo "Could not identify the version number of the latest MPI4Py."
-    mpi4py_version="..."
-fi
-mpi4py_url="https://pypi.python.org/packages/source/m/mpi4py/mpi4py-${mpi4py_version}.tar.gz"
-if [ $(validate_url "${mpi4py_url}") -eq 0 ]; then
-    echo "Error: The MPI4Py link is broken!"
-    exit 1
-fi
 # HDF5 (1.8.14 is known to work)
 current_step="search for latest version of HDF5"
-set_status "Searching for latest versions of HDF5"
+set_status "Searching for latest version of HDF5"
 hdf5_version=$(wget -q -O- --no-check-certificate "ftp://ftp.hdfgroup.org/HDF5/current/src/" | grep -m 1 -o -P "(?<=hdf5-).*(?=.tar.bz2\")" || echo "")
 if [ -z "${hdf5_version}" ]; then
     echo "Could not identify the version number of the latest HDF5."
@@ -303,22 +293,9 @@ if [ $(validate_url "${hdf5_url}") -eq 0 ]; then
     echo "Error: The HDF5 link is broken!"
     exit 1
 fi
-# H5Py (2.4.0 is known to work)
-current_step="search for latest version of HF5Py"
-set_status "Searching for latest versions of HF5Py"
-h5py_version=$(wget -q -O- --no-check-certificate "https://pypi.python.org/pypi/h5py/#downloads" | grep -m 1 -o -P "(?<=h5py/).*(?=\"\>h5py)" || echo)
-if [ -z "${h5py_version}" ]; then
-    echo "Could not identify the version number of the latest H5Py."
-    h5py_version="..."
-fi
-h5py_url="https://pypi.python.org/packages/source/h/h5py/h5py-${h5py_version}.tar.gz"
-if [ $(validate_url "${h5py_url}") -eq 0 ]; then
-    echo "Error: The H5Py link is broken!"
-    exit 1
-fi
 # FFTW (3.3.4 is known to work)
 current_step="search for latest version of FFTW"
-set_status "Searching for latest versions of FFTW"
+set_status "Searching for latest version of FFTW"
 fftw_version=$(wget -q -O- --no-check-certificate "http://www.fftw.org/download.html" | grep -m 1 -o -P "(?<=fftw-).*(?=.tar.gz\")" || echo)
 if [ -z "${fftw_version}" ]; then
     echo "Could not identify the version number of the latest FFTW."
@@ -359,12 +336,14 @@ fi
 
 # Write out installation overview
 disable_status
-printf "\n${esc_bold}${esc_yellow}Installation overview${esc_normal}\n"
+heading "Installation overview"
 printf "The following software will be installed\n"
 printf "Name:{}Version:{}Installation path
 CONCEPT{}${concept_version}{}${concept_dir}
 ├─Python{}${python_version}{}${python_dir}
-│ └─OpenSSL{}${openssl_version}{}${python_dir}
+│ ├─OpenSSL{}${openssl_version}{}${openssl_dir}
+│ ├─FreeYype{}${freetype_version}{}${freetype_dir}
+│ └─ncurses{}${ncurses_version}{}${ncurses_dir}
 ├─GSL{}${gsl_version}{}${gsl_dir}
 ├─MPICH{}${mpich_version}{}${mpi_dir}
 ├─HDF5{}${hdf5_version}{}${hdf5_dir}
@@ -376,10 +355,10 @@ enable_status
 
 
 
-############################################
-# Installing Python and packages from PyPI #
-############################################
-# OpenSSL needed by pip. This will be installed in the Python directory
+###################################
+# Installing CONCEPT dependencies #
+###################################
+# OpenSSL (needed by pip)
 current_step="installation of OpenSSL"
 heading "Installing OpenSSL"
 set_status "Installing OpenSSL"
@@ -391,13 +370,13 @@ wget -c -O openssl.tar.gz --no-check-certificate "${openssl_url}"
 enable_status
 tar xfz openssl.tar.gz
 cd openssl*
-./config shared --prefix="${python_dir}" --openssldir="${python_dir}/openssl"
+./config shared --prefix="${python_dir}" --openssldir="${openssl_dir}"
 make
 make install
 cd "${top_dir}"
 rm -rf tmp
 
-# FreeType is needed by matplotlib
+# FreeType (needed by matplotlib)
 current_step="installation of FreeType"
 heading "Installing FreeType"
 set_status "Installing FreeType"
@@ -408,13 +387,30 @@ wget -c -O freetype.tar.gz --no-check-certificate "${freetype_url}"
 enable_status
 tar xfz freetype.tar.gz
 cd freetype*
-./configure --prefix="${python_dir}"
+./configure --prefix="${freetype_dir}"
 make
 make install
 cd "${top_dir}"
 rm -rf tmp
 
-# Python itself
+# ncurses (needed by _curses, which is needed by blessings)
+current_step="installation of ncurses"
+heading "Installing ncurses"
+set_status "Installing ncurses"
+mkdir tmp
+cd tmp
+disable_status
+wget -c -O ncurses.tar.gz --no-check-certificate "${ncurses_url}"
+enable_status
+tar xfz ncurses.tar.gz
+cd ncurses*
+./configure --with-shared --prefix="${ncurses_dir}"
+make
+make install
+cd "${top_dir}"
+rm -rf tmp
+
+# Python
 current_step="installation of Python"
 heading "Installing Python"
 set_status "Installing Python"
@@ -425,13 +421,12 @@ wget -c -O python.tar.xz --no-check-certificate "${python_url}"
 enable_status
 tar -xJf python.tar.xz
 cd Python*
-export LDFLAGS="-L${python_dir}/lib -Wl,-rpath ${python_dir}/lib"
+export LDFLAGS="-L${python_dir}/lib -Wl,-rpath ${python_dir}/lib ${LDFLAGS}"
 export LD_LIBRARY_PATH="${python_dir}/lib:${LD_LIBRARY_PATH}"
-export CPPFLAGS="-I${python_dir}/include -I${python_dir}/include/openssl"
+export CPPFLAGS="-I${python_dir}/include -I${openssl_dir}/include/openssl -I${ncurses_dir}/include/ncurses ${CPPFLAGS}"
 ./configure --enable-shared --prefix="${python_dir}" --with-ensurepip=install
 make
 make install
-#unset LDFLAGS LD_LIBRARY_PATH CPPFLAGS
 export LDFLAGS="${LDFLAGS_backup}"
 export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
 export CPPFLAGS="${CPPFLAGS_backup}"
@@ -449,71 +444,6 @@ disable_status
 "${python}" -m pip install --no-cache-dir -U $("${python}" -m yolk -U | awk '{print $1}' | uniq)
 enable_status
 
-# Versions of Python dependencies from PyPI
-current_step="generation of owerview of Python packages"
-cython_version=$("${python}" -m yolk -V cython | head -n 1 | awk '{print $NF}')
-matplotlib_version=$("${python}" -m yolk -V matplotlib | head -n 1 | awk '{print $NF}')
-numpy_version=$("${python}" -m yolk -V numpy | head -n 1 | awk '{print $NF}')
-pexpect_version=$("${python}" -m yolk -V pexpect | head -n 1 | awk '{print $NF}')
-pillow_version=$("${python}" -m yolk -V pillow | head -n 1 | awk '{print $NF}')
-
-# Print out Python package installation overview
-disable_status
-printf "\n${esc_bold}${esc_yellow}Python packages overview${esc_normal}\n"
-printf "The following Python packages will be installed\n"
-printf "Name:{}Version:{}Installation path
-Cython{}${cython_version}{}${python_dir}/lib/python${python_version}/site-packages/Cython
-Cython_GSL{}${cython_gsl_version}{}${python_dir}/lib/python${python_version}/site-packages/Cython_GSL
-H5Py{}${h5py_version}{}${python_dir}/lib/python${python_version}/site-packages/h5py
-Matplotlib{}${matplotlib_version}{}${python_dir}/lib/python${python_version}/site-packages/matplotlib
-MPI4Py{}${mpi4py_version}{}${python_dir}/lib/python${python_version}/site-packages/mpi4py
-NumPy{}${numpy_version}{}${python_dir}/lib/python${python_version}/site-packages/numpy
-Pexpect{}${pexpect_version}{}${python_dir}/lib/python${python_version}/site-packages/pexpect
-Pillow{}${pillow_version}{}${python_dir}/lib/python${python_version}/site-packages/PIL\n" | column -t -s {}
-sleep 10
-enable_status
-
-# Install Python packages from PyPI.
-# Function for installing Python packages, utilizing pip.
-pip_install()
-{
-    # Arguments: Python package name
-    current_step="installation of ${1}"
-    heading "Installing ${1}"
-    set_status "Installing ${1}"
-    mkdir "${top_dir}/tmp"
-    "${python}" -m pip install -v -v -v --no-cache-dir --no-binary=:all: --download "${top_dir}/tmp" ${1}
-    "${python}" -m pip install -v -v -v --no-index --find-links="${top_dir}/tmp" ${1}
-    rm -rf "${top_dir}/tmp"
-}
-# Cython
-pip_install "Cython"
-# NumPy
-pip_install "NumPy"
-# Pillow
-pip_install "Pillow"
-# Matplotlib
-export LDFLAGS="-L${python_dir}/lib -Wl,-rpath ${python_dir}/lib"
-export LD_LIBRARY_PATH="${python_dir}/lib:${LD_LIBRARY_PATH}"
-export PATH="${python_dir}/bin:${python_dir}/lib:${python_dir}/include:${python_dir}/include/freetype2:${PATH}"
-pip_install "Matplotlib"
-#unset LDFLAGS LD_LIBRARY_PATH
-export LDFLAGS="${LDFLAGS_backup}"
-export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
-export PATH="${PATH_backup}"
-# Pexpect
-pip_install "Pexpect"
-# Update Python packages
-current_step="update of Python packages"
-disable_status
-"${python}" -m pip install -v -v -v --no-cache-dir -U $("${python}" -m yolk -U | awk '{print $1}' | sort -u)
-enable_status
-
-
-
-################################################################
-# Installing CONCEPT dependencies and download the code itself #
-################################################################
 # GSL
 current_step="installation of GSL"
 heading "Installing GSL"
@@ -532,23 +462,6 @@ make install
 cp COPYING README "${gsl_dir}"
 cd "${top_dir}"
 rm -rf tmp
-
-# The Cython_GSL Python package
-current_step="installation of Cython_GSL"
-heading "Installing Cython_GSL"
-set_status "Installing Cython_GSL"
-disable_status
-wget -c -O CythonGSL.tar.gz --no-check-certificate "${cython_gsl_url}"
-enable_status
-tar xfz CythonGSL.tar.gz
-cd CythonGSL*
-export LD_LIBRARY_PATH="${gsl_dir}/lib:${LD_LIBRARY_PATH}"
-"${python}" setup.py build
-"${python}" setup.py install
-#unset LD_LIBRARY_PATH
-export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
-cd "${top_dir}"
-rm -rf CythonGSL*
 
 # MPICH
 current_step="installation of MPICH"
@@ -569,29 +482,6 @@ cp COPYRIGHT "${mpi_dir}"
 cd "${top_dir}"
 rm -rf tmp
 
-# The MPI4Py Python package
-current_step="installation of MPI4Py"
-heading "Installing MPI4Py"
-set_status "Installing MPI4Py"
-disable_status
-wget -c -O mpi4py.tar.gz --no-check-certificate "${mpi4py_url}"
-enable_status
-tar xfz mpi4py.tar.gz
-cd mpi4py*
-MPI_DIR_backup="${MPI_DIR}"
-export MPI_DIR="${mpi_dir}"
-export PATH="${mpi_dir}/bin:${PATH}"
-export LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}"
-export DYLD_LIBRARY_PATH="${mpi_dir}/lib:${DYLD_LIBRARY_PATH}"
-"${python}" setup.py install
-#unset MPI_DIR LD_LIBRARY_PATH DYLD_LIBRARY_PATH
-export MPI_DIR="${MPI_DIR_backup}"
-export PATH="${PATH_backup}"
-export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
-export DYLD_LIBRARY_PATH="${DYLD_LIBRARY_PATH_backup}"
-cd "${top_dir}"
-rm -rf mpi4py*
-
 # HDF5
 current_step="installation of HDF5"
 heading "Installing HDF5"
@@ -609,24 +499,6 @@ make install
 cp COPYING README.txt "${hdf5_dir}"
 cd "${top_dir}"
 rm -rf tmp
-
-# The H5Py Python package
-current_step="installation of H5Py"
-heading "Installing H5Py"
-set_status "Installing H5Py"
-disable_status
-wget -c -O h5py.tar.gz --no-check-certificate "${h5py_url}"
-enable_status
-tar xfz h5py.tar.gz
-cd h5py*
-export CC="${mpi_dir}/bin/mpicc"
-"${python}" setup.py configure --mpi --hdf5="${hdf5_dir}"
-"${python}" setup.py build
-"${python}" setup.py install
-#unset CC
-export CC="${CC_backup}"
-cd "${top_dir}"
-rm -rf h5py*
 
 # FFTW
 current_step="installation of FFTW"
@@ -648,6 +520,179 @@ cp COPYING README "${fftw_dir}"
 cd "${top_dir}"
 rm -rf tmp
 
+
+
+##############################
+# Installing Python packages #
+##############################
+# Versions of Python packages from PyPI.
+# Function for finding the newest version of Python packages, utilizing yolk.
+yolk_version()
+{
+    # Arguments: Python package name, variable to be set to version number
+    current_step="search for latest version of ${1}"
+    set_status "Searching for latest version of ${1}"
+    local version=$("${python}" -m yolk -V "${1}" | head -n 1 | awk '{print $NF}')
+    local pythonpackage_version_var=$2
+    eval $pythonpackage_version_var="'$version'"
+}
+yolk_version Blessings  blessings_version
+yolk_version Cython     cython_version
+yolk_version Matplotlib matplotlib_version
+yolk_version NumPy      numpy_version
+yolk_version Pexpect    pexpect_version
+yolk_version Pillow     pillow_version
+# Cython_GSL (0.2.1 is known to work)
+current_step="search for latest version of Cython_GSL"
+set_status "Searching for latest version of Cython_GSL"
+cython_gsl_version=$(wget -q -O- --no-check-certificate "https://raw.githubusercontent.com/twiecki/CythonGSL/master/README.rst" | grep ":Version:" | awk '{print $NF}' || echo)
+if [ -z "${cython_gsl_version}" ]; then
+    echo "Could not identify the version number of the latest Cython_GSL."
+    cython_gsl_version="..."
+fi
+cython_gsl_url="https://github.com/twiecki/CythonGSL/archive/master.tar.gz"
+if [ $(validate_url "${cython_gsl_url}") -eq 0 ]; then
+    echo "Error: The Cython_GSL link is broken!"
+    exit 1
+fi
+# MPI4Py (1.3.1 is known to work)
+current_step="search for latest version of MPI4Py"
+set_status "Searching for latest version of MPI4Py"
+mpi4py_version=$(wget -q -O- --no-check-certificate "https://bitbucket.org/mpi4py/mpi4py/downloads/" | grep -m 1 -o -P "(?<=mpi4py/get/).*(?=.tar.gz)" || echo)
+if [ -z "${mpi4py_version}" ]; then
+    echo "Could not identify the version number of the latest MPI4Py."
+    mpi4py_version="..."
+fi
+mpi4py_url="https://pypi.python.org/packages/source/m/mpi4py/mpi4py-${mpi4py_version}.tar.gz"
+if [ $(validate_url "${mpi4py_url}") -eq 0 ]; then
+    echo "Error: The MPI4Py link is broken!"
+    exit 1
+fi
+# H5Py (2.4.0 is known to work)
+current_step="search for latest version of HF5Py"
+set_status "Searching for latest version of HF5Py"
+h5py_version=$(wget -q -O- --no-check-certificate "https://pypi.python.org/pypi/h5py/#downloads" | grep -m 1 -o -P "(?<=h5py/).*(?=\"\>h5py)" || echo)
+if [ -z "${h5py_version}" ]; then
+    echo "Could not identify the version number of the latest H5Py."
+    h5py_version="..."
+fi
+h5py_url="https://pypi.python.org/packages/source/h/h5py/h5py-${h5py_version}.tar.gz"
+if [ $(validate_url "${h5py_url}") -eq 0 ]; then
+    echo "Error: The H5Py link is broken!"
+    exit 1
+fi
+
+# Print out Python package installation overview
+disable_status
+heading "Python packages overview"
+printf "The following Python packages will be installed\n"
+printf "Name:{}Version:{}Installation path
+┌─Blessings{}${blessings_version}{}${python_dir}/lib/python${python_version}/site-packages/Blessings
+├─Cython{}${cython_version}{}${python_dir}/lib/python${python_version}/site-packages/Cython
+├─Cython_GSL{}${cython_gsl_version}{}${python_dir}/lib/python${python_version}/site-packages/Cython_GSL
+├─H5Py{}${h5py_version}{}${python_dir}/lib/python${python_version}/site-packages/h5py
+├─Matplotlib{}${matplotlib_version}{}${python_dir}/lib/python${python_version}/site-packages/matplotlib
+├─MPI4Py{}${mpi4py_version}{}${python_dir}/lib/python${python_version}/site-packages/mpi4py
+├─NumPy{}${numpy_version}{}${python_dir}/lib/python${python_version}/site-packages/numpy
+├─Pexpect{}${pexpect_version}{}${python_dir}/lib/python${python_version}/site-packages/pexpect
+└─Pillow{}${pillow_version}{}${python_dir}/lib/python${python_version}/site-packages/PIL\n" | column -t -s {}
+sleep 10
+enable_status
+
+# Install Python packages from PyPI.
+# Function for installing Python packages, utilizing pip.
+pip_install()
+{
+    # Arguments: Python package name
+    current_step="installation of ${1}"
+    heading "Installing ${1}"
+    set_status "Installing ${1}"
+    mkdir "${top_dir}/tmp"
+    "${python}" -m pip install -v -v -v --no-cache-dir --no-binary=:all: --download "${top_dir}/tmp" ${1}
+    "${python}" -m pip install -v -v -v --no-index --find-links="${top_dir}/tmp" ${1}
+    rm -rf "${top_dir}/tmp"
+}
+# Blessings
+pip_install "Blessings"
+# Cython
+pip_install "Cython"
+# NumPy
+pip_install "NumPy"
+# Pillow
+pip_install "Pillow"
+# Matplotlib
+export LDFLAGS="-L${python_dir}/lib -Wl,-rpath ${python_dir}/lib ${LDFLAGS}"
+export LD_LIBRARY_PATH="${python_dir}/lib:${LD_LIBRARY_PATH}"
+export PATH="${python_dir}/bin:${python_dir}/lib:${python_dir}/include:${python_dir}/include/freetype2:${PATH}"
+pip_install "Matplotlib"
+export LDFLAGS="${LDFLAGS_backup}"
+export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
+export PATH="${PATH_backup}"
+# Pexpect
+pip_install "Pexpect"
+# The Cython_GSL Python package
+current_step="installation of Cython_GSL"
+heading "Installing Cython_GSL"
+set_status "Installing Cython_GSL"
+disable_status
+wget -c -O CythonGSL.tar.gz --no-check-certificate "${cython_gsl_url}"
+enable_status
+tar xfz CythonGSL.tar.gz
+cd CythonGSL*
+export LD_LIBRARY_PATH="${gsl_dir}/lib:${LD_LIBRARY_PATH}"
+"${python}" setup.py build
+"${python}" setup.py install
+export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
+cd "${top_dir}"
+rm -rf CythonGSL*
+# The MPI4Py Python package
+current_step="installation of MPI4Py"
+heading "Installing MPI4Py"
+set_status "Installing MPI4Py"
+disable_status
+wget -c -O mpi4py.tar.gz --no-check-certificate "${mpi4py_url}"
+enable_status
+tar xfz mpi4py.tar.gz
+cd mpi4py*
+MPI_DIR_backup="${MPI_DIR}"
+export MPI_DIR="${mpi_dir}"
+export PATH="${mpi_dir}/bin:${PATH}"
+export LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}"
+export DYLD_LIBRARY_PATH="${mpi_dir}/lib:${DYLD_LIBRARY_PATH}"
+"${python}" setup.py install
+export MPI_DIR="${MPI_DIR_backup}"
+export PATH="${PATH_backup}"
+export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
+export DYLD_LIBRARY_PATH="${DYLD_LIBRARY_PATH_backup}"
+cd "${top_dir}"
+rm -rf mpi4py*
+# The H5Py Python package
+current_step="installation of H5Py"
+heading "Installing H5Py"
+set_status "Installing H5Py"
+disable_status
+wget -c -O h5py.tar.gz --no-check-certificate "${h5py_url}"
+enable_status
+tar xfz h5py.tar.gz
+cd h5py*
+export CC="${mpi_dir}/bin/mpicc"
+"${python}" setup.py configure --mpi --hdf5="${hdf5_dir}"
+"${python}" setup.py build
+"${python}" setup.py install
+export CC="${CC_backup}"
+cd "${top_dir}"
+rm -rf h5py*
+# Update Python packages installed via pip
+current_step="update of Python packages"
+disable_status
+"${python}" -m pip install -v -v -v --no-cache-dir -U $("${python}" -m yolk -U | awk '{print $1}' | sort -u)
+enable_status
+
+
+
+####################################
+# Download the CONCEPT code itself #
+####################################
 # The CONCEPT code
 current_step="installation of CO\e[3mN\e[0m\e[1m\e[91mCEPT"
 printf "\n${esc_bold}${esc_yellow}Installing CO${esc_italic}N${esc_normal}${esc_bold}${esc_yellow}CEPT${esc_normal}\n"
@@ -766,24 +811,25 @@ rm -rf tmp
 
 # Copyright notice
 current_step="copyright notice"
-printf "\n${esc_bold}${esc_yellow}Copyright notice${esc_normal}
-Python, GSL, MPICH, HDF5, FFTW and GADGET (along with its own
+heading "Copyright notice"
+printf "Python, GSL, MPICH, HDF5, FFTW and GADGET (along with its own
 version of FFTW) has been installed into seperate folders in ${top_dir}.
 Any use of CO\e[3mN\e[0mCEPT must conform to the license terms of the
 above software. These can be found in their seperate installation
-directories.\n"
+directories.\n\n"
 
-# Subprocess complete. Deactivate trap before exiting.
+# Subprocess complete. Deactivate trap before exiting
+disable_status
 trap : 0
 ) > "${log}" &
 log_pid=$!
-#####################
-# End of subprocess #
-#####################
+# End of subprocess
 
 
 
-# Display loop
+################
+# Display loop #
+################
 printf "\n\n"
 tail -f "${log}" --pid $log_pid | while read line; do
     if [[ "${line}" == "${status_prefix}"* ]]; then
@@ -829,4 +875,3 @@ rm -f "${log}"
 # Installation complete. Deactivate trap before exiting.
 trap : 0
 printf "\n${esc_bold}${esc_green}CO${esc_italic}N${esc_normal}${esc_bold}${esc_green}CEPT successfully installed${esc_normal}\n"
-

@@ -3,38 +3,9 @@
 # This script performs a comparison test between the CONCEPT code's PP implementation
 # and the GADGET code's Tree implementation.
 
-# The name of this test (the directory name)
-this_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-test_name=$(basename "${this_dir}")
-
-# Set up error trapping
-ctrl_c()
-{
-    trap : 0
-    exit 2
-}
-abort()
-{
-    printf "\e[1m\e[91mAn error occurred during ${test_name} test!\e[0m\n" >&2
-    exit 1
-}
-trap 'ctrl_c' SIGINT
-trap 'abort' EXIT
-set -e
-
-# Load paths from the .paths file
-curr="${this_dir}"
-while [ 1 ]; do
-    if [ -f "${curr}/.paths" ]; then
-        source "${curr}/.paths"
-        break
-    fi
-    if [ "${curr}" == "/" ]; then
-        printf "\e[1m\e[91mCould not find the .paths file!\e[0m\n" >&2
-        exit 1
-    fi
-    curr="`dirname \"${curr}\"`"
-done
+# Initialize test environment
+this_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${this_dir}/../environment"
 
 # Create list of output times, used by both CONCEPT and GADGET
 "${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', [1])"
@@ -89,8 +60,6 @@ rm "${this_dir}/output/"*.png
 mv "${concept_dir}/utilities/plots/snapshot_a=1.000.png" "${this_dir}/output/snapshot_a=1.000.png"
 mv "${concept_dir}/utilities/plots/snapshot_gadget_000.png" "${this_dir}/output/snapshot_gadget_000.png"
 
-
-# Test run complete. Deactivate trap before exiting.
-trap : 0
-printf "\e[1m\e[92m${test_name^} test ran successfully\e[0m\n"
+# Finalize test environment
+test_done=true source "${this_dir}/../environment"
 

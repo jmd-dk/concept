@@ -221,6 +221,7 @@ if (cython.compiled and special is not None) or (not cython.compiled and 'specia
     if special == 'powerspectrum':
         powerspectrum(particles, powerspec_dir + '/' + powerspec_base + '_'
                                  + basename(IC_file))
+    Barrier()
     sys.exit()
 
 # Check that the snapshot times are legal
@@ -244,6 +245,6 @@ timeloop()
 # Due to an error having to do with the Python -m switch, the program must
 # explicitly be told to exit.
 if master:
-    os.system('printf "\033[1m\033[92mCO\033[3mN\033[0m\033[1m\033[92mCEPT'
-              + ' ran successfully\033[0m\n"')
+    print(terminal.bold_green(terminal.CONCEPT + ' ran successfully'))
+Barrier()
 sys.exit()

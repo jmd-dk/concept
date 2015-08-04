@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# This scipt should not be called manually.
+# It handles setup and teardown of the test environment used by all tests.
+# - To initialize the test environment, source this file.
+# - To finalize the test environment, set the test_done variable to true
+#   and then source this file.
+# The initialization consists of sourcing the run script (which sources the
+# .paths file and declares the colorprint function) and setting up error
+# trapping.
+# The finalization consists of printing a success message and deactivating
+# the error trapping.
+
+#################
+# Finalize test #
+#################
+# Print success message, deactivate trap and return to test script
+if [ "${test_done}" = true ]; then
+    colorprint "${test_name^} test ran successfully" "green"
+    trap : 0
+    return
+fi
+
+
+
+###################
+# Initialize test #
+###################
+# Source the run script
+this_dir_backup="${this_dir}"  # This is the directory of the test script doing the sourcing
+curr="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+while :; do
+    if [ -f "${curr}/run" ]; then
+        source "${curr}/run"
+        break
+    elif [ "${curr}" == "/" ]; then
+        # Print out error message and exit
+        esc="\x1b"
+        esc_normal="${esc}[0m"
+        esc_bold="${esc}[1m"
+        esc_red="${esc}[91m"
+        printf "${esc_bold}${esc_red}Could not find the run script!${esc_normal}\n" >&2
+        exit 1
+    fi
+    curr="$(dirname "${curr}")"
+done
+this_dir="${this_dir_backup}"
+
+# The name of the test (the directory name)
+test_name=$(basename "${0%/*}")
+
+# Set up error trapping
+ctrl_c()
+{
+    trap : 0
+    exit 2
+}
+abort()
+{
+    colorprint "An error occurred during ${test_name} test!" "red"
+    exit 1
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
+

@@ -9,17 +9,39 @@ this_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # Load paths from the .paths file
 curr="${this_dir}"
-while [ 1 ]; do
+while :; do
     if [ -f "${curr}/.paths" ]; then
         source "${curr}/.paths"
         break
     fi
     if [ "${curr}" == "/" ]; then
-        printf "\e[1m\e[91mCould not find the .paths file!\e[0m\n" >&2
+        # Print out error message and exit
+        esc="\x1b"
+        esc_normal="${esc}[0m"
+        esc_bold="${esc}[1m"
+        esc_red="${esc}[91m"
+        printf "${esc_bold}${esc_red}Could not find the .paths file!${esc_normal}\n" >&2
         exit 1
     fi
-    curr="`dirname \"${curr}\"`"
+    curr="$(dirname "${curr}")"
 done
+
+# Function for printing colored messages
+terminal_CONCEPT="CO\x1b[3mN\x1b[23mCEPT"
+colorprint()
+{
+# Arguments: Message, color
+${python} -c "import sys
+from blessings import Terminal
+terminal = Terminal(force_styling=True)
+msg='${1}'.replace('CONCEPT', '${terminal_CONCEPT}')
+print(terminal.bold_${2}(msg), file=(sys.stderr if '${2}' == 'red' else sys.stdout))"
+}
+
+# If this file is being sourced, return now
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+    return
+fi
 
 # Default values of command-line arguments
 nprocs=1
@@ -27,7 +49,7 @@ params="${this_dir}/params/default"
 main="${this_dir}/main.py"
 pure_python=0
 walltime=72
-# List of remote queues and number of CPU per node. The first queue is the default queue. 
+# List of remote queues and number of CPU per node. The first queue is the default queue 
 queues=(q8n q8 q4)
 ppns=(8 8 4)
 # Should PBS be used to submitting remote jobs?
@@ -131,7 +153,7 @@ ctrl_c()
 }
 abort()
 {
-    printf "\e[1m\e[91mAn error occurred!\e[0m\n" >&2
+    colorprint "An error occurred!" "red"
     exit 1
 }
 trap 'ctrl_c' SIGINT
@@ -173,15 +195,14 @@ fi
 if [ "${test}" != "none" ]; then
     trap : 0
     if [ "${test}" == "all" ]; then
-        for dir in "${this_dir}/tests/"*/
-        do
+        for dir in "${this_dir}/tests/"*/; do
             dir=${dir%*/}
-           printf "\n\e[1m\e[93mRunning $(basename ${dir}) test\e[0m\n"
-           "${dir}/run_test"
+            colorprint "\nRunning $(basename ${dir}) test" "yellow"
+            "${dir}/run_test"
         done
-        printf "\e[1m\e[92mAll tests ran successfully\e[0m\n"
+        colorprint "All tests ran successfully" "green"
     else
-        printf "\e[1m\e[93mRunning $(basename ${test}) test\e[0m\n"
+        colorprint "Running $(basename ${test}) test" "yellow"
         "${test}/run_test"
     fi
     exit 0
@@ -268,7 +289,7 @@ fi
 # Either stop doing further actions, submit job or run it locally
 if [ "${use_PBS}" -eq 0 ] && [ "${remote}" -eq 1 ]; then
     # Run remotely but do not use PBS
-    printf "The CO\e[3mN\e[0mCEPT code has been build and is ready to run."
+    printf "The ${terminal_CONCEPT} code has been build and is ready to be submitted."
     trap : 0
 elif [ "${use_PBS}" -eq 1 ] && [ "${remote}" -eq 1 ]; then
     # Run remotely.
@@ -283,8 +304,7 @@ elif [ "${use_PBS}" -eq 1 ] && [ "${remote}" -eq 1 ]; then
         ppn="${ppns[0]}"
         # Change to the queue that has enogh free CPUS to begin job immediately
         node_table=$(nodes)
-        for i in $(eval echo "{0..${#queues[@]}}" | sed s/'\w*$'//)
-        do
+        for i in $(eval echo "{0..${#queues[@]}}" | sed s/'\w*$'//); do
             free_nodes=$(echo "${node_table}" | grep -o -P "(?<= ${queues[${i}]}:).*(?= free)" | awk '{print $NF}')
             free_cpus=$(echo "$((${free_nodes} * ${ppns[${i}]}))")
             if [ "${free_cpus}" -ge "${nprocs}" ] && [ "$((${nprocs} % ${ppns[${i}]}))" -eq 0 ]; then
@@ -295,8 +315,7 @@ elif [ "${use_PBS}" -eq 1 ] && [ "${remote}" -eq 1 ]; then
         done
     else
         # How many CPUs does the explicitly chosen queue have per node?
-        for i in $(eval echo "{0..${#queues[@]}}" | sed s/'\w*$'//)
-        do
+        for i in $(eval echo "{0..${#queues[@]}}" | sed s/'\w*$'//); do
             if [ "${queue}" == "${queues[${i}]}" ]; then
                 ppn="${ppns[${i}]}"
                 break
@@ -305,7 +324,7 @@ elif [ "${use_PBS}" -eq 1 ] && [ "${remote}" -eq 1 ]; then
     fi
     # Check that the chosen queue can be run with all the nodes' CPUs in use
     if [ "$((${nprocs} % ${ppn}))" != 0 ]; then
-        printf "\e[1m\e[91mJob submission refused:\nNo queue has the right amount of processors per node\e[0m\n" >&2
+        colorprint "Job submission refused:\nNo queue has the right amount of processors per node" "red"
         exit 1
     fi
     nodes="$((${nprocs} / ${ppn}))"
@@ -321,15 +340,17 @@ env | grep PBS
 # Get the id of the current job
 jobid=\"\${PBS_JOBID%.in1}\"
 # Print start message
-echo
+source \"${this_file}\"
 if [ ${pure_python} -eq 0 ] ; then
-    printf \"\e[1m\e[93mRunning CO\e[3mN\e[0m\e[1m\e[93mCEPT as job \${jobid}\e[0m\\\n\" > \"${this_dir}/logs/remote_\${jobid}\"
+    #printf \"\e[1m\e[93mRunning CO\e[3mN\e[0m\e[1m\e[93mCEPT as job \${jobid}\e[0m\\\n\" > \"${this_dir}/logs/remote_\${jobid}_out\"
+    colorprint \"Running CONCEPT as job \${jobid}\" \"yellow\" > \"${this_dir}/logs/remote_\${jobid}_out\"
 else
-    printf \"\e[1m\e[93mRunning CO\e[3mN\e[0m\e[1m\e[93mCEPT in pure Python mode as job \${jobid}\e[0m\\\n\" > \"${this_dir}/logs/remote_\${jobid}\"
+    printf \"\e[1m\e[93mRunning CO\e[3mN\e[0m\e[1m\e[93mCEPT in pure Python mode as job \${jobid}\e[0m\\\n\" > \"${this_dir}/logs/remote_\${jobid}_out\"
+    colorprint \"Running CONCEPT in pure Python mode as job \${jobid}\" \"yellow\" > \"${this_dir}/logs/remote_\${jobid}_out\"
 fi
-echo \"Entry point:   ${main}\" >> \"${this_dir}/logs/remote_\${jobid}\"
-echo \"Parameterfile: ${params}\" >> \"${this_dir}/logs/remote_\${jobid}\"
-echo \"Nr. of CPUs:   ${nprocs}\" >> \"${this_dir}/logs/remote_\${jobid}\"
+echo \"Entry point:   ${main}\"   >> \"${this_dir}/logs/remote_\${jobid}_out\"
+echo \"Parameterfile: ${params}\" >> \"${this_dir}/logs/remote_\${jobid}_out\"
+echo \"Nr. of CPUs:   ${nprocs}\" >> \"${this_dir}/logs/remote_\${jobid}_out\"
 # Run the code. Note that the password is passed as an argument
 cd \"${this_dir}\"
 if [ \"${pure_python}\" -eq 0 ] ; then
@@ -341,14 +362,15 @@ else
     main_as_library=\"${main}\"
     m_flag=\"\"
 fi
-\"${mpiexec}\" \"${python}\" -B \${m_flag} \"\${main_as_library}\" \"${password}\" >> \"${this_dir}/logs/remote_\${jobid}\"
-# Change to the logs directory, so that the autogenerated file will be dumped there
+\"${mpiexec}\" \"${python}\" -B \${m_flag} \"\${main_as_library}\" \"${password}\" > >(tee -a \"${this_dir}/logs/remote_\${jobid}_out\") 2> >(tee -a \"${this_dir}/logs/remote_\${jobid}_err\" >&2)
+
+# Change to the logs directory, so that autogenerated files will be dumped there
 cd \"${this_dir}/logs\"
 " > "${this_dir}/jobscript"
     # Submit the remote job
     jobid=$(qsub "${this_dir}/jobscript")
     jobid="${jobid%.in1}"
-    printf "\n\e[1m\e[93mSubmitting job\e[0m\n"
+    colorprint "\nSubmitting job" "yellow"
     echo "Job ${jobid} submitted to queue ${queue}"
     echo "You can now kill (Ctrl-C) this script without cancelling the job"
     # Call the watch script so we can follow the output of the run
@@ -358,22 +380,21 @@ else
     # Run locally
     # Construct a jobid that does not conflict with the content of the logs dir
     jobid=0
-    while [ 1 ]; do
-        if [ ! -f "${this_dir}/logs/local_${jobid}" ]; then
+    while :; do
+        if [ ! -f "${this_dir}/logs/local_${jobid}_out" ]; then
             break
         fi
         ((jobid += 1))
     done
     # Print start message
-    echo ""
-    if [ "${pure_python}" -eq 0 ] ; then
-        printf "\e[1m\e[93mRunning CO\e[3mN\e[0m\e[1m\e[93mCEPT\e[0m\n" 2>&1 | tee "${this_dir}/logs/local_${jobid}"
+    if [ "${pure_python}" -eq 0 ]; then
+        colorprint "\nRunning CONCEPT" "yellow" | tee "${this_dir}/logs/local_${jobid}_out"
     else
-        printf "\e[1m\e[93mRunning CO\e[3mN\e[0m\e[1m\e[93mCEPT in pure Python mode\e[0m\n" 2>&1 | tee "${this_dir}/logs/local_${jobid}"
+        colorprint "\nRunning CONCEPT in pure Python mode" "yellow" | tee "${this_dir}/logs/local_${jobid}_out"
     fi
-    echo "Entry point:   ${main}" 2>&1 | tee -a "${this_dir}/logs/local_${jobid}"
-    echo "Parameterfile: ${params}" 2>&1 | tee -a "${this_dir}/logs/local_${jobid}"
-    echo "Nr. of CPUs:   ${nprocs}" 2>&1 | tee -a "${this_dir}/logs/local_${jobid}"
+    echo "Entry point:   ${main}"   | tee -a "${this_dir}/logs/local_${jobid}_out"
+    echo "Parameterfile: ${params}" | tee -a "${this_dir}/logs/local_${jobid}_out"
+    echo "Nr. of CPUs:   ${nprocs}" | tee -a "${this_dir}/logs/local_${jobid}_out"
     # Run the code. Note that the password is passed as an argument
     if [ "${pure_python}" -eq 0 ] ; then
         # Run as compiled library module
@@ -384,13 +405,7 @@ else
         main_as_library="${main}"
         m_flag=""
     fi
-    "${mpiexec}" -n "${nprocs}" "${python}" -B ${m_flag} "${main_as_library}" "${password}" 2>&1 | tee -a "${this_dir}/logs/local_${jobid}"
-    # The above piped tee command hijacks the exit code. Need to test the mpiexec exit code explicitly
-    if [ "${PIPESTATUS[0]}" != 0 ]; then
-        exit 1
-    fi
-    # Run complete. Deactivate trap before exiting.
+    "${mpiexec}" -n "${nprocs}" "${python}" -B ${m_flag} "${main_as_library}" "${password}" > >(tee -a "${this_dir}/logs/local_${jobid}_out") 2> >(tee -a "${this_dir}/logs/local_${jobid}_err" >&2)
+    # Run complete. Deactivate trap before exiting
     trap : 0
 fi
-
-
