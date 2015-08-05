@@ -224,27 +224,27 @@ if (cython.compiled and special is not None) or (not cython.compiled and 'specia
     Barrier()
     sys.exit()
 
-# Check that the snapshot times are legal
+# Check that the snapshot and powerspectrum times are legal
 check_outputtimes(snapshot_times, 'snapshot')
 check_outputtimes(powerspec_times, 'power spectrum', at_beginning=True)
 # Create list of dump times
 cython.declare(dump_times='list')
 dump_times = sorted(set(snapshot_times + powerspec_times))
+# Power spectrum of the IC?
 if len(dump_times) > 0 and dump_times[0] == a_begin:
     dump_times = dump_times[1:]
-    # Power spectrum of the IC?
     if np.min(powerspec_times) == a_begin:
         powerspec_filename = (powerspec_dir + '/' + powerspec_base
                               + '_a=' + '{:.3f}'.format(a_begin))
         powerspectrum(particles, powerspec_filename)
 # Load initial conditions
 particles = load(IC_file)
-# Run the time loop at import time
+# Run the time loop
 timeloop()
-# Simulation done.
-# Due to an error having to do with the Python -m switch, the program must
-# explicitly be told to exit.
+# Simulation done
 if master:
     print(terminal.bold_green(terminal.CONCEPT + ' ran successfully'))
+# Due to an error having to do with the Python -m switch, the program must
+# explicitly be told to exit.
 Barrier()
 sys.exit()
