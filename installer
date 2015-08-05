@@ -568,7 +568,7 @@ if [ $(validate_url "${mpi4py_url}") -eq 0 ]; then
     echo "Error: The MPI4Py link is broken!"
     exit 1
 fi
-# H5Py (2.4.0 is known to work)
+# H5Py (2.5.0 is known to work)
 current_step="search for latest version of HF5Py"
 set_status "Searching for latest version of HF5Py"
 h5py_version=$(wget -q -O- --no-check-certificate "https://pypi.python.org/pypi/h5py/#downloads" | grep -m 1 -o -P "(?<=h5py/).*(?=\"\>h5py)" || echo)
@@ -587,10 +587,10 @@ disable_status
 heading "Python packages overview"
 printf "The following Python packages will be installed\n"
 printf "Name:{}Version:{}Installation path
-┌─Blessings{}${blessings_version}{}${python_dir}/lib/python${python_version}/site-packages/Blessings
+┌─Blessings{}${blessings_version}{}${python_dir}/lib/python${python_version}/site-packages/blessings
 ├─Cython{}${cython_version}{}${python_dir}/lib/python${python_version}/site-packages/Cython
-├─Cython_GSL{}${cython_gsl_version}{}${python_dir}/lib/python${python_version}/site-packages/Cython_GSL
-├─H5Py{}${h5py_version}{}${python_dir}/lib/python${python_version}/site-packages/h5py
+├─Cython_GSL{}${cython_gsl_version}{}${python_dir}/lib/python${python_version}/site-packages/cython_gsl
+├─H5Py{}${h5py_version}{}${python_dir}/lib/python${python_version}/site-packages/h5py-${h5py_version}-py${python_version}-$(uname -s | awk '{print tolower($0)}')-$(uname -m).egg/h5py
 ├─Matplotlib{}${matplotlib_version}{}${python_dir}/lib/python${python_version}/site-packages/matplotlib
 ├─MPI4Py{}${mpi4py_version}{}${python_dir}/lib/python${python_version}/site-packages/mpi4py
 ├─NumPy{}${numpy_version}{}${python_dir}/lib/python${python_version}/site-packages/numpy
