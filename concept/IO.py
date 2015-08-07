@@ -19,13 +19,7 @@ import struct
 
 # Function that saves particle data to an hdf5 file or a gadget snapshot file,
 # based on the "snapshot_type" parameter
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Argument
+@cython.header(# Argument
                particles='Particles',
                a='double',
                filename='str',
@@ -41,20 +35,14 @@ def save(particles, a, filename):
 
 # Function that loads particle data from an hdf5 file and instantiate a
 # Particles instance on each process, storing the particles within its domain.
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Argument
+@cython.header(# Argument
                filename='str',
                write_msg='bint',
                # Locals
                input_type='str',
                particles='Particles',
+               returns='Particles',
                )
-@cython.returns('Particles')
 def load(filename, write_msg=True):
     # If no snapshot should be loaded, return immediately
     if filename == '':
@@ -83,13 +71,7 @@ def load(filename, write_msg=True):
     return particles
 
 # Function that saves particle data to an hdf5 file
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Argument
+@cython.header(# Argument
                particles='Particles',
                a='double',
                filename='str',
@@ -144,13 +126,7 @@ def save_standard(particles, a, filename):
 
 # Function that loads particle data from an hdf5 file and instantiate a
 # Particles instance on each process, storing the particles within its domain.
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Argument
+@cython.header(# Argument
                filename='str',
                write_msg='bint',
                # Locals
@@ -168,8 +144,8 @@ def save_standard(particles, a, filename):
                particles='Particles',
                start_local='size_t',
                tol='double',
+               returns='Particles',
                )
-@cython.returns('Particles')
 def load_standard(filename, write_msg=True):
     # Print out message
     if master:
@@ -255,13 +231,7 @@ def load_standard(filename, write_msg=True):
     return particles
 
 # Function for saving the current state as a GADGET snapshot
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                particles='Particles',
                a='double',
                filename='str',
@@ -282,19 +252,13 @@ def save_gadget(particles, a, filename):
     snapshot.save(filename)
 
 # Function for loading a GADGET snapshot into a Particles instance
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                filename='str',
                write_msg='bint',
                # Locals
                snapshot='Gadget_snapshot',
+               returns='Particles',
                )
-@cython.returns('Particles')
 def load_gadget(filename, write_msg=True):
     # Print out message
     if master:
@@ -314,10 +278,7 @@ class Gadget_snapshot:
 
     # Initialization method.
     # Note that data attributes are declared in the .pxd file.
-    @cython.boundscheck(False)
-    @cython.cdivision(True)
-    @cython.initializedcheck(False)
-    @cython.wraparound(False)
+    @cython.header
     def __init__(self):
         # The triple quoted string below serves as the type declaration
         # for the Gadget_snapshot type. It will get picked up by the pyxpp
@@ -338,13 +299,7 @@ class Gadget_snapshot:
 
     # This method populate the snapshot with particle data as well as ID's
     # (which are not used by this code) and additional header information.
-    @cython.cfunc
-    @cython.inline
-    @cython.boundscheck(False)
-    @cython.cdivision(True)
-    @cython.initializedcheck(False)
-    @cython.wraparound(False)
-    @cython.locals(# Arguments
+    @cython.header(# Arguments
                    particles='Particles',
                    a='double',
                    # Locals
@@ -398,13 +353,7 @@ class Gadget_snapshot:
         self.header['flag_entr_ics'] = 1
 
     # Method for saving a GADGET snapshot of type 2 to disk
-    @cython.cfunc
-    @cython.inline
-    @cython.boundscheck(False)
-    @cython.cdivision(True)
-    @cython.initializedcheck(False)
-    @cython.wraparound(False)
-    @cython.locals(# Arguments
+    @cython.header(# Arguments
                    filename='str',
                    # Locals
                    i='int',
@@ -516,13 +465,7 @@ class Gadget_snapshot:
                         f.write(struct.pack('i', N*4))
 
     # Method for loading in a GADGET snapshot of type 2 from disk
-    @cython.cfunc
-    @cython.inline
-    @cython.boundscheck(False)
-    @cython.cdivision(True)
-    @cython.initializedcheck(False)
-    @cython.wraparound(False)
-    @cython.locals(# Arguments
+    @cython.header(# Arguments
                    filename='str',
                    write_msg='bint',
                    # Locals
@@ -699,13 +642,7 @@ class Gadget_snapshot:
             # Possible additional meta data ignored
 
     # Method used for reading series of bytes from the snapshot file
-    @cython.cfunc
-    @cython.inline
-    @cython.boundscheck(False)
-    @cython.cdivision(True)
-    @cython.initializedcheck(False)
-    @cython.wraparound(False)
-    @cython.locals(# Arguments
+    @cython.header(# Arguments
                    f='object',  # io.TextIOWrapper instance
                    fmt='str',
                    # Locals
@@ -723,16 +660,10 @@ class Gadget_snapshot:
 
     # Method that handles the file object's position in the snapshot file
     # during loading. Call it when the next block should be read.
-    @cython.cfunc
-    @cython.inline
-    @cython.boundscheck(False)
-    @cython.cdivision(True)
-    @cython.initializedcheck(False)
-    @cython.wraparound(False)
-    @cython.locals(# Argments
+    @cython.header(# Argments
                    offset='size_t',
+                   returns='size_t',
                    )
-    @cython.returns('size_t')
     def new_block(self, f, offset):
         # Set the current position in the file
         f.seek(offset)

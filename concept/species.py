@@ -14,41 +14,6 @@ else:
     """
 
 
-# Cython function for computing Ewald correction
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Argument
-               x='double',
-               y='double',
-               z='double',
-               # Locals
-               dim='Py_ssize_t',
-               dist='double',
-               dist_x='double',
-               dist_y='double',
-               dist_z='double',
-               dist2='double',
-               force='double*',
-               force_x='double',
-               force_y='double',
-               force_z='double',
-               kx='double',
-               ky='double',
-               kz='double',
-               r3='double',
-               scalarpart='double',
-               sumindex_x='int',
-               sumindex_y='int',
-               sumindex_z='int',
-               )
-@cython.returns('bint')
-def summation(x, y, z):
-    return True
-
 # The class representing a collection of particles of a given type
 @cython.cclass
 class Particles:
@@ -62,11 +27,7 @@ class Particles:
     """
 
     # Initialization method
-    @cython.boundscheck(False)
-    @cython.cdivision(True)
-    @cython.initializedcheck(False)
-    @cython.wraparound(False)
-    @cython.locals(# Arguments
+    @cython.header(# Arguments
                    N='size_t',
                    )
     def __init__(self, N):
@@ -125,15 +86,9 @@ class Particles:
 
     # This method populate the Particles pos/mom attributes with data.
     # It is deliberately designed so that you have to make a call for each
-    # attribute. You should consruct the mv array within the call itself,
+    # attribute. You should construct the mv array within the call itself,
     # as this will minimize memory usage.
-    @cython.cfunc
-    @cython.inline
-    @cython.boundscheck(False)
-    @cython.cdivision(True)
-    @cython.initializedcheck(False)
-    @cython.wraparound(False)
-    @cython.locals(# Arguments
+    @cython.header(# Arguments
                    mv='double[::1]',
                    coord='str',
                    )
@@ -170,15 +125,7 @@ class Particles:
 
     # This method will grow/shrink the data attributes.
     # Note that it will not update the N_local attribute.
-    @cython.cfunc
-    @cython.inline
-    @cython.boundscheck(False)
-    @cython.cdivision(True)
-    @cython.initializedcheck(False)
-    @cython.wraparound(False)
-    @cython.locals(# Arguments
-                   N_allocated='size_t',
-                   )
+    @cython.header(N_allocated='size_t')
     def resize(self, N_allocated):
         if N_allocated != self.N_allocated:
             self.N_allocated = N_allocated
@@ -198,13 +145,7 @@ class Particles:
             self.momz_mv = cast(self.momz, 'double[:self.N_allocated]')
 
     # Method for integrating particle positions forward in time
-    @cython.cfunc
-    @cython.inline
-    @cython.boundscheck(False)
-    @cython.cdivision(True)
-    @cython.initializedcheck(False)
-    @cython.wraparound(False)
-    @cython.locals(# Arguments
+    @cython.header(# Arguments
                    Δt='double',
                    # Locals
                    fac='double',
@@ -242,13 +183,7 @@ class Particles:
         exchange(self)
 
     # Method for updating particle momenta
-    @cython.cfunc
-    @cython.inline
-    @cython.boundscheck(False)
-    @cython.cdivision(True)
-    @cython.initializedcheck(False)
-    @cython.wraparound(False)
-    @cython.locals(# Arguments
+    @cython.header(# Arguments
                    Δt='double',
                    # Locals
                    kick_algorithm='str',
@@ -270,7 +205,7 @@ class Particles:
                              + '", which is not implemented!')
 
     # This method is automaticlly called when a Particles instance
-    # is garbage collected. All manually allocated mmeory is freed.
+    # is garbage collected. All manually allocated memory is freed.
     def __dealloc__(self):
         if self.posx:
             free(self.posx)
@@ -287,21 +222,15 @@ class Particles:
 
 
 # Constructor function for Particles instances
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Argument
+@cython.header(# Argument
                type_name='str',
                species_name='str',
                mass='double',
                N='size_t',
                # Locals
                particles='Particles',
+               returns='Particles',
                )
-@cython.returns('Particles')
 def construct(type_name, species_name, mass, N):
     # Instantiate Particles instance
     particles = Particles(N)
@@ -321,13 +250,7 @@ def construct(type_name, species_name, mass, N):
 # Function that constructs a Particles instance with random
 # positions, momenta and masses. The particle data is
 # scattered fair among the processes.
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Argument
+@cython.header(# Argument
                type_name='str',
                species_name='str',
                N='size_t',
@@ -337,8 +260,8 @@ def construct(type_name, species_name, mass, N):
                mass='double',
                mom_max='double',
                particles='Particles',
+               returns='Particles',
                )
-@cython.returns('Particles')
 def construct_random(type_name, species_name, N):
     # Print out message
     if master:

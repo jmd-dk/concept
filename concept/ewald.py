@@ -15,13 +15,7 @@ else:
 from os.path import isfile
 
 # Cython function for computing Ewald correction
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Argument
+@cython.header(# Argument
                x='double',
                y='double',
                z='double',
@@ -44,19 +38,20 @@ from os.path import isfile
                sumindex_x='int',
                sumindex_y='int',
                sumindex_z='int',
+               returns='double*',
                )
-@cython.returns('double*')
 def summation(x, y, z):
     """ This function performs the Ewald summation given the distance
-    x, y, z between two particles, normalized so that 0 <= |x|, |y|, |z| < 1
-    (corresponding to boxsize = 1). The equation being solved corresponds to
-    (8) in Ralf Klessen's 'GRAPESPH with Fully Periodic Boundary
-    Conditions: Fragmentation of Molecular Clouds', though it is written
-    without the normalization. The actual Ewald force is then given by
-    force/boxsize**2. What is returned is the Ewald correction,
-    corresponding to (9) in the mentioned paper. That is, the return value is
-    not the total force, but the force from all particle images except the
-    nearest one. Note that this nearest image need not be the actual particle.
+    x, y, z between two particles, normalized so that
+    0 <= |x|, |y|, |z| < 1 (corresponding to boxsize = 1). The equation
+    being solved corresponds to (8) in Ralf Klessen's 'GRAPESPH with
+    Fully Periodic Boundary Conditions: Fragmentation of Molecular
+    Clouds', though it is written without the normalization. The actual
+    Ewald force is then given by force/boxsize**2. What is returned is
+    the Ewald correction, corresponding to (9) in the mentioned paper.
+    That is, the return value is not the total force, but the force from
+    all particle images except the nearest one. Note that this nearest
+    image need not be the actual particle.
     """
 
     # The Ewald force vector and its components
@@ -68,7 +63,8 @@ def summation(x, y, z):
         force[1] = 0
         force[2] = 0
         return force
-    # Remove the direct force, as we are interested in the correction only
+    # Remove the direct force, as we
+    # are interested in the correction only
     r3 = (x**2 + y**2 + z**2)**1.5
     force_x += x/r3
     force_y += y/r3
@@ -113,13 +109,7 @@ def summation(x, y, z):
 
 
 # Master function of this module. Returns the Ewald force correction.
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                x='double',
                y='double',
                z='double',
@@ -130,21 +120,22 @@ def summation(x, y, z):
                isnegative_y='bint',
                isnegative_z='bint',
                r3='double',
+               returns='double*',
                )
-@cython.returns('double*')
 def ewald(x, y, z):
     """This function performs a look up of the Ewald correction to the
-    fully periodic gravitational force (corresponding to 1/r**2) on a particle
-    due to some other particle at a position (x, y, z) relative to the first
-    particle. It is important that the passed coordinates are of the nearest
-    periodic image of the other particle, and not necessarily of the particle
-    itself. This means that 0 <= |x|, |y|, |z| < boxsize/2. The returned value
-    is thus the force arising on the first particle due to all periodic images
-    of the second particle, except for the nearest one.
+    fully periodic gravitational force (corresponding to 1/r**2) on a
+    particle due to some other particle at a position (x, y, z) relative
+    to the first particle. It is important that the passed coordinates
+    are of the nearest periodic image of the other particle, and not
+    necessarily of the particle itself. This means that
+    0 <= |x|, |y|, |z| < boxsize/2. The returned value is thus the force
+    arising on the first particle due to all periodic images of the
+    second particle, except for the nearest one.
     """
 
-    # Only the positive octant of the box is tabulated. Flip the sign of the
-    # coordinates so that they reside inside this octant.
+    # Only the positive octant of the box is tabulated. Flip the sign of
+    # the coordinates so that they reside inside this octant.
     if x > 0:
         isnegative_x = False
     else:
@@ -160,9 +151,9 @@ def ewald(x, y, z):
     else:
         z *= -1
         isnegative_z = True
-    # Look up Ewald force and do a CIC interpolation. Since the coordinates
-    # is to the nearest image, they must be scaled by 2/boxsize to reside
-    # in the range 0 <= x, y, z < 1.
+    # Look up Ewald force and do a CIC interpolation. Since the
+    # coordinates are to the nearest image, they must be scaled by
+    # 2/boxsize to reside in the range 0 <= x, y, z < 1.
     force = CIC_grid2coordinates_vector(grid, x*two_recp_boxsize,
                                               y*two_recp_boxsize,
                                               z*two_recp_boxsize,
@@ -174,7 +165,7 @@ def ewald(x, y, z):
         force[1] *= -1
     if isnegative_z:
         force[2] *= -1
-    # The tabulated force is for a unit box. Du rescaling
+    # The tabulated force is for a unit box. Do rescaling
     for dim in range(3):
         force[dim] *= recp_boxsize2
     return force
@@ -205,8 +196,8 @@ maxh = sqrt(maxh2)
 h_lower = int(-maxh)  # GADGET: -4 (also the case here for maxh2=10)
 h_upper = int(maxh) + 1  # GADGET: 5 (also the case here for maxh2=10)
 minus_recp_4rs2 = -1/(4*rs**2)
-n_lower = int(-(maxdist + 1))  # GADGET: -4 (also the case here for maxdist=3.6)
-n_upper = int(maxdist + 1) + 1  # GADGET: 5 (also the case here for maxdist=3.6)
+n_lower = int(-(maxdist + 1))  # GADGET: -4 (same here for maxdist=3.6)
+n_upper = int(maxdist + 1) + 1  # GADGET: 5 (same here for maxdist=3.6)
 recp_2rs = 1/(2*rs)
 recp_sqrt_π_rs = 1/(sqrt_π*rs)
 rs2 = rs**2
@@ -223,8 +214,8 @@ if 'PP' in kick_algorithms.values() and use_Ewald:
         with h5py.File(filepath, mode='r') as hdf5_file:
             grid = hdf5_file['data'][...]
     else:
-        # No tabulated Ewald grid found. Compute it.The factor 0.5 ensures
-        # that only the first octant of the box is tabulated
+        # No tabulated Ewald grid found. Compute it.The factor 0.5
+        # ensures that only the first octant of the box is tabulated
         if master:
             print('Tabulating Ewald grid of linear size '
                   + str(ewald_gridsize))

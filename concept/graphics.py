@@ -24,13 +24,7 @@ from os.path import basename, dirname
 
 
 # Setting up figure and plot the particles
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                particles='Particles',
                timestep='size_t',
                a='double',
@@ -54,7 +48,9 @@ from os.path import basename, dirname
                )
 def animate(particles, timestep, a, a_snapshot, filename=''):
     global artist_particles, artist_text, upload_liveframe, ax, size_fac
-    if not visualize or (timestep % framespace and (a != a_snapshot or a_snapshot not in snapshot_times)):
+    if not visualize or (timestep % framespace
+                         and (a != a_snapshot
+                              or a_snapshot not in snapshot_times)):
         return
     # Frame should be animated. Print out message
     if master:
@@ -91,7 +87,7 @@ def animate(particles, timestep, a, a_snapshot, filename=''):
                                       particles.posz_mv[:N_local],
                                       alpha=alpha,
                                       lw=0,
-                                      c=(0.87, 0.62, 0.99),  # CHANGED
+                                      c=(0.87, 0.62, 0.99),
                                       s=size,
                                       )
         ax.set_xlim(0, boxsize)
@@ -123,17 +119,53 @@ def animate(particles, timestep, a, a_snapshot, filename=''):
         for tl in ax.w_zaxis.get_ticklabels():
             tl.set_visible(False)
         # Gridlines on non-black backgrounds
-        if bgcolor != 'black' and False:  # CHANGED
+        if bgcolor != 'black' and False:
             for j in np.linspace(0, 1, 6):
                 # xy
-                ax.plot([0, boxsize], ones(2)*boxsize*j, [0, 0], color=ones(3)*0.8, zorder=-1, lw=1.5)
-                ax.plot(ones(2)*boxsize*j, [0, boxsize], [0, 0], color=ones(3)*0.8, zorder=-1, lw=1.5)
+                ax.plot([0, boxsize],
+                        ones(2)*boxsize*j,
+                        [0, 0],
+                        color=ones(3)*0.8,
+                        zorder=-1,
+                        lw=1.5,
+                        )
+                ax.plot(ones(2)*boxsize*j,
+                        [0, boxsize],
+                        [0, 0],
+                        color=ones(3)*0.8,
+                        zorder=-1,
+                        lw=1.5,
+                        )
                 # xz
-                ax.plot(ones(2)*boxsize*j, ones(2)*boxsize, [0, boxsize], color=ones(3)*0.8, zorder=-1, lw=1.5)
-                ax.plot([0, boxsize], ones(2)*boxsize, ones(2)*boxsize*j, color=ones(3)*0.8, zorder=-1, lw=1.5)
+                ax.plot(ones(2)*boxsize*j,
+                        ones(2)*boxsize,
+                        [0, boxsize],
+                        color=ones(3)*0.8,
+                        zorder=-1, 
+                        lw=1.5,
+                        )
+                ax.plot([0, boxsize],
+                        ones(2)*boxsize,
+                        ones(2)*boxsize*j,
+                        color=ones(3)*0.8,
+                        zorder=-1,
+                        lw=1.5,
+                        )
                 # yz
-                ax.plot(zeros(2), ones(2)*boxsize*j, [0, boxsize], color=ones(3)*0.8, zorder=-1, lw=1.5)
-                ax.plot(zeros(2), [0, boxsize], ones(2)*boxsize*j, color=ones(3)*0.8, zorder=-1, lw=1.5)
+                ax.plot(zeros(2),
+                        ones(2)*boxsize*j,
+                        [0, boxsize],
+                        color=ones(3)*0.8,
+                        zorder=-1,
+                        lw=1.5,
+                        )
+                ax.plot(zeros(2),
+                        [0, boxsize],
+                        ones(2)*boxsize*j,
+                        color=ones(3)*0.8,
+                        zorder=-1,
+                        lw=1.5,
+                        )
         # Prepare the text
         artist_text = ax.text(+0.25*boxsize,
                               -0.3*boxsize,
@@ -159,13 +191,16 @@ def animate(particles, timestep, a, a_snapshot, filename=''):
                                                            scientific=True,
                                                            )
                                      + '$')
-    # When run on multiple processes, each process saves its part of the total
-    # frame to disk, which is then read in by the master process and combined
-    # to produce the total frame.
+    # When run on multiple processes, each process saves its part of the
+    # total frame to disk, which is then read in by the master process
+    # and combined to produce the total frame.
     if nprocs > 1:
         savefig(frameparts_folder + '.rank' + str(rank) + suffix,
-                bbox_inches='tight', pad_inches=0)
-        # When done saving the image, all processes but the master is done
+                bbox_inches='tight',
+                pad_inches=0,
+                )
+        # When done saving the image,
+        # all processes but the master is done
         Barrier()
         if not master:
             return
@@ -200,9 +235,10 @@ def animate(particles, timestep, a, a_snapshot, filename=''):
     if nprocs > 1 and a == a_max:
         for i in range(nprocs):
             os.remove(frameparts_folder + '.rank' + str(i) + suffix)
-    # If explicit filename is passed, save to this file and return. Also reset
-    # the particles artist, forcing the plot to setup from scratch the next
-    # time this function is called (important when called from external script).
+    # If explicit filename is passed, save to this file and return.
+    # Also reset the particles artist, forcing the plot to setup from
+    # scratch the next time this function is called (important when
+    # called from external script).
     if filename != '':
         print('    Saving: ' + frame_dir + filename)
         artist_particles = None
@@ -289,24 +325,18 @@ def animate(particles, timestep, a, a_snapshot, filename=''):
                             upload_liveframe = False
                 child.close()
             except KeyboardInterrupt:
-                # User tried to kill the program. Let her.
+                # User tried to kill the program. Let her
                 raise KeyboardInterrupt
             except:
-                # An error occurred during uploading. Print warning.
+                # An error occurred during uploading. Print warning
                 child.terminate(force=False)
                 warn('An error occurred during ' + protocol
                      + ' to ' + user_at_host)
 
 
-# This function formats a floating point number f to only
-# have n significant figures.
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+# This function formats a floating point
+# number f to only have n significant figures.
+@cython.header(# Arguments
                f='double',
                n='int',
                just='int',
@@ -317,8 +347,8 @@ def animate(particles, timestep, a, a_snapshot, filename=''):
                power='int',
                power10='double',
                sign='int',
+               returns='str',
                )
-@cython.returns('str')
 def significant_figures(f, n, just=0, scientific=False):
     sign = 1
     if f == 0:

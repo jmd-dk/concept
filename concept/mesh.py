@@ -12,13 +12,7 @@ else:
     """
 
 # Function for easy partitioning of multidimensional arrays
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                array_shape='tuple',
                # Locals
                problem_size='int',
@@ -26,8 +20,8 @@ else:
                errmsg='str',
                indices_start='size_t[::1]',
                indices_end='size_t[::1]',
+               returns='tuple',
                )
-@cython.returns('tuple')
 def partition(array_shape):
     """ This function takes in the shape of an array as the argument
     and returns the start and end indices corresponding to the local chunk
@@ -47,13 +41,7 @@ def partition(array_shape):
     return (indices_start, indices_end)
 
 # Function for tabulating a cubic grid with vector values
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                gridsize='int',
                func='func_ddd_ddd',
                factor='double',
@@ -72,8 +60,8 @@ def partition(array_shape):
                k_end='size_t',
                k_start='size_t',
                shape='tuple',
+               returns='double[:, :, :, ::1]',
                )
-@cython.returns('double[:, :, :, ::1]')
 def tabulate_vectorfield(gridsize, func, factor, filename):
     """ This function tabulates a cubic grid of size
     gridsize*gridsize*gridsize with vector values computed by the
@@ -110,13 +98,7 @@ def tabulate_vectorfield(gridsize, func, factor, filename):
 
 # Function for doing lookup in a grid with vector values and
 # CIC-interpolating to specified coordinates
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Argument
+@cython.header(# Argument
                grid='double[:, :, ::1]',
                x='double',
                y='double',
@@ -137,8 +119,8 @@ def tabulate_vectorfield(gridsize, func, factor, filename):
                y_upper='size_t',
                z_lower='size_t',
                z_upper='size_t',
+               returns='double',
                )
-@cython.returns('double')
 def CIC_grid2coordinates_scalar(grid, x, y, z):
     """This function look up tabulated scalars in a grid and interpolates
     to (x, y, z) via the cloud in cell (CIC) method. Input arguments must be
@@ -188,13 +170,7 @@ def CIC_grid2coordinates_scalar(grid, x, y, z):
 
 # Function for doing lookup in a grid with vector values and
 # CIC-interpolating to specified coordinates
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Argument
+@cython.header(# Argument
                grid='double[:, :, :, ::1]',
                x='double',
                y='double',
@@ -216,8 +192,8 @@ def CIC_grid2coordinates_scalar(grid, x, y, z):
                y_upper='size_t',
                z_lower='size_t',
                z_upper='size_t',
+               returns='double*',
                )
-@cython.returns('double*')
 def CIC_grid2coordinates_vector(grid, x, y, z):
     """This function look up tabulated vectors in a grid and interpolates
     to (x, y, z) via the cloud in cell (CIC) method. Input arguments must be
@@ -270,13 +246,7 @@ def CIC_grid2coordinates_vector(grid, x, y, z):
 
 # Function for CIC-interpolating particle coordinates
 # to a cubic grid with scalar values.
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Argument
+@cython.header(# Argument
                particles='Particles',
                grid='double[:, :, ::1]',
                # Locals
@@ -363,13 +333,7 @@ def CIC_particles2grid(particles, grid):
 
 
 # Function for communicating boundary values of a grid between processes
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                grid='double[:, :, ::1]',
                mode='int',
                # Locals
@@ -550,13 +514,7 @@ def communicate_boundaries(grid, mode=0):
 
 
 # Function for communicating ghost layers of a grid between processes
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                grid='double[:, :, ::1]',
                # Locals
                ghost_backward='double[:, :, ::1]',
@@ -644,13 +602,7 @@ def communicate_ghosts(grid):
 
 # Function for transfering the interpolated data
 # in the domain grid to the PM grid.
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                domain_grid='double[:, :, ::1]',
                PM_grid='double[:, :, ::1]',
                # Locals
@@ -694,13 +646,7 @@ def domain2PM(domain_grid, PM_grid):
 
 # Function for transfering the data
 # in the PM grid to the domain grid.
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                domain_grid='double[:, :, ::1]',
                PM_grid='double[:, :, ::1]',
                # Locals

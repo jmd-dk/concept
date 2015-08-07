@@ -23,13 +23,7 @@ else:
 from os.path import basename
 
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                times='tuple',
                item='str',
                at_beginning='bint',
@@ -48,13 +42,8 @@ def check_outputtimes(times, item, at_beginning=False):
                                + 'Extra values will be ignored.')
 
 # This function pretty prints information gathered through a time step
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+
+@cython.header(# Arguments
                timestep='int',
                t_iter='double',
                a='double',
@@ -70,13 +59,7 @@ def timestep_message(timestep, t_iter, a, t):
                                                          just=7) + ' Gyr',
               sep='\n    ')
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Locals
+@cython.header(# Locals
                a='double',
                a_dump='double',
                a_next='double',

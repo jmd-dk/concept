@@ -13,28 +13,16 @@ else:
 
 # The Friedmann equation, used to integrate
 # the scale factor forwards in time
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(t='double',
+@cython.header(t='double',
                a='double',
+               returns='double',
                )
-@cython.returns('double')
 def ȧ(t, a):
     return a*H0*sqrt(Ωm/(a**3 + machine_ϵ) + ΩΛ)
 
 
 # Function for solving ODEs of the form ḟ(t, f)
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                ḟ='func_d_dd',
                f_start='double',
                t_start='double',
@@ -58,8 +46,8 @@ def ȧ(t, a):
                k6='double',
                tolerence='double',
                Δt='double',
+               returns='double',
                )
-@cython.returns('double')
 def rkf45(ḟ, f_start, t_start, t_end, δ, ϵ, save_intermediate):
     """ḟ(t, f) is the derivative of f with respect to t. Initial values
     are given by f_start and t_start. ḟ will be integrated from t_start
@@ -126,18 +114,12 @@ def rkf45(ḟ, f_start, t_start, t_end, δ, ϵ, save_intermediate):
 
 
 # Function for updating the scale factor
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                a='double',
                t='double',
                Δt='double',
+               returns='double',
                )
-@cython.returns('double')
 def expand(a, t, Δt):
     """Integrates the Friedmann equation from t to t + Δt,
     where the scale factor at time t is given by a. Returns a(t + Δt).
@@ -146,28 +128,22 @@ def expand(a, t, Δt):
 
 
 # Function for calculating integrals of the sort ∫_t^(t + Δt) a^power dt
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                power='int',
                # Locals
                acc='gsl_interp_accel*',
                integral='double',
                spline='gsl_spline*',
+               returns='double',
                )
-@cython.returns('double')
 def scalefactor_integral(power):
     """This function returns the factor ∫_t^(t + Δt) a**power dt used
     in the drift (power = -2) and kick (power = -1) operations.
     It is important that the expand function expand(a, t, Δt) has been
-    called prior to calling this function, as expand generates the a
-    values needed in the integration. You can call this function multiple
-    times (and with different values of power) without calling expand
-    in between.
+    called prior to calling this function, as expand generates the
+    values needed in the integration. You can call this function
+    multiple times (and with different values of power) without calling
+    expand in between.
     """
     # If expand has been called as it should, f_cum now stores
     # accumulated values of a. Compute the integrand a^power.
@@ -182,7 +158,8 @@ def scalefactor_integral(power):
     if not cython.compiled:
         integral = trapz(integrand_cum_mv[:size_cum], t_cum_mv[:size_cum])
     else:
-        # Allocate an interpolation accelerator and a cubic spline object
+        # Allocate an interpolation accelerator
+        # and a cubic spline object.
         acc = gsl_interp_accel_alloc()
         spline = gsl_spline_alloc(gsl_interp_cspline, size_cum)
         # Initialize spline
@@ -199,13 +176,7 @@ def scalefactor_integral(power):
 
 
 # Function for computing the cosmic time t at some given scale factor a
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                a='double',
                a_lower='double',
                t_lower='double',
@@ -214,12 +185,13 @@ def scalefactor_integral(power):
                a_test='double',
                t='double',
                t_lowest='double',
+               returns='double',
                )
-@cython.returns('double')
 def cosmic_time(a, a_lower=machine_ϵ, t_lower=machine_ϵ, t_upper=20*units.Gyr):
-    """Given lower and upper bounds on the cosmic time, t_lower and t_upper,
-    and the scale factor at time t_lower, a_lower, this function finds
-    the future time at which the scale factor will have the value a.
+    """Given lower and upper bounds on the cosmic time, t_lower and
+    t_upper, and the scale factor at time t_lower, a_lower,
+    this function finds the future time at which the scale
+    factor will have the value a.
     """
     # Saves a copy of t_lower, the time at which the scale factor
     # had a value of a_lower
@@ -227,7 +199,8 @@ def cosmic_time(a, a_lower=machine_ϵ, t_lower=machine_ϵ, t_upper=20*units.Gyr)
     # Compute the cosmic time at which the scale factor had the value a,
     # using a binary search
     a_test = t = -1
-    while abs(a_test - a) > two_machine_ϵ and (t_upper - t_lower) > two_machine_ϵ:
+    while (abs(a_test - a) > two_machine_ϵ
+           and (t_upper - t_lower) > two_machine_ϵ):
         t = (t_upper + t_lower)/2
         a_test = rkf45(ȧ, a_lower, t_lowest, t, δ=1e-9, ϵ=1e-9,
                        save_intermediate=False)
@@ -270,18 +243,22 @@ cython.declare(a21='double',
                d4='double',
                d5='double',
                )
-c2 = 1.0/4;   a21 = 1.0/4
-c3 = 3.0/8;   a31 = 3.0/32;      a32 = 9.0/32
-c4 = 12.0/13; a41 = 1932.0/2197; a42 = -7200.0/2197; a43 = 7296.0/2197
-c5 = 1;       a51 = 439.0/216;   a52 = -8;           a53 = 3680.0/513;   a54= -845.0/4104
-c6 = 1.0/2;   a61 = -8.0/27;     a62 = 2;            a63 = -3544.0/2565; a64 = 1859.0/4104;  a65 = -11.0/40
-b1 = 16.0/135;                                        b3 = 6656.0/12825;  b4 = 28561.0/56430; b5 = -9.0/50;  b6 = 2.0/55
-d1 = 25.0/216;                                        d3 = 1408.0/2565;   d4 = 2197.0/4104;   d5 = -1.0/5
+
+
+a21 = 1/4
+a31 = 3/32;        a32 = 9/32
+a41 = 1932.0/2197; a42 = -7200/2197;  a43 = 7296/2197
+a51 = 439/216;     a52 = -8;  a53 = 3680/513;    a54 = -845/4104
+a61 = -8/27;       a62 = 2;   a63 = -3544/2565;  a64 = 1859/4104;  a65 = -11/40
+b1 = 16/135;  b3 = 6656/12825;  b4 = 28561/56430; b5 = -9/50;  b6 = 2/55
+c2 = 1/4;  c3 = 3/8;  c4 = 12/13;  c5 = 1;  c6 = 1/2
+d1 = 25/216;  d3 = 1408/2565;   d4 = 2197/4104;   d5 = -1/5
 
 # Allocate t_cum, f_cum and integrand_cum at import time.
 # t_cum and f_cum are used to store intermediate values of t, f,
-# in the Runge–Kutta–Fehlberg method. integrand_cum stores the associated
-# values of the integrand in ∫_t^(t + Δt) 1/a dt and ∫_t^(t + Δt) 1/a^2 dt.
+# in the Runge–Kutta–Fehlberg method. integrand_cum stores the
+# associated values of the integrand in ∫_t^(t + Δt) 1/a dt
+# and ∫_t^(t + Δt) 1/a^2 dt.
 cython.declare(alloc_cum='int',
                f_cum='double*',
                f_cum_mv='double[::1]',

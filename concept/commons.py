@@ -13,14 +13,12 @@ import numpy as np
 import h5py
 import os
 import sys
-# For development purposes only
-from time import time, sleep
-
 # For fancy terminal output
 from blessings import Terminal
 terminal = Terminal(force_styling=True)
 terminal.CONCEPT = 'CO\x1b[3mN\x1b[23mCEPT'
-
+# For development purposes only
+from time import time, sleep
 
 ########################
 # Cython-related stuff #
@@ -28,17 +26,23 @@ terminal.CONCEPT = 'CO\x1b[3mN\x1b[23mCEPT'
 import cython
 # Declarations exclusively to either pure Python or Cython
 if not cython.compiled:
-    # Dummy Cython compiler directives (decorators)
-    def dummy_function(*args, **kwargs):
-        def dummy_decorator(func):
-            return func
-        return dummy_decorator
+    # Dummy Cython compiler directives (as decorators)
+    def dummy_decorator(*args, **kwargs):
+        if len(args) == 1 and len(kwargs) == 0 and callable(args[0]):
+            # Called as @dummy_decorator. Return function
+            return args[0]
+        else:
+            # Called as @dummy_decorator(*args, **kwargs).
+            # Return decorator
+            return dummy_decorator
+    # Already builtin: cfunc, inline, locals, returns
     for directive in ('boundscheck',
                       'cdivision',
                       'initializedcheck',
                       'wraparound',
+                      'header',
                       ):
-        setattr(cython, directive, dummy_function)
+        setattr(cython, directive, dummy_decorator)
     # Dummy Cython functions
     for func in ('address', ):
         setattr(cython, func, lambda _: _)
@@ -51,14 +55,19 @@ if not cython.compiled:
             dtype = 'float64'
         elif dtype == 'size_t':
             dtype = 'uintp'
-        elif dtype in ('func_b_ddd', 'func_d_dd', 'func_d_ddd', 'func_ddd_ddd'):
+        elif dtype in ('func_b_ddd',
+                       'func_d_dd',
+                       'func_d_ddd',
+                       'func_ddd_ddd',
+                       ):
             dtype='object'
         elif dtype[-1] == '*':
             # Allocate pointer array of pointers (eg. int**).
             # Emulate these as lists of arrays.
             return [empty(1, dtype=sizeof(dtype[:-1]).dtype)]
         else:
-            raise TypeError(dtype + ' not implemented as a Numpy dtype in commons.py')
+            msg = dtype + ' not implemented as a Numpy dtype in commons.py'
+            raise TypeError(msg)
         return array([1], dtype=dtype)
     def malloc(a):
         if isinstance(a, list):
@@ -121,7 +130,8 @@ else:
     from species cimport Particles
     from IO cimport Gadget_snapshot
     """
-# Seperate but equivalent imports and definitions in pure Python and Cython
+# Seperate but equivalent imports and
+# definitions in pure Python and Cython
 if not cython.compiled:
     # Mathematical constants and functions
     from numpy import pi as π
@@ -203,13 +213,16 @@ cython.declare(a_max='double',
                P3M_scale_phys='double',
                π_recp_PM_gridsize='double',
                )
-G_Newton = 6.6738e-11*units.m**3/units.kg/units.s**2  # Newtons constant
-if len(snapshot_times + powerspec_times) == 0:
-    a_max = a_begin
-else:
-    a_max = np.max(snapshot_times + powerspec_times)  # The scale factor at the last time step
-ϱ = 3*H0**2/(8*π*G_Newton) # The average, comoing density (the critical comoving density since we only study flat universes)
-ϱm = Ωm*ϱ  # The average, comoving matter density
+# Newtons constant
+G_Newton = 6.6738e-11*units.m**3/units.kg/units.s**2
+# The scale factor at the last time step
+a_max = (a_begin if len(snapshot_times + powerspec_times) == 0
+         else np.max(snapshot_times + powerspec_times))
+# The average, comoing density (the critical
+# comoving density since we only study flat universes)
+ϱ = 3*H0**2/(8*π*G_Newton)
+# The average, comoving matter density
+ϱm = Ωm*ϱ
 PM_gridsize3 = PM_gridsize**3
 PM_gridsize_padding = 2*(PM_gridsize//2 + 1)
 half_PM_gridsize = PM_gridsize//2
@@ -221,11 +234,14 @@ half_boxsize = 0.5*boxsize
 minus_half_boxsize = -half_boxsize
 two_recp_boxsize = 2/boxsize
 π_recp_PM_gridsize = π/PM_gridsize
-ewald_file = '.ewald_gridsize=' + str(ewald_gridsize) + '.hdf5'  # Name of file storing the Ewald grid
-machine_ϵ = np.finfo('float64').eps  # Machine epsilon
+# Name of file storing the Ewald grid
+ewald_file = '.ewald_gridsize=' + str(ewald_gridsize) + '.hdf5'
+# Machine epsilon
+machine_ϵ = np.finfo('float64').eps
 two_ewald_gridsize = 2*ewald_gridsize
 two_machine_ϵ = 2*machine_ϵ
-use_PM = False  # Flag specifying whether the PM method is used or not
+# Flag specifying whether the PM method is used or not
+use_PM = False
 if len(powerspec_times) > 0:
     use_PM = True
 else:
@@ -246,10 +262,10 @@ else:
 # Everything except the mass and the time are constant, and is condensed
 # into the PM_fac_const variable.
 PM_fac_const = G_Newton*PM_gridsize**4/(π*boxsize**2)
-# The exponential cutoff for the long-range force looks like exp(-k2*rs2).
-# In the code, the wave vector is in grid units in stead of radians. The
-# conversion is this 2*π/PM_gridsize. The total factor on k2 in the
-# exponential is then
+# The exponential cutoff for the long-range force looks like
+# exp(-k2*rs2). In the code, the wave vector is in grid units in stead
+# of radians. The conversion is this 2*π/PM_gridsize. The total factor
+# on k2 in the exponential is then
 longrange_exponent_fac = -(2*π/PM_gridsize*P3M_scale)**2
 # The short-range/long-range force scale
 P3M_scale_phys = P3M_scale*boxsize/PM_gridsize
@@ -287,28 +303,25 @@ Sendrecv = comm.Sendrecv
 allreduce = comm.allreduce
 reduce = comm.reduce
 sendrecv = comm.sendrecv
-# Constants
-nprocs = comm.size  # Number of processes started with mpiexec
-rank = comm.rank    # The unique rank of the running process
-master = not rank   # Flag identifying the master/root process (that which have rank 0)
+# Number of processes started with mpiexec
+nprocs = comm.size
+# The unique rank of the running process
+rank = comm.rank
+# Flag identifying the master/root process (that which have rank 0)
+master = not rank
 
 
 
-####################
-# Useful functions #
-####################
+###########################################
+# Custumly defined mathematical functions #
+###########################################
 # Max function for 1D memory views of numbers
 if not cython.compiled:
     # Pure Python already have a generic max function
     pass
 else:
     """
-    @cython.cfunc
-    @cython.inline
-    @cython.boundscheck(False)
-    @cython.cdivision(True)
-    @cython.wraparound(False)
-    @cython.returns(number)
+    @cython.header(returns=number)
     def max(number[::1] a):
         cdef:
             number m
@@ -328,11 +341,7 @@ if not cython.compiled:
     pass
 else:
     """
-    @cython.cfunc
-    @cython.cdivision(True)
-    @cython.boundscheck(False)
-    @cython.wraparound(False)
-    @cython.returns(number)
+    @cython.header(returns=number)
     def min(number[::1] a):
         cdef:
             number m
@@ -347,27 +356,22 @@ else:
     """
 
 # Modulo function for numbers
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
-               x=number,
+@cython.header(x=number,
                length=number2,
+               returns=number,
                )
-@cython.returns(number)
 def mod(x, length):
-    # mod(integer, floating) not possible. Note that no error will occur if
-    # called with illegal types!
+    """Warning: mod(integer, floating) not possible. Note that
+    no error will occur if called with illegal types!
+    Note also that -length < x < 2*length must be true for this
+    function to compute the modulo properly. A more general
+    prescription would be x = (x % length) + (x < 0)*length.
+    """
     if not (number in integer and number2 in floating):
-        # Note that -length < x < 2*length must be true for this to work
         if x < 0:
             x += length
         elif x >= length:
             x -= length
-        # A general prescription would be x = (x % length) + (x < 0)*length
         return x
 
 # Sum function for 1D memory views of numbers
@@ -376,13 +380,7 @@ if not cython.compiled:
     pass
 else:
     """
-    @cython.cfunc
-    @cython.inline
-    @cython.boundscheck(False)
-    @cython.cdivision(True)
-    @cython.initializedcheck(False)
-    @cython.wraparound(False)
-    @cython.returns(number)
+    @cython.header(returns=number)
     def sum(number[::1] a):
         cdef:
             number Σ
@@ -403,13 +401,7 @@ if not cython.compiled:
     prod = np.prod
 else:
     """
-    @cython.cfunc
-    @cython.inline
-    @cython.boundscheck(False)
-    @cython.cdivision(True)
-    @cython.initializedcheck(False)
-    @cython.wraparound(False)
-    @cython.returns(number)
+    @cython.header(returns=number)
     def prod(number[::1] a):
         cdef:
             number Π
@@ -425,22 +417,16 @@ else:
     """
 
 # Unnormalized sinc function (faster than gsl_sf_sinc)
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(x='double',
-               y='double')
-@cython.returns('double')
+@cython.header(x='double',
+               y='double',
+               returns='double',
+               )
 def sinc(x):
     y = sin(x)
-    if y != x:
-        y /= x
+    if y == x:
+        return 1
     else:
-        y = 1
-    return y
+        return y/x
 
 # Function for printing warnings
 def warn(msg):
@@ -454,17 +440,13 @@ def warn(msg):
 # The paths are stored in the top_dir/.paths file
 import imp
 cython.declare(paths='dict')
-top_dir = '.'
-ls_prev = []
-possible_root_dir = 0
+top_dir = os.path.abspath('.')
 while True:
-    ls = os.listdir(top_dir)
-    possible_root_dir = (possible_root_dir + 1) if ls == ls_prev else 0
-    if possible_root_dir == 3:  # 3 ../ and still the same files. "Must" be /.
-        raise Exception('Cannot find the .paths file!')
-    if '.paths' in ls:
+    if '.paths' in os.listdir(top_dir):
         break
-    top_dir = '../' + top_dir
-    ls_prev = ls
+    elif top_dir == '/':
+        raise Exception('Cannot find the .paths file!')
+    top_dir = os.path.dirname(top_dir)
 paths_module = imp.load_source('paths', top_dir + '/.paths')
-paths = paths_module.__dict__
+paths = {key: value for key, value in paths_module.__dict__.items()
+         if isinstance(key, str) and not key.startswith('__')}
