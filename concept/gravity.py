@@ -6,7 +6,9 @@ from commons import *
 if not cython.compiled:
     from ewald import ewald
     from communication import cutout_domains, find_N_recv, neighboring_ranks
-    from mesh import CIC_grid2coordinates_scalar, CIC_grid2coordinates_vector, CIC_particles2grid, communicate_boundaries, communicate_ghosts, domain2PM, PM2domain
+    from mesh import (CIC_grid2coordinates_scalar, CIC_grid2coordinates_vector,
+                      CIC_particles2grid, communicate_boundaries,
+                      communicate_ghosts, domain2PM, PM2domain)
     # FFT functionality via Numpy
     from numpy.fft import rfftn, irfftn
 else:
@@ -14,7 +16,9 @@ else:
     """
     from ewald cimport ewald
     from communication cimport cutout_domains, find_N_recv, neighboring_ranks
-    from mesh cimport CIC_grid2coordinates_scalar, CIC_grid2coordinates_vector, CIC_particles2grid, communicate_boundaries, communicate_ghosts, domain2PM, PM2domain
+    from mesh cimport (CIC_grid2coordinates_scalar, CIC_grid2coordinates_vector,
+                       CIC_particles2grid, communicate_boundaries,
+                       communicate_ghosts, domain2PM, PM2domain)
     # FFT functionality via FFTW from fft.c
     cdef extern from "fft.c":
         # The fftw_plan type
@@ -41,15 +45,9 @@ else:
 
 
 
-# Function for direct summation of gravitational forces between particles
-# in two domains.
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+# Function for direct summation of gravitational
+# forces between particles in two domains.
+@cython.header(# Arguments
                posx_i='double*',
                posy_i='double*',
                posz_i='double*',
@@ -93,26 +91,25 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
                      posx_j, posy_j, posz_j, Δmomx_j, Δmomy_j, Δmomz_j,
                      mass_j, N_local_j,
                      Δt, softening2, flag_input, only_short_range=False):
-    """This function takes in positions and momenta of particles located in
-    the domain designated the calling process, as well as positions and
-    preallocated nullified momentum changes for particles located in another
-    domian.
-    The two sets of particles are denoted i and j. The function computes the
-    momentum changes due to gravity via direct summation. The two sets of
-    particles can be the same, which is signalled by flag_input=0. That is,
-    this function can also be used to compute interactions within a single
-    domain. Use flag_input=1 when using two different domains. Here, set i
-    should be the particles belonging to the caller process. For these,
-    momentum changes are added to the momenta. For set j, the momentum
-    changes are computed but not added to the momenta, as these reside on a
+    """This function takes in positions and momenta of particles located
+    in the domain designated the calling process, as well as positions
+    and preallocated nullified momentum changes for particles located in
+    another domian. The two sets of particles are denoted i and j. The
+    function computes the momentum changes due to gravity via direct
+    summation. The two sets of particles can be the same, which is
+    signalled by flag_input=0. That is, this function can also be used
+    to compute interactions within a single domain. Use flag_input=1
+    when using two different domains. Here, set i should be the
+    particles belonging to the caller process. For these, momentum
+    changes are added to the momenta. For set j, the momentum changes
+    are computed but not added to the momenta, as these reside on a
     different process. Use flag_input=2 to skip the computation of the
     momentum changes of set j.
     Note that the time step size Δt is really ∫_t^(t + Δt) dt/a.
     """
-    # No interactions if either of the two sets of particles is empty
+    # No interactions if either of the two sets of particles are empty
     if N_local_i == 0 or N_local_j == 0:
         return
-    # If either of the two sets of particles is empty, no interactions occur
     # The factor (G*m_i*m_j*∫_t^(t + Δt) dt/a) in the
     # comoving equations of motion
     # p_i --> p_i + ∫_t^(t + Δt) F/a*dt = p_i + m_i*F*∫_t^(t + Δt) dt/a
@@ -131,11 +128,12 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
             x = posx_j[j] - xi
             y = posy_j[j] - yi
             z = posz_j[j] - zi
-            # Evaluate the gravitational force in one of three ways: Just the
-            # short range force, the total force with Ewald corrections or
-            # the total force without Ewald corrections.
+            # Evaluate the gravitational force in one of three ways:
+            # Just the short range force, the total force with Ewald
+            # corrections or the total force without Ewald corrections.
             if only_short_range:
-                # Translate coordinates so they correspond to the nearest image
+                # Translate coordinates so they
+                # correspond to the nearest image.
                 if x > half_boxsize:
                     x -= boxsize
                 elif x < minus_half_boxsize:
@@ -151,15 +149,17 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
                 r = sqrt(x**2 + y**2 + z**2 + softening2)
                 r3 = r**3
                 r_scaled = r/P3M_scale_phys
-                shortrange_fac = r_scaled/sqrt_π*exp(-0.25*r_scaled**2) + erfc(0.5*r_scaled)
+                shortrange_fac = (r_scaled/sqrt_π*exp(-0.25*r_scaled**2)
+                                  + erfc(0.5*r_scaled))
                 force[0] = -x/r3*shortrange_fac
                 force[1] = -y/r3*shortrange_fac
                 force[2] = -z/r3*shortrange_fac
             else:
-                # Compute the gravitational force (corresponding to 1/r**2)
+                # Compute the gravitational force
+                # (corresponding to 1/r**2).
                 if use_Ewald:
-                    # Translate coordinates so they correspond to
-                    # the nearest image
+                    # Translate coordinates so they
+                    # correspond to the nearest image.
                     if x > half_boxsize:
                         x -= boxsize
                     elif x < minus_half_boxsize:
@@ -172,8 +172,9 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
                         z -= boxsize
                     elif z < minus_half_boxsize:
                         z += boxsize
-                    # The Ewald correction force for all images except the
-                    # nearest one, which may not be the actual particle.
+                    # The Ewald correction force for all 
+                    # images except the nearest one,
+                    # which may not be the actual particle.
                     force = ewald(x, y, z)
                     # Add in the force from the particle's nearest image
                     r3 = (x**2 + y**2 + z**2 + softening2)**1.5
@@ -194,8 +195,8 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
             force[2] *= eom_factor
             # Update momenta and momentum changes
             if flag_input == 0:
-                # Group i and j are the same (and belongs to the local domain).
-                # Update momenta of both particles in the pair.
+                # Group i and j are the same (and belongs to the local
+                # domain). Update momenta of both particles in the pair.
                 momx_i[i] -= force[0]
                 momy_i[i] -= force[1]
                 momz_i[i] -= force[2]
@@ -203,8 +204,7 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
                 momy_i[j] += force[1]
                 momz_i[j] += force[2]
             else:
-                # Group i and j are different.
-                # Update local momenta
+                # Group i and j are different. Update local momenta
                 momx_i[i] -= force[0]
                 momy_i[i] -= force[1]
                 momz_i[i] -= force[2]
@@ -216,13 +216,7 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
 
 # Function for computing the gravitational force
 # by direct summation on all particles
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                particles='Particles',
                Δt='double',
                # Locals
@@ -284,11 +278,12 @@ def PP(particles, Δt):
                      mass, N_local,
                      Δt, softening2,
                      0)
-    # All work done if only one domain exists (if run on a single process)
+    # All work done if only one domain exists
+    # (if run on a single process).
     if nprocs == 1:
         return
-    # Update local momenta and compute and send external momentum changes
-    # due to forces between local and external particles.
+    # Update local momenta and compute and send external momentum
+    # changes due to forces between local and external particles.
     # Find out how many particles will be recieved from each process
     N_extrns = find_N_recv(array([N_local], dtype='uintp'))
     N_extrn_max = N_extrns[rank]
@@ -376,13 +371,7 @@ def PP(particles, Δt):
 
 # Function for updating all particle momenta in a particular direction,
 # used in the PM algorithm.
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                N_local='size_t',
                PM_fac='double',
                force_grid='double[:, :, ::1]',
@@ -412,13 +401,7 @@ def PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, mom):
 
 # Function for CIC interpolating the particles to the PM mesh,
 # followed by a Fourier transformation.
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                particles='Particles',
                )
 def PM_CIC_FFT(particles):
@@ -429,31 +412,28 @@ def PM_CIC_FFT(particles):
     # Interpolate particle coordinates to the domain grid
     # (without the ghost layers).
     CIC_particles2grid(particles, domain_grid_noghosts)
-    # Values of local pseudo mesh points contribute to the lower mesh points of
-    # domain_grid on other processes. Do the needed communication.
+    # Values of local pseudo mesh points contribute to the lower mesh
+    # points of domain_grid on other processes.
+    # Do the needed communication.
     communicate_boundaries(domain_grid_noghosts)
-    # Communicate the interpolated data in the domain grid into the PM grid
+    # Communicate the interpolated data
+    # in the domain grid into the PM grid.
     domain2PM(domain_grid_noghosts, PM_grid)
     # Fourier transform the grid forwards to Fourier space
     fftw_execute(plan_forward)
 
 
-# Function for computing the gravitational force by the particle mesh method
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+# Function for computing the gravitational force
+# by the particle mesh method.
+@cython.header(# Arguments
                particles='Particles',
                Δt='double',
                only_long_range='bint',
                # Locals
-               Greens_deconvolution='double',
-               deconvolution_ij='double',
-               deconvolution_ijk='double',
-               deconvolution_j='double',
+               Greens_deconv='double',
+               sqrt_deconv_ij='double',
+               sqrt_deconv_ijk='double',
+               sqrt_deconv_j='double',
                PM_fac='double',
                force='double',
                posx='double*',
@@ -489,19 +469,20 @@ def PM(particles, Δt, only_long_range=False):
     momx = particles.momx
     momy = particles.momy
     momz = particles.momz
-    # CIC interpolate the particles and do forward Fourier transformation
+    # CIC interpolate the particles
+    # and do forward Fourier transformation.
     PM_CIC_FFT(particles)
     # Loop through the local j-dimension
     for j in range(PM_gridsize_local_j):
-        # The j-component of the wave vector. Since PM_grid is distributed
-        # along the j-dimension, an offset must be used.
+        # The j-component of the wave vector. Since PM_grid is
+        # distributed along the j-dimension, an offset must be used.
         j_global = j + PM_gridstart_local_j
         if j_global > half_PM_gridsize:
             kj = j_global - PM_gridsize
         else:
             kj = j_global
-        # (Square root of) the j-component of the deconvolution
-        deconvolution_j = sinc(kj*π_recp_PM_gridsize)
+        # Square root of the j-component of the deconvolution
+        sqrt_deconv_j = sinc(kj*π_recp_PM_gridsize)
         # Loop through the complete i-dimension
         for i in range(PM_gridsize):
             # The i-component of the wave vector
@@ -509,37 +490,38 @@ def PM(particles, Δt, only_long_range=False):
                 ki = i - PM_gridsize
             else:
                 ki = i
-            # (Square root of) the product of the i- and the j-component of
-            # the deconvolution.
-            deconvolution_ij = sinc(ki*π_recp_PM_gridsize)*deconvolution_j
-            # Loop through the complete, padded k-dimension in steps of 2
-            # (one complex number at a time).
+            # Square root of the product of the i-
+            # and the j-component of the deconvolution.
+            sqrt_deconv_ij = sinc(ki*π_recp_PM_gridsize)*sqrt_deconv_j
+            # Loop through the complete, padded k-dimension
+            # in steps of 2 (one complex number at a time).
             for k in range(0, PM_gridsize_padding, 2):
                 # The k-component of the wave vector
                 kk = k//2
-                # Zero-division is illegal in pure Python. The [0, 0, 0]
-                # element of the PM grid will be set later.
+                # Zero-division is illegal in pure Python. The
+                # [0, 0, 0] element of the PM grid will be set later.
                 if not cython.compiled:
                     if ki == kj == kk == 0:
                         continue
-                # (Square root of) the product of all components of
-                # the deconvolution.
-                deconvolution_ijk = deconvolution_ij*sinc(kk*π_recp_PM_gridsize)
+                # Square root of the product of
+                # all components of the deconvolution.
+                sqrt_deconv_ijk = sqrt_deconv_ij*sinc(kk*π_recp_PM_gridsize)
                 # Multiply by the Greens function 1/k2 to get the the
-                # potential. Deconvolve twice for the two CIC interpolations
-                # (the mass assignment and the upcomming force interpolation).
-                # Remember that PM_grid is transposed in the first two
-                # dimensions due to the forward FFT.
+                # potential. Deconvolve twice for the two CIC
+                # interpolations (the mass assignment and the upcomming
+                # force interpolation). Remember that PM_grid is
+                # transposed in the first two dimensions due to the
+                # forward FFT.
                 k2 = ki**2 + kj**2 + kk**2
-                Greens_deconvolution = 1/(k2*deconvolution_ijk**4)
+                Greens_deconv = 1/(k2*sqrt_deconv_ijk**4)
                 if only_long_range:
-                    Greens_deconvolution *= exp(k2*longrange_exponent_fac)
-                PM_grid[j, i, k] *= Greens_deconvolution      # Real part
-                PM_grid[j, i, k + 1] *= Greens_deconvolution  # Imaginary part
+                    Greens_deconv *= exp(k2*longrange_exponent_fac)
+                PM_grid[j, i, k] *= Greens_deconv      # Real part
+                PM_grid[j, i, k + 1] *= Greens_deconv  # Imag part
     # The global [0, 0, 0] element of the PM grid should be zero
     if PM_gridstart_local_j == 0:
         PM_grid[0, 0, 0] = 0  # Real part
-        PM_grid[0, 0, 1] = 0  # Imaginary part
+        PM_grid[0, 0, 1] = 0  # Imag part
     # Fourier transform the grid back to coordinate space.
     # Now the grid stores potential values.
     fftw_execute(plan_backward)
@@ -549,15 +531,17 @@ def PM(particles, Δt, only_long_range=False):
                 PM_grid[i, j, k] /= PM_gridsize3
     # Communicate the potential stored in the PM mesh to the domain grid
     PM2domain(domain_grid_noghosts, PM_grid)
-    # The upper boundaries (not the ghost layers) of the domain grid should be
-    # a copy of the lower boundaries of the next domain. Do the needed
-    # communication.
+    # The upper boundaries (not the ghost layers) of the domain grid
+    # should be a copy of the lower boundaries of the next domain.
+    # Do the needed communication.
     communicate_boundaries(domain_grid_noghosts, mode=1)
     # Communicate the ghost layers of the domain grid
     communicate_ghosts(domain_grid)
-    # The factor which shold be multiplied on the PM grid to get actual units
+    # The factor which shold be multiplied
+    # on the PM grid to get actual units.
     PM_fac = PM_fac_const*mass**2*Δt
-    # Compute the local forces in the x-direction via the four point rule
+    # Compute the local forces in the
+    # x-direction via the four point rule.
     for i in range(2, domain_grid.shape[0] - 2):
         for j in range(2, domain_grid.shape[1] - 2):
             for k in range(2, domain_grid.shape[2] - 2):
@@ -598,414 +582,252 @@ def PM(particles, Δt, only_long_range=False):
     #fftw_clean(cython.address(PM_grid[0, 0, 0]), plan_forward, plan_backward)
 
 
-# This collection of functions simply test whether the passed coordinates
-# lie within a certain domain boundary or not.
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+# This collection of functions simply test whether the passed
+# coordinates lie within a certain domain boundary or not.
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_right(posx_local_i, posy_local_i, posz_local_i):
     return posx_local_i > boundary_x_max
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_left(posx_local_i, posy_local_i, posz_local_i):
     return posx_local_i < boundary_x_min
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_forward(posx_local_i, posy_local_i, posz_local_i):
     return posy_local_i > boundary_y_max
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_backward(posx_local_i, posy_local_i, posz_local_i):
     return posy_local_i < boundary_y_min
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_up(posx_local_i, posy_local_i, posz_local_i):
     return posz_local_i > boundary_z_max
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_down(posx_local_i, posy_local_i, posz_local_i):
     return posz_local_i < boundary_z_min
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_rightforward(posx_local_i, posy_local_i, posz_local_i):
     return posx_local_i > boundary_x_max and posy_local_i > boundary_y_max
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_rightbackward(posx_local_i, posy_local_i, posz_local_i):
     return posx_local_i > boundary_x_max and posy_local_i < boundary_y_min
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_rightup(posx_local_i, posy_local_i, posz_local_i):
     return posx_local_i > boundary_x_max and posz_local_i > boundary_z_max
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_rightdown(posx_local_i, posy_local_i, posz_local_i):
     return posx_local_i > boundary_x_max and posz_local_i < boundary_z_min
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_leftforward(posx_local_i, posy_local_i, posz_local_i):
     return posx_local_i < boundary_x_min and posy_local_i > boundary_y_max
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_leftbackward(posx_local_i, posy_local_i, posz_local_i):
     return posx_local_i < boundary_x_min and posy_local_i < boundary_y_min
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_leftup(posx_local_i, posy_local_i, posz_local_i):
     return posx_local_i < boundary_x_min and posz_local_i > boundary_z_max
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_leftdown(posx_local_i, posy_local_i, posz_local_i):
     return posx_local_i < boundary_x_min and posz_local_i < boundary_z_min
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_forwardup(posx_local_i, posy_local_i, posz_local_i):
     return posy_local_i > boundary_y_max and posz_local_i > boundary_z_max
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_forwarddown(posx_local_i, posy_local_i, posz_local_i):
     return posy_local_i > boundary_y_max and posz_local_i < boundary_z_min
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_backwardup(posx_local_i, posy_local_i, posz_local_i):
     return posy_local_i < boundary_y_min and posz_local_i > boundary_z_max
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_backwarddown(posx_local_i, posy_local_i, posz_local_i):
     return posy_local_i < boundary_y_min and posz_local_i < boundary_z_min
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_rightforwardup(posx_local_i, posy_local_i, posz_local_i):
     return (posx_local_i > boundary_x_max and posy_local_i > boundary_y_max
                                           and posz_local_i > boundary_z_max)
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_rightforwarddown(posx_local_i, posy_local_i, posz_local_i):
     return (posx_local_i > boundary_x_max and posy_local_i > boundary_y_max
                                           and posz_local_i < boundary_z_min)
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_rightbackwardup(posx_local_i, posy_local_i, posz_local_i):
     return (posx_local_i > boundary_x_max and posy_local_i < boundary_y_min
                                           and posz_local_i > boundary_z_max)
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_rightbackwarddown(posx_local_i, posy_local_i, posz_local_i):
     return (posx_local_i > boundary_x_max and posy_local_i < boundary_y_min
                                           and posz_local_i < boundary_z_min)
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_leftforwardup(posx_local_i, posy_local_i, posz_local_i):
     return (posx_local_i < boundary_x_min and posy_local_i > boundary_y_max
                                           and posz_local_i > boundary_z_max)
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_leftforwarddown(posx_local_i, posy_local_i, posz_local_i):
     return (posx_local_i < boundary_x_min and posy_local_i > boundary_y_max
                                           and posz_local_i < boundary_z_min)
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_leftbackwardup(posx_local_i, posy_local_i, posz_local_i):
     return (posx_local_i < boundary_x_min and posy_local_i < boundary_y_min
                                           and posz_local_i > boundary_z_max)
 
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
                posz_local_i='double',
+               returns='bint',
                )
-@cython.returns('bint')
 def in_boundary_leftbackwarddown(posx_local_i, posy_local_i, posz_local_i):
     return (posx_local_i < boundary_x_min and posy_local_i < boundary_y_min
                                           and posz_local_i < boundary_z_min)
 
 # Function for computing the gravitational force by the particle mesh method
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                particles='Particles',
                Δt='double',
                # Locals
@@ -1033,22 +855,25 @@ def in_boundary_leftbackwarddown(posx_local_i, posy_local_i, posz_local_i):
                Δmemory='size_t',
                )
 def P3M(particles, Δt):
-    """The long-range part is computed via the PM function. Local particles
-    also interact via short-range direct summation. Finally, each process
-    send particles near its boundary to the corresponding processor, which
-    computes the short-range forces via direct summation between the
-    received boundary particles and its own boundary particles at the
-    opposite face/edge/point. This is done by iterating over pairs of
-    neighboring processes. In the first iteration, particles in the right
-    boundary are sent to the right process, while particles in the left
-    process' right boundary are received. The boundary containing particles
-    which are not sent is refered to as boundary1, while the other is refered
-    to as boundary2.
+    """The long-range part is computed via the PM function. Local
+    particles also interact via short-range direct summation. Finally,
+    each process send particles near its boundary to the corresponding
+    processor, which computes the short-range forces via direct
+    summation between the received boundary particles and its own
+    boundary particles at the opposite face/edge/point. This is done by
+    iterating over pairs of neighboring processes. In the first
+    iteration, particles in the right boundary are sent to the right
+    process, while particles in the left process' right boundary are
+    received. The boundary containing particles which are not sent is
+    refered to as boundary1, while the other is refered to as boundary2.
     """
     global posx_local_boundary, posy_local_boundary, posz_local_boundary
-    global posx_local_boundary_mv, posy_local_boundary_mv, posz_local_boundary_mv
-    global Δmomx_local_boundary, Δmomy_local_boundary, Δmomz_local_boundary
-    global Δmomx_local_boundary_mv, Δmomy_local_boundary_mv, Δmomz_local_boundary_mv
+    global posx_local_boundary_mv, posy_local_boundary_mv
+    global posz_local_boundary_mv
+    global Δmomx_local_boundary, Δmomy_local_boundary
+    global Δmomz_local_boundary
+    global Δmomx_local_boundary_mv, Δmomy_local_boundary_mv
+    global Δmomz_local_boundary_mv
     global posx_extrn, posy_extrn, posz_extrn
     global posx_extrn_mv, posy_extrn_mv, posz_extrn_mv
     global Δmomx_extrn, Δmomy_extrn, Δmomz_extrn
@@ -1079,20 +904,23 @@ def P3M(particles, Δt):
                      mass, N_local,
                      Δt, softening2, 0,
                      only_short_range=True)
-    # All work done if only one domain exists (if run on a single process)
+    # All work done if only one domain
+    # exists (if run on a single process)
     if nprocs == 1:
         return
-    # Now only short-range interactions between neighboring
-    # domain boundaries remain.
-    # The buffers below may increase their size by this amount at a time.
+    # Now only short-range interactions
+    # between neighboring domain boundaries remain.
+    # The buffers below may increase
+    # their size by this amount at a time.
     Δmemory = int(1 + ceil(0.05*N_local*np.max([P3M_cutoff_phys/domain_size_x,
                                                 P3M_cutoff_phys/domain_size_y,
                                                 P3M_cutoff_phys/domain_size_z,
                                                 ])))
     # Loop over all 26 neighbors (two at a time)
     for j in range(13):
-        # It is important that the processes iterate synchronously, so that
-        # the received data really is what the local process think it is.
+        # It is important that the processes iterate synchronously,
+        # so that the received data really is what the local process
+        # think it is.
         Barrier()
         # The ranks of the processes to communicate with
         rank_send = boundary_ranks_send[j]
@@ -1100,8 +928,8 @@ def P3M(particles, Δt):
         # The functions for in-boundary tests
         in_boundary1 = in_boundary1_funcs[j]
         in_boundary2 = in_boundary2_funcs[j]
-        # Find out which particles participate in the local and the external
-        # short-range interaction.
+        # Find out which particles participate in the
+        # local and the external short-range interaction.
         N_boundary1 = 0
         N_boundary2 = 0
         for i in range(N_local):
@@ -1135,10 +963,10 @@ def P3M(particles, Δt):
             if in_boundary2(posx_local_i, posy_local_i, posz_local_i):
                 # Particle i should be send
                 indices_send[N_boundary2] = i
-                # Fill buffers with its coordinates. The Δmom(x/y/z)_local
-                # variables are used for this to save memory, as these
-                # oterwise first used after the particles have
-                # been comminucated.
+                # Fill buffers with their coordinate.
+                # The Δmom(x/y/z)_local variables are used for this to
+                # save memory, as these otherwise first used after the
+                # particles have been communicated.
                 Δmomx_local[N_boundary2] = posx_local_i
                 Δmomy_local[N_boundary2] = posy_local_i
                 Δmomz_local[N_boundary2] = posz_local_i
@@ -1240,8 +1068,8 @@ if use_PM:
         if PM_gridsize_local_i != PM_gridsize/nprocs:
             # If PM_gridsize is not divisible by nprocs, the code cannot
             # figure out exactly how FFTW distribute the grid among the
-            # processes. In stead of guessing, do not even try to emulate
-            # the behaviour of FFTW.
+            # processes. In stead of guessing, do not even try to
+            # emulate the behaviour of FFTW.
             raise ValueError('The PM method in pure Python mode only works '
                      + 'when\nPM_gridsize is divisible by the number'
                      + 'of processes!')
@@ -1254,8 +1082,9 @@ if use_PM:
         plan_forward = 'plan_forward'
         def fftw_execute(plan):
             global PM_grid
-            # The pure Python FFT implementation is serial. Every process
-            # computes the entire FFT of the temporary varaible PM_grid_global.
+            # The pure Python FFT implementation is serial.
+            # Every process computes the entire FFT of the temporary
+            # varaible PM_grid_global.
             PM_grid_global = empty((PM_gridsize, PM_gridsize,
                                     PM_gridsize_padding))
             Allgatherv(PM_grid, PM_grid_global)
@@ -1292,7 +1121,8 @@ if use_PM:
                     else:
                         tmp[:, :, i//2] += PM_grid_global[:, :, i]
                 PM_grid_global = tmp
-                # FFTW transposes the first two dimensions back to normal
+                # FFTW transposes the first
+                # two dimensions back to normal.
                 PM_grid_global = PM_grid_global.transpose([1, 0, 2])
                 # Do real inverse transform
                 PM_grid_global = irfftn(PM_grid_global, s=[PM_gridsize]*3)
@@ -1323,7 +1153,7 @@ if use_PM:
         # PM_grid[i, j, k] when in real space and PM_grid[j, i, k] when in
         # Fourier space
         if PM_gridsize_local_i > 0:
-            PM_grid = <double[:PM_gridsize_local_i, :PM_gridsize, :PM_gridsize_padding]> fftw_struct.grid
+            PM_grid = cast(fftw_struct.grid, 'double[:PM_gridsize_local_i, :PM_gridsize, :PM_gridsize_padding]')
         else:
             # The process do not participate in the FFT computations
             PM_grid = empty((0, PM_gridsize, PM_gridsize_padding))
@@ -1331,7 +1161,8 @@ if use_PM:
         plan_backward = fftw_struct.plan_backward
         """
 else:
-    # As these should be importable, they need to be assigned even if not used
+    # As these should be importable,
+    # they need to be assigned even if not used.
     PM_gridsize_local_j = 0
     PM_gridstart_local_j = 0
     PM_grid = empty((1, 1, 1), dtype='float64')
@@ -1373,12 +1204,14 @@ if use_PM:
                    domain_grid_noghosts='double[:, :, ::1]',
                    force_grid='double[:, :, ::1]',
                    )
-    # A grid over the local domain. An additional layer of thickness 1 is given
-    # to the domain grid, so that these outer points corresponds to the same
-    # physical coordinates as the first points in the next domain.
-    # Also, an additional layer of thickness 2 is given on top of the previous
-    # layer. This shall be used as a ghost layer for finite differencing.
-    domain_grid = zeros([PM_gridsize//domain_cuts[i] + 1 + 2*2 for i in range(3)],
+    # A grid over the local domain. An additional layer of thickness 1
+    # is given to the domain grid, so that these outer points
+    # corresponds to the same physical coordinates as the first points
+    # in the next domain. Also, an additional layer of thickness 2 is
+    # given on top of the previous layer. This shall be used as a ghost
+    # layer for finite differencing.
+    domain_grid = zeros([PM_gridsize//domain_cuts[i] + 1 + 2*2
+                         for i in range(3)],
                         dtype='float64')
     # Memoryview of the domain grid without the ghost layers
     domain_grid_noghosts = domain_grid[2:(domain_grid.shape[0] - 2),
@@ -1389,8 +1222,8 @@ if use_PM:
     force_grid = zeros((domain_grid_noghosts.shape[0],
                         domain_grid_noghosts.shape[1],
                         domain_grid_noghosts.shape[2]), dtype='float64')
-    # Test if the grid has been constructed correctly. If not it is because
-    # nprocs and PM_gridsize are incompatible.
+    # Test if the grid has been constructed correctly.
+    # If not it is because nprocs and PM_gridsize are incompatible.
     for i in range(3):
         if PM_gridsize != domain_cuts[i]*(domain_grid.shape[i] - 1 - 2*2):
             msg = ('A PM_gridsize of ' + str(PM_gridsize) + ' cannot be'
@@ -1545,8 +1378,8 @@ indices_send_mv = cast(indices_send, 'size_t[:1]')
 # boundaries of other domains in the P3M method.
 indices_boundary = malloc(1*sizeof('size_t'))
 indices_boundary_mv = cast(indices_send, 'size_t[:1]')
-# For storing a copy of those local particles that consitutes the short-range
-# domain boundaries.
+# For storing a copy of those local particles
+# that consitutes the short-range domain boundaries.
 posx_local_boundary = malloc(1*sizeof('double'))
 posy_local_boundary = malloc(1*sizeof('double'))
 posz_local_boundary = malloc(1*sizeof('double'))

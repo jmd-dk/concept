@@ -12,13 +12,7 @@ else:
 
 
 # Function for communicating sizes of receive buffers
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                N_send='size_t[::1]',
                # Locals
                ID_recv='int',
@@ -30,16 +24,17 @@ else:
                same_N_send='bint',
                max_bfore_rank='size_t',
                max_after_rank='size_t',
+               returns='size_t[::1]',
                )
-@cython.returns('size_t[::1]')
 def find_N_recv(N_send):
-    """Given the size of arrays to send, N_send, which itself has a length of
-    either 1 (same data size to send to every process) or n_procs (individual
-    data sizes to send to the processes), this function communicates this to
-    all processes, so that everyone knows how much to receive from every
-    process. The entrance number rank is unused (the process do not send to
-    itself). The maximum number to receive is useful when allocating receive
-    buffers, so this number is stored in this otherwize unused entrance.
+    """Given the size of arrays to send, N_send, which itself has a
+    length of either 1 (same data size to send to every process) or
+    n_procs (individual data sizes to send to the processes), this
+    function communicates this to all processes, so that everyone knows
+    how much to receive from every process. The entrance number rank is
+    unused (the process do not send to itself). The maximum number to
+    receive is useful when allocating receive buffers, so this number is
+    stored in this otherwize unused entrance.
     """
     N_recv = empty(nprocs, dtype='uintp')
     # Check whether N_send is the same for each process to send to
@@ -70,13 +65,7 @@ def find_N_recv(N_send):
 
 # This function examines every particle and communicates them to the
 # process governing the domain in which the particle is located
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                particles='Particles',
                reset_buffers='bint',
                # Locals
@@ -98,7 +87,6 @@ def find_N_recv(N_send):
                index_recv_j='size_t',
                indices_send_j='size_t*',
                indices_send_owner='size_t*',
-               indices_send_size='size_t',
                j='int',
                k='size_t',
                k_start='size_t',
@@ -118,13 +106,14 @@ def find_N_recv(N_send):
                Δmemory='size_t',
                )
 def exchange(particles, reset_buffers=False):
-    """This function will do an exchange of particles between processes, so
-    that every particle resides on the process in charge of the domian where
-    the particle is located. The variable indices_send holds arrays of indices
-    of particles to send to the different processes, while particle data is
-    copied to sendbuf before it is send. These two variables will grow in size
-    if needed. Call with reset_buffers=True to reset these variables to their
-    most basic forms, freeing up memory. 
+    """This function will do an exchange of particles between processes,
+    so that every particle resides on the process in charge of the
+    domian where the particle is located. The variable indices_send
+    holds arrays of indices of particles to send to the different
+    processes, while particle data is copied to sendbuf before it is
+    send. These two variables will grow in size if needed. Call with
+    reset_buffers=True to reset these variables to their most basic
+    forms, freeing up memory. 
     """
     global N_send, indices_send, indices_send_sizes, sendbuf, sendbuf_mv
     # No need to consider exchange of particles if running serial
@@ -151,7 +140,6 @@ def exchange(particles, reset_buffers=False):
             # Increase the number of particle to send to this process.            
             N_send[owner] += 1
             # Enlarge the index buffer indices_send[owner] if needed
-            #indices_send_size = indices_send_sizes[owner]
             if N_send[owner] == indices_send_sizes[owner]:
                 indices_send_sizes[owner] += Δmemory
                 indices_send[owner] = realloc(indices_send[owner], indices_send_sizes[owner]*sizeof('size_t'))
@@ -177,7 +165,8 @@ def exchange(particles, reset_buffers=False):
     # Pure Python has a hard time understanding uintp as an integer
     if not cython.compiled:
         N_recv = asarray(N_recv, dtype='int64')
-    # The maximum number of particles to receive is stored in entrance rank
+    # The maximum number of particles to
+    # receive is stored in entrance rank.
     N_recv_max = N_recv[rank]
     N_recv_tot = sum(N_recv) - N_recv_max
     # Enlarge the Particles data attributes, if needed. This may not be
@@ -208,9 +197,9 @@ def exchange(particles, reset_buffers=False):
         # Number of particles to send/receive
         N_send_j = N_send[ID_send]
         N_recv_j = N_recv[ID_recv]
-        # The indices of particles to send and the index from which received
-        # particles are allowed to be appended.
-        indices_send_j = indices_send[ID_send]  #indices_send[ID_send][:N_send_j]
+        # The indices of particles to send and the index from
+        # which received particles are allowed to be appended.
+        indices_send_j = indices_send[ID_send]
         # Send/receive posx
         for i in range(N_send_j):
             sendbuf[i] = posx[indices_send_j[i]]
@@ -272,7 +261,8 @@ def exchange(particles, reset_buffers=False):
                 # Index k should be a hole
                 if posx[k] != -1:
                     continue
-                # Particle i and hole k found. Fill the hole with the particle
+                # Particle i and hole k found.
+                # Fill the hole with the particle
                 posx[k] = posx[i]
                 posy[k] = posy[i]
                 posz[k] = posz[i]
@@ -290,8 +280,9 @@ def exchange(particles, reset_buffers=False):
     # Pure Python has a hard time understanding uintp as an integer
     if not cython.compiled:
         particles.N_local = asarray(particles.N_local, dtype='int64')
-    # If reset_buffers == True, reset the global indices_send and sendbuf
-    # to their basic forms. This buffer will then be rebuild in future calls.
+    # If reset_buffers == True, reset the global indices_send and
+    # sendbuf to their basic forms. This buffer will then be rebuild in
+    # future calls.
     if reset_buffers:
         for j in range(nprocs):
             indices_send[j] = realloc(indices_send[j], 1*sizeof('size_t'))
@@ -300,16 +291,11 @@ def exchange(particles, reset_buffers=False):
             sendbuf_mv = cast(sendbuf, 'double[:1]')
     
 
-# Function for cutting out domains as rectangular boxes in the best possible
-# way. When all dimensions cannot be divided equally, the x-dimension is
-# subdivided the most, then the y-dimension and lastly the z-dimension.
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+# Function for cutting out domains as rectangular boxes in the best
+# possible way. When all dimensions cannot be divided equally, the
+# x-dimension is subdivided the most, then the y-dimension and lastly
+# the z-dimension.
+@cython.header(# Arguments
                n='int',
                basecall='bint',
                # Locals
@@ -319,8 +305,8 @@ def exchange(particles, reset_buffers=False):
                r='int',
                len_primeset='int',
                primeset='list',
+               returns='list',
                )
-@cython.returns('list')
 def cutout_domains(n, basecall=True):
     """This function works by computing a prime factorization of n
     and then multiplying the smallest factors until 3 remain.
@@ -349,8 +335,8 @@ def cutout_domains(n, basecall=True):
                         f += 6
                     else:
                         i_is_prime = True
-                # If i is prime it is a prime factor of n. If not, factorize
-                # i to get its prime factors
+                # If i is prime it is a prime factor of n. If not,
+                # factorize i to get its prime factors
                 if i_is_prime:
                     primeset.append(i)
                 else:
@@ -371,15 +357,9 @@ def cutout_domains(n, basecall=True):
             return sorted(primeset, reverse=True)
     return primeset
 
-# This function takes coordinates as arguments and returns the rank of the
-# process that governs the domain in which the coordinates reside.
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+# This function takes coordinates as arguments and returns the rank of
+# the process that governs the domain in which the coordinates reside.
+@cython.header(# Arguments
                x='double',
                y='double',
                z='double',
@@ -387,8 +367,8 @@ def cutout_domains(n, basecall=True):
                x_index='int',
                y_index='int',
                z_index='int',
+               returns='int',
                )
-@cython.returns('int')
 def domain(x, y, z):
     x_index = int(x/domain_size_x)
     y_index = int(y/domain_size_y)
@@ -398,13 +378,7 @@ def domain(x, y, z):
 
 # This function computes the ranks of the processes governing the 27
 # neighboring domains.
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Locals
+@cython.header(# Locals
                domain_cuts='int[::1]',
                domain_layout='int[:, :, ::1]',
                rank_right='int',
@@ -433,8 +407,8 @@ def domain(x, y, z):
                rank_leftforwarddown='int',
                rank_leftbackwardup='int',
                rank_leftbackwarddown='int',
+               returns='dict',
                )
-@cython.returns('dict')
 def neighboring_ranks():
     # Number of domains in all three dimensions
     domain_cuts = array(cutout_domains(nprocs), dtype='int32')
@@ -463,8 +437,10 @@ def neighboring_ranks():
     rank_rightforward = domain_layout[mod(domain_local[0] + 1, domain_cuts[0]),
                                       mod(domain_local[1] + 1, domain_cuts[1]),
                                       domain_local[2]]
-    rank_rightbackward = domain_layout[mod(domain_local[0] + 1, domain_cuts[0]),
-                                       mod(domain_local[1] - 1, domain_cuts[1]),
+    rank_rightbackward = domain_layout[mod(domain_local[0] + 1,
+                                           domain_cuts[0]),
+                                       mod(domain_local[1] - 1,
+                                           domain_cuts[1]),
                                        domain_local[2]]
     rank_rightup = domain_layout[mod(domain_local[0] + 1, domain_cuts[0]),
                                  domain_local[1],
@@ -611,9 +587,9 @@ cython.declare(N_send='size_t[::1]',
                )
 # This variable stores the number of particles to send to each prcess
 N_send = zeros(nprocs, dtype='uintp')
-# This size_t** variable stores the indices of particles to be send to other
-# processes. That is, indices_send[other_rank][i] is the local index of
-# some particle which should be send to other_rank.
+# This size_t** variable stores the indices of particles to be send to
+# other processes. That is, indices_send[other_rank][i] is the local
+# index of some particle which should be send to other_rank.
 indices_send = malloc(nprocs*sizeof('size_t*'))
 for j in range(nprocs):
     indices_send[j] = malloc(1*sizeof('size_t'))

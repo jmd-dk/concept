@@ -542,6 +542,9 @@ yolk_version Matplotlib matplotlib_version
 yolk_version NumPy      numpy_version
 yolk_version Pexpect    pexpect_version
 yolk_version Pillow     pillow_version
+yolk_version MPI4Py     mpi4py_version
+yolk_version H5Py       h5py_version
+
 # Cython_GSL (0.2.1 is known to work)
 current_step="search for latest version of Cython_GSL"
 set_status "Searching for latest version of Cython_GSL"
@@ -553,32 +556,6 @@ fi
 cython_gsl_url="https://github.com/twiecki/CythonGSL/archive/master.tar.gz"
 if [ $(validate_url "${cython_gsl_url}") -eq 0 ]; then
     echo "Error: The Cython_GSL link is broken!"
-    exit 1
-fi
-# MPI4Py (1.3.1 is known to work)
-current_step="search for latest version of MPI4Py"
-set_status "Searching for latest version of MPI4Py"
-mpi4py_version=$(wget -q -O- --no-check-certificate "https://bitbucket.org/mpi4py/mpi4py/downloads/" | grep -m 1 -o -P "(?<=mpi4py/get/).*(?=.tar.gz)" || echo)
-if [ -z "${mpi4py_version}" ]; then
-    echo "Could not identify the version number of the latest MPI4Py."
-    mpi4py_version="..."
-fi
-mpi4py_url="https://pypi.python.org/packages/source/m/mpi4py/mpi4py-${mpi4py_version}.tar.gz"
-if [ $(validate_url "${mpi4py_url}") -eq 0 ]; then
-    echo "Error: The MPI4Py link is broken!"
-    exit 1
-fi
-# H5Py (2.5.0 is known to work)
-current_step="search for latest version of HF5Py"
-set_status "Searching for latest version of HF5Py"
-h5py_version=$(wget -q -O- --no-check-certificate "https://pypi.python.org/pypi/h5py/#downloads" | grep -m 1 -o -P "(?<=h5py/).*(?=\"\>h5py)" || echo)
-if [ -z "${h5py_version}" ]; then
-    echo "Could not identify the version number of the latest H5Py."
-    h5py_version="..."
-fi
-h5py_url="https://pypi.python.org/packages/source/h/h5py/h5py-${h5py_version}.tar.gz"
-if [ $(validate_url "${h5py_url}") -eq 0 ]; then
-    echo "Error: The H5Py link is broken!"
     exit 1
 fi
 
@@ -608,8 +585,8 @@ pip_install()
     heading "Installing ${1}"
     set_status "Installing ${1}"
     mkdir "${top_dir}/tmp"
-    "${python}" -m pip install -v -v -v --no-cache-dir --no-binary=:all: --download "${top_dir}/tmp" ${1}
-    "${python}" -m pip install -v -v -v --no-index --find-links="${top_dir}/tmp" ${1}
+    "${python}" -m pip install -v -v -v --no-cache-dir --no-binary=:all: --download "${top_dir}/tmp" ${1//_/}
+    "${python}" -m pip install -v -v -v --no-index --find-links="${top_dir}/tmp" ${1//_/}
     rm -rf "${top_dir}/tmp"
 }
 # Blessings
@@ -630,50 +607,30 @@ export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
 export PATH="${PATH_backup}"
 # Pexpect
 pip_install "Pexpect"
-# The Cython_GSL Python package
-current_step="installation of Cython_GSL"
-heading "Installing Cython_GSL"
-set_status "Installing Cython_GSL"
-disable_status
-wget -c -O CythonGSL.tar.gz --no-check-certificate "${cython_gsl_url}"
-enable_status
-tar xfz CythonGSL.tar.gz
-cd CythonGSL*
-export LD_LIBRARY_PATH="${gsl_dir}/lib:${LD_LIBRARY_PATH}"
-"${python}" setup.py build
-"${python}" setup.py install
-export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
-cd "${top_dir}"
-rm -rf CythonGSL*
 # The MPI4Py Python package
-current_step="installation of MPI4Py"
-heading "Installing MPI4Py"
-set_status "Installing MPI4Py"
-disable_status
-wget -c -O mpi4py.tar.gz --no-check-certificate "${mpi4py_url}"
-enable_status
-tar xfz mpi4py.tar.gz
-cd mpi4py*
 MPI_DIR_backup="${MPI_DIR}"
 export MPI_DIR="${mpi_dir}"
 export PATH="${mpi_dir}/bin:${PATH}"
 export LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}"
 export DYLD_LIBRARY_PATH="${mpi_dir}/lib:${DYLD_LIBRARY_PATH}"
-"${python}" setup.py install
+pip_install "MPI4Py"
 export MPI_DIR="${MPI_DIR_backup}"
 export PATH="${PATH_backup}"
 export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
 export DYLD_LIBRARY_PATH="${DYLD_LIBRARY_PATH_backup}"
-cd "${top_dir}"
-rm -rf mpi4py*
-# The H5Py Python package
+# The Cython_GSL Python package
+export LD_LIBRARY_PATH="${gsl_dir}/lib:${LD_LIBRARY_PATH}"
+pip_install "Cython_GSL"
+export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
+rm -rf CythonGSL*
+# The H5Py Python package (manual invocation of setup.py needed as --mpi needs to be supplied)
 current_step="installation of H5Py"
 heading "Installing H5Py"
 set_status "Installing H5Py"
-disable_status
-wget -c -O h5py.tar.gz --no-check-certificate "${h5py_url}"
-enable_status
-tar xfz h5py.tar.gz
+mkdir "${top_dir}/tmp"
+"${python}" -m pip install -v -v -v --no-cache-dir --no-binary=:all: --download "${top_dir}/tmp" ${1}
+cd "${top_dir}/tmp"
+tar xfz h5py*.gz
 cd h5py*
 export CC="${mpi_dir}/bin/mpicc"
 "${python}" setup.py configure --mpi --hdf5="${hdf5_dir}"
@@ -681,7 +638,7 @@ export CC="${mpi_dir}/bin/mpicc"
 "${python}" setup.py install
 export CC="${CC_backup}"
 cd "${top_dir}"
-rm -rf h5py*
+rm -rf "${top_dir}/tmp"
 # Update Python packages installed via pip
 current_step="update of Python packages"
 disable_status

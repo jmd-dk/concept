@@ -10,21 +10,13 @@ the third. When mode is "pxd", a .pxd file will be created. When the mode is
 - Integer powers will be replaced by products.
 - Unicode non-ASCII letters will be replaced with ASCII-strings.
 - __init__ methods in cclasses are renamed to __cinit__.
-- Removes ctypedef's if it already exists in the .pxd file.
-- Fixes the way the % operator works when the left operand is negative
-  (so that it works as in Python). Also allows for the %= operator. Negative
-  right operand still behave differently than in Python! Parentheses are
-  placed around the % operator as tight as possible! This is different than
-  in pure Python, where the rules seem to be rather random. One should always
-  put parentheses manually, as needed. Also, only one % operator is allowed on
-  a single line.
 - Replaces : with 0 when taking the address of arrays.
 - Replaces alloc, realloc and free with the corresponding PyMem_ functions and
   takes care of the casting from the void* to the appropriate pointer type.
 - Replaced the cast() function with actual Cython syntax, e.g. <double[::1]>.
 
   This script is not written very elegantly, and do not leave
-  the modified code in a very clean state.
+  the modified code in a very clean state. Sorry...
 """
 
 import sys
@@ -236,7 +228,6 @@ def unicode2ASCII(filename):
         pyxfile.write(text)
     return
 
-
 def __init__2__cinit__(filename):
     new_lines = []
     with open(filename, 'r') as pyxfile:
@@ -252,87 +243,6 @@ def __init__2__cinit__(filename):
                           and line[:17] == '    def __init__('):
                 line = '    def __cinit__(' + line[17:]
             new_lines.append(line)
-    with open(filename, 'w') as pyxfile:
-        pyxfile.writelines(new_lines)
-
-
-def del_ctypedef_redeclarations(filename):
-    pxdfilename = filename[:-3] + 'pxd'
-    if isfile(pxdfilename):
-        ctypedefs = []
-        with open(pxdfilename, 'r') as pxdfile:
-            for line in pxdfile:
-                if 'ctypedef' in line:
-                    ctypedefs.append(line.rstrip())
-        if ctypedefs:
-            new_lines = []
-            with open(filename, 'r') as pyxfile:
-                for line in pyxfile:
-                    if line.rstrip() in ctypedefs:
-                        new_lines.append('# ctypedef redeclaration'
-                                         + '. Commented by pyxpp: ' + line)
-                    else:
-                        new_lines.append(line)
-            with open(filename, 'w') as pyxfile:
-                pyxfile.writelines(new_lines)
-
-
-def fix_modulus(filename):
-    new_lines = []
-    with open(filename, 'r') as pyxfile:
-        for line in pyxfile:
-            if '%=' in line:
-                left_operand = line[:line.find('%=')]
-                right_operand = line[line.find('%=') + 2:]
-                line = (left_operand + '= ' + left_operand.strip()
-                        + ' % ' + '(' + right_operand.rstrip() + ')\n')
-            if '%' in line:
-                right_operand = ''
-                parentheses = 0
-                right_end = len(line) - 1
-                for i, symbol in enumerate(line[line.find('%') + 1:]):
-                    if symbol == '(':
-                        parentheses += 1
-                        right_operand += symbol
-                    elif parentheses > 0 and symbol == ')':
-                        parentheses -= 1
-                        right_operand += symbol
-                        if parentheses == 0:
-                            right_end = i + line.find('%') + 2
-                            break
-                    elif parentheses > 0 or symbol not in '+-*/,=)':
-                        right_operand += symbol
-                    else:
-                        right_end = i + line.find('%') + 1
-                        break
-                right_operand = '(' + right_operand.strip() + ')'
-                left_operand = ''
-                parentheses = 0
-                left_end = 0
-                for i, symbol in enumerate(line[:line.find('%')][::-1]):
-                    if symbol == ')':
-                        parentheses += 1
-                        left_operand += symbol
-                    elif parentheses > 0 and symbol == '(':
-                        parentheses -= 1
-                        left_operand += symbol
-                        if parentheses == 0:
-                            left_end = -i + line.find('%') - 1
-                            break
-                    elif parentheses > 0 or symbol not in '+-*/=,(':
-                        left_operand += symbol
-                    else:
-                        left_end = -i + line.find('%')
-                        break
-                left_operand = left_operand[::-1]
-                left_operand = '(' + left_operand.strip() + ')'
-                modified_line = (line[:left_end] + ' (' + left_operand + ' % '
-                                 + right_operand + ' + (' + left_operand
-                                 + ' < 0)*' + right_operand + ') '
-                                 + line[right_end:])
-                new_lines.append(modified_line)
-            else:
-                new_lines.append(line)
     with open(filename, 'w') as pyxfile:
         pyxfile.writelines(new_lines)
 
@@ -421,6 +331,91 @@ def C_casting(filename):
             new_lines.append(line)
     with open(filename, 'w') as pyxfile:
         pyxfile.writelines(new_lines)
+
+
+def cython_decorators(filename):
+    with open(filename, 'r') as pyxfile:
+        lines = pyxfile.read().split('\n')
+    for i, line in enumerate(lines):
+        if '@cython.header' in line:
+            # Search for def statement
+            for j, line2 in enumerate(lines[(i + 1):]):
+                if 'def ' in line2:
+                    def_line = line2
+                    for k, c in enumerate(def_line):
+                        if c != ' ':
+                            n_spaces = k  # Indentation
+                            break
+                    break
+            headstart = i
+            headlen = j + 1
+            header = lines[headstart:(headstart + headlen)]
+            # Look for returntype
+            returntype = ''
+            for j, hline in enumerate(header):
+                if 'returns=' in hline:
+                    in_brackets = 0
+                    for c in hline[(hline.index('returns=') + 8):]:
+                        if c == '[':
+                            in_brackets += 1
+                        elif c == ']':
+                            in_brackets -= 1
+                        elif c == ')' or (c == ',' and not in_brackets):
+                            break
+                        returntype += c
+                    header[j] = header[j].replace('returns=' + returntype, ' '*len('returns=' + returntype))
+                    if not header[j].replace(',', '').strip():
+                        del header[j]
+                    else:
+                        # Looks for lonely comma due to removal of "returns="
+                        lonely = True
+                        for k, c in enumerate(header[j]):
+                            if c == ',' and lonely:
+                                header[j] = header[j][:k] + ' ' + header[j][(k + 1):] 
+                            if c in (',', '('):
+                                lonely == True
+                            elif c != ' ':
+                                lonely = False
+                    break
+            for j, hline in enumerate(header):
+                if '@cython.header(' in hline:
+                    I = header[j].index('@cython.header(') + 15
+                    for k, c in enumerate(header[j][I:]):
+                        if c == ',':
+                            header[j] = header[j][:I] + header[j][(I + k + 1):]
+                            break
+                        elif c != ' ':
+                            break
+            # Change @cython.header to @cython.locals, if header contains declarations.
+            # Otherwise, remove it.
+            if '=' in ''.join(header):
+                header[0] = header[0].replace('header', 'locals')
+            else:
+                header = []
+            # Add in all the other decorators
+            pyfuncs = ('__init__', '__cinit__', '__dealloc__')
+            decorators = [decorator for decorator in
+                          ('cfunc' if all(' ' + pyfunc + '(' not in def_line
+                                          for pyfunc in pyfuncs) else '',
+                          'inline' if all(' ' + pyfunc + '(' not in def_line
+                                          for pyfunc in pyfuncs) else '',
+                          'boundscheck(False)',
+                          'cdivision(True)',
+                          'initializedcheck(False)',
+                          'wraparound(False)',
+                           ) if decorator
+                          ]
+            header = [' '*n_spaces + '@cython.' + decorator for decorator in decorators] + header
+            if returntype:
+                header += [' '*n_spaces + '@cython.returns(' + returntype + ')']
+            # Place the new header among the lines
+            del lines[headstart:(headstart + headlen)]
+            for hline in reversed(header):
+                lines.insert(headstart, hline)
+    # Write all lines to file
+    with open(filename, 'w') as pyxfile:
+        pyxfile.writelines('\n'.join(lines))
+
 
 def make_pxd(filename):
     commons_functions = ('max', 'min', 'mod', 'sum', 'prod', 'sinc', 'warn')
@@ -639,6 +634,7 @@ def make_pxd(filename):
     with open(pxd_filename, 'w') as pxdfile:
         pxdfile.writelines(total_lines)
 
+
 # Edit the .pyx file
 filename = sys.argv[1]
 active_params_module = sys.argv[2][:-3]
@@ -653,11 +649,9 @@ elif mode == 'pyx':
     power2product(filename)
     unicode2ASCII(filename)
     __init__2__cinit__(filename)
-    #del_ctypedef_redeclarations(filename)
-    # Modulus no longer need fixing due to the mod function!
-    #fix_modulus(filename)
     colon2zero_in_addresses(filename)
     malloc_realloc(filename)
     C_casting(filename)
+    cython_decorators(filename)
 elif mode == 'pxd':
     make_pxd(filename)

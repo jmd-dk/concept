@@ -4,31 +4,26 @@ from commons import *
 
 # Seperate but equivalent imports in pure Python and Cython
 if not cython.compiled:
-    from gravity import PM_CIC_FFT, PM_grid, PM_gridsize_local_j, PM_gridstart_local_j
+    from gravity import (PM_CIC_FFT, PM_grid, PM_gridsize_local_j,
+                         PM_gridstart_local_j)
 else:
     # Lines in triple quotes will be executed in the .pyx file.
     """
-    from gravity cimport PM_CIC_FFT, PM_grid, PM_gridsize_local_j, PM_gridstart_local_j
+    from gravity cimport (PM_CIC_FFT, PM_grid, PM_gridsize_local_j,
+                          PM_gridstart_local_j)
     """
 
 
 # Calculate the power spectrum with all allowed k2 modes,
 # making a customised binning possible.
-@cython.cfunc
-@cython.inline
-@cython.boundscheck(False)
-@cython.cdivision(True)
-@cython.initializedcheck(False)
-@cython.wraparound(False)
-@cython.locals(# Arguments
+@cython.header(# Arguments
                particles='Particles',
                filename='str',
-               # Locals not in Christian's code
-               j='int',
-               j_global='int',
-               z_loop='ptrdiff_t',
                # Locals
                i='int',
+               im_part='double',
+               j='int',
+               j_global='int',
                k='int',
                ki='int',
                kj='int',
@@ -36,10 +31,15 @@ else:
                k2='unsigned long int',
                kR='double',
                re_part='double',
-               im_part='double',
+               recp_deconv_ijk='double',
+               sqrt_deconv_ij='double',
+               sqrt_deconv_ijk='double',
+               sqrt_deconv_j='double',
+               
                wavek='double',
                sigma='double',
                power='double',
+               z_loop='ptrdiff_t',
                )
 def powerspectrum(particles, filename):
     global PM_grid, k2_multi, power_arr
@@ -60,16 +60,16 @@ def powerspectrum(particles, filename):
             kj = j_global - PM_gridsize
         else:
             kj = j_global
-        # (Square root of) the j-component of the deconvolution
-        deconvolution_j = sinc(kj*π_recp_PM_gridsize)
+        # Square root of the j-component of the deconvolution
+        sqrt_deconv_j = sinc(kj*π_recp_PM_gridsize)
         for i in range(PM_gridsize):
             if i > Nyquist:
                 ki = i - PM_gridsize
             else:
                 ki = i
-            # (Square root of) the product of the i- and the j-component of
-            # the deconvolution.
-            deconvolution_ij = sinc(ki*π_recp_PM_gridsize)*deconvolution_j
+            # Square root of the product of the i-
+            # and the j-component of the deconvolution.
+            sqrt_deconv_ij = sinc(ki*π_recp_PM_gridsize)*sqrt_deconv_j
             for k in range(0, PM_gridsize_padding, 2):
                 kk = k//2  # inserted
                 k2 = ki**2 + kj**2 + kk**2
@@ -83,17 +83,22 @@ def powerspectrum(particles, filename):
                         continue
                     if ki <= 0 and kj >= 0 and abs(ki) >= kj:
                         continue
-                # (Square root of) the product of all components of
-                # the deconvolution.
-                deconvolution_ijk = deconvolution_ij*sinc(kk*π_recp_PM_gridsize)
+                # Square root of the product of
+                # all components of the deconvolution.
+                sqrt_deconv_ijk = sqrt_deconv_ij*sinc(kk*π_recp_PM_gridsize)
+                # The reciprocal of the product of
+                # all components of the deconvolution.
+                recp_deconv_ijk = 1.0/(sqrt_deconv_ijk**2)
                 # Do the deconvolution
-                PM_grid[j, i, k] /= deconvolution_ijk**2
-                PM_grid[j, i, k + 1] /= deconvolution_ijk**2
-                # Compute the power spectrum
-                k2_multi[k2] += 1  # Increase k2 multiplicity. k2 itself is the index
-                re_part = PM_grid[j, i, k]
-                im_part = PM_grid[j, i, k + 1]
-                power_arr[k2] += re_part**2 + im_part**2  # This is the power. Will normalize later
+                PM_grid[j, i, k] *= recp_deconv_ijk
+                PM_grid[j, i, k + 1] *= recp_deconv_ijk
+                # Compute the power spectrum.
+                # Increase k2 multiplicity. k2 itself is the index.
+                k2_multi[k2] += 1
+                re_part = PM_grid[j, i, k]      # Real part
+                im_part = PM_grid[j, i, k + 1]  # Imag part
+                # This is the power. Will normalize later
+                power_arr[k2] += re_part**2 + im_part**2
     Allreduce(MPI.IN_PLACE, k2_multi, op=MPI.SUM)
     Allreduce(MPI.IN_PLACE, power_arr, op=MPI.SUM)
     for k2 in range(k2_max):
