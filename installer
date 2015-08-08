@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Run this script to download and install the CONCEPT code by Jeppe Dakin
 # with all dependencies. If run without an argument, it will prompt for
@@ -628,7 +628,7 @@ current_step="installation of H5Py"
 heading "Installing H5Py"
 set_status "Installing H5Py"
 mkdir "${top_dir}/tmp"
-"${python}" -m pip install -v -v -v --no-cache-dir --no-binary=:all: --download "${top_dir}/tmp" ${1}
+"${python}" -m pip install -v -v -v --no-cache-dir --no-binary=:all: --download "${top_dir}/tmp" h5py
 cd "${top_dir}/tmp"
 tar xfz h5py*.gz
 cd h5py*

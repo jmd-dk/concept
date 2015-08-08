@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script runs the CONCEPT code.
 # Run the script with the -h option to get help
