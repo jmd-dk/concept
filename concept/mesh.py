@@ -24,20 +24,23 @@ else:
                )
 def partition(array_shape):
     """ This function takes in the shape of an array as the argument
-    and returns the start and end indices corresponding to the local chunk
-    of the array which should be processed by the running process,
+    and returns the start and end indices corresponding to the local
+    chunk of the array which should be processed by the running process,
     based on rank and nprocs.
     """
     # Raise an exception if nprocs > problem_size
     problem_size = np.prod(array_shape)
     if problem_size < nprocs:
-        errmsg = ('Cannot partition the workload because the number of\nprocesses ('
-                  + str(nprocs) + ') is larger than the problem size (' + str(problem_size) + ').')
+        errmsg = ('Cannot partition the workload because the number of\n'
+                  + 'processes (' + str(nprocs) + ') is larger than the '
+                  + 'problem size (' + str(problem_size) + ').')
         raise ValueError(errmsg)
     # Partition the local shape based on the rank.
     local_size = int(problem_size/nprocs)
-    indices_start = array(unravel_index(local_size*rank, array_shape), dtype='uintp')
-    indices_end = array(unravel_index(local_size*(rank + 1) - 1, array_shape), dtype='uintp') + 1
+    indices_start = array(unravel_index(local_size*rank, array_shape),
+                          dtype='uintp')
+    indices_end = array(unravel_index(local_size*(rank + 1) - 1, array_shape),
+                        dtype='uintp') + 1
     return (indices_start, indices_end)
 
 # Function for tabulating a cubic grid with vector values
@@ -65,10 +68,10 @@ def partition(array_shape):
 def tabulate_vectorfield(gridsize, func, factor, filename):
     """ This function tabulates a cubic grid of size
     gridsize*gridsize*gridsize with vector values computed by the
-    function func, as grid[i, j, k] = func(i*factor, j*factor, k*factor).
+    function func, as
+    grid[i, j, k] = func(i*factor, j*factor, k*factor).
     The tabulated grid is saved to a hdf5 file named filename.
     """
-
     # Initialize the grid to be of shape gridsize*gridsize*gridsize*3.
     # That is, grid is not really cubic, but rather four-dimensional.
     shape = (gridsize, )*3 + (3, )
@@ -122,18 +125,20 @@ def tabulate_vectorfield(gridsize, func, factor, filename):
                returns='double',
                )
 def CIC_grid2coordinates_scalar(grid, x, y, z):
-    """This function look up tabulated scalars in a grid and interpolates
-    to (x, y, z) via the cloud in cell (CIC) method. Input arguments must be
-    normalized so that 0 <= x, y, z < 1. If x, y or z is exactly equal to 1,
-    they will be corrected to 1 - ϵ. It is assumed that the grid is
-    nonperiodic (that is, the grid has closed ends).
+    """This function look up tabulated scalars in a grid and
+    interpolates to (x, y, z) via the cloud in cell (CIC) method. Input
+    arguments must be normalized so that 0 <= x, y, z < 1. If x, y or z
+    is exactly equal to 1, they will be corrected to 1 - ϵ. It is
+    assumed that the grid is nonperiodic (that is,
+    the grid has closed ends).
     """
     # Extract the size of the regular grid
     gridsize_x_minus_1 = grid.shape[0] - 1
     gridsize_y_minus_1 = grid.shape[1] - 1
     gridsize_z_minus_1 = grid.shape[2] - 1
-    # Correct for extreme values in the passed coordinates. This is to catch
-    # inputs which are slighly larger than 1 due to numerical errors
+    # Correct for extreme values in the passed coordinates.
+    # This is to catch inputs which are slighly larger than 1 due to
+    # numerical errors.
     if x >= 1:
         x = 1 - two_machine_ϵ
     if y >= 1:
@@ -144,14 +149,16 @@ def CIC_grid2coordinates_scalar(grid, x, y, z):
     x *= gridsize_x_minus_1
     y *= gridsize_y_minus_1
     z *= gridsize_z_minus_1
-    # Indices of the 8 vertices (6 faces) of the grid surrounding (x, y, z)
+    # Indices of the 8 vertices (6 faces)
+    # of the grid surrounding (x, y, z).
     x_lower = int(x)
     y_lower = int(y)
     z_lower = int(z)
     x_upper = x_lower + 1
     y_upper = y_lower + 1
     z_upper = z_lower + 1
-    # The linear weights according to the CIC rule W = 1 - |dist| if |dist| < 1
+    # The linear weights according to the
+    # CIC rule W = 1 - |dist| if |dist| < 1.
     Wxl = x_upper - x  # = 1 - (x - x_lower)
     Wyl = y_upper - y  # = 1 - (y - y_lower)
     Wzl = z_upper - z  # = 1 - (z - z_lower)
@@ -195,19 +202,21 @@ def CIC_grid2coordinates_scalar(grid, x, y, z):
                returns='double*',
                )
 def CIC_grid2coordinates_vector(grid, x, y, z):
-    """This function look up tabulated vectors in a grid and interpolates
-    to (x, y, z) via the cloud in cell (CIC) method. Input arguments must be
-    normalized so that 0 <= x, y, z < 1. If x, y or z is exactly equal to 1,
-    they will be corrected to 1 - ϵ. It is assumed that the grid is
-    nonperiodic (that is, the first and the last gridpoint in any dimension
-    are physical distinct and that the grid has closed ends).
+    """This function look up tabulated vectors in a grid and
+    interpolates to (x, y, z) via the cloud in cell (CIC) method.
+    Input arguments must be normalized so that 0 <= x, y, z < 1.
+    If x, y or z is exactly equal to 1, they will be corrected to 1 - ϵ.
+    It is assumed that the grid is nonperiodic (that is, the first and
+    the last gridpoint in any dimension are physical distinct and that
+    the grid has closed ends).
     """
     # Extract the size of the regular grid
     gridsize_x_minus_1 = grid.shape[0] - 1
     gridsize_y_minus_1 = grid.shape[1] - 1
     gridsize_z_minus_1 = grid.shape[2] - 1
-    # Correct for extreme values in the passed coordinates. This is to catch
-    # inputs which are slighly larger than 1 due to numerical errors
+    # Correct for extreme values in the passed coordinates.
+    # This is to catch inputs which are slighly larger than 1 due to
+    # numerical errors.
     if x >= 1:
         x = 1 - two_machine_ϵ
     if y >= 1:
@@ -218,14 +227,16 @@ def CIC_grid2coordinates_vector(grid, x, y, z):
     x *= gridsize_x_minus_1
     y *= gridsize_y_minus_1
     z *= gridsize_z_minus_1
-    # Indices of the 8 vertices (6 faces) of the grid surrounding (x, y, z)
+    # Indices of the 8 vertices (6 faces)
+    # of the grid surrounding (x, y, z).
     x_lower = int(x)
     y_lower = int(y)
     z_lower = int(z)
     x_upper = x_lower + 1
     y_upper = y_lower + 1
     z_upper = z_lower + 1
-    # The linear weights according to the CIC rule W = 1 - |dist| if |dist| < 1
+    # The linear weights according to the
+    # CIC rule W = 1 - |dist| if |dist| < 1.
     Wxl = x_upper - x  # = 1 - (x - x_lower)
     Wyl = y_upper - y  # = 1 - (y - y_lower)
     Wzl = z_upper - z  # = 1 - (z - z_lower)
@@ -277,8 +288,9 @@ def CIC_grid2coordinates_vector(grid, x, y, z):
                Wzu='double',
                )
 def CIC_particles2grid(particles, grid):
-    """This function CIC-interpolates particle coordinates to grid storing
-    scalar values. The passed grid should be nullified beforehand.
+    """This function CIC-interpolates particle coordinates
+    to grid storing scalar values. The passed grid should be
+    nullified beforehand.
     """
     # Extract variables
     posx = particles.posx
@@ -299,14 +311,16 @@ def CIC_particles2grid(particles, grid):
         x = (posx[i] - domain_start_x)*gridsize_i_minus_1_over_domain_size_x
         y = (posy[i] - domain_start_y)*gridsize_j_minus_1_over_domain_size_y
         z = (posz[i] - domain_start_z)*gridsize_k_minus_1_over_domain_size_z
-        # Correct for coordinates which are exactly at an upper domain boundary
+        # Correct for coordinates which are
+        # exactly at an upper domain boundary.
         if x == gridsize_i_minus_1:
             x -= two_machine_ϵ
         if y == gridsize_j_minus_1:
             y -= two_machine_ϵ
         if z == gridsize_k_minus_1:
             z -= two_machine_ϵ
-        # Indices of the 8 vertices (6 faces) of the grid surrounding (x, y, z)
+        # Indices of the 8 vertices (6 faces)
+        # of the grid surrounding (x, y, z).
         x_lower = int(x)
         y_lower = int(y)
         z_lower = int(z)
@@ -355,16 +369,17 @@ def CIC_particles2grid(particles, grid):
                )
 def communicate_boundaries(grid, mode=0):
     """This function can operate in either mode 0 or mode 1.
-    Mode 0: The upper three faces (right, forward, up) of the grid as well as
-    the upper three edges (right forward, right upward, forward upward) and the
-    right, forward, upward point is communicated to the processes where these
-    correspond to the lower faces/edges/point. The received values are added
-    to the existing lower faces/edges/point.
-    Mode 1: The lower three faces (left, backward, down) of the grid as well as
-    the lower three edges (left backward, left downward, backward downward) and
-    the left, backward, downward point is communicated to the processes where
-    these correspond to the upper faces/edges/point. The received values
-    replace the existing upper faces/edges/point.
+    Mode 0: The upper three faces (right, forward, up) of the grid as
+    well as the upper three edges (right forward, right upward, forward
+    upward) and the right, forward, upward point is communicated to the
+    processes where these correspond to the lower faces/edges/point.
+    The received values are added to the existing lower
+    faces/edges/point. Mode 1: The lower three faces (left, backward,
+    down) of the grid as well as the lower three edges (left backward,
+    left downward, backward downward) and the left, backward, downward
+    point is communicated to the processes where these correspond to the
+    upper faces/edges/point. The received values replace the existing
+    upper faces/edges/point.
     """
     global sendbuf_faceij, sendbuf_faceik, sendbuf_facejk
     global recvbuf_faceij, recvbuf_faceik, recvbuf_facejk
@@ -448,8 +463,8 @@ def communicate_boundaries(grid, mode=0):
                                   dest=rank_rightforwardup,
                                   source=rank_leftbackwarddown)
     # If mode == 1, communicate the lower faces/edges/point to the
-    # corresponding processes. Replace the existing upper values with the
-    # received data.
+    # corresponding processes. Replace the existing upper values with
+    # the received data.
     elif mode == 1:
         # Cummunicate the left face
         for j in range(domain_size_j):
@@ -541,18 +556,21 @@ def communicate_ghosts(grid):
     grid_noghosts = grid[2:(grid.shape[0] - 2),
                          2:(grid.shape[1] - 2),
                          2:(grid.shape[2] - 2)]
-    # The boundary layers (faces of thickness 2) which should be send to other
-    # processes and used as ghost layers.
-    layer_right = grid_noghosts[(grid_noghosts.shape[0]-3):(grid_noghosts.shape[0]-1), :, :]
+    # The boundary layers (faces of thickness 2) which should
+    # be send to other processes and used as ghost layers.
+    layer_right = grid_noghosts[(grid_noghosts.shape[0]-3):
+                                (grid_noghosts.shape[0]-1), :, :]
     layer_left = grid_noghosts[1:3, :, :]
-    layer_forward = grid_noghosts[:, (grid_noghosts.shape[1]-3):(grid_noghosts.shape[1]-1), :]
+    layer_forward = grid_noghosts[:, (grid_noghosts.shape[1]-3):
+                                     (grid_noghosts.shape[1]-1), :]
     layer_backward = grid_noghosts[:, 1:3, :]
-    layer_up = grid_noghosts[:, :, (grid_noghosts.shape[2]-3):(grid_noghosts.shape[2]-1)]
+    layer_up = grid_noghosts[:, :, (grid_noghosts.shape[2]-3):
+                                   (grid_noghosts.shape[2]-1)]
     layer_down = grid_noghosts[:, :, 1:3]
     # Ghost layers of the local domain grid
     ghost_right = grid[(grid.shape[0] - 2):,
-                      2:(grid.shape[1] - 2),
-                      2:(grid.shape[2] - 2)]
+                       2:(grid.shape[1] - 2),
+                       2:(grid.shape[2] - 2)]
     ghost_left = grid[:2,
                       2:(grid.shape[1] - 2),
                       2:(grid.shape[2] - 2)]
@@ -617,7 +635,8 @@ def domain2PM(domain_grid, PM_grid):
     global domainPM_sendbuf, domainPM_recvbuf
     # Communicate the interpolated domain grid to the PM grid
     for ℓ in range(ℓmax):
-        # Send part of the local domain grid to the corresponding process
+        # Send part of the local domain
+        # grid to the corresponding process.
         if ℓ < PM_send_rank.shape[0]:
             ID_send = PM_send_rank[ℓ]
             for i in range(PM_send_i_start[ℓ], PM_send_i_end[ℓ]):
@@ -626,8 +645,8 @@ def domain2PM(domain_grid, PM_grid):
                         domainPM_sendbuf[i - PM_send_i_start[ℓ],
                                          j,
                                          k] = domain_grid[i, j, k]
-            # A non-blocking send is used. Otherwise the program will
-            # hang on large messages.
+            # A non-blocking send is used. Otherwise the
+            # program will hang on large messages.
             Isend(domainPM_sendbuf, dest=ID_send)
         # The lower ranks storing the PM mesh receives the message
         if ℓ < PM_recv_rank.shape[0]:
@@ -637,10 +656,11 @@ def domain2PM(domain_grid, PM_grid):
                 for j in range(PM_recv_j_start[ℓ], PM_recv_j_end[ℓ]):
                     for k in range(PM_recv_k_start[ℓ], PM_recv_k_end[ℓ]):
                         PM_grid[i, j, k] = domainPM_recvbuf[i,
-                                                            j - PM_recv_j_start[ℓ],
-                                                            k - PM_recv_k_start[ℓ]]
-        # Catch-up point for the processes. This ensures that the communication
-        # is complete, and hence that the non-blocking send is done.
+                                                       j - PM_recv_j_start[ℓ],
+                                                       k - PM_recv_k_start[ℓ]]
+        # Catch-up point for the processes. This ensures
+        # that the communication is complete, and hence that
+        # the non-blocking send is done.
         Barrier()
 
 
@@ -666,7 +686,8 @@ def PM2domain(domain_grid, PM_grid):
             ID_send = PM_recv_rank[ℓ]
             for i in range(PM_recv_i_start[ℓ], PM_recv_i_end[ℓ]):
                 for j in range(PM_recv_j_start[ℓ], PM_recv_j_end[ℓ]):
-                    for k in range(PM_recv_k_start[ℓ], PM_recv_k_end[ℓ]):
+                    for k in range(PM_recv_k_start[ℓ],
+                                   PM_recv_k_end[ℓ]):
                         domainPM_recvbuf[i,
                                          j - PM_recv_j_start[ℓ],
                                          k - PM_recv_k_start[ℓ],
@@ -681,7 +702,8 @@ def PM2domain(domain_grid, PM_grid):
             for i in range(PM_send_i_start[ℓ], PM_send_i_end[ℓ]):
                 for j in range(domain_size_j):
                     for k in range(domain_size_k):
-                        domain_grid[i, j, k] = domainPM_sendbuf[i - PM_send_i_start[ℓ],
+                        domain_grid[i, j, k] = domainPM_sendbuf[i
+                                                  - PM_send_i_start[ℓ],
                                                                 j,
                                                                 k]
         # Catch-up point for the processes. This ensures that the communication
@@ -764,9 +786,9 @@ if use_PM:
     # Finally get the ranks of the two 3D-diagonal neighboring processes
     rank_rightforwardup = neighbors['rightforwardup']
     rank_leftbackwarddown = neighbors['leftbackwarddown']
-    # The actual size of the domain grid. This is 1 less than the allocated
-    # size in each dimension, as the last element is actually the first element
-    # of the domain on some other process.
+    # The actual size of the domain grid. This is 1 less than the
+    # allocated size in each dimension, as the last element is actually
+    # the first element of the domain on some other process.
     domain_size_i = PM_gridsize//domain_cuts[0]
     domain_size_j = PM_gridsize//domain_cuts[1]
     domain_size_k = PM_gridsize//domain_cuts[2]
@@ -778,9 +800,10 @@ if use_PM:
     recvbuf_faceik = empty((domain_size_i, domain_size_k), dtype='float64')
     sendbuf_facejk = empty((domain_size_j, domain_size_k), dtype='float64')
     recvbuf_facejk = empty((domain_size_j, domain_size_k), dtype='float64')
-    sendbuf_edge = empty(np.max((domain_size_i, domain_size_j, domain_size_k)), dtype='float64')
-    recvbuf_edge = empty(np.max((domain_size_i, domain_size_j, domain_size_k)), dtype='float64')
-
+    sendbuf_edge = empty(np.max((domain_size_i, domain_size_j, domain_size_k)),
+                         dtype='float64')
+    recvbuf_edge = empty(np.max((domain_size_i, domain_size_j, domain_size_k)),
+                         dtype='float64')
     # Additional information about the domain grid and the PM mesh,
     # used in the domain2PM function.
     cython.declare(ID_recv='int',
@@ -818,16 +841,17 @@ if use_PM:
                    ℓ='int',
                    ℓmax='int',
                    )
-    # The global start and end indices of the local domain in the total PM_grid
+    # The global start and end indices of
+    # the local domain in the total PM_grid.
     domain_start_i = domain_local[0]*domain_size_i
     domain_start_j = domain_local[1]*domain_size_j
     domain_start_k = domain_local[2]*domain_size_k
     domain_end_i = domain_start_i + domain_size_i
     domain_end_j = domain_start_j + domain_size_j
     domain_end_k = domain_start_k + domain_size_k
-    # PM_gridsize_local_i is the same for all processes participating in the PM
-    # algorithm and 0 otherwise. The global version is equal to the nonzero
-    # value on all processes.
+    # PM_gridsize_local_i is the same for all processes participating
+    # in the PM algorithm and 0 otherwise. The global version is equal
+    # to the nonzero value on all processes.
     PM_gridsize_local_i = PM_gridsize//nprocs
     if rank < PM_gridsize and PM_gridsize_local_i == 0:
         PM_gridsize_local_i = 1      
@@ -842,15 +866,16 @@ if use_PM:
         PM_send_i_start_list.append(ℓ - domain_start_i)
         PM_send_i_end_list.append(ℓ - domain_start_i + PM_gridsize_global_i)
         PM_send_rank_list.append(ℓ//PM_gridsize_global_i)
-    # Shift the elements so that they match the communication pattern used
+    # Shift the elements so that they
+    # match the communication pattern used.
     PM_send_i_start_list = list(np.roll(PM_send_i_start_list, -rank))
     PM_send_i_end_list = list(np.roll(PM_send_i_end_list, -rank))
     PM_send_rank_list = list(np.roll(PM_send_rank_list, -rank))
     #
-    # THIS IS NOT SUFFICIENT! IF nprocs > PM_grid THE PROGRAM WILL HALT AT domain2PM and PM2domain !!!!!!!!!!!!!!!!!!
+    # FIXME: THIS IS NOT SUFFICIENT! IF nprocs > PM_grid THE PROGRAM WILL HALT AT domain2PM and PM2domain !!!!!!!!!!!!!!!!!!
     #
-    # Communicate the start and end (j, k)-indices of the PM grid, where
-    # future parts of the local domains should be received into.
+    # Communicate the start and end (j, k)-indices of the PM grid,
+    # where future parts of the local domains should be received into.
     PM_recv_i_start_list = []
     PM_recv_j_start_list = []
     PM_recv_k_start_list = []
@@ -862,8 +887,8 @@ if use_PM:
         # Process ranks to send/recieve to/from
         ID_send = mod(rank + ℓ, nprocs)
         ID_recv = mod(rank - ℓ, nprocs)
-        # Send the global y and z start and end indices of the region to be
-        # send, if anything should be send to process ID_send.
+        # Send the global y and z start and end indices of the region
+        # to be send, if anything should be send to process ID_send.
         # Otherwize send None.
         sendbuf = (domain_start_j,
                    domain_start_k,
@@ -890,10 +915,17 @@ if use_PM:
     PM_recv_k_end = array(PM_recv_k_end_list, dtype='int32')
     PM_recv_rank = array(PM_recv_rank_list, dtype='int32')
     # Buffers
-    domainPM_sendbuf = empty((PM_gridsize_global_i, domain_size_j, domain_size_k), dtype='float64')
+    domainPM_sendbuf = empty((PM_gridsize_global_i,
+                              domain_size_j,
+                              domain_size_k),
+                             dtype='float64')
     if PM_recv_rank_list != []:
-        domainPM_recvbuf = empty((PM_gridsize_global_i, domain_size_j, domain_size_k), dtype='float64')
-    # ℓ will be the communication loop index. It runs from 0 t0 ℓmax - 1
+        domainPM_recvbuf = empty((PM_gridsize_global_i,
+                                  domain_size_j,
+                                  domain_size_k),
+                                 dtype='float64')
+    # ℓ will be the communication loop index.
+    # It runs from 0 t0 ℓmax - 1.
     ℓmax = np.max([PM_send_rank.shape[0], PM_recv_rank.shape[0]])
 
     # Send/recieve buffers used in the communicate_ghosts function.
@@ -905,9 +937,15 @@ if use_PM:
                    sendbuf_ghostjk='double[:, :, ::1]',
                    recvbuf_ghostjk='double[:, :, ::1]',
                    )
-    sendbuf_ghostij = empty((domain_size_i + 1, domain_size_j + 1, 2), dtype='float64')
-    recvbuf_ghostij = empty((domain_size_i + 1, domain_size_j + 1, 2), dtype='float64')
-    sendbuf_ghostik = empty((domain_size_i + 1, 2, domain_size_k + 1), dtype='float64')
-    recvbuf_ghostik = empty((domain_size_i + 1, 2, domain_size_k + 1), dtype='float64')
-    sendbuf_ghostjk = empty((2, domain_size_j + 1, domain_size_k + 1), dtype='float64')
-    recvbuf_ghostjk = empty((2, domain_size_j + 1, domain_size_k + 1), dtype='float64')
+    sendbuf_ghostij = empty((domain_size_i + 1, domain_size_j + 1, 2),
+                            dtype='float64')
+    recvbuf_ghostij = empty((domain_size_i + 1, domain_size_j + 1, 2),
+                            dtype='float64')
+    sendbuf_ghostik = empty((domain_size_i + 1, 2, domain_size_k + 1),
+                            dtype='float64')
+    recvbuf_ghostik = empty((domain_size_i + 1, 2, domain_size_k + 1),
+                            dtype='float64')
+    sendbuf_ghostjk = empty((2, domain_size_j + 1, domain_size_k + 1),
+                            dtype='float64')
+    recvbuf_ghostjk = empty((2, domain_size_j + 1, domain_size_k + 1),
+                            dtype='float64')

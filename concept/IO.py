@@ -17,8 +17,8 @@ else:
 import struct
 
 
-# Function that saves particle data to an hdf5 file or a gadget snapshot file,
-# based on the "snapshot_type" parameter
+# Function that saves particle data to an hdf5 file or a
+# gadget snapshot file, based on the "snapshot_type" parameter.
 @cython.header(# Argument
                particles='Particles',
                a='double',
@@ -33,8 +33,9 @@ def save(particles, a, filename):
         raise Exception('Does not recognize output type "'
                         + snapshot_type + '".')
 
-# Function that loads particle data from an hdf5 file and instantiate a
-# Particles instance on each process, storing the particles within its domain.
+# Function that loads particle data from an hdf5 file and
+# instantiate a Particles instance on each process,
+# storing the particles within its domain.
 @cython.header(# Argument
                filename='str',
                write_msg='bint',
@@ -47,8 +48,8 @@ def load(filename, write_msg=True):
     # If no snapshot should be loaded, return immediately
     if filename == '':
         return
-    # Determine whether input snapshot is in standard or GADGET2 2 format
-    # by searching for a HEAD identifier.
+    # Determine whether input snapshot is in standard or
+    # GADGET2 2 format by searching for a HEAD identifier.
     input_type = 'standard'
     with open(filename, 'rb') as f:
         try:
@@ -64,9 +65,9 @@ def load(filename, write_msg=True):
     elif input_type == 'GADGET 2':
         particles = load_gadget(filename, write_msg)
     # Scatter particles to the correct domain-specific process.
-    # Setting reset_indices_send == True ensures that buffers will be reset
-    # afterwards, as this initial exchange is not representable for those
-    # to come.
+    # Setting reset_indices_send == True ensures that buffers
+    # will be reset afterwards, as this initial exchange is not
+    # representable for those to come.
     exchange(particles, reset_buffers=True)
     return particles
 
@@ -124,8 +125,9 @@ def save_standard(particles, a, filename):
         particles_h5.attrs['species'] = particles.species
         particles_h5.attrs['type'] = particles.type
 
-# Function that loads particle data from an hdf5 file and instantiate a
-# Particles instance on each process, storing the particles within its domain.
+# Function that loads particle data from an hdf5 file
+# and instantiate a Particles instance on each process,
+# storing the particles within its domain.
 @cython.header(# Argument
                filename='str',
                write_msg='bint',
@@ -161,12 +163,23 @@ def load_standard(filename, write_msg=True):
             file_Ωm = hdf5_file.attrs['\N{GREEK CAPITAL LETTER OMEGA}m']
             file_ΩΛ = hdf5_file.attrs['\N{GREEK CAPITAL LETTER OMEGA}'
                                       + '\N{GREEK CAPITAL LETTER LAMDA}']
-            # Check if the parameters of the snapshot matches those of the
-            # current simulation run. Display a warning if they do not.
+            # Check if the parameters of the snapshot
+            # matches those of the current simulation run.
+            # Display a warning if they do not.
             tol = 1e-5
             if write_msg and any([abs(file_param/param - 1) > tol for
-                file_param, param in zip((file_boxsize, file_H0, file_Ωm, file_ΩΛ, file_a),
-                           (boxsize, H0, Ωm, ΩΛ, a_begin))]):
+                file_param, param in zip((file_boxsize,
+                                          file_H0,
+                                          file_Ωm,
+                                          file_ΩΛ,
+                                          file_a,
+                                          ),
+                                         (boxsize,
+                                          H0,
+                                          Ωm,
+                                          ΩΛ,
+                                          a_begin,
+                                          ))]):
                 msg = ('Mismatch between current parameters and those in the '
                        + 'snapshot "' + filename + '":')
                 if abs(file_a/a_begin - 1) > tol:
@@ -202,7 +215,8 @@ def load_standard(filename, write_msg=True):
             if master and write_msg:
                 print('    Found', N, particles_h5.attrs['species'],
                       'particles', '(' + particles_h5.attrs['type'] + ')')
-            # Compute a fair distribution of particle data to the processes
+            # Compute a fair distribution of 
+            # particle data to the processes.
             N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
                         + (N//nprocs + 1, )*(N % nprocs))
             N_local = N_locals[rank]
@@ -267,9 +281,9 @@ def load_gadget(filename, write_msg=True):
     snapshot.load(filename, write_msg)
     return snapshot.particles
 
-# Class storing a Gadget snapshot. Besides holding methods for saving/loading,
-# it stores particle data (positions, momenta, mass) and also Gadget ID's
-# and the Gadget header.
+# Class storing a Gadget snapshot. Besides holding methods for
+# saving/loading, it stores particle data (positions, momenta, mass)
+# and also Gadget ID's and the Gadget header.
 @cython.cclass
 class Gadget_snapshot:
     """Only Gadget type 1 (halo) particles, corresponding to dark matter
@@ -281,8 +295,8 @@ class Gadget_snapshot:
     @cython.header
     def __init__(self):
         # The triple quoted string below serves as the type declaration
-        # for the Gadget_snapshot type. It will get picked up by the pyxpp
-        # script and indluded in the .pxd file.
+        # for the Gadget_snapshot type. It will get picked up by the
+        # pyxpp script and indluded in the .pxd file.
         """
         # Data attributes
         dict header
@@ -297,8 +311,9 @@ class Gadget_snapshot:
         """
         self.header = {}
 
-    # This method populate the snapshot with particle data as well as ID's
-    # (which are not used by this code) and additional header information.
+    # This method populate the snapshot with particle data
+    # as well as ID's (which are not used by this code) and
+    # additional header information.
     @cython.header(# Arguments
                    particles='Particles',
                    a='double',
@@ -320,8 +335,8 @@ class Gadget_snapshot:
         """
         # The particle data
         self.particles = particles
-        # The ID's of the local particles, generated such that the process
-        # with the lowest rank has the lowest ID's.
+        # The ID's of the local particles, generated such that
+        # the process with the lowest rank has the lowest ID's.
         N_locals = empty(nprocs, dtype='uintp')
         Allgather(array(particles.N_local, dtype='uintp'), N_locals)
         start_local = sum(N_locals[:rank])
@@ -335,7 +350,7 @@ class Gadget_snapshot:
         h = H0/(100*units.km/units.s/units.Mpc)
         unit = 1e+10*units.m_sun/h
         self.header['Massarr'] = [0.0, particles.mass/unit, 0.0, 0.0, 0.0, 0.0]
-        self.header['Time'] = a  # Note that "Time" is really the scale factor
+        self.header['Time'] = a  # "Time" is really the scale factor
         self.header['Redshift'] = 1/a - 1
         self.header['FlagSfr'] = 0
         self.header['FlagFeedback'] = 0
@@ -360,9 +375,9 @@ class Gadget_snapshot:
                    unit='double',
                    )
     def save(self, filename):
-        """The snapshot data (positions and velocities) are stored in single
-        precision. Only GADGET type 1 (halo) particles, corresponding to
-        dark matter particles, are supported.
+        """The snapshot data (positions and velocities) are stored in
+        single precision. Only GADGET type 1 (halo) particles,
+        corresponding to dark matter particles, are supported.
         """
         N = self.header['Nall'][1]
         N_local = self.particles.N_local
@@ -487,11 +502,12 @@ class Gadget_snapshot:
                    unit='double',
                    )
     def load(self, filename, write_msg=True):
-        """ It is assumed that the snapshot on the disk is a GADGET snapshot
-        of type 2 and that it uses single precision. The Gadget_snapshot
-        instance stores the data (positions and velocities) in double
-        precision. Only GADGET type 1 (halo) particles, corresponding to
-        dark matter particles, are supported.
+        """ It is assumed that the snapshot on the disk is a GADGET
+        snapshot of type 2 and that it uses single precision. The
+        Gadget_snapshot instance stores the data (positions and
+        velocities) in double precision. Only GADGET type 1 (halo)
+        particles, corresponding to dark matter particles,
+        are supported.
         """
         offset = 0
         with open(filename, 'rb') as f:
@@ -517,8 +533,9 @@ class Gadget_snapshot:
             self.header['FlagMetals']    = self.read(f, 'i')
             self.header['NallHW']        = self.read(f, '6i')
             self.header['flag_entr_ics'] = self.read(f, 'i')
-            # Check if the parameters of the snapshot matches those of the
-            # current simulation run. Display a warning if they do not.
+            # Check if the parameters of the snapshot matches
+            # those of the current simulation run. Display a warning
+            # if they do not.
             tol = 1e-5
             gadget_a = self.header['Time']
             unit = units.kpc/self.header['HubbleParam']
@@ -528,9 +545,18 @@ class Gadget_snapshot:
             gadget_Ωm = self.header['Omega0']
             gadget_ΩΛ = self.header['OmegaLambda']
             if write_msg and any([abs(gadget_param/param - 1) > tol for
-                gadget_param, param in zip((gadget_boxsize, gadget_H0, gadget_Ωm,
-                            gadget_ΩΛ, gadget_a),
-                           (boxsize, H0, Ωm, ΩΛ, a_begin))]):
+                gadget_param, param in zip((gadget_boxsize,
+                                            gadget_H0,
+                                            gadget_Ωm,
+                                            gadget_ΩΛ,
+                                            gadget_a,
+                                            ),
+                                           (boxsize,
+                                            H0,
+                                            Ωm,
+                                            ΩΛ,
+                                            a_begin,
+                                            ))]):
                 msg = ('Mismatch between current parameters and those in the'
                        + ' GADGET snapshot "' + filename + '":')
                 if abs(gadget_a/a_begin - 1) > tol:
@@ -558,7 +584,8 @@ class Gadget_snapshot:
             if master and write_msg:
                 print('    Found', N, 'dark matter particles',
                       '(GADGET halos)')
-            # Compute a fair distribution of particle data to the processes
+            # Compute a fair distribution
+            # of particle data to the processes.
             N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
                         + (N//nprocs + 1, )*(N % nprocs))
             N_local = N_locals[rank]
@@ -604,7 +631,8 @@ class Gadget_snapshot:
             # Read in the VEL block. The velocities are peculiar
             # velocities u=a*dx/dt divided by sqrt(a), given in km/s.
             offset = self.new_block(f, offset)
-            unit = units.km/units.s*self.particles.mass*self.header['Time']**1.5
+            unit = (units.km/units.s*self.particles.mass
+                    *self.header['Time']**1.5)
             name = self.read(f, '4s').decode('utf8')  # "VEL "
             size = self.read(f, 'i')
             offset = self.new_block(f, offset)
@@ -658,8 +686,8 @@ class Gadget_snapshot:
         # It is nicer to use mutable lists than tuples
         return list(t)
 
-    # Method that handles the file object's position in the snapshot file
-    # during loading. Call it when the next block should be read.
+    # Method that handles the file object's position in the snapshot
+    # file during loading. Call it when the next block should be read.
     @cython.header(# Argments
                    offset='size_t',
                    returns='size_t',

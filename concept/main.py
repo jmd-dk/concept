@@ -15,7 +15,7 @@ else:
     from analysis cimport powerspectrum
     from species cimport construct, construct_random
     from IO cimport load, save, load_gadget, save_gadget
-    from integration cimport expand, cosmic_time, scalefactor_integral, ȧ
+    from integration cimport expand, cosmic_time, scalefactor_integral
     from graphics cimport animate, significant_figures
     """
 
@@ -86,7 +86,8 @@ def timeloop():
     # Plot the initial configuration
     if len(snapshot_times) > 0:
         animate(particles, 0, a, np.min(snapshot_times))
-    # The time step size should be a small fraction of the age of the universe
+    # The time step size should be a
+    # small fraction of the age of the universe.
     Δt = Δt_factor*t
     # Arrays containing the drift and kick factors ∫_t^(t + Δt/2)dt/a
     # and ∫_t^(t + Δt/2)dt/a**2.
@@ -111,8 +112,8 @@ def timeloop():
         if a > a_dump:
             raise Exception('Finished time integration within a single step!')
         t += 0.5*Δt
-        # This variable flips between 0 and 1, telling whether a kick or a drift
-        # should be performed, respectively.
+        # This variable flips between 0 and 1, telling whether
+        # a kick or a drift should be performed, respectively.
         kick_drift_index = 0
         # Do the kick and drift integrals
         # ∫_t^(t + Δt/2)dt/a and ∫_t^(t + Δt/2)dt/a**2.
@@ -124,8 +125,8 @@ def timeloop():
         while a < a_dump:
             # Flip the state of kick_drift_index
             kick_drift_index = 0 if kick_drift_index == 1 else 1
-            # Update the scale factor and the cosmic time. This also tabulates
-            # a(t), needed for the kick and drift integrals.
+            # Update the scale factor and the cosmic time. This also
+            # tabulates a(t), needed for the kick and drift integrals.
             a_next = expand(a, t, 0.5*Δt)
             t += 0.5*Δt
             if a_next >= a_dump:
@@ -163,7 +164,8 @@ def timeloop():
                     powerspectrum(particles, powerspec_filename)
             # After every second iteration (every whole time step):
             if kick_drift_index:
-                # Render particle configuration and print timestep message
+                # Render particle configuration
+                # and print timestep message.
                 animate(particles, timestep, a, a_dump)
                 timestep_message(timestep, timer, a, t)
                 # Refresh timer and update the time step nr
@@ -173,9 +175,9 @@ def timeloop():
                 if not (timestep % Δt_update_freq):
                     Δt_prev = Δt
                     Δt = Δt_factor*t
-                    # Due to the new (and increased) Δt, the drifting is no
-                    # longer Δt/2 ahead of the kicking. Drift the missing
-                    # distance.
+                    # Due to the new (and increased) Δt, the drifting is
+                    # no longer Δt/2 ahead of the kicking.
+                    # Drift the missing distance.
                     a_next = expand(a, t, 0.5*(Δt - Δt_prev))
                     if a_next < a_dump:
                         # Only drift if a_dump is not reached by it
@@ -183,13 +185,13 @@ def timeloop():
                             print('Updating time step size')
                         a = a_next
                         # Do the kick and drift integrals
-                        # ∫_t^(t + Δt/2)dt/a and ∫_t^(t + Δt/2)dt/a**2 and
-                        # drift the remaining distance.
+                        # ∫_t^(t + Δt/2)dt/a and ∫_t^(t + Δt/2)dt/a**2
+                        # and drift the remaining distance.
                         kick_fac[kick_drift_index] += scalefactor_integral(-1)
                         particles.drift(scalefactor_integral(-2))
                     else:
-                        # Do not alter Δt just before (or just after, in the
-                        # case of a == a_dump) dumps.
+                        # Do not alter Δt just before (or just after,
+                        # in the case of a == a_dump) dumps.
                         Δt = Δt_prev
             # Always render particle configuration when at snapshot time
             elif a == a_dump and a in snapshot_times:
@@ -199,7 +201,8 @@ def timeloop():
 
 # If anything special should happen, rather than starting the timeloop
 cython.declare(particles='Particles')
-if (cython.compiled and special is not None) or (not cython.compiled and 'special' in locals()):
+if ((cython.compiled and special is not None)
+    or (not cython.compiled and 'special' in locals())):
     particles = load(IC_file, write_msg=False)
     if special == 'powerspectrum':
         powerspectrum(particles, powerspec_dir + '/' + powerspec_base + '_'
@@ -227,7 +230,7 @@ timeloop()
 # Simulation done
 if master:
     print(terminal.bold_green(terminal.CONCEPT + ' ran successfully'))
-# Due to an error having to do with the Python -m switch, the program must
-# explicitly be told to exit.
+# Due to an error having to do with the Python -m switch,
+# the program must explicitly be told to exit.
 Barrier()
 sys.exit()

@@ -19,17 +19,16 @@ else:
 class Particles:
     """An instance of this class represents a collection of particles
     of a definite type. Only one instance of any Particles type may be
-    instantiated in a run. A Particles instance of a given type should be
-    present on all processes.
-    All species share the same class (this one). The difference is purely in
-    their "type" and "species" attributes. The "species" attribute is used as
-    a flag to allow different species to behave differently.
+    instantiated in a run. A Particles instance of a given type should
+    be present on all processes.
+    All species share the same class (this one). The difference is
+    purely in their "type" and "species" attributes. The "species"
+    attribute is used as a flag to allow different species to behave
+    differently.
     """
 
     # Initialization method
-    @cython.header(# Arguments
-                   N='size_t',
-                   )
+    @cython.header(N='size_t')
     def __init__(self, N):
         # The triple quoted string below serves as the type declaration
         # for the Particles type. It will get picked up by the pyxpp
@@ -85,9 +84,9 @@ class Particles:
         self.momz_mv = cast(self.momz, 'double[:self.N_allocated]')
 
     # This method populate the Particles pos/mom attributes with data.
-    # It is deliberately designed so that you have to make a call for each
-    # attribute. You should construct the mv array within the call itself,
-    # as this will minimize memory usage.
+    # It is deliberately designed so that you have to make a call for
+    # each attribute. You should construct the mv array within the call
+    # itself, as this will minimize memory usage.
     @cython.header(# Arguments
                    mv='double[::1]',
                    coord='str',
@@ -158,7 +157,8 @@ class Particles:
                    i='size_t',
                    )
     def drift(self, Δt):
-        """Note that the time step size Δt is really ∫_t^(t + Δt) dt/a**2.
+        """Note that the time step size
+        Δt is really ∫_t^(t + Δt) dt/a**2.
         """
         # Extracting variables
         posx = self.posx
@@ -200,9 +200,9 @@ class Particles:
         elif kick_algorithm == 'P3M':
             P3M(self, Δt)
         else:
-            raise ValueError('Species "' + self.species + '" has assigned '
-                             + 'the kick algorithm "' + kick_algorithm
-                             + '", which is not implemented!')
+            raise ValueError('Species "' + self.species
+                             + '" has been assigned the kick algorithm "'
+                             + kick_algorithm + '", which is not implemented!')
 
     # This method is automaticlly called when a Particles instance
     # is garbage collected. All manually allocated memory is freed.
