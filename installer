@@ -40,12 +40,14 @@ status_off="off"
 status_visible="${status_on}"
 
 # ANSI/VT100 escape sequences
-esc="\033"
+esc="\x1b"
 # Text formatting
 esc_normal="${esc}[0m"
 esc_bold="${esc}[1m"
 esc_italic="${esc}[3m"
 esc_reverted="${esc}[7m"
+esc_no_italic="${esc}[23m"
+esc_concept="CO${esc_italic}N${esc_no_italic}CEPT"
 # Text colors
 esc_red="${esc}[91m"
 esc_green="${esc}[92m"
@@ -64,8 +66,8 @@ error()
 }
 
 # Welcome message
-printf "${esc_bold}${esc_yellow}This is the installation script to CO${esc_italic}N${esc_normal}${esc_bold}${esc_yellow}CEPT,${esc_normal}
-${esc_bold}${esc_yellow}the cosmological ${esc_italic}N${esc_normal}${esc_bold}${esc_yellow}-body code by Jeppe Dakin${esc_normal}\n\n"
+printf "${esc_bold}${esc_yellow}This is the installation script to ${esc_concept},
+the cosmological ${esc_italic}N${esc_no_italic}-body code by Jeppe Dakin${esc_normal}\n\n"
 
 # Backup of initial environment variables
 CC_backup="${CC}"
@@ -189,16 +191,17 @@ enable_status()
 # Function for checking that a given url actually exists
 validate_url()
 {
-    text=$(wget -S --spider "${1}" 2>&1)
-    text_http=$(echo "${text}" | grep "Remote file exists")
-    text_ftp=$(echo "${text}" | grep "Can't check for file existence")
-    if [ -n "${text_http}" ] || ([[ "${1}" == "ftp://"* ]] && [ -z "${text_ftp}" ]); then
-        echo 1
-    else
-        echo 0
+    # Arguments: Name, URL
+    text=$(wget -S --spider "${2}" 2>&1)
+    text_http=$(echo "${text}" | grep "Remote file exists" || echo)
+    filename=$(basename "${2}")
+    text_ftp=$(echo "${text}" | grep "${filename}.*exists" || echo)
+    if ! ([ -n "${text_http}" ] || ([[ "${2}" == "ftp://"* ]] && [ -n "${text_ftp}" ])); then
+        echo "Error: The ${1} link is broken!"
+        exit 1
     fi
 }
-# OpenSSL needed by pip (version 1.0.2d is known to work)
+# OpenSSL (needed by pip) (version 1.0.2d is known to work)
 current_step="search for latest version of OpenSSL"
 set_status "Searching for latest version of OpenSSL"
 openssl_version=$(wget -q -O- --no-check-certificate "https://www.openssl.org/source/" | grep -o -P "(?<=openssl-).*(?=LATEST)" || echo)
@@ -208,11 +211,8 @@ if [ -z "${openssl_version}" ]; then
     exit 1
 fi
 openssl_url="ftp://ftp.openssl.org/source/openssl-${openssl_version}.tar.gz"
-if [ $(validate_url "${openssl_url}") -eq 0 ]; then
-    echo "Error: The OpenSSL link is broken!"
-    exit 1
-fi
-# FreeType is needed by matplotlib (version 2.6 is known to work)
+validate_url "OpenSSL" "${openssl_url}"
+# FreeType (needed by matplotlib) (version 2.6 is known to work)
 current_step="search for latest version of FreeType"
 set_status "Searching for latest version of FreeType"
 freetype_version=$(wget -q -O- --no-check-certificate "http://download.savannah.gnu.org/releases/freetype/" | grep -o "freetype-[0-9.]*tar" | sort -u | tail -n 1 | grep -o [0-9.]*)
@@ -222,11 +222,8 @@ if [ -z "${freetype_version}" ]; then
     exit 1
 fi
 freetype_url="http://download.savannah.gnu.org/releases/freetype/freetype-${freetype_version}.tar.gz"
-if [ $(validate_url "${freetype_url}") -eq 0 ]; then
-    echo "Error: The FreeType link is broken!"
-    exit 1
-fi
-# ncurses is needed by _curses, which is needed by blessings (version 5.9 is known to work)
+validate_url "FreeType" "${freetype_url}"
+# ncurses (needed by _curses, which is needed by blessings) (version 5.9 is known to work)
 current_step="search for latest version of ncurses"
 set_status "Searching for latest version of ncurses"
 ncurses_version=$(wget -q -O- --no-check-certificate "http://ftp.gnu.org/pub/gnu/ncurses/" | grep -o "ncurses-[0-9.]*tar" | sort -u | tail -n 1 | grep -o [0-9.]*)
@@ -236,10 +233,7 @@ if [ -z "${ncurses_version}" ]; then
     exit 1
 fi
 ncurses_url="http://ftp.gnu.org/pub/gnu/ncurses/ncurses-${ncurses_version}.tar.gz"
-if [ $(validate_url "${ncurses_url}") -eq 0 ]; then
-    echo "Error: The ncurses link is broken!"
-    exit 1
-fi
+validate_url "ncurses" "${ncurses_url}"
 # Python (version 3.4 is known to work). Note that 'python_version' will be overwritten later!
 current_step="search for latest version of Python"
 set_status "Searching for latest version of Python"
@@ -249,10 +243,7 @@ if [ -z "${python_version}" ]; then
     exit 1
 fi
 python_url="https://www.python.org/ftp/python/${python_version}/Python-${python_version}.tar.xz"
-if [ $(validate_url "${python_url}") -eq 0 ]; then
-    echo "Error: The Python link is broken!"
-    exit 1
-fi
+validate_url "Python" "${python_url}"
 # GSL (1.16 is known to work)
 current_step="search for latest version of GSL"
 set_status "Searching for latest version of GSL"
@@ -263,10 +254,7 @@ if [ -z "${gsl_version}" ]; then
     gsl_version="..."
 fi
 gsl_url="http://mirrors.dotsrc.org/gnu/gsl/gsl-latest.tar.gz"
-if [ $(validate_url "${gsl_url}") -eq 0 ]; then
-    echo "Error: The GSL link is broken!"
-    exit 1
-fi
+validate_url GSL "${gsl_url}"
 # MPICH (3.1.4 is known to work)
 current_step="search for latest version of MPICH"
 set_status "Searching for latest version of MPICH"
@@ -276,10 +264,7 @@ if [ -z "${mpich_version}" ]; then
     mpich_version="..."
 fi
 mpich_url="http://www.mpich.org/static/downloads/${mpich_version}/mpich-${mpich_version}.tar.gz"
-if [ $(validate_url "${mpich_url}") -eq 0 ]; then
-    echo "Error: The MPICH link is broken!"
-    exit 1
-fi
+validate_url "MPICH" "${mpich_url}"
 # HDF5 (1.8.14 is known to work)
 current_step="search for latest version of HDF5"
 set_status "Searching for latest version of HDF5"
@@ -289,10 +274,7 @@ if [ -z "${hdf5_version}" ]; then
     hdf5_version="..."
 fi
 hdf5_url="ftp://ftp.hdfgroup.org/HDF5/current/src/hdf5-${hdf5_version}.tar.bz2"
-if [ $(validate_url "${hdf5_url}") -eq 0 ]; then
-    echo "Error: The HDF5 link is broken!"
-    exit 1
-fi
+validate_url "HDF5" "${hdf5_url}"
 # FFTW (3.3.4 is known to work)
 current_step="search for latest version of FFTW"
 set_status "Searching for latest version of FFTW"
@@ -302,37 +284,25 @@ if [ -z "${fftw_version}" ]; then
     fftw_version="..."
 fi
 fftw_url="http://www.fftw.org/fftw-${fftw_version}.tar.gz"
-if [ $(validate_url "${fftw_url}") -eq 0 ]; then
-    echo "Error: The FFTW link is broken!"
-    exit 1
-fi
+validate_url "FFTW" "${fftw_url}"
 # CONCEPT
-current_step="validation of CONCEPT link"
-set_status "Validating CONCEPT link"
+current_step="validation of ${esc_concept} link"
+set_status "Validating ${esc_concept} link"
 concept_version="..."
 concept_url="https://github.com/jmd-dk/concept/archive/master.tar.gz"
-if [ $(validate_url "${concept_url}") -eq 0 ]; then
-    printf "Error: The CO${esc_italic}N${esc_normal}CEPT link is broken!""\n"
-    exit 1
-fi
+validate_url "CO${esc_italic}N${esc_no_italic}CEPT" "${concept_url}"
 # FFTW 2.1.5 for Gadget
 current_step="validation of FFTW2 link"
 set_status "Validating FFTW2 link"
 fftw_for_gadget_version="2.1.5"
 fftw_for_gadget_url="http://www.fftw.org/fftw-${fftw_for_gadget_version}.tar.gz"
-if [ $(validate_url "${fftw_for_gadget_url}") -eq 0 ]; then
-    echo "Error: The FFTW for GADGET link is broken!"
-    exit 1
-fi
+validate_url "FFTW for GADGET" "${fftw_for_gadget_url}"
 # GADGET 2.0.7
 current_step="validation of GADGET link"
 set_status "Validating GADGET link"
 gadget_version="2.0.7"
 gadget_url="http://www.mpa-garching.mpg.de/gadget/gadget-${gadget_version}.tar.gz"
-if [ $(validate_url "${gadget_url}") -eq 0 ]; then
-    echo "Error: The GADGET link is broken!"
-    exit 1
-fi
+validate_url GADGET "${gadget_url}"
 
 # Write out installation overview
 disable_status
@@ -532,32 +502,20 @@ yolk_version()
     # Arguments: Python package name, variable to be set to version number
     current_step="search for latest version of ${1}"
     set_status "Searching for latest version of ${1}"
-    local version=$("${python}" -m yolk -V "${1}" | head -n 1 | awk '{print $NF}')
+    pip_name="${1//_/}"  # Remove underscores from name
+    local version=$("${python}" -m yolk -V "${pip_name}" | head -n 1 | awk '{print $NF}')
     local pythonpackage_version_var=$2
     eval $pythonpackage_version_var="'$version'"
 }
-yolk_version Blessings  blessings_version
-yolk_version Cython     cython_version
-yolk_version Matplotlib matplotlib_version
-yolk_version NumPy      numpy_version
-yolk_version Pexpect    pexpect_version
-yolk_version Pillow     pillow_version
-yolk_version MPI4Py     mpi4py_version
-yolk_version H5Py       h5py_version
-
-# Cython_GSL (0.2.1 is known to work)
-current_step="search for latest version of Cython_GSL"
-set_status "Searching for latest version of Cython_GSL"
-cython_gsl_version=$(wget -q -O- --no-check-certificate "https://raw.githubusercontent.com/twiecki/CythonGSL/master/README.rst" | grep ":Version:" | awk '{print $NF}' || echo)
-if [ -z "${cython_gsl_version}" ]; then
-    echo "Could not identify the version number of the latest Cython_GSL."
-    cython_gsl_version="..."
-fi
-cython_gsl_url="https://github.com/twiecki/CythonGSL/archive/master.tar.gz"
-if [ $(validate_url "${cython_gsl_url}") -eq 0 ]; then
-    echo "Error: The Cython_GSL link is broken!"
-    exit 1
-fi
+yolk_version "Blessings"  blessings_version
+yolk_version "Cython"     cython_version
+yolk_version "Cython_GSL" cython_gsl_version
+yolk_version "Matplotlib" matplotlib_version
+yolk_version "NumPy"      numpy_version
+yolk_version "Pexpect"    pexpect_version
+yolk_version "Pillow"     pillow_version
+yolk_version "MPI4Py"     mpi4py_version
+yolk_version "H5Py"       h5py_version
 
 # Print out Python package installation overview
 disable_status
@@ -585,8 +543,9 @@ pip_install()
     heading "Installing ${1}"
     set_status "Installing ${1}"
     mkdir "${top_dir}/tmp"
-    "${python}" -m pip install -v -v -v --no-cache-dir --no-binary=:all: --download "${top_dir}/tmp" ${1//_/}
-    "${python}" -m pip install -v -v -v --no-index --find-links="${top_dir}/tmp" ${1//_/}
+    pip_name="${1//_/}"  # Remove underscores from name
+    "${python}" -m pip install -v -v -v --no-cache-dir --no-binary=:all: --download "${top_dir}/tmp" "${pip_name}"
+    "${python}" -m pip install -v -v -v --no-index --find-links="${top_dir}/tmp" "${pip_name}"
     rm -rf "${top_dir}/tmp"
 }
 # Blessings
