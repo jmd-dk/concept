@@ -195,20 +195,16 @@ params.py: $(paramsfile) $(MAKEFILE_LIST)
 	from numpy import pi as π\
 	# Get access to the absolute paths stored in the .paths file\
 	import imp, os\
-	top_dir = "."\
-	ls_prev = []\
-	possible_root_dir = 0\
+	top_dir = os.path.abspath(".")\
 	while True:\
-	    ls = os.listdir(top_dir)\
-	    possible_root_dir = (possible_root_dir + 1) if ls == ls_prev else 0\
-	    if possible_root_dir == 3:  # 3 ../ and still the same files. "Must" be /.\
-	        raise Exception("Cannot find the .paths file!")\
-	    if ".paths" in ls:\
+	    if ".paths" in os.listdir(top_dir):\
 	        break\
-	    top_dir = "../" +  top_dir\
-	    ls_prev = ls\
+	    elif top_dir == "/":\
+	        raise Exception("Cannot find the .paths file!")\
+	    top_dir = os.path.dirname(top_dir)\
 	paths_module = imp.load_source("paths", top_dir + "/.paths")\
-	paths = paths_module.__dict__\
+	paths = {key: value for key, value in paths_module.__dict__.items()\
+	         if isinstance(key, str) and not key.startswith("__")}\
 	# Include the directory of the parameter file as "params_dir"\
 	paths["params_dir"] = os.path.dirname("$(paramsfile)")\
 	# Seperate but equivalent imports in pure Python and Cython\
