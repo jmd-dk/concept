@@ -1,3 +1,19 @@
+# Copyright (C) 2015 Jeppe Mosgard Dakin
+#
+# This file is part of CONCEPT, the cosmological N-body code in Python
+#
+# CONCEPT is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# CONCEPT is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+
+
 # Import everything from the commons module. In the .pyx file,
 # this line will be replaced by the content of commons.py itself.
 from commons import *
@@ -85,8 +101,7 @@ def load(filename, write_msg=True):
                )
 def save_standard(particles, a, filename):
     # Print out message
-    if master:
-        print('Saving snapshot:', filename)
+    masterprint('Saving snapshot "' + filename + '" ... ', end='')
     with h5py.File(filename, mode='w', driver='mpio', comm=comm) as hdf5_file:
         # Save global attributes
         hdf5_file.attrs['H0'] = H0
@@ -124,6 +139,7 @@ def save_standard(particles, a, filename):
         particles_h5.attrs['mass'] = particles.mass
         particles_h5.attrs['species'] = particles.species
         particles_h5.attrs['type'] = particles.type
+    masterprint('done')
 
 # Function that loads particle data from an hdf5 file
 # and instantiate a Particles instance on each process,
@@ -150,8 +166,7 @@ def save_standard(particles, a, filename):
                )
 def load_standard(filename, write_msg=True):
     # Print out message
-    if master:
-        print('Loading snapshot:', filename)
+    masterprint('Loading snapshot "' + filename + '"')
     # Load all particles
     with h5py.File(filename, mode='r', driver='mpio', comm=comm) as hdf5_file:
         all_particles = hdf5_file['particles']
@@ -167,7 +182,7 @@ def load_standard(filename, write_msg=True):
             # matches those of the current simulation run.
             # Display a warning if they do not.
             tol = 1e-5
-            if write_msg and any([abs(file_param/param - 1) > tol for
+            if master and write_msg and any([abs(file_param/param - 1) > tol for
                 file_param, param in zip((file_boxsize,
                                           file_H0,
                                           file_Ωm,
@@ -183,25 +198,25 @@ def load_standard(filename, write_msg=True):
                 msg = ('Mismatch between current parameters and those in the '
                        + 'snapshot "' + filename + '":')
                 if abs(file_a/a_begin - 1) > tol:
-                    msg += ('\n    a_begin: ' + str(a_begin)
+                    msg += ('\n' + ' '*8 + 'a_begin: ' + str(a_begin)
                             + ' vs ' + str(file_a))
                 if abs(file_boxsize/boxsize - 1) > tol:
-                    msg += ('\n    boxsize: ' + str(boxsize) + ' vs '
+                    msg += ('\n' + ' '*8 + 'boxsize: ' + str(boxsize) + ' vs '
                             + str(file_boxsize) + ' (kpc)')
                 if abs(file_H0/H0 - 1) > tol:
-                    msg += ('\n    H0: '
+                    msg += ('\n' + ' '*8 + 'H0: '
                             + str(H0/(units.km/(units.s*units.Mpc)))
                             + ' vs '
                             + str(file_H0/(units.km/(units.s*units.Mpc)))
                             + ' (km/s/Mpc)')
                 if abs(file_Ωm/Ωm - 1) > tol:
-                    msg += ('\n    \N{GREEK CAPITAL LETTER OMEGA}m: '
+                    msg += ('\n' + ' '*8 + '\N{GREEK CAPITAL LETTER OMEGA}m: '
                             + str(Ωm) + ' vs ' + str(file_Ωm))
                 if abs(file_ΩΛ/ΩΛ - 1) > tol:
-                    msg += ('\n    \N{GREEK CAPITAL LETTER OMEGA}'
+                    msg += ('\n' + ' '*8 + '\N{GREEK CAPITAL LETTER OMEGA}'
                             + '\N{GREEK CAPITAL LETTER LAMDA}: '
                             + str(ΩΛ) + ' vs ' + str(file_ΩΛ))
-                warn(msg)
+                masterwarn(msg, indent=4)
             # Extract HDF5 datasets
             particles_h5 = all_particles[particle_type]
             posx_h5 = particles_h5['posx']
@@ -210,11 +225,12 @@ def load_standard(filename, write_msg=True):
             momx_h5 = particles_h5['momx']
             momy_h5 = particles_h5['momy']
             momz_h5 = particles_h5['momz']
-            # Write out message
+            # Write out progress message
             N = posx_h5.size
-            if master and write_msg:
-                print('    Found', N, particles_h5.attrs['species'],
-                      'particles', '(' + particles_h5.attrs['type'] + ')')
+            if write_msg:
+                masterprint('    Loading', N, particles_h5.attrs['species'],
+                            'particles', '(' + particles_h5.attrs['type']
+                            + ') ... ', end='')
             # Compute a fair distribution of 
             # particle data to the processes.
             N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
@@ -239,6 +255,9 @@ def load_standard(filename, write_msg=True):
             particles.populate(momx_h5[start_local:end_local], 'momx')
             particles.populate(momy_h5[start_local:end_local], 'momy')
             particles.populate(momz_h5[start_local:end_local], 'momz')
+            # Finalize progress message
+            if write_msg:
+                masterprint('done')
     # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     # THE PARTICLES VARIABLE SHOULD BE A TUPLE OF PARTICLES OR SOMETHING
     # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -257,13 +276,13 @@ def load_standard(filename, write_msg=True):
                )
 def save_gadget(particles, a, filename):
     # Print out message
-    if master:
-        print('Saving GADGET snapshot:', filename)
+    masterprint('Saving GADGET snapshot "' + filename + '" ... ', end='')
     # Instantiate GADGET snapshot
     snapshot = Gadget_snapshot()
     snapshot.populate(particles, a)
     # Write GADGET snapshot to disk
     snapshot.save(filename)
+    masterprint('done')
 
 # Function for loading a GADGET snapshot into a Particles instance
 @cython.header(# Arguments
@@ -274,9 +293,7 @@ def save_gadget(particles, a, filename):
                returns='Particles',
                )
 def load_gadget(filename, write_msg=True):
-    # Print out message
-    if master:
-        print('Loading GADGET snapshot:', filename)
+    masterprint('Loading GADGET snapshot"' + filename + '"')
     snapshot = Gadget_snapshot()
     snapshot.load(filename, write_msg)
     return snapshot.particles
@@ -544,7 +561,7 @@ class Gadget_snapshot:
             gadget_H0 = self.header['HubbleParam']*unit
             gadget_Ωm = self.header['Omega0']
             gadget_ΩΛ = self.header['OmegaLambda']
-            if write_msg and any([abs(gadget_param/param - 1) > tol for
+            if master and write_msg and any([abs(gadget_param/param - 1) > tol for
                 gadget_param, param in zip((gadget_boxsize,
                                             gadget_H0,
                                             gadget_Ωm,
@@ -560,30 +577,30 @@ class Gadget_snapshot:
                 msg = ('Mismatch between current parameters and those in the'
                        + ' GADGET snapshot "' + filename + '":')
                 if abs(gadget_a/a_begin - 1) > tol:
-                    msg += ('\n    a_begin: ' + str(a_begin)
+                    msg += ('\n' + ' '*8 + 'a_begin: ' + str(a_begin)
                             + ' vs ' + str(gadget_a))
                 if abs(gadget_boxsize/boxsize - 1) > tol:
-                    msg += ('\n    boxsize: ' + str(boxsize) + ' vs '
+                    msg += ('\n' + ' '*8 + 'boxsize: ' + str(boxsize) + ' vs '
                             + str(gadget_boxsize) + ' (kpc)')
                 if abs(gadget_H0/H0 - 1) > tol:
-                    msg += ('\n    H0: '
+                    msg += ('\n' + ' '*8 + 'H0: '
                             + str(H0/(units.km/(units.s*units.Mpc)))
                             + ' vs '
                             + str(gadget_H0/(units.km/(units.s*units.Mpc)))
                             + ' (km/s/Mpc)')
                 if abs(gadget_Ωm/Ωm - 1) > tol:
-                    msg += ('\n    \N{GREEK CAPITAL LETTER OMEGA}m: '
+                    msg += ('\n' + ' '*8 + '\N{GREEK CAPITAL LETTER OMEGA}m: '
                             + str(Ωm) + ' vs ' + str(gadget_Ωm))
                 if abs(gadget_ΩΛ/ΩΛ - 1) > tol:
-                    msg += ('\n    \N{GREEK CAPITAL LETTER OMEGA}'
+                    msg += ('\n' + ' '*8 + '\N{GREEK CAPITAL LETTER OMEGA}'
                             + '\N{GREEK CAPITAL LETTER LAMDA}: '
                             + str(ΩΛ) + ' vs ' + str(gadget_ΩΛ))
-                warn(msg)
-            # Write out message
+                masterwarn(msg, indent=4)
+            # Write out progress message
             N = self.header['Npart'][1]
-            if master and write_msg:
-                print('    Found', N, 'dark matter particles',
-                      '(GADGET halos)')
+            if write_msg:
+                masterprint('    Loading', N, 'dark matter particles',
+                           '(GADGET halos) ... ', end='')
             # Compute a fair distribution
             # of particle data to the processes.
             N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
@@ -667,6 +684,9 @@ class Gadget_snapshot:
             f.seek(4*start_local, 1)  # 4 = sizeof(unsigned int)
             file_position = f.tell()
             self.ID = np.fromfile(f, dtype='uint32', count=N_local)
+            # Finalize progress message
+            if write_msg:
+                masterprint('done')
             # Possible additional meta data ignored
 
     # Method used for reading series of bytes from the snapshot file

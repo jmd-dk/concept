@@ -1,90 +1,143 @@
 #!/usr/bin/env bash
 
+# Copyright (C) 2015 Jeppe Mosgard Dakin
+#
+# This file is part of CONCEPT, the cosmological N-body code in Python
+#
+# CONCEPT is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# CONCEPT is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+
+
 # This script downloads and installs the CONCEPT code by Jeppe Dakin
-# with all its dependencies. If run without an argument, it will prompt for
-# an installation directory. Alternatively, this directory can be passed
-# as an argument. Everything will be installed within this directory.
-# You can also download and run the newest version of this script by
-# executing the following command:
+# with all its dependencies. If run without an argument, it will prompt
+# for an installation directory. Alternatively, this directory can be
+# passed as an argument. Everything will be installed within this
+# directory. You can also download and run the newest version of this
+# script by executing the following command:
 # bash <(wget -O- --no-ch tiny.cc/nbody)
 # The above uses a URL shortener. If it does not work, use the full URL:
 # bash <(wget -O- --no-ch https://raw.githubusercontent.com/jmd-dk/concept/master/installer)
-
+#
 # The following software will be installed in order:
 # - FreeType (needed by matplotlib)
-# - OpenSSL (needed by pip)
-# - ncurses (needed by _curses, which is needed by blessings)
-# - Python
+# - ncurses  (needed by _curses, which is needed by blessings)
+# - OpenSSL  (needed by pip)
+# - CPython
 # - GSL
 # - MPICH
 # - HDF5
 # - FFTW
-#   Additionally, the following Python packages (together with
-#   their own Python package dependencies will be installed:
-#   - Yolk3k
-#   - Blessings
-#   - Cython
-#   - Cython_GSL
-#   - NumPy
-#   - Matplotlib
-#   - MPI4Py
-#   - Pexpect
-#   - Pillow
-#   - H5Py
+# Additionally, the following Python packages (together with
+# their own Python package dependencies) will be installed:
+# - Yolk3k
+# - Blessings
+# - Cython
+# - Cython_GSL
+# - NumPy
+# - Matplotlib
+# - MPI4Py
+# - Pexpect
+# - Pillow
+# - H5Py
+#
+# By default, any pre-installed versions of the above software will be
+# ignored. Should you wish CONCEPT to use one such pre-installed
+# component, you have to declare its directory path through the
+# "programname_dir" environment variable. E.g. to use a pre-installed
+# gsl library:
+# gsl_dir=/path/to/gsl /path/to/installer
+# The set of such environment variables correspond to the program names
+# above (though using lowercase only), except for mpich and cpython,
+# which are just mpi_dir and python_dir, respectively.
+# In this respect, pre-installed Python packages do not count as
+# separate programs (e.g. there is no blessings_dir variable).
+# 
+# If you choose to use a pre-installed Python distribution, it is your
+# responsibility that pip is installed as part of this distribution.
+# Also, if the curses package is not pre-installed in the Python
+# distribution, Python should at least be compiled with the ncurses
+# library. Finally, if the matplotlib package is not pre-installed in
+# Python distribution, Python should at least be compiled with the
+# FreeType library.
+#
+# Should you wish to install a specific version of some dependency
+# program, simply set the environment variable "programname_version"
+# when invoking the installer. This also works for Python packages.
 
 
 
 ##################
 # Specifications #
 ##################
+# This function sets the variables "name_dir" (if not set already)
+# and "name_preinstalled".
+set_dir()
+{
+    # Arguments: Program name, install directory
+    eval "${1}_preinstalled=yes"
+    eval "[ -n \"\${${1}_dir}\" ] || ${1}_preinstalled=no"
+    eval "[ -n \"\${${1}_dir}\" ] || ${1}_dir=\"${2}\""
+}
 # Specification of paths. The substring "__top_dir__"
 # will later be replaced with the top level directory.
-concept_dir="__top_dir__/concept"
-python_dir="__top_dir__/python"
-openssl_dir="${python_dir}/openssl"
-freetype_dir="${python_dir}"
-ncurses_dir="${python_dir}"
-fftw_dir="__top_dir__/fftw"
-gadget_dir="__top_dir__/gadget"
-fftw_for_gadget_dir="${gadget_dir}/fftw"
-gsl_dir="__top_dir__/gsl"
-hdf5_dir="__top_dir__/hdf5"
-mpi_dir="__top_dir__/mpich"
+set_dir "concept"         "__top_dir__/concept"
+set_dir "python"          "__top_dir__/python"
+set_dir "freetype"        "${python_dir}"
+set_dir "openssl"         "${python_dir}/openssl"
+set_dir "ncurses"         "${python_dir}"
+set_dir "fftw"            "__top_dir__/fftw"
+set_dir "gadget"          "__top_dir__/gadget"
+set_dir "fftw_for_gadget" "${gadget_dir}/fftw"
+set_dir "gsl"             "__top_dir__/gsl"
+set_dir "hdf5"            "__top_dir__/hdf5"
+set_dir "mpi"             "__top_dir__/mpich"; mpich_preinstalled="${mpi_preinstalled}"
 log="__top_dir__/install_log"
 dotpaths="__top_dir__/.paths"
 
+# This function sets the variable "name_version" if not set already.
+# For preinstalled software, set "name_version" to "pre-installed".
+set_version()
+{
+    # Arguments: Program name, version
+    eval "[ -n \"\${${1}_version}\" ] || ${1}_version=\"${2}\""
+    eval "[ \"\${${1}_preinstalled}\" != \"yes\" ] || ${1}_version=\"pre-installed\""
+}
 # Specification of software versions. A specification of
 # "newest" will be replaced with the latest stable version.
-concept_version="newest"         # only newest        is known to work
-python_version="newest"          #      3.4.3         is known to work
-openssl_version="newest"         #      1.0.2d        is known to work
-freetype_version="newest"        #      2.6           is known to work
-ncurses_version="newest"         #      6.0           is known to work
-fftw_version="newest"            #      3.3.4         is known to work
-gadget_version="2.0.7"           # only 2.0.7         is known to work
-fftw_for_gadget_version="2.1.5"  # only 2.1.5         is known to work
-gsl_version="newest"             #      1.16          is known to work
-hdf5_version="newest"            #      1.8.15-patch1 is known to work
-mpich_version="newest"           #      3.1.4         is known to work
-blessings_version="newest"       #      1.6           is known to work
-cython_version="0.22.1"          #      0.22.1        is known to work (0.23 does not work)
-cython_gsl_version="newest"      #      0.2.1         is known to work
-matplotlib_version="newest"      #      1.4.3         is known to work
-numpy_version="newest"           #      1.9.2         is known to work
-pexpect_version="newest"         #      3.3           is known to work
-pillow_version="newest"          #      2.9.0         is known to work
-mpi4py_version="newest"          #      1.3.1         is known to work
-h5py_version="newest"            #      2.5.0         is known to work
+set_version "concept"         "newest"  # only newest        is known to work
+set_version "python"          "newest"  #      3.4.3         is known to work
+set_version "freetype"        "newest"  #      2.6           is known to work
+set_version "ncurses"         "newest"  #      6.0           is known to work
+set_version "openssl"         "newest"  #      1.0.2d        is known to work
+set_version "fftw"            "newest"  #      3.3.4         is known to work
+set_version "gadget"          "2.0.7"   # only 2.0.7         is known to work
+set_version "fftw_for_gadget" "2.1.5"   # only 2.1.5         is known to work
+set_version "gsl"             "newest"  #      1.16          is known to work
+set_version "hdf5"            "newest"  #      1.8.15-patch1 is known to work
+set_version "mpich"           "newest"  #      3.1.4         is known to work
+set_version "blessings"       "newest"  #      1.6           is known to work
+set_version "cython"          "0.22.1"  #      0.22.1        is known to work (0.23 does not work)
+set_version "cython_gsl"      "newest"  #      0.2.1         is known to work
+set_version "matplotlib"      "newest"  #      1.4.3         is known to work
+set_version "numpy"           "newest"  #      1.9.2         is known to work
+set_version "pexpect"         "newest"  #      3.3           is known to work
+set_version "pillow"          "newest"  #      2.9.0         is known to work
+set_version "mpi4py"          "newest"  #      1.3.1         is known to work
+set_version "h5py"            "newest"  #      2.5.0         is known to work
 
 
 
 #################
 # Initial setup #
 #################
-# A small pause is needed when executing as the result of wget,
-# if installation directory is not supplied as an argument.
-sleep 1
-
 # Set up error trapping
 ctrl_c()
 {
@@ -101,16 +154,6 @@ abort()
 trap 'ctrl_c' SIGINT
 trap 'abort' EXIT
 set -e
-
-# Status control sequenses
-status="initialization"
-status_prefix="__new_status__="
-status_prefix_length=${#status_prefix}
-status_disable="disable"
-status_enable="enable"
-status_on="on"
-status_off="off"
-status_visible="${status_on}"
 
 # ANSI/VT100 escape sequences
 esc="\x1b"
@@ -142,8 +185,19 @@ error()
 }
 
 # Print out welcome message
+sleep 1  # Needed if invoked directly from the web via wget
 printf "${esc_bold}${esc_yellow}This is the installation script to ${esc_concept},
 the cosmological ${esc_italic}N${esc_no_italic}-body code by Jeppe Dakin${esc_normal}\n\n"
+
+# Status control sequenses
+status="initialization"
+status_prefix="__new_status__="
+status_prefix_length=${#status_prefix}
+status_disable="disable"
+status_enable="enable"
+status_on="on"
+status_off="off"
+status_visible="${status_on}"
 
 # Backup of initial environment variables
 CC_backup="${CC}"
@@ -159,7 +213,7 @@ current_step="check for preinstalled system dependencies"
 # Function for testing whether system dependencies are installed and
 # located on PATH. For missing system dependencies, it will attempt to
 # figure out the command to install it.
-check_dependency()
+check_system_dependency()
 {
     # Arguments: name, command, Debian package
     path=$(which "${2}" || echo)
@@ -190,14 +244,14 @@ check_dependency()
         fi
     fi
 }
-check_dependency "awk" "awk" "gawk"
-check_dependency "g++" "g++" "g++"
-check_dependency "gcc" "gcc" "gcc"
-check_dependency "gfortran" "gfortran" "gfortran"
-check_dependency "make" "make" "build-essential"
-check_dependency "sed" "sed" "sed"
-check_dependency "tar" "tar" "tar"
-check_dependency "wget" "wget" "wget"
+check_system_dependency "awk" "awk" "gawk"
+check_system_dependency "g++" "g++" "g++"
+check_system_dependency "gcc" "gcc" "gcc"
+check_system_dependency "gfortran" "gfortran" "gfortran"
+check_system_dependency "make" "make" "build-essential"
+check_system_dependency "sed" "sed" "sed"
+check_system_dependency "tar" "tar" "tar"
+check_system_dependency "wget" "wget" "wget"
 
 # Creating top level directory (top_dir)
 current_step="setup of top level directory"
@@ -206,27 +260,65 @@ if [ -z "${1}" ]; then
 else 
     top_dir="${1}"
 fi
-top_dir="${top_dir//[ ]/\\ }"        # Places backslashes before spaces. These are needed when expanding tilde, but they will not persist
-eval top_dir="${top_dir}"            # Expand tilde
-top_dir=$(readlink -f "${top_dir}")  # Convert to absolute path
-echo "The code will be installed in ${top_dir}"
+initial_dir="$(pwd)"  # It is crucial that this line is before any cd
+convert_to_abs_path()
+{
+    # Arguments: path
+    current_dir="$(pwd)"
+    cd "${initial_dir}"
+    # Places backslashes before spaces. These are needed when expanding tilde, but they will not persist
+    abs_path="${1//[ ]/\\ }"
+    # Expand tilde
+    eval abs_path="${abs_path}"
+    # Convert to absolute path
+    abs_path=$(readlink -m "${abs_path}")
+    cd "${current_dir}"
+    echo "${abs_path}"
+}
+top_dir="$(convert_to_abs_path "${top_dir}")"
+echo "The code will be installed in \"${top_dir}\""
 mkdir -p "${top_dir}"
 cd "${top_dir}"
 
-# Replace "__top_dir__" in paths with the user specified top_dir 
-concept_dir="${concept_dir/__top_dir__/${top_dir}}"
-python_dir="${python_dir/__top_dir__/${top_dir}}"
-openssl_dir="${openssl_dir/__top_dir__/${top_dir}}"
-freetype_dir="${freetype_dir/__top_dir__/${top_dir}}"
-ncurses_dir="${ncurses_dir/__top_dir__/${top_dir}}"
-fftw_dir="${fftw_dir/__top_dir__/${top_dir}}"
-gadget_dir="${gadget_dir/__top_dir__/${top_dir}}"
-fftw_for_gadget_dir="${fftw_for_gadget_dir/__top_dir__/${top_dir}}"
-gsl_dir="${gsl_dir/__top_dir__/${top_dir}}"
-hdf5_dir="${hdf5_dir/__top_dir__/${top_dir}}"
-mpi_dir="${mpi_dir/__top_dir__/${top_dir}}"
+# Replace "__top_dir__" in paths with the user specified top_dir.
+# Also converts to absolute path.
+fix_path()
+{
+    # Arguments: Program name
+    eval "[ \"\${${1}_preinstalled}\" == \"yes\" ] || ${1}_dir=\"\${${1}_dir/__top_dir__/${top_dir}}\""
+    eval "${1}_dir=\"\$(convert_to_abs_path \"\${${1}_dir}\")\""
+}
+fix_path "concept"
+fix_path "freetype"
+fix_path "ncurses"
+fix_path "openssl"
+fix_path "python"
+fix_path "fftw"
+fix_path "gadget"
+fix_path "fftw_for_gadget"
+fix_path "gsl"
+fix_path "hdf5"
+fix_path "mpi"
 log="${log/__top_dir__/${top_dir}}"
 dotpaths="${dotpaths/__top_dir__/${top_dir}}"
+
+# If Python is preinstalled, assume that Freetype, OpenSSL and ncurses
+# are also installed.
+assume_preinstalled()
+{
+    # Arguments: Program name (lowercase)
+    eval "name_preinstalled=\"\${${1}_preinstalled}\""
+    if [ "${name_preinstalled}" == "no" ]; then
+        eval "${1}_preinstalled=\"yes\""
+        eval "${1}_dir=\"\""
+        eval "${1}_version=\"pre-installed\""
+    fi    
+}
+if [ "${python_preinstalled}" == "yes" ]; then
+    assume_preinstalled freetype
+    assume_preinstalled openssl
+    assume_preinstalled ncurses
+fi
 
 
 
@@ -256,8 +348,7 @@ set -e
 # Functions for controlling the current status
 set_status()
 {
-    status="${1}"
-    echo "${status_prefix}${status}"
+    echo "${status_prefix}${1}"
 }
 disable_status()
 {
@@ -290,169 +381,190 @@ validate_url()
 }
 
 # FreeType
-if [ "${freetype_version}" == "newest" ]; then
-    current_step="search for latest version of FreeType"
-    set_status "Searching for latest version of FreeType"
-    freetype_version=$(wget -q -O- --no-check-certificate "http://download.savannah.gnu.org/releases/freetype/" | grep -o "freetype-[0-9.]*tar" | sort -u | tail -n 1 | grep -o [0-9.]*)
-    freetype_version="${freetype_version%?}"
-    if [ -z "${freetype_version}" ]; then
-        error "Error: Could not identify the version number of the latest FreeType!"
-        exit 1
+if [ "${python_preinstalled}" == "no" ] && [ "${freetype_preinstalled}" == "no" ]; then
+    if [ "${freetype_version}" == "newest" ]; then
+        current_step="search for latest version of FreeType"
+        set_status "Searching for latest version of FreeType"
+        freetype_version="$(wget -q -O- --no-check-certificate "http://download.savannah.gnu.org/releases/freetype/" | grep -o "freetype-[0-9.]*tar" | sort -u | tail -n 1 | grep -o [0-9.]* || echo)"
+        freetype_version="${freetype_version%?}"
+        if [ -z "${freetype_version}" ]; then
+            error "Error: Could not identify the version number of the latest FreeType!"
+            exit 1
+        fi
     fi
+    freetype_url="http://download.savannah.gnu.org/releases/freetype/freetype-${freetype_version}.tar.gz"
+    validate_url "FreeType" "${freetype_url}"
 fi
-freetype_url="http://download.savannah.gnu.org/releases/freetype/freetype-${freetype_version}.tar.gz"
-validate_url "FreeType" "${freetype_url}"
-
-# OpenSSL
-if [ "${openssl_version}" == "newest" ]; then
-    current_step="search for latest version of OpenSSL"
-    set_status "Searching for latest version of OpenSSL"
-    openssl_version=$(wget -q -O- --no-check-certificate "https://www.openssl.org/source/" | grep -o -P "(?<=openssl-).*(?=LATEST)" || echo)
-    openssl_version="$(sed 's/.tar.gz.*//' <<< "${openssl_version}")"
-    if [ -z "${openssl_version}" ]; then
-        error "Error: Could not identify the version number of the latest OpenSSL!"
-        exit 1
-    fi
-fi
-openssl_url="ftp://ftp.openssl.org/source/openssl-${openssl_version}.tar.gz"
-validate_url "OpenSSL" "${openssl_url}"
 
 # ncurses
-if [ "${ncurses_version}" == "newest" ]; then
-    current_step="search for latest version of ncurses"
-    set_status "Searching for latest version of ncurses"
-    ncurses_version=$(wget -q -O- --no-check-certificate "http://ftp.gnu.org/pub/gnu/ncurses/" | grep -o "ncurses-[0-9.]*tar" | sort -u | tail -n 1 | grep -o [0-9.]*)
-    ncurses_version="${ncurses_version%?}"
-    if [ -z "${ncurses_version}" ]; then
-        error "Error: Could not identify the version number of the latest ncurses!"
-        exit 1
+if [ "${python_preinstalled}" == "no" ] && [ "${ncurses_preinstalled}" == "no" ]; then
+    if [ "${ncurses_version}" == "newest" ]; then
+        current_step="search for latest version of ncurses"
+        set_status "Searching for latest version of ncurses"
+        ncurses_version="$(wget -q -O- --no-check-certificate "http://ftp.gnu.org/pub/gnu/ncurses/" | grep -o "ncurses-[0-9.]*tar" | sort -u | tail -n 1 | grep -o [0-9.]* || echo)"
+        ncurses_version="${ncurses_version%?}"
+        if [ -z "${ncurses_version}" ]; then
+            error "Error: Could not identify the version number of the latest ncurses!"
+            exit 1
+        fi
     fi
+    ncurses_url="http://ftp.gnu.org/pub/gnu/ncurses/ncurses-${ncurses_version}.tar.gz"
+    validate_url "ncurses" "${ncurses_url}"
 fi
-ncurses_url="http://ftp.gnu.org/pub/gnu/ncurses/ncurses-${ncurses_version}.tar.gz"
-validate_url "ncurses" "${ncurses_url}"
+
+# OpenSSL
+if [ "${python_preinstalled}" == "no" ] && [ "${openssl_preinstalled}" == "no" ]; then
+    if [ "${openssl_version}" == "newest" ]; then
+        current_step="search for latest version of OpenSSL"
+        set_status "Searching for latest version of OpenSSL"
+        openssl_version="$(wget -q -O- --no-check-certificate "ftp://ftp.openssl.org/source/" | grep "openssl-[0-9].*.tar.gz" | tail -n 1 | grep -o -P "(?<=openssl-).*(?=.tar.gz)" | grep -o -P "(?=[0-9]).*(?=.tar.gz)" || echo)"
+        openssl_version="$(sed 's/.tar.gz.*//' <<< "${openssl_version}")"
+        if [ -z "${openssl_version}" ]; then
+            error "Error: Could not identify the version number of the latest OpenSSL!"
+            exit 1
+        fi
+    fi
+    openssl_url="ftp://ftp.openssl.org/source/openssl-${openssl_version}.tar.gz"
+    validate_url "OpenSSL" "${openssl_url}"
+fi
 
 # Python (note that python_version will be overwritten later!)
-if [ "${python_version}" == "newest" ]; then
-    current_step="search for latest version of Python"
-    set_status "Searching for latest version of Python"
-    python_version=$(wget -q -O- --no-check-certificate "https://www.python.org/downloads/" | grep -o -P "(?<=Python-).*(?=.tar.xz)" | head -1  || echo)
-    if [ -z "${python_version}" ]; then
-        error "Error: Could not identify the version number of the latest Python!"
-        exit 1
+if [ "${python_preinstalled}" == "no" ]; then
+    if [ "${python_version}" == "newest" ]; then
+        current_step="search for latest version of Python"
+        set_status "Searching for latest version of Python"
+        python_version="$(wget -q -O- --no-check-certificate "https://www.python.org/downloads/" | grep -o -P "(?<=Python-).*(?=.tar.xz)" | head -1  || echo)"
+        if [ -z "${python_version}" ]; then
+            error "Error: Could not identify the version number of the latest Python!"
+            exit 1
+        fi
     fi
+    python_url="https://www.python.org/ftp/python/${python_version}/Python-${python_version}.tar.xz"
+    validate_url "Python" "${python_url}"
 fi
-python_url="https://www.python.org/ftp/python/${python_version}/Python-${python_version}.tar.xz"
-validate_url "Python" "${python_url}"
 
 # GSL
-if [ "${gsl_version}" == "newest" ]; then
-    current_step="search for latest version of GSL"
-    set_status "Searching for latest version of GSL"
-    gsl_version=$(wget -q -O- --no-check-certificate "http://mirrors.dotsrc.org/gnu/gsl/" | grep -o -P "(?<=gsl-[0-9]).*(?=.tar.gz)" || echo)
-    gsl_version="${gsl_version##*gsl-}"
-    if [ -z "${gsl_version}" ]; then
-        error "Error: Could not identify the version number of the latest GSL!"
-        exit 1
+if [ "${gsl_preinstalled}" == "no" ]; then
+    if [ "${gsl_version}" == "newest" ]; then
+        current_step="search for latest version of GSL"
+        set_status "Searching for latest version of GSL"
+        gsl_version="$(wget -q -O- --no-check-certificate "ftp://ftp.gnu.org/gnu/gsl/" | grep "gsl-latest.tar.gz" | grep -o "gsl-[0-9.]*tar.gz" |  grep -o "[0-9][0-9.]*[0-9]" || echo)"
+        if [ -z "${gsl_version}" ]; then
+            error "Error: Could not identify the version number of the latest GSL!"
+            exit 1
+        fi
     fi
+    gsl_url="ftp://ftp.gnu.org/gnu/gsl/gsl-${gsl_version}.tar.gz"
+    validate_url GSL "${gsl_url}"
 fi
-gsl_url="http://mirrors.dotsrc.org/gnu/gsl/gsl-${gsl_version}.tar.gz"
-validate_url GSL "${gsl_url}"
 
 # MPICH
-if [ "${mpich_version}" == "newest" ]; then
-    current_step="search for latest version of MPICH"
-    set_status "Searching for latest version of MPICH"
-    mpich_version=$(wget -q -O- --no-check-certificate "http://www.mpich.org/downloads" | grep -m 1 -o -P "(?<=mpich-).*(?=stable)" | awk '{print $1}' || echo "")
-    if [ -z "${mpich_version}" ]; then
-        error "Error: Could not identify the version number of the latest MPICH!"
-        exit 1
+if [ "${mpi_preinstalled}" == "no" ]; then
+    if [ "${mpich_version}" == "newest" ]; then
+        current_step="search for latest version of MPICH"
+        set_status "Searching for latest version of MPICH"
+        mpich_version="$(wget -q -O- --no-check-certificate "http://www.mpich.org/downloads" | grep -m 1 -o -P "(?<=mpich-).*(?=stable)" | awk '{print $1}' || echo)"
+        if [ -z "${mpich_version}" ]; then
+            error "Error: Could not identify the version number of the latest MPICH!"
+            exit 1
+        fi
     fi
+    mpich_url="http://www.mpich.org/static/downloads/${mpich_version}/mpich-${mpich_version}.tar.gz"
+    validate_url "MPICH" "${mpich_url}"
 fi
-mpich_url="http://www.mpich.org/static/downloads/${mpich_version}/mpich-${mpich_version}.tar.gz"
-validate_url "MPICH" "${mpich_url}"
 
 # HDF5
-if [ "${hdf5_version}" == "newest" ]; then
-    current_step="search for latest version of HDF5"
-    set_status "Searching for latest version of HDF5"
-    hdf5_version=$(wget -q -O- --no-check-certificate "ftp://ftp.hdfgroup.org/HDF5/current/src/" | grep -m 1 -o -P "(?<=hdf5-).*(?=.tar.bz2\")" || echo "")
-    if [ -z "${hdf5_version}" ]; then
-        error "Error: Could not identify the version number of the latest HDF5!"
-        exit 1
+if [ "${hdf5_preinstalled}" == "no" ]; then
+    if [ "${hdf5_version}" == "newest" ]; then
+        current_step="search for latest version of HDF5"
+        set_status "Searching for latest version of HDF5"
+        hdf5_version="$(wget -q -O- --no-check-certificate "ftp://ftp.hdfgroup.org/HDF5/current/src/" | grep -m 1 -o -P "(?<=hdf5-).*(?=.tar.bz2\")" || echo)"
+        if [ -z "${hdf5_version}" ]; then
+            error "Error: Could not identify the version number of the latest HDF5!"
+            exit 1
+        fi
     fi
+    hdf5_url="ftp://ftp.hdfgroup.org/HDF5/current/src/hdf5-${hdf5_version}.tar.bz2"
+    validate_url "HDF5" "${hdf5_url}"
 fi
-hdf5_url="ftp://ftp.hdfgroup.org/HDF5/current/src/hdf5-${hdf5_version}.tar.bz2"
-validate_url "HDF5" "${hdf5_url}"
 
 # FFTW
-if [ "${fftw_version}" == "newest" ]; then
-    current_step="search for latest version of FFTW"
-    set_status "Searching for latest version of FFTW"
-    fftw_version=$(wget -q -O- --no-check-certificate "http://www.fftw.org/download.html" | grep -m 1 -o -P "(?<=fftw-).*(?=.tar.gz\")" || echo)
-    if [ -z "${fftw_version}" ]; then
-        error "Error: Could not identify the version number of the latest FFTW!"
-        exit 1
+if [ "${fftw_preinstalled}" == "no" ]; then
+    if [ "${fftw_version}" == "newest" ]; then
+        current_step="search for latest version of FFTW"
+        set_status "Searching for latest version of FFTW"
+        fftw_version="$(wget -q -O- --no-check-certificate "http://www.fftw.org/download.html" | grep -m 1 -o -P "(?<=fftw-).*(?=.tar.gz\")" || echo)"
+        if [ -z "${fftw_version}" ]; then
+            error "Error: Could not identify the version number of the latest FFTW!"
+            exit 1
+        fi
     fi
+    fftw_url="http://www.fftw.org/fftw-${fftw_version}.tar.gz"
+    validate_url "FFTW" "${fftw_url}"
 fi
-fftw_url="http://www.fftw.org/fftw-${fftw_version}.tar.gz"
-validate_url "FFTW" "${fftw_url}"
 
 # CONCEPT
-concept_repo_url="https://github.com/jmd-dk/concept"
-if [ "${concept_version}" == "newest" ]; then
-    current_step="search for latest version of ${esc_concept}"
-    set_status "Searching for latest version of ${esc_concept_double_backslashes}"
-    # The version of CONCEPT is set to the commit number
-    repo_text=$(wget -q -O- --no-check-certificate ${concept_repo_url})
-    line_nr=$(echo "${repo_text}" | grep -n "  commits" | awk '{print $1}')
-    line_nr=${line_nr::-1}
-    line_nr=$(expr ${line_nr} - 2)
-    commit_nr=$(echo "${repo_text}" | sed -n -e "${line_nr}p" | sed -e 's/^[[:space:]]*//')
-    concept_version="commit ${commit_nr}"
-else
-    error "Error: The installer does not know how to find a specific version of CONCEPT!"
-    exit 1
-fi
-concept_url="${concept_repo_url}/archive/master.tar.gz"
-validate_url "${esc_concept_double_backslashes}" "${concept_url}"
-
-# FFTW for Gadget
-if [ "${fftw_for_gadget_version}" == "newest" ]; then
-    current_step="search for latest version of FFTW for GADGET"
-    set_status "Searching for latest version of FFTW for GADGET"
-    fftw_for_gadget_version=$(wget -q -O- --no-check-certificate "http://www.fftw.org/download.html" | grep -m 1 -o -P "(?<=fftw-).*(?=.tar.gz\")" || echo)
-    if [ -z "${fftw_for_gadget_version}" ]; then
-        error "Error: Could not identify the version number of the latest FFTW"
+if [ "${concept_preinstalled}" == "no" ]; then
+    concept_repo_url="https://github.com/jmd-dk/concept"
+    if [ "${concept_version}" == "newest" ]; then
+        current_step="search for latest version of ${esc_concept}"
+        set_status "Searching for latest version of ${esc_concept_double_backslashes}"
+        # The version of CONCEPT is set to the commit number
+        repo_text=$(wget -q -O- --no-check-certificate ${concept_repo_url})
+        line_nr=$(echo "${repo_text}" | grep -n "  commits" | awk '{print $1}')
+        line_nr="${line_nr:0:${#line_nr}-1}"
+        line_nr=$(expr ${line_nr} - 2)
+        commit_nr=$(echo "${repo_text}" | sed -n -e "${line_nr}p" | sed -e 's/^[[:space:]]*//')
+        concept_version="commit ${commit_nr}"
+    else
+        error "Error: The installer does not know how to find a specific version of CONCEPT!"
         exit 1
     fi
+    concept_url="${concept_repo_url}/archive/master.tar.gz"
+    validate_url "${esc_concept_double_backslashes}" "${concept_url}"
 fi
-fftw_for_gadget_url="http://www.fftw.org/fftw-${fftw_for_gadget_version}.tar.gz"
-validate_url "FFTW for GADGET" "${fftw_for_gadget_url}"
+
+# FFTW for Gadget
+if [ "${fftw_for_gadget_preinstalled}" == "no" ]; then
+    if [ "${fftw_for_gadget_version}" == "newest" ]; then
+        current_step="search for latest version of FFTW for GADGET"
+        set_status "Searching for latest version of FFTW for GADGET"
+        fftw_for_gadget_version="$(wget -q -O- --no-check-certificate "http://www.fftw.org/download.html" | grep -m 1 -o -P "(?<=fftw-).*(?=.tar.gz\")" || echo)"
+        if [ -z "${fftw_for_gadget_version}" ]; then
+            error "Error: Could not identify the version number of the latest FFTW"
+            exit 1
+        fi
+    fi
+    fftw_for_gadget_url="http://www.fftw.org/fftw-${fftw_for_gadget_version}.tar.gz"
+    validate_url "FFTW for GADGET" "${fftw_for_gadget_url}"
+fi
 
 # GADGET2
-if [ "${gadget_version}" == "newest" ]; then
-    error "Error: The installer does not know how to search for the newest version of GADGET!"
-    exit 1
+if [ "${gadget_preinstalled}" == "no" ]; then
+    if [ "${gadget_version}" == "newest" ]; then
+        error "Error: The installer does not know how to search for the newest version of GADGET!"
+        exit 1
+    fi
+    gadget_url="http://www.mpa-garching.mpg.de/gadget/gadget-${gadget_version}.tar.gz"
+    validate_url GADGET "${gadget_url}"
 fi
-gadget_url="http://www.mpa-garching.mpg.de/gadget/gadget-${gadget_version}.tar.gz"
-validate_url GADGET "${gadget_url}"
 
 # Write out installation overview
 disable_status
 heading "Installation overview"
 printf "The following software will be installed\n"
-printf "${esc_bold}Name{}${en_quad}${en_quad}${en_quad}Version{}${en_quad}${en_quad}${en_quad}Installation path${esc_normal}
-CONCEPT{}${concept_version}{}${concept_dir}
-├─Python{}${python_version}{}${python_dir}
-│ ├─OpenSSL{}${openssl_version}{}${openssl_dir}
-│ ├─FreeType{}${freetype_version}{}${freetype_dir}
-│ └─ncurses{}${ncurses_version}{}${ncurses_dir}
-├─GSL{}${gsl_version}{}${gsl_dir}
-├─MPICH{}${mpich_version}{}${mpi_dir}
-├─HDF5{}${hdf5_version}{}${hdf5_dir}
-├─FFTW{}${fftw_version}{}${fftw_dir}
-└─GADGET{}${gadget_version}{}${gadget_dir}
-${en_quad}${en_quad}└─FFTW{}${fftw_for_gadget_version}{}${fftw_for_gadget_dir}\n" | column -n -t -s {}
+printf "${esc_bold}Name{}$(printf ${en_quad}%.s {1..3})Version{}$(printf ${en_quad}%.s {1..3})Installation path${esc_normal}
+${esc_concept}{}$(printf ${en_quad}%.s {1..7})${concept_version}{}$(printf ${en_quad}%.s {1..7})\"${concept_dir}\"
+├─Python{}${python_version}{}\"${python_dir}\"
+│ ├─FreeType{}${freetype_version}{}\"${freetype_dir}\"
+│ ├─ncurses{}${ncurses_version}{}\"${ncurses_dir}\"
+│ └─OpenSSL{}${openssl_version}{}\"${openssl_dir}\"
+├─GSL{}${gsl_version}{}\"${gsl_dir}\"
+├─MPICH{}${mpich_version}{}\"${mpi_dir}\"
+├─HDF5{}${hdf5_version}{}\"${hdf5_dir}\"
+├─FFTW{}${fftw_version}{}\"${fftw_dir}\"
+└─GADGET{}${gadget_version}{}\"${gadget_dir}\"
+${en_quad}${en_quad}└─FFTW{}${fftw_for_gadget_version}{}\"${fftw_for_gadget_dir}\"\n" | column -t -s {}
 sleep 10
 enable_status
 
@@ -461,167 +573,161 @@ enable_status
 ###################################
 # Installing CONCEPT dependencies #
 ###################################
-# FreeType (needed by matplotlib)
-current_step="installation of FreeType"
-heading "Installing FreeType"
-set_status "Installing FreeType"
-mkdir tmp
-cd tmp
-disable_status
-wget -c -O freetype.tar.gz --no-check-certificate "${freetype_url}"
-enable_status
-tar xfz freetype.tar.gz
-cd freetype*
-./configure --prefix="${freetype_dir}"
-make
-make install
-cd "${top_dir}"
-rm -rf tmp
+# Function for downloading and extracting compressed archives.
+# The "programname_url" must point to an archive which contains
+# a single directory.
+download_and_extract()
+{
+    # Arguments: Program name
+    current_step="installation of ${1/CONCEPT/$esc_concept}"
+    heading "Installing ${1/CONCEPT/$esc_concept}"
+    set_status "Installing ${1/CONCEPT/$esc_concept_double_backslashes}"
+    progname="${1// /_}"
+    eval "url=\"\${${progname,,}_url}\""
+    # Get extraction options
+    declare -A extensions_options
+    extensions_options=(["tar.gz"]="z" ["tar.bz2"]="j" ["tar.xz"]="J")
+    for ext in "${!extensions_options[@]}"; do
+        if [[ "${url}" == *${ext} ]]; then
+            local tar_options="-ix${extensions_options[$ext]}vf"
+            break
+        fi
+    done
+    if [ -z "${tar_options}" ]; then
+        error "Compression format of file ${url} not understood!"
+        exit 1
+    fi
+    # Download
+    mkdir -p "${top_dir}/tmp"
+    cd "${top_dir}/tmp"
+    archive_name="${progname,,}.${ext}"
+    disable_status
+    for n in {1..50}; do
+        wget_status="success"
+        wget -c -O "${archive_name}" --no-check-certificate "${url}" || wget_status="error"
+        if [ "${wget_status}" == "success" ]; then
+            break
+        fi
+    done
+    enable_status
+    if [ "${wget_status}" == "error" ]; then
+        error "Error downloading \"${url}\""
+        exit 1
+    fi
+    # Extract
+    tar "${tar_options}" "${archive_name}"
+    cd *
+}
 
-# OpenSSL (needed by pip)
-current_step="installation of OpenSSL"
-heading "Installing OpenSSL"
-set_status "Installing OpenSSL"
-mkdir tmp
-cd tmp
-disable_status
-wget -c -O openssl.tar.gz --no-check-certificate "${openssl_url}"
-enable_status
-tar xfz openssl.tar.gz
-cd openssl*
-./config shared --prefix="${python_dir}" --openssldir="${openssl_dir}"
-make
-make install
-cd "${top_dir}"
-rm -rf tmp
+# FreeType
+if [ "${python_preinstalled}" == "no" ] && [ "${freetype_preinstalled}" == "no" ]; then
+    download_and_extract "FreeType"
+    ./configure --prefix="${freetype_dir}"
+    make
+    make install
+    (cd docs; cp FTL.TXT GPLv2.TXT LICENSE.TXT "${freetype_dir}/include/freetype"*)
+    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+fi
 
-# ncurses (needed by _curses, which is needed by blessings)
-current_step="installation of ncurses"
-heading "Installing ncurses"
-set_status "Installing ncurses"
-mkdir tmp
-cd tmp
-disable_status
-wget -c -O ncurses.tar.gz --no-check-certificate "${ncurses_url}"
-enable_status
-tar xfz ncurses.tar.gz
-cd ncurses*
-./configure --with-shared --prefix="${ncurses_dir}"
-make
-make install
-cd "${top_dir}"
-rm -rf tmp
+# ncurses
+if [ "${python_preinstalled}" == "no" ] && [ "${ncurses_preinstalled}" == "no" ]; then
+    download_and_extract "ncurses"
+    ./configure --with-shared --prefix="${ncurses_dir}"
+    make
+    make install
+    cp AUTHORS COPYING "${ncurses_dir}/include/ncurses"
+    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+fi
+
+# OpenSSL
+if [ "${python_preinstalled}" == "no" ] && [ "${openssl_preinstalled}" == "no" ]; then
+    download_and_extract "OpenSSL"
+    ./config shared --prefix="${python_dir}" --openssldir="${openssl_dir}"
+    make
+    make install
+    cp LICENSE README "${openssl_dir}"
+    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+fi
 
 # Python
-current_step="installation of Python"
-heading "Installing Python"
-set_status "Installing Python"
-mkdir tmp
-cd tmp
-disable_status
-wget -c -O python.tar.xz --no-check-certificate "${python_url}"
-enable_status
-tar -xJf python.tar.xz
-cd Python*
-export LDFLAGS="-L${python_dir}/lib -Wl,-rpath ${python_dir}/lib ${LDFLAGS}"
-export LD_LIBRARY_PATH="${python_dir}/lib:${LD_LIBRARY_PATH}"
-export CPPFLAGS="-I${python_dir}/include -I${openssl_dir}/include/openssl -I${ncurses_dir}/include/ncurses ${CPPFLAGS}"
-./configure --enable-shared --prefix="${python_dir}" --with-ensurepip=install
-make
-make install
-export LDFLAGS="${LDFLAGS_backup}"
-export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
-export CPPFLAGS="${CPPFLAGS_backup}"
-cp LICENSE README "${python_dir}/"
-cd "${top_dir}"
-rm -rf tmp
+if [ "${python_preinstalled}" == "no" ]; then
+    download_and_extract "Python"
+    export LDFLAGS="-L${python_dir}/lib -Wl,-rpath ${python_dir}/lib ${LDFLAGS}"
+    export LD_LIBRARY_PATH="${python_dir}/lib:${LD_LIBRARY_PATH}"
+    export CPPFLAGS="-I${python_dir}/include -I${openssl_dir}/include/openssl -I${ncurses_dir}/include/ncurses ${CPPFLAGS}"
+    ./configure --enable-shared --prefix="${python_dir}" --with-ensurepip=install
+    make
+    make install
+    export LDFLAGS="${LDFLAGS_backup}"
+    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
+    export CPPFLAGS="${CPPFLAGS_backup}"
+    cp LICENSE README "${python_dir}"
+    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+fi
 # Overwrite the 'python_version' variable with the major.minor version and
 # create a python variable, storing the path to the newly installed Python interpreter
 python_version=$("${python_dir}/bin/python3" -c "from sys import version_info as v; print(str(v.major) + '.' + str(v.minor))")
 python="${python_dir}/bin/python${python_version}"
-# Update Python packages preinstalled with Python itself, utilizing yolk
+# Update Python packages pre-installed with (a fresh install of)
+# Python itself, utilizing yolk
 current_step="update of Python"
 disable_status
 "${python}" -m pip install --no-cache-dir --upgrade pip
-"${python}" -m pip install --no-cache-dir yolk3k
-"${python}" -m pip install --no-cache-dir --upgrade $("${python}" -m yolk -U | awk '{print $1}' | uniq)
+yolk_preinstalled="yes"
+if [ -z "$(${python} -m pip show yolk3k)" ]; then
+    yolk_preinstalled="no"
+    "${python}" -m pip install --no-cache-dir yolk3k
+fi
+if [ "${python_preinstalled}" == "no" ]; then
+    packages_to_upgrade=$("${python}" -m yolk -U | awk '{print $1}' | uniq)
+    if [ -n "${packages_to_upgrade}" ]; then
+        "${python}" -m pip install --no-cache-dir --upgrade "${packages_to_upgrade}"
+    fi
+fi
 enable_status
 
 # GSL
-current_step="installation of GSL"
-heading "Installing GSL"
-set_status "Installing GSL"
-mkdir "${gsl_dir}"
-mkdir tmp
-cd tmp
-disable_status
-wget -c -O gsl.tar.gz --no-check-certificate "${gsl_url}"
-enable_status
-tar xfz gsl.tar.gz
-cd gsl*
-./configure --prefix="${gsl_dir}"
-make
-make install
-cp COPYING README "${gsl_dir}"
-cd "${top_dir}"
-rm -rf tmp
+if [ "${gsl_preinstalled}" == "no" ]; then
+    download_and_extract "GSL"
+    ./configure --prefix="${gsl_dir}"
+    make
+    make install
+    cp COPYING README "${gsl_dir}"
+    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+fi
 
 # MPICH
-current_step="installation of MPICH"
-heading "Installing MPICH"
-set_status "Installing MPICH"
-mkdir "${mpi_dir}"
-mkdir tmp
-cd tmp
-disable_status
-wget -c -O mpich.tar.gz --no-check-certificate "${mpich_url}"
-enable_status
-tar xfz mpich.tar.gz
-cd mpich*
-./configure --enable-shared --disable-fortran --prefix="${mpi_dir}"
-make
-make install
-cp COPYRIGHT "${mpi_dir}"
-cd "${top_dir}"
-rm -rf tmp
+if [ "${mpi_preinstalled}" == "no" ]; then
+    #mkdir "${mpi_dir}"
+    download_and_extract "MPICH"
+    ./configure --enable-shared --disable-fortran --prefix="${mpi_dir}"
+    make
+    make install
+    cp COPYRIGHT "${mpi_dir}"
+    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+fi
 
 # HDF5
-current_step="installation of HDF5"
-heading "Installing HDF5"
-set_status "Installing HDF5"
-mkdir tmp
-cd tmp
-disable_status
-wget -c -O hdf5.tar.bz2 --no-check-certificate "${hdf5_url}"
-enable_status
-tar xjf hdf5.tar.bz2
-cd hdf5*
-CC="${mpi_dir}/bin/mpicc" LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}" ./configure --enable-shared --enable-parallel --prefix="${hdf5_dir}"
-make
-make install
-cp COPYING README.txt "${hdf5_dir}"
-cd "${top_dir}"
-rm -rf tmp
+if [ "${hdf5_preinstalled}" == "no" ]; then
+    download_and_extract "HDF5"
+    CC="${mpi_dir}/bin/mpicc" LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}" ./configure --enable-shared --enable-parallel --prefix="${hdf5_dir}"
+    make
+    make install
+    cp COPYING README.txt "${hdf5_dir}"
+    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+fi
 
 # FFTW
-current_step="installation of FFTW"
-heading "Installing FFTW"
-set_status "Installing FFTW"
-mkdir tmp
-cd tmp
-disable_status
-wget -c -O fftw.tar.gz "${fftw_url}"
-enable_status
-tar xfz fftw.tar.gz
-cd fftw*
-# Double-precision
-CC="${mpi_dir}/bin/mpicc" MPICC="${mpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I/${mpi_dir}/include" LDFLAGS="-L${mpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --prefix="${fftw_dir}"
-make
-make install
-# Single-precision goes here ..........................
-cp COPYING README "${fftw_dir}"
-cd "${top_dir}"
-rm -rf tmp
+if [ "${fftw_preinstalled}" == "no" ]; then
+    download_and_extract "FFTW"
+    # Double-precision
+    CC="${mpi_dir}/bin/mpicc" MPICC="${mpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I/${mpi_dir}/include" LDFLAGS="-L${mpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --prefix="${fftw_dir}"
+    make
+    make install
+    # Single-precision goes here ..........................
+    cp COPYING README "${fftw_dir}"
+    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+fi
 
 
 
@@ -632,110 +738,83 @@ rm -rf tmp
 # Function for finding the newest version of Python packages, utilizing yolk.
 yolk_version()
 {
-    # Arguments: Python package name, variable to be set to version number
+    # Arguments: Python package name
     current_step="search for latest version of ${1} in PyPI"
     set_status "Searching for latest version of ${1} in PyPI"
     pip_name="${1//_/}"  # Remove underscores from name
-    local version=$("${python}" -m yolk -V "${pip_name}" | head -n 1 | awk '{print $NF}')
-    local pythonpackage_version_var=$2
-    eval $pythonpackage_version_var="'$version'"
+    pypackage_version=$("${python}" -m yolk -V "${pip_name}" | head -n 1 | awk '{print $NF}')
+    eval "${1,,}_version=\"${pypackage_version}\""
 }
 
 # Function for validating that specific versions of
 # Python packages are available on PyPI.
 pip_validate_version()
 {
-    # Arguments: Python package name, version
-    current_step="search for ${1} version ${2} in PyPI"
-    set_status "Searching for ${1} version ${2} in PyPI"
+    # Arguments: Python package name
+    eval "pypackage_version=\"\${${1,,}_version}\""
+    current_step="search for ${1} version ${pypackage_version} in PyPI"
+    set_status "Searching for ${1} version ${pypackage_version} in PyPI"
     pip_name="${1//_/}"  # Remove underscores from name
     pip_versions=$(${python} -m pip install ${pip_name}==versionsplease 2>&1 || :)
     pip_versions="${pip_versions// /$'\n'}"
     pip_versions=$(echo "${pip_versions}" | sed 's/.$//')
-    version_exists=$(echo "${pip_versions}" | grep -x "${2}" || :)
+    version_exists=$(echo "${pip_versions}" | grep -x "${pypackage_version}" || :)
     if [ -z "${version_exists}" ]; then
-        error "Error: Could not find version ${2} of ${1} in PyPI!"
+        echo "Error: Could not find version ${pypackage_version} of ${1} in PyPI!"
         exit 1
     fi
 }
 
-# Blessings
-if [ "${blessings_version}" == "newest" ]; then
-    yolk_version "Blessings" blessings_version
-else
-    pip_validate_version "Blessings" "${blessings_version}"
-fi
+# Function that finds the newest Python package versions or check if the
+# requested version exists, by calling "yolk_version" and
+# "pip_validate_version". It also sets the "pythonpackage_preinstalled",
+# "pypackage_dir" and "pypackage_version" variables.
+python_check_package()
+{
+    # Arguments: Python package name, default install directory
+    pip_name="${1//_/}"  # Remove underscores from name
+    eval "${1,,}_preinstalled=\"yes\""
+    eval "[ -n \"\$(${python} -m pip show \"${pip_name}\")\" ] || ${1,,}_preinstalled=\"no\""
+    eval "pypackage_preinstalled=\"\${${1,,}_preinstalled}\""
+    eval "pypackage_version=\"\${${1,,}_version}\""
+    if [ "${pypackage_preinstalled}" == "no" ]; then
+        eval "${1,,}_dir=\"${2}\""
+        if [ "${pypackage_version}" == "newest" ]; then
+            yolk_version "${1}"
+        else
+            pip_validate_version "${1}"
+        fi
+    else
+        eval "${1,,}_dir=\"\$(${python} -m pip show ${pip_name} | grep 'Location: ' | awk '{sub(\$1 FS,\"\" );print}')\""
+        eval "${1,,}_version=\"pre-installed\""
+    fi
+}
 
-# Cython
-if [ "${cython_version}" == "newest" ]; then
-    yolk_version "Cython" cython_version
-else
-    pip_validate_version "Cython" "${cython_version}"
-fi
-
-# Cython_GSL
-if [ "${cython_gsl_version}" == "newest" ]; then
-    yolk_version "Cython_GSL" cython_gsl_version
-else
-    pip_validate_version "Cython_GSL" "${cython_gsl_version}"
-fi
-
-# NumPy
-if [ "${numpy_version}" == "newest" ]; then
-    yolk_version "NumPy" numpy_version
-else
-    pip_validate_version "NumPy" "${numpy_version}"
-fi
-
-# Matplotlib
-if [ "${matplotlib_version}" == "newest" ]; then
-    yolk_version "Matplotlib" matplotlib_version
-else
-    pip_validate_version "Matplotlib" "${matplotlib_version}"
-fi
-
-# MPI4Py
-if [ "${mpi4py_version}" == "newest" ]; then
-    yolk_version "MPI4Py" mpi4py_version
-else
-    pip_validate_version "MPI4Py" "${mpi4py_version}"
-fi
-
-# Pexpect
-if [ "${pexpect_version}" == "newest" ]; then
-    yolk_version "Pexpect" pexpect_version
-else
-    pip_validate_version "Pexpect" "${pexpect_version}"
-fi
-
-# Pillow
-if [ "${pillow_version}" == "newest" ]; then
-    yolk_version "Pillow" pillow_version
-else
-    pip_validate_version "Pillow" "${pillow_version}"
-fi      
-
-# H5Py 
-if [ "${h5py_version}" == "newest" ]; then
-    yolk_version "H5Py" h5py_version
-else
-    pip_validate_version "H5Py" "${h5py_version}"
-fi
+# Check that specified Python package informations are correct and gather new
+python_check_package "Blessings"  "${python_dir}/lib/python${python_version}/site-packages/blessings"
+python_check_package "Cython"     "${python_dir}/lib/python${python_version}/site-packages/Cython"
+python_check_package "Cython_GSL" "${python_dir}/lib/python${python_version}/site-packages/cython_gsl"
+python_check_package "NumPy"      "${python_dir}/lib/python${python_version}/site-packages/numpy"
+python_check_package "Matplotlib" "${python_dir}/lib/python${python_version}/site-packages/matplotlib"
+python_check_package "MPI4Py"     "${python_dir}/lib/python${python_version}/site-packages/mpi4py"
+python_check_package "Pexpect"    "${python_dir}/lib/python${python_version}/site-packages/pexpect"
+python_check_package "Pillow"     "${python_dir}/lib/python${python_version}/site-packages/PIL"
+python_check_package "H5Py"       "${python_dir}/lib/python${python_version}/site-packages/h5py-${h5py_version}-py${python_version}-$(uname -s | awk '{print tolower($0)}')-$(uname -m).egg/h5py"
 
 # Print out Python package installation overview
 disable_status
 heading "Python packages overview"
 printf "The following Python packages will be installed\n"
-printf "${esc_bold}Name{}${en_quad}${en_quad}${en_quad}Version{}${en_quad}${en_quad}${en_quad}Installation path${esc_normal}
-┌─Blessings{}${blessings_version}{}${python_dir}/lib/python${python_version}/site-packages/blessings
-├─Cython{}${cython_version}{}${python_dir}/lib/python${python_version}/site-packages/Cython
-├─Cython_GSL{}${cython_gsl_version}{}${python_dir}/lib/python${python_version}/site-packages/cython_gsl
-├─H5Py{}${h5py_version}{}${python_dir}/lib/python${python_version}/site-packages/h5py-${h5py_version}-py${python_version}-$(uname -s | awk '{print tolower($0)}')-$(uname -m).egg/h5py
-├─Matplotlib{}${matplotlib_version}{}${python_dir}/lib/python${python_version}/site-packages/matplotlib
-├─MPI4Py{}${mpi4py_version}{}${python_dir}/lib/python${python_version}/site-packages/mpi4py
-├─NumPy{}${numpy_version}{}${python_dir}/lib/python${python_version}/site-packages/numpy
-├─Pexpect{}${pexpect_version}{}${python_dir}/lib/python${python_version}/site-packages/pexpect
-└─Pillow{}${pillow_version}{}${python_dir}/lib/python${python_version}/site-packages/PIL\n" | column -t -s {}
+printf "${esc_bold}Name{}$(printf ${en_quad}%.s {1..3})Version{}$(printf ${en_quad}%.s {1..3})Installation path${esc_normal}
+┌─Blessings{}${blessings_version}{}${blessings_dir}
+├─Cython{}${cython_version}{}${cython_dir}
+├─Cython_GSL{}${cython_gsl_version}{}${cython_gsl_dir}
+├─H5Py{}${h5py_version}{}${h5py_dir}
+├─Matplotlib{}${matplotlib_version}{}${matplotlib_dir}
+├─MPI4Py{}${mpi4py_version}{}${mpi4py_dir}
+├─NumPy{}${numpy_version}{}${numpy_dir}
+├─Pexpect{}${pexpect_version}{}${pexpect_dir}
+└─Pillow{}${pillow_version}{}${pillow_dir}\n" | column -t -s {}
 sleep 10
 enable_status
 
@@ -755,62 +834,79 @@ pip_install()
 }
 
 # Blessings
-pip_install "Blessings" "${blessings_version}"
+if [ "${blessings_preinstalled}" == "no" ]; then
+    pip_install "Blessings" "${blessings_version}"
+fi
 
 # Cython
-pip_install "Cython" "${cython_version}"
+if [ "${cython_preinstalled}" == "no" ]; then
+    pip_install "Cython" "${cython_version}"
+fi
 
 # The Cython_GSL Python package
-export LD_LIBRARY_PATH="${gsl_dir}/lib:${LD_LIBRARY_PATH}"
-pip_install "Cython_GSL" "${cython_gsl_version}"
-export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
+if [ "${cython_gsl_preinstalled}" == "no" ]; then
+    export LD_LIBRARY_PATH="${gsl_dir}/lib:${LD_LIBRARY_PATH}"
+    pip_install "Cython_GSL" "${cython_gsl_version}"
+    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
+fi
 
 # NumPy
-pip_install "NumPy" "${numpy_version}"
+if [ "${numpy_preinstalled}" == "no" ]; then
+    pip_install "NumPy" "${numpy_version}"
+fi
 
 # Matplotlib
-export LDFLAGS="-L${python_dir}/lib -Wl,-rpath ${python_dir}/lib ${LDFLAGS}"
-export LD_LIBRARY_PATH="${python_dir}/lib:${LD_LIBRARY_PATH}"
-export PATH="${python_dir}/bin:${python_dir}/lib:${python_dir}/include:${python_dir}/include/freetype2:${PATH}"
-pip_install "Matplotlib" "${matplotlib_version}"
-export LDFLAGS="${LDFLAGS_backup}"
-export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
-export PATH="${PATH_backup}"
+if [ "${matplotlib_preinstalled}" == "no" ]; then
+    export LDFLAGS="-L${python_dir}/lib -Wl,-rpath ${python_dir}/lib ${LDFLAGS}"
+    export LD_LIBRARY_PATH="${python_dir}/lib:${LD_LIBRARY_PATH}"
+    export PATH="${python_dir}/bin:${python_dir}/lib:${python_dir}/include:${python_dir}/include/freetype2:${PATH}"
+    pip_install "Matplotlib" "${matplotlib_version}"
+    export LDFLAGS="${LDFLAGS_backup}"
+    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
+    export PATH="${PATH_backup}"
+fi
 
 # MPI4Py
-MPI_DIR_backup="${MPI_DIR}"
-export MPI_DIR="${mpi_dir}"
-export PATH="${mpi_dir}/bin:${PATH}"
-export LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}"
-export DYLD_LIBRARY_PATH="${mpi_dir}/lib:${DYLD_LIBRARY_PATH}"
-pip_install "MPI4Py" "${mpi4py_version}"
-export MPI_DIR="${MPI_DIR_backup}"
-export PATH="${PATH_backup}"
-export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
-export DYLD_LIBRARY_PATH="${DYLD_LIBRARY_PATH_backup}"
+if [ "${mpi4py_preinstalled}" == "no" ]; then
+    MPI_DIR_backup="${MPI_DIR}"
+    export MPI_DIR="${mpi_dir}"
+    export PATH="${mpi_dir}/bin:${PATH}"
+    export LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}"
+    export DYLD_LIBRARY_PATH="${mpi_dir}/lib:${DYLD_LIBRARY_PATH}"
+    pip_install "MPI4Py" "${mpi4py_version}"
+    export MPI_DIR="${MPI_DIR_backup}"
+    export PATH="${PATH_backup}"
+    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
+    export DYLD_LIBRARY_PATH="${DYLD_LIBRARY_PATH_backup}"
+fi
 
 # Pexpect (for some reason, this has to be before H5Py)
-pip_install "Pexpect" "${pexpect_version}"
+if [ "${pexpect_preinstalled}" == "no" ]; then
+    pip_install "Pexpect" "${pexpect_version}"
+fi
 
 # Pillow
-pip_install "Pillow" "${pillow_version}"
+if [ "${pillow_preinstalled}" == "no" ]; then
+    pip_install "Pillow" "${pillow_version}"
+fi
 
 # H5Py (manual invocation of setup.py needed as --mpi needs to be supplied)
-current_step="installation of H5Py"
-heading "Installing H5Py"
-set_status "Installing H5Py"
-mkdir "${top_dir}/tmp"
-"${python}" -m pip install -v -v -v --no-cache-dir --no-binary=:all: --download "${top_dir}/tmp" "h5py==${h5py_version}"
-cd "${top_dir}/tmp"
-tar xfz h5py*.gz
-cd h5py*
-export CC="${mpi_dir}/bin/mpicc"
-"${python}" setup.py configure --mpi --hdf5="${hdf5_dir}"
-"${python}" setup.py build
-"${python}" setup.py install
-export CC="${CC_backup}"
-cd "${top_dir}"
-rm -rf "${top_dir}/tmp"
+if [ "${h5py_preinstalled}" == "no" ]; then
+    current_step="installation of H5Py"
+    heading "Installing H5Py"
+    set_status "Installing H5Py"
+    mkdir "${top_dir}/tmp"
+    "${python}" -m pip install -v -v -v --no-cache-dir --no-binary=:all: --download "${top_dir}/tmp" "h5py==${h5py_version}"
+    cd "${top_dir}/tmp"
+    tar xfz h5py*.gz
+    cd h5py*
+    export CC="${mpi_dir}/bin/mpicc"
+    "${python}" setup.py configure --mpi --hdf5="${hdf5_dir}"
+    "${python}" setup.py build
+    "${python}" setup.py install
+    export CC="${CC_backup}"
+    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+fi
 
 
 
@@ -818,22 +914,17 @@ rm -rf "${top_dir}/tmp"
 # The CONCEPT code itself #
 ###########################
 # The CONCEPT code
-current_step="installation of ${esc_concept}"
-printf "\n${esc_bold}${esc_yellow}Installing ${esc_concept}${esc_normal}\n"
-set_status 'Installing CONCEPT'
-disable_status
-wget -c -O concept.tar.gz --no-check-certificate "${concept_url}"
-enable_status
-tar xfz concept.tar.gz
-rm concept.tar.gz
-mv concept-master/* "${top_dir}"  # Note: This leaves the .paths file behind in the concept-master folder
-rm -r concept-master
-# Create empty logs and output directories
-mkdir -p "${concept_dir}/logs"
-mkdir -p "${concept_dir}/output"
+if [ "${concept_preinstalled}" == "no" ]; then
+    download_and_extract "CONCEPT"
+    mv ./* "${top_dir}"  # This leaves the .paths file behind in the concept-master folder
+    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+    # Create empty logs and output directories
+    mkdir -p "${concept_dir}/logs"
+    mkdir -p "${concept_dir}/output"
+fi
 
 # Create the .paths file, storing important paths used by the program
-current_step="creataion of the .paths file"
+current_step="creation of the .paths file"
 heading "Writing paths to .paths"
 set_status "Writing paths to .paths"
 Gadget2_dir="${gadget_dir}/Gadget2"
@@ -892,58 +983,110 @@ run='${run}'
 
 
 
-######################################################
-# Install GADGET2, used for testing the CONCEPT code #
-######################################################
-# FFTW 2.1.5 (GADGET2 is incompatible with FFTW 3.x)
-current_step="installation of FFTW2 used by GADGET"
-heading "Installing FFTW2 used by GADGET"
-set_status "Installing FFTW2 used by GADGET"
-mkdir tmp
-cd tmp
-disable_status
-wget -c -O fftw.tar.gz "${fftw_for_gadget_url}"
-enable_status
-tar xfz fftw.tar.gz
-cd fftw*
-# Double-precision
-CC="${mpi_dir}/bin/mpicc" MPICC="${mpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I${mpi_dir}/include" LDFLAGS="-L${mpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --enable-type-prefix --prefix="${fftw_for_gadget_dir}"
-make
-make install
-# Single-precision
-make clean
-CC="${mpi_dir}/bin/mpicc" MPICC="${mpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I${mpi_dir}/include" LDFLAGS="-L${mpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --enable-float --enable-type-prefix --prefix="${fftw_for_gadget_dir}"
-make
-make install
-cp COPYING README "${fftw_for_gadget_dir}"
-cd "${top_dir}"
-rm -rf tmp
+#####################################################
+# Install GADGET, used for testing the CONCEPT code #
+#####################################################
+if [ "${fftw_for_gadget_preinstalled}" == "no" ]; then
+    # FFTW 2.1.5 (GADGET2 is incompatible with FFTW 3.x)
+    download_and_extract "FFTW for GADGET"
+    # Double-precision
+    CC="${mpi_dir}/bin/mpicc" MPICC="${mpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I${mpi_dir}/include" LDFLAGS="-L${mpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --enable-type-prefix --prefix="${fftw_for_gadget_dir}"
+    make
+    make install
+    # Single-precision
+    make clean
+    CC="${mpi_dir}/bin/mpicc" MPICC="${mpi_dir}/bin/mpicc" CFLAGS="-O3 -fPIC" CPPFLAGS="-I${mpi_dir}/include" LDFLAGS="-L${mpi_dir}/lib" MPILIBS=-lmpi ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --enable-float --enable-type-prefix --prefix="${fftw_for_gadget_dir}"
+    make
+    make install
+    cp COPYING README "${fftw_for_gadget_dir}"
+    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+fi
 
-# GADGET2
-current_step="installation of GADGET"
-heading "Installing GADGET"
-set_status "Installing GADGET"
-mkdir tmp
-cd tmp
-disable_status
-wget -c -O gadget2.tar.gz "${gadget_url}"
-enable_status
-tar xfz gadget2.tar.gz
-mv Gadget*/* "${gadget_dir}"
-cd "${top_dir}"
-rm -rf tmp
+# GADGET
+if [ "${gadget_preinstalled}" == "no" ]; then
+    download_and_extract "GADGET"
+    mkdir -p "${gadget_dir}"
+    mv ./* "${gadget_dir}"
+    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+fi
 
 # Copyright notice
+if [ ${fftw_for_gadget_preinstalled} == "no" ]; then
+    fftw_for_gadget_copyright_notice="FFTW 2"
+fi
+if [ ${fftw_preinstalled} == "no" ]; then
+    fftw_copyright_notice="FFTW 3"
+fi
+if [ ${gadget_preinstalled} == "no" ]; then
+    gadget_copyright_notice="GADGET,"
+fi
+if [ ${gsl_preinstalled} == "no" ]; then
+    gsl_copyright_notice="GSL"
+fi
+if [ ${hdf5_preinstalled} == "no" ]; then
+    hdf5_copyright_notice="HDF5"
+fi
+if [ ${mpich_preinstalled} == "no" ]; then
+    mpich_copyright_notice="MPICH"
+fi
+if [ ${python_preinstalled} == "no" ]; then
+    python_copyright_notice="Python"
+fi
+if [ ${freetype_preinstalled} == "no" ]; then
+    freetype_copyright_notice="FreeType"
+fi
+if [ ${ncurses_preinstalled} == "no" ]; then
+    ncurses_copyright_notice="ncurses"
+fi
+if [ ${openssl_preinstalled} == "no" ]; then
+    openssl_copyright_notice="OpenSSL"
+fi
+copyright_notice()
+{
+    # Arguments: Program/package name, text if not pre-installed
+    if eval "[ \"\${${1}_preinstalled}\" == \"no\" ]"; then
+        echo "${2}"
+    else
+        echo
+    fi
+}
+
 current_step="copyright notice"
 heading "Copyright notice"
-printf "FFTW 2, FFTW 3, GADGET, GSL, HDF5, MPICH and
-Python (with dependency libraries FreeType, ncurses and OpenSSL and 
-site-packages Blessings, Cython, Cython_GSL, H5Py, Matplotlib, MPI4Py,
-NumPy, Pexpect, Pillow and Yolk) has been installed into seperate folders in
-${top_dir}.
-Any use of ${esc_concept} must conform to the license terms of the
-above software. These can be found in their seperate installation
-directories.\n\n"
+msg="${esc_concept} has been installed along with the following dependencies:
+$(copyright_notice "fftw_for_gadget" "FFTW 2")
+$(copyright_notice "fftw"            "FFTW 3")
+$(copyright_notice "freetype"        "FreeType")
+$(copyright_notice "gadget"          "GADGET")
+$(copyright_notice "gsl"             "GSL")
+$(copyright_notice "hdf5"            "HDF5")
+$(copyright_notice "mpich"           "MPICH")
+$(copyright_notice "ncurses"         "ncurses")
+$(copyright_notice "openssl"         "OpenSSL")
+$(copyright_notice "python"          "Python")
+$(copyright_notice "blessings"       "    Blessings")
+$(copyright_notice "cython"          "    Cython")
+$(copyright_notice "cython_gsl"      "    Cython_GSL")
+$(copyright_notice "h5py"            "    H5Py")
+$(copyright_notice "matplotlib"      "    Matplotlib")
+$(copyright_notice "mpi4py"          "    MPI4Py")
+$(copyright_notice "numpy"           "    NumPy")
+$(copyright_notice "pexpect"         "    Pexpect")
+$(copyright_notice "pillow"          "    Pillow")
+$(copyright_notice "yolk"            "    Yolk3k")
+"
+msg="$(printf "${msg}" | sed '/^$/d')"
+if [[ "${msg}" == *"dependencies:" ]]; then
+    msg="${esc_concept} has been installed in\n\"${top_dir}\"" 
+else
+msg="${msg}\n\nThese have been installed into seperate folders in
+\"${top_dir}\"
+Any use of ${esc_concept} must conform to the license terms of the above
+software in addition to its own. These can be found in the seperate
+installation directories.\n
+"
+fi
+printf "${msg}"
 
 # Subprocess complete. Deactivate trap before exiting
 disable_status

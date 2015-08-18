@@ -1,3 +1,19 @@
+# Copyright (C) 2015 Jeppe Mosgard Dakin
+#
+# This file is part of CONCEPT, the cosmological N-body code in Python
+#
+# CONCEPT is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# CONCEPT is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+
+
 # Import everything from the commons module. In the .pyx file,
 # this line will be replaced by the content of commons.py itself.
 from commons import *
@@ -52,9 +68,8 @@ def animate(particles, timestep, a, a_snapshot, filename=''):
                          and (a != a_snapshot
                               or a_snapshot not in snapshot_times)):
         return
-    # Frame should be animated. Print out message
-    if master:
-        print('Rendering image')
+    # Frame should be animated. Print out progress message
+    masterprint('Rendering image ... ', end='')
     # Extract particle data
     N = particles.N
     N_local = particles.N_local
@@ -230,6 +245,8 @@ def animate(particles, timestep, a, a_snapshot, filename=''):
                     for rgb in range(3):
                         if combined[r, c, rgb] > 1:
                             combined[r, c, rgb] = 1
+    # Finalize progress message
+    masterprint('done')
     # When at the last frame, delete the auxiliary
     # image files of partial frames.
     if nprocs > 1 and a == a_max:
@@ -240,33 +257,37 @@ def animate(particles, timestep, a, a_snapshot, filename=''):
     # scratch the next time this function is called (important when
     # called from external script).
     if filename != '':
-        print('    Saving: ' + frame_dir + filename)
+        masterprint('    Saving: "' + frame_dir + filename + '" ... ', end='')
         artist_particles = None
         if nprocs > 1:
             imsave(frame_dir + filename, combined)
         else:
             savefig(frame_dir + filename, bbox_inches='tight', pad_inches=0)
+        masterprint('done')
         return
     # Save the frame in frame_dir
     if save_frames:
-        print('    Saving: ' + frame_dir + 'a={:.3f}'.format(a) + suffix)
+        masterprint('    Saving: "' + frame_dir + 'a={:.3f}'.format(a)
+                    + suffix + '" ... ', end='')
         if nprocs > 1:
             imsave(frame_dir + 'a={:.3f}'.format(a) + suffix, combined)
         else:
             savefig(frame_dir + 'a={:.3f}'.format(a) + suffix,
                     bbox_inches='tight', pad_inches=0)
+        masterprint('done')
     if save_liveframe:
         # Print out message
-        print('    Updating live frame: ' + liveframe_full)
+        masterprint('    Updating live frame "' + liveframe_full + '" ... ', end='')
         # Save the live frame
         if nprocs > 1:
             imsave(liveframe_full, combined)
         else:
             savefig(liveframe_full,
                     bbox_inches='tight', pad_inches=0)
+        masterprint('done')
         if upload_liveframe:
             # Print out message
-            print('    Uploading live frame: ' + remote_liveframe)
+            masterprint('    Uploading live frame "' + remote_liveframe + '" ... ', end='')
             # Upload the live frame
             child = pexpect.spawn(cmd1, timeout=10)
             try:
@@ -296,8 +317,9 @@ def animate(particles, timestep, a, a_snapshot, filename=''):
                     elif msg < 2:
                         # Incorrect password. Kill protocol
                         child.terminate(force=True)
-                        warn('Permission to ' + user_at_host + ' denied\n'
-                             + 'Frames will not be ' + protocol + "'ed")
+                        masterwarn('Permission to ' + user_at_host
+                                   + ' denied\n' + 'Frames will not be '
+                                   + protocol + "'ed")
                         upload_liveframe = False
                 elif msg == 3:
                     # The protocol cannot authenticate host.
@@ -319,9 +341,9 @@ def animate(particles, timestep, a, a_snapshot, filename=''):
                             # Incorrect password/passphrase.
                             # Kill the protocol.
                             child.terminate(force=True)
-                            warn('Permission to ' + user_at_host +
-                                 + ' denied\nFrames will not be '
-                                 + protocol + "'ed")
+                            masterwarn('Permission to ' + user_at_host
+                                       + ' denied\nFrames will not be '
+                                       + protocol + "'ed")
                             upload_liveframe = False
                 child.close()
             except KeyboardInterrupt:
@@ -330,8 +352,9 @@ def animate(particles, timestep, a, a_snapshot, filename=''):
             except:
                 # An error occurred during uploading. Print warning
                 child.terminate(force=False)
-                warn('An error occurred during ' + protocol
-                     + ' to ' + user_at_host)
+                masterwarn('An error occurred during ' + protocol
+                           + ' to ' + user_at_host)
+            masterprint('done')
 
 
 # This function formats a floating point

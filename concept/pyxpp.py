@@ -1,3 +1,19 @@
+# Copyright (C) 2015 Jeppe Mosgard Dakin
+#
+# This file is part of CONCEPT, the cosmological N-body code in Python
+#
+# CONCEPT is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# CONCEPT is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+
+
 """
 This is the .pyx preprocessor script. Run it with a .pyx file as the first
 argument, the parameterfile as the second and the mode ("pyx" or "pxd") as
@@ -99,6 +115,10 @@ def power2product(filename):
             for ex, expression in enumerate(expressions):
                 power = None
                 expression_power = expression[expression.find('**') + 2:]
+                # Exclude **kwargs
+                if expression_power.strip().startswith('kwargs'):
+                    modified_line = modified_line if modified_line else line
+                    continue
                 if expression_power.replace(' ', '')[0] == '(':
                     # Power in parentheses
                     parentheses = 0
@@ -418,7 +438,7 @@ def cython_decorators(filename):
 
 
 def make_pxd(filename):
-    commons_functions = ('max', 'min', 'mod', 'sum', 'prod', 'sinc', 'warn')
+    commons_functions = ('max', 'min', 'mod', 'sum', 'prod', 'sinc', 'masterprint', 'masterwarn')
     customs = {'Particles': 'from species cimport Particles',
                'func_b_ddd': 'ctypedef bint    (*func_b_ddd_pxd)  (double, double, double)',
                'func_d_dd': 'ctypedef double  (*func_d_dd_pxd)   (double, double)',

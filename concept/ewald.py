@@ -1,3 +1,19 @@
+# Copyright (C) 2015 Jeppe Mosgard Dakin
+#
+# This file is part of CONCEPT, the cosmological N-body code in Python
+#
+# CONCEPT is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# CONCEPT is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+
+
 # Import everything from the commons module. In the .pyx file,
 # this line will be replaced by the content of commons.py itself.
 from commons import *
@@ -216,11 +232,11 @@ if 'PP' in kick_algorithms.values() and use_Ewald:
     else:
         # No tabulated Ewald grid found. Compute it.The factor 0.5
         # ensures that only the first octant of the box is tabulated
-        if master:
-            print('Tabulating Ewald grid of linear size '
-                  + str(ewald_gridsize))
+        masterprint('Tabulating Ewald grid of linear size', ewald_gridsize, '... ', end='')
         grid = tabulate_vectorfield(ewald_gridsize,
                                     summation,
                                     0.5/(ewald_gridsize - 1),
                                     filepath,
                                     )
+        masterprint('done')
+

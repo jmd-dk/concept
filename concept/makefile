@@ -1,3 +1,19 @@
+# Copyright (C) 2015 Jeppe Mosgard Dakin
+#
+# This file is part of CONCEPT, the cosmological N-body code in Python
+#
+# CONCEPT is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# CONCEPT is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+
+
 # This is the makefile for the CONCEPT code. Preferebly you should not interact
 # with this file directly, but rather use the run script to build and run the code.
 # It is expected that you call this makefile with the paramsfile=filename option.
@@ -33,7 +49,7 @@ files_utilities = $(addprefix utilities/, plots plot.params plot.py generate_ran
 ################################################
 paths = $(shell this_dir="$$( cd "$$( dirname "$${BASH_SOURCE[0]}" )" && pwd )"; \
           curr="$${this_dir}"; \
-          while [ 1 ]; do \
+          while :; do \
               if [ -f "$${curr}/.paths" ]; then \
                   paths="$${curr}/.paths"; \
                   break; \
@@ -187,7 +203,7 @@ $(addsuffix .pyx, $(pyfiles)): %.pyx: %.py
 # can make a pxd file.
 params.py: $(paramsfile) $(MAKEFILE_LIST)
 	@echo
-	@echo "Processing parameters from $(paramsfile)"
+	@echo "Processing parameters from \"$(paramsfile)\""
 	@cp $(paramsfile) $@
 	@sed -i '1i$(copy_msg) $(paramsfile)\
 	# Import useful numpy functions and constants\

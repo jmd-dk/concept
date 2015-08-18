@@ -1,3 +1,18 @@
+# Copyright (C) 2015 Jeppe Mosgard Dakin
+#
+# This file is part of CONCEPT, the cosmological N-body code in Python
+#
+# CONCEPT is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# CONCEPT is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+
 # Import everything from the commons module. In the .pyx file,
 # this line willbe replaced by the content of commons.py itself.
 from commons import *
@@ -149,12 +164,11 @@ def exchange(particles, reset_buffers=False):
     if N_send_tot_global == 0:
         return
     # Print out exchange message
-    if master:
-        if N_send_tot_global == 1:
-            print('Exchanging 1 particle')
-        elif N_send_tot_global > 1:
-            # The int casting is necessary in pure Python
-            print('Exchanging', int(N_send_tot_global), 'particles')
+    if N_send_tot_global == 1:
+        masterprint('Exchanging 1 particle')
+    elif N_send_tot_global > 1:
+        # The int casting is necessary in pure Python
+        masterprint('Exchanging', int(N_send_tot_global), 'particles')
     # Enlarge sendbuf, if necessary
     N_send_max = max(N_send)
     if N_send_max > sendbuf_mv.size:

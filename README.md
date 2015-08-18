@@ -8,8 +8,9 @@ run purely in Python, without the need of cythonization, C compilation and
 linking.
 
 ## Dependencies
-The code should be able to compile and run on any POSIX system with GCC and
-GNU make. The code has the following non-standard but open source dependencies:
+The code should be able to compile and run on any POSIX system with
+standard utilities and compilers.The code has the following
+non-standard but free software dependencies:
 - The **GSL** library.
 - An **MPI3** implementation (e.g. Open MPI).
 - The **HDF5** library, linked to the installed MPI implementation and

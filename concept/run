@@ -1,11 +1,35 @@
 #!/usr/bin/env bash
 
+# Copyright (C) 2015 Jeppe Mosgard Dakin
+#
+# This file is part of CONCEPT, the cosmological N-body code in Python
+#
+# CONCEPT is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# CONCEPT is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+
+
 # This script runs the CONCEPT code.
 # Run the script with the -h option to get help
 
-# Absolute paths to this file an its directory
-this_file=$(readlink -f "${0}")
-this_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# Absolute paths to this file and its directory
+this_file=$(readlink -f "${BASH_SOURCE[0]}")
+this_dir="$(dirname "${this_file}")"
+
+# ANSI/VT100 escape sequences
+esc="\x1b"
+esc_normal="${esc}[0m"
+esc_bold="${esc}[1m"
+esc_italic="${esc}[3m"
+esc_no_italic="${esc}[23m"
+esc_red="${esc}[91m"
 
 # Load paths from the .paths file
 curr="${this_dir}"
@@ -16,10 +40,6 @@ while :; do
     fi
     if [ "${curr}" == "/" ]; then
         # Print out error message and exit
-        esc="\x1b"
-        esc_normal="${esc}[0m"
-        esc_bold="${esc}[1m"
-        esc_red="${esc}[91m"
         printf "${esc_bold}${esc_red}Could not find the .paths file!${esc_normal}\n" >&2
         exit 1
     fi
@@ -27,7 +47,7 @@ while :; do
 done
 
 # Function for printing colored messages
-terminal_CONCEPT="CO\x1b[3mN\x1b[23mCEPT"
+terminal_CONCEPT="CO${esc_italic}N${esc_no_italic}CEPT"
 colorprint()
 {
 # Arguments: Message, color
@@ -39,7 +59,7 @@ print(terminal.bold_${2}(msg), file=(sys.stderr if '${2}' == 'red' else sys.stdo
 }
 
 # If this file is being sourced, return now
-if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+if [ "${BASH_SOURCE[0]}" != "${0}" ]; then
     return
 fi
 
@@ -52,11 +72,11 @@ walltime=72
 # List of remote queues and number of CPU per node. The first queue is the default queue 
 queues=(q8n q8 q4)
 ppns=(8 8 4)
-# Should PBS be used to submitting remote jobs?
+# Should PBS be used to submit remote jobs?
 use_PBS=1
 
 # Use Python's argparse module to handle command-line arguments
-args=(`${python} -B -c "
+args=($(${python} -B -c "
 import argparse
 import sys
 from os.path import basename, dirname
@@ -130,7 +150,7 @@ print(args.nprocs,
       args.queue,
       int(args.local),
       )
-" "$@"`)
+" "$@"))
 nprocs="${args[0]}"
 params="${args[1]}"
 main="${args[2]}"
@@ -177,18 +197,16 @@ fi
 
 # Do the parameterfile, the main file and the test file exist?
 if [ ! -f "${params}" ]; then
-    echo "Error: "${params}" does not exist!"
+    colorprint "Error: Parameterfile \"${params}\" does not exist!" "red"
     exit 1
 fi
 if [ ! -f "${main}" ]; then
-    echo "Error: "${main}" does not exist!"
+    colorprint "Error: Entry point \"${main}\" does not exist!" "red"
     exit 1
 fi
-if [ "${test}" != "none" ] && [ "${test}" != "all" ]; then
-    if [ ! -d "${test}" ]; then
-        echo "Error: "${test}" does not exist!"
-        exit 1
-    fi
+if [ "${test}" != "none" ] && [ "${test}" != "all" ] && [ ! -d "${test}" ]; then
+    colorprint "Error: Test \"${test}\" does not exist!" "red"
+    exit 1
 fi
 
 # If a test is to be run, run it and exit
@@ -208,12 +226,12 @@ if [ "${test}" != "none" ]; then
     exit 0
 fi
 
-# Print warnings for unspecified parameters
+# Printout assigned values for unspecified parameters
 if [ "${unspecified_nprocs}" == 1 ]; then
     echo "Number of processes not specified - Will use ${nprocs}"
 fi
 if [ "${unspecified_params}" == 1 ]; then
-    echo "Parameterfile not specified - Will use ${params}"
+    echo "Parameterfile not specified - Will use \"${params}\""
 fi
 
 # Compile or do cleanup from last compilation
@@ -221,7 +239,7 @@ if [ "${pure_python}" -eq 0 ] ; then
     # Compile with Cython
     (cd "${this_dir}" && make paramsfile="${params}")
 else
-    # Process the passed parameter file
+    # Process the parsed parameterfile
     (cd "${this_dir}" && make params.py paramsfile="${params}" --silent)
     # Remove compiled Cython modules
     (cd "${this_dir}" && make clean_so paramsfile="${params}" >/dev/null)
@@ -230,7 +248,7 @@ fi
 # Prompt the user for the secure shell password,
 # if the live frame should be uploaded.
 cd "${this_dir}"
-args=(`"${python}" -B -c "
+args=($("${python}" -B -c "
 # Import parameters from the .py file rather than the .so file
 import imp
 params = imp.load_source('params', '${this_dir}/params.py')
@@ -271,7 +289,7 @@ if liveframe != '' and remote_liveframe != '':
 # Print out the password/passphrase.
 # This will be captured in the bash 'args' variable.
 print(password)
-" "$@"`)
+" "$@"))
 password="${args[0]}"
 
 # Create the logs dir and go to the code directory
@@ -289,14 +307,10 @@ fi
 # Either stop doing further actions, submit job or run it locally
 if [ "${use_PBS}" -eq 0 ] && [ "${remote}" -eq 1 ]; then
     # Run remotely but do not use PBS
-    printf "The ${terminal_CONCEPT} code has been build and is ready to be submitted."
+    printf "The ${terminal_CONCEPT} code is ready to be submitted"
     trap : 0
 elif [ "${use_PBS}" -eq 1 ] && [ "${remote}" -eq 1 ]; then
     # Run remotely.
-    # First do some cleanup from a potentially killed, previous job.
-    if [ $(echo "${this_dir}/"*.o[0-9]* | awk '{print $1}') != "${this_dir}/*.o[0-9]*" ]; then
-        mv "${this_dir}/"*.o[0-9]* "${this_dir}/logs"
-    fi
     # If no queue is explicitly chosen, use one with enough free nodes
     if [ "${queue}" == "none" ]; then
         # The first queue in the list is the default queue
@@ -322,90 +336,121 @@ elif [ "${use_PBS}" -eq 1 ] && [ "${remote}" -eq 1 ]; then
             fi
         done
     fi
-    # Check that the chosen queue can be run with all the nodes' CPUs in use
+    # Check that the chosen queue can be run with all the node's CPUs in use
     if [ "$((${nprocs} % ${ppn}))" != 0 ]; then
         colorprint "Job submission refused:\nNo queue has the right amount of processors per node" "red"
         exit 1
     fi
     nodes="$((${nprocs} / ${ppn}))"
     # Write a jobscript file
-    echo -e "#!/bin/bash
+    echo -e "#!/usr/bin/env bash
+#PBS -N $(whoami):CONCEPT:$(basename ${params})
 #PBS -q ${queue}
 #PBS -l nodes=${nodes}:ppn=${ppn}
-#PBS -N $(whoami):CONCEPT
 #PBS -l walltime=${walltime}:00:00
-#PBS -m abe
-#PBS -j oe
-env | grep PBS
+#PBS -o /dev/null
+#PBS -e /dev/null
+
 # Get the id of the current job
 jobid=\"\${PBS_JOBID%.in1}\"
-# Print start message
+
+# Change to the logs directory, so that autogenerated files will be dumped there
+cd \"${this_dir}/logs\"
+
+# Source the run script
 source \"${this_file}\"
-if [ ${pure_python} -eq 0 ] ; then
-    #printf \"\e[1m\e[93mRunning CO\e[3mN\e[0m\e[1m\e[93mCEPT as job \${jobid}\e[0m\\\n\" > \"${this_dir}/logs/remote_\${jobid}_out\"
-    colorprint \"Running CONCEPT as job \${jobid}\" \"yellow\" > \"${this_dir}/logs/remote_\${jobid}_out\"
+
+# Print start messages
+if [ ${pure_python} -eq 0 ]; then
+    colorprint \"Running CONCEPT remotely on \$(hostname -f) as job \${jobid}\" \"yellow\" > \"${this_dir}/logs/\${jobid}\"
 else
-    printf \"\e[1m\e[93mRunning CO\e[3mN\e[0m\e[1m\e[93mCEPT in pure Python mode as job \${jobid}\e[0m\\\n\" > \"${this_dir}/logs/remote_\${jobid}_out\"
-    colorprint \"Running CONCEPT in pure Python mode as job \${jobid}\" \"yellow\" > \"${this_dir}/logs/remote_\${jobid}_out\"
+    colorprint \"Running CONCEPT in pure Python mode remotely on \$(hostname -f) as job \${jobid}\" \"yellow\" > \"${this_dir}/logs/\${jobid}\"
 fi
-echo \"Entry point:   ${main}\"   >> \"${this_dir}/logs/remote_\${jobid}_out\"
-echo \"Parameterfile: ${params}\" >> \"${this_dir}/logs/remote_\${jobid}_out\"
-echo \"Nr. of CPUs:   ${nprocs}\" >> \"${this_dir}/logs/remote_\${jobid}_out\"
-# Run the code. Note that the password is passed as an argument
-cd \"${this_dir}\"
-if [ \"${pure_python}\" -eq 0 ] ; then
+echo \"Entry point:   ${main}\"   >> \"${this_dir}/logs/\${jobid}\"
+echo \"Parameterfile: ${params}\" >> \"${this_dir}/logs/\${jobid}\"
+echo \"Nr. of CPUs:   ${nprocs}\" >> \"${this_dir}/logs/\${jobid}\"
+
+# Prepare Python options
+if [ \"${pure_python}\" == \"0\" ]; then
     # Run as compiled library module
-    main_as_library=$(basename "${main%.*}.so")
+    main_as_library=\"$(basename "${main%.*}.so")\"
     m_flag=\"-m\"
 else
     # Run as normal Python script
     main_as_library=\"${main}\"
     m_flag=\"\"
 fi
-\"${mpiexec}\" \"${python}\" -B \${m_flag} \"\${main_as_library}\" \"${password}\" > >(tee -a \"${this_dir}/logs/remote_\${jobid}_out\") 2> >(tee -a \"${this_dir}/logs/remote_\${jobid}_err\" >&2)
 
-# Change to the logs directory, so that autogenerated files will be dumped there
-cd \"${this_dir}/logs\"
+# Run the code. Both stdout and stderr are being logged to logs/jobid,
+# while the stderr alone is also logged to logs/jobid_err.
+(cd \"${this_dir}\" && \"${mpiexec}\" \"${python}\" -B \${m_flag} \"\${main_as_library}\" \"${password}\" >> \"${this_dir}/logs/\${jobid}\" 2>> >(tee -a \"${this_dir}/logs/\${jobid}_err\"))
+
+# Run complete. Remove error log if empty
+if [ -f \"${this_dir}/logs/\${jobid}_err\" ] && [ ! -s \"${this_dir}/logs/\${jobid}_err\" ]; then
+    rm \"${this_dir}/logs/\${jobid}_err\"
+else
+    colorprint \"\\\nSome warnings/errors occured during CONCEPT run!\" \"red\" >> \"${this_dir}/logs/\${jobid}\" 2>&1
+    colorprint \"Check the following error log for more information:\" \"red\" >> \"${this_dir}/logs/\${jobid}\" 2>&1
+    colorprint \"\\\"${this_dir}/logs/\${jobid}_err\\\"\" \"red\" >> \"${this_dir}/logs/\${jobid}\" 2>&1
+fi
 " > "${this_dir}/jobscript"
-    # Submit the remote job
-    jobid=$(qsub "${this_dir}/jobscript")
+    # Submit the remote job from within the logs directory, so that autogenerated files will be dumped there
+    jobid=$(cd "${this_dir}/logs" && qsub "${this_dir}/jobscript")
     jobid="${jobid%.in1}"
     colorprint "\nSubmitting job" "yellow"
     echo "Job ${jobid} submitted to queue ${queue}"
     echo "You can now kill (Ctrl-C) this script without cancelling the job"
-    # Call the watch script so we can follow the output of the run
+    # Deactivate trap and call the watch script
     trap : 0
     "${this_dir}/utilities/watch" "${jobid}"
 else
-    # Run locally
+    # Run locally.
     # Construct a jobid that does not conflict with the content of the logs dir
     jobid=0
     while :; do
-        if [ ! -f "${this_dir}/logs/local_${jobid}_out" ]; then
+        if [ ! -f "${this_dir}/logs/${jobid}" ]; then
             break
         fi
         ((jobid += 1))
     done
     # Print start message
+    echo
     if [ "${pure_python}" -eq 0 ]; then
-        colorprint "\nRunning CONCEPT" "yellow" | tee "${this_dir}/logs/local_${jobid}_out"
+        colorprint "Running CONCEPT" "yellow" | tee "${this_dir}/logs/${jobid}"
     else
-        colorprint "\nRunning CONCEPT in pure Python mode" "yellow" | tee "${this_dir}/logs/local_${jobid}_out"
+        colorprint "Running CONCEPT in pure Python mode" "yellow" | tee "${this_dir}/logs/${jobid}"
     fi
-    echo "Entry point:   ${main}"   | tee -a "${this_dir}/logs/local_${jobid}_out"
-    echo "Parameterfile: ${params}" | tee -a "${this_dir}/logs/local_${jobid}_out"
-    echo "Nr. of CPUs:   ${nprocs}" | tee -a "${this_dir}/logs/local_${jobid}_out"
-    # Run the code. Note that the password is passed as an argument
+    echo "Entry point:   ${main}"   | tee -a "${this_dir}/logs/${jobid}"
+    echo "Parameterfile: ${params}" | tee -a "${this_dir}/logs/${jobid}"
+    echo "Nr. of CPUs:   ${nprocs}" | tee -a "${this_dir}/logs/${jobid}"
+    # Prepare Python options
     if [ "${pure_python}" -eq 0 ] ; then
         # Run as compiled library module
-        main_as_library=$(basename "${main%.*}.so")
+        main_as_library="$(basename "${main%.*}.so")"
         m_flag="-m"
     else
         # Run as normal Python script
         main_as_library="${main}"
         m_flag=""
     fi
-    "${mpiexec}" -n "${nprocs}" "${python}" -B ${m_flag} "${main_as_library}" "${password}" > >(tee -a "${this_dir}/logs/local_${jobid}_out") 2> >(tee -a "${this_dir}/logs/local_${jobid}_err" >&2)
-    # Run complete. Deactivate trap before exiting
+    # Run the code. Print stdout and stderr to the terminal while at the
+    # same time logging them to logs/jobid. The stderr alone is also
+    # logged to logs/jobid_err.
+    "${mpiexec}" -n "${nprocs}" "${python}" -B ${m_flag} "${main_as_library}" "${password}" 2> >(tee -a "${this_dir}/logs/${jobid}_err") | tee -a "${this_dir}/logs/${jobid}"
+    # Get exit status of the above CONCEPT run
+    concept_exit_status="${PIPESTATUS[0]}"
+    # Run complete. Remove error log if empty
+    if [ -f "${this_dir}/logs/${jobid}_err" ] && [ ! -s "${this_dir}/logs/${jobid}_err" ]; then
+        rm "${this_dir}/logs/${jobid}_err"
+    else
+        colorprint "\nSome warnings/errors occured during CONCEPT run!" "red" 2>&1 | tee -a "${this_dir}/logs/${jobid}"
+        colorprint "Check the following error log for more information:" "red" 2>&1 | tee -a "${this_dir}/logs/${jobid}"
+        colorprint "${this_dir}/logs/${jobid}_err" "red" 2>&1 | tee -a "${this_dir}/logs/${jobid}"
+    fi
+    # If the CONCEPT run exited erroneously, exit now
+    if [ "${concept_exit_status}" != "0" ]; then
+        exit 1
+    fi
+    # Deactivate trap before exiting
     trap : 0
 fi
