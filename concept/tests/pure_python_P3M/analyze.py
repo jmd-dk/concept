@@ -1,3 +1,19 @@
+# Copyright (C) 2015 Jeppe Mosgard Dakin
+#
+# This file is part of CONCEPT, the cosmological N-body code in Python
+#
+# CONCEPT is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# CONCEPT is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+
+
 # This file has to be run in pure Python mode!
 
 # Include the code directory in the searched paths
@@ -97,7 +113,7 @@ plt.savefig(fig_file)
 # Compare CONCEPT to GADGET
 tol = 1e-2
 if any(np.mean(dist[j]/boxsize) > tol for j in range(3)):
-    print('\033[1m\033[91m' + 'Some or all pure Python runs with nprocs = {1, 2, 4} yielded results\n'
+    masterwarn('Some or all pure Python runs with nprocs = {1, 2, 4} yielded results\n'
           + 'different from the compiled run!\n'
-          + 'See ' + fig_file + ' for a visualization.' + '\033[0m')
+          + 'See ' + fig_file + ' for a visualization.')
     sys.exit(1)

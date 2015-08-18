@@ -1,3 +1,19 @@
+# Copyright (C) 2015 Jeppe Mosgard Dakin
+#
+# This file is part of CONCEPT, the cosmological N-body code in Python
+#
+# CONCEPT is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# CONCEPT is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+
+
 # Import everything from the commons module. In the .pyx file,
 # this line will be replaced by the content of commons.py itself.
 from commons import *
@@ -38,26 +54,8 @@ def check_outputtimes(times, item, at_beginning=False):
                             + ',\nbut the simulation starts at a = '
                             + str(a_begin) + '.')
     if len(times) > len(set(times)):
-        warn(item.capitalize() + ' output times are not unique.\n'
-                               + 'Extra values will be ignored.')
-
-# This function pretty prints information gathered through a time step
-
-@cython.header(# Arguments
-               timestep='int',
-               t_iter='double',
-               a='double',
-               t='double',
-               )
-def timestep_message(timestep, t_iter, a, t):
-    if master:
-        print('Time step ' + str(timestep),
-              'Computation time: ' + significant_figures(time() - t_iter, 4,
-                                                         just=7) + ' s',
-              'Scale factor:     ' + significant_figures(a, 4, just=7),
-              'Cosmic time:      ' + significant_figures(t/units.Gyr, 4,
-                                                         just=7) + ' Gyr',
-              sep='\n    ')
+        masterwarn(item.capitalize() + ' output times are not unique.\n'
+                                     + 'Extra values will be ignored.')
 
 @cython.header(# Locals
                a='double',
@@ -94,12 +92,18 @@ def timeloop():
     drift_fac = empty(2, dtype='float64')
     kick_fac = empty(2, dtype='float64')
     # The main time loop (in actuality two nested loops)
-    if master:
-        print('Begin main time loop')
+    masterprint('Begin main time loop')
     timestep = 1
     timer = time()
     # Loop over all output times
     for a_dump in dump_times:
+        #
+        masterprint(terminal.bold('\nTime step ' + str(timestep))
+                    + '\nScale factor: '
+                    + significant_figures(a, 4, just=3)
+                    + '\nCosmic time:  '
+                    + significant_figures(t/units.Gyr, 4, just=3)
+                    + ' Gyr')
         # The filename of the current snapshot
         snapshot_filename = (snapshot_dir + '/' + snapshot_base
                              + '_a=' + '{:.3f}'.format(a_dump))
@@ -123,8 +127,18 @@ def timeloop():
         particles.kick(kick_fac[kick_drift_index])
         # Leapfrog until a == a_dump
         while a < a_dump:
+            #
+            if kick_drift_index:
+                masterprint(terminal.bold('\nTime step ' + str(timestep))
+                            + '\nScale factor: '
+                            + significant_figures(a, 4, just=3)
+                            + '\nCosmic time:  '
+                            + significant_figures(t/units.Gyr, 4, just=3)
+                            + ' Gyr')
             # Flip the state of kick_drift_index
             kick_drift_index = 0 if kick_drift_index == 1 else 1
+            #
+
             # Update the scale factor and the cosmic time. This also
             # tabulates a(t), needed for the kick and drift integrals.
             a_next = expand(a, t, 0.5*Δt)
@@ -167,7 +181,6 @@ def timeloop():
                 # Render particle configuration
                 # and print timestep message.
                 animate(particles, timestep, a, a_dump)
-                timestep_message(timestep, timer, a, t)
                 # Refresh timer and update the time step nr
                 timer = time()
                 timestep += 1
@@ -181,14 +194,14 @@ def timeloop():
                     a_next = expand(a, t, 0.5*(Δt - Δt_prev))
                     if a_next < a_dump:
                         # Only drift if a_dump is not reached by it
-                        if master:
-                            print('Updating time step size')
+                        masterprint('Updating time step size ... ', end='')
                         a = a_next
                         # Do the kick and drift integrals
                         # ∫_t^(t + Δt/2)dt/a and ∫_t^(t + Δt/2)dt/a**2
                         # and drift the remaining distance.
                         kick_fac[kick_drift_index] += scalefactor_integral(-1)
                         particles.drift(scalefactor_integral(-2))
+                        masterprint('done')
                     else:
                         # Do not alter Δt just before (or just after,
                         # in the case of a == a_dump) dumps.
@@ -196,8 +209,6 @@ def timeloop():
             # Always render particle configuration when at snapshot time
             elif a == a_dump and a in snapshot_times:
                 animate(particles, timestep, a, a_dump)
-                if a == a_max:
-                    timestep_message(timestep, timer, a, t)
 
 # If anything special should happen, rather than starting the timeloop
 cython.declare(particles='Particles')
@@ -228,8 +239,7 @@ particles = load(IC_file)
 # Run the time loop
 timeloop()
 # Simulation done
-if master:
-    print(terminal.bold_green(terminal.CONCEPT + ' ran successfully'))
+masterprint(terminal.bold_green(terminal.CONCEPT + ' ran successfully'))
 # Due to an error having to do with the Python -m switch,
 # the program must explicitly be told to exit.
 Barrier()

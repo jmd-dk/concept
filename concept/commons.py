@@ -1,3 +1,19 @@
+# Copyright (C) 2015 Jeppe Mosgard Dakin
+#
+# This file is part of CONCEPT, the cosmological N-body code in Python
+#
+# CONCEPT is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# CONCEPT is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+
+
 # This module contains imports, Cython declarations and values
 # of parameters common to all other modules. Each module should have
 # 'from commons import *' as its first statement.
@@ -428,9 +444,31 @@ def sinc(x):
     else:
         return y/x
 
+# Function for printing messages
+def masterprint(msg, *args, end='\n', **kwargs):
+    if master:
+        msg = msg.replace('CONCEPT', terminal.CONCEPT)
+        args = [arg.replace('CONCEPT', terminal.CONCEPT)
+                if isinstance(arg, str) else arg for arg in args]
+        print(msg, *args, end=end, flush=True, **kwargs)
+
 # Function for printing warnings
-def warn(msg):
-    print(terminal.bold_red('Warning: ' + msg), file=sys.stderr)
+def masterwarn(msg, *args, end='\n', indent=0, **kwargs):
+    if master:
+        msg = msg.replace('CONCEPT', terminal.CONCEPT)
+        if args:
+            args = [arg.replace('CONCEPT', terminal.CONCEPT)
+                    if isinstance(arg, str) else arg for arg in args]
+            print(terminal.bold_red(' '*indent + 'Warning: '
+                                    + msg + ' ' + ' '.join(args)),
+                                    file=sys.stderr,
+                                    flush=True,
+                                    **kwargs)
+        else:
+            print(terminal.bold_red(' '*indent + 'Warning: ' + msg),
+                  file=sys.stderr,
+                  flush=True,
+                  **kwargs)
 
 
 

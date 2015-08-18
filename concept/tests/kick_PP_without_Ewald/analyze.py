@@ -1,3 +1,19 @@
+# Copyright 2015 Jeppe Mosgard Dakin
+#
+# This file is part of CONCEPT.
+#
+# CONCEPT is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# CONCEPT is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+
+
 # This file has to be run in pure Python mode!
 
 # Include the code directory in the searched paths
@@ -83,7 +99,7 @@ if np.sum(x0_std) > tol or np.sum(x1_std) > tol:
 # Compare CONCEPT to GADGET
 tol = 1e-2
 if max(np.abs(x0/x0_gadget - 1)) > tol or max(np.abs(x1/x1_gadget - 1)) > tol:
-    print('\033[1m\033[91m' + 'The results from CONCEPT disagree with those from GADGET.\n'
-          + 'See ' + fig_file + ' for a visualization.' + '\033[0m')
+    masterwarn('The results from CONCEPT disagree with those from GADGET.\n'
+          + 'See ' + fig_file + ' for a visualization.')
     sys.exit(1)
 

@@ -1,3 +1,19 @@
+# Copyright (C) 2015 Jeppe Mosgard Dakin
+#
+# This file is part of CONCEPT, the cosmological N-body code in Python
+#
+# CONCEPT is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# CONCEPT is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+
+
 # Import everything from the commons module. In the .pyx file,
 # this line willbe replaced by the content of commons.py itself.
 from commons import *
@@ -49,8 +65,7 @@ def powerspectrum(particles, filename):
     PM_CIC_FFT(particles)
 
 
-    if master:
-        print('Calculating power spectrum')
+    masterprint('Calculating power spectrum ... ', end='')
     for k2 in range(k2_max):
         k2_multi[k2] = 0
         power_arr[k2] = 0
@@ -116,7 +131,8 @@ def powerspectrum(particles, filename):
         return
     sigma *= 4.0/3.0/(2*π)*tophat_scale**3 
     sigma = sqrt(sigma)
-    print('    Saving:', filename)
+    masterprint('done')
+    masterprint('Saving powerspectrum "' + filename + '" ... ', end='')
     header = ('sigma{} = {:.6e}, PM_gridsize = {}, boxsize = {:.3e} Mpc\n'
               + 'k\tmodes\tpower').format(int(round(tophat_scale/units.Mpc)),
                                           sigma,
@@ -128,6 +144,7 @@ def powerspectrum(particles, filename):
                       power_arr)).transpose()[array(k2_multi) != 0, :],
                fmt='%.6e\t%i\t%.6e',
                header=header)
+    masterprint('done')
 
 
 cython.declare(Nyquist='int',

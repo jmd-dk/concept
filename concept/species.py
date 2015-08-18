@@ -1,3 +1,19 @@
+# Copyright (C) 2015 Jeppe Mosgard Dakin
+#
+# This file is part of CONCEPT, the cosmological N-body code in Python
+#
+# CONCEPT is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# CONCEPT is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+
+
 # Import everything from the commons module. In the .pyx file,
 # this line will be replaced by the content of commons.py itself.
 from commons import *
@@ -264,8 +280,7 @@ def construct(type_name, species_name, mass, N):
                )
 def construct_random(type_name, species_name, N):
     # Print out message
-    if master:
-        print('Initializes particles of type "' + type_name + '"')
+    masterprint('Initializes particles of type "' + type_name + '" ... ', end='')
     # Minimum and maximum mass and maximum
     # momenta (in any of the three directions)
     mass = Ωm*ϱ*boxsize3/N
@@ -287,4 +302,5 @@ def construct_random(type_name, species_name, N):
     particles.populate((2*random(N_local) - 1)*mom_max, 'momx')
     particles.populate((2*random(N_local) - 1)*mom_max, 'momy')
     particles.populate((2*random(N_local) - 1)*mom_max, 'momz')
+    masterprint('done')
     return particles

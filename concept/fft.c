@@ -78,20 +78,20 @@ struct fftw_return_struct fftw_setup(ptrdiff_t gridsize_i, ptrdiff_t gridsize_j,
   char wisdom_file_buffer[100];
   sprintf(wisdom_file_buffer, ".fftw_wisdom_gridsize=%td_nprocs=%i", gridsize_i, nprocs);
   const char* wisdom_file = &wisdom_file_buffer[0];
-  int previous_wisdom;
+  int previous_wisdom = 0;
   if (master)
   {
     previous_wisdom = fftw_import_wisdom_from_filename(wisdom_file);
     if (! previous_wisdom)
     {
-      // Grammar is important!
+      // Progress message (grammar is important!)
       if (nprocs == 1)
       {
-        printf("Acquiring FFTW wisdom for grid of linear size %td on %i process\n", gridsize_i, nprocs);
+        printf("Acquiring FFTW wisdom for grid of linear size %td on %i process ... ", gridsize_i, nprocs);
       }
       else
       {
-        printf("Acquiring FFTW wisdom for grid of linear size %td on %i processes\n", gridsize_i, nprocs);
+        printf("Acquiring FFTW wisdom for grid of linear size %td on %i processes ... ", gridsize_i, nprocs);
       }
     }
   }
@@ -108,6 +108,8 @@ struct fftw_return_struct fftw_setup(ptrdiff_t gridsize_i, ptrdiff_t gridsize_j,
   if (master && ! previous_wisdom)
   {
     fftw_export_wisdom_to_filename(wisdom_file);
+    // Finalize progress message
+    printf("done\n");
   }
 
   // Return a struct with variables
