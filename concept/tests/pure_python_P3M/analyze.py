@@ -115,5 +115,5 @@ tol = 1e-2
 if any(np.mean(dist[j]/boxsize) > tol for j in range(3)):
     masterwarn('Some or all pure Python runs with nprocs = {1, 2, 4} yielded results\n'
           + 'different from the compiled run!\n'
-          + 'See ' + fig_file + ' for a visualization.')
+          + 'See "' + fig_file + '" for a visualization.')
     sys.exit(1)

@@ -109,5 +109,5 @@ plt.savefig(fig_file)
 tol = 2e-2
 if any(np.mean(dist[j]/boxsize) > tol for j in range(4)):
     masterwarn('Runs with different numbers of processes yield different results!\n'
-          + 'See ' + fig_file + ' for a visualization.')
+          + 'See "' + fig_file + '" for a visualization.')
     sys.exit(1)

@@ -280,7 +280,8 @@ def construct(type_name, species_name, mass, N):
                )
 def construct_random(type_name, species_name, N):
     # Print out message
-    masterprint('Initializes particles of type "' + type_name + '" ... ', end='')
+    masterprint('Initializes particles of type "' + type_name + '" ... ',
+                end='')
     # Minimum and maximum mass and maximum
     # momenta (in any of the three directions)
     mass = Ωm*ϱ*boxsize3/N

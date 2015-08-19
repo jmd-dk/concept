@@ -112,10 +112,12 @@ def rkf45(ḟ, f_start, t_start, t_end, δ, ϵ, save_intermediate):
                     alloc_cum *= 2
                     t_cum = realloc(t_cum, alloc_cum*sizeof('double'))
                     f_cum = realloc(f_cum, alloc_cum*sizeof('double'))
-                    integrand_cum = realloc(integrand_cum, alloc_cum*sizeof('double'))
+                    integrand_cum = realloc(integrand_cum,
+                                            alloc_cum*sizeof('double'))
                     t_cum_mv = cast(t_cum, 'double[:alloc_cum]')
                     f_cum_mv = cast(f_cum, 'double[:alloc_cum]')
-                    integrand_cum_mv = cast(integrand_cum, 'double[:alloc_cum]')
+                    integrand_cum_mv = cast(integrand_cum,
+                                            'double[:alloc_cum]')
         # Updating step size
         h *= 0.95*(tolerence/error)**0.25
         if h > h_max:

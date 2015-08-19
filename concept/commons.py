@@ -22,7 +22,7 @@
 # Imports common to pure Python and Cython #
 ############################################
 from __future__ import division  # Needed for Python3 division in Cython
-from numpy import (arange, array, asarray, concatenate, cumsum, ceil, delete,
+from numpy import (arange, array, asarray, concatenate, cumsum, delete,
                    empty, linspace, ones, trapz, unravel_index, zeros)
 from numpy.random import random
 import numpy as np
@@ -101,6 +101,8 @@ if not cython.compiled:
         pass
     # Array casting
     def cast(a, dtype):
+        if dtype in ('int', 'size_t'):
+            a = int(a)
         return a
     # Dummy fused types
     number = number2 = integer = floating = []
@@ -329,8 +331,26 @@ master = not rank
 
 
 ###########################################
-# Custumly defined mathematical functions #
+# Customly defined mathematical functions #
 ###########################################
+# When writing a function, remember to add its name to the tuple
+# "commons_functions" in the "make_pxd" function in the "pyxpp.py" file.
+
+# Abs function for numbers
+if not cython.compiled:
+    # Pure Python already have a generic abs function
+    pass
+else:
+    """
+    @cython.header(x=number,
+                   returns=number,
+                   )
+    def abs(x):
+        if x < 0:
+            return -x
+        return x
+    """
+
 # Max function for 1D memory views of numbers
 if not cython.compiled:
     # Pure Python already have a generic max function
@@ -392,8 +412,9 @@ def mod(x, length):
 
 # Sum function for 1D memory views of numbers
 if not cython.compiled:
-    # Pure Python already have a generic sum function
-    pass
+    # To correctly handle all numeric data types, use numpy's sum
+    # function rather than Python's built-in sum function.
+    sum = np.sum
 else:
     """
     @cython.header(returns=number)

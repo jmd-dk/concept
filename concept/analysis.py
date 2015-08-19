@@ -51,7 +51,6 @@ else:
                sqrt_deconv_ij='double',
                sqrt_deconv_ijk='double',
                sqrt_deconv_j='double',
-               
                wavek='double',
                sigma='double',
                power='double',

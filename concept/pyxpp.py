@@ -20,6 +20,8 @@ argument, the parameterfile as the second and the mode ("pyx" or "pxd") as
 the third. When mode is "pxd", a .pxd file will be created. When the mode is
 "pyx", the preexisting .pyx file will be changed in the following ways:
 - Replace 'from commons import *' with the content itself.
+- Transform statements written over multiple lines into single lines.
+  The exception is decorator statements, which remain multilined.
 - Removes pure Python commands between 'if not cython.compiled:' and 'else:',
   including these lines themselves. Also removes the triple quotes around the
   Cython statements in the else body.
@@ -40,6 +42,101 @@ import re
 from os.path import isfile
 from copy import deepcopy
 import unicodedata
+
+
+def oneline(filename):
+    in_quotes = [False, False]
+    in_triple_quotes = [False, False]
+    paren = 0
+    brack = 0
+    curly = 0
+    def count_parens(line):
+        nonlocal in_quotes, paren, brack, curly
+        if line.lstrip().startswith('#'):
+            return (paren, brack, curly)
+        L = len(line)
+        for j, ch in enumerate(line):
+            # Inside quotations?
+            if ch in ("'", '"'):
+                if ch == "'" and not in_quotes[1]:
+                    in_quotes[0] = not in_quotes[0]
+                elif ch == '"' and not in_quotes[0]:
+                    in_quotes[1] = not in_quotes[1]
+                if j >= 2 and line[(j-2):(j + 1)] == "'''":
+                    in_quotes[0] = not in_quotes[0]
+                    in_triple_quotes[0] = not in_triple_quotes[0]
+                    if not in_triple_quotes[0]:
+                        in_quotes[0] = in_quotes[1] = False
+                elif j >= 2 and line[(j-2):(j + 1)] == '"""':
+                    in_quotes[1] = not in_quotes[1]
+                    in_triple_quotes[1] = not in_triple_quotes[1]
+                    if not in_triple_quotes[1]:
+                        in_quotes[0] = in_quotes[1] = False
+                #if in_triple_quotes[0] or in_triple_quotes[1]:
+                #    continue
+
+            if ch == '#':
+                break
+            # Count parentheses outside quotes
+            if not in_quotes[0] and not in_quotes[1]:
+                if ch == '(':
+                    paren += 1
+                elif ch == ')':
+                    paren -= 1
+                elif ch == '[':
+                    brack += 1
+                elif ch == ']':
+                    brack -= 1
+                elif ch == '{':
+                    curly += 1
+                elif ch == '}':
+                    curly -= 1
+        return (paren, brack, curly)
+
+    new_lines = []
+    multiline_statement = []
+    multiline = False
+    multiline_decorator = False
+    with open(filename, 'r') as pyxfile:
+        for i, line in enumerate(pyxfile):
+            count_parens(line)
+            if (paren > 0 or brack > 0 or curly > 0) and not multiline:
+                # Multiline statement begins
+                multiline = True
+                if line.lstrip().startswith('@'):
+                    multiline_decorator = True
+                    new_lines.append(line)
+                    continue
+                if '#' in line:
+                    line = line[:line.index('#')]
+                if line:
+                    multiline_statement.append(line.rstrip())
+            elif (paren > 0 or brack > 0 or curly > 0) and multiline:
+                # Multiline statement continues
+                if multiline_decorator:
+                    new_lines.append(line)
+                    continue
+                if '#' in line:
+                    line = line[:line.index('#')]
+                if line:
+                    multiline_statement.append(' ' + line.strip())
+            elif multiline:
+                # Multiline statement ends
+                multiline = False
+                if multiline_decorator:
+                    multiline_decorator = False
+                    new_lines.append(line)
+                    continue
+                multiline_statement.append(' ' + line.lstrip())
+                new_lines.append(''.join(multiline_statement))
+                multiline_statement = []
+            else:
+                new_lines.append(line)
+    with open(filename, 'w') as pyxfile:
+        pyxfile.writelines(new_lines)
+
+
+
 
 
 def import_params(filename):
@@ -324,6 +421,7 @@ def malloc_realloc(filename):
 def C_casting(filename):
     new_lines = []
     with open(filename, 'r') as pyxfile:
+        # Transform to Cython syntax
         for line in pyxfile:
             if 'cast(' in line:
                 paren = 1
@@ -438,11 +536,11 @@ def cython_decorators(filename):
 
 
 def make_pxd(filename):
-    commons_functions = ('max', 'min', 'mod', 'sum', 'prod', 'sinc', 'masterprint', 'masterwarn')
-    customs = {'Particles': 'from species cimport Particles',
-               'func_b_ddd': 'ctypedef bint    (*func_b_ddd_pxd)  (double, double, double)',
-               'func_d_dd': 'ctypedef double  (*func_d_dd_pxd)   (double, double)',
-               'func_d_ddd': 'ctypedef double  (*func_d_ddd_pxd)  (double, double, double)',
+    commons_functions = ('abs', 'max', 'min', 'mod', 'sum', 'prod', 'sinc', 'masterprint', 'masterwarn')
+    customs = {'Particles':    'from species cimport Particles',
+               'func_b_ddd':   'ctypedef bint    (*func_b_ddd_pxd)  (double, double, double)',
+               'func_d_dd':    'ctypedef double  (*func_d_dd_pxd)   (double, double)',
+               'func_d_ddd':   'ctypedef double  (*func_d_ddd_pxd)  (double, double, double)',
                'func_ddd_ddd': 'ctypedef double* (*func_ddd_ddd_pxd)(double, double, double)',
                }
     header_lines = []
@@ -665,6 +763,8 @@ if filename[-3:] == '.py':
     print('You probably do not want pyxpp to edit this. Aborting.')
 elif mode == 'pyx':
     import_params(filename)
+    oneline(filename)
+    cython_decorators(filename)
     cythonstring2code(filename)
     power2product(filename)
     unicode2ASCII(filename)
@@ -672,6 +772,5 @@ elif mode == 'pyx':
     colon2zero_in_addresses(filename)
     malloc_realloc(filename)
     C_casting(filename)
-    cython_decorators(filename)
 elif mode == 'pxd':
     make_pxd(filename)

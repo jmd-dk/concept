@@ -106,8 +106,8 @@ plt.setp([ax.get_xticklabels() for ax in fig.axes[:-1]], visible=False)
 plt.savefig(fig_file)
 
 # Compare the different runs
-tol = 1e-6
+tol = 1e-3
 if any(np.mean(dist[j]/boxsize) > tol for j in range(4)):
     masterwarn('Runs with different numbers of processes yield different results!\n'
-          + 'See ' + fig_file + ' for a visualization.')
+          + 'See "' + fig_file + '" for a visualization.')
     sys.exit(1)

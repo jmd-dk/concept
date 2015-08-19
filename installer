@@ -30,11 +30,13 @@
 # - FreeType (needed by matplotlib)
 # - ncurses  (needed by _curses, which is needed by blessings)
 # - OpenSSL  (needed by pip)
-# - CPython
+# - Python
 # - GSL
 # - MPICH
 # - HDF5
 # - FFTW
+# - GADGET
+# - FFTW 2
 # Additionally, the following Python packages (together with
 # their own Python package dependencies) will be installed:
 # - Yolk3k
@@ -55,8 +57,8 @@
 # gsl library:
 # gsl_dir=/path/to/gsl /path/to/installer
 # The set of such environment variables correspond to the program names
-# above (though using lowercase only), except for mpich and cpython,
-# which are just mpi_dir and python_dir, respectively.
+# above (though using lowercase only), except for mpich,
+# which are just mpi_dir.
 # In this respect, pre-installed Python packages do not count as
 # separate programs (e.g. there is no blessings_dir variable).
 # 
@@ -65,7 +67,7 @@
 # Also, if the curses package is not pre-installed in the Python
 # distribution, Python should at least be compiled with the ncurses
 # library. Finally, if the matplotlib package is not pre-installed in
-# Python distribution, Python should at least be compiled with the
+# the Python distribution, Python should at least be compiled with the
 # FreeType library.
 #
 # Should you wish to install a specific version of some dependency
@@ -281,24 +283,34 @@ mkdir -p "${top_dir}"
 cd "${top_dir}"
 
 # Replace "__top_dir__" in paths with the user specified top_dir.
-# Also converts to absolute path.
+# Also convert to absolute path and check that this path exist for
+# pre-installed libraries.
 fix_path()
 {
     # Arguments: Program name
-    eval "[ \"\${${1}_preinstalled}\" == \"yes\" ] || ${1}_dir=\"\${${1}_dir/__top_dir__/${top_dir}}\""
-    eval "${1}_dir=\"\$(convert_to_abs_path \"\${${1}_dir}\")\""
+    progname="${1// /_}"
+    progname="${progname,,}"
+    # Replace "__top_dir__"
+    eval "[ \"\${${progname=}_preinstalled}\" == \"yes\" ] || ${progname=}_dir=\"\${${progname=}_dir/__top_dir__/${top_dir}}\""
+    # Convert to absolute path
+    eval "${progname=}_dir=\"\$(convert_to_abs_path \"\${${progname=}_dir}\")\""
+    # Check path to pre-installed libraries
+    if eval "[ \"\${${progname}_preinstalled}\" == \"yes\" ] && [ ! -d \"\${${progname}_dir}\" ]"; then
+        error "The specified directory\n\"$(eval "echo \${${progname}_dir}")\"\nfor ${1} does not exist!"
+        exit 1
+    fi
 }
-fix_path "concept"
-fix_path "freetype"
+fix_path "CONCEPT"
+fix_path "FreeType"
 fix_path "ncurses"
-fix_path "openssl"
-fix_path "python"
-fix_path "fftw"
-fix_path "gadget"
-fix_path "fftw_for_gadget"
-fix_path "gsl"
-fix_path "hdf5"
-fix_path "mpi"
+fix_path "OpenSSL"
+fix_path "Python"
+fix_path "FFTW"
+fix_path "GADGET"
+fix_path "FFTW for GADGET"
+fix_path "GSL"
+fix_path "HDF5"
+fix_path "MPI"
 log="${log/__top_dir__/${top_dir}}"
 dotpaths="${dotpaths/__top_dir__/${top_dir}}"
 
@@ -367,14 +379,17 @@ enable_status()
 # Function for checking that a given url actually exists
 validate_url()
 {
-    # Arguments: Name, URL
-    current_step="validation of ${1} link"
-    set_status "Validating ${1} link"
-    text=$(wget -S --spider "${2}" 2>&1)
+    # Arguments: Program name
+    current_step="validation of ${1/CONCEPT/$esc_concept} link"
+    set_status "Validating ${1/CONCEPT/$esc_concept_double_backslashes} link"
+    varname="${1,,}"
+    varname="${varname// /_}"
+    url="$(eval "echo \"\${${varname}_url}\"")"
+    text=$(wget -S --spider "${url}" 2>&1)
     text_http=$(echo "${text}" | grep "Remote file exists" || echo)
-    filename=$(basename "${2}")
+    filename=$(basename "${url}")
     text_ftp=$(echo "${text}" | grep "${filename}.*exists" || echo)
-    if ! ([ -n "${text_http}" ] || ([[ "${2}" == "ftp://"* ]] && [ -n "${text_ftp}" ])); then
+    if ! ([ -n "${text_http}" ] || ([[ "${url}" == "ftp://"* ]] && [ -n "${text_ftp}" ])); then
         error "Error: The ${1} link is broken!"
         exit 1
     fi
@@ -393,7 +408,7 @@ if [ "${python_preinstalled}" == "no" ] && [ "${freetype_preinstalled}" == "no" 
         fi
     fi
     freetype_url="http://download.savannah.gnu.org/releases/freetype/freetype-${freetype_version}.tar.gz"
-    validate_url "FreeType" "${freetype_url}"
+    validate_url "FreeType"
 fi
 
 # ncurses
@@ -409,7 +424,7 @@ if [ "${python_preinstalled}" == "no" ] && [ "${ncurses_preinstalled}" == "no" ]
         fi
     fi
     ncurses_url="http://ftp.gnu.org/pub/gnu/ncurses/ncurses-${ncurses_version}.tar.gz"
-    validate_url "ncurses" "${ncurses_url}"
+    validate_url "ncurses"
 fi
 
 # OpenSSL
@@ -425,7 +440,7 @@ if [ "${python_preinstalled}" == "no" ] && [ "${openssl_preinstalled}" == "no" ]
         fi
     fi
     openssl_url="ftp://ftp.openssl.org/source/openssl-${openssl_version}.tar.gz"
-    validate_url "OpenSSL" "${openssl_url}"
+    validate_url "OpenSSL"
 fi
 
 # Python (note that python_version will be overwritten later!)
@@ -440,7 +455,7 @@ if [ "${python_preinstalled}" == "no" ]; then
         fi
     fi
     python_url="https://www.python.org/ftp/python/${python_version}/Python-${python_version}.tar.xz"
-    validate_url "Python" "${python_url}"
+    validate_url "Python"
 fi
 
 # GSL
@@ -455,7 +470,7 @@ if [ "${gsl_preinstalled}" == "no" ]; then
         fi
     fi
     gsl_url="ftp://ftp.gnu.org/gnu/gsl/gsl-${gsl_version}.tar.gz"
-    validate_url GSL "${gsl_url}"
+    validate_url "GSL"
 fi
 
 # MPICH
@@ -470,7 +485,7 @@ if [ "${mpi_preinstalled}" == "no" ]; then
         fi
     fi
     mpich_url="http://www.mpich.org/static/downloads/${mpich_version}/mpich-${mpich_version}.tar.gz"
-    validate_url "MPICH" "${mpich_url}"
+    validate_url "MPICH"
 fi
 
 # HDF5
@@ -484,8 +499,8 @@ if [ "${hdf5_preinstalled}" == "no" ]; then
             exit 1
         fi
     fi
-    hdf5_url="ftp://ftp.hdfgroup.org/HDF5/current/src/hdf5-${hdf5_version}.tar.bz2"
-    validate_url "HDF5" "${hdf5_url}"
+    hdf5_url="ftp://ftp.hdfgroup.org/HDF5/releases/hdf5-${hdf5_version}/src/hdf5-${hdf5_version}.tar.bz2"
+    validate_url "HDF5"
 fi
 
 # FFTW
@@ -500,7 +515,7 @@ if [ "${fftw_preinstalled}" == "no" ]; then
         fi
     fi
     fftw_url="http://www.fftw.org/fftw-${fftw_version}.tar.gz"
-    validate_url "FFTW" "${fftw_url}"
+    validate_url "FFTW"
 fi
 
 # CONCEPT
@@ -521,7 +536,7 @@ if [ "${concept_preinstalled}" == "no" ]; then
         exit 1
     fi
     concept_url="${concept_repo_url}/archive/master.tar.gz"
-    validate_url "${esc_concept_double_backslashes}" "${concept_url}"
+    validate_url "CONCEPT"
 fi
 
 # FFTW for Gadget
@@ -536,7 +551,7 @@ if [ "${fftw_for_gadget_preinstalled}" == "no" ]; then
         fi
     fi
     fftw_for_gadget_url="http://www.fftw.org/fftw-${fftw_for_gadget_version}.tar.gz"
-    validate_url "FFTW for GADGET" "${fftw_for_gadget_url}"
+    validate_url "FFTW for GADGET"
 fi
 
 # GADGET2
@@ -546,27 +561,38 @@ if [ "${gadget_preinstalled}" == "no" ]; then
         exit 1
     fi
     gadget_url="http://www.mpa-garching.mpg.de/gadget/gadget-${gadget_version}.tar.gz"
-    validate_url GADGET "${gadget_url}"
+    validate_url "GADGET"
 fi
 
 # Write out installation overview
+if [ "${python_preinstalled}" == "no" ] \
+|| [ "${freetype_preinstalled}" == "no" ] \
+|| [ "${ncurses_preinstalled}" == "no" ] \
+|| [ "${openssl_preinstalled}" == "no" ] \
+|| [ "${gsl_preinstalled}" == "no" ] \
+|| [ "${mpich__preinstalled}" == "no" ] \
+|| [ "${hdf5_preinstalled}" == "no" ] \
+|| [ "${fftw_preinstalled}" == "no" ] \
+|| [ "${gadget_preinstalled}" == "no" ] \
+|| [ "${fftw_for_gadget_preinstalled}" == "no" ]; then
 disable_status
 heading "Installation overview"
 printf "The following software will be installed\n"
 printf "${esc_bold}Name{}$(printf ${en_quad}%.s {1..3})Version{}$(printf ${en_quad}%.s {1..3})Installation path${esc_normal}
-${esc_concept}{}$(printf ${en_quad}%.s {1..7})${concept_version}{}$(printf ${en_quad}%.s {1..7})\"${concept_dir}\"
-├─Python{}${python_version}{}\"${python_dir}\"
-│ ├─FreeType{}${freetype_version}{}\"${freetype_dir}\"
-│ ├─ncurses{}${ncurses_version}{}\"${ncurses_dir}\"
-│ └─OpenSSL{}${openssl_version}{}\"${openssl_dir}\"
-├─GSL{}${gsl_version}{}\"${gsl_dir}\"
-├─MPICH{}${mpich_version}{}\"${mpi_dir}\"
-├─HDF5{}${hdf5_version}{}\"${hdf5_dir}\"
-├─FFTW{}${fftw_version}{}\"${fftw_dir}\"
-└─GADGET{}${gadget_version}{}\"${gadget_dir}\"
-${en_quad}${en_quad}└─FFTW{}${fftw_for_gadget_version}{}\"${fftw_for_gadget_dir}\"\n" | column -t -s {}
+${esc_concept}{}$(printf ${en_quad}%.s {1..7})${concept_version}{}$(printf ${en_quad}%.s {1..7})$(echo \"${concept_dir}\" | sed 's/""//g')
+├─Python{}${python_version}{}$(echo \"${python_dir}\" | sed 's/""//g')
+│ ├─FreeType{}${freetype_version}{}$(echo \"${freetype_dir}\" | sed 's/""//g')
+│ ├─ncurses{}${ncurses_version}{}$(echo \"${ncurses_dir}\" | sed 's/""//g')
+│ └─OpenSSL{}${openssl_version}{}$(echo \"${openssl_dir}\" | sed 's/""//g')
+├─GSL{}${gsl_version}{}$(echo \"${gsl_dir}\" | sed 's/""//g')
+├─MPICH{}${mpich_version}{}$(echo \"${mpi_dir}\" | sed 's/""//g')
+├─HDF5{}${hdf5_version}{}$(echo \"${hdf5_dir}\" | sed 's/""//g')
+├─FFTW{}${fftw_version}{}$(echo \"${fftw_dir}\" | sed 's/""//g')
+└─GADGET{}${gadget_version}{}$(echo \"${gadget_dir}\" | sed 's/""//g')
+${en_quad}${en_quad}└─FFTW{}${fftw_for_gadget_version}{}$(echo \"${fftw_for_gadget_dir}\" | sed 's/""//g')\n" | column -t -s {}
 sleep 10
 enable_status
+fi
 
 
 
@@ -802,21 +828,31 @@ python_check_package "Pillow"     "${python_dir}/lib/python${python_version}/sit
 python_check_package "H5Py"       "${python_dir}/lib/python${python_version}/site-packages/h5py-${h5py_version}-py${python_version}-$(uname -s | awk '{print tolower($0)}')-$(uname -m).egg/h5py"
 
 # Print out Python package installation overview
+if [ "${blessings_preinstalled}" == "no" ] \
+|| [ "${cython_preinstalled}" == "no" ] \
+|| [ "${cython_gsl_preinstalled}" == "no" ] \
+|| [ "${h5py_preinstalled}" == "no" ] \
+|| [ "${matplotlib_preinstalled}" == "no" ] \
+|| [ "${mpi4py_preinstalled}" == "no" ] \
+|| [ "${numpy_preinstalled}" == "no" ] \
+|| [ "${pexpect_preinstalled}" == "no" ] \
+|| [ "${pillow_preinstalled}" == "no" ]; then
 disable_status
 heading "Python packages overview"
 printf "The following Python packages will be installed\n"
 printf "${esc_bold}Name{}$(printf ${en_quad}%.s {1..3})Version{}$(printf ${en_quad}%.s {1..3})Installation path${esc_normal}
-┌─Blessings{}${blessings_version}{}${blessings_dir}
-├─Cython{}${cython_version}{}${cython_dir}
-├─Cython_GSL{}${cython_gsl_version}{}${cython_gsl_dir}
-├─H5Py{}${h5py_version}{}${h5py_dir}
-├─Matplotlib{}${matplotlib_version}{}${matplotlib_dir}
-├─MPI4Py{}${mpi4py_version}{}${mpi4py_dir}
-├─NumPy{}${numpy_version}{}${numpy_dir}
-├─Pexpect{}${pexpect_version}{}${pexpect_dir}
-└─Pillow{}${pillow_version}{}${pillow_dir}\n" | column -t -s {}
+┌─Blessings{}${blessings_version}{}$(echo ${blessings_dir} | sed 's/""//g')
+├─Cython{}${cython_version}{}$(echo ${cython_dir} | sed 's/""//g')
+├─Cython_GSL{}${cython_gsl_version}{}$(echo ${cython_gsl_dir} | sed 's/""//g')
+├─H5Py{}${h5py_version}{}$(echo ${h5py_dir} | sed 's/""//g')
+├─Matplotlib{}${matplotlib_version}{}$(echo ${matplotlib_dir} | sed 's/""//g')
+├─MPI4Py{}${mpi4py_version}{}$(echo ${mpi4py_dir} | sed 's/""//g')
+├─NumPy{}${numpy_version}{}$(echo ${numpy_dir} | sed 's/""//g')
+├─Pexpect{}${pexpect_version}{}$(echo ${pexpect_dir} | sed 's/""//g')
+└─Pillow{}${pillow_version}{}$(echo ${pillow_dir} | sed 's/""//g')\n" | column -t -s {}
 sleep 10
 enable_status
+fi
 
 # Install Python packages from PyPI.
 # Function for installing Python packages, utilizing pip.
@@ -1064,25 +1100,25 @@ $(copyright_notice "mpich"           "MPICH")
 $(copyright_notice "ncurses"         "ncurses")
 $(copyright_notice "openssl"         "OpenSSL")
 $(copyright_notice "python"          "Python")
-$(copyright_notice "blessings"       "    Blessings")
-$(copyright_notice "cython"          "    Cython")
-$(copyright_notice "cython_gsl"      "    Cython_GSL")
-$(copyright_notice "h5py"            "    H5Py")
-$(copyright_notice "matplotlib"      "    Matplotlib")
-$(copyright_notice "mpi4py"          "    MPI4Py")
-$(copyright_notice "numpy"           "    NumPy")
-$(copyright_notice "pexpect"         "    Pexpect")
-$(copyright_notice "pillow"          "    Pillow")
-$(copyright_notice "yolk"            "    Yolk3k")
+$(copyright_notice "blessings"       "$(printf ${en_quad}%.s {1..4})Blessings")
+$(copyright_notice "cython"          "$(printf ${en_quad}%.s {1..4})Cython")
+$(copyright_notice "cython_gsl"      "$(printf ${en_quad}%.s {1..4})Cython_GSL")
+$(copyright_notice "h5py"            "$(printf ${en_quad}%.s {1..4})H5Py")
+$(copyright_notice "matplotlib"      "$(printf ${en_quad}%.s {1..4})Matplotlib")
+$(copyright_notice "mpi4py"          "$(printf ${en_quad}%.s {1..4})MPI4Py")
+$(copyright_notice "numpy"           "$(printf ${en_quad}%.s {1..4})NumPy")
+$(copyright_notice "pexpect"         "$(printf ${en_quad}%.s {1..4})Pexpect")
+$(copyright_notice "pillow"          "$(printf ${en_quad}%.s {1..4})Pillow")
+$(copyright_notice "yolk"            "$(printf ${en_quad}%.s {1..4})Yolk3k")
 "
 msg="$(printf "${msg}" | sed '/^$/d')"
 if [[ "${msg}" == *"dependencies:" ]]; then
     msg="${esc_concept} has been installed in\n\"${top_dir}\"" 
 else
-msg="${msg}\n\nThese have been installed into seperate folders in
+msg="${msg}\n\nThese have been installed into separate directories in
 \"${top_dir}\"
 Any use of ${esc_concept} must conform to the license terms of the above
-software in addition to its own. These can be found in the seperate
+software in addition to its own. These can be found in the separate
 installation directories.\n
 "
 fi

@@ -153,7 +153,7 @@ def save_standard(particles, a, filename):
                N_locals='tuple',
                end_local='size_t',
                file_H0='double',
-               #file_a='double',
+               file_a='double',
                file_boxsize='double',
                file_Ωm='double',
                file_ΩΛ='double',
@@ -181,22 +181,9 @@ def load_standard(filename, write_msg=True):
             # Check if the parameters of the snapshot
             # matches those of the current simulation run.
             # Display a warning if they do not.
-            tol = 1e-5
-            if master and write_msg and any([abs(file_param/param - 1) > tol for
-                file_param, param in zip((file_boxsize,
-                                          file_H0,
-                                          file_Ωm,
-                                          file_ΩΛ,
-                                          file_a,
-                                          ),
-                                         (boxsize,
-                                          H0,
-                                          Ωm,
-                                          ΩΛ,
-                                          a_begin,
-                                          ))]):
-                msg = ('Mismatch between current parameters and those in the '
-                       + 'snapshot "' + filename + '":')
+            tol = 1e-4
+            if write_msg:
+                msg = ''
                 if abs(file_a/a_begin - 1) > tol:
                     msg += ('\n' + ' '*8 + 'a_begin: ' + str(a_begin)
                             + ' vs ' + str(file_a))
@@ -216,7 +203,10 @@ def load_standard(filename, write_msg=True):
                     msg += ('\n' + ' '*8 + '\N{GREEK CAPITAL LETTER OMEGA}'
                             + '\N{GREEK CAPITAL LETTER LAMDA}: '
                             + str(ΩΛ) + ' vs ' + str(file_ΩΛ))
-                masterwarn(msg, indent=4)
+                if msg:
+                    msg = ('Mismatch between current parameters and those in '
+                           + 'the snapshot "' + filename + '":' + msg)
+                    masterwarn(msg, indent=4)
             # Extract HDF5 datasets
             particles_h5 = all_particles[particle_type]
             posx_h5 = particles_h5['posx']
@@ -553,7 +543,7 @@ class Gadget_snapshot:
             # Check if the parameters of the snapshot matches
             # those of the current simulation run. Display a warning
             # if they do not.
-            tol = 1e-5
+            tol = 1e-4
             gadget_a = self.header['Time']
             unit = units.kpc/self.header['HubbleParam']
             gadget_boxsize = self.header['BoxSize']*unit
@@ -561,21 +551,8 @@ class Gadget_snapshot:
             gadget_H0 = self.header['HubbleParam']*unit
             gadget_Ωm = self.header['Omega0']
             gadget_ΩΛ = self.header['OmegaLambda']
-            if master and write_msg and any([abs(gadget_param/param - 1) > tol for
-                gadget_param, param in zip((gadget_boxsize,
-                                            gadget_H0,
-                                            gadget_Ωm,
-                                            gadget_ΩΛ,
-                                            gadget_a,
-                                            ),
-                                           (boxsize,
-                                            H0,
-                                            Ωm,
-                                            ΩΛ,
-                                            a_begin,
-                                            ))]):
-                msg = ('Mismatch between current parameters and those in the'
-                       + ' GADGET snapshot "' + filename + '":')
+            if write_msg:
+                msg = ''
                 if abs(gadget_a/a_begin - 1) > tol:
                     msg += ('\n' + ' '*8 + 'a_begin: ' + str(a_begin)
                             + ' vs ' + str(gadget_a))
@@ -595,7 +572,10 @@ class Gadget_snapshot:
                     msg += ('\n' + ' '*8 + '\N{GREEK CAPITAL LETTER OMEGA}'
                             + '\N{GREEK CAPITAL LETTER LAMDA}: '
                             + str(ΩΛ) + ' vs ' + str(gadget_ΩΛ))
-                masterwarn(msg, indent=4)
+                if msg:
+                    msg = ('Mismatch between current parameters and those in '
+                           + 'the GADGET snapshot "' + filename + '":' + msg)
+                    masterwarn(msg, indent=4)
             # Write out progress message
             N = self.header['Npart'][1]
             if write_msg:

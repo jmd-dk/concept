@@ -100,6 +100,6 @@ if np.sum(x0_std) > tol or np.sum(x1_std) > tol:
 tol = 1e-2
 if max(np.abs(x0/x0_gadget - 1)) > tol or max(np.abs(x1/x1_gadget - 1)) > tol:
     masterwarn('The results from CONCEPT disagree with those from GADGET.\n'
-          + 'See ' + fig_file + ' for a visualization.')
+          + 'See "' + fig_file + '" for a visualization.')
     sys.exit(1)
 

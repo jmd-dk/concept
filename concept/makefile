@@ -207,7 +207,7 @@ params.py: $(paramsfile) $(MAKEFILE_LIST)
 	@cp $(paramsfile) $@
 	@sed -i '1i$(copy_msg) $(paramsfile)\
 	# Import useful numpy functions and constants\
-	from numpy import abs, arange, arccos, arccosh, arcsin, arcsinh, arctan, arctanh, ceil, cos, cosh, e, exp, floor, linspace, loadtxt, log, log10, log2, pi, sqrt, sin, sinh, tan, tanh\
+	from numpy import abs, arange, arccos, arccosh, arcsin, arcsinh, arctan, arctanh, cos, cosh, e, exp, linspace, loadtxt, log, log10, log2, mod, pi, prod, sqrt, sin, sinh, tan, tanh\
 	from numpy import pi as π\
 	# Get access to the absolute paths stored in the .paths file\
 	import imp, os\
