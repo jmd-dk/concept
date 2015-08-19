@@ -175,7 +175,7 @@ esc_yellow="${esc}[93m"
 esc_up="${esc}[1A"
 esc_erase="${esc}[K"
 # Special characters
-en_quad="\u2000"
+en_quad="\xE2\x80\x80"
 # Functions for pretty printing text
 heading()
 {
