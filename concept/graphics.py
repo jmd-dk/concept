@@ -277,7 +277,8 @@ def animate(particles, timestep, a, a_snapshot, filename=''):
         masterprint('done')
     if save_liveframe:
         # Print out message
-        masterprint('    Updating live frame "' + liveframe_full + '" ... ', end='')
+        masterprint('    Updating live frame "' + liveframe_full
+                    + '" ... ', end='')
         # Save the live frame
         if nprocs > 1:
             imsave(liveframe_full, combined)
@@ -287,7 +288,8 @@ def animate(particles, timestep, a, a_snapshot, filename=''):
         masterprint('done')
         if upload_liveframe:
             # Print out message
-            masterprint('    Uploading live frame "' + remote_liveframe + '" ... ', end='')
+            masterprint('    Uploading live frame "' + remote_liveframe
+                        + '" ... ', end='')
             # Upload the live frame
             child = pexpect.spawn(cmd1, timeout=10)
             try:
@@ -382,7 +384,7 @@ def significant_figures(f, n, just=0, scientific=False):
         sign = -1
         f *= sign
     # Round to significant digits
-    power = n - 1 - int(floor(log10(f)))
+    power = n - 1 - int(log10(f))
     power10 = 10.0**power
     f = round(f*power10)/power10
     f_str = str(f)

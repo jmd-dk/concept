@@ -140,7 +140,7 @@ def exchange(particles, reset_buffers=False):
     posy = particles.posy
     posz = particles.posz
     # The index buffers indices_send[:] increase in size by this amount
-    Δmemory = int(1 + ceil(0.01*N_local/nprocs))
+    Δmemory = 2 + cast(0.01*N_local/nprocs, 'size_t')
     # Reset the number of particles to be sent
     for j in range(nprocs):
         N_send[j] = 0
@@ -157,7 +157,9 @@ def exchange(particles, reset_buffers=False):
             # Enlarge the index buffer indices_send[owner] if needed
             if N_send[owner] == indices_send_sizes[owner]:
                 indices_send_sizes[owner] += Δmemory
-                indices_send[owner] = realloc(indices_send[owner], indices_send_sizes[owner]*sizeof('size_t'))
+                indices_send[owner] = realloc(indices_send[owner],
+                                              indices_send_sizes[owner]
+                                              *sizeof('size_t'))
     # No need to continue if no particles should be exchanged
     N_send_tot = sum(N_send)
     N_send_tot_global = allreduce(N_send_tot, op=MPI.SUM)
@@ -165,10 +167,11 @@ def exchange(particles, reset_buffers=False):
         return
     # Print out exchange message
     if N_send_tot_global == 1:
-        masterprint('Exchanging 1 particle')
+        masterprint('Exchanging 1 particle ... ', end='')
     elif N_send_tot_global > 1:
         # The int casting is necessary in pure Python
-        masterprint('Exchanging', int(N_send_tot_global), 'particles')
+        masterprint('Exchanging', N_send_tot_global,
+                    'particles ... ', end='')
     # Enlarge sendbuf, if necessary
     N_send_max = max(N_send)
     if N_send_max > sendbuf_mv.size:
@@ -303,6 +306,8 @@ def exchange(particles, reset_buffers=False):
             indices_send_sizes[j] = 1
             sendbuf = realloc(sendbuf, 1*sizeof('double'))
             sendbuf_mv = cast(sendbuf, 'double[:1]')
+    # Finalize exchange message
+    masterprint('done')
     
 
 # Function for cutting out domains as rectangular boxes in the best

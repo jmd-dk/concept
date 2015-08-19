@@ -194,14 +194,12 @@ def timeloop():
                     a_next = expand(a, t, 0.5*(Δt - Δt_prev))
                     if a_next < a_dump:
                         # Only drift if a_dump is not reached by it
-                        masterprint('Updating time step size ... ', end='')
                         a = a_next
                         # Do the kick and drift integrals
                         # ∫_t^(t + Δt/2)dt/a and ∫_t^(t + Δt/2)dt/a**2
                         # and drift the remaining distance.
                         kick_fac[kick_drift_index] += scalefactor_integral(-1)
                         particles.drift(scalefactor_integral(-2))
-                        masterprint('done')
                     else:
                         # Do not alter Δt just before (or just after,
                         # in the case of a == a_dump) dumps.

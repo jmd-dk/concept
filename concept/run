@@ -445,7 +445,7 @@ else
     else
         colorprint "\nSome warnings/errors occured during CONCEPT run!" "red" 2>&1 | tee -a "${this_dir}/logs/${jobid}"
         colorprint "Check the following error log for more information:" "red" 2>&1 | tee -a "${this_dir}/logs/${jobid}"
-        colorprint "${this_dir}/logs/${jobid}_err" "red" 2>&1 | tee -a "${this_dir}/logs/${jobid}"
+        colorprint "\"${this_dir}/logs/${jobid}_err\"" "red" 2>&1 | tee -a "${this_dir}/logs/${jobid}"
     fi
     # If the CONCEPT run exited erroneously, exit now
     if [ "${concept_exit_status}" != "0" ]; then

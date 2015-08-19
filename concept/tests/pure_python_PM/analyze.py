@@ -105,9 +105,9 @@ plt.setp([ax.get_xticklabels() for ax in fig.axes[:-1]], visible=False)
 plt.savefig(fig_file)
 
 # Compare CONCEPT to GADGET
-tol = 1e-6
+tol = 1e-3
 if any(np.mean(dist[j]/boxsize) > tol for j in range(4)):
     masterwarn('Some or all pure Python runs with nprocs = {1, 2, 4} yielded results\n'
           + 'different from the compiled run!\n'
-          + 'See ' + fig_file + ' for a visualization.')
+          + 'See "' + fig_file + '" for a visualization.')
     sys.exit(1)

@@ -90,6 +90,6 @@ if np.sum(x_std) > tol:
 tol = 1e-3
 if max(np.abs(x/x_gadget - 1)) > tol:
     masterwarn('The results from CONCEPT disagree with those from GADGET.\n'
-          + 'See ' + fig_file + ' for a visualization.')
+          + 'See "' + fig_file + '" for a visualization.')
     sys.exit(1)
 

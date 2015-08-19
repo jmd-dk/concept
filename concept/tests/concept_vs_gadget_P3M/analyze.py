@@ -121,6 +121,6 @@ plt.savefig(fig_file)
 tol = 1e-2
 if np.mean(dist/boxsize) > tol:
     masterwarn('The results from CONCEPT disagree with those from GADGET.\n'
-          + 'See ' + fig_file + ' for a visualization.')
+          + 'See "' + fig_file + '" for a visualization.')
     sys.exit(1)
 

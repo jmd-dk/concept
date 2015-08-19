@@ -32,9 +32,10 @@ else:
     """
     from ewald cimport ewald
     from communication cimport cutout_domains, find_N_recv, neighboring_ranks
-    from mesh cimport (CIC_grid2coordinates_scalar, CIC_grid2coordinates_vector,
-                       CIC_particles2grid, communicate_boundaries,
-                       communicate_ghosts, domain2PM, PM2domain)
+    from mesh cimport (CIC_grid2coordinates_scalar,
+                       CIC_grid2coordinates_vector, CIC_particles2grid,
+                       communicate_boundaries, communicate_ghosts, domain2PM,
+                       PM2domain)
     # FFT functionality via FFTW from fft.c
     cdef extern from "fft.c":
         # The fftw_plan type
@@ -928,10 +929,10 @@ def P3M(particles, Δt):
     # between neighboring domain boundaries remain.
     # The buffers below may increase
     # their size by this amount at a time.
-    Δmemory = int(1 + ceil(0.05*N_local*np.max([P3M_cutoff_phys/domain_size_x,
-                                                P3M_cutoff_phys/domain_size_y,
-                                                P3M_cutoff_phys/domain_size_z,
-                                                ])))
+    Δmemory = 2 + cast(0.05*N_local*np.max([P3M_cutoff_phys/domain_size_x,
+                                            P3M_cutoff_phys/domain_size_y,
+                                            P3M_cutoff_phys/domain_size_z,
+                                            ]), 'size_t')
     # Loop over all 26 neighbors (two at a time)
     for j in range(13):
         # It is important that the processes iterate synchronously,
@@ -961,20 +962,48 @@ def P3M(particles, Δt):
                 N_boundary1 += 1
                 # Enlarge buffers if needed
                 if posx_local_boundary_mv.shape[0] == N_boundary1:
-                    indices_boundary = realloc(indices_boundary, (N_boundary1 + Δmemory)*sizeof('size_t'))
-                    indices_boundary_mv = cast(indices_boundary, 'size_t[:(N_boundary1 + Δmemory)]')
-                    posx_local_boundary = realloc(posx_local_boundary, (N_boundary1 + Δmemory)*sizeof('double'))
-                    posx_local_boundary_mv = cast(posx_local_boundary, 'double[:(N_boundary1 + Δmemory)]')
-                    posy_local_boundary = realloc(posy_local_boundary, (N_boundary1 + Δmemory)*sizeof('double'))
-                    posy_local_boundary_mv = cast(posy_local_boundary, 'double[:(N_boundary1 + Δmemory)]')
-                    posz_local_boundary = realloc(posz_local_boundary, (N_boundary1 + Δmemory)*sizeof('double'))
-                    posz_local_boundary_mv = cast(posz_local_boundary, 'double[:(N_boundary1 + Δmemory)]')
-                    Δmomx_local_boundary = realloc(Δmomx_local_boundary, (N_boundary1 + Δmemory)*sizeof('double'))
-                    Δmomx_local_boundary_mv = cast(Δmomx_local_boundary, 'double[:(N_boundary1 + Δmemory)]')
-                    Δmomy_local_boundary = realloc(Δmomy_local_boundary, (N_boundary1 + Δmemory)*sizeof('double'))
-                    Δmomy_local_boundary_mv = cast(Δmomy_local_boundary, 'double[:(N_boundary1 + Δmemory)]')
-                    Δmomz_local_boundary = realloc(Δmomz_local_boundary, (N_boundary1 + Δmemory)*sizeof('double'))
-                    Δmomz_local_boundary_mv = cast(Δmomz_local_boundary, 'double[:(N_boundary1 + Δmemory)]')
+                    indices_boundary = realloc(indices_boundary,
+                                               (N_boundary1 + Δmemory)
+                                               *sizeof('size_t'))
+                    indices_boundary_mv = cast(indices_boundary,
+                                               'size_t[:(N_boundary1 '
+                                               + '+ Δmemory)]')
+                    posx_local_boundary = realloc(posx_local_boundary,
+                                                  (N_boundary1 + Δmemory)
+                                                  *sizeof('double'))
+                    posx_local_boundary_mv = cast(posx_local_boundary,
+                                                  'double[:(N_boundary1 '
+                                                  + '+ Δmemory)]')
+                    posy_local_boundary = realloc(posy_local_boundary,
+                                                  (N_boundary1 + Δmemory)
+                                                  *sizeof('double'))
+                    posy_local_boundary_mv = cast(posy_local_boundary,
+                                                  'double[:(N_boundary1 '
+                                                  + '+ Δmemory)]')
+                    posz_local_boundary = realloc(posz_local_boundary,
+                                                  (N_boundary1 + Δmemory)
+                                                  *sizeof('double'))
+                    posz_local_boundary_mv = cast(posz_local_boundary,
+                                                  'double[:(N_boundary1 '
+                                                  + '+ Δmemory)]')
+                    Δmomx_local_boundary = realloc(Δmomx_local_boundary,
+                                                   (N_boundary1 + Δmemory)
+                                                   *sizeof('double'))
+                    Δmomx_local_boundary_mv = cast(Δmomx_local_boundary,
+                                                   'double[:(N_boundary1 '
+                                                   + '+ Δmemory)]')
+                    Δmomy_local_boundary = realloc(Δmomy_local_boundary,
+                                                   (N_boundary1 + Δmemory)
+                                                   *sizeof('double'))
+                    Δmomy_local_boundary_mv = cast(Δmomy_local_boundary,
+                                                   'double[:(N_boundary1 '
+                                                   + '+ Δmemory)]')
+                    Δmomz_local_boundary = realloc(Δmomz_local_boundary,
+                                                   (N_boundary1 + Δmemory)
+                                                   *sizeof('double'))
+                    Δmomz_local_boundary_mv = cast(Δmomz_local_boundary,
+                                                   'double[:(N_boundary1 '
+                                                   + '+ Δmemory)]')
             # Check if particle should be sent to the right
             if in_boundary2(posx_local_i, posy_local_i, posz_local_i):
                 # Particle i should be send
@@ -989,15 +1018,27 @@ def P3M(particles, Δt):
                 N_boundary2 += 1
                 # Enlarge buffers if needed
                 if indices_send_mv.shape[0] == N_boundary2:
-                    indices_send = realloc(indices_send, (N_boundary2 + Δmemory)*sizeof('size_t'))
-                    indices_send_mv = cast(indices_send, 'size_t[:(N_boundary2 + Δmemory)]')
+                    indices_send = realloc(indices_send,
+                                           (N_boundary2 + Δmemory)
+                                           *sizeof('size_t'))
+                    indices_send_mv = cast(indices_send,
+                                           'size_t[:(N_boundary2 + Δmemory)]')
                 if Δmomx_local_mv.shape[0] == N_boundary2:
-                    Δmomx_local = realloc(Δmomx_local, (N_boundary2 + Δmemory)*sizeof('double'))
-                    Δmomx_local_mv = cast(Δmomx_local, 'double[:(N_boundary2 + Δmemory)]')
-                    Δmomy_local = realloc(Δmomy_local, (N_boundary2 + Δmemory)*sizeof('double'))
-                    Δmomy_local_mv = cast(Δmomy_local, 'double[:(N_boundary2 + Δmemory)]')
-                    Δmomz_local = realloc(Δmomz_local, (N_boundary2 + Δmemory)*sizeof('double'))
-                    Δmomz_local_mv = cast(Δmomz_local, 'double[:(N_boundary2 + Δmemory)]')
+                    Δmomx_local = realloc(Δmomx_local,
+                                          (N_boundary2 + Δmemory)
+                                          *sizeof('double'))
+                    Δmomx_local_mv = cast(Δmomx_local,
+                                          'double[:(N_boundary2 + Δmemory)]')
+                    Δmomy_local = realloc(Δmomy_local,
+                                          (N_boundary2 + Δmemory)
+                                          *sizeof('double'))
+                    Δmomy_local_mv = cast(Δmomy_local,
+                                          'double[:(N_boundary2 + Δmemory)]')
+                    Δmomz_local = realloc(Δmomz_local,
+                                          (N_boundary2 + Δmemory)
+                                          *sizeof('double'))
+                    Δmomz_local_mv = cast(Δmomz_local,
+                                          'double[:(N_boundary2 + Δmemory)]')
         # Communicate the number of particles to be communicated
         N_extrn = sendrecv(N_boundary2, dest=rank_send, source=rank_recv)
         # Enlarge the receive buffers if needed
@@ -1169,7 +1210,8 @@ if use_PM:
         # PM_grid[i, j, k] when in real space and PM_grid[j, i, k] when in
         # Fourier space
         if PM_gridsize_local_i > 0:
-            PM_grid = cast(fftw_struct.grid, 'double[:PM_gridsize_local_i, :PM_gridsize, :PM_gridsize_padding]')
+            PM_grid = cast(fftw_struct.grid,
+            'double[:PM_gridsize_local_i, :PM_gridsize, :PM_gridsize_padding]')
         else:
             # The process do not participate in the FFT computations
             PM_grid = empty((0, PM_gridsize, PM_gridsize_padding))
