@@ -575,21 +575,68 @@ if [ "${python_preinstalled}" == "no" ] \
 || [ "${fftw_preinstalled}" == "no" ] \
 || [ "${gadget_preinstalled}" == "no" ] \
 || [ "${fftw_for_gadget_preinstalled}" == "no" ]; then
+print_table()
+{
+    local table=("${!1}")
+
+    # Determine largest length
+    maxlengths=(0 0 0)
+    c=0
+    for ((i = ${c}; i <= ((${#table[@]} - 1)); i += 1)); do
+        length=${#table[i]}
+        [ ${length} -gt ${maxlengths[c]} ] && maxlengths[c]=${length}
+        ((c += 1))
+        [ ${c} == 3 ] && c=0
+    done
+    # Print
+    msg=""
+    c=0
+    for ((i = ${c}; i <= ((${#table[@]} - 1)); i += 1)); do
+        element="$(printf "%-${maxlengths[${c}]}s  " "${table[i]}")"
+        if [ ${c} == 0 ]; then
+            element="${element//-/─}"
+            element="${element//|/│}"
+            element="${element//</└}"
+            element="${element//\}/├}"
+            element="${element//\~/${en_quad}}"
+        fi
+        msg="${msg}${element}"
+        ((c += 1))
+        [ ${c} == 3 ] && c=0 && msg="${msg}\n"
+    done
+    # FARVER
+    printf "${msg}"
+}
+table=(
+"Name"         "Version"                   "Installation path"
+"CONCEPT"      "{concept_version}"         "\"{concept_dir}\""
+"}-Python"     "{python_version}"          "\"{python_dir}\""
+"| }-FreeType" "{freetype_version}"        "\"{freetype_dir}\""
+"| }-nncurses" "{ncurses_version}"         "\"{ncurses_dir}\""
+"| <-OpenSSL"  "{openssl_version}"         "\"{openssl_dir}\""
+"}-GSL"        "{gsl_version}"             "\"{gsl_dir}\""
+"}-MPICH"      "{mpich_version}"           "\"{mpi_dir}\""
+"}-HDF5"       "{hdf5_version}"            "\"{hdf5_dir}\""
+"}-FFTW"       "{fftw_version}"            "\"{fftw_dir}\""
+"<-GADGET"     "{gadget_version}"          "\"{gadget_dir}\""
+"~~<-FFTW"     "{fftw_for_gadget_version}" "\"{fftw_for_gadget_dir}\""
+)
 disable_status
 heading "Installation overview"
 printf "The following software will be installed\n"
-printf "${esc_bold}Name{}$(printf ${en_quad}%.s {1..3})Version{}$(printf ${en_quad}%.s {1..3})Installation path${esc_normal}
-${esc_concept}{}$(printf ${en_quad}%.s {1..7})${concept_version}{}$(printf ${en_quad}%.s {1..7})$(echo \"${concept_dir}\" | sed 's/""//g')
-├─Python{}${python_version}{}$(echo \"${python_dir}\" | sed 's/""//g')
-│ ├─FreeType{}${freetype_version}{}$(echo \"${freetype_dir}\" | sed 's/""//g')
-│ ├─ncurses{}${ncurses_version}{}$(echo \"${ncurses_dir}\" | sed 's/""//g')
-│ └─OpenSSL{}${openssl_version}{}$(echo \"${openssl_dir}\" | sed 's/""//g')
-├─GSL{}${gsl_version}{}$(echo \"${gsl_dir}\" | sed 's/""//g')
-├─MPICH{}${mpich_version}{}$(echo \"${mpi_dir}\" | sed 's/""//g')
-├─HDF5{}${hdf5_version}{}$(echo \"${hdf5_dir}\" | sed 's/""//g')
-├─FFTW{}${fftw_version}{}$(echo \"${fftw_dir}\" | sed 's/""//g')
-└─GADGET{}${gadget_version}{}$(echo \"${gadget_dir}\" | sed 's/""//g')
-${en_quad}${en_quad}└─FFTW{}${fftw_for_gadget_version}{}$(echo \"${fftw_for_gadget_dir}\" | sed 's/""//g')\n" | column -t -s {}
+print_table table[@]
+#printf "${esc_bold}Name{}$(printf ${en_quad}%.s {1..3})Version{}$(printf ${en_quad}%.s {1..3})Installation path${esc_normal}
+#${esc_concept}{}$(printf ${en_quad}%.s {1..7})${concept_version}{}$(printf ${en_quad}%.s {1..7})$(echo \"${concept_dir}\" | sed 's/""//g')
+#├─Python{}${python_version}{}$(echo \"${python_dir}\" | sed 's/""//g')
+#│ ├─FreeType{}${freetype_version}{}$(echo \"${freetype_dir}\" | sed 's/""//g')
+#│ ├─ncurses{}${ncurses_version}{}$(echo \"${ncurses_dir}\" | sed 's/""//g')
+#│ └─OpenSSL{}${openssl_version}{}$(echo \"${openssl_dir}\" | sed 's/""//g')
+#├─GSL{}${gsl_version}{}$(echo \"${gsl_dir}\" | sed 's/""//g')
+#├─MPICH{}${mpich_version}{}$(echo \"${mpi_dir}\" | sed 's/""//g')
+#├─HDF5{}${hdf5_version}{}$(echo \"${hdf5_dir}\" | sed 's/""//g')
+#├─FFTW{}${fftw_version}{}$(echo \"${fftw_dir}\" | sed 's/""//g')
+#└─GADGET{}${gadget_version}{}$(echo \"${gadget_dir}\" | sed 's/""//g')
+#${en_quad}${en_quad}└─FFTW{}${fftw_for_gadget_version}{}$(echo \"${fftw_for_gadget_dir}\" | sed 's/""//g')\n" | column -t -s {}
 sleep 10
 enable_status
 fi
