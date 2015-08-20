@@ -564,7 +564,6 @@ if [ "${gadget_preinstalled}" == "no" ]; then
     validate_url "GADGET"
 fi
 
-
 # Function for printing out nice tables (this is superior to the 'column'
 # command on older versions of BASH, as this does not handle formatted
 # output very well).
@@ -587,6 +586,7 @@ print_table()
 
     # ASCII-fy the table
     modify_element "─" ">"
+    modify_element "┌" "^"
     modify_element "│" "|"
     modify_element "└" "<"
     modify_element "├" "&"
@@ -627,6 +627,7 @@ print_table()
     # Reinsert spaces and UNICODE characters
     table=("${table_with_esc[@]}")
     modify_element "~" "\ "
+    modify_element "^" "┌"
     modify_element ">" "─"
     modify_element "|" "│"
     modify_element "<" "└"
