@@ -564,6 +564,85 @@ if [ "${gadget_preinstalled}" == "no" ]; then
     validate_url "GADGET"
 fi
 
+
+# Function for printing out nice tables (this is superior to the 'column'
+# command on older versions of BASH, as this does not handle formatted
+# output very well).
+print_table()
+{
+    # Arguments: Array to be printed (passed as array[@]), number of columns
+    local table=("${!1}")
+    nelements=${#table[@]}
+    nc=${2}
+
+    # Replace spaces with tildes
+    modify_element()
+    {
+        for ((i = 0; i < nelements; i += 1)); do
+            element="${table[i]}"
+            table[i]="${element//$1/$2}"
+        done
+    }
+    modify_element " " "~"
+
+    # ASCII-fy the table
+    modify_element "─" ">"
+    modify_element "│" "|"
+    modify_element "└" "<"
+    modify_element "├" "&"
+
+    # Backup of table
+    table_with_esc=("${table[@]}")
+
+    # Remove escape sequences in table
+    esc_normal_double_backslashes=$(echo "${esc_normal}" | sed 's,\\,\\\\,g')
+    esc_bold_double_backslashes=$(echo "${esc_bold}" | sed 's,\\,\\\\,g')
+    esc_italic_double_backslashes=$(echo "${esc_italic}" | sed 's,\\,\\\\,g')
+    esc_no_italic_double_backslashes=$(echo "${esc_no_italic}" | sed 's,\\,\\\\,g')
+    modify_element "${esc_normal_double_backslashes}" ""
+    modify_element "${esc_bold_double_backslashes}" ""
+    modify_element "${esc_italic_double_backslashes}" ""
+    modify_element "${esc_no_italic_double_backslashes}" ""
+
+
+    # Determine largest length of each column
+    maxlengths=($(for i in $(eval "echo {1..${nc}}"); do echo 0; done))
+    c=0
+    for ((i = 0; i < nelements; i += 1)); do
+        length=${#table[i]}
+        [ ${length} -gt ${maxlengths[c]} ] && maxlengths[c]=${length}
+        ((c += 1))
+        [ ${c} == ${nc} ] && c=0
+    done
+
+    # Count number of missing right spaces for each element
+    c=0
+    for ((i = 0; i < nelements; i += 1)); do
+        element="${table[i]}"
+        nspaces[i]=$((${maxlengths[${c}]} - ${#element}))
+        ((c += 1))
+        [ ${c} == ${nc} ] && c=0
+    done
+
+    # Reinsert spaces and UNICODE characters
+    table=("${table_with_esc[@]}")
+    modify_element "~" "\ "
+    modify_element ">" "─"
+    modify_element "|" "│"
+    modify_element "<" "└"
+    modify_element "&" "├"
+
+    # Print the table
+    c=0
+    for ((i = 0; i < nelements; i += 1)); do
+        printf "${table[i]}"                                                         # Print element
+        [ ${nspaces[i]} -gt 0 ] && printf ' %.0s' $(eval "echo {1..${nspaces[i]}}")  # Print spaces
+        ((c += 1))
+        [ ${c} == ${nc} ] || printf "  "                                             # Print extra spaces
+        [ ${c} == ${nc} ] && c=0 && printf "\n"                                      # Print newline
+    done
+}
+
 # Write out installation overview
 if [ "${python_preinstalled}" == "no" ] \
 || [ "${freetype_preinstalled}" == "no" ] \
@@ -575,70 +654,25 @@ if [ "${python_preinstalled}" == "no" ] \
 || [ "${fftw_preinstalled}" == "no" ] \
 || [ "${gadget_preinstalled}" == "no" ] \
 || [ "${fftw_for_gadget_preinstalled}" == "no" ]; then
-print_table()
-{
-    local table=("${!1}")
-
-    # Determine largest length
-    maxlengths=(0 0 0)
-    c=0
-    for ((i = ${c}; i <= ((${#table[@]} - 1)); i += 1)); do
-        length=${#table[i]}
-        [ ${length} -gt ${maxlengths[c]} ] && maxlengths[c]=${length}
-        ((c += 1))
-        [ ${c} == 3 ] && c=0
-    done
-    # Print
-    msg=""
-    c=0
-    for ((i = ${c}; i <= ((${#table[@]} - 1)); i += 1)); do
-        element="$(printf "%-${maxlengths[${c}]}s  " "${table[i]}")"
-        if [ ${c} == 0 ]; then
-            element="${element//-/─}"
-            element="${element//|/│}"
-            element="${element//</└}"
-            element="${element//\}/├}"
-            element="${element//\~/${en_quad}}"
-        fi
-        msg="${msg}${element}"
-        ((c += 1))
-        [ ${c} == 3 ] && c=0 && msg="${msg}\n"
-    done
-    # FARVER
-    printf "${msg}"
-}
-table=(
-"Name"         "Version"                   "Installation path"
-"CONCEPT"      "{concept_version}"         "\"{concept_dir}\""
-"}-Python"     "{python_version}"          "\"{python_dir}\""
-"| }-FreeType" "{freetype_version}"        "\"{freetype_dir}\""
-"| }-nncurses" "{ncurses_version}"         "\"{ncurses_dir}\""
-"| <-OpenSSL"  "{openssl_version}"         "\"{openssl_dir}\""
-"}-GSL"        "{gsl_version}"             "\"{gsl_dir}\""
-"}-MPICH"      "{mpich_version}"           "\"{mpi_dir}\""
-"}-HDF5"       "{hdf5_version}"            "\"{hdf5_dir}\""
-"}-FFTW"       "{fftw_version}"            "\"{fftw_dir}\""
-"<-GADGET"     "{gadget_version}"          "\"{gadget_dir}\""
-"~~<-FFTW"     "{fftw_for_gadget_version}" "\"{fftw_for_gadget_dir}\""
-)
-disable_status
-heading "Installation overview"
-printf "The following software will be installed\n"
-print_table table[@]
-#printf "${esc_bold}Name{}$(printf ${en_quad}%.s {1..3})Version{}$(printf ${en_quad}%.s {1..3})Installation path${esc_normal}
-#${esc_concept}{}$(printf ${en_quad}%.s {1..7})${concept_version}{}$(printf ${en_quad}%.s {1..7})$(echo \"${concept_dir}\" | sed 's/""//g')
-#├─Python{}${python_version}{}$(echo \"${python_dir}\" | sed 's/""//g')
-#│ ├─FreeType{}${freetype_version}{}$(echo \"${freetype_dir}\" | sed 's/""//g')
-#│ ├─ncurses{}${ncurses_version}{}$(echo \"${ncurses_dir}\" | sed 's/""//g')
-#│ └─OpenSSL{}${openssl_version}{}$(echo \"${openssl_dir}\" | sed 's/""//g')
-#├─GSL{}${gsl_version}{}$(echo \"${gsl_dir}\" | sed 's/""//g')
-#├─MPICH{}${mpich_version}{}$(echo \"${mpi_dir}\" | sed 's/""//g')
-#├─HDF5{}${hdf5_version}{}$(echo \"${hdf5_dir}\" | sed 's/""//g')
-#├─FFTW{}${fftw_version}{}$(echo \"${fftw_dir}\" | sed 's/""//g')
-#└─GADGET{}${gadget_version}{}$(echo \"${gadget_dir}\" | sed 's/""//g')
-#${en_quad}${en_quad}└─FFTW{}${fftw_for_gadget_version}{}$(echo \"${fftw_for_gadget_dir}\" | sed 's/""//g')\n" | column -t -s {}
-sleep 10
-enable_status
+    table=("${esc_bold}Name${esc_normal}" "${esc_bold}Version${esc_normal}" "${esc_bold}Installation path${esc_normal}"
+           "${esc_concept}"               "${concept_version}"              "\"${concept_dir}\""
+           "├─Python"                     "${python_version}"               "\"${python_dir}\""
+           "│ ├─FreeType"                 "${freetype_version}"             "\"${freetype_dir}\""
+           "│ ├─ncurses"                  "${ncurses_version}"              "\"${ncurses_dir}\""
+           "│ └─OpenSSL"                  "${openssl_version}"              "\"${openssl_dir}\""
+           "├─GSL"                        "${gsl_version}"                  "\"${gsl_dir}\""
+           "├─MPICH"                      "${mpich_version}"                "\"${mpi_dir}\""
+           "├─HDF5"                       "${hdf5_version}"                 "\"${hdf5_dir}\""
+           "├─FFTW"                       "${fftw_version}"                 "\"${fftw_dir}\""
+           "└─GADGET"                     "${gadget_version}"               "\"${gadget_dir}\""
+           "  └─FFTW"                     "${fftw_for_gadget_version}"      "\"${fftw_for_gadget_dir}\""
+    )
+       disable_status
+       heading "Installation overview"
+       echo "The following software will be installed"
+       print_table table[@] 3
+       sleep 10
+       enable_status
 fi
 
 
@@ -884,21 +918,23 @@ if [ "${blessings_preinstalled}" == "no" ] \
 || [ "${numpy_preinstalled}" == "no" ] \
 || [ "${pexpect_preinstalled}" == "no" ] \
 || [ "${pillow_preinstalled}" == "no" ]; then
-disable_status
-heading "Python packages overview"
-printf "The following Python packages will be installed\n"
-printf "${esc_bold}Name{}$(printf ${en_quad}%.s {1..3})Version{}$(printf ${en_quad}%.s {1..3})Installation path${esc_normal}
-┌─Blessings{}${blessings_version}{}$(echo ${blessings_dir} | sed 's/""//g')
-├─Cython{}${cython_version}{}$(echo ${cython_dir} | sed 's/""//g')
-├─Cython_GSL{}${cython_gsl_version}{}$(echo ${cython_gsl_dir} | sed 's/""//g')
-├─H5Py{}${h5py_version}{}$(echo ${h5py_dir} | sed 's/""//g')
-├─Matplotlib{}${matplotlib_version}{}$(echo ${matplotlib_dir} | sed 's/""//g')
-├─MPI4Py{}${mpi4py_version}{}$(echo ${mpi4py_dir} | sed 's/""//g')
-├─NumPy{}${numpy_version}{}$(echo ${numpy_dir} | sed 's/""//g')
-├─Pexpect{}${pexpect_version}{}$(echo ${pexpect_dir} | sed 's/""//g')
-└─Pillow{}${pillow_version}{}$(echo ${pillow_dir} | sed 's/""//g')\n" | column -t -s {}
-sleep 10
-enable_status
+    table=("${esc_bold}Name${esc_normal}" "${esc_bold}Version${esc_normal}" "${esc_bold}Installation path${esc_normal}"
+           "┌─Blessings"  "${blessings_version}"  "\"${blessings_dir}\""
+           "├─Cython"     "${cython_version}"     "\"${cython_dir}\""
+           "├─Cython_GSL" "${cython_gsl_version}" "\"${cython_gsl_dir}\""
+           "├─H5Py"       "${h5py_version}"       "\"${h5py_dir}\""
+           "├─Matplotlib" "${matplotlib_version}" "\"${matplotlib_dir}\""
+           "├─MPI4Py"     "${mpi4py_version}"     "\"${mpi4py_dir}\""
+           "├─NumPy"      "${numpy_version}"      "\"${numpy_dir}\""
+           "├─Pexpect"    "${pexpect_version}"    "\"${pexpect_dir}\""
+           "└─Pillow"     "${pillow_version}"     "\"${pillow_dir}\""
+    )
+    disable_status
+    heading "Python packages overview"
+    echo "The following Python packages will be installed"
+    print_table table[@] 3
+    sleep 10
+    enable_status
 fi
 
 # Install Python packages from PyPI.
