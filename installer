@@ -215,6 +215,7 @@ LD_LIBRARY_PATH_backup="${LD_LIBRARY_PATH}"
 LDFLAGS_backup="${LDFLAGS}"
 LIBS_backup="${LIBS}"
 PATH_backup="${PATH}"
+PKG_CONFIG_PATH_backup="${PKG_CONFIG_PATH}"
 PNG_CFLAGS_backup="${PNG_CFLAGS}"
 PNG_LIBS_backup="${PNG_LIBS}"
 ZLIBLIB_backup="${ZLIBLIB}"
@@ -704,15 +705,18 @@ print_table()
 }
 
 # Write out installation overview
-if [ "${python_preinstalled}" == "no" ] \
-|| [ "${freetype_preinstalled}" == "no" ] \
-|| [ "${ncurses_preinstalled}" == "no" ] \
-|| [ "${openssl_preinstalled}" == "no" ] \
-|| [ "${gsl_preinstalled}" == "no" ] \
-|| [ "${mpich__preinstalled}" == "no" ] \
-|| [ "${hdf5_preinstalled}" == "no" ] \
-|| [ "${fftw_preinstalled}" == "no" ] \
-|| [ "${gadget_preinstalled}" == "no" ] \
+if [ "${zlib_preinstalled}"            == "no" ] \
+|| [ "${libpng_preinstalled}"          == "no" ] \
+|| [ "${imagemagick_preinstalled}"     == "no" ] \
+|| [ "${freetype_preinstalled}"        == "no" ] \
+|| [ "${ncurses_preinstalled}"         == "no" ] \
+|| [ "${openssl_preinstalled}"         == "no" ] \
+|| [ "${python_preinstalled}"          == "no" ] \
+|| [ "${gsl_preinstalled}"             == "no" ] \
+|| [ "${mpich__preinstalled}"          == "no" ] \
+|| [ "${hdf5_preinstalled}"            == "no" ] \
+|| [ "${fftw_preinstalled}"            == "no" ] \
+|| [ "${gadget_preinstalled}"          == "no" ] \
 || [ "${fftw_for_gadget_preinstalled}" == "no" ]; then
     table=("${esc_bold}Name${esc_normal}" "${esc_bold}Version${esc_normal}" "${esc_bold}Installation path${esc_normal}"
            "${esc_concept}"               "${concept_version}"              "\"${concept_dir}\""
@@ -1096,9 +1100,11 @@ fi
 
 # Matplotlib (as Matplotlib has a hard time finding FreeType, some hacks are needed)
 if [ "${matplotlib_preinstalled}" == "no" ]; then
-    export CPPFLAGS="-I${freetype_dir}/include -I${freetype_dir}/include/freetype"*" -I${libpng_dir}/include -I${libpng_dir}/include/libpng${libpng_version_majors}"
-    export LDFLAGS="-L${freetype_dir}/lib -Wl,-rpath=${freetype_dir}/lib -L${libpng_dir}/lib -Wl,-rpath=${libpng_dir}/lib"
+    export CPPFLAGS="-I${freetype_dir}/include -I${freetype_dir}/include/freetype"*" -I${libpng_dir}/include -I${libpng_dir}/include/libpng${libpng_version_majors} ${CPPFLAGS}"
+    export LDFLAGS="-L${freetype_dir}/lib -Wl,-rpath=${freetype_dir}/lib -L${libpng_dir}/lib -Wl,-rpath=${libpng_dir}/lib ${LDFLAGS}"
     export PATH="${freetype_dir}/bin:${libpng_dir}/bin:${PATH}"
+    export LD_LIBRARY_PATH="${libpng_dir}/lib:${LD_LIBRARY_PATH}"
+    export PKG_CONFIG_PATH="${libpng_dir}/lib/pkgconfig${PKG_CONFIG_PATH}"
     current_step="installation of Matplotlib"
     heading "Installing Matplotlib"
     set_status "Installing Matplotlib"
@@ -1117,6 +1123,8 @@ if [ "${matplotlib_preinstalled}" == "no" ]; then
     export CPPFLAGS="${CPPFLAGS_backup}"
     export LDFLAGS="${LDFLAGS_backup}"
     export PATH="${PATH_backup}"
+    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
+    export PKG_CONFIG_PATH="${PKG_CONFIG_PATH_backup}"
     cd "${top_dir}"; rm -rf "${top_dir}/tmp"
 fi
 
@@ -1173,7 +1181,6 @@ heading "Writing paths to .paths"
 set_status "Writing paths to .paths"
 Gadget2_dir="${gadget_dir}/Gadget2"
 tests_dir="${concept_dir}/tests"
-composite="${imagemagick_dir}/bin/composite"
 convert="${imagemagick_dir}/bin/convert"
 cython="${python_dir}/bin/cython"
 mpicc="${mpi_dir}/bin/mpicc"
@@ -1213,8 +1220,6 @@ top_dir='${top_dir}'
 #########
 # Files #
 #########
-# The composite executable from ImageMagick
-composite='${composite}'
 # The convert executable from ImageMagick
 convert='${convert}'
 # The Cython executable

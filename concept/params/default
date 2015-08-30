@@ -45,7 +45,7 @@ remote_liverender=''				# Where to upload the live frame
 protocol = 'sftp'				# Protocol for live frame file transfer
 
 # Simulation options
-kick_algorithms = {'dark matter': 'P3M',	# The algorithm which should be used to kick each species
+kick_algorithms = {'dark matter': 'PP',	# The algorithm which should be used to kick each species
                    'dark energy': '',
                    }
 use_Ewald = True				# Turn Ewald corrections on or off
