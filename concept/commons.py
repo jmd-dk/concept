@@ -29,12 +29,16 @@ import numpy as np
 import h5py
 import os
 import sys
+import shutil
 # For fancy terminal output
 from blessings import Terminal
 terminal = Terminal(force_styling=True)
 terminal.CONCEPT = 'CO\x1b[3mN\x1b[23mCEPT'
+# For timing
+from time import time
+from datetime import timedelta
 # For development purposes only
-from time import time, sleep
+from time import sleep
 
 ########################
 # Cython-related stuff #
@@ -101,8 +105,10 @@ if not cython.compiled:
         pass
     # Array casting
     def cast(a, dtype):
-        if dtype in ('int', 'size_t'):
+        if dtype in ('int', 'size_t', 'ptrdiff_t'):
             a = int(a)
+        elif dtype == 'bint':
+            a = bool(a)
         return a
     # Dummy fused types
     number = number2 = integer = floating = []
@@ -148,29 +154,115 @@ else:
     from species cimport Particles
     from IO cimport Gadget_snapshot
     """
+
 # Seperate but equivalent imports and
 # definitions in pure Python and Cython
 if not cython.compiled:
     # Mathematical constants and functions
-    from numpy import pi as π
-    from numpy import sqrt, exp, sin, log
+    from numpy import (pi as π,
+                       sin,  cos,  tan,  arcsin,  arccos,  arctan,
+                       sinh, cosh, tanh, arcsinh, arccosh, arctanh,
+                       exp, log, log2, log10,
+                       sqrt,
+                       )
     from math import erfc
     # Import the units module
     import units
-    # Import all user specified constants
-    from params import *
 else:
     # Lines in triple quotes will be executed in .pyx files.
     """
     # Mathematical constants and functions
-    from libc.math cimport M_PI as π
-    from libc.math cimport sqrt, exp, sin, log, erfc
+    from libc.math cimport (M_PI as π,
+                            sin, cos, tan,
+                            asin as arcsin, 
+                            acos as arccos, 
+                            atan as arctan,
+                            sinh, cosh, tanh,
+                            asinh as arcsinh, 
+                            acosh as arccosh, 
+                            atanh as arctanh,
+                            exp, log, log2, log10,
+                            sqrt, erfc
+                            )
     # Import the units module
     cimport units
-    # Import all user specified constants 
-    from params cimport *
     """
 
+# Import all user specified parameters from the params module
+import params
+from matplotlib.colors import ColorConverter
+to_rgb = lambda color: array(ColorConverter().to_rgb(color), dtype='float64')
+cython.declare(IC_file='str',
+               snapshot_type='str',
+               snapshot_dir='str',
+               snapshot_base='str',
+               snapshot_times='tuple',
+               powerspec_dir='str',
+               powerspec_base='str',
+               powerspec_times='tuple',
+               render_dir='str',
+               render_base='str',
+               render_times='tuple',
+               boxsize='double',
+               ewald_gridsize='int',
+               PM_gridsize='ptrdiff_t',
+               P3M_scale='double',
+               P3M_cutoff='double',
+               softeningfactors='dict',
+               Δt_factor='double',
+               H0='double',
+               Ωm='double',
+               ΩΛ='double',
+               a_begin='double',
+               liverender='str',
+               color='double[::1]',
+               bgcolor='double[::1]',
+               resolution='int',
+               remote_liverender='str',
+               protocol='str',
+               use_Ewald='bint',
+               kick_algorithms='dict',
+               special='str',
+               )
+# Input/output
+IC_file         = params.IC_file
+snapshot_type   = params.snapshot_type
+snapshot_dir    = params.snapshot_dir
+snapshot_base   = params.snapshot_base
+snapshot_times  = tuple(params.snapshot_times)
+powerspec_dir   = params.powerspec_dir
+powerspec_base  = params.powerspec_base
+powerspec_times = tuple(params.powerspec_times)
+render_dir      = params.render_dir
+render_base     = params.render_base
+render_times    = tuple(params.render_times)
+# Numerical parameters
+boxsize          = params.boxsize
+ewald_gridsize   = cast(params.ewald_gridsize, 'int')
+PM_gridsize      = cast(params.PM_gridsize, 'ptrdiff_t')
+P3M_scale        = params.P3M_scale
+P3M_cutoff       = params.P3M_cutoff
+softeningfactors = params.softeningfactors
+Δt_factor        = params.Δt_factor
+# Cosmological parameters
+H0      = params.H0
+Ωm      = params.Ωm
+ΩΛ      = params.ΩΛ
+a_begin = params.a_begin
+# Graphics
+liverender        = params.liverender
+color             = to_rgb(params.color)
+bgcolor           = to_rgb(params.bgcolor)
+resolution        = params.resolution
+remote_liverender = params.remote_liverender
+protocol          = params.protocol
+# Simulation options
+use_Ewald       = cast(params.use_Ewald, 'bint')
+kick_algorithms = params.kick_algorithms
+# Extra hidden parameter
+special = ''
+if hasattr(params, 'special'):
+    special = params.special
 
 
 #####################################
@@ -220,7 +312,6 @@ cython.declare(a_max='double',
                two_ewald_gridsize='int',
                two_machine_ϵ='double',
                two_recp_boxsize='double',
-               use_Ewald ='bint',
                use_PM='bint',
                recp_boxsize2='double',
                ϱ='double',
@@ -465,32 +556,81 @@ def sinc(x):
     else:
         return y/x
 
-# Function for printing messages
-def masterprint(msg, *args, end='\n', **kwargs):
-    if master:
-        msg = msg.replace('CONCEPT', terminal.CONCEPT)
+# Function for printing messages as well as timed progress messages
+def masterprint(msg, *args, indent=0, end='\n', **kwargs):
+    global progressprint_time
+    if not master:
+        return
+    if msg == 'done':
+        # End of progress message
+        interval = timedelta(seconds=(time() - progressprint_time)).__str__()
+        if interval.startswith('0:'):
+            # Less than an hour
+            interval = interval[2:]
+            if interval.startswith('00:'):
+                # Less than a minute
+                interval = interval[3:]
+                if interval.startswith('00.'):
+                    if interval[3:6] == '000':
+                        # Less than a millisecond
+                        interval = '< 1 ms'
+                    else:
+                        # Less than a second
+                        interval = interval[3:6].lstrip('0') + ' ms'
+                else:
+                    # Between a second and a minute
+                    if interval.startswith('0'):
+                        # Between 1 and 10 seconds
+                        if '.' in interval:
+                            interval = (interval[1:(interval.index('.') + 2)]
+                                        + ' s')
+                    else:
+                        # Between 10 seconds and a minute
+                        if '.' in interval:
+                            interval = interval[:interval.index('.')] + ' s'
+            else:
+                # Between a minute and an hour
+                if interval.startswith('0'):
+                    interval = interval[1:]
+                if '.' in interval:
+                    interval = interval[:interval.index('.')]
+        else:
+            # More than an hour
+            if '.' in interval:
+                interval = interval[:interval.index('.')]
+        print(' done after ' + interval,
+              *args, flush=True, **kwargs)
+    else:
+        # Create time stamp for use in progress message
+        progressprint_time = time()
+        # Print out message
+        msg = str(msg).replace('CONCEPT', terminal.CONCEPT)
         args = [arg.replace('CONCEPT', terminal.CONCEPT)
                 if isinstance(arg, str) else arg for arg in args]
-        print(msg, *args, end=end, flush=True, **kwargs)
+        if ((args and isinstance(args[-1], str) and args[-1].endswith('...'))
+            or not args and msg.endswith('...')):
+            end = ''
+        print(' '*indent + msg, *args, flush=True, end=end, **kwargs)
 
 # Function for printing warnings
-def masterwarn(msg, *args, end='\n', indent=0, **kwargs):
-    if master:
-        msg = msg.replace('CONCEPT', terminal.CONCEPT)
-        if args:
-            args = [arg.replace('CONCEPT', terminal.CONCEPT)
-                    if isinstance(arg, str) else arg for arg in args]
-            print(terminal.bold_red(' '*indent + 'Warning: '
-                                    + msg + ' ' + ' '.join(args)),
-                                    file=sys.stderr,
-                                    flush=True,
-                                    **kwargs)
-        else:
-            print(terminal.bold_red(' '*indent + 'Warning: ' + msg),
-                  file=sys.stderr,
-                  flush=True,
-                  **kwargs)
-
+def masterwarn(msg, *args, indent=0, **kwargs):
+    if not master:
+        return
+    msg = str(msg).replace('CONCEPT', terminal.CONCEPT)
+    if args:
+        args = [arg.replace('CONCEPT', terminal.CONCEPT)
+                if isinstance(arg, str) else str(arg) for arg in args]
+        print(terminal.bold_red(' '*indent + 'Warning: '
+                                + ' '.join([msg] + args)),
+                                file=sys.stderr,
+                                flush=True,
+                                **kwargs)
+    else:
+        print(terminal.bold_red(' '*indent + 'Warning: ' + msg),
+              file=sys.stderr,
+              flush=True,
+              **kwargs)
+   
 
 
 ###########################################

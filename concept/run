@@ -246,13 +246,13 @@ else
 fi
 
 # Prompt the user for the secure shell password,
-# if the live frame should be uploaded.
+# if the live render should be uploaded.
 cd "${this_dir}"
 args=($("${python}" -B -c "
 # Import parameters from the .py file rather than the .so file
 import imp
 params = imp.load_source('params', '${this_dir}/params.py')
-vars = ('liveframe', 'remote_liveframe', 'protocol')
+vars = ('liverender', 'remote_liverender', 'protocol')
 for var in vars:
     exec(var + ' = params.' + var)
 # Other, normal imports
@@ -260,12 +260,12 @@ from getpass import getpass
 import pexpect
 # Ask for password, if upload is requested
 password = ''
-if liveframe != '' and remote_liveframe != '':
+if liverender != '' and remote_liverender != '':
     # Get protocol authentication message
     if protocol == 'scp':
-        cmd = 'scp \"${this_file}\" ' + remote_liveframe
+        cmd = 'scp \"${this_file}\" ' + remote_liverender
     elif protocol == 'sftp':
-        cmd = 'sftp ' + remote_liveframe
+        cmd = 'sftp ' + remote_liverender
     else:
         raise Exception('Unknown protocol \"' + protocol + '\".')
     child = pexpect.spawn(cmd, timeout=10)
@@ -283,8 +283,8 @@ if liveframe != '' and remote_liveframe != '':
             prompt = (child.before + child.after).decode('utf-8')
     child.terminate(force=True)
     # Prompt the user for the password/passphrase
-    password = getpass('\nThe latest frame will continuously be ' + protocol + '\'ed to '
-                       + remote_liveframe[(remote_liveframe.find('@') + 1):] + '\n'
+    password = getpass('\nThe latest render will continuously be ' + protocol + '\'ed to '
+                       + remote_liverender[(remote_liverender.find('@') + 1):] + '\n'
                        + prompt)
 # Print out the password/passphrase.
 # This will be captured in the bash 'args' variable.

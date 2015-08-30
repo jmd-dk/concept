@@ -36,261 +36,118 @@ else:
 
 # Imports and definitions common to pure Python and Cython
 import pexpect
-from os.path import basename, dirname
-
+import subprocess
 
 # Setting up figure and plot the particles
 @cython.header(# Arguments
                particles='Particles',
-               timestep='size_t',
                a='double',
-               a_snapshot='double',
-               kind='str',
                filename='str',
                # Locals
                N='size_t',
                N_local='size_t',
-               alpha='double',
                c='int',
                combined='double[:, :, ::1]',
-               figsize='double[::1]',
-               framepart='double[:, :, ::1]',
+               renderpart='double[:, :, ::1]',
                i='int',
-               inch2pts='double',
                r='int',
-               size='double',
                size_max='double',
                size_min='double',
                )
-def animate(particles, timestep, a, a_snapshot, filename=''):
-    global artist_particles, artist_text, upload_liveframe, ax, size_fac
-    if not visualize or (timestep % framespace
-                         and (a != a_snapshot
-                              or a_snapshot not in snapshot_times)):
-        return
-    # Frame should be animated. Print out progress message
-    masterprint('Rendering image ... ', end='')
+def render(particles, a, filename):
+    global artist_particles, artist_text, upload_liverender, ax
+    # Print out progress message
+    masterprint('Rendering and saving image "' + filename + '" ...')
     # Extract particle data
     N = particles.N
     N_local = particles.N_local
-    # Set up figure. This is only done in the first call
-    if artist_particles is None:
-        # Set up figure
-        fig = figure(figsize=[resolution/77.50]*2)
-        ax = fig.gca(projection='3d', axisbg='black')  # CHANGED
-        ax.set_aspect('equal')
-        ax.dist = 8.55
-        # The size of a particle is plotted so that the particles
-        # stand side by side in a homogeneous unvierse (more or less).
-        inch2pts = 72.27  # Number of points in an inch
-        figsize = fig.get_size_inches()
-        size_fac = 0.05*prod(figsize)*inch2pts**2/N**two_thirds
-        size = size_fac/sqrt(a)
-        # The alpha value is chosen so that a column of particles in a
-        # homogeneous universe will appear to have alpha = 0.75 (more or
-        # less).
-        alpha = 0.75*N**(-one_third)
-        # For some reason, an alpha below 0.0059
-        # is rendered as completely transparent.
-        alpha = 0.012  # CHANGED
-        size *= 3  # CHANGED
-        if alpha < 0.0059:
-            alpha = 0.0059
-        # Create the plot of the particles
-        artist_particles = ax.scatter(particles.posx_mv[:N_local],
-                                      particles.posy_mv[:N_local],
-                                      particles.posz_mv[:N_local],
-                                      alpha=alpha,
-                                      lw=0,
-                                      c=(0.87, 0.62, 0.99),
-                                      s=size,
-                                      )
-        ax.set_xlim(0, boxsize)
-        ax.set_ylim(0, boxsize)
-        ax.set_zlim(0, boxsize)
-        ax.w_xaxis.set_pane_color(zeros(4))
-        ax.w_yaxis.set_pane_color(zeros(4))
-        ax.w_zaxis.set_pane_color(zeros(4))
-        ax.w_xaxis.gridlines.set_lw(0)
-        ax.w_yaxis.gridlines.set_lw(0)
-        ax.w_zaxis.gridlines.set_lw(0)
-        ax.grid(False)
-        ax.w_xaxis.line.set_visible(False)
-        ax.w_yaxis.line.set_visible(False)
-        ax.w_zaxis.line.set_visible(False)
-        ax.w_xaxis.pane.set_visible(False)
-        ax.w_yaxis.pane.set_visible(False)
-        ax.w_zaxis.pane.set_visible(False)
-        for tl in ax.w_xaxis.get_ticklines():
-            tl.set_visible(False)
-        for tl in ax.w_yaxis.get_ticklines():
-            tl.set_visible(False)
-        for tl in ax.w_zaxis.get_ticklines():
-            tl.set_visible(False)
-        for tl in ax.w_xaxis.get_ticklabels():
-            tl.set_visible(False)
-        for tl in ax.w_yaxis.get_ticklabels():
-            tl.set_visible(False)
-        for tl in ax.w_zaxis.get_ticklabels():
-            tl.set_visible(False)
-        # Gridlines on non-black backgrounds
-        if bgcolor != 'black' and False:
-            for j in np.linspace(0, 1, 6):
-                # xy
-                ax.plot([0, boxsize],
-                        ones(2)*boxsize*j,
-                        [0, 0],
-                        color=ones(3)*0.8,
-                        zorder=-1,
-                        lw=1.5,
-                        )
-                ax.plot(ones(2)*boxsize*j,
-                        [0, boxsize],
-                        [0, 0],
-                        color=ones(3)*0.8,
-                        zorder=-1,
-                        lw=1.5,
-                        )
-                # xz
-                ax.plot(ones(2)*boxsize*j,
-                        ones(2)*boxsize,
-                        [0, boxsize],
-                        color=ones(3)*0.8,
-                        zorder=-1, 
-                        lw=1.5,
-                        )
-                ax.plot([0, boxsize],
-                        ones(2)*boxsize,
-                        ones(2)*boxsize*j,
-                        color=ones(3)*0.8,
-                        zorder=-1,
-                        lw=1.5,
-                        )
-                # yz
-                ax.plot(zeros(2),
-                        ones(2)*boxsize*j,
-                        [0, boxsize],
-                        color=ones(3)*0.8,
-                        zorder=-1,
-                        lw=1.5,
-                        )
-                ax.plot(zeros(2),
-                        [0, boxsize],
-                        ones(2)*boxsize*j,
-                        color=ones(3)*0.8,
-                        zorder=-1,
-                        lw=1.5,
-                        )
-        # Prepare the text
-        artist_text = ax.text(+0.25*boxsize,
-                              -0.3*boxsize,
-                              0,
-                              '',
-                              color='white',
-                              fontsize=16,
-                              )
-    else:
-        # Update particle positions on figure
-        artist_particles._offsets3d = juggle_axes(particles.posx_mv[:N_local],
-                                                  particles.posy_mv[:N_local],
-                                                  particles.posz_mv[:N_local],
-                                                  zdir='z')
-    # Size
-    artist_particles._sizes[0] = size_fac*np.log(np.e/a)
-    # The master process prints the current scale factor on the figure
-    if master and bgcolor != 'white':
-        t0 = time()
-        artist_text.set_text('$a = ' + significant_figures(a,
-                                                           4,
-                                                           just=0,
-                                                           scientific=True,
-                                                           )
-                                     + '$')
-    # When run on multiple processes, each process saves its part of the
-    # total frame to disk, which is then read in by the master process
-    # and combined to produce the total frame.
-    if nprocs > 1:
-        savefig(frameparts_folder + '.rank' + str(rank) + suffix,
-                bbox_inches='tight',
-                pad_inches=0,
-                )
-        # When done saving the image,
-        # all processes but the master is done
-        Barrier()
-        if not master:
-            return
-        # The master process combines the images into one
-        combined = np.asarray(imread(frameparts_folder + '.rank0' + suffix),
-                              dtype='float64')
-        for i in range(1, nprocs):
-            framepart = np.asarray(imread(frameparts_folder + '.rank' + str(i)
-                                                            + suffix),
-                                   dtype='float64')
-            for r in range(combined.shape[0]):
-                for c in range(combined.shape[1]):
-                    for rgb in range(3):
-                        combined[r, c, rgb] += framepart[r, c, rgb]
-        # Normalize the image. Values should not be above pixelval_max
-        if pixelval_max > 1:
-            for r in range(combined.shape[0]):
-                for c in range(combined.shape[1]):
-                    for rgb in range(3):
-                        if combined[r, c, rgb] > pixelval_max:
-                            combined[r, c, rgb] = 1
-                        else:
-                            combined[r, c, rgb] /= pixelval_max
+    # Update particle positions on the figure
+    artist_particles._offsets3d = juggle_axes(particles.posx_mv[:N_local],
+                                              particles.posy_mv[:N_local],
+                                              particles.posz_mv[:N_local],
+                                              zdir='z')
+    # The particle size on the figure.
+    # The size is chosen such that the particles stand side by side in a
+    # homogeneous unvierse (more or less).
+    size = 1000*np.prod(fig.get_size_inches())/N**two_thirds
+    # The particle alpha on the figure.
+    # The alpha is chosen such that in a homogeneous unvierse, a column
+    # of particles have a collective alpha of 1 (more or less).
+    alpha = N**(-one_third)
+    # Alpha values lower than alpha_min appear completely invisible.
+    # Allow no alpha values lower than alpha_min. Shrink the size to
+    # make up for the large alpha.
+    alpha_min = 0.0059
+    if alpha < alpha_min:
+        size *= alpha/alpha_min
+        alpha = alpha_min
+    # Apply size and alpha
+    artist_particles.set_sizes([size])
+    artist_particles.set_alpha(alpha)
+    # Print the current scale factor on the figure
+    if master:
+        a_str = significant_figures(a, 4, just=0, scientific=True)
+        artist_text.set_text('$a = {}$'.format(a_str))
+        # Make the text color black or white, dependent on the bgcolor
+        if sum(bgcolor) < 1:
+            artist_text.set_color('white')
         else:
-            for r in range(combined.shape[0]):
-                for c in range(combined.shape[1]):
-                    for rgb in range(3):
-                        if combined[r, c, rgb] > 1:
-                            combined[r, c, rgb] = 1
-    # Finalize progress message
-    masterprint('done')
-    # When at the last frame, delete the auxiliary
-    # image files of partial frames.
-    if nprocs > 1 and a == a_max:
-        for i in range(nprocs):
-            os.remove(frameparts_folder + '.rank' + str(i) + suffix)
-    # If explicit filename is passed, save to this file and return.
-    # Also reset the particles artist, forcing the plot to setup from
-    # scratch the next time this function is called (important when
-    # called from external script).
-    if filename != '':
-        masterprint('    Saving: "' + frame_dir + filename + '" ... ', end='')
-        artist_particles = None
-        if nprocs > 1:
-            imsave(frame_dir + filename, combined)
-        else:
-            savefig(frame_dir + filename, bbox_inches='tight', pad_inches=0)
+            artist_text.set_color('black')
+    # If running with a single process, save the render and return
+    if nprocs == 1:
+        savefig(filename, bbox_inches='tight', pad_inches=0)
         masterprint('done')
         return
-    # Save the frame in frame_dir
-    if save_frames:
-        masterprint('    Saving: "' + frame_dir + 'a={:.3f}'.format(a)
-                    + suffix + '" ... ', end='')
-        if nprocs > 1:
-            imsave(frame_dir + 'a={:.3f}'.format(a) + suffix, combined)
-        else:
-            savefig(frame_dir + 'a={:.3f}'.format(a) + suffix,
-                    bbox_inches='tight', pad_inches=0)
-        masterprint('done')
-    if save_liveframe:
+    # Running with multiple processes.
+    # Each process save its rendered part to disk.
+    # First, make a temporary directory to hold the render parts.
+    dirname = os.path.dirname(filename)
+    basename = os.path.basename(filename)
+    renderparts_dirname = '{}/.renderparts'.format(dirname)
+    renderpart_filename = '{}/rank{}.{}'.format(renderparts_dirname,
+                                                rank,
+                                                basename)
+    if master:
+        os.makedirs(renderparts_dirname, exist_ok=True)
+    Barrier()
+    savefig(renderpart_filename,
+            bbox_inches='tight',
+            pad_inches=0,
+            transparent=True,
+            )
+    # The master process combines the parts using ImageMagick
+    if master:
+        # List of all newly created renderparts
+        renderpart_filenames = [(renderparts_dirname + '/rank{}.' + basename)
+                                 .format(r) for r in range(nprocs)]
+        # Compose all renderparts into one
+        subprocess.call([paths['composite']] + renderpart_filenames
+                                             + [filename])
+        # Remove transparency and paint the background
+        subprocess.call([paths['convert'], filename, '-background',
+                         'rgb({}%, {}%, {}%)'.format(100*bgcolor[0],
+                                                     100*bgcolor[1],
+                                                     100*bgcolor[2]),
+                         '-alpha', 'remove', filename])
+        # Remove the temporary directory
+        shutil.rmtree(renderparts_dirname)
+    masterprint('done')
+    return
+    if save_liverender:
         # Print out message
-        masterprint('    Updating live frame "' + liveframe_full
-                    + '" ... ', end='')
-        # Save the live frame
+        masterprint('    Updating live render "' + liverender_full + '" ...')
+        # Save the live render
         if nprocs > 1:
-            imsave(liveframe_full, combined)
+            imsave(liverender_full, combined)
         else:
-            savefig(liveframe_full,
+            savefig(liverender_full,
                     bbox_inches='tight', pad_inches=0)
         masterprint('done')
-        if upload_liveframe:
+        if upload_liverender:
             # Print out message
-            masterprint('    Uploading live frame "' + remote_liveframe
-                        + '" ... ', end='')
-            # Upload the live frame
+            masterprint('    Uploading live render "' + remote_liverender
+                        + '" ...')
+            # Upload the live render
             child = pexpect.spawn(cmd1, timeout=10)
             try:
                 msg = child.expect(['password',
@@ -320,9 +177,9 @@ def animate(particles, timestep, a, a_snapshot, filename=''):
                         # Incorrect password. Kill protocol
                         child.terminate(force=True)
                         masterwarn('Permission to ' + user_at_host
-                                   + ' denied\n' + 'Frames will not be '
+                                   + ' denied\n' + 'Renders will not be '
                                    + protocol + "'ed")
-                        upload_liveframe = False
+                        upload_liverender = False
                 elif msg == 3:
                     # The protocol cannot authenticate host.
                     # Connect anyway.
@@ -344,9 +201,9 @@ def animate(particles, timestep, a, a_snapshot, filename=''):
                             # Kill the protocol.
                             child.terminate(force=True)
                             masterwarn('Permission to ' + user_at_host
-                                       + ' denied\nFrames will not be '
+                                       + ' denied\nRenders will not be '
                                        + protocol + "'ed")
-                            upload_liveframe = False
+                            upload_liverender = False
                 child.close()
             except KeyboardInterrupt:
                 # User tried to kill the program. Let her
@@ -358,6 +215,47 @@ def animate(particles, timestep, a, a_snapshot, filename=''):
                            + ' to ' + user_at_host)
             masterprint('done')
 
+
+
+# Set up figure at import time.
+# The 77.50 scaling is needed to map the resolution to pixel units
+fig = figure(figsize=[resolution/77.50]*2)
+ax = fig.gca(projection='3d', axisbg=bgcolor)
+ax.set_aspect('equal')
+ax.dist = 8.55  # Zoom level
+# The artist for the particles
+artist_particles = ax.scatter(0, 0, 0, color=color, lw=0)
+# Configure axis options
+ax.set_xlim(0, boxsize)
+ax.set_ylim(0, boxsize)
+ax.set_zlim(0, boxsize)
+ax.w_xaxis.set_pane_color(zeros(4))
+ax.w_yaxis.set_pane_color(zeros(4))
+ax.w_zaxis.set_pane_color(zeros(4))
+ax.w_xaxis.gridlines.set_lw(0)
+ax.w_yaxis.gridlines.set_lw(0)
+ax.w_zaxis.gridlines.set_lw(0)
+ax.grid(False)
+ax.w_xaxis.line.set_visible(False)
+ax.w_yaxis.line.set_visible(False)
+ax.w_zaxis.line.set_visible(False)
+ax.w_xaxis.pane.set_visible(False)
+ax.w_yaxis.pane.set_visible(False)
+ax.w_zaxis.pane.set_visible(False)
+for tl in ax.w_xaxis.get_ticklines():
+    tl.set_visible(False)
+for tl in ax.w_yaxis.get_ticklines():
+    tl.set_visible(False)
+for tl in ax.w_zaxis.get_ticklines():
+    tl.set_visible(False)
+for tl in ax.w_xaxis.get_ticklabels():
+    tl.set_visible(False)
+for tl in ax.w_yaxis.get_ticklabels():
+    tl.set_visible(False)
+for tl in ax.w_zaxis.get_ticklabels():
+    tl.set_visible(False)
+# The artist for the scale factor text
+artist_text = ax.text(+0.25*boxsize, -0.3*boxsize, 0, '', fontsize=16)
 
 # This function formats a floating point
 # number f to only have n significant figures.
@@ -421,73 +319,48 @@ def significant_figures(f, n, just=0, scientific=False):
         return f_str.ljust(just)
 
 
-# Preparation for saving frames done at import time
-cython.declare(frameparts_folder='str',
-               liveframe_full='str',
-               save_liveframe='bint',
-               save_frames='bint',
-               size_fac='double',
+# Preparation for saving renders, done at import time
+cython.declare(renderparts_folder='str',
+               liverender_full='str',
+               save_liverender='bint',
+               save_renders='bint',
                cmd1='str',
                cmd2='str',
                password='str',
                pixelval_max='double',
                suffix='str',
-               upload_liveframe='bint',
+               upload_liverender='bint',
                user_at_host='str',
                visualize='bint',
                )
-size_fac = 0
-# Set the artists as uninitialized at import time
-artist_particles = None
-artist_text = None
-# The maximum pixel value depends on the image format
-if image_format in ('png', ):
-    pixelval_max = 1
-elif image_format in ('jpg', 'jpeg', 'tif', 'tiff'):
-    pixelval_max = 255
-else:
-    raise ValueError('Unrecognized image format "' + image_format + '".')
-# Check whether frames should be stored and create the
-# frame_dir folder at import time
-frameparts_folder = ''
-suffix = '.' + image_format
-visualize = False
-save_frames = False
-if frame_dir != '':
-    visualize = True
-    save_frames = True
-    if master and not os.path.exists(frame_dir):
-        os.makedirs(frame_dir)
-    if frame_dir[-1] != '/':
-        frame_dir += '/'
-    frameparts_folder = frame_dir
-# Check whether to save a live frame
-liveframe_full = ''
-save_liveframe = False
+
+# Check whether to save a live render
+liverender_full = ''
+save_liverender = False
 cmd1 = ''
 cmd2 = ''
-upload_liveframe = False
+upload_liverender = False
 password = ''
-if liveframe != '':
+if liverender != '':
     visualize = True
-    save_liveframe = True
-    liveframe_full = liveframe + suffix
-    if frameparts_folder == '':
-        frameparts_folder = dirname(liveframe) + '/'
-    # Check whether to upload the live frame to a remote host
+    save_liverender = True
+    liverender_full = liverender + suffix
+    if renderparts_folder == '':
+        renderparts_folder = os.pathdirname(liverender) + '/'
+    # Check whether to upload the live render to a remote host
     if sys.argv[1] != '':
-        upload_liveframe = True
+        upload_liverender = True
         password = sys.argv[1]
-        user_at_host = remote_liveframe[:remote_liveframe.find(':')]
+        user_at_host = remote_liverender[:remote_liverender.find(':')]
         if protocol == 'scp':
-            cmd1 = 'scp ' + liveframe_full + ' ' + remote_liveframe
+            cmd1 = 'scp ' + liverender_full + ' ' + remote_liverender
         elif protocol == 'sftp':
-            if remote_liveframe.endswith('.' + image_format):
-                # Full filename given in remote_liveframe
-                cmd1 = 'sftp ' + remote_liveframe[:remote_liveframe.rfind('/')]
-                cmd2 = ('put ' + liveframe_full + ' '
-                        + basename(remote_liveframe))
+            if remote_liverender.endswith('.'):
+                # Full filename given in remote_liverender
+                cmd1 = 'sftp ' + remote_liverender[:remote_liverender.rfind('/')]
+                cmd2 = ('put ' + liverender_full + ' '
+                        + os.pathbasename(remote_liverender))
             else:
-                # Folder given in remote_liveframe
-                cmd1 = 'sftp ' + remote_liveframe
-                cmd2 = 'put ' + liveframe_full
+                # Folder given in remote_liverender
+                cmd1 = 'sftp ' + remote_liverender
+                cmd2 = 'put ' + liverender_full

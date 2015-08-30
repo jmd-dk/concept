@@ -35,7 +35,7 @@ powerspec_times = ()				# Times at which to dump power spectra to disk
 
 # Numerical parameters
 boxsize = 100*Mpc				# Linear size of the simulation box
-ewald_gridsize = 16				# Linear size of the grid of Ewald corrections
+ewald_gridsize = 8				# Linear size of the grid of Ewald corrections
 PM_gridsize = 16				# Linear size of the grid used for the PM method
 P3M_scale = 1.25				# The long/short-range force split scale
 P3M_cutoff = 4.8				# Maximum reach of short-range force
