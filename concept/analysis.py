@@ -64,7 +64,7 @@ def powerspectrum(particles, filename):
     PM_CIC_FFT(particles)
 
 
-    masterprint('Calculating power spectrum ... ', end='')
+    masterprint('Calculating power spectrum ...')
     for k2 in range(k2_max):
         k2_multi[k2] = 0
         power_arr[k2] = 0
@@ -131,7 +131,7 @@ def powerspectrum(particles, filename):
     sigma *= 4.0/3.0/(2*π)*tophat_scale**3 
     sigma = sqrt(sigma)
     masterprint('done')
-    masterprint('Saving powerspectrum "' + filename + '" ... ', end='')
+    masterprint('Saving powerspectrum "' + filename + '" ...')
     header = ('sigma{} = {:.6e}, PM_gridsize = {}, boxsize = {:.3e} Mpc\n'
               + 'k\tmodes\tpower').format(int(round(tophat_scale/units.Mpc)),
                                           sigma,

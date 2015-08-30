@@ -167,11 +167,10 @@ def exchange(particles, reset_buffers=False):
         return
     # Print out exchange message
     if N_send_tot_global == 1:
-        masterprint('Exchanging 1 particle ... ', end='')
+        masterprint('Exchanging 1 particle ...')
     elif N_send_tot_global > 1:
         # The int casting is necessary in pure Python
-        masterprint('Exchanging', N_send_tot_global,
-                    'particles ... ', end='')
+        masterprint('Exchanging', N_send_tot_global, 'particles ...')
     # Enlarge sendbuf, if necessary
     N_send_max = max(N_send)
     if N_send_max > sendbuf_mv.size:

@@ -240,49 +240,7 @@ params.py: $(paramsfile) $(MAKEFILE_LIST)
 	    from units cimport *\
 	    """\
 	#Original parameter file below\n' $@
-	@# Append pxd information to the params file
-	@sed -i '$$a\\n\
-	# The pxd content of this file. The pyxpp script will recognize\
-	# it and put it in the pxd file.\
-	pxd = """\
-	# Input/output\
-	str IC_file\
-	str snapshot_type\
-	str snapshot_dir\
-	str snapshot_base\
-	tuple snapshot_times\
-	str powerspec_dir\
-	str powerspec_base\
-	tuple powerspec_times\
-	# Numerical parameters\
-	double boxsize\
-	int ewald_gridsize\
-	ptrdiff_t PM_gridsize\
-	double P3M_scale\
-	double P3M_cutoff\
-	dict softeningfactors\
-	double Δt_factor\
-	# Cosmological parameters\
-	double H0\
-	double Ωm\
-	double ΩΛ\
-	double a_begin\
-	# Graphics\
-	str frame_dir\
-	str liveframe\
-	str image_format\
-	size_t framespace\
-	tuple color\
-	str bgcolor\
-	int resolution\
-	str remote_liveframe\
-	str protocol\
-	# Simulation options\
-	bint use_Ewald\
-	dict kick_algorithms\
-	# Extra hidden feature\
-	str special\
-	"""\n' $@
+
 
 
 

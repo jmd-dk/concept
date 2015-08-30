@@ -233,7 +233,7 @@ if 'PP' in kick_algorithms.values() and use_Ewald:
         # No tabulated Ewald grid found. Compute it.The factor 0.5
         # ensures that only the first octant of the box is tabulated
         masterprint('Tabulating Ewald grid of linear size',
-                    ewald_gridsize, '... ', end='')
+                    ewald_gridsize, '...')
         grid = tabulate_vectorfield(ewald_gridsize,
                                     summation,
                                     0.5/(ewald_gridsize - 1),

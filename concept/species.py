@@ -176,6 +176,7 @@ class Particles:
         """Note that the time step size
         Δt is really ∫_t^(t + Δt) dt/a**2.
         """
+        masterprint('Drifting', self.type, '...')
         # Extracting variables
         posx = self.posx
         posy = self.posy
@@ -196,6 +197,7 @@ class Particles:
             posz[i] = mod(posz[i], boxsize)
         # Some partiles may have drifted out of the local domain.
         # Exchange particles to the correct processes.
+        masterprint('done')
         exchange(self)
 
     # Method for updating particle momenta
@@ -208,6 +210,7 @@ class Particles:
         """Note that the time step size Δt is really ∫_t^(t + Δt) dt/a.
         """
         kick_algorithm = kick_algorithms[self.species]
+        masterprint('Kicking (' + kick_algorithm + ')', self.type, '...')
         # Delegate the work to the appropriate function based on species
         if kick_algorithm == 'PP':
             PP(self, Δt)
@@ -219,6 +222,7 @@ class Particles:
             raise ValueError('Species "' + self.species
                              + '" has been assigned the kick algorithm "'
                              + kick_algorithm + '", which is not implemented!')
+        masterprint('done')
 
     # This method is automaticlly called when a Particles instance
     # is garbage collected. All manually allocated memory is freed.
@@ -280,8 +284,7 @@ def construct(type_name, species_name, mass, N):
                )
 def construct_random(type_name, species_name, N):
     # Print out message
-    masterprint('Initializes particles of type "' + type_name + '" ... ',
-                end='')
+    masterprint('Initializes particles of type "' + type_name + '" ...')
     # Minimum and maximum mass and maximum
     # momenta (in any of the three directions)
     mass = Ωm*ϱ*boxsize3/N

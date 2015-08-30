@@ -28,6 +28,8 @@
 #
 # The following software will be installed in order:
 # - FreeType (needed by matplotlib)
+# - zlib (needed by Python, libpng and ImageMagick)
+# - libpng (needed by matplotlib and ImageMagick)
 # - ncurses  (needed by _curses, which is needed by blessings)
 # - OpenSSL  (needed by pip)
 # - Python
@@ -47,7 +49,6 @@
 # - Matplotlib
 # - MPI4Py
 # - Pexpect
-# - Pillow
 # - H5Py
 #
 # By default, any pre-installed versions of the above software will be
@@ -92,8 +93,11 @@ set_dir()
 # will later be replaced with the top level directory.
 set_dir "concept"         "__top_dir__/concept"
 set_dir "python"          "__top_dir__/python"
-set_dir "freetype"        "${python_dir}"
-set_dir "openssl"         "${python_dir}/openssl"
+set_dir "zlib"            "__top_dir__/zlib"
+set_dir "libpng"          "__top_dir__/libpng"
+set_dir "imagemagick"     "__top_dir__/imagemagick"
+set_dir "freetype"        "__top_dir__/freetype"
+set_dir "openssl"         "${python_dir}"
 set_dir "ncurses"         "${python_dir}"
 set_dir "fftw"            "__top_dir__/fftw"
 set_dir "gadget"          "__top_dir__/gadget"
@@ -117,6 +121,9 @@ set_version()
 set_version "concept"         "newest"  # only newest        is known to work
 set_version "python"          "newest"  #      3.4.3         is known to work
 set_version "freetype"        "newest"  #      2.6           is known to work
+set_version "zlib"            "newest"  #      1.2.8         is known to work
+set_version "libpng"          "newest"  #      1.6.18        is known to work
+set_version "imagemagick"     "newest"  #      6.9.2-0       is known to work
 set_version "ncurses"         "newest"  #      6.0           is known to work
 set_version "openssl"         "newest"  #      1.0.2d        is known to work
 set_version "fftw"            "newest"  #      3.3.4         is known to work
@@ -131,7 +138,6 @@ set_version "cython_gsl"      "newest"  #      0.2.1         is known to work
 set_version "matplotlib"      "newest"  #      1.4.3         is known to work
 set_version "numpy"           "newest"  #      1.9.2         is known to work
 set_version "pexpect"         "newest"  #      3.3           is known to work
-set_version "pillow"          "newest"  #      2.9.0         is known to work
 set_version "mpi4py"          "newest"  #      1.3.1         is known to work
 set_version "h5py"            "newest"  #      2.5.0         is known to work
 
@@ -188,7 +194,7 @@ error()
 
 # Print out welcome message
 sleep 1  # Needed if invoked directly from the web via wget
-printf "${esc_bold}${esc_yellow}This is the installation script to ${esc_concept},
+printf "\n${esc_bold}${esc_yellow}This is the installation script to ${esc_concept},
 the cosmological ${esc_italic}N${esc_no_italic}-body code by Jeppe Dakin${esc_normal}\n\n"
 
 # Status control sequenses
@@ -205,10 +211,14 @@ status_visible="${status_on}"
 CC_backup="${CC}"
 CFLAGS_backup="${CFLAGS}"
 CPPFLAGS_backup="${CPPFLAGS}"
-DYLD_LIBRARY_PATH_backup="${DYLD_LIBRARY_PATH}"
 LD_LIBRARY_PATH_backup="${LD_LIBRARY_PATH}"
 LDFLAGS_backup="${LDFLAGS}"
+LIBS_backup="${LIBS}"
 PATH_backup="${PATH}"
+PNG_CFLAGS_backup="${PNG_CFLAGS}"
+PNG_LIBS_backup="${PNG_LIBS}"
+ZLIBLIB_backup="${ZLIBLIB}"
+ZLIBINC_backup="${ZLIBINC}"
 
 # Check whether system dependencies are installed and located on PATH
 current_step="check for preinstalled system dependencies"
@@ -247,10 +257,11 @@ check_system_dependency()
     fi
 }
 check_system_dependency "awk" "awk" "gawk"
-check_system_dependency "g++" "g++" "g++"
 check_system_dependency "gcc" "gcc" "gcc"
+check_system_dependency "g++" "g++" "g++"
 check_system_dependency "gfortran" "gfortran" "gfortran"
-check_system_dependency "make" "make" "build-essential"
+check_system_dependency "gzip" "gzip" "gzip"
+check_system_dependency "make" "make" "make"
 check_system_dependency "sed" "sed" "sed"
 check_system_dependency "tar" "tar" "tar"
 check_system_dependency "wget" "wget" "wget"
@@ -302,6 +313,9 @@ fix_path()
 }
 fix_path "CONCEPT"
 fix_path "FreeType"
+fix_path "zlib"
+fix_path "libpng"
+fix_path "ImageMagick"
 fix_path "ncurses"
 fix_path "OpenSSL"
 fix_path "Python"
@@ -314,8 +328,8 @@ fix_path "MPI"
 log="${log/__top_dir__/${top_dir}}"
 dotpaths="${dotpaths/__top_dir__/${top_dir}}"
 
-# If Python is preinstalled, assume that Freetype, OpenSSL and ncurses
-# are also installed.
+# If Python is pre-installed, assume that Freetype,
+# OpenSSL and ncurses are also pre-installed.
 assume_preinstalled()
 {
     # Arguments: Program name (lowercase)
@@ -411,6 +425,51 @@ if [ "${python_preinstalled}" == "no" ] && [ "${freetype_preinstalled}" == "no" 
     validate_url "FreeType"
 fi
 
+# zlib
+if ([ "${imagemagick_preinstalled}" == "no" ] || [ "${python_preinstalled}" == "no" ]) && [ "${libpng_preinstalled}" == "no" ] && [ "${zlib_preinstalled}" == "no" ]; then
+    if [ "${zlib_version}" == "newest" ]; then
+        current_step="search for latest version of zlib"
+        set_status "Searching for latest version of zlib"
+        zlib_version=$(wget -q -O- --no-check-certificate "http://sourceforge.net/projects/libpng/files/zlib/" | grep -o "zlib/[0-9.]*" | grep -o "[0-9.]*" | sort -u | tail -n 1)
+        if [ -z "${zlib_version}" ]; then
+            error "Error: Could not identify the version number of the latest zlib!"
+            exit 1
+        fi
+    fi
+    zlib_url="http://sourceforge.net/projects/libpng/files/zlib/${zlib_version}/zlib-${zlib_version}.tar.gz"
+    validate_url "zlib"
+fi
+
+# libpng
+if ([ "${imagemagick_preinstalled}" == "no" ] || [ "${python_preinstalled}" == "no" ]) && [ "${libpng_preinstalled}" == "no" ] ; then
+    if [ "${libpng_version}" == "newest" ]; then
+        # For eg. libpng_version 1.6.18, libpng_version_majors is 16
+        libpng_version_majors="$(wget -q -O- --no-check-certificate "ftp://ftp.simplesystems.org/pub/png/src/" | grep -o "libpng[0-9]*" | grep -o "[0-9]*" | sort -u | tail -n 1)"
+        libpng_version="$(wget -q -O- --no-check-certificate "ftp://ftp.simplesystems.org/pub/png/src/libpng${libpng_version_majors}/" | grep -o "libpng-[0-9\.]*.tar.gz" | sort -u | tail -n 1 | grep -o "[0-9\.]*" | head -n 1)"
+        libpng_version="${libpng_version:0:${#libpng_version}-1}"
+        if [ -z "${libpng_version}" ]; then
+            error "Error: Could not identify the version number of the latest libpng!"
+            exit 1
+        fi
+    fi
+    libpng_url="ftp://ftp.simplesystems.org/pub/png/src/libpng${libpng_version_majors}/libpng-${libpng_version}.tar.gz"
+    validate_url "libpng"
+fi
+
+# ImageMagick
+if [ "${imagemagick_preinstalled}" == "no" ]; then
+    if [ "${imagemagick_version}" == "newest" ]; then
+        imagemagick_version="$(wget -q -O- --no-check-certificate "http://www.imagemagick.org/download/releases/" | grep -o "ImageMagick[0-9\.\-]*.tar" | grep -o "[0-9\.\-]*" | sort -u | tail -n 1)"
+        imagemagick_version="${imagemagick_version:1:${#limagemagick_version}-1}"
+        if [ -z "${imagemagick_version}" ]; then
+            error "Error: Could not identify the version number of the latest ImageMagick!"
+            exit 1
+        fi
+    fi
+    imagemagick_url="http://www.imagemagick.org/download/releases/ImageMagick-${imagemagick_version}.tar.gz"
+    validate_url "ImageMagick"
+fi
+
 # ncurses
 if [ "${python_preinstalled}" == "no" ] && [ "${ncurses_preinstalled}" == "no" ]; then
     if [ "${ncurses_version}" == "newest" ]; then
@@ -448,13 +507,13 @@ if [ "${python_preinstalled}" == "no" ]; then
     if [ "${python_version}" == "newest" ]; then
         current_step="search for latest version of Python"
         set_status "Searching for latest version of Python"
-        python_version="$(wget -q -O- --no-check-certificate "https://www.python.org/downloads/" | grep -o -P "(?<=Python-).*(?=.tar.xz)" | head -1  || echo)"
+        python_version="$(wget -q -O- --no-check-certificate "https://www.python.org/downloads/" | grep -o -P "(?<=Python-).*(?=.tar)" | head -1  || echo)"
         if [ -z "${python_version}" ]; then
             error "Error: Could not identify the version number of the latest Python!"
             exit 1
         fi
     fi
-    python_url="https://www.python.org/ftp/python/${python_version}/Python-${python_version}.tar.xz"
+    python_url="https://www.python.org/ftp/python/${python_version}/Python-${python_version}.tgz"
     validate_url "Python"
 fi
 
@@ -493,13 +552,13 @@ if [ "${hdf5_preinstalled}" == "no" ]; then
     if [ "${hdf5_version}" == "newest" ]; then
         current_step="search for latest version of HDF5"
         set_status "Searching for latest version of HDF5"
-        hdf5_version="$(wget -q -O- --no-check-certificate "ftp://ftp.hdfgroup.org/HDF5/current/src/" | grep -m 1 -o -P "(?<=hdf5-).*(?=.tar.bz2\")" || echo)"
+        hdf5_version="$(wget -q -O- --no-check-certificate "ftp://ftp.hdfgroup.org/HDF5/current/src/" | grep -m 1 -o -P "(?<=hdf5-).*(?=.tar\")" || echo)"
         if [ -z "${hdf5_version}" ]; then
             error "Error: Could not identify the version number of the latest HDF5!"
             exit 1
         fi
     fi
-    hdf5_url="ftp://ftp.hdfgroup.org/HDF5/releases/hdf5-${hdf5_version}/src/hdf5-${hdf5_version}.tar.bz2"
+    hdf5_url="ftp://ftp.hdfgroup.org/HDF5/releases/hdf5-${hdf5_version}/src/hdf5-${hdf5_version}.tar.gz"
     validate_url "HDF5"
 fi
 
@@ -528,7 +587,7 @@ if [ "${concept_preinstalled}" == "no" ]; then
         repo_text=$(wget -q -O- --no-check-certificate ${concept_repo_url})
         line_nr=$(echo "${repo_text}" | grep -n "  commits" | awk '{print $1}')
         line_nr="${line_nr:0:${#line_nr}-1}"
-        line_nr=$(expr ${line_nr} - 2)
+        ((line_nr -= 2))
         commit_nr=$(echo "${repo_text}" | sed -n -e "${line_nr}p" | sed -e 's/^[[:space:]]*//')
         concept_version="commit ${commit_nr}"
     else
@@ -660,13 +719,16 @@ if [ "${python_preinstalled}" == "no" ] \
            "├─Python"                     "${python_version}"               "\"${python_dir}\""
            "│ ├─FreeType"                 "${freetype_version}"             "\"${freetype_dir}\""
            "│ ├─ncurses"                  "${ncurses_version}"              "\"${ncurses_dir}\""
-           "│ └─OpenSSL"                  "${openssl_version}"              "\"${openssl_dir}\""
+           "│ ├─OpenSSL"                  "${openssl_version}"              "\"${openssl_dir}\""
+           "│ └─zlib"                     "${zlib_version}"                 "\"${zlib_dir}\""
            "├─GSL"                        "${gsl_version}"                  "\"${gsl_dir}\""
            "├─MPICH"                      "${mpich_version}"                "\"${mpi_dir}\""
            "├─HDF5"                       "${hdf5_version}"                 "\"${hdf5_dir}\""
            "├─FFTW"                       "${fftw_version}"                 "\"${fftw_dir}\""
-           "└─GADGET"                     "${gadget_version}"               "\"${gadget_dir}\""
-           "  └─FFTW"                     "${fftw_for_gadget_version}"      "\"${fftw_for_gadget_dir}\""
+           "├─GADGET"                     "${gadget_version}"               "\"${gadget_dir}\""
+           "│  └─FFTW"                    "${fftw_for_gadget_version}"      "\"${fftw_for_gadget_dir}\""
+           "└─ImageMagick"                "${imagemagick_version}"          "\"${imagemagick_dir}\""
+           "   └─libpng"                  "${libpng_version}"               "\"${libpng_dir}\""
     )
        disable_status
        heading "Installation overview"
@@ -694,9 +756,15 @@ download_and_extract()
     eval "url=\"\${${progname,,}_url}\""
     # Get extraction options
     declare -A extensions_options
-    extensions_options=(["tar.gz"]="z" ["tar.bz2"]="j" ["tar.xz"]="J")
+    # Note: Only tar.gz files whould ever be downloaded, as tar.bz2 and
+    # tar.xz files require the programs bzip2 and xz, respectively,
+    # which are not listed as dependencies in this script.
+    extensions_options=(["tar.gz"]="z" ["tgz"]="z"
+                        ["tar.bz2"]="j" ["tbz2"]="j" ["tbz"]="j"
+                        ["tar.xz"]="J" ["txz"]="J"
+                        )
     for ext in "${!extensions_options[@]}"; do
-        if [[ "${url}" == *${ext} ]]; then
+        if [[ "${url}" == *.${ext} ]]; then
             local tar_options="-ix${extensions_options[$ext]}vf"
             break
         fi
@@ -733,7 +801,60 @@ if [ "${python_preinstalled}" == "no" ] && [ "${freetype_preinstalled}" == "no" 
     ./configure --prefix="${freetype_dir}"
     make
     make install
-    (cd docs; cp FTL.TXT GPLv2.TXT LICENSE.TXT "${freetype_dir}/include/freetype"*)
+    (cd docs; cp "FTL.TXT" "GPLv2.TXT" "LICENSE.TXT" "${freetype_dir}")
+    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+fi
+
+# zlib
+if ([ "${imagemagick_preinstalled}" == "no" ] || [ "${python_preinstalled}" == "no" ]) && [ "${libpng_preinstalled}" == "no" ] && [ "${zlib_preinstalled}" == "no" ]; then
+    download_and_extract "zlib"
+    ./configure
+    make test
+    make install prefix="${zlib_dir}"
+    cp "README" "${zlib_dir}"
+    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+fi
+
+# libpng
+if ([ "${imagemagick_preinstalled}" == "no" ] || [ "${python_preinstalled}" == "no" ]) && [ "${libpng_preinstalled}" == "no" ] ; then
+    download_and_extract "libpng"
+    export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
+    export LDFLAGS="-L${zlib_dir}/lib ${LDFLAGS}"
+    export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
+    export ZLIBLIB="${zlib_dir}/lib"
+    export ZLIBINC="${zlib_dir}/include"
+    ./configure --prefix="${libpng_dir}"
+    make check
+    make install
+    export CPPFLAGS="${CPPFLAGS_backup}"
+    export LDFLAGS="${LDFLAGS_backup}"
+    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
+    export ZLIBLIB="${ZLIBLIB_backup}"
+    export ZLIBINC="${ZLIBINC_backup}"
+    cp "LICENSE" "${libpng_dir}"
+    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+fi
+
+# ImageMagick (as ImageMagick has a hard time finding libpng, some hacks are needed)
+if [ "${imagemagick_preinstalled}" == "no" ]; then
+    download_and_extract "ImageMagick"
+    export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
+    export LD_LIBRARY_PATH="${libpng_dir}/lib:${LD_LIBRARY_PATH}"
+    export PNG_CFLAGS="-I${libpng_dir}/include/libpng${libpng_version_majors} ${PNG_CFLAGS}"
+    export PNG_LIBS="-lpng16 -L${libpng_dir}/lib, -Wl,-rpath=${libpng_dir}/lib ${PNG_LIBS}"
+    # Delete the lines in the configure file where PNG_CFLAGS and
+    # PNG_LIBS are set to empty strings.
+    sed -i '/PNG_CFLAGS=""/d' ./configure
+    sed -i '/PNG_LIBS=""/d' ./configure
+    ./configure --prefix="${imagemagick_dir}" --disable-openmp --with-png=yes --with-bzlib=no --with-autotrace=no --with-djvu=no --with-dps=no --with-fftw=no --with-fpx=no --with-fontconfig=no --with-freetype=no --with-gslib=no --with-gvc=no --with-jbig=no --with-jpeg=no --with-lcms=no --with-lqr=no --with-lzma=no --with-magick-plus-plus=no --with-openexr=no --with-openjp2=no --with-pango=no --with-perl=no --with-rsvg=no --with-tiff=no --with-webp=no --with-wmf=no --with-x=no --with-xml=no --with-zlib=no
+    make
+    # Do not [make check] as it (may) complain about missing FreeType and fonts
+    make install
+    export CPPFLAGS="${CPPFLAGS_backup}"
+    export LDFLAGS="${LDFLAGS_backup}"
+    export PNG_CFLAGS="${PNG_CFLAGS_backup}"
+    export PNG_LIBS="${PNG_LIBS_backup}"
+    cp "AUTHORS.txt" "LICENSE" "NOTICE" "${imagemagick_dir}"
     cd "${top_dir}"; rm -rf "${top_dir}/tmp"
 fi
 
@@ -750,7 +871,7 @@ fi
 # OpenSSL
 if [ "${python_preinstalled}" == "no" ] && [ "${openssl_preinstalled}" == "no" ]; then
     download_and_extract "OpenSSL"
-    ./config shared --prefix="${python_dir}" --openssldir="${openssl_dir}"
+    ./config shared --prefix="${openssl_dir}"
     make
     make install
     cp LICENSE README "${openssl_dir}"
@@ -760,9 +881,9 @@ fi
 # Python
 if [ "${python_preinstalled}" == "no" ]; then
     download_and_extract "Python"
-    export LDFLAGS="-L${python_dir}/lib -Wl,-rpath ${python_dir}/lib ${LDFLAGS}"
-    export LD_LIBRARY_PATH="${python_dir}/lib:${LD_LIBRARY_PATH}"
-    export CPPFLAGS="-I${python_dir}/include -I${openssl_dir}/include/openssl -I${ncurses_dir}/include/ncurses ${CPPFLAGS}"
+    export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib -L${ncurses_dir}/lib -Wl,-rpath=${ncurses_dir}/lib -L${openssl_dir}/lib -Wl,-rpath=${openssl_dir}/lib ${LDFLAGS}"
+    export LD_LIBRARY_PATH="${zlib_dir}/lib:${ncurses_dir}/lib:${openssl_dir}/lib:${LD_LIBRARY_PATH}"
+    export CPPFLAGS="-I${zlib_dir}/include -I${openssl_dir}/include/openssl -I${ncurses_dir}/include/ncurses ${CPPFLAGS}"
     ./configure --enable-shared --prefix="${python_dir}" --with-ensurepip=install
     make
     make install
@@ -806,7 +927,6 @@ fi
 
 # MPICH
 if [ "${mpi_preinstalled}" == "no" ]; then
-    #mkdir "${mpi_dir}"
     download_and_extract "MPICH"
     ./configure --enable-shared --disable-fortran --prefix="${mpi_dir}"
     make
@@ -906,7 +1026,6 @@ python_check_package "NumPy"      "${python_dir}/lib/python${python_version}/sit
 python_check_package "Matplotlib" "${python_dir}/lib/python${python_version}/site-packages/matplotlib"
 python_check_package "MPI4Py"     "${python_dir}/lib/python${python_version}/site-packages/mpi4py"
 python_check_package "Pexpect"    "${python_dir}/lib/python${python_version}/site-packages/pexpect"
-python_check_package "Pillow"     "${python_dir}/lib/python${python_version}/site-packages/PIL"
 python_check_package "H5Py"       "${python_dir}/lib/python${python_version}/site-packages/h5py-${h5py_version}-py${python_version}-$(uname -s | awk '{print tolower($0)}')-$(uname -m).egg/h5py"
 
 # Print out Python package installation overview
@@ -917,8 +1036,7 @@ if [ "${blessings_preinstalled}" == "no" ] \
 || [ "${matplotlib_preinstalled}" == "no" ] \
 || [ "${mpi4py_preinstalled}" == "no" ] \
 || [ "${numpy_preinstalled}" == "no" ] \
-|| [ "${pexpect_preinstalled}" == "no" ] \
-|| [ "${pillow_preinstalled}" == "no" ]; then
+|| [ "${pexpect_preinstalled}" == "no" ]; then
     table=("${esc_bold}Name${esc_normal}" "${esc_bold}Version${esc_normal}" "${esc_bold}Installation path${esc_normal}"
            "┌─Blessings"  "${blessings_version}"  "\"${blessings_dir}\""
            "├─Cython"     "${cython_version}"     "\"${cython_dir}\""
@@ -927,8 +1045,7 @@ if [ "${blessings_preinstalled}" == "no" ] \
            "├─Matplotlib" "${matplotlib_version}" "\"${matplotlib_dir}\""
            "├─MPI4Py"     "${mpi4py_version}"     "\"${mpi4py_dir}\""
            "├─NumPy"      "${numpy_version}"      "\"${numpy_dir}\""
-           "├─Pexpect"    "${pexpect_version}"    "\"${pexpect_dir}\""
-           "└─Pillow"     "${pillow_version}"     "\"${pillow_dir}\""
+           "└─Pexpect"    "${pexpect_version}"    "\"${pexpect_dir}\""
     )
     disable_status
     heading "Python packages overview"
@@ -948,7 +1065,9 @@ pip_install()
     set_status "Installing ${1}"
     mkdir "${top_dir}/tmp"
     pip_name="${1//_/}"  # Remove underscores from name
+    disable_status
     "${python}" -m pip install -v -v -v --no-cache-dir --no-binary=:all: --download "${top_dir}/tmp" "${pip_name}==${2}"
+    enable_status
     "${python}" -m pip install -v -v -v --no-index --find-links="${top_dir}/tmp" "${pip_name}==${2}"
     rm -rf "${top_dir}/tmp"
 }
@@ -975,48 +1094,53 @@ if [ "${numpy_preinstalled}" == "no" ]; then
     pip_install "NumPy" "${numpy_version}"
 fi
 
-# Matplotlib
+# Matplotlib (as Matplotlib has a hard time finding FreeType, some hacks are needed)
 if [ "${matplotlib_preinstalled}" == "no" ]; then
-    export LDFLAGS="-L${python_dir}/lib -Wl,-rpath ${python_dir}/lib ${LDFLAGS}"
-    export LD_LIBRARY_PATH="${python_dir}/lib:${LD_LIBRARY_PATH}"
-    export PATH="${python_dir}/bin:${python_dir}/lib:${python_dir}/include:${python_dir}/include/freetype2:${PATH}"
-    pip_install "Matplotlib" "${matplotlib_version}"
+    export CPPFLAGS="-I${freetype_dir}/include -I${freetype_dir}/include/freetype"*" -I${libpng_dir}/include -I${libpng_dir}/include/libpng${libpng_version_majors}"
+    export LDFLAGS="-L${freetype_dir}/lib -Wl,-rpath=${freetype_dir}/lib -L${libpng_dir}/lib -Wl,-rpath=${libpng_dir}/lib"
+    export PATH="${freetype_dir}/bin:${libpng_dir}/bin:${PATH}"
+    current_step="installation of Matplotlib"
+    heading "Installing Matplotlib"
+    set_status "Installing Matplotlib"
+    mkdir "${top_dir}/tmp"
+    disable_status
+    "${python}" -m pip install -v -v -v --no-cache-dir --no-binary=:all: --download "${top_dir}/tmp" "matplotlib==${matplotlib_version}" 2>/dev/null || :
+    enable_status
+    cd "${top_dir}/tmp"
+    tar xfz matplotlib*.gz
+    cd matplotlib*
+    cp setup.cfg.template setup.cfg
+    sed -i "/basedirlist/c\basedirlist = ${freetype_dir}" setup.cfg
+    cp -r "${freetype_dir}/include/freetype"*/* "${freetype_dir}/include"
+    "${python}" setup.py build
+    "${python}" setup.py install
+    export CPPFLAGS="${CPPFLAGS_backup}"
     export LDFLAGS="${LDFLAGS_backup}"
-    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
     export PATH="${PATH_backup}"
+    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
 fi
 
 # MPI4Py
 if [ "${mpi4py_preinstalled}" == "no" ]; then
-    MPI_DIR_backup="${MPI_DIR}"
-    export MPI_DIR="${mpi_dir}"
     export PATH="${mpi_dir}/bin:${PATH}"
-    export LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}"
-    export DYLD_LIBRARY_PATH="${mpi_dir}/lib:${DYLD_LIBRARY_PATH}"
     pip_install "MPI4Py" "${mpi4py_version}"
-    export MPI_DIR="${MPI_DIR_backup}"
     export PATH="${PATH_backup}"
-    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH_backup}"
-    export DYLD_LIBRARY_PATH="${DYLD_LIBRARY_PATH_backup}"
 fi
 
-# Pexpect (for some reason, this has to be before H5Py)
+# Pexpect (this has to be before H5Py, for whatever reason)
 if [ "${pexpect_preinstalled}" == "no" ]; then
     pip_install "Pexpect" "${pexpect_version}"
 fi
 
-# Pillow
-if [ "${pillow_preinstalled}" == "no" ]; then
-    pip_install "Pillow" "${pillow_version}"
-fi
-
-# H5Py (manual invocation of setup.py needed as --mpi needs to be supplied)
+# H5Py (manual invocation of setup.py is needed as --mpi needs to be supplied)
 if [ "${h5py_preinstalled}" == "no" ]; then
     current_step="installation of H5Py"
     heading "Installing H5Py"
     set_status "Installing H5Py"
     mkdir "${top_dir}/tmp"
+    disable_status
     "${python}" -m pip install -v -v -v --no-cache-dir --no-binary=:all: --download "${top_dir}/tmp" "h5py==${h5py_version}"
+    enable_status
     cd "${top_dir}/tmp"
     tar xfz h5py*.gz
     cd h5py*
@@ -1049,6 +1173,8 @@ heading "Writing paths to .paths"
 set_status "Writing paths to .paths"
 Gadget2_dir="${gadget_dir}/Gadget2"
 tests_dir="${concept_dir}/tests"
+composite="${imagemagick_dir}/bin/composite"
+convert="${imagemagick_dir}/bin/convert"
 cython="${python_dir}/bin/cython"
 mpicc="${mpi_dir}/bin/mpicc"
 mpiexec="${mpi_dir}/bin/mpiexec"
@@ -1087,6 +1213,10 @@ top_dir='${top_dir}'
 #########
 # Files #
 #########
+# The composite executable from ImageMagick
+composite='${composite}'
+# The convert executable from ImageMagick
+convert='${convert}'
 # The Cython executable
 cython='${cython}'
 # The MPI C compiler
@@ -1131,36 +1261,6 @@ if [ "${gadget_preinstalled}" == "no" ]; then
 fi
 
 # Copyright notice
-if [ ${fftw_for_gadget_preinstalled} == "no" ]; then
-    fftw_for_gadget_copyright_notice="FFTW 2"
-fi
-if [ ${fftw_preinstalled} == "no" ]; then
-    fftw_copyright_notice="FFTW 3"
-fi
-if [ ${gadget_preinstalled} == "no" ]; then
-    gadget_copyright_notice="GADGET,"
-fi
-if [ ${gsl_preinstalled} == "no" ]; then
-    gsl_copyright_notice="GSL"
-fi
-if [ ${hdf5_preinstalled} == "no" ]; then
-    hdf5_copyright_notice="HDF5"
-fi
-if [ ${mpich_preinstalled} == "no" ]; then
-    mpich_copyright_notice="MPICH"
-fi
-if [ ${python_preinstalled} == "no" ]; then
-    python_copyright_notice="Python"
-fi
-if [ ${freetype_preinstalled} == "no" ]; then
-    freetype_copyright_notice="FreeType"
-fi
-if [ ${ncurses_preinstalled} == "no" ]; then
-    ncurses_copyright_notice="ncurses"
-fi
-if [ ${openssl_preinstalled} == "no" ]; then
-    openssl_copyright_notice="OpenSSL"
-fi
 copyright_notice()
 {
     # Arguments: Program/package name, text if not pre-installed
@@ -1180,9 +1280,12 @@ $(copyright_notice "freetype"        "FreeType")
 $(copyright_notice "gadget"          "GADGET")
 $(copyright_notice "gsl"             "GSL")
 $(copyright_notice "hdf5"            "HDF5")
+$(copyright_notice "imagemagick"     "ImageMagick")
+$(copyright_notice "libpng"          "libpng")
 $(copyright_notice "mpich"           "MPICH")
 $(copyright_notice "ncurses"         "ncurses")
 $(copyright_notice "openssl"         "OpenSSL")
+$(copyright_notice "zlib"            "zlib")
 $(copyright_notice "python"          "Python")
 $(copyright_notice "blessings"       "$(printf ${en_quad}%.s {1..4})Blessings")
 $(copyright_notice "cython"          "$(printf ${en_quad}%.s {1..4})Cython")
@@ -1192,7 +1295,6 @@ $(copyright_notice "matplotlib"      "$(printf ${en_quad}%.s {1..4})Matplotlib")
 $(copyright_notice "mpi4py"          "$(printf ${en_quad}%.s {1..4})MPI4Py")
 $(copyright_notice "numpy"           "$(printf ${en_quad}%.s {1..4})NumPy")
 $(copyright_notice "pexpect"         "$(printf ${en_quad}%.s {1..4})Pexpect")
-$(copyright_notice "pillow"          "$(printf ${en_quad}%.s {1..4})Pillow")
 $(copyright_notice "yolk"            "$(printf ${en_quad}%.s {1..4})Yolk3k")
 "
 msg="$(printf "${msg}" | sed '/^$/d')"

@@ -101,7 +101,7 @@ def load(filename, write_msg=True):
                )
 def save_standard(particles, a, filename):
     # Print out message
-    masterprint('Saving snapshot "' + filename + '" ... ', end='')
+    masterprint('Saving snapshot "' + filename + '" ...')
     with h5py.File(filename, mode='w', driver='mpio', comm=comm) as hdf5_file:
         # Save global attributes
         hdf5_file.attrs['H0'] = H0
@@ -220,7 +220,7 @@ def load_standard(filename, write_msg=True):
             if write_msg:
                 masterprint('    Loading', N, particles_h5.attrs['species'],
                             'particles', '(' + particles_h5.attrs['type']
-                            + ') ... ', end='')
+                            + ') ...')
             # Compute a fair distribution of 
             # particle data to the processes.
             N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
@@ -266,7 +266,7 @@ def load_standard(filename, write_msg=True):
                )
 def save_gadget(particles, a, filename):
     # Print out message
-    masterprint('Saving GADGET snapshot "' + filename + '" ... ', end='')
+    masterprint('Saving GADGET snapshot "' + filename + '" ...')
     # Instantiate GADGET snapshot
     snapshot = Gadget_snapshot()
     snapshot.populate(particles, a)
@@ -283,7 +283,7 @@ def save_gadget(particles, a, filename):
                returns='Particles',
                )
 def load_gadget(filename, write_msg=True):
-    masterprint('Loading GADGET snapshot"' + filename + '"')
+    masterprint('Loading GADGET snapshot "' + filename + '"')
     snapshot = Gadget_snapshot()
     snapshot.load(filename, write_msg)
     return snapshot.particles
@@ -580,7 +580,7 @@ class Gadget_snapshot:
             N = self.header['Npart'][1]
             if write_msg:
                 masterprint('    Loading', N, 'dark matter particles',
-                           '(GADGET halos) ... ', end='')
+                            '(GADGET halos) ...')
             # Compute a fair distribution
             # of particle data to the processes.
             N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
@@ -704,8 +704,3 @@ class Gadget_snapshot:
 # Create a formated version of snapshot_type at import time
 cython.declare(snapshot_type_fmt='str')
 snapshot_type_fmt = snapshot_type.lower().replace(' ', '')
-# If the output directories do not exist, create them
-if master:
-    for output_dir in (snapshot_dir, powerspec_dir):
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)

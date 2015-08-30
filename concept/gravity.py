@@ -60,6 +60,8 @@ else:
                                       fftw_plan plan_backward)
     """
 
+# Imports and definitions common to pure Python and Cython
+from os.path import isfile
 
 
 # Function for direct summation of gravitational
@@ -1197,10 +1199,17 @@ if use_PM:
                                           + PM_gridsize_local_i),
                                          :, :]
     else:
-        """
         # Initialize fftw_mpi, allocate the grid, initialize the
         # local grid sizes and start indices and do FFTW planning.
-        fftw_struct = fftw_setup(PM_gridsize, PM_gridsize, PM_gridsize)
+        if not isfile('.fftw_wisdom_gridsize={}_nprocs={}'.format(PM_gridsize,
+                                                                  nprocs)):
+            masterprint(('Acquiring FFTW wisdom for grid of linear size {} on '
+                         + '{} ' + ('processes' if nprocs > 1 else 'process')
+                         + ' ...').format(PM_gridsize, nprocs))
+            fftw_struct = fftw_setup(PM_gridsize, PM_gridsize, PM_gridsize)
+            masterprint('done')
+        else:
+            fftw_struct = fftw_setup(PM_gridsize, PM_gridsize, PM_gridsize)
         # Unpack fftw_struct
         PM_gridsize_local_i = fftw_struct.gridsize_local_i
         PM_gridsize_local_j = fftw_struct.gridsize_local_j
@@ -1217,7 +1226,6 @@ if use_PM:
             PM_grid = empty((0, PM_gridsize, PM_gridsize_padding))
         plan_forward  = fftw_struct.plan_forward
         plan_backward = fftw_struct.plan_backward
-        """
 else:
     # As these should be importable,
     # they need to be assigned even if not used.

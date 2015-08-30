@@ -536,7 +536,7 @@ def cython_decorators(filename):
 
 
 def make_pxd(filename):
-    commons_functions = ('abs', 'max', 'min', 'mod', 'sum', 'prod', 'sinc', 'masterprint', 'masterwarn')
+    commons_functions = ('abs', 'max', 'min', 'mod', 'sum', 'prod', 'sinc', 'masterprint', 'masterwarn', 'progressprint')
     customs = {'Particles':    'from species cimport Particles',
                'func_b_ddd':   'ctypedef bint    (*func_b_ddd_pxd)  (double, double, double)',
                'func_d_dd':    'ctypedef double  (*func_d_dd_pxd)   (double, double)',
