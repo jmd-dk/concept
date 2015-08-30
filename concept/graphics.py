@@ -109,26 +109,28 @@ def render(particles, a, filename):
                                                 basename)
     if master:
         os.makedirs(renderparts_dirname, exist_ok=True)
+    # Now save the render parts, including transparency
     Barrier()
     savefig(renderpart_filename,
             bbox_inches='tight',
             pad_inches=0,
             transparent=True,
             )
+    Barrier()
     # The master process combines the parts using ImageMagick
     if master:
         # List of all newly created renderparts
         renderpart_filenames = [(renderparts_dirname + '/rank{}.' + basename)
                                  .format(r) for r in range(nprocs)]
-        # Compose all renderparts into one
-        subprocess.call([paths['composite']] + renderpart_filenames
-                                             + [filename])
-        # Remove transparency and paint the background
-        subprocess.call([paths['convert'], filename, '-background',
-                         'rgb({}%, {}%, {}%)'.format(100*bgcolor[0],
-                                                     100*bgcolor[1],
-                                                     100*bgcolor[2]),
-                         '-alpha', 'remove', filename])
+        # Combine all render parts into one,
+        # with the correct background color and no transparency.
+        subprocess.call([paths['convert']] + renderpart_filenames
+                         + ['-background', 'rgb({}%, {}%, {}%)'
+                                            .format(100*bgcolor[0],
+                                                    100*bgcolor[1],
+                                                    100*bgcolor[2]),
+                            '-layers', 'flatten', '-alpha', 'remove',
+                            filename])
         # Remove the temporary directory
         shutil.rmtree(renderparts_dirname)
     masterprint('done')
