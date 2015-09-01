@@ -191,18 +191,13 @@ else:
 # Import all user specified parameters from the params module
 import params
 from matplotlib.colors import ColorConverter
-to_rgb = lambda color: array(ColorConverter().to_rgb(color), dtype='float64')
+to_rgb = lambda color: array(ColorConverter().to_rgb(color),
+                             dtype='float64')
 cython.declare(IC_file='str',
                snapshot_type='str',
-               snapshot_dir='str',
-               snapshot_base='str',
-               snapshot_times='tuple',
-               powerspec_dir='str',
-               powerspec_base='str',
-               powerspec_times='tuple',
-               render_dir='str',
-               render_base='str',
-               render_times='tuple',
+               output_dirs='dict',
+               output_bases='dict',
+               output_times='dict',
                boxsize='double',
                ewald_gridsize='int',
                PM_gridsize='ptrdiff_t',
@@ -227,15 +222,10 @@ cython.declare(IC_file='str',
 # Input/output
 IC_file         = params.IC_file
 snapshot_type   = params.snapshot_type
-snapshot_dir    = params.snapshot_dir
-snapshot_base   = params.snapshot_base
-snapshot_times  = tuple(params.snapshot_times)
-powerspec_dir   = params.powerspec_dir
-powerspec_base  = params.powerspec_base
-powerspec_times = tuple(params.powerspec_times)
-render_dir      = params.render_dir
-render_base     = params.render_base
-render_times    = tuple(params.render_times)
+output_dirs     = params.output_dirs
+output_bases    = params.output_bases
+output_times    = {key: tuple(sorted(set(val)))
+                   for key, val in params.output_times.items()}
 # Numerical parameters
 boxsize          = params.boxsize
 ewald_gridsize   = cast(params.ewald_gridsize, 'int')
@@ -297,7 +287,8 @@ two_π = 2*π
 ############################################
 # Derived and internally defined constants #
 ############################################
-cython.declare(a_max='double',
+cython.declare(a_dumps='tuple',
+               a_max='double',
                G_Newton='double',
                PM_gridsize3='ptrdiff_t',
                PM_gridsize_padding='ptrdiff_t',
@@ -309,11 +300,20 @@ cython.declare(a_max='double',
                half_boxsize='double',
                machine_ϵ='double',
                minus_half_boxsize='double',
+               powerspec_dir='str',
+               powerspec_base='str',
+               powerspec_times='tuple',
+               recp_boxsize2='double',
+               render_dir='str',
+               render_base='str',
+               render_times='tuple',
+               snapshot_dir='str',
+               snapshot_base='str',
+               snapshot_times='tuple',
                two_ewald_gridsize='int',
                two_machine_ϵ='double',
                two_recp_boxsize='double',
                use_PM='bint',
-               recp_boxsize2='double',
                ϱ='double',
                ϱm='double',
                PM_fac_const='double',
@@ -322,11 +322,23 @@ cython.declare(a_max='double',
                P3M_scale_phys='double',
                π_recp_PM_gridsize='double',
                )
+# List of dump times
+a_dumps = tuple(sorted(set([nr for val in output_times.values()
+                               for nr in val])))
+# The scale factor at the last time step
+a_max = a_begin if len(a_dumps) == 0 else np.max(a_dumps)
+# Extract output variables from output dicts
+snapshot_dir    = output_dirs['snapshot']
+snapshot_base   = output_bases['snapshot']
+snapshot_times  = output_times['snapshot']
+powerspec_dir   = output_dirs['powerspec']
+powerspec_base  = output_bases['powerspec']
+powerspec_times = output_times['powerspec']
+render_dir      = output_dirs['render']
+render_base     = output_bases['render']
+render_times    = output_times['render']
 # Newtons constant
 G_Newton = 6.6738e-11*units.m**3/units.kg/units.s**2
-# The scale factor at the last time step
-a_max = (a_begin if len(snapshot_times + powerspec_times) == 0
-         else np.max(snapshot_times + powerspec_times))
 # The average, comoing density (the critical
 # comoving density since we only study flat universes)
 ϱ = 3*H0**2/(8*π*G_Newton)

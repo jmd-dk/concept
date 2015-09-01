@@ -172,35 +172,26 @@ def timeloop():
 # Declare global variables used in above functions
 cython.declare(a='double',
                a_dump='double',
-               i_dump='size_t',
                drift_fac='double[::1]',
+               i_dump='size_t',
                kick_fac='double[::1]',
                t='double',
                Δt='double',
                )
 
 # Check that the output times are legal
-for times, kind in zip((snapshot_times, powerspec_times, render_times),
-                       ('snapshot', 'powerspectrum', 'render')):
-    if not times:
-        continue
-    if len(times) > len(set(times)):
-        masterwarn(kind.capitalize() + ' output times are not unique. '
-                                     + 'Extra values will be ignored.')
-    if np.min(times) < a_begin and master:
-        raise Exception('Cannot produce a ' + kind + ' at time a = '
-                         + str(np.min(times)) + ', as the simulation '
-                         + 'starts at a = ' + str(a_begin) + '.')
+if master:
+    for output_kind, output_time in output_times.items():
+        if output_time and np.min(output_time) < a_begin:
+            raise Exception('Cannot produce a ' + output_kind + ' at time a = '
+                            + str(np.min(output_time)) + ', as the simulation '
+                            + 'starts at a = ' + str(a_begin) + '.')
 
 # If the output directories do not exist, create them
 if master:
-    for times, output_dir in zip((snapshot_times,
-                                  powerspec_times,
-                                  render_times),
-                                 (snapshot_dir,
-                                  powerspec_dir,
-                                  render_dir)):
-        if len(times) > 0:
+    for output_time, output_dir in zip(output_times.values(),
+                                       output_dirs.values()):
+        if output_time:
             os.makedirs(output_dir, exist_ok=True)
 
 # If anything special should happen, rather than starting the timeloop
@@ -217,9 +208,6 @@ if special:
     Barrier()
     sys.exit()
 
-# Create list of dump times
-cython.declare(a_dumps='list')
-a_dumps = sorted(set(snapshot_times + powerspec_times + render_times))
 # Load initial conditions
 particles = load(IC_file)
 # Run the time loop
