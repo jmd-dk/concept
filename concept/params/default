@@ -1,6 +1,22 @@
+# Copyright (C) 2015 Jeppe Mosgard Dakin
+#
+# This file is part of CONCEPT, the cosmological N-body code in Python
+#
+# CONCEPT is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# CONCEPT is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+
+
 # This is a parameterfile to the CONCEPT code.
 # Parameters can be specified as any valid Python3 expression.
-# Numpy functions and constants as well as units defined in the units module
+# NumPy functions and constants as well as units defined in the units module
 # may be used. Absolute paths defined in the .paths file may be used via the
 # paths dict.
 # For more information about the different parameters,
@@ -9,15 +25,21 @@
 # Input/output
 IC_file = 'ICs/default'				# Initial condition snapshot
 snapshot_type = 'standard'			# Type of output snapshot
-snapshot_dir = 'output'				# Directory for storing output snapshots
-snapshot_base = 'snapshot'			# File basename for output snapshots
-snapshot_times = linspace(0.1, 1, 10)     # Times at which to dump snapshots to disk
-powerspec_dir = 'output'			# Directory for storing output power spectra
-powerspec_base = 'powerspec'			# File basename for output power spectra
-powerspec_times = ()				# Times at which to dump power spectra to disk
-render_dir = 'output'
-render_base = 'render'
-render_times = (0.0205, 0.026)
+output_dirs = {					# Directories for storing output
+    'snapshot':  'output',
+    'powerspec': 'output',
+    'render':    'output',
+               }
+output_bases = {				# File basenames for output
+    'snapshot':  'snapshot',
+    'powerspec': 'powerspec',
+    'render':    'render',
+                }
+output_times = {				# Times at which to dump output to disk
+    'snapshot':  linspace(0.1, 1, 10),
+    'powerspec': (),
+    'render':    (),
+                }
 
 # Numerical parameters
 boxsize = 16/0.7*Mpc				# Linear size of the simulation box
@@ -25,8 +47,9 @@ ewald_gridsize = 64				# Linear size of the grid of Ewald corrections
 PM_gridsize = 64				# Linear size of the grid used for the PM method
 P3M_scale = 1.25				# The long/short-range force split scale
 P3M_cutoff = 4.8				# Maximum reach of short-range force
-softeningfactors = {'dark matter': 0.03,	# The amount of gravitational softening for each species
-                    'dark energy': 0,
+softeningfactors = {				# The amount of gravitational softening for each species
+    'dark matter': 0.03,
+    'dark energy': 0,
                     }	
 Δt_factor = 0.01				# The time step size
 

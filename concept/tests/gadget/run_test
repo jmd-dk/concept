@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+
+# Copyright (C) 2015 Jeppe Mosgard Dakin
+#
+# This file is part of CONCEPT, the cosmological N-body code in Python
+#
+# CONCEPT is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# CONCEPT is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+
+
+# This script performs a basic test of the GADGET instalaltion by running a
+# shortened version of GADGET's lcdm_gas test
+
+# Initialize test environment
+this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+source "${this_dir}/../environment"
+
+# Create an edited version of lcdm_gas.Makefile with correct path information
+cp "${this_dir}/lcdm_gas.Makefile" "${this_dir}/lcdm_gas.Makefile_edited"
+sed -i "/^ *CC= / s/ [^# ]/ \"${mpicc//\//\\/}\"/" "${this_dir}/lcdm_gas.Makefile_edited"
+path="${mpi_dir}/include"
+sed -i "/^ *MPI_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/lcdm_gas.Makefile_edited"
+path="${mpi_dir}/lib"
+sed -i "/^ *MPI_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/lcdm_gas.Makefile_edited"
+path="${gsl_dir}/include"
+sed -i "/^ *GSL_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/lcdm_gas.Makefile_edited"
+path="${gsl_dir}/lib"
+sed -i "/^ *GSL_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/lcdm_gas.Makefile_edited"
+path="${fftw_for_gadget_dir}/include"
+sed -i "/^ *FFTW_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/lcdm_gas.Makefile_edited"
+path="${fftw_for_gadget_dir}/lib"
+sed -i "/^ *FFTW_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/lcdm_gas.Makefile_edited"
+
+# Copy the parameter and IC file from the gadget installation
+cp "${gadget_dir}/ICs/lcdm_gas_littleendian.dat" "${Gadget2_dir}/parameterfiles/outputs_lcdm_gas.txt" "${this_dir}"
+
+
+# Make a local copy of the files in the GADGET2 directory and copy the edited Makefile
+Gadget2_local_dir="${this_dir}/Gadget2_local"
+mkdir -p "${Gadget2_local_dir}"
+find "${Gadget2_dir}" -maxdepth 1 -type f -exec cp '{}' "${Gadget2_local_dir}" \;
+cp "${this_dir}/lcdm_gas.Makefile_edited" "${Gadget2_local_dir}/Makefile"
+
+# Build Gadget and run simulation based on the ICs
+mkdir -p "${this_dir}/lcdm_gas"
+rm -rf "${this_dir}/lcdm_gas/"*
+(cd "${Gadget2_local_dir}" && make clean && make && "${mpiexec}" -n 1 "${Gadget2_local_dir}/Gadget2" ../lcdm_gas.param)  # It is crucial to use a relative path as the path has a max allowed length in GADGET
+
+# Finalize test environment
+test_done=true source "${this_dir}/../environment"
+
