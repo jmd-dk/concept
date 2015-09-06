@@ -1,6 +1,5 @@
-# Copyright (C) 2015 Jeppe Mosgard Dakin
-#
-# This file is part of CONCEPT, the cosmological N-body code in Python
+# This file is part of CONCEPT, the cosmological N-body code in Python.
+# Copyright (C) 2015 Jeppe Mosgard Dakin.
 #
 # CONCEPT is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -9,8 +8,16 @@
 #
 # CONCEPT is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with CONCEPT. If not, see http://www.gnu.org/licenses/
+#
+# The auther of CONCEPT can be contacted at
+# jeppe.mosgaard.dakin(at)post.au.dk
+# The latest version of CONCEPT is available at
+# https://github.com/jmd-dk/concept/
 
 
 
@@ -152,7 +159,7 @@ else:
         cython.double
     # Custom classes
     from species cimport Particles
-    from IO cimport Gadget_snapshot
+    from IO cimport StandardSnapshot, GadgetSnapshot
     """
 
 # Seperate but equivalent imports and
@@ -188,7 +195,26 @@ else:
     cimport units
     """
 
-# Import all user specified parameters from the params module
+###########################################
+# Absolute paths to directories and files #
+###########################################
+# The paths are stored in the top_dir/.paths file
+import imp
+cython.declare(paths='dict')
+top_dir = os.path.abspath('.')
+while True:
+    if '.paths' in os.listdir(top_dir):
+        break
+    elif top_dir == '/':
+        raise Exception('Cannot find the .paths file!')
+    top_dir = os.path.dirname(top_dir)
+paths_module = imp.load_source('paths', top_dir + '/.paths')
+paths = {key: value for key, value in paths_module.__dict__.items()
+         if isinstance(key, str) and not key.startswith('__')}
+
+###############################################################
+# Import all user specified parameters from the params module #
+###############################################################
 import params
 from matplotlib.colors import ColorConverter
 to_rgb = lambda color: array(ColorConverter().to_rgb(color),
@@ -217,14 +243,18 @@ cython.declare(IC_file='str',
                protocol='str',
                use_Ewald='bint',
                kick_algorithms='dict',
-               special='str',
+               special_params='dict',
                )
 # Input/output
 IC_file         = params.IC_file
-snapshot_type   = params.snapshot_type
-output_dirs     = params.output_dirs
+snapshot_type   = params.snapshot_type.lower().replace(' ', '')
+output_dirs     = {key: path if not path 
+                                or os.path.relpath(path, paths['concept_dir'])
+                                           .startswith('../../')
+                             else os.path.relpath(path, paths['concept_dir']) 
+                   for key, path in params.output_dirs.items()}
 output_bases    = params.output_bases
-output_times    = {key: tuple(sorted(set(val)))
+output_times    = {key: tuple(sorted(set([float(nr) for nr in np.ravel(val) if nr])))
                    for key, val in params.output_times.items()}
 # Numerical parameters
 boxsize          = params.boxsize
@@ -249,10 +279,10 @@ protocol          = params.protocol
 # Simulation options
 use_Ewald       = cast(params.use_Ewald, 'bint')
 kick_algorithms = params.kick_algorithms
-# Extra hidden parameter
-special = ''
-if hasattr(params, 'special'):
-    special = params.special
+# Extra hidden parameters
+special_params = {}
+if hasattr(params, 'special_params'):
+    special_params = params.special_params
 
 
 #####################################
@@ -642,22 +672,3 @@ def masterwarn(msg, *args, indent=0, **kwargs):
               file=sys.stderr,
               flush=True,
               **kwargs)
-   
-
-
-###########################################
-# Absolute paths to directories and files #
-###########################################
-# The paths are stored in the top_dir/.paths file
-import imp
-cython.declare(paths='dict')
-top_dir = os.path.abspath('.')
-while True:
-    if '.paths' in os.listdir(top_dir):
-        break
-    elif top_dir == '/':
-        raise Exception('Cannot find the .paths file!')
-    top_dir = os.path.dirname(top_dir)
-paths_module = imp.load_source('paths', top_dir + '/.paths')
-paths = {key: value for key, value in paths_module.__dict__.items()
-         if isinstance(key, str) and not key.startswith('__')}

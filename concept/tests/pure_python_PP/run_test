@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
-# Copyright (C) 2015 Jeppe Mosgard Dakin
-#
-# This file is part of CONCEPT, the cosmological N-body code in Python
+# This file is part of CONCEPT, the cosmological N-body code in Python.
+# Copyright (C) 2015 Jeppe Mosgard Dakin.
 #
 # CONCEPT is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -11,21 +10,32 @@
 #
 # CONCEPT is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with CONCEPT. If not, see http://www.gnu.org/licenses/
+#
+# The auther of CONCEPT can be contacted at
+# jeppe.mosgaard.dakin(at)post.au.dk
+# The latest version of CONCEPT is available at
+# https://github.com/jmd-dk/concept/
 
 
 
-# This script performs a comparioson test betwen the CONCEPT code' PP algorithm
-# in compiled and pure Python mode. ICs are generated randomly,
+# This script performs a comparioson test betwen the CONCEPT code's PP
+# algorithm in compiled and pure Python mode. ICs are generated randomly,
 # containing 4**3 particles.
 
 # Initialize test environment
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 source "${this_dir}/../environment"
 
+# Cleanup from last test run
+"${this_dir}/clean"
+
 # Create list of output times
-"${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', [0.5, 1])"
+"${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', [0.5])"
 
 # Create the Ewald grid using Cython, if it does not already exist
 # (for fast IC generation).
@@ -36,28 +46,15 @@ source "${this_dir}/../environment"
 # Run the CONCEPT code on the generated ICs
 "${run}" -n 1 -p "${this_dir}/params" --local
 mv "${this_dir}/output/snapshot_a=0.500" "${this_dir}/output/snapshot_cython"
-# Remove all frames except the latest
-(cd "${this_dir}/output" && (ls -t | grep "\.png" | head -n 1; ls| grep "\.png" ) | sort | uniq -u | xargs rm -f)
-mv "${this_dir}/output/"*.png "${this_dir}/output/cython-png"
 
 # Run the CONCEPT code in pure Python mode on the generated ICs, with 1, 2 and 4 processes.
 # Keep only the latest frame
 "${run}" -n 1 -p "${this_dir}/params" --pure-python --local
 mv "${this_dir}/output/snapshot_a=0.500" "${this_dir}/output/snapshot_python_1"
-(cd "${this_dir}/output" && (ls -t | grep "\.png" | head -n 1; ls| grep "\.png" ) | sort | uniq -u | xargs rm -f)
-mv "${this_dir}/output/"*.png "${this_dir}/output/python_1-png"
 "${run}" -n 2 -p "${this_dir}/params" --pure-python --local
 mv "${this_dir}/output/snapshot_a=0.500" "${this_dir}/output/snapshot_python_2"
-(cd "${this_dir}/output" && (ls -t | grep "\.png" | head -n 1; ls| grep "\.png" ) | sort | uniq -u | xargs rm -f)
-mv "${this_dir}/output/"*.png "${this_dir}/output/python_2-png"
 "${run}" -n 4 -p "${this_dir}/params" --pure-python --local
 mv "${this_dir}/output/snapshot_a=0.500" "${this_dir}/output/snapshot_python_4"
-(cd "${this_dir}/output" && (ls -t | grep "\.png" | head -n 1; ls| grep "\.png" ) | sort | uniq -u | xargs rm -f)
-mv "${this_dir}/output/"*.png "${this_dir}/output/python_4-png"
-mv "${this_dir}/output/cython-png" "${this_dir}/output/cython.png"
-mv "${this_dir}/output/python_1-png" "${this_dir}/output/python_1.png"
-mv "${this_dir}/output/python_2-png" "${this_dir}/output/python_2.png"
-mv "${this_dir}/output/python_4-png" "${this_dir}/output/python_4.png"
 
 # Analyze the output snapshots
 "${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local

@@ -1,6 +1,5 @@
-# Copyright (C) 2015 Jeppe Mosgard Dakin
-#
-# This file is part of CONCEPT, the cosmological N-body code in Python
+# This file is part of CONCEPT, the cosmological N-body code in Python.
+# Copyright (C) 2015 Jeppe Mosgard Dakin.
 #
 # CONCEPT is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -9,8 +8,16 @@
 #
 # CONCEPT is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with CONCEPT. If not, see http://www.gnu.org/licenses/
+#
+# The auther of CONCEPT can be contacted at
+# jeppe.mosgaard.dakin(at)post.au.dk
+# The latest version of CONCEPT is available at
+# https://github.com/jmd-dk/concept/
 
 
 
@@ -24,7 +31,7 @@ matplotlib.use('Agg')
 # Imports for plotting
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import juggle_axes
-from matplotlib.pyplot import figure, imread, imsave, savefig
+from matplotlib.pyplot import figure, imsave, savefig
 
 # Seperate but equivalent imports in pure Python and Cython
 if not cython.compiled:
@@ -43,6 +50,7 @@ import subprocess
                particles='Particles',
                a='double',
                filename='str',
+               passed_boxsize='double',
                # Locals
                N='size_t',
                N_local='size_t',
@@ -54,7 +62,7 @@ import subprocess
                size_max='double',
                size_min='double',
                )
-def render(particles, a, filename):
+def render(particles, a, filename, passed_boxsize=boxsize):
     global artist_particles, artist_text, upload_liverender, ax
     # Print out progress message
     masterprint('Rendering and saving image "' + filename + '" ...')
@@ -86,13 +94,24 @@ def render(particles, a, filename):
     artist_particles.set_alpha(alpha)
     # Print the current scale factor on the figure
     if master:
+        artist_text.set_text('')
         a_str = significant_figures(a, 4, just=0, scientific=True)
-        artist_text.set_text('$a = {}$'.format(a_str))
+        artist_text = ax.text(+0.25*passed_boxsize,
+                              -0.3*passed_boxsize,
+                              0,
+                              '$a = {}$'.format(a_str),
+                              fontsize=16,
+                              )
         # Make the text color black or white, dependent on the bgcolor
         if sum(bgcolor) < 1:
             artist_text.set_color('white')
         else:
             artist_text.set_color('black')
+    # Update axis limits if a boxsize were explicitly passed
+    if passed_boxsize:
+        ax.set_xlim(0, passed_boxsize)
+        ax.set_ylim(0, passed_boxsize)
+        ax.set_zlim(0, passed_boxsize)
     # If running with a single process, save the render and return
     if nprocs == 1:
         savefig(filename, bbox_inches='tight', pad_inches=0)
@@ -227,6 +246,8 @@ ax.set_aspect('equal')
 ax.dist = 8.55  # Zoom level
 # The artist for the particles
 artist_particles = ax.scatter(0, 0, 0, color=color, lw=0)
+# The artist for the scalefactor text
+artist_text = ax.text(0, 0,0, '')
 # Configure axis options
 ax.set_xlim(0, boxsize)
 ax.set_ylim(0, boxsize)
@@ -256,8 +277,6 @@ for tl in ax.w_yaxis.get_ticklabels():
     tl.set_visible(False)
 for tl in ax.w_zaxis.get_ticklabels():
     tl.set_visible(False)
-# The artist for the scale factor text
-artist_text = ax.text(+0.25*boxsize, -0.3*boxsize, 0, '', fontsize=16)
 
 # This function formats a floating point
 # number f to only have n significant figures.

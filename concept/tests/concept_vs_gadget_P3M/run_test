@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
-# Copyright (C) 2015 Jeppe Mosgard Dakin
-#
-# This file is part of CONCEPT, the cosmological N-body code in Python
+# This file is part of CONCEPT, the cosmological N-body code in Python.
+# Copyright (C) 2015 Jeppe Mosgard Dakin.
 #
 # CONCEPT is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -11,8 +10,16 @@
 #
 # CONCEPT is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with CONCEPT. If not, see http://www.gnu.org/licenses/
+#
+# The auther of CONCEPT can be contacted at
+# jeppe.mosgaard.dakin(at)post.au.dk
+# The latest version of CONCEPT is available at
+# https://github.com/jmd-dk/concept/
 
 
 
@@ -23,6 +30,9 @@
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 source "${this_dir}/../environment"
 
+# Cleanup from last test run
+"${this_dir}/clean"
+
 # Create list of output times, used by both CONCEPT and GADGET
 "${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', [1])"
 
@@ -30,6 +40,7 @@ source "${this_dir}/../environment"
 "${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local
 
 # Run the CONCEPT code on the generated ICs
+rm -f "${concept_dir}/.fftw_wisdom_gridsize=32_nprocs=1"
 "${run}" -n 1 -p "${this_dir}/params" --local
 
 # Create an edited version of Makefile_gadget with correct parth information
@@ -59,14 +70,6 @@ cp "${this_dir}/Makefile_gadget_edited" "${Gadget2_local_dir}/Makefile"
 
 # Analyze the output snapshots
 "${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
-
-# Plot
-rm "${this_dir}/output/"*.png
-#"${run}" -p "${this_dir}/params" -m "${concept_dir}/utilities/plot.py" --pure-python --local
-"${concept_dir}/utilities/plot" "${this_dir}/output/snapshot_a=1.000"
-"${concept_dir}/utilities/plot" "${this_dir}/output/snapshot_gadget_000"
-mv "${concept_dir}/utilities/plots/snapshot_a=1.000.png" "${this_dir}/output/snapshot_a=1.000.png"
-mv "${concept_dir}/utilities/plots/snapshot_gadget_000.png" "${this_dir}/output/snapshot_gadget_000.png"
 
 # Finalize test environment
 test_done=true source "${this_dir}/../environment"

@@ -1,6 +1,5 @@
-# Copyright (C) 2015 Jeppe Mosgard Dakin
-#
-# This file is part of CONCEPT, the cosmological N-body code in Python
+# This file is part of CONCEPT, the cosmological N-body code in Python.
+# Copyright (C) 2015 Jeppe Mosgard Dakin.
 #
 # CONCEPT is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -9,29 +8,29 @@
 #
 # CONCEPT is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with CONCEPT. If not, see http://www.gnu.org/licenses/
+#
+# The auther of CONCEPT can be contacted at
+# jeppe.mosgaard.dakin(at)post.au.dk
+# The latest version of CONCEPT is available at
+# https://github.com/jmd-dk/concept/
 
 
 
 # This file has to be run in pure Python mode!
 
-# Include the code directory in the searched paths
+# Include the concept_dir in the searched paths and get directory of this file
 import sys, os
-concept_dir = os.path.realpath(__file__)
-this_dir = os.path.dirname(concept_dir)
-while True:
-    if concept_dir == '/':
-        raise Exception('Cannot find the .paths file!')
-    if '.paths' in os.listdir(os.path.dirname(concept_dir)):
-        break
-    concept_dir = os.path.dirname(concept_dir)
-sys.path.append(concept_dir)
+sys.path.append(os.environ['concept_dir'])
+this_dir = os.path.dirname(os.path.realpath(__file__))
 
 # Imports from the CONCEPT code
 from commons import *
 from IO import load
-from graphics import animate
 
 # Use a matplotlib backend that does not require a running X-server
 import matplotlib
@@ -110,10 +109,11 @@ fig.subplots_adjust(hspace=0)
 plt.setp([ax.get_xticklabels() for ax in fig.axes[:-1]], visible=False)
 plt.savefig(fig_file)
 
-# Compare CONCEPT to GADGET
+# Printout error message for unsuccessful test
 tol = 1e-2
 if any(np.mean(dist[j]/boxsize) > tol for j in range(3)):
     masterwarn('Some or all pure Python runs with nprocs = {1, 2, 4} yielded results\n'
-          + 'different from the compiled run!\n'
-          + 'See "' + fig_file + '" for a visualization.')
+               + 'different from the compiled run!\n'
+               + 'See "{}" for a visualization.'.format(fig_file))
     sys.exit(1)
+

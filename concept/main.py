@@ -1,6 +1,5 @@
-# Copyright (C) 2015 Jeppe Mosgard Dakin
-#
-# This file is part of CONCEPT, the cosmological N-body code in Python
+# This file is part of CONCEPT, the cosmological N-body code in Python.
+# Copyright (C) 2015 Jeppe Mosgard Dakin.
 #
 # CONCEPT is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -9,8 +8,16 @@
 #
 # CONCEPT is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with CONCEPT. If not, see http://www.gnu.org/licenses/
+#
+# The auther of CONCEPT can be contacted at
+# jeppe.mosgaard.dakin(at)post.au.dk
+# The latest version of CONCEPT is available at
+# https://github.com/jmd-dk/concept/
 
 
 
@@ -22,7 +29,8 @@ from commons import *
 if not cython.compiled:
     from analysis import powerspectrum
     from species import construct, construct_random
-    from IO import save, load
+    from IO import load, save
+    from special import delegate
     from integration import expand, cosmic_time, scalefactor_integral
     from graphics import render, significant_figures
 else:
@@ -30,7 +38,8 @@ else:
     """
     from analysis cimport powerspectrum
     from species cimport construct, construct_random
-    from IO cimport load, save, load_gadget, save_gadget
+    from special cimport delegate
+    from IO cimport load, save
     from integration cimport expand, cosmic_time, scalefactor_integral
     from graphics cimport render, significant_figures
     """
@@ -44,24 +53,23 @@ from os.path import basename
 @cython.header(# Arguments
                index='int',
                # Locals
-               a_end='double',
-               t_end='double',
+               a_next='double',
+               t_next='double',
                )
 def do_kick_drift_integrals(index):
     global a, a_dump, drift_fac, kick_fac, t, Δt
     # Update the scale factor and the cosmic time. This also
     # tabulates a(t), needed for the kick and drift integrals.
-    a_end = expand(a, t, 0.5*Δt)
-    t += 0.5*Δt
-    if a_end >= a_dump:
+    a_next = expand(a, t, 0.5*Δt)
+    t_next = t + 0.5*Δt
+    if a_next >= a_dump:
         # Dump time reached. A smaller time step than
-        # Δt/2 is needed to hit a_dump exactly.
-        t -= 0.5*Δt
-        t_end = cosmic_time(a_dump, a, t, t + 0.5*Δt)
-        expand(a, t, t_end - t)
-        a_end = a_dump
-        t = t_end
-    a = a_end
+        # 0.5*Δt is needed to hit a_dump exactly.
+        a_next = a_dump
+        t_next = cosmic_time(a_dump, a, t, t_next)
+        expand(a, t, t_next - t)
+    a = a_next
+    t = t_next
     # Do the kick and drift integrals
     # ∫_t^(t + Δt/2)dt/a and ∫_t^(t + Δt/2)dt/a**2.
     kick_fac[index]  = scalefactor_integral(-1)
@@ -73,11 +81,11 @@ def do_kick_drift_integrals(index):
                op='str',
                # Locals
                powerspec_filename='str',
-               snapshot_filename='str',
                render_filename='str',
+               snapshot_filename='str',
                returns='bint',
                )
-def dump(op):
+def dump(op=None):
     global a, a_dump, drift_fac, i_dump, kick_fac
     # Do nothing if not at dump time
     if a != a_dump:
@@ -87,21 +95,24 @@ def dump(op):
         particles.drift(drift_fac[0])
     elif op == 'kick':
         particles.kick(kick_fac[1])
-    # Dump snapshot
-    if a in snapshot_times:
-        snapshot_filename = (snapshot_dir + '/' + snapshot_base
-                             + '_a={:.3f}'.format(a))
-        save(particles, a, snapshot_filename)
     # Dump powerspectrum
     if a in powerspec_times:
-        powerspec_filename = (powerspec_dir + '/' + powerspec_base
-                              + '_a={:.3f}'.format(a))
+        powerspec_filename = ('{}/{}_a={:.3f}'.format(powerspec_dir,
+                                                      powerspec_base,
+                                                      a))
         powerspectrum(particles, powerspec_filename)
     # Dump render
     if a in render_times:
-        render_filename = (render_dir + '/' + render_base
-                           + '_a={:.3f}.png'.format(a))
+        render_filename = ('{}/{}_a={:.3f}.png'.format(render_dir,
+                                                       render_base,
+                                                       a))
         render(particles, a, render_filename)
+    # Dump snapshot
+    if a in snapshot_times:
+        snapshot_filename = ('{}/{}_a={:.3f}'.format(snapshot_dir,
+                                                     snapshot_base,
+                                                     a))
+        save(particles, a, snapshot_filename)
     # Increment dump time
     i_dump += 1
     if i_dump < len(a_dumps):
@@ -137,6 +148,8 @@ def timeloop():
     # Scalefactor at next dump and a corresponding index
     i_dump = 0
     a_dump = a_dumps[i_dump]
+    # Possible output at a == a_begin
+    dump()
     # The main time loop
     masterprint('Begin main time loop')
     timestep = -1
@@ -183,32 +196,26 @@ cython.declare(a='double',
 if master:
     for output_kind, output_time in output_times.items():
         if output_time and np.min(output_time) < a_begin:
-            raise Exception('Cannot produce a ' + output_kind + ' at time a = '
-                            + str(np.min(output_time)) + ', as the simulation '
-                            + 'starts at a = ' + str(a_begin) + '.')
+            msg = ('Cannot produce a {} at time a = {}, '
+                   + 'as the simulation starts at a = {}.'
+                   ).format(output_kind, np.min(output_time), a_begin)
+            raise Exception(msg)
 
-# If the output directories do not exist, create them
+# Create output directories if necessary
 if master:
     for output_time, output_dir in zip(output_times.values(),
                                        output_dirs.values()):
-        if output_time:
+        if output_time and output_dir:
             os.makedirs(output_dir, exist_ok=True)
 
 # If anything special should happen, rather than starting the timeloop
-cython.declare(particles='Particles')
-if special:
-    # Load initial conditions
-    particles = load(IC_file, write_msg=False)
-    if special == 'powerspectrum':
-        # Load initial conditions
-        powerspectrum(particles, powerspec_dir + '/' + powerspec_base + '_'
-                                 + basename(IC_file))
-    else:
-        masterwarn('Special flag "' + special + '" not recognized!')
+if special_params:
+    delegate()
     Barrier()
     sys.exit()
 
 # Load initial conditions
+cython.declare(particles='Particles')
 particles = load(IC_file)
 # Run the time loop
 timeloop()
