@@ -165,32 +165,32 @@ all: $(addsuffix .so, $(pyfiles)) params.py
 
 # Link object filed into shared object Python modules
 $(addsuffix .so, $(pyfiles)): %.so: %.o
-	@$(python) -c "from blessings import Terminal; t = Terminal(); print('\n' + t.bold_yellow('Building the $(basename $@) module')) if '$(build_status)' != 'running' else ''"
+	@$(python) -c "from blessings import Terminal; t = Terminal(force_styling=True); print('\n' + t.bold_yellow('Building the $(basename $@) module')) if '$(build_status)' != 'running' else ''"
 	$(eval build_status = running)
 	$(CC) $< -o $@ $(LDFLAGS) $(LDLIBS)
 	$(eval build_status = finsihed)
 
 # Compile c source files into object files
 $(addsuffix .o, $(pyfiles)): %.o: %.c
-	@$(python) -c "from blessings import Terminal; t = Terminal(); print('\n' + t.bold_yellow('Building the $(basename $@) module')) if '$(build_status)' != 'running' else ''"
+	@$(python) -c "from blessings import Terminal; t = Terminal(force_styling=True); print('\n' + t.bold_yellow('Building the $(basename $@) module')) if '$(build_status)' != 'running' else ''"
 	$(eval build_status = running)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # Cythonize .pyx and .pxd files into c source files
 $(addsuffix .c, $(pyfiles)): %.c: %.pyx %.pxd
-	@$(python) -c "from blessings import Terminal; t = Terminal(); print('\n' + t.bold_yellow('Building the $(basename $@) module')) if '$(build_status)' != 'running' else ''"
+	@$(python) -c "from blessings import Terminal; t = Terminal(force_styling=True); print('\n' + t.bold_yellow('Building the $(basename $@) module')) if '$(build_status)' != 'running' else ''"
 	$(eval build_status = running)
 	$(cython) $(cythonflags) $@ $<
 
 # Write .pxd files from .pyx files using the pyxpp script
 $(addsuffix .pxd, $(pyfiles)): %.pxd: %.pyx $(pyxpp)
-	@$(python) -c "from blessings import Terminal; t = Terminal(); print('\n' + t.bold_yellow('Building the $(basename $@) module')) if '$(build_status)' != 'running' else ''"
+	@$(python) -c "from blessings import Terminal; t = Terminal(force_styling=True); print('\n' + t.bold_yellow('Building the $(basename $@) module')) if '$(build_status)' != 'running' else ''"
 	$(eval build_status = running)
 	$(python) $(pyxpp) $<
 
 # Write .pyx files from .py files using the pyxpp script
 $(addsuffix .pyx, $(pyfiles)): %.pyx: %.py $(pyxpp) $(MAKEFILE_LIST)
-	@$(python) -c "from blessings import Terminal; t = Terminal(); print('\n' + t.bold_yellow('Building the $(basename $@) module')) if '$(build_status)' != 'running' else ''"
+	@$(python) -c "from blessings import Terminal; t = Terminal(force_styling=True); print('\n' + t.bold_yellow('Building the $(basename $@) module')) if '$(build_status)' != 'running' else ''"
 	$(eval build_status = running)
 	$(python) $(pyxpp) $<
 
