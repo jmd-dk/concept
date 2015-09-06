@@ -1,6 +1,5 @@
-# Copyright (C) 2015 Jeppe Mosgard Dakin
-#
-# This file is part of CONCEPT, the cosmological N-body code in Python
+# This file is part of CONCEPT, the cosmological N-body code in Python.
+# Copyright (C) 2015 Jeppe Mosgard Dakin.
 #
 # CONCEPT is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -9,29 +8,39 @@
 #
 # CONCEPT is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with CONCEPT. If not, see http://www.gnu.org/licenses/
+#
+# The auther of CONCEPT can be contacted at
+# jeppe.mosgaard.dakin(at)post.au.dk
+# The latest version of CONCEPT is available at
+# https://github.com/jmd-dk/concept/
 
 
 
 """
-This is the .pyx preprocessor script. Run it with a .pyx file as the first
-argument, the parameterfile as the second and the mode ("pyx" or "pxd") as
-the third. When mode is "pxd", a .pxd file will be created. When the mode is
-"pyx", the preexisting .pyx file will be changed in the following ways:
+This is the .pyx preprocessor script. Run it with a .py file or a
+.pyxfile file as the first argument. If a .pyx file is given, a .pxd
+file will be created. When a .py file is given, a .pyx copy of this file
+will be created, and then changed in the following ways:
 - Replace 'from commons import *' with the content itself.
 - Transform statements written over multiple lines into single lines.
   The exception is decorator statements, which remain multilined.
-- Removes pure Python commands between 'if not cython.compiled:' and 'else:',
-  including these lines themselves. Also removes the triple quotes around the
-  Cython statements in the else body.
+- Removes pure Python commands between 'if not cython.compiled:' and
+  'else:', including these lines themselves. Also removes the triple
+  quotes around the Cython statements in the else body.
 - Integer powers will be replaced by products.
 - Unicode non-ASCII letters will be replaced with ASCII-strings.
 - __init__ methods in cclasses are renamed to __cinit__.
 - Replaces : with 0 when taking the address of arrays.
-- Replaces alloc, realloc and free with the corresponding PyMem_ functions and
-  takes care of the casting from the void* to the appropriate pointer type.
-- Replaced the cast() function with actual Cython syntax, e.g. <double[::1]>.
+- Replaces alloc, realloc and free with the corresponding PyMem_
+  functions and takes care of the casting from the void* to the
+  appropriate pointer type.
+- Replaced the cast() function with actual Cython syntax, e.g. 
+  <double[::1]>.
 
   This script is not written very elegantly, and do not leave
   the modified code in a very clean state. Sorry...
@@ -39,9 +48,10 @@ the third. When mode is "pxd", a .pxd file will be created. When the mode is
 
 import sys
 import re
-from os.path import isfile
+import os
 from copy import deepcopy
 import unicodedata
+import shutil
 
 
 def oneline(filename):
@@ -139,15 +149,15 @@ def oneline(filename):
 
 
 
-def import_params(filename):
+def import_commons(filename):
     new_lines = []
-    import_line = 'from ' + 'commons' + ' import *'
+    import_line = 'from commons import *'
     with open(filename, 'r') as pyxfile:
         for line in pyxfile:
             if line.startswith(import_line):
-                with open('commons' + '.py', 'r') as active_params_file:
-                    for active_params_line in active_params_file:
-                        new_lines.append(active_params_line)
+                with open('commons.py', 'r') as commons:
+                    for commons_line in commons:
+                        new_lines.append(commons_line)
             else:
                 new_lines.append(line)
     with open(filename, 'w') as pyxfile:
@@ -736,33 +746,35 @@ def make_pxd(filename):
     if total_lines != []:
         total_lines.append('\n')
     total_lines += pxd_lines
+    # If nothing else, place a comment in the pxd file
+    if not total_lines:
+        total_lines = ['# This module does not expose any c-level functions or classes to the outside world']
     # Do not write to .pxd if it already has the correct content.
     # This is important as the .pxd files are used by the makefile.
-    if isfile(pxd_filename):
-        total_lines_nonewlines = deepcopy(total_lines)
-        for i in range(len(total_lines_nonewlines)):
-            total_lines_nonewlines[i] = total_lines_nonewlines[i].replace('\n', '')
-        with open(pxd_filename, 'r') as pxdfile:
-            existing = pxdfile.read().split('\n')
-        if len(existing) == 1 + len(total_lines_nonewlines) and existing[-1] == '':
-            existing.pop(-1)
-        if existing == total_lines_nonewlines:
-            return
+    #if os.path.isfile(pxd_filename):
+    #    total_lines_nonewlines = deepcopy(total_lines)
+    #    for i in range(len(total_lines_nonewlines)):
+    #        total_lines_nonewlines[i] = total_lines_nonewlines[i].replace('\n', '')
+    #    with open(pxd_filename, 'r') as pxdfile:
+    #        existing = pxdfile.read().split('\n')
+    #    if len(existing) == 1 + len(total_lines_nonewlines) and existing[-1] == '':
+    #        existing.pop(-1)
+    #    if existing == total_lines_nonewlines:
+    #        return
     # Update/create .pxd
     with open(pxd_filename, 'w') as pxdfile:
         pxdfile.writelines(total_lines)
 
 
-# Edit the .pyx file
+# Interpret the input argument
 filename = sys.argv[1]
-active_params_module = sys.argv[2][:-3]
-mode = sys.argv[3]
-if filename[-3:] == '.py':
-    # For safety reasons
-    print(filename + ' is a source code (.py) file.')
-    print('You probably do not want pyxpp to edit this. Aborting.')
-elif mode == 'pyx':
-    import_params(filename)
+if filename.endswith('.py'):
+    # A .py-file is passed. Copy file to .pyx and work with this copy
+    filename_pyx = filename[:-2] + 'pyx'
+    shutil.copy(filename, filename_pyx)
+    filename = filename_pyx
+    # Actions
+    import_commons(filename)
     oneline(filename)
     cython_decorators(filename)
     cythonstring2code(filename)
@@ -772,5 +784,9 @@ elif mode == 'pyx':
     colon2zero_in_addresses(filename)
     malloc_realloc(filename)
     C_casting(filename)
-elif mode == 'pxd':
+elif filename.endswith('.pyx'):
+    # A .pyx-file is passed.
+    # Make the pxd as the final thing
     make_pxd(filename)
+else:
+    raise Exception('Got "{}", which is neither a .py nor a .pyx file'.format(filename))

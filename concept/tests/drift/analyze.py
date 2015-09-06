@@ -1,6 +1,5 @@
-# Copyright (C) 2015 Jeppe Mosgard Dakin
-#
-# This file is part of CONCEPT, the cosmological N-body code in Python
+# This file is part of CONCEPT, the cosmological N-body code in Python.
+# Copyright (C) 2015 Jeppe Mosgard Dakin.
 #
 # CONCEPT is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -9,28 +8,29 @@
 #
 # CONCEPT is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with CONCEPT. If not, see http://www.gnu.org/licenses/
+#
+# The auther of CONCEPT can be contacted at
+# jeppe.mosgaard.dakin(at)post.au.dk
+# The latest version of CONCEPT is available at
+# https://github.com/jmd-dk/concept/
 
 
 
 # This file has to be run in pure Python mode!
 
-# Include the code directory in the searched paths
+# Include the concept_dir in the searched paths and get directory of this file
 import sys, os
-concept_dir = os.path.realpath(__file__)
-this_dir = os.path.dirname(concept_dir)
-while True:
-    if concept_dir == '/':
-        raise Exception('Cannot find the .paths file!')
-    if '.paths' in os.listdir(os.path.dirname(concept_dir)):
-        break
-    concept_dir = os.path.dirname(concept_dir)
-sys.path.append(concept_dir)
+sys.path.append(os.environ['concept_dir'])
+this_dir = os.path.dirname(os.path.realpath(__file__))
 
 # Imports from the CONCEPT code
 from commons import *
-from IO import Gadget_snapshot
+from IO import GadgetSnapshot
 
 # Use a matplotlib backend that does not require a running X-server
 import matplotlib
@@ -40,8 +40,8 @@ import matplotlib.pyplot as plt
 # Determine the number of snapshots from the outputlist file
 N_snapshots = np.loadtxt(this_dir + '/outputlist').size
 
-# Instantiate a Gadget_snapshot instance which will be reused for all GADGET snapshots
-snapshot = Gadget_snapshot()
+# Instantiate a GadgetSnapshot instance which will be reused for all GADGET snapshots
+snapshot = GadgetSnapshot()
 
 # Read in data from the CONCEPT snapshots
 a = zeros(N_snapshots)
@@ -75,21 +75,22 @@ plt.ylabel(r'$x\,\mathrm{[kpc]}$')
 plt.ylim(0, boxsize)
 plt.savefig(fig_file)
 
-# Analyze
-# There should be no variance on the x positions
+# Analyze.
+# There should be no variance on the x positions.
 tol = N_snapshots*100*np.finfo('float32').eps
 if np.sum(x_std_gadget) > tol:
-    print('\033[1m\033[91m' + 'Unequal x-positions for the 4 particles in the GADGET snapshots.\n'
-          + 'It is no good to compare the CONCEPT results to these.' + '\033[0m')
+    masterwarn('Unequal x-positions for the 4 particles in the GADGET snapshots.\n'
+               + 'It is no good to compare the CONCEPT results to these.')
     sys.exit(1)
 if np.sum(x_std) > tol:
-    print('\033[1m\033[91m' + 'Unequal x-positions for the 4 particles in the snapshots.\n'
-          + 'The symmetric initial conditions has produced nonsymmetric results!' + '\033[0m')
+    masterwarn('Unequal x-positions for the 4 particles in the snapshots.\n'
+               + 'The symmetric initial conditions has produced nonsymmetric results!')
     sys.exit(1)
-# Compare CONCEPT to GADGET
+
+# Printout error message for unsuccessful test
 tol = 1e-3
 if max(np.abs(x/x_gadget - 1)) > tol:
     masterwarn('The results from CONCEPT disagree with those from GADGET.\n'
-          + 'See "' + fig_file + '" for a visualization.')
+               + 'See "{}" for a visualization.'.format(fig_file))
     sys.exit(1)
 

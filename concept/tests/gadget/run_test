@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
-# Copyright (C) 2015 Jeppe Mosgard Dakin
-#
-# This file is part of CONCEPT, the cosmological N-body code in Python
+# This file is part of CONCEPT, the cosmological N-body code in Python.
+# Copyright (C) 2015 Jeppe Mosgard Dakin.
 #
 # CONCEPT is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -11,17 +10,28 @@
 #
 # CONCEPT is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with CONCEPT. If not, see http://www.gnu.org/licenses/
+#
+# The auther of CONCEPT can be contacted at
+# jeppe.mosgaard.dakin(at)post.au.dk
+# The latest version of CONCEPT is available at
+# https://github.com/jmd-dk/concept/
 
 
 
 # This script performs a basic test of the GADGET instalaltion by running a
-# shortened version of GADGET's lcdm_gas test
+# shortened version of GADGET's lcdm_gas test.
 
 # Initialize test environment
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 source "${this_dir}/../environment"
+
+# Cleanup from last test run
+"${this_dir}/clean"
 
 # Create an edited version of lcdm_gas.Makefile with correct path information
 cp "${this_dir}/lcdm_gas.Makefile" "${this_dir}/lcdm_gas.Makefile_edited"
@@ -41,7 +51,6 @@ sed -i "/^ *FFTW_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\/
 
 # Copy the parameter and IC file from the gadget installation
 cp "${gadget_dir}/ICs/lcdm_gas_littleendian.dat" "${Gadget2_dir}/parameterfiles/outputs_lcdm_gas.txt" "${this_dir}"
-
 
 # Make a local copy of the files in the GADGET2 directory and copy the edited Makefile
 Gadget2_local_dir="${this_dir}/Gadget2_local"

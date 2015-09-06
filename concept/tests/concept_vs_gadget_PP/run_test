@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
-# Copyright (C) 2015 Jeppe Mosgard Dakin
-#
-# This file is part of CONCEPT, the cosmological N-body code in Python
+# This file is part of CONCEPT, the cosmological N-body code in Python.
+# Copyright (C) 2015 Jeppe Mosgard Dakin.
 #
 # CONCEPT is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -11,8 +10,16 @@
 #
 # CONCEPT is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with CONCEPT. If not, see http://www.gnu.org/licenses/
+#
+# The auther of CONCEPT can be contacted at
+# jeppe.mosgaard.dakin(at)post.au.dk
+# The latest version of CONCEPT is available at
+# https://github.com/jmd-dk/concept/
 
 
 
@@ -22,6 +29,9 @@
 # Initialize test environment
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 source "${this_dir}/../environment"
+
+# Cleanup from last test run
+"${this_dir}/clean"
 
 # Create list of output times, used by both CONCEPT and GADGET
 "${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', [1])"
@@ -68,13 +78,6 @@ cp "${this_dir}/Makefile_gadget_edited" "${Gadget2_local_dir}/Makefile"
 if [ ! -f "${Gadget2_dir}/ewald_spc_table_64.dat" ]; then
     cp "${Gadget2_local_dir}/ewald_spc_table_64.dat" "${Gadget2_dir}/ewald_spc_table_64.dat"
 fi
-
-# Plot
-rm "${this_dir}/output/"*.png
-"${concept_dir}/utilities/plot" "${this_dir}/output/snapshot_a=1.000"
-"${concept_dir}/utilities/plot" "${this_dir}/output/snapshot_gadget_000"
-mv "${concept_dir}/utilities/plots/snapshot_a=1.000.png" "${this_dir}/output/snapshot_a=1.000.png"
-mv "${concept_dir}/utilities/plots/snapshot_gadget_000.png" "${this_dir}/output/snapshot_gadget_000.png"
 
 # Finalize test environment
 test_done=true source "${this_dir}/../environment"

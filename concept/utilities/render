@@ -58,18 +58,10 @@ path="$1"
 path="${path//[ ]/\\ }"        # Places backslashes before spaces. These are needed when expanding tilde, but they will not persist!
 eval path="${path}"            # Expand tilde
 path=$(readlink -f "${path}")  # Convert to absolute path
-if [ -f "${path}" ]; then
-    file_or_dir="file"
-elif [ -d "${path}" ]; then
-    file_or_dir="dir"
-else
-    echo "The path $1 does not exist."
-    exit 1
-fi
 
 # Load paths from the .paths file
 curr="${this_dir}"
-while [ 1 ]; do
+while :; do
     if [ -f "${curr}/.paths" ]; then
         source "${curr}/.paths"
         break
@@ -78,32 +70,35 @@ while [ 1 ]; do
         printf "\e[1m\e[91mCould not find the .paths file!\e[0m\n" >&2
         exit 1
     fi
-    curr="`dirname \"${curr}\"`"
+    curr="$(dirname "${curr}")"
 done
-
-# Make output folder
-cd "${this_dir}"
-mkdir -p powerspectra
 
 # Make temporary parameter file
 printf "
-special = 'powerspectrum'
-
 import numpy as np
 # Input/output
-IC_file = '${path}'
-snapshot_type = '${file_or_dir}'
-snapshot_dir = 'output'
-snapshot_base = 'snapshot'
-snapshot_times = (1, )
-powerspec_dir = '${this_dir}/powerspectra'
-powerspec_base = 'power'
-powerspec_times = (1, )
+IC_file = ''
+snapshot_type = 'default'
+output_dirs = {
+    'snapshot':  '',
+    'powerspec': '',
+    'render':    '',
+               }
+output_bases = {
+    'snapshot':  '',
+    'powerspec': '',
+    'render':    '',
+                }
+output_times = {
+    'snapshot':  (),
+    'powerspec': (),
+    'render':    (),
+                }
 
 # Numerical parameters
-boxsize = 64/0.7*Mpc
+boxsize = 8*Mpc/0.7
 ewald_gridsize = 1
-PM_gridsize = 512
+PM_gridsize = 1
 P3M_scale = 1
 P3M_cutoff = 1
 softeningfactors = {'dark matter': 1,
@@ -115,26 +110,32 @@ softeningfactors = {'dark matter': 1,
 H0 = 1
 Ωm = 1
 ΩΛ = 1
-a_begin = 0.02
+a_begin = 0
 
 # Graphics
-frame_dir = ''
-liveframe=''
-image_format='png'
-color = (0.70, 0.97, 0.37)
-bgcolor = 'white'
+liverender=''
+color = 'g'
+bgcolor = 'black'
 resolution = 1080
-remote_liveframe=''
+remote_liverender=''
 protocol = ''
-framespace = 1
 
 # Simulation options
 kick_algorithms = {}
 use_Ewald = False
-" > "${this_dir}/power.params"
 
+# Secret parameter
+special_params = {
+    'special':  'render',
+    'path': '${path}',
+           }
+" > "${this_dir}/plot.params"
 
-"${run}" -n 1 -p "${this_dir}/power.params" --local
+# Run CONCEPT to produce the renders
+"${run}" -n 1 -p "${this_dir}/plot.params" --local
+
+# Cleanup
+rm "${this_dir}/plot.params"
 
 # Plot complete. Deactivate trap before exiting
 trap : 0

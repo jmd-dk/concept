@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
-# Copyright (C) 2015 Jeppe Mosgard Dakin
-#
-# This file is part of CONCEPT, the cosmological N-body code in Python
+# This file is part of CONCEPT, the cosmological N-body code in Python.
+# Copyright (C) 2015 Jeppe Mosgard Dakin.
 #
 # CONCEPT is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -11,8 +10,16 @@
 #
 # CONCEPT is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with CONCEPT. If not, see http://www.gnu.org/licenses/
+#
+# The auther of CONCEPT can be contacted at
+# jeppe.mosgaard.dakin(at)post.au.dk
+# The latest version of CONCEPT is available at
+# https://github.com/jmd-dk/concept/
 
 
 
@@ -226,12 +233,16 @@ if [ "${test}" != "none" ]; then
     exit 0
 fi
 
+# Relative path to the main and parameter, for clean printout
+main_rel=$(${python} -c "from os.path import relpath; rel = relpath('${main}', '${concept_dir}'); print(rel if not rel.startswith('../../') else '${main}')")
+params_rel=$(${python} -c "from os.path import relpath; rel = relpath('${params}', '${concept_dir}'); print(rel if not rel.startswith('../../') else '${params}')")
+ 
 # Printout assigned values for unspecified parameters
 if [ "${unspecified_nprocs}" == 1 ]; then
     echo "Number of processes not specified - Will use ${nprocs}"
 fi
 if [ "${unspecified_params}" == 1 ]; then
-    echo "Parameterfile not specified - Will use \"${params}\""
+    echo "Parameterfile not specified - Will use \"${params_rel}\""
 fi
 
 # Compile or do cleanup from last compilation
@@ -366,9 +377,10 @@ if [ ${pure_python} -eq 0 ]; then
 else
     colorprint \"Running CONCEPT in pure Python mode remotely on \$(hostname -f) as job \${jobid}\" \"yellow\" > \"${this_dir}/logs/\${jobid}\"
 fi
-echo \"Entry point:   ${main}\"   >> \"${this_dir}/logs/\${jobid}\"
-echo \"Parameterfile: ${params}\" >> \"${this_dir}/logs/\${jobid}\"
-echo \"Nr. of CPUs:   ${nprocs}\" >> \"${this_dir}/logs/\${jobid}\"
+echo \"Entry point:   \\\"${main_rel}\\\"\"    >> \"${this_dir}/logs/\${jobid}\"
+echo \"Parameterfile: \\\"${params_rel}\\\"\"  >> \"${this_dir}/logs/\${jobid}\"
+echo \"Logfile:       \\\"logs/\${jobid}\\\"\" >> \"${this_dir}/logs/\${jobid}\"
+echo \"Nr. of CPUs:    ${nprocs}\"             >> \"${this_dir}/logs/\${jobid}\"
 
 # Prepare Python options
 if [ \"${pure_python}\" == \"0\" ]; then
@@ -420,9 +432,10 @@ else
     else
         colorprint "Running CONCEPT in pure Python mode" "yellow" | tee "${this_dir}/logs/${jobid}"
     fi
-    echo "Entry point:   ${main}"   | tee -a "${this_dir}/logs/${jobid}"
-    echo "Parameterfile: ${params}" | tee -a "${this_dir}/logs/${jobid}"
-    echo "Nr. of CPUs:   ${nprocs}" | tee -a "${this_dir}/logs/${jobid}"
+    echo "Entry point:   \"${main_rel}\""   | tee -a "${this_dir}/logs/${jobid}"
+    echo "Parameterfile: \"${params_rel}\"" | tee -a "${this_dir}/logs/${jobid}"
+    echo "Logfile:       \"logs/${jobid}\"" | tee -a "${this_dir}/logs/${jobid}"
+    echo "Nr. of CPUs:    ${nprocs}"        | tee -a "${this_dir}/logs/${jobid}"
     # Prepare Python options
     if [ "${pure_python}" -eq 0 ] ; then
         # Run as compiled library module
