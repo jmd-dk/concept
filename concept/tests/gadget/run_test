@@ -54,14 +54,24 @@ cp "${gadget_dir}/ICs/lcdm_gas_littleendian.dat" "${Gadget2_dir}/parameterfiles/
 
 # Make a local copy of the files in the GADGET2 directory and copy the edited Makefile
 Gadget2_local_dir="${this_dir}/Gadget2_local"
-mkdir -p "${Gadget2_local_dir}"
+mkdir "${Gadget2_local_dir}"
 find "${Gadget2_dir}" -maxdepth 1 -type f -exec cp '{}' "${Gadget2_local_dir}" \;
 cp "${this_dir}/lcdm_gas.Makefile_edited" "${Gadget2_local_dir}/Makefile"
 
 # Build Gadget and run simulation based on the ICs
-mkdir -p "${this_dir}/lcdm_gas"
-rm -rf "${this_dir}/lcdm_gas/"*
+mkdir "${this_dir}/lcdm_gas"
 (cd "${Gadget2_local_dir}" && make clean && make && "${mpiexec}" -n 1 "${Gadget2_local_dir}/Gadget2" ../lcdm_gas.param)  # It is crucial to use a relative path as the path has a max allowed length in GADGET
+
+# Analyze the output by checking the size of the snapshot
+snapshot_size=$(stat --printf="%s" "${this_dir}/lcdm_gas/snapshot_000")
+if [ ! -f "${this_dir}/lcdm_gas/snapshot_000" ]; then
+    colorprint "The snapshot \"${this_dir}/lcdm_gas/snapshot_000\" was not produced!" "red"
+    exit 1
+fi
+if [ ! ${snapshot_size} -eq 2228536 ]; then
+    colorprint "The produced snapshot \"${this_dir}/lcdm_gas/snapshot_000\" does not have the expected size!" "red"
+    exit 1
+fi
 
 # Finalize test environment
 test_done=true source "${this_dir}/../environment"

@@ -23,13 +23,15 @@
 
 
 
-# This script takes in the path of a snapshot or a directory containing snapshots as an argument.
+# This script takes in the path of a snapshot or a directory containing
+# snapshots as the first argument, and 
 # Given the path to a snapshot, a plot of the snapshot will be rendered and saved into
 # utilities/plots. Given a directory path, all snapshots within the directory will be
 # plotted and saved this way.
 
-# The name of this test (the directory name)
-this_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# Absolute paths to this file and its directory
+this_file="$(readlink -f "${BASH_SOURCE[0]}")"
+this_dir="$(dirname "${this_file}")"
 
 # Set up error trapping
 ctrl_c()
@@ -39,43 +41,67 @@ ctrl_c()
 }
 abort()
 {
-    printf "\e[1m\e[91mAn error occurred during plotting!\e[0m\n" >&2
+    colorprint "An error occurred while using the \"$(basename ${this_file})\" utility!" "red"
     exit 1
 }
 trap 'ctrl_c' SIGINT
 trap 'abort' EXIT
 set -e
 
-# Argument check
-if [ "$#" -gt 1 ]; then
-    echo "Too many arguments supplied."
-    exit 1
-elif [ "$#" -lt 1 ]; then
-    echo "You must pass in the path to a snapshot or a directory containing snapshots."
+# Source the run script
+source "${this_dir}/../run"
+
+# Default values of command-line arguments
+nprocs=1
+renderparams="${this_file}.params"
+
+# Use Python's argparse module to handle command-line arguments
+args=($(${python} -B -c "
+import argparse
+import sys
+from os.path import basename, dirname
+# Enables Python to write directly to screen when asked for help
+if any(h in sys.argv for h in ['-h', '--he', '--hel', '--help']):
+    sys.stdout = sys.stderr
+# Set the filename of the script
+sys.argv[0] = '${this_file}'
+# Setup command-line arguments
+parser = argparse.ArgumentParser(description='Run the CONCEPT code.')
+parser.add_argument('path',
+                    help='path to snapshot or directory of snapshots',
+                    type=str,
+                    )
+parser.add_argument('-n', '--nprocs',
+                    help='number of processes',
+                    type=int,
+                    default=${nprocs},
+                    )
+parser.add_argument('-p', '--params',
+                    help='render parameterfile to use',
+                    default='${renderparams}',
+                    )
+args = parser.parse_args()
+# Print out the arguments.
+# These will be captured in the bash 'args' variable
+print(args.path,
+      args.nprocs,
+      args.params
+      )
+" "$@"))
+path="${args[0]}"
+nprocs="${args[1]}"
+renderparams="${args[2]}"
+if [ "${#args[@]}" -ne 3 ]; then
     exit 1
 fi
-path="$1"
-path="${path//[ ]/\\ }"        # Places backslashes before spaces. These are needed when expanding tilde, but they will not persist!
-eval path="${path}"            # Expand tilde
-path=$(readlink -f "${path}")  # Convert to absolute path
 
-# Load paths from the .paths file
-curr="${this_dir}"
-while :; do
-    if [ -f "${curr}/.paths" ]; then
-        source "${curr}/.paths"
-        break
-    fi
-    if [ "${curr}" == "/" ]; then
-        printf "\e[1m\e[91mCould not find the .paths file!\e[0m\n" >&2
-        exit 1
-    fi
-    curr="$(dirname "${curr}")"
-done
+# Convert the supplied paths to an absolute paths
+path="$(absolute ${path})"
+renderparams="$(absolute ${renderparams})"
 
-# Make temporary parameter file
+# Make temporary parameter file based on the short version
+# parameter file that goes together with this script.
 printf "
-import numpy as np
 # Input/output
 IC_file = ''
 snapshot_type = 'default'
@@ -96,7 +122,7 @@ output_times = {
                 }
 
 # Numerical parameters
-boxsize = 8*Mpc/0.7
+boxsize = 1
 ewald_gridsize = 1
 PM_gridsize = 1
 P3M_scale = 1
@@ -114,9 +140,7 @@ a_begin = 0
 
 # Graphics
 liverender=''
-color = 'g'
-bgcolor = 'black'
-resolution = 1080
+$(cat "${renderparams}")
 remote_liverender=''
 protocol = ''
 
@@ -127,16 +151,16 @@ use_Ewald = False
 # Secret parameter
 special_params = {
     'special':  'render',
-    'path': '${path}',
+    'path':     '${path}',
            }
-" > "${this_dir}/render.params"
+" > "${this_file}.params.full"
 
 # Run CONCEPT to produce the renders
-"${run}" -n 1 -p "${this_dir}/render.params" --local
+"${run}" -n ${nprocs} -p "${this_file}.params.full" --local --keep-mode
 
 # Cleanup
-rm "${this_dir}/render.params"
+rm "${this_file}.params.full"
 
-# Plot complete. Deactivate trap before exiting
+# Exit gracefully
 trap : 0
 

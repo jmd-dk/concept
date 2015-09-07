@@ -58,7 +58,7 @@ def delegate():
                    .format(special_params['special']))
 
 # Function that produces renders according to the
-# special_params['snapshot'] parameter. If this parameter is a snapshot,
+# special_params['path'] parameter. If this is the path of a snapshot,
 # it will be rendered. If it is a directory, all snapshots in the
 # directory will be rendered.
 @cython.header(# Locals

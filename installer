@@ -1087,8 +1087,18 @@ if [ "${hdf5_preinstalled}" == "no" ]; then
     export PATH="${mpi_dir}/bin:${PATH}"
     ./configure --enable-shared --enable-parallel --prefix="${hdf5_dir}" 2>&1
     make 2>&1
-    make check 2>&1 | tee "test_log"
-    [ ${PIPESTATUS[0]} != 0 ] && hdf5_test_success="no"
+    # On some systems, the HDF5 test (make check) hangs indefinitely.
+    # To counteract this, kill the process if it still runs after an
+    # hour and count the test as failed.
+    hdf5_test_exitcode=0
+    hdf5_test_finished_gracefully=0
+    make check 2>&1 | tee "test_log" & hdf5_test_pid=$!
+    (sleep 3600 && kill -9 ${hdf5_test_pid}) & hdf5_test_waiter_pid=$!
+    wait ${hdf5_test_pid} && hdf5_test_exitcode=$?
+    kill -9 ${hdf5_test_waiter_pid}} > /dev/null 2>&1 || hdf5_test_finished_gracefully=$?
+    [ ${hdf5_test_exitcode} != 0 ] && hdf5_test_success="no"
+    [ ${hdf5_test_finished_gracefully} != 0 ] && hdf5_test_success="no"
+    # Continue installation
     make install 2>&1
     reset_environment
     cp "test_log" "COPYING" "README.txt" "${hdf5_dir}"
