@@ -1131,7 +1131,7 @@ if use_PM:
     if not cython.compiled:
         # Initialization of the PM mesh in pure Python.
         PM_gridsize_local_i = PM_gridsize_local_j = int(PM_gridsize/nprocs)
-        if PM_gridsize_local_i != PM_gridsize/nprocs:
+        if master and PM_gridsize_local_i != PM_gridsize/nprocs:
             # If PM_gridsize is not divisible by nprocs, the code cannot
             # figure out exactly how FFTW distribute the grid among the
             # processes. In stead of guessing, do not even try to
@@ -1298,6 +1298,8 @@ if use_PM:
     # Test if the grid has been constructed correctly.
     # If not it is because nprocs and PM_gridsize are incompatible.
     for i in range(3):
+        if not master:
+            break
         if PM_gridsize != domain_cuts[i]*(domain_grid.shape[i] - 1 - 2*2):
             msg = ('A PM_gridsize of ' + str(PM_gridsize) + ' cannot be'
                    + ' equally shared among ' + str(nprocs) + ' processes')
@@ -1310,9 +1312,9 @@ if use_PM:
 # algorithm is to be used.
 for kick_algorithm in kick_algorithms.values():
     if kick_algorithm == 'P3M':
-        if (   domain_size_i < P3M_scale*P3M_cutoff
-            or domain_size_j < P3M_scale*P3M_cutoff
-            or domain_size_k < P3M_scale*P3M_cutoff):
+        if master and (   domain_size_i < P3M_scale*P3M_cutoff
+                       or domain_size_j < P3M_scale*P3M_cutoff
+                       or domain_size_k < P3M_scale*P3M_cutoff):
             msg = ('A PM_gridsize of ' + str(PM_gridsize) + ' and '
                    + str(nprocs) + ' processes results in following domain'
                    + ' partition: ' + str(list(domain_cuts))
@@ -1327,10 +1329,10 @@ for kick_algorithm in kick_algorithms.values():
                    + 'P3M algorithm to work.'
                 )
             raise ValueError(msg)
-        if (  (domain_size_i < 2*P3M_scale*P3M_cutoff
-            or domain_size_j < 2*P3M_scale*P3M_cutoff
-            or domain_size_k < 2*P3M_scale*P3M_cutoff)
-            and np.min(domain_cuts) < 3):
+        if master and ((   domain_size_i < 2*P3M_scale*P3M_cutoff
+                        or domain_size_j < 2*P3M_scale*P3M_cutoff
+                        or domain_size_k < 2*P3M_scale*P3M_cutoff)
+                        and np.min(domain_cuts) < 3):
             # This is only allowed if domain_cuts are at least 3 in each
             # direction. Otherwise the left and the right (say) process
             # is the same, and the boundaries will be send to it twize,

@@ -785,14 +785,24 @@ fi
 download_and_extract()
 {
     # Arguments: Program name
-    current_step="installation of ${1/CONCEPT/$esc_concept}"
-    heading "Installing ${1/CONCEPT/$esc_concept}"
-    set_status "Installing ${1/CONCEPT/$esc_concept_double_backslashes}"
     progname="${1// /_}"
-    eval "url=\"\${${progname,,}_url}\""
+    progname="${progname,,}"
+    eval "progversion=\"\${${progname}_version}\""
+    if [ "${progname}" == "fftw_for_gadget" ]; then
+        # When installing FFTW for GADGET, the version number should
+        # be printed together with FFTW, not GADGET.
+        current_step="installation of FFTW ${progversion} for GADGET"
+        heading "Installing FFTW ${progversion} for GADGET"
+        set_status "Installing FFTW ${progversion} for GADGET"
+    else
+        current_step="installation of ${1/CONCEPT/$esc_concept} ${progversion}"
+        heading "Installing ${1/CONCEPT/$esc_concept} ${progversion}"
+        set_status "Installing ${1/CONCEPT/$esc_concept_double_backslashes} ${progversion}"
+    fi
+    eval "url=\"\${${progname}_url}\""
     # Get extraction options
     declare -A extensions_options
-    # Note: Only tar.gz files whould ever be downloaded, as tar.bz2 and
+    # Note: Only tar.gz files should ever be downloaded, as tar.bz2 and
     # tar.xz files require the programs bzip2 and xz, respectively,
     # which are not listed as dependencies in this script.
     extensions_options=(["tar.gz"]="z" ["tgz"]="z"
@@ -812,7 +822,7 @@ download_and_extract()
     # Download
     mkdir -p "${top_dir}/tmp"
     cd "${top_dir}/tmp"
-    archive_name="${progname,,}.${ext}"
+    archive_name="${progname}.${ext}"
     disable_status
     for n in {1..50}; do
         wget_status="success"
@@ -856,7 +866,7 @@ fi
 
 # libpng
 if ([ "${imagemagick_preinstalled}" == "no" ] || [ "${python_preinstalled}" == "no" ]) && [ "${libpng_preinstalled}" == "no" ] ; then
-   download_and_extract "libpng"
+    download_and_extract "libpng"
     export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
     export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
     export LDFLAGS="-L${zlib_dir}/lib ${LDFLAGS}"
@@ -981,7 +991,7 @@ pip_download()
 # Function for installing and upgrading Python packages, utilizing pip
 pip_install()
 {
-    # Arguments: Python package name, version or "upgrade"
+    # Arguments: Python package name, [version or "upgrade"]
     # (install specific version or update existing version to newest).
     # If second argument is not provided, the newest version will be installed.
     local command_end=""
@@ -990,9 +1000,15 @@ pip_install()
         heading "Upgrading ${1}"
         set_status "Upgrading ${1}"
     else
-        current_step="installation of ${1}"
-        heading "Installing ${1}"
-        set_status "Installing ${1}"
+        if [ -n "${2}" ]; then
+            current_step="installation of ${1} ${2}"
+            heading "Installing ${1} ${2}"
+            set_status "Installing ${1} ${2}"
+        else
+            current_step="installation of ${1}"
+            heading "Installing ${1}"
+            set_status "Installing ${1}"
+        fi
         if [ -n "${2}" ]; then
             command_end="==${2}"
         fi
@@ -1292,12 +1308,11 @@ fi
 
 # Create the .paths file, storing important paths used by the program
 current_step="creation of the .paths file"
-heading "Writing paths to .paths"
+printf "\nWriting paths to .paths\n"
 set_status "Writing paths to .paths"
 Gadget2_dir="${gadget_dir}/Gadget2"
 tests_dir="${concept_dir}/tests"
 convert="${imagemagick_dir}/bin/convert"
-cython="${python_dir}/bin/cython"
 mpicc="${mpi_dir}/bin/mpicc"
 mpiexec="${mpi_dir}/bin/mpiexec"
 python_config="${python_dir}/bin/python${python_version}-config"
@@ -1337,8 +1352,6 @@ top_dir='${top_dir}'
 #########
 # The convert executable from ImageMagick
 convert='${convert}'
-# The Cython executable
-cython='${cython}'
 # The MPI C compiler
 mpicc='${mpicc}'
 # The MPI executable
@@ -1424,74 +1437,77 @@ fi
 cd "${top_dir}"
 
 
+
 #################
 # Final notices #
 #################
 # Copyright notice
+disable_status
 copyright_notice()
 {
     # Arguments: Program/package name, text if not pre-installed
-    if eval "[ \"\${${1}_preinstalled}\" == \"no\" ]"; then
-        echo "${2}"
-    else
-        echo
+    if eval "[ \"\${${1}_preinstalled}\" != \"yes\" ]"; then
+        printf "${2}\n"
     fi
 }
-disable_status
 current_step="copyright notice"
 heading "Copyright notice"
-msg="${esc_concept} has been installed along with the following dependencies:
-$(copyright_notice "fftw_for_gadget" "FFTW 2")
-$(copyright_notice "fftw"            "FFTW 3")
-$(copyright_notice "freetype"        "FreeType")
-$(copyright_notice "gadget"          "GADGET")
-$(copyright_notice "gsl"             "GSL")
-$(copyright_notice "hdf5"            "HDF5")
-$(copyright_notice "imagemagick"     "ImageMagick")
-$(copyright_notice "libpng"          "libpng")
-$(copyright_notice "mpich"           "MPICH")
-$(copyright_notice "ncurses"         "ncurses")
-$(copyright_notice "openssl"         "OpenSSL")
-$(copyright_notice "zlib"            "zlib")
-$(copyright_notice "python"          "Python")
-$(copyright_notice "blessings"       "$(printf ${en_quad}%.s {1..4})Blessings")
-$(copyright_notice "cython"          "$(printf ${en_quad}%.s {1..4})Cython")
-$(copyright_notice "cython_gsl"      "$(printf ${en_quad}%.s {1..4})Cython_GSL")
-$(copyright_notice "h5py"            "$(printf ${en_quad}%.s {1..4})H5Py")
-$(copyright_notice "matplotlib"      "$(printf ${en_quad}%.s {1..4})Matplotlib")
-$(copyright_notice "mpi4py"          "$(printf ${en_quad}%.s {1..4})MPI4Py")
-$(copyright_notice "numpy"           "$(printf ${en_quad}%.s {1..4})NumPy")
-$(copyright_notice "pexpect"         "$(printf ${en_quad}%.s {1..4})Pexpect")
-$(copyright_notice "yolk"            "$(printf ${en_quad}%.s {1..4})Yolk3k")
-"
-msg="$(printf "${msg}" | sed '/^$/d')"
-msg="${msg}\n\nThese have been installed into separate directories in
+printf "${esc_concept} has been installed along with the following dependencies:\n"
+copyright_notice "fftw_for_gadget" "FFTW 2"
+copyright_notice "fftw"            "FFTW 3"
+copyright_notice "freetype"        "FreeType"
+copyright_notice "gadget"          "GADGET"
+copyright_notice "gsl"             "GSL"
+copyright_notice "hdf5"            "HDF5"
+copyright_notice "imagemagick"     "ImageMagick"
+copyright_notice "libpng"          "libpng"
+copyright_notice "mpich"           "MPICH"
+copyright_notice "ncurses"         "ncurses"
+copyright_notice "openssl"         "OpenSSL"
+copyright_notice "zlib"            "zlib"
+copyright_notice "python"          "Python"
+copyright_notice "blessings"       "$(printf ${en_quad}%.s {1..4})Blessings"
+copyright_notice "cython"          "$(printf ${en_quad}%.s {1..4})Cython"
+copyright_notice "cython_gsl"      "$(printf ${en_quad}%.s {1..4})Cython_GSL"
+copyright_notice "h5py"            "$(printf ${en_quad}%.s {1..4})H5Py"
+copyright_notice "matplotlib"      "$(printf ${en_quad}%.s {1..4})Matplotlib"
+copyright_notice "mpi4py"          "$(printf ${en_quad}%.s {1..4})MPI4Py"
+copyright_notice "numpy"           "$(printf ${en_quad}%.s {1..4})NumPy"
+copyright_notice "pexpect"         "$(printf ${en_quad}%.s {1..4})Pexpect"
+copyright_notice "yolk"            "$(printf ${en_quad}%.s {1..4})Yolk3k"
+printf "\nThese have been installed into separate directories in
 \"${top_dir}\"
 Any use of ${esc_concept} must conform to the license terms of the above
 software in addition to its own. These can be found in the separate
-installation directories.\n
-"
-printf "${msg}"
+installation directories.\n"
 
 # Notice about test errors
 current_step="erroneous tests notice"
 any_test_error_notices="no"
 erroneous_test_notice()
 {
-    # Arguments: Program name
+    # Arguments: Program name, [alternative message]
     progname="${1// /_}"
     progname="${progname,,}"
     test_success="yes"
-    eval "[ \"\${${progname}_test_success}\" == 'no' ] && test_success='no'"
-    if [ ${test_success} == "no" ]; then
+    eval "test_success=\"\${${progname}_test_success}\""
+    if [ "${test_success}" == "no" ]; then
         if [ "${any_test_error_notices}" == "no" ]; then
-            # First test error notive
+            # First test error notice
             heading "Erroneous tests notice"
             any_test_error_notices="yes"
+        else
+            # Add newline between notices
+            echo
         fi
         eval "test_log_path=\"\${${progname}_dir}/test_log\""
-        printf "\nWarning: Some tests of ${1} did not pass successfully.\n"
-        printf "As ${1} did seem to install correctly, this is usually not of any concern.\n"
+        printf "${esc_bold}${esc_red}Warning: ${esc_normal}"
+        printf "Some tests of ${1/CONCEPT/$esc_concept} did not pass successfully.\n"
+        if [ -n "${2}" ]; then
+            printf "${2}\n"
+        else
+            printf "As ${1/CONCEPT/$esc_concept} did seem to install correctly, this is usually not of any concern.\n"
+        fi
         printf "The logged output of the tests can be found in\n"
         printf "\"${test_log_path}\"\n"
     fi
@@ -1509,16 +1525,12 @@ erroneous_test_notice "ncurses"
 erroneous_test_notice "OpenSSL"
 erroneous_test_notice "Python"
 erroneous_test_notice "zlib"
-if [ "${concept_test_success}" == "no" ]; then
-error "\nWarning: Some tests of ${esc_concept} did not pass successfully.
-This should usually be taken seriously.
-The logged output of the tests can be found in
-\"${concept_dir}/log_test\""
-fi
+erroneous_test_notice "CONCEPT" "${esc_italic}This should usually be taken seriously!${esc_no_italic}"
 
 # Subprocess complete. Deactivate trap before exiting
-disable_status
+printf "\n\n\n"
 trap : 0
+disable_status
 ) > "${log}" &
 log_pid=$!
 # End of subprocess #
@@ -1553,7 +1565,7 @@ tail -f "${log}" --pid $log_pid | while read line; do
             fi
         fi
     else
-        if [ "${status_visible}" == "on" ]; then
+        if [ "${status_visible}" == "${status_on}" ]; then
             # Line with status enabled
             printf "${esc_up}${esc_erase}"
             printf "${esc_up}"
@@ -1565,12 +1577,10 @@ tail -f "${log}" --pid $log_pid | while read line; do
         fi
     fi
 done
-printf "${esc_up}${esc_erase}"
-printf "${esc_up}"
 
 # Remove the log file
 rm -f "${log}"
 
 # Installation complete. Deactivate trap before exiting.
 trap : 0
-printf "\n${esc_bold}${esc_green}${esc_concept} successfully installed${esc_normal}\n"
+printf "${esc_bold}${esc_green}${esc_concept} successfully installed${esc_normal}\n"

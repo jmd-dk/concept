@@ -29,14 +29,15 @@
 # Imports common to pure Python and Cython #
 ############################################
 from __future__ import division  # Needed for Python3 division in Cython
+import cython
+import h5py
 from numpy import (arange, array, asarray, concatenate, cumsum, delete,
                    empty, linspace, ones, trapz, unravel_index, zeros)
 from numpy.random import random
 import numpy as np
-import h5py
 import os
-import sys
 import shutil
+import sys
 # For fancy terminal output
 from blessings import Terminal
 terminal = Terminal(force_styling=True)
@@ -47,13 +48,51 @@ from datetime import timedelta
 # For development purposes only
 from time import sleep
 
-########################
-# Cython-related stuff #
-########################
+
+
+#############
+# MPI setup #
+#############
+from mpi4py import MPI
+cython.declare(master='bint',
+               nprocs='int',
+               rank='int',
+               )
+# Functions for communication
+comm = MPI.COMM_WORLD
+Abort = comm.Abort
+Allgather = comm.Allgather
+Allgatherv = comm.Allgatherv
+Allreduce = comm.Allreduce
+Barrier = comm.Barrier
+Bcast = comm.Bcast
+Gather = comm.Gather
+Gatherv = comm.Gatherv
+Isend = comm.Isend
+Reduce = comm.Reduce
+Recv = comm.Recv
+Scatter = comm.Scatter
+Send = comm.Send
+Sendrecv = comm.Sendrecv
+allreduce = comm.allreduce
+reduce = comm.reduce
+sendrecv = comm.sendrecv
+# Number of processes started with mpiexec
+nprocs = comm.size
+# The unique rank of the running process
+rank = comm.rank
+# Flag identifying the master/root process (that which have rank 0)
+master = not rank
+
+
+
+########################################
+# Cython and pure Python related stuff #
+########################################
 import cython
 # Declarations exclusively to either pure Python or Cython
 if not cython.compiled:
-    # Dummy Cython compiler directives (as decorators)
+    # No-op decorators for Cython compiler directives
     def dummy_decorator(*args, **kwargs):
         if len(args) == 1 and len(kwargs) == 0 and callable(args[0]):
             # Called as @dummy_decorator. Return function
@@ -92,7 +131,7 @@ if not cython.compiled:
             # Allocate pointer array of pointers (eg. int**).
             # Emulate these as lists of arrays.
             return [empty(1, dtype=sizeof(dtype[:-1]).dtype)]
-        else:
+        elif master:
             msg = dtype + ' not implemented as a Numpy dtype in commons.py'
             raise TypeError(msg)
         return array([1], dtype=dtype)
@@ -195,6 +234,8 @@ else:
     cimport units
     """
 
+
+
 ###########################################
 # Absolute paths to directories and files #
 ###########################################
@@ -205,12 +246,14 @@ top_dir = os.path.abspath('.')
 while True:
     if '.paths' in os.listdir(top_dir):
         break
-    elif top_dir == '/':
+    elif master and top_dir == '/':
         raise Exception('Cannot find the .paths file!')
     top_dir = os.path.dirname(top_dir)
 paths_module = imp.load_source('paths', top_dir + '/.paths')
 paths = {key: value for key, value in paths_module.__dict__.items()
          if isinstance(key, str) and not key.startswith('__')}
+
+
 
 ###############################################################
 # Import all user specified parameters from the params module #
@@ -283,6 +326,7 @@ kick_algorithms = params.kick_algorithms
 special_params = {}
 if hasattr(params, 'special_params'):
     special_params = params.special_params
+
 
 
 #####################################
@@ -424,42 +468,6 @@ P3M_scale_phys = P3M_scale*boxsize/PM_gridsize
 # interact with particles in the neighboring domain via the shortrange
 # force, when the P3M algorithm is used.
 P3M_cutoff_phys = P3M_scale_phys*P3M_cutoff
-
-
-
-#############
-# MPI setup #
-#############
-from mpi4py import MPI
-cython.declare(master='bint',
-               nprocs='int',
-               rank='int',
-               )
-# Functions for communication
-comm = MPI.COMM_WORLD
-Abort = comm.Abort
-Allgather = comm.Allgather
-Allgatherv = comm.Allgatherv
-Allreduce = comm.Allreduce
-Barrier = comm.Barrier
-Bcast = comm.Bcast
-Gather = comm.Gather
-Gatherv = comm.Gatherv
-Isend = comm.Isend
-Reduce = comm.Reduce
-Recv = comm.Recv
-Scatter = comm.Scatter
-Send = comm.Send
-Sendrecv = comm.Sendrecv
-allreduce = comm.allreduce
-reduce = comm.reduce
-sendrecv = comm.sendrecv
-# Number of processes started with mpiexec
-nprocs = comm.size
-# The unique rank of the running process
-rank = comm.rank
-# Flag identifying the master/root process (that which have rank 0)
-master = not rank
 
 
 

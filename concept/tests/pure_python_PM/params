@@ -22,8 +22,8 @@
 
 
 # Input/output
-IC_file = paths['params_dir'] + '/IC'	# Initial condition snapshot
-snapshot_type = 'Gadget 2'			# Type of output snapshot
+IC_file = paths['params_dir'] + '/IC'		# Initial condition snapshot
+snapshot_type = 'standard'			# Type of output snapshot
 output_dirs = {					# Directories for storing output
     'snapshot':  paths['params_dir'] + '/output',
     'powerspec': '',
@@ -41,7 +41,7 @@ output_times = {				# Times at which to dump output to disk
                 }
 
 # Numerical parameters
-boxsize = 8*Mpc/0.7 				# (Gadget implicitly uses length/h)	# Linear size of the simulation box
+boxsize = 8*Mpc 				# Linear size of the simulation box
 ewald_gridsize = 64				# Linear size of the grid of Ewald corrections
 PM_gridsize = 8					# Linear size of the grid used for the PM method
 P3M_scale = 1.25				# The long/short-range force split scale

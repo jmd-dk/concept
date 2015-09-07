@@ -23,7 +23,7 @@
 
 # Input/output
 IC_file = paths['params_dir'] + '/IC'		# Initial condition snapshot
-snapshot_type = 'Gadget 2'			# Type of output snapshot
+snapshot_type = 'standard'			# Type of output snapshot
 output_dirs = {					# Directories for storing output
     'snapshot':  paths['params_dir'] + '/output',
     'powerspec': '',
