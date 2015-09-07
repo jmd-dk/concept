@@ -192,7 +192,7 @@ def render(particles, a, filename, passed_boxsize=boxsize):
                         msg = child.expect(['sftp>', pexpect.EOF])
                         if msg == 0:
                             child.sendline('bye')
-                        else:
+                        elif master:
                             raise Exception
                     elif msg < 2:
                         # Incorrect password. Kill protocol
@@ -228,7 +228,8 @@ def render(particles, a, filename, passed_boxsize=boxsize):
                 child.close()
             except KeyboardInterrupt:
                 # User tried to kill the program. Let her
-                raise KeyboardInterrupt
+                if master:
+                    raise KeyboardInterrupt
             except:
                 # An error occurred during uploading. Print warning
                 child.terminate(force=False)

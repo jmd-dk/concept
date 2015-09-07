@@ -129,13 +129,13 @@ special_params = {
     'special':  'render',
     'path': '${path}',
            }
-" > "${this_dir}/plot.params"
+" > "${this_dir}/render.params"
 
 # Run CONCEPT to produce the renders
-"${run}" -n 1 -p "${this_dir}/plot.params" --local
+"${run}" -n 1 -p "${this_dir}/render.params" --local
 
 # Cleanup
-rm "${this_dir}/plot.params"
+rm "${this_dir}/render.params"
 
 # Plot complete. Deactivate trap before exiting
 trap : 0

@@ -33,8 +33,6 @@ top_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept'
 #########
 # The convert executable from ImageMagick
 convert='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/imagemagick/bin/convert'
-# The Cython executable
-cython='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python/bin/cython'
 # The MPI C compiler
 mpicc='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/mpich/bin/mpicc'
 # The MPI executable

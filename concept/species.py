@@ -142,8 +142,8 @@ class Particles:
             self.momz = realloc(self.momz, self.N_allocated*sizeof('double'))
             self.momz_mv = cast(self.momz, 'double[:self.N_local]')
             self.momz_mv[...] = mv[...]
-        else:
-            raise ValueError('Wrong attribute name "' + coord + '"!')
+        elif master:
+            raise ValueError('Wrong attribute name "{}"!'.format(coord))
 
     # This method will grow/shrink the data attributes.
     # Note that it will not update the N_local attribute.
@@ -225,10 +225,10 @@ class Particles:
             PM(self, Δt)
         elif kick_algorithm == 'P3M':
             P3M(self, Δt)
-        else:
-            raise ValueError('Species "' + self.species
-                             + '" has been assigned the kick algorithm "'
-                             + kick_algorithm + '", which is not implemented!')
+        elif master:
+            raise ValueError(('Species "{}" has been assigned the kick'
+                              + 'algorithm "{}", which is not implemented!'
+                              ).format(self.species, kick_algorithm))
         masterprint('done')
 
     # This method is automaticlly called when a Particles instance
@@ -268,9 +268,9 @@ def construct(type_name, species_name, mass, N):
     if species_name in softeningfactors:
         particles.softening = (softeningfactors[species_name]
                                *boxsize/(N**one_third))
-    else:
-        raise ValueError('Species "' + species_name
-                         + '" do not have an assigned softening length!')
+    elif master:
+        raise ValueError(('Species "{}" do not have an assigned softening'
+                          + 'length!').format(species_name))
     return particles
 
 

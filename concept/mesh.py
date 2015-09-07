@@ -53,7 +53,7 @@ def partition(array_shape):
     """
     # Raise an exception if nprocs > problem_size
     problem_size = np.prod(array_shape)
-    if problem_size < nprocs:
+    if master and problem_size < nprocs:
         errmsg = ('Cannot partition the workload because the number of\n'
                   + 'processes (' + str(nprocs) + ') is larger than the '
                   + 'problem size (' + str(problem_size) + ').')
