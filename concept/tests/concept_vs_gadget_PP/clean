@@ -24,6 +24,6 @@
 
 
 # This script does cleanup after a test
-this_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 (cd "${this_dir}" && rm -rf Gadget2_local IC Makefile_gadget_edited output outputlist params_gadget-usedvalues result.pdf)
 

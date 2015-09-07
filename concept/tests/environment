@@ -50,7 +50,6 @@ fi
 # Initialize test #
 ###################
 # Source the run script
-this_dir_backup="${this_dir}"  # This is the directory of the test script doing the sourcing
 curr="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 while :; do
     if [ -f "${curr}/run" ]; then
@@ -67,7 +66,6 @@ while :; do
     fi
     curr="$(dirname "${curr}")"
 done
-this_dir="${this_dir_backup}"
 
 # Export the concept_dir.
 # Python scripts can now access it by os.environ['concept_dir'].

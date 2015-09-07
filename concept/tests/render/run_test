@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+
+# This file is part of CONCEPT, the cosmological N-body code in Python.
+# Copyright (C) 2015 Jeppe Mosgard Dakin.
+#
+# CONCEPT is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# CONCEPT is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with CONCEPT. If not, see http://www.gnu.org/licenses/
+#
+# The auther of CONCEPT can be contacted at
+# jeppe.mosgaard.dakin(at)post.au.dk
+# The latest version of CONCEPT is available at
+# https://github.com/jmd-dk/concept/
+
+
+
+# This script runs a test on the render utility.
+# It generates a random snapshot and renders it first using 1 CPU and giving
+# the render script the exact path. Two copies of this snapshot is then
+# placed in a separate directory. Using 2 CPUs, the render script is then
+# given the path to this directory, which should produce a render for each
+# snapshot. Different render parameters are used for the two calls to the
+# render utility script.
+
+# Initialize test environment
+this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+source "${this_dir}/../environment"
+
+# Cleanup from last test run
+"${this_dir}/clean"
+
+# Generate snapshots
+mkdir -p "${this_dir}/output"
+"${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_snapshot.py" --pure-python --local
+mkdir -p "${this_dir}/output/subdir"
+cp "${this_dir}/output/snapshot" "${this_dir}/output/subdir/snapshot_0"
+cp "${this_dir}/output/snapshot" "${this_dir}/output/subdir/snapshot_1"
+
+# Generate two different render parameterfiles
+echo "
+color      = 'g'
+bgcolor    = '0'
+resolution = 123
+" > "${this_dir}/render.params_0"
+echo "
+color      = (1, 0.2, 0.3)
+bgcolor    = 'LightYellow'
+resolution = 1080
+" > "${this_dir}/render.params_1"
+
+# Render the single snapshot
+"${concept_dir}/utilities/render" "${this_dir}/output/snapshot" -p "${this_dir}/render.params_0"
+
+# Render all (both) snapshots in the subdir, using 2 processes
+"${concept_dir}/utilities/render" "${this_dir}/output/subdir" -n 2 -p "${this_dir}/render.params_1"
+
+# Analyze the output snapshots
+"${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
+
+# Finalize test environment
+test_done=true source "${this_dir}/../environment"
+

@@ -26,8 +26,13 @@
 # This script runs the CONCEPT code.
 # Run the script with the -h option to get help
 
+# If this file is being sourced, backups of 'this_file' and 'this_dir'
+# is needed not to alter the values of these variables.
+this_file_backup="${this_file}"
+this_dir_backup="${this_dir}"
+
 # Absolute paths to this file and its directory
-this_file=$(readlink -f "${BASH_SOURCE[0]}")
+this_file="$(readlink -f "${BASH_SOURCE[0]}")"
 this_dir="$(dirname "${this_file}")"
 
 # ANSI/VT100 escape sequences
@@ -65,8 +70,25 @@ msg='${1}'.replace('CONCEPT', '${terminal_CONCEPT}')
 print(terminal.bold_${2}(msg), file=(sys.stderr if '${2}' == 'red' else sys.stdout))"
 }
 
+# Function for converting paths to absolute paths
+absolute()
+{
+    local path="${1}"
+    local path_backup="${path}"
+    path="${path//[ ]/\\ }"        # Places backslashes before spaces. These are needed when expanding tilde, but they will not persist!
+    eval path="${path}"            # Expand tilde
+    path=$(readlink -m "${path}")  # Convert to absolute path
+    if [ -z "${path}" ]; then
+        colorprint "Cannot convert \"${path_backup}\" to an absolute path!" "red"
+        exit 1
+    fi
+    echo "${path}"
+} 
+
 # If this file is being sourced, return now
 if [ "${BASH_SOURCE[0]}" != "${0}" ]; then
+    this_file="${this_file_backup}"
+    this_dir="${this_dir_backup}"
     return
 fi
 
@@ -75,6 +97,7 @@ nprocs=1
 params="${this_dir}/params/default"
 main="${this_dir}/main.py"
 pure_python=0
+keep_mode=0
 walltime=72
 # List of remote queues and number of CPU per node. The first queue is the default queue 
 queues=(q8n q8 q4)
@@ -97,7 +120,7 @@ parser = argparse.ArgumentParser(description='Run the CONCEPT code.')
 parser.add_argument('--local',
                     help='Force the run to be done locally, without submitting it via PBS',
                     default=False,
-		    action='store_true',
+		            action='store_true',
                     )
 parser.add_argument('-m', '--main',
                     help='entry point of the code',
@@ -115,6 +138,11 @@ parser.add_argument('-p', '--params',
 parser.add_argument('--pure-python',
                     help='run in pure Python mode',
                     default=${pure_python},
+                    action='store_true',
+                    )
+parser.add_argument('--keep-mode',
+                    help='run in the same mode as last time',
+                    default=${keep_mode},
                     action='store_true',
                     )
 parser.add_argument('-t', '--test',
@@ -156,6 +184,7 @@ print(args.nprocs,
       args.walltime,
       args.queue,
       int(args.local),
+      int(args.keep_mode),
       )
 " "$@"))
 nprocs="${args[0]}"
@@ -168,8 +197,21 @@ test="${args[6]}"
 walltime="${args[7]}"
 queue="${args[8]}"
 local="${args[9]}"
-if [ "${#args[@]}" -ne 10 ]; then
+keep_mode="${args[10]}"
+if [ "${#args[@]}" -ne 11 ]; then
     exit 1
+fi
+
+# Determined whether to run in compiled or pure Python mode when
+# --keep-mode is specified.
+if [ ${keep_mode} -eq 1 ]; then
+    if ls "${this_dir}/"*.so > /dev/null 2>&1; then
+        # .so files exist. Run in compiled mode
+        pure_python=0
+    else
+        # No .so files exist. Run in pure Python mode
+        pure_python=1
+    fi
 fi
 
 # Set up error trapping
@@ -188,14 +230,6 @@ trap 'abort' EXIT
 set -e
 
 # Convert all supplied paths to absolute paths
-absolute()
-{
-    local path="${1}"
-    path="${path//[ ]/\\ }"        # Places backslashes before spaces. These are needed when expanding tilde, but they will not persist!
-    eval path="${path}"            # Expand tilde
-    path=$(readlink -f "${path}")  # Convert to absolute path
-    echo "${path}"
-} 
 params="$(absolute "${params}")"
 main="$(absolute "${main}")"
 if [ "${test}" != "none" ] && [ "${test}" != "all" ]; then
