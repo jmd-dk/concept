@@ -50,22 +50,32 @@ import subprocess
                particles='Particles',
                a='double',
                filename='str',
-               passed_boxsize='double',
+               boxsize='double',
                # Locals
+               a_str='str',
+               alpha='double',
+               alpha_min='double',
+               basename='str',
+               combined='double[:, :, ::1]',
+               dirname='str',
                N='size_t',
                N_local='size_t',
-               c='int',
-               combined='double[:, :, ::1]',
-               renderpart='double[:, :, ::1]',
+               renderpart_filename='str',
+               renderpart_filenames='list',
+               renderparts_dirname='str',
                i='int',
                r='int',
+               size='double',
                size_max='double',
                size_min='double',
                )
-def render(particles, a, filename, passed_boxsize=boxsize):
-    global artist_particles, artist_text, upload_liverender, ax
+def render(particles, a, filename, boxsize=boxsize):
+    global artist_particles, artist_text, ax
     # Print out progress message
-    masterprint('Rendering and saving image "' + filename + '" ...')
+    masterprint('Rendering and saving image "{}" ...'.format(filename))
+    # Attach missing extension to filename
+    if not filename.endswith('.png'):
+        filename += '.png'
     # Extract particle data
     N = particles.N
     N_local = particles.N_local
@@ -96,8 +106,8 @@ def render(particles, a, filename, passed_boxsize=boxsize):
     if master:
         artist_text.set_text('')
         a_str = significant_figures(a, 4, just=0, scientific=True)
-        artist_text = ax.text(+0.25*passed_boxsize,
-                              -0.3*passed_boxsize,
+        artist_text = ax.text(+0.25*boxsize,
+                              -0.3*boxsize,
                               0,
                               '$a = {}$'.format(a_str),
                               fontsize=16,
@@ -108,14 +118,16 @@ def render(particles, a, filename, passed_boxsize=boxsize):
         else:
             artist_text.set_color('black')
     # Update axis limits if a boxsize were explicitly passed
-    if passed_boxsize:
-        ax.set_xlim(0, passed_boxsize)
-        ax.set_ylim(0, passed_boxsize)
-        ax.set_zlim(0, passed_boxsize)
-    # If running with a single process, save the render and return
+    if boxsize:
+        ax.set_xlim(0, boxsize)
+        ax.set_ylim(0, boxsize)
+        ax.set_zlim(0, boxsize)
+    # If running with a single process, save the render, make a call to
+    # update the liverender and then return.
     if nprocs == 1:
         savefig(filename, bbox_inches='tight', pad_inches=0)
         masterprint('done')
+        update_liverender(filename)
         return
     # Running with multiple processes.
     # Each process save its rendered part to disk.
@@ -153,131 +165,113 @@ def render(particles, a, filename, passed_boxsize=boxsize):
         # Remove the temporary directory
         shutil.rmtree(renderparts_dirname)
     masterprint('done')
-    return
-    if save_liverender:
-        # Print out message
-        masterprint('    Updating live render "' + liverender_full + '" ...')
-        # Save the live render
-        if nprocs > 1:
-            imsave(liverender_full, combined)
-        else:
-            savefig(liverender_full,
-                    bbox_inches='tight', pad_inches=0)
+    # Update the live render (local and remote)
+    update_liverender(filename)
+
+# Update local and remote live renders
+@cython.header(# Arguments
+               filename='str',
+               )
+def update_liverender(filename):
+    # Updating the live render cannot be done in parallel
+    if not master:
+        return
+    # Update the live render with the newly produced render 
+    if liverender:
+        masterprint('Updating live render "{}" ...'.format(liverender),
+                    indent=4)
+        shutil.copy(filename, liverender)
         masterprint('done')
-        if upload_liverender:
-            # Print out message
-            masterprint('    Uploading live render "' + remote_liverender
-                        + '" ...')
-            # Upload the live render
-            child = pexpect.spawn(cmd1, timeout=10)
-            try:
-                msg = child.expect(['password',
-                                    'passphrase',
-                                    pexpect.EOF,
-                                    'continue connecting',
-                                    ])
-                if msg < 2:
-                    # The protocol asks for password/passphrase.
-                    # Send it.
-                    child.sendline(password)
-                    msg = child.expect(['password',
-                                        'passphrase',
-                                        pexpect.EOF,
-                                        'sftp>',
-                                        ])
-                    if msg == 3:
-                        # Logged in to remote host via sftp.
-                        # Upload file.
-                        child.sendline(cmd2)
-                        msg = child.expect(['sftp>', pexpect.EOF])
-                        if msg == 0:
-                            child.sendline('bye')
-                        elif master:
-                            raise Exception
-                    elif msg < 2:
-                        # Incorrect password. Kill protocol
-                        child.terminate(force=True)
-                        masterwarn('Permission to ' + user_at_host
-                                   + ' denied\n' + 'Renders will not be '
-                                   + protocol + "'ed")
-                        upload_liverender = False
-                elif msg == 3:
-                    # The protocol cannot authenticate host.
-                    # Connect anyway.
-                    child.sendline('yes')
-                    msg = child.expect(['password:',
-                                        'passphrase',
-                                        pexpect.EOF,
-                                        ])
-                    if msg < 2:
-                        # The protocol asks for password/passphrase.
-                        # Send it.
-                        child.sendline(password)
-                        msg = child.expect(['password:',
-                                            'passphrase',
-                                            pexpect.EOF,
-                                            ])
-                        if msg < 2:
-                            # Incorrect password/passphrase.
-                            # Kill the protocol.
-                            child.terminate(force=True)
-                            masterwarn('Permission to ' + user_at_host
-                                       + ' denied\nRenders will not be '
-                                       + protocol + "'ed")
-                            upload_liverender = False
-                child.close()
-            except KeyboardInterrupt:
-                # User tried to kill the program. Let her
-                if master:
-                    raise KeyboardInterrupt
-            except:
-                # An error occurred during uploading. Print warning
-                child.terminate(force=False)
-                masterwarn('An error occurred during ' + protocol
-                           + ' to ' + user_at_host)
-            masterprint('done')
+    # Updating the remote live render with the newly produced render
+    if not remote_liverender or not scp_password:
+        return
+    cmd = 'scp "{}" "{}"'.format(filename, remote_liverender)
+    scp_host = re.search('@(.*):', remote_liverender).group(1)
+    scp_dist = re.search(':(.*)',  remote_liverender).group(1)
+    masterprint('Updating remote live render "{}:{}" ...'.format(scp_host,
+                                                                 scp_dist),
+                indent=4)
+    expects = ['password.',
+               'passphrase.',
+               'continue connecting',
+               pexpect.EOF,
+               pexpect.TIMEOUT,
+               ]
+    child = pexpect.spawn(cmd, timeout=15, env={'SSH_ASKPASS': '',
+                                                'DISPLAY'    : ''})
+    for i in range(2):
+        n = child.expect(expects)
+        if n < 2:
+            # scp asks for password or passphrase. Supply it
+            child.sendline(scp_password)
+        elif n == 2:
+            # scp cannot authenticate host. Connect anyway
+            child.sendline('yes')
+        elif n == 3:
+            break
+        else:
+            child.kill(9)
+            break
+    child.close(force=True)
+    if child.status:
+        msg = "Remote live render could not be scp'ed to" + scp_host
+        masterwarn(msg)
+    else:
+        masterprint('done')
 
-
-
-# Set up figure at import time.
-# The 77.50 scaling is needed to map the resolution to pixel units
-fig = figure(figsize=[resolution/77.50]*2)
-ax = fig.gca(projection='3d', axisbg=bgcolor)
-ax.set_aspect('equal')
-ax.dist = 8.55  # Zoom level
-# The artist for the particles
-artist_particles = ax.scatter(0, 0, 0, color=color, lw=0)
-# The artist for the scalefactor text
-artist_text = ax.text(0, 0,0, '')
-# Configure axis options
-ax.set_xlim(0, boxsize)
-ax.set_ylim(0, boxsize)
-ax.set_zlim(0, boxsize)
-ax.w_xaxis.set_pane_color(zeros(4))
-ax.w_yaxis.set_pane_color(zeros(4))
-ax.w_zaxis.set_pane_color(zeros(4))
-ax.w_xaxis.gridlines.set_lw(0)
-ax.w_yaxis.gridlines.set_lw(0)
-ax.w_zaxis.gridlines.set_lw(0)
-ax.grid(False)
-ax.w_xaxis.line.set_visible(False)
-ax.w_yaxis.line.set_visible(False)
-ax.w_zaxis.line.set_visible(False)
-ax.w_xaxis.pane.set_visible(False)
-ax.w_yaxis.pane.set_visible(False)
-ax.w_zaxis.pane.set_visible(False)
-for tl in ax.w_xaxis.get_ticklines():
-    tl.set_visible(False)
-for tl in ax.w_yaxis.get_ticklines():
-    tl.set_visible(False)
-for tl in ax.w_zaxis.get_ticklines():
-    tl.set_visible(False)
-for tl in ax.w_xaxis.get_ticklabels():
-    tl.set_visible(False)
-for tl in ax.w_yaxis.get_ticklabels():
-    tl.set_visible(False)
-for tl in ax.w_zaxis.get_ticklabels():
-    tl.set_visible(False)
+# This function projects the particle positions onto the xy-plane
+# and renders this projection directly in the terminal, using
+# ANSI/VT100 control sequences.
+@cython.header(# Arguments
+               particles='Particles',
+               # Locals
+               N='size_t',
+               N_local='size_t',
+               colornumber='unsigned int',
+               i='unsigned int',
+               j='unsigned int',
+               maxval='size_t',
+               posx='double*',
+               posy='double*',
+               projection='size_t[:, ::1]',
+               projection_ANSI='list',
+               )
+def terminal_render(particles):
+    # Extract particle data
+    N = particles.N
+    N_local = particles.N_local
+    posx = particles.posx
+    posy = particles.posy
+    # Project particle positions onto a 2D array,
+    # counting the number of particles in each pixel.
+    projection = np.zeros((terminal_resolution//2,
+                           terminal_resolution), dtype='uintp')
+    scalex = projection.shape[1]/boxsize
+    scaley = projection.shape[0]/boxsize
+    for i in range(N_local):
+        projection[cast(particles.posy[i]*scaley, 'int'),
+                   cast(particles.posx[i]*scalex, 'int')] += 1
+    Allreduce(MPI.IN_PLACE, projection, op=MPI.SUM)
+    if not master:
+        return
+    # Values in the projection array equal to or larger than maxval
+    # will be mapped to color nr. 255. The numerical coefficient is
+    # more or less arbitrarily chosen.
+    maxval = 12*N/(projection.shape[0]*projection.shape[1])
+    # Construct list of strings, each string being a space prepended
+    # with an ANSI/VT100 control sequences which sets the background
+    # color. When printed together, these strings produce an ANSI image
+    # of the projection.
+    projection_ANSI = []
+    for i in range(projection.shape[0]):
+        for j in range(projection.shape[1]):
+            colornumber = 16 + projection[i, j]*240//maxval
+            if colornumber > 255:
+                colornumber = 255
+            projection_ANSI.append('\x1b[48;5;{}m '.format(colornumber))
+        projection_ANSI .append('\x1b[0m\n')
+    # Print the ANSI image
+    masterprint(''.join(projection_ANSI), end='')
 
 # This function formats a floating point
 # number f to only have n significant figures.
@@ -340,49 +334,53 @@ def significant_figures(f, n, just=0, scientific=False):
             f_str = '-' + f_str
         return f_str.ljust(just)
 
+# Set up figure.
+# The 77.50 scaling is needed to map the resolution to pixel units
+fig = figure(figsize=[resolution/77.50]*2)
+ax = fig.gca(projection='3d', axisbg=bgcolor)
+ax.set_aspect('equal')
+ax.dist = 8.55  # Zoom level
+# The artist for the particles
+artist_particles = ax.scatter(0, 0, 0, color=color, lw=0)
+# The artist for the scalefactor text
+artist_text = ax.text(0, 0, 0, '')
+# Configure axis options
+ax.set_xlim(0, boxsize)
+ax.set_ylim(0, boxsize)
+ax.set_zlim(0, boxsize)
+ax.w_xaxis.set_pane_color(zeros(4))
+ax.w_yaxis.set_pane_color(zeros(4))
+ax.w_zaxis.set_pane_color(zeros(4))
+ax.w_xaxis.gridlines.set_lw(0)
+ax.w_yaxis.gridlines.set_lw(0)
+ax.w_zaxis.gridlines.set_lw(0)
+ax.grid(False)
+ax.w_xaxis.line.set_visible(False)
+ax.w_yaxis.line.set_visible(False)
+ax.w_zaxis.line.set_visible(False)
+ax.w_xaxis.pane.set_visible(False)
+ax.w_yaxis.pane.set_visible(False)
+ax.w_zaxis.pane.set_visible(False)
+for tl in ax.w_xaxis.get_ticklines():
+    tl.set_visible(False)
+for tl in ax.w_yaxis.get_ticklines():
+    tl.set_visible(False)
+for tl in ax.w_zaxis.get_ticklines():
+    tl.set_visible(False)
+for tl in ax.w_xaxis.get_ticklabels():
+    tl.set_visible(False)
+for tl in ax.w_yaxis.get_ticklabels():
+    tl.set_visible(False)
+for tl in ax.w_zaxis.get_ticklabels():
+    tl.set_visible(False)
 
-# Preparation for saving renders, done at import time
-cython.declare(renderparts_folder='str',
-               liverender_full='str',
-               save_liverender='bint',
-               save_renders='bint',
-               cmd1='str',
-               cmd2='str',
-               password='str',
-               pixelval_max='double',
-               suffix='str',
-               upload_liverender='bint',
-               user_at_host='str',
-               visualize='bint',
-               )
-
-# Check whether to save a live render
-liverender_full = ''
-save_liverender = False
-cmd1 = ''
-cmd2 = ''
-upload_liverender = False
-password = ''
-if liverender != '':
-    visualize = True
-    save_liverender = True
-    liverender_full = liverender + suffix
-    if renderparts_folder == '':
-        renderparts_folder = os.pathdirname(liverender) + '/'
-    # Check whether to upload the live render to a remote host
-    if sys.argv[1] != '':
-        upload_liverender = True
-        password = sys.argv[1]
-        user_at_host = remote_liverender[:remote_liverender.find(':')]
-        if protocol == 'scp':
-            cmd1 = 'scp ' + liverender_full + ' ' + remote_liverender
-        elif protocol == 'sftp':
-            if remote_liverender.endswith('.'):
-                # Full filename given in remote_liverender
-                cmd1 = 'sftp ' + remote_liverender[:remote_liverender.rfind('/')]
-                cmd2 = ('put ' + liverender_full + ' '
-                        + os.pathbasename(remote_liverender))
-            else:
-                # Folder given in remote_liverender
-                cmd1 = 'sftp ' + remote_liverender
-                cmd2 = 'put ' + liverender_full
+# Construct instance of the colormap with 256 - 16  = 240 colors
+colormap_240 = getattr(matplotlib.cm, terminal_colormap)(arange(240))[:, :3]
+# Apply the colormap to the terminal, remapping the 240 higher color
+# numbers. The 16 lowest are left alone in order not to mess with
+# standard terminal coloring.
+for i in range(240):
+    colorhex = matplotlib.colors.rgb2hex(colormap_240[i])
+    masterprint('\x1b]4;{};rgb:{}/{}/{}\x1b\\'
+                 .format(16 + i, colorhex[1:3], colorhex[3:5], colorhex[5:]),
+                end='')

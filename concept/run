@@ -279,6 +279,83 @@ if [ "${unspecified_params}" == 1 ]; then
     echo "Parameterfile not specified - Will use \"${params_rel}\""
 fi
 
+# Process the parsed parameterfile
+(cd "${this_dir}" && make params.py paramsfile="${params}" --silent)
+
+# Prompt the user for the secure shell password,
+# if the live render should be uploaded to a remote host.
+args=($("${python}" -B -c "
+# Import parameters from the .py file rather than the .so file
+import imp
+params = imp.load_source('params', '${this_dir}/params.py')
+remote_liverender = (params.remote_liverender
+                     + ('.png' if params.remote_liverender
+                                  and not params.remote_liverender
+                                                 .endswith('.png') else ''))
+# Other, normal imports
+from getpass import getpass
+import os, pexpect, re, sys
+from time import sleep
+# Ask for password, if remote liverender is requested
+scp_password = ''
+scp_success = 'success'
+if remote_liverender:
+    # Create test file to be scp'ed
+    test_filename = '${this_dir}/.scp_test'
+    with open(test_filename, 'a'):
+        pass
+    # Spawn the interactive process
+    cmd = 'scp \"{}\" \"{}\"'.format(test_filename, remote_liverender)
+    scp_host = re.search('@(.*):', remote_liverender).group(1)
+    scp_dist = re.search(':(.*)',  remote_liverender).group(1)
+    expects = ['password.*',
+               'passphrase.*',
+               'continue connecting',
+               pexpect.EOF,
+               pexpect.TIMEOUT,
+               ]
+    print('\nThe latest render will continuously be scp\'ed to\n\"{}\" at {}'
+           .format(scp_dist, scp_host), file=sys.stderr)
+    child = pexpect.spawn(cmd, timeout=15, env={'SSH_ASKPASS': '',
+                                                'DISPLAY'    : ''})
+    # Interactions
+    while True:
+        n = child.expect(expects)
+        if n < 2:
+            # scp asks for password or passphrase. Prompt the user for it
+            scp_password = getpass((child.before + child.after).decode('utf-8'))
+            # Now supply scp with the password
+            child.sendline(scp_password)
+        elif n == 2:
+            # scp cannot authenticate host. Connect anyway
+            child.sendline('yes')
+        elif n == 3:
+            # 
+            break
+        else:
+            child.kill(9)
+            break
+    child.close(force=True)
+    os.remove(test_filename)
+    # If the test scp did not go well, reset password and write error message
+    if child.status:
+        scp_password = ''
+        scp_success = ('Warning: Could not establish connection to {}\\\n'
+                       + \"Remote live renders will not be scp\\\'ed\"
+                       ).format(scp_host)
+# Print out the password/passphrase and whether the scp test was
+# successful. These will be captured in the bash 'args' variable.
+print(scp_success.replace(' ', '~'),
+      scp_password,
+      )
+" "$@"))
+scp_success="${args[0]//\~/ }"
+scp_password="${args[1]}"
+if [ "${scp_success}" != "success" ]; then
+    colorprint "${scp_success}" "red"
+    sleep 10
+fi
+
 # Compile or do cleanup from last compilation
 if [ "${pure_python}" -eq 0 ] ; then
     # Compile with Cython
@@ -289,53 +366,6 @@ else
     # Remove compiled Cython modules
     (cd "${this_dir}" && make clean_so paramsfile="${params}" >/dev/null)
 fi
-
-# Prompt the user for the secure shell password,
-# if the live render should be uploaded.
-cd "${this_dir}"
-args=($("${python}" -B -c "
-# Import parameters from the .py file rather than the .so file
-import imp
-params = imp.load_source('params', '${this_dir}/params.py')
-vars = ('liverender', 'remote_liverender', 'protocol')
-for var in vars:
-    exec(var + ' = params.' + var)
-# Other, normal imports
-from getpass import getpass
-import pexpect
-# Ask for password, if upload is requested
-password = ''
-if liverender != '' and remote_liverender != '':
-    # Get protocol authentication message
-    if protocol == 'scp':
-        cmd = 'scp \"${this_file}\" ' + remote_liverender
-    elif protocol == 'sftp':
-        cmd = 'sftp ' + remote_liverender
-    else:
-        raise Exception('Unknown protocol \"' + protocol + '\".')
-    child = pexpect.spawn(cmd, timeout=10)
-    msg = child.expect(['password.*', 'passphrase.*', pexpect.EOF, 'continue connecting'])
-    prompt = ''
-    if msg < 2:
-        # Protocol asks for password or passphrase
-        prompt = (child.before + child.after).decode('utf-8')
-    elif msg == 3:
-        # Protocol cannot authenticate host. Connect anyway
-        child.sendline('yes')
-        msg = child.expect(['password.*', 'passphrase.*', pexpect.EOF])
-        if msg < 2:
-            # Protocol asks for password or passphrase
-            prompt = (child.before + child.after).decode('utf-8')
-    child.terminate(force=True)
-    # Prompt the user for the password/passphrase
-    password = getpass('\nThe latest render will continuously be ' + protocol + '\'ed to '
-                       + remote_liverender[(remote_liverender.find('@') + 1):] + '\n'
-                       + prompt)
-# Print out the password/passphrase.
-# This will be captured in the bash 'args' variable.
-print(password)
-" "$@"))
-password="${args[0]}"
 
 # Create the logs dir and go to the code directory
 mkdir -p "${this_dir}/logs"
@@ -429,7 +459,7 @@ fi
 
 # Run the code. Both stdout and stderr are being logged to logs/jobid,
 # while the stderr alone is also logged to logs/jobid_err.
-(cd \"${this_dir}\" && \"${mpiexec}\" \"${python}\" -B \${m_flag} \"\${main_as_library}\" \"${password}\" >> \"${this_dir}/logs/\${jobid}\" 2>> >(tee -a \"${this_dir}/logs/\${jobid}_err\"))
+(cd \"${this_dir}\" && \"${mpiexec}\" \"${python}\" -B \${m_flag} \"\${main_as_library}\" \"${scp_password}\" >> \"${this_dir}/logs/\${jobid}\" 2>> >(tee -a \"${this_dir}/logs/\${jobid}_err\"))
 
 # Run complete. Remove error log if empty
 if [ -f \"${this_dir}/logs/\${jobid}_err\" ] && [ ! -s \"${this_dir}/logs/\${jobid}_err\" ]; then
@@ -483,7 +513,7 @@ else
     # Run the code. Print stdout and stderr to the terminal while at the
     # same time logging them to logs/jobid. The stderr alone is also
     # logged to logs/jobid_err.
-    "${mpiexec}" -n "${nprocs}" "${python}" -B ${m_flag} "${main_as_library}" "${password}" 2> >(tee -a "${this_dir}/logs/${jobid}_err") | tee -a "${this_dir}/logs/${jobid}"
+    "${mpiexec}" -n "${nprocs}" "${python}" -B ${m_flag} "${main_as_library}" "${scp_password}" 2> >(tee -a "${this_dir}/logs/${jobid}_err") | tee -a "${this_dir}/logs/${jobid}"
     # Get exit status of the above CONCEPT run
     concept_exit_status="${PIPESTATUS[0]}"
     # Run complete. Remove error log if empty

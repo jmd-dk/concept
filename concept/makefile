@@ -26,9 +26,8 @@
 # build and run the code. It is expected that you call this makefile
 # with the paramsfile=filename option.
 
-
 # Use the bash shell
-SHELL = /bin/bash
+SHELL = /usr/bin/env bash
 
 
 
@@ -88,7 +87,7 @@ python_config = $(shell source $(paths); echo $${python_config})
 # Settings for compilation and linking #
 ########################################
 # Options passed when cynthonizing .pyx files
-cythonflags = -3 -a -o
+cythonflags = -3 -a
 # Includes
 fftw_incl   = -I$(fftw_dir)/include
 gsl_incl    = -I$(gsl_dir)/include
@@ -178,7 +177,7 @@ $(addsuffix .o, $(pyfiles)): %.o: %.c
 $(addsuffix .c, $(pyfiles)): %.c: %.pyx %.pxd
 	@$(python) -c "from blessings import Terminal; t = Terminal(force_styling=True); print('\n' + t.bold_yellow('Building the $(basename $@) module')) if '$(build_status)' != 'running' else ''"
 	$(eval build_status = running)
-	$(python) -m cython $(cythonflags) $@ $<
+	$(python) -m cython $(cythonflags) $<
 
 # Write .pxd files from .pyx files using the pyxpp script
 $(addsuffix .pxd, $(pyfiles)): %.pxd: %.pyx $(pyxpp)

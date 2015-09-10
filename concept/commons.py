@@ -36,6 +36,7 @@ from numpy import (arange, array, asarray, concatenate, cumsum, delete,
 from numpy.random import random
 import numpy as np
 import os
+import re
 import shutil
 import sys
 # For fancy terminal output
@@ -151,7 +152,7 @@ if not cython.compiled:
         pass
     # Array casting
     def cast(a, dtype):
-        if dtype in ('int', 'size_t', 'ptrdiff_t'):
+        if dtype in ('int', 'unsigned int', 'size_t', 'ptrdiff_t'):
             a = int(a)
         elif dtype == 'bint':
             a = bool(a)
@@ -258,15 +259,30 @@ paths = {key: value for key, value in paths_module.__dict__.items()
 ###############################################################
 # Import all user specified parameters from the params module #
 ###############################################################
+# Parameters are imported from params.py, which is essentially just a
+# copy of the current parameter file. The parameters are slightly
+# processed, as follows:
+# - Some parameters are explicitly casted.
+# - Spaces are removed from the 'snapshot_type' parameter, and all
+#   characters are converted to lowercase.
+# - The 'output_times' are sorted and duplicates (for each type of
+#   output) are removed.
+# - Paths below or just one level above the concept directory are made
+#   relative to this directory in order to reduce screen clutter.
+# - Colors are transformed to (r, g, b) arrays.
+# - The 'special_params' parameter is set to an empty dictionary if it
+#   is not defined in params.py
 import params
 from matplotlib.colors import ColorConverter
 to_rgb = lambda color: array(ColorConverter().to_rgb(color),
                              dtype='float64')
-cython.declare(IC_file='str',
+cython.declare(# Input/output
+               IC_file='str',
                snapshot_type='str',
                output_dirs='dict',
                output_bases='dict',
                output_times='dict',
+               # Numerical parameter
                boxsize='double',
                ewald_gridsize='int',
                PM_gridsize='ptrdiff_t',
@@ -274,16 +290,20 @@ cython.declare(IC_file='str',
                P3M_cutoff='double',
                softeningfactors='dict',
                Δt_factor='double',
+               # Cosmological parameters
                H0='double',
                Ωm='double',
                ΩΛ='double',
                a_begin='double',
-               liverender='str',
+               # Graphics
                color='double[::1]',
                bgcolor='double[::1]',
-               resolution='int',
+               resolution='unsigned int',
+               liverender='str',
                remote_liverender='str',
-               protocol='str',
+               terminal_colormap='str',
+               terminal_resolution='unsigned int',
+               # Simlation options
                use_Ewald='bint',
                kick_algorithms='dict',
                special_params='dict',
@@ -313,12 +333,24 @@ H0      = params.H0
 ΩΛ      = params.ΩΛ
 a_begin = params.a_begin
 # Graphics
-liverender        = params.liverender
-color             = to_rgb(params.color)
-bgcolor           = to_rgb(params.bgcolor)
-resolution        = params.resolution
-remote_liverender = params.remote_liverender
-protocol          = params.protocol
+color               = to_rgb(params.color)
+bgcolor             = to_rgb(params.bgcolor)
+resolution          = int(params.resolution)
+liverender          = ((params.liverender if not params.liverender
+                        or os.path.relpath(params.liverender,
+                                           paths['concept_dir'])
+                           .startswith('../../')
+                        else os.path.relpath(params.liverender,
+                                             paths['concept_dir']))
+                       + '.png' if params.liverender
+                                   and not params.liverender.endswith('.png')
+                                else '')
+remote_liverender   = (params.remote_liverender
+                       + ('.png' if params.remote_liverender
+                                    and not params.remote_liverender
+                                                   .endswith('.png') else ''))
+terminal_colormap   = params.terminal_colormap
+terminal_resolution = int(params.terminal_resolution)
 # Simulation options
 use_Ewald       = cast(params.use_Ewald, 'bint')
 kick_algorithms = params.kick_algorithms
@@ -327,6 +359,14 @@ special_params = {}
 if hasattr(params, 'special_params'):
     special_params = params.special_params
 
+
+##########################
+# Command line arguments #
+##########################
+# These are command line arguments given to the Python interpreter,
+# not those explicitly given to the run script.
+cython.declare(scp_password='str')
+scp_password = sys.argv[1]
 
 
 #####################################
@@ -381,9 +421,11 @@ cython.declare(a_dumps='tuple',
                render_dir='str',
                render_base='str',
                render_times='tuple',
+               scp_host='str',
                snapshot_dir='str',
                snapshot_base='str',
                snapshot_times='tuple',
+               terminal_render_times='tuple',
                two_ewald_gridsize='int',
                two_machine_ϵ='double',
                two_recp_boxsize='double',
@@ -402,15 +444,16 @@ a_dumps = tuple(sorted(set([nr for val in output_times.values()
 # The scale factor at the last time step
 a_max = a_begin if len(a_dumps) == 0 else np.max(a_dumps)
 # Extract output variables from output dicts
-snapshot_dir    = output_dirs['snapshot']
-snapshot_base   = output_bases['snapshot']
-snapshot_times  = output_times['snapshot']
-powerspec_dir   = output_dirs['powerspec']
-powerspec_base  = output_bases['powerspec']
-powerspec_times = output_times['powerspec']
-render_dir      = output_dirs['render']
-render_base     = output_bases['render']
-render_times    = output_times['render']
+snapshot_dir          = output_dirs['snapshot']
+snapshot_base         = output_bases['snapshot']
+snapshot_times        = output_times['snapshot']
+powerspec_dir         = output_dirs['powerspec']
+powerspec_base        = output_bases['powerspec']
+powerspec_times       = output_times['powerspec']
+render_dir            = output_dirs['render']
+render_base           = output_bases['render']
+render_times          = output_times['render']
+terminal_render_times = output_times['terminal render']
 # Newtons constant
 G_Newton = 6.6738e-11*units.m**3/units.kg/units.s**2
 # The average, comoing density (the critical
@@ -468,6 +511,9 @@ P3M_scale_phys = P3M_scale*boxsize/PM_gridsize
 # interact with particles in the neighboring domain via the shortrange
 # force, when the P3M algorithm is used.
 P3M_cutoff_phys = P3M_scale_phys*P3M_cutoff
+# The host name in the 'remote_liverender' parameter
+scp_host = (re.search('@(.*):', remote_liverender).group(1)
+            if remote_liverender else '')
 
 
 
