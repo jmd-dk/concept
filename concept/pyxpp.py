@@ -433,7 +433,7 @@ def C_casting(filename):
     with open(filename, 'r') as pyxfile:
         # Transform to Cython syntax
         for line in pyxfile:
-            if 'cast(' in line:
+            while 'cast(' in line:
                 paren = 1
                 in_quotes = [False, False]
                 for i in range(line.find('cast(') + 5, len(line)):

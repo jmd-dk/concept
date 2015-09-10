@@ -94,7 +94,7 @@ def render():
         graphics.render(snapshot.particles,
                         snapshot.params['a'],
                         filename + '.png',
-                        passed_boxsize=snapshot.params['boxsize'])
+                        boxsize=snapshot.params['boxsize'])
     # If none of the files where snapshots, throw an exception
     if master and N_renders == 0:
         if len(filenames) == 1:

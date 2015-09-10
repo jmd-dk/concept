@@ -32,7 +32,7 @@ if not cython.compiled:
     from IO import load, save
     from special import delegate
     from integration import expand, cosmic_time, scalefactor_integral
-    from graphics import render, significant_figures
+    from graphics import render, significant_figures, terminal_render
 else:
     # Lines in triple quotes will be executed in the .pyx file.
     """
@@ -41,7 +41,7 @@ else:
     from special cimport delegate
     from IO cimport load, save
     from integration cimport expand, cosmic_time, scalefactor_integral
-    from graphics cimport render, significant_figures
+    from graphics cimport render, significant_figures, terminal_render
     """
 
 # Imports and definitions common to pure Python and Cython
@@ -78,14 +78,12 @@ def do_kick_drift_integrals(index):
 # Function which dump all types of output. The return value signifies
 # whether or not something has been dumped.
 @cython.header(# Arguments
+               particles='Particles',
                op='str',
                # Locals
-               powerspec_filename='str',
-               render_filename='str',
-               snapshot_filename='str',
                returns='bint',
                )
-def dump(op=None):
+def dump(particles, op=None):
     global a, a_dump, drift_fac, i_dump, kick_fac
     # Do nothing if not at dump time
     if a != a_dump:
@@ -97,22 +95,16 @@ def dump(op=None):
         particles.kick(kick_fac[1])
     # Dump powerspectrum
     if a in powerspec_times:
-        powerspec_filename = ('{}/{}_a={:.3f}'.format(powerspec_dir,
-                                                      powerspec_base,
-                                                      a))
-        powerspectrum(particles, powerspec_filename)
+        powerspectrum(particles, output_filenames['powerspec'].format(a))
     # Dump render
     if a in render_times:
-        render_filename = ('{}/{}_a={:.3f}.png'.format(render_dir,
-                                                       render_base,
-                                                       a))
-        render(particles, a, render_filename)
+        render(particles, a, output_filenames['render'].format(a))
     # Dump snapshot
     if a in snapshot_times:
-        snapshot_filename = ('{}/{}_a={:.3f}'.format(snapshot_dir,
-                                                     snapshot_base,
-                                                     a))
-        save(particles, a, snapshot_filename)
+        save(particles, a, output_filenames['snapshot'].format(a))
+    # Dump terminal render
+    if a in terminal_render_times:
+        terminal_render(particles)
     # Increment dump time
     i_dump += 1
     if i_dump < len(a_dumps):
@@ -125,6 +117,7 @@ def dump(op=None):
 # Function containing the main time loop of CONCEPT
 @cython.header(# Locals
                timestep='ptrdiff_t',
+               particles='Particles',
                Δt_update_freq='size_t',
                )
 def timeloop():
@@ -132,6 +125,8 @@ def timeloop():
     # Do nothing if no dump times exist
     if len(a_dumps) == 0:
         return
+    # Load initial conditions
+    particles = load(IC_file)
     # The number of time steps before Δt is updated
     Δt_update_freq = 10
     # Initial cosmic time t, where a(t) = a_begin
@@ -149,7 +144,7 @@ def timeloop():
     i_dump = 0
     a_dump = a_dumps[i_dump]
     # Possible output at a == a_begin
-    dump()
+    dump(particles)
     # The main time loop
     masterprint('Begin main time loop')
     timestep = -1
@@ -165,7 +160,7 @@ def timeloop():
         # Kick (first time is only half a kick, as kick_fac[1] == 0)
         do_kick_drift_integrals(0)
         particles.kick(kick_fac[0] + kick_fac[1])
-        if dump('drift'):
+        if dump(particles, 'drift'):
             continue
         # Update Δt every Δt_update_freq time step
         if not (timestep % Δt_update_freq):
@@ -179,19 +174,30 @@ def timeloop():
         # Drift
         do_kick_drift_integrals(1)
         particles.drift(drift_fac[0] + drift_fac[1])
-        if dump('kick'):
+        if dump(particles, 'kick'):
             continue
 
-# Declare global variables used in above functions
-cython.declare(a='double',
+# Declare global variables used in above functions,
+# as well as variables in the code below.
+cython.declare(# Globals
+               a='double',
                a_dump='double',
                drift_fac='double[::1]',
                i_dump='size_t',
                kick_fac='double[::1]',
                t='double',
                Δt='double',
+               # Module level variables
+               fmt='str',
+               msg='str',
+               ndigits='int',
+               output_base='str',
+               output_dir='str',
+               output_kind='str',
+               output_filenames='dict',
+               output_time='tuple',
+               times='list',
                )
-
 # Check that the output times are legal
 if master:
     for output_kind, output_time in output_times.items():
@@ -200,23 +206,42 @@ if master:
                    + 'as the simulation starts at a = {}.'
                    ).format(output_kind, np.min(output_time), a_begin)
             raise Exception(msg)
-
 # Create output directories if necessary
 if master:
     for output_time, output_dir in zip(output_times.values(),
                                        output_dirs.values()):
         if output_time and output_dir:
             os.makedirs(output_dir, exist_ok=True)
-
+# Construct the patterns for the output files. This involves determining
+# the number of scalefactor digits in the output filenames. There should
+# be enogh digits so that adjacent dumps do not overwrite each other,
+# and so that the name of the first dump differs from the IC.
+output_filenames = {}
+for output_kind, output_time in output_times.items():
+    # This kind of output does not matter if
+    # it should never be dumped to the disk.
+    if not output_time or not output_kind in output_dirs:
+        continue
+    # Compute number of digits 
+    times = sorted(set((a_begin, ) + output_time))
+    ndigits = 0
+    while True:
+        fmt = '{:.' + str(ndigits) + 'f}'
+        if (len(set(fmt.format(ot) for ot in times)) == len(times)
+            and (fmt.format(times[0]) != fmt.format(0) or not times[0])):
+            break
+        ndigits += 1    
+    # Store output name patterns                   
+    output_dir = output_dirs[output_kind]
+    output_base = output_bases[output_kind]
+    output_filenames[output_kind] = ('{}/{}_a='.format(output_dir, output_base)
+                                     + fmt)
 # If anything special should happen, rather than starting the timeloop
 if special_params:
     delegate()
     Barrier()
     sys.exit()
 
-# Load initial conditions
-cython.declare(particles='Particles')
-particles = load(IC_file)
 # Run the time loop
 timeloop()
 # Simulation done

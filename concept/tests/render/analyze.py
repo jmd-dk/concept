@@ -40,18 +40,32 @@ render   = plt.imread(render_path)
 render_0 = plt.imread(render_0_path)
 render_1 = plt.imread(render_1_path)
 
-# Printout error message for unsuccessful test
+# Printout error message for unsuccessful test.
+# The two identical renders should be exacty equal.
 if not np.all(render_0 == render_1):
     masterwarn(('The renders "{}" and "{}" are not identical!'
                 ).format(render_0, render_1))
     sys.exit(1)
+# The dimensions of the images should be as stated in
+# render.params_0 and render.params_1.
+for r, path, params in zip((render, render_0), (render_path, render_0_path), (this_dir + '/render.params_0', this_dir + '/render.params_1')):
+    module_dict = imp.load_source('params', params).__dict__
+    shape = r.shape[:2]
+    if shape[0] != shape[1] or shape[0] != module_dict['resolution']:
+        masterwarn(('The render "{}" is not of size {}x{}!'
+                    ).format(path, module_dict['resolution'],
+                                   module_dict['resolution']))
+        sys.exit(1)
 
-
-
-
-tol = 1e-2
-#if np.mean(dist/boxsize) > tol:
-#    masterwarn('The results from CONCEPT disagree with those from GADGET.\n'
-#               + 'See "{}" for a visualization.'.format(fig_file))
-#    sys.exit(1)
+# There shouldbe some completely black pixels in the first render
+# and some completely white pixels in the second (and third) render
+# due to the scalefactor text.
+if not np.any(render[:, :, :3] > [0.99]*3):
+    masterwarn(('The scalefactor text do not seem to '
+                + 'be white on render "{}".').format(render_path))
+    sys.exit(1)
+if not np.any(render_0[:, :, :3] < [0.01]*3):
+    masterwarn(('The scalefactor text do not seem to '
+                + 'be black on render "{}".').format(render_0_path))
+    sys.exit(1)
 
