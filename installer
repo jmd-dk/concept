@@ -524,7 +524,8 @@ if [ "${imagemagick_preinstalled}" == "no" ]; then
         current_step="search for latest version of ImageMagick"
         set_status "Searching for latest version of ImageMagick"
         imagemagick_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "http://www.imagemagick.org/download/releases/" | grep -o "ImageMagick[0-9\.\-]*.tar" | grep -o "[0-9\.\-]*" | sort -u | tail -n 1 || :)"
-        imagemagick_version="${imagemagick_version:1:${#limagemagick_version}-1}"
+        imagemagick_version="$(echo "${imagemagick_version}" | head -c -2)"
+        imagemagick_version="${imagemagick_version:1}"
         fallback "ImageMagick"
     fi
     imagemagick_url="http://www.imagemagick.org/download/releases/ImageMagick-${imagemagick_version}.tar.gz"
