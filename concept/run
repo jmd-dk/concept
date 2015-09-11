@@ -94,7 +94,7 @@ fi
 
 # Default values of command-line arguments
 nprocs=1
-params="${this_dir}/params/default"
+params="None"  #"${this_dir}/params/default"
 main="${this_dir}/main.py"
 pure_python=0
 keep_mode=0
@@ -105,7 +105,7 @@ ppns=(8 8 4)
 # Should PBS be used to submit remote jobs?
 use_PBS=1
 
-# Use Python's argparse module to handle command-line arguments
+# Use Python's argparse module to handle command line arguments
 args=($(${python} -B -c "
 import argparse
 import sys
@@ -199,6 +199,7 @@ queue="${args[8]}"
 local="${args[9]}"
 keep_mode="${args[10]}"
 if [ "${#args[@]}" -ne 11 ]; then
+    colorprint "Error: Not every command line argument made it through Python\'s argparse!" "red"
     exit 1
 fi
 
@@ -237,7 +238,7 @@ if [ "${test}" != "none" ] && [ "${test}" != "all" ]; then
 fi
 
 # Do the parameterfile, the main file and the test file exist?
-if [ ! -f "${params}" ]; then
+if [ "${unspecified_params}" == 0 ] && [ ! -f "${params}" ]; then
     colorprint "Error: Parameterfile \"${params}\" does not exist!" "red"
     exit 1
 fi
@@ -268,35 +269,26 @@ if [ "${test}" != "none" ]; then
 fi
 
 # Relative path to the main and parameter, for clean printout
-main_rel=$(${python} -c "from os.path import relpath; rel = relpath('${main}', '${concept_dir}'); print(rel if not rel.startswith('../../') else '${main}')")
+main_rel=$(${python}   -c "from os.path import relpath; rel = relpath('${main}',   '${concept_dir}'); print(rel if not rel.startswith('../../') else '${main}')")
 params_rel=$(${python} -c "from os.path import relpath; rel = relpath('${params}', '${concept_dir}'); print(rel if not rel.startswith('../../') else '${params}')")
- 
+
 # Printout assigned values for unspecified parameters
 if [ "${unspecified_nprocs}" == 1 ]; then
     echo "Number of processes not specified - Will use ${nprocs}"
 fi
 if [ "${unspecified_params}" == 1 ]; then
-    echo "Parameterfile not specified - Will use \"${params_rel}\""
+    echo "Parameterfile not specified - Will use default parameters"
 fi
-
-# Process the parsed parameterfile
-(cd "${this_dir}" && make params.py paramsfile="${params}" --silent)
 
 # Prompt the user for the secure shell password,
 # if the live render should be uploaded to a remote host.
 args=($("${python}" -B -c "
-# Import parameters from the .py file rather than the .so file
-import imp
-params = imp.load_source('params', '${this_dir}/params.py')
-remote_liverender = (params.remote_liverender
-                     + ('.png' if params.remote_liverender
-                                  and not params.remote_liverender
-                                                 .endswith('.png') else ''))
-# Other, normal imports
-from getpass import getpass
 import os, pexpect, re, sys
+from getpass import getpass
 from time import sleep
-# Ask for password, if remote liverender is requested
+# Import parameters from the commons module
+from commons import *
+# Ask for password if remote liverender is requested
 scp_password = ''
 scp_success = 'success'
 if remote_liverender:
@@ -348,7 +340,7 @@ if remote_liverender:
 print(scp_success.replace(' ', '~'),
       scp_password,
       )
-" "$@"))
+" "params='${params}'"))
 scp_success="${args[0]//\~/ }"
 scp_password="${args[1]}"
 if [ "${scp_success}" != "success" ]; then
@@ -358,13 +350,16 @@ fi
 
 # Compile or do cleanup from last compilation
 if [ "${pure_python}" -eq 0 ] ; then
-    # Compile with Cython
-    (cd "${this_dir}" && make paramsfile="${params}")
+    # Rename compiled Cython modules *.so_ back to *.so and compile with Cython
+    if ls "${this_dir}/"*.so_ > /dev/null 2>&1; then
+        (cd "${this_dir}" && for f in *.so_; do mv "${f}" "${f%.so_}.so"; done)
+    fi
+    (cd "${this_dir}" && make)
 else
-    # Process the parsed parameterfile
-    (cd "${this_dir}" && make params.py paramsfile="${params}" --silent)
-    # Remove compiled Cython modules
-    (cd "${this_dir}" && make clean_so paramsfile="${params}" >/dev/null)
+    # Rename compiled Cython modules *.so to *.so_
+    if ls "${this_dir}/"*.so > /dev/null 2>&1; then
+        (cd "${this_dir}" && for f in *.so; do mv "${f}" "${f%.so}.so_"; done)
+    fi
 fi
 
 # Create the logs dir and go to the code directory
@@ -513,7 +508,7 @@ else
     # Run the code. Print stdout and stderr to the terminal while at the
     # same time logging them to logs/jobid. The stderr alone is also
     # logged to logs/jobid_err.
-    "${mpiexec}" -n "${nprocs}" "${python}" -B ${m_flag} "${main_as_library}" "${scp_password}" 2> >(tee -a "${this_dir}/logs/${jobid}_err") | tee -a "${this_dir}/logs/${jobid}"
+    "${mpiexec}" -n "${nprocs}" "${python}" -B ${m_flag} "${main_as_library}" "params='${params}'" "scp_password='${scp_password}'" 2> >(tee -a "${this_dir}/logs/${jobid}_err") | tee -a "${this_dir}/logs/${jobid}"
     # Get exit status of the above CONCEPT run
     concept_exit_status="${PIPESTATUS[0]}"
     # Run complete. Remove error log if empty

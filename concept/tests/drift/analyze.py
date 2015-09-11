@@ -48,7 +48,7 @@ a = zeros(N_snapshots)
 x = zeros(N_snapshots)
 x_std = zeros(N_snapshots)
 for i in range(N_snapshots):
-    fname = 'snapshot_a={:.3f}'.format(np.loadtxt(this_dir + '/outputlist')[i])
+    fname = 'snapshot_a={:.2f}'.format(np.loadtxt(this_dir + '/outputlist')[i])
     snapshot.load(this_dir + '/output/' + fname, write_msg=False)
     a[i] = snapshot.header['Time']
     x[i] = np.mean(snapshot.particles.posx)

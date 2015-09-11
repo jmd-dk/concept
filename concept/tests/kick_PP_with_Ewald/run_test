@@ -51,6 +51,10 @@ fi
 # Run the CONCEPT code on the generated ICs
 "${run}" -n 1 -p "${this_dir}/params" --local
 
+trap : 0
+exit 0
+
+
 # Create an edited version of Makefile_gadget with correct parth information
 cp "${this_dir}/Makefile_gadget" "${this_dir}/Makefile_gadget_edited"
 sed -i "/^ *CC= / s/ [^# ]/ \"${mpicc//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"

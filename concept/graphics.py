@@ -25,13 +25,10 @@
 # this line will be replaced by the content of commons.py itself.
 from commons import *
 
-# Use a matplotlib backend that does not require a running X-server
-import matplotlib
-matplotlib.use('Agg')
 # Imports for plotting
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import juggle_axes
-from matplotlib.pyplot import figure, imsave, savefig
+from matplotlib.pyplot import figure, savefig
 
 # Seperate but equivalent imports in pure Python and Cython
 if not cython.compiled:
@@ -227,14 +224,17 @@ def update_liverender(filename):
                # Locals
                N='size_t',
                N_local='size_t',
-               colornumber='unsigned int',
-               i='unsigned int',
-               j='unsigned int',
-               maxval='size_t',
+               colornumber='unsigned long long int',
+               i='size_t',
+               j='size_t',
+               maxval='unsigned long long int',
                posx='double*',
                posy='double*',
-               projection='size_t[:, ::1]',
+               projection='unsigned long long int[:, ::1]',
                projection_ANSI='list',
+               scalec='double',
+               scalex='double',
+               scaley='double',
                )
 def terminal_render(particles):
     # Extract particle data
@@ -244,30 +244,38 @@ def terminal_render(particles):
     posy = particles.posy
     # Project particle positions onto a 2D array,
     # counting the number of particles in each pixel.
-    projection = np.zeros((terminal_resolution//2,
-                           terminal_resolution), dtype='uintp')
+    projection = np.zeros((terminal_resolution//2, terminal_resolution),
+                          dtype=C2np['unsigned long long int'])
     scalex = projection.shape[1]/boxsize
     scaley = projection.shape[0]/boxsize
     for i in range(N_local):
-        projection[cast(particles.posy[i]*scaley, 'int'),
-                   cast(particles.posx[i]*scalex, 'int')] += 1
-    Allreduce(MPI.IN_PLACE, projection, op=MPI.SUM)
+        projection[cast(particles.posy[i]*scaley, 'size_t'),
+                   cast(particles.posx[i]*scalex, 'size_t')] += 1
+    Reduce(MPI.IN_PLACE if master else projection,
+           projection   if master else None,
+           op=MPI.SUM)
     if not master:
         return
     # Values in the projection array equal to or larger than maxval
     # will be mapped to color nr. 255. The numerical coefficient is
     # more or less arbitrarily chosen.
-    maxval = 12*N/(projection.shape[0]*projection.shape[1])
+    maxval = 12*N//(projection.shape[0]*projection.shape[1])
+    if maxval < 5:
+        maxval = 5
     # Construct list of strings, each string being a space prepended
     # with an ANSI/VT100 control sequences which sets the background
     # color. When printed together, these strings produce an ANSI image
     # of the projection.
     projection_ANSI = []
+    scalec = 240.0/maxval
     for i in range(projection.shape[0]):
         for j in range(projection.shape[1]):
-            colornumber = 16 + projection[i, j]*240//maxval
+            colornumber = cast(16 + projection[i, j]*scalec, 'unsigned long long int')
             if colornumber > 255:
                 colornumber = 255
+            if colornumber < 16 or colornumber > 255:
+                masterprint('wrong color:', colornumber, projection[i, j], scalec, projection[i, j]*scalec, maxval)
+                sleep(1000)
             projection_ANSI.append('\x1b[48;5;{}m '.format(colornumber))
         projection_ANSI .append('\x1b[0m\n')
     # Print the ANSI image

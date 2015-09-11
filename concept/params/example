@@ -7,7 +7,7 @@
 # see the bottom of this file.
 
 # Input/output
-IC_file = 'ICs/default'				# Initial condition snapshot
+IC_file = 'ICs/example'				# Initial condition snapshot
 snapshot_type = 'standard'			# Type of output snapshot
 output_dirs = {					# Directories for storing output
     'snapshot' : 'output',
@@ -22,8 +22,8 @@ output_bases = {				# File basenames for output
 output_times = {				# Times at which to dump output
     'snapshot'       : '',
     'powerspec'      : '',
-    'render'         : linspace(0, 1, 20),
-    'terminal render': linspace(0, 1, 20),
+    'render'         : '',
+    'terminal render': linspace(0.8, 1, 2),
                 }
 
 # Numerical parameters
