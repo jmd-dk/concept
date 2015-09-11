@@ -39,10 +39,10 @@ source "${this_dir}/../environment"
 "${run}" -n 4 -p "${this_dir}/params_pure_python" --pure-python --local
 
 # Build and run in compiled mode with different number of cpus
-"${run}"      -p "${this_dir}/params" --local
-"${run}" -n 1 -p "${this_dir}/params" --local
-"${run}" -n 2 -p "${this_dir}/params" --local
-"${run}" -n 4 -p "${this_dir}/params" --local
+"${run}"      --local
+"${run}" -n 1 --local
+"${run}" -n 2 --local
+"${run}" -n 4 --local
 
 # Finalize test environment
 test_done=true source "${this_dir}/../environment"
