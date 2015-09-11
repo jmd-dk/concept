@@ -546,7 +546,7 @@ def cython_decorators(filename):
 
 
 def make_pxd(filename):
-    commons_functions = ('abs', 'max', 'min', 'mod', 'sum', 'prod', 'sinc', 'masterprint', 'masterwarn', 'progressprint')
+    commons_functions = ('unicode', 'abs', 'max', 'min', 'mod', 'sum', 'prod', 'sinc', 'masterprint', 'masterwarn', 'progressprint')
     customs = {'Particles':    'from species cimport Particles',
                'func_b_ddd':   'ctypedef bint    (*func_b_ddd_pxd)  (double, double, double)',
                'func_d_dd':    'ctypedef double  (*func_d_dd_pxd)   (double, double)',
@@ -749,18 +749,6 @@ def make_pxd(filename):
     # If nothing else, place a comment in the pxd file
     if not total_lines:
         total_lines = ['# This module does not expose any c-level functions or classes to the outside world']
-    # Do not write to .pxd if it already has the correct content.
-    # This is important as the .pxd files are used by the makefile.
-    #if os.path.isfile(pxd_filename):
-    #    total_lines_nonewlines = deepcopy(total_lines)
-    #    for i in range(len(total_lines_nonewlines)):
-    #        total_lines_nonewlines[i] = total_lines_nonewlines[i].replace('\n', '')
-    #    with open(pxd_filename, 'r') as pxdfile:
-    #        existing = pxdfile.read().split('\n')
-    #    if len(existing) == 1 + len(total_lines_nonewlines) and existing[-1] == '':
-    #        existing.pop(-1)
-    #    if existing == total_lines_nonewlines:
-    #        return
     # Update/create .pxd
     with open(pxd_filename, 'w') as pxdfile:
         pxdfile.writelines(total_lines)

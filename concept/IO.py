@@ -54,7 +54,7 @@ def save(particles, a, filename):
         save_gadget(particles, a, filename)
     elif master:
         raise Exception('Does not recognize output type "{}"'
-                        .format(snapshot_type))
+                         .format(snapshot_type))
 
 # Function for determining the snapshot type of a file
 @cython.header(# Arguments
@@ -64,10 +64,14 @@ def save(particles, a, filename):
                returns='str',
                )
 def get_snapshot_type(filename):
+    # Raise an exception if the file does not exist
+    if master and not os.path.exists(filename):
+        raise Exception('The snapshot file "{}" does not exist'
+                         .format(filename))
     # Test for standard HDF5 format by looking up ΩΛ and particles
     try:
         with h5py.File(filename, mode='r') as f:
-            f.attrs[unicode_Omega + unicode_Lambda]
+            f.attrs[unicode('Ω') + unicode('Λ')]
             f['particles']
             return 'standard'
     except:
@@ -114,8 +118,7 @@ def load(filename, write_msg=True):
 # saving/loading, it stores particle data (positions, momenta, mass)
 @cython.cclass
 class StandardSnapshot:
-    # Initialization method.
-    # Note that data attributes are declared in the .pxd file.
+    # Initialization method
     @cython.header
     def __init__(self):
         # The triple quoted string below serves as the type declaration
@@ -157,8 +160,9 @@ class StandardSnapshot:
             self.params['a']       = hdf5_file.attrs['a']
             self.params['boxsize'] = hdf5_file.attrs['boxsize']
             self.params['H0']      = hdf5_file.attrs['H0']
-            self.params['Ωm']      = hdf5_file.attrs[unicode_Omega + 'm']
-            self.params['ΩΛ']      = hdf5_file.attrs[unicode_Omega + unicode_Lambda]
+            self.params['Ωm']      = hdf5_file.attrs[unicode('Ω') + 'm']
+            self.params['ΩΛ']      = hdf5_file.attrs[unicode('Ω')
+                                                     + unicode('Λ')]
             # Check if the parameters of the snapshot
             # matches those of the current simulation run.
             # Display a warning if they do not.
@@ -271,8 +275,8 @@ class StandardSnapshot:
             hdf5_file.attrs['H0'] = self.params['H0']
             hdf5_file.attrs['a'] = self.params['a']
             hdf5_file.attrs['boxsize'] = self.params['boxsize']
-            hdf5_file.attrs[unicode_Omega + 'm'] = self.params['Ωm']
-            hdf5_file.attrs[unicode_Omega + unicode_Lambda] = self.params['ΩΛ']
+            hdf5_file.attrs[unicode('Ω') + 'm'] = self.params['Ωm']
+            hdf5_file.attrs[unicode('Ω') + unicode('Λ')] = self.params['ΩΛ']
             # Create HDF5 group and datasets
             N = self.particles.N
             particles_h5 = hdf5_file.create_group('particles/'
@@ -315,7 +319,6 @@ class GadgetSnapshot:
     """
 
     # Initialization method.
-    # Note that data attributes are declared in the .pxd file.
     @cython.header
     def __init__(self):
         # The triple quoted string below serves as the type declaration
@@ -821,7 +824,7 @@ def load_into_standard(filename, write_msg=True):
     # Determine snapshot type
     input_type = get_snapshot_type(filename)
     if master and input_type is None:
-        raise Exception(('Cannot recognize "{}" as neither a standard nor a'
+        raise Exception(('Cannot recognize "{}" as neither a standard nor a '
                          + 'gadget2 snapshot').format(filename))
     # Dispatches the work to the appropriate function
     if input_type == 'standard':
@@ -843,10 +846,3 @@ def load_into_standard(filename, write_msg=True):
                           params_dict['a'],
                           params_dict)
     return snapshot
-
-
-# Unicode literals. Theese are needed to properly store unicode variables
-# in the HDF5-files, as otherwise, the pyxpp script will modify them.
-cython.declare(unicode_Lambda='str', unicode_Omega='str')
-unicode_Lambda = '\N{GREEK CAPITAL LETTER LAMDA}'
-unicode_Omega  = '\N{GREEK CAPITAL LETTER OMEGA}'

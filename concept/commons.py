@@ -29,16 +29,15 @@
 # Imports common to pure Python and Cython #
 ############################################
 from __future__ import division  # Needed for Python3 division in Cython
-import cython
-import h5py
+# Modules
+import contextlib, cython, h5py, imp, matplotlib, numpy as np, os, re, shutil
+import sys, unicodedata
+# For math
 from numpy import (arange, array, asarray, concatenate, cumsum, delete,
                    empty, linspace, ones, trapz, unravel_index, zeros)
 from numpy.random import random
-import numpy as np
-import os
-import re
-import shutil
-import sys
+# Use a matplotlib backend that does not require a running X-server
+matplotlib.use('Agg')
 # For fancy terminal output
 from blessings import Terminal
 terminal = Terminal(force_styling=True)
@@ -90,7 +89,37 @@ master = not rank
 ########################################
 # Cython and pure Python related stuff #
 ########################################
-import cython
+# C type names to Numpy dtype names
+cython.declare(C2np='dict')
+C2np = {# Booleans
+        'bint': np.bool,
+        # Integers
+        'char'         : np.byte,
+        'short'        : np.short,
+        'int'          : np.intc,
+        'long int'     : np.long,
+        'long long int': np.longlong,
+        'ptrdiff_t'    : np.intp,
+        # Unsgined integers
+        'unsigned char'         : np.ubyte,
+        'unsigned short'        : np.ushort,
+        'unsigned int'          : np.uintc,
+        'unsigned long int'     : np.uint,
+        'unsigned long long int': np.ulonglong,
+        'size_t'                : np.uintp,
+        # Floating-point numbers
+        'float'     : np.single,
+        'double'    : np.double,
+        'long float': np.longfloat,
+        }
+# In NumPy, binary operations between some unsigned int types (unsigned
+# long int, unsigned long long int, size_t) and signed int types results
+# in a double, rather than a signed int.
+# Get around this bug by never using these particular unsigned ints.
+if not cython.compiled:
+    C2np['unsigned long int'] = C2np['long int']
+    C2np['unsigned long long int'] = C2np['long long int']
+    C2np['size_t'] = C2np['ptrdiff_t']
 # Declarations exclusively to either pure Python or Cython
 if not cython.compiled:
     # No-op decorators for Cython compiler directives
@@ -116,12 +145,8 @@ if not cython.compiled:
     # C allocation syntax for memory management
     def sizeof(dtype):
         # C dtype names to Numpy dtype names
-        if dtype == 'int':
-            dtype = 'int32'
-        elif dtype == 'double':
-            dtype = 'float64'
-        elif dtype == 'size_t':
-            dtype = 'uintp'
+        if dtype in C2np:
+            dtype = C2np[dtype]
         elif dtype in ('func_b_ddd',
                        'func_d_dd',
                        'func_d_ddd',
@@ -142,21 +167,27 @@ if not cython.compiled:
             return a
         return empty(a[0], dtype=a.dtype)
     def realloc(p, a):
-        new_a = empty(a[0], dtype=a.dtype)
-        if new_a.size >= p.size:
-            new_a[:p.size] = p
-        else:
-            new_a[:] = p[:new_a.size]
-        return new_a
+        # Reallocation of pointer assumed
+        p.resize(a[0], refcheck=False)
+        return p
+        #new_a = empty(a[0], dtype=a.dtype)
+        #if new_a.size >= p.size:
+        #    new_a[:p.size] = p
+        #else:
+        #    new_a[:] = p[:new_a.size]
+        #return new_a
     def free(a):
         pass
-    # Array casting
+    # Casting
     def cast(a, dtype):
-        if dtype in ('int', 'unsigned int', 'size_t', 'ptrdiff_t'):
-            a = int(a)
-        elif dtype == 'bint':
-            a = bool(a)
-        return a
+        match = re.search('(.*)\[', dtype)
+        if match:
+            # Pointer to array cast assumed
+            # (array to array in pure Python).
+            return a
+        else:
+            # Scalar
+            return C2np[dtype](a)
     # Dummy fused types
     number = number2 = integer = floating = []
 else:
@@ -213,8 +244,9 @@ if not cython.compiled:
                        sqrt,
                        )
     from math import erfc
-    # Import the units module
-    import units
+    # Dummy unicode function
+    def unicode(c):
+        return c
 else:
     # Lines in triple quotes will be executed in .pyx files.
     """
@@ -231,9 +263,66 @@ else:
                             exp, log, log2, log10,
                             sqrt, erfc
                             )
-    # Import the units module
-    cimport units
+    # The pyxpp script convert all Unicode source code characters into
+    # ASCII. The function below grants the code access to
+    # Unicode string literals, by undoing the convertion.
+    @cython.header(c='str', returns='str')
+    def unicode(c):
+        return unicodedata.lookup(c.replace('_', ' '))
     """
+
+
+
+##################
+# Physical units #
+##################
+# Implement units as an instance of a Cython extension type with
+# the actual units defined as data attributes.
+@cython.cclass
+class Units:
+    # Initialization method.
+    @cython.header
+    def __init__(self):
+        # The triple quoted string below serves as the type declaration
+        # for the Units type. It will get picked up by the
+        # pyxpp script and indluded in the .pxd files.
+        """
+        # Data attributes
+        double cm, m, km, AU, pc, kpc, Mpc, Gpc
+        double s, min, hr, day, yr, kyr, Myr, Gyr
+        double g, kg, m_sun, km_sun, Mm_sun, Gm_sun
+        """
+        # The following is chosen as the base units:
+        # Length: 1*kpc
+        # Time:   1*Gyr
+        # Mass:   1e+10*m_sun (1 m_sun ≡ 1.989e+30 kg)
+        # Note that the base unit of velocity is then just about 1 km/s
+        self.kpc    = 1
+        self.Gyr    = 1
+        self.m_sun  = 1e-10
+        # Other prefixes of the base length, time and mass
+        self.pc     = 1e-3*self.kpc
+        self.Mpc    = 1e+6*self.pc
+        self.Gpc    = 1e+9*self.pc
+        self.yr     = 1e-9*self.Gyr
+        self.kyr    = 1e+3*self.yr
+        self.Myr    = 1e+6*self.yr
+        self.km_sun = 1e+3*self.m_sun
+        self.Mm_sun = 1e+6*self.m_sun
+        self.Gm_sun = 1e+9*self.m_sun
+        # Non-base units
+        self.AU     = π/(60*60*180)*self.pc
+        self.m      = self.AU/149597870700
+        self.cm     = 1e-2*self.m
+        self.km     = 1e+3*self.m
+        self.day    = self.yr/365.25
+        self.hr     = self.day/24
+        self.min    = self.hr/60
+        self.s      = self.min/60  # Uses Julian years
+        self.kg     = self.m_sun/1.989e+30
+        self.g      = 1e-3*self.kg
+cython.declare(units='Units')
+units = Units()
 
 
 
@@ -241,7 +330,6 @@ else:
 # Absolute paths to directories and files #
 ###########################################
 # The paths are stored in the top_dir/.paths file
-import imp
 cython.declare(paths='dict')
 top_dir = os.path.abspath('.')
 while True:
@@ -256,12 +344,117 @@ paths = {key: value for key, value in paths_module.__dict__.items()
 
 
 
-###############################################################
-# Import all user specified parameters from the params module #
-###############################################################
-# Parameters are imported from params.py, which is essentially just a
-# copy of the current parameter file. The parameters are slightly
-# processed, as follows:
+##########################
+# Command line arguments #
+##########################
+# Handle command line arguments given to the Python interpreter
+# (not those explicitly given to the run script).
+# Construct a dict from command line arguments of the form
+# "params='/path/to/params'"
+cython.declare(argd='dict',
+               globals_dict='dict',
+               scp_password='str',
+               )
+argd = {}
+for arg in sys.argv:
+    with contextlib.suppress(Exception):
+        exec(arg, argd)
+globals_dict = {}
+exec('', globals_dict)
+for key in globals_dict.keys():
+    argd.pop(key, None)
+# Extract command line arguments from the dict. If not given,
+# give the arguments some default value.
+# The parameter file
+paths['params'] = argd.get('params', '')
+paths['params_dir'] = ('' if not paths['params']
+                       else os.path.dirname(paths['params']))
+# The scp password
+scp_password = argd.get('scp_password', '')
+
+
+
+################################################################
+# Import all user specified parameters from the parameter file #
+################################################################
+# Dict constituting the namespace for the statements
+# in the user specified parameter file.
+params = {# The paths dict
+          'paths': paths,
+          # Modules
+          'numpy': np,
+          'np'   : np,
+          'os'   : os,
+          're'   : re,
+          'sys'  : sys,
+          # Units from the units extension type
+          'cm'    : units.cm,
+          'm'     : units.m,
+          'km'    : units.km,
+          'AU'    : units.AU,
+          'pc'    : units.pc,
+          'kpc'   : units.kpc,
+          'Mpc'   : units.Mpc,
+          'Gpc'   : units.Gpc,
+          's'     : units.s,
+          'yr'    : units.yr,
+          'kyr'   : units.kyr,
+          'Myr'   : units.Myr,
+          'Gyr'   : units.Gyr,
+          'g'     : units.g,
+          'kg'    : units.kg,
+          'm_sun' : units.m_sun,
+          'km_sun': units.km_sun,
+          'Mm_sun': units.Mm_sun,
+          'Gm_sun': units.Gm_sun,
+          # Mathemtical NumPy functions and constants
+          'abs'        : np.abs,
+          'arccos'     : np.arccos,
+          'arccosh'    : np.arccosh,
+          'arcsin'     : np.arcsin,
+          'arcsinh'    : np.arcsinh,
+          'arctan'     : np.arctan,
+          'arctanh'    : np.arctanh,
+          'cos'        : np.cos,
+          'cosh'       : np.cosh,
+          'exp'        : np.exp,
+          'mod'        : np.mod,
+          'sin'        : np.sin,
+          'sinh'       : np.sinh,
+          'sqrt'       : np.sqrt,
+          'tan'        : np.tan,
+          'tanh'       : np.tanh,
+          'log'        : np.log,
+          'log2'       : np.log2,
+          'log10'      : np.log10,
+          'pi'         : np.pi,
+          unicode('π') : np.pi,
+          'e'          : np.e,
+          # Other NumPy functions
+          'arange'     : np.arange,
+          'array'      : np.array,
+          'asarray'    : np.asarray,
+          'concatenate': np.concatenate,
+          'cumprod'    : np.cumprod,
+          'cumsum'     : np.cumsum,
+          'empty'      : np.empty,
+          'linspace'   : np.linspace,
+          'loadtxt'    : np.loadtxt,
+          'max'        : np.max,
+          'min'        : np.min,
+          'ones'       : np.ones,
+          'prod'       : np.prod,
+          'random'     : np.random.random,
+          'sum'        : np.sum,
+          'trapz'      : np.trapz,
+          'zeros'      : np.zeros,
+          }
+# "Import" the parameter file be executing it in the namespace defined
+# by the params dict.
+if os.path.isfile(paths['params']):
+    with open(paths['params']) as params_file:
+        exec(params_file.read(), params)
+# The parameters are now being processed as follows:
 # - Some parameters are explicitly casted.
 # - Spaces are removed from the 'snapshot_type' parameter, and all
 #   characters are converted to lowercase.
@@ -272,10 +465,6 @@ paths = {key: value for key, value in paths_module.__dict__.items()
 # - Colors are transformed to (r, g, b) arrays.
 # - The 'special_params' parameter is set to an empty dictionary if it
 #   is not defined in params.py
-import params
-from matplotlib.colors import ColorConverter
-to_rgb = lambda color: array(ColorConverter().to_rgb(color),
-                             dtype='float64')
 cython.declare(# Input/output
                IC_file='str',
                snapshot_type='str',
@@ -309,64 +498,70 @@ cython.declare(# Input/output
                special_params='dict',
                )
 # Input/output
-IC_file         = params.IC_file
-snapshot_type   = params.snapshot_type.lower().replace(' ', '')
-output_dirs     = {key: path if not path 
-                                or os.path.relpath(path, paths['concept_dir'])
-                                           .startswith('../../')
-                             else os.path.relpath(path, paths['concept_dir']) 
-                   for key, path in params.output_dirs.items()}
-output_bases    = params.output_bases
-output_times    = {key: tuple(sorted(set([float(nr) for nr in np.ravel(val) if nr])))
-                   for key, val in params.output_times.items()}
+IC_file = str(params.get('IC_file', 'ICs/default'))
+if (IC_file and not os.path.relpath(IC_file, paths['concept_dir'])
+                            .startswith('../../')):
+    IC_file = os.path.relpath(IC_file, paths['concept_dir'])
+snapshot_type = (str(params.get('snapshot_type', 'standard'))
+                 .lower().replace(' ', ''))
+output_dirs = dict(params.get('output_dirs', {}))
+for kind in ('snapshot', 'powerspec', 'render'):
+    output_dirs[kind] = str(output_dirs.get(kind, 'output'))
+output_dirs = {key: path if not path 
+                            or os.path.relpath(path, paths['concept_dir'])
+                                       .startswith('../../')
+                         else os.path.relpath(path, paths['concept_dir']) 
+               for key, path in output_dirs.items()}
+output_bases = dict(params.get('output_bases', {}))
+for kind in ('snapshot', 'powerspec', 'render'):
+    output_bases[kind] = str(output_bases.get(kind, kind))
+output_times = dict(params.get('output_times', {}))
+for kind in ('snapshot', 'powerspec', 'render', 'terminal render'):
+    output_times[kind] = output_times.get(kind, ())
+output_times = {key: tuple(sorted(set([float(nr) for nr in np.ravel(val)
+                                                 if nr or nr == 0])))
+                for key, val in output_times.items()}
 # Numerical parameters
-boxsize          = params.boxsize
-ewald_gridsize   = cast(params.ewald_gridsize, 'int')
-PM_gridsize      = cast(params.PM_gridsize, 'ptrdiff_t')
-P3M_scale        = params.P3M_scale
-P3M_cutoff       = params.P3M_cutoff
-softeningfactors = params.softeningfactors
-Δt_factor        = params.Δt_factor
+boxsize = float(params.get('boxsize', 1))
+ewald_gridsize = int(params.get('ewald_gridsize', 64))
+PM_gridsize = int(params.get('PM_gridsize', 64))
+P3M_scale = float(params.get('P3M_scale', 1.25))
+P3M_cutoff = float(params.get('P3M_cutoff', 4.8))
+softeningfactors = dict(params.get('softeningfactors', {}))
+for kind in ('dark matter', ):
+    softeningfactors[kind] = float(softeningfactors.get(kind, 0.03))
+Δt_factor = float(params.get(unicode('Δ') + 't_factor', 0.07))
 # Cosmological parameters
-H0      = params.H0
-Ωm      = params.Ωm
-ΩΛ      = params.ΩΛ
-a_begin = params.a_begin
+H0 = float(params.get('H0', 70*units.km/(units.s*units.Mpc)))
+Ωm = float(params.get(unicode('Ω') + 'm', 0.3))
+ΩΛ = float(params.get(unicode('Ω') + unicode('Λ'), 0.7))
+a_begin = float(params.get('a_begin', 0.02))
 # Graphics
-color               = to_rgb(params.color)
-bgcolor             = to_rgb(params.bgcolor)
-resolution          = int(params.resolution)
-liverender          = ((params.liverender if not params.liverender
-                        or os.path.relpath(params.liverender,
-                                           paths['concept_dir'])
-                           .startswith('../../')
-                        else os.path.relpath(params.liverender,
-                                             paths['concept_dir']))
-                       + '.png' if params.liverender
-                                   and not params.liverender.endswith('.png')
-                                else '')
-remote_liverender   = (params.remote_liverender
-                       + ('.png' if params.remote_liverender
-                                    and not params.remote_liverender
-                                                   .endswith('.png') else ''))
-terminal_colormap   = params.terminal_colormap
-terminal_resolution = int(params.terminal_resolution)
+color = array(matplotlib.colors.ColorConverter()
+              .to_rgb(params.get('color', 'lime')), dtype='float64')
+bgcolor = array(matplotlib.colors.ColorConverter()
+                .to_rgb(params.get('bgcolor', 'black')), dtype='float64')
+resolution = int(params.get('resolution', 1080))
+liverender = str(params.get('liverender', ''))
+if liverender:
+    if (not os.path.relpath(liverender, paths['concept_dir'])
+                    .startswith('../../')):
+        liverender = os.path.relpath(liverender, paths['concept_dir'])
+    if not liverender.endswith('.png'):
+        liverender += '.png'
+remote_liverender = str(params.get('remote_liverender', ''))
+if remote_liverender and not remote_liverender.endswith('.png'):
+    remote_liverender += '.png'
+terminal_colormap = str(params.get('terminal_colormap', 'gnuplot2'))
+terminal_resolution = int(params.get('terminal_resolution', 80))
 # Simulation options
-use_Ewald       = cast(params.use_Ewald, 'bint')
-kick_algorithms = params.kick_algorithms
-# Extra hidden parameters
-special_params = {}
-if hasattr(params, 'special_params'):
-    special_params = params.special_params
+kick_algorithms = dict(params.get('kick_algorithms', {}))
+for kind in ('dark matter', ):
+    kick_algorithms[kind] = str(kick_algorithms.get(kind, 'PP'))
+use_Ewald = bool(params.get('use_Ewald', True))
+# Extra hidden parameters via the special_params variable
+special_params = dict(params.get('special_params', {}))
 
-
-##########################
-# Command line arguments #
-##########################
-# These are command line arguments given to the Python interpreter,
-# not those explicitly given to the run script.
-cython.declare(scp_password='str')
-scp_password = sys.argv[1]
 
 
 #####################################

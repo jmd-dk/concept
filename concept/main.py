@@ -191,6 +191,7 @@ cython.declare(# Globals
                fmt='str',
                msg='str',
                ndigits='int',
+               ot='double',
                output_base='str',
                output_dir='str',
                output_kind='str',
@@ -208,14 +209,21 @@ if master:
             raise Exception(msg)
 # Create output directories if necessary
 if master:
-    for output_time, output_dir in zip(output_times.values(),
-                                       output_dirs.values()):
-        if output_time and output_dir:
+    for output_kind, output_time in output_times.items():
+        # Do not create directory if this kind of output
+        # should never be dumped to the disk.
+        if not output_time or not output_kind in output_dirs:
+            continue
+        # Create directory
+        output_dir = output_dirs[output_kind]
+        if output_dir:
             os.makedirs(output_dir, exist_ok=True)
-# Construct the patterns for the output files. This involves determining
-# the number of scalefactor digits in the output filenames. There should
-# be enogh digits so that adjacent dumps do not overwrite each other,
-# and so that the name of the first dump differs from the IC.
+Barrier()
+# Construct the patterns for the output file names. This involves
+# determining the number of scalefactor digits in the output filenames.
+# There should be enogh digits so that adjacent dumps do not overwrite
+# each other, and so that the name of the first dump differs from that
+# of the IC, should it use the same naming convention.
 output_filenames = {}
 for output_kind, output_time in output_times.items():
     # This kind of output does not matter if

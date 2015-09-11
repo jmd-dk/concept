@@ -47,7 +47,7 @@ snapshot.load(this_dir + '/IC', write_msg=False)
 # Read in data from the CONCEPT snapshots
 a = []
 particles = []
-for fname in ('snapshot_a=1.000', ):
+for fname in ('snapshot_a=1.00', ):
     snapshot.load(this_dir + '/output/' + fname, write_msg=False)
     a.append(snapshot.header['Time'])
     particles.append(snapshot.particles)

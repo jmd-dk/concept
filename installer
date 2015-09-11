@@ -506,6 +506,8 @@ fi
 # libpng
 if ([ "${imagemagick_preinstalled}" == "no" ] || [ "${python_preinstalled}" == "no" ]) && [ "${libpng_preinstalled}" == "no" ] ; then
     if [ "${libpng_version}" == "newest" ]; then
+        current_step="search for latest version of libpng"
+        set_status "Searching for latest version of libpng"
         # For eg. libpng_version 1.6.18, libpng_version_majors is 16
         libpng_version_majors="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "ftp://ftp.simplesystems.org/pub/png/src/" | grep -o "libpng[0-9]*" | grep -o "[0-9]*" | sort -u | tail -n 1 || :)"
         libpng_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "ftp://ftp.simplesystems.org/pub/png/src/libpng${libpng_version_majors}/" | grep -o "libpng-[0-9\.]*.tar.gz" | sort -u | tail -n 1 | grep -o "[0-9\.]*" | head -n 1 || :)"
@@ -519,6 +521,8 @@ fi
 # ImageMagick
 if [ "${imagemagick_preinstalled}" == "no" ]; then
     if [ "${imagemagick_version}" == "newest" ]; then
+        current_step="search for latest version of ImageMagick"
+        set_status "Searching for latest version of ImageMagick"
         imagemagick_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "http://www.imagemagick.org/download/releases/" | grep -o "ImageMagick[0-9\.\-]*.tar" | grep -o "[0-9\.\-]*" | sort -u | tail -n 1 || :)"
         imagemagick_version="${imagemagick_version:1:${#limagemagick_version}-1}"
         fallback "ImageMagick"
@@ -850,7 +854,7 @@ if [ "${python_preinstalled}" == "no" ] && [ "${freetype_preinstalled}" == "no" 
     # FreeType does not come with a test suite
     make install 2>&1
     (cd docs; cp "FTL.TXT" "GPLv2.TXT" "LICENSE.TXT" "${freetype_dir}")
-    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+    cd "${top_dir}"; rm -r "${top_dir}/tmp"
 fi
 
 # zlib
@@ -861,7 +865,7 @@ if ([ "${imagemagick_preinstalled}" == "no" ] || [ "${python_preinstalled}" == "
     [ ${PIPESTATUS[0]} != 0 ] && zlib_test_success="no"
     make install prefix="${zlib_dir}" 2>&1
     cp "test_log" "README" "${zlib_dir}"
-    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+    cd "${top_dir}"; rm -r "${top_dir}/tmp"
 fi
 
 # libpng
@@ -878,20 +882,20 @@ if ([ "${imagemagick_preinstalled}" == "no" ] || [ "${python_preinstalled}" == "
     make install 2>&1
     reset_environment
     cp "test_log" "LICENSE" "${libpng_dir}"
-    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+    cd "${top_dir}"; rm -r "${top_dir}/tmp"
 fi
 
 # ImageMagick (as ImageMagick has a hard time finding libpng, some hacks are needed)
 if [ "${imagemagick_preinstalled}" == "no" ]; then
     download_and_extract "ImageMagick"
-    export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
-    export LD_LIBRARY_PATH="${libpng_dir}/lib:${LD_LIBRARY_PATH}"
-    export PNG_CFLAGS="-I${libpng_dir}/include/libpng${libpng_version_majors} ${PNG_CFLAGS}"
-    export PNG_LIBS="-lpng16 -L${libpng_dir}/lib, -Wl,-rpath=${libpng_dir}/lib ${PNG_LIBS}"
     # Delete the lines in the configure file where PNG_CFLAGS and
     # PNG_LIBS are set to empty strings.
     sed -i '/PNG_CFLAGS=""/d' ./configure
     sed -i '/PNG_LIBS=""/d' ./configure
+    export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
+    export LD_LIBRARY_PATH="${libpng_dir}/lib:${LD_LIBRARY_PATH}"
+    export PNG_CFLAGS="-I${libpng_dir}/include/libpng${libpng_version_majors} ${PNG_CFLAGS}"
+    export PNG_LIBS="-lpng16 -L${libpng_dir}/lib, -Wl,-rpath=${libpng_dir}/lib ${PNG_LIBS}"
     ./configure --prefix="${imagemagick_dir}" --disable-openmp --with-png=yes --with-bzlib=no --with-autotrace=no --with-djvu=no --with-dps=no --with-fftw=no --with-fpx=no --with-fontconfig=no --with-freetype=no --with-gslib=no --with-gvc=no --with-jbig=no --with-jpeg=no --with-lcms=no --with-lqr=no --with-lzma=no --with-magick-plus-plus=no --with-openexr=no --with-openjp2=no --with-pango=no --with-perl=no --with-rsvg=no --with-tiff=no --with-webp=no --with-wmf=no --with-x=no --with-xml=no --with-zlib=no 2>&1
     make 2>&1
     make check 2>&1 | tee "test_log"
@@ -899,7 +903,7 @@ if [ "${imagemagick_preinstalled}" == "no" ]; then
     make install 2>&1
     reset_environment
     cp "test_log" "AUTHORS.txt" "LICENSE" "NOTICE" "${imagemagick_dir}"
-    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+    cd "${top_dir}"; rm -r "${top_dir}/tmp"
 fi
 
 # ncurses
@@ -924,7 +928,7 @@ if [ "${python_preinstalled}" == "no" ] && [ "${ncurses_preinstalled}" == "no" ]
         (sleep 10; echo "q") | "test/worm" -number 7 > "test_log" 2>&1
     fi
     cp "test_log" "AUTHORS" "COPYING" "${ncurses_dir}/include/ncurses"
-    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+    cd "${top_dir}"; rm -r "${top_dir}/tmp"
 fi
 
 # OpenSSL
@@ -936,7 +940,7 @@ if [ "${python_preinstalled}" == "no" ] && [ "${openssl_preinstalled}" == "no" ]
     [ ${PIPESTATUS[0]} != 0 ] && openssl_test_success="no"
     make install 2>&1
     cp "test_log" "LICENSE" "README" "${openssl_dir}"
-    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+    cd "${top_dir}"; rm -r "${top_dir}/tmp"
 fi
 
 # Python
@@ -952,7 +956,7 @@ if [ "${python_preinstalled}" == "no" ]; then
     make install 2>&1
     reset_environment
     cp "test_log" "LICENSE" "README" "${python_dir}"
-    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+    cd "${top_dir}"; rm -r "${top_dir}/tmp"
 fi
 # Overwrite the 'python_version' variable with the major.minor version and
 # create a python variable, storing the path to the newly installed Python interpreter.
@@ -966,23 +970,30 @@ pip_download()
     if [ -n "${2}" ] && [ "${2}" != "upgrade" ]; then
         command_end="==${2}"
     fi
-    pip_name="${1//_/}"  # Remove underscores from name
+    pip_name="${1//_/}"       # Remove underscores from name
+    pip_name="${pip_name,,}"  # Ensure lowercase
     mkdir "${top_dir}/tmp"
-    disable_status
     for n in {1..50}; do
-        pip_status="success"
-        "${python}" -m pip install -v -v -v --no-cache-dir --no-binary=:all: --download "${top_dir}/tmp" "${pip_name}${command_end}" 2>&1 || pip_status="error"
+        pip_status="error"
+        "${python}" -m pip install -v -v -v --no-cache-dir --no-binary=:all: --download "${top_dir}/tmp" "${pip_name}${command_end}" 2>&1 || :
+        # If the archive exists in the tmp dir, the download completed successfully
+        if ls "${top_dir}/tmp" | grep -i "${pip_name}-[0-9.]*.tar.gz" > /dev/null 2>&1; then
+            pip_status="success"
+        fi
         if [ "${pip_status}" == "error" ]; then
             # Pip may be too old to support "--no-binary". Try with the (now depricated) "--no-use-wheel"
-            pip_status="success"
-            "${python}" -m pip install -v -v -v --no-cache-dir --no-use-wheel --download "${top_dir}/tmp" "${pip_name}${command_end}" 2>&1 || pip_status="error"
+            pip_status="error"
+            "${python}" -m pip install -v -v -v --no-cache-dir --no-use-wheel --download "${top_dir}/tmp" "${pip_name}${command_end}" 2>&1 || :
+            # If the archive exists in the tmp dir, the download completed successfully
+            if ls "${top_dir}/tmp" | grep -i "${pip_name}-[0-9.]*.tar.gz" > /dev/null 2>&1; then
+                pip_status="success"
+            fi
         fi
         if [ "${pip_status}" == "success" ]; then
             break
         fi
         sleep 10
     done
-    enable_status
     if [ "${pip_status}" == "error" ]; then
         error "Error downloading ${1}"
         exit 1
@@ -1022,7 +1033,7 @@ pip_install()
     else
         "${python}" -m pip install -v -v -v --no-index --find-links="${top_dir}/tmp" "${pip_name}${command_end}" 2>&1
     fi
-    rm -rf "${top_dir}/tmp"
+    rm -r "${top_dir}/tmp"
 }
 # Upgrade pip
 pip_install "pip" "upgrade"
@@ -1064,7 +1075,7 @@ if [ "${gsl_preinstalled}" == "no" ]; then
     [ ${PIPESTATUS[0]} != 0 ] && gsl_test_success="no"
     make install 2>&1
     cp "test_log" "COPYING" "README" "${gsl_dir}"
-    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+    cd "${top_dir}"; rm -r "${top_dir}/tmp"
 fi
 
 # MPICH
@@ -1076,7 +1087,7 @@ if [ "${mpi_preinstalled}" == "no" ]; then
     [ ${PIPESTATUS[0]} != 0 ] && mpich_test_success="no"
     make install 2>&1
     cp "test_log" "COPYRIGHT" "test_log" "${mpi_dir}"
-    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+    cd "${top_dir}"; rm -r "${top_dir}/tmp"
 fi
 
 # HDF5
@@ -1090,19 +1101,19 @@ if [ "${hdf5_preinstalled}" == "no" ]; then
     # On some systems, the HDF5 test (make check) hangs indefinitely.
     # To counteract this, kill the process if it still runs after an
     # hour and count the test as failed.
-    hdf5_test_exitcode=0
-    hdf5_test_finished_gracefully=0
     make check 2>&1 | tee "test_log" & hdf5_test_pid=$!
-    (sleep 3600 && kill -9 ${hdf5_test_pid}) & hdf5_test_waiter_pid=$!
-    wait ${hdf5_test_pid} && hdf5_test_exitcode=$?
-    kill -9 ${hdf5_test_waiter_pid}} > /dev/null 2>&1 || hdf5_test_finished_gracefully=$?
+    (sleep 3600 && kill -9 ${hdf5_test_pid} >/dev/null 2>&1 || :) & hdf5_test_killer_pid=$!
+    wait ${hdf5_test_pid}
+    kill -9 ${hdf5_test_killer_pid} > /dev/null 2>&1 || :
+    # Measure success based on contents of the last line of "test_log"
+    tail -n 1 "test_log" | grep "make\[1\]: Leaving directory" > /dev/null
+    hdf5_test_exitcode=$?
     [ ${hdf5_test_exitcode} != 0 ] && hdf5_test_success="no"
-    [ ${hdf5_test_finished_gracefully} != 0 ] && hdf5_test_success="no"
     # Continue installation
     make install 2>&1
     reset_environment
     cp "test_log" "COPYING" "README.txt" "${hdf5_dir}"
-    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+    cd "${top_dir}"; rm -r "${top_dir}/tmp"
 fi
 
 # FFTW
@@ -1124,7 +1135,7 @@ if [ "${fftw_preinstalled}" == "no" ]; then
     # Single-precision goes here ..........................
     reset_environment
     cp "test_log" "COPYING" "README" "${fftw_dir}"
-    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+    cd "${top_dir}"; rm -r "${top_dir}/tmp"
 fi
 
 
@@ -1251,25 +1262,25 @@ fi
 
 # Matplotlib (as Matplotlib has a hard time finding FreeType, some hacks are needed)
 if [ "${matplotlib_preinstalled}" == "no" ]; then
-    export CPPFLAGS="-I${freetype_dir}/include -I${freetype_dir}/include/freetype"*" -I${libpng_dir}/include -I${libpng_dir}/include/libpng${libpng_version_majors} ${CPPFLAGS}"
-    export LDFLAGS="-L${freetype_dir}/lib -Wl,-rpath=${freetype_dir}/lib -L${libpng_dir}/lib -Wl,-rpath=${libpng_dir}/lib ${LDFLAGS}"
-    export PATH="${freetype_dir}/bin:${libpng_dir}/bin:${PATH}"
-    export LD_LIBRARY_PATH="${libpng_dir}/lib:${LD_LIBRARY_PATH}"
-    export PKG_CONFIG_PATH="${libpng_dir}/lib/pkgconfig${PKG_CONFIG_PATH}"
     current_step="installation of Matplotlib"
     heading "Installing Matplotlib"
     set_status "Installing Matplotlib"
     pip_download "matplotlib" "${matplotlib_version}"
     cd "${top_dir}/tmp"
-    tar xfz matplotlib*.gz
+    tar -ixzvf matplotlib*tar.gz
     cd matplotlib*
     cp setup.cfg.template setup.cfg
     sed -i "/basedirlist/c\basedirlist = ${freetype_dir}" setup.cfg
     cp -r "${freetype_dir}/include/freetype"*/* "${freetype_dir}/include"
+    export CPPFLAGS="-I${freetype_dir}/include -I${freetype_dir}/include/freetype"*" -I${libpng_dir}/include -I${libpng_dir}/include/libpng${libpng_version_majors} ${CPPFLAGS}"
+    export LDFLAGS="-L${freetype_dir}/lib -Wl,-rpath=${freetype_dir}/lib -L${libpng_dir}/lib -Wl,-rpath=${libpng_dir}/lib ${LDFLAGS}"
+    export PATH="${freetype_dir}/bin:${libpng_dir}/bin:${PATH}"
+    export LD_LIBRARY_PATH="${libpng_dir}/lib:${LD_LIBRARY_PATH}"
+    export PKG_CONFIG_PATH="${libpng_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
     "${python}" setup.py build 2>&1
     "${python}" setup.py install 2>&1
     reset_environment
-    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+    cd "${top_dir}"; rm -r "${top_dir}/tmp"
 fi
 
 # MPI4Py
@@ -1291,14 +1302,14 @@ if [ "${h5py_preinstalled}" == "no" ]; then
     set_status "Installing H5Py"
     pip_download "h5py" "${h5py_version}"
     cd "${top_dir}/tmp"
-    tar xfz h5py*.gz
+    tar -ixzvf h5py*tar.gz
     cd h5py*
     export CC="${mpi_dir}/bin/mpicc"
     "${python}" setup.py configure --mpi --hdf5="${hdf5_dir}" 2>&1
     "${python}" setup.py build 2>&1
     "${python}" setup.py install 2>&1
     reset_environment
-    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+    cd "${top_dir}"; rm -r "${top_dir}/tmp"
 fi
 
 
@@ -1310,7 +1321,7 @@ fi
 if [ "${concept_preinstalled}" == "no" ]; then
     download_and_extract "CONCEPT"
     mv ./* "${top_dir}"  # This leaves the .paths file behind in the concept-master folder
-    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+    cd "${top_dir}"; rm -r "${top_dir}/tmp"
     # Create empty logs and output directories
     mkdir -p "${concept_dir}/logs"
     mkdir -p "${concept_dir}/output"
@@ -1405,7 +1416,7 @@ if [ "${fftw_for_gadget_preinstalled}" == "no" ]; then
     make install 2>&1
     reset_environment
     cp "test_log" "COPYING" "README" "${fftw_for_gadget_dir}"
-    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+    cd "${top_dir}"; rm -r "${top_dir}/tmp"
 fi
 
 # GADGET
@@ -1413,7 +1424,7 @@ if [ "${gadget_preinstalled}" == "no" ]; then
     download_and_extract "GADGET"
     mkdir -p "${gadget_dir}"
     mv ./* "${gadget_dir}"
-    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+    cd "${top_dir}"; rm -r "${top_dir}/tmp"
 fi
 
 
