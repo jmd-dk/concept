@@ -786,9 +786,9 @@ fi
 ###################################
 # Installing CONCEPT dependencies #
 ###################################
-# Function for downloading and extracting compressed archives.
-# The "programname_url" must point to an archive which contains
-# a single directory.
+# Function for downloading and extracting compressed .tar.gz/.tgz
+# archives. The "programname_url" must point to such an archive, which
+# contains a single directory.
 download_and_extract()
 {
     # Arguments: Program name
@@ -807,33 +807,13 @@ download_and_extract()
         set_status "Installing ${1/CONCEPT/$esc_concept_double_backslashes} ${progversion}"
     fi
     eval "url=\"\${${progname}_url}\""
-    # Get extraction options
-    declare -A extensions_options
-    # Note: Only tar.gz files should ever be downloaded, as tar.bz2 and
-    # tar.xz files require the programs bzip2 and xz, respectively,
-    # which are not listed as dependencies in this script.
-    extensions_options=(["tar.gz"]="z" ["tgz"]="z"
-                        ["tar.bz2"]="j" ["tbz2"]="j" ["tbz"]="j"
-                        ["tar.xz"]="J" ["txz"]="J"
-                        )
-    for ext in "${!extensions_options[@]}"; do
-        if [[ "${url}" == *.${ext} ]]; then
-            local tar_options="-ix${extensions_options[$ext]}vf"
-            break
-        fi
-    done
-    if [ -z "${tar_options}" ]; then
-        error "Compression format of file ${url} not understood!"
-        exit 1
-    fi
     # Download
     mkdir -p "${top_dir}/tmp"
     cd "${top_dir}/tmp"
-    archive_name="${progname}.${ext}"
     disable_status
     for n in {1..50}; do
         wget_status="success"
-        wget --timeout 15 -c -O "${archive_name}" --no-check-certificate "${url}" || wget_status="error"
+        wget --timeout 15 -c -O "${progname}.tar.gz" --no-check-certificate "${url}" || wget_status="error"
         if [ "${wget_status}" == "success" ]; then
             break
         fi
@@ -845,7 +825,7 @@ download_and_extract()
         exit 1
     fi
     # Extract
-    tar "${tar_options}" "${archive_name}"
+    gunzip < "${progname}.tar.gz" | tar -ixvf -
     cd *
 }
 
@@ -949,6 +929,80 @@ if [ "${python_preinstalled}" == "no" ] && [ "${openssl_preinstalled}" == "no" ]
     cd "${top_dir}"; rm -rf "${top_dir}/tmp"
 fi
 
+# GSL
+if [ "${gsl_preinstalled}" == "no" ]; then
+    download_and_extract "GSL"
+    ./configure --prefix="${gsl_dir}" 2>&1
+    make 2>&1
+    make check 2>&1 | tee "test_log"
+    [ ${PIPESTATUS[0]} != 0 ] && gsl_test_success="no"
+    make install 2>&1
+    cp "test_log" "COPYING" "README" "${gsl_dir}"
+    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+fi
+
+# MPICH
+if [ "${mpi_preinstalled}" == "no" ]; then
+    download_and_extract "MPICH"
+    ./configure --enable-shared --disable-fortran --prefix="${mpi_dir}" 2>&1
+    make 2>&1
+    make testing 2>&1 | tee "test_log"
+    [ ${PIPESTATUS[0]} != 0 ] && mpich_test_success="no"
+    make install 2>&1
+    cp "test_log" "COPYRIGHT" "test_log" "${mpi_dir}"
+    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+fi
+
+# HDF5
+if [ "${hdf5_preinstalled}" == "no" ]; then
+    download_and_extract "HDF5"
+    export CC="${mpi_dir}/bin/mpicc"
+    export LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}"
+    export PATH="${mpi_dir}/bin:${PATH}"
+    ./configure --enable-shared --enable-parallel --with-zlib="${zlib_dir}/include","${zlib_dir}/lib" --prefix="${hdf5_dir}" 2>&1
+    make 2>&1
+    # On some systems, the HDF5 test (make check) hangs indefinitely.
+    # To counteract this, kill the process if it still runs after an
+    # hour and count the test as failed.
+    make check 2>&1 | tee "test_log" & hdf5_test_pid=$!
+    (sleep 3600 && kill -9 ${hdf5_test_pid} >/dev/null 2>&1 || :) & hdf5_test_killer_pid=$!
+    wait ${hdf5_test_pid}
+    kill -9 ${hdf5_test_killer_pid} > /dev/null 2>&1 || :
+    # Measure success based on contents of the last line of "test_log"
+    tail -n 1 "test_log" | grep "make\[1\]: Leaving directory" > /dev/null
+    hdf5_test_exitcode=$?
+    [ ${hdf5_test_exitcode} != 0 ] && hdf5_test_success="no"
+    make check-install 2>&1 | tee -a "test_log"
+    [ ${hdf5_test_exitcode} != 0 ] && hdf5_test_success="no"
+    # Continue installation
+    make install 2>&1
+    reset_environment
+    cp "test_log" "COPYING" "README.txt" "${hdf5_dir}"
+    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+fi
+
+# FFTW
+if [ "${fftw_preinstalled}" == "no" ]; then
+    download_and_extract "FFTW"
+    # Double-precision
+    export CC="${mpi_dir}/bin/mpicc"
+    export CFLAGS="-O3 -fPIC ${CFLAGS}"
+    export CPPFLAGS="-I/${mpi_dir}/include ${CPPFLAGS}"
+    export LDFLAGS="-L${mpi_dir}/lib ${LDFLAGS}"
+    export MPICC="${mpi_dir}/bin/mpicc"
+    export MPILIBS="-lmpi ${MPILIBS}"
+    export PATH="${mpi_dir}/bin:${PATH}"
+    ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --prefix="${fftw_dir}" 2>&1
+    make 2>&1
+    make check 2>&1 | tee "test_log"
+    [ ${PIPESTATUS[0]} != 0 ] && fftw_test_success="no"
+    make install 2>&1
+    # Single-precision goes here ..........................
+    reset_environment
+    cp "test_log" "COPYING" "README" "${fftw_dir}"
+    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+fi
+
 # Python
 if [ "${python_preinstalled}" == "no" ]; then
     download_and_extract "Python"
@@ -968,6 +1022,12 @@ fi
 # create a python variable, storing the path to the newly installed Python interpreter.
 python_version=$("${python_dir}/bin/python3" -c "from sys import version_info as v; print(str(v.major) + '.' + str(v.minor))")
 python="${python_dir}/bin/python${python_version}"
+
+
+
+##############################
+# Installing Python packages #
+##############################
 # Function for downloading Python packages, utilizing pip
 pip_download()
 {
@@ -1005,6 +1065,7 @@ pip_download()
         exit 1
     fi
 }
+
 # Function for installing and upgrading Python packages, utilizing pip
 pip_install()
 {
@@ -1041,6 +1102,7 @@ pip_install()
     fi
     rm -rf "${top_dir}/tmp"
 }
+
 # Upgrade pip
 pip_install "pip" "upgrade"
 # Install yolk3k
@@ -1073,84 +1135,6 @@ if [ "${python_preinstalled}" == "no" ]; then
     fi
 fi
 
-# GSL
-if [ "${gsl_preinstalled}" == "no" ]; then
-    download_and_extract "GSL"
-    ./configure --prefix="${gsl_dir}" 2>&1
-    make 2>&1
-    make check 2>&1 | tee "test_log"
-    [ ${PIPESTATUS[0]} != 0 ] && gsl_test_success="no"
-    make install 2>&1
-    cp "test_log" "COPYING" "README" "${gsl_dir}"
-    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
-fi
-
-# MPICH
-if [ "${mpi_preinstalled}" == "no" ]; then
-    download_and_extract "MPICH"
-    ./configure --enable-shared --disable-fortran --prefix="${mpi_dir}" 2>&1
-    make 2>&1
-    make testing 2>&1 | tee "test_log"
-    [ ${PIPESTATUS[0]} != 0 ] && mpich_test_success="no"
-    make install 2>&1
-    cp "test_log" "COPYRIGHT" "test_log" "${mpi_dir}"
-    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
-fi
-
-# HDF5
-if [ "${hdf5_preinstalled}" == "no" ]; then
-    download_and_extract "HDF5"
-    export CC="${mpi_dir}/bin/mpicc"
-    export LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}"
-    export PATH="${mpi_dir}/bin:${PATH}"
-    ./configure --enable-shared --enable-parallel --prefix="${hdf5_dir}" 2>&1
-    make 2>&1
-    # On some systems, the HDF5 test (make check) hangs indefinitely.
-    # To counteract this, kill the process if it still runs after an
-    # hour and count the test as failed.
-    make check 2>&1 | tee "test_log" & hdf5_test_pid=$!
-    (sleep 3600 && kill -9 ${hdf5_test_pid} >/dev/null 2>&1 || :) & hdf5_test_killer_pid=$!
-    wait ${hdf5_test_pid}
-    kill -9 ${hdf5_test_killer_pid} > /dev/null 2>&1 || :
-    # Measure success based on contents of the last line of "test_log"
-    tail -n 1 "test_log" | grep "make\[1\]: Leaving directory" > /dev/null
-    hdf5_test_exitcode=$?
-    [ ${hdf5_test_exitcode} != 0 ] && hdf5_test_success="no"
-    # Continue installation
-    make install 2>&1
-    reset_environment
-    cp "test_log" "COPYING" "README.txt" "${hdf5_dir}"
-    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
-fi
-
-# FFTW
-if [ "${fftw_preinstalled}" == "no" ]; then
-    download_and_extract "FFTW"
-    # Double-precision
-    export CC="${mpi_dir}/bin/mpicc"
-    export CFLAGS="-O3 -fPIC ${CFLAGS}"
-    export CPPFLAGS="-I/${mpi_dir}/include ${CPPFLAGS}"
-    export LDFLAGS="-L${mpi_dir}/lib ${LDFLAGS}"
-    export MPICC="${mpi_dir}/bin/mpicc"
-    export MPILIBS="-lmpi ${MPILIBS}"
-    export PATH="${mpi_dir}/bin:${PATH}"
-    ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --prefix="${fftw_dir}" 2>&1
-    make 2>&1
-    make check 2>&1 | tee "test_log"
-    [ ${PIPESTATUS[0]} != 0 ] && fftw_test_success="no"
-    make install 2>&1
-    # Single-precision goes here ..........................
-    reset_environment
-    cp "test_log" "COPYING" "README" "${fftw_dir}"
-    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
-fi
-
-
-
-##############################
-# Installing Python packages #
-##############################
-# Get versions of Python packages from PyPI.
 # Function for finding the newest version of Python packages, utilizing yolk.
 yolk_version()
 {
@@ -1206,7 +1190,8 @@ python_check_package()
     fi
 }
 
-# Check that specified Python package informations are correct and gather new
+# Check that specified Python package informations are correct and
+# gather new from PyPI.
 python_check_package "Blessings"  "${python_dir}/lib/python${python_version}/site-packages/blessings"
 python_check_package "Cython"     "${python_dir}/lib/python${python_version}/site-packages/Cython"
 python_check_package "Cython_GSL" "${python_dir}/lib/python${python_version}/site-packages/cython_gsl"
@@ -1269,18 +1254,18 @@ fi
 
 # Matplotlib (as Matplotlib has a hard time finding FreeType, some hacks are needed)
 if [ "${matplotlib_preinstalled}" == "no" ]; then
-    current_step="installation of Matplotlib"
-    heading "Installing Matplotlib"
-    set_status "Installing Matplotlib"
+    current_step="installation of Matplotlib ${matplotlib_version}"
+    heading "Installing Matplotlib ${matplotlib_version}"
+    set_status "Installing Matplotlib ${matplotlib_version}"
     pip_download "matplotlib" "${matplotlib_version}"
     cd "${top_dir}/tmp"
-    tar -ixzvf matplotlib*.tar.gz
+    gunzip < matplotlib*.tar.gz | tar -ixvf -
     cd matplotlib*
     cp setup.cfg.template setup.cfg
     sed -i "/basedirlist/c\basedirlist = ${freetype_dir}" setup.cfg
     cp -r "${freetype_dir}/include/freetype"*/* "${freetype_dir}/include"
-    export CPPFLAGS="-I${freetype_dir}/include -I${freetype_dir}/include/freetype"*" -I${libpng_dir}/include -I${libpng_dir}/include/libpng${libpng_version_majors} ${CPPFLAGS}"
-    export LDFLAGS="-L${freetype_dir}/lib -Wl,-rpath=${freetype_dir}/lib -L${libpng_dir}/lib -Wl,-rpath=${libpng_dir}/lib ${LDFLAGS}"
+    export CPPFLAGS="-I${freetype_dir}/include -I${freetype_dir}/include/freetype"*" -I${libpng_dir}/include -I${libpng_dir}/include/libpng${libpng_version_majors} -I${zlib_dir}/include ${CPPFLAGS}"
+    export LDFLAGS="-L${freetype_dir}/lib -Wl,-rpath=${freetype_dir}/lib -L${libpng_dir}/lib -Wl,-rpath=${libpng_dir}/lib -L${zlibpng_dir}/lib -Wl,-rpath=${zlibpng_dir}/lib ${LDFLAGS}"
     export PATH="${freetype_dir}/bin:${libpng_dir}/bin:${PATH}"
     export LD_LIBRARY_PATH="${libpng_dir}/lib:${zlib_dir}/lib:${LD_LIBRARY_PATH}"
     export PKG_CONFIG_PATH="${libpng_dir}/lib/pkgconfig:${zlib_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
@@ -1303,12 +1288,12 @@ fi
 
 # H5Py (manual invocation of setup.py is needed as --mpi needs to be supplied)
 if [ "${h5py_preinstalled}" == "no" ]; then
-    current_step="installation of H5Py"
-    heading "Installing H5Py"
-    set_status "Installing H5Py"
+    current_step="installation of H5Py ${h5py_version}"
+    heading "Installing H5Py ${h5py_version}"
+    set_status "Installing H5Py ${h5py_version}"
     pip_download "h5py" "${h5py_version}"
     cd "${top_dir}/tmp"
-    tar -ixzvf h5py*.tar.gz
+    gunzip < h5py*.tar.gz | tar -ixvf -
     cd h5py*
     export CC="${mpi_dir}/bin/mpicc"
     "${python}" setup.py configure --mpi --hdf5="${hdf5_dir}" 2>&1
