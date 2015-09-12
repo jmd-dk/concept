@@ -492,7 +492,11 @@ else
         colorprint "Running CONCEPT in pure Python mode" "yellow" | tee "${this_dir}/logs/${jobid}"
     fi
     echo "Entry point:   \"${main_rel}\""   | tee -a "${this_dir}/logs/${jobid}"
-    echo "Parameterfile: \"${params_rel}\"" | tee -a "${this_dir}/logs/${jobid}"
+    if [ "${unspecified_params}" == 1 ]; then
+        echo "Parameterfile: None" | tee -a "${this_dir}/logs/${jobid}"
+    else
+        echo "Parameterfile: \"${params_rel}\"" | tee -a "${this_dir}/logs/${jobid}"
+    fi
     echo "Logfile:       \"logs/${jobid}\"" | tee -a "${this_dir}/logs/${jobid}"
     echo "Nr. of CPUs:    ${nprocs}"        | tee -a "${this_dir}/logs/${jobid}"
     # Prepare Python options
