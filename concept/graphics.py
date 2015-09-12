@@ -382,13 +382,15 @@ for tl in ax.w_yaxis.get_ticklabels():
 for tl in ax.w_zaxis.get_ticklabels():
     tl.set_visible(False)
 
-# Construct instance of the colormap with 256 - 16  = 240 colors
+# Construct instance of the colormap with 256 - 16 = 240 colors
 colormap_240 = getattr(matplotlib.cm, terminal_colormap)(arange(240))[:, :3]
 # Apply the colormap to the terminal, remapping the 240 higher color
 # numbers. The 16 lowest are left alone in order not to mess with
 # standard terminal coloring.
-for i in range(240):
-    colorhex = matplotlib.colors.rgb2hex(colormap_240[i])
-    masterprint('\x1b]4;{};rgb:{}/{}/{}\x1b\\'
-                 .format(16 + i, colorhex[1:3], colorhex[3:5], colorhex[5:]),
-                end='')
+if terminal_render_times:
+    for i in range(240):
+        colorhex = matplotlib.colors.rgb2hex(colormap_240[i])
+        masterprint('\x1b]4;{};rgb:{}/{}/{}\x1b\\'
+                     .format(16 + i, colorhex[1:3],
+                                     colorhex[3:5],
+                                     colorhex[5:]), end='')

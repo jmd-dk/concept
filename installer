@@ -577,7 +577,7 @@ if [ "${gsl_preinstalled}" == "no" ]; then
     if [ "${gsl_version}" == "newest" ]; then
         current_step="search for latest version of GSL"
         set_status "Searching for latest version of GSL"
-        gsl_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "ftp://ftp.gnu.org/gnu/gsl/" | grep "gsl-latest.tar.gz" | grep -o "gsl-[0-9.]*tar.gz" |  grep -o "[0-9][0-9.]*[0-9]" || :)"
+        gsl_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "ftp://ftp.gnu.org/gnu/gsl/" | grep "gsl-latest.tar.gz" | grep -o "gsl-[0-9.]*.tar.gz" |  grep -o "[0-9][0-9.]*[0-9]" || :)"
         fallback "GSL"
     fi
     gsl_url="ftp://ftp.gnu.org/gnu/gsl/gsl-${gsl_version}.tar.gz"
@@ -852,7 +852,7 @@ download_and_extract()
 # FreeType
 if [ "${python_preinstalled}" == "no" ] && [ "${freetype_preinstalled}" == "no" ]; then
     download_and_extract "FreeType"
-    ./configure --prefix="${freetype_dir}" 2>&1
+    ./configure --prefix="${freetype_dir}" --with-zlib=no --with-bzip2=no --with-png=no --with-harfbuzz=no 2>&1
     make 2>&1
     # FreeType does not come with a test suite
     make install 2>&1
@@ -863,10 +863,10 @@ fi
 # zlib
 if ([ "${imagemagick_preinstalled}" == "no" ] || [ "${python_preinstalled}" == "no" ]) && [ "${libpng_preinstalled}" == "no" ] && [ "${zlib_preinstalled}" == "no" ]; then
     download_and_extract "zlib"
-    ./configure 2>&1
+    ./configure --prefix="${zlib_dir}" 2>&1
     make test 2>&1 | tee "test_log"
     [ ${PIPESTATUS[0]} != 0 ] && zlib_test_success="no"
-    make install prefix="${zlib_dir}" 2>&1
+    make install 2>&1
     cp "test_log" "README" "${zlib_dir}"
     cd "${top_dir}"; rm -rf "${top_dir}/tmp"
 fi
@@ -1035,9 +1035,9 @@ pip_install()
     pip_download "${1}" "${2}"
     # Install Python package from source
     if [ "${2}" == "upgrade" ]; then
-        "${python}" -m pip install -v -v -v --upgrade --no-index --find-links="${top_dir}/tmp" "${pip_name}${command_end}" 2>&1
+        "${python}" -m pip install -v -v -v -b "${top_dir}/tmp/build" --upgrade --no-index --find-links="${top_dir}/tmp" "${pip_name}${command_end}" 2>&1
     else
-        "${python}" -m pip install -v -v -v --no-index --find-links="${top_dir}/tmp" "${pip_name}${command_end}" 2>&1
+        "${python}" -m pip install -v -v -v -b "${top_dir}/tmp/build" --no-index --find-links="${top_dir}/tmp" "${pip_name}${command_end}" 2>&1
     fi
     rm -rf "${top_dir}/tmp"
 }
@@ -1274,7 +1274,7 @@ if [ "${matplotlib_preinstalled}" == "no" ]; then
     set_status "Installing Matplotlib"
     pip_download "matplotlib" "${matplotlib_version}"
     cd "${top_dir}/tmp"
-    tar -ixzvf matplotlib*tar.gz
+    tar -ixzvf matplotlib*.tar.gz
     cd matplotlib*
     cp setup.cfg.template setup.cfg
     sed -i "/basedirlist/c\basedirlist = ${freetype_dir}" setup.cfg
@@ -1282,10 +1282,9 @@ if [ "${matplotlib_preinstalled}" == "no" ]; then
     export CPPFLAGS="-I${freetype_dir}/include -I${freetype_dir}/include/freetype"*" -I${libpng_dir}/include -I${libpng_dir}/include/libpng${libpng_version_majors} ${CPPFLAGS}"
     export LDFLAGS="-L${freetype_dir}/lib -Wl,-rpath=${freetype_dir}/lib -L${libpng_dir}/lib -Wl,-rpath=${libpng_dir}/lib ${LDFLAGS}"
     export PATH="${freetype_dir}/bin:${libpng_dir}/bin:${PATH}"
-    export LD_LIBRARY_PATH="${libpng_dir}/lib:${LD_LIBRARY_PATH}"
-    export PKG_CONFIG_PATH="${libpng_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
-    "${python}" setup.py build 2>&1
-    "${python}" setup.py install 2>&1
+    export LD_LIBRARY_PATH="${libpng_dir}/lib:${zlib_dir}/lib:${LD_LIBRARY_PATH}"
+    export PKG_CONFIG_PATH="${libpng_dir}/lib/pkgconfig:${zlib_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+    "${python}" -m pip install -v -v -v -b "${top_dir}/tmp/build" --no-index --find-links="${top_dir}/tmp" . 2>&1
     reset_environment
     cd "${top_dir}"; rm -rf "${top_dir}/tmp"
 fi
@@ -1309,11 +1308,10 @@ if [ "${h5py_preinstalled}" == "no" ]; then
     set_status "Installing H5Py"
     pip_download "h5py" "${h5py_version}"
     cd "${top_dir}/tmp"
-    tar -ixzvf h5py*tar.gz
+    tar -ixzvf h5py*.tar.gz
     cd h5py*
     export CC="${mpi_dir}/bin/mpicc"
     "${python}" setup.py configure --mpi --hdf5="${hdf5_dir}" 2>&1
-    "${python}" setup.py build 2>&1
     "${python}" setup.py install 2>&1
     reset_environment
     cd "${top_dir}"; rm -rf "${top_dir}/tmp"
