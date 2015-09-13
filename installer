@@ -23,41 +23,41 @@
 
 
 
-# This script downloads and installs the CONCEPT code by Jeppe Dakin
-# with all its dependencies. If run without an argument, it will prompt
-# for an installation directory. Alternatively, this directory can be
-# passed as an argument. Everything will be installed within this
-# directory. You can also download and run the newest version of this
-# script by executing the following command:
+# This script downloads and installs the CONCEPT code with all its
+# dependencies. If run without an argument, it will prompt for an
+# installation directory. Alternatively, this directory can be passed as
+# an argument. Everything will be installed within this directory.
+# All tests can be skipped by supplying --fast as an argument.
+# You can also download and run the newest version of this script by
+# executing the following command:
 # bash <(wget -O- --no-ch tiny.cc/nbody)
 # The above uses a URL shortener. If it does not work, use the full URL:
 # bash <(wget -O- --no-ch https://raw.githubusercontent.com/jmd-dk/concept/master/installer)
 #
 # The following software will be installed in order:
 # - FreeType (needed by matplotlib)
-# - zlib     (needed by Python, libpng and ImageMagick)
+# - zlib     (needed by libpng, ImageMagick, HDF5 and Python)
 # - libpng   (needed by matplotlib and ImageMagick)
 # - ImageMagick
 # - ncurses  (needed by _curses, which is needed by blessings)
 # - OpenSSL  (needed by pip)
-# - Python
 # - GSL
 # - MPICH
 # - HDF5
 # - FFTW
+# - Python, with the following packages (together with their own Python
+#   package dependencies):
+#     - Yolk3k
+#     - Blessings
+#     - Cython
+#     - Cython_GSL
+#     - NumPy
+#     - Matplotlib
+#     - MPI4Py
+#     - Pexpect
+#     - H5Py
 # - GADGET
 # - FFTW 2   (needed by GADGET)
-# Additionally, the following Python packages (together with
-# their own Python package dependencies) will be installed:
-# - Yolk3k
-# - Blessings
-# - Cython
-# - Cython_GSL
-# - NumPy
-# - Matplotlib
-# - MPI4Py
-# - Pexpect
-# - H5Py
 #
 # By default, any pre-installed versions of the above software will be
 # ignored. Should you wish CONCEPT to use one such pre-installed
@@ -268,6 +268,25 @@ openssl_test_success="yes"
 python_test_success="yes"
 zlib_test_success="yes"
 
+# Read in command line arguments
+fast_install="no"
+top_dir_specified="no"
+for var in "$@"; do
+    if [ "${var}" == "--fast" ]; then
+        fast_install="yes"
+    elif [ "${top_dir_specified}" == "no" ]; then
+        top_dir="${var}"
+        top_dir_specified="yes"
+    else
+        error "Got command line argument \"${var}\", but the installation path is already set to \"${top_dir}\""
+        exit 1
+    fi    
+done
+sleep_time=10
+if [ "${fast_install}" == "yes" ]
+    sleep_time=0
+fi
+
 # Check whether system dependencies are installed and located on PATH
 current_step="check for preinstalled system dependencies"
 # Function for testing whether system dependencies are installed and
@@ -317,10 +336,8 @@ check_system_dependency "wget" "wget" "wget"
 
 # Creating top level directory (top_dir)
 current_step="setup of top level directory"
-if [ -z "${1}" ]; then
+if [ "${top_dir_specified}" == "no" ]; then
     read -p "Where should the code be installed?$(echo $'\n> ')" -e top_dir
-else 
-    top_dir="${1}"
 fi
 initial_dir="$(pwd)"  # It is crucial that this line is before any cd
 convert_to_abs_path()
@@ -703,7 +720,6 @@ print_table()
     modify_element "${esc_italic_double_backslashes}" ""
     modify_element "${esc_no_italic_double_backslashes}" ""
 
-
     # Determine largest length of each column
     maxlengths=($(for i in $(eval "echo {1..${nc}}"); do echo 0; done))
     c=0
@@ -773,12 +789,12 @@ if [ "${zlib_preinstalled}"            == "no" ] \
            "└─ImageMagick"                "${imagemagick_version}"          "\"${imagemagick_dir}\""
            "   └─libpng"                  "${libpng_version}"               "\"${libpng_dir}\""
     )
-       disable_status
-       heading "Installation overview"
-       echo "The following software will be installed"
-       print_table table[@] 3
-       sleep 10
-       enable_status
+    disable_status
+    heading "Installation overview"
+    echo "The following software will be installed"
+    print_table table[@] 3
+    sleep ${sleep_time}
+    enable_status
 fi
 
 
@@ -817,7 +833,7 @@ download_and_extract()
         if [ "${wget_status}" == "success" ]; then
             break
         fi
-        sleep 10
+        sleep ${sleep_time}
     done
     enable_status
     if [ "${wget_status}" == "error" ]; then
@@ -844,8 +860,11 @@ fi
 if ([ "${imagemagick_preinstalled}" == "no" ] || [ "${python_preinstalled}" == "no" ]) && [ "${libpng_preinstalled}" == "no" ] && [ "${zlib_preinstalled}" == "no" ]; then
     download_and_extract "zlib"
     ./configure --prefix="${zlib_dir}" 2>&1
-    make test 2>&1 | tee "test_log"
-    [ ${PIPESTATUS[0]} != 0 ] && zlib_test_success="no"
+    touch "test_log"
+    if [ "${fast_install}" == "no" ]; then
+        make test 2>&1 | tee "test_log"
+        [ ${PIPESTATUS[0]} != 0 ] && zlib_test_success="no"
+    fi
     make install 2>&1
     cp "test_log" "README" "${zlib_dir}"
     cd "${top_dir}"; rm -rf "${top_dir}/tmp"
@@ -860,8 +879,11 @@ if ([ "${imagemagick_preinstalled}" == "no" ] || [ "${python_preinstalled}" == "
     export ZLIBLIB="${zlib_dir}/lib"
     export ZLIBINC="${zlib_dir}/include"
     ./configure --prefix="${libpng_dir}" 2>&1
-    make check 2>&1 | tee "test_log"
-    [ ${PIPESTATUS[0]} != 0 ] && libpng_test_success="no"
+    touch "test_log"
+    if [ "${fast_install}" == "no" ]; then
+        make check 2>&1 | tee "test_log"
+        [ ${PIPESTATUS[0]} != 0 ] && libpng_test_success="no"
+    fi
     make install 2>&1
     reset_environment
     cp "test_log" "LICENSE" "${libpng_dir}"
@@ -884,8 +906,11 @@ if [ "${imagemagick_preinstalled}" == "no" ]; then
     export ZLIB_LIBS="-lz -L${zlib_dir}/lib, -Wl,-rpath=${zlib_dir}/lib ${ZLIB_LIBS}"
     ./configure --prefix="${imagemagick_dir}" --disable-openmp --with-png=yes --with-zlib=yes --with-bzlib=no --with-autotrace=no --with-djvu=no --with-dps=no --with-fftw=no --with-fpx=no --with-fontconfig=no --with-freetype=no --with-gslib=no --with-gvc=no --with-jbig=no --with-jpeg=no --with-lcms=no --with-lqr=no --with-lzma=no --with-magick-plus-plus=no --with-openexr=no --with-openjp2=no --with-pango=no --with-perl=no --with-rsvg=no --with-tiff=no --with-webp=no --with-wmf=no --with-x=no --with-xml=no 2>&1
     make 2>&1
-    make check 2>&1 | tee "test_log"
-    [ ${PIPESTATUS[0]} != 0 ] && imagemagick_test_success="no"
+    touch "test_log"
+    if [ "${fast_install}" == "no" ]; then
+        make check 2>&1 | tee "test_log"
+        [ ${PIPESTATUS[0]} != 0 ] && imagemagick_test_success="no"
+    fi
     make install 2>&1
     reset_environment
     cp "test_log" "AUTHORS.txt" "LICENSE" "NOTICE" "${imagemagick_dir}"
@@ -898,20 +923,22 @@ if [ "${python_preinstalled}" == "no" ] && [ "${ncurses_preinstalled}" == "no" ]
     ./configure --with-shared --prefix="${ncurses_dir}" 2>&1
     make 2>&1
     make install 2>&1
-    disable_status
-    set +e
-    (sleep 10; echo "q") | "test/worm" -number 7 > /dev/tty 2>&1
-    set -e
-    enable_status
-    if [ $? != 0 ]; then
-        ncurses_test_success="no"
-    else
-        touch "test_log"
+    touch "test_log"
+    if [ "${fast_install}" == "no" ]; then
+        disable_status
+        set +e
+        (sleep ${sleep_time}; echo "q") | "test/worm" -number 7 > /dev/tty 2>&1
+        ncurses_test_exitcode=$?
+        set -e
+        enable_status
+        if [ ${ncurses_test_exitcode} != 0 ]; then
+            ncurses_test_success="no"
+        fi
     fi
     # Additional test run needed (if the first failed), as the one 
     # above do not use tee (as it ruins the display).
     if [ "${ncurses_test_success}" == "no" ]; then
-        (sleep 10; echo "q") | "test/worm" -number 7 > "test_log" 2>&1
+        (sleep ${sleep_time}; echo "q") | "test/worm" -number 7 > "test_log" 2>&1
     fi
     cp "test_log" "AUTHORS" "COPYING" "${ncurses_dir}/include/ncurses"
     cd "${top_dir}"; rm -rf "${top_dir}/tmp"
@@ -922,8 +949,11 @@ if [ "${python_preinstalled}" == "no" ] && [ "${openssl_preinstalled}" == "no" ]
     download_and_extract "OpenSSL"
     ./config shared --prefix="${openssl_dir}" 2>&1
     make 2>&1
-    make test 2>&1 | tee "test_log"
-    [ ${PIPESTATUS[0]} != 0 ] && openssl_test_success="no"
+    touch "test_log"
+    if [ "${fast_install}" == "no" ]; then
+        make test 2>&1 | tee "test_log"
+        [ ${PIPESTATUS[0]} != 0 ] && openssl_test_success="no"
+    fi
     make install 2>&1
     cp "test_log" "LICENSE" "README" "${openssl_dir}"
     cd "${top_dir}"; rm -rf "${top_dir}/tmp"
@@ -934,8 +964,11 @@ if [ "${gsl_preinstalled}" == "no" ]; then
     download_and_extract "GSL"
     ./configure --prefix="${gsl_dir}" 2>&1
     make 2>&1
-    make check 2>&1 | tee "test_log"
-    [ ${PIPESTATUS[0]} != 0 ] && gsl_test_success="no"
+    touch "test_log"
+    if [ "${fast_install}" == "no" ]; then
+        make check 2>&1 | tee "test_log"
+        [ ${PIPESTATUS[0]} != 0 ] && gsl_test_success="no"
+    fi
     make install 2>&1
     cp "test_log" "COPYING" "README" "${gsl_dir}"
     cd "${top_dir}"; rm -rf "${top_dir}/tmp"
@@ -946,8 +979,11 @@ if [ "${mpi_preinstalled}" == "no" ]; then
     download_and_extract "MPICH"
     ./configure --enable-shared --disable-fortran --prefix="${mpi_dir}" 2>&1
     make 2>&1
-    make testing 2>&1 | tee "test_log"
-    [ ${PIPESTATUS[0]} != 0 ] && mpich_test_success="no"
+    touch "test_log"
+    if [ "${fast_install}" == "no" ]; then
+        make testing 2>&1 | tee "test_log"
+        [ ${PIPESTATUS[0]} != 0 ] && mpich_test_success="no"
+    fi
     make install 2>&1
     cp "test_log" "COPYRIGHT" "test_log" "${mpi_dir}"
     cd "${top_dir}"; rm -rf "${top_dir}/tmp"
@@ -964,18 +1000,22 @@ if [ "${hdf5_preinstalled}" == "no" ]; then
     # On some systems, the HDF5 test (make check) hangs indefinitely.
     # To counteract this, kill the process if it still runs after an
     # hour and count the test as failed.
-    make check 2>&1 | tee "test_log" & hdf5_test_pid=$!
-    (sleep 3600 && kill -9 ${hdf5_test_pid} >/dev/null 2>&1 || :) & hdf5_test_killer_pid=$!
-    wait ${hdf5_test_pid}
-    kill -9 ${hdf5_test_killer_pid} > /dev/null 2>&1 || :
-    # Measure success based on contents of the last line of "test_log"
-    tail -n 1 "test_log" | grep "make\[1\]: Leaving directory" > /dev/null
-    hdf5_test_exitcode=$?
-    [ ${hdf5_test_exitcode} != 0 ] && hdf5_test_success="no"
-    make check-install 2>&1 | tee -a "test_log"
-    [ ${hdf5_test_exitcode} != 0 ] && hdf5_test_success="no"
-    # Continue installation
+    touch "test_log"
+    if [ "${fast_install}" == "no" ]; then
+        make check 2>&1 | tee "test_log" & hdf5_test_pid=$!
+        (sleep 3600 && kill -9 ${hdf5_test_pid} >/dev/null 2>&1 || :) & hdf5_test_killer_pid=$!
+        wait ${hdf5_test_pid}
+        kill -9 ${hdf5_test_killer_pid} > /dev/null 2>&1 || :
+        # Measure success based on contents of the last line of "test_log"
+        tail -n 1 "test_log" | grep "make\[1\]: Leaving directory" > /dev/null
+        hdf5_test_exitcode=$?
+        [ ${hdf5_test_exitcode} != 0 ] && hdf5_test_success="no"
+    fi
     make install 2>&1
+    if [ "${fast_install}" == "no" ]; then
+        make check-install 2>&1 | tee -a "test_log"
+        [ ${hdf5_test_exitcode} != 0 ] && hdf5_test_success="no"
+    fi
     reset_environment
     cp "test_log" "COPYING" "README.txt" "${hdf5_dir}"
     cd "${top_dir}"; rm -rf "${top_dir}/tmp"
@@ -994,8 +1034,11 @@ if [ "${fftw_preinstalled}" == "no" ]; then
     export PATH="${mpi_dir}/bin:${PATH}"
     ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --prefix="${fftw_dir}" 2>&1
     make 2>&1
-    make check 2>&1 | tee "test_log"
-    [ ${PIPESTATUS[0]} != 0 ] && fftw_test_success="no"
+    touch "test_log"
+    if [ "${fast_install}" == "no" ]; then
+        make check 2>&1 | tee "test_log"
+        [ ${PIPESTATUS[0]} != 0 ] && fftw_test_success="no"
+    fi
     make install 2>&1
     # Single-precision goes here ..........................
     reset_environment
@@ -1011,8 +1054,11 @@ if [ "${python_preinstalled}" == "no" ]; then
     export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib -L${ncurses_dir}/lib -Wl,-rpath=${ncurses_dir}/lib -L${openssl_dir}/lib -Wl,-rpath=${openssl_dir}/lib ${LDFLAGS}"
     ./configure --enable-shared --prefix="${python_dir}" --with-ensurepip=install 2>&1
     make 2>&1
-    make test 2>&1 | tee "test_log"
-    [ ${PIPESTATUS[0]} != 0 ] && python_test_success="no"
+    touch "test_log"
+    if [ "${fast_install}" == "no" ]; then
+        make test 2>&1 | tee "test_log"
+        [ ${PIPESTATUS[0]} != 0 ] && python_test_success="no"
+    fi
     make install 2>&1
     reset_environment
     cp "test_log" "LICENSE" "README" "${python_dir}"
@@ -1058,7 +1104,7 @@ pip_download()
         if [ "${pip_status}" == "success" ]; then
             break
         fi
-        sleep 10
+        sleep ${sleep_time}
     done
     if [ "${pip_status}" == "error" ]; then
         error "Error downloading ${1}"
@@ -1224,7 +1270,7 @@ if [ "${blessings_preinstalled}" == "no" ] \
     heading "Python packages overview"
     echo "The following Python packages will be installed"
     print_table table[@] 3
-    sleep 10
+    sleep ${sleep_time}
     enable_status
 fi
 
@@ -1380,10 +1426,9 @@ run='${run}'
 #####################################################
 # Install GADGET, used for testing the CONCEPT code #
 #####################################################
+# FFTW 2.x (GADGET2 is incompatible with FFTW 3.x)
 if [ "${fftw_for_gadget_preinstalled}" == "no" ]; then
-    # FFTW 2.1.5 (GADGET2 is incompatible with FFTW 3.x)
     download_and_extract "FFTW for GADGET"
-    # Double-precision
     export CC="${mpi_dir}/bin/mpicc"
     export MPICC="${mpi_dir}/bin/mpicc"
     export CFLAGS="-O3 -fPIC"
@@ -1394,15 +1439,20 @@ if [ "${fftw_for_gadget_preinstalled}" == "no" ]; then
     # Double-precision
     ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --enable-type-prefix --prefix="${fftw_for_gadget_dir}" 2>&1
     make 2>&1
-    make check 2>&1 | tee "test_log"
-    [ ${PIPESTATUS[0]} != 0 ] && fftw_for_gadget_test_success="no"
+    touch "test_log"
+    if [ "${fast_install}" == "no" ]; then
+        make check 2>&1 | tee "test_log"
+        [ ${PIPESTATUS[0]} != 0 ] && fftw_for_gadget_test_success="no"
+    fi
     make install 2>&1
     # Single-precision
     make clean
     ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --enable-float --enable-type-prefix --prefix="${fftw_for_gadget_dir}" 2>&1
     make 2>&1
-    make check 2>&1 | tee -a "test_log"
-    [ ${PIPESTATUS[0]} != 0 ] && fftw_for_gadget_test_success="no"
+    if [ "${fast_install}" == "no" ]; then
+        make check 2>&1 | tee -a "test_log"
+        [ ${PIPESTATUS[0]} != 0 ] && fftw_for_gadget_test_success="no"
+    fi
     make install 2>&1
     reset_environment
     cp "test_log" "COPYING" "README" "${fftw_for_gadget_dir}"
@@ -1422,31 +1472,37 @@ fi
 ##############################
 # Testing GADGET and CONCEPT #
 ##############################
-# Run basic CONCEPT test to test the environment
-cd "${concept_dir}"
-./run -t basic 2>&1 | tee "test_log"
-[ ${PIPESTATUS[0]} != 0 ] && concept_test_success="no"
-# Run GADGET test if basic CONCEPT test finished successfully
-if [ "${concept_test_success}" == "yes" ]; then
-    ./run -t gadget 2>&1 | tee "${gadget_dir}/test_log"
-    [ ${PIPESTATUS[0]} != 0 ] && gadget_test_success="no"
-fi
-
-# Run complete CONCEPT test suite if basic CONCEPT test finished successfully
-if [ "${concept_test_success}" == "yes" ]; then
-    current_step="testing of ${esc_concept}"
-    heading "Testing ${esc_concept}"
-    set_status "Testing ${esc_concept_double_backslashes}"
-    ./run -t all 2>&1 | tee "test_log"
+if [ "${fast_install}" == "no" ]; then
+    # Run basic CONCEPT test to test the environment
+    current_step="basic tests of ${esc_concept}"
+    heading "Basic tests of ${esc_concept}"
+    set_status "Basic tests of ${esc_concept_double_backslashes}"
+    cd "${concept_dir}"
+    ./run -t basic 2>&1 | tee "test_log"
     [ ${PIPESTATUS[0]} != 0 ] && concept_test_success="no"
-    # Clean test_log if test is successfull
+    # Run GADGET test if basic CONCEPT test finished successfully
     if [ "${concept_test_success}" == "yes" ]; then
-        rm "test_log"
-        make distclean
+        current_step="testing GADGET"
+        heading "Testing GADGET"
+        set_status "Testing GADGET"
+        ./run -t gadget 2>&1 | tee "${gadget_dir}/test_log"
+        [ ${PIPESTATUS[0]} != 0 ] && gadget_test_success="no"
     fi
+    # Run complete CONCEPT test suite if basic CONCEPT test finished successfully
+    if [ "${concept_test_success}" == "yes" ]; then
+        current_step="testing ${esc_concept}"
+        heading "Testing ${esc_concept}"
+        set_status "Testing ${esc_concept_double_backslashes}"
+        ./run -t all 2>&1 | tee "test_log"
+        [ ${PIPESTATUS[0]} != 0 ] && concept_test_success="no"
+        # Clean test_log if test is successfull
+        if [ "${concept_test_success}" == "yes" ]; then
+            rm "test_log"
+            make distclean
+        fi
+    fi
+    cd "${top_dir}"
 fi
-cd "${top_dir}"
-
 
 
 #################
