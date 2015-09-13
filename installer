@@ -283,7 +283,7 @@ for var in "$@"; do
     fi    
 done
 sleep_time=10
-if [ "${fast_install}" == "yes" ]
+if [ "${fast_install}" == "yes" ]; then
     sleep_time=0
 fi
 
