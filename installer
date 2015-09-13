@@ -35,16 +35,16 @@
 # bash <(wget -O- --no-ch https://raw.githubusercontent.com/jmd-dk/concept/master/installer)
 #
 # The following software will be installed in order:
-# - FreeType (needed by matplotlib)
 # - zlib     (needed by libpng, ImageMagick, HDF5 and Python)
 # - libpng   (needed by matplotlib and ImageMagick)
 # - ImageMagick
-# - ncurses  (needed by _curses, which is needed by blessings)
-# - OpenSSL  (needed by pip)
 # - GSL
 # - MPICH
 # - HDF5
 # - FFTW
+# - FreeType (needed by matplotlib)
+# - ncurses  (needed by _curses, which is needed by blessings)
+# - OpenSSL  (needed by pip)
 # - Python, with the following packages (together with their own Python
 #   package dependencies):
 #     - Yolk3k
@@ -497,19 +497,6 @@ fallback()
     fi
 }
 
-# FreeType
-if [ "${python_preinstalled}" == "no" ] && [ "${freetype_preinstalled}" == "no" ]; then
-    if [ "${freetype_version}" == "newest" ]; then
-        current_step="search for latest version of FreeType"
-        set_status "Searching for latest version of FreeType"
-        freetype_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "http://download.savannah.gnu.org/releases/freetype/" | grep -o "freetype-[0-9.]*tar" | sort -u | tail -n 1 | grep -o [0-9.]* || :)"
-        freetype_version="${freetype_version%?}"
-        fallback "FreeType"
-    fi
-    freetype_url="http://download.savannah.gnu.org/releases/freetype/freetype-${freetype_version}.tar.gz"
-    validate_url "FreeType"
-fi
-
 # zlib
 if ([ "${imagemagick_preinstalled}" == "no" ] || [ "${python_preinstalled}" == "no" ]) && [ "${libpng_preinstalled}" == "no" ] && [ "${zlib_preinstalled}" == "no" ]; then
     if [ "${zlib_version}" == "newest" ]; then
@@ -549,44 +536,6 @@ if [ "${imagemagick_preinstalled}" == "no" ]; then
     fi
     imagemagick_url="http://www.imagemagick.org/download/releases/ImageMagick-${imagemagick_version}.tar.gz"
     validate_url "ImageMagick"
-fi
-
-# ncurses
-if [ "${python_preinstalled}" == "no" ] && [ "${ncurses_preinstalled}" == "no" ]; then
-    if [ "${ncurses_version}" == "newest" ]; then
-        current_step="search for latest version of ncurses"
-        set_status "Searching for latest version of ncurses"
-        ncurses_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "http://ftp.gnu.org/pub/gnu/ncurses/" | grep -o "ncurses-[0-9.]*tar" | sort -u | tail -n 1 | grep -o [0-9.]* || :)"
-        ncurses_version="${ncurses_version%?}"
-        fallback "ncurses"
-    fi
-    ncurses_url="http://ftp.gnu.org/pub/gnu/ncurses/ncurses-${ncurses_version}.tar.gz"
-    validate_url "ncurses"
-fi
-
-# OpenSSL
-if [ "${python_preinstalled}" == "no" ] && [ "${openssl_preinstalled}" == "no" ]; then
-    if [ "${openssl_version}" == "newest" ]; then
-        current_step="search for latest version of OpenSSL"
-        set_status "Searching for latest version of OpenSSL"
-        openssl_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "ftp://ftp.openssl.org/source/" | grep "openssl-[0-9].*.tar.gz" | tail -n 1 | grep -o -P "(?<=openssl-).*(?=.tar.gz)" | grep -o -P "(?=[0-9]).*(?=.tar.gz)" || :)"
-        openssl_version="$(sed 's/.tar.gz.*//' <<< "${openssl_version}")"
-        fallback "OpenSSL"
-    fi
-    openssl_url="ftp://ftp.openssl.org/source/openssl-${openssl_version}.tar.gz"
-    validate_url "OpenSSL"
-fi
-
-# Python (note that python_version will be overwritten later!)
-if [ "${python_preinstalled}" == "no" ]; then
-    if [ "${python_version}" == "newest" ]; then
-        current_step="search for latest version of Python"
-        set_status "Searching for latest version of Python"
-        python_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "https://www.python.org/downloads/" | grep -o -P "(?<=Python-).*(?=.tar)" | head -1  || :)"
-        fallback "Python"
-    fi
-    python_url="https://www.python.org/ftp/python/${python_version}/Python-${python_version}.tgz"
-    validate_url "Python"
 fi
 
 # GSL
@@ -635,6 +584,57 @@ if [ "${fftw_preinstalled}" == "no" ]; then
     fi
     fftw_url="http://www.fftw.org/fftw-${fftw_version}.tar.gz"
     validate_url "FFTW"
+fi
+
+# FreeType
+if [ "${python_preinstalled}" == "no" ] && [ "${freetype_preinstalled}" == "no" ]; then
+    if [ "${freetype_version}" == "newest" ]; then
+        current_step="search for latest version of FreeType"
+        set_status "Searching for latest version of FreeType"
+        freetype_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "http://download.savannah.gnu.org/releases/freetype/" | grep -o "freetype-[0-9.]*tar" | sort -u | tail -n 1 | grep -o [0-9.]* || :)"
+        freetype_version="${freetype_version%?}"
+        fallback "FreeType"
+    fi
+    freetype_url="http://download.savannah.gnu.org/releases/freetype/freetype-${freetype_version}.tar.gz"
+    validate_url "FreeType"
+fi
+
+# ncurses
+if [ "${python_preinstalled}" == "no" ] && [ "${ncurses_preinstalled}" == "no" ]; then
+    if [ "${ncurses_version}" == "newest" ]; then
+        current_step="search for latest version of ncurses"
+        set_status "Searching for latest version of ncurses"
+        ncurses_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "http://ftp.gnu.org/pub/gnu/ncurses/" | grep -o "ncurses-[0-9.]*tar" | sort -u | tail -n 1 | grep -o [0-9.]* || :)"
+        ncurses_version="${ncurses_version%?}"
+        fallback "ncurses"
+    fi
+    ncurses_url="http://ftp.gnu.org/pub/gnu/ncurses/ncurses-${ncurses_version}.tar.gz"
+    validate_url "ncurses"
+fi
+
+# OpenSSL
+if [ "${python_preinstalled}" == "no" ] && [ "${openssl_preinstalled}" == "no" ]; then
+    if [ "${openssl_version}" == "newest" ]; then
+        current_step="search for latest version of OpenSSL"
+        set_status "Searching for latest version of OpenSSL"
+        openssl_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "ftp://ftp.openssl.org/source/" | grep "openssl-[0-9].*.tar.gz" | tail -n 1 | grep -o -P "(?<=openssl-).*(?=.tar.gz)" | grep -o -P "(?=[0-9]).*(?=.tar.gz)" || :)"
+        openssl_version="$(sed 's/.tar.gz.*//' <<< "${openssl_version}")"
+        fallback "OpenSSL"
+    fi
+    openssl_url="ftp://ftp.openssl.org/source/openssl-${openssl_version}.tar.gz"
+    validate_url "OpenSSL"
+fi
+
+# Python (note that python_version will be overwritten later!)
+if [ "${python_preinstalled}" == "no" ]; then
+    if [ "${python_version}" == "newest" ]; then
+        current_step="search for latest version of Python"
+        set_status "Searching for latest version of Python"
+        python_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "https://www.python.org/downloads/" | grep -o -P "(?<=Python-).*(?=.tar)" | head -1  || :)"
+        fallback "Python"
+    fi
+    python_url="https://www.python.org/ftp/python/${python_version}/Python-${python_version}.tgz"
+    validate_url "Python"
 fi
 
 # CONCEPT
@@ -845,21 +845,10 @@ download_and_extract()
     cd *
 }
 
-# FreeType
-if [ "${python_preinstalled}" == "no" ] && [ "${freetype_preinstalled}" == "no" ]; then
-    download_and_extract "FreeType"
-    ./configure --prefix="${freetype_dir}" --with-zlib=no --with-bzip2=no --with-png=no --with-harfbuzz=no 2>&1
-    make 2>&1
-    # FreeType does not come with a test suite
-    make install 2>&1
-    (cd docs; cp "FTL.TXT" "GPLv2.TXT" "LICENSE.TXT" "${freetype_dir}")
-    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
-fi
-
 # zlib
 if ([ "${imagemagick_preinstalled}" == "no" ] || [ "${python_preinstalled}" == "no" ]) && [ "${libpng_preinstalled}" == "no" ] && [ "${zlib_preinstalled}" == "no" ]; then
     download_and_extract "zlib"
-    ./configure --prefix="${zlib_dir}" 2>&1
+    ./configure --shared --prefix="${zlib_dir}" 2>&1
     touch "test_log"
     if [ "${fast_install}" == "no" ]; then
         make test 2>&1 | tee "test_log"
@@ -881,10 +870,10 @@ if ([ "${imagemagick_preinstalled}" == "no" ] || [ "${python_preinstalled}" == "
     ./configure --prefix="${libpng_dir}" 2>&1
     touch "test_log"
     if [ "${fast_install}" == "no" ]; then
-        make check 2>&1 | tee "test_log"
+        make ZLIBLIB="${ZLIBLIB}" ZLIBINC="${ZLIBINC}" check 2>&1 | tee "test_log"
         [ ${PIPESTATUS[0]} != 0 ] && libpng_test_success="no"
     fi
-    make install 2>&1
+    make ZLIBLIB="${ZLIBLIB}" ZLIBINC="${ZLIBINC}" install 2>&1
     reset_environment
     cp "test_log" "LICENSE" "${libpng_dir}"
     cd "${top_dir}"; rm -rf "${top_dir}/tmp"
@@ -914,48 +903,6 @@ if [ "${imagemagick_preinstalled}" == "no" ]; then
     make install 2>&1
     reset_environment
     cp "test_log" "AUTHORS.txt" "LICENSE" "NOTICE" "${imagemagick_dir}"
-    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
-fi
-
-# ncurses
-if [ "${python_preinstalled}" == "no" ] && [ "${ncurses_preinstalled}" == "no" ]; then
-    download_and_extract "ncurses"
-    ./configure --with-shared --prefix="${ncurses_dir}" 2>&1
-    make 2>&1
-    make install 2>&1
-    touch "test_log"
-    if [ "${fast_install}" == "no" ]; then
-        disable_status
-        set +e
-        (sleep ${sleep_time}; echo "q") | "test/worm" -number 7 > /dev/tty 2>&1
-        ncurses_test_exitcode=$?
-        set -e
-        enable_status
-        if [ ${ncurses_test_exitcode} != 0 ]; then
-            ncurses_test_success="no"
-        fi
-    fi
-    # Additional test run needed (if the first failed), as the one 
-    # above do not use tee (as it ruins the display).
-    if [ "${ncurses_test_success}" == "no" ]; then
-        (sleep ${sleep_time}; echo "q") | "test/worm" -number 7 > "test_log" 2>&1
-    fi
-    cp "test_log" "AUTHORS" "COPYING" "${ncurses_dir}/include/ncurses"
-    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
-fi
-
-# OpenSSL
-if [ "${python_preinstalled}" == "no" ] && [ "${openssl_preinstalled}" == "no" ]; then
-    download_and_extract "OpenSSL"
-    ./config shared --prefix="${openssl_dir}" 2>&1
-    make 2>&1
-    touch "test_log"
-    if [ "${fast_install}" == "no" ]; then
-        make test 2>&1 | tee "test_log"
-        [ ${PIPESTATUS[0]} != 0 ] && openssl_test_success="no"
-    fi
-    make install 2>&1
-    cp "test_log" "LICENSE" "README" "${openssl_dir}"
     cd "${top_dir}"; rm -rf "${top_dir}/tmp"
 fi
 
@@ -1043,6 +990,59 @@ if [ "${fftw_preinstalled}" == "no" ]; then
     # Single-precision goes here ..........................
     reset_environment
     cp "test_log" "COPYING" "README" "${fftw_dir}"
+    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+fi
+
+# FreeType
+if [ "${python_preinstalled}" == "no" ] && [ "${freetype_preinstalled}" == "no" ]; then
+    download_and_extract "FreeType"
+    ./configure --prefix="${freetype_dir}" --with-zlib=no --with-bzip2=no --with-png=no --with-harfbuzz=no 2>&1
+    make 2>&1
+    # FreeType does not come with a test suite
+    make install 2>&1
+    (cd docs; cp "FTL.TXT" "GPLv2.TXT" "LICENSE.TXT" "${freetype_dir}")
+    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+fi
+
+# ncurses
+if [ "${python_preinstalled}" == "no" ] && [ "${ncurses_preinstalled}" == "no" ]; then
+    download_and_extract "ncurses"
+    ./configure --with-shared --prefix="${ncurses_dir}" 2>&1
+    make 2>&1
+    make install 2>&1
+    touch "test_log"
+    if [ "${fast_install}" == "no" ]; then
+        disable_status
+        set +e
+        (sleep ${sleep_time}; echo "q") | "test/worm" -number 7 > /dev/tty 2>&1
+        ncurses_test_exitcode=$?
+        set -e
+        enable_status
+        if [ ${ncurses_test_exitcode} != 0 ]; then
+            ncurses_test_success="no"
+        fi
+    fi
+    # Additional test run needed (if the first failed), as the one 
+    # above do not use tee (as it ruins the display).
+    if [ "${ncurses_test_success}" == "no" ]; then
+        (sleep ${sleep_time}; echo "q") | "test/worm" -number 7 > "test_log" 2>&1
+    fi
+    cp "test_log" "AUTHORS" "COPYING" "${ncurses_dir}/include/ncurses"
+    cd "${top_dir}"; rm -rf "${top_dir}/tmp"
+fi
+
+# OpenSSL
+if [ "${python_preinstalled}" == "no" ] && [ "${openssl_preinstalled}" == "no" ]; then
+    download_and_extract "OpenSSL"
+    ./config shared --prefix="${openssl_dir}" 2>&1
+    make 2>&1
+    touch "test_log"
+    if [ "${fast_install}" == "no" ]; then
+        make test 2>&1 | tee "test_log"
+        [ ${PIPESTATUS[0]} != 0 ] && openssl_test_success="no"
+    fi
+    make install 2>&1
+    cp "test_log" "LICENSE" "README" "${openssl_dir}"
     cd "${top_dir}"; rm -rf "${top_dir}/tmp"
 fi
 
