@@ -156,7 +156,7 @@ special_params = {
 " > "${this_file}.params.full"
 
 # Run CONCEPT to produce the renders
-"${run}" -n ${nprocs} -p "${this_file}.params.full" --local --keep-mode
+"${run}" -n ${nprocs} -p "${this_file}.params.full" --local
 
 # Cleanup
 rm "${this_file}.params.full"

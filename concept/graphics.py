@@ -68,11 +68,11 @@ import subprocess
                )
 def render(particles, a, filename, boxsize=boxsize):
     global artist_particles, artist_text, ax
-    # Print out progress message
-    masterprint('Rendering and saving image "{}" ...'.format(filename))
     # Attach missing extension to filename
     if not filename.endswith('.png'):
         filename += '.png'
+    # Print out progress message
+    masterprint('Rendering and saving image "{}" ...'.format(filename))
     # Extract particle data
     N = particles.N
     N_local = particles.N_local

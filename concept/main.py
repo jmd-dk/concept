@@ -253,7 +253,7 @@ if special_params:
 # Run the time loop
 timeloop()
 # Simulation done
-masterprint(terminal.bold_green(terminal.CONCEPT + ' ran successfully'))
+masterprint(terminal.bold_green(terminal.CONCEPT + ' run finished'))
 # Due to an error having to do with the Python -m switch,
 # the program must explicitly be told to exit.
 Barrier()

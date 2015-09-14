@@ -1395,6 +1395,10 @@ Gadget2_dir='${Gadget2_dir}'
 gsl_dir='${gsl_dir}'
 # Directory of HDF5
 hdf5_dir='${hdf5_dir}'
+# Directory of ImageMagick
+imagemagick_dir='${imagemagick_dir}'
+# Directory of libpng
+libpng_dir='${libpng_dir}'
 # Directory of MPI
 mpi_dir='${mpi_dir}'
 # Directory of Python
@@ -1403,6 +1407,8 @@ python_dir='${python_dir}'
 tests_dir='${tests_dir}'
 # Top level directory, containing e.g. README.md
 top_dir='${top_dir}'
+# Directory of zlib
+zlib_dir='${zlib_dir}'
 
 #########
 # Files #

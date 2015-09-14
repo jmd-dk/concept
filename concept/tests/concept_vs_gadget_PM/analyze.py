@@ -42,7 +42,6 @@ N_snapshots = np.loadtxt(this_dir + '/outputlist').size
 
 # Instantiate a GadgetSnapshot instance which will be reused for all GADGET snapshots
 snapshot = GadgetSnapshot()
-snapshot.load(this_dir + '/IC', write_msg=False)
 
 # Read in data from the CONCEPT snapshots
 a = []
