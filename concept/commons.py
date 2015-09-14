@@ -30,7 +30,7 @@
 ############################################
 from __future__ import division  # Needed for Python3 division in Cython
 # Modules
-import contextlib, cython, h5py, imp, matplotlib, numpy as np, os, re, shutil
+import contextlib, cython, imp, matplotlib, numpy as np, os, re, shutil
 import sys, unicodedata
 # For math
 from numpy import (arange, array, asarray, concatenate, cumsum, delete,
@@ -38,6 +38,9 @@ from numpy import (arange, array, asarray, concatenate, cumsum, delete,
 from numpy.random import random
 # Use a matplotlib backend that does not require a running X-server
 matplotlib.use('Agg')
+# Import h5py. This has to be done after importing matplotlib, as this
+# somehow makes libpng unable to find the zlib shared library.
+import h5py
 # For fancy terminal output
 from blessings import Terminal
 terminal = Terminal(force_styling=True)
@@ -452,7 +455,7 @@ params = {# The paths dict
 # "Import" the parameter file be executing it in the namespace defined
 # by the params dict.
 if os.path.isfile(paths['params']):
-    with open(paths['params']) as params_file:
+    with open(paths['params'], encoding='utf-8') as params_file:
         exec(params_file.read(), params)
 # The parameters are now being processed as follows:
 # - Some parameters are explicitly casted.
@@ -530,7 +533,7 @@ P3M_cutoff = float(params.get('P3M_cutoff', 4.8))
 softeningfactors = dict(params.get('softeningfactors', {}))
 for kind in ('dark matter', ):
     softeningfactors[kind] = float(softeningfactors.get(kind, 0.03))
-Δt_factor = float(params.get(unicode('Δ') + 't_factor', 0.07))
+Δt_factor = float(params.get(unicode('Δ') + 't_factor', 0.01))
 # Cosmological parameters
 H0 = float(params.get('H0', 70*units.km/(units.s*units.Mpc)))
 Ωm = float(params.get(unicode('Ω') + 'm', 0.3))
