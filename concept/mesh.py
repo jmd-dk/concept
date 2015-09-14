@@ -58,12 +58,29 @@ def partition(array_shape):
                   + 'processes (' + str(nprocs) + ') is larger than the '
                   + 'problem size (' + str(problem_size) + ').')
         raise ValueError(errmsg)
-    # Partition the local shape based on the rank.
+
+    if rank == 0:
+        rank2 = 2
+    elif rank == 2:
+        rank2 = 0
+    else:
+        rank2 = rank
+
+    # Partition the local shape based on the rank
     local_size = int(problem_size/nprocs)
-    indices_start = array(unravel_index(local_size*rank, array_shape),
+    indices_start = array(unravel_index(local_size*rank2, array_shape),
                           dtype='uintp')
-    indices_end = array(unravel_index(local_size*(rank + 1) - 1, array_shape),
+    indices_end = array(unravel_index(local_size*(rank2 + 1) - 1, array_shape),
                         dtype='uintp') + 1
+    #
+    for i in range(len(array_shape) - 1):
+        if indices_end[i] > indices_start[i] + 1:
+            if any([indices_start[j] != 0 or indices_end[j] != array_shape[j] for j in range(i + 1, len(array_shape))]):
+                indices_start[(i + 1):] = 0
+                indices_end[(i + 1):] = array(array_shape[(i + 1):], dtype='uintp')
+                if rank2 > 0:
+                    indices_start[i] += 1
+                break
     return (indices_start, indices_end)
 
 # Function for tabulating a cubic grid with vector values
@@ -113,12 +130,22 @@ def tabulate_vectorfield(gridsize, func, factor, filename):
                     grid_local[i - i_start,
                                j - j_start,
                                k - k_start, dim] = vector[dim]
-    # Save grid to disk using parallel hdf5
+    # Save grid to disk using parallel HDF5
     with h5py.File(filename, mode='w', driver='mpio', comm=comm) as hdf5_file:
         dset = hdf5_file.create_dataset('data', shape, dtype='float64')
         dset[i_start:i_end, j_start:j_end, k_start:k_end, :] = grid_local
     # Every process gets to know the entire grid
-    Allgather(grid_local, grid)
+    print('rank', rank, 'shape:', grid_local.shape, grid.shape, 'size:', grid_local.size*8, grid.size*8, flush=True)
+    #Allgatherv(grid_local, grid)
+    Allgatherv(sendbuf=[grid_local, MPI.DOUBLE], 
+               recvbuf=[grid, ([3840, 3840, 4608], [0, 3840, 3840*2]), MPI.DOUBLE])
+
+    # DELETE
+    with h5py.File(filename + '_allgather', mode='w') as hdf5_file:
+        dset = hdf5_file.create_dataset('data', shape, dtype='float64')
+        dset[:, :, :, :] = grid
+
+
     return grid
 
 

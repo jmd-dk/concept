@@ -425,7 +425,7 @@ def PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, mom):
         mom[i] += force*PM_fac
 
 
-# Function for CIC interpolating the particles to the PM mesh,
+# Function for CIC interpolating particles to the PM mesh,
 # followed by a Fourier transformation.
 @cython.header(# Arguments
                particles='Particles',
@@ -1222,9 +1222,9 @@ if use_PM:
         PM_gridsize_local_j = fftw_struct.gridsize_local_j
         PM_gridstart_local_i = fftw_struct.gridstart_local_i
         PM_gridstart_local_j = fftw_struct.gridstart_local_j
-        # Wrap a memoryview around the grid. Loop as noted in fft.c, but use
-        # PM_grid[i, j, k] when in real space and PM_grid[j, i, k] when in
-        # Fourier space
+        # Wrap a memoryview around the grid. Loop as noted in fft.c, but
+        # use PM_grid[i, j, k] when in real space and PM_grid[j, i, k]
+        # when in Fourier space
         if PM_gridsize_local_i > 0:
             PM_grid = cast(fftw_struct.grid,
             'double[:PM_gridsize_local_i, :PM_gridsize, :PM_gridsize_padding]')
@@ -1239,6 +1239,7 @@ else:
     PM_gridsize_local_j = 0
     PM_gridstart_local_j = 0
     PM_grid = empty((1, 1, 1), dtype='float64')
+
 # Cut out the domains at import time
 cython.declare(domain_cuts='list',
                domain_local='int[::1]',

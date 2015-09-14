@@ -37,8 +37,7 @@ else:
     """
 
 
-# Calculate the power spectrum with all allowed k2 modes,
-# making a customised binning possible.
+# Calculate the power spectrum of a snapshot
 @cython.header(# Arguments
                particles='Particles',
                filename='str',
@@ -64,10 +63,10 @@ else:
                z_loop='ptrdiff_t',
                )
 def powerspectrum(particles, filename):
+    # Get 
     global PM_grid, k2_multi, power_arr
 
-    
-
+    #
     PM_CIC_FFT(particles)
 
 

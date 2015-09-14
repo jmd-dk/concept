@@ -678,13 +678,9 @@ two_ewald_gridsize = 2*ewald_gridsize
 two_machine_ϵ = 2*machine_ϵ
 # Flag specifying whether the PM method is used or not
 use_PM = False
-if len(powerspec_times) > 0:
+if (set(('PM', 'P3M')) & set(kick_algorithms.values())
+    or powerspec_times):
     use_PM = True
-else:
-    for kick_algorithm in kick_algorithms.values():
-        if kick_algorithm in ('PM', 'P3M'):
-            use_PM = True  
-            break
 # All constant factors across the PM scheme is gathered in the PM_fac
 # variable. It's contributions are:
 # For CIC interpolating particle masses/volume to the grid points:
@@ -700,8 +696,8 @@ else:
 PM_fac_const = G_Newton*PM_gridsize**4/(π*boxsize**2)
 # The exponential cutoff for the long-range force looks like
 # exp(-k2*rs2). In the code, the wave vector is in grid units in stead
-# of radians. The conversion is this 2*π/PM_gridsize. The total factor
-# on k2 in the exponential is then
+# of radians. The conversion is 2*π/PM_gridsize. The total factor on k2
+# in the exponential is then
 longrange_exponent_fac = -(2*π/PM_gridsize*P3M_scale)**2
 # The short-range/long-range force scale
 P3M_scale_phys = P3M_scale*boxsize/PM_gridsize

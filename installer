@@ -211,7 +211,7 @@ error()
 # Print out welcome message
 sleep 1  # Needed if invoked directly from the web via wget
 printf "\n${esc_bold}${esc_yellow}This is the installation script to ${esc_concept},
-the cosmological ${esc_italic}N${esc_no_italic}-body code by Jeppe Dakin${esc_normal}\n\n"
+the cosmological ${esc_italic}N${esc_no_italic}-body code in Python${esc_normal}\n\n"
 
 # Status control sequenses
 status="initialization"
@@ -327,7 +327,7 @@ check_system_dependency "awk" "awk" "gawk"
 check_system_dependency "gcc" "gcc" "gcc"
 check_system_dependency "g++" "g++" "g++"
 check_system_dependency "gfortran" "gfortran" "gfortran"
-check_system_dependency "gzip" "gzip" "gzip"
+check_system_dependency "gzip" "gunzip" "gzip"
 check_system_dependency "make" "make" "make"
 check_system_dependency "perl" "perl" "perl"  # Needed by OpenSSL
 check_system_dependency "sed" "sed" "sed"
@@ -946,7 +946,8 @@ if [ "${hdf5_preinstalled}" == "no" ]; then
     make 2>&1
     # On some systems, the HDF5 test (make check) hangs indefinitely.
     # To counteract this, kill the process if it still runs after an
-    # hour and count the test as failed.
+    # hour. Count the test as failed if the last line in test_log is not
+    # "make[1]: Leaving directory".
     touch "test_log"
     if [ "${fast_install}" == "no" ]; then
         (make check 2>&1 & echo $! >&3) 3> "hdf5_test_pid" | tee "test_log" & tee_pid=$!
@@ -956,7 +957,7 @@ if [ "${hdf5_preinstalled}" == "no" ]; then
         (sleep 3600; kill -9 ${hdf5_test_pid}; kill -9 ${tee_pid}) & hdf5_test_killer_pid=$!
         wait ${tee_pid} || :
         kill -9 ${hdf5_test_killer_pid} || :
-        # Measure success based on contents of the last line of "test_log"
+        # Measure success based on the last line of "test_log"
         if [ -z "$(tail -n 1 test_log | grep 'make\[1\]: Leaving directory' 2> /dev/null)" ]; then
             hdf5_test_success="no"
         fi
@@ -1080,14 +1081,23 @@ python="${python_dir}/bin/python${python_version}"
 # Function for downloading Python packages, utilizing pip
 pip_download()
 {
-    # Arguments: Python package name, version (blank for newest version)
+    # Arguments: Python package name, version. No or blank second
+    # argument signifies newest version. The same is if second argument
+    # is "upgrade". The second argument can also be a version string
+    # that pip understands, e.g. ">=1.4".
     local command_end=""
     if [ -n "${2}" ] && [ "${2}" != "upgrade" ]; then
-        command_end="==${2}"
+        if [[ "${2}" == [0-9]* ]]; then
+            # Second argument is a specific version
+            command_end="==${2}"
+        else
+            # Second argument is a version string that pip understands
+            command_end="${2}"
+        fi
     fi
     pip_name="${1//_/}"       # Remove underscores from name
     pip_name="${pip_name,,}"  # Ensure lowercase
-    mkdir "${top_dir}/tmp"
+    mkdir -p "${top_dir}/tmp"
     for n in {1..50}; do
         pip_status="error"
         "${python}" -m pip install -v -v -v --no-cache-dir --no-binary=:all: --download "${top_dir}/tmp" "${pip_name}${command_end}" 2>&1 || :
@@ -1306,7 +1316,20 @@ if [ "${matplotlib_preinstalled}" == "no" ]; then
     current_step="installation of Matplotlib ${matplotlib_version}"
     heading "Installing Matplotlib ${matplotlib_version}"
     set_status "Installing Matplotlib ${matplotlib_version}"
+    # Download matplotlib itself
     pip_download "matplotlib" "${matplotlib_version}"
+    # Matplot is the only Python package needed by CONCEPT, which
+    # depends on other Python packages not directly used by CONCEPT.
+    # Most often these dependencies are downloaded automatically by the
+    # previous command. In case of failure, we do it manually.
+    deps=(        "nose" "pyparsing" "python-dateutil" "pytz" "six")    # NumPy already installed
+    dep_versions=(""     ""          ">=1.1"           ""     ">=1.4")  # From http://matplotlib.org/users/installing.html 
+    for ((i=0; i<${#deps[@]}; i+=1)); do
+        if ! ls "${top_dir}/tmp" | grep -i "${deps[i]}-[0-9.]*.tar.gz" > /dev/null 2>&1; then
+            pip_download "${deps[i]}" "${dep_versions[i]}"
+        fi
+    done
+    # Install matplotlib
     cd "${top_dir}/tmp"
     gunzip < matplotlib*.tar.gz | tar -ixvf -
     cd matplotlib*
@@ -1314,7 +1337,7 @@ if [ "${matplotlib_preinstalled}" == "no" ]; then
     sed -i "/basedirlist/c\basedirlist = ${freetype_dir}" setup.cfg
     cp -r "${freetype_dir}/include/freetype"*/* "${freetype_dir}/include"
     export CPPFLAGS="-I${freetype_dir}/include -I${freetype_dir}/include/freetype"*" -I${libpng_dir}/include -I${libpng_dir}/include/libpng${libpng_version_majors} -I${zlib_dir}/include ${CPPFLAGS}"
-    export LDFLAGS="-L${freetype_dir}/lib -Wl,-rpath=${freetype_dir}/lib -L${libpng_dir}/lib -Wl,-rpath=${libpng_dir}/lib -L${zlibpng_dir}/lib -Wl,-rpath=${zlibpng_dir}/lib ${LDFLAGS}"
+    export LDFLAGS="-L${freetype_dir}/lib -Wl,-rpath=${freetype_dir}/lib -L${libpng_dir}/lib -Wl,-rpath=${libpng_dir}/lib -L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
     export PATH="${freetype_dir}/bin:${libpng_dir}/bin:${PATH}"
     export LD_LIBRARY_PATH="${libpng_dir}/lib:${zlib_dir}/lib:${LD_LIBRARY_PATH}"
     export PKG_CONFIG_PATH="${libpng_dir}/lib/pkgconfig:${zlib_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
@@ -1604,7 +1627,7 @@ erroneous_test_notice "zlib"
 erroneous_test_notice "CONCEPT" "${esc_italic}This should usually be taken seriously!${esc_no_italic}"
 if [ "${any_test_error_notices}" == "yes" ]; then
     printf "The logged output of the entire installation process can be found in\n"
-    printf "\"${test_log_path}\"\n"
+    printf "\"${log}\"\n"
 fi
 
 # Subprocess complete. Deactivate trap before exiting

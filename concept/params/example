@@ -28,7 +28,7 @@ output_times = {				# Times at which to dump output
 
 # Numerical parameters
 boxsize          = 16/0.7*Mpc			# Linear size of the simulation box
-ewald_gridsize   = 64				# Linear size of the grid of Ewald corrections
+ewald_gridsize   = 16				# Linear size of the grid of Ewald corrections
 PM_gridsize      = 64				# Linear size of the grid used for the PM method
 P3M_scale        = 1.25				# The long/short-range force split scale
 P3M_cutoff       = 4.8				# Maximum reach of short-range force
@@ -54,7 +54,7 @@ terminal_colormap   = 'gnuplot2'		# The matplotlib colormab to use for the termi
 terminal_resolution = 80			# The width of the terminal render
 
 # Simulation options
-kick_algorithms = {'dark matter': 'PM',	# The algorithm which should be used to kick each species
+kick_algorithms = {'dark matter': 'PP',	# The algorithm which should be used to kick each species
                    'dark energy': '',
                    }
 use_Ewald = True				# Turn Ewald corrections on or off
