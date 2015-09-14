@@ -62,10 +62,12 @@ def delegate():
 # it will be rendered. If it is a directory, all snapshots in the
 # directory will be rendered.
 @cython.header(# Locals
-               msg='str',
+               N_renders='int',
                filename='str',
                filenames='list',
-               
+               msg='str',
+               snapshot='StandardSnapshot',
+               snapshot_format='str',
                )
 def render():
     # Create list of potential files to render
