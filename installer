@@ -949,19 +949,22 @@ if [ "${hdf5_preinstalled}" == "no" ]; then
     # hour and count the test as failed.
     touch "test_log"
     if [ "${fast_install}" == "no" ]; then
-        make check 2>&1 | tee "test_log" & hdf5_test_pid=$!
-        (sleep 3600 && kill -9 ${hdf5_test_pid} >/dev/null 2>&1 || :) & hdf5_test_killer_pid=$!
-        wait ${hdf5_test_pid}
-        kill -9 ${hdf5_test_killer_pid} > /dev/null 2>&1 || :
+        (make check 2>&1 & echo $! >&3) 3> "hdf5_test_pid" | tee "test_log" & tee_pid=$!
+        sleep 1
+        hdf5_test_pid="$(cat 'hdf5_test_pid')"
+        rm -f "hdf5_test_pid"
+        (sleep 3600; kill -9 ${hdf5_test_pid}; kill -9 ${tee_pid}) & hdf5_test_killer_pid=$!
+        wait ${tee_pid} || :
+        kill -9 ${hdf5_test_killer_pid} || :
         # Measure success based on contents of the last line of "test_log"
-        tail -n 1 "test_log" | grep "make\[1\]: Leaving directory" > /dev/null
-        hdf5_test_exitcode=$?
-        [ ${hdf5_test_exitcode} != 0 ] && hdf5_test_success="no"
+        if [ -z "$(tail -n 1 test_log | grep 'make\[1\]: Leaving directory' 2> /dev/null)" ]; then
+            hdf5_test_success="no"
+        fi
     fi
     make install 2>&1
     if [ "${fast_install}" == "no" ]; then
         make check-install 2>&1 | tee -a "test_log"
-        [ ${hdf5_test_exitcode} != 0 ] && hdf5_test_success="no"
+        [ ${PIPESTATUS[0]} != 0 ] && hdf5_test_success="no"
     fi
     reset_environment
     cp "test_log" "COPYING" "README.txt" "${hdf5_dir}"
