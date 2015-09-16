@@ -27,12 +27,12 @@ from commons import *
 
 # Seperate but equivalent imports in pure Python and Cython
 if not cython.compiled:
-    import graphics
+    import graphics, analysis
     from IO import get_snapshot_type, load_into_standard
 else:
     # Lines in triple quotes will be executed in the .pyx file.
     """
-    cimport graphics
+    cimport graphics, analysis
     from IO cimport get_snapshot_type, load_into_standard
     """
 
@@ -43,13 +43,8 @@ else:
 @cython.header()
 def delegate():
     if special_params['special'] == 'powerspectrum':
-        pass
-        # Powerspectra of one or more snapshots should be made.
-        # Load initial conditions
-        #particles = load(IC_file, write_msg=False)
-        # Load initial conditions
-        #powerspectrum(particles, powerspec_dir + '/' + powerspec_base + '_'
-        #                         + basename(IC_file))
+        # Powerspectra of one or more snapshots should be made
+        powerspec()
     elif special_params['special'] == 'render':
         # A snapshot should be rendered
         render()
@@ -57,20 +52,15 @@ def delegate():
         masterwarn('Special flag "{}" not recognized!'
                    .format(special_params['special']))
 
-# Function that produces renders according to the
-# special_params['path'] parameter. If this is the path of a snapshot,
-# it will be rendered. If it is a directory, all snapshots in the
-# directory will be rendered.
+# Function for finding all snapshots in special_params['path']
 @cython.header(# Locals
-               N_renders='int',
-               filename='str',
                filenames='list',
                msg='str',
-               snapshot='StandardSnapshot',
-               snapshot_format='str',
+               snapshot_filenames='list',
+               returns='list',
                )
-def render():
-    # Create list of potential files to render
+def get_snapshots():
+    # Get all files from the path
     if master and not os.path.exists(special_params['path']):
         msg = 'Path "{}" does not exist!'.format(special_params['path'])
         raise Exception(msg)
@@ -81,15 +71,50 @@ def render():
                                                     filename))]
     else:
         filenames = [special_params['path']]
-    # Loop over all files. Produce renders of those files which happen
-    # to be snapshots.
-    N_renders = 0
+    # Only use snapshots
+    snapshot_filenames = [filename for filename in filenames
+                          if get_snapshot_type(filename)]
+    # If none of the files where snapshots, throw an exception
+    if master and not snapshot_filenames:
+        if os.path.isdir(special_params['path']):
+            msg = ('The directory "{}" does not contain any snapshots.'
+                   ).format(special_params['path'])
+        else:
+            msg = ('The file "{}" is not a valid snapshot.'
+                   ).format(special_params['path'])
+        raise Exception(msg)
+    return snapshot_filenames
+
+# Function that produces powerspectra according to the
+# special_params['path'] parameter.
+@cython.header(# Locals
+               filename='str',
+               filenames='list',
+               snapshot='StandardSnapshot',
+               )
+def powerspec():
+    # Get list of snapshots
+    filenames = get_snapshots()
+    # Produce a powerspectrum of each snapshot
     for filename in filenames:
-        # Get the snapshot type
-        snapshot_format = get_snapshot_type(filename)
-        if not snapshot_format:
-            continue
-        N_renders += 1
+        # Read in the snapshot
+        snapshot = load_into_standard(filename, write_msg=False)
+        # Compute powerspectrum of the snapshot
+        analysis.powerspectrum(snapshot.particles,
+                               filename + '_powerspec')
+
+# Function that produces renders according to the
+# special_params['path'] parameter.
+@cython.header(# Locals
+               filename='str',
+               filenames='list',
+               snapshot='StandardSnapshot',
+               )
+def render():
+    # Get list of snapshots
+    filenames = get_snapshots()
+    # Produce a render of each snapshot
+    for filename in filenames:
         # Read in the snapshot
         snapshot = load_into_standard(filename, write_msg=False)
         # Render the snapshot
@@ -97,17 +122,3 @@ def render():
                         snapshot.params['a'],
                         filename + '.png',
                         boxsize=snapshot.params['boxsize'])
-    # If none of the files where snapshots, throw an exception
-    if master and N_renders == 0:
-        if len(filenames) == 1:
-            msg = ('The file "{}" is not a valid snapshot.'
-                   ).format(special_params['path'])
-        else:
-            if len(filenames) == 0:
-                msg = ('The directory "{}" does not contain any files.'
-                       ).format(special_params['path'])
-            else:
-                msg = ('None of the files in "{}" are valid snapshots.'
-                       ).format(special_params['path'])
-        raise Exception(msg)
-
