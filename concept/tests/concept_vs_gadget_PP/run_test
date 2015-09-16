@@ -36,12 +36,10 @@ source "${this_dir}/../environment"
 # Create list of output times, used by both CONCEPT and GADGET
 "${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', [1])"
 
-# Create the Ewald grid using Cython, if it does not already exist
-# (for fast IC generation).
+# Create the Ewald grid using Cython
 ewald_gridsize=$(grep -o "ewald_gridsize[ =0-9]*" "${this_dir}/params" | awk '{printf $NF}')
-if [ ! -f "${concept_dir}/.ewald_gridsize=${ewald_gridsize}.hdf5" ]; then
-    "${run}" -n 1 -p "${this_dir}/../basic/params" --local
-fi
+rm -f "${concept_dir}/.ewald_gridsize=${ewald_gridsize}.hdf5"
+"${run}" -n 1 --local
 
 # Generate ICs
 "${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local

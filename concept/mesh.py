@@ -36,116 +36,134 @@ else:
 
 # Function for easy partitioning of multidimensional arrays
 @cython.header(# Arguments
-               array_shape='tuple',
+               size='size_t',
+               size_point='size_t',
                # Locals
-               problem_size='int',
-               local_size='int',
-               errmsg='str',
-               indices_start='size_t[::1]',
-               indices_end='size_t[::1]',
-               returns='tuple',
+               i='size_t',
+               rank_upper='int',
+               size_local_lower='size_t',
+               sizes_local='size_t[::1]',
+               start_local='size_t',
+               start_local_extra='int',
+               returns='size_t[::1]',
                )
-def partition(array_shape):
-    """ This function takes in the shape of an array as the argument
-    and returns the start and end indices corresponding to the local
-    chunk of the array which should be processed by the running process,
-    based on rank and nprocs.
+def partition(size, size_point=1):
+    """This function takes in the size (nr. of elements) of an array as
+    and returns an array of local sizes, corresponding to a linear, fair
+    partition of the array. If the array cannot be partition completely
+    fair, the higher ranks will recieve one additional element.
+    The starting index for a given rank can of course be computed using
+    the array of local sizes. For the sake of efficiency though, it is
+    stored as the 'nprocs' element of the returned array.
+    In each gridpoint can be placed a scalar, a vector etc. This changes
+    the sizes and the start index. To indicate the nr. of numbers in
+    each gridpoint, set te optional 'size_point' argument.
     """
-    # Raise an exception if nprocs > problem_size
-    problem_size = np.prod(array_shape)
-    if master and problem_size < nprocs:
-        errmsg = ('Cannot partition the workload because the number of\n'
-                  + 'processes (' + str(nprocs) + ') is larger than the '
-                  + 'problem size (' + str(problem_size) + ').')
-        raise ValueError(errmsg)
-
-    if rank == 0:
-        rank2 = 2
-    elif rank == 2:
-        rank2 = 0
-    else:
-        rank2 = rank
-
-    # Partition the local shape based on the rank
-    local_size = int(problem_size/nprocs)
-    indices_start = array(unravel_index(local_size*rank2, array_shape),
-                          dtype='uintp')
-    indices_end = array(unravel_index(local_size*(rank2 + 1) - 1, array_shape),
-                        dtype='uintp') + 1
-    #
-    for i in range(len(array_shape) - 1):
-        if indices_end[i] > indices_start[i] + 1:
-            if any([indices_start[j] != 0 or indices_end[j] != array_shape[j] for j in range(i + 1, len(array_shape))]):
-                indices_start[(i + 1):] = 0
-                indices_end[(i + 1):] = array(array_shape[(i + 1):], dtype='uintp')
-                if rank2 > 0:
-                    indices_start[i] += 1
-                break
-    return (indices_start, indices_end)
+    # The size of the local part of the array, for lower ranks
+    size_local_lower = size//nprocs
+    # The lowest rank of the higher processes,
+    # which recieve one additional element.
+    rank_upper = nprocs*(size_local_lower + 1) - size
+    # The sizes of the local parts of the array
+    sizes_local = size_local_lower*ones(nprocs + 1, dtype=C2np['size_t'])
+    for i in range(rank_upper, nprocs):
+        sizes_local[i] += 1
+    # The local start index in the global array
+    start_local = size_local_lower*rank
+    start_local_extra = rank - rank_upper
+    if start_local_extra > 0:
+        start_local += start_local_extra
+    # Pack the start index into the sizes_local array
+    sizes_local[nprocs] = start_local
+    # Correct for non-scalar elements
+    if size_point > 1:
+        for i in range(nprocs + 1):
+            sizes_local[i] *= size_point
+    return sizes_local
 
 # Function for tabulating a cubic grid with vector values
 @cython.header(# Arguments
-               gridsize='int',
+               gridsize='size_t',
                func='func_ddd_ddd',
                factor='double',
                filename='str',
                # Locals
                dim='size_t',
                grid='double[:, :, :, ::1]',
-               grid_local='double[:, :, :, ::1]',
+               grid_local='double[::1]',
                i='size_t',
-               i_end='size_t',
-               i_start='size_t',
                j='size_t',
-               j_end='size_t',
-               j_start='size_t',
                k='size_t',
-               k_end='size_t',
-               k_start='size_t',
-               shape='tuple',
+               m='size_t',
+               n_vectors='size_t',
+               n_vectors_local='size_t',
+               shape='size_t[::1]',
+               size='size_t',
+               size_edge='size_t',
+               size_face='size_t',
+               size_local='size_t',
+               size_point='size_t',
+               sizes_local='size_t[::1]',
+               start_local='size_t',
+               ℓ_local='size_t',
+               ℓ='size_t',
                returns='double[:, :, :, ::1]',
                )
-def tabulate_vectorfield(gridsize, func, factor, filename):
+def tabulate_vectorfield(gridsize, func, factor, filename=''):
     """ This function tabulates a cubic grid of size
     gridsize*gridsize*gridsize with vector values computed by the
     function func, as
     grid[i, j, k] = func(i*factor, j*factor, k*factor).
-    The tabulated grid is saved to a hdf5 file named filename.
+    If filename is set, the tabulated grid is saved to a hdf5 file
+    with this name.
     """
+    # The grid has a shape of gridsize*gridsize*gridsize*3.
+    # That is, grid is not really cubic, but rather four-dimensional.
+    shape = array([gridsize]*3 + [3], dtype=C2np['size_t'])
+    # The number of scalars and vectors in the grid,
+    # when viewed as a 3D box of vectors.
+    size_point = shape[3]
+    size_edge = shape[2]*size_point
+    size_face = shape[1]*size_edge
+    size = shape[0]*size_face
+    n_vectors = size//size_point
     # Initialize the grid to be of shape gridsize*gridsize*gridsize*3.
     # That is, grid is not really cubic, but rather four-dimensional.
-    shape = (gridsize, )*3 + (3, )
-    grid = empty(shape)
-    # Each process tabulate its part of the grid
-    (i_start, j_start, k_start), (i_end, j_end, k_end) = partition(shape[:3])
-    grid_local = empty([i_end - i_start,
-                        j_end - j_start,
-                        k_end - k_start] + [3])
-    for i in range(i_start, i_end):
-        for j in range(j_start, j_end):
-            for k in range(k_start, k_end):
-                # Compute the vector values via the passed function
-                vector = func(i*factor, j*factor, k*factor)
-                for dim in range(3):
-                    grid_local[i - i_start,
-                               j - j_start,
-                               k - k_start, dim] = vector[dim]
+    grid = empty(shape, dtype=C2np['double'])
+    # Partition the grid fairly among the processes. Each part is
+    # defined by a linear size and starting index.
+    sizes_local = asarray(partition(n_vectors, size_point),
+                          dtype=C2np['size_t'])
+    size_local = sizes_local[rank]
+    start_local = sizes_local[nprocs]
+    n_vectors_local = size_local//size_point
+    # Make a linear array for storing the local part of the grid
+    grid_local = empty(size_local, dtype=C2np['double'])
+    # Tabulate the local grid
+    for m in range(n_vectors_local):
+        # The local and global linear index
+        ℓ_local = m*size_point
+        ℓ = start_local + ℓ_local
+        # The global 3D indices
+        i = ℓ//size_face
+        ℓ -= i*size_face
+        j = ℓ//size_edge
+        ℓ -= j*size_edge
+        k = ℓ//size_point
+        # Fill grid_local
+        vector = func(i*factor, j*factor, k*factor)
+        for dim in range(3):
+            grid_local[ℓ_local + dim] = vector[dim]
+    # Gather the local grids parts into a common, global grid
+    Allgatherv(sendbuf=grid_local, 
+               recvbuf=(grid, sizes_local[:nprocs]))
+    # Return now if the grid should not be saved to fisk
+    if not filename:
+        return grid
     # Save grid to disk using parallel HDF5
     with h5py.File(filename, mode='w', driver='mpio', comm=comm) as hdf5_file:
-        dset = hdf5_file.create_dataset('data', shape, dtype='float64')
-        dset[i_start:i_end, j_start:j_end, k_start:k_end, :] = grid_local
-    # Every process gets to know the entire grid
-    print('rank', rank, 'shape:', grid_local.shape, grid.shape, 'size:', grid_local.size*8, grid.size*8, flush=True)
-    #Allgatherv(grid_local, grid)
-    Allgatherv(sendbuf=[grid_local, MPI.DOUBLE], 
-               recvbuf=[grid, ([3840, 3840, 4608], [0, 3840, 3840*2]), MPI.DOUBLE])
-
-    # DELETE
-    with h5py.File(filename + '_allgather', mode='w') as hdf5_file:
-        dset = hdf5_file.create_dataset('data', shape, dtype='float64')
-        dset[:, :, :, :] = grid
-
-
+        dset = hdf5_file.create_dataset('data', (size, ), dtype='float64')
+        dset[start_local:(start_local + size_local)] = grid_local
     return grid
 
 

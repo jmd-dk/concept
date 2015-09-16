@@ -379,12 +379,8 @@ def colon2zero_in_addresses(filename):
     with open(filename, 'r') as pyxfile:
         for line in pyxfile:
             if 'cython.address(' in line:
-                for i in range(line.find('cython.address('), len(line)):
-                    if line[i] == ')':
-                        break
-                    elif line[i] == ':':
-                        line = line[:i] + '0' + line[i + 1:]
-                        break
+                line = re.sub('cython.address\((.*)\[\.\.\.\].*\)', r'cython.address(\1[0])', line)
+                line = re.sub('cython.address\((.*)\[:\].*\)', r'cython.address(\1[0])', line)
             new_lines.append(line)
     with open(filename, 'w') as pyxfile:
         pyxfile.writelines(new_lines)

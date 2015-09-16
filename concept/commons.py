@@ -476,7 +476,7 @@ cython.declare(# Input/output
                output_times='dict',
                # Numerical parameter
                boxsize='double',
-               ewald_gridsize='int',
+               ewald_gridsize='size_t',
                PM_gridsize='ptrdiff_t',
                P3M_scale='double',
                P3M_cutoff='double',

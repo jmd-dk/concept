@@ -102,57 +102,14 @@ renderparams="$(absolute ${renderparams})"
 # Make temporary parameter file based on the short version
 # parameter file that goes together with this script.
 printf "
-# Input/output
-IC_file = ''
-snapshot_type = 'default'
-output_dirs = {
-    'snapshot':  '',
-    'powerspec': '',
-    'render':    '',
-               }
-output_bases = {
-    'snapshot':  '',
-    'powerspec': '',
-    'render':    '',
-                }
-output_times = {
-    'snapshot':  (),
-    'powerspec': (),
-    'render':    (),
-                }
-
-# Numerical parameters
-boxsize = 1
-ewald_gridsize = 1
-PM_gridsize = 1
-P3M_scale = 1
-P3M_cutoff = 1
-softeningfactors = {'dark matter': 1,
-                    'dark energy': 1,
-                    }
-Δt_factor = 1
-
-# Cosmological parameters
-H0 = 1
-Ωm = 1
-ΩΛ = 1
-a_begin = 0
-
 # Graphics
-liverender=''
 $(cat "${renderparams}")
-remote_liverender=''
-protocol = ''
 
-# Simulation options
-kick_algorithms = {}
-use_Ewald = False
-
-# Secret parameter
+# Hidden parameter
 special_params = {
     'special':  'render',
     'path':     '${path}',
-           }
+                  }
 " > "${this_file}.params.full"
 
 # Run CONCEPT to produce the renders

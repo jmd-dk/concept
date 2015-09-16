@@ -234,8 +234,11 @@ if 'PP' in kick_algorithms.values() and use_Ewald:
     filepath = paths['concept_dir'] + '/' + ewald_file
     if isfile(filepath):
         # Ewald grid already tabulated. Load it
-        with h5py.File(filepath, mode='r') as hdf5_file:
-            grid = hdf5_file['data'][...]
+        with h5py.File(filepath,
+                       mode='r',
+                       driver='mpio',
+                       comm=comm) as hdf5_file:
+            grid = hdf5_file['data'][...].reshape([ewald_gridsize]*3 + [3])
     else:
         # No tabulated Ewald grid found. Compute it.The factor 0.5
         # ensures that only the first octant of the box is tabulated
@@ -244,7 +247,5 @@ if 'PP' in kick_algorithms.values() and use_Ewald:
         grid = tabulate_vectorfield(ewald_gridsize,
                                     summation,
                                     0.5/(ewald_gridsize - 1),
-                                    filepath,
-                                    )
+                                    filepath)
         masterprint('done')
-
