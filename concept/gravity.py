@@ -61,14 +61,13 @@ else:
         # Functions
         fftw_return_struct fftw_setup(ptrdiff_t gridsize_i,
                                       ptrdiff_t gridsize_j,
-                                      ptrdiff_t gridsize_k)
+                                      ptrdiff_t gridsize_k,
+                                      char*     rigor)
         void fftw_execute(fftw_plan plan)
         void fftw_clean(double* grid, fftw_plan plan_forward,
                                       fftw_plan plan_backward)
     """
 
-# Imports and definitions common to pure Python and Cython
-from os.path import isfile
 
 
 # Function for direct summation of gravitational
@@ -81,7 +80,7 @@ from os.path import isfile
                momy_i='double*',
                momz_i='double*',
                mass_i='double',
-               N_local_i='size_t',
+               N_local_i='Py_ssize_t',
                posx_j='double*',
                posy_j='double*',
                posz_j='double*',
@@ -89,7 +88,7 @@ from os.path import isfile
                Δmomy_j='double*',
                Δmomz_j='double*',
                mass_j='double',
-               N_local_j='size_t',
+               N_local_j='Py_ssize_t',
                Δt='double',
                softening2='double',
                only_short_range='bint',
@@ -98,10 +97,10 @@ from os.path import isfile
                dim='int',
                eom_factor='double',
                force='double*',
-               i='size_t',
-               i_end='size_t',
-               j='size_t',
-               j_start='size_t',
+               i='Py_ssize_t',
+               i_end='Py_ssize_t',
+               j='Py_ssize_t',
+               j_start='Py_ssize_t',
                r_scaled='double',
                r3='double',
                shortrange_fac='double',
@@ -175,7 +174,7 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
                 r = sqrt(x**2 + y**2 + z**2 + softening2)
                 r3 = r**3
                 r_scaled = r/P3M_scale_phys
-                shortrange_fac = (r_scaled/sqrt_π*exp(-0.25*r_scaled**2)
+                shortrange_fac = (r_scaled/ℝ[sqrt(π)]*exp(-0.25*r_scaled**2)
                                   + erfc(0.5*r_scaled))
                 force[0] = -x/r3*shortrange_fac
                 force[1] = -y/r3*shortrange_fac
@@ -248,15 +247,15 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
                # Locals
                ID_recv='int',
                ID_send='int',
-               N_extrn='size_t',
-               N_extrn_max='size_t',
-               N_extrns='size_t[::1]',
-               N_local='size_t',
+               N_extrn='Py_ssize_t',
+               N_extrn_max='Py_ssize_t',
+               N_extrns='Py_ssize_t[::1]',
+               N_local='Py_ssize_t',
                N_partnerproc_pairs='int',
                even_nprocs='bint',
                factor='double',
                flag_input='int',
-               i='size_t',
+               i='Py_ssize_t',
                j='int',
                mass='double',
                momx_local='double*',
@@ -311,7 +310,7 @@ def PP(particles, Δt):
     # Update local momenta and compute and send external momentum
     # changes due to forces between local and external particles.
     # Find out how many particles will be recieved from each process
-    N_extrns = find_N_recv(array([N_local], dtype='uintp'))
+    N_extrns = find_N_recv(array([N_local], dtype=C2np['Py_ssize_t']))
     N_extrn_max = N_extrns[rank]
     # Enlarges the buffers if necessary
     if posx_extrn_mv.shape[0] < N_extrn_max:
@@ -398,7 +397,7 @@ def PP(particles, Δt):
 # Function for updating all particle momenta in a particular direction,
 # used in the PM algorithm.
 @cython.header(# Arguments
-               N_local='size_t',
+               N_local='Py_ssize_t',
                PM_fac='double',
                force_grid='double[:, :, ::1]',
                posx='double*',
@@ -406,7 +405,7 @@ def PP(particles, Δt):
                posz='double*',
                mom='double*',
                # Locals
-               i='size_t',
+               i='Py_ssize_t',
                x='double',
                y='double',
                z='double',
@@ -573,10 +572,10 @@ def PM(particles, Δt, only_long_range=False):
             for k in range(2, domain_grid.shape[2] - 2):
                 force_grid[i - 2,
                            j - 2,
-                           k - 2] = (two_thirds*(domain_grid[i + 1, j, k]
-                                               - domain_grid[i - 1, j, k])
-                                  - one_twelfth*(domain_grid[i + 2, j, k]
-                                               - domain_grid[i - 2, j, k]))
+                           k - 2] = (ℝ[2/3]*(domain_grid[i + 1, j, k]
+                                           - domain_grid[i - 1, j, k])
+                                  - ℝ[1/12]*(domain_grid[i + 2, j, k]
+                                           - domain_grid[i - 2, j, k]))
     # Update local x-momenta
     PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, momx)
     # Compute the forces in the y-direction via the four point rule
@@ -585,10 +584,10 @@ def PM(particles, Δt, only_long_range=False):
             for k in range(2, domain_grid.shape[2] - 2):
                 force_grid[i - 2,
                            j - 2,
-                           k - 2] = (two_thirds*(domain_grid[i, j + 1, k]
-                                               - domain_grid[i, j - 1, k])
-                                  - one_twelfth*(domain_grid[i, j + 2, k]
-                                               - domain_grid[i, j - 2, k]))
+                           k - 2] = (ℝ[2/3]*(domain_grid[i, j + 1, k]
+                                           - domain_grid[i, j - 1, k])
+                                  - ℝ[1/12]*(domain_grid[i, j + 2, k]
+                                           - domain_grid[i, j - 2, k]))
     # Update local y-momenta
     PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, momy)
     # Compute the forces in the z-direction via the four point rule
@@ -597,10 +596,10 @@ def PM(particles, Δt, only_long_range=False):
             for k in range(2, domain_grid.shape[2] - 2):
                 force_grid[i - 2,
                            j - 2,
-                           k - 2] = (two_thirds*(domain_grid[i, j, k + 1]
-                                               - domain_grid[i, j, k - 1])
-                                  - one_twelfth*(domain_grid[i, j, k + 2]
-                                               - domain_grid[i, j, k - 2]))
+                           k - 2] = (ℝ[2/3]*(domain_grid[i, j, k + 1]
+                                           - domain_grid[i, j, k - 1])
+                                  - ℝ[1/12]*(domain_grid[i, j, k + 2]
+                                           - domain_grid[i, j, k - 2]))
     # Update local z-momenta
     PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, momz)
 
@@ -857,14 +856,14 @@ def in_boundary_leftbackwarddown(posx_local_i, posy_local_i, posz_local_i):
                particles='Particles',
                Δt='double',
                # Locals
-               N_extrn='size_t',
-               N_local='size_t',
-               N_boundary1='size_t',
-               N_boundary2='size_t',
-               i='size_t',
+               N_extrn='Py_ssize_t',
+               N_local='Py_ssize_t',
+               N_boundary1='Py_ssize_t',
+               N_boundary2='Py_ssize_t',
+               i='Py_ssize_t',
                in_boundary1='func_b_ddd',
                in_boundary2='func_b_ddd',
-               j='int',
+               j='Py_ssize_t',
                mass='double',
                momx_local='double*',
                momy_local='double*',
@@ -878,7 +877,8 @@ def in_boundary_leftbackwarddown(posx_local_i, posy_local_i, posz_local_i):
                rank_send='int',
                rank_recv='int',
                softening2='double',
-               Δmemory='size_t',
+               Δmemory='Py_ssize_t',
+               hmm='double',
                )
 def P3M(particles, Δt):
     """The long-range part is computed via the PM function. Local
@@ -934,14 +934,17 @@ def P3M(particles, Δt):
     # exists (if run on a single process)
     if nprocs == 1:
         return
-    # Now only short-range interactions
-    # between neighboring domain boundaries remain.
-    # The buffers below may increase
-    # their size by this amount at a time.
-    Δmemory = 2 + cast(0.05*N_local*np.max([P3M_cutoff_phys/domain_size_x,
-                                            P3M_cutoff_phys/domain_size_y,
-                                            P3M_cutoff_phys/domain_size_z,
-                                            ]), 'size_t')
+    # Now only short-range interactions between neighboring domain
+    # boundaries remain.
+    # The buffers below may increase their size by this amount at a
+    # time. Here we cast to a Python int (which is then implicitly
+    # casted to a Py_ssize_t) since np.float64 cannot be explicitly
+    # casted to Py_ssize_t.
+    Δmemory = 2 + int(0.05*N_local*np.max([P3M_cutoff_phys/domain_size_x,
+                                         P3M_cutoff_phys/domain_size_y,
+                                         P3M_cutoff_phys/domain_size_z,
+                                         ]))
+    hmm = max(posx_local_boundary_mv)
     # Loop over all 26 neighbors (two at a time)
     for j in range(13):
         # It is important that the processes iterate synchronously,
@@ -973,9 +976,9 @@ def P3M(particles, Δt):
                 if posx_local_boundary_mv.shape[0] == N_boundary1:
                     indices_boundary = realloc(indices_boundary,
                                                (N_boundary1 + Δmemory)
-                                               *sizeof('size_t'))
+                                               *sizeof('Py_ssize_t'))
                     indices_boundary_mv = cast(indices_boundary,
-                                               'size_t[:(N_boundary1 '
+                                               'Py_ssize_t[:(N_boundary1 '
                                                + '+ Δmemory)]')
                     posx_local_boundary = realloc(posx_local_boundary,
                                                   (N_boundary1 + Δmemory)
@@ -1029,9 +1032,9 @@ def P3M(particles, Δt):
                 if indices_send_mv.shape[0] == N_boundary2:
                     indices_send = realloc(indices_send,
                                            (N_boundary2 + Δmemory)
-                                           *sizeof('size_t'))
+                                           *sizeof('Py_ssize_t'))
                     indices_send_mv = cast(indices_send,
-                                           'size_t[:(N_boundary2 + Δmemory)]')
+                                           'Py_ssize_t[:(N_boundary2 + Δmemory)]')
                 if Δmomx_local_mv.shape[0] == N_boundary2:
                     Δmomx_local = realloc(Δmomx_local,
                                           (N_boundary2 + Δmemory)
@@ -1125,6 +1128,7 @@ cython.declare(fftw_struct='fftw_return_struct',
                PM_grid='double[:, :, ::1]',
                plan_forward='fftw_plan',
                plan_backward='fftw_plan',
+               fftw_struct_grid='double*',
                )
 if use_PM:
     # The PM mesh and functions on it
@@ -1206,17 +1210,45 @@ if use_PM:
                                           + PM_gridsize_local_i),
                                          :, :]
     else:
+        # Sanity check on user defined fftw_rigor
+        fftw_rigors = ('exhaustive', 'patient', 'measure', 'estimate')
+        if fftw_rigor not in fftw_rigors:
+            masterwarn(('Did not recognize fftw_rigor "{}". '
+                        + 'Falling back to "estimate".').format(fftw_rigor))
+            fftw_rigor = 'estimate'
+        # Use a better rigor if wisdom already exist
+        for fftw_rigor in fftw_rigors[:(fftw_rigors.index(fftw_rigor) + 1)]:
+            wisdom_filename = ('.fftw_wisdom_gridsize={}_nprocs={}_rigor={}'
+                               .format(PM_gridsize, nprocs, fftw_rigor))
+            if os.path.isfile(wisdom_filename):
+                break
         # Initialize fftw_mpi, allocate the grid, initialize the
         # local grid sizes and start indices and do FFTW planning.
-        if not isfile('.fftw_wisdom_gridsize={}_nprocs={}'.format(PM_gridsize,
-                                                                  nprocs)):
-            masterprint(('Acquiring FFTW wisdom for grid of linear size {} on '
-                         + '{} ' + ('processes' if nprocs > 1 else 'process')
-                         + ' ...').format(PM_gridsize, nprocs))
-            fftw_struct = fftw_setup(PM_gridsize, PM_gridsize, PM_gridsize)
+        if not os.path.isfile(wisdom_filename):
+            msg = ('Acquiring FFTW wisdom ({}) for grid of linear size {} on '
+                   + '{} {} ...').format(fftw_rigor,
+                                         PM_gridsize,
+                                         nprocs,
+                                         'processes' if nprocs > 1
+                                                     else 'process')
+            masterprint(msg)
+            fftw_struct = fftw_setup(PM_gridsize,
+                                     PM_gridsize,
+                                     PM_gridsize,
+                                     bytes(fftw_rigor, encoding='ascii'))
             masterprint('done')
         else:
-            fftw_struct = fftw_setup(PM_gridsize, PM_gridsize, PM_gridsize)
+            fftw_struct = fftw_setup(PM_gridsize,
+                                     PM_gridsize,
+                                     PM_gridsize,
+                                     bytes(fftw_rigor, encoding='ascii'))
+        # If less rigouros wisdom exist for the same problem, delete it
+        for rigor in fftw_rigors[(fftw_rigors.index(fftw_rigor) + 1):]:
+            wisdom_filename = ('.fftw_wisdom_gridsize={}_nprocs={}_rigor={}'
+                               .format(PM_gridsize, nprocs, rigor))
+            if master and os.path.isfile(wisdom_filename):
+                os.remove(wisdom_filename)
+        
         # Unpack fftw_struct
         PM_gridsize_local_i = fftw_struct.gridsize_local_i
         PM_gridsize_local_j = fftw_struct.gridsize_local_j
@@ -1225,6 +1257,8 @@ if use_PM:
         # Wrap a memoryview around the grid. Loop as noted in fft.c, but
         # use PM_grid[i, j, k] when in real space and PM_grid[j, i, k]
         # when in Fourier space
+
+        fftw_struct_grid = fftw_struct.grid
         if PM_gridsize_local_i > 0:
             PM_grid = cast(fftw_struct.grid,
             'double[:PM_gridsize_local_i, :PM_gridsize, :PM_gridsize_padding]')
@@ -1365,10 +1399,10 @@ cython.declare(boundary_ranks_recv='int[::1]',
                boundary_z_min='double',  
                in_boundary1_funcs='func_b_ddd*',
                in_boundary2_funcs='func_b_ddd*',
-               indices_boundary='size_t*',
-               indices_boundary_mv='size_t[::1]',
-               indices_send='size_t*',
-               indices_send_mv='size_t[::1]',
+               indices_boundary='Py_ssize_t*',
+               indices_boundary_mv='Py_ssize_t[::1]',
+               indices_send='Py_ssize_t*',
+               indices_send_mv='Py_ssize_t[::1]',
                neighbors='dict',
                posx_extrn='double*',
                posx_extrn_mv='double[::1]',
@@ -1448,12 +1482,12 @@ posz_extrn_mv = cast(posz_extrn, 'double[:1]')
 Δmomy_extrn_mv = cast(Δmomy_extrn, 'double[:1]')
 Δmomz_extrn_mv = cast(Δmomz_extrn, 'double[:1]')
 # For storing the indices of particles to be send
-indices_send = malloc(1*sizeof('size_t'))
-indices_send_mv = cast(indices_send, 'size_t[:1]')
+indices_send = malloc(1*sizeof('Py_ssize_t'))
+indices_send_mv = cast(indices_send, 'Py_ssize_t[:1]')
 # For storing the indices of local particles which should interact with
 # boundaries of other domains in the P3M method.
-indices_boundary = malloc(1*sizeof('size_t'))
-indices_boundary_mv = cast(indices_send, 'size_t[:1]')
+indices_boundary = malloc(1*sizeof('Py_ssize_t'))
+indices_boundary_mv = cast(indices_send, 'Py_ssize_t[:1]')
 # For storing a copy of those local particles
 # that consitutes the short-range domain boundaries.
 posx_local_boundary = malloc(1*sizeof('double'))

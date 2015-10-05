@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # This file is part of CONCEPT, the cosmological N-body code in Python.
 # Copyright (C) 2015 Jeppe Mosgard Dakin.
 #
@@ -19,5 +21,9 @@
 # The latest version of CONCEPT is available at
 # https://github.com/jmd-dk/concept/
 
-ewald_gridsize = 8
+
+
+# This script does cleanup after a test
+this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+(cd "${this_dir}" && rm -f histogram.png powerspec_snapshot powerspec_snapshot.png snapshot)
 

@@ -36,18 +36,17 @@ else:
 
 # Function for communicating sizes of receive buffers
 @cython.header(# Arguments
-               N_send='size_t[::1]',
+               N_send='Py_ssize_t[::1]',
                # Locals
                ID_recv='int',
                ID_send='int',
-               N_recv='size_t[::1]',
-               N_recv_max='size_t',
+               N_recv='Py_ssize_t[::1]',
+               N_recv_max='Py_ssize_t',
                j='int',
-               k='int',
                same_N_send='bint',
-               max_bfore_rank='size_t',
-               max_after_rank='size_t',
-               returns='size_t[::1]',
+               max_bfore_rank='Py_ssize_t',
+               max_after_rank='Py_ssize_t',
+               returns='Py_ssize_t[::1]',
                )
 def find_N_recv(N_send):
     """Given the size of arrays to send, N_send, which itself has a
@@ -59,7 +58,7 @@ def find_N_recv(N_send):
     receive is useful when allocating receive buffers, so this number is
     stored in this otherwize unused entrance.
     """
-    N_recv = empty(nprocs, dtype='uintp')
+    N_recv = empty(nprocs, dtype=C2np['Py_ssize_t'])
     # Check whether N_send is the same for each process to send to
     same_N_send = (N_send.size == 1)
     # If N_send is the same for each process, an Allgather will suffice
@@ -94,25 +93,25 @@ def find_N_recv(N_send):
                # Locals
                ID_recv='int',
                ID_send='int',
-               N_local='size_t',
-               N_needed='size_t',
-               N_recv='size_t[::1]',
-               N_recv_j='size_t',
-               N_recv_max='size_t',
-               N_recv_tot='size_t',
-               N_send_j='size_t',
-               N_send_max='size_t',
-               N_send_owner='size_t',
-               N_send_tot='size_t',
-               N_send_tot_global='size_t',
-               holes_filled='int',
-               i='size_t',
-               index_recv_j='size_t',
-               indices_send_j='size_t*',
-               indices_send_owner='size_t*',
+               N_local='Py_ssize_t',
+               N_needed='Py_ssize_t',
+               N_recv='Py_ssize_t[::1]',
+               N_recv_j='Py_ssize_t',
+               N_recv_max='Py_ssize_t',
+               N_recv_tot='Py_ssize_t',
+               N_send_j='Py_ssize_t',
+               N_send_max='Py_ssize_t',
+               N_send_owner='Py_ssize_t',
+               N_send_tot='Py_ssize_t',
+               N_send_tot_global='Py_ssize_t',
+               holes_filled='Py_ssize_t',
+               i='Py_ssize_t',
+               index_recv_j='Py_ssize_t',
+               indices_send_j='Py_ssize_t*',
+               indices_send_owner='Py_ssize_t*',
                j='int',
-               k='size_t',
-               k_start='size_t',
+               k='Py_ssize_t',
+               k_start='Py_ssize_t',
                momx='double*',
                momx_mv='double[::1]',
                momy='double*',
@@ -126,7 +125,7 @@ def find_N_recv(N_send):
                posy_mv='double[::1]',
                posz='double*',
                posz_mv='double[::1]',
-               Δmemory='size_t',
+               Δmemory='Py_ssize_t',
                )
 def exchange(particles, reset_buffers=False):
     """This function will do an exchange of particles between processes,
@@ -148,7 +147,7 @@ def exchange(particles, reset_buffers=False):
     posy = particles.posy
     posz = particles.posz
     # The index buffers indices_send[:] increase in size by this amount
-    Δmemory = 2 + cast(0.01*N_local/nprocs, 'size_t')
+    Δmemory = 2 + cast(0.01*N_local/nprocs, 'Py_ssize_t')
     # Reset the number of particles to be sent
     for j in range(nprocs):
         N_send[j] = 0
@@ -167,7 +166,7 @@ def exchange(particles, reset_buffers=False):
                 indices_send_sizes[owner] += Δmemory
                 indices_send[owner] = realloc(indices_send[owner],
                                               indices_send_sizes[owner]
-                                              *sizeof('size_t'))
+                                              *sizeof('Py_ssize_t'))
     # No need to continue if no particles should be exchanged
     N_send_tot = sum(N_send)
     N_send_tot_global = allreduce(N_send_tot, op=MPI.SUM)
@@ -309,7 +308,7 @@ def exchange(particles, reset_buffers=False):
     # future calls.
     if reset_buffers:
         for j in range(nprocs):
-            indices_send[j] = realloc(indices_send[j], 1*sizeof('size_t'))
+            indices_send[j] = realloc(indices_send[j], 1*sizeof('Py_ssize_t'))
             indices_send_sizes[j] = 1
             sendbuf = realloc(sendbuf, 1*sizeof('double'))
             sendbuf_mv = cast(sendbuf, 'double[:1]')
@@ -605,22 +604,22 @@ domain_size_y = boxsize/domain_cuts[1]
 domain_size_z = boxsize/domain_cuts[2]
 
 # Initialize the variables used in the exchange function at import time
-cython.declare(N_send='size_t[::1]',
-               indices_send='size_t**',
-               indices_send_sizes='size_t[::1]',
+cython.declare(N_send='Py_ssize_t[::1]',
+               indices_send='Py_ssize_t**',
+               indices_send_sizes='Py_ssize_t[::1]',
                sendbuf='double*',
                sendbuf_mv='double[::1]',
                )
 # This variable stores the number of particles to send to each prcess
-N_send = zeros(nprocs, dtype='uintp')
-# This size_t** variable stores the indices of particles to be send to
+N_send = zeros(nprocs, dtype=C2np['Py_ssize_t'])
+# This Py_ssize_t** variable stores the indices of particles to be send to
 # other processes. That is, indices_send[other_rank][i] is the local
 # index of some particle which should be send to other_rank.
-indices_send = malloc(nprocs*sizeof('size_t*'))
+indices_send = malloc(nprocs*sizeof('Py_ssize_t*'))
 for j in range(nprocs):
-    indices_send[j] = malloc(1*sizeof('size_t'))
+    indices_send[j] = malloc(1*sizeof('Py_ssize_t'))
 # The size of the allocated indices_send[:] memory
-indices_send_sizes = ones(nprocs, dtype='uintp')
+indices_send_sizes = ones(nprocs, dtype=C2np['Py_ssize_t'])
 # The send buffer for the particle data
 sendbuf = malloc(1*sizeof('double'))
 sendbuf_mv = cast(sendbuf, 'double[:1]')

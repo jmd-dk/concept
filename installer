@@ -146,16 +146,17 @@ set_version "fftw_for_gadget" "2.1.5"                   # only 2.1.5  is known t
 set_version "gsl"             "newest" "1.16"
 set_version "hdf5"            "newest" "1.8.15-patch1"
 set_version "mpich"           "newest" "3.1.4"
+set_version "zlib"            "newest" "1.2.8"
 # Python packages:
 set_version "blessings"       "newest"                  #      1.6    is known to work
-set_version "cython"          "0.22.1"                  #      0.22.1 is known to work (0.23 does not work)
+set_version "cython"          "newest"                  #      0.23.1 is known to work (0.23 does not work)
 set_version "cython_gsl"      "newest"                  #      0.2.1  is known to work
 set_version "matplotlib"      "newest"                  #      1.4.3  is known to work
 set_version "numpy"           "newest"                  #      1.9.2  is known to work
 set_version "pexpect"         "newest"                  #      3.3    is known to work
 set_version "mpi4py"          "newest"                  #      1.3.1  is known to work
 set_version "h5py"            "newest"                  #      2.5.0  is known to work
-set_version "zlib"            "newest"                  #      1.2.8  is known to work
+
 
 
 
@@ -327,7 +328,7 @@ check_system_dependency "awk" "awk" "gawk"
 check_system_dependency "gcc" "gcc" "gcc"
 check_system_dependency "g++" "g++" "g++"
 check_system_dependency "gfortran" "gfortran" "gfortran"
-check_system_dependency "gzip" "gunzip" "gzip"
+check_system_dependency "gzip" "gzip" "gzip"
 check_system_dependency "make" "make" "make"
 check_system_dependency "perl" "perl" "perl"  # Needed by OpenSSL
 check_system_dependency "sed" "sed" "sed"
@@ -802,8 +803,29 @@ fi
 ###################################
 # Installing CONCEPT dependencies #
 ###################################
-# Function for downloading and extracting compressed .tar.gz/.tgz
-# archives. The "programname_url" must point to such an archive, which
+# Function for extracting compressed files
+extract()
+{
+    # Arguments: Filename
+    filename="${1}"
+    case "${filename}" in
+        *.tar.gz)  gzip  -d < "${filename}" | tar -ixvf -;;
+        *.tgz)     gzip  -d < "${filename}" | tar -ixvf -;;
+        *.gz)      gzip  -d   "${filename}"              ;;
+        *.tar.bz2) bzip2 -d < "${filename}" | tar -ixvf -;;
+        *.tbz2)    bzip2 -d < "${filename}" | tar -ixvf -;;
+        *.bz2)     bzip2 -d   "${filename}"              ;;
+        *.tar.bz)  bzip  -d < "${filename}" | tar -ixvf -;;
+        *.tbz)     bzip  -d < "${filename}" | tar -ixvf -;;
+        *.bz)      bzip  -d   "${filename}"              ;;
+        *.tar.xz)  xz    -d < "${filename}" | tar -ixvf -;;
+        *.tbz2)    xz    -d < "${filename}" | tar -ixvf -;;
+        *.xz)      xz    -d   "${filename}"              ;;
+        *) error "Could not understand the compression format of ${filename}"; exit 1;;
+    esac
+}
+# Function for downloading and extracting compressed archives.
+# The "programname_url" must point to such an archive, which
 # contains a single directory.
 download_and_extract()
 {
@@ -829,7 +851,7 @@ download_and_extract()
     disable_status
     for n in {1..50}; do
         wget_status="success"
-        wget --timeout 15 -c -O "${progname}.tar.gz" --no-check-certificate "${url}" || wget_status="error"
+        wget --timeout 15 -c --no-check-certificate "${url}" || wget_status="error"
         if [ "${wget_status}" == "success" ]; then
             break
         fi
@@ -841,7 +863,7 @@ download_and_extract()
         exit 1
     fi
     # Extract
-    gunzip < "${progname}.tar.gz" | tar -ixvf -
+    extract *
     cd *
 }
 
@@ -1102,7 +1124,7 @@ pip_download()
         pip_status="error"
         "${python}" -m pip install -v -v -v --no-cache-dir --no-binary=:all: --download "${top_dir}/tmp" "${pip_name}${command_end}" 2>&1 || :
         # If the archive exists in the tmp dir, the download completed successfully
-        if ls "${top_dir}/tmp" | grep -i "${pip_name}-[0-9.]*.tar.gz" > /dev/null 2>&1; then
+        if ls "${top_dir}/tmp" | grep -i "${pip_name}" > /dev/null 2>&1; then
             pip_status="success"
         fi
         if [ "${pip_status}" == "error" ]; then
@@ -1110,7 +1132,7 @@ pip_download()
             pip_status="error"
             "${python}" -m pip install -v -v -v --no-cache-dir --no-use-wheel --download "${top_dir}/tmp" "${pip_name}${command_end}" 2>&1 || :
             # If the archive exists in the tmp dir, the download completed successfully
-            if ls "${top_dir}/tmp" | grep -i "${pip_name}-[0-9.]*.tar.gz" > /dev/null 2>&1; then
+            if ls "${top_dir}/tmp" | grep -i "${pip_name}" > /dev/null 2>&1; then
                 pip_status="success"
             fi
         fi
@@ -1325,13 +1347,13 @@ if [ "${matplotlib_preinstalled}" == "no" ]; then
     deps=(        "nose" "pyparsing" "python-dateutil" "pytz" "six")    # NumPy already installed
     dep_versions=(""     ""          ">=1.1"           ""     ">=1.4")  # From http://matplotlib.org/users/installing.html 
     for ((i=0; i<${#deps[@]}; i+=1)); do
-        if ! ls "${top_dir}/tmp" | grep -i "${deps[i]}-[0-9.]*.tar.gz" > /dev/null 2>&1; then
+        if ! ls "${top_dir}/tmp" | grep -i "${deps[i]}" > /dev/null 2>&1; then
             pip_download "${deps[i]}" "${dep_versions[i]}"
         fi
     done
     # Install matplotlib
     cd "${top_dir}/tmp"
-    gunzip < matplotlib*.tar.gz | tar -ixvf -
+    extract matplotlib*
     cd matplotlib*
     cp setup.cfg.template setup.cfg
     sed -i "/basedirlist/c\basedirlist = ${freetype_dir}" setup.cfg
@@ -1365,7 +1387,7 @@ if [ "${h5py_preinstalled}" == "no" ]; then
     set_status "Installing H5Py ${h5py_version}"
     pip_download "h5py" "${h5py_version}"
     cd "${top_dir}/tmp"
-    gunzip < h5py*.tar.gz | tar -ixvf -
+    extract h5py*
     cd h5py*
     export CC="${mpi_dir}/bin/mpicc"
     "${python}" setup.py configure --mpi --hdf5="${hdf5_dir}" 2>&1

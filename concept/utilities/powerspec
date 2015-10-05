@@ -23,10 +23,10 @@
 
 
 
-# Run this script directly to produce renders of snapshots.
+# Run this script directly to produce powerspectra of snapshots.
 # This script has one required argument; the path to either a snapshot file
-# or a directory containing snapshots. In the latter case, renders will be
-# produced of all snapshots in the directory.
+# or a directory containing snapshots. In the latter case, powerspectra will
+# be produced of all snapshots in the directory.
 
 # Absolute paths to this file and its directory
 this_file="$(readlink -f "${BASH_SOURCE[0]}")"
@@ -119,15 +119,15 @@ params="$(absolute ${params})"
 snapshot_filenames="$("${python}" -B -c "import special; [print(s) for s in special.locate_snapshots('${path}')]")"
 snapshot_filenames_pylist="[\"$(echo "${snapshot_filenames}" | sed ':a;N;$!ba;s/\n/\", "/g')\"]"
 
-# Print out which snapshots will be rendered
-echo "The following snapshots will be rendered:"
+# Print out which snapshots will be used
+echo "Powerspectra will be produced of the following snapshots:"
 ${python} -B -c "from os.path import relpath; [print('\"{}\"'.format(relpath(s, '${concept_dir}') if not relpath(s, '${concept_dir}').startswith('../../') else s)) for s in ${snapshot_filenames_pylist}]"
 
-# Get the boxsize factor in each snapshot
+# Get the boxsize in each snapshot
 boxsizes="$("${python}" -B -c "import special; [print('boxsize =', special.snapshot_info(s)['params']['boxsize']) for s in ${snapshot_filenames_pylist}]")"
 boxsizes=$(echo "${boxsizes}" | grep "boxsize = [0-9.]*" | awk '{print $3}')
 
-# For each snapshot, run the CONCEPT code to create the render
+# For each snapshot, run the CONCEPT code to create the powerspectrum
 local_flag=""
 if [ ${local} == 1 ]; then
     local_flag="--local"
@@ -139,13 +139,14 @@ for snapshot_filename in ${snapshot_filenames}; do
     # Make temporary parameter file with every information needed
     printf "
 boxsize = ${boxsize}
+use_PM = True
 special_params = {
-    'special':           'render',
+    'special':           'powerspec',
     'snapshot_filename': '${snapshot_filename}',
                   }
 $(cat "${params}")
     " > "${this_file}.params.full"
-    # Run CONCEPT to produce the render
+    # Run CONCEPT to produce the powerspectrum
     "${run}" -n ${nprocs} -p "${this_file}.params.full" ${local_flag}
 done
 

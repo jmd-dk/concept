@@ -116,11 +116,11 @@ def summation(x, y, z):
                 h2 = sumindex_x**2 + sumindex_y**2 + sumindex_z**2
                 if h2 > maxh2 or h2 == 0:
                     continue
-                kx = two_π*sumindex_x
-                ky = two_π*sumindex_y
-                kz = two_π*sumindex_z
+                kx = ℝ[2*π]*sumindex_x
+                ky = ℝ[2*π]*sumindex_y
+                kz = ℝ[2*π]*sumindex_z
                 k2 = kx**2 + ky**2 + kz**2
-                scalarpart = minus_4π/k2*exp(-k2*rs2)*sin(kx*x + ky*y + kz*z)
+                scalarpart = ℝ[-4*π]/k2*exp(-k2*rs2)*sin(kx*x + ky*y + kz*z)
                 force_x += kx*scalarpart
                 force_y += ky*scalarpart
                 force_z += kz*scalarpart
@@ -137,7 +137,7 @@ def summation(x, y, z):
                y='double',
                z='double',
                # Locals
-               dim='size_t',
+               dim='Py_ssize_t',
                force='double*',
                isnegative_x='bint',
                isnegative_y='bint',
@@ -222,7 +222,7 @@ minus_recp_4rs2 = -1/(4*rs**2)
 n_lower = int(-(maxdist + 1))  # GADGET: -4 (same here for maxdist=3.6)
 n_upper = int(maxdist + 1) + 1  # GADGET: 5 (same here for maxdist=3.6)
 recp_2rs = 1/(2*rs)
-recp_sqrt_π_rs = 1/(sqrt_π*rs)
+recp_sqrt_π_rs = 1/(ℝ[sqrt(π)]*rs)
 rs2 = rs**2
 # Initialize the grid at import time, if Ewald summation is to be used
 cython.declare(i='int',
@@ -240,7 +240,7 @@ if 'PP' in kick_algorithms.values() and use_Ewald:
                        comm=comm) as hdf5_file:
             grid = hdf5_file['data'][...].reshape([ewald_gridsize]*3 + [3])
     else:
-        # No tabulated Ewald grid found. Compute it.The factor 0.5
+        # No tabulated Ewald grid found. Compute it. The factor 0.5
         # ensures that only the first octant of the box is tabulated
         masterprint('Tabulating Ewald grid of linear size',
                     ewald_gridsize, '...')

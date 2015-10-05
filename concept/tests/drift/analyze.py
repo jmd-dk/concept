@@ -32,11 +32,6 @@ this_dir = os.path.dirname(os.path.realpath(__file__))
 from commons import *
 from IO import GadgetSnapshot
 
-# Use a matplotlib backend that does not require a running X-server
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-
 # Determine the number of snapshots from the outputlist file
 N_snapshots = np.loadtxt(this_dir + '/outputlist').size
 

@@ -89,29 +89,24 @@ def get_snapshot_type(filename):
     return None
     
 
-# Function that loads particle data from an snapshot file and
+# Function that loads particle data from a snapshot file and
 # instantiate a Particles instance on each process,
 # storing the particles within its domain.
 @cython.header(# Argument
                filename='str',
                write_msg='bint',
                # Locals
-               input_type='str',
                particles='Particles',
                snapshot='StandardSnapshot',
                returns='Particles',
                )
 def load(filename, write_msg=True):
+    # If no snapshot should be loaded, return immediately
     if not filename:
         return
     # Load in particles from snapshot
     snapshot = load_into_standard(filename, write_msg)
     particles = snapshot.particles
-    # Scatter particles to the correct domain-specific process.
-    # Setting reset_indices_send == True ensures that buffers
-    # will be reset afterwards, as this initial exchange is not
-    # representable for those to come.
-    exchange(particles, reset_buffers=True)
     return particles
 
 # Class storing a standard snapshot. Besides holding methods for
@@ -140,13 +135,13 @@ class StandardSnapshot:
                    filename='str',
                    write_msg='bint',
                    # Locals
-                   N='size_t',
-                   N_local='size_t',
+                   N='Py_ssize_t',
+                   N_local='Py_ssize_t',
                    N_locals='tuple',
-                   end_local='size_t',
+                   end_local='Py_ssize_t',
                    msg='str',
                    particle_type='str',
-                   start_local='size_t',
+                   start_local='Py_ssize_t',
                    tol='double',
                    )
     def load(self, filename, write_msg=True):
@@ -212,7 +207,7 @@ class StandardSnapshot:
                 N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
                             + (N//nprocs + 1, )*(N % nprocs))
                 N_local = N_locals[rank]
-                start_local = np.sum(N_locals[:rank])
+                start_local = np.sum(N_locals[:rank], dtype=C2np['Py_ssize_t'])
                 end_local = start_local + N_local
                 # In pure Python, the indices must be Python integers
                 if not cython.compiled:
@@ -232,6 +227,11 @@ class StandardSnapshot:
                 self.particles.populate(momz_h5[start_local:end_local], 'momz')
                 # Finalize progress message
                 masterprint('done')
+        # Scatter particles to the correct domain-specific process.
+        # Setting reset_indices_send == True ensures that buffers
+        # will be reset afterwards, as this initial exchange is not
+        # representable for those to come.
+        exchange(self.particles, reset_buffers=True)
 
     # This method populate the snapshot with particle data
     # and additional parameters.
@@ -257,11 +257,11 @@ class StandardSnapshot:
     @cython.header(# Argument
                    filename='str',
                    # Locals
-                   N='size_t',
-                   N_local='size_t',
-                   N_locals='size_t[::1]',
-                   end_local='size_t',
-                   start_local='size_t',
+                   N='Py_ssize_t',
+                   N_local='Py_ssize_t',
+                   N_locals='Py_ssize_t[::1]',
+                   end_local='Py_ssize_t',
+                   start_local='Py_ssize_t',
                    )
     def save(self, filename):
         # Print out message
@@ -289,8 +289,8 @@ class StandardSnapshot:
             momz_h5 = particles_h5.create_dataset('momz', [N], dtype='float64')
             # Get local indices of the particle data
             N_local = self.particles.N_local
-            N_locals = empty(nprocs, dtype='uintp')
-            Allgather(array(N_local, dtype='uintp'), N_locals)
+            N_locals = empty(nprocs, dtype=C2np['Py_ssize_t'])
+            Allgather(array(N_local, dtype=C2np['Py_ssize_t']), N_locals)
             start_local = sum(N_locals[:rank])
             end_local = start_local + N_local
             # In pure Python, the indices needs to be Python integers
@@ -331,7 +331,7 @@ class GadgetSnapshot:
         unsigned int[::1] ID
         # Methods (f is an io.TextIOWrapper instance)
         load(self, str filename, bint write_msg=*)
-        size_t new_block(self, object f, size_t offset)
+        Py_ssize_t new_block(self, object f, Py_ssize_t offset)
         populate(self, Particles particles, double a)
         object read(self, object f, str fmt)  
         save(self, str filename)
@@ -343,10 +343,10 @@ class GadgetSnapshot:
                    filename='str',
                    write_msg='bint',
                    # Locals
-                   N='size_t',
-                   N_local='size_t',
+                   N='Py_ssize_t',
+                   N_local='Py_ssize_t',
                    N_locals='tuple',
-                   file_position='size_t',
+                   file_position='Py_ssize_t',
                    gadget_H0='double',
                    gadget_a='double',
                    gadget_boxsize='double',
@@ -354,9 +354,9 @@ class GadgetSnapshot:
                    gadget_ΩΛ='double',
                    msg='str',
                    name='str',
-                   offset='size_t',
+                   offset='Py_ssize_t',
                    size='int',
-                   start_local='size_t',
+                   start_local='Py_ssize_t',
                    tol='double',
                    unit='double',
                    )
@@ -437,7 +437,7 @@ class GadgetSnapshot:
             N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
                         + (N//nprocs + 1, )*(N % nprocs))
             N_local = N_locals[rank]
-            start_local = np.sum(N_locals[:rank])
+            start_local = np.sum(N_locals[:rank], dtype=C2np['Py_ssize_t'])
             # In pure Python, the index must be a Python integer
             if not cython.compiled:
                 start_local = int(start_local)
@@ -518,10 +518,16 @@ class GadgetSnapshot:
             # Finalize progress message
             masterprint('done')
             # Possible additional meta data ignored
+        # Scatter particles to the correct domain-specific process.
+        # Setting reset_indices_send == True ensures that buffers
+        # will be reset afterwards, as this initial exchange is not
+        # representable for those to come.
+        exchange(self.particles, reset_buffers=True)
+
 
     # Method that handles the file object's position in the snapshot
     # file during loading. Call it when the next block should be read.
-    @cython.header(offset='size_t', returns='size_t')
+    @cython.header(offset='Py_ssize_t', returns='Py_ssize_t')
     def new_block(self, f, offset):
         # Set the current position in the file
         f.seek(offset)
@@ -537,9 +543,9 @@ class GadgetSnapshot:
                    particles='Particles',
                    a='double',
                    # Locals
-                   N_locals='size_t[::1]',
+                   N_locals='Py_ssize_t[::1]',
                    h='double',
-                   start_local='size_t',
+                   start_local='Py_ssize_t',
                    unit='double',
                    )
     def populate(self, particles, a):
@@ -556,8 +562,8 @@ class GadgetSnapshot:
         self.particles = particles
         # The ID's of the local particles, generated such that
         # the process with the lowest rank has the lowest ID's.
-        N_locals = empty(nprocs, dtype='uintp')
-        Allgather(array(particles.N_local, dtype='uintp'), N_locals)
+        N_locals = empty(nprocs, dtype=C2np['Py_ssize_t'])
+        Allgather(array(particles.N_local, dtype=C2np['Py_ssize_t']), N_locals)
         start_local = sum(N_locals[:rank])
         # In pure Python, the index must be a Python integer
         if not cython.compiled:
@@ -791,7 +797,7 @@ def load_gadget_particles(filename, write_msg=True):
                a='double',
                filename='str',
                # Locals
-               N='size_t',
+               N='Py_ssize_t',
                i='int',
                snapshot='GadgetSnapshot',
                unit='double',
@@ -819,7 +825,7 @@ def save_gadget(particles, a, filename):
                )
 def load_into_standard(filename, write_msg=True):
     # If no snapshot should be loaded, return immediately
-    if filename == '':
+    if not filename:
         return
     # Determine snapshot type
     input_type = get_snapshot_type(filename)

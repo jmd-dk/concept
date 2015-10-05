@@ -40,7 +40,7 @@ source "${this_dir}/../environment"
 # (for fast IC generation).
 ewald_gridsize=$(grep -o "ewald_gridsize[ =0-9]*" "${this_dir}/params" | awk '{printf $NF}')
 if [ ! -f "${concept_dir}/.ewald_gridsize=${ewald_gridsize}.hdf5" ]; then
-    "${run}" -n 1 --local
+    "${run}" -n 1 -p "${this_dir}/params_ewald" --local
 fi
 
 # Generate ICs

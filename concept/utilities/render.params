@@ -1,3 +1,4 @@
-color      = 'green'
-bgcolor    = 'black'
-resolution = 1080
+color        = 'lime'
+bgcolor      = 'black'
+resolution   = 1080
+output_bases = {'render': 'render'}

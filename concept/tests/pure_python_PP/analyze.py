@@ -32,11 +32,6 @@ this_dir = os.path.dirname(os.path.realpath(__file__))
 from commons import *
 from IO import load
 
-# Use a matplotlib backend that does not require a running X-server
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-
 # Determine the number of snapshots from the outputlist file
 N_snapshots = np.loadtxt(this_dir + '/outputlist').size
 
@@ -109,5 +104,17 @@ if any(np.mean(dist[j]/boxsize) > tol for j in range(4)):
     masterwarn('Some or all pure Python runs with nprocs = {1, 2, 4} yielded results\n'
                + 'different from the compiled run!\n'
                + 'See "{}" for a visualization.'.format(fig_file))
+    sys.exit(1)
+
+# Compare the two tabulated grids
+ewald_filename = this_dir + '/ewald.hdf5'
+ewald_pure_python_filename = this_dir + '/ewald_pure_python.hdf5'
+with h5py.File(ewald_filename, mode='r') as hdf5_file:
+    grid = hdf5_file['data'][...]
+with h5py.File(ewald_pure_python_filename, mode='r') as hdf5_file:
+    grid_pure_python = hdf5_file['data'][...]
+tol = 1e-9
+if any(np.abs(grid - grid_pure_python) > tol):
+    masterwarn('The two tabulated Ewald grids "{}" and "{}" are far from being numerically identical'.format(ewald_filename, ewald_pure_python_filename))
     sys.exit(1)
 

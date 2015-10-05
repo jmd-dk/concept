@@ -33,7 +33,6 @@ else:
     """
     """
 
-
 # The Friedmann equation, used to integrate
 # the scale factor forwards in time
 @cython.header(t='double',
@@ -181,7 +180,7 @@ def scalefactor_integral(power):
             integrand_cum[i] = 1/f_cum[i]**2
     # Integrate integrand_cum in pure Python or Cython
     if not cython.compiled:
-        integral = trapz(integrand_cum_mv[:size_cum], t_cum_mv[:size_cum])
+        integral = np.trapz(integrand_cum_mv[:size_cum], t_cum_mv[:size_cum])
     else:
         # Allocate an interpolation accelerator
         # and a cubic spline object.

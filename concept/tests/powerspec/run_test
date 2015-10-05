@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # This file is part of CONCEPT, the cosmological N-body code in Python.
 # Copyright (C) 2015 Jeppe Mosgard Dakin.
 #
@@ -19,5 +21,26 @@
 # The latest version of CONCEPT is available at
 # https://github.com/jmd-dk/concept/
 
-ewald_gridsize = 8
+
+
+# This script performs a ???????????????????
+
+# Initialize test environment
+this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+source "${this_dir}/../environment"
+
+# Cleanup from last test run
+"${this_dir}/clean"
+
+# Generate snapshot
+"${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_snapshot.py" --pure-python --local
+
+# Compute powerspectrum of the snapshot
+"${concept_dir}/utilities/powerspec" "${this_dir}/snapshot" -n 1 -p "${this_dir}/params" --local
+
+# Analyze the output snapshots
+"${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
+
+# Finalize test environment
+test_done=true source "${this_dir}/../environment"
 

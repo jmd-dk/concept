@@ -19,5 +19,21 @@
 # The latest version of CONCEPT is available at
 # https://github.com/jmd-dk/concept/
 
-ewald_gridsize = 8
+
+
+# Input/output
+snapshot_type = 'standard'
+output_dirs = {'powerspec': paths['params_dir'] + '/output'}
+output_bases = {'powerspec': 'powerspec'}
+
+# Numerical parameters
+boxsize = 512*Mpc
+PM_gridsize = 256
+R_tophat = 8*Mpc
+
+# Graphics
+powerspec_plot = True
+
+# Simulation options
+use_Ewald = False
 
