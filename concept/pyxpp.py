@@ -349,7 +349,9 @@ def unicode2ASCII(filename):
         text = [char for char in pyxfile.read()]
     for i, char in enumerate(text):
         if ord(char) > 127:
-            text[i] = unicodedata.name(char).replace(' ', '_')
+            text[i] = '__UNICODE__' + unicodedata.name(char)
+            text[i] = text[i].replace(' ', '__space__')
+            text[i] = text[i].replace('-', '__dash__')
     text = ''.join(text)
     with open(filename, 'w') as pyxfile:
         pyxfile.write(text)
@@ -461,93 +463,97 @@ def cython_decorators(filename):
     with open(filename, 'r') as pyxfile:
         lines = pyxfile.read().split('\n')
     for i, line in enumerate(lines):
-        if '@cython.header' in line:
-            # Search for def statement
-            for j, line2 in enumerate(lines[(i + 1):]):
-                if 'def ' in line2:
-                    def_line = line2
-                    for k, c in enumerate(def_line):
-                        if c != ' ':
-                            n_spaces = k  # Indentation
-                            break
-                    break
-            headstart = i
-            headlen = j + 1
-            header = lines[headstart:(headstart + headlen)]
-            # Look for returntype
-            returntype = ''
-            for j, hline in enumerate(header):
-                if 'returns=' in hline:
-                    in_brackets = 0
-                    for c in hline[(hline.index('returns=') + 8):]:
-                        if c == '[':
-                            in_brackets += 1
-                        elif c == ']':
-                            in_brackets -= 1
-                        elif c == ')' or (c == ',' and not in_brackets):
-                            break
-                        returntype += c
-                    header[j] = header[j].replace('returns=' + returntype, ' '*len('returns=' + returntype))
-                    if not header[j].replace(',', '').strip():
-                        del header[j]
-                    else:
-                        # Looks for lonely comma due to removal of "returns="
-                        lonely = True
-                        for k, c in enumerate(header[j]):
-                            if c == ',' and lonely:
-                                header[j] = header[j][:k] + ' ' + header[j][(k + 1):] 
-                            if c in (',', '('):
-                                lonely == True
+        for headertype in ('pheader', 'header'):
+            if '@cython.' + headertype in line:
+                # Search for def statement
+                for j, line2 in enumerate(lines[(i + 1):]):
+                    if 'def ' in line2:
+                        def_line = line2
+                        for k, c in enumerate(def_line):
+                            if c != ' ':
+                                n_spaces = k  # Indentation
+                                break
+                        break
+                headstart = i
+                headlen = j + 1
+                header = lines[headstart:(headstart + headlen)]
+                # Look for returntype
+                returntype = ''
+                for j, hline in enumerate(header):
+                    if 'returns=' in hline:
+                        in_brackets = 0
+                        for c in hline[(hline.index('returns=') + 8):]:
+                            if c == '[':
+                                in_brackets += 1
+                            elif c == ']':
+                                in_brackets -= 1
+                            elif c == ')' or (c == ',' and not in_brackets):
+                                break
+                            returntype += c
+                        header[j] = header[j].replace('returns=' + returntype, ' '*len('returns=' + returntype))
+                        if not header[j].replace(',', '').strip():
+                            del header[j]
+                        else:
+                            # Looks for lonely comma due to removal of "returns="
+                            lonely = True
+                            for k, c in enumerate(header[j]):
+                                if c == ',' and lonely:
+                                    header[j] = header[j][:k] + ' ' + header[j][(k + 1):] 
+                                if c in (',', '('):
+                                    lonely == True
+                                elif c != ' ':
+                                    lonely = False
+                        break
+                for j, hline in enumerate(header):
+                    if '@cython.' + headertype + '(' in hline:
+                        I = header[j].index('@cython.' + headertype + '(') + 15
+                        for k, c in enumerate(header[j][I:]):
+                            if c == ',':
+                                header[j] = header[j][:I] + header[j][(I + k + 1):]
+                                break
                             elif c != ' ':
-                                lonely = False
-                    break
-            for j, hline in enumerate(header):
-                if '@cython.header(' in hline:
-                    I = header[j].index('@cython.header(') + 15
-                    for k, c in enumerate(header[j][I:]):
-                        if c == ',':
-                            header[j] = header[j][:I] + header[j][(I + k + 1):]
-                            break
-                        elif c != ' ':
-                            break
-            # Change @cython.header to @cython.locals, if header contains declarations.
-            # Otherwise, remove it.
-            if '=' in ''.join(header):
-                header[0] = header[0].replace('header', 'locals')
-            else:
-                header = []
-            # Add in all the other decorators
-            pyfuncs = ('__init__', '__cinit__', '__dealloc__')
-            decorators = [decorator for decorator in
-                          ('cfunc' if all(' ' + pyfunc + '(' not in def_line
-                                          for pyfunc in pyfuncs) else '',
-                          'inline' if all(' ' + pyfunc + '(' not in def_line
-                                          for pyfunc in pyfuncs) else '',
-                          'boundscheck(False)',
-                          'cdivision(True)',
-                          'initializedcheck(False)',
-                          'wraparound(False)',
-                           ) if decorator
-                          ]
-            header = [' '*n_spaces + '@cython.' + decorator for decorator in decorators] + header
-            if returntype:
-                header += [' '*n_spaces + '@cython.returns(' + returntype + ')']
-            # Place the new header among the lines
-            del lines[headstart:(headstart + headlen)]
-            for hline in reversed(header):
-                lines.insert(headstart, hline)
+                                break
+                # Change @cython.header to @cython.locals, if header contains declarations.
+                # Otherwise, remove it.
+                if '=' in ''.join(header):
+                    header[0] = header[0].replace(headertype, 'locals')
+                else:
+                    header = []
+                # Add in all the other decorators
+                pyfuncs = ('__init__', '__cinit__', '__dealloc__')
+                decorators = [decorator for decorator in
+                              (('ccall' if headertype == 'pheader' else 'cfunc')
+                               if all(' ' + pyfunc + '(' not in def_line
+                                      for pyfunc in pyfuncs) else '',
+                              'inline' if all(' ' + pyfunc + '(' not in def_line
+                                              for pyfunc in pyfuncs) else '',
+                              'boundscheck(False)',
+                              'cdivision(True)',
+                              'initializedcheck(False)',
+                              'wraparound(False)',
+                               ) if decorator
+                              ]
+                header = [' '*n_spaces + '@cython.' + decorator for decorator in decorators] + header
+                if returntype:
+                    header += [' '*n_spaces + '@cython.returns(' + returntype + ')']
+                # Place the new header among the lines
+                del lines[headstart:(headstart + headlen)]
+                for hline in reversed(header):
+                    lines.insert(headstart, hline)
     # Write all lines to file
     with open(filename, 'w') as pyxfile:
         pyxfile.writelines('\n'.join(lines))
 
 
 def make_pxd(filename):
-    commons_functions = ('unicode', 'abs', 'max', 'min', 'mod', 'sum', 'prod', 'sinc', 'masterprint', 'masterwarn', 'progressprint')
-    customs = {'Particles':    'from species cimport Particles',
-               'func_b_ddd':   'ctypedef bint    (*func_b_ddd_pxd)  (double, double, double)',
-               'func_d_dd':    'ctypedef double  (*func_d_dd_pxd)   (double, double)',
-               'func_d_ddd':   'ctypedef double  (*func_d_ddd_pxd)  (double, double, double)',
-               'func_ddd_ddd': 'ctypedef double* (*func_ddd_ddd_pxd)(double, double, double)',
+    commons_functions = ('unicode', 'abs', 'max', 'min', 'mod', 'sum', 'prod', 'sinc', 'masterprint', 'masterwarn')
+    customs = {'Particles':        'from species cimport Particles',
+               'StandardSnapshot': 'from IO cimport StandardSnapshot',
+               'GadgetSnapshot':   'from IO cimport GadgetSnapshot',
+               'func_b_ddd':       'ctypedef bint    (*func_b_ddd_pxd)  (double, double, double)',
+               'func_d_dd':        'ctypedef double  (*func_d_dd_pxd)   (double, double)',
+               'func_d_ddd':       'ctypedef double  (*func_d_ddd_pxd)  (double, double, double)',
+               'func_ddd_ddd':     'ctypedef double* (*func_ddd_ddd_pxd)(double, double, double)',
                }
     header_lines = []
     pxd_filename = filename[:-3] + 'pxd'
@@ -596,7 +602,18 @@ def make_pxd(filename):
     pxd_lines.append('cdef:\n')
     for i, line in enumerate(code):
         if line.startswith('def '):
-            # Function definition found
+            # Function definition found.
+            # Find out whether cdef (cfunc) of cpdef (ccall) function
+            cpdef = False
+            for cp_line in reversed(code[:i]):
+                if cp_line.startswith('def '):
+                    break
+                if cp_line.startswith('@cython.ccall'):
+                    cpdef = True
+                    break
+                if cp_line.startswith('@cython.cfunc'):
+                    break
+            # Find function name and args
             open_paren = line.index('(')
             function_name = line[3:open_paren].strip()
             if function_name in commons_functions:
@@ -713,6 +730,8 @@ def make_pxd(filename):
                 function_args[j] = function_args[j].replace("'", '')
             # Add the function definition
             s = '    '
+            if cpdef:
+                s += 'cpdef '
             if return_vals[j] is not None:
                 s += return_vals[j] + ' '
             s += function_name + '('
@@ -749,6 +768,53 @@ def make_pxd(filename):
     with open(pxd_filename, 'w') as pxdfile:
         pxdfile.writelines(total_lines)
 
+def pure_numbers(filename):
+    # Find pure numbers using the ℝ['expression'] syntax
+    with open(filename, 'r') as pyxfile:
+        lines = pyxfile.read().split('\n')
+    expressions = []
+    expressions_cython = []
+    operations = ('+', '-', '**', '*', '/', '(', ')')
+    operations_names = ('pls', 'min', 'pow', 'tim', 'div', 'opar', 'cpar')
+    while True:
+        no_ℝ = True
+        for i, line in enumerate(lines):
+            search = re.search('ℝ\[(.*?)\]', line)
+            if not search or line.replace(' ', '').startswith('#'):
+                continue
+            no_ℝ = False
+            expression = search.group(1)
+            if not expression in expressions:
+                expressions.append(expression)
+            expression_cython = 'ℝ_' + expression.replace(' ', '')
+            for op, op_name in zip(operations, operations_names):
+                expression_cython = expression_cython.replace(op, '_{}_'.format(op_name))
+            expression_cython = expression_cython.replace('__', '_')
+            if expression_cython[-1] == '_':
+                expression_cython = expression_cython[:-1]
+            if not expression_cython in expressions_cython:
+                expressions_cython.append(expression_cython)
+            lines[i] = line.replace(search.group(0), expression_cython)
+        if no_ℝ:
+            break
+
+    # Insert cython declarations of the pure numbers
+    new_lines = []
+    i_declarations = -1
+    for i, line in enumerate(lines):
+        if 'ℝ = DummyDict()' in line:
+            # Place declarations two lines below this point
+            i_declarations = i + 2
+        new_lines.append(line)
+        if i == i_declarations and expressions:
+            cython_declare = 'cython.declare(' + ', '.join([expression_cython + "='double'" for expression_cython in expressions_cython]) + ')'
+            new_lines.append(cython_declare)
+            for expression, expression_cython in zip(expressions, expressions_cython):
+                cython_define = '{} = {}'.format(expression_cython, expression)
+                new_lines.append(cython_define)
+    with open(filename, 'w') as pyxfile:
+        pyxfile.writelines('\n'.join(new_lines))
+
 
 # Interpret the input argument
 filename = sys.argv[1]
@@ -760,6 +826,7 @@ if filename.endswith('.py'):
     # Actions
     import_commons(filename)
     oneline(filename)
+    pure_numbers(filename)
     cython_decorators(filename)
     cythonstring2code(filename)
     power2product(filename)
@@ -769,8 +836,7 @@ if filename.endswith('.py'):
     malloc_realloc(filename)
     C_casting(filename)
 elif filename.endswith('.pyx'):
-    # A .pyx-file is passed.
-    # Make the pxd as the final thing
+    # A .pyx-file is passed. Make the pxd
     make_pxd(filename)
 else:
     raise Exception('Got "{}", which is neither a .py nor a .pyx file'.format(filename))

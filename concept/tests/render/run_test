@@ -48,11 +48,13 @@ cp "${this_dir}/output/snapshot" "${this_dir}/output/subdir/snapshot_1"
 
 # Generate two different render parameterfiles
 echo "
+output_bases = {'render': 'render'}
 color      = 'g'
 bgcolor    = '0'
 resolution = 123
 " > "${this_dir}/render.params_0"
 echo "
+output_bases = {'render': ''}
 color      = (1, 0.2, 0.3)
 bgcolor    = 'LightYellow'
 resolution = 1080

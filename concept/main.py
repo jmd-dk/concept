@@ -27,7 +27,7 @@ from commons import *
 
 # Seperate but equivalent imports in pure Python and Cython
 if not cython.compiled:
-    from analysis import powerspectrum
+    from analysis import powerspec
     from species import construct, construct_random
     from IO import load, save
     from special import delegate
@@ -36,7 +36,7 @@ if not cython.compiled:
 else:
     # Lines in triple quotes will be executed in the .pyx file.
     """
-    from analysis cimport powerspectrum
+    from analysis cimport powerspec
     from species cimport construct, construct_random
     from special cimport delegate
     from IO cimport load, save
@@ -95,7 +95,7 @@ def dump(particles, op=None):
         particles.kick(kick_fac[1])
     # Dump powerspectrum
     if a in powerspec_times:
-        powerspectrum(particles, output_filenames['powerspec'].format(a))
+        powerspec(particles, output_filenames['powerspec'].format(a))
     # Dump render
     if a in render_times:
         render(particles, a, output_filenames['render'].format(a))
@@ -118,7 +118,7 @@ def dump(particles, op=None):
 @cython.header(# Locals
                timestep='ptrdiff_t',
                particles='Particles',
-               Δt_update_freq='size_t',
+               Δt_update_freq='Py_ssize_t',
                )
 def timeloop():
     global a, a_dump, drift_fac, i_dump, kick_fac, t, Δt
@@ -183,7 +183,7 @@ cython.declare(# Globals
                a='double',
                a_dump='double',
                drift_fac='double[::1]',
-               i_dump='size_t',
+               i_dump='Py_ssize_t',
                kick_fac='double[::1]',
                t='double',
                Δt='double',
@@ -242,7 +242,10 @@ for output_kind, output_time in output_times.items():
     # Store output name patterns                   
     output_dir = output_dirs[output_kind]
     output_base = output_bases[output_kind]
-    output_filenames[output_kind] = ('{}/{}_a='.format(output_dir, output_base)
+    output_filenames[output_kind] = ('{}/{}{}a='.format(output_dir,
+                                                        output_base,
+                                                        ('_' if output_base
+                                                             else ''))
                                      + fmt)
 # If anything special should happen, rather than starting the timeloop
 if special_params:

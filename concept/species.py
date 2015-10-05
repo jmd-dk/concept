@@ -51,16 +51,16 @@ class Particles:
     """
 
     # Initialization method
-    @cython.header(N='size_t')
+    @cython.header(N='Py_ssize_t')
     def __init__(self, N):
         # The triple quoted string below serves as the type declaration
         # for the Particles type. It will get picked up by the pyxpp
         # script and indluded in the .pxd file.
         """
         # Data attributes
-        size_t N
-        size_t N_local
-        size_t N_allocated
+        Py_ssize_t N
+        Py_ssize_t N_local
+        Py_ssize_t N_allocated
         double mass
         double softening
         str species
@@ -80,7 +80,7 @@ class Particles:
         # Methods
         drift(self, double Δt)
         kick(self, double Δt)
-        resize(self, size_t N_allocated)
+        resize(self, Py_ssize_t N_allocated)
         populate(self, double[::1] mv, str coord)
         """
         # Store particle meta data
@@ -147,7 +147,7 @@ class Particles:
 
     # This method will grow/shrink the data attributes.
     # Note that it will not update the N_local attribute.
-    @cython.header(N_allocated='size_t')
+    @cython.header(N_allocated='Py_ssize_t')
     def resize(self, N_allocated):
         if N_allocated != self.N_allocated:
             self.N_allocated = N_allocated
@@ -177,7 +177,7 @@ class Particles:
                    momx='double*',
                    momy='double*',
                    momz='double*',
-                   i='size_t',
+                   i='Py_ssize_t',
                    )
     def drift(self, Δt):
         """Note that the time step size
@@ -253,7 +253,7 @@ class Particles:
                type_name='str',
                species_name='str',
                mass='double',
-               N='size_t',
+               N='Py_ssize_t',
                # Locals
                particles='Particles',
                returns='Particles',
@@ -267,7 +267,7 @@ def construct(type_name, species_name, mass, N):
     particles.type = type_name
     if species_name in softeningfactors:
         particles.softening = (softeningfactors[species_name]
-                               *boxsize/(N**one_third))
+                               *boxsize/(N**ℝ[1/3]))
     elif master:
         raise ValueError(('Species "{}" do not have an assigned softening'
                           + 'length!').format(species_name))
@@ -280,9 +280,9 @@ def construct(type_name, species_name, mass, N):
 @cython.header(# Argument
                type_name='str',
                species_name='str',
-               N='size_t',
+               N='Py_ssize_t',
                # Locals
-               N_local='size_t',
+               N_local='Py_ssize_t',
                N_locals='tuple',
                mass='double',
                mom_max='double',

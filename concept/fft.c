@@ -25,6 +25,7 @@ https://github.com/jmd-dk/concept/
 
 #include <fftw3-mpi.h>
 #include <stdbool.h>
+#include <string.h>
 #include <stdio.h>
 
 /* This file defines the functions fftw_setup and fftw_clean, which
@@ -71,7 +72,16 @@ struct fftw_return_struct{
 // creates forwards and backwards plans.
 struct fftw_return_struct fftw_setup(ptrdiff_t gridsize_i,
                                      ptrdiff_t gridsize_j,
-                                     ptrdiff_t gridsize_k){
+                                     ptrdiff_t gridsize_k,
+                                     char* fftw_rigor){
+    // Arguments to this function:
+    // - Linear gridsize of dimension 1
+    // - Linear gridsize of dimension 2
+    // - Linear gridsize of dimension 3
+    // - FFTW planning-rigor flag, determining the optimization level of
+    //   of the wisdom. In order of patience:
+    //   "estimate", "measure", "patient", "exhaustive".
+
     // Size of last dimension with padding
     ptrdiff_t gridsize_padding = 2*(gridsize_k/2 + 1);
 
@@ -84,7 +94,7 @@ struct fftw_return_struct fftw_setup(ptrdiff_t gridsize_i,
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
     int root = 0;
-    bool master = rank == root;
+    bool master = (rank == root);
 
     // Declaration and allocation of the (local part of the) grid. This
     // also initializes gridsize_local_(x/y) and gridstart_local_(x/y).
@@ -100,38 +110,57 @@ struct fftw_return_struct fftw_setup(ptrdiff_t gridsize_i,
                                        &gridsize_local_j,
                                        &gridstart_local_j));
 
-  // The master process reads in previous wisdom and broadcasts it
-    char wisdom_file_buffer[100];
-    sprintf(wisdom_file_buffer, ".fftw_wisdom_gridsize=%td_nprocs=%i",
-            gridsize_i, nprocs);
-    const char* wisdom_file = &wisdom_file_buffer[0];
+    // The filename of the wisdom file
+    char wisdom_filename_buffer[128];
+    const char *wisdom_filename;
+    sprintf(wisdom_filename_buffer, ".fftw_wisdom_gridsize=%td_nprocs=%i_rigor=%s",
+            gridsize_i,
+            nprocs,
+            fftw_rigor);
+    wisdom_filename = &wisdom_filename_buffer[0];
+
+    // The master process reads in previous wisdom and broadcasts it
     int previous_wisdom = 0;
     if (master){
-        previous_wisdom = fftw_import_wisdom_from_filename(wisdom_file);
+        previous_wisdom = fftw_import_wisdom_from_filename(wisdom_filename);
     }
     fftw_mpi_broadcast_wisdom(MPI_COMM_WORLD);
 
-    // Create the two plans (in order of patience:
-    // FFTW_ESTIMATE, FFTW_MEASURE, FFTW_PATIENT, FFTW_EXHAUSTIVE)
+    // Convert fftw_rigor to integer flag
+    int rigor_flag = FFTW_ESTIMATE;
+    if (strcmp(fftw_rigor, "estimate") == 0){
+        rigor_flag = FFTW_ESTIMATE;
+    }
+    else if (strcmp(fftw_rigor, "measure") == 0){
+        rigor_flag = FFTW_MEASURE;
+    }
+    else if (strcmp(fftw_rigor, "patient") == 0){
+        rigor_flag = FFTW_PATIENT;
+    }
+    else if (strcmp(fftw_rigor, "exhaustive") == 0){
+        rigor_flag = FFTW_EXHAUSTIVE;
+    }
+
+    // Create the two plans
     fftw_plan plan_forward  = fftw_mpi_plan_dft_r2c_3d(gridsize_i,
                                                        gridsize_j,
                                                        gridsize_k,  
                                                        grid,
                                                        (fftw_complex*) grid,
                                                        MPI_COMM_WORLD,
-                                       FFTW_PATIENT | FFTW_MPI_TRANSPOSED_OUT);
+                                         rigor_flag | FFTW_MPI_TRANSPOSED_OUT);
     fftw_plan plan_backward = fftw_mpi_plan_dft_c2r_3d(gridsize_i,
                                                        gridsize_j,
                                                        gridsize_k,
                                                        (fftw_complex*) grid,
                                                        grid,
                                                        MPI_COMM_WORLD,
-                                        FFTW_PATIENT | FFTW_MPI_TRANSPOSED_IN);
+                                          rigor_flag | FFTW_MPI_TRANSPOSED_IN);
 
     // If new wisdom is acquired, the master process saves it to disk
     fftw_mpi_gather_wisdom(MPI_COMM_WORLD);
     if (master && ! previous_wisdom){
-        fftw_export_wisdom_to_filename(wisdom_file);
+        fftw_export_wisdom_to_filename(wisdom_filename);
     }
 
     // Return a struct with variables

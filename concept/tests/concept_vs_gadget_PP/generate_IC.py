@@ -37,7 +37,7 @@ from IO import save
 # Create close to homogeneous particles
 N = 8**3
 mass = Ωm*ϱ*boxsize**3/N
-mean_sep = boxsize/N**one_third
+mean_sep = boxsize/N**(1/3)
 max_mom = 0.5e+10*units.kpc/units.Gyr*units.m_sun
 particles = construct('dark matter', 'dark matter', mass, N)
 posx = zeros(N)
@@ -47,12 +47,12 @@ momx = zeros(N)
 momy = zeros(N)
 momz = zeros(N)
 count = 0
-for i in range(round(N**one_third)):
-    for j in range(round(N**one_third)):
-        for k in range(round(N**one_third)):
-            x = (i/N**one_third*boxsize + (random()*2 - 1)*mean_sep*0.1) % boxsize
-            y = (j/N**one_third*boxsize + (random()*2 - 1)*mean_sep*0.1) % boxsize
-            z = (k/N**one_third*boxsize + (random()*2 - 1)*mean_sep*0.1) % boxsize
+for i in range(round(N**(1/3))):
+    for j in range(round(N**(1/3))):
+        for k in range(round(N**(1/3))):
+            x = (i/N**(1/3)*boxsize + (random()*2 - 1)*mean_sep*0.1) % boxsize
+            y = (j/N**(1/3)*boxsize + (random()*2 - 1)*mean_sep*0.1) % boxsize
+            z = (k/N**(1/3)*boxsize + (random()*2 - 1)*mean_sep*0.1) % boxsize
             posx[count] = x
             posy[count] = y
             posz[count] = z

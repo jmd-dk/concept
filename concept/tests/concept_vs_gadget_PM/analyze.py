@@ -32,11 +32,6 @@ this_dir = os.path.dirname(os.path.realpath(__file__))
 from commons import *
 from IO import GadgetSnapshot
 
-# Use a matplotlib backend that does not require a running X-server
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-
 # Determine the number of snapshots from the outputlist file
 N_snapshots = np.loadtxt(this_dir + '/outputlist').size
 
@@ -112,7 +107,6 @@ plt.plot(dist/boxsize, 'sr')
 plt.xlabel('Particle number')
 plt.ylabel('$|\mathbf{x}_{\mathrm{CONCEPT}} - \mathbf{x}_{\mathrm{GADGET}}|/\mathrm{boxsize}$')
 plt.xlim(0, N -1)
-plt.ylim(0, 1)
 plt.savefig(fig_file)
 
 # Printout error message for unsuccessful test

@@ -43,7 +43,7 @@ output_times = {				# Times at which to dump output to disk
 # Numerical parameters
 boxsize = 16*Mpc/0.7 				# (Gadget implicitly uses length/h)	# Linear size of the simulation box
 ewald_gridsize = 64				# Linear size of the grid of Ewald corrections
-PM_gridsize = 16				# Linear size of the grid used for the PM method
+PM_gridsize = 32				# Linear size of the grid used for the PM method
 P3M_scale = 1.25				# The long/short-range force split scale
 P3M_cutoff = 4.8				# Maximum reach of short-range force
 softeningfactors = {'dark matter': 0.03,	# The amount of gravitational softening for each species

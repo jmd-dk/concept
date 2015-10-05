@@ -36,16 +36,16 @@ else:
 
 # Function for easy partitioning of multidimensional arrays
 @cython.header(# Arguments
-               size='size_t',
-               size_point='size_t',
+               size='Py_ssize_t',
+               size_point='Py_ssize_t',
                # Locals
-               i='size_t',
+               i='Py_ssize_t',
                rank_upper='int',
-               size_local_lower='size_t',
-               sizes_local='size_t[::1]',
-               start_local='size_t',
+               size_local_lower='Py_ssize_t',
+               sizes_local='Py_ssize_t[::1]',
+               start_local='Py_ssize_t',
                start_local_extra='int',
-               returns='size_t[::1]',
+               returns='Py_ssize_t[::1]',
                )
 def partition(size, size_point=1):
     """This function takes in the size (nr. of elements) of an array as
@@ -65,7 +65,7 @@ def partition(size, size_point=1):
     # which recieve one additional element.
     rank_upper = nprocs*(size_local_lower + 1) - size
     # The sizes of the local parts of the array
-    sizes_local = size_local_lower*ones(nprocs + 1, dtype=C2np['size_t'])
+    sizes_local = size_local_lower*ones(nprocs + 1, dtype=C2np['Py_ssize_t'])
     for i in range(rank_upper, nprocs):
         sizes_local[i] += 1
     # The local start index in the global array
@@ -83,30 +83,30 @@ def partition(size, size_point=1):
 
 # Function for tabulating a cubic grid with vector values
 @cython.header(# Arguments
-               gridsize='size_t',
+               gridsize='Py_ssize_t',
                func='func_ddd_ddd',
                factor='double',
                filename='str',
                # Locals
-               dim='size_t',
+               dim='Py_ssize_t',
                grid='double[:, :, :, ::1]',
                grid_local='double[::1]',
-               i='size_t',
-               j='size_t',
-               k='size_t',
-               m='size_t',
-               n_vectors='size_t',
-               n_vectors_local='size_t',
-               shape='size_t[::1]',
-               size='size_t',
-               size_edge='size_t',
-               size_face='size_t',
-               size_local='size_t',
-               size_point='size_t',
-               sizes_local='size_t[::1]',
-               start_local='size_t',
-               ℓ_local='size_t',
-               ℓ='size_t',
+               i='Py_ssize_t',
+               j='Py_ssize_t',
+               k='Py_ssize_t',
+               m='Py_ssize_t',
+               n_vectors='Py_ssize_t',
+               n_vectors_local='Py_ssize_t',
+               shape='Py_ssize_t[::1]',
+               size='Py_ssize_t',
+               size_edge='Py_ssize_t',
+               size_face='Py_ssize_t',
+               size_local='Py_ssize_t',
+               size_point='Py_ssize_t',
+               sizes_local='Py_ssize_t[::1]',
+               start_local='Py_ssize_t',
+               ℓ_local='Py_ssize_t',
+               ℓ='Py_ssize_t',
                returns='double[:, :, :, ::1]',
                )
 def tabulate_vectorfield(gridsize, func, factor, filename=''):
@@ -119,7 +119,7 @@ def tabulate_vectorfield(gridsize, func, factor, filename=''):
     """
     # The grid has a shape of gridsize*gridsize*gridsize*3.
     # That is, grid is not really cubic, but rather four-dimensional.
-    shape = array([gridsize]*3 + [3], dtype=C2np['size_t'])
+    shape = array([gridsize]*3 + [3], dtype=C2np['Py_ssize_t'])
     # The number of scalars and vectors in the grid,
     # when viewed as a 3D box of vectors.
     size_point = shape[3]
@@ -133,7 +133,7 @@ def tabulate_vectorfield(gridsize, func, factor, filename=''):
     # Partition the grid fairly among the processes. Each part is
     # defined by a linear size and starting index.
     sizes_local = asarray(partition(n_vectors, size_point),
-                          dtype=C2np['size_t'])
+                          dtype=C2np['Py_ssize_t'])
     size_local = sizes_local[rank]
     start_local = sizes_local[nprocs]
     n_vectors_local = size_local//size_point
@@ -184,12 +184,12 @@ def tabulate_vectorfield(gridsize, func, factor, filename=''):
                gridsize_x_minus_1='int',
                gridsize_y_minus_1='int',
                gridsize_z_minus_1='int',
-               x_lower='size_t',
-               x_upper='size_t',
-               y_lower='size_t',
-               y_upper='size_t',
-               z_lower='size_t',
-               z_upper='size_t',
+               x_lower='Py_ssize_t',
+               x_upper='Py_ssize_t',
+               y_lower='Py_ssize_t',
+               y_upper='Py_ssize_t',
+               z_lower='Py_ssize_t',
+               z_upper='Py_ssize_t',
                returns='double',
                )
 def CIC_grid2coordinates_scalar(grid, x, y, z):
@@ -257,16 +257,16 @@ def CIC_grid2coordinates_scalar(grid, x, y, z):
                Wyu='double',
                Wzl='double',
                Wzu='double',
-               dim='size_t',
+               dim='Py_ssize_t',
                gridsize_x_minus_1='int',
                gridsize_y_minus_1='int',
                gridsize_z_minus_1='int',
-               x_lower='size_t',
-               x_upper='size_t',
-               y_lower='size_t',
-               y_upper='size_t',
-               z_lower='size_t',
-               z_upper='size_t',
+               x_lower='Py_ssize_t',
+               x_upper='Py_ssize_t',
+               y_lower='Py_ssize_t',
+               y_upper='Py_ssize_t',
+               z_lower='Py_ssize_t',
+               z_upper='Py_ssize_t',
                returns='double*',
                )
 def CIC_grid2coordinates_vector(grid, x, y, z):
@@ -338,7 +338,7 @@ def CIC_grid2coordinates_vector(grid, x, y, z):
                gridsize_i_minus_1_over_domain_size_x='double',
                gridsize_j_minus_1_over_domain_size_y='double',
                gridsize_k_minus_1_over_domain_size_z='double',
-               i='size_t',
+               i='Py_ssize_t',
                x='double',
                y='double',
                z='double',

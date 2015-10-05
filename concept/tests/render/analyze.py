@@ -32,8 +32,7 @@ this_dir = os.path.dirname(os.path.realpath(__file__))
 from commons import *
 
 # Read in the three images
-import matplotlib.pyplot as plt
-render_path   = this_dir + '/output/snapshot.png'
+render_path   = this_dir + '/output/render_snapshot.png'
 render_0_path = this_dir + '/output/subdir/snapshot_0.png'
 render_1_path = this_dir + '/output/subdir/snapshot_1.png'
 render   = plt.imread(render_path)

@@ -1,0 +1,3 @@
+PM_gridsize  = 256
+R_tophat     = 8*Mpc
+output_bases = {'powerspec': 'powerspec'}

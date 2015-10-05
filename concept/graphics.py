@@ -25,10 +25,9 @@
 # this line will be replaced by the content of commons.py itself.
 from commons import *
 
-# Imports for plotting
+# Imports for 3D plotting
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import juggle_axes
-from matplotlib.pyplot import figure, savefig
 
 # Seperate but equivalent imports in pure Python and Cython
 if not cython.compiled:
@@ -42,12 +41,90 @@ else:
 import pexpect
 import subprocess
 
+@cython.header(# Arguments
+               data_or_filename='object',
+               # Locals
+               filename='str',
+               header='str',
+               i='int',
+               k='double[::1]',
+               k_unit='double',
+               k_unit_from_file='double',
+               power='double[::1]',
+               power_unit='double',
+               power_unit_from_file='double',
+               power_σ='double[::1]',
+               power_σ_unit_from_file='double',
+               tmp='str',
+               )
+def plot_powerspec(data_or_filename):
+    # Only the master process takes part in the plotting
+    if not master:
+        return
+
+    # If a filename is provided in stead of data, the data should be
+    # read in from the file. In that case, the plot should be saved to
+    # filename + '.png'. Otherwize, the argument should be a tuple
+    # consisting of a filename to save to, k, power and power_σ.
+    if isinstance(data_or_filename, str):
+        filename = data_or_filename + '.png'
+        masterprint('Plotting power spectrum and saving to "{}" ...'
+                    .format(filename))
+        # Read in data
+        k, power, power_σ = loadtxt(filename, unpack=True, skiprows=2)
+        # Read in meta data (units)
+        with open(filename, encoding='utf-8') as powespec_file:
+            for i in range(2):
+                header = powespec_file.readline()
+        k_unit_from_file = eval('units.' + re.search('k \[(.*?)\]', header).group(1).replace('⁻¹', '**(-1)'))
+        power_unit_from_file = eval('units.' + re.search('power \[(.*?)\]', header).group(1).replace('³', '**3'))
+        power_σ_unit_from_file = eval('units.' + re.search('σ\(power\) \[(.*?)\]', header).group(1).replace('³', '**3'))
+        # Multiply by the units
+        k = asarray(k)*k_unit_from_file
+        power = asarray(power)*power_unit_from_file
+        power_σ = asarray(power_σ)*power_σ_unit_from_file
+        # Attach extension to filename regardless of current extension
+        filename = filename + '.png'
+    else:
+        filename = data_or_filename[0]
+        # Attach missing extension to filename
+        if not filename.endswith('.png'):
+            filename += '.png'
+        masterprint('Plotting power spectrum and saving to "{}" ...'
+                    .format(filename))
+        # Unpack data
+        _, k, power, power_σ = data_or_filename
+    # Transform quantities to desired units
+    k_unit = 1/units.Mpc
+    power_unit = units.Mpc3
+    k = asarray(k)/k_unit
+    power = asarray(power)/power_unit
+    power_σ = asarray(power_σ)/power_unit
+    # Plot powerspectrum
+    plt.figure()
+    plt.gca().set_xscale('log')
+    plt.gca().set_yscale('log', nonposy='clip')
+    plt.errorbar(k, power, yerr=power_σ, fmt='b.', ms=3, ecolor='r', lw=0)
+    plt.xlabel('$k\,\mathrm{[Mpc^{-1}]}$')
+    plt.ylabel('$\mathrm{power}\,\mathrm{[Mpc^3]}$')
+    tmp = '{:.1e}'.format(min(k))
+    plt.xlim(xmin=float(tmp[0] + tmp[3:]))
+    tmp = '{:.1e}'.format(max(k))
+    plt.xlim(xmax=float(str(int(tmp[0]) + 1) + tmp[3:]))
+    tmp = '{:.1e}'.format(min(power))
+    plt.ylim(ymin=float(tmp[0] + tmp[3:]))
+    tmp = '{:.1e}'.format(np.max(asarray(power) + asarray(power_σ)))
+    plt.ylim(ymax=float(str(int(tmp[0]) + 1) + tmp[3:]))
+    plt.savefig(filename)
+    # Finish progress message
+    masterprint('done')
+
+
 # Setting up figure and plot the particles
 @cython.header(# Arguments
                particles='Particles',
                a='double',
                filename='str',
-               boxsize='double',
                # Locals
                a_str='str',
                alpha='double',
@@ -55,8 +132,8 @@ import subprocess
                basename='str',
                combined='double[:, :, ::1]',
                dirname='str',
-               N='size_t',
-               N_local='size_t',
+               N='Py_ssize_t',
+               N_local='Py_ssize_t',
                renderpart_filename='str',
                renderpart_filenames='list',
                renderparts_dirname='str',
@@ -66,7 +143,7 @@ import subprocess
                size_max='double',
                size_min='double',
                )
-def render(particles, a, filename, boxsize=boxsize):
+def render(particles, a, filename):
     global artist_particles, artist_text, ax
     # Attach missing extension to filename
     if not filename.endswith('.png'):
@@ -84,11 +161,11 @@ def render(particles, a, filename, boxsize=boxsize):
     # The particle size on the figure.
     # The size is chosen such that the particles stand side by side in a
     # homogeneous unvierse (more or less).
-    size = 1000*np.prod(fig.get_size_inches())/N**two_thirds
+    size = 1000*np.prod(fig.get_size_inches())/N**ℝ[2/3]
     # The particle alpha on the figure.
     # The alpha is chosen such that in a homogeneous unvierse, a column
     # of particles have a collective alpha of 1 (more or less).
-    alpha = N**(-one_third)
+    alpha = N**ℝ[-1/3]
     # Alpha values lower than alpha_min appear completely invisible.
     # Allow no alpha values lower than alpha_min. Shrink the size to
     # make up for the large alpha.
@@ -122,7 +199,7 @@ def render(particles, a, filename, boxsize=boxsize):
     # If running with a single process, save the render, make a call to
     # update the liverender and then return.
     if nprocs == 1:
-        savefig(filename, bbox_inches='tight', pad_inches=0)
+        plt.savefig(filename, bbox_inches='tight', pad_inches=0)
         masterprint('done')
         update_liverender(filename)
         return
@@ -139,11 +216,11 @@ def render(particles, a, filename, boxsize=boxsize):
         os.makedirs(renderparts_dirname, exist_ok=True)
     # Now save the render parts, including transparency
     Barrier()
-    savefig(renderpart_filename,
-            bbox_inches='tight',
-            pad_inches=0,
-            transparent=True,
-            )
+    plt.savefig(renderpart_filename,
+                bbox_inches='tight',
+                pad_inches=0,
+                transparent=True,
+                )
     Barrier()
     # The master process combines the parts using ImageMagick
     if master:
@@ -222,11 +299,11 @@ def update_liverender(filename):
 @cython.header(# Arguments
                particles='Particles',
                # Locals
-               N='size_t',
-               N_local='size_t',
+               N='Py_ssize_t',
+               N_local='Py_ssize_t',
                colornumber='unsigned long long int',
-               i='size_t',
-               j='size_t',
+               i='Py_ssize_t',
+               j='Py_ssize_t',
                maxval='unsigned long long int',
                posx='double*',
                posy='double*',
@@ -249,10 +326,10 @@ def terminal_render(particles):
     scalex = projection.shape[1]/boxsize
     scaley = projection.shape[0]/boxsize
     for i in range(N_local):
-        projection[cast(particles.posy[i]*scaley, 'size_t'),
-                   cast(particles.posx[i]*scalex, 'size_t')] += 1
-    Reduce(MPI.IN_PLACE if master else projection,
-           projection   if master else None,
+        projection[cast(particles.posy[i]*scaley, 'Py_ssize_t'),
+                   cast(particles.posx[i]*scalex, 'Py_ssize_t')] += 1
+    Reduce(sendbuf=(MPI.IN_PLACE if master else projection),
+           recvbuf=(projection   if master else None),
            op=MPI.SUM)
     if not master:
         return
@@ -344,7 +421,7 @@ def significant_figures(f, n, just=0, scientific=False):
 
 # Set up figure.
 # The 77.50 scaling is needed to map the resolution to pixel units
-fig = figure(figsize=[resolution/77.50]*2)
+fig = plt.figure(figsize=[resolution/77.50]*2)
 ax = fig.gca(projection='3d', axisbg=bgcolor)
 ax.set_aspect('equal')
 ax.dist = 8.55  # Zoom level

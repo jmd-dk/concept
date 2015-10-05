@@ -34,10 +34,12 @@ import contextlib, cython, imp, matplotlib, numpy as np, os, re, shutil
 import sys, unicodedata
 # For math
 from numpy import (arange, array, asarray, concatenate, cumsum, delete,
-                   empty, linspace, ones, trapz, unravel_index, zeros)
+                   empty, linspace, loadtxt, ones, unravel_index, zeros)
 from numpy.random import random
 # Use a matplotlib backend that does not require a running X-server
 matplotlib.use('Agg')
+# For plotting
+import matplotlib.pyplot as plt
 # Import h5py. This has to be done after importing matplotlib, as this
 # somehow makes libpng unable to find the zlib shared library.
 import h5py
@@ -103,6 +105,7 @@ C2np = {# Booleans
         'long int'     : np.long,
         'long long int': np.longlong,
         'ptrdiff_t'    : np.intp,
+        'Py_ssize_t'   : np.intp,
         # Unsgined integers
         'unsigned char'         : np.ubyte,
         'unsigned short'        : np.ushort,
@@ -140,6 +143,7 @@ if not cython.compiled:
                       'initializedcheck',
                       'wraparound',
                       'header',
+                      'pheader',
                       ):
         setattr(cython, directive, dummy_decorator)
     # Dummy Cython functions
@@ -173,12 +177,6 @@ if not cython.compiled:
         # Reallocation of pointer assumed
         p.resize(a[0], refcheck=False)
         return p
-        #new_a = empty(a[0], dtype=a.dtype)
-        #if new_a.size >= p.size:
-        #    new_a[:p.size] = p
-        #else:
-        #    new_a[:] = p[:new_a.size]
-        #return new_a
     def free(a):
         pass
     # Casting
@@ -192,7 +190,7 @@ if not cython.compiled:
             # Scalar
             return C2np[dtype](a)
     # Dummy fused types
-    number = number2 = integer = floating = []
+    number = number2 = integer = floating = number_mv = []
 else:
     # Lines in triple quotes will be executed in .pyx files
     """
@@ -215,6 +213,7 @@ else:
     ctypedef fused number:
         cython.int
         cython.size_t
+        cython.Py_ssize_t
         cython.float
         cython.double
     # Create another fused number type, so that function arguments can have
@@ -222,12 +221,14 @@ else:
     ctypedef fused number2:
         cython.int
         cython.size_t
+        cython.Py_ssize_t
         cython.float
         cython.double
     # Create integer and floating fused types
     ctypedef fused integer:
         cython.int
         cython.size_t
+        cython.Py_ssize_t
     ctypedef fused floating:
         cython.float
         cython.double
@@ -246,7 +247,7 @@ if not cython.compiled:
                        exp, log, log2, log10,
                        sqrt,
                        )
-    from math import erfc
+    from math import erf, erfc
     # Dummy unicode function
     def unicode(c):
         return c
@@ -264,14 +265,18 @@ else:
                             acosh as arccosh, 
                             atanh as arctanh,
                             exp, log, log2, log10,
-                            sqrt, erfc
+                            sqrt, erf, erfc
                             )
     # The pyxpp script convert all Unicode source code characters into
     # ASCII. The function below grants the code access to
     # Unicode string literals, by undoing the convertion.
     @cython.header(c='str', returns='str')
     def unicode(c):
-        return unicodedata.lookup(c.replace('_', ' '))
+        if len(c) > 10 and c.startswith('__UNICODE__'):
+            c = c[11:]
+        c = c.replace('__space__', ' ')
+        c = c.replace('__dash__', '-')
+        return unicodedata.lookup(c)
     """
 
 
@@ -292,6 +297,7 @@ class Units:
         """
         # Data attributes
         double cm, m, km, AU, pc, kpc, Mpc, Gpc
+        double pc2, kpc2, Mpc2, Gpc2, pc3, kpc3, Mpc3, Gpc3
         double s, min, hr, day, yr, kyr, Myr, Gyr
         double g, kg, m_sun, km_sun, Mm_sun, Gm_sun
         """
@@ -313,6 +319,15 @@ class Units:
         self.km_sun = 1e+3*self.m_sun
         self.Mm_sun = 1e+6*self.m_sun
         self.Gm_sun = 1e+9*self.m_sun
+        # Square and cubic parsecs
+        self.pc2     = self.pc**2
+        self.kpc2    = self.kpc**2
+        self.Mpc2    = self.Mpc**2
+        self.Gpc2    = self.Gpc**2
+        self.pc3     = self.pc**3
+        self.kpc3    = self.kpc**3
+        self.Mpc3    = self.Mpc**3
+        self.Gpc3    = self.Gpc**3
         # Non-base units
         self.AU     = π/(60*60*180)*self.pc
         self.m      = self.AU/149597870700
@@ -399,6 +414,14 @@ params = {# The paths dict
           'kpc'   : units.kpc,
           'Mpc'   : units.Mpc,
           'Gpc'   : units.Gpc,
+          'pc2'   : units.pc2,
+          'kpc2'  : units.kpc2,
+          'Mpc2'  : units.Mpc2,
+          'Gpc2'  : units.Gpc2,
+          'pc3'   : units.pc3,
+          'kpc3'  : units.kpc3,
+          'Mpc3'  : units.Mpc3,
+          'Gpc3'  : units.Gpc3,
           's'     : units.s,
           'yr'    : units.yr,
           'kyr'   : units.kyr,
@@ -476,18 +499,20 @@ cython.declare(# Input/output
                output_times='dict',
                # Numerical parameter
                boxsize='double',
-               ewald_gridsize='size_t',
+               ewald_gridsize='Py_ssize_t',
                PM_gridsize='ptrdiff_t',
                P3M_scale='double',
                P3M_cutoff='double',
                softeningfactors='dict',
                Δt_factor='double',
+               R_tophat='double',
                # Cosmological parameters
                H0='double',
                Ωm='double',
                ΩΛ='double',
                a_begin='double',
                # Graphics
+               powerspec_plot='bint',
                color='double[::1]',
                bgcolor='double[::1]',
                resolution='unsigned int',
@@ -496,8 +521,12 @@ cython.declare(# Input/output
                terminal_colormap='str',
                terminal_resolution='unsigned int',
                # Simlation options
-               use_Ewald='bint',
                kick_algorithms='dict',
+               use_Ewald='bint',
+               use_PM='bint',
+               use_P3M='bint',
+               fftw_rigor='str',
+               # Hidden parameters
                special_params='dict',
                )
 # Input/output
@@ -534,12 +563,14 @@ softeningfactors = dict(params.get('softeningfactors', {}))
 for kind in ('dark matter', ):
     softeningfactors[kind] = float(softeningfactors.get(kind, 0.03))
 Δt_factor = float(params.get(unicode('Δ') + 't_factor', 0.01))
+R_tophat = float(params.get('R_tophat', 8*units.Mpc))
 # Cosmological parameters
 H0 = float(params.get('H0', 70*units.km/(units.s*units.Mpc)))
 Ωm = float(params.get(unicode('Ω') + 'm', 0.3))
 ΩΛ = float(params.get(unicode('Ω') + unicode('Λ'), 0.7))
 a_begin = float(params.get('a_begin', 0.02))
 # Graphics
+powerspec_plot = bool(params.get('powerspec_plot', False))
 color = array(matplotlib.colors.ColorConverter()
               .to_rgb(params.get('color', 'lime')), dtype='float64')
 bgcolor = array(matplotlib.colors.ColorConverter()
@@ -561,7 +592,17 @@ terminal_resolution = int(params.get('terminal_resolution', 80))
 kick_algorithms = dict(params.get('kick_algorithms', {}))
 for kind in ('dark matter', ):
     kick_algorithms[kind] = str(kick_algorithms.get(kind, 'PP'))
-use_Ewald = bool(params.get('use_Ewald', True))
+use_Ewald = bool(params.get('use_Ewald', False))
+if (set(('PM', 'P3M')) & set(kick_algorithms.values())
+    or output_times['powerspec']):
+    use_PM = bool(params.get('use_PM', True))
+else:
+    use_PM = bool(params.get('use_PM', False))
+if 'P3M' in kick_algorithms.values():
+    use_P3M = bool(params.get('use_P3M', True))
+else:
+    use_P3M = bool(params.get('use_P3M', False))
+fftw_rigor = params.get('fftw_rigor', 'estimate').lower()
 # Extra hidden parameters via the special_params variable
 special_params = dict(params.get('special_params', {}))
 
@@ -577,22 +618,18 @@ cython.declare(vector='double*',
 vector = malloc(3*sizeof('double'))
 vector_mv = cast(vector, 'double[:3]')
 
+
+
 ################
 # Pure numbers #
 ################
-cython.declare(minus_4π='double',
-               one_third='double',
-               one_twelfth='double',
-               sqrt_π='double',
-               two_π='double',
-               two_thirds='double',
-               )
-minus_4π = -4*π
-one_third = 1.0/3.0
-one_twelfth = 1.0/12.0
-sqrt_π = sqrt(π)
-two_thirds = 2.0/3.0
-two_π = 2*π
+# Implement any pure number as ℝ[expression]
+if not cython.compiled:
+    class DummyDict(dict):
+        def __getitem__(self, key):
+            return key
+    ℝ = DummyDict()
+# Cython declaretions of pure numbers appears below in .pyx files
 
 
 
@@ -624,10 +661,10 @@ cython.declare(a_dumps='tuple',
                snapshot_base='str',
                snapshot_times='tuple',
                terminal_render_times='tuple',
+               ten_machine_ϵ='double',
                two_ewald_gridsize='int',
                two_machine_ϵ='double',
                two_recp_boxsize='double',
-               use_PM='bint',
                ϱ='double',
                ϱm='double',
                PM_fac_const='double',
@@ -674,13 +711,9 @@ two_recp_boxsize = 2/boxsize
 ewald_file = '.ewald_gridsize=' + str(ewald_gridsize) + '.hdf5'
 # Machine epsilon
 machine_ϵ = np.finfo('float64').eps
-two_ewald_gridsize = 2*ewald_gridsize
 two_machine_ϵ = 2*machine_ϵ
-# Flag specifying whether the PM method is used or not
-use_PM = False
-if (set(('PM', 'P3M')) & set(kick_algorithms.values())
-    or powerspec_times):
-    use_PM = True
+ten_machine_ϵ = 10*machine_ϵ
+two_ewald_gridsize = 2*ewald_gridsize
 # All constant factors across the PM scheme is gathered in the PM_fac
 # variable. It's contributions are:
 # For CIC interpolating particle masses/volume to the grid points:
@@ -719,10 +752,9 @@ scp_host = (re.search('@(.*):', remote_liverender).group(1)
 
 # Abs function for numbers
 if not cython.compiled:
-    # Pure Python already have a generic abs function
-    pass
+    # Use NumPy's abs function in pure Python
+    max = np.max
 else:
-    """
     @cython.header(x=number,
                    returns=number,
                    )
@@ -730,23 +762,20 @@ else:
         if x < 0:
             return -x
         return x
-    """
 
 # Max function for 1D memory views of numbers
 if not cython.compiled:
-    # Pure Python already have a generic max function
-    pass
+    # Use NumPy's max function in pure Python
+    max = np.max
 else:
     """
     @cython.header(returns=number)
     def max(number[::1] a):
         cdef:
+            Py_ssize_t i
             number m
-            size_t N
-            size_t i
-        N = a.shape[0]
         m = a[0]
-        for i in range(1, N):
+        for i in range(1, a.shape[0]):
             if a[i] > m:
                 m = a[i]
         return m
@@ -754,19 +783,17 @@ else:
 
 # Min function for 1D memory views of numbers
 if not cython.compiled:
-    # Pure Python already have a generic min function
-    pass
+    # Use NumPy's min function in pure Python
+    min = np.min
 else:
     """
     @cython.header(returns=number)
     def min(number[::1] a):
         cdef:
+            Py_ssize_t i
             number m
-            size_t N
-            size_t i
-        N = a.shape[0]
         m = a[0]
-        for i in range(1, N):
+        for i in range(1, a.shape[0]):
             if a[i] < m:
                 m = a[i]
         return m
@@ -793,8 +820,7 @@ def mod(x, length):
 
 # Sum function for 1D memory views of numbers
 if not cython.compiled:
-    # To correctly handle all numeric data types, use numpy's sum
-    # function rather than Python's built-in sum function.
+    # Use NumPy's sum function in pure Python
     sum = np.sum
 else:
     """
@@ -802,8 +828,8 @@ else:
     def sum(number[::1] a):
         cdef:
             number Σ
-            size_t N
-            size_t i
+            Py_ssize_t N
+            Py_ssize_t i
         N = a.shape[0]
         if N == 0:
             return 0
@@ -815,7 +841,7 @@ else:
 
 # Prod function for 1D memory views of numbers
 if not cython.compiled:
-    # Utilize the prod function from numpy for pure Python
+    # Use NumPy's prod function in pure Python
     prod = np.prod
 else:
     """
@@ -823,8 +849,8 @@ else:
     def prod(number[::1] a):
         cdef:
             number Π
-            size_t N
-            size_t i
+            Py_ssize_t N
+            Py_ssize_t i
         N = a.shape[0]
         if N == 0:
             return 1

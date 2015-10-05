@@ -41,7 +41,7 @@ source "${this_dir}/../environment"
 # (for fast IC generation).
 ewald_gridsize=$(grep -o "ewald_gridsize[ =0-9]*" "${this_dir}/params" | awk '{printf $NF}')
 if [ ! -f "${concept_dir}/.ewald_gridsize=${ewald_gridsize}.hdf5" ]; then
-    "${run}" -n 1 --local
+    "${run}" -n 1 -p "${this_dir}/params_ewald" --local
 fi
 
 # Generate ICs
@@ -59,6 +59,14 @@ mv "${this_dir}/output/snapshot_a=0.50" "${this_dir}/output/snapshot_python_1"
 mv "${this_dir}/output/snapshot_a=0.50" "${this_dir}/output/snapshot_python_2"
 "${run}" -n 4 -p "${this_dir}/params" --pure-python --local
 mv "${this_dir}/output/snapshot_a=0.50" "${this_dir}/output/snapshot_python_4"
+
+# Tabulate a small grid using both pure Python and Cython
+ewald_gridsize_small=$(grep -o "ewald_gridsize[ =0-9]*" "${this_dir}/params_ewald_small" | awk '{printf $NF}')
+rm -f "${concept_dir}/.ewald_gridsize=${ewald_gridsize_small}.hdf5"
+"${run}" -n 1 -p "${this_dir}/params_ewald_small" --pure-python --local
+mv "${concept_dir}/.ewald_gridsize=${ewald_gridsize_small}.hdf5" "${this_dir}/ewald_pure_python.hdf5"
+"${run}" -n 1 -p "${this_dir}/params_ewald_small" --local
+mv "${concept_dir}/.ewald_gridsize=${ewald_gridsize_small}.hdf5" "${this_dir}/ewald.hdf5"
 
 # Analyze the output snapshots
 "${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local

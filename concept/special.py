@@ -42,7 +42,7 @@ else:
 # operation, defined by the special_params dict.
 @cython.header()
 def delegate():
-    if special_params['special'] == 'powerspectrum':
+    if special_params['special'] == 'powerspec':
         # Powerspectra of one or more snapshots should be made
         powerspec()
     elif special_params['special'] == 'render':
@@ -53,72 +53,115 @@ def delegate():
                    .format(special_params['special']))
 
 # Function for finding all snapshots in special_params['path']
-@cython.header(# Locals
+@cython.pheader(# Arguments
+               path='str',
+               # Locals
                filenames='list',
                msg='str',
                snapshot_filenames='list',
                returns='list',
                )
-def get_snapshots():
+def locate_snapshots(path):
     # Get all files from the path
-    if master and not os.path.exists(special_params['path']):
-        msg = 'Path "{}" does not exist!'.format(special_params['path'])
+    if master and not os.path.exists(path):
+        msg = 'Path "{}" does not exist!'.format(path)
         raise Exception(msg)
-    if os.path.isdir(special_params['path']):
-        filenames = [os.path.join(special_params['path'], filename)
-                     for filename in os.listdir(special_params['path'])
-                     if os.path.isfile(os.path.join(special_params['path'],
-                                                    filename))]
+    if os.path.isdir(path):
+        filenames = [os.path.join(path, filename)
+                     for filename in os.listdir(path)
+                     if os.path.isfile(os.path.join(path, filename))]
     else:
-        filenames = [special_params['path']]
+        filenames = [path]
     # Only use snapshots
     snapshot_filenames = [filename for filename in filenames
                           if get_snapshot_type(filename)]
     # If none of the files where snapshots, throw an exception
     if master and not snapshot_filenames:
-        if os.path.isdir(special_params['path']):
+        if os.path.isdir(path):
             msg = ('The directory "{}" does not contain any snapshots.'
-                   ).format(special_params['path'])
+                   ).format(path)
         else:
             msg = ('The file "{}" is not a valid snapshot.'
-                   ).format(special_params['path'])
+                   ).format(path)
         raise Exception(msg)
     return snapshot_filenames
 
-# Function that produces powerspectra according to the
-# special_params['path'] parameter.
+# Function for getting all informations within a snapshot
+@cython.pheader(# Arguments
+                snapshot_filename='str',
+                # Locals
+                info='dict',
+                snapshot='StandardSnapshot',
+                value='double',
+                returns='dict',
+               )
+def snapshot_info(snapshot_filename):
+    # Read in the snapshot
+    snapshot = load_into_standard(snapshot_filename, write_msg=False)
+    info = {'snapshot_type': get_snapshot_type(snapshot_filename),
+            'params':        snapshot.params,
+            'particles':     {'N':       snapshot.particles.N,
+                              'mass':    snapshot.particles.mass,
+                              'species': snapshot.particles.species,
+                              'type':    snapshot.particles.type,
+                              },
+            }
+    # Replace the 'Ωm' key with an actual unicode literal
+    value = info['params']['Ωm']
+    del info['params']['Ωm']
+    info['params'][unicode('Ω') + 'm'] = value
+    # Replace the 'ΩΛ' key with an actual unicode literal
+    value = info['params']['ΩΛ']
+    del info['params']['ΩΛ']
+    info['params'][unicode('Ω') + unicode('Λ')] = value
+    return info
+
+# Function that produces a powerspectrum of the file
+# specified by the special_params['path'] parameter.
 @cython.header(# Locals
-               filename='str',
-               filenames='list',
+               basename='str',
+               output_dir='str',
+               output_filename='str',
+               snapshot_filename='str',
                snapshot='StandardSnapshot',
                )
 def powerspec():
-    # Get list of snapshots
-    filenames = get_snapshots()
-    # Produce a powerspectrum of each snapshot
-    for filename in filenames:
-        # Read in the snapshot
-        snapshot = load_into_standard(filename, write_msg=False)
-        # Compute powerspectrum of the snapshot
-        analysis.powerspectrum(snapshot.particles,
-                               filename + '_powerspec')
+    # Extract the snapshot filename
+    snapshot_filename = special_params['snapshot_filename']
+    # Read in the snapshot
+    snapshot = load_into_standard(snapshot_filename, write_msg=False)
+    # Output file
+    output_dir, basename = os.path.split(snapshot_filename)
+    output_filename = '{}/{}{}{}'.format(output_dir,
+                                         output_bases['powerspec'],
+                                         ('_' if output_bases['powerspec']
+                                              else ''),
+                                         basename)
+    # Produce powerspectrum of the snapshot
+    analysis.powerspec(snapshot.particles,
+                       output_filename)
 
-# Function that produces renders according to the
-# special_params['path'] parameter.
+# Function that produces a render of the file
+# specified by the special_params['path'] parameter.
 @cython.header(# Locals
-               filename='str',
-               filenames='list',
+               basename='str',
+               output_dir='str',
+               output_filename='str',
+               snapshot_filename='str',
                snapshot='StandardSnapshot',
                )
 def render():
-    # Get list of snapshots
-    filenames = get_snapshots()
-    # Produce a render of each snapshot
-    for filename in filenames:
-        # Read in the snapshot
-        snapshot = load_into_standard(filename, write_msg=False)
-        # Render the snapshot
-        graphics.render(snapshot.particles,
-                        snapshot.params['a'],
-                        filename + '.png',
-                        boxsize=snapshot.params['boxsize'])
+    # Extract the snapshot filename
+    snapshot_filename = special_params['snapshot_filename']
+    # Read in the snapshot
+    snapshot = load_into_standard(snapshot_filename, write_msg=False)
+    # Output file
+    output_dir, basename = os.path.split(snapshot_filename)
+    output_filename = '{}/{}{}{}'.format(output_dir,
+                                         output_bases['render'],
+                                         '_' if output_bases['render'] else '',
+                                         basename)
+    # Render the snapshot
+    graphics.render(snapshot.particles,
+                    snapshot.params['a'],
+                    output_filename)
