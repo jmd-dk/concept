@@ -28,7 +28,6 @@ https://github.com/jmd-dk/concept/
 #include <string.h>
 #include <stdio.h>
 
-
 /* This file defines the functions fftw_setup and fftw_clean, which
 together with fftw_execute (included in fftw3-mpi.h) constitutes the
 necessary functions for using FFTW to do parallel, real, 3D in-place
