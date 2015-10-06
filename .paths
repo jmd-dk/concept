@@ -19,6 +19,10 @@ Gadget2_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/gadget/Gadget2'
 gsl_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/gsl'
 # Directory of HDF5
 hdf5_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/hdf5'
+# Directory of ImageMagick
+imagemagick_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/imagemagick'
+# Directory of libpng
+libpng_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/libpng'
 # Directory of MPI
 mpi_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/mpich'
 # Directory of Python
@@ -27,22 +31,26 @@ python_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python'
 tests_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/tests'
 # Top level directory, containing e.g. README.md
 top_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept'
+# Directory containing utilities for the CO𝘕CEPT code
+utilities_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/utilities'
+# Directory of zlib
+zlib_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/zlib'
 
 #########
 # Files #
 #########
 # The convert executable from ImageMagick
 convert='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/imagemagick/bin/convert'
-# The installation script
+# The installer script
 installer='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/installer'
 # The MPI C compiler
 mpicc='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/mpich/bin/mpicc'
 # The MPI executable
 mpiexec='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/mpich/bin/mpiexec'
 # The Python3 interpreter
-python='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python/bin/python3.4'
+python='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python/bin/python3.5'
 # The Python3 configuration executable
-python_config='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python/bin/python3.4-config'
-# The run script of the CO𝘕CEPT code
+python_config='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python/bin/python3.5-config'
+# The run script of the CONCEPT code
 run='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/run'
 

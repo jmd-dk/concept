@@ -41,6 +41,17 @@ else:
 import pexpect
 import subprocess
 
+# When using ax.scatter (and possible more) the following warning is
+# given, as of NumPy 1.10.0, Matplotlib 1.4.3:
+# FutureWarning: elementwise comparison failed; returning scalar instead,
+# but in the future will perform elementwise comparison
+#   if self._edgecolors == str('face'):
+# This is a bug and will hopefully be fixed by the developers.
+# In the meantime, as everything seems to be alright,
+# suppress this warning.
+import warnings
+warnings.filterwarnings('ignore', category=FutureWarning)
+
 @cython.header(# Arguments
                data_or_filename='object',
                # Locals

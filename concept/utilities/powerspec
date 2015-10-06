@@ -109,6 +109,7 @@ special_params = {
 $(cat "${params}")
     " > "${this_file}.params.full"
     # Run CO𝘕CEPT to produce the powerspectrum
+    echo "JEG ER HER"
     "${run}" -m ${main} -n ${nprocs} -p "${this_file}.params.full" -q "{queue}" -w "${walltime}" ${local_flag} ${pure_python_flag}
 done
 

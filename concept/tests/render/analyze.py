@@ -24,7 +24,7 @@
 # This file has to be run in pure Python mode!
 
 # Include the concept_dir in the searched paths and get directory of this file
-import sys, oss
+import sys, os
 sys.path.append(os.environ['concept_dir'])
 this_dir = os.path.dirname(os.path.realpath(__file__))
 
