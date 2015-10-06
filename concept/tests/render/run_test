@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
 
-# This file is part of CONCEPT, the cosmological N-body code in Python.
-# Copyright (C) 2015 Jeppe Mosgard Dakin.
+# This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
+# Copyright © 2015 Jeppe Mosgaard Dakin.
 #
-# CONCEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# CONCEPT is distributed in the hope that it will be useful,
+# CO𝘕CEPT is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with CONCEPT. If not, see http://www.gnu.org/licenses/
+# along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CONCEPT can be contacted at
+# The auther of CO𝘕CEPT can be contacted at
 # jeppe.mosgaard.dakin(at)post.au.dk
-# The latest version of CONCEPT is available at
+# The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
 
@@ -61,16 +61,19 @@ resolution = 1080
 " > "${this_dir}/render.params_1"
 
 # Render the single snapshot without explicitly specifying a render parameter file
-"${concept_dir}/utilities/render" "${this_dir}/output/snapshot"
+"${run}" -n 1 -u render "${this_dir}/output/snapshot" --local
 
 # Render the single snapshot
-"${concept_dir}/utilities/render" "${this_dir}/output/snapshot" -p "${this_dir}/render.params_0"
+"${run}" -n 1 -p "${this_dir}/render.params_0" -u render "${this_dir}/output/snapshot" --local
 
 # Render all (both) snapshots in the subdir, using 2 processes
-"${concept_dir}/utilities/render" "${this_dir}/output/subdir" -n 2 -p "${this_dir}/render.params_1"
+"${run}" -n 2 -p "${this_dir}/render.params_1" -u render "${this_dir}/output/subdir" --local
 
 # Analyze the output snapshots
 "${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
+
+# For the spectacularity of it, run a small simulation demonstrating terminal rendering
+"${run}" -n 1 -p "${this_dir}/params" --local
 
 # Finalize test environment
 test_done=true source "${this_dir}/../environment"

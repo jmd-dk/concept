@@ -1,54 +1,61 @@
 #!/usr/bin/env bash
 
-# This file is part of CONCEPT, the cosmological N-body code in Python.
-# Copyright (C) 2015 Jeppe Mosgard Dakin.
+# This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
+# Copyright © 2015 Jeppe Mosgaard Dakin.
 #
-# CONCEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# CONCEPT is distributed in the hope that it will be useful,
+# CO𝘕CEPT is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with CONCEPT. If not, see http://www.gnu.org/licenses/
+# along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CONCEPT can be contacted at
+# The auther of CO𝘕CEPT can be contacted at
 # jeppe.mosgaard.dakin(at)post.au.dk
-# The latest version of CONCEPT is available at
+# The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
 
 
-# Running this script after submitting a remote job will print out the output
-# of the code as it is being run. If multiple jobs are running or in queue,
-# the latest will be watched. Alternatively, the job ID can be passed as the
-# first argument when calling this script.
+# Running this script after submitting a remote job via PBS will print out the
+# output of the code as it is being run. If multiple jobs are running or in
+# queue, the latest will be watched. Alternatively, the job ID can be passed
+# as the first argument when calling this script.
+# You can run this script directly or by invoking the run script with the
+# --util watch
+# option.
+
+# Absolute paths to this file and its directory
+this_file="$(readlink -f "${BASH_SOURCE[0]}")"
+this_dir="$(dirname "${this_file}")"
+
+# Set up error trapping
+ctrl_c()
+{
+    trap : 0
+    exit 2
+}
+abort()
+{
+    colorprint "An error occurred while using the \"$(basename ${this_file})\" utility!" "red"
+    exit 1
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
 
 # Source the run script
-curr="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-while :; do
-    if [ -f "${curr}/run" ]; then
-        source "${curr}/run"
-        break
-    elif [ "${curr}" == "/" ]; then
-        # Print out error message and exit
-        esc="\x1b"
-        esc_normal="${esc}[0m"
-        esc_bold="${esc}[1m"
-        esc_red="${esc}[91m"
-        printf "${esc_bold}${esc_red}Could not find the run script!${esc_normal}\n" >&2
-        exit 1
-    fi
-    curr="$(dirname "${curr}")"
-done
+source "${this_dir}/../run"
 
 # Exit if this script is not run remotely via ssh
 if ([ -z "${SSH_CLIENT}" ] && [ -z "${SSH_TTY}" ]); then
-    colorprint "Cannot watch remote job as you are working on a local machine" "red"
+    colorprint "Error: Cannot watch remote job as you are working on a local machine" "red"
     exit 1
 fi
 
@@ -133,4 +140,7 @@ else
     # Job running
     read_tail
 fi
+
+# Exit gracefully
+trap : 0
 

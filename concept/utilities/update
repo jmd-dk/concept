@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+
+# This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
+# Copyright © 2015 Jeppe Mosgaard Dakin.
+#
+# CO𝘕CEPT is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# CO𝘕CEPT is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
+#
+# The auther of CO𝘕CEPT can be contacted at
+# jeppe.mosgaard.dakin(at)post.au.dk
+# The latest version of CO𝘕CEPT is available at
+# https://github.com/jmd-dk/concept/
+
+
+
+# This utility will update the CO𝘕CEPT source files.
+# Run it directly or by invoking the run script with the
+# --util update
+# option.
+
+# Absolute paths to this file and its directory
+this_file="$(readlink -f "${BASH_SOURCE[0]}")"
+this_dir="$(dirname "${this_file}")"
+
+# Set up error trapping
+ctrl_c()
+{
+    trap : 0
+    exit 2
+}
+abort()
+{
+    colorprint "An error occurred while using the \"$(basename ${this_file})\" utility!" "red"
+    exit 1
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
+
+# Source the run script
+source "${this_dir}/../run"
+
+# Read in the entire content of the installer script
+installer_content="$(cat "${installer}")"
+
+# Borrow some functions from the install script.
+# Sourcing is no good here, as we are not interested in
+# actually running the installer script.
+installer_functions=("check_system_dependency" "extract" "download_and_extract")
+for installer_function in "${installer_functions[@]}"; do
+function_definition="$("${python}" -B -c "
+import re, sys
+print(re.search(r'${installer_function}\(\).*?\n}', sys.argv[1], flags=re.DOTALL).group())
+" "${installer_content}")"
+eval "${function_definition}"
+done
+
+# Create dummy functions called by the other functions
+dummy_functions=("error" "heading" "set_status" "disable_status" "enable_status")
+for dummy_function in "${dummy_functions[@]}"; do
+eval "
+${dummy_function}()
+{
+    :
+}"
+done
+
+# Check for needed system commands
+check_system_dependency "gzip" "gzip" "gzip"
+check_system_dependency "tar" "tar" "tar"
+check_system_dependency "wget" "wget" "wget"
+
+# Download and extract CO𝘕CEPT
+concept_url="https://github.com/jmd-dk/concept/archive/master.tar.gz"
+rm -rf "${top_dir}/tmp"
+download_and_extract "CONCEPT"
+
+# Check whether the installer has been updated
+installer_updated_content="$(cat "${top_dir}/tmp/"*"/installer")"
+installer_updated="yes"
+if [ "${installer_content}" == "${installer_updated_content}" ]; then
+    installer_updated="no"
+fi
+
+# Move particular files from the master directory
+for filename in ("installer" "README.md"); do
+    mv "${top_dir}/tmp/"*"/${filename}" "${top_dir}"
+done
+
+# Move all files from the concept directory
+mv "${top_dir}/tmp/"*"/concept/"* "${concept_dir}/"
+
+# Cleanup
+rm -rf "${top_dir}/tmp"
+
+# Write out success message
+colorprint "CONCEPT successfully updated" "green"
+
+# Notify the user if the installer has been updated
+if [ "${installer_updated}" == "yes" ]; then
+    colorprint "Warning: The installer script has undergone an update." "red"
+    colorprint "This could mean that your CONCEPT environment is not" "red"
+    colorprint "up to date with your CONCEPT source code" "red"
+fi
+
+# Exit gracefully
+trap : 0
+

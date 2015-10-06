@@ -1,22 +1,22 @@
-# This file is part of CONCEPT, the cosmological N-body code in Python.
-# Copyright (C) 2015 Jeppe Mosgard Dakin.
+# This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
+# Copyright © 2015 Jeppe Mosgaard Dakin.
 #
-# CONCEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# CONCEPT is distributed in the hope that it will be useful,
+# CO𝘕CEPT is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with CONCEPT. If not, see http://www.gnu.org/licenses/
+# along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CONCEPT can be contacted at
+# The auther of CO𝘕CEPT can be contacted at
 # jeppe.mosgaard.dakin(at)post.au.dk
-# The latest version of CONCEPT is available at
+# The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
 
@@ -878,7 +878,6 @@ def in_boundary_leftbackwarddown(posx_local_i, posy_local_i, posz_local_i):
                rank_recv='int',
                softening2='double',
                Δmemory='Py_ssize_t',
-               hmm='double',
                )
 def P3M(particles, Δt):
     """The long-range part is computed via the PM function. Local
@@ -944,7 +943,6 @@ def P3M(particles, Δt):
                                          P3M_cutoff_phys/domain_size_y,
                                          P3M_cutoff_phys/domain_size_z,
                                          ]))
-    hmm = max(posx_local_boundary_mv)
     # Loop over all 26 neighbors (two at a time)
     for j in range(13):
         # It is important that the processes iterate synchronously,
