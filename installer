@@ -1,29 +1,29 @@
 #!/usr/bin/env bash
 
-# This file is part of CONCEPT, the cosmological N-body code in Python.
-# Copyright (C) 2015 Jeppe Mosgard Dakin.
+# This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
+# Copyright © 2015 Jeppe Mosgaard Dakin.
 #
-# CONCEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# CONCEPT is distributed in the hope that it will be useful,
+# CO𝘕CEPT is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with CONCEPT. If not, see http://www.gnu.org/licenses/
+# along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CONCEPT can be contacted at
+# The auther of CO𝘕CEPT can be contacted at
 # jeppe.mosgaard.dakin(at)post.au.dk
-# The latest version of CONCEPT is available at
+# The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
 
 
-# This script downloads and installs the CONCEPT code with all its
+# This script downloads and installs the CO𝘕CEPT code with all its
 # dependencies. If run without an argument, it will prompt for an
 # installation directory. Alternatively, this directory can be passed as
 # an argument. Everything will be installed within this directory.
@@ -60,7 +60,7 @@
 # - FFTW 2   (needed by GADGET)
 #
 # By default, any pre-installed versions of the above software will be
-# ignored. Should you wish CONCEPT to use one such pre-installed
+# ignored. Should you wish CO𝘕CEPT to use one such pre-installed
 # component, you have to declare its directory path through the
 # "programname_dir" environment variable. E.g. to use a pre-installed
 # gsl library:
@@ -638,13 +638,13 @@ if [ "${python_preinstalled}" == "no" ]; then
     validate_url "Python"
 fi
 
-# CONCEPT
+# CO𝘕CEPT
 if [ "${concept_preinstalled}" == "no" ]; then
     concept_repo_url="https://github.com/jmd-dk/concept"
     if [ "${concept_version}" == "newest" ]; then
         current_step="search for latest version of ${esc_concept}"
         set_status "Searching for latest version of ${esc_concept_double_backslashes}"
-        # The version of CONCEPT is set to the commit number
+        # The version of CO𝘕CEPT is set to the commit number
         repo_text=$(wget -t 50 --timeout 15 -q -O- --no-check-certificate ${concept_repo_url})
         line_nr=$(echo "${repo_text}" | grep -n "  commits" | awk '{print $1}')
         line_nr="${line_nr:0:${#line_nr}-1}"
@@ -801,7 +801,7 @@ fi
 
 
 ###################################
-# Installing CONCEPT dependencies #
+# Installing CO𝘕CEPT dependencies #
 ###################################
 # Function for extracting compressed files
 extract()
@@ -1340,8 +1340,8 @@ if [ "${matplotlib_preinstalled}" == "no" ]; then
     set_status "Installing Matplotlib ${matplotlib_version}"
     # Download matplotlib itself
     pip_download "matplotlib" "${matplotlib_version}"
-    # Matplot is the only Python package needed by CONCEPT, which
-    # depends on other Python packages not directly used by CONCEPT.
+    # Matplot is the only Python package needed by CO𝘕CEPT, which
+    # depends on other Python packages not directly used by CO𝘕CEPT.
     # Most often these dependencies are downloaded automatically by the
     # previous command. In case of failure, we do it manually.
     deps=(        "nose" "pyparsing" "python-dateutil" "pytz" "six")    # NumPy already installed
@@ -1399,9 +1399,9 @@ fi
 
 
 ###########################
-# The CONCEPT code itself #
+# The CO𝘕CEPT code itself #
 ###########################
-# The CONCEPT code
+# The CO𝘕CEPT code
 if [ "${concept_preinstalled}" == "no" ]; then
     download_and_extract "CONCEPT"
     mv ./* "${top_dir}"  # This leaves the .paths file behind in the concept-master folder
@@ -1417,7 +1417,9 @@ printf "\nWriting paths to .paths\n"
 set_status "Writing paths to .paths"
 Gadget2_dir="${gadget_dir}/Gadget2"
 tests_dir="${concept_dir}/tests"
+utilities_dir="${concept_dir}/utilities"
 convert="${imagemagick_dir}/bin/convert"
+installer="${top_dir}/installer"
 mpicc="${mpi_dir}/bin/mpicc"
 mpiexec="${mpi_dir}/bin/mpiexec"
 python_config="${python_dir}/bin/python${python_version}-config"
@@ -1429,7 +1431,7 @@ echo "# This file contains absolute paths to directories and files used by the
 ###############
 # Directories #
 ###############
-# Directory containing the CONCEPT source code
+# Directory containing the CO𝘕CEPT source code
 concept_dir='${concept_dir}'
 # Directory of FFTW
 fftw_dir='${fftw_dir}'
@@ -1451,10 +1453,12 @@ libpng_dir='${libpng_dir}'
 mpi_dir='${mpi_dir}'
 # Directory of Python
 python_dir='${python_dir}'
-# Directory containing tests for the CONCEPT code
+# Directory containing tests for the CO𝘕CEPT code
 tests_dir='${tests_dir}'
 # Top level directory, containing e.g. README.md
 top_dir='${top_dir}'
+# Directory containing utilities for the CO𝘕CEPT code
+utilities_dir='${utilities_dir}'
 # Directory of zlib
 zlib_dir='${zlib_dir}'
 
@@ -1463,6 +1467,8 @@ zlib_dir='${zlib_dir}'
 #########
 # The convert executable from ImageMagick
 convert='${convert}'
+# The installer script
+installer='${installer}'
 # The MPI C compiler
 mpicc='${mpicc}'
 # The MPI executable
@@ -1478,7 +1484,7 @@ run='${run}'
 
 
 #####################################################
-# Install GADGET, used for testing the CONCEPT code #
+# Install GADGET, used for testing the CO𝘕CEPT code #
 #####################################################
 # FFTW 2.x (GADGET2 is incompatible with FFTW 3.x)
 if [ "${fftw_for_gadget_preinstalled}" == "no" ]; then
@@ -1524,17 +1530,17 @@ fi
 
 
 ##############################
-# Testing GADGET and CONCEPT #
+# Testing GADGET and CO𝘕CEPT #
 ##############################
 if [ "${fast_install}" == "no" ]; then
-    # Run basic CONCEPT test to test the environment
+    # Run basic CO𝘕CEPT test to test the environment
     current_step="basic tests of ${esc_concept}"
     heading "Basic tests of ${esc_concept}"
     set_status "Basic tests of ${esc_concept_double_backslashes}"
     cd "${concept_dir}"
     ./run -t basic 2>&1 | tee "test_log"
     [ ${PIPESTATUS[0]} != 0 ] && concept_test_success="no"
-    # Run GADGET test if basic CONCEPT test finished successfully
+    # Run GADGET test if basic CO𝘕CEPT test finished successfully
     if [ "${concept_test_success}" == "yes" ]; then
         current_step="testing GADGET"
         heading "Testing GADGET"
@@ -1542,7 +1548,7 @@ if [ "${fast_install}" == "no" ]; then
         ./run -t gadget 2>&1 | tee "${gadget_dir}/test_log"
         [ ${PIPESTATUS[0]} != 0 ] && gadget_test_success="no"
     fi
-    # Run complete CONCEPT test suite if basic CONCEPT test finished successfully
+    # Run complete CO𝘕CEPT test suite if basic CO𝘕CEPT test finished successfully
     if [ "${concept_test_success}" == "yes" ]; then
         current_step="testing ${esc_concept}"
         heading "Testing ${esc_concept}"

@@ -1,32 +1,33 @@
 #!/usr/bin/env bash
 
-# This file is part of CONCEPT, the cosmological N-body code in Python.
-# Copyright (C) 2015 Jeppe Mosgard Dakin.
+# This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
+# Copyright © 2015 Jeppe Mosgaard Dakin.
 #
-# CONCEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# CONCEPT is distributed in the hope that it will be useful,
+# CO𝘕CEPT is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with CONCEPT. If not, see http://www.gnu.org/licenses/
+# along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CONCEPT can be contacted at
+# The auther of CO𝘕CEPT can be contacted at
 # jeppe.mosgaard.dakin(at)post.au.dk
-# The latest version of CONCEPT is available at
+# The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
 
 
-# Run this script directly to produce renders of snapshots.
-# This script has one required argument; the path to either a snapshot file
-# or a directory containing snapshots. In the latter case, renders will be
-# produced of all snapshots in the directory.
+# This utility can produce renders of snapshots.
+# Run it by invoking the run script with the
+# --util render path
+# option, where path is the path to snapshot file
+# or a directory containing snapshots.
 
 # Absolute paths to this file and its directory
 this_file="$(readlink -f "${BASH_SOURCE[0]}")"
@@ -50,70 +51,35 @@ set -e
 # Source the run script
 source "${this_dir}/../run"
 
-# Default values of command-line arguments
-nprocs=1
-params="${this_file}.params"
-
-# Use Python's argparse module to handle command-line arguments
-args=($(${python} -B -c "
-import argparse
-import sys
-from os.path import basename, dirname
-# Enables Python to write directly to screen when asked for help
-help_req = False
-if any(h in sys.argv for h in ['-h', '--he', '--hel', '--help']):
-    sys.stdout = sys.stderr
-    help_req = True
-# Set the filename of the script
-sys.argv[0] = '${this_file}'
-# Setup command-line arguments
-parser = argparse.ArgumentParser(description='Run the CONCEPT code.')
-parser.add_argument('path',
-                    help='path to snapshot or directory of snapshots',
-                    type=str,
-                    )
-parser.add_argument('--local',
-                    help='Force the run to be done locally, without submitting it via PBS',
-                    default=False,
-		    action='store_true',
-                    )
-parser.add_argument('-n', '--nprocs',
-                    help='number of processes',
-                    type=int,
-                    default=${nprocs},
-                    )
-parser.add_argument('-p', '--params',
-                    help='parameterfile to use',
-                    default='${params}',
-                    )
-args = parser.parse_args()
-# Print out the arguments.
-# These will be captured in the bash 'args' variable
-print(int(help_req),
-      args.path,
-      args.nprocs,
-      args.params,
-      int(args.local),
-      )
-" "$@"))
-help_req="${args[0]}"
-path="${args[1]}"
-nprocs="${args[2]}"
-params="${args[3]}"
-local="${args[4]}"
-if [ -z "${help_req}" ] || [ "${help_req}" == 1 ]; then
-    # Help requested and given. Exit
-    trap : 0
-    exit 0
+# Command-line arguments are exported to this script. Handle flag-arguments
+local_flag=""
+if [ "${local}" == "True" ]; then
+    local_flag="--local"
 fi
-if [ "${#args[@]}" -ne 5 ]; then
-    colorprint "Error: Not every command line argument was gracefully dealt with!" "red"
+pure_python_flag=""
+if [ "${pure_python_flag}" == "True" ]; then
+    pure_python_flag="--pure_python"
+fi
+
+# If no parameterfile is supplied, use the one that goes along with this utility
+if [ "${params}" == "None" ]; then
+    params="${this_file}.params"
+fi
+
+# Check for required positional arguments
+if [ "$#" != 1 ] || [ -z "$1" ]; then
+    colorprint "Error: The $(basename ${this_file}) utility is missing a required argument: path" "red"
+fi
+path="$1"
+
+# Convert to absolute path
+path="$(absolute ${path})"
+
+# Does the path exist?
+if [ ! -f "${path}" ] && [ ! -d "${path}" ]; then
+    colorprint "Error: The path \"${path}\" does not exist!" "red"
     exit 1
 fi
-
-# Convert the supplied paths to an absolute paths
-path="$(absolute ${path})"
-params="$(absolute ${params})"
 
 # Get all snapshots in the path
 snapshot_filenames="$("${python}" -B -c "import special; [print(s) for s in special.locate_snapshots('${path}')]")"
@@ -127,7 +93,7 @@ ${python} -B -c "from os.path import relpath; [print('\"{}\"'.format(relpath(s, 
 boxsizes="$("${python}" -B -c "import special; [print('boxsize =', special.snapshot_info(s)['params']['boxsize']) for s in ${snapshot_filenames_pylist}]")"
 boxsizes=$(echo "${boxsizes}" | grep "boxsize = [0-9.]*" | awk '{print $3}')
 
-# For each snapshot, run the CONCEPT code to create the render
+# For each snapshot, run the CO𝘕CEPT code to create the render
 local_flag=""
 if [ ${local} == 1 ]; then
     local_flag="--local"
@@ -145,13 +111,14 @@ special_params = {
                   }
 $(cat "${params}")
     " > "${this_file}.params.full"
-    # Run CONCEPT to produce the render
-    "${run}" -n ${nprocs} -p "${this_file}.params.full" ${local_flag}
+    # Run CO𝘕CEPT to produce the render
+    "${run}" -m ${main} -n ${nprocs} -p "${this_file}.params.full" -q "{queue}" -w "${walltime}" ${local_flag}
 done
 
 # Cleanup
 rm "${this_file}.params.full"
 
 # Exit gracefully
+colorprint "$(basename ${this_file}) utility ran successfully" "green"
 trap : 0
 

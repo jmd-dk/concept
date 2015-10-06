@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
 
-# This file is part of CONCEPT, the cosmological N-body code in Python.
-# Copyright (C) 2015 Jeppe Mosgard Dakin.
+# This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
+# Copyright © 2015 Jeppe Mosgaard Dakin.
 #
-# CONCEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# CONCEPT is distributed in the hope that it will be useful,
+# CO𝘕CEPT is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with CONCEPT. If not, see http://www.gnu.org/licenses/
+# along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CONCEPT can be contacted at
+# The auther of CO𝘕CEPT can be contacted at
 # jeppe.mosgaard.dakin(at)post.au.dk
-# The latest version of CONCEPT is available at
+# The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
 
@@ -33,13 +33,13 @@ source "${this_dir}/../environment"
 # Cleanup from last test run
 "${this_dir}/clean"
 
-# Create list of output times, used by both CONCEPT and GADGET
+# Create list of output times, used by both CO𝘕CEPT and GADGET
 "${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', np.linspace(0.03, 1, 2))"
 
 # Generate ICs
 "${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local
 
-# Run the CONCEPT code on the generated ICs
+# Run the CO𝘕CEPT code on the generated ICs
 "${run}" -n 1 -p "${this_dir}/params" --local
 rm -rf "${this_dir}/output_1"
 mv "${this_dir}/output" "${this_dir}/output_1"

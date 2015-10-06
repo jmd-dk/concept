@@ -1,3 +1,17 @@
-PM_gridsize  = 256
-R_tophat     = 8*Mpc
+# This is the default parameterfile used by the powerspec utility.
+# Parameters can be specified as any valid Python3 expression.
+# NumPy functions and constants as well as physical units may be used.
+# Absolute paths defined in the .paths file may be used via the paths dict.
+# For more information about the different parameters,
+# see the bottom of this file.
+
+# Input/output
 output_bases = {'powerspec': 'powerspec'}
+
+# Numerical parameters
+PM_gridsize = 256
+R_tophat    = 8*Mpc
+
+# Graphics
+powerspec_plot = True
+

@@ -1,73 +1,47 @@
-# This file is part of CONCEPT, the cosmological N-body code in Python.
-# Copyright (C) 2015 Jeppe Mosgard Dakin.
+# This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
+# Copyright © 2015 Jeppe Mosgaard Dakin.
 #
-# CONCEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# CONCEPT is distributed in the hope that it will be useful,
+# CO𝘕CEPT is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with CONCEPT. If not, see http://www.gnu.org/licenses/
+# along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CONCEPT can be contacted at
+# The auther of CO𝘕CEPT can be contacted at
 # jeppe.mosgaard.dakin(at)post.au.dk
-# The latest version of CONCEPT is available at
+# The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
 
 
 # Input/output
-IC_file = paths['params_dir'] + '/IC'		# Initial condition snapshot
-snapshot_type = 'standard'			# Type of output snapshot
-output_dirs = {					# Directories for storing output
-    'snapshot':  paths['params_dir'] + '/output',
-    'powerspec': '',
-    'render':    '',
-               }
-output_bases = {				# File basenames for output
-    'snapshot':  'snapshot',
-    'powerspec': '',
-    'render':    '',
-                }
-output_times = {				# Times at which to dump output to disk
-    'snapshot':  loadtxt(paths['params_dir'] + '/outputlist'),
-    'powerspec': (),
-    'render':    (),
-                }
+IC_file       = paths['params_dir'] + '/IC'
+snapshot_type = 'standard'
+output_dirs   = {'snapshot': paths['params_dir'] + '/output'}
+output_bases  = {'snapshot': 'snapshot'}
+output_times  = {'snapshot': loadtxt(paths['params_dir'] + '/outputlist')}
 
 # Numerical parameters
-boxsize = 8*Mpc					# Linear size of the simulation box
-ewald_gridsize = 64				# Linear size of the grid of Ewald corrections
-PM_gridsize = 64				# Linear size of the grid used for the PM method
-P3M_scale = 1.25				# The long/short-range force split scale
-P3M_cutoff = 4.8				# Maximum reach of short-range force
-softeningfactors = {'dark matter': 0.03,	# The amount of gravitational softening for each species
-                    'dark energy': 0,
-                   }
-Δt_factor = 0.01				# The time step size
+boxsize          = 8*Mpc
+PM_gridsize      = 64
+P3M_scale        = 1.25
+P3M_cutoff       = 4.8
+softeningfactors = {'dark matter': 0.03}
+Δt_factor        = 0.01
 
 # Cosmological parameters
-H0 = 70*km/s/Mpc				# The Hubble constant
-Ωm = 0.3					# Density parameter for matter
-ΩΛ = 0.7					# Density parameter for dark energy
-a_begin = 0.02					# Scale factor at beginning of simulation
-
-# Graphics
-liverender=''					# Filename of saved live render
-color = (0.70, 0.97, 0.37)      		# Color of the particles as an RGB triple
-bgcolor='black'					# Color of the background as a string
-resolution = 1080				# The image height and width
-remote_liverender=''				# Where to upload the live render
-protocol = 'scp'				# Protocol for live render file transfer
+H0      = 70*km/s/Mpc
+Ωm      = 0.3
+ΩΛ      = 0.7
+a_begin = 0.02
 
 # Simulation options
-kick_algorithms = {'dark matter': 'P3M',	# The algorithm which should be used to kick each species
-                   'dark energy': '',
-                  }
-use_Ewald = False				# Turn Ewald corrections on or off
+kick_algorithms = {'dark matter': 'P3M'}
 

@@ -5,7 +5,7 @@
 ###############
 # Directories #
 ###############
-# Directory containing the CONCEPT source code
+# Directory containing the CO𝘕CEPT source code
 concept_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept'
 # Directory of FFTW
 fftw_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/fftw'
@@ -23,7 +23,7 @@ hdf5_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/hdf5'
 mpi_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/mpich'
 # Directory of Python
 python_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python'
-# Directory containing tests for the CONCEPT code
+# Directory containing tests for the CO𝘕CEPT code
 tests_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/tests'
 # Top level directory, containing e.g. README.md
 top_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept'
@@ -33,6 +33,8 @@ top_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept'
 #########
 # The convert executable from ImageMagick
 convert='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/imagemagick/bin/convert'
+# The installation script
+installer='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/installer'
 # The MPI C compiler
 mpicc='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/mpich/bin/mpicc'
 # The MPI executable
@@ -41,6 +43,6 @@ mpiexec='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/mpich/bin/mpiexec'
 python='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python/bin/python3.4'
 # The Python3 configuration executable
 python_config='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python/bin/python3.4-config'
-# The run script of the CONCEPT code
+# The run script of the CO𝘕CEPT code
 run='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/run'
 
