@@ -93,12 +93,12 @@ if [ "${installer_content}" == "${installer_updated_content}" ]; then
 fi
 
 # Move particular files from the master directory
-for filename in ("installer" "README.md"); do
+for filename in "installer" "README.md"; do
     mv "${top_dir}/tmp/"*"/${filename}" "${top_dir}"
 done
 
-# Move all files from the concept directory
-mv "${top_dir}/tmp/"*"/concept/"* "${concept_dir}/"
+# Copy all files from the concept directory
+cp -r "${top_dir}/tmp/"*"/concept/"* "${concept_dir}/"
 
 # Cleanup
 rm -rf "${top_dir}/tmp"
