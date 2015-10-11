@@ -38,7 +38,7 @@ from numpy.random import normal
 N_lin = 128
 N = N_lin**3
 mass = Ωm*ϱ*boxsize**3/N
-particles = construct('dark matter', 'dark matter', mass, N)
+particles = construct('dark matter particles', 'dark matter', mass, N)
 posx = empty(N)
 posy = empty(N)
 posz = empty(N)

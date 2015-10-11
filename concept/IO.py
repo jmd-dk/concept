@@ -40,74 +40,6 @@ else:
 import struct
 
 
-# Function that saves particle data to an HDF5 file or a
-# gadget snapshot file, based on the snapshot_type parameter.
-@cython.header(# Argument
-               particles='Particles',
-               a='double',
-               filename='str',
-               )
-def save(particles, a, filename):
-    if snapshot_type == 'standard':
-        save_standard(particles, a, filename)
-    elif snapshot_type == 'gadget2':
-        save_gadget(particles, a, filename)
-    elif master:
-        raise Exception('Does not recognize output type "{}"'
-                         .format(snapshot_type))
-
-# Function for determining the snapshot type of a file
-@cython.header(# Arguments
-               filename='str',
-               # Locals
-               head='tuple',
-               returns='str',
-               )
-def get_snapshot_type(filename):
-    # Raise an exception if the file does not exist
-    if master and not os.path.exists(filename):
-        raise Exception('The snapshot file "{}" does not exist'
-                         .format(filename))
-    # Test for standard HDF5 format by looking up ΩΛ and particles
-    try:
-        with h5py.File(filename, mode='r') as f:
-            f.attrs[unicode('Ω') + unicode('Λ')]
-            f['particles']
-            return 'standard'
-    except:
-        pass
-    # Test for GADGET2 2 format by searching for a HEAD identifier
-    try:
-        with open(filename, 'rb') as f:
-            f.seek(4)
-            head = struct.unpack('4s', f.read(struct.calcsize('4s')))
-            if head[0] == b'HEAD':
-                return 'gadget2'
-    except:
-        pass
-    # Return None if the file is not a valid snapshot
-    return None
-    
-
-# Function that loads particle data from a snapshot file and
-# instantiate a Particles instance on each process,
-# storing the particles within its domain.
-@cython.header(# Argument
-               filename='str',
-               write_msg='bint',
-               # Locals
-               particles='Particles',
-               snapshot='StandardSnapshot',
-               returns='Particles',
-               )
-def load(filename, write_msg=True):
-    # If no snapshot should be loaded, return immediately
-    if not filename:
-        return
-    # Load in particles from snapshot
-    snapshot = load_into_standard(filename, write_msg)
-    particles = snapshot.particles
-    return particles
 
 # Class storing a standard snapshot. Besides holding methods for
 # saving/loading, it stores particle data (positions, momenta, mass)
@@ -117,84 +49,116 @@ class StandardSnapshot:
     @cython.header
     def __init__(self):
         # The triple quoted string below serves as the type declaration
-        # for the StandardSnapshot type. It will get picked up by the
-        # pyxpp script and indluded in the .pxd file.
+        # for the data attributes of the StandardSnapshot type.
+        # It will get picked up by the pyxpp script
+        # and indluded in the .pxd file.
         """
-        # Data attributes
+        str contains
         dict params
         Particles particles
-        # Methods
-        load(self, str filename, bint write_msg=*)
-        populate(self, Particles particles, double a, dict params_dict=*)
-        save(self, str filename)
         """
+        # Label telling how much of the Snapshot that has been loaded
+        # ('nothing', 'params', 'params and particles').
+        self.contains = 'nothing'
+        # Dict containing parameters of the cosmology and time as well
+        # as particle attributes.
         self.params = {}
+        # The actual particle data
+        self.particles = None
 
     # Method for loading in a standard snapshot from disk
     @cython.header(# Argument
                    filename='str',
-                   write_msg='bint',
+                   compare_params='bint',
+                   only_params='bint',
                    # Locals
-                   N='Py_ssize_t',
                    N_local='Py_ssize_t',
                    N_locals='tuple',
                    end_local='Py_ssize_t',
                    msg='str',
+                   particle_N='Py_ssize_t',
+                   particle_attribute='dict',
+                   particle_mass='double',
+                   particle_species='str',
                    particle_type='str',
+                   snapshot_unit_length='double',
+                   snapshot_unit_mass='double',
+                   snapshot_unit_time='double',
                    start_local='Py_ssize_t',
                    tol='double',
+                   unit='double',
                    )
-    def load(self, filename, write_msg=True):
+    def load(self, filename, compare_params=True, only_params=False):
         # Load all particles
         with h5py.File(filename,
                        mode='r',
                        driver='mpio',
                        comm=comm,
                        ) as hdf5_file:
+            # Load used base units
+            snapshot_unit_length = eval(hdf5_file.attrs['unit length'], units_dict)
+            snapshot_unit_time   = eval(hdf5_file.attrs['unit time'],   units_dict)
+            snapshot_unit_mass   = eval(hdf5_file.attrs['unit mass'],   units_dict)
             # Load global attributes
             self.params['a']       = hdf5_file.attrs['a']
-            self.params['boxsize'] = hdf5_file.attrs['boxsize']
-            self.params['H0']      = hdf5_file.attrs['H0']
+            self.params['boxsize'] = hdf5_file.attrs['boxsize']*snapshot_unit_length
+            self.params['H0']      = hdf5_file.attrs['H0']*(1/snapshot_unit_time)
             self.params['Ωm']      = hdf5_file.attrs[unicode('Ω') + 'm']
-            self.params['ΩΛ']      = hdf5_file.attrs[unicode('Ω')
-                                                     + unicode('Λ')]
+            self.params['ΩΛ']      = hdf5_file.attrs[unicode('Ω') + unicode('Λ')]
             # Check if the parameters of the snapshot
             # matches those of the current simulation run.
             # Display a warning if they do not.
-            tol = 1e-4
-            if write_msg:
+            if compare_params:
+                tol = 1e-4
                 msg = ''
                 if np.abs(self.params['a']/a_begin - 1) > tol:
                     msg += ('\n' + ' '*8 + 'a_begin: {} vs {}'
                             ).format(a_begin, self.params['a'])
                 if np.abs(self.params['boxsize']/boxsize - 1) > tol:
-                    unit = units.kpc
-                    msg += ('\n' + ' '*8 + 'boxsize: {} vs {} (kpc)'
-                            ).format(boxsize/unit, self.params['boxsize']/unit)
+                    msg += ('\n' + ' '*8 + 'boxsize: {} vs {} ({})').format(boxsize,
+                                                                            self.params['boxsize'],
+                                                                            units.length)
                 if np.abs(self.params['H0']/H0 - 1) > tol:
                     unit = units.km/(units.s*units.Mpc)
-                    msg += ('\n' + ' '*8 + 'H0: {} vs {} (km/s/Mpc)'
-                            ).format(H0/unit, self.params['H0']/unit)
+                    msg += ('\n' + ' '*8 + 'H0: {} vs {} ({})').format(H0/unit,
+                                                                       self.params['H0']/unit,
+                                                                       'km s⁻¹ Mpc⁻¹')
                 if np.abs(self.params['Ωm']/Ωm - 1) > tol:
-                    msg += ('\n' + ' '*8 + '\N{GREEK CAPITAL LETTER OMEGA}m: '
-                            + '{} vs {}').format(Ωm, self.params['Ωm'])
+                    msg += ('\n' + ' '*8 + unicode('Ω') + 'm: {} vs {}').format(Ωm,
+                                                                                self.params['Ωm'])
                 if np.abs(self.params['ΩΛ']/ΩΛ - 1) > tol:
-                    msg += ('\n' + ' '*8 + '\N{GREEK CAPITAL LETTER OMEGA}'
-                            + '\N{GREEK CAPITAL LETTER LAMDA}: '
-                            + '{} vs {}').format(ΩΛ, self.params['ΩΛ'])
+                    msg += ('\n' + ' '*8 + unicode('Ω')
+                                         + unicode('Λ') + ': {} vs {}').format(ΩΛ,
+                                                                               self.params['ΩΛ'])
                 if msg:
                     msg = ('Mismatch between current parameters and those in'
                            + 'the snapshot "{}":{}').format(filename, msg)
                     masterwarn(msg, indent=4)
+            # Initialize the particle_attributes dict
+            self.params['particle_attributes'] = {}
             # Load particle data
             all_particles = hdf5_file['particles']
             for particle_type in all_particles:
+                # Load particle attributes
                 particles_h5 = all_particles[particle_type]
+                particle_N = particles_h5['posx'].size
+                particle_mass = particles_h5.attrs['mass']*snapshot_unit_mass
+                particle_species = particles_h5.attrs['species']
+                # The keys in the particle_attributes dict are the
+                # particle types, and the values are new dicts,
+                # containing the information for each type.
+                self.params['particle_attributes'][particle_type] = {}
+                particle_attribute = self.params['particle_attributes'][particle_type]
+                particle_attribute['N']       = particle_N
+                particle_attribute['mass']    = particle_mass
+                particle_attribute['species'] = particle_species
+                # Done loading particle attributes
+                if only_params:
+                    continue
                 # Write out progress message
-                N = particles_h5['posx'].size
-                masterprint('    Loading', N, particles_h5.attrs['species'],
-                            'particles', '(' + particles_h5.attrs['type']
-                            + ') ...')
+                masterprint('Loading', particle_N, particle_type,
+                            '({}) ...'.format(particle_species),
+                            indent=4)
                 # Extract HDF5 datasets
                 posx_h5 = particles_h5['posx']
                 posy_h5 = particles_h5['posy']
@@ -204,20 +168,17 @@ class StandardSnapshot:
                 momz_h5 = particles_h5['momz']
                 # Compute a fair distribution of 
                 # particle data to the processes.
-                N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
-                            + (N//nprocs + 1, )*(N % nprocs))
+                N_locals = ((particle_N//nprocs, )
+                            *(nprocs - (particle_N % nprocs))
+                            + (particle_N//nprocs + 1, )*(particle_N % nprocs))
                 N_local = N_locals[rank]
                 start_local = np.sum(N_locals[:rank], dtype=C2np['Py_ssize_t'])
                 end_local = start_local + N_local
-                # In pure Python, the indices must be Python integers
-                if not cython.compiled:
-                    start_local = int(start_local)
-                    end_local = int(end_local)
                 # Construct a Particles instance
-                self.particles = construct(particles_h5.attrs['type'],
-                                           particles_h5.attrs['species'],
-                                           mass=particles_h5.attrs['mass'],
-                                           N=N)
+                self.particles = construct(particle_type,
+                                           particle_species,
+                                           mass=particle_mass,
+                                           N=particle_N)
                 # Populate the Particles instance with data from the file
                 self.particles.populate(posx_h5[start_local:end_local], 'posx')
                 self.particles.populate(posy_h5[start_local:end_local], 'posy')
@@ -225,33 +186,54 @@ class StandardSnapshot:
                 self.particles.populate(momx_h5[start_local:end_local], 'momx')
                 self.particles.populate(momy_h5[start_local:end_local], 'momy')
                 self.particles.populate(momz_h5[start_local:end_local], 'momz')
+                # If the snapshot and the current run uses different
+                # systems of units, mulitply the particle positions
+                # and momenta by the snapshot units.
+                if snapshot_unit_length != 1:
+                    self.particles.posx_mv = asarray(self.particles.posx_mv)*snapshot_unit_length
+                    self.particles.posy_mv = asarray(self.particles.posy_mv)*snapshot_unit_length
+                    self.particles.posz_mv = asarray(self.particles.posz_mv)*snapshot_unit_length
+                unit = snapshot_unit_length/snapshot_unit_time*snapshot_unit_mass
+                if unit != 1:
+                    self.particles.momx_mv = asarray(self.particles.momx_mv)*unit
+                    self.particles.momy_mv = asarray(self.particles.momy_mv)*unit
+                    self.particles.momz_mv = asarray(self.particles.momz_mv)*unit
                 # Finalize progress message
                 masterprint('done')
+        # Update the "contains" string
+        if only_params:
+            self.contains = 'params'
+        else:
+            self.contains = 'params and particles'
         # Scatter particles to the correct domain-specific process.
         # Setting reset_indices_send == True ensures that buffers
         # will be reset afterwards, as this initial exchange is not
         # representable for those to come.
-        exchange(self.particles, reset_buffers=True)
+        if 'particles' in self.contains:
+            exchange(self.particles, reset_buffers=True)
 
     # This method populate the snapshot with particle data
     # and additional parameters.
     @cython.header(# Arguments
                    particles='Particles',
                    a='double',
-                   params_dict='dict',
+                   params='dict',
                    )
-    def populate(self, particles, a, params_dict=None):
+    def populate(self, particles, a, params=None):
         # Populate snapshot with the passed scalefactor and global parameters
         self.params['a']       = a
         self.params['boxsize'] = boxsize
         self.params['H0']      = H0
         self.params['Ωm']      = Ωm
         self.params['ΩΛ']      = ΩΛ
+        # Pupulate snapshot with the particles
         self.particles = particles
-        # Overwrite parameters with those from params_dict
-        if params_dict:
-            for key, val in params_dict.items():
+        # Overwrite parameters with those from the passed params dict
+        if params:
+            for key, val in params.items():
                 self.params[key] = val
+        # Update the "contains" string
+        self.contains = 'params and particles'
            
     # Methd that the snapshot to an hdf5 file
     @cython.header(# Argument
@@ -266,37 +248,32 @@ class StandardSnapshot:
     def save(self, filename):
         # Print out message
         masterprint('Saving snapshot "{}" ...'.format(filename))
-        with h5py.File(filename,
-                       mode='w',
-                       driver='mpio',
-                       comm=comm,
-                       ) as hdf5_file:
+        with h5py.File(filename, mode='w', driver='mpio', comm=comm) as hdf5_file:
+            # Save used base units
+            hdf5_file.attrs['unit length'] = units.length
+            hdf5_file.attrs['unit time']   = units.time
+            hdf5_file.attrs['unit mass']   = units.mass
             # Save global attributes
-            hdf5_file.attrs['H0'] = self.params['H0']
-            hdf5_file.attrs['a'] = self.params['a']
-            hdf5_file.attrs['boxsize'] = self.params['boxsize']
-            hdf5_file.attrs[unicode('Ω') + 'm'] = self.params['Ωm']
+            hdf5_file.attrs['H0']                        = self.params['H0']
+            hdf5_file.attrs['a']                         = self.params['a']
+            hdf5_file.attrs['boxsize']                   = self.params['boxsize']
+            hdf5_file.attrs[unicode('Ω') + 'm']          = self.params['Ωm']
             hdf5_file.attrs[unicode('Ω') + unicode('Λ')] = self.params['ΩΛ']
             # Create HDF5 group and datasets
             N = self.particles.N
-            particles_h5 = hdf5_file.create_group('particles/'
-                                                  + self.particles.type)
-            posx_h5 = particles_h5.create_dataset('posx', [N], dtype='float64')
-            posy_h5 = particles_h5.create_dataset('posy', [N], dtype='float64')
-            posz_h5 = particles_h5.create_dataset('posz', [N], dtype='float64')
-            momx_h5 = particles_h5.create_dataset('momx', [N], dtype='float64')
-            momy_h5 = particles_h5.create_dataset('momy', [N], dtype='float64')
-            momz_h5 = particles_h5.create_dataset('momz', [N], dtype='float64')
+            particles_h5 = hdf5_file.create_group('particles/' + self.particles.type)
+            posx_h5 = particles_h5.create_dataset('posx', [N], dtype=C2np['double'])
+            posy_h5 = particles_h5.create_dataset('posy', [N], dtype=C2np['double'])
+            posz_h5 = particles_h5.create_dataset('posz', [N], dtype=C2np['double'])
+            momx_h5 = particles_h5.create_dataset('momx', [N], dtype=C2np['double'])
+            momy_h5 = particles_h5.create_dataset('momy', [N], dtype=C2np['double'])
+            momz_h5 = particles_h5.create_dataset('momz', [N], dtype=C2np['double'])
             # Get local indices of the particle data
             N_local = self.particles.N_local
             N_locals = empty(nprocs, dtype=C2np['Py_ssize_t'])
             Allgather(array(N_local, dtype=C2np['Py_ssize_t']), N_locals)
             start_local = sum(N_locals[:rank])
             end_local = start_local + N_local
-            # In pure Python, the indices needs to be Python integers
-            if not cython.compiled:
-                start_local = int(start_local)
-                end_local = int(end_local)
             # Save the local slices of the particle data and the attributes
             posx_h5[start_local:end_local] = self.particles.posx_mv[:N_local]
             posy_h5[start_local:end_local] = self.particles.posy_mv[:N_local]
@@ -306,7 +283,6 @@ class StandardSnapshot:
             momz_h5[start_local:end_local] = self.particles.momz_mv[:N_local]
             particles_h5.attrs['mass']     = self.particles.mass
             particles_h5.attrs['species']  = self.particles.species
-            particles_h5.attrs['type']     = self.particles.type
         masterprint('done')
 
 # Class storing a Gadget snapshot. Besides holding methods for
@@ -322,45 +298,48 @@ class GadgetSnapshot:
     @cython.header
     def __init__(self):
         # The triple quoted string below serves as the type declaration
-        # for the GadgetSnapshot type. It will get picked up by the
-        # pyxpp script and indluded in the .pxd file.
+        # for the data attributes of the GadgetSnapshot type.
+        # It will get picked up by the pyxpp script
+        # and indluded in the .pxd file.
         """
-        # Data attributes
-        dict header
-        Particles particles
         unsigned int[::1] ID
-        # Methods (f is an io.TextIOWrapper instance)
-        load(self, str filename, bint write_msg=*)
-        Py_ssize_t new_block(self, object f, Py_ssize_t offset)
-        populate(self, Particles particles, double a)
-        object read(self, object f, str fmt)  
-        save(self, str filename)
+        str contains
+        dict params
+        Particles particles
         """
-        self.header = {}
+        # The ID of each particle (not used by the CO𝘕CEPT code)
+        self.ID = None
+        # Label telling how much of the Snapshot that has been loaded
+        # ('nothing', 'params', 'params and particles').
+        self.contains = 'nothing'
+        # Dict containing all the fields of the Gadget header
+        self.params = {}
+        # The actual particle data
+        self.particles = None
 
     # Method for loading in a GADGET snapshot of type 2 from disk
     @cython.header(# Arguments
                    filename='str',
-                   write_msg='bint',
+                   compare_params='bint',
+                   only_params='bint',
                    # Locals
                    N='Py_ssize_t',
                    N_local='Py_ssize_t',
                    N_locals='tuple',
                    file_position='Py_ssize_t',
-                   gadget_H0='double',
-                   gadget_a='double',
-                   gadget_boxsize='double',
-                   gadget_Ωm='double',
-                   gadget_ΩΛ='double',
+                   mass='double',
                    msg='str',
                    name='str',
                    offset='Py_ssize_t',
+                   particle_attribute='dict',
+                   particle_species='str',
+                   particle_type='str',
                    size='int',
                    start_local='Py_ssize_t',
                    tol='double',
                    unit='double',
                    )
-    def load(self, filename, write_msg=True):
+    def load(self, filename, compare_params=True, only_params=False):
         """ It is assumed that the snapshot on the disk is a GADGET
         snapshot of type 2 and that it uses single precision. The
         GadgetSnapshot instance stores the data (positions and
@@ -368,143 +347,141 @@ class GadgetSnapshot:
         particles, corresponding to dark matter particles,
         are supported.
         """
+        # Only type 1 (halo) particles are supported
+        particle_species = 'dark matter'
+        particle_type = 'GADGET halos'
+        # Read in the snapshot
         offset = 0
         with open(filename, 'rb') as f:
-            # Read in the HEAD block. No unit conversion will be done.
+            # Read the HEAD block into a params['header'] dict.
+            # No unit conversion will be done.
             offset = self.new_block(f, offset)
             name = self.read(f, '4s').decode('utf8')  # "HEAD"
             size = self.read(f, 'i')  # 264
             offset = self.new_block(f, offset)
-            self.header['Npart']         = self.read(f, '6I')
-            self.header['Massarr']       = self.read(f, '6d')
-            self.header['Time']          = self.read(f, 'd')
-            self.header['Redshift']      = self.read(f, 'd')
-            self.header['FlagSfr']       = self.read(f, 'i')
-            self.header['FlagFeedback']  = self.read(f, 'i')
-            self.header['Nall']          = self.read(f, '6i')
-            self.header['FlagCooling']   = self.read(f, 'i')
-            self.header['NumFiles']      = self.read(f, 'i')
-            self.header['BoxSize']       = self.read(f, 'd')
-            self.header['Omega0']        = self.read(f, 'd')
-            self.header['OmegaLambda']   = self.read(f, 'd')
-            self.header['HubbleParam']   = self.read(f, 'd')
-            self.header['FlagAge']       = self.read(f, 'i')
-            self.header['FlagMetals']    = self.read(f, 'i')
-            self.header['NallHW']        = self.read(f, '6i')
-            self.header['flag_entr_ics'] = self.read(f, 'i')
+            self.params['header'] = collections.OrderedDict()
+            header = self.params['header']
+            header['Npart']         = self.read(f, '6I')
+            header['Massarr']       = self.read(f, '6d')
+            header['Time']          = self.read(f, 'd')
+            header['Redshift']      = self.read(f, 'd')
+            header['FlagSfr']       = self.read(f, 'i')
+            header['FlagFeedback']  = self.read(f, 'i')
+            header['Nall']          = self.read(f, '6i')
+            header['FlagCooling']   = self.read(f, 'i')
+            header['NumFiles']      = self.read(f, 'i')
+            header['BoxSize']       = self.read(f, 'd')
+            header['Omega0']        = self.read(f, 'd')
+            header['OmegaLambda']   = self.read(f, 'd')
+            header['HubbleParam']   = self.read(f, 'd')
+            header['FlagAge']       = self.read(f, 'i')
+            header['FlagMetals']    = self.read(f, 'i')
+            header['NallHW']        = self.read(f, '6i')
+            header['flag_entr_ics'] = self.read(f, 'i')
+            # Also include some of the header fields as parameters
+            # directly in the params dict.
+            self.params['a']       = header['Time']
+            unit = units.kpc/header['HubbleParam']
+            self.params['boxsize'] = header['BoxSize']*unit
+            unit = 100*units.km/(units.s*units.Mpc)
+            self.params['H0']      = header['HubbleParam']*unit
+            self.params['Ωm']      = header['Omega0']
+            self.params['ΩΛ']      = header['OmegaLambda']
             # Check if the parameters of the snapshot matches
             # those of the current simulation run. Display a warning
             # if they do not.
-            tol = 1e-4
-            gadget_a = self.header['Time']
-            unit = units.kpc/self.header['HubbleParam']
-            gadget_boxsize = self.header['BoxSize']*unit
-            unit = 100*units.km/(units.s*units.Mpc)
-            gadget_H0 = self.header['HubbleParam']*unit
-            gadget_Ωm = self.header['Omega0']
-            gadget_ΩΛ = self.header['OmegaLambda']
-            if write_msg:
+            if compare_params:
+                tol = 1e-4
                 msg = ''
-                if abs(gadget_a/a_begin - 1) > tol:
-                    msg += ('\n' + ' '*8 + 'a_begin: {} vs {}'
-                            ).format(a_begin, gadget_a)
-                if abs(gadget_boxsize/boxsize - 1) > tol:
-                    unit = units.kpc
-                    msg += ('\n' + ' '*8 + 'boxsize: {} vs {} (kpc)'
-                            ).format(boxsize/unit, gadget_boxsize/unit)
-                if abs(gadget_H0/H0 - 1) > tol:
+                if np.abs(self.params['a']/a_begin - 1) > tol:
+                    msg += '\n' + ' '*8 + 'a_begin: {} vs {}'.format(a_begin, self.params['a'])
+                if np.abs(self.params['boxsize']/boxsize - 1) > tol:
+                    msg += ('\n' + ' '*8 + 'boxsize: {} vs {} ({})').format(boxsize,
+                                                                            self.params['boxsize'],
+                                                                            units.length)
+                if np.abs(self.params['H0']/H0 - 1) > tol:
                     unit = units.km/(units.s*units.Mpc)
-                    msg += ('\n' + ' '*8 + 'H0: {} vs {} (km/s/Mpc)'
-                            ).format(H0/unit, gadget_H0/unit)
-                if abs(gadget_Ωm/Ωm - 1) > tol:
-                    msg += ('\n' + ' '*8 + '\N{GREEK CAPITAL LETTER OMEGA}m: '
-                            + '{} vs {}').format(Ωm, gadget_Ωm)
-                if abs(gadget_ΩΛ/ΩΛ - 1) > tol:
-                    msg += ('\n' + ' '*8 + '\N{GREEK CAPITAL LETTER OMEGA}'
-                            + '\N{GREEK CAPITAL LETTER LAMDA}: '
-                            + '{} vs {}').format(ΩΛ, gadget_ΩΛ)
+                    msg += ('\n' + ' '*8 + 'H0: {} vs {} ({})').format(H0/unit,
+                                                                       self.params['H0']/unit,
+                                                                       'km s⁻¹ Mpc⁻¹')
+                if np.abs(self.params['Ωm']/Ωm - 1) > tol:
+                    msg += ('\n' + ' '*8 + unicode('Ω') + 'm: {} vs {}').format(Ωm,
+                                                                                self.params['Ωm'])
+                if np.abs(self.params['ΩΛ']/ΩΛ - 1) > tol:
+                    msg += ('\n' + ' '*8 + unicode('Ω')
+                                         + unicode('Λ') + '{} vs {}').format(ΩΛ,
+                                                                             self.params['ΩΛ'])
                 if msg:
                     msg = ('Mismatch between current parameters and those in '
                            + 'the GADGET snapshot '
                            + '"{}":{}').format(filename, msg)
                     masterwarn(msg, indent=4)
+            # Initialize the particle_attributes dict
+            self.params['particle_attributes'] = {}
+            # The keys in the particle_attributes dict are the
+            # particle types, and the values are new dicts,
+            # containing the information for each type.
+            self.params['particle_attributes'][particle_type] = {}
+            particle_attribute = (self.params['particle_attributes']
+                                             [particle_type])
+            N = header['Npart'][1]
+            particle_attribute['N'] = N
+            unit = 1e+10*units.m_sun/header['HubbleParam']
+            mass = header['Massarr'][1]*unit
+            particle_attribute['mass'] = mass
+            particle_attribute['species'] = particle_species
+            # Done loading particle attributes
+            if only_params:
+                self.contains = 'params'
+                return
             # Write out progress message
-            N = self.header['Npart'][1]
-            masterprint('    Loading', N, 'dark matter particles',
-                        '(GADGET halos) ...')
+            masterprint('Loading', N, particle_type, '({}) ...'.format(particle_species), indent=4)
             # Compute a fair distribution
             # of particle data to the processes.
             N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
                         + (N//nprocs + 1, )*(N % nprocs))
             N_local = N_locals[rank]
             start_local = np.sum(N_locals[:rank], dtype=C2np['Py_ssize_t'])
-            # In pure Python, the index must be a Python integer
-            if not cython.compiled:
-                start_local = int(start_local)
             # Construct a Particles instance
-            unit = 1e+10*units.m_sun/self.header['HubbleParam']
-            self.particles = construct('Gadget halos',
-                                       'dark matter',
-                                       mass=self.header['Massarr'][1]*unit,
-                                       N=N,
-                                       )
+            self.particles = construct(particle_type, particle_species, mass=mass, N=N)
             # Read in the POS block. The positions are given in kpc/h.
             offset = self.new_block(f, offset)
-            unit = units.kpc/self.header['HubbleParam']
+            unit = units.kpc/header['HubbleParam']
             name = self.read(f, '4s').decode('utf8')  # "POS "
             size = self.read(f, 'i')
             offset = self.new_block(f, offset)
-            f.seek(12*start_local, 1)  # 12 = sizeof(float32)*Ndims
+            f.seek(12*start_local, 1)  # 12 = sizeof(float)*Ndims
             file_position = f.tell()
-            self.particles.populate(asarray(np.fromfile(f,
-                                                        dtype='float32',
-                                                        count=3*N_local)
-                                            [0::3], dtype='float64')
-                                    *unit,
+            self.particles.populate(asarray(np.fromfile(f, dtype=C2np['float'], count=3*N_local)
+                                            [0::3], dtype=C2np['double'])*unit,
                                     'posx')
             f.seek(file_position)
-            self.particles.populate(asarray(np.fromfile(f,
-                                                        dtype='float32',
-                                                        count=3*N_local)
-                                            [1::3], dtype='float64')
-                                    *unit,
+            self.particles.populate(asarray(np.fromfile(f, dtype=C2np['float'], count=3*N_local)
+                                            [1::3], dtype=C2np['double'])*unit,
                                     'posy')
             f.seek(file_position)
-            self.particles.populate(asarray(np.fromfile(f,
-                                                        dtype='float32',
-                                                        count=3*N_local)
-                                            [2::3], dtype='float64')
-                                    *unit,
+            self.particles.populate(asarray(np.fromfile(f, dtype=C2np['float'], count=3*N_local)
+                                            [2::3], dtype=C2np['double'])*unit,
                                     'posz')
             # Read in the VEL block. The velocities are peculiar
             # velocities u=a*dx/dt divided by sqrt(a), given in km/s.
             offset = self.new_block(f, offset)
-            unit = (units.km/units.s*self.particles.mass
-                    *self.header['Time']**1.5)
+            unit = units.km/units.s*mass*header['Time']**1.5
             name = self.read(f, '4s').decode('utf8')  # "VEL "
             size = self.read(f, 'i')
             offset = self.new_block(f, offset)
-            f.seek(12*start_local, 1)  # 12 = sizeof(float32)*Ndims
+            f.seek(12*start_local, 1)  # 12 = sizeof(float)*Ndims
             file_position = f.tell()
-            self.particles.populate(asarray(np.fromfile(f,
-                                                        dtype='float32',
-                                                        count=3*N_local)
-                                            [0::3], dtype='float64')
-                                    *unit,
+            self.particles.populate(asarray(np.fromfile(f, dtype=C2np['float'], count=3*N_local)
+                                            [0::3], dtype=C2np['double'])*unit,
                                     'momx')
             f.seek(file_position)
-            self.particles.populate(asarray(np.fromfile(f,
-                                                        dtype='float32',
-                                                        count=3*N_local)
-                                            [1::3], dtype='float64')
-                                    *unit,
+            self.particles.populate(asarray(np.fromfile(f, dtype=C2np['float'], count=3*N_local)
+                                            [1::3], dtype=C2np['double'])*unit,
                                     'momy')
             f.seek(file_position)
-            self.particles.populate(asarray(np.fromfile(f,
-                                                        dtype='float32',
-                                                        count=3*N_local)
-                                            [2::3], dtype='float64')
-                                    *unit,
+            self.particles.populate(asarray(np.fromfile(f, dtype=C2np['float'], count=3*N_local)
+                                            [2::3], dtype=C2np['double'])*unit,
                                     'momz')
             # Read in the ID block.
             # The ID's will be distributed among all processes.
@@ -514,10 +491,12 @@ class GadgetSnapshot:
             offset = self.new_block(f, offset)
             f.seek(4*start_local, 1)  # 4 = sizeof(unsigned int)
             file_position = f.tell()
-            self.ID = np.fromfile(f, dtype='uint32', count=N_local)
+            self.ID = np.fromfile(f, dtype=C2np['unsigned int'], count=N_local)
             # Finalize progress message
             masterprint('done')
             # Possible additional meta data ignored
+        # Update the "contains" string
+        self.contains = 'params and particles'
         # Scatter particles to the correct domain-specific process.
         # Setting reset_indices_send == True ensures that buffers
         # will be reset afterwards, as this initial exchange is not
@@ -527,7 +506,9 @@ class GadgetSnapshot:
 
     # Method that handles the file object's position in the snapshot
     # file during loading. Call it when the next block should be read.
-    @cython.header(offset='Py_ssize_t', returns='Py_ssize_t')
+    @cython.header(offset='Py_ssize_t',
+                   f='object',
+                   returns='Py_ssize_t')
     def new_block(self, f, offset):
         # Set the current position in the file
         f.seek(offset)
@@ -565,39 +546,38 @@ class GadgetSnapshot:
         N_locals = empty(nprocs, dtype=C2np['Py_ssize_t'])
         Allgather(array(particles.N_local, dtype=C2np['Py_ssize_t']), N_locals)
         start_local = sum(N_locals[:rank])
-        # In pure Python, the index must be a Python integer
-        if not cython.compiled:
-            start_local = int(start_local)
-        self.ID = arange(start_local, start_local + particles.N_local,
-                         dtype='uint32')
+        self.ID = arange(start_local, start_local + particles.N_local, dtype=C2np['unsigned int'])
         # The header data
-        self.header['Npart'] = [0, particles.N, 0, 0, 0, 0]
-        h = H0/(100*units.km/units.s/units.Mpc)
+        self.params['header'] = collections.OrderedDict()
+        header = self.params['header']
+        header['Npart'] = [0, particles.N, 0, 0, 0, 0]
+        h = H0/(100*units.km/(units.s*units.Mpc))
         unit = 1e+10*units.m_sun/h
-        self.header['Massarr']       = [0.0, particles.mass/unit] + [0.0]*4
-        self.header['Time']          = a  # "Time" is really the scale factor
-        self.header['Redshift']      = 1/a - 1
-        self.header['FlagSfr']       = 0
-        self.header['FlagFeedback']  = 0
-        self.header['Nall']          = [0, particles.N, 0, 0, 0, 0]
-        self.header['FlagCooling']   = 0
-        self.header['Numfiles']      = 1
+        header['Massarr']       = [0.0, particles.mass/unit] + [0.0]*4
+        header['Time']          = a
+        header['Redshift']      = 1/a - 1
+        header['FlagSfr']       = 0
+        header['FlagFeedback']  = 0
+        header['Nall']          = [0, particles.N, 0, 0, 0, 0]
+        header['FlagCooling']   = 0
+        header['Numfiles']      = 1
         unit = units.kpc/h
-        self.header['BoxSize']       = boxsize/unit
-        self.header['Omega0']        = Ωm
-        self.header['OmegaLambda']   = ΩΛ
-        self.header['HubbleParam']   = h
-        self.header['FlagAge']       = 0
-        self.header['FlagMetals']    = 0
-        self.header['NallHW']        = [0]*6
-        self.header['flag_entr_ics'] = 1
+        header['BoxSize']       = boxsize/unit
+        header['Omega0']        = Ωm
+        header['OmegaLambda']   = ΩΛ
+        header['HubbleParam']   = h
+        header['FlagAge']       = 0
+        header['FlagMetals']    = 0
+        header['NallHW']        = [0]*6
+        header['flag_entr_ics'] = 1
 
     # Method used for reading series of bytes from the snapshot file
     @cython.header(# Arguments
-                   f='object',  # io.TextIOWrapper instance
+                   f='object',
                    fmt='str',
                    # Locals
                    t='tuple',
+                   returns='object',
                    )
     def read(self, f, fmt):
         # Convert bytes to python objects and store them in a tuple
@@ -613,6 +593,8 @@ class GadgetSnapshot:
     @cython.header(# Arguments
                    filename='str',
                    # Locals
+                   N='Py_ssize_t',
+                   N_local='Py_ssize_t',
                    i='int',
                    unit='double',
                    )
@@ -622,8 +604,9 @@ class GadgetSnapshot:
         corresponding to dark matter particles, are supported.
         """
         masterprint('Saving GADGET snapshot "{}" ...'.format(filename))
-        N = self.header['Nall'][1]
+        N = self.particles.N
         N_local = self.particles.N_local
+        header = self.params['header']
         # The master process write the HEAD block
         if master:
             with open(filename, 'wb') as f:
@@ -634,28 +617,28 @@ class GadgetSnapshot:
                 f.write(struct.pack('i', 4 + 256 + 4))
                 f.write(struct.pack('i', 8))
                 f.write(struct.pack('i', 256))
-                f.write(struct.pack('6I', *self.header['Npart']))
-                f.write(struct.pack('6d', *self.header['Massarr']))
-                f.write(struct.pack('d', self.header['Time']))
-                f.write(struct.pack('d', self.header['Redshift']))
-                f.write(struct.pack('i', self.header['FlagSfr']))
-                f.write(struct.pack('i', self.header['FlagFeedback']))
-                f.write(struct.pack('6i', *self.header['Nall']))
-                f.write(struct.pack('i', self.header['FlagCooling']))
-                f.write(struct.pack('i', self.header['Numfiles']))
-                f.write(struct.pack('d', self.header['BoxSize']))
-                f.write(struct.pack('d', self.header['Omega0']))
-                f.write(struct.pack('d', self.header['OmegaLambda']))
-                f.write(struct.pack('d', self.header['HubbleParam']))
-                f.write(struct.pack('i', self.header['FlagAge']))
-                f.write(struct.pack('i', self.header['FlagMetals']))
-                f.write(struct.pack('6i', *self.header['NallHW']))
-                f.write(struct.pack('i', self.header['flag_entr_ics']))
+                f.write(struct.pack('6I', *header['Npart']))
+                f.write(struct.pack('6d', *header['Massarr']))
+                f.write(struct.pack('d',   header['Time']))
+                f.write(struct.pack('d',   header['Redshift']))
+                f.write(struct.pack('i',   header['FlagSfr']))
+                f.write(struct.pack('i',   header['FlagFeedback']))
+                f.write(struct.pack('6i', *header['Nall']))
+                f.write(struct.pack('i',   header['FlagCooling']))
+                f.write(struct.pack('i',   header['Numfiles']))
+                f.write(struct.pack('d',   header['BoxSize']))
+                f.write(struct.pack('d',   header['Omega0']))
+                f.write(struct.pack('d',   header['OmegaLambda']))
+                f.write(struct.pack('d',   header['HubbleParam']))
+                f.write(struct.pack('i',   header['FlagAge']))
+                f.write(struct.pack('i',   header['FlagMetals']))
+                f.write(struct.pack('6i', *header['NallHW']))
+                f.write(struct.pack('i',   header['flag_entr_ics']))
                 # Padding to fill out the 256 bytes
                 f.write(struct.pack('60s', b' '*60))
                 f.write(struct.pack('i', 256))
         # Write the POS block in serial, one process at a time
-        unit = units.kpc/self.header['HubbleParam']
+        unit = units.kpc/header['HubbleParam']
         for i in range(nprocs):
             Barrier()
             if i == rank:
@@ -674,12 +657,12 @@ class GadgetSnapshot:
                                         self.particles.posy_mv[:N_local],
                                         self.particles.posz_mv[:N_local])
                                        ).T.flatten(),
-                             dtype='float32')/unit).tofile(f)
+                             dtype=C2np['float'])/unit).tofile(f)
                     # The closing int
-                    if i == (nprocs - 1):
+                    if i == nprocs - 1:
                         f.write(struct.pack('i', 3*N*4))
         # Write the VEL block in serial, one process at a time
-        unit = units.km/units.s*self.particles.mass*self.header['Time']**1.5
+        unit = units.km/units.s*self.particles.mass*header['Time']**1.5
         for i in range(nprocs):
             Barrier()
             if i == rank:
@@ -698,9 +681,9 @@ class GadgetSnapshot:
                                         self.particles.momy_mv[:N_local],
                                         self.particles.momz_mv[:N_local])
                                        ).T.flatten(),
-                             dtype='float32')/unit).tofile(f)
+                             dtype=C2np['float'])/unit).tofile(f)
                     # The closing int
-                    if i == (nprocs - 1):
+                    if i == nprocs - 1:
                         f.write(struct.pack('i', 3*N*4))
         # Write the ID block in serial, one process at a time
         for i in range(nprocs):
@@ -717,37 +700,40 @@ class GadgetSnapshot:
                         f.write(struct.pack('i', 8))
                         f.write(struct.pack('i', N*4))
                     # The data
-                    asarray(self.ID, dtype='uint32').tofile(f)
+                    asarray(self.ID, dtype=C2np['unsigned int']).tofile(f)
                     # The closing int
-                    if i == (nprocs - 1):
+                    if i == nprocs - 1:
                         f.write(struct.pack('i', N*4))
         masterprint('done')
 
 # Function that loads in a standard (HDF5) snapshot. Particles in the
-# snapshot are distriuvuted fairly among all processes.
+# snapshot are distributed fairly among all processes.
 @cython.header(# Argument
                filename='str',
-               write_msg='bint',
+               compare_params='bint',
+               only_params='bint',
                # Locals
                snapshot='StandardSnapshot',
                returns='StandardSnapshot',
                )
-def load_standard(filename, write_msg=True):
-    masterprint('Loading snapshot "{}"'.format(filename))
+def load_standard(filename, compare_params=True, only_params=False):
+    if not only_params:
+        masterprint('Loading snapshot "{}"'.format(filename))
     snapshot = StandardSnapshot()
-    snapshot.load(filename, write_msg)
+    snapshot.load(filename, compare_params=compare_params,
+                            only_params=only_params)
     return snapshot
 
 # Function that loads in particles from a standard (HDF5) snapshot
 @cython.header(# Argument
                filename='str',
-               write_msg='bint',
+               compare_params='bint',
                # Locals
                snapshot='StandardSnapshot',
                returns='Particles',
                )
-def load_standard_particles(filename, write_msg=True):
-    snapshot = load_standard(filename, write_msg)
+def load_standard_particles(filename, compare_params=True):
+    snapshot = load_standard(filename, compare_params=compare_params)
     return snapshot.particles
 
 # Function for saving the current state as a GADGET snapshot
@@ -768,27 +754,30 @@ def save_standard(particles, a, filename):
 # Function for loading a complete GADGET snapshot
 @cython.header(# Arguments
                filename='str',
-               write_msg='bint',
+               compare_params='bint',
+               only_params='bint',
                # Locals
                snapshot='GadgetSnapshot',
                returns='GadgetSnapshot',
                )
-def load_gadget(filename, write_msg=True):
-    masterprint('Loading GADGET snapshot "{}"'.format(filename))
+def load_gadget(filename, compare_params=True, only_params=False):
+    if not only_params:
+        masterprint('Loading GADGET snapshot "{}"'.format(filename))
     snapshot = GadgetSnapshot()
-    snapshot.load(filename, write_msg)
+    snapshot.load(filename, compare_params=compare_params,
+                            only_params=only_params)
     return snapshot
 
 # Function for loading a GADGET snapshot into a Particles instance
 @cython.header(# Arguments
                filename='str',
-               write_msg='bint',
+               compare_params='bint',
                # Locals
                snapshot='GadgetSnapshot',
                returns='Particles',
                )
-def load_gadget_particles(filename, write_msg=True):
-    snapshot = load_gadget(filename, write_msg)
+def load_gadget_particles(filename, compare_params=True):
+    snapshot = load_gadget(filename, compare_params=compare_params)
     return snapshot.particles
 
 # Function for saving the current state as a GADGET snapshot
@@ -797,10 +786,7 @@ def load_gadget_particles(filename, write_msg=True):
                a='double',
                filename='str',
                # Locals
-               N='Py_ssize_t',
-               i='int',
                snapshot='GadgetSnapshot',
-               unit='double',
                )
 def save_gadget(particles, a, filename):
     # Instantiate GADGET snapshot
@@ -813,17 +799,15 @@ def save_gadget(particles, a, filename):
 # but always returns an instance of StandardSnapshot.
 @cython.header(# Arguments
                filename='str',
-               write_msg='bint',
+               compare_params='bint',
+               only_params='bint',
                # Locals
                gadget_snapshot='GadgetSnapshot',
                input_type='str',
-               params_dict='dict',
                snapshot='StandardSnapshot',
-               unit_boxsize='double',
-               unit_H0='double',
                returns='StandardSnapshot'
                )
-def load_into_standard(filename, write_msg=True):
+def load_into_standard(filename, compare_params=True, only_params=False):
     # If no snapshot should be loaded, return immediately
     if not filename:
         return
@@ -834,21 +818,96 @@ def load_into_standard(filename, write_msg=True):
                          + 'gadget2 snapshot').format(filename))
     # Dispatches the work to the appropriate function
     if input_type == 'standard':
-        snapshot = load_standard(filename, write_msg)
+        snapshot = load_standard(filename, compare_params=compare_params,
+                                           only_params=only_params)
     elif input_type == 'gadget2':
-        gadget_snapshot = load_gadget(filename, write_msg)
+        gadget_snapshot = load_gadget(filename, compare_params=compare_params,
+                                                only_params=only_params)
+        # Create a corresponding standard snapshot
         snapshot = StandardSnapshot()
-        unit_boxsize = units.kpc/gadget_snapshot.header['HubbleParam']
-        unit_H0 = 100*units.km/(units.s*units.Mpc)
-        params_dict = {'a'      : gadget_snapshot.header['Time'],
-                       'boxsize': (gadget_snapshot.header['BoxSize']
-                                   *unit_boxsize),
-                       'H0'     : (gadget_snapshot.header['HubbleParam']
-                                   *unit_H0),
-                       'Ωm'     : gadget_snapshot.header['Omega0'],
-                       'ΩΛ'     : gadget_snapshot.header['OmegaLambda'],
-                       }
         snapshot.populate(gadget_snapshot.particles,
-                          params_dict['a'],
-                          params_dict)
+                          gadget_snapshot.params['a'],
+                          gadget_snapshot.params)
     return snapshot
+
+# Function that loads particle data from a snapshot file and
+# instantiate a Particles instance on each process,
+# storing the particles within its domain.
+@cython.header(# Argument
+               filename='str',
+               compare_params='bint',
+               # Locals
+               snapshot='StandardSnapshot',
+               returns='Particles',
+               )
+def load_particles(filename, compare_params=True):
+    # If no snapshot should be loaded, return immediately
+    if not filename:
+        return
+    # Load in particles from snapshot
+    snapshot = load_into_standard(filename, compare_params=compare_params)
+    return snapshot.particles
+
+
+# Function which loads in parameters from a snapshot without loading
+# in the particle data.
+@cython.header(# Arguments
+               filename='str',
+               compare_params='bint',
+               # Locals
+               snapshot='StandardSnapshot',
+               returns='dict',
+               )
+def load_params(filename, compare_params=True):
+    snapshot = load_into_standard(filename, compare_params=compare_params,
+                                            only_params=True)
+    return snapshot.params
+
+# Function that saves particle data to an HDF5 file or a
+# gadget snapshot file, based on the snapshot_type parameter.
+@cython.header(# Argument
+               particles='Particles',
+               a='double',
+               filename='str',
+               )
+def save(particles, a, filename):
+    if snapshot_type == 'standard':
+        save_standard(particles, a, filename)
+    elif snapshot_type == 'gadget2':
+        save_gadget(particles, a, filename)
+    elif master:
+        raise Exception('Does not recognize output type "{}"'.format(snapshot_type))
+
+# Function for determining the snapshot type of a file
+@cython.header(# Arguments
+               filename='str',
+               # Locals
+               head='tuple',
+               returns='str',
+               )
+def get_snapshot_type(filename):
+    # Raise an exception if the file does not exist
+    if master and not os.path.exists(filename):
+        raise Exception('The snapshot file "{}" does not exist'
+                         .format(filename))
+    # Test for standard HDF5 format by looking up ΩΛ and particles
+    try:
+        with h5py.File(filename, mode='r') as f:
+            f.attrs[unicode('Ω') + unicode('Λ')]
+            f['particles']
+            return 'standard'
+    except:
+        pass
+    # Test for GADGET2 2 format by searching for a HEAD identifier
+    try:
+        with open(filename, 'rb') as f:
+            f.seek(4)
+            head = struct.unpack('4s', f.read(struct.calcsize('4s')))
+            if head[0] == b'HEAD':
+                return 'gadget2'
+    except:
+        pass
+    # Return None if the file is not a valid snapshot
+    return None
+
+

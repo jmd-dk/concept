@@ -185,9 +185,6 @@ def exchange(particles, reset_buffers=False):
         sendbuf_mv = cast(sendbuf, 'double[:N_send_max]')
     # Find out how many particles to receive
     N_recv = find_N_recv(N_send)
-    # Pure Python has a hard time understanding uintp as an integer
-    if not cython.compiled:
-        N_recv = asarray(N_recv, dtype='int64')
     # The maximum number of particles to
     # receive is stored in entrance rank.
     N_recv_max = N_recv[rank]
@@ -300,9 +297,6 @@ def exchange(particles, reset_buffers=False):
                 break
     # Update N_local
     particles.N_local = N_needed - N_send_tot
-    # Pure Python has a hard time understanding uintp as an integer
-    if not cython.compiled:
-        particles.N_local = asarray(particles.N_local, dtype='int64')
     # If reset_buffers == True, reset the global indices_send and
     # sendbuf to their basic forms. This buffer will then be rebuild in
     # future calls.
@@ -436,9 +430,9 @@ def domain(x, y, z):
                )
 def neighboring_ranks():
     # Number of domains in all three dimensions
-    domain_cuts = array(cutout_domains(nprocs), dtype='int32')
+    domain_cuts = array(cutout_domains(nprocs), dtype=C2np['int'])
     # The 3D layout of the division of the box
-    domain_layout = arange(nprocs, dtype='int32').reshape(domain_cuts)
+    domain_layout = arange(nprocs, dtype=C2np['int']).reshape(domain_cuts)
     # Get the ranks of the 6 face-to-face neighboring processes
     rank_right = domain_layout[mod(domain_local[0] + 1, domain_cuts[0]),
                                domain_local[1],
@@ -595,9 +589,9 @@ cython.declare(domain_cuts='list',
 # Number of domains of the box in all three dimensions
 domain_cuts = cutout_domains(nprocs)
 # The 3D layout of the division of the box
-domain_layout = arange(nprocs, dtype='int32').reshape(domain_cuts)
+domain_layout = arange(nprocs, dtype=C2np['int']).reshape(domain_cuts)
 # The indices in domain_layout of the local domain
-domain_local = array(np.unravel_index(rank, domain_cuts), dtype='int32')
+domain_local = array(np.unravel_index(rank, domain_cuts), dtype=C2np['int'])
 # The size of the domain, which are the same for all of them
 domain_size_x = boxsize/domain_cuts[0]
 domain_size_y = boxsize/domain_cuts[1]

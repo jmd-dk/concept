@@ -42,16 +42,16 @@ snapshot = GadgetSnapshot()
 a = []
 particles = []
 for fname in ('snapshot_a=1.00', ):
-    snapshot.load(this_dir + '/output/' + fname, write_msg=False)
-    a.append(snapshot.header['Time'])
+    snapshot.load(this_dir + '/output/' + fname, compare_params=False)
+    a.append(snapshot.params['a'])
     particles.append(snapshot.particles)
 
 # Read in data from the GADGET snapshots
 a_gadget = []
 particles_gadget = []
 for i in range(N_snapshots):
-    snapshot.load(this_dir + '/output/snapshot_gadget_' + '0'*(3-len(str(i))) + str(i), write_msg=False)
-    a_gadget.append(snapshot.header['Time'])
+    snapshot.load(this_dir + '/output/snapshot_gadget_' + '0'*(3-len(str(i))) + str(i), compare_params=False)
+    a_gadget.append(snapshot.params['a'])
     particles_gadget.append(snapshot.particles)
 
 # Using the particle order of CO𝘕CEPT as the standard, find the corresponding
@@ -93,7 +93,7 @@ for i in range(N_snapshots):
     particles_gadget[i].momz = particles_gadget[i].momz[ID]
 
 # Compute distance between particles in the two snapshots
-fig_file = this_dir + '/result.pdf'
+fig_file = this_dir + '/result.png'
 x = particles[-1].posx
 y = particles[-1].posy
 z = particles[-1].posz

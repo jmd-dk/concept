@@ -1143,7 +1143,7 @@ if use_PM:
                      + 'of processes!')
         PM_gridstart_local_i = PM_gridstart_local_j = PM_gridsize_local_i*rank
         PM_grid = empty((PM_gridsize_local_i, PM_gridsize,
-                         PM_gridsize_padding), dtype='float64')
+                         PM_gridsize_padding), dtype=C2np['double'])
         # The output of the following function is formatted just
         # like that of the MPI implementation of FFTW.
         plan_backward = 'plan_backward'
@@ -1270,7 +1270,7 @@ else:
     # they need to be assigned even if not used.
     PM_gridsize_local_j = 0
     PM_gridstart_local_j = 0
-    PM_grid = empty((1, 1, 1), dtype='float64')
+    PM_grid = empty((1, 1, 1), dtype=C2np['double'])
 
 # Cut out the domains at import time
 cython.declare(domain_cuts='list',
@@ -1288,7 +1288,7 @@ cython.declare(domain_cuts='list',
 # Number of domains in all three dimensions
 domain_cuts = cutout_domains(nprocs)
 # The indices in domain_layout of the local domain
-domain_local = array(np.unravel_index(rank, domain_cuts), dtype='int32')
+domain_local = array(np.unravel_index(rank, domain_cuts), dtype=C2np['int'])
 # The linear size of the domains, which are the same for all of them
 domain_size_x = boxsize/domain_cuts[0]
 domain_size_y = boxsize/domain_cuts[1]
@@ -1318,7 +1318,7 @@ if use_PM:
     # layer for finite differencing.
     domain_grid = zeros([PM_gridsize//domain_cuts[i] + 1 + 2*2
                          for i in range(3)],
-                        dtype='float64')
+                        dtype=C2np['double'])
     # Memoryview of the domain grid without the ghost layers
     domain_grid_noghosts = domain_grid[2:(domain_grid.shape[0] - 2),
                                        2:(domain_grid.shape[1] - 2),
@@ -1327,7 +1327,7 @@ if use_PM:
     # one component at a time.
     force_grid = zeros((domain_grid_noghosts.shape[0],
                         domain_grid_noghosts.shape[1],
-                        domain_grid_noghosts.shape[2]), dtype='float64')
+                        domain_grid_noghosts.shape[2]), dtype=C2np['double'])
     # Test if the grid has been constructed correctly.
     # If not it is because nprocs and PM_gridsize are incompatible.
     for i in range(3):
@@ -1536,14 +1536,14 @@ boundary_ranks_send = array([rank_right, rank_forward, rank_up,
                              rank_forwardup, rank_forwarddown,
                              rank_rightforwardup, rank_rightforwarddown,
                              rank_rightbackwardup, rank_rightbackwarddown, 
-                             ], dtype='int32')
+                             ], dtype=C2np['int'])
 boundary_ranks_recv = array([rank_left,  rank_backward, rank_down,
                              rank_leftbackward, rank_leftforward,
                              rank_leftdown, rank_leftup,
                              rank_backwarddown, rank_backwardup,
                              rank_leftbackwarddown, rank_leftbackwardup,
                              rank_leftforwarddown, rank_leftforwardup,
-                             ], dtype='int32')
+                             ], dtype=C2np['int'])
 # Function pointer arrays to the in-boundary test functions
 in_boundary1_funcs = malloc(13*sizeof('func_b_ddd'))
 in_boundary2_funcs = malloc(13*sizeof('func_b_ddd'))

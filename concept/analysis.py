@@ -46,13 +46,11 @@ else:
                # Locals
                P='double',
                W2='double',
-               boxsize_unit='double',
                file_contents='str',
                i='int',
                j='int',
                j_global='int',
                k='int',
-               k_unit='double',
                k2='Py_ssize_t',
                k2_next='Py_ssize_t',
                k2_prev='Py_ssize_t',
@@ -63,7 +61,6 @@ else:
                kk='int',
                power_fac='double',
                power_fac2='double',
-               power_unit='double',
                recp_deconv_ijk='double',
                sqrt_deconv_ij='double',
                sqrt_deconv_ijk='double',
@@ -178,18 +175,17 @@ def powerspec(particles, filename):
     # together with its standard deviation.
     σ, σ_σ = rms_density_variation()
     # Write to disk
-    boxsize_unit = units.Mpc
-    k_unit = 1/units.Mpc
-    power_unit = units.Mpc3
     header = ('{sigma}{_R}' + ' = {:.6g} '.format(σ)
               + '{pm}' + ' {:.6g}, '.format(σ_σ)
               + 'PM_gridsize = {}, '.format(PM_gridsize)
-              + 'boxsize = {:.4g} Mpc\n'.format(boxsize/boxsize_unit)
-              + 'k [Mpc{^-1}]\tpower [Mpc{^3}]\t{sigma}(power) [Mpc{^3}]')
+              + 'boxsize = {:.4g} {}\n'.format(boxsize, units.length)
+              + 'k [' + units.length + '{^-1}]'
+              + '\tpower [' + units.length + '{^3}]'
+              + '\t{sigma}(power) [' + units.length + '{^3}]')
     np.savetxt(filename,
-               asarray((asarray(k_magnitudes)     [mask]/k_unit, 
-                        asarray(power)            [mask]/power_unit,
-                        np.sqrt(asarray(power_σ2))[mask]/power_unit)).transpose(),
+               asarray((asarray(k_magnitudes)     [mask], 
+                        asarray(power)            [mask],
+                        np.sqrt(asarray(power_σ2))[mask])).transpose(),
                fmt='%.6e\t%.6e\t%.6e',
                header=header)
     # Read in and rewrite in order to insert unicode characters
@@ -200,11 +196,12 @@ def powerspec(particles, filename):
                                                '₅', '₆', '₇', '₈', '₉',
                                                'ₑ', '₊', '₋')]))
     file_contents = file_contents.format(**{'sigma': unicode('σ'),
-                                            '_R': ''.join([subscripts.get(c, c)
-                                for c in '{:.3g}'.format(R_tophat/units.Mpc)]),
-                                            'pm': unicode('±'),
-                                          '^-1': (unicode('⁻') + unicode('¹')),
-                                           '^3': unicode('³')})
+                                            '_R'   : ''.join([subscripts.get(c, c)
+                                                              for c in '{:.15g}'.format(R_tophat)]
+                                                             ),
+                                            'pm'   : unicode('±'),
+                                            '^-1'  : (unicode('⁻') + unicode('¹')),
+                                            '^3'   : unicode('³')})
     with open(filename, 'w', encoding='utf-8') as powerspec_file:
         powerspec_file.write(file_contents)
     masterprint('done')

@@ -28,20 +28,20 @@ from commons import *
 # Seperate but equivalent imports in pure Python and Cython
 if not cython.compiled:
     from analysis import powerspec
-    from species import construct, construct_random
-    from IO import load, save
+    from graphics import render, terminal_render
     from special import delegate
+    from species import construct
     from integration import expand, cosmic_time, scalefactor_integral
-    from graphics import render, significant_figures, terminal_render
+    from IO import load_particles, save
 else:
     # Lines in triple quotes will be executed in the .pyx file.
     """
     from analysis cimport powerspec
-    from species cimport construct, construct_random
+    from graphics cimport render, terminal_render
     from special cimport delegate
-    from IO cimport load, save
+    from species cimport construct
     from integration cimport expand, cosmic_time, scalefactor_integral
-    from graphics cimport render, significant_figures, terminal_render
+    from IO cimport load_particles, save
     """
 
 # Imports and definitions common to pure Python and Cython
@@ -126,7 +126,7 @@ def timeloop():
     if len(a_dumps) == 0:
         return
     # Load initial conditions
-    particles = load(IC_file)
+    particles = load_particles(IC_file)
     # The number of time steps before Δt is updated
     Δt_update_freq = 10
     # Initial cosmic time t, where a(t) = a_begin
@@ -138,8 +138,8 @@ def timeloop():
     # Arrays containing the drift and kick factors ∫_t^(t + Δt/2)dt/a
     # and ∫_t^(t + Δt/2)dt/a**2. The two elements in each variable are
     # the first and second half of the factor for the entire time step.
-    drift_fac = zeros(2, dtype='float64')
-    kick_fac = zeros(2, dtype='float64')
+    drift_fac = zeros(2, dtype=C2np['double'])
+    kick_fac = zeros(2, dtype=C2np['double'])
     # Scalefactor at next dump and a corresponding index
     i_dump = 0
     a_dump = a_dumps[i_dump]
@@ -151,12 +151,12 @@ def timeloop():
     while i_dump < len(a_dumps):
         timestep += 1
         # Print out message at beginning of each time step
-        masterprint(terminal.bold('\nTime step ' + str(timestep))
-                    + '\nScale factor: '
-                    + significant_figures(a, 4, just=3)
-                    + '\nCosmic time:  '
-                    + significant_figures(t/units.Gyr, 4, just=3)
-                    + ' Gyr')
+        masterprint(terminal.bold('\nTime step {}'.format(timestep))
+                    + '{:<14} {}'    .format('\nScale factor:', significant_figures(a, 4,
+                                                                                    fmt='Unicode'))
+                    + '{:<14} {} Gyr'.format('\nCosmic time:', significant_figures(t/units.Gyr, 4,
+                                                                                   fmt='Unicode'))
+                    )
         # Kick (first time is only half a kick, as kick_fac[1] == 0)
         do_kick_drift_integrals(0)
         particles.kick(kick_fac[0] + kick_fac[1])

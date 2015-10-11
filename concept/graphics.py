@@ -41,31 +41,20 @@ else:
 import pexpect
 import subprocess
 
-# When using ax.scatter (and possible more) the following warning is
-# given, as of NumPy 1.10.0, Matplotlib 1.4.3:
-# FutureWarning: elementwise comparison failed; returning scalar instead,
-# but in the future will perform elementwise comparison
-#   if self._edgecolors == str('face'):
-# This is a bug and will hopefully be fixed by the developers.
-# In the meantime, as everything seems to be alright,
-# suppress this warning.
-import warnings
-warnings.filterwarnings('ignore', category=FutureWarning)
+
 
 @cython.header(# Arguments
                data_or_filename='object',
                # Locals
+               file_unit_k='double',
+               file_unit_power='double',
+               file_unit_power_σ='double',
                filename='str',
                header='str',
                i='int',
                k='double[::1]',
-               k_unit='double',
-               k_unit_from_file='double',
                power='double[::1]',
-               power_unit='double',
-               power_unit_from_file='double',
                power_σ='double[::1]',
-               power_σ_unit_from_file='double',
                tmp='str',
                )
 def plot_powerspec(data_or_filename):
@@ -87,13 +76,21 @@ def plot_powerspec(data_or_filename):
         with open(filename, encoding='utf-8') as powespec_file:
             for i in range(2):
                 header = powespec_file.readline()
-        k_unit_from_file = eval('units.' + re.search('k \[(.*?)\]', header).group(1).replace('⁻¹', '**(-1)'))
-        power_unit_from_file = eval('units.' + re.search('power \[(.*?)\]', header).group(1).replace('³', '**3'))
-        power_σ_unit_from_file = eval('units.' + re.search('σ\(power\) \[(.*?)\]', header).group(1).replace('³', '**3'))
-        # Multiply by the units
-        k = asarray(k)*k_unit_from_file
-        power = asarray(power)*power_unit_from_file
-        power_σ = asarray(power_σ)*power_σ_unit_from_file
+        file_unit_k = eval(re.search('k \[(.*?)\]', header).group(1).replace('⁻¹', '**(-1)'),
+                           units_dict)
+        file_unit_power = eval(re.search('power \[(.*?)\]', header).group(1).replace('³', '**3'),
+                               units_dict)
+        file_unit_power_σ = eval(re.search('σ\(power\) \[(.*?)\]', header)
+                                  .group(1).replace('³', '**3'),
+                                 units_dict)
+        # Multiply by the units if they differ from
+        # those of the current run.
+        if file_unit_k != 1:
+            k = asarray(k)*file_unit_k
+        if file_unit_power != 1:
+            power = asarray(power)*file_unit_power
+        if file_unit_power_σ != 1:
+            power_σ = asarray(power_σ)*file_unit_power_σ
         # Attach extension to filename regardless of current extension
         filename = filename + '.png'
     else:
@@ -105,19 +102,13 @@ def plot_powerspec(data_or_filename):
                     .format(filename))
         # Unpack data
         _, k, power, power_σ = data_or_filename
-    # Transform quantities to desired units
-    k_unit = 1/units.Mpc
-    power_unit = units.Mpc3
-    k = asarray(k)/k_unit
-    power = asarray(power)/power_unit
-    power_σ = asarray(power_σ)/power_unit
     # Plot powerspectrum
     plt.figure()
     plt.gca().set_xscale('log')
     plt.gca().set_yscale('log', nonposy='clip')
     plt.errorbar(k, power, yerr=power_σ, fmt='b.', ms=3, ecolor='r', lw=0)
-    plt.xlabel('$k\,\mathrm{[Mpc^{-1}]}$')
-    plt.ylabel('$\mathrm{power}\,\mathrm{[Mpc^3]}$')
+    plt.xlabel('$k\,\mathrm{[' + units.length + '^{-1}]}$')
+    plt.ylabel('$\mathrm{power}\,\mathrm{[' + units.length + '^3]}$')
     tmp = '{:.1e}'.format(min(k))
     plt.xlim(xmin=float(tmp[0] + tmp[3:]))
     tmp = '{:.1e}'.format(max(k))
@@ -190,7 +181,7 @@ def render(particles, a, filename):
     # Print the current scale factor on the figure
     if master:
         artist_text.set_text('')
-        a_str = significant_figures(a, 4, just=0, scientific=True)
+        a_str = significant_figures(a, 4, 'LaTeX')
         artist_text = ax.text(+0.25*boxsize,
                               -0.3*boxsize,
                               0,
@@ -368,67 +359,6 @@ def terminal_render(particles):
         projection_ANSI .append('\x1b[0m\n')
     # Print the ANSI image
     masterprint(''.join(projection_ANSI), end='')
-
-# This function formats a floating point
-# number f to only have n significant figures.
-@cython.header(# Arguments
-               f='double',
-               n='int',
-               just='int',
-               scientific='bint',
-               # Locals
-               e_index='int',
-               f_str='str',
-               power='int',
-               power10='double',
-               sign='int',
-               returns='str',
-               )
-def significant_figures(f, n, just=0, scientific=False):
-    sign = 1
-    if f == 0:
-        # Nothing fancy happens to zero
-        return '0'.ljust(n + 1)
-    elif f < 0:
-        # Remove the minus sign, for now
-        sign = -1
-        f *= sign
-    # Round to significant digits
-    power = n - 1 - int(log10(f))
-    power10 = 10.0**power
-    f = round(f*power10)/power10
-    f_str = str(f)
-    # Convert to e notation if f is very large or very small
-    if (len(f_str) - 1 - (f_str[(len(f_str) - 2):] == '.0') > n
-        and not (len(f_str) > 2
-                 and f_str[:2] == '0.'
-                 and f_str[2] != '0')):
-        f_str = ('{:.' + str(n) + 'e}').format(f)
-    if 'e' in f_str:
-        # In scientific (e) notation
-        e_index = f_str.find('e')
-        f_str = f_str[:np.min(((n + 1), e_index))] + f_str[e_index:]
-        if scientific:
-            e_index = f_str.find('e')
-            f_str = (f_str.replace('e', r'\times 10^{'
-                     + f_str[(e_index + 1):].replace('+', '') + '}'))
-            f_str = f_str[:(f_str.find('}') + 1)]
-        # Put sign back in
-        if sign == -1:
-            f_str = '-' + f_str
-        return f_str.ljust(just)
-    else:
-        # Numbers which do not need *10^? to be nicely expressed
-        if len(f_str) == n + 2 and (f_str[(len(f_str) - 2):] == '.0'):
-            # Unwanted .0
-            f_str = f_str[:n]
-        elif (len(f_str) - 1 - (f_str[:2] == '0.')) < n:
-            # Pad with zeros to get correct amount of figures
-            f_str += '0'*(n - (len(f_str) - 1) + (f_str[:2] == '0.'))
-        # Put sign back in
-        if sign == -1:
-            f_str = '-' + f_str
-        return f_str.ljust(just)
 
 # Set up figure.
 # The 77.50 scaling is needed to map the resolution to pixel units

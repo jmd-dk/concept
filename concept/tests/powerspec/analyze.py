@@ -30,10 +30,10 @@ this_dir = os.path.dirname(os.path.realpath(__file__))
 
 # Imports from the CO𝘕CEPT code
 from commons import *
-from IO import load
+from IO import load_particles
 
 # Read in the snapshot
-particles = load(this_dir + '/snapshot')
+particles = load_particles(this_dir + '/snapshot')
 N = particles.N
 posx = particles.posx
 posy = particles.posy

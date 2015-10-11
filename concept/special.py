@@ -28,12 +28,12 @@ from commons import *
 # Seperate but equivalent imports in pure Python and Cython
 if not cython.compiled:
     import graphics, analysis
-    from IO import get_snapshot_type, load_into_standard
+    from IO import get_snapshot_type, load_into_standard, load_params
 else:
     # Lines in triple quotes will be executed in the .pyx file.
     """
     cimport graphics, analysis
-    from IO cimport get_snapshot_type, load_into_standard
+    from IO cimport get_snapshot_type, load_into_standard, load_params
     """
 
 
@@ -52,7 +52,7 @@ def delegate():
         masterwarn('Special flag "{}" not recognized!'
                    .format(special_params['special']))
 
-# Function for finding all snapshots in special_params['path']
+# Function for finding all snapshots in special_params['snapshot_filename']
 @cython.pheader(# Arguments
                path='str',
                # Locals
@@ -86,38 +86,8 @@ def locate_snapshots(path):
         raise Exception(msg)
     return snapshot_filenames
 
-# Function for getting all informations within a snapshot
-@cython.pheader(# Arguments
-                snapshot_filename='str',
-                # Locals
-                info='dict',
-                snapshot='StandardSnapshot',
-                value='double',
-                returns='dict',
-               )
-def snapshot_info(snapshot_filename):
-    # Read in the snapshot
-    snapshot = load_into_standard(snapshot_filename, write_msg=False)
-    info = {'snapshot_type': get_snapshot_type(snapshot_filename),
-            'params':        snapshot.params,
-            'particles':     {'N':       snapshot.particles.N,
-                              'mass':    snapshot.particles.mass,
-                              'species': snapshot.particles.species,
-                              'type':    snapshot.particles.type,
-                              },
-            }
-    # Replace the 'Ωm' key with an actual unicode literal
-    value = info['params']['Ωm']
-    del info['params']['Ωm']
-    info['params'][unicode('Ω') + 'm'] = value
-    # Replace the 'ΩΛ' key with an actual unicode literal
-    value = info['params']['ΩΛ']
-    del info['params']['ΩΛ']
-    info['params'][unicode('Ω') + unicode('Λ')] = value
-    return info
-
 # Function that produces a powerspectrum of the file
-# specified by the special_params['path'] parameter.
+# specified by the special_params['snapshot_filename'] parameter.
 @cython.header(# Locals
                basename='str',
                output_dir='str',
@@ -129,7 +99,7 @@ def powerspec():
     # Extract the snapshot filename
     snapshot_filename = special_params['snapshot_filename']
     # Read in the snapshot
-    snapshot = load_into_standard(snapshot_filename, write_msg=False)
+    snapshot = load_into_standard(snapshot_filename, compare_params=False)
     # Output file
     output_dir, basename = os.path.split(snapshot_filename)
     output_filename = '{}/{}{}{}'.format(output_dir,
@@ -142,7 +112,7 @@ def powerspec():
                        output_filename)
 
 # Function that produces a render of the file
-# specified by the special_params['path'] parameter.
+# specified by the special_params['snapshot_filename'] parameter.
 @cython.header(# Locals
                basename='str',
                output_dir='str',
@@ -154,7 +124,7 @@ def render():
     # Extract the snapshot filename
     snapshot_filename = special_params['snapshot_filename']
     # Read in the snapshot
-    snapshot = load_into_standard(snapshot_filename, write_msg=False)
+    snapshot = load_into_standard(snapshot_filename, compare_params=False)
     # Output file
     output_dir, basename = os.path.split(snapshot_filename)
     output_filename = '{}/{}{}{}'.format(output_dir,
@@ -165,3 +135,53 @@ def render():
     graphics.render(snapshot.particles,
                     snapshot.params['a'],
                     output_filename)
+
+# Function for printing all informations within a snapshot
+@cython.pheader(# Arguments
+                path='str',
+                # Locals
+                heading='str',
+                particle_attribute='dict',
+                snapshot_filenames='list',
+                snapshot_type='str',
+                unit='double',
+                value='double',
+                )
+def snapshot_info(path):
+    # This function should not run in parallel
+    if not master:
+        return
+    # Get list of snapshots
+    snapshot_filenames = locate_snapshots(path)
+    # Print out information about each snapshot
+    for i, snapshot_filename in enumerate(snapshot_filenames):
+        # Print out heading stating the filename
+        heading = ('{}Information about "{}"'.format('' if i == 0 else '\n',
+                                                     sensible_path(snapshot_filename)))
+        masterprint(terminal.bold(heading))
+        # Print out snapshot type
+        snapshot_type = get_snapshot_type(snapshot_filename)
+        masterprint('{:<15} {}'.format('Snapshot type', snapshot_type))
+        # Load parameters from the snapshot
+        params = load_params(snapshot_filename, compare_params=False)
+        # Print out global parameters
+        masterprint('{:<15} {:.15g}'.format('a', params['a']))
+        masterprint('{:<15} {:.15g} {}'.format('boxsize', params['boxsize'], units.length))
+        unit = units.km/(units.s*units.Mpc)
+        masterprint('{:<15} {:.15g} {}'.format('H0', params['H0']/unit, 'km s⁻¹ Mpc⁻¹'))
+        masterprint('{:<15} {:.15g}'.format(unicode('Ω') + 'm', params['Ωm']))
+        masterprint('{:<15} {:.15g}'.format(unicode('Ω') + unicode('Λ'), params['ΩΛ']))
+        # Print out particle information
+        for particle_type in params['particle_attributes']:
+            masterprint(particle_type + ':')
+            particle_attribute = params['particle_attributes'][particle_type]
+            masterprint('{:<15} {}'.format('species', particle_attribute['species']), indent=4)
+            masterprint('{:<15} {}'.format('N', particle_attribute['N']), indent=4)
+            value = particle_attribute['mass']/units.m_sun
+            masterprint('{:<15} {:.15e} {}'.format('mass', value, 'm_sun'), indent=4)
+        # Print out GADGET header for GADGET snapshots
+        if not 'header' in params:
+            continue
+        masterprint('GADGET header:')
+        for key, val in params['header'].items():
+            masterprint('{:<15} {}'.format(key, val), indent=4)

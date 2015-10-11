@@ -162,7 +162,7 @@ def tabulate_vectorfield(gridsize, func, factor, filename=''):
         return grid
     # Save grid to disk using parallel HDF5
     with h5py.File(filename, mode='w', driver='mpio', comm=comm) as hdf5_file:
-        dset = hdf5_file.create_dataset('data', (size, ), dtype='float64')
+        dset = hdf5_file.create_dataset('data', (size, ), dtype=C2np['double'])
         dset[start_local:(start_local + size_local)] = grid_local
     return grid
 
@@ -820,11 +820,11 @@ if use_PM:
                    sendbuf_facejk='double[:, ::1]',
                    )
     # Number of domains in all three dimensions
-    domain_cuts = array(cutout_domains(nprocs), dtype='int32')
+    domain_cuts = array(cutout_domains(nprocs), dtype=C2np['int'])
     # The 3D layout of the division of the box
-    domain_layout = arange(nprocs, dtype='int32').reshape(domain_cuts)
+    domain_layout = arange(nprocs, dtype=C2np['int']).reshape(domain_cuts)
     # The indices in domain_layout of the local domain
-    domain_local = array(np.unravel_index(rank, domain_cuts), dtype='int32')
+    domain_local = array(np.unravel_index(rank, domain_cuts), dtype=C2np['int'])
     # The linear size of the domains, which are the same for all of them
     domain_size_x = boxsize/domain_cuts[0]
     domain_size_y = boxsize/domain_cuts[1]
@@ -862,16 +862,16 @@ if use_PM:
     domain_size_k = PM_gridsize//domain_cuts[2]
     # Send/recieve buffers.
     # Separate buffers for each face is needed to ensure contiguousity. 
-    sendbuf_faceij = empty((domain_size_i, domain_size_j), dtype='float64')
-    recvbuf_faceij = empty((domain_size_i, domain_size_j), dtype='float64')
-    sendbuf_faceik = empty((domain_size_i, domain_size_k), dtype='float64')
-    recvbuf_faceik = empty((domain_size_i, domain_size_k), dtype='float64')
-    sendbuf_facejk = empty((domain_size_j, domain_size_k), dtype='float64')
-    recvbuf_facejk = empty((domain_size_j, domain_size_k), dtype='float64')
+    sendbuf_faceij = empty((domain_size_i, domain_size_j), dtype=C2np['double'])
+    recvbuf_faceij = empty((domain_size_i, domain_size_j), dtype=C2np['double'])
+    sendbuf_faceik = empty((domain_size_i, domain_size_k), dtype=C2np['double'])
+    recvbuf_faceik = empty((domain_size_i, domain_size_k), dtype=C2np['double'])
+    sendbuf_facejk = empty((domain_size_j, domain_size_k), dtype=C2np['double'])
+    recvbuf_facejk = empty((domain_size_j, domain_size_k), dtype=C2np['double'])
     sendbuf_edge = empty(np.max((domain_size_i, domain_size_j, domain_size_k)),
-                         dtype='float64')
+                         dtype=C2np['double'])
     recvbuf_edge = empty(np.max((domain_size_i, domain_size_j, domain_size_k)),
-                         dtype='float64')
+                         dtype=C2np['double'])
     # Additional information about the domain grid and the PM mesh,
     # used in the domain2PM function.
     cython.declare(ID_recv='int',
@@ -972,26 +972,22 @@ if use_PM:
             PM_recv_k_end_list.append(recvbuf[3])
             PM_recv_rank_list.append(ID_recv)
     # Memoryview versions of the lists
-    PM_send_i_start = array(PM_send_i_start_list, dtype='int32')
-    PM_send_i_end = array(PM_send_i_end_list, dtype='int32')
-    PM_send_rank = array(PM_send_rank_list, dtype='int32')
-    PM_recv_i_start = array(PM_recv_i_start_list, dtype='int32')
-    PM_recv_j_start = array(PM_recv_j_start_list, dtype='int32')
-    PM_recv_k_start = array(PM_recv_k_start_list, dtype='int32')
-    PM_recv_i_end = array(PM_recv_i_end_list, dtype='int32')
-    PM_recv_j_end = array(PM_recv_j_end_list, dtype='int32')
-    PM_recv_k_end = array(PM_recv_k_end_list, dtype='int32')
-    PM_recv_rank = array(PM_recv_rank_list, dtype='int32')
+    PM_send_i_start = array(PM_send_i_start_list, dtype=C2np['int'])
+    PM_send_i_end = array(PM_send_i_end_list, dtype=C2np['int'])
+    PM_send_rank = array(PM_send_rank_list, dtype=C2np['int'])
+    PM_recv_i_start = array(PM_recv_i_start_list, dtype=C2np['int'])
+    PM_recv_j_start = array(PM_recv_j_start_list, dtype=C2np['int'])
+    PM_recv_k_start = array(PM_recv_k_start_list, dtype=C2np['int'])
+    PM_recv_i_end = array(PM_recv_i_end_list, dtype=C2np['int'])
+    PM_recv_j_end = array(PM_recv_j_end_list, dtype=C2np['int'])
+    PM_recv_k_end = array(PM_recv_k_end_list, dtype=C2np['int'])
+    PM_recv_rank = array(PM_recv_rank_list, dtype=C2np['int'])
     # Buffers
-    domainPM_sendbuf = empty((PM_gridsize_global_i,
-                              domain_size_j,
-                              domain_size_k),
-                             dtype='float64')
+    domainPM_sendbuf = empty((PM_gridsize_global_i, domain_size_j, domain_size_k),
+                             dtype=C2np['double'])
     if PM_recv_rank_list != []:
-        domainPM_recvbuf = empty((PM_gridsize_global_i,
-                                  domain_size_j,
-                                  domain_size_k),
-                                 dtype='float64')
+        domainPM_recvbuf = empty((PM_gridsize_global_i, domain_size_j, domain_size_k),
+                                 dtype=C2np['double'])
     # ℓ will be the communication loop index.
     # It runs from 0 t0 ℓmax - 1.
     ℓmax = np.max([PM_send_rank.shape[0], PM_recv_rank.shape[0]])
@@ -1005,15 +1001,9 @@ if use_PM:
                    sendbuf_ghostjk='double[:, :, ::1]',
                    recvbuf_ghostjk='double[:, :, ::1]',
                    )
-    sendbuf_ghostij = empty((domain_size_i + 1, domain_size_j + 1, 2),
-                            dtype='float64')
-    recvbuf_ghostij = empty((domain_size_i + 1, domain_size_j + 1, 2),
-                            dtype='float64')
-    sendbuf_ghostik = empty((domain_size_i + 1, 2, domain_size_k + 1),
-                            dtype='float64')
-    recvbuf_ghostik = empty((domain_size_i + 1, 2, domain_size_k + 1),
-                            dtype='float64')
-    sendbuf_ghostjk = empty((2, domain_size_j + 1, domain_size_k + 1),
-                            dtype='float64')
-    recvbuf_ghostjk = empty((2, domain_size_j + 1, domain_size_k + 1),
-                            dtype='float64')
+    sendbuf_ghostij = empty((domain_size_i + 1, domain_size_j + 1, 2), dtype=C2np['double'])
+    recvbuf_ghostij = empty((domain_size_i + 1, domain_size_j + 1, 2), dtype=C2np['double'])
+    sendbuf_ghostik = empty((domain_size_i + 1, 2, domain_size_k + 1), dtype=C2np['double'])
+    recvbuf_ghostik = empty((domain_size_i + 1, 2, domain_size_k + 1), dtype=C2np['double'])
+    sendbuf_ghostjk = empty((2, domain_size_j + 1, domain_size_k + 1), dtype=C2np['double'])
+    recvbuf_ghostjk = empty((2, domain_size_j + 1, domain_size_k + 1), dtype=C2np['double'])

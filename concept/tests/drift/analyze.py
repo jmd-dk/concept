@@ -44,8 +44,8 @@ x = zeros(N_snapshots)
 x_std = zeros(N_snapshots)
 for i in range(N_snapshots):
     fname = 'snapshot_a={:.2f}'.format(np.loadtxt(this_dir + '/outputlist')[i])
-    snapshot.load(this_dir + '/output/' + fname, write_msg=False)
-    a[i] = snapshot.header['Time']
+    snapshot.load(this_dir + '/output/' + fname, compare_params=False)
+    a[i] = snapshot.params['a']
     x[i] = np.mean(snapshot.particles.posx)
     x_std[i] = np.std(snapshot.particles.posx)
 
@@ -54,19 +54,19 @@ a_gadget = zeros(N_snapshots)
 x_gadget = zeros(N_snapshots)
 x_std_gadget = zeros(N_snapshots)
 for i in range(N_snapshots):
-    snapshot.load(this_dir + '/output/snapshot_gadget_' + '0'*(3-len(str(i))) + str(i), write_msg=False)
-    a_gadget[i] = snapshot.header['Time']
+    snapshot.load(this_dir + '/output/snapshot_gadget_' + '0'*(3-len(str(i))) + str(i), compare_params=False)
+    a_gadget[i] = snapshot.params['a']
     x_gadget[i] = np.mean(snapshot.particles.posx)
     x_std_gadget[i] = np.std(snapshot.particles.posx)
 
 # Plot
-fig_file = this_dir + '/result.pdf'
+fig_file = this_dir + '/result.png'
 plt.text(0.5*max(a), 0.93*boxsize, r'$\uparrow$ End of simulation box $\uparrow$', ha='center')
-plt.errorbar(a, x/units.kpc, yerr=x_std/units.kpc, fmt='-sr', label='CO$N$CEPT')
-plt.errorbar(a_gadget, x_gadget/units.kpc, yerr=x_std_gadget/units.kpc, fmt='--*b', label='GADGET')
+plt.errorbar(a, x, yerr=x_std, fmt='-sr', label='CO$N$CEPT')
+plt.errorbar(a_gadget, x_gadget, yerr=x_std_gadget, fmt='--*b', label='GADGET')
 plt.legend(loc='best')
 plt.xlabel('$a$')
-plt.ylabel(r'$x\,\mathrm{[kpc]}$')
+plt.ylabel(r'$x\,\mathrm{[' + units.length + ']}$')
 plt.ylim(0, boxsize)
 plt.savefig(fig_file)
 
