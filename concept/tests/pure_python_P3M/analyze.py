@@ -30,7 +30,7 @@ this_dir = os.path.dirname(os.path.realpath(__file__))
 
 # Imports from the CO𝘕CEPT code
 from commons import *
-from IO import load
+from IO import load_particles
 
 # Determine the number of snapshots from the outputlist file
 N_snapshots = 1
@@ -38,10 +38,10 @@ N_snapshots = 1
 # Read in data from the CO𝘕CEPT snapshots
 particles_cython = []
 for i in (1, 2, 4):
-    particles_cython.append(load(this_dir + '/output/snapshot_cython_' + str(i), write_msg=False))
+    particles_cython.append(load_particles(this_dir + '/output/snapshot_cython_' + str(i), compare_params=False))
 particles_python = []
 for i in (1, 2, 4):
-    particles_python.append(load(this_dir + '/output/snapshot_python_' + str(i), write_msg=False))
+    particles_python.append(load_particles(this_dir + '/output/snapshot_python_' + str(i), compare_params=False))
 
 # Using the particle order of the 0'th snapshot as the standard, find the corresponding
 # ID's in the snapshots and order these particles accoringly.
@@ -83,7 +83,7 @@ for i in range(N_snapshots):
         particles_python[j].momz = particles_python[j].momz[ID]
 
 # Compute distance between particles in the snapshot pairs
-fig_file = this_dir + '/result.pdf'
+fig_file = this_dir + '/result.png'
 x_python = [particles_python[j].posx for j in range(3)]
 y_python = [particles_python[j].posx for j in range(3)]
 z_python = [particles_python[j].posx for j in range(3)]

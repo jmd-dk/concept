@@ -29,9 +29,9 @@
 # Imports common to pure Python and Cython #
 ############################################
 from __future__ import division  # Needed for Python3 division in Cython
-# Modules
-import contextlib, cython, imp, matplotlib, numpy as np, os, re, shutil
-import sys, unicodedata
+# Miscellaneous modules
+import collections, contextlib, cython, imp, matplotlib, numpy as np, os, re
+import shutil, sys, unicodedata
 # For math
 from numpy import (arange, array, asarray, concatenate, cumsum, delete,
                    empty, linspace, loadtxt, ones, unravel_index, zeros)
@@ -40,6 +40,16 @@ from numpy.random import random
 matplotlib.use('Agg')
 # For plotting
 import matplotlib.pyplot as plt
+# When using ax.scatter in graphics.py (and possibly more) the following
+# warning is given, as of NumPy 1.10.0, Matplotlib 1.4.3:
+# FutureWarning: elementwise comparison failed; returning scalar instead,
+# but in the future will perform elementwise comparison
+#   if self._edgecolors == str('face'):
+# This is a bug and will hopefully be fixed by the developers.
+# In the meantime, as everything seems to be alright,
+# suppress this warning.
+import warnings
+warnings.filterwarnings('ignore', category=FutureWarning)
 # Import h5py. This has to be done after importing matplotlib, as this
 # somehow makes libpng unable to find the zlib shared library.
 import h5py
@@ -292,30 +302,30 @@ class Units:
     @cython.header
     def __init__(self):
         # The triple quoted string below serves as the type declaration
-        # for the Units type. It will get picked up by the
-        # pyxpp script and indluded in the .pxd files.
+        # for the data attributes of the Units type.
+        # It will get picked up by the pyxpp script
+        # and indluded in the .pxd file.
         """
-        # Data attributes
+        str length, time, mass
         double cm, m, km, AU, pc, kpc, Mpc, Gpc
         double pc2, kpc2, Mpc2, Gpc2, pc3, kpc3, Mpc3, Gpc3
         double s, min, hr, day, yr, kyr, Myr, Gyr
         double g, kg, m_sun, km_sun, Mm_sun, Gm_sun
         """
-        # The following is chosen as the base units:
-        # Length: 1*kpc
-        # Time:   1*Gyr
-        # Mass:   1e+10*m_sun (1 m_sun ≡ 1.989e+30 kg)
-        # Note that the base unit of velocity is then just about 1 km/s
-        self.kpc    = 1
-        self.Gyr    = 1
+        # The base units
+        self.length = 'Mpc'
+        self.time   = 'Gyr'
+        self.mass   = '1e+10*m_sun'
+        self.pc     = 1e-6
+        self.yr     = 1e-9
         self.m_sun  = 1e-10
-        # Other prefixes of the base length, time and mass
-        self.pc     = 1e-3*self.kpc
+        # Prefixes of the base length, time and mass
+        self.kpc    = 1e+3*self.pc
         self.Mpc    = 1e+6*self.pc
         self.Gpc    = 1e+9*self.pc
-        self.yr     = 1e-9*self.Gyr
         self.kyr    = 1e+3*self.yr
         self.Myr    = 1e+6*self.yr
+        self.Gyr    = 1e+9*self.yr
         self.km_sun = 1e+3*self.m_sun
         self.Mm_sun = 1e+6*self.m_sun
         self.Gm_sun = 1e+9*self.m_sun
@@ -333,14 +343,55 @@ class Units:
         self.m      = self.AU/149597870700
         self.cm     = 1e-2*self.m
         self.km     = 1e+3*self.m
-        self.day    = self.yr/365.25
+        self.day    = self.yr/365.25  # Uses Julian years
         self.hr     = self.day/24
         self.min    = self.hr/60
-        self.s      = self.min/60  # Uses Julian years
+        self.s      = self.min/60
         self.kg     = self.m_sun/1.989e+30
         self.g      = 1e-3*self.kg
 cython.declare(units='Units')
 units = Units()
+# Cython extension types have no __dict__ method.
+# Create this dict manually.
+cython.declare(units_dict='dict')
+units_dict = {# Base units
+              'length': units.length,
+              'time'  : units.time,
+              'mass'  : units.mass,
+              'kpc'   : units.kpc,
+              'Gyr'   : units.Gyr,
+              'm_sun' : units.m_sun,
+              # Other prefixes of the base length, time and mass
+              'pc'    : units.pc,
+              'Mpc'   : units.Mpc,
+              'Gpc'   : units.Gpc,
+              'yr'    : units.yr,
+              'kyr'   : units.kyr,
+              'Myr'   : units.Myr,
+              'km_sun': units.km_sun,
+              'Mm_sun': units.Mm_sun,
+              'Gm_sun': units.Gm_sun,
+              # Square and cubic parsecs
+              'pc2' : units.pc2,
+              'kpc2': units.kpc2,
+              'Mpc2': units.Mpc2,
+              'Gpc2': units.Gpc2,
+              'pc3' : units.pc3,
+              'kpc3': units.kpc3,
+              'Mpc3': units.Mpc3,
+              'Gpc3': units.Gpc3,
+              # Non-base units
+              'AU' : units.AU,
+              'm'  : units.m,
+              'cm' : units.cm,
+              'km' : units.km,
+              'day': units.day,
+              'hr' : units.hr,
+              'min': units.min,
+              's'  : units.s,
+              'kg' : units.kg,
+              'g'  : units.g,
+              }
 
 
 
@@ -359,6 +410,23 @@ while True:
 paths_module = imp.load_source('paths', top_dir + '/.paths')
 paths = {key: value for key, value in paths_module.__dict__.items()
          if isinstance(key, str) and not key.startswith('__')}
+# Function for converting an absolute path to its "sensible" form.
+# That is, this function returns the relative path with respect to the
+# concept directory, if it is no more than one directories above the
+# concept directory. Otherwise, return the absolute path back again.
+@cython.header(# Arguments
+               path='str',
+               # Locals
+               relpath='str',
+               returns='str',
+               )
+def sensible_path(path):
+    if not path:
+        return path
+    relpath = os.path.relpath(path, paths['concept_dir'])
+    if relpath.startswith('../../'):
+        return path
+    return relpath
 
 
 
@@ -405,34 +473,6 @@ params = {# The paths dict
           'os'   : os,
           're'   : re,
           'sys'  : sys,
-          # Units from the units extension type
-          'cm'    : units.cm,
-          'm'     : units.m,
-          'km'    : units.km,
-          'AU'    : units.AU,
-          'pc'    : units.pc,
-          'kpc'   : units.kpc,
-          'Mpc'   : units.Mpc,
-          'Gpc'   : units.Gpc,
-          'pc2'   : units.pc2,
-          'kpc2'  : units.kpc2,
-          'Mpc2'  : units.Mpc2,
-          'Gpc2'  : units.Gpc2,
-          'pc3'   : units.pc3,
-          'kpc3'  : units.kpc3,
-          'Mpc3'  : units.Mpc3,
-          'Gpc3'  : units.Gpc3,
-          's'     : units.s,
-          'yr'    : units.yr,
-          'kyr'   : units.kyr,
-          'Myr'   : units.Myr,
-          'Gyr'   : units.Gyr,
-          'g'     : units.g,
-          'kg'    : units.kg,
-          'm_sun' : units.m_sun,
-          'km_sun': units.km_sun,
-          'Mm_sun': units.Mm_sun,
-          'Gm_sun': units.Gm_sun,
           # Mathemtical NumPy functions and constants
           'abs'        : np.abs,
           'arccos'     : np.arccos,
@@ -475,6 +515,8 @@ params = {# The paths dict
           'trapz'      : np.trapz,
           'zeros'      : np.zeros,
           }
+# Units from the units extension type
+params.update(units_dict)
 # "Import" the parameter file be executing it in the namespace defined
 # by the params dict.
 if os.path.isfile(paths['params']):
@@ -530,20 +572,13 @@ cython.declare(# Input/output
                special_params='dict',
                )
 # Input/output
-IC_file = str(params.get('IC_file', 'ICs/default'))
-if (IC_file and not os.path.relpath(IC_file, paths['concept_dir'])
-                            .startswith('../../')):
-    IC_file = os.path.relpath(IC_file, paths['concept_dir'])
+IC_file = sensible_path(str(params.get('IC_file', 'ICs/default')))
 snapshot_type = (str(params.get('snapshot_type', 'standard'))
                  .lower().replace(' ', ''))
 output_dirs = dict(params.get('output_dirs', {}))
 for kind in ('snapshot', 'powerspec', 'render'):
     output_dirs[kind] = str(output_dirs.get(kind, 'output'))
-output_dirs = {key: path if not path 
-                            or os.path.relpath(path, paths['concept_dir'])
-                                       .startswith('../../')
-                         else os.path.relpath(path, paths['concept_dir']) 
-               for key, path in output_dirs.items()}
+output_dirs = {key: sensible_path(path) for key, path in output_dirs.items()}
 output_bases = dict(params.get('output_bases', {}))
 for kind in ('snapshot', 'powerspec', 'render'):
     output_bases[kind] = str(output_bases.get(kind, kind))
@@ -572,17 +607,13 @@ a_begin = float(params.get('a_begin', 0.02))
 # Graphics
 powerspec_plot = bool(params.get('powerspec_plot', False))
 color = array(matplotlib.colors.ColorConverter()
-              .to_rgb(params.get('color', 'lime')), dtype='float64')
+              .to_rgb(params.get('color', 'lime')), dtype=C2np['double'])
 bgcolor = array(matplotlib.colors.ColorConverter()
-                .to_rgb(params.get('bgcolor', 'black')), dtype='float64')
+                .to_rgb(params.get('bgcolor', 'black')), dtype=C2np['double'])
 resolution = int(params.get('resolution', 1080))
-liverender = str(params.get('liverender', ''))
-if liverender:
-    if (not os.path.relpath(liverender, paths['concept_dir'])
-                    .startswith('../../')):
-        liverender = os.path.relpath(liverender, paths['concept_dir'])
-    if not liverender.endswith('.png'):
-        liverender += '.png'
+liverender = sensible_path(str(params.get('liverender', '')))
+if liverender and not liverender.endswith('.png'):
+    liverender += '.png'
 remote_liverender = str(params.get('remote_liverender', ''))
 if remote_liverender and not remote_liverender.endswith('.png'):
     remote_liverender += '.png'
@@ -710,7 +741,7 @@ two_recp_boxsize = 2/boxsize
 # Name of file storing the Ewald grid
 ewald_file = '.ewald_gridsize=' + str(ewald_gridsize) + '.hdf5'
 # Machine epsilon
-machine_ϵ = np.finfo('float64').eps
+machine_ϵ = np.finfo(C2np['double']).eps
 two_machine_ϵ = 2*machine_ϵ
 ten_machine_ϵ = 10*machine_ϵ
 two_ewald_gridsize = 2*ewald_gridsize
@@ -946,3 +977,61 @@ def masterwarn(msg, *args, indent=0, **kwargs):
               file=sys.stderr,
               flush=True,
               **kwargs)
+
+# This function formats a floating point number to have nfigs
+# significant figures. Set fmt to 'LaTeX' to format to LaTeX math code
+# (e.g. '1.234\times 10^{-5}') or 'Unicode' to format to superscript
+# Unicode (e.g. 1.234×10⁻⁵).
+@cython.header(# Arguments
+               number='double',
+               nfigs='int',
+               fmt='str',
+               # Locals
+               coefficient='str',
+               exponent='str',
+               n_missing_zeros='int',
+               number_str='str',
+               returns='str',
+               )
+def significant_figures(number, nfigs, fmt=''):
+    # Format the number using nfigs
+    number_str = ('{:.' + str(nfigs) + 'g}').format(number)
+    # Handle the exponent
+    if 'e' in number_str:
+        e_index = number_str.index('e')
+        coefficient = number_str[:e_index]
+        exponent = number_str[e_index:]
+        # Remove superfluous 0 in exponent
+        if exponent.startswith('e+0') or exponent.startswith('e-0'):
+            exponent = exponent[:2] + exponent[3:]
+        # Remove plus sign in exponent
+        if exponent.startswith('e+'):
+            exponent = 'e' + exponent[2:]
+        # Handle formatting
+        if fmt.lower() == 'latex':
+            exponent = exponent.replace('e', r'\times 10^{') + '}'
+        elif fmt.lower() == 'unicode':
+            exponent = ''.join([unicode_exponent_fmt[c] for c in exponent])
+    else:
+        coefficient = number_str
+        exponent = ''
+    # Pad with zeros in case of too few significant digits
+    digits = coefficient.replace('.', '').replace('-', '')
+    for i, d in enumerate(digits):
+        if d != '0':
+            digits = digits[i:]
+            break
+    n_missing_zeros = nfigs - len(digits)
+    if n_missing_zeros > 0:
+        if not '.' in coefficient:
+            coefficient += '.'
+        coefficient += '0'*n_missing_zeros
+    number_str = coefficient + exponent
+    return number_str
+# Dict mapping from ordinary to superscript numbers used in
+# the significant_figures function.
+cython.declare(unicode_exponent_fmt='dict')
+unicode_exponent_fmt = dict(zip('0123456789-e',
+                                [unicode(c) for c in('⁰', '¹', '²', '³', '⁴',
+                                                     '⁵', '⁶', '⁷', '⁸', '⁹', '⁻')]
+                                + [unicode('×') + '10']))

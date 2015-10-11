@@ -55,7 +55,7 @@ cp "${gadget_dir}/ICs/lcdm_gas_littleendian.dat" "${Gadget2_dir}/parameterfiles/
 # Make a local copy of the files in the GADGET2 directory and copy the edited Makefile
 Gadget2_local_dir="${this_dir}/Gadget2_local"
 mkdir "${Gadget2_local_dir}"
-find "${Gadget2_dir}" -maxdepth 1 -type f -exec cp '{}' "${Gadget2_local_dir}" \;
+cp "${Gadget2_dir}/"* "${Gadget2_local_dir}" || :
 cp "${this_dir}/lcdm_gas.Makefile_edited" "${Gadget2_local_dir}/Makefile"
 
 # Build Gadget and run simulation based on the ICs

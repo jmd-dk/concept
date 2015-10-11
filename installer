@@ -30,7 +30,7 @@
 # All tests can be skipped by supplying --fast as an argument.
 # You can also download and run the newest version of this script by
 # executing the following command:
-# bash <(wget -O- --no-ch tiny.cc/nbody)
+# bash <(wget -O- --no-ch bit.ly/concept_nbody)
 # The above uses a URL shortener. If it does not work, use the full URL:
 # bash <(wget -O- --no-ch https://raw.githubusercontent.com/jmd-dk/concept/master/installer)
 #
@@ -290,32 +290,59 @@ fi
 
 # Check whether system dependencies are installed and located on PATH
 current_step="check for preinstalled system dependencies"
+# Check for package manager and set package names
+set_package_names()
+{
+    # Arguments: Package name for awk, gcc, g++, gfortran, gzip, make, perl, sed, tar, wget
+    i=0
+    for package in "awk" "gcc" "gxx" "gfortran" "gzip" "make" "perl" "sed" "tar" "wget"; do
+        ((i += 1))
+        eval "${package}_package=\${${i}}"
+    done
+}
+set_package_manager_and_names()
+{
+    package_manager=""
+    for pmanager in "apt-get" "dnf" "yum" "zypper" "urpmi"; do
+        path=$(which "${pmanager}" 2> /dev/null || :)
+        if [ -n "${path}" ]; then
+            # Package manager found
+            package_manager="${pmanager}"
+            # Package names
+            case "${package_manager}" in
+                "apt-get" ) install_command="sudo ${package_manager} -y install"; set_package_names "gawk" "gcc" "g++"     "gfortran"     "gzip" "make" "perl" "sed" "tar" "wget"; break;;
+                "dnf"     ) install_command="sudo ${package_manager} -y install"; set_package_names "gawk" "gcc" "gcc-c++" "gcc-gfortran" "gzip" "make" "perl" "sed" "tar" "wget"; break;;
+                "yum"     ) install_command="sudo ${package_manager} -y install"; set_package_names "gawk" "gcc" "gcc-c++" "gcc-gfortran" "gzip" "make" "perl" "sed" "tar" "wget"; break;;
+                "zypper"  ) install_command="sudo ${package_manager} -n install"; set_package_names "gawk" "gcc" "gcc-c++" "gcc-fortran"  "gzip" "make" "perl" "sed" "tar" "wget"; break;;
+                "urpmi"   ) install_command="sudo ${package_manager} --auto";     set_package_names "gawk" "gcc" "gcc-c++" "gcc-gfortran" "gzip" "make" "perl" "sed" "tar" "wget"; break;;
+            esac
+        fi
+    done
+}
+set_package_manager_and_names
 # Function for testing whether system dependencies are installed and
 # located on PATH. For missing system dependencies, it will attempt to
 # figure out the command to install it.
 check_system_dependency()
 {
-    # Arguments: name, command, Debian package
-    path=$(which "${2}" || :)
+    # Arguments: Command, package name
+    path=$(which "${1}" 2> /dev/null || :)
     if [ -z "${path}" ]; then
-        apt_cache_path=$(which apt-cache || :)
-        if [ -n "${apt_cache_path}" ]; then
-            # APT installed
+        # Package not installed
+        if [ -n "${package_manager}" ]; then
+            # Package manager found
             echo "Could not find '${1}'"
-            not_in_repo=$(apt-cache show "${3}" &> /dev/null; echo $?)
-            if [ ${not_in_repo} == 0 ]; then
-                echo "You can install it by typing:"
-                echo "sudo apt-get -y install ${3}"
-                while :; do
-                    read -p "Run above command now? [Y/n] " yn
-                    case $yn in
-                        [Yy]* ) sudo apt-get -y install ${3}; printf "${1} successfully installed\n\n"; return;;
-                        [Nn]* ) error "Terminated install due to missing component '${1}'"; exit 1;;
-                        "" )    sudo apt-get -y install ${3}; printf "${1} successfully installed\n\n"; return;;
-                        * )     error "Terminated install due to missing component '${1}'"; exit 1;;
-                    esac
-                done
-            fi
+            echo "You can install it by typing:"
+            echo "${install_command} ${2}"
+            while :; do
+                read -p "Run above command now? [Y/n] " yn
+                case $yn in
+                    [Yy]* ) ${install_command} ${2}; printf "${1} successfully installed\n\n"; return;;
+                    [Nn]* ) error "Terminated install due to missing component '${1}'"; exit 1;;
+                    ""    ) ${install_command} ${2}; printf "${1} successfully installed\n\n"; return;;
+                    *     ) error "Terminated install due to missing component '${1}'"; exit 1;;
+                esac
+            done
             exit 1
         else
             # No package manager found
@@ -324,21 +351,22 @@ check_system_dependency()
         fi
     fi
 }
-check_system_dependency "awk" "awk" "gawk"
-check_system_dependency "gcc" "gcc" "gcc"
-check_system_dependency "g++" "g++" "g++"
-check_system_dependency "gfortran" "gfortran" "gfortran"
-check_system_dependency "gzip" "gzip" "gzip"
-check_system_dependency "make" "make" "make"
-check_system_dependency "perl" "perl" "perl"  # Needed by OpenSSL
-check_system_dependency "sed" "sed" "sed"
-check_system_dependency "tar" "tar" "tar"
-check_system_dependency "wget" "wget" "wget"
+check_system_dependency "awk"      "${awk_package}"
+check_system_dependency "gcc"      "${gcc_package}"
+check_system_dependency "g++"      "${gxx_package}"
+check_system_dependency "gfortran" "${gfortran_package}"
+check_system_dependency "gzip"     "${gzip_package}"
+check_system_dependency "make"     "${make_package}"
+check_system_dependency "perl"     "${perl_package}"  # Needed by OpenSSL
+check_system_dependency "sed"      "${sed_package}"
+check_system_dependency "tar"      "${tar_package}"
+check_system_dependency "wget"     "${wget_package}"
 
 # Creating top level directory (top_dir)
 current_step="setup of top level directory"
 if [ "${top_dir_specified}" == "no" ]; then
-    read -p "Where should the code be installed?$(echo $'\n> ')" -e top_dir
+    printf "Where should the ${esc_concept} code be installed?"
+    read -p "$(echo $'\n> ')" -e top_dir
 fi
 initial_dir="$(pwd)"  # It is crucial that this line is before any cd
 convert_to_abs_path()

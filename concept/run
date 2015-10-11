@@ -232,10 +232,10 @@ if [ "${params}" != "${params_unspecified}" ]; then
     params="$(absolute "${params}")"
 fi
 if [ "${test}" != "${test_unspecified}" ] && [ "${test}" != "all" ]; then
-    test="${concept_dir}/tests/$(basename "${test}")"
+    test="${tests_dir}/$(basename "${test}")"
 fi
 if [ "${util}" != "${util_unspecified}" ]; then
-    util="${concept_dir}/utilities/$(basename "${util}")"
+    util="${utilities_dir}/$(basename "${util}")"
 fi
 
 # Do the supplied paths exist?
@@ -278,7 +278,7 @@ fi
 if [ "${test}" != "${test_unspecified}" ]; then
     if [ "${test}" == "all" ]; then
         trap : 0
-        for dir in "${concept_dir}/tests/"*/; do
+        for dir in "${tests_dir}/"*/; do
             dir=${dir%*/}
             colorprint "\nRunning $(basename ${dir}) test" "yellow"
             "${dir}/run_test"
@@ -311,7 +311,7 @@ if [ "${util}" != "${util_unspecified}" ]; then
     exit 0
 fi
 
-# Relative path to the main and parameter, for clean printout
+# Sensible paths to the main and parameter file, for clean printout
 main_rel=$(${python}   -B -c "from os.path import relpath; rel = relpath('${main}',   '${concept_dir}'); print(rel if not rel.startswith('../../') else '${main}')")
 params_rel=$(${python} -B -c "from os.path import relpath; rel = relpath('${params}', '${concept_dir}'); print(rel if not rel.startswith('../../') else '${params}')")
 
@@ -507,7 +507,7 @@ fi
     echo "You can now kill (Ctrl-C) this script without cancelling the job"
     # Deactivate trap and call the watch script
     trap : 0
-    "${concept_dir}/utilities/watch" "${jobid}"
+    "${utilities_dir}/watch" "${jobid}"
 else
     # Run locally.
     # Construct a jobid that does not conflict with the content of the logs dir

@@ -56,7 +56,7 @@ installer_content="$(cat "${installer}")"
 # Borrow some functions from the install script.
 # Sourcing is no good here, as we are not interested in
 # actually running the installer script.
-installer_functions=("check_system_dependency" "extract" "download_and_extract")
+installer_functions=("set_package_names" "set_package_manager_and_names" "check_system_dependency" "extract" "download_and_extract")
 for installer_function in "${installer_functions[@]}"; do
 function_definition="$("${python}" -B -c "
 import re, sys
@@ -76,9 +76,10 @@ ${dummy_function}()
 done
 
 # Check for needed system commands
-check_system_dependency "gzip" "gzip" "gzip"
-check_system_dependency "tar" "tar" "tar"
-check_system_dependency "wget" "wget" "wget"
+set_package_manager_and_names
+check_system_dependency "gzip" "${gzip_package}"
+check_system_dependency "tar"  "${tar_package}"
+check_system_dependency "wget" "${wget_package}"
 
 # Download and extract CO𝘕CEPT
 concept_url="https://github.com/jmd-dk/concept/archive/master.tar.gz"

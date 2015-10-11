@@ -89,15 +89,10 @@ snapshot_filenames_pylist="[\"$(echo "${snapshot_filenames}" | sed ':a;N;$!ba;s/
 echo "The following snapshots will be rendered:"
 ${python} -B -c "from os.path import relpath; [print('\"{}\"'.format(relpath(s, '${concept_dir}') if not relpath(s, '${concept_dir}').startswith('../../') else s)) for s in ${snapshot_filenames_pylist}]"
 
-# Get the boxsize factor in each snapshot
-boxsizes="$("${python}" -B -c "import special; [print('boxsize =', special.snapshot_info(s)['params']['boxsize']) for s in ${snapshot_filenames_pylist}]")"
-boxsizes=$(echo "${boxsizes}" | grep "boxsize = [0-9.]*" | awk '{print $3}')
+# Get the boxsize for each snapshot
+boxsizes="$("${python}" -B -c "import special; [special.snapshot_info(s) for s in ${snapshot_filenames_pylist}]" | grep boxsize | awk '{print $2}')"
 
 # For each snapshot, run the CO𝘕CEPT code to create the render
-local_flag=""
-if [ ${local} == 1 ]; then
-    local_flag="--local"
-fi
 i=0
 for snapshot_filename in ${snapshot_filenames}; do
     ((i += 1))
@@ -112,7 +107,7 @@ special_params = {
 $(cat "${params}")
     " > "${this_file}.params.full"
     # Run CO𝘕CEPT to produce the render
-    "${run}" -m ${main} -n ${nprocs} -p "${this_file}.params.full" -q "{queue}" -w "${walltime}" ${local_flag}
+    "${run}" -m ${main} -n ${nprocs} -p "${this_file}.params.full" -q "{queue}" -w "${walltime}" ${local_flag} ${pure_python_flag}
 done
 
 # Cleanup

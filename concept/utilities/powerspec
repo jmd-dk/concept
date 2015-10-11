@@ -89,9 +89,8 @@ snapshot_filenames_pylist="[\"$(echo "${snapshot_filenames}" | sed ':a;N;$!ba;s/
 echo "Powerspectra will be produced of the following snapshots:"
 ${python} -B -c "from os.path import relpath; [print('\"{}\"'.format(relpath(s, '${concept_dir}') if not relpath(s, '${concept_dir}').startswith('../../') else s)) for s in ${snapshot_filenames_pylist}]"
 
-# Get the boxsize in each snapshot
-boxsizes="$("${python}" -B -c "import special; [print('boxsize =', special.snapshot_info(s)['params']['boxsize']) for s in ${snapshot_filenames_pylist}]")"
-boxsizes=$(echo "${boxsizes}" | grep "boxsize = [0-9.]*" | awk '{print $3}')
+# Get the boxsize for each snapshot
+boxsizes="$("${python}" -B -c "import special; [special.snapshot_info(s) for s in ${snapshot_filenames_pylist}]" | grep boxsize | awk '{print $2}')"
 
 # For each snapshot, run the CO𝘕CEPT code to create the powerspectrum
 i=0
@@ -109,7 +108,6 @@ special_params = {
 $(cat "${params}")
     " > "${this_file}.params.full"
     # Run CO𝘕CEPT to produce the powerspectrum
-    echo "JEG ER HER"
     "${run}" -m ${main} -n ${nprocs} -p "${this_file}.params.full" -q "{queue}" -w "${walltime}" ${local_flag} ${pure_python_flag}
 done
 

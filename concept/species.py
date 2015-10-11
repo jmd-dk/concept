@@ -54,10 +54,10 @@ class Particles:
     @cython.header(N='Py_ssize_t')
     def __init__(self, N):
         # The triple quoted string below serves as the type declaration
-        # for the Particles type. It will get picked up by the pyxpp
-        # script and indluded in the .pxd file.
+        # for the data attributes of the Particles type.
+        # It will get picked up by the pyxpp script
+        # and indluded in the .pxd file.
         """
-        # Data attributes
         Py_ssize_t N
         Py_ssize_t N_local
         Py_ssize_t N_allocated
@@ -77,20 +77,15 @@ class Particles:
         double* momx
         double* momy
         double* momz
-        # Methods
-        drift(self, double Δt)
-        kick(self, double Δt)
-        resize(self, Py_ssize_t N_allocated)
-        populate(self, double[::1] mv, str coord)
         """
         # Store particle meta data
         self.N = N
         self.N_allocated = 1
         self.N_local = 1
-        self.mass = 1*units.m_sun
-        self.softening = 1*units.kpc
-        self.species = 'generic particle species'
-        self.type = 'generic particle type'
+        self.mass = 1
+        self.softening = 1
+        self.species = 'generic species'
+        self.type = 'generic particles'
         # Manually allocate memory for particle data
         self.posx = malloc(self.N_allocated*sizeof('double'))
         self.posy = malloc(self.N_allocated*sizeof('double'))
@@ -217,7 +212,8 @@ class Particles:
         """Note that the time step size Δt is really ∫_t^(t + Δt) dt/a.
         """
         kick_algorithm = kick_algorithms[self.species]
-        masterprint('Kicking (' + kick_algorithm + ')', self.type, '...')
+        masterprint('Kicking ({}) {} ...'.format(kick_algorithm,
+                                                 self.type))
         # Delegate the work to the appropriate function based on species
         if kick_algorithm == 'PP':
             PP(self, Δt)
@@ -250,68 +246,24 @@ class Particles:
 
 # Constructor function for Particles instances
 @cython.header(# Argument
-               type_name='str',
-               species_name='str',
+               particle_type='str',
+               particle_species='str',
                mass='double',
                N='Py_ssize_t',
                # Locals
                particles='Particles',
                returns='Particles',
                )
-def construct(type_name, species_name, mass, N):
+def construct(particle_type, particle_species, mass, N):
     # Instantiate Particles instance
     particles = Particles(N)
     # Attach information to the particles
+    particles.type = particle_type
+    particles.species = particle_species
     particles.mass = mass
-    particles.species = species_name
-    particles.type = type_name
-    if species_name in softeningfactors:
-        particles.softening = (softeningfactors[species_name]
-                               *boxsize/(N**ℝ[1/3]))
+    if particle_species in softeningfactors:
+        particles.softening = softeningfactors[particle_species]*boxsize/(N**ℝ[1/3])
     elif master:
-        raise ValueError(('Species "{}" do not have an assigned softening'
-                          + 'length!').format(species_name))
-    return particles
-
-
-# Function that constructs a Particles instance with random
-# positions, momenta and masses. The particle data is
-# scattered fair among the processes.
-@cython.header(# Argument
-               type_name='str',
-               species_name='str',
-               N='Py_ssize_t',
-               # Locals
-               N_local='Py_ssize_t',
-               N_locals='tuple',
-               mass='double',
-               mom_max='double',
-               particles='Particles',
-               returns='Particles',
-               )
-def construct_random(type_name, species_name, N):
-    # Print out message
-    masterprint('Initializes particles of type "' + type_name + '" ...')
-    # Minimum and maximum mass and maximum
-    # momenta (in any of the three directions)
-    mass = Ωm*ϱ*boxsize3/N
-    mom_max = 1.5e+3*units.km/units.s*mass
-    # Compute a fair distribution of particle data to the processes
-    N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
-                + (N//nprocs + 1, )*(N % nprocs))
-    N_local = N_locals[rank]
-    # Construct a Particles instance
-    particles = construct(type_name,
-                          species_name,
-                          mass=mass,
-                          N=N,
-                          )
-    # Populate the Particles instance with random data
-    particles.populate(random(N_local)*boxsize, 'posx')
-    particles.populate(random(N_local)*boxsize, 'posy')
-    particles.populate(random(N_local)*boxsize, 'posz')
-    particles.populate((2*random(N_local) - 1)*mom_max, 'momx')
-    particles.populate((2*random(N_local) - 1)*mom_max, 'momy')
-    particles.populate((2*random(N_local) - 1)*mom_max, 'momz')
-    masterprint('done')
+        raise ValueError('Species "{}" do not have an assigned softening length!'
+                         .format(particle_species))
     return particles

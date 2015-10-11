@@ -62,7 +62,7 @@ sed -i "/^ *FFTW_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\/
 # Make a local copy of the files in the GADGET2 directory and copy the edited Makefile
 Gadget2_local_dir="${this_dir}/Gadget2_local"
 mkdir -p "${Gadget2_local_dir}"
-find "${Gadget2_dir}" -maxdepth 1 -type f -exec cp '{}' "${Gadget2_local_dir}" \;
+cp "${Gadget2_dir}/"* "${Gadget2_local_dir}" || :
 cp "${this_dir}/Makefile_gadget_edited" "${Gadget2_local_dir}/Makefile"
 
 # Copy the edited versions of pm_periodic.c and timestep.c to the local GADGET2 directory,
