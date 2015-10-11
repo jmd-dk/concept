@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+
+# This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
+# Copyright © 2015 Jeppe Mosgaard Dakin.
+#
+# CO𝘕CEPT is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# CO𝘕CEPT is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
+#
+# The auther of CO𝘕CEPT can be contacted at
+# jeppe.mosgaard.dakin(at)post.au.dk
+# The latest version of CO𝘕CEPT is available at
+# https://github.com/jmd-dk/concept/
+
+
+
+# This utility prints out information about snapshots.
+# More specifically, it prints the meta data contained in the snapshot.
+# That is, everything except the actual particle data.
+# You can run this script directly or by invoking the run script with the
+# --util snapshot_info path
+# option, where path is the path to snapshot file
+# or a directory containing snapshots.
+
+# Absolute paths to this file and its directory
+this_file="$(readlink -f "${BASH_SOURCE[0]}")"
+this_dir="$(dirname "${this_file}")"
+
+# Set up error trapping
+ctrl_c()
+{
+    trap : 0
+    exit 2
+}
+abort()
+{
+    colorprint "An error occurred while using the \"$(basename ${this_file})\" utility!" "red"
+    exit 1
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
+
+# Source the run script
+source "${this_dir}/../run"
+
+# Check for required positional arguments
+if [ "$#" != 1 ] || [ -z "$1" ]; then
+    colorprint "Error: The $(basename ${this_file}) utility is missing a required argument: path" "red"
+fi
+path="$1"
+
+# Convert to absolute path
+path="$(absolute ${path})"
+
+# Does the path exist?
+if [ ! -f "${path}" ] && [ ! -d "${path}" ]; then
+    colorprint "Error: The path \"${path}\" does not exist!" "red"
+    exit 1
+fi
+
+# Run Python directly to printout the snapshot information
+"${python}" -B -c "import special; special.snapshot_info('${path}')"
+
+# Exit gracefully
+trap : 0
+
