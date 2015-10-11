@@ -36,13 +36,13 @@ source "${this_dir}/../environment"
 "${this_dir}/clean"
 
 # Generate snapshot
-"${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_snapshot.py" --pure-python --local
+"${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_snapshot.py" --pure-python --local
 
 # Compute powerspectrum of the snapshot
-"${run}" -n 1 -p "${this_dir}/params" -u powerspec "${this_dir}/snapshot" --local
+"${concept}" -n 1 -p "${this_dir}/params" -u powerspec "${this_dir}/snapshot" --local
 
 # Analyze the output snapshots
-"${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
+"${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
 
 # Finalize test environment
 test_done=true source "${this_dir}/../environment"

@@ -52,5 +52,5 @@ python='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python/bin/python3.5'
 # The Python3 configuration executable
 python_config='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python/bin/python3.5-config'
 # The run script of the CONCEPT code
-run='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/run'
+concept='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/concept'
 

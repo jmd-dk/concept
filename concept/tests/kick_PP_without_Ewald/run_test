@@ -39,10 +39,10 @@ source "${this_dir}/../environment"
 "${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', np.linspace(0.03, 0.11, 10))"
 
 # Generate ICs
-"${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local
+"${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local
 
 # Run the CO𝘕CEPT code on the generated ICs
-"${run}" -n 1 -p "${this_dir}/params" --local
+"${concept}" -n 1 -p "${this_dir}/params" --local
 
 # Create an edited version of Makefile_gadget with correct parth information
 cp "${this_dir}/Makefile_gadget" "${this_dir}/Makefile_gadget_edited"
@@ -77,7 +77,7 @@ sed -i "/fcorrz\[i\]\[j\]\[k\] = force\[2\];/c\fcorrz\[i\]\[j\]\[k\] = 0.0;" "${
 (cd "${Gadget2_local_dir}" && make clean && make && "${mpiexec}" -n 1 "${Gadget2_local_dir}/Gadget2" ../params_gadget)  # It is crucial to use a relative path as the path has a max allowed length in GADGET
 
 # Analyze the output snapshots
-"${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
+"${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
 
 # Finalize test environment
 test_done=true source "${this_dir}/../environment"

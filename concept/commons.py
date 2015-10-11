@@ -244,7 +244,7 @@ else:
         cython.double
     # Custom classes
     from species cimport Particles
-    from IO cimport StandardSnapshot, GadgetSnapshot
+    from snapshot cimport StandardSnapshot, GadgetSnapshot
     """
 
 # Seperate but equivalent imports and
@@ -319,7 +319,7 @@ class Units:
         self.pc     = 1e-6
         self.yr     = 1e-9
         self.m_sun  = 1e-10
-        # Prefixes of the base length, time and mass
+        # Prefixes of the base units
         self.kpc    = 1e+3*self.pc
         self.Mpc    = 1e+6*self.pc
         self.Gpc    = 1e+9*self.pc
@@ -354,20 +354,20 @@ units = Units()
 # Cython extension types have no __dict__ method.
 # Create this dict manually.
 cython.declare(units_dict='dict')
-units_dict = {# Base units
+units_dict = {# Base unit strings
               'length': units.length,
               'time'  : units.time,
               'mass'  : units.mass,
-              'kpc'   : units.kpc,
-              'Gyr'   : units.Gyr,
-              'm_sun' : units.m_sun,
-              # Other prefixes of the base length, time and mass
+              # Base units and their prefixes
               'pc'    : units.pc,
+              'kpc'   : units.kpc,
               'Mpc'   : units.Mpc,
               'Gpc'   : units.Gpc,
               'yr'    : units.yr,
               'kyr'   : units.kyr,
               'Myr'   : units.Myr,
+              'Gyr'   : units.Gyr,
+              'm_sun' : units.m_sun,
               'km_sun': units.km_sun,
               'Mm_sun': units.Mm_sun,
               'Gm_sun': units.Gm_sun,

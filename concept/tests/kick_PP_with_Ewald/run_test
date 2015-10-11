@@ -41,13 +41,13 @@ source "${this_dir}/../environment"
 # Create the Ewald grid using Cython
 ewald_gridsize=$(grep -o "ewald_gridsize[ =0-9]*" "${this_dir}/params" | awk '{printf $NF}')
 rm -f "${concept_dir}/.ewald_gridsize=${ewald_gridsize}.hdf5"
-"${run}" -n 1 -p "${this_dir}/params_ewald" --local
+"${concept}" -n 1 -p "${this_dir}/params_ewald" --local
 
 # Generate ICs
-"${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local
+"${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local
 
 # Run the CO𝘕CEPT code on the generated ICs
-"${run}" -n 1 -p "${this_dir}/params" --local
+"${concept}" -n 1 -p "${this_dir}/params" --local
 
 # Create an edited version of Makefile_gadget with correct parth information
 cp "${this_dir}/Makefile_gadget" "${this_dir}/Makefile_gadget_edited"
@@ -75,7 +75,7 @@ cp "${this_dir}/Makefile_gadget_edited" "${Gadget2_local_dir}/Makefile"
 (cd "${Gadget2_local_dir}" && make clean && make && "${mpiexec}" -n 1 "${Gadget2_local_dir}/Gadget2" ../params_gadget)  # It is crucial to use a relative path as the path has a max allowed length in GADGET
 
 # Analyze the output snapshots
-"${run}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
+"${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
 
 # Copy the tabulated Ewald corrections to the Gadget2 directory if it does not
 # already exists there, to save time later.

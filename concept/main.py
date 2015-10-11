@@ -29,19 +29,19 @@ from commons import *
 if not cython.compiled:
     from analysis import powerspec
     from graphics import render, terminal_render
-    from special import delegate
+    from utilities import delegate
     from species import construct
     from integration import expand, cosmic_time, scalefactor_integral
-    from IO import load_particles, save
+    from snapshot import load_particles, save
 else:
     # Lines in triple quotes will be executed in the .pyx file.
     """
     from analysis cimport powerspec
     from graphics cimport render, terminal_render
-    from special cimport delegate
+    from utilities cimport delegate
     from species cimport construct
     from integration cimport expand, cosmic_time, scalefactor_integral
-    from IO cimport load_particles, save
+    from snapshot cimport load_particles, save
     """
 
 # Imports and definitions common to pure Python and Cython

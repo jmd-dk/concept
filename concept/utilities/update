@@ -24,7 +24,7 @@
 
 
 # This utility will update the CO𝘕CEPT source files.
-# Run it directly or by invoking the run script with the
+# Run it directly or by invoking the concept script with the
 # --util update
 # option.
 
@@ -47,8 +47,8 @@ trap 'ctrl_c' SIGINT
 trap 'abort' EXIT
 set -e
 
-# Source the run script
-source "${this_dir}/../run"
+# Source the concept script
+source "${this_dir}/../concept"
 
 # Read in the entire content of the installer script
 installer_content="$(cat "${installer}")"
@@ -81,6 +81,14 @@ check_system_dependency "gzip" "${gzip_package}"
 check_system_dependency "tar"  "${tar_package}"
 check_system_dependency "wget" "${wget_package}"
 
+# Make backup of the current CO𝘕CEPT source code
+backup_dir="${top_dir}/concept_backup"
+rm -rf "${backup_dir}"
+mkdir "${backup_dir}"
+cp -r "${tests_dir}"     "${backup_dir}"
+cp -r "${utilities_dir}" "${backup_dir}"
+cp "${concept_dir}/"*    "${backup_dir}" 2> /dev/null || :
+
 # Download and extract CO𝘕CEPT
 concept_url="https://github.com/jmd-dk/concept/archive/master.tar.gz"
 rm -rf "${top_dir}/tmp"
@@ -105,6 +113,10 @@ cp -r "${top_dir}/tmp/"*"/concept/"* "${concept_dir}/"
 rm -rf "${top_dir}/tmp"
 
 # Write out success message
+printf "
+A backup of the existing ${terminal_CONCEPT} source code has been placed in
+\"${backup_dir}\"
+"
 colorprint "CONCEPT successfully updated" "green"
 
 # Notify the user if the installer has been updated

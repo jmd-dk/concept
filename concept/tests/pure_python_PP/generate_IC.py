@@ -30,7 +30,7 @@ sys.path.append(os.environ['concept_dir'])
 # Imports from the CO𝘕CEPT code
 from commons import *
 from species import construct
-from IO import save
+from snapshot import save
 
 # Create close to homogeneous particles
 N = 4**3

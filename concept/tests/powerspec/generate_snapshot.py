@@ -29,7 +29,7 @@ this_dir = os.path.dirname(os.path.realpath(__file__))
 # Imports from the CO𝘕CEPT code
 from commons import *
 from species import construct
-from IO import save
+from snapshot import save
 
 # Function for generating random numbers from a normal distribution
 from numpy.random import normal

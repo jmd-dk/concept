@@ -30,7 +30,7 @@ sys.path.append(os.environ['concept_dir'])
 # Imports from the CO𝘕CEPT code
 from commons import *
 from species import construct
-from IO import save
+from snapshot import save
 
 # Create the particles.
 # It is important that no interparticle separation exceeds boxsize/2 in

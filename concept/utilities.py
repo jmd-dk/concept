@@ -28,18 +28,19 @@ from commons import *
 # Seperate but equivalent imports in pure Python and Cython
 if not cython.compiled:
     import graphics, analysis
-    from IO import get_snapshot_type, load_into_standard, load_params
+    from snapshot import get_snapshot_type, load_into_standard, load_params
 else:
     # Lines in triple quotes will be executed in the .pyx file.
     """
     cimport graphics, analysis
-    from IO cimport get_snapshot_type, load_into_standard, load_params
+    from snapshot cimport get_snapshot_type, load_into_standard, load_params
     """
 
 
 
-# Entry point to this module. Call this function to perform a special
-# operation, defined by the special_params dict.
+# Entry point to this module when calling from within CO𝘕CEPT itself.
+# Call this function to perform a special operation,
+# defined by the special_params dict.
 @cython.header()
 def delegate():
     if special_params['special'] == 'powerspec':
@@ -104,8 +105,7 @@ def powerspec():
     output_dir, basename = os.path.split(snapshot_filename)
     output_filename = '{}/{}{}{}'.format(output_dir,
                                          output_bases['powerspec'],
-                                         ('_' if output_bases['powerspec']
-                                              else ''),
+                                         '_' if output_bases['powerspec'] else '',
                                          basename)
     # Produce powerspectrum of the snapshot
     analysis.powerspec(snapshot.particles,

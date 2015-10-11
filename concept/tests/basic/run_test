@@ -24,8 +24,8 @@
 
 
 # This script performs a basic test of the CO𝘕CEPT code.
-# It runs the code with no snapshot or powerspectrum times
-# in both pure Python and compiled mode.
+# It runs the code with no parameter file in both pure Python
+# and compiled mode.
 
 # Initialize test environment
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
@@ -33,16 +33,16 @@ source "${this_dir}/../environment"
 
 # Clean and run in pure Python with different number of cpus
 (cd "${concept_dir}" && make clean)
-"${run}"      --pure-python --local
-"${run}" -n 1 --pure-python --local
-"${run}" -n 2 --pure-python --local
-"${run}" -n 4 --pure-python --local
+"${concept}"      --pure-python --local
+"${concept}" -n 1 --pure-python --local
+"${concept}" -n 2 --pure-python --local
+"${concept}" -n 4 --pure-python --local
 
 # Build and run in compiled mode with different number of cpus
-"${run}"      --local
-"${run}" -n 1 --local
-"${run}" -n 2 --local
-"${run}" -n 4 --local
+"${concept}"      --local
+"${concept}" -n 1 --local
+"${concept}" -n 2 --local
+"${concept}" -n 4 --local
 
 # Finalize test environment
 test_done=true source "${this_dir}/../environment"

@@ -30,7 +30,7 @@ this_dir = os.path.dirname(os.path.realpath(__file__))
 
 # Imports from the CO𝘕CEPT code
 from commons import *
-from IO import GadgetSnapshot
+from snapshot import GadgetSnapshot
 
 # Determine the number of snapshots from the outputlist file
 N_snapshots = len(np.loadtxt(this_dir + '/outputlist'))

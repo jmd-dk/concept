@@ -28,7 +28,7 @@
 # - To initialize the test environment, source this file.
 # - To finalize the test environment, set the test_done environment variable
 #   to true and then source this file.
-# The initialization consists of sourcing the run script (which sources the
+# The initialization consists of sourcing the concept script (which sources the
 # .paths file and declares the colorprint function) and setting up error
 # trapping.
 # The finalization consists of printing a success message and deactivating
@@ -49,11 +49,11 @@ fi
 ###################
 # Initialize test #
 ###################
-# Source the run script
+# Source the concept script
 curr="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 while :; do
-    if [ -f "${curr}/run" ]; then
-        source "${curr}/run"
+    if [ -f "${curr}/concept" ]; then
+        source "${curr}/concept"
         break
     elif [ "${curr}" == "/" ]; then
         # Print out error message and exit
@@ -61,7 +61,7 @@ while :; do
         esc_normal="${esc}[0m"
         esc_bold="${esc}[1m"
         esc_red="${esc}[91m"
-        printf "${esc_bold}${esc_red}Could not find the run script!${esc_normal}\n" >&2
+        printf "${esc_bold}${esc_red}Could not find the concept script!${esc_normal}\n" >&2
         exit 1
     fi
     curr="$(dirname "${curr}")"
