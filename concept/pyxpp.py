@@ -548,8 +548,8 @@ def cython_decorators(filename):
 def make_pxd(filename):
     commons_functions = ('unicode', 'sensible_path', 'abs', 'max', 'min', 'mod', 'sum', 'prod', 'sinc', 'masterprint', 'masterwarn', 'significant_figures')
     customs = {'Particles':        'from species cimport Particles',
-               'StandardSnapshot': 'from IO cimport StandardSnapshot',
-               'GadgetSnapshot':   'from IO cimport GadgetSnapshot',
+               'StandardSnapshot': 'from snapshot cimport StandardSnapshot',
+               'GadgetSnapshot':   'from snapshot cimport GadgetSnapshot',
                'func_b_ddd':       'ctypedef bint    (*func_b_ddd_pxd)  (double, double, double)',
                'func_d_dd':        'ctypedef double  (*func_d_dd_pxd)   (double, double)',
                'func_d_ddd':       'ctypedef double  (*func_d_ddd_pxd)  (double, double, double)',

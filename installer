@@ -1446,12 +1446,12 @@ set_status "Writing paths to .paths"
 Gadget2_dir="${gadget_dir}/Gadget2"
 tests_dir="${concept_dir}/tests"
 utilities_dir="${concept_dir}/utilities"
+concept="${concept_dir}/concept"
 convert="${imagemagick_dir}/bin/convert"
 installer="${top_dir}/installer"
 mpicc="${mpi_dir}/bin/mpicc"
 mpiexec="${mpi_dir}/bin/mpiexec"
 python_config="${python_dir}/bin/python${python_version}-config"
-run="${concept_dir}/run"
 echo "# This file contains absolute paths to directories and files used by the
 # program. You must manually edit the paths below. All other files rely on
 # these paths, as they are not given anywhere else.
@@ -1493,6 +1493,8 @@ zlib_dir='${zlib_dir}'
 #########
 # Files #
 #########
+# The executable script of the CO𝘕CEPT code
+concept='${concept}'
 # The convert executable from ImageMagick
 convert='${convert}'
 # The installer script
@@ -1505,8 +1507,6 @@ mpiexec='${mpiexec}'
 python='${python}'
 # The Python3 configuration executable
 python_config='${python_config}'
-# The run script of the CONCEPT code
-run='${run}'
 " > "${dotpaths}"
 
 
@@ -1566,14 +1566,14 @@ if [ "${fast_install}" == "no" ]; then
     heading "Basic tests of ${esc_concept}"
     set_status "Basic tests of ${esc_concept_double_backslashes}"
     cd "${concept_dir}"
-    ./run -t basic 2>&1 | tee "test_log"
+    "${concept}" -t basic 2>&1 | tee "test_log"
     [ ${PIPESTATUS[0]} != 0 ] && concept_test_success="no"
     # Run GADGET test if basic CO𝘕CEPT test finished successfully
     if [ "${concept_test_success}" == "yes" ]; then
         current_step="testing GADGET"
         heading "Testing GADGET"
         set_status "Testing GADGET"
-        ./run -t gadget 2>&1 | tee "${gadget_dir}/test_log"
+        "${concept}" -t gadget 2>&1 | tee "${gadget_dir}/test_log"
         [ ${PIPESTATUS[0]} != 0 ] && gadget_test_success="no"
     fi
     # Run complete CO𝘕CEPT test suite if basic CO𝘕CEPT test finished successfully
@@ -1581,7 +1581,7 @@ if [ "${fast_install}" == "no" ]; then
         current_step="testing ${esc_concept}"
         heading "Testing ${esc_concept}"
         set_status "Testing ${esc_concept_double_backslashes}"
-        ./run -t all 2>&1 | tee "test_log"
+        "${concept}" -t all 2>&1 | tee "test_log"
         [ ${PIPESTATUS[0]} != 0 ] && concept_test_success="no"
         # Clean test_log if test is successfull
         if [ "${concept_test_success}" == "yes" ]; then

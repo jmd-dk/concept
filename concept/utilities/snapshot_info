@@ -26,7 +26,7 @@
 # This utility prints out information about snapshots.
 # More specifically, it prints the meta data contained in the snapshot.
 # That is, everything except the actual particle data.
-# You can run this script directly or by invoking the run script with the
+# You can run this script directly or by invoking the concept script with the
 # --util snapshot_info path
 # option, where path is the path to snapshot file
 # or a directory containing snapshots.
@@ -50,8 +50,8 @@ trap 'ctrl_c' SIGINT
 trap 'abort' EXIT
 set -e
 
-# Source the run script
-source "${this_dir}/../run"
+# Source the concept script
+source "${this_dir}/../concept"
 
 # Check for required positional arguments
 if [ "$#" != 1 ] || [ -z "$1" ]; then
@@ -69,7 +69,7 @@ if [ ! -f "${path}" ] && [ ! -d "${path}" ]; then
 fi
 
 # Run Python directly to printout the snapshot information
-"${python}" -B -c "import special; special.snapshot_info('${path}')"
+"${python}" -B -c "import utilities; utilities.snapshot_info('${path}')"
 
 # Exit gracefully
 trap : 0

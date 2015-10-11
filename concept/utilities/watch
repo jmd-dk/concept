@@ -27,7 +27,7 @@
 # output of the code as it is being run. If multiple jobs are running or in
 # queue, the latest will be watched. Alternatively, the job ID can be passed
 # as the first argument when calling this script.
-# You can run this script directly or by invoking the run script with the
+# You can run this script directly or by invoking the concept script with the
 # --util watch
 # option.
 
@@ -50,8 +50,8 @@ trap 'ctrl_c' SIGINT
 trap 'abort' EXIT
 set -e
 
-# Source the run script
-source "${this_dir}/../run"
+# Source the concept script
+source "${this_dir}/../concept"
 
 # Exit if this script is not run remotely via ssh
 if ([ -z "${SSH_CLIENT}" ] && [ -z "${SSH_TTY}" ]); then
