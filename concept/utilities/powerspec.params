@@ -13,5 +13,5 @@ PM_gridsize = 256
 R_tophat    = 8*Mpc
 
 # Graphics
-powerspec_plot = True
+powerspec_plot = False
 

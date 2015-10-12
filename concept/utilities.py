@@ -49,6 +49,9 @@ def delegate():
     elif special_params['special'] == 'render':
         # A snapshot should be rendered
         render()
+    elif special_params['special'] == 'snapshot_info':
+        # Information about one or more snapshots should be printed
+        snapshot_info()
     else:
         masterwarn('Special flag "{}" not recognized!'
                    .format(special_params['special']))
@@ -137,20 +140,22 @@ def render():
                     output_filename)
 
 # Function for printing all informations within a snapshot
-@cython.pheader(# Arguments
-                path='str',
-                # Locals
+@cython.pheader(# Locals
                 heading='str',
                 particle_attribute='dict',
+                path='str',
                 snapshot_filenames='list',
                 snapshot_type='str',
                 unit='double',
+                unit_str='str',
                 value='double',
                 )
-def snapshot_info(path):
+def snapshot_info():
     # This function should not run in parallel
     if not master:
         return
+    # Extract the path to snapshot(s)
+    path = special_params['path']
     # Get list of snapshots
     snapshot_filenames = locate_snapshots(path)
     # Print out information about each snapshot
@@ -161,27 +166,28 @@ def snapshot_info(path):
         masterprint(terminal.bold(heading))
         # Print out snapshot type
         snapshot_type = get_snapshot_type(snapshot_filename)
-        masterprint('{:<15} {}'.format('Snapshot type', snapshot_type))
+        masterprint('{:<18} {}'.format('Snapshot type', snapshot_type))
         # Load parameters from the snapshot
         params = load_params(snapshot_filename, compare_params=False)
         # Print out global parameters
-        masterprint('{:<15} {:.15g}'.format('a', params['a']))
-        masterprint('{:<15} {:.15g} {}'.format('boxsize', params['boxsize'], units.length))
+        masterprint('{:<18} {:.12g}'.format('a', params['a']))
+        masterprint('{:<18} {:.12g} {}'.format('boxsize', params['boxsize'], units.length))
         unit = units.km/(units.s*units.Mpc)
-        masterprint('{:<15} {:.15g} {}'.format('H0', params['H0']/unit, 'km s⁻¹ Mpc⁻¹'))
-        masterprint('{:<15} {:.15g}'.format(unicode('Ω') + 'm', params['Ωm']))
-        masterprint('{:<15} {:.15g}'.format(unicode('Ω') + unicode('Λ'), params['ΩΛ']))
+        unit_str = 'km s' + unicode('⁻') + unicode('¹') + ' Mpc' + unicode('⁻') + unicode('¹')
+        masterprint('{:<18} {:.12g} {}'.format('H0', params['H0']/unit, unit_str))
+        masterprint('{:<18} {:.12g}'.format(unicode('Ω') + 'm', params['Ωm']))
+        masterprint('{:<18} {:.12g}'.format(unicode('Ω') + unicode('Λ'), params['ΩΛ']))
         # Print out particle information
         for particle_type in params['particle_attributes']:
             masterprint(particle_type + ':')
             particle_attribute = params['particle_attributes'][particle_type]
-            masterprint('{:<15} {}'.format('species', particle_attribute['species']), indent=4)
-            masterprint('{:<15} {}'.format('N', particle_attribute['N']), indent=4)
+            masterprint('{:<14} {}'.format('species', particle_attribute['species']), indent=4)
+            masterprint('{:<14} {}'.format('N', particle_attribute['N']), indent=4)
             value = particle_attribute['mass']/units.m_sun
-            masterprint('{:<15} {:.15e} {}'.format('mass', value, 'm_sun'), indent=4)
+            masterprint('{:<14} {:.12e} {}'.format('mass', value, 'm_sun'), indent=4)
         # Print out GADGET header for GADGET snapshots
         if not 'header' in params:
             continue
         masterprint('GADGET header:')
         for key, val in params['header'].items():
-            masterprint('{:<15} {}'.format(key, val), indent=4)
+            masterprint('{:<14} {}'.format(key, val), indent=4)

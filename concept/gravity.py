@@ -28,44 +28,24 @@ from commons import *
 # Seperate but equivalent imports in pure Python and Cython
 if not cython.compiled:
     from ewald import ewald
-    from communication import cutout_domains, find_N_recv, neighboring_ranks
-    from mesh import (CIC_grid2coordinates_scalar, CIC_grid2coordinates_vector,
-                      CIC_particles2grid, communicate_boundaries,
-                      communicate_ghosts, domain2PM, PM2domain)
-    # FFT functionality via Numpy
-    from numpy.fft import rfftn, irfftn
+    from communication import find_N_recv, neighboring_ranks
+    from mesh import communicate_domain_boundaries, communicate_domain_ghosts
+    from mesh import CIC_grid2coordinates_scalar, PM2domain
+    from mesh import PM_grid, PM_CIC, PM_FFT, PM_IFFT, PM_gridsize_local_j, PM_gridstart_local_j
+    from mesh import domain_grid, domain_grid_noghosts
+    from mesh import domain_size_x,  domain_size_y,  domain_size_z
+    from mesh import domain_start_x, domain_start_y, domain_start_z
 else:
     # Lines in triple quotes will be executed in the .pyx file
     """
     from ewald cimport ewald
-    from communication cimport cutout_domains, find_N_recv, neighboring_ranks
-    from mesh cimport (CIC_grid2coordinates_scalar,
-                       CIC_grid2coordinates_vector, CIC_particles2grid,
-                       communicate_boundaries, communicate_ghosts, domain2PM,
-                       PM2domain)
-    # FFT functionality via FFTW from fft.c
-    cdef extern from "fft.c":
-        # The fftw_plan type
-        ctypedef struct fftw_plan_struct:
-            pass
-        ctypedef fftw_plan_struct *fftw_plan
-        # The returned struct of fftw_setup
-        struct fftw_return_struct:
-            ptrdiff_t gridsize_local_i
-            ptrdiff_t gridsize_local_j
-            ptrdiff_t gridstart_local_i
-            ptrdiff_t gridstart_local_j
-            double* grid
-            fftw_plan plan_forward
-            fftw_plan plan_backward
-        # Functions
-        fftw_return_struct fftw_setup(ptrdiff_t gridsize_i,
-                                      ptrdiff_t gridsize_j,
-                                      ptrdiff_t gridsize_k,
-                                      char*     rigor)
-        void fftw_execute(fftw_plan plan)
-        void fftw_clean(double* grid, fftw_plan plan_forward,
-                                      fftw_plan plan_backward)
+    from communication cimport find_N_recv, neighboring_ranks
+    from mesh cimport communicate_domain_boundaries, communicate_domain_ghosts
+    from mesh cimport CIC_grid2coordinates_scalar, PM2domain
+    from mesh cimport PM_grid, PM_CIC, PM_FFT, PM_IFFT, PM_gridsize_local_j, PM_gridstart_local_j
+    from mesh cimport domain_grid, domain_grid_noghosts
+    from mesh cimport domain_size_x,  domain_size_y,  domain_size_z
+    from mesh cimport domain_start_x, domain_start_y, domain_start_z
     """
 
 
@@ -423,31 +403,6 @@ def PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, mom):
         # Update the i'th momentum
         mom[i] += force*PM_fac
 
-
-# Function for CIC interpolating particles to the PM mesh,
-# followed by a Fourier transformation.
-@cython.header(# Arguments
-               particles='Particles',
-               )
-def PM_CIC_FFT(particles):
-    global PM_grid, domain_grid, domain_grid_noghosts
-    # Nullify the PM mesh and the domain grid
-    PM_grid[...] = 0
-    domain_grid[...] = 0
-    # Interpolate particle coordinates to the domain grid
-    # (without the ghost layers).
-    CIC_particles2grid(particles, domain_grid_noghosts)
-    # Values of local pseudo mesh points contribute to the lower mesh
-    # points of domain_grid on other processes.
-    # Do the needed communication.
-    communicate_boundaries(domain_grid_noghosts)
-    # Communicate the interpolated data
-    # in the domain grid into the PM grid.
-    domain2PM(domain_grid_noghosts, PM_grid)
-    # Fourier transform the grid forwards to Fourier space
-    fftw_execute(plan_forward)
-
-
 # Function for computing the gravitational force
 # by the particle mesh method.
 @cython.header(# Arguments
@@ -496,7 +451,8 @@ def PM(particles, Δt, only_long_range=False):
     momz = particles.momz
     # CIC interpolate the particles
     # and do forward Fourier transformation.
-    PM_CIC_FFT(particles)
+    PM_CIC(particles)
+    PM_FFT()
     # Loop through the local j-dimension
     for j in range(PM_gridsize_local_j):
         # The j-component of the wave vector. Since PM_grid is
@@ -549,19 +505,19 @@ def PM(particles, Δt, only_long_range=False):
         PM_grid[0, 0, 1] = 0  # Imag part
     # Fourier transform the grid back to coordinate space.
     # Now the grid stores potential values.
-    fftw_execute(plan_backward)
+    PM_IFFT()
     for i in range(PM_grid.shape[0]):
         for j in range(PM_grid.shape[1]):
             for k in range(PM_grid.shape[2]):
                 PM_grid[i, j, k] /= PM_gridsize3
     # Communicate the potential stored in the PM mesh to the domain grid
-    PM2domain(domain_grid_noghosts, PM_grid)
+    PM2domain()
     # The upper boundaries (not the ghost layers) of the domain grid
     # should be a copy of the lower boundaries of the next domain.
     # Do the needed communication.
-    communicate_boundaries(domain_grid_noghosts, mode=1)
+    communicate_domain_boundaries(mode=1)
     # Communicate the ghost layers of the domain grid
-    communicate_ghosts(domain_grid)
+    communicate_domain_ghosts()
     # The factor which shold be multiplied
     # on the PM grid to get actual units.
     PM_fac = PM_fac_const*mass**2*Δt
@@ -602,10 +558,6 @@ def PM(particles, Δt, only_long_range=False):
                                            - domain_grid[i, j, k - 2]))
     # Update local z-momenta
     PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, momz)
-
-    # Done performing FFT's. Cleanup
-    #fftw_clean(cython.address(PM_grid[0, 0, 0]), plan_forward, plan_backward)
-
 
 # This collection of functions simply test whether the passed
 # coordinates lie within a certain domain boundary or not.
@@ -940,9 +892,9 @@ def P3M(particles, Δt):
     # casted to a Py_ssize_t) since np.float64 cannot be explicitly
     # casted to Py_ssize_t.
     Δmemory = 2 + int(0.05*N_local*np.max([P3M_cutoff_phys/domain_size_x,
-                                         P3M_cutoff_phys/domain_size_y,
-                                         P3M_cutoff_phys/domain_size_z,
-                                         ]))
+                                           P3M_cutoff_phys/domain_size_y,
+                                           P3M_cutoff_phys/domain_size_z,
+                                           ]))
     # Loop over all 26 neighbors (two at a time)
     for j in range(13):
         # It is important that the processes iterate synchronously,
@@ -1115,277 +1067,16 @@ def P3M(particles, Δt):
             momy_local[indices_send[i]] += Δmomy_local[i]
             momz_local[indices_send[i]] += Δmomz_local[i]
 
-
-# Initializes stuff for the PM algorithm at import time,
-# if the PM method is to be used.
-cython.declare(fftw_struct='fftw_return_struct',
-               PM_gridsize_local_i='ptrdiff_t',
-               PM_gridsize_local_j='ptrdiff_t',
-               PM_gridstart_local_i='ptrdiff_t',
-               PM_gridstart_local_j='ptrdiff_t',
-               PM_grid='double[:, :, ::1]',
-               plan_forward='fftw_plan',
-               plan_backward='fftw_plan',
-               fftw_struct_grid='double*',
-               )
+# Initialize the force grid if the PM method should be used
+cython.declare(force_grid='double[:, :, ::1]')
 if use_PM:
-    # The PM mesh and functions on it
-    if not cython.compiled:
-        # Initialization of the PM mesh in pure Python.
-        PM_gridsize_local_i = PM_gridsize_local_j = int(PM_gridsize/nprocs)
-        if master and PM_gridsize_local_i != PM_gridsize/nprocs:
-            # If PM_gridsize is not divisible by nprocs, the code cannot
-            # figure out exactly how FFTW distribute the grid among the
-            # processes. In stead of guessing, do not even try to
-            # emulate the behaviour of FFTW.
-            raise ValueError('The PM method in pure Python mode only works '
-                     + 'when\nPM_gridsize is divisible by the number'
-                     + 'of processes!')
-        PM_gridstart_local_i = PM_gridstart_local_j = PM_gridsize_local_i*rank
-        PM_grid = empty((PM_gridsize_local_i, PM_gridsize,
-                         PM_gridsize_padding), dtype=C2np['double'])
-        # The output of the following function is formatted just
-        # like that of the MPI implementation of FFTW.
-        plan_backward = 'plan_backward'
-        plan_forward = 'plan_forward'
-        def fftw_execute(plan):
-            global PM_grid
-            # The pure Python FFT implementation is serial.
-            # Every process computes the entire FFT of the temporary
-            # varaible PM_grid_global.
-            PM_grid_global = empty((PM_gridsize, PM_gridsize,
-                                    PM_gridsize_padding))
-            Allgatherv(PM_grid, PM_grid_global)
-            if plan == plan_forward:
-                # Delete the padding on last dimension
-                for i in range(PM_gridsize_padding - PM_gridsize):
-                    PM_grid_global = delete(PM_grid_global, -1, axis=2)
-                # Do real transform
-                PM_grid_global = rfftn(PM_grid_global)
-                # FFTW transposes the first two dimensions
-                PM_grid_global = PM_grid_global.transpose([1, 0, 2])
-                # FFTW represents the complex array by doubles only
-                tmp = empty((PM_gridsize, PM_gridsize, PM_gridsize_padding))
-                for i in range(PM_gridsize_padding):
-                    if i % 2:
-                        tmp[:, :, i] = PM_grid_global.imag[:, :, i//2]
-                    else:
-                        tmp[:, :, i] = PM_grid_global.real[:, :, i//2]
-                PM_grid_global = tmp
-                # As in FFTW, distribute the slabs along the y-dimension
-                # (which is the first dimension now, due to transposing)
-                PM_grid = PM_grid_global[PM_gridstart_local_j:
-                                         (PM_gridstart_local_j
-                                          + PM_gridsize_local_j),
-                                         :, :]
-            elif plan == plan_backward:
-                # FFTW represents the complex array by doubles only.
-                # Go back to using complex entries
-                tmp = zeros((PM_gridsize, PM_gridsize, PM_gridsize_padding/2),
-                            dtype='complex128')
-                for i in range(PM_gridsize_padding):
-                    if i % 2:
-                        tmp[:, :, i//2] += 1j*PM_grid_global[:, :, i]
-                    else:
-                        tmp[:, :, i//2] += PM_grid_global[:, :, i]
-                PM_grid_global = tmp
-                # FFTW transposes the first
-                # two dimensions back to normal.
-                PM_grid_global = PM_grid_global.transpose([1, 0, 2])
-                # Do real inverse transform
-                PM_grid_global = irfftn(PM_grid_global, s=[PM_gridsize]*3)
-                # Remove the autoscaling provided by Numpy
-                PM_grid_global[...] *= PM_gridsize3
-                # Add padding on last dimension, as in FFTW
-                padding = empty((PM_gridsize,
-                                 PM_gridsize,
-                                 PM_gridsize_padding - PM_gridsize,
-                                 ))
-                PM_grid_global = concatenate((PM_grid_global, padding), axis=2)
-                # As in FFTW, distribute the slabs along the x-dimension
-                PM_grid = PM_grid_global[PM_gridstart_local_i:
-                                         (PM_gridstart_local_i
-                                          + PM_gridsize_local_i),
-                                         :, :]
-    else:
-        # Sanity check on user defined fftw_rigor
-        fftw_rigors = ('exhaustive', 'patient', 'measure', 'estimate')
-        if fftw_rigor not in fftw_rigors:
-            masterwarn(('Did not recognize fftw_rigor "{}". '
-                        + 'Falling back to "estimate".').format(fftw_rigor))
-            fftw_rigor = 'estimate'
-        # Use a better rigor if wisdom already exist
-        for fftw_rigor in fftw_rigors[:(fftw_rigors.index(fftw_rigor) + 1)]:
-            wisdom_filename = ('.fftw_wisdom_gridsize={}_nprocs={}_rigor={}'
-                               .format(PM_gridsize, nprocs, fftw_rigor))
-            if os.path.isfile(wisdom_filename):
-                break
-        # Initialize fftw_mpi, allocate the grid, initialize the
-        # local grid sizes and start indices and do FFTW planning.
-        if not os.path.isfile(wisdom_filename):
-            msg = ('Acquiring FFTW wisdom ({}) for grid of linear size {} on '
-                   + '{} {} ...').format(fftw_rigor,
-                                         PM_gridsize,
-                                         nprocs,
-                                         'processes' if nprocs > 1
-                                                     else 'process')
-            masterprint(msg)
-            fftw_struct = fftw_setup(PM_gridsize,
-                                     PM_gridsize,
-                                     PM_gridsize,
-                                     bytes(fftw_rigor, encoding='ascii'))
-            masterprint('done')
-        else:
-            fftw_struct = fftw_setup(PM_gridsize,
-                                     PM_gridsize,
-                                     PM_gridsize,
-                                     bytes(fftw_rigor, encoding='ascii'))
-        # If less rigouros wisdom exist for the same problem, delete it
-        for rigor in fftw_rigors[(fftw_rigors.index(fftw_rigor) + 1):]:
-            wisdom_filename = ('.fftw_wisdom_gridsize={}_nprocs={}_rigor={}'
-                               .format(PM_gridsize, nprocs, rigor))
-            if master and os.path.isfile(wisdom_filename):
-                os.remove(wisdom_filename)
-        
-        # Unpack fftw_struct
-        PM_gridsize_local_i = fftw_struct.gridsize_local_i
-        PM_gridsize_local_j = fftw_struct.gridsize_local_j
-        PM_gridstart_local_i = fftw_struct.gridstart_local_i
-        PM_gridstart_local_j = fftw_struct.gridstart_local_j
-        # Wrap a memoryview around the grid. Loop as noted in fft.c, but
-        # use PM_grid[i, j, k] when in real space and PM_grid[j, i, k]
-        # when in Fourier space
-
-        fftw_struct_grid = fftw_struct.grid
-        if PM_gridsize_local_i > 0:
-            PM_grid = cast(fftw_struct.grid,
-            'double[:PM_gridsize_local_i, :PM_gridsize, :PM_gridsize_padding]')
-        else:
-            # The process do not participate in the FFT computations
-            PM_grid = empty((0, PM_gridsize, PM_gridsize_padding))
-        plan_forward  = fftw_struct.plan_forward
-        plan_backward = fftw_struct.plan_backward
-else:
-    # As these should be importable,
-    # they need to be assigned even if not used.
-    PM_gridsize_local_j = 0
-    PM_gridstart_local_j = 0
-    PM_grid = empty((1, 1, 1), dtype=C2np['double'])
-
-# Cut out the domains at import time
-cython.declare(domain_cuts='list',
-               domain_local='int[::1]',
-               domain_size_i='int',
-               domain_size_j='int',
-               domain_size_k='int',
-               domain_size_x='double',
-               domain_size_y='double',
-               domain_size_z='double',
-               domain_start_x='double',
-               domain_start_y='double',
-               domain_start_z='double',
-               )
-# Number of domains in all three dimensions
-domain_cuts = cutout_domains(nprocs)
-# The indices in domain_layout of the local domain
-domain_local = array(np.unravel_index(rank, domain_cuts), dtype=C2np['int'])
-# The linear size of the domains, which are the same for all of them
-domain_size_x = boxsize/domain_cuts[0]
-domain_size_y = boxsize/domain_cuts[1]
-domain_size_z = boxsize/domain_cuts[2]
-# The start positions of the local domain
-domain_start_x = domain_local[0]*domain_size_x
-domain_start_y = domain_local[1]*domain_size_y
-domain_start_z = domain_local[2]*domain_size_z
-# The size of the domain grid in PM grid units (actually needed for
-# the P3M, not the PM, algorithm).
-domain_size_i = PM_gridsize//domain_cuts[0]
-domain_size_j = PM_gridsize//domain_cuts[1]
-domain_size_k = PM_gridsize//domain_cuts[2]
-# Initialize the domain grid and the force grid, if the PM method
-# should be used.
-if use_PM:
-    cython.declare(i='int',
-                   domain_grid='double[:, :, ::1]',
-                   domain_grid_noghosts='double[:, :, ::1]',
-                   force_grid='double[:, :, ::1]',
-                   )
-    # A grid over the local domain. An additional layer of thickness 1
-    # is given to the domain grid, so that these outer points
-    # corresponds to the same physical coordinates as the first points
-    # in the next domain. Also, an additional layer of thickness 2 is
-    # given on top of the previous layer. This shall be used as a ghost
-    # layer for finite differencing.
-    domain_grid = zeros([PM_gridsize//domain_cuts[i] + 1 + 2*2
-                         for i in range(3)],
-                        dtype=C2np['double'])
-    # Memoryview of the domain grid without the ghost layers
-    domain_grid_noghosts = domain_grid[2:(domain_grid.shape[0] - 2),
-                                       2:(domain_grid.shape[1] - 2),
-                                       2:(domain_grid.shape[2] - 2)]
-    # The grid containing the forces in the PM algorithm,
+    # This grid willl contain the forces in the PM algorithm,
     # one component at a time.
     force_grid = zeros((domain_grid_noghosts.shape[0],
                         domain_grid_noghosts.shape[1],
                         domain_grid_noghosts.shape[2]), dtype=C2np['double'])
-    # Test if the grid has been constructed correctly.
-    # If not it is because nprocs and PM_gridsize are incompatible.
-    for i in range(3):
-        if not master:
-            break
-        if PM_gridsize != domain_cuts[i]*(domain_grid.shape[i] - 1 - 2*2):
-            msg = ('A PM_gridsize of ' + str(PM_gridsize) + ' cannot be'
-                   + ' equally shared among ' + str(nprocs) + ' processes')
-            raise ValueError(msg)
-        if np.min([domain_grid.shape[i] for i in range(3)]) < 2 + 1 + 2*2:
-            msg = ('A PM_gridsize of ' + str(PM_gridsize) + ' is too small'
-                   + ' for ' + str(nprocs) + ' processes')
-            raise ValueError(msg)
-# Check if PM_grid is large enough for P3M to work, if the P3M
-# algorithm is to be used.
-for kick_algorithm in kick_algorithms.values():
-    if kick_algorithm == 'P3M':
-        if master and (   domain_size_i < P3M_scale*P3M_cutoff
-                       or domain_size_j < P3M_scale*P3M_cutoff
-                       or domain_size_k < P3M_scale*P3M_cutoff):
-            msg = ('A PM_gridsize of ' + str(PM_gridsize) + ' and '
-                   + str(nprocs) + ' processes results in following domain'
-                   + ' partition: ' + str(list(domain_cuts))
-                   + '.\nThe smallest domain width is '
-                   + str(np.min([domain_size_i, domain_size_j,
-                                 domain_size_k]))
-                   + ' grid cells, while the choice of P3M_scale ('
-                   + str(P3M_scale) + ') and P3M_cutoff ('
-                   + str(P3M_cutoff) + ')\nmeans that the domains must be '
-                   + 'at least '
-                   + str(P3M_scale*P3M_cutoff) + ' grid cells for the '
-                   + 'P3M algorithm to work.'
-                )
-            raise ValueError(msg)
-        if master and ((   domain_size_i < 2*P3M_scale*P3M_cutoff
-                        or domain_size_j < 2*P3M_scale*P3M_cutoff
-                        or domain_size_k < 2*P3M_scale*P3M_cutoff)
-                        and np.min(domain_cuts) < 3):
-            # This is only allowed if domain_cuts are at least 3 in each
-            # direction. Otherwise the left and the right (say) process
-            # is the same, and the boundaries will be send to it twize,
-            # and these will overlap with each other in the left/right
-            # domain and gravity will be applied twize.
-            msg = ('A PM_gridsize of ' + str(PM_gridsize) + ' and '
-                   + str(nprocs) + ' processes results in following domain'
-                   + ' partition: ' + str(list(domain_cuts))
-                   + '.\nThe smallest domain width is '
-                   + str(np.min([domain_size_i, domain_size_j,
-                                 domain_size_k]))
-                   + ' grid cells, while the choice of P3M_scale ('
-                   + str(P3M_scale) + ') and P3M_cutoff ('
-                   + str(P3M_cutoff) + ')\nmeans that the domains must be '
-                   + 'at least '
-                   + str(2*P3M_scale*P3M_cutoff) + ' grid cells for the '
-                   + 'P3M algorithm to work.'
-                )
-            raise ValueError(msg)
-        break
+
+
 # Initialize stuff for the PP and P3M algorithms at import time
 cython.declare(boundary_ranks_recv='int[::1]',
                boundary_ranks_send='int[::1]',  
@@ -1582,9 +1273,3 @@ boundary_y_max = domain_start_y + domain_size_y - P3M_cutoff_phys
 boundary_y_min = domain_start_y + P3M_cutoff_phys
 boundary_z_max = domain_start_z + domain_size_z - P3M_cutoff_phys
 boundary_z_min = domain_start_z + P3M_cutoff_phys
-
-
-pxd = """
-double[:, :, ::1] PM_grid
-ptrdiff_t PM_gridsize_local_j, PM_gridstart_local_j
-"""

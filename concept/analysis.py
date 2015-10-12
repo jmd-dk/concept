@@ -28,14 +28,12 @@ from commons import *
 # Seperate but equivalent imports in pure Python and Cython
 if not cython.compiled:
     from graphics import plot_powerspec
-    from gravity import (PM_CIC_FFT, PM_grid, PM_gridsize_local_j,
-                         PM_gridstart_local_j)
+    from mesh import PM_grid, PM_CIC, PM_FFT, PM_gridsize_local_j, PM_gridstart_local_j
 else:
     # Lines in triple quotes will be executed in the .pyx file.
     """
     from graphics cimport plot_powerspec
-    from gravity cimport (PM_CIC_FFT, PM_grid, PM_gridsize_local_j,
-                          PM_gridstart_local_j)
+    from mesh cimport PM_grid, PM_CIC, PM_FFT, PM_gridsize_local_j, PM_gridstart_local_j
     """
 
 
@@ -75,7 +73,8 @@ def powerspec(particles, filename):
                  .format(filename))
     # CIC interpolate particles to the PM mesh
     # and do Fourier transformation.
-    PM_CIC_FFT(particles)
+    PM_CIC(particles)
+    PM_FFT()
     # Reset power, power multiplicity and power variance
     for k2 in range(k2_max):
         power[k2] = 0

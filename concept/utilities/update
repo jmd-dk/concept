@@ -53,6 +53,17 @@ source "${this_dir}/../concept"
 # Read in the entire content of the installer script
 installer_content="$(cat "${installer}")"
 
+# Check for unrequired positional arguments
+if [ "$#" -gt 0 ]; then
+    badvars=""
+    for badvar in ${@:1}; do
+        badvars="${badvars}, \"${badvar}\""
+    done
+    badvars="${badvars:2}"
+    colorprint "Warning: The following arguments will be ignored by the $(basename ${this_file}) utility:" "red"
+    colorprint "${badvars}" "red"
+fi
+
 # Borrow some functions from the install script.
 # Sourcing is no good here, as we are not interested in
 # actually running the installer script.
@@ -85,9 +96,11 @@ check_system_dependency "wget" "${wget_package}"
 backup_dir="${top_dir}/concept_backup"
 rm -rf "${backup_dir}"
 mkdir "${backup_dir}"
-cp -r "${tests_dir}"     "${backup_dir}"
-cp -r "${utilities_dir}" "${backup_dir}"
-cp "${concept_dir}/"*    "${backup_dir}" 2> /dev/null || :
+cp -f "${top_dir}/installer" "${top_dir}/README.md" "${top_dir}/.paths" "${backup_dir}"
+mkdir "${backup_dir}/concept"
+cp -r "${tests_dir}"     "${backup_dir}/concept"
+cp -r "${utilities_dir}" "${backup_dir}/concept"
+cp "${concept_dir}/"*    "${backup_dir}/concept" 2> /dev/null || :
 
 # Download and extract CO𝘕CEPT
 concept_url="https://github.com/jmd-dk/concept/archive/master.tar.gz"

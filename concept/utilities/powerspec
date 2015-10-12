@@ -57,8 +57,8 @@ if [ "${local}" == "True" ]; then
     local_flag="--local"
 fi
 pure_python_flag=""
-if [ "${pure_python_flag}" == "True" ]; then
-    pure_python_flag="--pure_python"
+if [ "${pure_python}" == "True" ]; then
+    pure_python_flag="--pure-python"
 fi
 
 # If no parameterfile is supplied, use the one that goes along with this utility
@@ -67,10 +67,20 @@ if [ "${params}" == "None" ]; then
 fi
 
 # Check for required positional arguments
-if [ "$#" != 1 ] || [ -z "$1" ]; then
+if [ "$#" -lt 1 ] || [ -z "$1" ]; then
     colorprint "Error: The $(basename ${this_file}) utility is missing a required argument: path" "red"
+    exit 1
 fi
 path="$1"
+if [ "$#" -gt 1 ]; then
+    badvars=""
+    for badvar in ${@:2}; do
+        badvars="${badvars}, \"${badvar}\""
+    done
+    badvars="${badvars:2}"
+    colorprint "Warning: The following arguments will be ignored by the $(basename ${this_file}) utility:" "red"
+    colorprint "${badvars}" "red"
+fi
 
 # Convert to absolute path
 path="$(absolute ${path})"
@@ -81,32 +91,32 @@ if [ ! -f "${path}" ] && [ ! -d "${path}" ]; then
     exit 1
 fi
 
-# Get all snapshots in the path
-snapshot_filenames="$("${python}" -B -c "import utilities; [print(s) for s in utilities.locate_snapshots('${path}')]")"
-snapshot_filenames_pylist="[\"$(echo "${snapshot_filenames}" | sed ':a;N;$!ba;s/\n/\", "/g')\"]"
+# Get information about all snapshots in the path
+info="$("${concept}" --util snapshot_info "${path}")"
+snapshot_filenames="$(echo "${info}" | grep Information | awk '{print $3}')"
+boxsizes="$(          echo "${info}" | grep boxsize     | awk '{print $2}')"
 
 # Print out which snapshots will be used
 echo "Powerspectra will be produced of the following snapshots:"
-${python} -B -c "from os.path import relpath; [print('\"{}\"'.format(relpath(s, '${concept_dir}') if not relpath(s, '${concept_dir}').startswith('../../') else s)) for s in ${snapshot_filenames_pylist}]"
-
-# Get the boxsize for each snapshot
-boxsizes="$("${python}" -B -c "import utilities; [utilities.snapshot_info(s) for s in ${snapshot_filenames_pylist}]" | grep boxsize | awk '{print $2}')"
+echo "${snapshot_filenames}"
 
 # For each snapshot, run the CO𝘕CEPT code to create the powerspectrum
 i=0
 for snapshot_filename in ${snapshot_filenames}; do
+    # Remove quotes (and escape sequence!) from snapshot filename
+    snapshot_filename="$(${python} -B -c "import re; print(re.search('\"(.*?)\"', '${snapshot_filename}').group(1))")"
+    # Get the i'th boxsize
     ((i += 1))
     boxsize=$(echo ${boxsizes} | awk "{print \$${i}}")
     # Make temporary parameter file with every information needed
-    printf "
-boxsize = ${boxsize}
+    printf "boxsize = ${boxsize}
 use_PM = True
 special_params = {
     'special':           'powerspec',
     'snapshot_filename': '${snapshot_filename}',
                   }
 $(cat "${params}")
-    " > "${this_file}.params.full"
+" > "${this_file}.params.full"
     # Run CO𝘕CEPT to produce the powerspectrum
     "${concept}" -m ${main} -n ${nprocs} -p "${this_file}.params.full" -q "{queue}" -w "${walltime}" ${local_flag} ${pure_python_flag}
 done
