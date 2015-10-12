@@ -453,8 +453,7 @@ for key in globals_dict.keys():
 # give the arguments some default value.
 # The parameter file
 paths['params'] = argd.get('params', '')
-paths['params_dir'] = ('' if not paths['params']
-                       else os.path.dirname(paths['params']))
+paths['params_dir'] = ('' if not paths['params'] else os.path.dirname(paths['params']))
 # The scp password
 scp_password = argd.get('scp_password', '')
 
@@ -572,12 +571,12 @@ cython.declare(# Input/output
                special_params='dict',
                )
 # Input/output
-IC_file = sensible_path(str(params.get('IC_file', 'ICs/default')))
+IC_file = sensible_path(str(params.get('IC_file', '')))
 snapshot_type = (str(params.get('snapshot_type', 'standard'))
                  .lower().replace(' ', ''))
 output_dirs = dict(params.get('output_dirs', {}))
 for kind in ('snapshot', 'powerspec', 'render'):
-    output_dirs[kind] = str(output_dirs.get(kind, 'output'))
+    output_dirs[kind] = str(output_dirs.get(kind, paths['output_dir']))
 output_dirs = {key: sensible_path(path) for key, path in output_dirs.items()}
 output_bases = dict(params.get('output_bases', {}))
 for kind in ('snapshot', 'powerspec', 'render'):

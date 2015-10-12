@@ -77,6 +77,17 @@ else
 fi
 jobid="${jobid%.in1}"
 
+# Check for unrequired positional arguments
+if [ "$#" -gt 1 ]; then
+    badvars=""
+    for badvar in ${@:2}; do
+        badvars="${badvars}, \"${badvar}\""
+    done
+    badvars="${badvars:2}"
+    colorprint "Warning: The following arguments will be ignored by the $(basename ${this_file}) utility:" "red"
+    colorprint "${badvars}" "red"
+fi
+
 # Function for continuous printout of the tail of logs/jobid
 function read_tail()
 {

@@ -107,7 +107,7 @@ def oneline(filename):
     multiline_statement = []
     multiline = False
     multiline_decorator = False
-    with open(filename, 'r') as pyxfile:
+    with open(filename, 'r', encoding='utf-8') as pyxfile:
         for i, line in enumerate(pyxfile):
             count_parens(line)
             if (paren > 0 or brack > 0 or curly > 0) and not multiline:
@@ -142,7 +142,7 @@ def oneline(filename):
                 multiline_statement = []
             else:
                 new_lines.append(line)
-    with open(filename, 'w') as pyxfile:
+    with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.writelines(new_lines)
 
 
@@ -152,21 +152,21 @@ def oneline(filename):
 def import_commons(filename):
     new_lines = []
     import_line = 'from commons import *'
-    with open(filename, 'r') as pyxfile:
+    with open(filename, 'r', encoding='utf-8') as pyxfile:
         for line in pyxfile:
             if line.startswith(import_line):
-                with open('commons.py', 'r') as commons:
+                with open('commons.py', 'r', encoding='utf-8') as commons:
                     for commons_line in commons:
                         new_lines.append(commons_line)
             else:
                 new_lines.append(line)
-    with open(filename, 'w') as pyxfile:
+    with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.writelines(new_lines)
 
 
 def cythonstring2code(filename):
     new_lines = []
-    with open(filename, 'r') as pyxfile:
+    with open(filename, 'r', encoding='utf-8') as pyxfile:
         in_purePythonsection = False
         unindent = False
         purePythonsection_start = 0
@@ -196,7 +196,7 @@ def cythonstring2code(filename):
                 else:
                     new_lines.append(line)
                     unindent = False
-    with open(filename, 'w') as pyxfile:
+    with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.writelines(new_lines)
 
 
@@ -334,13 +334,13 @@ def power2product(filename):
         return line
 
     new_lines = []
-    with open(filename, 'r') as pyxfile:
+    with open(filename, 'r', encoding='utf-8') as pyxfile:
         for line in pyxfile:
             line = pow2prod(line)
             while pyxpp_power in line:
                 line = pow2prod(line, firstcall=False)
             new_lines.append(line)
-    with open(filename, 'w') as pyxfile:
+    with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.writelines(new_lines)
 
 
@@ -353,13 +353,13 @@ def unicode2ASCII(filename):
             text[i] = text[i].replace(' ', '__space__')
             text[i] = text[i].replace('-', '__dash__')
     text = ''.join(text)
-    with open(filename, 'w') as pyxfile:
+    with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.write(text)
     return
 
 def __init__2__cinit__(filename):
     new_lines = []
-    with open(filename, 'r') as pyxfile:
+    with open(filename, 'r', encoding='utf-8') as pyxfile:
         in_cclass = False
         for line in pyxfile:
             if len(line) > 13 and line[:14] == '@cython.cclass':
@@ -372,25 +372,25 @@ def __init__2__cinit__(filename):
                           and line[:17] == '    def __init__('):
                 line = '    def __cinit__(' + line[17:]
             new_lines.append(line)
-    with open(filename, 'w') as pyxfile:
+    with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.writelines(new_lines)
 
 
 def colon2zero_in_addresses(filename):
     new_lines = []
-    with open(filename, 'r') as pyxfile:
+    with open(filename, 'r', encoding='utf-8') as pyxfile:
         for line in pyxfile:
             if 'cython.address(' in line:
                 line = re.sub('cython.address\((.*)\[\.\.\.\].*\)', r'cython.address(\1[0])', line)
                 line = re.sub('cython.address\((.*)\[:\].*\)', r'cython.address(\1[0])', line)
             new_lines.append(line)
-    with open(filename, 'w') as pyxfile:
+    with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.writelines(new_lines)
 
 
 def malloc_realloc(filename):
     new_lines = []
-    with open(filename, 'r') as pyxfile:
+    with open(filename, 'r', encoding='utf-8') as pyxfile:
         for line in pyxfile:
             found_alloc = False
             for alloc in ('malloc(', 'realloc('):
@@ -422,13 +422,13 @@ def malloc_realloc(filename):
             if not found_alloc:
                 line = line.replace(' free(', ' PyMem_Free(')
                 new_lines.append(line)
-    with open(filename, 'w') as pyxfile:
+    with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.writelines(new_lines)
 
 
 def C_casting(filename):
     new_lines = []
-    with open(filename, 'r') as pyxfile:
+    with open(filename, 'r', encoding='utf-8') as pyxfile:
         # Transform to Cython syntax
         for line in pyxfile:
             while 'cast(' in line:
@@ -455,12 +455,12 @@ def C_casting(filename):
                 line = (line[:line.find('cast(')] + cast_to + obj_to_cast
                         + line[(i + 1):])
             new_lines.append(line)
-    with open(filename, 'w') as pyxfile:
+    with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.writelines(new_lines)
 
 
 def cython_decorators(filename):
-    with open(filename, 'r') as pyxfile:
+    with open(filename, 'r', encoding='utf-8') as pyxfile:
         lines = pyxfile.read().split('\n')
     for i, line in enumerate(lines):
         for headertype in ('pheader', 'header'):
@@ -541,7 +541,7 @@ def cython_decorators(filename):
                 for hline in reversed(header):
                     lines.insert(headstart, hline)
     # Write all lines to file
-    with open(filename, 'w') as pyxfile:
+    with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.writelines('\n'.join(lines))
 
 
@@ -558,7 +558,7 @@ def make_pxd(filename):
     header_lines = []
     pxd_filename = filename[:-3] + 'pxd'
     pxd_lines = []
-    with open(filename, 'r') as pyxfile:
+    with open(filename, 'r', encoding='utf-8') as pyxfile:
         code = pyxfile.read().split('\n')
     # Find pxd hints of the form 'pxd = """'
     pxd_lines.append('cdef:\n')
@@ -794,12 +794,12 @@ def make_pxd(filename):
     if not total_lines:
         total_lines = ['# This module does not expose any c-level functions or classes to the outside world']
     # Update/create .pxd
-    with open(pxd_filename, 'w') as pxdfile:
+    with open(pxd_filename, 'w', encoding='utf-8') as pxdfile:
         pxdfile.writelines(total_lines)
 
 def pure_numbers(filename):
     # Find pure numbers using the ℝ['expression'] syntax
-    with open(filename, 'r') as pyxfile:
+    with open(filename, 'r', encoding='utf-8') as pyxfile:
         lines = pyxfile.read().split('\n')
     expressions = []
     expressions_cython = []
@@ -841,7 +841,7 @@ def pure_numbers(filename):
             for expression, expression_cython in zip(expressions, expressions_cython):
                 cython_define = '{} = {}'.format(expression_cython, expression)
                 new_lines.append(cython_define)
-    with open(filename, 'w') as pyxfile:
+    with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.writelines('\n'.join(new_lines))
 
 

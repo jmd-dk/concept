@@ -54,3 +54,5 @@ python_config='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python/bin/pytho
 # The run script of the CONCEPT code
 concept='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/concept'
 
+logs_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/logs'
+output_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/output'

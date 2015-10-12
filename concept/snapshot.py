@@ -75,6 +75,7 @@ class StandardSnapshot:
                    N_local='Py_ssize_t',
                    N_locals='tuple',
                    end_local='Py_ssize_t',
+                   i='Py_ssize_t',
                    msg='str',
                    particle_N='Py_ssize_t',
                    particle_attribute='dict',
@@ -190,14 +191,16 @@ class StandardSnapshot:
                 # systems of units, mulitply the particle positions
                 # and momenta by the snapshot units.
                 if snapshot_unit_length != 1:
-                    self.particles.posx_mv = asarray(self.particles.posx_mv)*snapshot_unit_length
-                    self.particles.posy_mv = asarray(self.particles.posy_mv)*snapshot_unit_length
-                    self.particles.posz_mv = asarray(self.particles.posz_mv)*snapshot_unit_length
+                    for i in range(N_local):
+                        self.particles.posx[i] *= snapshot_unit_length
+                        self.particles.posy[i] *= snapshot_unit_length
+                        self.particles.posz[i] *= snapshot_unit_length
                 unit = snapshot_unit_length/snapshot_unit_time*snapshot_unit_mass
                 if unit != 1:
-                    self.particles.momx_mv = asarray(self.particles.momx_mv)*unit
-                    self.particles.momy_mv = asarray(self.particles.momy_mv)*unit
-                    self.particles.momz_mv = asarray(self.particles.momz_mv)*unit
+                    for i in range(N_local):
+                        self.particles.momx[i] *= unit
+                        self.particles.momy[i] *= unit
+                        self.particles.momz[i] *= unit
                 # Finalize progress message
                 masterprint('done')
         # Update the "contains" string

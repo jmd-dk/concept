@@ -26,7 +26,7 @@
 # This utility prints out information about snapshots.
 # More specifically, it prints the meta data contained in the snapshot.
 # That is, everything except the actual particle data.
-# You can run this script directly or by invoking the concept script with the
+# Run this script by invoking the concept script with the
 # --util snapshot_info path
 # option, where path is the path to snapshot file
 # or a directory containing snapshots.
@@ -53,11 +53,27 @@ set -e
 # Source the concept script
 source "${this_dir}/../concept"
 
+# Command-line arguments are exported to this script. Handle flag-arguments
+pure_python_flag=""
+if [ "${pure_python}" == "True" ]; then
+    pure_python_flag="--pure-python"
+fi
+
 # Check for required positional arguments
-if [ "$#" != 1 ] || [ -z "$1" ]; then
+if [ "$#" -lt 1 ] || [ -z "$1" ]; then
     colorprint "Error: The $(basename ${this_file}) utility is missing a required argument: path" "red"
+    exit 1
 fi
 path="$1"
+if [ "$#" -gt 1 ]; then
+    badvars=""
+    for badvar in ${@:2}; do
+        badvars="${badvars}, \"${badvar}\""
+    done
+    badvars="${badvars:2}"
+    colorprint "Warning: The following arguments will be ignored by the $(basename ${this_file}) utility:" "red"
+    colorprint "${badvars}" "red"
+fi
 
 # Convert to absolute path
 path="$(absolute ${path})"
@@ -68,8 +84,18 @@ if [ ! -f "${path}" ] && [ ! -d "${path}" ]; then
     exit 1
 fi
 
-# Run Python directly to printout the snapshot information
-"${python}" -B -c "import utilities; utilities.snapshot_info('${path}')"
+# Make temporary parameter file with every information needed
+printf "special_params = {
+    'special': 'snapshot_info',
+    'path'   : '${path}',
+                  }
+" > "${this_file}.params.full"
+
+# Run CO𝘕CEPT to printout the snapshot information. Always run locally using 1 process
+"${concept}" -m ${main} -n 1 -p "${this_file}.params.full" --local ${pure_python_flag}
+
+# Cleanup
+rm "${this_file}.params.full"
 
 # Exit gracefully
 trap : 0
