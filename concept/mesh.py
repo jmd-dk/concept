@@ -747,8 +747,7 @@ def domain2PM():
         Barrier()
 
 
-# Function for transfering the data
-# in the PM grid to the domain grid.
+# Function for transfering the data in the PM grid to the domain grid.
 @cython.header(# Locals
                ID_send='int',
                ID_recv='int',
@@ -787,6 +786,12 @@ def PM2domain():
         # Catch-up point for the processes. This ensures that the communication
         # is complete, and hence that the non-blocking send is done.
         Barrier()
+    # The upper boundaries (not the ghost layers) of the domain grid
+    # should be a copy of the lower boundaries of the next domain.
+    # Do the needed communication.
+    communicate_domain_boundaries(mode=1)
+    # Communicate the ghost layers of the domain grid
+    communicate_domain_ghosts()
 
 # Function for CIC interpolating particles to the PM mesh
 @cython.header(# Arguments
@@ -803,7 +808,7 @@ def PM_CIC(particles):
     # Values of local pseudo mesh points contribute to the lower mesh
     # points of domain_grid on other processes.
     # Do the needed communication.
-    communicate_domain_boundaries()  
+    communicate_domain_boundaries(mode=0)  
     # Communicate the interpolated data
     # in the domain grid into the PM grid.
     domain2PM()
@@ -811,12 +816,16 @@ def PM_CIC(particles):
 # Function performing a forward Fourier transformation of the PM mesh
 @cython.header()
 def PM_FFT():
-    # Fourier transform the grid forwards to Fourier space
+    # Fourier transform the PM grid forwards from real to Fourier space
     fftw_execute(plan_forward)
 
 # Function performing a backward Fourier transformation of the PM mesh
 @cython.header()
 def PM_IFFT():
+    # Fourier transform the PM grid backwards from Fourier to real
+    # space. Note that this is an unnormalized transform, as defined by
+    # FFTW. To do the normalization, devide all elements of PM_grid
+    # by PM_gridsize**3.
     fftw_execute(plan_backward)
 
 
@@ -843,9 +852,10 @@ if use_PM:
             # figure out exactly how FFTW distribute the grid among the
             # processes. In stead of guessing, do not even try to
             # emulate the behaviour of FFTW.
-            raise ValueError('The PM method in pure Python mode only works '
-                     + 'when\nPM_gridsize is divisible by the number'
-                     + 'of processes!')
+            msg = ('The PM method in pure Python mode only works '
+                   + 'when\nPM_gridsize is divisible by the number '
+                   + 'of processes!')
+            abort(msg)
         PM_gridstart_local_i = PM_gridstart_local_j = PM_gridsize_local_i*rank
         PM_grid = empty((PM_gridsize_local_i, PM_gridsize,
                          PM_gridsize_padding), dtype=C2np['double'])
@@ -1237,20 +1247,15 @@ if master and 'P3M' in kick_algorithms.values():
     if (   domain_size_i < P3M_scale*P3M_cutoff
         or domain_size_j < P3M_scale*P3M_cutoff
         or domain_size_k < P3M_scale*P3M_cutoff):
-        msg = ('A PM_gridsize of ' + str(PM_gridsize) + ' and '
-               + str(nprocs) + ' processes results in following domain'
-               + ' partition: ' + str(list(domain_cuts))
-               + '.\nThe smallest domain width is '
-               + str(np.min([domain_size_i, domain_size_j,
-                             domain_size_k]))
-               + ' grid cells, while the choice of P3M_scale ('
-               + str(P3M_scale) + ') and P3M_cutoff ('
-               + str(P3M_cutoff) + ')\nmeans that the domains must be '
-               + 'at least '
-               + str(P3M_scale*P3M_cutoff) + ' grid cells for the '
-               + 'P3M algorithm to work.'
+        msg = ('A PM_gridsize of ' + str(PM_gridsize) + ' and ' + str(nprocs) + ' processes '
+               + 'results in following domain partition: ' + str(list(domain_cuts)) + '.\n'
+               + 'The smallest domain width is ' + str(np.min([domain_size_i, domain_size_j,
+                                                                              domain_size_k]))
+               + ' grid cells, while the choice of P3M_scale (' + str(P3M_scale) + ') and '
+               + 'P3M_cutoff (' + str(P3M_cutoff) + ')\nmeans that the domains must be at least '
+               + str(int(np.ceil(P3M_scale*P3M_cutoff))) + ' grid cells for the P3M algorithm to work.'
             )
-        raise ValueError(msg)
+        abort(msg)
     if ((   domain_size_i < 2*P3M_scale*P3M_cutoff
          or domain_size_j < 2*P3M_scale*P3M_cutoff
          or domain_size_k < 2*P3M_scale*P3M_cutoff) and np.min(domain_cuts) < 3):
@@ -1269,10 +1274,10 @@ if master and 'P3M' in kick_algorithms.values():
                + str(P3M_scale) + ') and P3M_cutoff ('
                + str(P3M_cutoff) + ')\nmeans that the domains must be '
                + 'at least '
-               + str(2*P3M_scale*P3M_cutoff) + ' grid cells for the '
+               + str(int(np.ceil(2*P3M_scale*P3M_cutoff))) + ' grid cells for the '
                + 'P3M algorithm to work.'
             )
-        raise ValueError(msg)
+        abort(msg)
 
 # Initialize the domain grid if the PM method should be used
 cython.declare(i='Py_ssize_t',
@@ -1301,11 +1306,11 @@ if use_PM:
         if PM_gridsize != domain_cuts[i]*(domain_grid.shape[i] - 1 - 2*2):
             msg = ('A PM_gridsize of ' + str(PM_gridsize) + ' cannot be'
                    + ' equally shared among ' + str(nprocs) + ' processes')
-            raise ValueError(msg)
+            abort(msg)
         if np.min([domain_grid.shape[i] for i in range(3)]) < 2 + 1 + 2*2:
             msg = ('A PM_gridsize of ' + str(PM_gridsize) + ' is too small'
                    + ' for ' + str(nprocs) + ' processes')
-            raise ValueError(msg)
+            abort(msg)
 else:
     # As these should be importable,
     # they need to be assigned even if not used.

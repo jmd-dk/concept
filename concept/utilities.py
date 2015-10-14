@@ -69,7 +69,7 @@ def locate_snapshots(path):
     # Get all files from the path
     if master and not os.path.exists(path):
         msg = 'Path "{}" does not exist!'.format(path)
-        raise Exception(msg)
+        abort(msg)
     if os.path.isdir(path):
         filenames = [os.path.join(path, filename)
                      for filename in os.listdir(path)
@@ -79,7 +79,7 @@ def locate_snapshots(path):
     # Only use snapshots
     snapshot_filenames = [filename for filename in filenames
                           if get_snapshot_type(filename)]
-    # If none of the files where snapshots, throw an exception
+    # Abort if none of the files where snapshots
     if master and not snapshot_filenames:
         if os.path.isdir(path):
             msg = ('The directory "{}" does not contain any snapshots.'
@@ -87,7 +87,7 @@ def locate_snapshots(path):
         else:
             msg = ('The file "{}" is not a valid snapshot.'
                    ).format(path)
-        raise Exception(msg)
+        abort(msg)
     return snapshot_filenames
 
 # Function that produces a powerspectrum of the file
@@ -159,10 +159,9 @@ def snapshot_info():
     # Get list of snapshots
     snapshot_filenames = locate_snapshots(path)
     # Print out information about each snapshot
-    for i, snapshot_filename in enumerate(snapshot_filenames):
+    for snapshot_filename in snapshot_filenames:
         # Print out heading stating the filename
-        heading = ('{}Information about "{}"'.format('' if i == 0 else '\n',
-                                                     sensible_path(snapshot_filename)))
+        heading = ('\nInformation about "{}"'.format(sensible_path(snapshot_filename)))
         masterprint(terminal.bold(heading))
         # Print out snapshot type
         snapshot_type = get_snapshot_type(snapshot_filename)

@@ -75,7 +75,6 @@ cython.declare(master='bint',
                )
 # Functions for communication
 comm = MPI.COMM_WORLD
-Abort = comm.Abort
 Allgather = comm.Allgather
 Allgatherv = comm.Allgatherv
 Allreduce = comm.Allreduce
@@ -99,6 +98,14 @@ rank = comm.rank
 # Flag identifying the master/root process (that which have rank 0)
 master = not rank
 
+# Raised exceptions inside cdef functions do not generally propagte
+# out to the caller. In places where exceptions are normally raised
+# manualy, call this function with a descriptive message instead.
+def abort(msg=''):
+    masterwarn(msg, prefix='Aborting')
+    sys.stderr.flush()
+    sys.stdout.flush()
+    comm.Abort(1)
 
 
 ########################################
@@ -175,8 +182,7 @@ if not cython.compiled:
             # Emulate these as lists of arrays.
             return [empty(1, dtype=sizeof(dtype[:-1]).dtype)]
         elif master:
-            msg = dtype + ' not implemented as a Numpy dtype in commons.py'
-            raise TypeError(msg)
+            abort(dtype + ' not implemented as a Numpy dtype in commons.py')
         return array([1], dtype=dtype)
     def malloc(a):
         if isinstance(a, list):
@@ -405,7 +411,7 @@ while True:
     if '.paths' in os.listdir(top_dir):
         break
     elif master and top_dir == '/':
-        raise Exception('Cannot find the .paths file!')
+        abort('Cannot find the .paths file!')
     top_dir = os.path.dirname(top_dir)
 paths_module = imp.load_source('paths', top_dir + '/.paths')
 paths = {key: value for key, value in paths_module.__dict__.items()
@@ -577,6 +583,8 @@ snapshot_type = (str(params.get('snapshot_type', 'standard'))
 output_dirs = dict(params.get('output_dirs', {}))
 for kind in ('snapshot', 'powerspec', 'render'):
     output_dirs[kind] = str(output_dirs.get(kind, paths['output_dir']))
+    if not output_dirs[kind]:
+        output_dirs[kind] = paths['output_dir']
 output_dirs = {key: sensible_path(path) for key, path in output_dirs.items()}
 output_bases = dict(params.get('output_bases', {}))
 for kind in ('snapshot', 'powerspec', 'render'):
@@ -748,6 +756,8 @@ two_ewald_gridsize = 2*ewald_gridsize
 # variable. It's contributions are:
 # For CIC interpolating particle masses/volume to the grid points:
 #     particles.mass/(boxsize/PM_gridsize)**3
+# Normalization due to inverse Fourier transform:
+#     1/PM_gridsize**3
 # Factor in the Greens function:
 #     -4*π*G_Newton/((2*π/((boxsize/PM_gridsize)*PM_gridsize))**2)   
 # From finite differencing to get the forces:
@@ -756,7 +766,7 @@ two_ewald_gridsize = 2*ewald_gridsize
 #     particles.mass*Δt
 # Everything except the mass and the time are constant, and is condensed
 # into the PM_fac_const variable.
-PM_fac_const = G_Newton*PM_gridsize**4/(π*boxsize**2)
+PM_fac_const = G_Newton*PM_gridsize/(π*boxsize**2)
 # The exponential cutoff for the long-range force looks like
 # exp(-k2*rs2). In the code, the wave vector is in grid units in stead
 # of radians. The conversion is 2*π/PM_gridsize. The total factor on k2
@@ -959,7 +969,7 @@ def masterprint(msg, *args, indent=0, end='\n', **kwargs):
         print(' '*indent + msg, *args, flush=True, end=end, **kwargs)
 
 # Function for printing warnings
-def masterwarn(msg, *args, indent=0, **kwargs):
+def masterwarn(msg, *args, indent=0, prefix='Warning', **kwargs):
     if not master:
         return
     msg = str(msg).replace('CONCEPT', terminal.CONCEPT)
@@ -972,7 +982,7 @@ def masterwarn(msg, *args, indent=0, **kwargs):
                                 flush=True,
                                 **kwargs)
     else:
-        print(terminal.bold_red(' '*indent + 'Warning: ' + msg),
+        print(terminal.bold_red(' '*indent + prefix + ': ' + msg),
               file=sys.stderr,
               flush=True,
               **kwargs)

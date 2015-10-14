@@ -64,7 +64,7 @@ counts_contrast = counts.flatten()/N_in_cubes_homo - 1
 # The RMS (std) of the count contrast is also the RMS of the density contrast
 σ = np.std(counts_contrast)
 
-# Is the distribution Gaussian? If not, the snapshot has not been generated correctly.
+# Is the distribution Gaussian? If not, the snapshot has not been generated correctly
 plt.figure()
 plt.hist(counts_contrast, 100)
 s = r'{:g}% within $1\sigma$'.format(np.round(100*sum(abs(counts_contrast) < σ)/counts_contrast.size))
@@ -88,7 +88,7 @@ tol = 1e-2
 if abs(1 - σ_concept/σ) > tol:
     masterwarn(('The rms density variation σ = {} from "{}" do not agree with direct computation ({}).\n'
                 + 'The power spectrum from which σ is calulated is plotted in "{}"').format(σ_concept, powerspec_filename,
-                                                                                            σ,         powerspec_plot_filename))
+                                                                                            σ,         powerspec_filename + '.png'))
     sys.exit(1)
 
 

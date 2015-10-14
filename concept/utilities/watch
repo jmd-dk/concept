@@ -38,11 +38,19 @@ this_dir="$(dirname "${this_file}")"
 # Set up error trapping
 ctrl_c()
 {
+    # Kill the tail command silently before exiting
+    if [ -n "${tail_pid}" ]; then
+        exec 3>&2; exec 2> /dev/null; kill -SIGKILL ${tail_pid} >/dev/null 2>&1 || :; sleep 0.1; exec 2>&3; exec 3>&-
+    fi
     trap : 0
     exit 2
 }
 abort()
 {
+    # Kill the tail command silently before exiting
+    if [ -n "${tail_pid}" ]; then
+        exec 3>&2; exec 2> /dev/null; kill -SIGKILL ${tail_pid} >/dev/null 2>&1 || :; sleep 0.1; exec 2>&3; exec 3>&-
+    fi
     colorprint "An error occurred while using the \"$(basename ${this_file})\" utility!" "red"
     exit 1
 }
@@ -59,26 +67,8 @@ if ([ -z "${SSH_CLIENT}" ] && [ -z "${SSH_TTY}" ]); then
     exit 1
 fi
 
-# Get the jobid
-if [ "$#" -lt 1 ]; then
-    # Find the current (latest) jobid
-    jobid=$(mj | grep ".in1" | awk '{print $1}')
-    Njobs=$(echo "${jobid}" | wc -w)
-    if [ "${Njobs}" == "0" ]; then
-        echo "You currently have no jobs submitted"
-        exit 0
-    elif [ "${Njobs}" -gt 1 ]; then
-        echo "You currently have ${Njobs} jobs submitted. The latest will be watched"
-        jobid=$(echo "${jobid}" | awk -F'.in1' '{ print $1 }' | awk '{if($1>max) {max=$1}; count+=1} END {print max}')
-    fi
-else
-    # The jobid was supplied as an argument
-    jobid="$1"
-fi
-jobid="${jobid%.in1}"
-
 # Check for unrequired positional arguments
-if [ "$#" -gt 1 ]; then
+if [ $# -gt 1 ]; then
     badvars=""
     for badvar in ${@:2}; do
         badvars="${badvars}, \"${badvar}\""
@@ -88,68 +78,183 @@ if [ "$#" -gt 1 ]; then
     colorprint "${badvars}" "red"
 fi
 
-# Function for continuous printout of the tail of logs/jobid
-function read_tail()
+# Check for the qstat command
+qstat_path="$(which qstat 2> /dev/null || :)"
+if [ -z "${qstat_path}" ]; then
+    colorprint "Error: Could not find the 'qstat' command. Is PBS installed and on the PATH?" "red"
+    exit 1
+fi
+
+# Get the username. As at least some PBS implementations enforce a maximum
+# username length of 15 characters, truncate the username to 15 characters.
+my_username="$(whoami)"
+my_username="${my_username:0:15}"
+
+# Aquire information about submitted jobs.
+# Revert the output of qstat, so that the newest jobs are in the top.
+qstat_info="$(qstat | tac)"
+
+# Function that update the state variable by running the qstat command
+update_job_info()
 {
-    echo "Job ${jobid} is running"
-    # Wait for logs/jobid to be created
-    if [ ! -f "${concept_dir}/logs/${jobid}" ]; then
-        sleep 10
-        while :; do
-            if [ -f "${concept_dir}/logs/${jobid}" ]; then
-                break
+    # Remove possible ".in1" suffix on jobid
+    jobid="${jobid%.in1}"
+    # Aquire information about submitted jobs.
+    # Revert the output of qstat, so that the newest jobs are in the top.
+    qstat_info="$(qstat | tac)"
+    # Reset the state variable
+    state="None"
+    # Iterate through qstat output
+    while read -r line; do
+        if [ "$(echo "${line}" | awk '{print $1}')" == "${jobid}.in1" ]; then
+            # Submitted job with matching jobid found
+            username="$(echo "${line}" | awk '{print $3}')"
+            username="${username:0:15}"
+            if [ "${username}" != "${my_username}" ]; then
+                colorprint "Job ${jobid} does not belong to you" "red"
+                exit 1
             fi
-            sleep 300
-        done
-    fi
-    # Continuously print out the tail of logs/jobid
-    echo
-    tail -n 1000 -f "${concept_dir}/logs/${jobid}" &
-    tail_pid=$!
-    # Trap possible future Ctrl-C and make it kill above tail commands before exiting this script
-    trap 'kill -9 $tail_pid; echo ; exit 130; echo ' SIGINT
-    # Continue script until jobid is not listed as one of my jobs
-    while :; do
-        if [[ -z $(mj | grep "${jobid}") ]]; then
-            sleep 10
-            # Kill above tail command silently
-            exec 3>&2; exec 2> /dev/null; kill ${tail_pid} >/dev/null 2>&1; sleep 1; exec 2>&3; exec 3>&-
+            state="$(echo "${line}" | awk '{print $5}')"
+            queue="$(echo "${line}" | awk '{print $6}')"
             break
         fi
-        sleep 300
-    done
+    done <<< "${qstat_info}"
 }
 
-# Wait for execution of job, then call read_tail
-if [[ -z $(je | grep "${jobid}") ]]; then
-    # Job not running
-    if [[ -z $(js | grep "${jobid}") ]]; then
-        # Job not in progress
-        cat "${concept_dir}/logs/${jobid}"
-        exit 0
-    else
-        # Job is in queue
-        echo "Job ${jobid} is queued"
-        # Some time will always be spend in the queue
-        sleep 20
-        while :; do
-            if [[ -n $(je | grep "${jobid}") ]]; then
-                break
-            fi
-            sleep 1
-            if [[ -z $(mj | grep "${jobid}") ]]; then
-                # Job already done
-                cat "${concept_dir}/logs/${jobid}"
-                exit 0
-            fi
-            sleep 300
-        done
-        # Job running
-        read_tail
+# If no argument is given, find the last submitted job.
+# If an argument (the jobid) is given, find information about the job.
+if [ $# == 0 ]; then
+    # Aquire information about all submitted jobs
+    qstat_info="$(qstat)"
+    # Find all jobs submitted by the user. Keep only the latest one
+    Njobs=0
+    while read -r line; do
+        username="$(echo "${line}" | awk '{print $3}')"
+        username="${username:0:15}"
+        if [ "${username}" == "${my_username}" ]; then
+            # Job submitted by the user found
+            ((Njobs += 1))
+            jobid="$(echo "${line}" | awk '{print $1}')"
+            state="$(echo "${line}" | awk '{print $5}')"
+            queue="$(echo "${line}" | awk '{print $6}')"
+        fi
+    done <<< "${qstat_info}"
+    if [ ${Njobs} == 0 ]; then
+        colorprint "Error: You currently have no jobs submitted" "red"
+        exit 1
+    elif [ ${Njobs} -gt 1 ]; then
+        echo "You currently have ${Njobs} jobs submitted. The latest will be watched"
+        sleep 1
     fi
+    # Remove possible ".in1" suffix on jobid
+    jobid="${jobid%.in1}"
 else
-    # Job running
-    read_tail
+    jobid="$1"
+    update_job_info
+    if [ "${state}" == "None" ]; then
+        # Job not in progress
+        if [ -f "${logs_dir}/${jobid}" ]; then
+            cat "${logs_dir}/${jobid}"
+            trap : 0
+            exit 0
+        else
+            colorprint "Error: Job ${jobid} is not running and no matching log found" "red"
+            exit 1
+        fi
+    fi
+fi
+
+# Functin for printing changes to the job state
+state_last=""
+inform_on_new_state()
+{
+    if [ "${state}" != "${state_other}" ]; then
+        case "${state}" in
+            "C"    ) echo "Job ${jobid} is completed after having run";;
+            "E"    ) echo "Job ${jobid} is exiting after having run";;
+            "H"    ) echo "Job ${jobid} is held";;
+            "Q"    ) echo "Job ${jobid} is queued in ${queue}";;
+            "R"    ) echo "Job ${jobid} is running in queue ${queue}";;
+            "T"    ) echo "Job ${jobid} is being moved to new location";;
+            "W"    ) echo "Job ${jobid} is waiting for its executing time to be reached";;
+            "S"    ) echo "Job ${jobid} is suspend";;
+            "None" ) echo "Job ${jobid} is finished running";;
+            ""     ) echo "Job ${jobid} is in an unspecified state";;
+            *      ) echo "Job ${jobid} is in the unknown state \"${state}\"";;
+        esac
+        state_last="${state}"
+    fi
+}
+
+# Function for checking if the job suddenly finished.
+# Do not call this function after beginning reading the logfile.
+check_suddenly_finished()
+{
+    update_job_info
+    inform_on_new_state
+    # If the job is already finished, printout the entire log and exit
+    if [ "${state}" == "None" ]; then
+        if [ -f "${logs_dir}/${jobid}" ]; then
+            cat "${logs_dir}/${jobid}"
+        else
+            echo "Job ${jobid} is finished running, but no logfile is to be found. Curious ..."
+        fi
+        trap : 0
+        exit 0
+    fi
+}
+
+# Sleep durations in seconds
+sleep_little=20
+sleep_much=300
+
+# Wait until job is running
+if [ "${state}" != "R" ]; then
+    # Wait a small time before calling qstat again
+    sleep ${sleep_little}
+    check_suddenly_finished
+    while [ "${state}" != "R" ] ; do   
+        # Wait a long time before calling qstat again
+        sleep ${sleep_much}
+        check_suddenly_finished
+    done
+fi
+
+# Job running. Wait for logfile to be created
+slept=0
+while [ ! -f "${logs_dir}/${jobid}" ]; do
+    sleep ${sleep_little}
+    # After having slept a long time, check that the job
+    # has not finished without producing a log file.
+    ((slept += ${sleep_little}))
+    if [ ${slept} -gt ${sleep_much} ]; then
+        check_suddenly_finished
+        slept=0
+    fi
+done
+
+# Logfile created. Continuously print out its tail until end of job
+echo
+tail -n 1000 -f "${logs_dir}/${jobid}" &
+tail_pid=$!
+update_job_info
+inform_on_new_state
+if [ "${state}" != "None" ]; then
+    # Wait a small time before calling qstat again
+    sleep ${sleep_little}
+    update_job_info
+    inform_on_new_state
+    while [ "${state}" != "None" ]; do
+        # Wait a long time before calling qstat again
+        sleep ${sleep_much}
+        update_job_info
+        inform_on_new_state
+    done
+fi
+
+# Kill the tail command silently before exiting
+if [ -n "${tail_pid}" ]; then
+    exec 3>&2; exec 2> /dev/null; kill -SIGKILL ${tail_pid} >/dev/null 2>&1 || :; sleep 0.1; exec 2>&3; exec 3>&-
 fi
 
 # Exit gracefully

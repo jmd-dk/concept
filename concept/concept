@@ -100,11 +100,11 @@ nprocs_default=1
 params_default="None"
 pure_python_default="False"
 walltime_default=72
-# List of remote queues and number of CPU per node. The first queue is the default queue 
+# List of remote queues and number of CPUs per node. The first queue is the default queue 
 queues=(q8n q8 q4)
 ppns=(8 8 4)
 # Should PBS be used to submit remote jobs?
-use_PBS=1
+use_PBS="True"
 
 # Initial but illegal values of some command-line arguments,
 # for testing whether these arguments have been supplied.
@@ -117,18 +117,35 @@ util_unspecified="__none__"
 # Change to the concept code directory
 cd "${concept_dir}"
 
-# On some systems, libpng finds wrong versions of the zlib shared
+# On some systems, libpng finds a wrong version of the zlib shared
 # library. To fix this we export the zlib library at run time.
 export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
-
 # For the terminal to be able to print Unicode characters correctly,
 # the terminal charset need to be compatible.
 export LC_CTYPE="en_US.UTF-8"
+# Set the terminal if unset or broken
+if [ -z "${TERM}" ] || [ "${TERM}" == "dumb" ]; then
+    export TERM="linux"
+fi
 
 # Use Python's argparse module to handle command-line arguments
 args=($("${python}" -B -c "
 import argparse, sys
 # Setup command-line arguments
+def positive_int(value):
+    def raise_argparse_exception():
+        raise argparse.ArgumentTypeError(\"invalid positive int value: '{}'\".format(value))
+    try:
+        value = eval(value)
+        value = float(value)
+    except:
+        raise_argparse_exception()
+    if value != int(value):
+        raise_argparse_exception()
+    value = int(value)
+    if value < 1:
+        raise_argparse_exception()
+    return value
 parser = argparse.ArgumentParser(prog='$(basename ${this_file})',
                                  description='Run the CONCEPT code')
 parser.add_argument('-m', '--main',
@@ -137,7 +154,7 @@ parser.add_argument('-m', '--main',
                     )
 parser.add_argument('-n', '--nprocs',
                     help='number of processes',
-                    type=int,
+                    type=positive_int,
                     default=${nprocs_unspecified},
                     )
 parser.add_argument('-p', '--params',
@@ -145,7 +162,7 @@ parser.add_argument('-p', '--params',
                     default='${params_unspecified}',
                     )
 parser.add_argument('-q', '--queue',
-                    help='Queue for submission of the remote job. If omitted the script will try to choose the best.',
+                    help='queue for submission of the remote job. If omitted the script will try to choose the best.',
                     default='${queue_unspecified}',
                     )
 parser.add_argument('-t', '--test',
@@ -158,12 +175,12 @@ parser.add_argument('-u', '--util',
                     default=['${util_unspecified}'],
                     )
 parser.add_argument('-w', '--walltime',
-                     help='Set the PBS walltime in whole hours',
-                     type=int,
+                     help='set the PBS walltime in whole hours',
+                     type=positive_int,
                      default=${walltime_default},
                      )
 parser.add_argument('--local',
-                    help='Force the run to be done locally, without submitting it via PBS',
+                    help='force the run to be done locally, without submitting it via PBS',
                     default=${local_default},
                     action='store_true',
                     )
@@ -308,11 +325,19 @@ if [ "${util}" != "${util_unspecified}" ]; then
     export test="${test}"
     export util="${util}"
     export walltime="${walltime}"
-    export local="${local}"
-    export pure_python="${pure_python}"
+    local_flag=""
+    if [ "${local}" == "True" ]; then
+        local_flag="--local"
+    fi
+    export local_flag="${local_flag}"
+    pure_python_flag=""
+    if [ "${pure_python}" == "True" ]; then
+        pure_python_flag="--pure-python"
+    fi
+    export pure_python_flag="${pure_python_flag}"
     colorprint "Running the $(basename ${util}) utility" "yellow"
     trap : 0
-    eval "${util}" ${util_args}
+    eval called_from_concept=True "${util}" ${util_args}
     exit 0
 fi
 
@@ -407,25 +432,24 @@ mkdir -p "${logs_dir}"
 
 # Determine whether this script is run locally or remotely via ssh.
 # Always treat tests as if they were run locally.
+remote="False"
 if [ "${local}" == "False" ] && [ "${test}" == "${test_unspecified}" ] && ([ -n "${SSH_CLIENT}" ] || [ -n "${SSH_TTY}" ]); then
-    remote=1
-else
-    remote=0
+    remote="True"
 fi
 
 # Either stop doing further actions, submit job or run it locally
-if [ "${use_PBS}" -eq 0 ] && [ "${remote}" -eq 1 ]; then
+if [ "${use_PBS}" != "True" ] && [ "${remote}" == "True" ]; then
     # Run remotely but do not use PBS
     printf "The ${terminal_CONCEPT} code is ready to be submitted"
     trap : 0
-elif [ "${use_PBS}" -eq 1 ] && [ "${remote}" -eq 1 ]; then
+elif [ "${use_PBS}" == "True" ] && [ "${remote}" == "True" ]; then
     # Run remotely.
     # If no queue is explicitly chosen, use one with enough free nodes
     if [ "${queue}" == "${queue_unspecified}" ]; then
         # The first queue in the list is the default queue
         queue="${queues[0]}"
         ppn="${ppns[0]}"
-        # Change to the queue that has enogh free CPUS to begin job immediately
+        # Change to the queue that has enough free CPUS to begin job immediately
         node_table=$(nodes)
         for i in $(eval echo "{0..${#queues[@]}}" | sed s/'\w*$'//); do
             free_nodes=$(echo "${node_table}" | grep -o -P "(?<= ${queues[${i}]}:).*(?= free)" | awk '{print $NF}')
@@ -436,6 +460,12 @@ elif [ "${use_PBS}" -eq 1 ] && [ "${remote}" -eq 1 ]; then
                 break
             fi
         done
+        # Check that the chosen queue can be run with all the node's CPUs in use
+        if [ $((${nprocs} % ${ppn})) != 0 ]; then
+            colorprint "Error: Job submission refused: The number of processes (${nprocs}) is not divisible by the number of cores per node in any queue" "red"
+            exit 1
+        fi
+        nodes="$((${nprocs} / ${ppn}))"
     else
         # How many CPUs does the explicitly chosen queue have per node?
         for i in $(eval echo "{0..${#queues[@]}}" | sed s/'\w*$'//); do
@@ -444,13 +474,27 @@ elif [ "${use_PBS}" -eq 1 ] && [ "${remote}" -eq 1 ]; then
                 break
             fi
         done
+        nodes=$((${nprocs} / ${ppn}))
+        # Check that the explicitly chosen queue can be run with all the node's CPUs in use
+        if [ $((${nprocs} % ${ppn})) != 0 ]; then
+            colorprint "Warning: The number of processes (${nprocs}) is not divisible by the number of cores per node (${ppn}) in queue ${queue}" "red"
+            read -p "Submit anyway? [y/N] " yn
+            case "${yn}" in
+                [Yy]* ) ;;
+                [Nn]* ) echo "Job submission refused"; trap : 0; exit 0;;
+                ""    ) echo "Job submission refused"; trap : 0; exit 0;;
+                *     ) echo "Job submission refused"; trap : 0; exit 0;;
+            esac
+            # Not every CPU pr. node should be used. Find the right number
+            while [ ${ppn} -gt 1 ]; do
+                ((ppn -= 1))
+                if [ $((${nprocs} % ${ppn})) == 0 ]; then
+                    nodes=$((${nprocs} / ${ppn}))
+                    break
+                fi
+            done
+        fi
     fi
-    # Check that the chosen queue can be run with all the node's CPUs in use
-    if [ "$((${nprocs} % ${ppn}))" != 0 ]; then
-        colorprint "Error: Job submission refused:\nNo queue has the right amount of processors per node" "red"
-        exit 1
-    fi
-    nodes="$((${nprocs} / ${ppn}))"
     # Write a jobscript file
     echo -e "#!/usr/bin/env bash
 #PBS -N $(whoami):CONCEPT:$(basename ${params})
@@ -466,12 +510,23 @@ jobid=\"\${PBS_JOBID%.in1}\"
 # Change to the logs directory, so that autogenerated files will be dumped there
 cd \"${logs_dir}\"
 
-# Source the run script
-source \"${this_file}\"
+# On some systems, libpng finds a wrong version of the zlib shared
+# library. To fix this we export the zlib library at run time.
+export LD_LIBRARY_PATH=\"${zlib_dir}/lib:\${LD_LIBRARY_PATH}\"
+# For the terminal to be able to print Unicode characters correctly,
+# the terminal charset need to be compatible.
+export LC_CTYPE=\"en_US.UTF-8\"
+# Set the terminal if unset or broken
+if [ -z \"\${TERM}\" ] || [ \"\${TERM}\" == \"dumb\" ]; then
+    export TERM=\"linux\"
+fi
+
+# Source the concept script
+source \"${concept}\"
 
 # Print start messages
 if [ \"${pure_python}\" == \"True\" ]; then
-    colorprint \"Running CONCEPT in pure Python mode remotely on \$(hostname -f) as job \${jobid}\" \"yellow\" > \"${ĺogs_dir}/\${jobid}\"
+    colorprint \"Running CONCEPT in pure Python mode remotely on \$(hostname -f) as job \${jobid}\" \"yellow\" > \"${logs_dir}/\${jobid}\"
 else
     colorprint \"Running CONCEPT remotely on \$(hostname -f) as job \${jobid}\" \"yellow\" > \"${logs_dir}/\${jobid}\"
 fi
@@ -493,10 +548,10 @@ fi
 
 # Run the code. Both stdout and stderr are being logged to logs_dir/jobid,
 # while the stderr alone is also logged to logs_dir/jobid_err.
-(cd \"${concept_dir}\" && \"${mpiexec}\" \"${python}\" -B \${m_flag} \"\${main_as_library}\" \"${scp_password}\" >> \"${logs_dir}/\${jobid}\" 2>> >(tee -a \"${logs_dir}/\${jobid}_err\"))
+(cd \"${concept_dir}\" && \"${mpiexec}\" \"${python}\" -B \${m_flag} \"\${main_as_library}\" \"params='${params}'\" \"scp_password='${scp_password}'\" >> \"${logs_dir}/\${jobid}\" 2>> >(tee -a \"${logs_dir}/\${jobid}_err\"))
 
 # Run complete. Remove error log if empty
-if [ -f \"${logs_dir}/\${jobid}_err\" ] && [ ! -s \"${this_dir}/logs/\${jobid}_err\" ]; then
+if [ -f \"${logs_dir}/\${jobid}_err\" ] && [ ! -s \"${logs_dir}/\${jobid}_err\" ]; then
     rm \"${logs_dir}/\${jobid}_err\"
 else
     colorprint \"\\\nSome warnings/errors occured during CONCEPT run!\" \"red\" >> \"${logs_dir}/\${jobid}\" 2>&1
@@ -504,6 +559,12 @@ else
     colorprint \"\\\"${logs_dir}/\${jobid}_err\\\"\" \"red\" >> \"${logs_dir}/\${jobid}\" 2>&1
 fi
 " > "${this_dir}/jobscript"
+    # Check for the qsub command
+    qsub_path="$(which qsub 2> /dev/null || :)"
+    if [ -z "${qsub_path}" ]; then
+        colorprint "Error: Could not find the 'qsub' command. Is PBS installed and on the PATH?" "red"
+        exit 1
+    fi
     # Submit the remote job from within the logs directory, so that autogenerated files will be dumped there
     jobid=$(cd "${logs_dir}" && qsub "${this_dir}/jobscript")
     jobid="${jobid%.in1}"
@@ -511,6 +572,7 @@ fi
     echo "Job ${jobid} submitted to queue ${queue}"
     echo "You can now kill (Ctrl-C) this script without cancelling the job"
     # Deactivate trap and call the watch script
+    sleep 1
     trap : 0
     "${utilities_dir}/watch" "${jobid}"
 else

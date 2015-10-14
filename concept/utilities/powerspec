@@ -25,7 +25,7 @@
 
 # This utility can produce powerspectra of snapshots.
 # Run it by invoking the concept script with the
-# --util powerspec path
+# --u powerspec path
 # option, where path is the path to snapshot file
 # or a directory containing snapshots.
 
@@ -51,14 +51,11 @@ set -e
 # Source the concept script
 source "${this_dir}/../concept"
 
-# Command-line arguments are exported to this script. Handle flag-arguments
-local_flag=""
-if [ "${local}" == "True" ]; then
-    local_flag="--local"
-fi
-pure_python_flag=""
-if [ "${pure_python}" == "True" ]; then
-    pure_python_flag="--pure-python"
+# This script should always be called indirectly using the concept script
+if [ "${called_from_concept}" != "True" ]; then
+    colorprint "Error: The $(basename ${this_file}) utility must be called via the concept script, as" "red"
+    colorprint "./concept -u $(basename ${this_file}) path" "red"
+    exit 1
 fi
 
 # If no parameterfile is supplied, use the one that goes along with this utility
@@ -118,7 +115,7 @@ special_params = {
 $(cat "${params}")
 " > "${this_file}.params.full"
     # Run CO𝘕CEPT to produce the powerspectrum
-    "${concept}" -m ${main} -n ${nprocs} -p "${this_file}.params.full" -q "{queue}" -w "${walltime}" ${local_flag} ${pure_python_flag}
+    "${concept}" -m "${main}" -n ${nprocs} -p "${this_file}.params.full" -q "${queue}" -w "${walltime}" ${local_flag} ${pure_python_flag}
 done
 
 # Cleanup
