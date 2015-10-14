@@ -11,25 +11,25 @@ IC_file = 'ICs/example'				# Initial condition snapshot
 snapshot_type = 'standard'			# Type of output snapshot
 output_dirs = {					# Directories for storing output
     'snapshot' : 'output',
-    'powerspec': 'output/powerspec',
-    'render'   : '',
+    'powerspec': 'output',
+    'render'   : 'output',
                }
 output_bases = {				# File basenames for output
-    'snapshot' : 'spam',
-    'powerspec': 'ham',
-    'render'   : 'eggs',
+    'snapshot' : 'snapshot',
+    'powerspec': 'powerspec',
+    'render'   : 'render',
                 }
 output_times = {				# Times at which to dump output
-    'snapshot'       : 1,
-    'powerspec'      : (0.5, 1),
-    'render'         : linspace(0.05, 1, 5),
-    'terminal render': [sqrt(i) for i in (0.2, 0.7, 1)],
+    'snapshot'       : '',
+    'powerspec'      : '',
+    'render'         : 0.02,
+    'terminal render': '',
                 }
 
 # Numerical parameters
 boxsize          = 16/0.7*Mpc			# Linear size of the simulation box
 ewald_gridsize   = 64				# Linear size of the grid of Ewald corrections
-PM_gridsize      = 64				# Linear size of the grid used for the PM method
+PM_gridsize      = 256				# Linear size of the grid used for the PM method
 P3M_scale        = 1.25				# The long/short-range force split scale
 P3M_cutoff       = 4.8				# Maximum reach of short-range force
 softeningfactors = {				# The amount of gravitational softening for each species

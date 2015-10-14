@@ -167,6 +167,7 @@ LDFLAGS = $(shell ${python} -c "from os.path import relpath; import numpy as np;
 # Make everything
 all: $(addsuffix .so, $(pyfiles))
 	@# This suppresses "make: Nothing to be done for `all'."
+.PHONY: all
 
 # Link object filed into shared object Python modules
 $(addsuffix .so, $(pyfiles)): %.so: %.o
@@ -194,7 +195,7 @@ $(addsuffix .pxd, $(pyfiles)): %.pxd: %.pyx $(pyxpp)
 	$(python) $(pyxpp) $<
 
 # Write .pyx files from .py files using the pyxpp script
-$(addsuffix .pyx, $(pyfiles)): %.pyx: %.py $(pyxpp) $(MAKEFILE_LIST)
+$(addsuffix .pyx, $(pyfiles)): %.pyx: %.py $(pyxpp)
 	@$(python) -c "from blessings import Terminal; t = Terminal(force_styling=True); print('\n' + t.bold_yellow('Building the $(basename $@) module')) if '$(build_status)' != 'running' else ''"
 	$(eval build_status = running)
 	$(python) $(pyxpp) $<
@@ -240,6 +241,7 @@ utilities.pyx:     commons.py
 ###################
 # Cleanup targets #
 ###################
+.PHONY: clean clean_auxiliary clean_logs clean_output clean_tests clean_utilities distclean
 # Remove all compiled files
 clean:
 	$(RM) $(foreach ext,pyx pxd c o so so_ html,$(addsuffix .$(ext), $(pyfiles)))

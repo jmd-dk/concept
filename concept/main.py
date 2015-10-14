@@ -93,18 +93,19 @@ def dump(particles, op=None):
         particles.drift(drift_fac[0])
     elif op == 'kick':
         particles.kick(kick_fac[1])
+    # Dump terminal render
+    if a in terminal_render_times:
+        terminal_render(particles)
+    # Dump snapshot
+    if a in snapshot_times:
+        save(particles, a, output_filenames['snapshot'].format(a))
     # Dump powerspectrum
     if a in powerspec_times:
         powerspec(particles, output_filenames['powerspec'].format(a))
     # Dump render
     if a in render_times:
-        render(particles, a, output_filenames['render'].format(a))
-    # Dump snapshot
-    if a in snapshot_times:
-        save(particles, a, output_filenames['snapshot'].format(a))
-    # Dump terminal render
-    if a in terminal_render_times:
-        terminal_render(particles)
+        render(particles, a, output_filenames['render'].format(a),
+               cleanup=(i_dump + 1 == len(a_dumps)))
     # Increment dump time
     i_dump += 1
     if i_dump < len(a_dumps):
@@ -244,8 +245,7 @@ for output_kind, output_time in output_times.items():
     output_base = output_bases[output_kind]
     output_filenames[output_kind] = ('{}/{}{}a='.format(output_dir,
                                                         output_base,
-                                                        ('_' if output_base
-                                                             else ''))
+                                                        '_' if output_base else '')
                                      + fmt)
 # If anything special should happen, rather than starting the timeloop
 if special_params:
