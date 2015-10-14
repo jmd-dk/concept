@@ -138,7 +138,7 @@ class Particles:
             self.momz_mv = cast(self.momz, 'double[:self.N_local]')
             self.momz_mv[...] = mv[...]
         elif master:
-            raise ValueError('Wrong attribute name "{}"!'.format(coord))
+            abort('Wrong attribute name "{}"!'.format(coord))
 
     # This method will grow/shrink the data attributes.
     # Note that it will not update the N_local attribute.
@@ -222,9 +222,8 @@ class Particles:
         elif kick_algorithm == 'P3M':
             P3M(self, Δt)
         elif master:
-            raise ValueError(('Species "{}" has been assigned the kick'
-                              + 'algorithm "{}", which is not implemented!'
-                              ).format(self.species, kick_algorithm))
+            abort(('Species "{}" has been assigned the kickalgorithm "{}", '
+                   + 'which is not implemented!').format(self.species, kick_algorithm))
         masterprint('done')
 
     # This method is automaticlly called when a Particles instance
@@ -242,7 +241,6 @@ class Particles:
             free(self.momy)
         if self.momz:
             free(self.momz)
-
 
 # Constructor function for Particles instances
 @cython.header(# Argument
@@ -264,6 +262,5 @@ def construct(particle_type, particle_species, mass, N):
     if particle_species in softeningfactors:
         particles.softening = softeningfactors[particle_species]*boxsize/(N**ℝ[1/3])
     elif master:
-        raise ValueError('Species "{}" do not have an assigned softening length!'
-                         .format(particle_species))
+        abort('Species "{}" do not have an assigned softening length!'.format(particle_species))
     return particles

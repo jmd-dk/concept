@@ -21,13 +21,11 @@
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
-
-
 # This utility prints out information about snapshots.
 # More specifically, it prints the meta data contained in the snapshot.
 # That is, everything except the actual particle data.
 # Run this script by invoking the concept script with the
-# --util snapshot_info path
+# --u snapshot_info path
 # option, where path is the path to snapshot file
 # or a directory containing snapshots.
 
@@ -53,10 +51,11 @@ set -e
 # Source the concept script
 source "${this_dir}/../concept"
 
-# Command-line arguments are exported to this script. Handle flag-arguments
-pure_python_flag=""
-if [ "${pure_python}" == "True" ]; then
-    pure_python_flag="--pure-python"
+# This script should always be called indirectly using the concept script
+if [ "${called_from_concept}" != "True" ]; then
+    colorprint "Error: The $(basename ${this_file}) utility must be called via the concept script, as" "red"
+    colorprint "./concept -u $(basename ${this_file}) path" "red"
+    exit 1
 fi
 
 # Check for required positional arguments
@@ -92,7 +91,7 @@ printf "special_params = {
 " > "${this_file}.params.full"
 
 # Run CO𝘕CEPT to printout the snapshot information. Always run locally using 1 process
-"${concept}" -m ${main} -n 1 -p "${this_file}.params.full" --local ${pure_python_flag}
+"${concept}" -m "${main}" -n 1 -p "${this_file}.params.full" --local ${pure_python_flag}
 
 # Cleanup
 rm "${this_file}.params.full"

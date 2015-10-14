@@ -206,7 +206,7 @@ if master:
             msg = ('Cannot produce a {} at time a = {}, '
                    + 'as the simulation starts at a = {}.'
                    ).format(output_kind, np.min(output_time), a_begin)
-            raise Exception(msg)
+            abort(msg)
 # Create output directories if necessary
 if master:
     for output_kind, output_time in output_times.items():

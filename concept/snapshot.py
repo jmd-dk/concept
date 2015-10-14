@@ -817,8 +817,8 @@ def load_into_standard(filename, compare_params=True, only_params=False):
     # Determine snapshot type
     input_type = get_snapshot_type(filename)
     if master and input_type is None:
-        raise Exception(('Cannot recognize "{}" as neither a standard nor a '
-                         + 'gadget2 snapshot').format(filename))
+        abort('Cannot recognize "{}" as neither a standard nor a gadget2 snapshot'
+              .format(filename))
     # Dispatches the work to the appropriate function
     if input_type == 'standard':
         snapshot = load_standard(filename, compare_params=compare_params,
@@ -879,7 +879,7 @@ def save(particles, a, filename):
     elif snapshot_type == 'gadget2':
         save_gadget(particles, a, filename)
     elif master:
-        raise Exception('Does not recognize output type "{}"'.format(snapshot_type))
+        abort('Does not recognize output type "{}"'.format(snapshot_type))
 
 # Function for determining the snapshot type of a file
 @cython.header(# Arguments
@@ -889,10 +889,9 @@ def save(particles, a, filename):
                returns='str',
                )
 def get_snapshot_type(filename):
-    # Raise an exception if the file does not exist
+    # Abort if the file does not exist
     if master and not os.path.exists(filename):
-        raise Exception('The snapshot file "{}" does not exist'
-                         .format(filename))
+        abort('The snapshot file "{}" does not exist'.format(filename))
     # Test for standard HDF5 format by looking up ΩΛ and particles
     try:
         with h5py.File(filename, mode='r') as f:

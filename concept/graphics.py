@@ -44,66 +44,25 @@ import subprocess
 
 
 @cython.header(# Arguments
-               data_or_filename='object',
-               # Locals
-               file_unit_k='double',
-               file_unit_power='double',
-               file_unit_power_σ='double',
                filename='str',
-               header='str',
-               i='int',
                k='double[::1]',
                power='double[::1]',
                power_σ='double[::1]',
+               # Locals
                tmp='str',
                )
-def plot_powerspec(data_or_filename):
+def plot_powerspec(filename, k, power, power_σ):
     # Only the master process takes part in the plotting
     if not master:
         return
-
-    # If a filename is provided in stead of data, the data should be
-    # read in from the file. In that case, the plot should be saved to
-    # filename + '.png'. Otherwize, the argument should be a tuple
-    # consisting of a filename to save to, k, power and power_σ.
-    if isinstance(data_or_filename, str):
-        filename = data_or_filename + '.png'
-        masterprint('Plotting power spectrum and saving to "{}" ...'
-                    .format(filename))
-        # Read in data
-        k, power, power_σ = loadtxt(filename, unpack=True, skiprows=2)
-        # Read in meta data (units)
-        with open(filename, encoding='utf-8') as powespec_file:
-            for i in range(2):
-                header = powespec_file.readline()
-        file_unit_k = eval(re.search('k \[(.*?)\]', header).group(1).replace('⁻¹', '**(-1)'),
-                           units_dict)
-        file_unit_power = eval(re.search('power \[(.*?)\]', header).group(1).replace('³', '**3'),
-                               units_dict)
-        file_unit_power_σ = eval(re.search('σ\(power\) \[(.*?)\]', header)
-                                  .group(1).replace('³', '**3'),
-                                 units_dict)
-        # Multiply by the units if they differ from
-        # those of the current run.
-        if file_unit_k != 1:
-            k = asarray(k)*file_unit_k
-        if file_unit_power != 1:
-            power = asarray(power)*file_unit_power
-        if file_unit_power_σ != 1:
-            power_σ = asarray(power_σ)*file_unit_power_σ
-        # Attach extension to filename regardless of current extension
-        filename = filename + '.png'
-    else:
-        filename = data_or_filename[0]
-        # Attach missing extension to filename
-        if not filename.endswith('.png'):
-            filename += '.png'
-        masterprint('Plotting power spectrum and saving to "{}" ...'
-                    .format(filename))
-        # Unpack data
-        _, k, power, power_σ = data_or_filename
+    # Attach missing extension to filename
+    if not filename.endswith('.png'):
+        filename += '.png'
+    masterprint('Plotting power spectrum and saving to "{}" ...'.format(filename))
+    # Switch to the powerspec figure and clean the figure
+    plt.figure(fig_powerspec_nr)
+    plt.clf()
     # Plot powerspectrum
-    plt.figure()
     plt.gca().set_xscale('log')
     plt.gca().set_yscale('log', nonposy='clip')
     plt.errorbar(k, power, yerr=power_σ, fmt='b.', ms=3, ecolor='r', lw=0)
@@ -146,12 +105,14 @@ def plot_powerspec(data_or_filename):
                size_min='double',
                )
 def render(particles, a, filename):
-    global artist_particles, artist_text, ax
+    global artist_particles, artist_text, ax_render
+    # Print out progress message
+    masterprint('Rendering and saving image "{}" ...'.format(filename))
+    # Switch to the render figure
+    plt.figure(fig_render_nr)
     # Attach missing extension to filename
     if not filename.endswith('.png'):
         filename += '.png'
-    # Print out progress message
-    masterprint('Rendering and saving image "{}" ...'.format(filename))
     # Extract particle data
     N = particles.N
     N_local = particles.N_local
@@ -163,7 +124,7 @@ def render(particles, a, filename):
     # The particle size on the figure.
     # The size is chosen such that the particles stand side by side in a
     # homogeneous unvierse (more or less).
-    size = 1000*np.prod(fig.get_size_inches())/N**ℝ[2/3]
+    size = 1000*np.prod(fig_render.get_size_inches())/N**ℝ[2/3]
     # The particle alpha on the figure.
     # The alpha is chosen such that in a homogeneous unvierse, a column
     # of particles have a collective alpha of 1 (more or less).
@@ -182,12 +143,12 @@ def render(particles, a, filename):
     if master:
         artist_text.set_text('')
         a_str = significant_figures(a, 4, 'LaTeX')
-        artist_text = ax.text(+0.25*boxsize,
-                              -0.3*boxsize,
-                              0,
-                              '$a = {}$'.format(a_str),
-                              fontsize=16,
-                              )
+        artist_text = ax_render.text(+0.25*boxsize,
+                                     -0.3*boxsize,
+                                     0,
+                                     '$a = {}$'.format(a_str),
+                                     fontsize=16,
+                                     )
         # Make the text color black or white, dependent on the bgcolor
         if sum(bgcolor) < 1:
             artist_text.set_color('white')
@@ -195,9 +156,9 @@ def render(particles, a, filename):
             artist_text.set_color('black')
     # Update axis limits if a boxsize were explicitly passed
     if boxsize:
-        ax.set_xlim(0, boxsize)
-        ax.set_ylim(0, boxsize)
-        ax.set_zlim(0, boxsize)
+        ax_render.set_xlim(0, boxsize)
+        ax_render.set_ylim(0, boxsize)
+        ax_render.set_zlim(0, boxsize)
     # If running with a single process, save the render, make a call to
     # update the liverender and then return.
     if nprocs == 1:
@@ -360,55 +321,66 @@ def terminal_render(particles):
     # Print the ANSI image
     masterprint(''.join(projection_ANSI), end='')
 
-# Set up figure.
-# The 77.50 scaling is needed to map the resolution to pixel units
-fig = plt.figure(figsize=[resolution/77.50]*2)
-ax = fig.gca(projection='3d', axisbg=bgcolor)
-ax.set_aspect('equal')
-ax.dist = 8.55  # Zoom level
-# The artist for the particles
-artist_particles = ax.scatter(0, 0, 0, color=color, lw=0)
-# The artist for the scalefactor text
-artist_text = ax.text(0, 0, 0, '')
-# Configure axis options
-ax.set_xlim(0, boxsize)
-ax.set_ylim(0, boxsize)
-ax.set_zlim(0, boxsize)
-ax.w_xaxis.set_pane_color(zeros(4))
-ax.w_yaxis.set_pane_color(zeros(4))
-ax.w_zaxis.set_pane_color(zeros(4))
-ax.w_xaxis.gridlines.set_lw(0)
-ax.w_yaxis.gridlines.set_lw(0)
-ax.w_zaxis.gridlines.set_lw(0)
-ax.grid(False)
-ax.w_xaxis.line.set_visible(False)
-ax.w_yaxis.line.set_visible(False)
-ax.w_zaxis.line.set_visible(False)
-ax.w_xaxis.pane.set_visible(False)
-ax.w_yaxis.pane.set_visible(False)
-ax.w_zaxis.pane.set_visible(False)
-for tl in ax.w_xaxis.get_ticklines():
-    tl.set_visible(False)
-for tl in ax.w_yaxis.get_ticklines():
-    tl.set_visible(False)
-for tl in ax.w_zaxis.get_ticklines():
-    tl.set_visible(False)
-for tl in ax.w_xaxis.get_ticklabels():
-    tl.set_visible(False)
-for tl in ax.w_yaxis.get_ticklabels():
-    tl.set_visible(False)
-for tl in ax.w_zaxis.get_ticklabels():
-    tl.set_visible(False)
+# Set up figures
+cython.declare(fig_render_nr='int',
+               fig_powerspec_nr='int')
+fig_render_nr    = 1
+fig_powerspec_nr = 2
+# Prepare a figure for the render
+if render_times or special_params.get('special', '') == 'render':
+    # The 77.50 scaling is needed to map the resolution to pixel units
+    fig_render = plt.figure(fig_render_nr, figsize=[resolution/77.50]*2)
+    ax_render = fig_render.gca(projection='3d', axisbg=bgcolor)
+    ax_render.set_aspect('equal')
+    ax_render.dist = 8.55  # Zoom level
+    # The artist for the particles
+    artist_particles = ax_render.scatter(0, 0, 0, color=color, lw=0)
+    # The artist for the scalefactor text
+    artist_text = ax_render.text(0, 0, 0, '')
+    # Configure axis options
+    ax_render.set_xlim(0, boxsize)
+    ax_render.set_ylim(0, boxsize)
+    ax_render.set_zlim(0, boxsize)
+    ax_render.w_xaxis.set_pane_color(zeros(4))
+    ax_render.w_yaxis.set_pane_color(zeros(4))
+    ax_render.w_zaxis.set_pane_color(zeros(4))
+    ax_render.w_xaxis.gridlines.set_lw(0)
+    ax_render.w_yaxis.gridlines.set_lw(0)
+    ax_render.w_zaxis.gridlines.set_lw(0)
+    ax_render.grid(False)
+    ax_render.w_xaxis.line.set_visible(False)
+    ax_render.w_yaxis.line.set_visible(False)
+    ax_render.w_zaxis.line.set_visible(False)
+    ax_render.w_xaxis.pane.set_visible(False)
+    ax_render.w_yaxis.pane.set_visible(False)
+    ax_render.w_zaxis.pane.set_visible(False)
+    for tl in ax_render.w_xaxis.get_ticklines():
+        tl.set_visible(False)
+    for tl in ax_render.w_yaxis.get_ticklines():
+        tl.set_visible(False)
+    for tl in ax_render.w_zaxis.get_ticklines():
+        tl.set_visible(False)
+    for tl in ax_render.w_xaxis.get_ticklabels():
+        tl.set_visible(False)
+    for tl in ax_render.w_yaxis.get_ticklabels():
+        tl.set_visible(False)
+    for tl in ax_render.w_zaxis.get_ticklabels():
+        tl.set_visible(False)
+# Prepare a figure for the powerspec plot
+if powerspec_plot and (powerspec_times or special_params.get('special', '') == 'powerspec'):
+    fig_powerspec = plt.figure(fig_powerspec_nr)
 
-# Construct instance of the colormap with 256 - 16 = 240 colors
-colormap_240 = getattr(matplotlib.cm, terminal_colormap)(arange(240))[:, :3]
-# Apply the colormap to the terminal, remapping the 240 higher color
-# numbers. The 16 lowest are left alone in order not to mess with
-# standard terminal coloring.
+# The color map for the terminal render
 if terminal_render_times:
-    for i in range(240):
-        colorhex = matplotlib.colors.rgb2hex(colormap_240[i])
-        masterprint('\x1b]4;{};rgb:{}/{}/{}\x1b\\'
-                     .format(16 + i, colorhex[1:3],
-                                     colorhex[3:5],
-                                     colorhex[5:]), end='')
+    # Construct instance of the colormap with 256 - 16 = 240 colors
+    colormap_240 = getattr(matplotlib.cm, terminal_colormap)(arange(240))[:, :3]
+    # Apply the colormap to the terminal, remapping the 240 higher color
+    # numbers. The 16 lowest are left alone in order not to mess with
+    # standard terminal coloring.
+    if terminal_render_times:
+        for i in range(240):
+            colorhex = matplotlib.colors.rgb2hex(colormap_240[i])
+            masterprint('\x1b]4;{};rgb:{}/{}/{}\x1b\\'
+                         .format(16 + i, colorhex[1:3],
+                                         colorhex[3:5],
+                                         colorhex[5:]), end='')

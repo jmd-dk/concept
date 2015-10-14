@@ -29,7 +29,6 @@ from commons import *
 if not cython.compiled:
     from ewald import ewald
     from communication import find_N_recv, neighboring_ranks
-    from mesh import communicate_domain_boundaries, communicate_domain_ghosts
     from mesh import CIC_grid2coordinates_scalar, PM2domain
     from mesh import PM_grid, PM_CIC, PM_FFT, PM_IFFT, PM_gridsize_local_j, PM_gridstart_local_j
     from mesh import domain_grid, domain_grid_noghosts
@@ -40,7 +39,6 @@ else:
     """
     from ewald cimport ewald
     from communication cimport find_N_recv, neighboring_ranks
-    from mesh cimport communicate_domain_boundaries, communicate_domain_ghosts
     from mesh cimport CIC_grid2coordinates_scalar, PM2domain
     from mesh cimport PM_grid, PM_CIC, PM_FFT, PM_IFFT, PM_gridsize_local_j, PM_gridstart_local_j
     from mesh cimport domain_grid, domain_grid_noghosts
@@ -506,18 +504,8 @@ def PM(particles, Δt, only_long_range=False):
     # Fourier transform the grid back to coordinate space.
     # Now the grid stores potential values.
     PM_IFFT()
-    for i in range(PM_grid.shape[0]):
-        for j in range(PM_grid.shape[1]):
-            for k in range(PM_grid.shape[2]):
-                PM_grid[i, j, k] /= PM_gridsize3
     # Communicate the potential stored in the PM mesh to the domain grid
     PM2domain()
-    # The upper boundaries (not the ghost layers) of the domain grid
-    # should be a copy of the lower boundaries of the next domain.
-    # Do the needed communication.
-    communicate_domain_boundaries(mode=1)
-    # Communicate the ghost layers of the domain grid
-    communicate_domain_ghosts()
     # The factor which shold be multiplied
     # on the PM grid to get actual units.
     PM_fac = PM_fac_const*mass**2*Δt

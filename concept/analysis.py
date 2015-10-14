@@ -206,10 +206,10 @@ def powerspec(particles, filename):
     masterprint('done')
     # Plot the power spectrum
     if powerspec_plot:
-        plot_powerspec((filename,
-                        asarray(k_magnitudes)[mask],
-                        asarray(power)       [mask],
-                np.sqrt(asarray(power_σ2)    [mask])))
+        plot_powerspec(filename,
+                       asarray(k_magnitudes)    [mask],
+                       asarray(power)           [mask],
+                       np.sqrt(asarray(power_σ2)[mask]))
 
 @cython.header(# Locals
                k2='Py_ssize_t',
@@ -229,6 +229,8 @@ def powerspec(particles, filename):
                returns='tuple',
                )
 def rms_density_variation():
+    # These definitions are simply to silent compiler warnings
+    k2_center = k2_last = k2_left = integrand_center = integrand_left = 0
     # Find the last data point
     for k2 in range(k2_max - 1, -1, -1):
         if power_N[k2] != 0:
