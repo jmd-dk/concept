@@ -168,7 +168,7 @@ fi
 state_last=""
 inform_on_new_state()
 {
-    if [ "${state}" != "${state_other}" ]; then
+    if [ "${state}" != "${state_last}" ]; then
         case "${state}" in
             "C"    ) echo "Job ${jobid} is completed after having run";;
             "E"    ) echo "Job ${jobid} is exiting after having run";;
@@ -205,7 +205,7 @@ check_suddenly_finished()
 }
 
 # Sleep durations in seconds
-sleep_little=20
+sleep_little=30
 sleep_much=300
 
 # Wait until job is running
@@ -219,15 +219,16 @@ if [ "${state}" != "R" ]; then
         check_suddenly_finished
     done
 fi
+state_last="R"
 
 # Job running. Wait for logfile to be created
 slept=0
 while [ ! -f "${logs_dir}/${jobid}" ]; do
     sleep ${sleep_little}
-    # After having slept a long time, check that the job
-    # has not finished without producing a log file.
+    # After having slept for a long time, check that the job
+    # has not just finished without producing a log file.
     ((slept += ${sleep_little}))
-    if [ ${slept} -gt ${sleep_much} ]; then
+    if [ ${slept} -ge ${sleep_much} ]; then
         check_suddenly_finished
         slept=0
     fi

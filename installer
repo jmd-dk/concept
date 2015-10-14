@@ -1735,11 +1735,11 @@ tail -f "${log}" --pid $log_pid | while read line; do
             # Line with status enabled
             printf "${esc_up}${esc_erase}"
             printf "${esc_up}"
-            echo -e "${line}"
+            printf "%s\n" "${line}"
             printf "\n${esc_bold}${esc_reverted}${status}${esc_normal}\n"
         else
             # Line with status disabled
-            echo -e "${line}"
+            printf "%s\n" "${line}"
         fi
     fi
 done

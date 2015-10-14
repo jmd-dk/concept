@@ -86,6 +86,7 @@ def plot_powerspec(filename, k, power, power_σ):
                particles='Particles',
                a='double',
                filename='str',
+               cleanup='bint',
                # Locals
                a_str='str',
                alpha='double',
@@ -104,7 +105,7 @@ def plot_powerspec(filename, k, power, power_σ):
                size_max='double',
                size_min='double',
                )
-def render(particles, a, filename):
+def render(particles, a, filename, cleanup=True):
     global artist_particles, artist_text, ax_render
     # Print out progress message
     masterprint('Rendering and saving image "{}" ...'.format(filename))
@@ -172,9 +173,7 @@ def render(particles, a, filename):
     dirname = os.path.dirname(filename)
     basename = os.path.basename(filename)
     renderparts_dirname = '{}/.renderparts'.format(dirname)
-    renderpart_filename = '{}/rank{}.{}'.format(renderparts_dirname,
-                                                rank,
-                                                basename)
+    renderpart_filename = '{}/{}.png'.format(renderparts_dirname, rank)
     if master:
         os.makedirs(renderparts_dirname, exist_ok=True)
     # Now save the render parts, including transparency
@@ -188,8 +187,7 @@ def render(particles, a, filename):
     # The master process combines the parts using ImageMagick
     if master:
         # List of all newly created renderparts
-        renderpart_filenames = [(renderparts_dirname + '/rank{}.' + basename)
-                                 .format(r) for r in range(nprocs)]
+        renderpart_filenames = ['{}/{}.png'.format(renderparts_dirname, r) for r in range(nprocs)]
         # Combine all render parts into one,
         # with the correct background color and no transparency.
         subprocess.call([paths['convert']] + renderpart_filenames
@@ -199,8 +197,9 @@ def render(particles, a, filename):
                                                     100*bgcolor[2]),
                             '-layers', 'flatten', '-alpha', 'remove',
                             filename])
-        # Remove the temporary directory
-        shutil.rmtree(renderparts_dirname)
+        # Remove the temporary directory, if cleanup is requested
+        if cleanup:
+            shutil.rmtree(renderparts_dirname)
     masterprint('done')
     # Update the live render (local and remote)
     update_liverender(filename)
