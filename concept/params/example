@@ -23,7 +23,7 @@ output_bases = {			# File basenames for output
     'render'   : 'render',
                 }
 output_times = {			# Scale factor values at which to dump output
-    'snapshot'       : '',
+    'snapshot'       : 1,
     'powerspec'      : '',
     'render'         : '',
     'terminal render': '',
@@ -32,7 +32,7 @@ output_times = {			# Scale factor values at which to dump output
 # Numerical parameters
 boxsize          = 16/0.7*Mpc		# Linear size of the simulation box
 ewald_gridsize   = 64			# Linear size of the grid of Ewald corrections
-PM_gridsize      = 256			# Linear size of the particle-mesh grid
+PM_gridsize      = 64			# Linear size of the particle-mesh grid
 P3M_scale        = 1.25			# The long/short-range force split scale
 P3M_cutoff       = 4.8			# Maximum reach of short-range force
 softeningfactors = {			# The amount of gravitational softening for each species
