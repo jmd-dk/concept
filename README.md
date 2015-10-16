@@ -1,5 +1,5 @@
 # **CO*N*CEPT**
-![visualization](http://i.imgur.com/H3z5j1I.png)
+![visualization](http://i.imgur.com/NA8Nyjl.jpg)
 
 **CO*N*CEPT** (**CO**smological ***N***-body **C**od**E** in **P**y**T**hon)
 is a free and open-source code for cosmological *N*-body simulations on
