@@ -71,7 +71,9 @@ fi
 if [ $# -gt 1 ]; then
     badvars=""
     for badvar in ${@:2}; do
-        badvars="${badvars}, \"${badvar}\""
+        if [ -n "${badvar}" ]; then
+            badvars="${badvars}, \"${badvar}\""
+        fi
     done
     badvars="${badvars:2}"
     colorprint "Warning: The following arguments will be ignored by the $(basename ${this_file}) utility:" "red"

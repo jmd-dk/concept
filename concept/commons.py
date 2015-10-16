@@ -535,9 +535,14 @@ if os.path.isfile(paths['params']):
 #   output) are removed.
 # - Paths below or just one level above the concept directory are made
 #   relative to this directory in order to reduce screen clutter.
-# - Colors are transformed to (r, g, b) arrays.
 # - The 'special_params' parameter is set to an empty dictionary if it
 #   is not defined in params.py
+# - Colors are transformed to (r, g, b) arrays. Below is the function
+#   that handles the color input.
+def to_rgb(value):
+    if isinstance(value, int) or isinstance(value, float):
+        value = str(value)
+    return array(matplotlib.colors.ColorConverter().to_rgb(value), dtype=C2np['double'])
 cython.declare(# Input/output
                IC_file='str',
                snapshot_type='str',
@@ -613,10 +618,8 @@ H0 = float(params.get('H0', 70*units.km/(units.s*units.Mpc)))
 a_begin = float(params.get('a_begin', 0.02))
 # Graphics
 powerspec_plot = bool(params.get('powerspec_plot', False))
-color = array(matplotlib.colors.ColorConverter()
-              .to_rgb(params.get('color', 'lime')), dtype=C2np['double'])
-bgcolor = array(matplotlib.colors.ColorConverter()
-                .to_rgb(params.get('bgcolor', 'black')), dtype=C2np['double'])
+color = to_rgb(params.get('color', 'lime'))
+bgcolor = to_rgb(params.get('bgcolor', 'black'))
 resolution = int(params.get('resolution', 1080))
 liverender = sensible_path(str(params.get('liverender', '')))
 if liverender and not liverender.endswith('.png'):

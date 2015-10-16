@@ -546,7 +546,7 @@ def cython_decorators(filename):
 
 
 def make_pxd(filename):
-    commons_functions = ('abort', 'unicode', 'sensible_path', 'abs', 'max', 'min', 'mod', 'sum', 'prod', 'sinc', 'masterprint', 'masterwarn', 'significant_figures')
+    commons_functions = ('abort', 'unicode', 'sensible_path', 'to_rgb', 'abs', 'max', 'min', 'mod', 'sum', 'prod', 'sinc', 'masterprint', 'masterwarn', 'significant_figures')
     customs = {'Particles':        'from species cimport Particles',
                'StandardSnapshot': 'from snapshot cimport StandardSnapshot',
                'GadgetSnapshot':   'from snapshot cimport GadgetSnapshot',

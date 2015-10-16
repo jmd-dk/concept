@@ -57,7 +57,9 @@ installer_content="$(cat "${installer}")"
 if [ "$#" -gt 0 ]; then
     badvars=""
     for badvar in ${@:1}; do
-        badvars="${badvars}, \"${badvar}\""
+        if [ -n "${badvar}" ]; then
+            badvars="${badvars}, \"${badvar}\""
+        fi
     done
     badvars="${badvars:2}"
     colorprint "Warning: The following arguments will be ignored by the $(basename ${this_file}) utility:" "red"
@@ -119,6 +121,9 @@ for filename in "installer" "README.md"; do
     mv "${top_dir}/tmp/"*"/${filename}" "${top_dir}"
 done
 
+# Move the new update script to another location
+mv "${top_dir}/tmp/"*"/concept/utilities/update" "${utilities_dir}/update_new"
+
 # Copy all files from the concept directory
 cp -r "${top_dir}/tmp/"*"/concept/"* "${concept_dir}/"
 
@@ -139,6 +144,9 @@ if [ "${installer_updated}" == "yes" ]; then
     colorprint "up to date with your CONCEPT source code" "red"
 fi
 
-# Exit gracefully
+# For graceful exit
 trap : 0
+
+# As the very last thing, overwrite this file
+mv "${utilities_dir}/update_new" "${utilities_dir}/update"
 
