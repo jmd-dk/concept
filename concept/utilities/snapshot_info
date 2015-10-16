@@ -67,7 +67,9 @@ path="$1"
 if [ "$#" -gt 1 ]; then
     badvars=""
     for badvar in ${@:2}; do
-        badvars="${badvars}, \"${badvar}\""
+        if [ -n "${badvar}" ]; then
+            badvars="${badvars}, \"${badvar}\""
+        fi
     done
     badvars="${badvars:2}"
     colorprint "Warning: The following arguments will be ignored by the $(basename ${this_file}) utility:" "red"
@@ -90,8 +92,8 @@ printf "special_params = {
                   }
 " > "${this_file}.params.full"
 
-# Run CO𝘕CEPT to printout the snapshot information. Always run locally using 1 process
-"${concept}" -m "${main}" -n 1 -p "${this_file}.params.full" --local ${pure_python_flag}
+# Run CO𝘕CEPT to printout the snapshot information. Always run locally using 1 process and in pure Python mode
+"${concept}" -m "${main}" -n 1 -p "${this_file}.params.full" --local --pure-python
 
 # Cleanup
 rm "${this_file}.params.full"

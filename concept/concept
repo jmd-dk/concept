@@ -26,6 +26,10 @@
 # This script runs the CO𝘕CEPT code.
 # Run the script with the -h option to get help.
 
+# List of remote queues and number of CPUs per node
+queues=()
+ppns=()
+
 # If this file is being sourced, backups of 'this_file' and 'this_dir'
 # is needed not to alter the values of these variables.
 this_file_backup="${this_file}"
@@ -100,11 +104,6 @@ nprocs_default=1
 params_default="None"
 pure_python_default="False"
 walltime_default=72
-# List of remote queues and number of CPUs per node. The first queue is the default queue 
-queues=(q8n q8 q4)
-ppns=(8 8 4)
-# Should PBS be used to submit remote jobs?
-use_PBS="True"
 
 # Initial but illegal values of some command-line arguments,
 # for testing whether these arguments have been supplied.
@@ -316,6 +315,11 @@ fi
 
 # If a utility is to be run, run it and exit
 if [ "${util}" != "${util_unspecified}" ]; then
+    # If no argument was passed after the -u option,
+    # util_ars should be empty.
+    if [ "${util_args}" == '""' ]; then
+        util_args=""
+    fi
     # Export every command-line argument. These will be fed back into
     # this script when called from the utility.
     export main="${main}"
@@ -339,6 +343,20 @@ if [ "${util}" != "${util_unspecified}" ]; then
     trap : 0
     eval called_from_concept=True "${util}" ${util_args}
     exit 0
+fi
+
+# Compile or do cleanup from last compilation
+if [ "${pure_python}" == "True" ] ; then
+    # Rename compiled Cython modules *.so to *.so_
+    if ls "${concept_dir}/"*.so > /dev/null 2>&1; then
+        (cd "${concept_dir}" && for f in *.so; do mv "${f}" "${f%.so}.so_"; done)
+    fi
+else
+    # Rename compiled Cython modules *.so_ back to *.so and compile with Cython
+    if ls "${concept_dir}/"*.so_ > /dev/null 2>&1; then
+        (cd "${concept_dir}" && for f in *.so_; do mv "${f}" "${f%.so_}.so"; done)
+    fi
+    (cd "${concept_dir}" && make)
 fi
 
 # Sensible paths to the main and parameter file, for clean printout
@@ -413,20 +431,6 @@ if [ "${scp_success}" != "success" ]; then
     sleep 10
 fi
 
-# Compile or do cleanup from last compilation
-if [ "${pure_python}" == "True" ] ; then
-    # Rename compiled Cython modules *.so to *.so_
-    if ls "${concept_dir}/"*.so > /dev/null 2>&1; then
-        (cd "${concept_dir}" && for f in *.so; do mv "${f}" "${f%.so}.so_"; done)
-    fi
-else
-    # Rename compiled Cython modules *.so_ back to *.so and compile with Cython
-    if ls "${concept_dir}/"*.so_ > /dev/null 2>&1; then
-        (cd "${concept_dir}" && for f in *.so_; do mv "${f}" "${f%.so_}.so"; done)
-    fi
-    (cd "${concept_dir}" && make)
-fi
-
 # Create the logs dir if it does not exist
 mkdir -p "${logs_dir}"
 
@@ -438,29 +442,23 @@ if [ "${local}" == "False" ] && [ "${test}" == "${test_unspecified}" ] && ([ -n 
 fi
 
 # Either stop doing further actions, submit job or run it locally
-if [ "${use_PBS}" != "True" ] && [ "${remote}" == "True" ]; then
+if [ ${#queues[@]} == 0 ] && [ "${remote}" == "True" ]; then
     # Run remotely but do not use PBS
-    printf "The ${terminal_CONCEPT} code is ready to be submitted"
+    printf "The ${terminal_CONCEPT} code is ready to be submitted\n"
     trap : 0
-elif [ "${use_PBS}" == "True" ] && [ "${remote}" == "True" ]; then
+    exit 0
+elif [ ${#queues[@]} -gt 0 ] && [ "${remote}" == "True" ]; then
     # Run remotely.
-    # If no queue is explicitly chosen, use one with enough free nodes
+    # If no queue is explicitly chosen, find a queue for
+    # which the job can utilize all CPUs on the nodes
     if [ "${queue}" == "${queue_unspecified}" ]; then
-        # The first queue in the list is the default queue
-        queue="${queues[0]}"
-        ppn="${ppns[0]}"
-        # Change to the queue that has enough free CPUS to begin job immediately
-        node_table=$(nodes)
-        for i in $(eval echo "{0..${#queues[@]}}" | sed s/'\w*$'//); do
-            free_nodes=$(echo "${node_table}" | grep -o -P "(?<= ${queues[${i}]}:).*(?= free)" | awk '{print $NF}')
-            free_cpus=$(echo "$((${free_nodes} * ${ppns[${i}]}))")
-            if [ "${free_cpus}" -ge "${nprocs}" ] && [ "$((${nprocs} % ${ppns[${i}]}))" -eq 0 ]; then
-                queue="${queues[${i}]}"
-                ppn="${ppns[${i}]}"
+        for ((i = 0; i < ${#queues[@]}; i += 1)); do
+            queue="${queues[i]}"
+            ppn="${ppns[i]}"
+            if [ $((${nprocs} % ${ppn})) == 0 ]; then
                 break
             fi
         done
-        # Check that the chosen queue can be run with all the node's CPUs in use
         if [ $((${nprocs} % ${ppn})) != 0 ]; then
             colorprint "Error: Job submission refused: The number of processes (${nprocs}) is not divisible by the number of cores per node in any queue" "red"
             exit 1
@@ -468,12 +466,18 @@ elif [ "${use_PBS}" == "True" ] && [ "${remote}" == "True" ]; then
         nodes="$((${nprocs} / ${ppn}))"
     else
         # How many CPUs does the explicitly chosen queue have per node?
-        for i in $(eval echo "{0..${#queues[@]}}" | sed s/'\w*$'//); do
+        ppn="None"
+        for ((i = 0; i < ${#queues[@]}; i += 1)); do
             if [ "${queue}" == "${queues[${i}]}" ]; then
                 ppn="${ppns[${i}]}"
                 break
             fi
         done
+        if [ "${ppn}" == "None" ] || [ -z "${ppn}" ] ; then
+            colorprint "Error: The requested queue \"${queue}\" is not familiar to me." "red"
+            colorprint "Please specify it in the \"queues\" and \"ppns\" variables." "red"
+            exit 1
+        fi
         nodes=$((${nprocs} / ${ppn}))
         # Check that the explicitly chosen queue can be run with all the node's CPUs in use
         if [ $((${nprocs} % ${ppn})) != 0 ]; then

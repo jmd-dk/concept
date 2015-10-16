@@ -191,12 +191,10 @@ def render(particles, a, filename, cleanup=True):
         # Combine all render parts into one,
         # with the correct background color and no transparency.
         subprocess.call([paths['convert']] + renderpart_filenames
-                         + ['-background', 'rgb({}%, {}%, {}%)'
-                                            .format(100*bgcolor[0],
-                                                    100*bgcolor[1],
-                                                    100*bgcolor[2]),
-                            '-layers', 'flatten', '-alpha', 'remove',
-                            filename])
+                         + ['-background', 'rgb({}%, {}%, {}%)'.format(100*bgcolor[0],
+                                                                       100*bgcolor[1],
+                                                                       100*bgcolor[2]),
+                            '-layers', 'flatten', '-alpha', 'remove', filename])
         # Remove the temporary directory, if cleanup is requested
         if cleanup:
             shutil.rmtree(renderparts_dirname)

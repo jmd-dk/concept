@@ -23,8 +23,12 @@ hdf5_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/hdf5'
 imagemagick_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/imagemagick'
 # Directory of libpng
 libpng_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/libpng'
+# Directory containing CO𝘕CEPT logs
+logs_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/logs'
 # Directory of MPI
 mpi_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/mpich'
+# Directory containing CO𝘕CEPT output
+output_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/output'
 # Directory of Python
 python_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python'
 # Directory containing tests for the CO𝘕CEPT code
@@ -54,5 +58,3 @@ python_config='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python/bin/pytho
 # The run script of the CONCEPT code
 concept='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/concept'
 
-logs_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/logs'
-output_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/output'
