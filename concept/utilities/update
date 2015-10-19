@@ -69,7 +69,7 @@ fi
 # Borrow some functions from the install script.
 # Sourcing is no good here, as we are not interested in
 # actually running the installer script.
-installer_functions=("set_package_names" "set_package_manager_and_names" "check_system_dependency" "extract" "download_and_extract")
+installer_functions=("set_package_names" "set_package_manager_and_names" "check_system_dependency" "extract" "download")
 for installer_function in "${installer_functions[@]}"; do
 function_definition="$("${python}" -B -c "
 import re, sys
@@ -107,10 +107,12 @@ cp "${concept_dir}/"*    "${backup_dir}/concept" 2> /dev/null || :
 # Download and extract CO𝘕CEPT
 concept_url="https://github.com/jmd-dk/concept/archive/master.tar.gz"
 rm -rf "${top_dir}/tmp"
-download_and_extract "CONCEPT"
+mkdir "${top_dir}/tmp"
+download "CONCEPT"
+extract "CONCEPT"
 
 # Check whether the installer has been updated
-installer_updated_content="$(cat "${top_dir}/tmp/"*"/installer")"
+installer_updated_content="$(cat "${top_dir}/tmp/concept/"*"/installer")"
 installer_updated="yes"
 if [ "${installer_content}" == "${installer_updated_content}" ]; then
     installer_updated="no"
@@ -118,14 +120,14 @@ fi
 
 # Move particular files from the master directory
 for filename in "installer" "README.md"; do
-    mv "${top_dir}/tmp/"*"/${filename}" "${top_dir}"
+    mv "${top_dir}/tmp/concept/"*"/${filename}" "${top_dir}"
 done
 
 # Move the new update script to another location
-mv "${top_dir}/tmp/"*"/concept/utilities/update" "${utilities_dir}/update_new"
+mv "${top_dir}/tmp/concept/"*"/concept/utilities/update" "${utilities_dir}/update_new"
 
 # Copy all files from the concept directory
-cp -r "${top_dir}/tmp/"*"/concept/"* "${concept_dir}/"
+cp -r "${top_dir}/tmp/concept/"*"/concept/"* "${concept_dir}/"
 
 # Cleanup
 rm -rf "${top_dir}/tmp"

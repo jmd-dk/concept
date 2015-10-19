@@ -7,5 +7,5 @@ massively parallel computers with distributed memory. The code is written
 almost exclusively in Python, but it achieves C-like performance thanks to
 Cython.
 
-For documentation on how to install and use CO*N*CEPT, see [guide.pdf](guide.pdf)
+For documentation on how to install and use CO*N*CEPT, see [guide.pdf](guide.pdf).
 
