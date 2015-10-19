@@ -41,7 +41,7 @@ matplotlib.use('Agg')
 # For plotting
 import matplotlib.pyplot as plt
 # When using ax.scatter in graphics.py (and possibly more) the following
-# warning is given, as of NumPy 1.10.0, Matplotlib 1.4.3:
+# warning is given, as of NumPy 1.10.0 and 1.10.1, Matplotlib 1.4.3:
 # FutureWarning: elementwise comparison failed; returning scalar instead,
 # but in the future will perform elementwise comparison
 #   if self._edgecolors == str('face'):
