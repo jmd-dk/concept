@@ -99,8 +99,8 @@ qstat_info="$(qstat | tac)"
 # Function that update the state variable by running the qstat command
 update_job_info()
 {
-    # Remove possible ".in1" suffix on jobid
-    jobid="${jobid%.in1}"
+    # Remove possible suffix on jobid
+    jobid="${jobid%.*}"
     # Aquire information about submitted jobs.
     # Revert the output of qstat, so that the newest jobs are in the top.
     qstat_info="$(qstat | tac)"
@@ -108,7 +108,7 @@ update_job_info()
     state="None"
     # Iterate through qstat output
     while read -r line; do
-        if [ "$(echo "${line}" | awk '{print $1}')" == "${jobid}.in1" ]; then
+        if [[ "$(echo "${line}" | awk '{print $1}')" == "${jobid}."* ]]; then
             # Submitted job with matching jobid found
             username="$(echo "${line}" | awk '{print $3}')"
             username="${username:0:15}"
@@ -148,10 +148,12 @@ if [ $# == 0 ]; then
         echo "You currently have ${Njobs} jobs submitted. The latest will be watched"
         sleep 1
     fi
-    # Remove possible ".in1" suffix on jobid
-    jobid="${jobid%.in1}"
+    # Remove possible suffix on jobid
+    jobid="${jobid%.*}"
 else
     jobid="$1"
+    # Remove possible suffix on jobid
+    jobid="${jobid%.*}"
     update_job_info
     if [ "${state}" == "None" ]; then
         # Job not in progress
