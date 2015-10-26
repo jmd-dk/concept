@@ -223,8 +223,8 @@ def cosmic_time(a, a_lower=machine_ϵ, t_lower=machine_ϵ, t_upper=20*units.Gyr)
     # Compute the cosmic time at which the scale factor had the value a,
     # using a binary search
     a_test = t = -1
-    while (abs(a_test - a) > two_machine_ϵ
-           and (t_upper - t_lower) > two_machine_ϵ):
+    while (abs(a_test - a) > ℝ[2*machine_ϵ]
+           and (t_upper - t_lower) > ℝ[2*machine_ϵ]):
         t = (t_upper + t_lower)/2
         a_test = rkf45(ȧ, a_lower, t_lowest, t, δ=1e-9, ϵ=1e-9,
                        save_intermediate=False)

@@ -333,7 +333,7 @@ def cutout_domains(n, basecall=True):
     # Factorize n
     primeset = []
     while n > 1:
-        for i in range(2, int(n + 1)):
+        for i in range(2, n + 1):
             if n % i == 0:
                 # Check whether i is prime
                 if i == 2 or i == 3:
@@ -360,7 +360,7 @@ def cutout_domains(n, basecall=True):
                     primeset.append(i)
                 else:
                     primeset += cutout_domains(i, basecall=False)
-                n /= i
+                n //= i
     # The returned list should always consist of 3 values
     if basecall:
         N_primes = len(primeset)

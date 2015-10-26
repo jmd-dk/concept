@@ -297,6 +297,14 @@ else:
 
 
 
+###################
+# Machine epsilon #
+###################
+cython.declare(machine_ϵ='double')
+machine_ϵ = np.finfo(C2np['double']).eps
+
+
+
 ##################
 # Physical units #
 ##################
@@ -478,7 +486,7 @@ params = {# The paths dict
           'os'   : os,
           're'   : re,
           'sys'  : sys,
-          # Mathemtical NumPy functions and constants
+          # Mathematical NumPy functions and constants
           'abs'        : np.abs,
           'arccos'     : np.arccos,
           'arccosh'    : np.arccosh,
@@ -511,6 +519,7 @@ params = {# The paths dict
           'empty'      : np.empty,
           'linspace'   : np.linspace,
           'loadtxt'    : np.loadtxt,
+          'logspace'   : np.logspace,
           'max'        : np.max,
           'min'        : np.min,
           'ones'       : np.ones,
@@ -519,6 +528,8 @@ params = {# The paths dict
           'sum'        : np.sum,
           'trapz'      : np.trapz,
           'zeros'      : np.zeros,
+          # Other constants
+          'machine_ϵ': machine_ϵ,
           }
 # Units from the units extension type
 params.update(units_dict)
@@ -597,8 +608,10 @@ for kind in ('snapshot', 'powerspec', 'render'):
 output_times = dict(params.get('output_times', {}))
 for kind in ('snapshot', 'powerspec', 'render', 'terminal render'):
     output_times[kind] = output_times.get(kind, ())
-output_times = {key: tuple(sorted(set([float(nr) for nr in np.ravel(val)
-                                                 if nr or nr == 0])))
+output_times = {key: tuple(sorted(set([float(nr) for nr in (list(val) if hasattr(val, '__iter__')
+                                                                 and not hasattr(val, '__len__')
+                                                            else np.ravel(val))
+                                       if nr or nr == 0])))
                 for key, val in output_times.items()}
 # Numerical parameters
 boxsize = float(params.get('boxsize', 1))
@@ -647,6 +660,11 @@ fftw_rigor = params.get('fftw_rigor', 'estimate').lower()
 # Extra hidden parameters via the special_params variable
 special_params = dict(params.get('special_params', {}))
 
+# Output times very close to a_begin are probably meant to be at a_begin
+output_times = {key: tuple([(a_begin if np.abs(nr - a_begin) < 10*machine_ϵ else nr)
+                            for nr in val])
+                for key, val in output_times.items()}
+
 
 
 #####################################
@@ -680,20 +698,12 @@ if not cython.compiled:
 cython.declare(a_dumps='tuple',
                a_max='double',
                G_Newton='double',
-               PM_gridsize3='ptrdiff_t',
+               PM_gridsize3='long long int',
                PM_gridsize_padding='ptrdiff_t',
-               boxsize2='double',
-               boxsize3='double',
                ewald_file='str',
-               half_PM_gridsize='ptrdiff_t',
-               half_PM_gridsize_padding='ptrdiff_t',
-               half_boxsize='double',
-               machine_ϵ='double',
-               minus_half_boxsize='double',
                powerspec_dir='str',
                powerspec_base='str',
                powerspec_times='tuple',
-               recp_boxsize2='double',
                render_dir='str',
                render_base='str',
                render_times='tuple',
@@ -702,21 +712,15 @@ cython.declare(a_dumps='tuple',
                snapshot_base='str',
                snapshot_times='tuple',
                terminal_render_times='tuple',
-               ten_machine_ϵ='double',
-               two_ewald_gridsize='int',
-               two_machine_ϵ='double',
-               two_recp_boxsize='double',
                ϱ='double',
                ϱm='double',
                PM_fac_const='double',
                longrange_exponent_fac='double',
                P3M_cutoff_phys='double',
                P3M_scale_phys='double',
-               π_recp_PM_gridsize='double',
                )
 # List of dump times
-a_dumps = tuple(sorted(set([nr for val in output_times.values()
-                               for nr in val])))
+a_dumps = tuple(sorted(set([nr for val in output_times.values() for nr in val])))
 # The scale factor at the last time step
 a_max = a_begin if len(a_dumps) == 0 else np.max(a_dumps)
 # Extract output variables from output dicts
@@ -737,29 +741,18 @@ G_Newton = 6.6738e-11*units.m**3/units.kg/units.s**2
 ϱ = 3*H0**2/(8*π*G_Newton)
 # The average, comoving matter density
 ϱm = Ωm*ϱ
-PM_gridsize3 = PM_gridsize**3
+# The real size of the padded dimension of PM_gridsize
 PM_gridsize_padding = 2*(PM_gridsize//2 + 1)
-half_PM_gridsize = PM_gridsize//2
-half_PM_gridsize_padding = PM_gridsize_padding//2
-boxsize2 = boxsize**2
-boxsize3 = boxsize**3
-recp_boxsize2 = 1/boxsize2
-half_boxsize = 0.5*boxsize
-minus_half_boxsize = -half_boxsize
-two_recp_boxsize = 2/boxsize
-π_recp_PM_gridsize = π/PM_gridsize
+# The cube of PM_gridsize. This is defined here because it is a very
+# large integer (long long int), making the ℝ-syntax unpractical
+PM_gridsize3 = cast(PM_gridsize, 'long long int')**3
 # Name of file storing the Ewald grid
 ewald_file = '.ewald_gridsize=' + str(ewald_gridsize) + '.hdf5'
-# Machine epsilon
-machine_ϵ = np.finfo(C2np['double']).eps
-two_machine_ϵ = 2*machine_ϵ
-ten_machine_ϵ = 10*machine_ϵ
-two_ewald_gridsize = 2*ewald_gridsize
 # All constant factors across the PM scheme is gathered in the PM_fac
 # variable. It's contributions are:
 # For CIC interpolating particle masses/volume to the grid points:
 #     particles.mass/(boxsize/PM_gridsize)**3
-# Normalization due to inverse Fourier transform:
+# Normalization due to forwards and backwards Fourier transforms:
 #     1/PM_gridsize**3
 # Factor in the Greens function:
 #     -4*π*G_Newton/((2*π/((boxsize/PM_gridsize)*PM_gridsize))**2)   

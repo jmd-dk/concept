@@ -59,19 +59,19 @@ for i in range(N_snapshots):
         for l in range(N):
             for k in range(N):
                 dx = x[l] - x_procs[k]
-                if dx > half_boxsize:
+                if dx > 0.5*boxsize:
                     dx -= boxsize
-                elif dx < -half_boxsize:
+                elif dx < -0.5*boxsize:
                     dx += boxsize
                 dy = y[l] - y_procs[k]
-                if dy > half_boxsize:
+                if dy > 0.5*boxsize:
                     dy -= boxsize
-                elif dy < -half_boxsize:
+                elif dy < -0.5*boxsize:
                     dy += boxsize
                 dz = z[l] - z_procs[k]
-                if dz > half_boxsize:
+                if dz > 0.5*boxsize:
                     dz -= boxsize
-                elif dz < -half_boxsize:
+                elif dz < -0.5*boxsize:
                     dz += boxsize
                 D2[k] = dx**2 + dy**2 + dz**2
             ID[l] = np.argmin(D2)

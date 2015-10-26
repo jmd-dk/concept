@@ -233,11 +233,11 @@ def CIC_grid2coordinates_scalar(grid, x, y, z):
     # This is to catch inputs which are slighly larger than 1 due to
     # numerical errors.
     if x >= 1:
-        x = 1 - two_machine_ϵ
+        x = 1 - ℝ[2*machine_ϵ]
     if y >= 1:
-        y = 1 - two_machine_ϵ
+        y = 1 - ℝ[2*machine_ϵ]
     if z >= 1:
-        z = 1 - two_machine_ϵ
+        z = 1 - ℝ[2*machine_ϵ]
     # Scale the coordinates so that 0 <= x, y, z < (gridsize - 1)
     x *= gridsize_x_minus_1
     y *= gridsize_y_minus_1
@@ -311,11 +311,11 @@ def CIC_grid2coordinates_vector(grid, x, y, z):
     # This is to catch inputs which are slighly larger than 1 due to
     # numerical errors.
     if x >= 1:
-        x = 1 - two_machine_ϵ
+        x = 1 - ℝ[2*machine_ϵ]
     if y >= 1:
-        y = 1 - two_machine_ϵ
+        y = 1 - ℝ[2*machine_ϵ]
     if z >= 1:
-        z = 1 - two_machine_ϵ
+        z = 1 - ℝ[2*machine_ϵ]
     # Scale the coordinates so that 0 <= x, y, z < (gridsize - 1)
     x *= gridsize_x_minus_1
     y *= gridsize_y_minus_1
@@ -407,11 +407,11 @@ def CIC_particles2grid(particles, grid):
         # Correct for coordinates which are
         # exactly at an upper domain boundary.
         if x == gridsize_i_minus_1:
-            x -= two_machine_ϵ
+            x -= ℝ[2*machine_ϵ]
         if y == gridsize_j_minus_1:
-            y -= two_machine_ϵ
+            y -= ℝ[2*machine_ϵ]
         if z == gridsize_k_minus_1:
-            z -= two_machine_ϵ
+            z -= ℝ[2*machine_ϵ]
         # Indices of the 8 vertices (6 faces)
         # of the grid surrounding (x, y, z).
         x_lower = int(x)
