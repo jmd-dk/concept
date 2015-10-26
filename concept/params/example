@@ -11,7 +11,7 @@
 
 # Input/output
 IC_file = 'ICs/example'			# Initial condition snapshot
-snapshot_type = 'standard'		# Type of output snapshot
+snapshot_type = 'standard'		# Type of output snapshots
 output_dirs = {				# Directories for storing output
     'snapshot' : 'output',
     'powerspec': 'output',
@@ -26,11 +26,11 @@ output_times = {			# Scale factor values at which to dump output
     'snapshot'       : 1,
     'powerspec'      : '',
     'render'         : '',
-    'terminal render': '',
+    'terminal render': 1,
                 }
 
 # Numerical parameters
-boxsize          = 16/0.7*Mpc		# Linear size of the simulation box
+boxsize          = 16*Mpc		# Linear size of the simulation box
 ewald_gridsize   = 64			# Linear size of the grid of Ewald corrections
 PM_gridsize      = 64			# Linear size of the particle-mesh grid
 P3M_scale        = 1.25			# The long/short-range force split scale
@@ -54,7 +54,7 @@ bgcolor             = 'black'		# Background color of renders
 resolution          = 1080		# The height and width of the render
 liverender          = ''		# Filename of saved live render
 remote_liverender   = ''		# Where to upload the live render
-terminal_colormap   = 'gnuplot2'	# The colormab to use for the terminal render
+terminal_colormap   = 'gnuplot2'	# The colormap to use for the terminal render
 terminal_resolution = 80		# The width of the terminal render
 
 # Simulation options

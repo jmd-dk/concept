@@ -79,11 +79,12 @@ def do_kick_drift_integrals(index):
 # whether or not something has been dumped.
 @cython.header(# Arguments
                particles='Particles',
+               output_filenames='dict',
                op='str',
                # Locals
                returns='bint',
                )
-def dump(particles, op=None):
+def dump(particles, output_filenames, op=None):
     global a, a_dump, drift_fac, i_dump, kick_fac
     # Do nothing if not at dump time
     if a != a_dump:
@@ -105,7 +106,7 @@ def dump(particles, op=None):
     # Dump render
     if a in render_times:
         render(particles, a, output_filenames['render'].format(a),
-               cleanup=(i_dump + 1 == len(a_dumps)))
+               cleanup=(a == render_times[len(render_times) - 1]))
     # Increment dump time
     i_dump += 1
     if i_dump < len(a_dumps):
@@ -119,6 +120,7 @@ def dump(particles, op=None):
 @cython.header(# Locals
                timestep='ptrdiff_t',
                particles='Particles',
+               output_filenames='dict',
                Δt_update_freq='Py_ssize_t',
                )
 def timeloop():
@@ -126,6 +128,8 @@ def timeloop():
     # Do nothing if no dump times exist
     if len(a_dumps) == 0:
         return
+    # Get the output filename patterns
+    output_filenames = prepare_output_times()
     # Load initial conditions
     particles = load_particles(IC_file)
     # The number of time steps before Δt is updated
@@ -145,7 +149,7 @@ def timeloop():
     i_dump = 0
     a_dump = a_dumps[i_dump]
     # Possible output at a == a_begin
-    dump(particles)
+    dump(particles, output_filenames)
     # The main time loop
     masterprint('Begin main time loop')
     timestep = -1
@@ -161,7 +165,7 @@ def timeloop():
         # Kick (first time is only half a kick, as kick_fac[1] == 0)
         do_kick_drift_integrals(0)
         particles.kick(kick_fac[0] + kick_fac[1])
-        if dump(particles, 'drift'):
+        if dump(particles, output_filenames, 'drift'):
             continue
         # Update Δt every Δt_update_freq time step
         if not (timestep % Δt_update_freq):
@@ -175,20 +179,12 @@ def timeloop():
         # Drift
         do_kick_drift_integrals(1)
         particles.drift(drift_fac[0] + drift_fac[1])
-        if dump(particles, 'kick'):
+        if dump(particles, output_filenames, 'kick'):
             continue
 
-# Declare global variables used in above functions,
-# as well as variables in the code below.
-cython.declare(# Globals
-               a='double',
-               a_dump='double',
-               drift_fac='double[::1]',
-               i_dump='Py_ssize_t',
-               kick_fac='double[::1]',
-               t='double',
-               Δt='double',
-               # Module level variables
+# Function which checks the sanity of the user supplied output times,
+# creates output directories and defines the output filename patterns.
+@cython.header(# Locals
                fmt='str',
                msg='str',
                ndigits='int',
@@ -199,60 +195,72 @@ cython.declare(# Globals
                output_filenames='dict',
                output_time='tuple',
                times='list',
+               returns='dict',
                )
-# Check that the output times are legal
-if master:
+def prepare_output_times():
+    # Check that the output times are legal
+    if master:
+        for output_kind, output_time in output_times.items():
+            if output_time and np.min(output_time) < a_begin:
+                msg = ('Cannot produce a {} at time a = {}, as the simulation starts at a = {}.'
+                       ).format(output_kind, np.min(output_time), a_begin)
+                abort(msg)
+    # Create output directories if necessary
+    if master:
+        for output_kind, output_time in output_times.items():
+            # Do not create directory if this kind of output
+            # should never be dumped to the disk.
+            if not output_time or not output_kind in output_dirs:
+                continue
+            # Create directory
+            output_dir = output_dirs[output_kind]
+            if output_dir:
+                os.makedirs(output_dir, exist_ok=True)
+    Barrier()
+    # Construct the patterns for the output file names. This involves
+    # determining the number of digits of the scalefactor in the output
+    # filenames. There should be enogh digits so that adjacent dumps do
+    # not overwrite each other, and so that the name of the first dump
+    # differs from that of the IC, should it use the same
+    # naming convention.
+    output_filenames = {}
     for output_kind, output_time in output_times.items():
-        if output_time and np.min(output_time) < a_begin:
-            msg = ('Cannot produce a {} at time a = {}, '
-                   + 'as the simulation starts at a = {}.'
-                   ).format(output_kind, np.min(output_time), a_begin)
-            abort(msg)
-# Create output directories if necessary
-if master:
-    for output_kind, output_time in output_times.items():
-        # Do not create directory if this kind of output
-        # should never be dumped to the disk.
+        # This kind of output does not matter if
+        # it should never be dumped to the disk.
         if not output_time or not output_kind in output_dirs:
             continue
-        # Create directory
+        # Compute number of digits 
+        times = sorted(set((a_begin, ) + output_time))
+        ndigits = 0
+        while True:
+            fmt = '{:.' + str(ndigits) + 'f}'
+            if (len(set([fmt.format(ot) for ot in times])) == len(times) and (fmt.format(times[0]) != fmt.format(0) or not times[0])):
+                break
+            ndigits += 1    
+        # Store output name patterns                   
         output_dir = output_dirs[output_kind]
-        if output_dir:
-            os.makedirs(output_dir, exist_ok=True)
-Barrier()
-# Construct the patterns for the output file names. This involves
-# determining the number of scalefactor digits in the output filenames.
-# There should be enogh digits so that adjacent dumps do not overwrite
-# each other, and so that the name of the first dump differs from that
-# of the IC, should it use the same naming convention.
-output_filenames = {}
-for output_kind, output_time in output_times.items():
-    # This kind of output does not matter if
-    # it should never be dumped to the disk.
-    if not output_time or not output_kind in output_dirs:
-        continue
-    # Compute number of digits 
-    times = sorted(set((a_begin, ) + output_time))
-    ndigits = 0
-    while True:
-        fmt = '{:.' + str(ndigits) + 'f}'
-        if (len(set(fmt.format(ot) for ot in times)) == len(times)
-            and (fmt.format(times[0]) != fmt.format(0) or not times[0])):
-            break
-        ndigits += 1    
-    # Store output name patterns                   
-    output_dir = output_dirs[output_kind]
-    output_base = output_bases[output_kind]
-    output_filenames[output_kind] = ('{}/{}{}a='.format(output_dir,
-                                                        output_base,
-                                                        '_' if output_base else '')
-                                     + fmt)
+        output_base = output_bases[output_kind]
+        output_filenames[output_kind] = ('{}/{}{}a='.format(output_dir,
+                                                            output_base,
+                                                            '_' if output_base else '')
+                                         + fmt)
+    return output_filenames
+
 # If anything special should happen, rather than starting the timeloop
 if special_params:
     delegate()
     Barrier()
     sys.exit()
 
+# Declare global variables used in above functions
+cython.declare(a='double',
+               a_dump='double',
+               drift_fac='double[::1]',
+               i_dump='Py_ssize_t',
+               kick_fac='double[::1]',
+               t='double',
+               Δt='double',
+               )
 # Run the time loop
 timeloop()
 # Simulation done

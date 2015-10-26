@@ -137,23 +137,22 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
             if only_short_range:
                 # Translate coordinates so they
                 # correspond to the nearest image.
-                if x > half_boxsize:
+                if x > ℝ[0.5*boxsize]:
                     x -= boxsize
-                elif x < minus_half_boxsize:
+                elif x < ℝ[-0.5*boxsize]:
                     x += boxsize
-                if y > half_boxsize:
+                if y > ℝ[0.5*boxsize]:
                     y -= boxsize
-                elif y < minus_half_boxsize:
+                elif y < ℝ[-0.5*boxsize]:
                     y += boxsize
-                if z > half_boxsize:
+                if z > ℝ[0.5*boxsize]:
                     z -= boxsize
-                elif z < minus_half_boxsize:
+                elif z < ℝ[-0.5*boxsize]:
                     z += boxsize
                 r = sqrt(x**2 + y**2 + z**2 + softening2)
                 r3 = r**3
                 r_scaled = r/P3M_scale_phys
-                shortrange_fac = (r_scaled/ℝ[sqrt(π)]*exp(-0.25*r_scaled**2)
-                                  + erfc(0.5*r_scaled))
+                shortrange_fac = (r_scaled/ℝ[sqrt(π)]*exp(-0.25*r_scaled**2) + erfc(0.5*r_scaled))
                 force[0] = -x/r3*shortrange_fac
                 force[1] = -y/r3*shortrange_fac
                 force[2] = -z/r3*shortrange_fac
@@ -163,17 +162,17 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
                 if use_Ewald:
                     # Translate coordinates so they
                     # correspond to the nearest image.
-                    if x > half_boxsize:
+                    if x > ℝ[0.5*boxsize]:
                         x -= boxsize
-                    elif x < minus_half_boxsize:
+                    elif x < ℝ[-0.5*boxsize]:
                         x += boxsize
-                    if y > half_boxsize:
+                    if y > ℝ[0.5*boxsize]:
                         y -= boxsize
-                    elif y < minus_half_boxsize:
+                    elif y < ℝ[-0.5*boxsize]:
                         y += boxsize
-                    if z > half_boxsize:
+                    if z > ℝ[0.5*boxsize]:
                         z -= boxsize
-                    elif z < minus_half_boxsize:
+                    elif z < ℝ[-0.5*boxsize]:
                         z += boxsize
                     # The Ewald correction force for all 
                     # images except the nearest one,
@@ -456,22 +455,22 @@ def PM(particles, Δt, only_long_range=False):
         # The j-component of the wave vector. Since PM_grid is
         # distributed along the j-dimension, an offset must be used.
         j_global = j + PM_gridstart_local_j
-        if j_global > half_PM_gridsize:
+        if j_global > ℝ[0.5*PM_gridsize]:
             kj = j_global - PM_gridsize
         else:
             kj = j_global
         # Square root of the j-component of the deconvolution
-        sqrt_deconv_j = sinc(kj*π_recp_PM_gridsize)
+        sqrt_deconv_j = sinc(kj*ℝ[π/PM_gridsize])
         # Loop through the complete i-dimension
         for i in range(PM_gridsize):
             # The i-component of the wave vector
-            if i > half_PM_gridsize:
+            if i > ℝ[0.5*PM_gridsize]:
                 ki = i - PM_gridsize
             else:
                 ki = i
             # Square root of the product of the i-
             # and the j-component of the deconvolution.
-            sqrt_deconv_ij = sinc(ki*π_recp_PM_gridsize)*sqrt_deconv_j
+            sqrt_deconv_ij = sinc(ki*ℝ[π/PM_gridsize])*sqrt_deconv_j
             # Loop through the complete, padded k-dimension
             # in steps of 2 (one complex number at a time).
             for k in range(0, PM_gridsize_padding, 2):
@@ -484,7 +483,7 @@ def PM(particles, Δt, only_long_range=False):
                         continue
                 # Square root of the product of
                 # all components of the deconvolution.
-                sqrt_deconv_ijk = sqrt_deconv_ij*sinc(kk*π_recp_PM_gridsize)
+                sqrt_deconv_ijk = sqrt_deconv_ij*sinc(kk*ℝ[π/PM_gridsize])
                 # Multiply by the Greens function 1/k2 to get the the
                 # potential. Deconvolve twice for the two CIC
                 # interpolations (the mass assignment and the upcomming

@@ -268,6 +268,25 @@ def power2product(filename):
                 before_base = ''
                 nested_power = False
                 if integer_power and (expression_base.replace(' ', '') == '' or (expression_base.replace(' ', '')[-1] == ')' and expression_base.count(')') != expression_base.count('('))) and firstcall:
+                    parentheses = 0
+                    done = False
+                    completed = False
+                    symbol_before_paren = ''
+                    for symbol in reversed(expression_base.replace(' ', '')):
+                        if completed:
+                            symbol_before_paren = symbol
+                            break
+                        if symbol == '(':
+                            parentheses += 1
+                        elif symbol == ')':
+                            parentheses -= 1
+                            done = True
+                        if parentheses == 0 and done:
+                            completed = True
+                    if symbol_before_paren and symbol_before_paren not in ('+-*/%&|^@()='):
+                        # Base is really a function input, like sin(a)**2. Do nothing
+                        modified_line = modified_line if modified_line else line
+                        continue
                     # Nested power, as in the last ** in '(a**2 + b**2)**3'
                     nested_power = True
                 elif expression_base.replace(' ', '')[-1] == ')':
@@ -282,8 +301,13 @@ def power2product(filename):
                             done = True
                         if parentheses == 0 and done:
                             break
-                    base = expression_base[::-1][0:i + 1][::-1]
-                    before_base = expression_base[::-1][i + 1:][::-1]
+                    base = expression_base[::-1][0:(i + 1)][::-1]
+                    before_base = expression_base[::-1][(i + 1):][::-1]
+                    before_base_rstrip = before_base.rstrip()
+                    if before_base_rstrip and before_base_rstrip[-1].lower() not in ('+-*/%&|^@()='):
+                        # Base is really a function input, like sin(a)**2. Do nothing
+                        modified_line = modified_line if modified_line else line
+                        continue
                 else:
                     # Base not in parentheses
                     brackets_width_content = ''
@@ -803,8 +827,8 @@ def pure_numbers(filename):
         lines = pyxfile.read().split('\n')
     expressions = []
     expressions_cython = []
-    operations = ('+', '-', '**', '*', '/', '(', ')')
-    operations_names = ('pls', 'min', 'pow', 'tim', 'div', 'opar', 'cpar')
+    operations = ('.', '+', '-', '**', '*', '/', '^', '&', '|', '@', ',', '(', ')', '[', ']', '{', '}')
+    operations_names = ('dot', 'pls', 'min', 'pow', 'tim', 'div', 'car', 'and', 'bar', 'at', 'com', 'opar', 'cpar', 'obra', 'cbra', 'ocur', 'ccur')
     while True:
         no_ℝ = True
         for i, line in enumerate(lines):

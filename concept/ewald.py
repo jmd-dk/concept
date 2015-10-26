@@ -177,9 +177,9 @@ def ewald(x, y, z):
     # Look up Ewald force and do a CIC interpolation. Since the
     # coordinates are to the nearest image, they must be scaled by
     # 2/boxsize to reside in the range 0 <= x, y, z < 1.
-    force = CIC_grid2coordinates_vector(grid, x*two_recp_boxsize,
-                                              y*two_recp_boxsize,
-                                              z*two_recp_boxsize,
+    force = CIC_grid2coordinates_vector(grid, x*ℝ[2/boxsize],
+                                              y*ℝ[2/boxsize],
+                                              z*ℝ[2/boxsize],
                                         )
     # Put the sign back in for negative input
     if isnegative_x:
@@ -190,7 +190,7 @@ def ewald(x, y, z):
         force[2] *= -1
     # The tabulated force is for a unit box. Do rescaling
     for dim in range(3):
-        force[dim] *= recp_boxsize2
+        force[dim] *= ℝ[1/boxsize**2]
     return force
 
 

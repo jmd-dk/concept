@@ -90,7 +90,7 @@ def powerspec(particles, filename):
         else:
             kj = j_global
         # Square root of the j-component of the deconvolution
-        sqrt_deconv_j = sinc(kj*π_recp_PM_gridsize)
+        sqrt_deconv_j = sinc(kj*ℝ[π/PM_gridsize])
         # Loop over the entire first dimension
         for i in range(PM_gridsize):
             # The i-component of the wave vector
@@ -100,7 +100,7 @@ def powerspec(particles, filename):
                 ki = i
             # Square root of the product of the i-
             # and the j-component of the deconvolution.
-            sqrt_deconv_ij = sinc(ki*π_recp_PM_gridsize)*sqrt_deconv_j
+            sqrt_deconv_ij = sinc(ki*ℝ[π/PM_gridsize])*sqrt_deconv_j
             # Loop over the entire last dimension in steps of two,
             # as contiguous pairs of elements are the real and imaginary
             # part of the same complex number.
@@ -121,7 +121,7 @@ def powerspec(particles, filename):
                         continue
                 # Square root of the product of
                 # all components of the deconvolution.
-                sqrt_deconv_ijk = sqrt_deconv_ij*sinc(kk*π_recp_PM_gridsize)
+                sqrt_deconv_ijk = sqrt_deconv_ij*sinc(kk*ℝ[π/PM_gridsize])
                 # The reciprocal of the product of
                 # all components of the deconvolution.
                 recp_deconv_ijk = 1/(sqrt_deconv_ijk**2)
@@ -164,7 +164,7 @@ def powerspec(particles, filename):
     # to being the actual variance, using
     # power_σ2 = Σₖpowerₖ²/N - (Σₖpowerₖ/N)². Remember that as of
     # now, power_σ2 holds the sums of unnormalized squared powers.
-    power_fac = boxsize3/particles.N**2
+    power_fac = ℝ[boxsize**3]/cast(particles.N, 'double')**2
     power_fac2 = power_fac**2
     for k2 in range(k2_max):
         if power_N[k2] != 0:
@@ -272,7 +272,7 @@ def rms_density_variation():
     # Normalize σ2. According to the σ2_integrand function, the
     # integrand is missing a factor of 9/boxsize**2. In addition, the
     # trapezoidal integration above misses a factor ½.
-    σ2_fac = 4.5/boxsize**2
+    σ2_fac = 4.5/ℝ[boxsize**2]
     σ2    *= σ2_fac
     σ2_σ2 *= σ2_fac**2
     # To get the standard deviation σ from the variance σ2, simply take
@@ -312,7 +312,7 @@ def σ2_integrand(k2):
     """
     kR = k_magnitudes[k2]*R_tophat
     kR6 = kR**6
-    if kR6 > ten_machine_ϵ:
+    if kR6 > ℝ[10*machine_ϵ]:
         W2 = sin(kR) - kR*cos(kR)
         W2 = W2**2/kR6
     else:
