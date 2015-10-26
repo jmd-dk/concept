@@ -476,7 +476,7 @@ def C_casting(filename):
                            .replace("'", '').replace('"', '').strip() + '>')
                 obj_to_cast = ('(' + line[(line.find('cast(') + 5):comma_index]
                                + ')')
-                line = (line[:line.find('cast(')] + cast_to + obj_to_cast
+                line = (line[:line.find('cast(')] + '(' + cast_to + obj_to_cast + ')'
                         + line[(i + 1):])
             new_lines.append(line)
     with open(filename, 'w', encoding='utf-8') as pyxfile:
