@@ -9,3 +9,6 @@ Cython.
 
 For documentation on how to install and use CO*N*CEPT, see [guide.pdf](guide.pdf).
 
+The physics which CO*N*CEPT strives to emulate, as well as the numerical
+methods implemented in order to do so, are presented in [thesis.pdf](thesis.pdf).
+
