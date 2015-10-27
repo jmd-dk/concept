@@ -119,7 +119,7 @@ if [ "${installer_content}" == "${installer_updated_content}" ]; then
 fi
 
 # Move particular files from the master directory
-for filename in "guide.pdf" "installer" "README.md"; do
+for filename in "guide.pdf" "installer" "README.md" "thesis.pdf"; do
     mv "${top_dir}/tmp/concept/"*"/${filename}" "${top_dir}"
 done
 
