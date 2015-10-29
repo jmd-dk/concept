@@ -135,7 +135,7 @@ set_version()
 # column are fallbacks, which will be used if the middle column is
 # "newest" and the installer fails to find the newest version.
 # Programs:
-set_version "concept"         "newest"        # only newest is known to work
+set_version "concept"         "newest"        # only newest work
 set_version "freetype"        "2.6"           "2.6"
 set_version "python"          "3.5.0"         "3.5.0"
 set_version "libpng"          "1.6.18"        "1.6.18"
@@ -143,8 +143,8 @@ set_version "imagemagick"     "6.9.2-4"       "6.9.2-4"
 set_version "ncurses"         "6.0"           "6.0"
 set_version "openssl"         "1.0.2d"        "1.0.2d"
 set_version "fftw"            "3.3.4"         "3.3.4"
-set_version "gadget"          "2.0.7"         # only 2.0.7  is known to work
-set_version "fftw_for_gadget" "2.1.5"         # only 2.1.5  is known to work
+set_version "gadget"          "2.0.7"         # only 2.0.7 is known to work
+set_version "fftw_for_gadget" "2.1.5"         # only 2.1.5 is known to work
 set_version "gsl"             "1.16"          "1.16"
 set_version "hdf5"            "1.8.15-patch1" "1.8.15-patch1"
 set_version "mpi"             "3.1.4"         "3.1.4"
@@ -1609,8 +1609,22 @@ if [ "${matplotlib_preinstalled}" == "no" ]; then
     # depends on other Python packages not directly used by CO𝘕CEPT.
     # Most often these dependencies are downloaded automatically by the
     # previous command. In case of failure, we do it manually.
-    deps=(        "nose" "pyparsing" "python-dateutil" "pytz" "six")    # NumPy already installed
-    dep_versions=(""     ""          ">=1.1"           ""     ">=1.4")  # From http://matplotlib.org/users/installing.html 
+    deps=(        "nose" "pyparsing"                 "python-dateutil" "pytz" "six")  # NumPy already installed
+    # From http://matplotlib.org/users/installing.html, except for pyparsing, where !=2.0.0,>=1.5.6
+    # is taken from the installation of matplotlib and 2.0.4 does not seem to support Python 3.
+    dep_versions=(""     "!=2.0.0,<2.0.4,>=1.5.6"   ">=1.1"            ""     ">=1.4")
+    # An illegal version of pyparsing may be downloaded by Matplotlib!
+    pyparsing_downloaded="$(ls "${top_dir}/tmp/pip" | grep -i "pyparsing")"
+    legal_pyparsings=("1.5.6" "1.5.7" "2.0.3")
+    for ((i=0; i<${#legal_pyparsings[@]}; i+=1)); do
+        ((j = i + 1))
+        if [[ "${pyparsing_downloaded}" == "pyparsing-${legal_pyparsings[i]}"* ]]; then
+            break
+        elif [ ${j} == ${#legal_pyparsings[@]} ]; then
+            # No legal pyparsing downloaded!
+            rm -f "${top_dir}/tmp/pip/pyparsing"*
+        fi
+    done
     for ((i=0; i<${#deps[@]}; i+=1)); do
         if ! ls "${top_dir}/tmp/pip" | grep -i "${deps[i]}" > /dev/null 2>&1; then
             pip_download "${deps[i]}" "${dep_versions[i]}"
