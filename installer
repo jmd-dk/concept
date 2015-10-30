@@ -73,11 +73,9 @@
 # 
 # If you choose to use a pre-installed Python distribution, it is your
 # responsibility that pip is installed as part of this distribution.
-# Also, if the curses package is not pre-installed in the Python
+# Also, if the blessings package is not pre-installed in the Python
 # distribution, Python should at least be compiled with the ncurses
-# library. Finally, if the matplotlib package is not pre-installed in
-# the Python distribution, Python should at least be compiled with the
-# FreeType library.
+# library.
 #
 # Should you wish to install a specific version of some dependency
 # program, simply set the environment variable "programname_version"
@@ -1122,13 +1120,16 @@ init_install()
 if [ "${zlib_install}" == "yes" ]; then
     init_install "zlib"
     ./configure --shared --prefix="${zlib_dir}" 2>&1
-    touch "test_log"
     if [ "${fast_install}" == "no" ]; then
         make test 2>&1 | tee "test_log"
         [ ${PIPESTATUS[0]} != 0 ] && zlib_test_success="no"
     fi
+    zlib_test_log="${zlib_dir}/test_log"
+    if [ "${zlib_test_success}" == "no" ]; then
+        cp "test_log" "${zlib_test_log}"
+    fi
     make install 2>&1
-    cp "test_log" "README" "${zlib_dir}"
+    cp "README" "${zlib_dir}/"
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/zlib"
 fi
@@ -1142,14 +1143,17 @@ if [ "${libpng_install}" == "yes" ]; then
     export ZLIBLIB="${zlib_dir}/lib"
     export ZLIBINC="${zlib_dir}/include"
     ./configure --prefix="${libpng_dir}" 2>&1
-    touch "test_log"
     if [ "${fast_install}" == "no" ]; then
         make ZLIBLIB="${ZLIBLIB}" ZLIBINC="${ZLIBINC}" check 2>&1 | tee "test_log"
         [ ${PIPESTATUS[0]} != 0 ] && libpng_test_success="no"
     fi
+    libpng_test_log="${libpng_dir}/test_log"
+    if [ "${libpng_test_success}" == "no" ]; then
+        cp "test_log" "${libpng_test_log}"
+    fi
     make ZLIBLIB="${ZLIBLIB}" ZLIBINC="${ZLIBINC}" install 2>&1
     reset_environment
-    cp "test_log" "LICENSE" "${libpng_dir}"
+    cp "LICENSE" "${libpng_dir}/"
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/libpng"
 fi
@@ -1170,14 +1174,17 @@ if [ "${imagemagick_install}" == "yes" ]; then
     export ZLIB_LIBS="-lz -L${zlib_dir}/lib, -Wl,-rpath=${zlib_dir}/lib ${ZLIB_LIBS}"
     ./configure --prefix="${imagemagick_dir}" --disable-openmp --with-png=yes --with-zlib=yes --with-bzlib=no --with-autotrace=no --with-djvu=no --with-dps=no --with-fftw=no --with-fpx=no --with-fontconfig=no --with-freetype=no --with-gslib=no --with-gvc=no --with-jbig=no --with-jpeg=no --with-lcms=no --with-lqr=no --with-lzma=no --with-magick-plus-plus=no --with-openexr=no --with-openjp2=no --with-pango=no --with-perl=no --with-rsvg=no --with-tiff=no --with-webp=no --with-wmf=no --with-x=no --with-xml=no 2>&1
     make 2>&1
-    touch "test_log"
     if [ "${fast_install}" == "no" ]; then
         make check 2>&1 | tee "test_log"
         [ ${PIPESTATUS[0]} != 0 ] && imagemagick_test_success="no"
     fi
+    imagemagick_test_log="${imagemagick_dir}/test_log"
+    if [ "${imagemagick_test_success}" == "no" ]; then
+        cp "test_log" "${imagemagick_test_log}"
+    fi
     make install 2>&1
     reset_environment
-    cp "test_log" "AUTHORS.txt" "LICENSE" "NOTICE" "${imagemagick_dir}"
+    cp "AUTHORS.txt" "LICENSE" "NOTICE" "${imagemagick_dir}/"
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/imagemagick"
 fi
@@ -1187,13 +1194,16 @@ if [ "${gsl_install}" == "yes" ]; then
     init_install "GSL"
     ./configure --prefix="${gsl_dir}" 2>&1
     make 2>&1
-    touch "test_log"
     if [ "${fast_install}" == "no" ]; then
         make check 2>&1 | tee "test_log"
         [ ${PIPESTATUS[0]} != 0 ] && gsl_test_success="no"
     fi
+    gsl_test_log="${gsl_dir}/test_log"
+    if [ "${gsl_test_success}" == "no" ]; then
+        cp "test_log" "${gsl_test_log}"
+    fi
     make install 2>&1
-    cp "test_log" "COPYING" "README" "${gsl_dir}"
+    cp "COPYING" "README" "${gsl_dir}/"
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/gsl"
 fi
@@ -1203,13 +1213,16 @@ if [ "${mpi_install}" == "yes" ]; then
     init_install "MPI"
     ./configure --enable-shared --disable-fortran --prefix="${mpi_dir}" 2>&1
     make 2>&1
-    touch "test_log"
     if [ "${fast_install}" == "no" ]; then
         make testing 2>&1 | tee "test_log"
         [ ${PIPESTATUS[0]} != 0 ] && mpi_test_success="no"
     fi
+    mpi_test_log="${mpi_dir}/test_log"
+    if [ "${mpi_test_success}" == "no" ]; then
+        cp "test_log" "${mpi_test_log}"
+    fi
     make install 2>&1
-    cp "test_log" "COPYRIGHT" "test_log" "${mpi_dir}"
+    cp "COPYRIGHT" "${mpi_dir}/"
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/mpi"
 fi
@@ -1226,7 +1239,6 @@ if [ "${hdf5_install}" == "yes" ]; then
     # To counteract this, kill the process if it still runs after an
     # hour. Count the test as failed if the last line in test_log is not
     # "make[1]: Leaving directory".
-    touch "test_log"
     if [ "${fast_install}" == "no" ]; then
         (make check 2>&1 & echo $! >&3) 3> "hdf5_test_pid" | tee "test_log" & tee_pid=$!
         sleep 1
@@ -1245,8 +1257,12 @@ if [ "${hdf5_install}" == "yes" ]; then
         make check-install 2>&1 | tee -a "test_log"
         [ ${PIPESTATUS[0]} != 0 ] && hdf5_test_success="no"
     fi
+    hdf5_test_log="${hdf5_dir}/test_log"
+    if [ "${hdf5_test_success}" == "no" ]; then
+        cp "test_log" "${hdf5_test_log}"
+    fi
     reset_environment
-    cp "test_log" "COPYING" "README.txt" "${hdf5_dir}"
+    cp "COPYING" "README.txt" "${hdf5_dir}/"
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/hdf5"
 fi
@@ -1264,15 +1280,18 @@ if [ "${fftw_install}" == "yes" ]; then
     export PATH="${mpi_dir}/bin:${PATH}"
     ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --prefix="${fftw_dir}" 2>&1
     make 2>&1
-    touch "test_log"
     if [ "${fast_install}" == "no" ]; then
         make check 2>&1 | tee "test_log"
         [ ${PIPESTATUS[0]} != 0 ] && fftw_test_success="no"
     fi
+    fftw_test_log="${fftw_dir}/test_log"
+    if [ "${fftw_test_success}" == "no" ]; then
+        cp "test_log" "${fftw_test_log}"
+    fi
     make install 2>&1
     # Single-precision goes here ..........................
     reset_environment
-    cp "test_log" "COPYING" "README" "${fftw_dir}"
+    cp "COPYING" "README" "${fftw_dir}/"
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/fftw"
 fi
@@ -1284,7 +1303,7 @@ if [ "${freetype_install}" == "yes" ]; then
     make 2>&1
     # FreeType does not come with a test suite
     make install 2>&1
-    (cd docs; cp "FTL.TXT" "GPLv2.TXT" "LICENSE.TXT" "${freetype_dir}")
+    (cd docs; cp "FTL.TXT" "GPLv2.TXT" "LICENSE.TXT" "${freetype_dir}/")
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/freetype"
 fi
@@ -1295,7 +1314,6 @@ if [ "${ncurses_install}" == "yes" ]; then
     ./configure --with-shared --prefix="${ncurses_dir}" 2>&1
     make 2>&1
     make install 2>&1
-    touch "test_log"
     if [ "${fast_install}" == "no" ]; then
         disable_status
         set +e
@@ -1311,10 +1329,14 @@ if [ "${ncurses_install}" == "yes" ]; then
     # above do not use tee (as it ruins the display).
     if [ "${fast_install}" == "no" ] && [ "${ncurses_test_success}" == "no" ]; then
         disable_status
-        (sleep ${sleep_time}; echo "q") | "test/worm" -number 7 > "test_log" 2>&1
+        (sleep ${sleep_time}; echo "q") | "test/worm" -number 7 > "test_log" 2>&1 || :
         enable_status
     fi
-    cp "test_log" "AUTHORS" "COPYING" "${ncurses_dir}/include/ncurses"
+    ncurses_test_log="${ncurses_dir}/include/ncurses/test_log"
+    if [ "${ncurses_test_success}" == "no" ]; then
+        cp "test_log" "${ncurses_test_log}"
+    fi
+    cp "AUTHORS" "COPYING" "${ncurses_dir}/include/ncurses/"
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/ncurses"
 fi
@@ -1324,13 +1346,16 @@ if [ "${openssl_install}" == "yes" ]; then
     init_install "OpenSSL"
     ./config shared --prefix="${openssl_dir}" 2>&1
     make 2>&1
-    touch "test_log"
     if [ "${fast_install}" == "no" ]; then
         make test 2>&1 | tee "test_log"
         [ ${PIPESTATUS[0]} != 0 ] && openssl_test_success="no"
     fi
+    openssl_test_log="${openssl_dir}/include/openssl/test_log"
+    if [ "${openssl_test_success}" == "no" ]; then
+        cp "test_log" "${openssl_test_log}"
+    fi
     make install 2>&1
-    cp "test_log" "LICENSE" "README" "${openssl_dir}"
+    cp "LICENSE" "README" "${openssl_dir}/include/openssl/"
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/openssl"
 fi
@@ -1343,14 +1368,17 @@ if [ "${python_install}" == "yes" ]; then
     export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib -L${ncurses_dir}/lib -Wl,-rpath=${ncurses_dir}/lib -L${openssl_dir}/lib -Wl,-rpath=${openssl_dir}/lib ${LDFLAGS}"
     ./configure --enable-shared --prefix="${python_dir}" --with-ensurepip=install 2>&1
     make 2>&1
-    touch "test_log"
     if [ "${fast_install}" == "no" ]; then
         make test 2>&1 | tee "test_log"
         [ ${PIPESTATUS[0]} != 0 ] && python_test_success="no"
     fi
+    python_test_log="${python_dir}/test_log"
+    if [ "${python_test_success}" == "no" ]; then
+        cp "test_log" "${python_test_log}"
+    fi
     make install 2>&1
     reset_environment
-    cp "test_log" "LICENSE" "README" "${python_dir}"
+    cp "LICENSE" "README" "${python_dir}/"
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/python"
 fi
@@ -1786,7 +1814,6 @@ if [ "${fftw_for_gadget_install}" == "yes" ]; then
     # Double-precision
     ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --enable-type-prefix --prefix="${fftw_for_gadget_dir}" 2>&1
     make 2>&1
-    touch "test_log"
     if [ "${fast_install}" == "no" ]; then
         make check 2>&1 | tee "test_log"
         [ ${PIPESTATUS[0]} != 0 ] && fftw_for_gadget_test_success="no"
@@ -1800,9 +1827,13 @@ if [ "${fftw_for_gadget_install}" == "yes" ]; then
         make check 2>&1 | tee -a "test_log"
         [ ${PIPESTATUS[0]} != 0 ] && fftw_for_gadget_test_success="no"
     fi
+    fftw_for_gadget_test_log="${fftw_for_gadget_dir}/test_log"
+    if [ "${fftw_for_gadget_test_success}" == "no" ]; then
+        cp "test_log" "${fftw_for_gadget_test_log}"
+    fi
     make install 2>&1
     reset_environment
-    cp "test_log" "COPYING" "README" "${fftw_for_gadget_dir}"
+    cp "COPYING" "README" "${fftw_for_gadget_dir}/"
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/fftw_for_gadget"
 fi
@@ -1829,31 +1860,38 @@ if [ "${fast_install}" == "no" ]; then
     heading "Basic test of ${esc_concept}"
     set_status "Basic test of ${esc_concept_double_backslashes}"
     cd "${concept_dir}"
-    "${concept}" -t basic 2>&1 | tee "test_log"
+    concept_test_log="${concept_dir}/test_log"
+    "${concept}" -t "basic" 2>&1 | tee "${concept_test_log}"
     [ ${PIPESTATUS[0]} != 0 ] && concept_test_success="no"
     # Run GADGET test if basic CO𝘕CEPT test finished successfully
     if [ "${concept_test_success}" == "yes" ]; then
         current_step="testing GADGET"
         heading "Testing GADGET"
         set_status "Testing GADGET"
-        "${concept}" -t gadget 2>&1 | tee "${gadget_dir}/test_log"
+        gadget_test_log="${gadget_dir}/test_log"
+        "${concept}" -t "gadget" 2>&1 | tee "${gadget_test_log}"
         [ ${PIPESTATUS[0]} != 0 ] && gadget_test_success="no"
+        # Clean test_log if test is successfull
+        if [ "${gadget_test_success}" == "yes" ]; then
+            rm -f "${gadget_test_log}"
+        fi
     fi
     # Run complete CO𝘕CEPT test suite if basic CO𝘕CEPT test finished successfully
     if [ "${concept_test_success}" == "yes" ]; then
         current_step="testing ${esc_concept}"
         heading "Testing ${esc_concept}"
         set_status "Testing ${esc_concept_double_backslashes}"
-        "${concept}" -t all 2>&1 | tee "test_log"
+        "${concept}" -t "all" 2>&1 | tee "${concept_test_log}"
         [ ${PIPESTATUS[0]} != 0 ] && concept_test_success="no"
         # Clean test_log if test is successfull
         if [ "${concept_test_success}" == "yes" ]; then
-            rm "test_log"
+            rm -f "${concept_test_log}"
             make distclean
         fi
     fi
     cd "${top_dir}"
 fi
+
 
 
 #################
@@ -1918,7 +1956,7 @@ erroneous_test_notice()
             # Add newline between notices
             echo
         fi
-        eval "test_log_path=\"\${${progname}_dir}/test_log\""
+        eval "test_log_path=\"\${${progname}_test_log}\""
         printf "${esc_bold}${esc_red}Warning: ${esc_normal}"
         real_name="${1/CONCEPT/$esc_concept}"
         if [ "${real_name}" == "MPI" ]; then
