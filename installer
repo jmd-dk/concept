@@ -581,7 +581,7 @@ validate_url()
         sleep ${sleep_time}
     done
     if [ "${wget_status}" != "success" ]; then
-        error "Error: The ${1} link is broken!"
+        error "Error: The ${1} link, ${url}, is broken!"
         exit 1
     fi
 }
