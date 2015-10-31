@@ -137,7 +137,7 @@ set_version "concept"         "newest"        # only newest work
 set_version "freetype"        "2.6"           "2.6"
 set_version "python"          "3.5.0"         "3.5.0"
 set_version "libpng"          "1.6.18"        "1.6.18"
-set_version "imagemagick"     "6.9.2-4"       "6.9.2-4"
+set_version "imagemagick"     "6.9.2-5"       "6.9.2-5"
 set_version "ncurses"         "6.0"           "6.0"
 set_version "openssl"         "1.0.2d"        "1.0.2d"
 set_version "fftw"            "3.3.4"         "3.3.4"
@@ -562,11 +562,25 @@ validate_url()
         set_status "Validating ${1/CONCEPT/$esc_concept_double_backslashes} link"
     fi
     url="$(eval "echo \"\${${progname}_url}\"")"
-    text=$(wget -t 50 --timeout 15 -S --spider "${url}" 2>&1)
-    text_http=$(echo "${text}" | grep "Remote file exists" || :)
-    filename=$(basename "${url}")
-    text_ftp=$(echo "${text}" | grep "${filename}.*exists" || :)
-    if ! ([ -n "${text_http}" ] || ([[ "${url}" == "ftp://"* ]] && [ -n "${text_ftp}" ])); then
+    filename="$(basename "${url}")"
+    for n in {1..50}; do
+        wget_status="success"
+        if [[ "${url}" == "ftp://"* ]]; then
+            # wget do not always return with a non-zero status on
+            # failure when using ftp.
+            mkdir -p "${top_dir}/tmp"
+            (cd "${top_dir}/tmp"; wget --timeout 15 --no-check-certificate -q --spider --no-remove-listing "${url}" || :)
+            grep "${filename}" "${top_dir}/tmp/.listing" > /dev/null 2>/dev/null || wget_status="error"
+            rm -f "${top_dir}/tmp/.listing"
+        else
+            wget --timeout 15 --no-check-certificate -q --spider "${url}" || wget_status="error"
+        fi
+        if [ "${wget_status}" == "success" ]; then
+            break
+        fi
+        sleep ${sleep_time}
+    done
+    if [ "${wget_status}" != "success" ]; then
         error "Error: The ${1} link is broken!"
         exit 1
     fi
