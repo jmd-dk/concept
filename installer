@@ -963,7 +963,7 @@ download()
 }
 
 # Make the directory in which to dump all downloaded archives
-mkdir "${top_dir}/tmp"
+mkdir -p "${top_dir}/tmp"
 # Download the source code for all programs
 disable_status
 download "zlib"
