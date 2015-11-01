@@ -569,11 +569,11 @@ validate_url()
             # wget do not always return with a non-zero status on
             # failure when using ftp.
             mkdir -p "${top_dir}/tmp"
-            (cd "${top_dir}/tmp"; wget --timeout 15 --no-check-certificate -q --spider --no-remove-listing "${url}" || :)
+            (cd "${top_dir}/tmp"; wget -t 1 --timeout 15 --no-check-certificate -q --spider --no-remove-listing "${url}" || :)
             grep "${filename}" "${top_dir}/tmp/.listing" > /dev/null 2>/dev/null || wget_status="error"
             rm -f "${top_dir}/tmp/.listing"
         else
-            wget --timeout 15 --no-check-certificate -q --spider "${url}" || wget_status="error"
+            wget -t 1 --timeout 15 --no-check-certificate -q --spider "${url}" || wget_status="error"
         fi
         if [ "${wget_status}" == "success" ]; then
             break
@@ -677,7 +677,8 @@ if [ "${mpi_install}" == "yes" ]; then
         mpi_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "http://www.mpich.org/downloads" | grep -m 1 -o -P "(?<=mpich-).*(?=stable)" | awk '{print $1}' || :)"
         fallback "MPI"
     fi
-    mpi_url="http://www.mpich.org/static/downloads/${mpi_version}/mpich-${mpi_version}.tar.gz"
+    #mpi_url="http://www.mpich.org/static/downloads/${mpi_version}/mpich-${mpi_version}.tar.gz"
+    mpi_url="http://fossies.org/linux/misc/mpich-3.1.4.tar.gz"
     validate_url "MPI"
 fi
 
@@ -949,7 +950,7 @@ download()
     cd "${top_dir}/tmp/${progname}"
     for n in {1..50}; do
         wget_status="success"
-        wget --timeout 15 -c --no-check-certificate "${url}" || wget_status="error"
+        wget -t 1 --timeout 15 -c --no-check-certificate "${url}" || wget_status="error"
         if [ "${wget_status}" == "success" ]; then
             break
         fi
@@ -1656,7 +1657,7 @@ if [ "${matplotlib_preinstalled}" == "no" ]; then
     # is taken from the installation of matplotlib and 2.0.4 does not seem to support Python 3.
     dep_versions=(""     "!=2.0.0,<2.0.4,>=1.5.6"   ">=1.1"            ""     ">=1.4")
     # An illegal version of pyparsing may be downloaded by Matplotlib!
-    pyparsing_downloaded="$(ls "${top_dir}/tmp/pip" | grep -i "pyparsing")"
+    pyparsing_downloaded="$(ls "${top_dir}/tmp/pip" | grep -i "pyparsing" || :)"
     legal_pyparsings=("1.5.6" "1.5.7" "2.0.3")
     for ((i=0; i<${#legal_pyparsings[@]}; i+=1)); do
         ((j = i + 1))
