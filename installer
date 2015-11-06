@@ -135,14 +135,14 @@ set_version()
 # Programs:
 set_version "concept"         "newest"        # only newest work
 set_version "freetype"        "2.6"           "2.6"
-set_version "python"          "3.5.0"         "3.5.0"
+set_version "python"          "3.5.0"
 set_version "libpng"          "1.6.18"        "1.6.18"
-set_version "imagemagick"     "6.9.2-5"       "6.9.2-5"
+set_version "imagemagick"     "6.9.2-5"       "6.9.1-10"
 set_version "ncurses"         "6.0"           "6.0"
 set_version "openssl"         "1.0.2d"        "1.0.2d"
 set_version "fftw"            "3.3.4"         "3.3.4"
-set_version "gadget"          "2.0.7"         # only 2.0.7 is known to work
-set_version "fftw_for_gadget" "2.1.5"         # only 2.1.5 is known to work
+set_version "gadget"          "2.0.7"
+set_version "fftw_for_gadget" "2.1.5"         "2.1.5"
 set_version "gsl"             "1.16"          "1.16"
 set_version "hdf5"            "1.8.15-patch1" "1.8.15-patch1"
 set_version "mpi"             "3.1.4"         "3.1.4"
@@ -168,12 +168,13 @@ ctrl_c()
 {
     current_step="aborting"
     sleep 0.5
-    kill -- -$$
+    kill -- -$$ > /dev/null 2>&1 || :
     exit 2
 }
 abort()
 {
-    kill -- -$$
+    sleep 0.5
+    kill -- -$$ > /dev/null 2>&1  || :
     exit 1
 }
 trap 'ctrl_c' SIGINT
@@ -223,6 +224,7 @@ status_enable="enable"
 status_on="on"
 status_off="off"
 status_visible="${status_on}"
+status_finish="finish_successfully"
 
 # Backup of initial environment variables
 CC_backup="${CC}"
@@ -537,6 +539,10 @@ enable_status()
 {
     echo "${status_prefix}${status_enable}"
 }
+successfully_finish_status()
+{
+    echo "${status_prefix}${status_finish_successfully}"
+}
 
 
 
@@ -550,9 +556,13 @@ enable_status()
 # Function for checking that a given url actually exists
 validate_url()
 {
-    # Arguments: Program name
+    # Arguments: Program name, [exit on error ("true" or "false")]
     progname="${1,,}"
     progname="${progname// /_}"
+    exit_on_error="true"
+    if [ -n "$2" ]; then
+        exit_on_error="$2"
+    fi
     if [ "${progname}" == "mpi" ]; then
         # Specifically, "MPI" is "MPICH"
         current_step="validation of MPICH link"
@@ -563,14 +573,14 @@ validate_url()
     fi
     url="$(eval "echo \"\${${progname}_url}\"")"
     filename="$(basename "${url}")"
-    for n in {1..50}; do
+    for n in {1..10}; do
         wget_status="success"
         if [[ "${url}" == "ftp://"* ]]; then
             # wget do not always return with a non-zero status on
             # failure when using ftp.
             mkdir -p "${top_dir}/tmp"
             (cd "${top_dir}/tmp"; wget -t 1 --timeout 15 --no-check-certificate -q --spider --no-remove-listing "${url}" || :)
-            grep "${filename}" "${top_dir}/tmp/.listing" > /dev/null 2>/dev/null || wget_status="error"
+            grep "${filename}" "${top_dir}/tmp/.listing" > /dev/null 2>&1 || wget_status="error"
             rm -f "${top_dir}/tmp/.listing"
         else
             wget -t 1 --timeout 15 --no-check-certificate -q --spider "${url}" || wget_status="error"
@@ -578,11 +588,15 @@ validate_url()
         if [ "${wget_status}" == "success" ]; then
             break
         fi
-        sleep ${sleep_time}
+        sleep 1
     done
-    if [ "${wget_status}" != "success" ]; then
-        error "Error: The ${1} link, ${url}, is broken!"
-        exit 1
+    if [ "${exit_on_error}" == "true" ]; then
+        if [ "${wget_status}" != "success" ]; then
+            error "Error: The ${1} link is broken: ${url}"
+            exit 1
+        fi
+    else
+        validate_url_status="${wget_status}"
     fi
 }
 
@@ -595,18 +609,27 @@ fallback()
     progname="${progname// /_}"
     eval "progname_version=\"\${${progname}_version}\""
     eval "progname_version_fallback=\"\${${progname}_version_fallback}\""
+    # Specifically, "MPI" is "MPICH"
+    if [ "${progname}" == "mpi" ]; then
+        realname="MPICH"
+    else
+        realname="${1}"
+    fi
     if [ -z "${progname_version}" ]; then
+        # Could not identify newest version
         if [ -z "${progname_version_fallback}" ]; then
             exit 1
         fi
-        if [ "${progname}" == "mpi" ]; then
-            # Specifically, "MPI" is "MPICH"
-            error "Warning: Could not identify the version number of the latest MPICH!\n" 2>&1
-        else
-            error "Warning: Could not identify the version number of the latest ${1}!\n" 2>&1
+        error "Warning: Could not identify the version number of the latest ${realname}!" 2>&1
+        echo "Falling back to ${realname} version ${progname_version_fallback}"
+        progname_version="${progname_version_fallback}"
+        eval "${progname}_version=\"\${progname_version}\""
+        eval "${progname}_version_fallback=\"\${progname_version_fallback}\""
+    else
+        # Broken link
+        if [ "${progname_version}" != "${progname_version_fallback}" ]; then
+            echo "Falling back to ${realname} version ${progname_version_fallback}"
         fi
-        printf "${esc_up}${esc_up}"
-        error "Falling back to ${1} version ${progname_version_fallback}" 2>&1
         progname_version="${progname_version_fallback}"
         eval "${progname}_version=\"\${progname_version}\""
         eval "${progname}_version_fallback=\"\${progname_version_fallback}\""
@@ -622,7 +645,13 @@ if [ "${zlib_install}" == "yes" ]; then
         fallback "zlib"
     fi
     zlib_url="http://sourceforge.net/projects/libpng/files/zlib/${zlib_version}/zlib-${zlib_version}.tar.gz"
-    validate_url "zlib"
+    validate_url "zlib" "false"
+    if [ "${validate_url_status}" != "success" ]; then
+        echo "Primary zlib link broken: ${zlib_url}"
+        fallback "zlib"
+        zlib_url="http://zlib.net/zlib-${zlib_version}.tar.gz"
+        validate_url "zlib"
+    fi
 fi
 
 # libpng
@@ -633,14 +662,20 @@ if [ "${libpng_install}" == "yes" ] ; then
         set_status "Searching for latest version of libpng"
         libpng_version_majors="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "ftp://ftp.simplesystems.org/pub/png/src/" | grep -o "libpng[0-9]*" | grep -o "[0-9]*" | sort -u | tail -n 1 || :)"
         libpng_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "ftp://ftp.simplesystems.org/pub/png/src/libpng${libpng_version_majors}/" | grep -o "libpng-[0-9\.]*.tar.gz" | sort -u | tail -n 1 | grep -o "[0-9\.]*" | head -n 1 || :)"
-        libpng_version="${libpng_version:0:${#libpng_version}-1}"
+        libpng_version="${libpng_version:0:${#libpng_version}-1}hej"
         fallback "libpng"
     else
         libpng_version_majors="$(echo "${libpng_version}" | grep -m 1 -o -P "[0-9]*\.[0-9]*" | head -n 1)"
         libpng_version_majors="$(echo "${libpng_version_majors//./}")"
     fi
-    libpng_url="ftp://ftp.simplesystems.org/pub/png/src/libpng${libpng_version_majors}/libpng-${libpng_version}.tar.gz"
-    validate_url "libpng"
+    libpng_url="http://sourceforge.net/projects/libpng/files/libpng${libpng_version_majors}/${libpng_version}/libpng-${libpng_version}.tar.gz"
+    validate_url "libpng" "false"
+    if [ "${validate_url_status}" != "success" ]; then
+        echo "Primary libpng link broken: ${libpng_url}"
+        fallback "libpng"
+        libpng_url="ftp://ftp.simplesystems.org/pub/png/src/libpng${libpng_version_majors}/libpng-${libpng_version}.tar.gz"
+        validate_url "libpng"
+    fi
 fi
 
 # ImageMagick
@@ -654,7 +689,15 @@ if [ "${imagemagick_install}" == "yes" ]; then
         fallback "ImageMagick"
     fi
     imagemagick_url="http://www.imagemagick.org/download/releases/ImageMagick-${imagemagick_version}.tar.gz"
-    validate_url "ImageMagick"
+    validate_url "ImageMagick" "false"
+    if [ "${validate_url_status}" != "success" ]; then
+        echo "Primary ImageMagick link broken: ${imagemagick_url}"
+        fallback "ImageMagick"
+        imagemagick_version_major="$(echo "${imagemagick_version}" | grep -m 1 -o -P "[0-9]*" | head -n 1)"
+        imagemagick_version_major_dot_minor="$(echo "${imagemagick_version}" | grep -m 1 -o -P "${imagemagick_version_major}\.[0-9]*")"
+        imagemagick_url="http://sourceforge.net/projects/imagemagick/files/old-sources/${imagemagick_version_major}.x/${imagemagick_version_major_dot_minor}/ImageMagick-${imagemagick_version}.tar.gz"
+        validate_url "ImageMagick"
+    fi
 fi
 
 # GSL
@@ -666,7 +709,13 @@ if [ "${gsl_install}" == "yes" ]; then
         fallback "GSL"
     fi
     gsl_url="ftp://ftp.gnu.org/gnu/gsl/gsl-${gsl_version}.tar.gz"
-    validate_url "GSL"
+    validate_url "GSL" "false"
+    if [ "${validate_url_status}" != "success" ]; then
+        echo "Primary GSL link broken: ${gsl_url}"
+        fallback "GSL"
+        gsl_url="http://ftpmirror.gnu.org/gsl/gsl-${gsl_version}.tar.gz"
+        validate_url "GSL"
+    fi
 fi
 
 # MPICH
@@ -677,9 +726,14 @@ if [ "${mpi_install}" == "yes" ]; then
         mpi_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "http://www.mpich.org/downloads" | grep -m 1 -o -P "(?<=mpich-).*(?=stable)" | awk '{print $1}' || :)"
         fallback "MPI"
     fi
-    #mpi_url="http://www.mpich.org/static/downloads/${mpi_version}/mpich-${mpi_version}.tar.gz"
-    mpi_url="http://fossies.org/linux/misc/mpich-3.1.4.tar.gz"
-    validate_url "MPI"
+    mpi_url="http://www.mpich.org/static/downloads/${mpi_version}/mpich-${mpi_version}.tar.gz"
+    validate_url "MPI" "false"
+    if [ "${validate_url_status}" != "success" ]; then
+        echo "Primary MPICH link broken: ${mpi_url}"
+        fallback "MPI"
+        mpi_url="http://fossies.org/linux/misc/mpich-${mpi_version}.tar.gz"
+        validate_url "MPI"
+    fi
 fi
 
 # HDF5
@@ -691,7 +745,13 @@ if [ "${hdf5_install}" == "yes" ]; then
         fallback "HDF5"
     fi
     hdf5_url="ftp://ftp.hdfgroup.org/HDF5/releases/hdf5-${hdf5_version}/src/hdf5-${hdf5_version}.tar.gz"
-    validate_url "HDF5"
+    validate_url "HDF5" "false"
+    if [ "${validate_url_status}" != "success" ]; then
+        echo "Primary HDF5 link broken: ${hdf5_url}"
+        fallback "HDF5"
+        hdf5_url="https://www.hdfgroup.org/ftp/HDF5/releases/hdf5-${hdf5_version}/src/hdf5-${hdf5_version}.tar.gz"
+        validate_url "HDF5"
+    fi
 fi
 
 # FFTW
@@ -703,7 +763,13 @@ if [ "${fftw_install}" == "yes" ]; then
         fallback "FFTW"
     fi
     fftw_url="http://www.fftw.org/fftw-${fftw_version}.tar.gz"
-    validate_url "FFTW"
+    validate_url "FFTW" "false"
+    if [ "${validate_url_status}" != "success" ]; then
+        echo "Primary FFTW link broken: ${fftw_url}"
+        fallback "FFTW"
+        fftw_url="ftp://ftp.fftw.org/pub/fftw/fftw-${fftw_version}.tar.gz"
+        validate_url "FFTW"
+    fi
 fi
 
 # FreeType
@@ -716,7 +782,13 @@ if [ "${freetype_install}" == "yes" ]; then
         fallback "FreeType"
     fi
     freetype_url="http://download.savannah.gnu.org/releases/freetype/freetype-${freetype_version}.tar.gz"
-    validate_url "FreeType"
+    validate_url "FreeType" "false"
+    if [ "${validate_url_status}" != "success" ]; then
+        echo "Primary FreeType link broken: ${freetype_url}"
+        fallback "freetype"
+        freetype_url="http://sourceforge.net/projects/freetype/files/freetype2/${freetype_version}/freetype-${freetype_version}.tar.gz"
+        validate_url "FreeType"
+    fi
 fi
 
 # ncurses
@@ -729,7 +801,13 @@ if [ "${ncurses_install}" == "yes" ]; then
         fallback "ncurses"
     fi
     ncurses_url="http://ftp.gnu.org/pub/gnu/ncurses/ncurses-${ncurses_version}.tar.gz"
-    validate_url "ncurses"
+    validate_url "ncurses" "false"
+    if [ "${validate_url_status}" != "success" ]; then
+        echo "Primary ncurses link broken: ${ncurses_url}"
+        fallback "ncurses"
+        ncurses_url="ftp://invisible-island.net/ncurses/ncurses-${ncurses_version}.tar.gz"
+        validate_url "ncurses"
+    fi
 fi
 
 # OpenSSL
@@ -742,7 +820,13 @@ if [ "${openssl_install}" == "yes" ]; then
         fallback "OpenSSL"
     fi
     openssl_url="ftp://ftp.openssl.org/source/openssl-${openssl_version}.tar.gz"
-    validate_url "OpenSSL"
+    validate_url "OpenSSL" "false"
+    if [ "${validate_url_status}" != "success" ]; then
+        echo "Primary OpenSS link broken: ${openssl_url}"
+        fallback "openssl"
+        openssl_url="http://openssl.skazkaforyou.com/source/openssl-${openssl_version}.tar.gz"
+        validate_url "OpenSSL"
+    fi
 fi
 
 # Python (note that python_version will be overwritten later!)
@@ -771,7 +855,7 @@ if [ "${concept_install}" == "yes" ]; then
         commit_nr=$(echo "${repo_text}" | sed -n -e "${line_nr}p" | sed -e 's/^[[:space:]]*//')
         concept_version="commit ${commit_nr}"
     else
-        error "Error: The installer does not know how to find a specific version of CONCEPT!"
+        error "Error: The installer does not know how to find a specific version of ${esc_concept}!"
         exit 1
     fi
     concept_url="${concept_repo_url}/archive/master.tar.gz"
@@ -787,7 +871,13 @@ if [ "${fftw_for_gadget_install}" == "yes" ]; then
         fallback "fftw_for_gadget"
     fi
     fftw_for_gadget_url="http://www.fftw.org/fftw-${fftw_for_gadget_version}.tar.gz"
-    validate_url "FFTW for GADGET"
+    validate_url "FFTW for GADGET" "false"
+    if [ "${validate_url_status}" != "success" ]; then
+        echo "Primary FFTW 2 link broken: ${fftw_for_gadget_url}"
+        fallback "FFTW for GADGET"
+        fftw_for_gadget_url="ftp://ftp.fftw.org/pub/fftw/fftw-${fftw_for_gadget_version}.tar.gz"
+        validate_url "FFTW for GADGET"
+    fi
 fi
 
 # GADGET
@@ -2006,10 +2096,14 @@ if [ "${any_test_error_notices}" == "yes" ]; then
     printf "\"${log}\"\n"
 fi
 
-# Subprocess complete. Deactivate trap before exiting
+# Subprocess complete
 printf "\n\n\n"
-trap : 0
 disable_status
+if [ "${any_test_error_notices}" == "no" ]; then
+    successfully_finish_status
+fi
+# Deactivate trap before exiting
+trap : 0
 ) > "${log}" &
 log_pid=$!
 # End of subprocess #
@@ -2020,28 +2114,44 @@ log_pid=$!
 ################
 # Display loop #
 ################
+# Wait for the install log to be created
+slept=0
+while [ ! -f "${log}" ]; do
+    sleep 1
+    # After having slept for a long time, check that the job
+    # has not just finished without producing a log file.
+    ((slept += 1))
+    if [ ${slept} == 30 ]; then
+        error "Could not create the log file \"${log}\""
+        exit 1
+    fi
+done
+
+# Continuously print the tail of the install log
 printf "\n\n"
-tail -f "${log}" --pid $log_pid | while read line; do
+tail -f "${log}" --pid ${log_pid} | while read line; do
     if [[ "${line}" == "${status_prefix}"* ]]; then
         status_backup_="${status}"
         status=${line:${status_prefix_length}}
-        # Enable/disable status
         if [ "${status}" == "${status_disable}" ]; then
+            # Disable status
             status_visible="${status_off}"
             status_backup="${status_backup_}"
             printf "${esc_up}${esc_erase}"
             printf "${esc_up}"
         elif [ "${status}" == "${status_enable}" ]; then
+            # Enable status
             status_visible="${status_on}"
             status="${status_backup}"
             printf "\n${esc_bold}${esc_reverted}${status}${esc_normal}\n"
-        else
+        elif [ "${status}" == "${status_finish}" ]; then
+            # Display loop complete. Do nothing
+            :
+        elif [ "${status_visible}" == "${status_on}" ]; then
             # Normal status update
-            if [ "${status_visible}" == "${status_on}" ]; then
-                printf "${esc_up}${esc_erase}"
-                printf "${esc_up}"
-                printf "\n${esc_bold}${esc_reverted}${status}${esc_normal}\n"
-            fi
+            printf "${esc_up}${esc_erase}"
+            printf "${esc_up}"
+            printf "\n${esc_bold}${esc_reverted}${status}${esc_normal}\n"
         fi
     else
         if [ "${status_visible}" == "${status_on}" ]; then
@@ -2058,7 +2168,7 @@ tail -f "${log}" --pid $log_pid | while read line; do
 done
 
 # Remove the log file if no errors occured
-if [ "${any_test_error_notices}" == "no" ]; then
+if [ "$(tail -n 1 "${log}")" == "${status_prefix}${status_finish_successfully}" ]; then
     rm -f "${log}"
 fi
 

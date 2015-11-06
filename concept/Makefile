@@ -95,7 +95,7 @@ python_config     = $(shell source $(paths); echo $${python_config})
 ########################################
 # Settings for compilation and linking #
 ########################################
-# Options passed when cynthonizing .pyx files
+# Options passed when cythonizing .pyx files
 cythonflags = -3 -a
 # Includes
 fftw_incl   = -I$(fftw_dir)/include
