@@ -166,6 +166,9 @@ if not cython.compiled:
     # Dummy Cython functions
     for func in ('address', ):
         setattr(cython, func, lambda _: _)
+    # Dummy functions
+    for func in ('address', ):
+        globals()[func] = lambda _: _
     # C allocation syntax for memory management
     def sizeof(dtype):
         # C dtype names to Numpy dtype names
@@ -323,7 +326,7 @@ class Units:
         str length, time, mass
         double cm, m, km, AU, pc, kpc, Mpc, Gpc
         double pc2, kpc2, Mpc2, Gpc2, pc3, kpc3, Mpc3, Gpc3
-        double s, min, hr, day, yr, kyr, Myr, Gyr
+        double s, minutes, hr, day, yr, kyr, Myr, Gyr
         double g, kg, m_sun, km_sun, Mm_sun, Gm_sun
         """
         # The base units
@@ -353,16 +356,16 @@ class Units:
         self.Mpc3    = self.Mpc**3
         self.Gpc3    = self.Gpc**3
         # Non-base units
-        self.AU     = π/(60*60*180)*self.pc
-        self.m      = self.AU/149597870700
-        self.cm     = 1e-2*self.m
-        self.km     = 1e+3*self.m
-        self.day    = self.yr/365.25  # Uses Julian years
-        self.hr     = self.day/24
-        self.min    = self.hr/60
-        self.s      = self.min/60
-        self.kg     = self.m_sun/1.989e+30
-        self.g      = 1e-3*self.kg
+        self.AU      = π/(60*60*180)*self.pc
+        self.m       = self.AU/149597870700
+        self.cm      = 1e-2*self.m
+        self.km      = 1e+3*self.m
+        self.day     = self.yr/365.25  # Uses Julian years
+        self.hr      = self.day/24
+        self.minutes = self.hr/60
+        self.s       = self.minutes/60
+        self.kg      = self.m_sun/1.989e+30
+        self.g       = 1e-3*self.kg
 cython.declare(units='Units')
 units = Units()
 # Cython extension types have no __dict__ method.
@@ -395,16 +398,16 @@ units_dict = {# Base unit strings
               'Mpc3': units.Mpc3,
               'Gpc3': units.Gpc3,
               # Non-base units
-              'AU' : units.AU,
-              'm'  : units.m,
-              'cm' : units.cm,
-              'km' : units.km,
-              'day': units.day,
-              'hr' : units.hr,
-              'min': units.min,
-              's'  : units.s,
-              'kg' : units.kg,
-              'g'  : units.g,
+              'AU'     : units.AU,
+              'm'      : units.m,
+              'cm'     : units.cm,
+              'km'     : units.km,
+              'day'    : units.day,
+              'hr'     : units.hr,
+              'minutes': units.minutes,
+              's'      : units.s,
+              'kg'     : units.kg,
+              'g'      : units.g,
               }
 
 
@@ -426,7 +429,7 @@ paths = {key: value for key, value in paths_module.__dict__.items()
          if isinstance(key, str) and not key.startswith('__')}
 # Function for converting an absolute path to its "sensible" form.
 # That is, this function returns the relative path with respect to the
-# concept directory, if it is no more than one directories above the
+# concept directory, if it is no more than one directory above the
 # concept directory. Otherwise, return the absolute path back again.
 @cython.header(# Arguments
                path='str',
@@ -478,61 +481,25 @@ scp_password = argd.get('scp_password', '')
 ################################################################
 # Dict constituting the namespace for the statements
 # in the user specified parameter file.
-params = {# The paths dict
-          'paths': paths,
-          # Modules
-          'numpy': np,
-          'np'   : np,
-          'os'   : os,
-          're'   : re,
-          'sys'  : sys,
-          # Mathematical NumPy functions and constants
-          'abs'        : np.abs,
-          'arccos'     : np.arccos,
-          'arccosh'    : np.arccosh,
-          'arcsin'     : np.arcsin,
-          'arcsinh'    : np.arcsinh,
-          'arctan'     : np.arctan,
-          'arctanh'    : np.arctanh,
-          'cos'        : np.cos,
-          'cosh'       : np.cosh,
-          'exp'        : np.exp,
-          'mod'        : np.mod,
-          'sin'        : np.sin,
-          'sinh'       : np.sinh,
-          'sqrt'       : np.sqrt,
-          'tan'        : np.tan,
-          'tanh'       : np.tanh,
-          'log'        : np.log,
-          'log2'       : np.log2,
-          'log10'      : np.log10,
-          'pi'         : np.pi,
-          unicode('π') : np.pi,
-          'e'          : np.e,
-          # Other NumPy functions
-          'arange'     : np.arange,
-          'array'      : np.array,
-          'asarray'    : np.asarray,
-          'concatenate': np.concatenate,
-          'cumprod'    : np.cumprod,
-          'cumsum'     : np.cumsum,
-          'empty'      : np.empty,
-          'linspace'   : np.linspace,
-          'loadtxt'    : np.loadtxt,
-          'logspace'   : np.logspace,
-          'max'        : np.max,
-          'min'        : np.min,
-          'ones'       : np.ones,
-          'prod'       : np.prod,
-          'random'     : np.random.random,
-          'sum'        : np.sum,
-          'trapz'      : np.trapz,
-          'zeros'      : np.zeros,
-          # Other constants
-          'machine_ϵ': machine_ϵ,
-          }
-# Units from the units extension type
+# Everything from NumPy should be available when defining parameters
+params = vars(np)
+# Units from the units extension type should be available
+# when defining parameters.
 params.update(units_dict)
+# Additional things which should be available when defining parameters
+params.update({# The paths dict
+               'paths': paths,
+               # Modules
+               'numpy': np,
+               'np'   : np,
+               'os'   : os,
+               're'   : re,
+               'sys'  : sys,
+               # Unicode variables
+               unicode('π') : np.pi,
+               # Constants
+               'machine_ϵ': machine_ϵ,
+               })
 # "Import" the parameter file be executing it in the namespace defined
 # by the params dict.
 if os.path.isfile(paths['params']):
