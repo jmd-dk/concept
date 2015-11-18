@@ -1,9 +1,10 @@
 # This is the default parameterfile used by the powerspec utility.
-# Parameters can be specified as any valid Python3 expression.
-# NumPy functions and constants as well as physical units may be used.
+# Parameters can be specified as any valid Python 3 expression.
+# Mathematical as well as NumPy functions and constants are available.
+# Physical units may and should be used where applicable.
 # Absolute paths defined in the .paths file may be used via the paths dict.
 # For more information about the different parameters,
-# see the bottom of this file.
+# see chapter 5 of guide.pdf.
 
 # Input/output
 output_bases = {'powerspec': 'powerspec'}
@@ -14,4 +15,7 @@ R_tophat    = 8*Mpc
 
 # Graphics
 powerspec_plot = False
+
+# Simulation options
+fftw_rigor = 'measure'
 
