@@ -23,7 +23,7 @@ output_bases = {			# File basenames for output
     'render'   : 'render',
                 }
 output_times = {			# Scale factor values at which to dump output
-    'snapshot'       : 0.1,
+    'snapshot'       : 1,
     'powerspec'      : '',
     'render'         : '',
     'terminal render': '',
