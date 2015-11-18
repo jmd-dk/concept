@@ -360,6 +360,14 @@ def power2product(filename):
     new_lines = []
     with open(filename, 'r', encoding='utf-8') as pyxfile:
         for line in pyxfile:
+            # First of all, replace 'a **= b' with 'a = a**b'
+            if '**=' in line:
+                LHS = line[:line.find('**=')]
+                RHS = line[(line.find('**=') + 3):].strip()
+                if '#' in RHS:
+                    RHS = RHS[:RHS.find('#')].rstrip()
+                line = LHS + '= ' + LHS.strip() + '**(' + RHS + ')'
+            # Now do power --> product
             line = pow2prod(line)
             while pyxpp_power in line:
                 line = pow2prod(line, firstcall=False)
@@ -400,16 +408,36 @@ def __init__2__cinit__(filename):
         pyxfile.writelines(new_lines)
 
 
-def colon2zero_in_addresses(filename):
+def fix_addresses(filename):
     new_lines = []
     with open(filename, 'r', encoding='utf-8') as pyxfile:
         for line in pyxfile:
-            if 'cython.address(' in line:
-                line = re.sub('cython.address\((.*)\[\.\.\.\].*\)', r'cython.address(\1[0])', line)
-                line = re.sub('cython.address\((.*)\[:\].*\)', r'cython.address(\1[0])', line)
+            # 'address(' to 'cython.address'
+            if 'address(' in line:
+                line = line.replace('address(', 'cython.address(')
+                line = line.replace('cython.cython.', 'cython.')
+            # cython.address(a[7, :, 1]) to cython.address(a[7, 0, 1])
+            # and cython.address(a[7, ...]) to cython.address(a[7, 0])
+            colons_or_ellipsis = True
+            while 'cython.address(' in line and colons_or_ellipsis:
+                parens = 0
+                address_index = line.find('cython.address(') + 14
+                for i, c in enumerate(line[address_index:]):
+                    if c == '(':
+                        parens += 1
+                    elif c == ')':
+                        parens -= 1
+                    if parens == 0:
+                        break
+                addressof = line[address_index:(address_index + i)]
+                colons_or_ellipsis = (':' in addressof or '...' in addressof)
+                line = (line[:address_index]
+                        + addressof.replace(':', '0').replace('...', '0')
+                        + line[(address_index + i):])
             new_lines.append(line)
     with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.writelines(new_lines)
+
 
 
 def malloc_realloc(filename):
@@ -885,7 +913,7 @@ if filename.endswith('.py'):
     power2product(filename)
     unicode2ASCII(filename)
     __init__2__cinit__(filename)
-    colon2zero_in_addresses(filename)
+    fix_addresses(filename)
     malloc_realloc(filename)
     C_casting(filename)
 elif filename.endswith('.pyx'):

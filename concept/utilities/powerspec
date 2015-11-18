@@ -82,7 +82,7 @@ if [ "$#" -gt 1 ]; then
 fi
 
 # Convert to absolute path
-path="$(absolute ${path})"
+path="$(absolute_path ${path})"
 
 # Does the path exist?
 if [ ! -f "${path}" ] && [ ! -d "${path}" ]; then
