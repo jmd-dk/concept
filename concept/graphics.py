@@ -21,28 +21,20 @@
 
 
 
-# Import everything from the commons module. In the .pyx file,
-# this line will be replaced by the content of commons.py itself.
+# Import everything from the commons module.
+# In the .pyx file, Cython declared variables will also get cimported.
 from commons import *
 
-# Imports for 3D plotting
-from mpl_toolkits.mplot3d import Axes3D
+# Pure Python imports
+from mpl_toolkits.mplot3d import Axes3D  # Needed for 3D plotting
 from mpl_toolkits.mplot3d.art3d import juggle_axes
-
-# Seperate but equivalent imports in pure Python and Cython
-if not cython.compiled:
-    pass
-else:
-    # Lines in triple quotes will be executed in the .pyx file.
-    """
-    """
-
-# Imports and definitions common to pure Python and Cython
 import pexpect
 import subprocess
 
 
 
+# Function for plotting the power spectrum
+# and saving the figure to filename.
 @cython.header(# Arguments
                filename='str',
                k='double[::1]',
@@ -66,8 +58,8 @@ def plot_powerspec(filename, k, power, power_σ):
     plt.gca().set_xscale('log')
     plt.gca().set_yscale('log', nonposy='clip')
     plt.errorbar(k, power, yerr=power_σ, fmt='b.', ms=3, ecolor='r', lw=0)
-    plt.xlabel('$k\,\mathrm{[' + units.length + '^{-1}]}$')
-    plt.ylabel('$\mathrm{power}\,\mathrm{[' + units.length + '^3]}$')
+    plt.xlabel('$k\,\mathrm{[' + base_length + '^{-1}]}$')
+    plt.ylabel('$\mathrm{power}\,\mathrm{[' + base_length + '^3]}$')
     tmp = '{:.1e}'.format(min(k))
     plt.xlim(xmin=float(tmp[0] + tmp[3:]))
     tmp = '{:.1e}'.format(max(k))

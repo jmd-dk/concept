@@ -25,16 +25,18 @@
 # of parameters common to all other modules. Each module should have
 # 'from commons import *' as its first statement.
 
+
+
 ############################################
 # Imports common to pure Python and Cython #
 ############################################
 from __future__ import division  # Needed for Python3 division in Cython
 # Miscellaneous modules
-import collections, contextlib, cython, imp, matplotlib, numpy as np, os, re
+import collections, contextlib, ctypes, cython, imp, matplotlib, numpy as np, os, re
 import shutil, sys, unicodedata
 # For math
-from numpy import (arange, array, asarray, concatenate, cumsum, delete,
-                   empty, linspace, loadtxt, ones, unravel_index, zeros)
+from numpy import (arange, asarray, concatenate, cumsum, delete, empty, linspace, loadtxt, ones,
+                   unravel_index, zeros)
 from numpy.random import random
 # Use a matplotlib backend that does not require a running X-server
 matplotlib.use('Agg')
@@ -108,10 +110,15 @@ def abort(msg=''):
     comm.Abort(1)
 
 
-########################################
-# Cython and pure Python related stuff #
-########################################
-# C type names to Numpy dtype names
+
+###########
+# C types #
+###########
+# Import the signed integer type ptrdiff_t
+pxd = """
+from libc.stddef cimport ptrdiff_t
+"""
+# C type names to NumPy dtype names
 cython.declare(C2np='dict')
 C2np = {# Booleans
         'bint': np.bool,
@@ -143,7 +150,13 @@ if not cython.compiled:
     C2np['unsigned long int'] = C2np['long int']
     C2np['unsigned long long int'] = C2np['long long int']
     C2np['size_t'] = C2np['ptrdiff_t']
-# Declarations exclusively to either pure Python or Cython
+
+
+
+#####################
+# Pure Python stuff #
+#####################
+# Definitions used by pure Python to understand Cython syntax
 if not cython.compiled:
     # No-op decorators for Cython compiler directives
     def dummy_decorator(*args, **kwargs):
@@ -163,12 +176,11 @@ if not cython.compiled:
                       'pheader',
                       ):
         setattr(cython, directive, dummy_decorator)
-    # Dummy Cython functions
-    for func in ('address', ):
-        setattr(cython, func, lambda _: _)
-    # Dummy functions
-    for func in ('address', ):
-        globals()[func] = lambda _: _
+    # Address (pointers into arrays)
+    def address(a):
+        dtype = re.search('ctypeslib\.(.*?)_Array', np.ctypeslib.as_ctypes(a).__repr__()).group(1)
+        return a.ctypes.data_as(ctypes.POINTER(eval('ctypes.' + dtype)))
+    setattr(cython, 'address', address)
     # C allocation syntax for memory management
     def sizeof(dtype):
         # C dtype names to Numpy dtype names
@@ -186,7 +198,7 @@ if not cython.compiled:
             return [empty(1, dtype=sizeof(dtype[:-1]).dtype)]
         elif master:
             abort(dtype + ' not implemented as a Numpy dtype in commons.py')
-        return array([1], dtype=dtype)
+        return np.array([1], dtype=dtype)
     def malloc(a):
         if isinstance(a, list):
             # Pointer to pointer represented as list of arrays
@@ -209,206 +221,213 @@ if not cython.compiled:
             # Scalar
             return C2np[dtype](a)
     # Dummy fused types
-    number = number2 = integer = floating = number_mv = []
-else:
-    # Lines in triple quotes will be executed in .pyx files
-    """
-    # Get full access to all of Cython
-    cimport cython
-    # GNU Scientific Library
-    from cython_gsl cimport *
+    number = number2 = integer = floating = signed_number = signed_number2 = number_mv = []
     # Mathematical functions
-    from libc.math cimport round
-    # Import the signed integer type ptrdiff_t
-    from libc.stddef cimport ptrdiff_t
-    # Functions for manual memory management
-    from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
-    # Function type definitions of the form func_returntype_argumenttypes
-    ctypedef bint    (*func_b_ddd)  (double, double, double)
-    ctypedef double  (*func_d_dd)   (double, double)
-    ctypedef double  (*func_d_ddd)  (double, double, double)
-    ctypedef double* (*func_ddd_ddd)(double, double, double)
-    # Create a fused number type containing all necessary numerical types
-    ctypedef fused number:
-        cython.int
-        cython.size_t
-        cython.Py_ssize_t
-        cython.float
-        cython.double
-    # Create another fused number type, so that function arguments can have
-    # different specializations.
-    ctypedef fused number2:
-        cython.int
-        cython.size_t
-        cython.Py_ssize_t
-        cython.float
-        cython.double
-    # Create integer and floating fused types
-    ctypedef fused integer:
-        cython.int
-        cython.size_t
-        cython.Py_ssize_t
-    ctypedef fused floating:
-        cython.float
-        cython.double
-    # Custom classes
-    from species cimport Particles
-    from snapshot cimport StandardSnapshot, GadgetSnapshot
-    """
-
-# Seperate but equivalent imports and
-# definitions in pure Python and Cython
-if not cython.compiled:
-    # Mathematical constants and functions
-    from numpy import (pi as π,
-                       sin,  cos,  tan,  arcsin,  arccos,  arctan,
-                       sinh, cosh, tanh, arcsinh, arccosh, arctanh,
+    from numpy import (sin, cos, tan,
+                       arcsin,  arccos, arctan,
+                       sinh, cosh, tanh,
+                       arcsinh, arccosh, arctanh,
                        exp, log, log2, log10,
                        sqrt,
+                       round,
                        )
     from math import erf, erfc
-    # Dummy unicode function
-    def unicode(c):
-        return c
-else:
-    # Lines in triple quotes will be executed in .pyx files.
-    """
-    # Mathematical constants and functions
-    from libc.math cimport (M_PI as π,
-                            sin, cos, tan,
-                            asin as arcsin, 
-                            acos as arccos, 
-                            atan as arctan,
-                            sinh, cosh, tanh,
-                            asinh as arcsinh, 
-                            acosh as arccosh, 
-                            atanh as arctanh,
-                            exp, log, log2, log10,
-                            sqrt, erf, erfc
-                            )
-    # The pyxpp script convert all Unicode source code characters into
-    # ASCII. The function below grants the code access to
-    # Unicode string literals, by undoing the convertion.
-    @cython.header(c='str', returns='str')
-    def unicode(c):
-        if len(c) > 10 and c.startswith('__UNICODE__'):
-            c = c[11:]
-        c = c.replace('__space__', ' ')
-        c = c.replace('__dash__', '-')
-        return unicodedata.lookup(c)
-    """
+    # Dummy ℝ dict for constant expressions
+    class DummyDict(dict):
+        def __getitem__(self, key):
+            return key
+    ℝ = DummyDict()
+    # The cimport function, which in the case of pure Python should
+    # simply execute the statements parsed to it as a string.
+    cimport = exec
 
 
 
-###################
-# Machine epsilon #
-###################
-cython.declare(machine_ϵ='double')
+###################################
+# Cython imports and declarations #
+###################################
+pxd = """
+# Get full access to all of Cython
+cimport cython
+# GNU Scientific Library
+from cython_gsl cimport *
+# Functions for manual memory management
+from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
+# Function type definitions of the form func_returntype_argumenttypes
+ctypedef bint    (*func_b_ddd)  (double, double, double)
+ctypedef double  (*func_d_dd)   (double, double)
+ctypedef double  (*func_d_ddd)  (double, double, double)
+ctypedef double* (*func_ddd_ddd)(double, double, double)
+# Create a fused number type containing all necessary numerical types
+ctypedef fused number:
+    cython.int
+    cython.size_t
+    cython.Py_ssize_t
+    cython.float
+    cython.double
+# Create another fused number type, so that function arguments can have
+# different specializations.
+ctypedef fused number2:
+    cython.int
+    cython.size_t
+    cython.Py_ssize_t
+    cython.float
+    cython.double
+# Create integer and floating fused types
+ctypedef fused integer:
+    cython.int
+    cython.size_t
+    cython.Py_ssize_t
+ctypedef fused floating:
+    cython.float
+    cython.double
+# Create two identical signed number fused types
+ctypedef fused signed_number:
+    cython.int
+    cython.float
+    cython.double
+ctypedef fused signed_number2:
+    cython.int
+    cython.float
+    cython.double
+# Mathematical functions
+from libc.math cimport (sin, cos, tan,
+                        asin as arcsin, 
+                        acos as arccos, 
+                        atan as arctan,
+                        sinh, cosh, tanh,
+                        asinh as arcsinh, 
+                        acosh as arccosh, 
+                        atanh as arctanh,
+                        exp, log, log2, log10,
+                        sqrt, erf, erfc,
+                        round,
+                        )
+"""
+
+
+
+#############
+# Constants #
+#############
+cython.declare(machine_ϵ='double',
+               π='double',
+               )
 machine_ϵ = np.finfo(C2np['double']).eps
+π = np.pi
 
 
 
 ##################
 # Physical units #
 ##################
-# Implement units as an instance of a Cython extension type with
-# the actual units defined as data attributes.
-@cython.cclass
-class Units:
-    # Initialization method.
-    @cython.header
-    def __init__(self):
-        # The triple quoted string below serves as the type declaration
-        # for the data attributes of the Units type.
-        # It will get picked up by the pyxpp script
-        # and indluded in the .pxd file.
-        """
-        str length, time, mass
-        double cm, m, km, AU, pc, kpc, Mpc, Gpc
-        double pc2, kpc2, Mpc2, Gpc2, pc3, kpc3, Mpc3, Gpc3
-        double s, minutes, hr, day, yr, kyr, Myr, Gyr
-        double g, kg, m_sun, km_sun, Mm_sun, Gm_sun
-        """
-        # The base units
-        self.length = 'Mpc'
-        self.time   = 'Gyr'
-        self.mass   = '1e+10*m_sun'
-        self.pc     = 1e-6
-        self.yr     = 1e-9
-        self.m_sun  = 1e-10
-        # Prefixes of the base units
-        self.kpc    = 1e+3*self.pc
-        self.Mpc    = 1e+6*self.pc
-        self.Gpc    = 1e+9*self.pc
-        self.kyr    = 1e+3*self.yr
-        self.Myr    = 1e+6*self.yr
-        self.Gyr    = 1e+9*self.yr
-        self.km_sun = 1e+3*self.m_sun
-        self.Mm_sun = 1e+6*self.m_sun
-        self.Gm_sun = 1e+9*self.m_sun
-        # Square and cubic parsecs
-        self.pc2     = self.pc**2
-        self.kpc2    = self.kpc**2
-        self.Mpc2    = self.Mpc**2
-        self.Gpc2    = self.Gpc**2
-        self.pc3     = self.pc**3
-        self.kpc3    = self.kpc**3
-        self.Mpc3    = self.Mpc**3
-        self.Gpc3    = self.Gpc**3
-        # Non-base units
-        self.AU      = π/(60*60*180)*self.pc
-        self.m       = self.AU/149597870700
-        self.cm      = 1e-2*self.m
-        self.km      = 1e+3*self.m
-        self.day     = self.yr/365.25  # Uses Julian years
-        self.hr      = self.day/24
-        self.minutes = self.hr/60
-        self.s       = self.minutes/60
-        self.kg      = self.m_sun/1.989e+30
-        self.g       = 1e-3*self.kg
+# The names of the three base units
+cython.declare(base_length='str',
+               base_time='str',
+               base_mass='str',
+               )
+base_length = 'Mpc'
+base_time = 'Gyr'
+base_mass = '1e+10*m_sun'
+# Python class storing the values of all units as class attributes
+class Units_class():
+    # Values of base units
+    pc     = 1e-6
+    yr     = 1e-9
+    m_sun  = 1e-10
+    # Prefixes of the base units
+    kpc    = 1e+3*pc
+    Mpc    = 1e+6*pc
+    Gpc    = 1e+9*pc
+    kyr    = 1e+3*yr
+    Myr    = 1e+6*yr
+    Gyr    = 1e+9*yr
+    km_sun = 1e+3*m_sun
+    Mm_sun = 1e+6*m_sun
+    Gm_sun = 1e+9*m_sun
+    # Square and cubic parsecs
+    pc2     = pc**2
+    kpc2    = kpc**2
+    Mpc2    = Mpc**2
+    Gpc2    = Gpc**2
+    pc3     = pc**3
+    kpc3    = kpc**3
+    Mpc3    = Mpc**3
+    Gpc3    = Gpc**3
+    # Non-base units
+    AU      = π/(60*60*180)*pc
+    m       = AU/149597870700
+    cm      = 1e-2*m
+    km      = 1e+3*m
+    day     = yr/365.25  # Uses Julian years
+    hr      = day/24
+    minutes = hr/60
+    s       = minutes/60
+    kg      = m_sun/1.989e+30
+    g       = 1e-3*kg
+    # Make instance creation possible (though superfluous)
+    def __init__(self, **kwargs):
+        pass
+# In the case of pure Python, use Units_class directly
+if not cython.compiled:
+    Units = Units_class
+# In the case of Cython, use a struct to hold the units
+pxd = """
+ctypedef struct Units:
+    # Base units
+    double pc, yr, m_sun
+    # Prefixes of the base units
+    double kpc, Mpc, Gpc
+    double kyr, Myr, Gyr
+    double km_sun, Mm_sun, Gm_sun
+    # Square and cubic parsecs
+    double pc2, kpc2, Mpc2, Gpc2
+    double pc3, kpc3, Mpc3, Gpc3
+    # Non-base units
+    double AU, m, cm, km
+    double day, hr, minutes, s
+    double kg, g
+"""
+# Instantiate the Units_class instance (Python) / struct (Cython)
 cython.declare(units='Units')
-units = Units()
-# Cython extension types have no __dict__ method.
-# Create this dict manually.
-cython.declare(units_dict='dict')
-units_dict = {# Base unit strings
-              'length': units.length,
-              'time'  : units.time,
-              'mass'  : units.mass,
-              # Base units and their prefixes
-              'pc'    : units.pc,
-              'kpc'   : units.kpc,
-              'Mpc'   : units.Mpc,
-              'Gpc'   : units.Gpc,
-              'yr'    : units.yr,
-              'kyr'   : units.kyr,
-              'Myr'   : units.Myr,
-              'Gyr'   : units.Gyr,
-              'm_sun' : units.m_sun,
-              'km_sun': units.km_sun,
-              'Mm_sun': units.Mm_sun,
-              'Gm_sun': units.Gm_sun,
+units = Units(# Base units
+              pc     = Units_class.pc,
+              yr     = Units_class.yr,
+              m_sun  = Units_class.m_sun,
+              # Prefixes of the base units
+              kpc    = Units_class.kpc,
+              Mpc    = Units_class.Mpc,
+              Gpc    = Units_class.Gpc,
+              kyr    = Units_class.kyr,
+              Myr    = Units_class.Myr,
+              Gyr    = Units_class.Gyr,
+              km_sun = Units_class.km_sun,
+              Mm_sun = Units_class.Mm_sun,
+              Gm_sun = Units_class.Gm_sun,
               # Square and cubic parsecs
-              'pc2' : units.pc2,
-              'kpc2': units.kpc2,
-              'Mpc2': units.Mpc2,
-              'Gpc2': units.Gpc2,
-              'pc3' : units.pc3,
-              'kpc3': units.kpc3,
-              'Mpc3': units.Mpc3,
-              'Gpc3': units.Gpc3,
+              pc2     = Units_class.pc2,
+              kpc2    = Units_class.kpc2,
+              Mpc2    = Units_class.Mpc2,
+              Gpc2    = Units_class.Gpc2,
+              pc3     = Units_class.pc3,
+              kpc3    = Units_class.kpc3,
+              Mpc3    = Units_class.Mpc3,
+              Gpc3    = Units_class.Gpc3,
               # Non-base units
-              'AU'     : units.AU,
-              'm'      : units.m,
-              'cm'     : units.cm,
-              'km'     : units.km,
-              'day'    : units.day,
-              'hr'     : units.hr,
-              'minutes': units.minutes,
-              's'      : units.s,
-              'kg'     : units.kg,
-              'g'      : units.g,
-              }
+              AU      = Units_class.AU,
+              m       = Units_class.m,
+              cm      = Units_class.cm,
+              km      = Units_class.km,
+              day     = Units_class.day,
+              hr      = Units_class.hr,
+              minutes = Units_class.minutes,
+              s       = Units_class.s,
+              kg      = Units_class.kg,
+              g       = Units_class.g,
+              )
+# Grab the dict from the Units_class and store it separately
+cython.declare(units_dict='dict')
+units_dict = {key: val for key, val in Units_class.__dict__.items() if not key.startswith('_')}
 
 
 
@@ -470,9 +489,32 @@ for key in globals_dict.keys():
 # give the arguments some default value.
 # The parameter file
 paths['params'] = argd.get('params', '')
-paths['params_dir'] = ('' if not paths['params'] else os.path.dirname(paths['params']))
+paths['params_dir'] = '' if not paths['params'] else os.path.dirname(paths['params'])
 # The scp password
 scp_password = argd.get('scp_password', '')
+
+
+
+########################
+# The unicode function #
+########################
+# The pyxpp script convert all Unicode source code characters into
+# ASCII. The function below grants the code access to
+# Unicode string literals, by undoing the convertion.
+if not cython.compiled:
+    # Dummy unicode function for pure Python
+    def unicode(c):
+        return c
+else:
+    """
+    @cython.header(c='str', returns='str')
+    def unicode(c):
+        if len(c) > 10 and c.startswith('__UNICODE__'):
+            c = c[11:]
+        c = c.replace('__space__', ' ')
+        c = c.replace('__dash__', '-')
+        return unicodedata.lookup(c)
+    """
 
 
 
@@ -496,12 +538,13 @@ params.update({# The paths dict
                're'   : re,
                'sys'  : sys,
                # Unicode variables
-               unicode('π') : np.pi,
+               unicode('π'): π,
                # Constants
+               'pi'       : π,
                'machine_ϵ': machine_ϵ,
                })
-# "Import" the parameter file be executing it in the namespace defined
-# by the params dict.
+# "Import" the parameter file by executing it
+# in the namespace defined by the params dict.
 if os.path.isfile(paths['params']):
     with open(paths['params'], encoding='utf-8') as params_file:
         exec(params_file.read(), params)
@@ -514,13 +557,13 @@ if os.path.isfile(paths['params']):
 # - Paths below or just one level above the concept directory are made
 #   relative to this directory in order to reduce screen clutter.
 # - The 'special_params' parameter is set to an empty dictionary if it
-#   is not defined in params.py
+#   is not defined in params.py.
 # - Colors are transformed to (r, g, b) arrays. Below is the function
 #   that handles the color input.
 def to_rgb(value):
     if isinstance(value, int) or isinstance(value, float):
         value = str(value)
-    return array(matplotlib.colors.ColorConverter().to_rgb(value), dtype=C2np['double'])
+    return np.array(matplotlib.colors.ColorConverter().to_rgb(value), dtype=C2np['double'])
 cython.declare(# Input/output
                IC_file='str',
                snapshot_type='str',
@@ -634,28 +677,15 @@ output_times = {key: tuple([(a_begin if np.abs(nr - a_begin) < 10*machine_ϵ els
 
 
 
-#####################################
-# Global (module level) allocations #
-#####################################
+######################
+# Global allocations #
+######################
 # Useful for temporary storage of 3D vector
 cython.declare(vector='double*',
                vector_mv='double[::1]',
                )
 vector = malloc(3*sizeof('double'))
 vector_mv = cast(vector, 'double[:3]')
-
-
-
-################
-# Pure numbers #
-################
-# Implement any pure number as ℝ[expression]
-if not cython.compiled:
-    class DummyDict(dict):
-        def __getitem__(self, key):
-            return key
-    ℝ = DummyDict()
-# Cython declaretions of pure numbers appears below in .pyx files
 
 
 
@@ -742,24 +772,20 @@ P3M_scale_phys = P3M_scale*boxsize/PM_gridsize
 # force, when the P3M algorithm is used.
 P3M_cutoff_phys = P3M_scale_phys*P3M_cutoff
 # The host name in the 'remote_liverender' parameter
-scp_host = (re.search('@(.*):', remote_liverender).group(1)
-            if remote_liverender else '')
+scp_host = re.search('@(.*):', remote_liverender).group(1) if remote_liverender else ''
 
 
 
-###########################################
-# Customly defined mathematical functions #
-###########################################
-# When writing a function, remember to add its name to the tuple
-# "commons_functions" in the "make_pxd" function in the "pyxpp.py" file.
-
-# Abs function for numbers
+############################
+# Custom defined functions #
+############################
+# Absolute function for numbers
 if not cython.compiled:
     # Use NumPy's abs function in pure Python
     max = np.max
 else:
-    @cython.header(x=number,
-                   returns=number,
+    @cython.header(x=signed_number,
+                   returns=signed_number,
                    )
     def abs(x):
         if x < 0:
@@ -803,9 +829,9 @@ else:
     """
 
 # Modulo function for numbers
-@cython.header(x=number,
-               length=number2,
-               returns=number,
+@cython.header(x=signed_number,
+               length=signed_number2,
+               returns=signed_number,
                )
 def mod(x, length):
     """Warning: mod(integer, floating) not possible. Note that
@@ -814,14 +840,14 @@ def mod(x, length):
     function to compute the modulo properly. A more general
     prescription would be x = (x % length) + (x < 0)*length.
     """
-    if not (number in integer and number2 in floating):
+    if not (signed_number in integer and signed_number2 in floating):
         if x < 0:
             x += length
         elif x >= length:
             x -= length
         return x
 
-# Sum function for 1D memory views of numbers
+# Summation function for 1D memory views of numbers
 if not cython.compiled:
     # Use NumPy's sum function in pure Python
     sum = np.sum
@@ -842,7 +868,7 @@ else:
         return Σ
     """
 
-# Prod function for 1D memory views of numbers
+# Product function for 1D memory views of numbers
 if not cython.compiled:
     # Use NumPy's prod function in pure Python
     prod = np.prod
@@ -901,8 +927,7 @@ def masterprint(msg, *args, indent=0, end='\n', **kwargs):
                     if interval.startswith('0'):
                         # Between 1 and 10 seconds
                         if '.' in interval:
-                            interval = (interval[1:(interval.index('.') + 2)]
-                                        + ' s')
+                            interval = interval[1:(interval.index('.') + 2)] + ' s'
                     else:
                         # Between 10 seconds and a minute
                         if '.' in interval:
@@ -917,8 +942,7 @@ def masterprint(msg, *args, indent=0, end='\n', **kwargs):
             # More than an hour
             if '.' in interval:
                 interval = interval[:interval.index('.')]
-        print(' done after ' + interval,
-              *args, flush=True, **kwargs)
+        print(' done after ' + interval, *args, flush=True, **kwargs)
     else:
         # Create time stamp for use in progress message
         progressprint_time = time()

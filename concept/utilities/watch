@@ -182,7 +182,7 @@ inform_on_new_state()
             "T"    ) echo "Job ${jobid} is being moved to new location";;
             "W"    ) echo "Job ${jobid} is waiting for its executing time to be reached";;
             "S"    ) echo "Job ${jobid} is suspend";;
-            "None" ) echo "Job ${jobid} is finished running";;
+            "None" ) echo "Job ${jobid} has finished running";;
             ""     ) echo "Job ${jobid} is in an unspecified state";;
             *      ) echo "Job ${jobid} is in the unknown state \"${state}\"";;
         esac
@@ -201,7 +201,7 @@ check_suddenly_finished()
         if [ -f "${logs_dir}/${jobid}" ]; then
             cat "${logs_dir}/${jobid}"
         else
-            echo "Job ${jobid} is finished running, but no logfile is to be found. Curious ..."
+            echo "Job ${jobid} has finished running, but no logfile is to be found. Curious ..."
         fi
         trap : 0
         exit 0

@@ -380,11 +380,11 @@ logs_dir_rel="$(sensible_path ${logs_dir})"
 # Prompt the user for the secure shell password,
 # if the live render should be uploaded to a remote host.
 args=($("${python}" -B -c "
-import os, pexpect, re, sys
+import imp, os, pexpect, re, sys
 from getpass import getpass
 from time import sleep
 # Import parameters from the commons module
-from commons import *
+globals().update(imp.load_source('commons', 'commons.py').__dict__)
 # Ask for password if remote liverender is requested
 scp_password = ''
 scp_success = 'success'
@@ -553,7 +553,11 @@ else
     colorprint \"Running CONCEPT remotely on \$(hostname -f) as job \${jobid}\" \"yellow\" > \"${logs_dir}/\${jobid}\"
 fi
 echo \"Entry point:   \\\\\"${main_rel}\\\\\"\"               >> \"${logs_dir}/\${jobid}\"
-echo \"Parameterfile: \\\\\"${params_rel}\\\\\"\"             >> \"${logs_dir}/\${jobid}\"
+if [ \"${params_rel}\" == \"None\" ]; then
+    echo \"Parameterfile: ${params_rel}\"                     >> \"${logs_dir}/\${jobid}\"
+else
+    echo \"Parameterfile: \\\\\"${params_rel}\\\\\"\"         >> \"${logs_dir}/\${jobid}\"
+fi
 echo \"Logfile:       \\\\\"${logs_dir_rel}/\${jobid}\\\\\"\" >> \"${logs_dir}/\${jobid}\"
 echo \"Nr. of CPUs:   ${nprocs}\"                             >> \"${logs_dir}/\${jobid}\"
 
@@ -615,7 +619,11 @@ else
         colorprint "Running CONCEPT" "yellow" | tee "${logs_dir}/${jobid}"
     fi
     echo "Entry point:   \"${main_rel}\""              | tee -a "${logs_dir}/${jobid}"
-    echo "Parameterfile: \"${params_rel}\""            | tee -a "${logs_dir}/${jobid}"
+    if [ "${params_rel}" == "None" ]; then
+        echo "Parameterfile: ${params_rel}"            | tee -a "${logs_dir}/${jobid}"
+    else
+        echo "Parameterfile: \"${params_rel}\""        | tee -a "${logs_dir}/${jobid}"
+    fi
     echo "Logfile:       \"${logs_dir_rel}/${jobid}\"" | tee -a "${logs_dir}/${jobid}"
     echo "Nr. of CPUs:    ${nprocs}"                   | tee -a "${logs_dir}/${jobid}"
     # Prepare Python options

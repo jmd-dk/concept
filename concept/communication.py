@@ -21,17 +21,10 @@
 
 
 
-# Import everything from the commons module. In the .pyx file,
-# this line willbe replaced by the content of commons.py itself.
+# Import everything from the commons module.
+# In the .pyx file, Cython declared variables will also get cimported.
 from commons import *
 
-# Seperate but equivalent imports in pure Python and Cython
-if not cython.compiled:
-    pass
-else:
-    # Lines in triple quotes will be executed in the .pyx file.
-    """
-    """
 
 
 # Function for communicating sizes of receive buffers
@@ -430,7 +423,7 @@ def domain(x, y, z):
                )
 def neighboring_ranks():
     # Number of domains in all three dimensions
-    domain_cuts = array(cutout_domains(nprocs), dtype=C2np['int'])
+    domain_cuts = np.array(cutout_domains(nprocs), dtype=C2np['int'])
     # The 3D layout of the division of the box
     domain_layout = arange(nprocs, dtype=C2np['int']).reshape(domain_cuts)
     # Get the ranks of the 6 face-to-face neighboring processes
@@ -591,7 +584,7 @@ domain_cuts = cutout_domains(nprocs)
 # The 3D layout of the division of the box
 domain_layout = arange(nprocs, dtype=C2np['int']).reshape(domain_cuts)
 # The indices in domain_layout of the local domain
-domain_local = array(np.unravel_index(rank, domain_cuts), dtype=C2np['int'])
+domain_local = np.array(np.unravel_index(rank, domain_cuts), dtype=C2np['int'])
 # The size of the domain, which are the same for all of them
 domain_size_x = boxsize/domain_cuts[0]
 domain_size_y = boxsize/domain_cuts[1]

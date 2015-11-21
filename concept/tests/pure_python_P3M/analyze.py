@@ -90,7 +90,7 @@ z_python = [particles_python[j].posx for j in range(3)]
 x_cython = [particles_cython[j].posx for j in range(3)]
 y_cython = [particles_cython[j].posx for j in range(3)]
 z_cython = [particles_cython[j].posx for j in range(3)]
-dist = [sqrt(array([min([(x_cython[j][i] - x_python[j][i] + xsgn*boxsize)**2 + (y_cython[j][i] - y_python[j][i] + ysgn*boxsize)**2 + (z_cython[j][i] - z_python[j][i] + zsgn*boxsize)**2 for xsgn in (-1, 0, +1) for ysgn in (-1, 0, 1) for zsgn in (-1, 0, 1)]) for i in range(N)])) for j in range(3)]
+dist = [sqrt(np.array([min([(x_cython[j][i] - x_python[j][i] + xsgn*boxsize)**2 + (y_cython[j][i] - y_python[j][i] + ysgn*boxsize)**2 + (z_cython[j][i] - z_python[j][i] + zsgn*boxsize)**2 for xsgn in (-1, 0, +1) for ysgn in (-1, 0, 1) for zsgn in (-1, 0, 1)]) for i in range(N)])) for j in range(3)]
 
 # Plot
 fig, ax = plt.subplots(3, sharex=True, sharey=True)

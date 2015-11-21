@@ -84,7 +84,7 @@ fig_file = this_dir + '/result.png'
 x = [particles[j].posx for j in range(4)]
 y = [particles[j].posx for j in range(4)]
 z = [particles[j].posx for j in range(4)]
-dist = [sqrt(array([min([(x[0][i] - x[j][i] + xsgn*boxsize)**2 + (y[0][i] - y[j][i] + ysgn*boxsize)**2 + (z[0][i] - z[j][i] + zsgn*boxsize)**2 for xsgn in (-1, 0, +1) for ysgn in (-1, 0, 1) for zsgn in (-1, 0, 1)]) for i in range(N)])) for j in range(4)]
+dist = [sqrt(np.array([min([(x[0][i] - x[j][i] + xsgn*boxsize)**2 + (y[0][i] - y[j][i] + ysgn*boxsize)**2 + (z[0][i] - z[j][i] + zsgn*boxsize)**2 for xsgn in (-1, 0, +1) for ysgn in (-1, 0, 1) for zsgn in (-1, 0, 1)]) for i in range(N)])) for j in range(4)]
 
 # Plot
 fig, ax = plt.subplots(3, sharex=True, sharey=True)

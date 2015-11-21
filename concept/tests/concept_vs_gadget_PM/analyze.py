@@ -100,7 +100,7 @@ z = particles[-1].posz
 x_gadget = particles_gadget[-1].posx
 y_gadget = particles_gadget[-1].posy
 z_gadget = particles_gadget[-1].posz
-dist = sqrt(array([min([(x[i] - x_gadget[i] + xsgn*boxsize)**2 + (y[i] - y_gadget[i] + ysgn*boxsize)**2 + (z[i] - z_gadget[i] + zsgn*boxsize)**2 for xsgn in (-1, 0, +1) for ysgn in (-1, 0, 1) for zsgn in (-1, 0, 1)]) for i in range(N)]))
+dist = sqrt(np.array([min([(x[i] - x_gadget[i] + xsgn*boxsize)**2 + (y[i] - y_gadget[i] + ysgn*boxsize)**2 + (z[i] - z_gadget[i] + zsgn*boxsize)**2 for xsgn in (-1, 0, +1) for ysgn in (-1, 0, 1) for zsgn in (-1, 0, 1)]) for i in range(N)]))
 
 # Plot
 plt.plot(dist/boxsize, 'sr')
