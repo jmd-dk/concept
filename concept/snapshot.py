@@ -21,22 +21,15 @@
 
 
 
-# Import everything from the commons module. In the .pyx file,
-# this line will be replaced by the content of commons.py itself.
+# Import everything from the commons module.
+# In the .pyx file, Cython declared variables will also get cimported.
 from commons import *
 
-# Seperate but equivalent imports in pure Python and Cython
-if not cython.compiled:
-    from species import construct
-    from communication import exchange
-else:
-    # Lines in triple quotes will be executed in the .pyx file.
-    """
-    from species cimport construct
-    from communication cimport exchange
-    """
+# Cython imports
+cimport('from species import construct')
+cimport('from communication import exchange')
 
-# Imports and definitions common to pure Python and Cython
+# Pure Python imports
 import struct
 
 
@@ -118,7 +111,7 @@ class StandardSnapshot:
                 if np.abs(self.params['boxsize']/boxsize - 1) > tol:
                     msg += ('\n' + ' '*8 + 'boxsize: {} vs {} ({})').format(boxsize,
                                                                             self.params['boxsize'],
-                                                                            units.length)
+                                                                            base_length)
                 if np.abs(self.params['H0']/H0 - 1) > tol:
                     unit = units.km/(units.s*units.Mpc)
                     msg += ('\n' + ' '*8 + 'H0: {} vs {} ({})').format(H0/unit,
@@ -253,9 +246,9 @@ class StandardSnapshot:
         masterprint('Saving snapshot "{}" ...'.format(filename))
         with h5py.File(filename, mode='w', driver='mpio', comm=comm) as hdf5_file:
             # Save used base units
-            hdf5_file.attrs['unit length'] = units.length
-            hdf5_file.attrs['unit time']   = units.time
-            hdf5_file.attrs['unit mass']   = units.mass
+            hdf5_file.attrs['unit length'] = base_length
+            hdf5_file.attrs['unit time']   = base_time
+            hdf5_file.attrs['unit mass']   = base_mass
             # Save global attributes
             hdf5_file.attrs['H0']                        = self.params['H0']
             hdf5_file.attrs['a']                         = self.params['a']
@@ -274,7 +267,7 @@ class StandardSnapshot:
             # Get local indices of the particle data
             N_local = self.particles.N_local
             N_locals = empty(nprocs, dtype=C2np['Py_ssize_t'])
-            Allgather(array(N_local, dtype=C2np['Py_ssize_t']), N_locals)
+            Allgather(np.array(N_local, dtype=C2np['Py_ssize_t']), N_locals)
             start_local = sum(N_locals[:rank])
             end_local = start_local + N_local
             # Save the local slices of the particle data and the attributes
@@ -401,7 +394,7 @@ class GadgetSnapshot:
                 if np.abs(self.params['boxsize']/boxsize - 1) > tol:
                     msg += ('\n' + ' '*8 + 'boxsize: {} vs {} ({})').format(boxsize,
                                                                             self.params['boxsize'],
-                                                                            units.length)
+                                                                            base_length)
                 if np.abs(self.params['H0']/H0 - 1) > tol:
                     unit = units.km/(units.s*units.Mpc)
                     msg += ('\n' + ' '*8 + 'H0: {} vs {} ({})').format(H0/unit,
@@ -547,7 +540,7 @@ class GadgetSnapshot:
         # The ID's of the local particles, generated such that
         # the process with the lowest rank has the lowest ID's.
         N_locals = empty(nprocs, dtype=C2np['Py_ssize_t'])
-        Allgather(array(particles.N_local, dtype=C2np['Py_ssize_t']), N_locals)
+        Allgather(np.array(particles.N_local, dtype=C2np['Py_ssize_t']), N_locals)
         start_local = sum(N_locals[:rank])
         self.ID = arange(start_local, start_local + particles.N_local, dtype=C2np['unsigned int'])
         # The header data

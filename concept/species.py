@@ -21,20 +21,14 @@
 
 
 
-# Import everything from the commons module. In the .pyx file,
-# this line will be replaced by the content of commons.py itself.
+# Import everything from the commons module.
+# In the .pyx file, Cython declared variables will also get cimported.
 from commons import *
 
-# Seperate but equivalent imports in pure Python and Cython
-if not cython.compiled:
-    from gravity import PP, PM, P3M
-    from communication import exchange
-else:
-    # Lines in triple quotes will be executed in the .pyx file.
-    """
-    from gravity cimport PP, PM, P3M
-    from communication cimport exchange
-    """
+# Cython imports
+cimport('from gravity import PP, PM, P3M')
+cimport('from communication import exchange')
+
 
 
 # The class representing a collection of particles of a given type

@@ -10,7 +10,7 @@
 output_bases = {'powerspec': 'powerspec'}
 
 # Numerical parameters
-PM_gridsize = 256
+PM_gridsize = 32 #256
 R_tophat    = 8*Mpc
 
 # Graphics

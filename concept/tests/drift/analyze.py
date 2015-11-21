@@ -66,7 +66,7 @@ plt.errorbar(a, x, yerr=x_std, fmt='-sr', label='CO$N$CEPT')
 plt.errorbar(a_gadget, x_gadget, yerr=x_std_gadget, fmt='--*b', label='GADGET')
 plt.legend(loc='best')
 plt.xlabel('$a$')
-plt.ylabel(r'$x\,\mathrm{[' + units.length + ']}$')
+plt.ylabel(r'$x\,\mathrm{[' + base_length + ']}$')
 plt.ylim(0, boxsize)
 plt.savefig(fig_file)
 

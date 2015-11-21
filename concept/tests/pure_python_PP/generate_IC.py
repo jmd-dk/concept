@@ -45,9 +45,9 @@ momx = zeros(N)
 momy = zeros(N)
 momz = zeros(N)
 count = 0
-for i in range(round(N**(1/3))):
-    for j in range(round(N**(1/3))):
-        for k in range(round(N**(1/3))):
+for i in range(int(round(N**(1/3)))):
+    for j in range(int(round(N**(1/3)))):
+        for k in range(int(round(N**(1/3)))):
             x = (i/N**(1/3)*boxsize + (random()*2 - 1)*mean_sep*0.1) % boxsize
             y = (j/N**(1/3)*boxsize + (random()*2 - 1)*mean_sep*0.1) % boxsize
             z = (k/N**(1/3)*boxsize + (random()*2 - 1)*mean_sep*0.1) % boxsize

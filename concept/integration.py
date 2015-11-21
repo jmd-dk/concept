@@ -21,27 +21,20 @@
 
 
 
-# Import everything from the commons module. In the .pyx file,
-# this line will be replaced by the content of commons.py itself.
+# Import everything from the commons module.
+# In the .pyx file, Cython declared variables will also get cimported.
 from commons import *
 
-# Seperate but equivalent imports in pure Python and Cython
-if not cython.compiled:
-    pass
-else:
-    # Lines in triple quotes will be executed in the .pyx file.
-    """
-    """
+
 
 # The Friedmann equation, used to integrate
-# the scale factor forwards in time
+# the scale factor forwards in time.
 @cython.header(t='double',
                a='double',
                returns='double',
                )
 def ȧ(t, a):
     return a*H0*sqrt(Ωm/(a**3 + machine_ϵ) + ΩΛ)
-
 
 # Function for solving ODEs of the form ḟ(t, f)
 @cython.header(# Arguments

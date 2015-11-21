@@ -21,20 +21,13 @@
 
 
 
-# Import everything from the commons module. In the .pyx file,
-# this line will be replaced by the content of commons.py itself.
+# Import everything from the commons module.
+# In the .pyx file, Cython declared variables will also get cimported.
 from commons import *
 
-# Seperate but equivalent imports in pure Python and Cython
-if not cython.compiled:
-    import graphics, analysis
-    from snapshot import get_snapshot_type, load_into_standard, load_params
-else:
-    # Lines in triple quotes will be executed in the .pyx file.
-    """
-    cimport graphics, analysis
-    from snapshot cimport get_snapshot_type, load_into_standard, load_params
-    """
+# Cython imports
+cimport('import graphics, analysis')
+cimport('from snapshot import get_snapshot_type, load_into_standard, load_params')
 
 
 
@@ -170,7 +163,7 @@ def snapshot_info():
         params = load_params(snapshot_filename, compare_params=False)
         # Print out global parameters
         masterprint('{:<18} {:.12g}'.format('a', params['a']))
-        masterprint('{:<18} {:.12g} {}'.format('boxsize', params['boxsize'], units.length))
+        masterprint('{:<18} {:.12g} {}'.format('boxsize', params['boxsize'], base_length))
         unit = units.km/(units.s*units.Mpc)
         unit_str = 'km s' + unicode('⁻') + unicode('¹') + ' Mpc' + unicode('⁻') + unicode('¹')
         masterprint('{:<18} {:.12g} {}'.format('H0', params['H0']/unit, unit_str))

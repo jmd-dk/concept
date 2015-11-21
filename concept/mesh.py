@@ -21,19 +21,20 @@
 
 
 
-# Import everything from the commons module. In the .pyx file,
-# this line will be replaced by the content of commons.py itself.
+# Import everything from the commons module.
+# In the .pyx file, Cython declared variables will also get cimported.
 from commons import *
 
-# Seperate but equivalent imports in pure Python and Cython
+# Cython imports
+cimport('from communication import cutout_domains, neighboring_ranks')
+
+# Seperate but roughly equivalent imports in pure Python and Cython
 if not cython.compiled:
-    from communication import cutout_domains, neighboring_ranks
     # FFT functionality via NumPy
     from numpy.fft import rfftn, irfftn
 else:
     # Lines in triple quotes will be executed in the .pyx file
     """
-    from communication cimport cutout_domains, neighboring_ranks
     # FFT functionality via FFTW from fft.c
     cdef extern from "fft.c":
         # The fftw_plan type
@@ -58,6 +59,8 @@ else:
         void fftw_clean(double* grid, fftw_plan plan_forward,
                                       fftw_plan plan_backward)
     """
+
+
 
 # Function for easy partitioning of multidimensional arrays
 @cython.header(# Arguments
@@ -144,7 +147,7 @@ def tabulate_vectorfield(gridsize, func, factor, filename=''):
     """
     # The grid has a shape of gridsize*gridsize*gridsize*3.
     # That is, grid is not really cubic, but rather four-dimensional.
-    shape = array([gridsize]*3 + [3], dtype=C2np['Py_ssize_t'])
+    shape = np.array([gridsize]*3 + [3], dtype=C2np['Py_ssize_t'])
     # The number of scalars and vectors in the grid,
     # when viewed as a 3D box of vectors.
     size_point = shape[3]
@@ -1066,11 +1069,11 @@ cython.declare(ID_recv='int',
                )
 if use_PM:
     # Number of domains in all three dimensions
-    domain_cuts = array(cutout_domains(nprocs), dtype=C2np['int'])
+    domain_cuts = np.array(cutout_domains(nprocs), dtype=C2np['int'])
     # The 3D layout of the division of the box
     domain_layout = arange(nprocs, dtype=C2np['int']).reshape(domain_cuts)
     # The indices in domain_layout of the local domain
-    domain_local = array(np.unravel_index(rank, domain_cuts), dtype=C2np['int'])
+    domain_local = np.array(np.unravel_index(rank, domain_cuts), dtype=C2np['int'])
     # The linear size of the domains, which are the same for all of them
     domain_size_x = boxsize/domain_cuts[0]
     domain_size_y = boxsize/domain_cuts[1]
@@ -1184,16 +1187,16 @@ if use_PM:
             PM_recv_k_end_list.append(recvbuf[3])
             PM_recv_rank_list.append(ID_recv)
     # Memoryview versions of the lists
-    PM_send_i_start = array(PM_send_i_start_list, dtype=C2np['int'])
-    PM_send_i_end = array(PM_send_i_end_list, dtype=C2np['int'])
-    PM_send_rank = array(PM_send_rank_list, dtype=C2np['int'])
-    PM_recv_i_start = array(PM_recv_i_start_list, dtype=C2np['int'])
-    PM_recv_j_start = array(PM_recv_j_start_list, dtype=C2np['int'])
-    PM_recv_k_start = array(PM_recv_k_start_list, dtype=C2np['int'])
-    PM_recv_i_end = array(PM_recv_i_end_list, dtype=C2np['int'])
-    PM_recv_j_end = array(PM_recv_j_end_list, dtype=C2np['int'])
-    PM_recv_k_end = array(PM_recv_k_end_list, dtype=C2np['int'])
-    PM_recv_rank = array(PM_recv_rank_list, dtype=C2np['int'])
+    PM_send_i_start = np.array(PM_send_i_start_list, dtype=C2np['int'])
+    PM_send_i_end = np.array(PM_send_i_end_list, dtype=C2np['int'])
+    PM_send_rank = np.array(PM_send_rank_list, dtype=C2np['int'])
+    PM_recv_i_start = np.array(PM_recv_i_start_list, dtype=C2np['int'])
+    PM_recv_j_start = np.array(PM_recv_j_start_list, dtype=C2np['int'])
+    PM_recv_k_start = np.array(PM_recv_k_start_list, dtype=C2np['int'])
+    PM_recv_i_end = np.array(PM_recv_i_end_list, dtype=C2np['int'])
+    PM_recv_j_end = np.array(PM_recv_j_end_list, dtype=C2np['int'])
+    PM_recv_k_end = np.array(PM_recv_k_end_list, dtype=C2np['int'])
+    PM_recv_rank = np.array(PM_recv_rank_list, dtype=C2np['int'])
     # Buffers
     domainPM_sendbuf = empty((PM_gridsize_global_i, domain_size_j, domain_size_k),
                              dtype=C2np['double'])
@@ -1318,35 +1321,3 @@ else:
     domain_grid_noghosts = domain_grid[2:(domain_grid.shape[0] - 2),
                                        2:(domain_grid.shape[1] - 2),
                                        2:(domain_grid.shape[2] - 2)]
-
-
-
-# The PM_gird, domain_grid and domain_grid_noghosts as well as meta data
-# about these should be importable by other modules.
-pxd = """
-double[:, :, ::1] PM_grid
-double[:, :, ::1] domain_grid
-double[:, :, ::1] domain_grid_noghosts
-ptrdiff_t PM_gridsize_local_i
-ptrdiff_t PM_gridsize_local_j
-ptrdiff_t PM_gridstart_local_i
-ptrdiff_t PM_gridstart_local_j
-int domain_end_i
-int domain_end_j
-int domain_end_k
-double domain_end_x
-double domain_end_y
-double domain_end_z
-int domain_size_i
-int domain_size_j
-int domain_size_k
-double domain_size_x
-double domain_size_y
-double domain_size_z
-int domain_start_i
-int domain_start_j
-int domain_start_k
-double domain_start_x
-double domain_start_y
-double domain_start_z
-"""

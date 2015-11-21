@@ -21,21 +21,17 @@
 
 
 
-# Import everything from the commons module. In the .pyx file,
-# this line will be replaced by the content of commons.py itself.
+# Import everything from the commons module.
+# In the .pyx file, Cython declared variables will also get cimported.
 from commons import *
 
-# Seperate but equivalent imports in pure Python and Cython
-if not cython.compiled:
-    from mesh import CIC_grid2coordinates_vector, tabulate_vectorfield
-else:
-    # Lines in triple quotes will be executed in the .pyx file.
-    """
-    from mesh cimport CIC_grid2coordinates_vector, tabulate_vectorfield
-    """
+# Cython imports
+cimport('from mesh import CIC_grid2coordinates_vector, tabulate_vectorfield')
 
-# Imports and definitions common to pure Python and Cython
+# Pure Python imports
 from os.path import isfile
+
+
 
 # Cython function for computing Ewald correction
 @cython.header(# Argument
@@ -222,7 +218,7 @@ minus_recp_4rs2 = -1/(4*rs**2)
 n_lower = int(-(maxdist + 1))  # GADGET: -4 (same here for maxdist=3.6)
 n_upper = int(maxdist + 1) + 1  # GADGET: 5 (same here for maxdist=3.6)
 recp_2rs = 1/(2*rs)
-recp_sqrt_π_rs = 1/(ℝ[sqrt(π)]*rs)
+recp_sqrt_π_rs = 1/(sqrt(π)*rs)
 rs2 = rs**2
 # Initialize the grid at import time, if Ewald summation is to be used
 cython.declare(i='int',

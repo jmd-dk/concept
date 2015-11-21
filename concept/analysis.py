@@ -21,28 +21,23 @@
 
 
 
-# Import everything from the commons module. In the .pyx file,
-# this line willbe replaced by the content of commons.py itself.
+# Import everything from the commons module.
+# In the .pyx file, Cython declared variables will also get cimported.
 from commons import *
 
-# Seperate but equivalent imports in pure Python and Cython
-if not cython.compiled:
-    from graphics import plot_powerspec
-    from mesh import PM_grid, PM_CIC, PM_FFT, PM_gridsize_local_j, PM_gridstart_local_j
-else:
-    # Lines in triple quotes will be executed in the .pyx file.
-    """
-    from graphics cimport plot_powerspec
-    from mesh cimport PM_grid, PM_CIC, PM_FFT, PM_gridsize_local_j, PM_gridstart_local_j
-    """
+# Cython imports
+cimport('from graphics import plot_powerspec')
+cimport('from mesh import PM_grid, PM_CIC, PM_FFT, PM_gridsize_local_j, PM_gridstart_local_j')
 
 
-# Calculate the power spectrum of a snapshot
+
+# Calculate the power spectrum of the particle configuration
 @cython.header(# Arguments
                particles='Particles',
                filename='str',
                # Locals
                P='double',
+               PM_grid_jik='double*',
                W2='double',
                file_contents='str',
                i='int',
@@ -69,8 +64,7 @@ else:
                )
 def powerspec(particles, filename):
     global PM_grid, mask, power, power_N, power_σ2
-    masterprint('Calculating power spectrum and saving to "{}" ...'
-                 .format(filename))
+    masterprint('Calculating power spectrum and saving to "{}" ...'.format(filename))
     # CIC interpolate particles to the PM mesh
     # and do Fourier transformation.
     PM_CIC(particles)
@@ -125,15 +119,18 @@ def powerspec(particles, filename):
                 # The reciprocal of the product of
                 # all components of the deconvolution.
                 recp_deconv_ijk = 1/(sqrt_deconv_ijk**2)
+                # Pointer to the [j, i, k]'th element in PM_grid.
+                # The complex number is then given as
+                # Re = PM_grid_jik[0], Im = PM_grid_jik[1].
+                PM_grid_jik = cython.address(PM_grid[j, i, k:])
                 # Do the deconvolution
-                PM_grid[j, i, k] *= recp_deconv_ijk
-                PM_grid[j, i, k + 1] *= recp_deconv_ijk
+                PM_grid_jik[0] *= recp_deconv_ijk  # Real part
+                PM_grid_jik[1] *= recp_deconv_ijk  # Imag part
                 # Increase the multiplicity
                 power_N[k2] += 1
-                # The power is the squared magnitude of the complex
-                # number stored as
-                # Re = PM_grid[j, i, k], Im = PM_grid[j, i, k + 1].
-                P = PM_grid[j, i, k]**2 + PM_grid[j, i, k + 1]**2
+                # The power is the squared magnitude
+                # of the complex number
+                P = PM_grid_jik[0]**2 + PM_grid_jik[1]**2
                 # Increase the power. This is unnormalized for now.
                 power[k2] += P
                 # Increase the variance. For now, this is only the
@@ -177,10 +174,10 @@ def powerspec(particles, filename):
     header = ('{sigma}{_R}' + ' = {:.6g} '.format(σ)
               + '{pm}' + ' {:.6g}, '.format(σ_σ)
               + 'PM_gridsize = {}, '.format(PM_gridsize)
-              + 'boxsize = {:.4g} {}\n'.format(boxsize, units.length)
-              + 'k [' + units.length + '{^-1}]'
-              + '\tpower [' + units.length + '{^3}]'
-              + '\t{sigma}(power) [' + units.length + '{^3}]')
+              + 'boxsize = {:.4g} {}\n'.format(boxsize, base_length)
+              + 'k [' + base_length + '{^-1}]'
+              + '\tpower [' + base_length + '{^3}]'
+              + '\t{sigma}(power) [' + base_length + '{^3}]')
     np.savetxt(filename,
                asarray((asarray(k_magnitudes)     [mask], 
                         asarray(power)            [mask],
@@ -346,7 +343,7 @@ if powerspec_times or special_params.get('special', '') == 'powerspec':
     # k_magnitudes. This mask is identical for every powerspectrum and
     # will be created when the first power spectrum is computed, and
     # then reused for all later power spectra.
-    mask = array([], dtype=C2np['bint'])
+    mask = np.array([], dtype=C2np['bint'])
     # Create array of physical k-magnitudes
     if master:
         k_fac = 2*π/boxsize

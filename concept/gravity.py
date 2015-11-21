@@ -21,30 +21,19 @@
 
 
 
-# Import everything from the commons module. In the .pyx file,
-# this line will be replaced by the content of commons.py itself.
+# Import everything from the commons module.
+# In the .pyx file, Cython declared variables will also get cimported.
 from commons import *
 
-# Seperate but equivalent imports in pure Python and Cython
-if not cython.compiled:
-    from ewald import ewald
-    from communication import find_N_recv, neighboring_ranks
-    from mesh import CIC_grid2coordinates_scalar, PM2domain
-    from mesh import PM_grid, PM_CIC, PM_FFT, PM_IFFT, PM_gridsize_local_j, PM_gridstart_local_j
-    from mesh import domain_grid, domain_grid_noghosts
-    from mesh import domain_size_x,  domain_size_y,  domain_size_z
-    from mesh import domain_start_x, domain_start_y, domain_start_z
-else:
-    # Lines in triple quotes will be executed in the .pyx file
-    """
-    from ewald cimport ewald
-    from communication cimport find_N_recv, neighboring_ranks
-    from mesh cimport CIC_grid2coordinates_scalar, PM2domain
-    from mesh cimport PM_grid, PM_CIC, PM_FFT, PM_IFFT, PM_gridsize_local_j, PM_gridstart_local_j
-    from mesh cimport domain_grid, domain_grid_noghosts
-    from mesh cimport domain_size_x,  domain_size_y,  domain_size_z
-    from mesh cimport domain_start_x, domain_start_y, domain_start_z
-    """
+# Cython imports
+cimport('from ewald import ewald')
+cimport('from communication import find_N_recv, neighboring_ranks')
+cimport('from mesh import CIC_grid2coordinates_scalar, PM2domain')
+cimport('from mesh import PM_grid, PM_CIC, PM_FFT, PM_IFFT')
+cimport('from mesh import PM_gridsize_local_j, PM_gridstart_local_j')
+cimport('from mesh import domain_grid, domain_grid_noghosts')
+cimport('from mesh import domain_size_x,  domain_size_y,  domain_size_z')
+cimport('from mesh import domain_start_x, domain_start_y, domain_start_z')
 
 
 
@@ -287,7 +276,7 @@ def PP(particles, Δt):
     # Update local momenta and compute and send external momentum
     # changes due to forces between local and external particles.
     # Find out how many particles will be recieved from each process
-    N_extrns = find_N_recv(array([N_local], dtype=C2np['Py_ssize_t']))
+    N_extrns = find_N_recv(np.array([N_local], dtype=C2np['Py_ssize_t']))
     N_extrn_max = N_extrns[rank]
     # Enlarges the buffers if necessary
     if posx_extrn_mv.shape[0] < N_extrn_max:
@@ -408,6 +397,7 @@ def PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, mom):
                only_long_range='bint',
                # Locals
                Greens_deconv='double',
+               PM_grid_jik='double*',
                sqrt_deconv_ij='double',
                sqrt_deconv_ijk='double',
                sqrt_deconv_j='double',
@@ -484,6 +474,10 @@ def PM(particles, Δt, only_long_range=False):
                 # Square root of the product of
                 # all components of the deconvolution.
                 sqrt_deconv_ijk = sqrt_deconv_ij*sinc(kk*ℝ[π/PM_gridsize])
+                # Pointer to the [j, i, k]'th element in PM_grid.
+                # The complex number is then given as
+                # Re = PM_grid_jik[0], Im = PM_grid_jik[1].
+                PM_grid_jik = cython.address(PM_grid[j, i, k:])
                 # Multiply by the Greens function 1/k2 to get the the
                 # potential. Deconvolve twice for the two CIC
                 # interpolations (the mass assignment and the upcomming
@@ -494,8 +488,8 @@ def PM(particles, Δt, only_long_range=False):
                 Greens_deconv = 1/(k2*sqrt_deconv_ijk**4)
                 if only_long_range:
                     Greens_deconv *= exp(k2*longrange_exponent_fac)
-                PM_grid[j, i, k] *= Greens_deconv      # Real part
-                PM_grid[j, i, k + 1] *= Greens_deconv  # Imag part
+                PM_grid_jik[0] *= Greens_deconv  # Real part
+                PM_grid_jik[1] *= Greens_deconv  # Imag part
     # The global [0, 0, 0] element of the PM grid should be zero
     if PM_gridstart_local_j == 0:
         PM_grid[0, 0, 0] = 0  # Real part
@@ -1208,20 +1202,20 @@ rank_leftbackwardup = neighbors['leftbackwardup']
 rank_leftbackwarddown = neighbors['leftbackwarddown']
 # Save the neighboring ranks in a particular order,
 # for use in the P3M algorithm
-boundary_ranks_send = array([rank_right, rank_forward, rank_up,
-                             rank_rightforward, rank_rightbackward,
-                             rank_rightup, rank_rightdown,
-                             rank_forwardup, rank_forwarddown,
-                             rank_rightforwardup, rank_rightforwarddown,
-                             rank_rightbackwardup, rank_rightbackwarddown, 
-                             ], dtype=C2np['int'])
-boundary_ranks_recv = array([rank_left,  rank_backward, rank_down,
-                             rank_leftbackward, rank_leftforward,
-                             rank_leftdown, rank_leftup,
-                             rank_backwarddown, rank_backwardup,
-                             rank_leftbackwarddown, rank_leftbackwardup,
-                             rank_leftforwarddown, rank_leftforwardup,
-                             ], dtype=C2np['int'])
+boundary_ranks_send = np.array([rank_right, rank_forward, rank_up,
+                                rank_rightforward, rank_rightbackward,
+                                rank_rightup, rank_rightdown,
+                                rank_forwardup, rank_forwarddown,
+                                rank_rightforwardup, rank_rightforwarddown,
+                                rank_rightbackwardup, rank_rightbackwarddown, 
+                                ], dtype=C2np['int'])
+boundary_ranks_recv = np.array([rank_left,  rank_backward, rank_down,
+                                rank_leftbackward, rank_leftforward,
+                                rank_leftdown, rank_leftup,
+                                rank_backwarddown, rank_backwardup,
+                                rank_leftbackwarddown, rank_leftbackwardup,
+                                rank_leftforwarddown, rank_leftforwardup,
+                                ], dtype=C2np['int'])
 # Function pointer arrays to the in-boundary test functions
 in_boundary1_funcs = malloc(13*sizeof('func_b_ddd'))
 in_boundary2_funcs = malloc(13*sizeof('func_b_ddd'))

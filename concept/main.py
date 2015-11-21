@@ -21,31 +21,19 @@
 
 
 
-# Import everything from the commons module. In the .pyx file,
-# this line will be replaced by the content of commons.py itself.
+# Import everything from the commons module.
+# In the .pyx file, Cython declared variables will also get cimported.
 from commons import *
 
-# Seperate but equivalent imports in pure Python and Cython
-if not cython.compiled:
-    from analysis import powerspec
-    from graphics import render, terminal_render
-    from utilities import delegate
-    from species import construct
-    from integration import expand, cosmic_time, scalefactor_integral
-    from snapshot import load_particles, save
-else:
-    # Lines in triple quotes will be executed in the .pyx file.
-    """
-    from analysis cimport powerspec
-    from graphics cimport render, terminal_render
-    from utilities cimport delegate
-    from species cimport construct
-    from integration cimport expand, cosmic_time, scalefactor_integral
-    from snapshot cimport load_particles, save
-    """
+# Cython imports
+cimport('from analysis import powerspec')
+cimport('from graphics import render, terminal_render')
+cimport('from utilities import delegate')
+cimport('from species import construct')
+cimport('from integration import expand, cosmic_time, scalefactor_integral')
+cimport('from snapshot import load_particles, save')
 
-# Imports and definitions common to pure Python and Cython
-from os.path import basename
+
 
 # Function that computes the kick and drift factors (integrals).
 # The result is stored in drift_fac[index] and kick_fac[index],

@@ -23,35 +23,51 @@
 
 """
 This is the .pyx preprocessor script. Run it with a .py file or a
-.pyxfile file as the first argument. If a .pyx file is given, a .pxd
-file will be created. When a .py file is given, a .pyx copy of this file
-will be created, and then changed in the following ways:
-- Replace 'from commons import *' with the content itself.
+.pyx file file as the first argument. If a .pyx file is given, a .pxd
+file will be created, containing all Cython declarations of classes
+(@cython.cclass), functions (@cython.header, @cython.pheader,
+@cython.cfunc, @cython.ccall) and variables (cython.declare()).
+When a .py file is given, a .pyx copy of this file will be created,
+and then changed in the following ways:
 - Transform statements written over multiple lines into single lines.
   The exception is decorator statements, which remain multilined.
 - Removes pure Python commands between 'if not cython.compiled:' and
   'else:', including these lines themselves. Also removes the triple
-  quotes around the Cython statements in the else body.
+  quotes around the Cython statements in the else body. The 'else'
+  clause is optional.
+- Insert the lines 'cimport cython' and 'from commons cimport *' just
+  below 'from commons import *'.
+- Do a cimport of all @cython.cclass classes (not applied to commons.py)
+- Transform the 'cimport()' function calls into proper cimports.
+- Replace 'ℝ[expression]' with a double variable, which is equal to
+  'expression' and defined on a suitable line.
+- Replaces the cython.header and cython.pheader decorators with
+  all of the Cython decorators which improves performance. The
+  difference between the two is that cython.header turns into
+  cython.cfunc and cython.inline (among others), while cython.pheader
+  turns into cython.ccall (among others).
 - Integer powers will be replaced by products.
 - Unicode non-ASCII letters will be replaced with ASCII-strings.
 - __init__ methods in cclasses are renamed to __cinit__.
-- Replaces : with 0 when taking the address of arrays.
-- Replaces alloc, realloc and free with the corresponding PyMem_
-  functions and takes care of the casting from the void* to the
+- Replace (with '0') or remove ':' and '...' intelligently, when taking
+  the address of arrays.
+- Replace alloc, realloc and free with the corresponding PyMem_
+  functions and take care of the casting from the void* to the
   appropriate pointer type.
 - Replaced the cast() function with actual Cython syntax, e.g. 
   <double[::1]>.
 
   This script is not written very elegantly, and do not leave
-  the modified code in a very clean state. Sorry...
+  the modified code in a very clean state either. Sorry...
 """
 
-import sys
-import re
-import os
+
+
 from copy import deepcopy
-import unicodedata
-import shutil
+import imp, itertools, os, re, sys, shutil, unicodedata
+# For development purposes only
+from time import sleep
+
 
 
 def oneline(filename):
@@ -147,21 +163,51 @@ def oneline(filename):
 
 
 
-
-
-def import_commons(filename):
-    new_lines = []
-    import_line = 'from commons import *'
+def cimport_commons(filename):
     with open(filename, 'r', encoding='utf-8') as pyxfile:
-        for line in pyxfile:
-            if line.startswith(import_line):
-                with open('commons.py', 'r', encoding='utf-8') as commons:
-                    for commons_line in commons:
-                        new_lines.append(commons_line)
-            else:
-                new_lines.append(line)
+        lines = pyxfile.read().split('\n')
+    for i, line in enumerate(lines):
+        if line.startswith('from commons import *'):
+            lines = lines[:(i + 1)] + ['cimport cython', 'from commons cimport *'] + lines[(i + 1):]
+            break
     with open(filename, 'w', encoding='utf-8') as pyxfile:
-        pyxfile.writelines(new_lines)
+        pyxfile.writelines('\n'.join(lines))
+
+
+
+def cimport_cclasses(filename):
+    # Do not import cclasses into the commons module
+    if filename == 'commons.pyx':
+        return
+    classes = {'species':  'Particles',
+               'snapshot': 'StandardSnapshot, GadgetSnapshot',
+               }
+    with open(filename, 'r', encoding='utf-8') as pyxfile:
+        lines = pyxfile.read().split('\n')
+    insert_on_line = -1
+    for i, line in enumerate(lines):
+        if line.startswith('from commons cimport *'):
+            insert_on_line = i
+            break
+    cimports = []
+    for key, val in classes.items():
+        if filename != key + '.pyx':
+            cimports.append('from {} cimport {}'.format(key, val))
+    lines = lines[:(insert_on_line + 1)] + cimports + lines[(insert_on_line + 1):]
+    with open(filename, 'w', encoding='utf-8') as pyxfile:
+        pyxfile.writelines('\n'.join(lines))
+
+
+
+def cimport_function(filename):
+    with open(filename, 'r', encoding='utf-8') as pyxfile:
+        lines = pyxfile.read().split('\n')
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith('cimport'):
+            lines[i] = re.sub('cimport.*\((.*?)\)', lambda match: match.group(1).replace('import ', 'cimport ').replace("'", '').replace("'", ''), line)
+    with open(filename, 'w', encoding='utf-8') as pyxfile:
+        pyxfile.writelines('\n'.join(lines))
+
 
 
 def cythonstring2code(filename):
@@ -182,14 +228,17 @@ def cythonstring2code(filename):
                 purePythonsection_start = i
             if not in_purePythonsection:
                 if unindent:
-                    line_without_triple_quotes = line.replace('"""', '').replace("'''", '')
+                    line_without_triple_quotes = line
+                    if line.startswith(' '*(indentation + 4) + '"""') or line.startswith(' '*(indentation + 4) + "'''"):
+                        line_without_triple_quotes = line.replace('"""', '').replace("'''", '')
                     if len(line_without_triple_quotes) > 4:
                         new_lines.append(line_without_triple_quotes[4:])
                 else:
                     new_lines.append(line)
             if (i != purePythonsection_start and in_purePythonsection
                                              and len(line) >= indentation
-                                             and line[indentation] != ' '):
+                                             and line[indentation] != ' '
+                                             and line.strip()):
                 in_purePythonsection = False
                 if 'else:' in line:
                     unindent = True
@@ -198,6 +247,7 @@ def cythonstring2code(filename):
                     unindent = False
     with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.writelines(new_lines)
+
 
 
 def power2product(filename):
@@ -356,7 +406,6 @@ def power2product(filename):
                     modified_line += before_base + operation + after_power
             return modified_line + '\n'
         return line
-
     new_lines = []
     with open(filename, 'r', encoding='utf-8') as pyxfile:
         for line in pyxfile:
@@ -376,6 +425,7 @@ def power2product(filename):
         pyxfile.writelines(new_lines)
 
 
+
 def unicode2ASCII(filename):
     with open(filename, 'r', encoding='utf-8') as pyxfile:
         text = [char for char in pyxfile.read()]
@@ -388,6 +438,8 @@ def unicode2ASCII(filename):
     with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.write(text)
     return
+
+
 
 def __init__2__cinit__(filename):
     new_lines = []
@@ -408,6 +460,7 @@ def __init__2__cinit__(filename):
         pyxfile.writelines(new_lines)
 
 
+
 def fix_addresses(filename):
     new_lines = []
     with open(filename, 'r', encoding='utf-8') as pyxfile:
@@ -416,8 +469,9 @@ def fix_addresses(filename):
             if 'address(' in line:
                 line = line.replace('address(', 'cython.address(')
                 line = line.replace('cython.cython.', 'cython.')
+            # cython.address(a[7, ...]) to cython.address(a[7, 0])
             # cython.address(a[7, :, 1]) to cython.address(a[7, 0, 1])
-            # and cython.address(a[7, ...]) to cython.address(a[7, 0])
+            # cython.address(a[7, 9:, 1]) to cython.address(a[7, 9, 1])
             colons_or_ellipsis = True
             while 'cython.address(' in line and colons_or_ellipsis:
                 parens = 0
@@ -429,11 +483,19 @@ def fix_addresses(filename):
                         parens -= 1
                     if parens == 0:
                         break
-                addressof = line[address_index:(address_index + i)]
+                addressof = line[(address_index + 1):(address_index + i)].replace(' ', '')
+                addressof = addressof.replace('...', '0')
+                for j, c in enumerate(addressof):
+                    if c == ':':
+                        if ((j == 0 or addressof[j - 1] in '[,')
+                            and (j == (len(addressof) - 1) or addressof[j + 1] in '],')):
+                            # The case cython.address(a[7, :, 1])
+                            addressof = addressof[:j] + '0' + addressof[(j + 1):]
+                        else:
+                            # The case cython.address(a[7, 9:, 1])
+                            addressof = addressof[:j] + ' ' + addressof[(j + 1):]
                 colons_or_ellipsis = (':' in addressof or '...' in addressof)
-                line = (line[:address_index]
-                        + addressof.replace(':', '0').replace('...', '0')
-                        + line[(address_index + i):])
+                line = (line[:(address_index + 1)] + addressof + line[(address_index + i):])
             new_lines.append(line)
     with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.writelines(new_lines)
@@ -597,15 +659,34 @@ def cython_decorators(filename):
         pyxfile.writelines('\n'.join(lines))
 
 
+
 def make_pxd(filename):
-    commons_functions = ('abort', 'unicode', 'sensible_path', 'to_rgb', 'abs', 'max', 'min', 'mod', 'sum', 'prod', 'sinc', 'masterprint', 'masterwarn', 'significant_figures')
-    customs = {'Particles':        'from species cimport Particles',
+    customs = {# Classes
+               'Particles':        'from species cimport Particles',
                'StandardSnapshot': 'from snapshot cimport StandardSnapshot',
                'GadgetSnapshot':   'from snapshot cimport GadgetSnapshot',
-               'func_b_ddd':       'ctypedef bint    (*func_b_ddd_pxd)  (double, double, double)',
-               'func_d_dd':        'ctypedef double  (*func_d_dd_pxd)   (double, double)',
-               'func_d_ddd':       'ctypedef double  (*func_d_ddd_pxd)  (double, double, double)',
-               'func_ddd_ddd':     'ctypedef double* (*func_ddd_ddd_pxd)(double, double, double)',
+               # Function pointers
+               'func_b_ddd':   'ctypedef bint '    + '(*func_b_ddd_pxd)'   + '(double, double, double)',
+               'func_d_dd':    'ctypedef double '  + '(*func_d_dd_pxd)'    + '(double, double)',
+               'func_d_ddd':   'ctypedef double '  + '(*func_d_ddd_pxd)'   + '(double, double, double)',
+               'func_ddd_ddd': 'ctypedef double* ' + '(*func_ddd_ddd_pxd)' + '(double, double, double)',
+               # External definitions
+               'fftw_plan':          ('cdef extern from "fft.c":\n'
+                                      '    ctypedef struct fftw_plan_struct:\n'
+                                      '        pass\n'
+                                      '    ctypedef fftw_plan_struct *fftw_plan'),
+               'fftw_return_struct': ('cdef extern from "fft.c":\n'
+                                      '    ctypedef struct fftw_plan_struct:\n'
+                                      '        pass\n'
+                                      '    ctypedef fftw_plan_struct *fftw_plan\n'
+                                      '    struct fftw_return_struct:\n'
+                                      '        ptrdiff_t gridsize_local_i\n'
+                                      '        ptrdiff_t gridsize_local_j\n'
+                                      '        ptrdiff_t gridstart_local_i\n'
+                                      '        ptrdiff_t gridstart_local_j\n'
+                                      '        double* grid\n'
+                                      '        fftw_plan plan_forward\n'
+                                      '        fftw_plan plan_backward'),
                }
     header_lines = []
     pxd_filename = filename[:-3] + 'pxd'
@@ -613,17 +694,28 @@ def make_pxd(filename):
     with open(filename, 'r', encoding='utf-8') as pyxfile:
         code = pyxfile.read().split('\n')
     # Find pxd hints of the form 'pxd = """'
-    pxd_lines.append('cdef:\n')
+    #                             int var1
+    #                             double var2
+    #                             """'
+    pxd_lines.append('# pxd hints\n')
     for i, line in enumerate(code):
-        if line.startswith('pxd = """'):
+        if line.replace(' ', '').startswith('pxd="""') or line.replace(' ', '').startswith("pxd='''"):
+            quote_type = '"""' if line.replace(' ', '').startswith('pxd="""') else "'''"
             for j, line in enumerate(code[(i + 1):]):
-                if line.startswith('"""'):
-                    pxd_lines.append('\n')
+                if line.startswith(quote_type):
                     break
-                pxd_lines.append('    ' + line + '\n')
+                pxd_lines.append(line + '\n')
+    # Remove the '# pxd hints' line if no pxd hints were found
+    if pxd_lines[-1].startswith('# pxd hints'):
+        pxd_lines.pop()
+    else:
+        pxd_lines.append('\n')
+    # Import all types with spaces (e.g. "long int") from commons.py
+    types_with_spaces = [(key.replace(' ', ''), key) for key in imp.load_source('commons', 'commons.py').C2np.keys() if ' ' in key]
+    types_with_spaces = sorted(types_with_spaces, key=lambda t: len(t[1]), reverse=True)
     # Function that finds non-indented function definitions in a block
     # of code (list of lines). It appends to header_lines and pxd_lines.
-    def find_functions(code, indent=0):
+    def find_functions(code, indent=0, only_funcname=None):
         for i, line in enumerate(code):
             if line.startswith('def '):
                 # Function definition found.
@@ -646,8 +738,6 @@ def make_pxd(filename):
                 # Find function name and args
                 open_paren = line.index('(')
                 function_name = line[3:open_paren].strip()
-                if function_name in commons_functions:
-                    continue
                 try:
                     closed_paren = line.index(')')
                     function_args = line[(open_paren + 1):closed_paren]
@@ -667,6 +757,10 @@ def make_pxd(filename):
                     function_args = function_args[:-1]
                     function_args = function_args.strip()
                 # Function name and args found.
+                # If searching for a specific function name and this is
+                # not it, continue.
+                if only_funcname and only_funcname != function_name:
+                    continue
                 # Replace default keyword argument values with an asterisk.
                 for j, c in enumerate(function_args):
                     if c == '=':
@@ -723,7 +817,7 @@ def make_pxd(filename):
                                     if l == 0 or line[l - 1] in (' ', ',', '('):
                                         argtype = deepcopy(line[(l + len(arg + '=')):])
                                         if ',' in argtype:
-                                            commas = [m for m, c in enumerate(range(len(argtype))) if c == ',']
+                                            commas = [m for m, c in enumerate(argtype) if c == ',']
                                             for m in commas:
                                                 a = argtype[:m]
                                                 if a.count('[') == a.count(']'):
@@ -734,13 +828,19 @@ def make_pxd(filename):
                                         argtype = argtype.strip()
                                         argtype = argtype.strip(',')
                                         argtype = argtype.strip()
+                                        argtype = argtype.strip(')')
+                                        argtype = argtype.strip()
                                         argtype = argtype.replace('"', '')
                                         argtype = argtype.replace("'", '')
+                                        # Add spaces back to multiword argument types
+                                        for t in types_with_spaces:
+                                            argtype = argtype.replace(t[0], t[1])
                                         # Add suffix _pxd to the "func_" types
-                                        if argtype in customs:
-                                            header_lines.append(customs[argtype])
+                                        if argtype.replace('*', '') in customs:
+                                            header_lines.append(customs[argtype.replace('*', '')])
                                         if 'func_' in argtype:
                                             argtype += '_pxd'
+                                            argtype = argtype.replace('*', '') + '*'*argtype.count('*')
                                         function_args[j] = function_args[j].strip()
                                         function_args[j] = function_args[j].strip(',')
                                         function_args[j] = function_args[j].strip()
@@ -776,6 +876,7 @@ def make_pxd(filename):
                 s += ')\n'
                 pxd_lines.append(' '*indent + s)
     # Find classes
+    pxd_lines.append('# Classes\n')
     for i, line in enumerate(code):
         if line.startswith('@cython.cclass'):
             # Class found
@@ -817,44 +918,108 @@ def make_pxd(filename):
             # Remove the '# Methods' line if the class has no methods
             if pxd_lines[-1].lstrip().startswith('#'):
                 pxd_lines.pop()
-            
-
+    # Remove the '# Classes' line if no class were found
+    if pxd_lines[-1].startswith('# Classes'):
+        pxd_lines.pop()
+    else:
+        pxd_lines.append('\n')
     # Find functions
+    pxd_lines.append('# Functions\n')
     pxd_lines.append('cdef:\n')
     find_functions(code)
-    pxd_lines_backup = []
-    while pxd_lines_backup != pxd_lines:
-        pxd_lines_backup = deepcopy(pxd_lines)
-        for i, line in enumerate(pxd_lines):
-            OK = False
-            if line.startswith('cdef:'):
-                if len(pxd_lines) > (i + 1):
-                    if len(pxd_lines[i + 1]) > 4:
-                        if pxd_lines[i + 1][:4] == '    ' and pxd_lines[i + 1][4] != ' ':
-                            OK = True
-                if not OK:
-                    pxd_lines.pop(i)
+    # Remove the '# Functions' and 'cdef:' lines
+    # if no functions were found.
+    if pxd_lines[-2].startswith('# Functions'):
+        pxd_lines.pop()
+        pxd_lines.pop()
+    else:
+        pxd_lines.append('\n')
+    # Find global variables (global cython.declare() statements)
+    pxd_lines.append('# Variables\n')
+    pxd_lines.append('cdef:\n')
+    variable_index = len(pxd_lines)
+    globals_phony_funcname = '__pyxpp_phony__'
+    globals_code = deepcopy(code)
+    while True:
+        done = True
+        for i, line in enumerate(globals_code):
+            if line.startswith('cython.declare('):
+                done = False
+                declaration = line[14:]
+                declaration = re.sub("'.*?'", '', declaration)
+                declaration = declaration.replace('=', '')
+                globals_code = (globals_code[:i] + ['@cython.cfunc',
+                                                   '@cython.locals' + line[14:],
+                                                   'def ' + globals_phony_funcname + declaration + ':',
+                                                   '    pass'] + globals_code[(i + 1):])
+                break
+        if done:
+            break
+    find_functions(globals_code, only_funcname=globals_phony_funcname)
+    phony_start = '    ' + globals_phony_funcname + '('
+    while True:
+        done = True
+        for i, line in enumerate(pxd_lines[variable_index:]):
+            if line.startswith(phony_start):
+                line = line[len(phony_start):-2].strip()
+                if ',' in line:
+                    lines = line.split(',')
+                    while True:
+                        done2 = True
+                        for j in range(len(lines)):
+                            if lines[j].count('[') > lines[j].count(']'):
+                                done2 = False
+                                combined_line = lines[j] + ',' + lines[j + 1]
+                                lines = lines[:j] + [combined_line] + lines[(j + 2):]
+                                break
+                        if done2:
+                            break
+                    for j in range(len(lines)):
+                        lines[j] = '    ' + lines[j].strip() + '\n'
+                    pxd_lines = pxd_lines[:(variable_index + i)] + lines + pxd_lines[(variable_index + i + 1):]
+                    done = False
                     break
+                else:
+                    pxd_lines[variable_index + i] = '    ' + line + '\n'
+        if done:
+            break
+    # Remove the '# Variables' and 'cdef:' lines
+    # if no variables were found.
+    if pxd_lines[-2].startswith('# Variables'):
+        pxd_lines.pop()
+        pxd_lines.pop()
+    else:
+        pxd_lines.append('\n')
+    # Combine header_lines and pxd_lines
     header_lines = list(set(header_lines))
+    while len(header_lines) > 0 and len(header_lines[0].strip()) == 0:
+        header_lines = header_lines[1:]
+    if header_lines:
+        header_lines = ['# Non-builtin types'] + header_lines
     for i in range(len(header_lines)):
         header_lines[i] += '\n'
     total_lines = header_lines
+    while len(pxd_lines) > 0 and len(pxd_lines[0].strip()) == 0:
+        pxd_lines = pxd_lines[1:]
     if total_lines != []:
         total_lines.append('\n')
     total_lines += pxd_lines
     # If nothing else, place a comment in the pxd file
     if not total_lines:
-        total_lines = ['# This module does not expose any c-level functions or classes to the outside world']
+        total_lines = ['# This module does not expose any c-level functions or classes to the outside world\n']
     # Update/create .pxd
     with open(pxd_filename, 'w', encoding='utf-8') as pxdfile:
         pxdfile.writelines(total_lines)
 
-def pure_numbers(filename):
-    # Find pure numbers using the ℝ['expression'] syntax
+
+
+def constant_expressions(filename):
+    # Find constant expressions using the ℝ['expression'] syntax
     with open(filename, 'r', encoding='utf-8') as pyxfile:
         lines = pyxfile.read().split('\n')
     expressions = []
     expressions_cython = []
+    declaration_linenrs = []
     operations = ('.', '+', '-', '**', '*', '/', '^', '&', '|', '@', ',', '(', ')', '[', ']', '{', '}')
     operations_names = ('dot', 'pls', 'min', 'pow', 'tim', 'div', 'car', 'and', 'bar', 'at', 'com', 'opar', 'cpar', 'obra', 'cbra', 'ocur', 'ccur')
     while True:
@@ -865,36 +1030,76 @@ def pure_numbers(filename):
                 continue
             no_ℝ = False
             expression = search.group(1)
-            if not expression in expressions:
-                expressions.append(expression)
+            expressions.append(expression)
             expression_cython = 'ℝ_' + expression.replace(' ', '')
             for op, op_name in zip(operations, operations_names):
                 expression_cython = expression_cython.replace(op, '_{}_'.format(op_name))
             expression_cython = expression_cython.replace('__', '_')
-            if expression_cython[-1] == '_':
-                expression_cython = expression_cython[:-1]
-            if not expression_cython in expressions_cython:
-                expressions_cython.append(expression_cython)
+            expressions_cython.append(expression_cython)
             lines[i] = line.replace(search.group(0), expression_cython)
+            # Find out where the declaration should be
+            variables = [expression.replace(' ', '')]
+            for op in operations:
+                variables = list(itertools.chain(*[var.split(op) for var in variables]))
+            variables = [var for var in list(set(variables)) if var and var[0] not in '.0123456789']
+            linenr_where_defined = [-1]*len(variables)
+            for v, var in enumerate(variables):
+                for j, line2 in enumerate(reversed(lines[:(i + 1)])):
+                    line2 = ' '*(len(line2) - len(line2.lstrip()))  + line2.replace(' ', '')
+                    for op in operations:
+                        line2 = line2.replace(op, '')
+                    if ' ' + var + '=' in line2 or ',' + var + '=' in line2 or ';' + var + '=' in line2 or '=' + var + '=' in line2 or line2.startswith(var + '='):
+                        linenr_where_defined[v] = i - j
+                        break
+            if linenr_where_defined:
+                declaration_linenrs.append(max(linenr_where_defined))
+            else:
+                declaration_linenrs.append(-1)
+            # Remove again if duplicate
+            for j in range(len(expressions) - 1):
+                if expressions[j] == expressions[-1] and declaration_linenrs[j] == declaration_linenrs[-1]:
+                    expressions.pop()
+                    expressions_cython.pop()
+                    declaration_linenrs.pop()
+                    break
         if no_ℝ:
             break
-
-    # Insert cython declarations of the pure numbers
-    new_lines = []
-    i_declarations = -1
+    # Find out where the last import statement is. Unrecognized
+    # definitions should occur below this line.
+    linenr_unrecognized = -1
     for i, line in enumerate(lines):
-        if 'ℝ = DummyDict()' in line:
-            # Place declarations two lines below this point
-            i_declarations = i + 2
+        if 'import ' in line:
+            if '#' in line and line.index('#') < line.index('import '):
+                continue
+            if line.index('import ') != 0 and line[line.index('import ') - 1] not in 'c ':
+                continue
+            if i + 1 < len(lines) and ('"""' in lines[i + 1] or "'''" in lines[i + 1]):
+                linenr_unrecognized = i + 1
+                continue
+            # Go down until indentation level 0 is reached
+            for j, line in enumerate(lines[(i + 1):]):
+                if len(line) > 0 and line[0] not in '# ' and not line.startswith('"""') and not line.startswith("'''"):
+                    linenr_unrecognized = i + j
+                    break
+    # Insert Cython declarations of constant expressions
+    new_lines = []
+    for i, line in enumerate(lines):
         new_lines.append(line)
-        if i == i_declarations and expressions:
-            cython_declare = 'cython.declare(' + ', '.join([expression_cython + "='double'" for expression_cython in expressions_cython]) + ')'
-            new_lines.append(cython_declare)
-            for expression, expression_cython in zip(expressions, expressions_cython):
-                cython_define = '{} = {}'.format(expression_cython, expression)
-                new_lines.append(cython_define)
+        # Unrecognized definitions
+        if i == linenr_unrecognized:
+            for e, expression_cython in enumerate(expressions_cython):
+                if declaration_linenrs[e] == -1:
+                    new_lines.append('cython.declare(' + expression_cython + "='double')")
+                    new_lines.append(expression_cython + ' = ' + expressions[e])
+            new_lines.append('')
+        for e, n in enumerate(declaration_linenrs):
+            if i == n:
+                indentation = ' '*(len(lines[i - 1]) - len(lines[i - 1].lstrip()))
+                new_lines.append(indentation + 'cython.declare(' + expressions_cython[e] + "='double')")
+                new_lines.append(indentation + expressions_cython[e] + ' = ' + expressions[e])
     with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.writelines('\n'.join(new_lines))
+
 
 
 # Interpret the input argument
@@ -905,11 +1110,13 @@ if filename.endswith('.py'):
     shutil.copy(filename, filename_pyx)
     filename = filename_pyx
     # Actions
-    import_commons(filename)
     oneline(filename)
-    pure_numbers(filename)
-    cython_decorators(filename)
     cythonstring2code(filename)
+    cimport_commons(filename)
+    cimport_cclasses(filename)
+    cimport_function(filename)
+    constant_expressions(filename)
+    cython_decorators(filename)
     power2product(filename)
     unicode2ASCII(filename)
     __init__2__cinit__(filename)

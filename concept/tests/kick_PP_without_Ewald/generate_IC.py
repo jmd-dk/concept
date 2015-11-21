@@ -39,9 +39,9 @@ from snapshot import save
 N = 8
 mass = Ωm*ϱ*boxsize**3/N
 particles = construct('dark matter particles', 'dark matter', mass, N)
-particles.populate(array([0.26]*4 + [0.74]*4)*boxsize, 'posx')
-particles.populate(array([0.25, 0.25, 0.75, 0.75]*2)*boxsize, 'posy')
-particles.populate(array([0.25, 0.75, 0.75, 0.25]*2)*boxsize, 'posz')
+particles.populate(np.array([0.26]*4 + [0.74]*4)*boxsize, 'posx')
+particles.populate(np.array([0.25, 0.25, 0.75, 0.75]*2)*boxsize, 'posy')
+particles.populate(np.array([0.25, 0.75, 0.75, 0.25]*2)*boxsize, 'posz')
 particles.populate(zeros(N), 'momx')
 particles.populate(zeros(N), 'momy')
 particles.populate(zeros(N), 'momz')
