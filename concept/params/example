@@ -10,7 +10,7 @@
 
 
 # Input/output
-IC_file = 'ICs/example'			# Initial condition snapshot
+IC_file = 'ICs/64'			# Initial condition snapshot
 snapshot_type = 'standard'		# Type of output snapshots
 output_dirs = {				# Directories for storing output
     'snapshot' : 'output',
@@ -24,15 +24,15 @@ output_bases = {			# File basenames for output
                 }
 output_times = {			# Scale factor values at which to dump output
     'snapshot'       : 1,
-    'powerspec'      : '',
-    'render'         : '',
-    'terminal render': '',
+    'powerspec'      : 1,
+    'render'         : 1,
+    'terminal render': logspace(log(0.1), log(1), 10, base=e),
                 }
 
 # Numerical parameters
-boxsize          = 16*Mpc		# Linear size of the simulation box
+boxsize          = 64000*kpc		# Linear size of the simulation box
 ewald_gridsize   = 64			# Linear size of the grid of Ewald corrections
-PM_gridsize      = 64			# Linear size of the particle-mesh grid
+PM_gridsize      = 128			# Linear size of the particle-mesh grid
 P3M_scale        = 1.25			# The long/short-range force split scale
 P3M_cutoff       = 4.8			# Maximum reach of short-range force
 softeningfactors = {			# The amount of gravitational softening for each species
@@ -62,5 +62,5 @@ kick_algorithms = {
     'dark matter': 'PM',		# The algorithm which should be used to kick each species
                    }
 use_Ewald = True			# Turn Ewald corrections on or off
-fftw_rigor = 'measure'			# Rigor level when acquiring FFTW wisdom
+fftw_rigor = 'estimate'			# Rigor level when acquiring FFTW wisdom
 

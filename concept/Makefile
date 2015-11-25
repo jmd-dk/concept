@@ -104,7 +104,7 @@ includes    = $(fftw_incl) $(gsl_incl) $(mpi_incl) $(python_incl)
 # Compiler options
 CC                = $(mpicc)
 python_cflags     = $(shell $(python_config) --cflags)
-unwanted_warnings = unreachable-code
+unwanted_warnings = unreachable-code uninitialized
 other_cflags      = -pthread -std=c99 -fno-strict-aliasing -fPIC -Wextra $(addprefix -Wno-,$(unwanted_warnings))
 CFLAGS_abs        = $(filter-out $(addprefix -W,$(unwanted_warnings)),$(python_cflags) $(other_cflags) $(includes))
 # Libraries to link
@@ -211,7 +211,7 @@ $(addsuffix .pyx, $(pyfiles)): %.pyx: %.py $(pyxpp)
 # - Implicit cimport statements occur after 'from commons import *'.
 #   Also, every module except commons implicitly cimport cclasses
 #   from the snapshot and species modules.
-analysis.c:                   commons.pxd communication.pxd ewald.pxd fft.c graphics.pxd                             mesh.pxd snapshot.pxd species.pxd
+analysis.c:                   commons.pxd communication.pxd ewald.pxd       graphics.pxd                             mesh.pxd snapshot.pxd species.pxd
 commons.c:
 communication.c:              commons.pxd                                                                                     snapshot.pxd species.pxd
 ewald.c:                      commons.pxd                                                                            mesh.pxd snapshot.pxd species.pxd
@@ -219,7 +219,7 @@ graphics.c:                   commons.pxd                                       
 gravity.c:                    commons.pxd communication.pxd                                                          mesh.pxd snapshot.pxd species.pxd
 integration.c:                commons.pxd                                                                                     snapshot.pxd species.pxd
 main.c:          analysis.pxd commons.pxd                                   graphics.pxd             integration.pxd          snapshot.pxd species.pxd utilities.pxd
-mesh.c:                       commons.pxd                                                                                     snapshot.pxd species.pxd
+mesh.c:                       commons.pxd                             fft.c                                                   snapshot.pxd species.pxd
 snapshot.c:                   commons.pxd communication.pxd                                                                                species.pxd
 species.c:                    commons.pxd communication.pxd                              gravity.pxd                          snapshot.pxd
 utilities.c:     analysis.pxd commons.pxd                                   graphics.pxd                                      snapshot.pxd species.pxd
