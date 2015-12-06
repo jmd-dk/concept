@@ -134,18 +134,18 @@ set_version()
 # "newest" and the installer fails to find the newest version.
 # Programs:
 set_version "concept"         "newest"        # only newest work
-set_version "freetype"        "2.6"           "2.6"
+set_version "freetype"        "2.6.2"         "2.6.2"
 set_version "python"          "3.5.0"
-set_version "libpng"          "1.6.18"        "1.6.18"
-set_version "imagemagick"     "6.9.2-5"       "6.9.1-10"
+set_version "libpng"          "1.6.20"        "1.6.18"
+set_version "imagemagick"     "6.9.2-8"       "6.9.1-10"
 set_version "ncurses"         "6.0"           "6.0"
-set_version "openssl"         "1.0.2d"        "1.0.2d"
+set_version "openssl"         "1.0.2e"        "1.0.2d"
 set_version "fftw"            "3.3.4"         "3.3.4"
 set_version "gadget"          "2.0.7"
 set_version "fftw_for_gadget" "2.1.5"         "2.1.5"
-set_version "gsl"             "1.16"          "1.16"
-set_version "hdf5"            "1.8.15-patch1" "1.8.15-patch1"
-set_version "mpi"             "3.1.4"         "3.1.4"
+set_version "gsl"             "2.1"           "2.1"
+set_version "hdf5"            "1.8.16"        "1.8.15-patch1"
+set_version "mpi"             "3.2"           "3.2"
 set_version "zlib"            "1.2.8"         "1.2.8"
 # Python packages:
 set_version "blessings"       "1.6"
@@ -601,7 +601,7 @@ validate_url()
 }
 
 # Function for letting versions fall back to their fallback values,
-# in case of unsuccessful retrievel of newest version.
+# in case of unsuccessful retrievel of primary or newest version.
 fallback()
 {
     # Arguments: Program name
@@ -642,7 +642,6 @@ if [ "${zlib_install}" == "yes" ]; then
         current_step="search for latest version of zlib"
         set_status "Searching for latest version of zlib"
         zlib_version=$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "http://sourceforge.net/projects/libpng/files/zlib/" | grep -o "zlib/[0-9.]*" | grep -o "[0-9.]*" | sort -u | tail -n 1 || :)
-        fallback "zlib"
     fi
     zlib_url="http://sourceforge.net/projects/libpng/files/zlib/${zlib_version}/zlib-${zlib_version}.tar.gz"
     validate_url "zlib" "false"
@@ -662,18 +661,17 @@ if [ "${libpng_install}" == "yes" ] ; then
         set_status "Searching for latest version of libpng"
         libpng_version_majors="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "ftp://ftp.simplesystems.org/pub/png/src/" | grep -o "libpng[0-9]*" | grep -o "[0-9]*" | sort -u | tail -n 1 || :)"
         libpng_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "ftp://ftp.simplesystems.org/pub/png/src/libpng${libpng_version_majors}/" | grep -o "libpng-[0-9\.]*.tar.gz" | sort -u | tail -n 1 | grep -o "[0-9\.]*" | head -n 1 || :)"
-        libpng_version="${libpng_version:0:${#libpng_version}-1}hej"
-        fallback "libpng"
+        libpng_version="${libpng_version:0:${#libpng_version}-1}"
     else
         libpng_version_majors="$(echo "${libpng_version}" | grep -m 1 -o -P "[0-9]*\.[0-9]*" | head -n 1)"
         libpng_version_majors="$(echo "${libpng_version_majors//./}")"
     fi
-    libpng_url="http://sourceforge.net/projects/libpng/files/libpng${libpng_version_majors}/${libpng_version}/libpng-${libpng_version}.tar.gz"
+    libpng_url="ftp://ftp.simplesystems.org/pub/png/src/libpng${libpng_version_majors}/libpng-${libpng_version}.tar.gz"
     validate_url "libpng" "false"
     if [ "${validate_url_status}" != "success" ]; then
         echo "Primary libpng link broken: ${libpng_url}"
         fallback "libpng"
-        libpng_url="ftp://ftp.simplesystems.org/pub/png/src/libpng${libpng_version_majors}/libpng-${libpng_version}.tar.gz"
+        libpng_url="http://sourceforge.net/projects/libpng/files/libpng${libpng_version_majors}/older-releases/${libpng_version}/libpng-${libpng_version}.tar.gz"
         validate_url "libpng"
     fi
 fi
@@ -686,9 +684,8 @@ if [ "${imagemagick_install}" == "yes" ]; then
         imagemagick_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "http://www.imagemagick.org/download/releases/" | grep -o "ImageMagick[0-9\.\-]*.tar" | grep -o "[0-9\.\-]*" | sort -u | tail -n 1 || :)"
         imagemagick_version="$(echo "${imagemagick_version}" | head -c -2)"
         imagemagick_version="${imagemagick_version:1}"
-        fallback "ImageMagick"
     fi
-    imagemagick_url="http://www.imagemagick.org/download/releases/ImageMagick-${imagemagick_version}.tar.gz"
+    imagemagick_url="http://www.imagemagick.org/download/ImageMagick-${imagemagick_version}.tar.gz"
     validate_url "ImageMagick" "false"
     if [ "${validate_url_status}" != "success" ]; then
         echo "Primary ImageMagick link broken: ${imagemagick_url}"
@@ -706,7 +703,6 @@ if [ "${gsl_install}" == "yes" ]; then
         current_step="search for latest version of GSL"
         set_status "Searching for latest version of GSL"
         gsl_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "ftp://ftp.gnu.org/gnu/gsl/" | grep "gsl-latest.tar.gz" | grep -o "gsl-[0-9.]*.tar.gz" |  grep -o "[0-9][0-9.]*[0-9]" || :)"
-        fallback "GSL"
     fi
     gsl_url="ftp://ftp.gnu.org/gnu/gsl/gsl-${gsl_version}.tar.gz"
     validate_url "GSL" "false"
@@ -724,7 +720,6 @@ if [ "${mpi_install}" == "yes" ]; then
         current_step="search for latest version of MPICH"
         set_status "Searching for latest version of MPICH"
         mpi_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "http://www.mpich.org/downloads" | grep -m 1 -o -P "(?<=mpich-).*(?=stable)" | awk '{print $1}' || :)"
-        fallback "MPI"
     fi
     mpi_url="http://www.mpich.org/static/downloads/${mpi_version}/mpich-${mpi_version}.tar.gz"
     validate_url "MPI" "false"
@@ -742,7 +737,6 @@ if [ "${hdf5_install}" == "yes" ]; then
         current_step="search for latest version of HDF5"
         set_status "Searching for latest version of HDF5"
         hdf5_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "ftp://ftp.hdfgroup.org/HDF5/current/src/" | grep -m 1 -o -P "(?<=hdf5-).*(?=.tar\")" || :)"
-        fallback "HDF5"
     fi
     hdf5_url="ftp://ftp.hdfgroup.org/HDF5/releases/hdf5-${hdf5_version}/src/hdf5-${hdf5_version}.tar.gz"
     validate_url "HDF5" "false"
@@ -760,7 +754,6 @@ if [ "${fftw_install}" == "yes" ]; then
         current_step="search for latest version of FFTW"
         set_status "Searching for latest version of FFTW"
         fftw_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "http://www.fftw.org/download.html" | grep -m 1 -o -P "(?<=fftw-).*(?=.tar.gz\")" || :)"
-        fallback "FFTW"
     fi
     fftw_url="http://www.fftw.org/fftw-${fftw_version}.tar.gz"
     validate_url "FFTW" "false"
@@ -779,7 +772,6 @@ if [ "${freetype_install}" == "yes" ]; then
         set_status "Searching for latest version of FreeType"
         freetype_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "http://download.savannah.gnu.org/releases/freetype/" | grep -o "freetype-[0-9.]*tar" | sort -u | tail -n 1 | grep -o [0-9.]* || :)"
         freetype_version="${freetype_version%?}"
-        fallback "FreeType"
     fi
     freetype_url="http://download.savannah.gnu.org/releases/freetype/freetype-${freetype_version}.tar.gz"
     validate_url "FreeType" "false"
@@ -798,7 +790,6 @@ if [ "${ncurses_install}" == "yes" ]; then
         set_status "Searching for latest version of ncurses"
         ncurses_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "http://ftp.gnu.org/pub/gnu/ncurses/" | grep -o "ncurses-[0-9.]*tar" | sort -u | tail -n 1 | grep -o [0-9.]* || :)"
         ncurses_version="${ncurses_version%?}"
-        fallback "ncurses"
     fi
     ncurses_url="http://ftp.gnu.org/pub/gnu/ncurses/ncurses-${ncurses_version}.tar.gz"
     validate_url "ncurses" "false"
@@ -817,14 +808,14 @@ if [ "${openssl_install}" == "yes" ]; then
         set_status "Searching for latest version of OpenSSL"
         openssl_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "ftp://ftp.openssl.org/source/" | grep "openssl-[0-9].*.tar.gz" | tail -n 1 | grep -o -P "(?<=openssl-).*(?=.tar.gz)" | grep -o -P "(?=[0-9]).*(?=.tar.gz)" || :)"
         openssl_version="$(sed 's/.tar.gz.*//' <<< "${openssl_version}")"
-        fallback "OpenSSL"
     fi
     openssl_url="ftp://ftp.openssl.org/source/openssl-${openssl_version}.tar.gz"
     validate_url "OpenSSL" "false"
     if [ "${validate_url_status}" != "success" ]; then
-        echo "Primary OpenSS link broken: ${openssl_url}"
+        echo "Primary OpenSSL link broken: ${openssl_url}"
         fallback "openssl"
-        openssl_url="http://openssl.skazkaforyou.com/source/openssl-${openssl_version}.tar.gz"
+        openssl_version_without_letter="$(echo ${openssl_version} | grep -o "[[:digit:].]*")"
+        openssl_url="http://openssl.skazkaforyou.com/source/old/${openssl_version_without_letter}/openssl-${openssl_version}.tar.gz"
         validate_url "OpenSSL"
     fi
 fi
@@ -835,10 +826,14 @@ if [ "${python_install}" == "yes" ]; then
         current_step="search for latest version of Python"
         set_status "Searching for latest version of Python"
         python_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "https://www.python.org/downloads/" | grep -o -P "(?<=Python-).*(?=.tar)" | head -1  || :)"
-        fallback "Python"
     fi
     python_url="https://www.python.org/ftp/python/${python_version}/Python-${python_version}.tgz"
     validate_url "Python"
+    if [ "${validate_url_status}" != "success" ]; then
+        echo "Primary Python link broken: ${openssl_url}"
+        error "Error: The installer does not know of a secondary Python link"
+        exit 1
+    fi
 fi
 
 # CO𝘕CEPT
@@ -868,7 +863,6 @@ if [ "${fftw_for_gadget_install}" == "yes" ]; then
         current_step="search for latest version of FFTW for GADGET"
         set_status "Searching for latest version of FFTW for GADGET"
         fftw_for_gadget_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "http://www.fftw.org/download.html" | grep -m 1 -o -P "(?<=fftw-).*(?=.tar.gz\")" || :)"
-        fallback "fftw_for_gadget"
     fi
     fftw_for_gadget_url="http://www.fftw.org/fftw-${fftw_for_gadget_version}.tar.gz"
     validate_url "FFTW for GADGET" "false"
@@ -1055,22 +1049,50 @@ download()
 
 # Make the directory in which to dump all downloaded archives
 mkdir -p "${top_dir}/tmp"
-# Download the source code for all programs
+# Download the source code for all programs that should be installed
 disable_status
-download "zlib"
-download "libpng"
-download "ImageMagick"
-download "GSL"
-download "MPI"
-download "HDF5"
-download "FFTW"
-download "FreeType"
-download "ncurses"
-download "OpenSSL"
-download "Python"
-download "CONCEPT"
-download "FFTW for Gadget"
-download "GADGET"
+if [ "${zlib_install}" == "yes" ]; then
+    download "zlib"
+fi
+if [ "${libpng_install}" == "yes" ]; then
+    download "libpng"
+fi
+if [ "${imagemagick_install}" == "yes" ]; then
+    download "ImageMagick"
+fi
+if [ "${gsl_install}" == "yes" ]; then
+    download "GSL"
+fi
+if [ "${mpi_install}" == "yes" ]; then
+    download "MPI"
+fi
+if [ "${hdf5_install}" == "yes" ]; then
+    download "HDF5"
+fi
+if [ "${fftw_install}" == "yes" ]; then
+    download "FFTW"
+fi
+if [ "${freetype_install}" == "yes" ]; then
+    download "FreeType"
+fi
+if [ "${ncurses_install}" == "yes" ]; then
+    download "ncurses"
+fi
+if [ "${openssl_install}" == "yes" ]; then
+    download "OpenSSL"
+fi
+if [ "${python_install}" == "yes" ]; then
+    download "Python"
+fi
+if [ "${concept_install}" == "yes" ]; then
+    download "CONCEPT"
+fi
+if [ "${fftw_for_gadget_install}" == "yes" ]; then
+    download "FFTW for Gadget"
+fi
+if [ "${gadget_install}" == "yes" ]; then
+    download "GADGET"
+fi
 enable_status
 
 
@@ -1092,7 +1114,7 @@ extract()
         progname="${1// /_}"
         progname="${progname,,}"
         cd "${top_dir}/tmp/${progname}"
-        archive="$(ls)"
+        archive="$(ls -p | grep -v /)"
     fi
     case "${archive}" in
         # 7zip
