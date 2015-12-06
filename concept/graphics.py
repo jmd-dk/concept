@@ -302,9 +302,6 @@ def terminal_render(particles):
             colornumber = cast(16 + projection[i, j]*scalec, 'unsigned long long int')
             if colornumber > 255:
                 colornumber = 255
-            if colornumber < 16 or colornumber > 255:
-                masterprint('wrong color:', colornumber, projection[i, j], scalec, projection[i, j]*scalec, maxval)
-                sleep(1000)
             projection_ANSI.append('\x1b[48;5;{}m '.format(colornumber))
         projection_ANSI .append('\x1b[0m\n')
     # Print the ANSI image
