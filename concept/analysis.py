@@ -167,6 +167,7 @@ def powerspec(particles, filename):
         if power_N[k2] != 0:
             power[k2] *= power_fac/power_N[k2]
             power_σ2[k2] = power_σ2[k2]*power_fac2/power_N[k2] - power[k2]**2
+            power_σ2[k2] /= sqrt(power_N[k2])
     # Compute the rms density variation σ
     # together with its standard deviation.
     σ, σ_σ = rms_density_variation()

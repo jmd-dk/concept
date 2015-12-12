@@ -32,7 +32,7 @@
 ############################################
 from __future__ import division  # Needed for Python3 division in Cython
 # Miscellaneous modules
-import collections, contextlib, ctypes, cython, imp, matplotlib, numpy as np, os, re
+import collections, contextlib, ctypes, cython, imp, inspect, matplotlib, numpy as np, os, re
 import shutil, sys, unicodedata
 # For math
 from numpy import (arange, asarray, concatenate, cumsum, delete, empty, linspace, loadtxt, ones,
@@ -42,18 +42,6 @@ from numpy.random import random
 matplotlib.use('Agg')
 # For plotting
 import matplotlib.pyplot as plt
-# When using ax.scatter in graphics.py (and possibly more) the following
-# warning is given, as of NumPy 1.10.0 and 1.10.1, Matplotlib 1.4.3:
-# FutureWarning: elementwise comparison failed; returning scalar instead,
-# but in the future will perform elementwise comparison
-#   if self._edgecolors == str('face'):
-# This is a bug and will hopefully be fixed by the developers.
-# In the meantime, as everything seems to be alright,
-# suppress this warning.
-import warnings
-warnings.filterwarnings('ignore', category=FutureWarning)
-# Import h5py. This has to be done after importing matplotlib, as this
-# somehow makes libpng unable to find the zlib shared library.
 import h5py
 # For fancy terminal output
 from blessings import Terminal
@@ -238,8 +226,10 @@ if not cython.compiled:
             return key
     ℝ = DummyDict()
     # The cimport function, which in the case of pure Python should
-    # simply execute the statements parsed to it as a string.
-    cimport = exec
+    # simply execute the statements parsed to it as a string,
+    # within the namespace of the call.
+    def cimport(import_statement):
+        exec(import_statement, inspect.getmodule(inspect.stack()[1][0]).__dict__)
 
 
 

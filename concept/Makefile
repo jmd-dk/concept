@@ -192,13 +192,13 @@ $(addsuffix .c, $(pyfiles)): %.c: %.pyx %.pxd
 $(addsuffix .pxd, $(pyfiles)): %.pxd: %.pyx $(pyxpp)
 	@$(python) -c "from blessings import Terminal; t = Terminal(force_styling=True); print('\n' + t.bold_yellow('Building the $(basename $@) module')) if '$(build_status)' != 'running' else ''"
 	$(eval build_status = running)
-	$(python) $(pyxpp) $<
+	$(python) -B $(pyxpp) $<
 
 # Write .pyx files from .py files using the pyxpp script
 $(addsuffix .pyx, $(pyfiles)): %.pyx: %.py $(pyxpp)
 	@$(python) -c "from blessings import Terminal; t = Terminal(force_styling=True); print('\n' + t.bold_yellow('Building the $(basename $@) module')) if '$(build_status)' != 'running' else ''"
 	$(eval build_status = running)
-	$(python) $(pyxpp) $<
+	$(python) -B $(pyxpp) $<
 
 
 
