@@ -51,7 +51,7 @@ echo "
 output_bases = {'render': 'render'}
 color      = 'g'
 bgcolor    = '0'
-resolution = 123
+resolution = 234
 " > "${this_dir}/render.params_0"
 echo "
 output_bases = {'render': ''}

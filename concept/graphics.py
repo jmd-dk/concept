@@ -137,9 +137,10 @@ def render(particles, a, filename, cleanup=True):
         artist_text.set_text('')
         a_str = significant_figures(a, 4, 'LaTeX')
         artist_text = ax_render.text(+0.25*boxsize,
-                                     -0.3*boxsize,
-                                     0,
-                                     '$a = {}$'.format(a_str),
+                                     -0.30*boxsize,
+                                     +0.00*boxsize,
+                                     '$a = {}$'.format(a_str).replace('.', '$.$'),
+                                     fontname='cmr10',
                                      fontsize=16,
                                      )
         # Make the text color black or white, dependent on the bgcolor
@@ -170,11 +171,7 @@ def render(particles, a, filename, cleanup=True):
         os.makedirs(renderparts_dirname, exist_ok=True)
     # Now save the render parts, including transparency
     Barrier()
-    plt.savefig(renderpart_filename,
-                bbox_inches='tight',
-                pad_inches=0,
-                transparent=True,
-                )
+    plt.savefig(renderpart_filename, bbox_inches='tight', pad_inches=0, transparent=True)
     Barrier()
     # The master process combines the parts using ImageMagick
     if master:
@@ -316,11 +313,16 @@ fig_powerspec_nr = 2
 if render_times or special_params.get('special', '') == 'render':
     # The 77.50 scaling is needed to map the resolution to pixel units
     fig_render = plt.figure(fig_render_nr, figsize=[resolution/77.50]*2)
-    ax_render = fig_render.gca(projection='3d', axisbg=bgcolor)
+    try:
+        # Matplotlib 2.x
+        ax_render = fig_render.gca(projection='3d', facecolor=bgcolor)
+    except AttributeError:
+        # Matplotlib 1.x
+        ax_render = fig_render.gca(projection='3d', axisbg=bgcolor)
     ax_render.set_aspect('equal')
     ax_render.dist = 8.55  # Zoom level
     # The artist for the particles
-    artist_particles = ax_render.scatter(0, 0, 0, color=color, lw=0)
+    artist_particles = ax_render.scatter(0, 0, 0, c=color, lw=0)
     # The artist for the scalefactor text
     artist_text = ax_render.text(0, 0, 0, '')
     # Configure axis options
