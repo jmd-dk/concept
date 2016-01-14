@@ -10,12 +10,12 @@
 output_bases = {'powerspec': 'powerspec'}
 
 # Numerical parameters
-PM_gridsize = 1024
+PM_gridsize = 256
 R_tophat    = 8*Mpc
 
 # Graphics
-powerspec_plot = False
+powerspec_plot = True
 
 # Simulation options
-fftw_rigor = 'estimate'
+fftw_rigor = 'measure'
 
