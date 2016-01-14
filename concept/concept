@@ -531,7 +531,7 @@ elif [ ${#queues[@]} -gt 0 ] && [ "${remote}" == "True" ]; then
     fi
     # Write a jobscript file
     printf "#!/usr/bin/env bash
-#PBS -N $(whoami):CONCEPT:$(basename ${params})
+#PBS -N CONCEPT:${params}:CONCEPT
 #PBS -q ${queue}
 #PBS -l nodes=${nodes}:ppn=${ppn}
 #PBS -l walltime=${walltime}:00:00
