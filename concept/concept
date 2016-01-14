@@ -39,6 +39,11 @@ this_dir_backup="${this_dir}"
 this_file="$(readlink -f "${BASH_SOURCE[0]}")"
 this_dir="$(dirname "${this_file}")"
 
+# The user's current working directory
+if [ -z "${workdir}" ]; then
+    export workdir="$(pwd)"
+fi
+
 # ANSI/VT100 escape sequences
 esc="\x1b"
 esc_normal="${esc}[0m"
@@ -78,14 +83,25 @@ print(terminal.bold_${2}(msg), file=(sys.stderr if '${2}' == 'red' else sys.stdo
 # Function for converting paths to absolute paths
 absolute_path()
 {
+    # Arguments: Path, [working directory]
     local path="${1}"
-    path="${path//[ ]/\\ }"        # Places backslashes before spaces. These are needed when expanding tilde, but they will not persist!
-    eval path="${path}"            # Expand tilde
-    path=$(readlink -m "${path}")  # Convert to absolute path
+    currdir="$(pwd)"
+    if [ -n "${2}" ]; then
+        cd "${2}"
+    fi
+    # Places backslashes before spaces.
+    # These are needed when expanding tilde, but they will not persist.
+    path="${path//[ ]/\\ }"
+    # Expand tilde
+    eval path="${path}"
+    # Convert to absolute path
+    path=$(readlink -m "${path}")
     if [ -z "${path}" ]; then
         colorprint "Cannot convert \"${1}\" to an absolute path!" "red"
         exit 1
     fi
+    cd "${currdir}"
+    # Print out result
     echo "${path}"
 }
 
