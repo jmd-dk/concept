@@ -108,12 +108,18 @@ update_job_info()
     state="None"
     # Iterate through qstat output
     while read -r line; do
-        if [[ "$(echo "${line}" | awk '{print $1}')" == "${jobid}."* ]]; then
+        jobid_line="$(echo "${line}" | awk '{print $1}')"
+        jobid_line="${jobid_line%.*}"
+        if [ ${jobid_line} == ${jobid} ]; then
             # Submitted job with matching jobid found
             username="$(echo "${line}" | awk '{print $3}')"
             username="${username:0:15}"
             if [ "${username}" != "${my_username}" ]; then
                 colorprint "Job ${jobid} does not belong to you" "red"
+                exit 1
+            fi
+            if ! echo "${line}" | grep "CONCEPT" > "/dev/null"; then
+                colorprint "Job ${jobid} is not a ${terminal_CONCEPT} job" "red"
                 exit 1
             fi
             state="$(echo "${line}" | awk '{print $5}')"
@@ -123,7 +129,7 @@ update_job_info()
     done <<< "${qstat_info}"
 }
 
-# If no argument is given, find the last submitted job.
+# If no argument is given, find the CO𝘕CEPT job which were submitted last.
 # If an argument (the jobid) is given, find information about the job.
 if [ $# == 0 ]; then
     # Aquire information about all submitted jobs
@@ -134,18 +140,21 @@ if [ $# == 0 ]; then
         username="$(echo "${line}" | awk '{print $3}')"
         username="${username:0:15}"
         if [ "${username}" == "${my_username}" ]; then
-            # Job submitted by the user found
-            ((Njobs += 1))
-            jobid="$(echo "${line}" | awk '{print $1}')"
-            state="$(echo "${line}" | awk '{print $5}')"
-            queue="$(echo "${line}" | awk '{print $6}')"
+            if echo "${line}" | grep "CONCEPT" >/dev/null; then
+                # CO𝘕CEPT job submitted by the user found
+                ((Njobs += 1))
+                jobid="$(echo "${line}" | awk '{print $1}')"
+                state="$(echo "${line}" | awk '{print $5}')"
+                queue="$(echo "${line}" | awk '{print $6}')"
+            fi
         fi
     done <<< "${qstat_info}"
     if [ ${Njobs} == 0 ]; then
-        colorprint "Error: You currently have no jobs submitted" "red"
+        colorprint "Error: You currently have no ${terminal_CONCEPT} jobs submitted" "red"
         exit 1
     elif [ ${Njobs} -gt 1 ]; then
-        echo "You currently have ${Njobs} jobs submitted. The latest will be watched"
+        printf "You currently have ${Njobs} ${terminal_CONCEPT} jobs submitted.\n"
+        printf "The latest will be watched\n"
         sleep 1
     fi
     # Remove possible suffix on jobid
@@ -211,6 +220,9 @@ check_suddenly_finished()
 # Sleep durations in seconds
 sleep_little=30
 sleep_much=300
+
+# Print initial state of job
+inform_on_new_state
 
 # Wait until job is running
 if [ "${state}" != "R" ]; then
