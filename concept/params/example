@@ -62,5 +62,5 @@ kick_algorithms = {
     'dark matter': 'PM',		# The algorithm which should be used to kick each species
                    }
 use_Ewald = True			# Turn Ewald corrections on or off
-fftw_rigor = 'estimate'			# Rigor level when acquiring FFTW wisdom
+fftw_rigor = 'measure'			# Rigor level when acquiring FFTW wisdom
 
