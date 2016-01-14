@@ -1,3 +1,5 @@
+# This Python file uses the following encoding: utf-8
+
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
 # Copyright © 2015 Jeppe Mosgaard Dakin.
 #
@@ -63,23 +65,35 @@ and then changed in the following ways:
 
 
 
+# For Python 2.x compatibility
+from __future__ import nested_scopes, generators, division, absolute_import, with_statement, print_function, unicode_literals
+import sys
+if sys.version_info.major < 3:
+    from codecs import open
+def non_nested_exec(s):
+    exec(s)
+
+
 from copy import deepcopy
-import imp, itertools, os, re, sys, shutil, unicodedata
+import imp, itertools, os, re, shutil, unicodedata
 # For development purposes only
 from time import sleep
+
+
+# Mapping of modules to extension types defined within (Cython classes)
+extension_types = {'species':  'Particles',
+                   'snapshot': 'StandardSnapshot, GadgetSnapshot',
+                   }
 
 
 
 def oneline(filename):
     in_quotes = [False, False]
     in_triple_quotes = [False, False]
-    paren = 0
-    brack = 0
-    curly = 0
+    paren_counts = {'paren': 0, 'brack': 0, 'curly': 0}
     def count_parens(line):
-        nonlocal in_quotes, paren, brack, curly
         if line.lstrip().startswith('#'):
-            return (paren, brack, curly)
+            return
         L = len(line)
         for j, ch in enumerate(line):
             # Inside quotations?
@@ -98,26 +112,23 @@ def oneline(filename):
                     in_triple_quotes[1] = not in_triple_quotes[1]
                     if not in_triple_quotes[1]:
                         in_quotes[0] = in_quotes[1] = False
-                #if in_triple_quotes[0] or in_triple_quotes[1]:
-                #    continue
-
             if ch == '#':
                 break
             # Count parentheses outside quotes
             if not in_quotes[0] and not in_quotes[1]:
                 if ch == '(':
-                    paren += 1
+                    paren_counts['paren'] += 1
                 elif ch == ')':
-                    paren -= 1
+                    paren_counts['paren'] -= 1
                 elif ch == '[':
-                    brack += 1
+                    paren_counts['brack'] += 1
                 elif ch == ']':
-                    brack -= 1
+                    paren_counts['brack'] -= 1
                 elif ch == '{':
-                    curly += 1
+                    paren_counts['curly'] += 1
                 elif ch == '}':
-                    curly -= 1
-        return (paren, brack, curly)
+                    paren_counts['curly'] -= 1
+        return
 
     new_lines = []
     multiline_statement = []
@@ -126,7 +137,9 @@ def oneline(filename):
     with open(filename, 'r', encoding='utf-8') as pyxfile:
         for i, line in enumerate(pyxfile):
             count_parens(line)
-            if (paren > 0 or brack > 0 or curly > 0) and not multiline:
+            if (paren_counts['paren'] > 0 or
+                paren_counts['brack'] > 0 or
+                paren_counts['curly'] > 0) and not multiline:
                 # Multiline statement begins
                 multiline = True
                 if line.lstrip().startswith('@'):
@@ -137,7 +150,9 @@ def oneline(filename):
                     line = line[:line.index('#')]
                 if line:
                     multiline_statement.append(line.rstrip())
-            elif (paren > 0 or brack > 0 or curly > 0) and multiline:
+            elif (paren_counts['paren'] > 0 or
+                  paren_counts['brack'] > 0 or
+                  paren_counts['curly'] > 0) and multiline:
                 # Multiline statement continues
                 if multiline_decorator:
                     new_lines.append(line)
@@ -179,9 +194,6 @@ def cimport_cclasses(filename):
     # Do not import cclasses into the commons module
     if filename == 'commons.pyx':
         return
-    classes = {'species':  'Particles',
-               'snapshot': 'StandardSnapshot, GadgetSnapshot',
-               }
     with open(filename, 'r', encoding='utf-8') as pyxfile:
         lines = pyxfile.read().split('\n')
     insert_on_line = -1
@@ -190,7 +202,7 @@ def cimport_cclasses(filename):
             insert_on_line = i
             break
     cimports = []
-    for key, val in classes.items():
+    for key, val in extension_types.items():
         if filename != key + '.pyx':
             cimports.append('from {} cimport {}'.format(key, val))
     lines = lines[:(insert_on_line + 1)] + cimports + lines[(insert_on_line + 1):]
@@ -378,7 +390,7 @@ def power2product(filename):
                     for i, symbol in enumerate(reversed(expression_base)):
                         try:
                             base = symbol + base
-                            exec(base.replace('.', '') + ' = 0')
+                            non_nested_exec(base.replace('.', '') + ' = 0')
                         except:
                             if symbol not in '.0123456789' and base != ' '*len(base):
                                 break
@@ -1023,12 +1035,12 @@ def constant_expressions(filename):
     operations = ('.', '+', '-', '**', '*', '/', '^', '&', '|', '@', ',', '(', ')', '[', ']', '{', '}')
     operations_names = ('dot', 'pls', 'min', 'pow', 'tim', 'div', 'car', 'and', 'bar', 'at', 'com', 'opar', 'cpar', 'obra', 'cbra', 'ocur', 'ccur')
     while True:
-        no_ℝ = True
+        no_blackboard_bold_R = True
         for i, line in enumerate(lines):
             search = re.search('ℝ\[(.*?)\]', line)
             if not search or line.replace(' ', '').startswith('#'):
                 continue
-            no_ℝ = False
+            no_blackboard_bold_R = False
             expression = search.group(1)
             expressions.append(expression)
             expression_cython = 'ℝ_' + expression.replace(' ', '')
@@ -1062,7 +1074,7 @@ def constant_expressions(filename):
                     expressions_cython.pop()
                     declaration_linenrs.pop()
                     break
-        if no_ℝ:
+        if no_blackboard_bold_R:
             break
     # Find out where the last import statement is. Unrecognized
     # definitions should occur below this line.

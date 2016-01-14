@@ -82,7 +82,7 @@ if [ "$#" -gt 1 ]; then
 fi
 
 # Convert to absolute path
-path="$(absolute_path ${path})"
+path="$(absolute_path "${path}" "${workdir}")"
 
 # Does the path exist?
 if [ ! -f "${path}" ] && [ ! -d "${path}" ]; then
@@ -92,8 +92,8 @@ fi
 
 # Get information about all snapshots in the path
 info="$("${concept}" --util snapshot_info "${path}")"
-snapshot_filenames="$(echo "${info}" | grep Information | awk '{print $3}')"
-boxsizes="$(          echo "${info}" | grep boxsize     | awk '{print $2}')"
+snapshot_filenames="$(echo "${info}" | grep -x Information.* | awk '{print $3}')"
+boxsizes="$(          echo "${info}" | grep -x boxsize.*     | awk '{print $2}')"
 
 # Print out which snapshots will be used
 echo "Powerspectra will be produced of the following snapshots:"

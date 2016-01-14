@@ -43,6 +43,8 @@ zlib_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/zlib'
 #########
 # Files #
 #########
+# The executable script of the CO𝘕CEPT code
+concept='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/concept'
 # The convert executable from ImageMagick
 convert='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/imagemagick/bin/convert'
 # The installer script
@@ -55,6 +57,4 @@ mpiexec='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/mpich/bin/mpiexec'
 python='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python/bin/python3.5'
 # The Python3 configuration executable
 python_config='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python/bin/python3.5-config'
-# The run script of the CONCEPT code
-concept='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/concept'
 

@@ -77,7 +77,7 @@ if [ "$#" -gt 1 ]; then
 fi
 
 # Convert to absolute path
-path="$(absolute_path ${path})"
+path="$(absolute_path "${path}" "${workdir}")"
 
 # Does the path exist?
 if [ ! -f "${path}" ] && [ ! -d "${path}" ]; then
