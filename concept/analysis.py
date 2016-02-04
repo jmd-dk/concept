@@ -152,7 +152,7 @@ def powerspec(particles, filename):
     # This is the same for every power spectrum in the current run.
     if not mask.shape[0]:
         mask = (asarray(power_N) != 0)
-    # Transform power from being the sum to being the mean, using
+    # Transform power from being the sum to being the mean, by dividing by
     # power_N. Also normalize to unity by dividing by N**2 (each of the
     # N particles contribute with a total value of 1 to PM_grid, which
     # is then squared to get the power). Finally, transform to physical
@@ -161,13 +161,13 @@ def powerspec(particles, filename):
     # to being the actual variance, using
     # power_σ2 = Σₖpowerₖ²/N - (Σₖpowerₖ/N)². Remember that as of
     # now, power_σ2 holds the sums of unnormalized squared powers.
+    # Finally, divide by power_N to correct for the sample size.
     power_fac = ℝ[boxsize**3]/cast(particles.N, 'double')**2
     power_fac2 = power_fac**2
     for k2 in range(k2_max):
         if power_N[k2] != 0:
             power[k2] *= power_fac/power_N[k2]
-            power_σ2[k2] = power_σ2[k2]*power_fac2/power_N[k2] - power[k2]**2
-            power_σ2[k2] /= sqrt(power_N[k2])
+            power_σ2[k2] = (power_σ2[k2]*power_fac2/power_N[k2] - power[k2]**2)/power_N[k2]
     # Compute the rms density variation σ
     # together with its standard deviation.
     σ, σ_σ = rms_density_variation()
@@ -189,15 +189,15 @@ def powerspec(particles, filename):
     with open(filename, 'r', encoding='utf-8') as powerspec_file:
         file_contents = powerspec_file.read()
     subscripts = dict(zip('0123456789e+-',
-                          [unicode(c) for c in('₀', '₁', '₂', '₃', '₄',
-                                               '₅', '₆', '₇', '₈', '₉',
-                                               'ₑ', '₊', '₋')]))
+                          [unicode(c) for c in ('₀', '₁', '₂', '₃', '₄',
+                                                '₅', '₆', '₇', '₈', '₉',
+                                                'ₑ', '₊', '₋')]))
     file_contents = file_contents.format(**{'sigma': unicode('σ'),
                                             '_R'   : ''.join([subscripts.get(c, c)
                                                               for c in '{:.15g}'.format(R_tophat)]
                                                              ),
                                             'pm'   : unicode('±'),
-                                            '^-1'  : (unicode('⁻') + unicode('¹')),
+                                            '^-1'  : unicode('⁻') + unicode('¹'),
                                             '^3'   : unicode('³')})
     with open(filename, 'w', encoding='utf-8') as powerspec_file:
         powerspec_file.write(file_contents)

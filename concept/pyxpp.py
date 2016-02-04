@@ -396,14 +396,12 @@ def power2product(filename):
                                 break
                     base = base[1:].replace(' ', '') + brackets_width_content
                     before_base = expression_base[::-1][i:][::-1]
-                # Replaces ** with a string of multiplications 
-                # for integer powers
+                # Replaces ** with a string of multiplications for integer powers
                 if integer_power:
                     if nested_power and firstcall:
                         operation = expression_base + pyxpp_power + power
                     else:
-                        operation = ('(' + ((base + '*')
-                                     *int(abs(eval(power))))[:-1] + ')')
+                        operation = ('(' + ((base + '*')*int(abs(eval(power))))[:-1] + ')')
                         if eval(power) < 0:
                             operation = '(1/' + operation + ')'
                 else:
@@ -421,14 +419,16 @@ def power2product(filename):
     new_lines = []
     with open(filename, 'r', encoding='utf-8') as pyxfile:
         for line in pyxfile:
-            # First of all, replace 'a **= b' with 'a = a**b'
+            # Replace 'a **= b' with 'a = a**b'
             if '**=' in line:
                 LHS = line[:line.find('**=')]
                 RHS = line[(line.find('**=') + 3):].strip()
                 if '#' in RHS:
                     RHS = RHS[:RHS.find('#')].rstrip()
                 line = LHS + '= ' + LHS.strip() + '**(' + RHS + ')'
-            # Now do power --> product
+            # Replace ** --> pyxpp_power
+            line = line.replace('**', ' ' + pyxpp_power + ' ')
+            # Integer power --> products
             line = pow2prod(line)
             while pyxpp_power in line:
                 line = pow2prod(line, firstcall=False)
@@ -590,7 +590,7 @@ def cython_decorators(filename):
         lines = pyxfile.read().split('\n')
     for i, line in enumerate(lines):
         for headertype in ('pheader', 'header'):
-            if '@cython.' + headertype in line:
+            if line.lstrip().startswith('@cython.' + headertype):
                 # Search for def statement
                 for j, line2 in enumerate(lines[(i + 1):]):
                     if 'def ' in line2:

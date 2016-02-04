@@ -134,6 +134,8 @@ def render():
 
 # Function for printing all informations within a snapshot
 @cython.pheader(# Locals
+                cube_root_N='int',
+                h='double',
                 heading='str',
                 particle_attribute='dict',
                 path='str',
@@ -163,7 +165,14 @@ def snapshot_info():
         params = load_params(snapshot_filename, compare_params=False)
         # Print out global parameters
         masterprint('{:<18} {:.12g}'.format('a', params['a']))
-        masterprint('{:<18} {:.12g} {}'.format('boxsize', params['boxsize'], base_length))
+        # The boxsize should also be printed as boxsize*h, if integer
+        unit = 100*units.km/(units.s*units.Mpc)
+        h = params['H0']/unit
+        value = params['boxsize']*h
+        alt_str = ''
+        if isint(value):
+            alt_str = ' = {:.12g}{}{:.12g} {}'.format(int(value), unicode('×'), h, base_length)
+        masterprint('{:<18} {:.12g} {}{}'.format('boxsize', params['boxsize'], base_length, alt_str))
         unit = units.km/(units.s*units.Mpc)
         unit_str = 'km s' + unicode('⁻') + unicode('¹') + ' Mpc' + unicode('⁻') + unicode('¹')
         masterprint('{:<18} {:.12g} {}'.format('H0', params['H0']/unit, unit_str))
@@ -174,7 +183,14 @@ def snapshot_info():
             masterprint(particle_type + ':')
             particle_attribute = params['particle_attributes'][particle_type]
             masterprint('{:<14} {}'.format('species', particle_attribute['species']), indent=4)
-            masterprint('{:<14} {}'.format('N', particle_attribute['N']), indent=4)
+            # The cube root of the particle number N should also be printed, if integer
+            cube_root_N = particle_attribute['N']**(1/3)
+            if isint(cube_root_N):
+                masterprint('{:<14} {} = {}{}'.format('N', particle_attribute['N'],
+                                                      int(round(cube_root_N)), unicode('³')),
+                            indent=4)
+            else:
+                masterprint('{:<14} {}'.format('N', particle_attribute['N']), indent=4)
             value = particle_attribute['mass']/units.m_sun
             masterprint('{:<14} {:.12e} {}'.format('mass', value, 'm_sun'), indent=4)
         # Print out GADGET header for GADGET snapshots
@@ -183,3 +199,4 @@ def snapshot_info():
         masterprint('GADGET header:')
         for key, val in params['header'].items():
             masterprint('{:<14} {}'.format(key, val), indent=4)
+

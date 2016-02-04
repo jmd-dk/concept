@@ -772,7 +772,7 @@ scp_host = re.search('@(.*):', remote_liverender).group(1) if remote_liverender 
 # Absolute function for numbers
 if not cython.compiled:
     # Use NumPy's abs function in pure Python
-    max = np.max
+    abs = np.abs
 else:
     @cython.header(x=signed_number,
                    returns=signed_number,
@@ -890,6 +890,37 @@ def sinc(x):
         return 1
     else:
         return y/x
+
+# Function that compares two numbers (identical to math.isclose)
+@cython.header(# Arguments
+               a='double',
+               b='double',
+               rel_tol='double',
+               abs_tol='double',
+               # Locals
+               size_a='double',
+               size_b='double',
+               tol='double',
+               returns='bint',
+               )
+def isclose(a, b, rel_tol=1e-09, abs_tol=0):
+    size_a, size_b = abs(a), abs(b)
+    if size_a >= size_b:
+        tol = rel_tol*size_a
+    else:
+        tol = rel_tol*size_b
+    if tol < abs_tol:
+        tol = abs_tol
+    return abs(a - b) <= tol
+
+# Function that checks if a (floating point) number is actually an integer
+@cython.header(x='double',
+               rel_tol='double',
+               abs_tol='double',
+               returns='bint',
+               )
+def isint(x, abs_tol=1e-6):
+    return isclose(x, round(x), 0, abs_tol)
 
 # Function for printing messages as well as timed progress messages
 def masterprint(msg, *args, indent=0, end='\n', **kwargs):
@@ -1021,3 +1052,4 @@ unicode_exponent_fmt = dict(zip('0123456789-e',
                                 [unicode(c) for c in('⁰', '¹', '²', '³', '⁴',
                                                      '⁵', '⁶', '⁷', '⁸', '⁹', '⁻')]
                                 + [unicode('×') + '10']))
+
