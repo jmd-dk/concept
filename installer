@@ -626,21 +626,22 @@ validate_url()
             (cd "${top_dir}/tmp"; wget -t 1 --timeout 15 --no-check-certificate -q --spider --no-remove-listing "${url}" || :)
             grep "${filename}" "${top_dir}/tmp/.listing" > /dev/null 2>&1 || wget_status="error"
             rm -f "${top_dir}/tmp/.listing"
+            echo "$progname $wget_status"
         else
             wget -t 1 --timeout 15 --no-check-certificate -q --spider "${url}" || wget_status="error"
+            echo "$progname $wget_status"
         fi
         if [ "${wget_status}" == "success" ]; then
             break
         fi
         sleep 1
     done
+    validate_url_status="${wget_status}"
     if [ "${exit_on_error}" == "true" ]; then
         if [ "${wget_status}" != "success" ]; then
             error "Error: The ${1} link is broken: ${url}"
             exit 1
         fi
-    else
-        validate_url_status="${wget_status}"
     fi
 }
 
@@ -874,7 +875,7 @@ if [ "${python_install}" == "yes" ]; then
     python_url="https://www.python.org/ftp/python/${python_version}/Python-${python_version}.tgz"
     validate_url "Python"
     if [ "${validate_url_status}" != "success" ]; then
-        echo "Primary Python link broken: ${openssl_url}"
+        echo "Primary Python link broken: ${python_url}"
         error "Error: The installer does not know of a secondary Python link"
         exit 1
     fi
