@@ -135,25 +135,25 @@ set_version()
 # "newest" and the installer fails to find the newest version.
 # Programs:
 set_version "concept"         "newest"        # only newest work
-set_version "freetype"        "2.6.2"         "2.6.2"
-set_version "python"          "3.5.0"
-set_version "libpng"          "1.6.20"        "1.6.18"
-set_version "imagemagick"     "6.9.2-8"       "6.9.1-10"
+set_version "freetype"        "2.6.3"         "2.6.3"
+set_version "python"          "3.5.1"
+set_version "libpng"          "1.6.21"        "1.6.18"
+set_version "imagemagick"     "6.9.3-3"       "6.9.1-10"
 set_version "ncurses"         "6.0"           "6.0"
-set_version "openssl"         "1.0.2e"        "1.0.2d"
+set_version "openssl"         "1.0.2f"        "1.0.2e"
 set_version "fftw"            "3.3.4"         "3.3.4"
 set_version "gadget"          "2.0.7"
 set_version "fftw_for_gadget" "2.1.5"         "2.1.5"
 set_version "gsl"             "2.1"           "2.1"
-set_version "hdf5"            "1.8.16"        "1.8.15-patch1"
+set_version "hdf5"            "1.8.16"        "1.8.16"
 set_version "mpi"             "3.2"           "3.2"
 set_version "zlib"            "1.2.8"         "1.2.8"
 # Python packages:
 set_version "blessings"       "1.6"
 set_version "cython"          "0.23.4"        # 0.23 does not work
 set_version "cython_gsl"      "0.2.1"
-set_version "matplotlib"      "1.5.0"
-set_version "numpy"           "1.10.1"
+set_version "matplotlib"      "1.5.1"
+set_version "numpy"           "1.10.4"
 set_version "pexpect"         "4.0.1"
 set_version "mpi4py"          "1.3.1"         # 2.0.0 breaks h5py 2.5.0. Possible easy fix: https://www.google.com/url?q=https%3A%2F%2Fgithub.com%2Fh5py%2Fh5py%2Fcommit%2Fbdd573ff73711ccce339a91ac82a058cdd910498&sa=D&sntz=1&usg=AFQjCNE82m2PdKpnqfOvmsnNgYXzJYbc4A
 set_version "h5py"            "2.5.0"
@@ -626,10 +626,8 @@ validate_url()
             (cd "${top_dir}/tmp"; wget -t 1 --timeout 15 --no-check-certificate -q --spider --no-remove-listing "${url}" || :)
             grep "${filename}" "${top_dir}/tmp/.listing" > /dev/null 2>&1 || wget_status="error"
             rm -f "${top_dir}/tmp/.listing"
-            echo "$progname $wget_status"
         else
             wget -t 1 --timeout 15 --no-check-certificate -q --spider "${url}" || wget_status="error"
-            echo "$progname $wget_status"
         fi
         if [ "${wget_status}" == "success" ]; then
             break
