@@ -91,11 +91,22 @@
 # and "name_preinstalled".
 set_dir()
 {
-    # Arguments: Program name, install directory
+    # Arguments: Program name, install directory.
+    # Set "name_preinstalled" if "name_dir" is already set
     eval "${1}_preinstalled=yes"
     eval "[ -n \"\${${1}_dir}\" ] || ${1}_preinstalled=no"
+    # Set "name_dir" if "name_dir" is not already set
+    # or "name" should be installed.
     eval "[ -n \"\${${1}_dir}\" ] || ${1}_dir=\"${2}\""
+    eval "(! ([ \"\${${1}_install}\" == \"no\" ] && [ \"\${${1}_preinstalled}\" == \"no\" ])) || ${1}_dir=\"\""
 }
+# The install_explicit_only environment variable, when set to "yes",
+# disables all implicit installations.
+if [ "${install_explicit_only}" == "yes" ]; then
+    for progname in "zlib" "libpng" "imagemagick" "gsl" "mpi" "hdf5" "fftw" "freetype" "ncurses" "openssl" "python" "concept" "fftw_for_gadget" "gadget" "blessings" "cython" "cython_gsl" "h5py" "matplotlib" "mpi4py" "numpy" "pexpect"; do
+        eval "[ -n \"\${${progname}_install}\" ] || ${progname}_install=\"no\""
+    done
+fi
 # Specification of paths. The substring "__top_dir__"
 # will later be replaced with the top level directory.
 set_dir "concept"         "__top_dir__/concept"
@@ -281,8 +292,12 @@ python_test_success="yes"
 zlib_test_success="yes"
 
 # Read in command line arguments
-fast_install="no"
-top_dir_specified="no"
+if [ -z "${fast_install}" ]; then
+    fast_install="no"
+fi
+if [ -z "${top_dir_specified}" ]; then
+    top_dir_specified="no"
+fi
 for var in "$@"; do
     if [ "${var}" == "--fast" ]; then
         fast_install="yes"
@@ -290,8 +305,10 @@ for var in "$@"; do
         top_dir="${var}"
         top_dir_specified="yes"
     else
-        error "Got command line argument \"${var}\", but the installation path is already set to \"${top_dir}\""
-        exit 1
+        if [ "${var}" != "${top_dir}" ]; then
+            error "Got command line argument \"${var}\", but the installation path is already set to \"${top_dir}\""
+            exit 1
+        fi
     fi    
 done
 sleep_time=10
@@ -1049,6 +1066,7 @@ tree_beginning()
         echo "${vertical_line} ${hang_type}─"
     fi
 }
+install_anything="yes"
 if [ "${zlib_install}"            == "yes" ] \
 || [ "${libpng_install}"          == "yes" ] \
 || [ "${imagemagick_install}"     == "yes" ] \
@@ -1214,9 +1232,7 @@ if [ "${zlib_install}"            == "yes" ] \
     sleep ${sleep_time}
     enable_status
 else
-    echo "Nothing to install"
-    trap : 0
-    exit 0
+    install_anything="no"
 fi
 
 
@@ -1554,7 +1570,7 @@ fi
 # MPICH
 if [ "${mpi_install}" == "yes" ]; then
     init_install "MPI"
-    ./configure --enable-shared --disable-fortran --prefix="${mpi_dir}" 2>&1
+    ./configure --enable-shared --prefix="${mpi_dir}" 2>&1
     make 2>&1
     if [ "${fast_install}" == "no" ]; then
         make testing 2>&1 | tee "test_log"
@@ -1573,26 +1589,64 @@ fi
 # HDF5
 if [ "${hdf5_install}" == "yes" ]; then
     init_install "HDF5"
-    export CC="${mpi_dir}/bin/mpicc"
-    export LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}"
-    export PATH="${mpi_dir}/bin:${PATH}"
-    ./configure --enable-shared --enable-parallel --with-zlib="${zlib_dir}/include","${zlib_dir}/lib" --prefix="${hdf5_dir}" 2>&1
+    # Set environment variables and configure options used when building againts MPI and zlib
+    enable_parallel=""
+    if [ -n "${mpi_dir}" ]; then
+        export CC="${mpi_dir}/bin/mpicc"
+        export LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}"
+        export PATH="${mpi_dir}/bin:${PATH}"
+        enable_parallel="--enable-parallel"
+    fi
+    if [ -n "${zlib_dir}" ]; then
+        ./configure --enable-shared ${enable_parallel} --with-zlib="${zlib_dir}/include","${zlib_dir}/lib" --prefix="${hdf5_dir}" 2>&1
+    else
+        ./configure --enable-shared ${enable_parallel} --prefix="${hdf5_dir}" 2>&1
+    fi
     make 2>&1
     # On some systems, the HDF5 test (make check) hangs indefinitely.
     # To counteract this, kill the process if it still runs after an
     # hour. Count the test as failed if the last line in test_log is not
     # "make[1]: Leaving directory".
     if [ "${fast_install}" == "no" ]; then
-        (make check 2>&1 & echo $! >&3) 3> "hdf5_test_pid" | tee "test_log" & tee_pid=$!
-        sleep 1
-        hdf5_test_pid="$(cat 'hdf5_test_pid')"
-        rm -f "hdf5_test_pid"
-        (sleep 3600; kill -9 ${hdf5_test_pid}; kill -9 ${tee_pid}) & hdf5_test_killer_pid=$!
-        wait ${tee_pid} || :
-        kill -9 ${hdf5_test_killer_pid} || :
-        # Measure success based on the last line of "test_log"
-        if [ -z "$(tail -n 1 test_log | grep 'make\[1\]: Leaving directory' 2> /dev/null)" ]; then
-            hdf5_test_success="no"
+        # Perform serial + parallel tests if build against MPI
+        # or normal tests otherwise.
+        if [ -n "${mpi_dir}" ]; then
+            # Serial tests
+            (make check-s 2>&1 & echo $! >&3) 3> "hdf5_test_pid" | tee "test_log" & tee_pid=$!
+            sleep 1
+            hdf5_test_pid="$(cat 'hdf5_test_pid')"
+            rm -f "hdf5_test_pid"
+            (sleep 3600; kill -9 ${hdf5_test_pid}; kill -9 ${tee_pid}) & hdf5_test_killer_pid=$!
+            wait ${tee_pid} || :
+            kill -9 ${hdf5_test_killer_pid} || :
+            # Measure success based on the last line of "test_log"
+            if [ -z "$(tail -n 1 test_log | grep 'make\[1\]: Leaving directory' 2> /dev/null)" ]; then
+                hdf5_test_success="no"
+            fi
+            # Parallel tests
+            (make check-p 2>&1 & echo $! >&3) 3> "hdf5_test_pid" | tee -a "test_log" & tee_pid=$!
+            sleep 1
+            hdf5_test_pid="$(cat 'hdf5_test_pid')"
+            rm -f "hdf5_test_pid"
+            (sleep 3600; kill -9 ${hdf5_test_pid}; kill -9 ${tee_pid}) & hdf5_test_killer_pid=$!
+            wait ${tee_pid} || :
+            kill -9 ${hdf5_test_killer_pid} || :
+            # Measure success based on the last line of "test_log"
+            if [ -z "$(tail -n 1 test_log | grep 'make\[1\]: Leaving directory' 2> /dev/null)" ]; then
+                hdf5_test_success="no"
+            fi
+        else
+            (make check 2>&1 & echo $! >&3) 3> "hdf5_test_pid" | tee "test_log" & tee_pid=$!
+            sleep 1
+            hdf5_test_pid="$(cat 'hdf5_test_pid')"
+            rm -f "hdf5_test_pid"
+            (sleep 3600; kill -9 ${hdf5_test_pid}; kill -9 ${tee_pid}) & hdf5_test_killer_pid=$!
+            wait ${tee_pid} || :
+            kill -9 ${hdf5_test_killer_pid} || :
+            # Measure success based on the last line of "test_log"
+            if [ -z "$(tail -n 1 test_log | grep 'make\[1\]: Leaving directory' 2> /dev/null)" ]; then
+                hdf5_test_success="no"
+            fi
         fi
     fi
     make install 2>&1
@@ -1613,15 +1667,20 @@ fi
 # FFTW
 if [ "${fftw_install}" == "yes" ]; then
     init_install "FFTW"
+    # Set environment variables and configure options used when building againts MPI
+    enable_mpi=""
+    if [ -n "${mpi_dir}" ]; then
+        export CC="${mpi_dir}/bin/mpicc"
+        export CFLAGS="-O3 -fPIC ${CFLAGS}"
+        export CPPFLAGS="-I/${mpi_dir}/include ${CPPFLAGS}"
+        export LDFLAGS="-L${mpi_dir}/lib ${LDFLAGS}"
+        export MPICC="${mpi_dir}/bin/mpicc"
+        export MPILIBS="-lmpi ${MPILIBS}"
+        export PATH="${mpi_dir}/bin:${PATH}"
+        enable_mpi="--enable-mpi"
+    fi    
     # Double-precision
-    export CC="${mpi_dir}/bin/mpicc"
-    export CFLAGS="-O3 -fPIC ${CFLAGS}"
-    export CPPFLAGS="-I/${mpi_dir}/include ${CPPFLAGS}"
-    export LDFLAGS="-L${mpi_dir}/lib ${LDFLAGS}"
-    export MPICC="${mpi_dir}/bin/mpicc"
-    export MPILIBS="-lmpi ${MPILIBS}"
-    export PATH="${mpi_dir}/bin:${PATH}"
-    ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --prefix="${fftw_dir}" 2>&1
+    ./configure --enable-shared ${enable_mpi} --enable-openmp --enable-threads --prefix="${fftw_dir}" 2>&1
     make 2>&1
     if [ "${fast_install}" == "no" ]; then
         make check 2>&1 | tee "test_log"
@@ -1632,7 +1691,10 @@ if [ "${fftw_install}" == "yes" ]; then
         cp "test_log" "${fftw_test_log}"
     fi
     make install 2>&1
-    # Single-precision goes here ..........................
+    # Single-precision
+    ./configure --enable-shared ${enable_mpi} --enable-openmp --enable-threads --prefix="${fftw_dir}" --enable-float 2>&1
+    make 2>&1
+    make install 2>&1
     reset_environment
     cp "COPYING" "README" "${fftw_dir}/"
     cd "${top_dir}"
@@ -1707,10 +1769,27 @@ fi
 python_version_major=${python_version:0:1}
 if [ "${python_install}" == "yes" ]; then
     init_install "Python"
-    export CPPFLAGS="-I${zlib_dir}/include -I${openssl_dir}/include/openssl -I${ncurses_dir}/include/ncurses ${CPPFLAGS}"
-    export LD_LIBRARY_PATH="${zlib_dir}/lib:${ncurses_dir}/lib:${openssl_dir}/lib:${LD_LIBRARY_PATH}"
-    export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib -L${ncurses_dir}/lib -Wl,-rpath=${ncurses_dir}/lib -L${openssl_dir}/lib -Wl,-rpath=${openssl_dir}/lib ${LDFLAGS}"
-    ./configure --enable-shared --prefix="${python_dir}" --with-ensurepip=install 2>&1
+    # Set environment variables and configure options used when building againts other libraries
+    with_ensurepip_install=""
+    if [ -n "${openssl_dir}" ] && [ -n "${zlib_dir}" ]; then
+        with_ensurepip_install="--with-ensurepip=install"
+    fi
+    if [ -n "${ncurses_dir}" ]; then
+        export CPPFLAGS="-I${ncurses_dir}/include/ncurses ${CPPFLAGS}"
+        export LD_LIBRARY_PATH="${ncurses_dir}/lib:${LD_LIBRARY_PATH}"
+        export LDFLAGS="-L${ncurses_dir}/lib -Wl,-rpath=${ncurses_dir}/lib ${LDFLAGS}"
+    fi
+    if [ -n "${openssl_dir}" ]; then
+        export CPPFLAGS="-I${openssl_dir}/include/openssl ${CPPFLAGS}"
+        export LD_LIBRARY_PATH="${openssl_dir}/lib:${LD_LIBRARY_PATH}"
+        export LDFLAGS="-L${openssl_dir}/lib -Wl,-rpath=${openssl_dir}/lib ${LDFLAGS}"
+    fi
+    if [ -n "${zlib_dir}" ]; then
+        export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
+        export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
+        export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
+    fi
+    ./configure --enable-shared --prefix="${python_dir}" ${with_ensurepip_install} 2>&1
     make 2>&1
     if [ "${fast_install}" == "no" ]; then
         if [ ${python_version_major} != 2 ]; then  # Skip tests if using Python 2.x, as they may hang
@@ -1730,8 +1809,10 @@ if [ "${python_install}" == "yes" ]; then
 fi
 # Overwrite the 'python_version' variable with the major.minor version and
 # create a python variable, storing the path to the newly installed Python interpreter.
-python_version=$("${python_dir}/bin/python${python_version_major}" -c "from sys import version_info as v; print(str(v.major) + '.' + str(v.minor))")
-python="${python_dir}/bin/python${python_version}"
+if [ -n "${python_dir}" ]; then
+    python_version=$("${python_dir}/bin/python${python_version_major}" -c "from sys import version_info as v; print(str(v.major) + '.' + str(v.minor))")
+    python="${python_dir}/bin/python${python_version}"
+fi
 
 
 
@@ -1832,12 +1913,25 @@ pip_install()
 }
 
 # Upgrade pip
-pip_install "pip" "upgrade"
-# Make sure that Yolk3k is installed
-yolk_preinstalled="yes"
-if [ -z "$(${python} -m pip show yolk3k)" ]; then
-    yolk_preinstalled="no"
-    pip_install "Yolk3k"
+if [ "${python_install}" == "yes" ]; then
+    pip_install "pip" "upgrade"
+fi
+
+# Make sure that Yolk3k is installed if any Python packages should be installed
+if [ "${blessings_install}"  == "yes" ] \
+|| [ "${cython_install}"     == "yes" ] \
+|| [ "${cython_gsl_install}" == "yes" ] \
+|| [ "${h5py_install}"       == "yes" ] \
+|| [ "${matplotlib_install}" == "yes" ] \
+|| [ "${mpi4py_install}"     == "yes" ] \
+|| [ "${numpy_install}"      == "yes" ] \
+|| [ "${pexpect_install}"    == "yes" ]; then
+    install_anything="yes"
+    yolk_preinstalled="yes"
+    if [ -z "$(${python} -m pip show yolk3k)" ]; then
+        yolk_preinstalled="no"
+        pip_install "Yolk3k"
+    fi
 fi
 
 # Upgrade all packages pre-installed with Python
@@ -2340,37 +2434,42 @@ copyright_notice()
         printf "${2}\n"
     fi
 }
-current_step="copyright notice"
-heading "Copyright notice"
-printf "${esc_concept} has been installed along with the following dependencies:\n"
-copyright_notice "fftw_for_gadget" "FFTW 2"
-copyright_notice "fftw"            "FFTW 3"
-copyright_notice "freetype"        "FreeType"
-copyright_notice "gadget"          "GADGET"
-copyright_notice "gsl"             "GSL"
-copyright_notice "hdf5"            "HDF5"
-copyright_notice "imagemagick"     "ImageMagick"
-copyright_notice "libpng"          "libpng"
-copyright_notice "mpi"             "MPICH"
-copyright_notice "ncurses"         "ncurses"
-copyright_notice "openssl"         "OpenSSL"
-copyright_notice "zlib"            "zlib"
-copyright_notice "python"          "Python"
-copyright_notice "blessings"       "$(printf ${en_quad}%.s {1..4})Blessings"
-copyright_notice "cython"          "$(printf ${en_quad}%.s {1..4})Cython"
-copyright_notice "cython_gsl"      "$(printf ${en_quad}%.s {1..4})Cython_GSL"
-copyright_notice "h5py"            "$(printf ${en_quad}%.s {1..4})H5Py"
-copyright_notice "matplotlib"      "$(printf ${en_quad}%.s {1..4})Matplotlib"
-copyright_notice "mpi4py"          "$(printf ${en_quad}%.s {1..4})MPI4Py"
-copyright_notice "numpy"           "$(printf ${en_quad}%.s {1..4})NumPy"
-copyright_notice "pexpect"         "$(printf ${en_quad}%.s {1..4})Pexpect"
-copyright_notice "yolk"            "$(printf ${en_quad}%.s {1..4})Yolk3k"
-printf "\nThese have been installed into separate directories in
+if [ "${install_anything}" == "yes" ]; then
+    current_step="copyright notice"
+    heading "Copyright notice"
+    if [ "${concept_install}" == "yes" ]; then
+        printf "${esc_concept} has been installed along with the following dependencies:\n"
+    else
+        printf "The following software have been installed:\n"
+    fi
+    copyright_notice "fftw_for_gadget" "FFTW 2"
+    copyright_notice "fftw"            "FFTW 3"
+    copyright_notice "freetype"        "FreeType"
+    copyright_notice "gadget"          "GADGET"
+    copyright_notice "gsl"             "GSL"
+    copyright_notice "hdf5"            "HDF5"
+    copyright_notice "imagemagick"     "ImageMagick"
+    copyright_notice "libpng"          "libpng"
+    copyright_notice "mpi"             "MPICH"
+    copyright_notice "ncurses"         "ncurses"
+    copyright_notice "openssl"         "OpenSSL"
+    copyright_notice "zlib"            "zlib"
+    copyright_notice "python"          "Python"
+    copyright_notice "blessings"       "$(printf ${en_quad}%.s {1..4})Blessings"
+    copyright_notice "cython"          "$(printf ${en_quad}%.s {1..4})Cython"
+    copyright_notice "cython_gsl"      "$(printf ${en_quad}%.s {1..4})Cython_GSL"
+    copyright_notice "h5py"            "$(printf ${en_quad}%.s {1..4})H5Py"
+    copyright_notice "matplotlib"      "$(printf ${en_quad}%.s {1..4})Matplotlib"
+    copyright_notice "mpi4py"          "$(printf ${en_quad}%.s {1..4})MPI4Py"
+    copyright_notice "numpy"           "$(printf ${en_quad}%.s {1..4})NumPy"
+    copyright_notice "pexpect"         "$(printf ${en_quad}%.s {1..4})Pexpect"
+    copyright_notice "yolk"            "$(printf ${en_quad}%.s {1..4})Yolk3k"
+    printf "\nThese have been installed into separate directories in
 \"${top_dir}\"
 Any use of ${esc_concept} must conform to the license terms of the above
 software in addition to its own. These can be found in the separate
 installation directories.\n"
-
+fi
 # Notice about test errors
 current_step="erroneous tests notice"
 any_test_error_notices="no"
@@ -2502,5 +2601,7 @@ if [ "$(tail -n 1 "${log}")" == "${status_prefix}${status_finish_successfully}" 
 fi
 
 # Installation complete. Deactivate trap before exiting.
+if [ "${say_goodbye}" != "no" ]; then
+    printf "${esc_bold}${esc_green}${esc_concept} installation finished${esc_normal}\n"
+fi
 trap : 0
-printf "${esc_bold}${esc_green}${esc_concept} installation finished${esc_normal}\n"
