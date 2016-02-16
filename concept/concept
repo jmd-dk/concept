@@ -118,7 +118,6 @@ rel = relpath(path, '${concept_dir}')
 print(path if rel.startswith('../../') else rel)"
 }
 
-
 # If this file is being sourced, return now
 if [ "${BASH_SOURCE[0]}" != "${0}" ]; then
     this_file="${this_file_backup}"
