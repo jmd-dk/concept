@@ -25,9 +25,18 @@ output_bases = {			# File basenames for output
 output_times = {			# Scale factor values at which to dump output
     'snapshot'       : 1,
     'powerspec'      : '',
-    'render'         : '',
+    'render'         : linspace(0.02, 1, 10),
     'terminal render': '',
                 }
+powerspec_select = {                    # Toogle power spectra computation for each type
+    'all': True,
+                    }
+powerspec_plot_select = {               # Toogle power spectra plotting for each type
+    'all': False,
+                         }
+render_select = {                       # Toogle rendering for each type
+    'all': True,
+                 }
 
 # Numerical parameters
 boxsize          = 16*Mpc		# Linear size of the simulation box
@@ -48,8 +57,9 @@ H0      = 70*km/s/Mpc			# The Hubble constant
 a_begin = 0.02				# Scale factor at beginning of simulation
 
 # Graphics
-powerspec_plot      = True		# Turn plotting of power spectra on or off
-color               = 'lime'		# Color of the particles in renders
+render_colors = {                       # Render color for each type
+    'GADGET halos': 'lime',
+                 }
 bgcolor             = 'black'		# Background color of renders
 resolution          = 1080		# The height and width of the render
 liverender          = ''		# Filename of saved live render
