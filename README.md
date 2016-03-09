@@ -7,10 +7,9 @@ massively parallel computers with distributed memory. The code is written
 almost exclusively in Python, but it achieves C-like performance thanks to
 Cython.
 
-For documentation on how to install and use CO*N*CEPT, see[^1] [guide.pdf](guide.pdf).
+For documentation on how to install and use CO*N*CEPT, see<sup>[1](#footnote)</sup> [guide.pdf](guide.pdf).
 
 The physics which CO*N*CEPT strives to emulate, as well as the numerical
 methods implemented in order to do so, are presented in [thesis.pdf](thesis.pdf).
 
-[^1]:
-Note that this guide is not completely up-to-date.
+<a name="footnote">1</a>: Note that this guide is not completely up-to-date.
