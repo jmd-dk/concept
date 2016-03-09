@@ -1,7 +1,7 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
 #
-# CO𝘕CEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
@@ -14,8 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at
-# jeppe.mosgaard.dakin(at)post.au.dk
+# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -123,7 +122,7 @@ def find_N_recv(N_send):
 def exchange(particles, reset_buffers=False):
     """This function will do an exchange of particles between processes,
     so that every particle resides on the process in charge of the
-    domian where the particle is located. The variable indices_send
+    domain where the particle is located. The variable indices_send
     holds arrays of indices of particles to send to the different
     processes, while particle data is copied to sendbuf before it is
     send. These two variables will grow in size if needed. Call with
@@ -133,6 +132,9 @@ def exchange(particles, reset_buffers=False):
     global N_send, indices_send, indices_send_sizes, sendbuf, sendbuf_mv
     # No need to consider exchange of particles if running serial
     if nprocs == 1:
+        return
+    # Fluids are not exchangeable
+    if particles.representation == 'fluid':
         return
     # Extract some variables from particles
     N_local = particles.N_local
@@ -158,8 +160,7 @@ def exchange(particles, reset_buffers=False):
             if N_send[owner] == indices_send_sizes[owner]:
                 indices_send_sizes[owner] += Δmemory
                 indices_send[owner] = realloc(indices_send[owner],
-                                              indices_send_sizes[owner]
-                                              *sizeof('Py_ssize_t'))
+                                              indices_send_sizes[owner]*sizeof('Py_ssize_t'))
     # No need to continue if no particles should be exchanged
     N_send_tot = sum(N_send)
     N_send_tot_global = allreduce(N_send_tot, op=MPI.SUM)
@@ -301,7 +302,6 @@ def exchange(particles, reset_buffers=False):
             sendbuf_mv = cast(sendbuf, 'double[:1]')
     # Finalize exchange message
     masterprint('done')
-    
 
 # Function for cutting out domains as rectangular boxes in the best
 # possible way. When all dimensions cannot be divided equally, the
@@ -386,7 +386,6 @@ def domain(x, y, z):
     y_index = int(y/domain_size_y)
     z_index = int(z/domain_size_z)
     return domain_layout[x_index, y_index, z_index]
-
 
 # This function computes the ranks of the processes governing the 27
 # neighboring domains.
@@ -599,8 +598,8 @@ cython.declare(N_send='Py_ssize_t[::1]',
                )
 # This variable stores the number of particles to send to each prcess
 N_send = zeros(nprocs, dtype=C2np['Py_ssize_t'])
-# This Py_ssize_t** variable stores the indices of particles to be send to
-# other processes. That is, indices_send[other_rank][i] is the local
+# This Py_ssize_t** variable stores the indices of particles to be send
+# to other processes. That is, indices_send[other_rank][i] is the local
 # index of some particle which should be send to other_rank.
 indices_send = malloc(nprocs*sizeof('Py_ssize_t*'))
 for j in range(nprocs):

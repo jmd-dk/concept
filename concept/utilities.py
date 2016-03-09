@@ -1,7 +1,7 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
 #
-# CO𝘕CEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
@@ -14,8 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at
-# jeppe.mosgaard.dakin(at)post.au.dk
+# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -25,7 +24,10 @@
 # In the .pyx file, Cython declared variables will also get cimported.
 from commons import *
 
-# Cython imports
+# Cython imports.
+# Functions from the 'graphics' and 'analysis' modules are not dumped
+# directly into the global namespace of this module, as functions with
+# identical names are defined here.
 cimport('import graphics, analysis')
 cimport('from snapshot import get_snapshot_type, load_into_standard, load_params')
 
@@ -49,7 +51,7 @@ def delegate():
         masterwarn('Special flag "{}" not recognized!'
                    .format(special_params['special']))
 
-# Function for finding all snapshots in special_params['snapshot_filename']
+# Function for finding all snapshots in a directory
 @cython.pheader(# Arguments
                path='str',
                # Locals
@@ -75,11 +77,9 @@ def locate_snapshots(path):
     # Abort if none of the files where snapshots
     if master and not snapshot_filenames:
         if os.path.isdir(path):
-            msg = ('The directory "{}" does not contain any snapshots.'
-                   ).format(path)
+            msg = 'The directory "{}" does not contain any snapshots.'.format(path)
         else:
-            msg = ('The file "{}" is not a valid snapshot.'
-                   ).format(path)
+            msg = 'The file "{}" is not a valid snapshot.'.format(path)
         abort(msg)
     return snapshot_filenames
 
@@ -87,30 +87,40 @@ def locate_snapshots(path):
 # specified by the special_params['snapshot_filename'] parameter.
 @cython.header(# Locals
                basename='str',
+               ext='str',
                output_dir='str',
                output_filename='str',
-               snapshot_filename='str',
                snapshot='StandardSnapshot',
+               snapshot_filename='str',
                )
 def powerspec():
     # Extract the snapshot filename
     snapshot_filename = special_params['snapshot_filename']
     # Read in the snapshot
     snapshot = load_into_standard(snapshot_filename, compare_params=False)
-    # Output file
+    # Construct output filename based on the snapshot filename.
+    # Importantly, remove any file extension signalling a snapshot.
     output_dir, basename = os.path.split(snapshot_filename)
+    for ext in snapshot_extensions:
+        if basename.endswith(ext):
+            basename = basename[:(len(basename) - len(ext))]
+            break
     output_filename = '{}/{}{}{}'.format(output_dir,
                                          output_bases['powerspec'],
                                          '_' if output_bases['powerspec'] else '',
                                          basename)
+    # Prepend 'powerspec_' to filename if it
+    # is identical to the snapshot filename.
+    if output_filename == snapshot_filename:
+        output_filename = '{}/powerspec_{}'.format(output_dir, basename)
     # Produce powerspectrum of the snapshot
-    analysis.powerspec(snapshot.particles,
-                       output_filename)
+    analysis.powerspec(snapshot.particles_list, snapshot.params['a'], output_filename)
 
 # Function that produces a render of the file
 # specified by the special_params['snapshot_filename'] parameter.
 @cython.header(# Locals
                basename='str',
+               ext='str',
                output_dir='str',
                output_filename='str',
                snapshot_filename='str',
@@ -121,14 +131,26 @@ def render():
     snapshot_filename = special_params['snapshot_filename']
     # Read in the snapshot
     snapshot = load_into_standard(snapshot_filename, compare_params=False)
-    # Output file
+    # Construct output filename based on the snapshot filename.
+    # Importantly, remove any file extension signalling a snapshot.
     output_dir, basename = os.path.split(snapshot_filename)
+    for ext in snapshot_extensions:
+        if basename.endswith(ext):
+            basename = basename[:(len(basename) - len(ext))]
+            break
     output_filename = '{}/{}{}{}'.format(output_dir,
                                          output_bases['render'],
                                          '_' if output_bases['render'] else '',
                                          basename)
+    # Attach missing extension to filename
+    if not output_filename.endswith('.png'):
+        output_filename += '.png'
+    # Prepend 'render_' to filename if it
+    # is identical to the snapshot filename.
+    if output_filename == snapshot_filename:
+        output_filename = '{}/render_{}'.format(output_dir, basename)
     # Render the snapshot
-    graphics.render(snapshot.particles,
+    graphics.render(snapshot.particles_list,
                     snapshot.params['a'],
                     output_filename)
 
@@ -172,7 +194,9 @@ def snapshot_info():
         alt_str = ''
         if isint(value):
             alt_str = ' = {:.12g}{}{:.12g} {}'.format(int(value), unicode('×'), h, base_length)
-        masterprint('{:<18} {:.12g} {}{}'.format('boxsize', params['boxsize'], base_length, alt_str))
+        masterprint('{:<18} {:.12g} {}{}'.format('boxsize',
+                                                 params['boxsize'],
+                                                 base_length, alt_str))
         unit = units.km/(units.s*units.Mpc)
         unit_str = 'km s' + unicode('⁻') + unicode('¹') + ' Mpc' + unicode('⁻') + unicode('¹')
         masterprint('{:<18} {:.12g} {}'.format('H0', params['H0']/unit, unit_str))
@@ -200,3 +224,8 @@ def snapshot_info():
         for key, val in params['header'].items():
             masterprint('{:<14} {}'.format(key, val), indent=4)
 
+
+
+# Possible filename extensions for snapshots
+cython.declare(snapshot_extensions='tuple')
+snapshot_extensions = ('.hdf5', )

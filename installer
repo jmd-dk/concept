@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
 #
-# CO𝘕CEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
@@ -16,8 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at
-# jeppe.mosgaard.dakin(at)post.au.dk
+# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -35,9 +34,8 @@
 # bash <(wget -O- --no-ch https://raw.githubusercontent.com/jmd-dk/concept/master/installer)
 #
 # The following software will be installed in order:
-# - zlib     (needed by libpng, ImageMagick, HDF5 and Python)
-# - libpng   (needed by matplotlib and ImageMagick)
-# - ImageMagick
+# - zlib     (needed by libpng, HDF5 and Python)
+# - libpng   (needed by matplotlib)
 # - GSL
 # - MPICH
 # - HDF5
@@ -47,7 +45,6 @@
 # - OpenSSL  (needed by pip)
 # - Python, with the following packages (together with their own Python
 #   package dependencies):
-#     - Yolk3k
 #     - Blessings
 #     - Cython
 #     - Cython_GSL
@@ -56,8 +53,9 @@
 #     - MPI4Py
 #     - Pexpect
 #     - H5Py
+#     - Yolk3k and pip (if any of the above)
 # - CO𝘕CEPT
-# - FFTW 2   (needed by GADGET)
+# - FFTW 2 (needed by GADGET)
 # - GADGET
 #
 # By default, any pre-installed versions of the above software will be
@@ -69,9 +67,17 @@
 # The set of such environment variables correspond to the program names
 # above (though using lowercase only), except for mpich,
 # which are just mpi_dir.
-# In this respect, pre-installed Python packages do not count as
-# separate programs (e.g. there is no blessings_dir variable).
 # 
+# Should you choose to use a pre-installed Python distribution
+# (by setting the python_dir variable), any missing Python packages
+# will be installed in this distribution. Pre-installed Python packages
+# will not be touched; e.g. if the installer wishes to install NumPy
+# 1.10.4, but 1.10.3 is already installed, the packages will not be
+# updated. If you want such Python package updates (or downgrades),
+# set the "pythonpackagename_install" environment variable to "yes".
+# E.g. to overwrite a pre-installed NumPy package:
+# numpy_install=yes python_dir=/path/to/python /path/to/installer
+
 # If you choose to use a pre-installed Python distribution, it is your
 # responsibility that pip is installed as part of this distribution.
 # Also, if the blessings package is not pre-installed in the Python
@@ -87,6 +93,10 @@
 ##################
 # Specifications #
 ##################
+# ImageMagick is no longer needed by CO𝘕CEPT
+#if [ -z "${imagemagick_install}" ]; then
+#    imagemagick_install="no"
+#fi
 # This function sets the variables "name_dir" (if not set already)
 # and "name_preinstalled".
 set_dir()
@@ -98,12 +108,34 @@ set_dir()
     # Set "name_dir" if "name_dir" is not already set
     # or "name" should be installed.
     eval "[ -n \"\${${1}_dir}\" ] || ${1}_dir=\"${2}\""
-    eval "(! ([ \"\${${1}_install}\" == \"no\" ] && [ \"\${${1}_preinstalled}\" == \"no\" ])) || ${1}_dir=\"\""
+    eval "(! (   [ \"\${${1}_install}\"      == \"no\" ] \
+              && [ \"\${${1}_preinstalled}\" == \"no\" ])) || ${1}_dir=\"\""
 }
 # The install_explicit_only environment variable, when set to "yes",
 # disables all implicit installations.
 if [ "${install_explicit_only}" == "yes" ]; then
-    for progname in "zlib" "libpng" "imagemagick" "gsl" "mpi" "hdf5" "fftw" "freetype" "ncurses" "openssl" "python" "concept" "fftw_for_gadget" "gadget" "blessings" "cython" "cython_gsl" "h5py" "matplotlib" "mpi4py" "numpy" "pexpect"; do
+    for progname in "zlib"            \
+                    "libpng"          \
+                    "imagemagick"     \
+                    "gsl"             \
+                    "mpi"             \
+                    "hdf5"            \
+                    "fftw"            \
+                    "freetype"        \
+                    "ncurses"         \
+                    "openssl"         \
+                    "python"          \
+                    "concept"         \
+                    "fftw_for_gadget" \
+                    "gadget"          \
+                    "blessings"       \
+                    "cython"          \
+                    "cython_gsl"      \
+                    "h5py"            \
+                    "matplotlib"      \
+                    "mpi4py"          \
+                    "numpy"           \
+                    "pexpect"; do
         eval "[ -n \"\${${progname}_install}\" ] || ${progname}_install=\"no\""
     done
 fi
@@ -134,6 +166,7 @@ dotpaths="__top_dir__/.paths"
 set_version()
 {
     # Arguments: Program name, version, [fallback version]
+    eval "[ -z \"\${${1}_version}\" ] || ${1}_version_specifiedbyuser=\"true\""
     eval "[ -n \"\${${1}_version}\" ] || ${1}_version=\"${2}\""
     eval "[ \"\${${1}_preinstalled}\" != \"yes\" ] || ${1}_version=\"pre-installed\""
     if [ -n "${3}" ]; then
@@ -144,14 +177,14 @@ set_version()
 # "newest" will be replaced with the latest stable version. The right
 # column are fallbacks, which will be used if the middle column is
 # "newest" and the installer fails to find the newest version.
-# Programs:
+# If you specify a version in the middle column and this version
+# cannot be found, it will again fall back to the right column.
 set_version "concept"         "newest"        # only newest work
 set_version "freetype"        "2.6.3"         "2.6.3"
 set_version "python"          "3.5.1"
 set_version "libpng"          "1.6.21"        "1.6.18"
-set_version "imagemagick"     "6.9.3-3"       "6.9.1-10"
 set_version "ncurses"         "6.0"           "6.0"
-set_version "openssl"         "1.0.2f"        "1.0.2e"
+set_version "openssl"         "1.0.2g"        "1.0.2f"
 set_version "fftw"            "3.3.4"         "3.3.4"
 set_version "gadget"          "2.0.7"
 set_version "fftw_for_gadget" "2.1.5"         "2.1.5"
@@ -166,8 +199,13 @@ set_version "cython_gsl"      "0.2.1"
 set_version "matplotlib"      "1.5.1"
 set_version "numpy"           "1.10.4"
 set_version "pexpect"         "4.0.1"
-set_version "mpi4py"          "1.3.1"         # 2.0.0 breaks h5py 2.5.0. Possible easy fix: https://www.google.com/url?q=https%3A%2F%2Fgithub.com%2Fh5py%2Fh5py%2Fcommit%2Fbdd573ff73711ccce339a91ac82a058cdd910498&sa=D&sntz=1&usg=AFQjCNE82m2PdKpnqfOvmsnNgYXzJYbc4A
-set_version "h5py"            "2.5.0"
+set_version "mpi4py"          "1.3.1"         # 2.0.0 breaks h5py 2.5.0
+set_version "h5py"            "2.5.0"         # 2.6.0 is compatible with mpi4py 2.0.0, but no stable release exist yet (see https://pypi.python.org/pypi/h5py/ and https://github.com/h5py/h5py)
+# No longer installed by default
+set_version "imagemagick"     "6.9.3-3"       "6.9.1-10"
+# Note that the versions may be changed further down due to known
+# compatibility issues between specific versions of the above programs
+# and specific versions of system dependencies.
 
 
 
@@ -263,10 +301,26 @@ ZLIB_CFLAGS_backup="${ZLIB_CFLAGS}"
 ZLIB_LIBS_backup="${ZLIB_LIBS}"
 ZLIBLIB_backup="${ZLIBLIB}"
 ZLIBINC_backup="${ZLIBINC}"
-# Function that resets all above environment variables to their initial state
+# Function that resets all above environment
+# variables to their initial state.
 reset_environment()
 {
-    for var in CC CFLAGS CPPFLAGS LD_LIBRARY_PATH LDFLAGS LIBS MPICC MPILIBS PATH PKG_CONFIG_PATH PNG_CFLAGS PNG_LIBS ZLIB_CFLAGS ZLIB_LIBS ZLIBLIB ZLIBINC; do
+    for var in "CC"              \
+               "CFLAGS"          \
+               "CPPFLAGS"        \
+               "LD_LIBRARY_PATH" \
+               "LDFLAGS"         \
+               "LIBS"            \
+               "MPICC"           \
+               "MPILIBS"         \
+               "PATH"            \
+               "PKG_CONFIG_PATH" \
+               "PNG_CFLAGS"      \
+               "PNG_LIBS"        \
+               "ZLIB_CFLAGS"     \
+               "ZLIB_LIBS"       \
+               "ZLIBLIB"         \
+               "ZLIBINC"; do
         if [ -z "$(eval "echo \"\${${var}_backup}\"")" ]; then
             unset "${var}"
         else
@@ -306,7 +360,8 @@ for var in "$@"; do
         top_dir_specified="yes"
     else
         if [ "${var}" != "${top_dir}" ]; then
-            error "Got command line argument \"${var}\", but the installation path is already set to \"${top_dir}\""
+            error "Got command line argument \"${var}\", "\
+"but the installation path is already set to \"${top_dir}\""
             exit 1
         fi
     fi    
@@ -321,7 +376,8 @@ current_step="check for preinstalled system dependencies"
 # Check for package manager and set package names
 set_package_names()
 {
-    # Arguments: Package name for awk, gcc, g++, gfortran, gzip, make, perl, sed, tar, wget
+    # Arguments: Package name for awk, gcc, g++, gfortran, gzip, make,
+    # perl, sed, tar, wget.
     i=0
     for package in "awk" "gcc" "gxx" "gfortran" "gzip" "make" "perl" "sed" "tar" "wget"; do
         ((i += 1))
@@ -339,11 +395,71 @@ set_package_manager_and_names()
             package_manager="${pmanager}"
             # Package names
             case "${package_manager}" in
-                "apt-get" ) install_command="sudo ${package_manager} -y install"; set_package_names "gawk" "gcc" "g++"     "gfortran"     "gzip" "make" "perl" "sed" "tar" "wget"; break;;
-                "dnf"     ) install_command="sudo ${package_manager} -y install"; set_package_names "gawk" "gcc" "gcc-c++" "gcc-gfortran" "gzip" "make" "perl" "sed" "tar" "wget"; break;;
-                "yum"     ) install_command="sudo ${package_manager} -y install"; set_package_names "gawk" "gcc" "gcc-c++" "gcc-gfortran" "gzip" "make" "perl" "sed" "tar" "wget"; break;;
-                "zypper"  ) install_command="sudo ${package_manager} -n install"; set_package_names "gawk" "gcc" "gcc-c++" "gcc-fortran"  "gzip" "make" "perl" "sed" "tar" "wget"; break;;
-                "urpmi"   ) install_command="sudo ${package_manager} --auto";     set_package_names "gawk" "gcc" "gcc-c++" "gcc-gfortran" "gzip" "make" "perl" "sed" "tar" "wget"; break;;
+                "apt-get" ) install_command="sudo ${package_manager} -y install"
+                            set_package_names "gawk"     \
+                                              "gcc"      \
+                                              "g++"      \
+                                              "gfortran" \
+                                              "gzip"     \
+                                              "make"     \
+                                              "perl"     \
+                                              "sed"      \
+                                              "tar"      \
+                                              "wget"
+                            break
+                            ;;
+                "dnf"     ) install_command="sudo ${package_manager} -y install"
+                            set_package_names "gawk"         \
+                                              "gcc"          \
+                                              "gcc-c++"      \
+                                              "gcc-gfortran" \
+                                              "gzip"         \
+                                              "make"         \
+                                              "perl"         \
+                                              "sed"          \
+                                              "tar"          \
+                                              "wget"
+                            break
+                            ;;
+                "yum"     ) install_command="sudo ${package_manager} -y install"
+                            set_package_names "gawk"         \
+                                              "gcc"          \
+                                              "gcc-c++"      \
+                                              "gcc-gfortran" \
+                                              "gzip"         \
+                                              "make"         \
+                                              "perl"         \
+                                              "sed"          \
+                                              "tar"          \
+                                              "wget"
+                            break
+                            ;;
+                "zypper"  ) install_command="sudo ${package_manager} -n install"
+                            set_package_names "gawk"        \
+                                              "gcc"         \
+                                              "gcc-c++"     \
+                                              "gcc-fortran" \
+                                              "gzip"        \
+                                              "make"        \
+                                              "perl"        \
+                                              "sed"         \
+                                              "tar"         \
+                                              "wget"
+                            break
+                            ;;
+                "urpmi"   ) install_command="sudo ${package_manager} --auto"
+                            set_package_names "gawk"         \
+                                              "gcc"          \
+                                              "gcc-c++"      \
+                                              "gcc-gfortran" \
+                                              "gzip"         \
+                                              "make"         \
+                                              "perl"         \
+                                              "sed"          \
+                                              "tar"          \
+                                              "wget"
+                            break
+                            ;;
             esac
         fi
     done
@@ -366,10 +482,20 @@ check_system_dependency()
             while :; do
                 read -p "Run above command now? [Y/n] " yn
                 case "${yn}" in
-                    [Yy]* ) ${install_command} ${2}; printf "${1} successfully installed\n\n"; return;;
-                    [Nn]* ) error "Terminated install due to missing component '${1}'"; exit 1;;
-                    ""    ) ${install_command} ${2}; printf "${1} successfully installed\n\n"; return;;
-                    *     ) error "Terminated install due to missing component '${1}'"; exit 1;;
+                    [Yy]* ) ${install_command} ${2}
+                            printf "${1} successfully installed\n\n"
+                            return
+                            ;;
+                    [Nn]* ) error "Terminated install due to missing component '${1}'"
+                            exit 1
+                            ;;
+                    ""    ) ${install_command} ${2}
+                            printf "${1} successfully installed\n\n"
+                            return
+                            ;;
+                    *     ) error "Terminated install due to missing component '${1}'"
+                            exit 1
+                            ;;
                 esac
             done
             exit 1
@@ -391,6 +517,18 @@ check_system_dependency "sed"      "${sed_package}"
 check_system_dependency "tar"      "${tar_package}"
 check_system_dependency "wget"     "${wget_package}"
 
+# Change default versions if they are known not to work
+# with the present versions of the system dependencies.
+if [ "${ncurses_version_specifiedbyuser}" != "true" ] \
+   && [ "${ncurses_version}" != "pre-installed" ]; then
+    # ncurses 6.0, 5.9, and 5.8 does not compile under gcc 5,
+    # but ncurses 5.7 does.
+    gcc_version="$(gcc -v 2>&1 | tail -n 1 | awk '{print $3}')"
+    if [[ "${gcc_version}" == 5* ]]; then
+        ncurses_version="5.7"
+    fi
+fi
+
 # Creating top level directory (top_dir)
 current_step="setup of top level directory"
 if [ "${top_dir_specified}" == "no" ]; then
@@ -408,7 +546,8 @@ convert_to_abs_path()
     # Arguments: path
     current_dir="$(pwd)"
     cd "${initial_dir}"
-    # Places backslashes before spaces. These are needed when expanding tilde, but they will not persist
+    # Places backslashes before spaces.
+    # These are needed when expanding tilde, but they will not persist.
     abs_path="${1//[ ]/\\ }"
     # Expand tilde
     eval abs_path="${abs_path}"
@@ -431,12 +570,15 @@ fix_path()
     progname="${1// /_}"
     progname="${progname,,}"
     # Replace "__top_dir__"
-    eval "[ \"\${${progname=}_preinstalled}\" == \"yes\" ] || ${progname=}_dir=\"\${${progname=}_dir/__top_dir__/${top_dir}}\""
+    eval "[ \"\${${progname=}_preinstalled}\" == \"yes\" ] \
+          || ${progname=}_dir=\"\${${progname=}_dir/__top_dir__/${top_dir}}\""
     # Convert to absolute path
     eval "${progname=}_dir=\"\$(convert_to_abs_path \"\${${progname=}_dir}\")\""
     # Check path to pre-installed libraries
-    if eval "[ \"\${${progname}_preinstalled}\" == \"yes\" ] && [ ! -d \"\${${progname}_dir}\" ]"; then
-        error "The specified directory\n\"$(eval "echo \${${progname}_dir}")\"\nfor ${1/CONCEPT/$esc_concept} does not exist!"
+    if eval "[ \"\${${progname}_preinstalled}\" == \"yes\" ] \
+             && [ ! -d \"\${${progname}_dir}\" ]"; then
+        error "The specified directory\n\"$(eval "echo \${${progname}_dir}")\"\n\
+for ${1/CONCEPT/$esc_concept} does not exist!"
         exit 1
     fi
 }
@@ -456,111 +598,6 @@ fix_path "HDF5"
 fix_path "MPI"
 log="${log/__top_dir__/${top_dir}}"
 dotpaths="${dotpaths/__top_dir__/${top_dir}}"
-
-# If Python is pre-installed, assume that OpenSSL
-# and ncurses are also pre-installed.
-assume_preinstalled()
-{
-    # Arguments: Program name (lowercase)
-    eval "name_preinstalled=\"\${${1}_preinstalled}\""
-    if [ "${name_preinstalled}" == "no" ]; then
-        eval "${1}_preinstalled=\"yes\""
-        eval "${1}_dir=\"\""
-        eval "${1}_version=\"pre-installed\""
-    fi    
-}
-if [ "${python_preinstalled}" == "yes" ]; then
-    assume_preinstalled openssl
-    assume_preinstalled ncurses
-fi
-
-# Variables telling whether or not a program needs to be installed
-# zlib
-if [ -z "${zlib_install}" ]; then
-    zlib_install="no"
-    if [ "${zlib_preinstalled}" == "no" ] && ([ "${imagemagick_preinstalled}" == "no" ] || [ "${libpng_preinstalled}" == "no" ] || [ "${python_preinstalled}" == "no" ] || [ "${hdf5_preinstalled}" == "no" ]); then
-        zlib_install="yes"
-    fi
-fi
-# libpng
-if [ -z "${libpng_install}" ]; then
-    libpng_install="no"
-    if [ "${libpng_preinstalled}" == "no" ] && ([ "${imagemagick_preinstalled}" == "no" ] || [ "${python_preinstalled}" == "no" ]); then
-        libpng_install="yes"
-    fi
-fi
-# ImageMagick
-if [ -z "${imagemagick_install}" ]; then
-    if [ "${imagemagick_preinstalled}" == "no" ]; then
-        imagemagick_install="yes"
-    fi
-fi
-# GSL
-if [ -z "${gsl_install}" ]; then
-    if [ "${gsl_preinstalled}" == "no" ]; then
-        gsl_install="yes"
-    fi
-fi
-# MPI
-if [ -z "${mpi_install}" ]; then
-    if [ "${mpi_preinstalled}" == "no" ]; then
-        mpi_install="yes"
-    fi
-fi
-# HDF5
-if [ -z "${hdf5_install}" ]; then
-    if [ "${hdf5_preinstalled}" == "no" ]; then
-        hdf5_install="yes"
-    fi
-fi
-# FFTW
-if [ -z "${fftw_install}" ]; then
-    if [ "${fftw_preinstalled}" == "no" ]; then
-        fftw_install="yes"
-    fi
-fi
-# FreeType
-if [ -z "${freetype_install}" ]; then
-    if [ "${freetype_preinstalled}" == "no" ] && [ "${python_preinstalled}" == "no" ]; then
-        freetype_install="yes"
-    fi
-fi
-# ncurses
-if [ -z "${ncurses_install}" ]; then
-    if [ "${ncurses_preinstalled}" == "no" ] && [ "${python_preinstalled}" == "no" ]; then
-        ncurses_install="yes"
-    fi
-fi
-# OpenSSL
-if [ -z "${openssl_install}" ]; then
-    if [ "${openssl_preinstalled}" == "no" ] && [ "${python_preinstalled}" == "no" ]; then
-        openssl_install="yes"
-    fi
-fi
-# Python
-if [ -z "${python_install}" ]; then
-    if [ "${python_preinstalled}" == "no" ]; then
-        python_install="yes"
-    fi
-fi
-# CO𝘕CEPT
-if [ -z "${concept_install}" ]; then
-    if [ "${concept_preinstalled}" == "no" ]; then
-        concept_install="yes"
-    fi
-fi
-# FFTW for GADGET
-if [ -z "${fftw_for_gadget_install}" ]; then
-    if [ "${fftw_for_gadget_preinstalled}" == "no" ]; then
-        fftw_for_gadget_install="yes"
-    fi
-fi
-# GADGET
-if [ -z "${gadget_install}" ]; then
-    if [ "${gadget_preinstalled}" == "no" ]; then
-        gadget_install="yes"
-    fi
-fi
 
 
 
@@ -607,6 +644,205 @@ successfully_finish_status()
 
 
 
+##########################
+# Dependency discovering #
+##########################
+current_step="discovery of dependencies"
+set_status "Discovering dependencies"
+# Flags specifying whether or not any Python packages,
+# software (meaning anything but Python packages) or any of those
+# should be installed.
+install_any_pypackages="no"
+install_any_software="no"
+install_anything="no"
+# If Python is pre-installed, assume that OpenSSL
+# and ncurses are also pre-installed.
+assume_preinstalled()
+{
+    # Arguments: Program name (lowercase)
+    eval "name_preinstalled=\"\${${1}_preinstalled}\""
+    if [ "${name_preinstalled}" == "no" ]; then
+        eval "${1}_preinstalled=\"yes\""
+        eval "${1}_dir=\"\""
+        eval "${1}_version=\"pre-installed\""
+    fi    
+}
+if [ "${python_preinstalled}" == "yes" ]; then
+    assume_preinstalled openssl
+    assume_preinstalled ncurses
+fi
+
+# Set "pypackage"_preinstalled variables
+blessings_preinstalled="no"
+cython_preinstalled="no"
+cython_gsl_preinstalled="no"
+h5py_preinstalled="no"
+matplotlib_preinstalled="no"
+mpi4py_preinstalled="no"
+numpy_preinstalled="no"
+pexpect_preinstalled="no"
+pip_preinstalled="no"
+if [ "${python_preinstalled}" == "yes" ]; then
+    python=$(ls -1 "${python_dir}/bin/python"* | head -n 1)
+    for pypackage in blessings cython cython_gsl h5py matplotlib mpi4py numpy pexpect pip; do
+        pypackage_preinstalled=$("${python}" -c "
+try:
+    import ${pypackage}
+    print('yes')
+except:
+    print('no')
+"
+        )
+        eval "${pypackage}_preinstalled=\"${pypackage_preinstalled}\""
+    done
+fi
+
+# Variables telling whether or not a program needs to be installed.
+# CO𝘕CEPT (install by default)
+if [ -z "${concept_install}" ]; then
+    concept_install="no"
+    if [ "${concept_preinstalled}" == "no" ]; then
+        concept_install="yes"
+        install_any_software="yes"
+    fi
+fi
+# GADGET (needed by CO𝘕CEPT)
+if [ -z "${gadget_install}" ]; then
+    gadget_install="no"
+    if [ "${gadget_preinstalled}" == "no" ] && [ "${concept_install}" == "yes" ]; then
+        gadget_install="yes"
+        install_any_software="yes"
+    fi
+fi
+# FFTW for GADGET (needed by GADGET)
+if [ -z "${fftw_for_gadget_install}" ]; then
+    fftw_for_gadget_install="no"
+    if [ "${fftw_for_gadget_preinstalled}" == "no" ] && [ "${gadget_install}" == "yes" ]; then
+        fftw_for_gadget_install="yes"
+        install_any_software="yes"
+    fi
+fi
+# Python (needed by CO𝘕CEPT)
+if [ -z "${python_install}" ]; then
+    python_install="no"
+    if [ "${python_preinstalled}" == "no" ] && [ "${concept_install}" == "yes" ]; then
+        python_install="yes"
+        install_any_software="yes"
+    fi
+fi
+# Python packages (needed by CO𝘕CEPT)
+if [ -z "${pip_install}" ]; then
+    # Always install pip if Python is to be installed
+    pip_install="no"
+    if [ "${python_install}" == "yes" ]; then
+        pip_install="yes"
+    fi
+fi
+for pypackage in blessings cython cython_gsl h5py matplotlib mpi4py numpy pexpect; do
+    eval "pypackage_install=\"\${${pypackage}_install}\""
+    if [ -z "${pypackage_install}" ]; then
+        eval "${pypackage}_install=\"no\""
+        eval "pypackage_preinstalled=\"\${${pypackage}_preinstalled}\""
+        if [ "${pypackage_preinstalled}" == "no" ] && [ "${concept_install}" == "yes" ]; then
+            eval "${pypackage}_install=\"yes\""
+        fi
+    fi
+    eval "pypackage_install=\"\${${pypackage}_install}\""
+    if [ "${pypackage_install}" == "yes" ]; then
+        install_any_pypackages="yes"
+        install_any_software="yes"
+    fi
+done
+# FFTW (needed by CO𝘕CEPT)
+if [ -z "${fftw_install}" ]; then
+    fftw_install="no"
+    if [ "${fftw_preinstalled}" == "no" ] && [ "${concept_install}" == "yes" ]; then
+        fftw_install="yes"
+        install_any_software="yes"
+    fi
+fi
+# HDF5 (needed by CO𝘕CEPT)
+if [ -z "${hdf5_install}" ]; then
+    hdf5_install="no"
+    if [ "${hdf5_preinstalled}" == "no" ] && [ "${concept_install}" == "yes" ]; then
+        hdf5_install="yes"
+        install_any_software="yes"
+    fi
+fi
+# MPI (needed by CO𝘕CEPT)
+if [ -z "${mpi_install}" ]; then
+    mpi_install="no"
+    if [ "${mpi_preinstalled}" == "no" ] && [ "${concept_install}" == "yes" ]; then
+        mpi_install="yes"
+        install_any_software="yes"
+    fi
+fi
+# GSL (needed by CO𝘕CEPT)
+if [ -z "${gsl_install}" ]; then
+    gsl_install="no"
+    if [ "${gsl_preinstalled}" == "no" ] && [ "${concept_install}" == "yes" ]; then
+        gsl_install="yes"
+        install_any_software="yes"
+    fi
+fi
+# ImageMagick (no longer needed by CO𝘕CEPT)
+if [ -z "${imagemagick_install}" ]; then
+    imagemagick_install="no"
+elif [ "${imagemagick_install}" == "yes" ]; then
+    install_any_software="yes"
+fi
+# libpng (needed by ImageMagick and matplotlib)
+if [ -z "${libpng_install}" ]; then
+    libpng_install="no"
+    if [ "${libpng_preinstalled}" == "no" ] && (   [ "${imagemagick_install}" == "yes" ] \
+                                                || [ "${matplotlib_install}"  == "yes" ]); then
+        libpng_install="yes"
+        install_any_software="yes"
+    fi
+fi
+# zlib (needed by HDF5, ImageMagick, libpng and Python)
+if [ -z "${zlib_install}" ]; then
+    zlib_install="no"
+    if [ "${zlib_preinstalled}" == "no" ] && (   [ "${hdf5_install}"        == "yes" ] \
+                                              || [ "${imagemagick_install}" == "yes" ] \
+                                              || [ "${libpng_install}"      == "yes" ] \
+                                              || [ "${python_install}"      == "yes" ]); then
+        zlib_install="yes"
+        install_any_software="yes"
+    fi
+fi
+# FreeType (needed by matplotlib)
+if [ -z "${freetype_install}" ]; then
+    freetype_install="no"
+    if [ "${freetype_preinstalled}" == "no" ] && [ "${matplotlib_install}" == "yes" ]; then
+        freetype_install="yes"
+        install_any_software="yes"
+    fi
+fi
+# ncurses (needed by Python, if Python is needed by CO𝘕CEPT)
+if [ -z "${ncurses_install}" ]; then
+    ncurses_install="no"
+    if [ "${ncurses_preinstalled}" == "no" ] && [ "${python_install}"  == "yes" ] \
+                                             && [ "${concept_install}" == "yes" ]; then
+        ncurses_install="yes"
+        install_any_software="yes"
+    fi
+fi
+# OpenSSL (needed by pip)
+if [ -z "${openssl_install}" ]; then
+    openssl_install="no"
+    if [ "${openssl_preinstalled}" == "no" ] && [ "${pip_install}"    == "yes" ]; then
+        openssl_install="yes"
+        install_any_software="yes"
+    fi
+fi
+# The "install_anything" variable
+if [ "${install_any_software}" == "yes" ] || [ "${install_any_software}" == "yes" ]; then
+    install_anything="yes"
+fi
+
+
+
 #############################
 # URL's to all the software #
 #############################
@@ -640,11 +876,14 @@ validate_url()
             # wget do not always return with a non-zero status on
             # failure when using ftp.
             mkdir -p "${top_dir}/tmp"
-            (cd "${top_dir}/tmp"; wget -t 1 --timeout 15 --no-check-certificate -q --spider --no-remove-listing "${url}" || :)
+            (cd "${top_dir}/tmp"
+             wget -t 1 --timeout 15 --no-check-certificate -q --spider --no-remove-listing \
+                  "${url}" || :)
             grep "${filename}" "${top_dir}/tmp/.listing" > /dev/null 2>&1 || wget_status="error"
             rm -f "${top_dir}/tmp/.listing"
         else
-            wget -t 1 --timeout 15 --no-check-certificate -q --spider "${url}" || wget_status="error"
+            wget -t 1 --timeout 15 --no-check-certificate -q --spider \
+                 "${url}" || wget_status="error"
         fi
         if [ "${wget_status}" == "success" ]; then
             break
@@ -701,14 +940,21 @@ if [ "${zlib_install}" == "yes" ]; then
     if [ "${zlib_version}" == "newest" ]; then
         current_step="search for latest version of zlib"
         set_status "Searching for latest version of zlib"
-        zlib_version=$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "http://sourceforge.net/projects/libpng/files/zlib/" | grep -o "zlib/[0-9.]*" | grep -o "[0-9.]*" | sort -u | tail -n 1 || :)
+        zlib_url="http://sourceforge.net/projects/libpng/files/zlib/"
+        zlib_version=$(wget -t 50 --timeout 15 -q -O- --no-check-certificate ${zlib_url} \
+                       | grep -o "zlib/[0-9.]*"                                          \
+                       | grep -o "[0-9.]*"                                               \
+                       | sort -u                                                         \
+                       | tail -n 1 || :)
     fi
-    zlib_url="http://sourceforge.net/projects/libpng/files/zlib/${zlib_version}/zlib-${zlib_version}.tar.gz"
+    zlib_url="http://sourceforge.net/projects/libpng/files/zlib/${zlib_version}/\
+zlib-${zlib_version}.tar.gz"
     validate_url "zlib" "false"
     if [ "${validate_url_status}" != "success" ]; then
         echo "Primary zlib link broken: ${zlib_url}"
         fallback "zlib"
         zlib_url="http://zlib.net/zlib-${zlib_version}.tar.gz"
+        echo "Using secondary zlib link: ${zlib_url}"
         validate_url "zlib"
     fi
 fi
@@ -719,41 +965,35 @@ if [ "${libpng_install}" == "yes" ] ; then
     if [ "${libpng_version}" == "newest" ]; then
         current_step="search for latest version of libpng"
         set_status "Searching for latest version of libpng"
-        libpng_version_majors="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "ftp://ftp.simplesystems.org/pub/png/src/" | grep -o "libpng[0-9]*" | grep -o "[0-9]*" | sort -u | tail -n 1 || :)"
-        libpng_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "ftp://ftp.simplesystems.org/pub/png/src/libpng${libpng_version_majors}/" | grep -o "libpng-[0-9\.]*.tar.gz" | sort -u | tail -n 1 | grep -o "[0-9\.]*" | head -n 1 || :)"
+        libpng_url="ftp://ftp.simplesystems.org/pub/png/src/"
+        libpng_version_majors="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate \
+                                 ${libpng_url} | grep -o "libpng[0-9]*"                \
+                                               | grep -o "[0-9]*"                      \
+                                               | sort -u                               \
+                                               | tail -n 1 || :)"
+        libpng_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate \
+                          ${libpng_url}libpng${libpng_version_majors}/          \
+                          | grep -o "libpng-[0-9\.]*.tar.gz"                    \
+                          | sort -u                                             \
+                          | tail -n 1                                           \
+                          | grep -o "[0-9\.]*"                                  \
+                          | head -n 1 || :)"
         libpng_version="${libpng_version:0:${#libpng_version}-1}"
     else
-        libpng_version_majors="$(echo "${libpng_version}" | grep -m 1 -o -P "[0-9]*\.[0-9]*" | head -n 1)"
+        libpng_version_majors="$(echo "${libpng_version}" | grep -m 1 -o -P "[0-9]*\.[0-9]*" \
+                                                          | head -n 1)"
         libpng_version_majors="$(echo "${libpng_version_majors//./}")"
     fi
-    libpng_url="ftp://ftp.simplesystems.org/pub/png/src/libpng${libpng_version_majors}/libpng-${libpng_version}.tar.gz"
+    libpng_url="ftp://ftp.simplesystems.org/pub/png/src/libpng${libpng_version_majors}/\
+libpng-${libpng_version}.tar.gz"
     validate_url "libpng" "false"
     if [ "${validate_url_status}" != "success" ]; then
         echo "Primary libpng link broken: ${libpng_url}"
         fallback "libpng"
-        libpng_url="http://sourceforge.net/projects/libpng/files/libpng${libpng_version_majors}/older-releases/${libpng_version}/libpng-${libpng_version}.tar.gz"
+        libpng_url="http://sourceforge.net/projects/libpng/files/libpng${libpng_version_majors}/\
+older-releases/${libpng_version}/libpng-${libpng_version}.tar.gz"
+        echo "Using secondary libpng link: ${libpng_url}"
         validate_url "libpng"
-    fi
-fi
-
-# ImageMagick
-if [ "${imagemagick_install}" == "yes" ]; then
-    if [ "${imagemagick_version}" == "newest" ]; then
-        current_step="search for latest version of ImageMagick"
-        set_status "Searching for latest version of ImageMagick"
-        imagemagick_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "http://www.imagemagick.org/download/releases/" | grep -o "ImageMagick[0-9\.\-]*.tar" | grep -o "[0-9\.\-]*" | sort -u | tail -n 1 || :)"
-        imagemagick_version="$(echo "${imagemagick_version}" | head -c -2)"
-        imagemagick_version="${imagemagick_version:1}"
-    fi
-    imagemagick_url="http://www.imagemagick.org/download/ImageMagick-${imagemagick_version}.tar.gz"
-    validate_url "ImageMagick" "false"
-    if [ "${validate_url_status}" != "success" ]; then
-        echo "Primary ImageMagick link broken: ${imagemagick_url}"
-        fallback "ImageMagick"
-        imagemagick_version_major="$(echo "${imagemagick_version}" | grep -m 1 -o -P "[0-9]*" | head -n 1)"
-        imagemagick_version_major_dot_minor="$(echo "${imagemagick_version}" | grep -m 1 -o -P "${imagemagick_version_major}\.[0-9]*")"
-        imagemagick_url="http://sourceforge.net/projects/imagemagick/files/old-sources/${imagemagick_version_major}.x/${imagemagick_version_major_dot_minor}/ImageMagick-${imagemagick_version}.tar.gz"
-        validate_url "ImageMagick"
     fi
 fi
 
@@ -762,7 +1002,11 @@ if [ "${gsl_install}" == "yes" ]; then
     if [ "${gsl_version}" == "newest" ]; then
         current_step="search for latest version of GSL"
         set_status "Searching for latest version of GSL"
-        gsl_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "ftp://ftp.gnu.org/gnu/gsl/" | grep "gsl-latest.tar.gz" | grep -o "gsl-[0-9.]*.tar.gz" |  grep -o "[0-9][0-9.]*[0-9]" || :)"
+        gsl_url="ftp://ftp.gnu.org/gnu/gsl/"
+        gsl_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate ${gsl_url} \
+                       | grep "gsl-latest.tar.gz"                                       \
+                       | grep -o "gsl-[0-9.]*.tar.gz"                                   \
+                       | grep -o "[0-9][0-9.]*[0-9]" || :)"
     fi
     gsl_url="ftp://ftp.gnu.org/gnu/gsl/gsl-${gsl_version}.tar.gz"
     validate_url "GSL" "false"
@@ -770,6 +1014,7 @@ if [ "${gsl_install}" == "yes" ]; then
         echo "Primary GSL link broken: ${gsl_url}"
         fallback "GSL"
         gsl_url="http://ftpmirror.gnu.org/gsl/gsl-${gsl_version}.tar.gz"
+        echo "Using secondary gsl link: ${gsl_url}"
         validate_url "GSL"
     fi
 fi
@@ -779,7 +1024,10 @@ if [ "${mpi_install}" == "yes" ]; then
     if [ "${mpi_version}" == "newest" ]; then
         current_step="search for latest version of MPICH"
         set_status "Searching for latest version of MPICH"
-        mpi_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "http://www.mpich.org/downloads" | grep -m 1 -o -P "(?<=mpich-).*(?=stable)" | awk '{print $1}' || :)"
+        mpi_url="http://www.mpich.org/downloads"
+        mpi_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate ${mpi_url} \
+                       | grep -m 1 -o -P "(?<=mpich-).*(?=stable)"                      \
+                       | awk '{print $1}' || :)"
     fi
     mpi_url="http://www.mpich.org/static/downloads/${mpi_version}/mpich-${mpi_version}.tar.gz"
     validate_url "MPI" "false"
@@ -787,6 +1035,7 @@ if [ "${mpi_install}" == "yes" ]; then
         echo "Primary MPICH link broken: ${mpi_url}"
         fallback "MPI"
         mpi_url="http://fossies.org/linux/misc/mpich-${mpi_version}.tar.gz"
+        echo "Using secondary MPICH link: ${mpi_url}"
         validate_url "MPI"
     fi
 fi
@@ -796,14 +1045,19 @@ if [ "${hdf5_install}" == "yes" ]; then
     if [ "${hdf5_version}" == "newest" ]; then
         current_step="search for latest version of HDF5"
         set_status "Searching for latest version of HDF5"
-        hdf5_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "ftp://ftp.hdfgroup.org/HDF5/current/src/" | grep -m 1 -o -P "(?<=hdf5-).*(?=.tar\")" || :)"
+        hdf5_url="ftp://ftp.hdfgroup.org/HDF5/current/src/"
+        hdf5_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate ${hdf5_url} \
+                        | grep -m 1 -o -P "(?<=hdf5-).*(?=.tar\")" || :)"
     fi
-    hdf5_url="ftp://ftp.hdfgroup.org/HDF5/releases/hdf5-${hdf5_version}/src/hdf5-${hdf5_version}.tar.gz"
+    hdf5_url="ftp://ftp.hdfgroup.org/HDF5/releases/hdf5-${hdf5_version}/src/\
+hdf5-${hdf5_version}.tar.gz"
     validate_url "HDF5" "false"
     if [ "${validate_url_status}" != "success" ]; then
         echo "Primary HDF5 link broken: ${hdf5_url}"
         fallback "HDF5"
-        hdf5_url="https://www.hdfgroup.org/ftp/HDF5/releases/hdf5-${hdf5_version}/src/hdf5-${hdf5_version}.tar.gz"
+        hdf5_url="https://www.hdfgroup.org/ftp/HDF5/releases/hdf5-${hdf5_version}/src/\
+hdf5-${hdf5_version}.tar.gz"
+        echo "Using secondary HDF5 link: ${hdf5_url}"
         validate_url "HDF5"
     fi
 fi
@@ -813,7 +1067,9 @@ if [ "${fftw_install}" == "yes" ]; then
     if [ "${fftw_version}" == "newest" ]; then
         current_step="search for latest version of FFTW"
         set_status "Searching for latest version of FFTW"
-        fftw_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "http://www.fftw.org/download.html" | grep -m 1 -o -P "(?<=fftw-).*(?=.tar.gz\")" || :)"
+        fftw_url="http://www.fftw.org/download.html"
+        fftw_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate ${fftw_url} \
+                        | grep -m 1 -o -P "(?<=fftw-).*(?=.tar.gz\")" || :)"
     fi
     fftw_url="http://www.fftw.org/fftw-${fftw_version}.tar.gz"
     validate_url "FFTW" "false"
@@ -821,6 +1077,7 @@ if [ "${fftw_install}" == "yes" ]; then
         echo "Primary FFTW link broken: ${fftw_url}"
         fallback "FFTW"
         fftw_url="ftp://ftp.fftw.org/pub/fftw/fftw-${fftw_version}.tar.gz"
+        echo "Using secondary FFTW link: ${fftw_url}"
         validate_url "FFTW"
     fi
 fi
@@ -830,15 +1087,23 @@ if [ "${freetype_install}" == "yes" ]; then
     if [ "${freetype_version}" == "newest" ]; then
         current_step="search for latest version of FreeType"
         set_status "Searching for latest version of FreeType"
-        freetype_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "http://download.savannah.gnu.org/releases/freetype/" | grep -o "freetype-[0-9.]*tar" | sort -u | tail -n 1 | grep -o [0-9.]* || :)"
+        freetype_url="http://download.savannah.gnu.org/releases/freetype/"
+        freetype_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate ${freetype_url} \
+                            | grep -o "freetype-[0-9.]*tar"                                       \
+                            | sort -u                                                             \
+                            | tail -n 1                                                           \
+                            | grep -o [0-9.]* || :)"
         freetype_version="${freetype_version%?}"
     fi
-    freetype_url="http://download.savannah.gnu.org/releases/freetype/freetype-${freetype_version}.tar.gz"
+    freetype_url="http://download.savannah.gnu.org/releases/freetype/\
+freetype-${freetype_version}.tar.gz"
     validate_url "FreeType" "false"
     if [ "${validate_url_status}" != "success" ]; then
         echo "Primary FreeType link broken: ${freetype_url}"
         fallback "freetype"
-        freetype_url="http://sourceforge.net/projects/freetype/files/freetype2/${freetype_version}/freetype-${freetype_version}.tar.gz"
+        freetype_url="http://sourceforge.net/projects/freetype/files/freetype2/\
+${freetype_version}/freetype-${freetype_version}.tar.gz"
+        echo "Using secondary FreeType link: ${freetype_url}"
         validate_url "FreeType"
     fi
 fi
@@ -848,7 +1113,12 @@ if [ "${ncurses_install}" == "yes" ]; then
     if [ "${ncurses_version}" == "newest" ]; then
         current_step="search for latest version of ncurses"
         set_status "Searching for latest version of ncurses"
-        ncurses_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "http://ftp.gnu.org/pub/gnu/ncurses/" | grep -o "ncurses-[0-9.]*tar" | sort -u | tail -n 1 | grep -o [0-9.]* || :)"
+        ncurses_url="http://ftp.gnu.org/pub/gnu/ncurses/"
+        ncurses_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate ${ncurses_url} \
+                           | grep -o "ncurses-[0-9.]*tar"                                       \
+                           | sort -u                                                            \
+                           | tail -n 1                                                          \
+                           | grep -o [0-9.]* || :)"
         ncurses_version="${ncurses_version%?}"
     fi
     ncurses_url="http://ftp.gnu.org/pub/gnu/ncurses/ncurses-${ncurses_version}.tar.gz"
@@ -857,6 +1127,7 @@ if [ "${ncurses_install}" == "yes" ]; then
         echo "Primary ncurses link broken: ${ncurses_url}"
         fallback "ncurses"
         ncurses_url="ftp://invisible-island.net/ncurses/ncurses-${ncurses_version}.tar.gz"
+        echo "Using secondary ncurses link: ${ncurses_url}"
         validate_url "ncurses"
     fi
 fi
@@ -866,7 +1137,12 @@ if [ "${openssl_install}" == "yes" ]; then
     if [ "${openssl_version}" == "newest" ]; then
         current_step="search for latest version of OpenSSL"
         set_status "Searching for latest version of OpenSSL"
-        openssl_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "ftp://ftp.openssl.org/source/" | grep "openssl-[0-9].*.tar.gz" | tail -n 1 | grep -o -P "(?<=openssl-).*(?=.tar.gz)" | grep -o -P "(?=[0-9]).*(?=.tar.gz)" || :)"
+        openssl_url="ftp://ftp.openssl.org/source/"
+        openssl_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate ${openssl} \
+                           | grep "openssl-[0-9].*.tar.gz"                                  \
+                           | tail -n 1                                                      \
+                           | grep -o -P "(?<=openssl-).*(?=.tar.gz)"                        \
+                           | grep -o -P "(?=[0-9]).*(?=.tar.gz)" || :)"
         openssl_version="$(sed 's/.tar.gz.*//' <<< "${openssl_version}")"
     fi
     openssl_url="ftp://ftp.openssl.org/source/openssl-${openssl_version}.tar.gz"
@@ -875,7 +1151,9 @@ if [ "${openssl_install}" == "yes" ]; then
         echo "Primary OpenSSL link broken: ${openssl_url}"
         fallback "openssl"
         openssl_version_without_letter="$(echo ${openssl_version} | grep -o "[[:digit:].]*")"
-        openssl_url="http://openssl.skazkaforyou.com/source/old/${openssl_version_without_letter}/openssl-${openssl_version}.tar.gz"
+        openssl_url="http://openssl.skazkaforyou.com/source/old/${openssl_version_without_letter}/\
+openssl-${openssl_version}.tar.gz"
+        echo "Using secondary OpenSSL link: ${openssl_url}"
         validate_url "OpenSSL"
     fi
 fi
@@ -885,7 +1163,10 @@ if [ "${python_install}" == "yes" ]; then
     if [ "${python_version}" == "newest" ]; then
         current_step="search for latest version of Python"
         set_status "Searching for latest version of Python"
-        python_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "https://www.python.org/downloads/" | grep -o -P "(?<=Python-).*(?=.tar)" | head -1  || :)"
+        python_url="https://www.python.org/downloads/"
+        python_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate ${python_url} \
+                          | grep -o -P "(?<=Python-).*(?=.tar)"                               \
+                          | head -1  || :)"
     fi
     python_url="https://www.python.org/ftp/python/${python_version}/Python-${python_version}.tgz"
     validate_url "Python"
@@ -910,7 +1191,8 @@ if [ "${concept_install}" == "yes" ]; then
         commit_nr=$(echo "${repo_text}" | sed -n -e "${line_nr}p" | sed -e 's/^[[:space:]]*//')
         concept_version="commit ${commit_nr}"
     else
-        error "Error: The installer does not know how to find a specific version of ${esc_concept}!"
+        error "Error: The installer does not know how to \
+find a specific version of ${esc_concept}!"
         exit 1
     fi
     concept_url="${concept_repo_url}/archive/master.tar.gz"
@@ -922,7 +1204,10 @@ if [ "${fftw_for_gadget_install}" == "yes" ]; then
     if [ "${fftw_for_gadget_version}" == "newest" ]; then
         current_step="search for latest version of FFTW for GADGET"
         set_status "Searching for latest version of FFTW for GADGET"
-        fftw_for_gadget_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate "http://www.fftw.org/download.html" | grep -m 1 -o -P "(?<=fftw-).*(?=.tar.gz\")" || :)"
+        fftw_for_gadget_url="http://www.fftw.org/download.html"
+        fftw_for_gadget_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate \
+                                   ${fftw_for_gadget_url} | grep -m 1 -o -P              \
+                                                                 "(?<=fftw-).*(?=.tar.gz\")" || :)"
     fi
     fftw_for_gadget_url="http://www.fftw.org/fftw-${fftw_for_gadget_version}.tar.gz"
     validate_url "FFTW for GADGET" "false"
@@ -930,6 +1215,7 @@ if [ "${fftw_for_gadget_install}" == "yes" ]; then
         echo "Primary FFTW 2 link broken: ${fftw_for_gadget_url}"
         fallback "FFTW for GADGET"
         fftw_for_gadget_url="ftp://ftp.fftw.org/pub/fftw/fftw-${fftw_for_gadget_version}.tar.gz"
+        echo "Using secondary FFTW 2 link: ${fftw_for_gadget_url}"
         validate_url "FFTW for GADGET"
     fi
 fi
@@ -941,17 +1227,53 @@ if [ "${gadget_install}" == "yes" ]; then
         exit 1
     fi
     gadget_url="http://www.mpa-garching.mpg.de/gadget/gadget-${gadget_version}.tar.gz"
-    validate_url "GADGET"
+    validate_url "GADGET" "false"
+    if [ "${validate_url_status}" != "success" ]; then
+        echo "Primary GADGET link broken: ${gadget_url}"
+        error "Error: The installer does not know of a secondary GADGET link"
+        exit 1
+    fi
+fi
+
+# ImageMagick
+if [ "${imagemagick_install}" == "yes" ]; then
+    if [ "${imagemagick_version}" == "newest" ]; then
+        current_step="search for latest version of ImageMagick"
+        set_status "Searching for latest version of ImageMagick"
+        imagemagick_url="http://www.imagemagick.org/download/releases/"
+        imagemagick_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate    \
+                               ${imagemagick_url} | grep -o "ImageMagick[0-9\.\-]*.tar" \
+                                                  | grep -o "[0-9\.\-]*"                \
+                                                  | sort -u                             \
+                                                  | tail -n 1 || :)"
+        imagemagick_version="$(echo "${imagemagick_version}" | head -c -2)"
+        imagemagick_version="${imagemagick_version:1}"
+    fi
+    imagemagick_url="http://www.imagemagick.org/download/ImageMagick-${imagemagick_version}.tar.gz"
+    validate_url "ImageMagick" "false"
+    if [ "${validate_url_status}" != "success" ]; then
+        echo "Primary ImageMagick link broken: ${imagemagick_url}"
+        fallback "ImageMagick"
+        imagemagick_version_major="$(echo "${imagemagick_version}" | grep -m 1 -o -P "[0-9]*" \
+                                                                   | head -n 1)"
+        imagemagick_version_major_dot_minor="$(echo "${imagemagick_version}" | grep -m 1 -o -P \
+                                                    "${imagemagick_version_major}\.[0-9]*")"
+        imagemagick_url="http://sourceforge.net/projects/imagemagick/files/old-sources/\
+${imagemagick_version_major}.x/${imagemagick_version_major_dot_minor}/\
+ImageMagick-${imagemagick_version}.tar.gz"
+        echo "Using secondary ImageMagick link: ${imagemagick_url}"
+        validate_url "ImageMagick"
+    fi
 fi
 
 
-
-# Function for printing out nice tables (this is superior to the 'column'
-# command on older versions of BASH, as this does not handle formatted
-# output very well).
+# Function for printing out nice tables (this is superior to the
+# "column" command on older systems, as this does not handle
+# formatted output very well).
 print_table()
 {
-    # Arguments: Array to be printed (passed as array[@]), number of columns
+    # Arguments: Array to be printed (passed as array[@]),
+    #            number of columns.
     local table=("${!1}")
     nelements=${#table[@]}
     nc=${2}
@@ -1017,16 +1339,16 @@ print_table()
     # Print the table
     c=0
     for ((i = 0; i < nelements; i += 1)); do
-        printf "${table[i]}"                                                         # Print element
+        printf "${table[i]}"  # Print element
         [ ${nspaces[i]} -gt 0 ] && printf ' %.0s' $(eval "echo {1..${nspaces[i]}}")  # Print spaces
         ((c += 1))
-        [ ${c} == ${nc} ] || printf "  "                                             # Print extra spaces
-        [ ${c} == ${nc} ] && c=0 && printf "\n"                                      # Print newline
+        [ ${c} == ${nc} ] || printf "  "  # Print extra spaces
+        [ ${c} == ${nc} ] && c=0 && printf "\n"  # Print newline
     done
 }
 
 # Write out installation overview.
-# This overview take the form of the following table.
+# This overview take the form of the following tables.
 # Programs which should not be installed will not be shown.
 #
 # Name           Version  Installation path
@@ -1044,6 +1366,16 @@ print_table()
 # │  └─FFTW      ...      "/..."
 # └─ImageMagick  ...      "/..."
 #    └─libpng    ...      "/..."
+#
+# Name        Version
+# blessings   ...
+# cython      ...
+# cython_gsl  ...
+# h5py        ...
+# matplotlib  ...
+# mpi4py      ...
+# numpy       ...
+# pexpect     ...
 tree_beginning()
 {
     item_level=${1}
@@ -1066,43 +1398,48 @@ tree_beginning()
         echo "${vertical_line} ${hang_type}─"
     fi
 }
-install_anything="yes"
-if [ "${zlib_install}"            == "yes" ] \
-|| [ "${libpng_install}"          == "yes" ] \
-|| [ "${imagemagick_install}"     == "yes" ] \
-|| [ "${freetype_install}"        == "yes" ] \
-|| [ "${ncurses_install}"         == "yes" ] \
-|| [ "${openssl_install}"         == "yes" ] \
-|| [ "${python_install}"          == "yes" ] \
-|| [ "${gsl_install}"             == "yes" ] \
-|| [ "${mpi__install}"            == "yes" ] \
-|| [ "${hdf5_install}"            == "yes" ] \
-|| [ "${fftw_install}"            == "yes" ] \
-|| [ "${concept_install}"         == "yes" ] \
-|| [ "${gadget_install}"          == "yes" ] \
-|| [ "${fftw_for_gadget_install}" == "yes" ]; then
+if [ "${install_anything}" == "yes" ]; then
+    disable_status
+    heading "Installation overview"
+fi
+if [ "${install_any_software}" == "yes" ]; then
     # Title
-    table=("${esc_bold}Name${esc_normal}" "${esc_bold}Version${esc_normal}" "${esc_bold}Installation path${esc_normal}")
+    table=("${esc_bold}Name${esc_normal}"    \
+           "${esc_bold}Version${esc_normal}" \
+           "${esc_bold}Installation path${esc_normal}")
     # CO𝘕CEPT
     concept_level=0
     if [ "${concept_install}" == "yes" ]; then
         hang="$(tree_beginning ${concept_level})"
-        table+=("${hang}${esc_concept}"   "${concept_version}"              "\"${concept_dir}\"")
+        table+=("${hang}${esc_concept}" "${concept_version}" "\"${concept_dir}\"")
         ((concept_level += 1))
     fi
     # Python
     python_level=${concept_level}
     if [ "${python_install}" == "yes" ]; then
         hang_end="end"
-        if [ "${gsl_install}" == "yes" ] || [ "${mpi_install}" == "yes" ] || [ "${hdf5_install}" == "yes" ] || [ "${fftw_install}" == "yes" ] || [ "${gadget_install}" == "yes" ] || [ "${fftw_for_gadget_install}" == "yes" ] || [ "${imagemagick_install}" == "yes" ] || [ "${libpng_install}" == "yes" ]; then
+        if [ "${gsl_install}" == "yes" ] || [ "${mpi_install}"             == "yes" ] \
+                                         || [ "${hdf5_install}"            == "yes" ] \
+                                         || [ "${fftw_install}"            == "yes" ] \
+                                         || [ "${gadget_install}"          == "yes" ] \
+                                         || [ "${fftw_for_gadget_install}" == "yes" ] \
+                                         || [ "${imagemagick_install}"     == "yes" ] \
+                                         || [ "${libpng_install}"          == "yes" ]; then
             hang_end=""
         fi
         hang="$(tree_beginning ${python_level} ${hang_end})"
-        table+=("${hang}Python"           "${python_version}"               "\"${python_dir}\"")
+        table+=("${hang}Python" "${python_version}" "\"${python_dir}\"")
         ((python_level += 1))
     fi
     last_branch="yes"
-    if [ "${gsl_install}" == "yes" ] || [ "${mpi_install}" == "yes" ] || [ "${hdf5_install}" == "yes" ] || [ "${fftw_install}" == "yes" ] || [ "${gadget_install}" == "yes" ] || [ "${fftw_for_gadget_install}" == "yes" ] || [ "${imagemagick_install}" == "yes" ] || [ "${imagemagick_install}" == "yes" ] || [ "${libpng_install}" == "yes" ]; then
+    if [ "${gsl_install}" == "yes" ] || [ "${mpi_install}"             == "yes" ] \
+                                     || [ "${hdf5_install}"            == "yes" ] \
+                                     || [ "${fftw_install}"            == "yes" ] \
+                                     || [ "${gadget_install}"          == "yes" ] \
+                                     || [ "${fftw_for_gadget_install}" == "yes" ] \
+                                     || [ "${imagemagick_install}"     == "yes" ] \
+                                     || [ "${imagemagick_install}"     == "yes" ] \
+                                     || [ "${libpng_install}"          == "yes" ]; then
         last_branch="no"
     fi
     # FreeType
@@ -1111,11 +1448,26 @@ if [ "${zlib_install}"            == "yes" ] \
         if [ ${python_level} == ${concept_level} ] && [ "${last_branch}" == "no" ]; then
             hang_end=""
         fi
-        if [ "${ncurses_install}" == "yes" ] || [ "${openssl_install}" == "yes" ] || [ "${zlib_install}" == "yes" ]; then
+        if [ "${libpng_install}" == "yes" ] || [ "${ncurses_install}" == "yes" ] \
+                                            || [ "${openssl_install}" == "yes" ] \
+                                            || [ "${zlib_install}"    == "yes" ]; then
             hang_end=""
         fi
         hang="$(tree_beginning ${python_level} ${hang_end})"
-        table+=("${hang}FreeType"         "${freetype_version}"             "\"${freetype_dir}\"")
+        table+=("${hang}FreeType" "${freetype_version}" "\"${freetype_dir}\"")
+    fi
+    # libpng
+    if [ "${freetype_install}" == "yes" ]; then
+        hang_end="end"
+        if [ ${python_level} == ${concept_level} ] && [ "${last_branch}" == "no" ]; then
+            hang_end=""
+        fi
+        if [ "${ncurses_install}" == "yes" ] || [ "${openssl_install}" == "yes" ] \
+                                             || [ "${zlib_install}"    == "yes" ]; then
+            hang_end=""
+        fi
+        hang="$(tree_beginning ${python_level} ${hang_end})"
+        table+=("${hang}libpng" "${libpng_version}" "\"${libpng_dir}\"")
     fi
     # ncurses
     if [ "${ncurses_install}" == "yes" ]; then
@@ -1127,7 +1479,7 @@ if [ "${zlib_install}"            == "yes" ] \
             hang_end=""
         fi
         hang="$(tree_beginning ${python_level} ${hang_end})"
-        table+=("${hang}ncurses"          "${ncurses_version}"              "\"${ncurses_dir}\"")
+        table+=("${hang}ncurses" "${ncurses_version}" "\"${ncurses_dir}\"")
     fi
     # OpenSSL
     if [ "${openssl_install}" == "yes" ]; then
@@ -1139,7 +1491,7 @@ if [ "${zlib_install}"            == "yes" ] \
             hang_end=""
         fi
         hang="$(tree_beginning ${python_level} ${hang_end})"
-        table+=("${hang}OpenSSL"          "${openssl_version}"              "\"${openssl_dir}\"")
+        table+=("${hang}OpenSSL" "${openssl_version}" "\"${openssl_dir}\"")
     fi
     # zlib
     if [ "${zlib_install}" == "yes" ]; then
@@ -1148,57 +1500,67 @@ if [ "${zlib_install}"            == "yes" ] \
             hang_end=""
         fi
         hang="$(tree_beginning ${python_level} ${hang_end})"
-        table+=("${hang}zlib"             "${zlib_version}"                 "\"${zlib_dir}\"")
+        table+=("${hang}zlib" "${zlib_version}" "\"${zlib_dir}\"")
     fi
     # GSL
     if [ "${gsl_install}" == "yes" ]; then
         hang_end="end"
-        if [ "${mpi_install}" == "yes" ] || [ "${hdf5_install}" == "yes" ] || [ "${fftw_install}" == "yes" ] || [ "${gadget_install}" == "yes" ] || [ "${fftw_for_gadget_install}" == "yes" ] || [ "${imagemagick_install}" == "yes" ] || [ "${libpng_install}" == "yes" ]; then
+        if [ "${mpi_install}" == "yes" ] || [ "${hdf5_install}"            == "yes" ] \
+                                         || [ "${fftw_install}"            == "yes" ] \
+                                         || [ "${gadget_install}"          == "yes" ] \
+                                         || [ "${fftw_for_gadget_install}" == "yes" ] \
+                                         || [ "${imagemagick_install}"     == "yes" ]; then
             hang_end=""
         fi
         hang="$(tree_beginning ${concept_level} ${hang_end})"
-        table+=("${hang}GSL"              "${gsl_version}"                  "\"${gsl_dir}\"")
+        table+=("${hang}GSL" "${gsl_version}" "\"${gsl_dir}\"")
     fi
     # MPI
     if [ "${mpi_install}" == "yes" ]; then
         hang_end="end"
-        if [ "${hdf5_install}" == "yes" ] || [ "${fftw_install}" == "yes" ] || [ "${gadget_install}" == "yes" ] || [ "${fftw_for_gadget_install}" == "yes" ] || [ "${imagemagick_install}" == "yes" ] || [ "${libpng_install}" == "yes" ]; then
+        if [ "${hdf5_install}" == "yes" ] || [ "${fftw_install}"            == "yes" ] \
+                                          || [ "${gadget_install}"          == "yes" ] \
+                                          || [ "${fftw_for_gadget_install}" == "yes" ] \
+                                          || [ "${imagemagick_install}"     == "yes" ]; then
             hang_end=""
         fi
         hang="$(tree_beginning ${concept_level} ${hang_end})"
-        table+=("${hang}MPICH"            "${mpi_version}"                  "\"${mpi_dir}\"")
+        table+=("${hang}MPICH" "${mpi_version}" "\"${mpi_dir}\"")
     fi
     # HDF5
     if [ "${hdf5_install}" == "yes" ]; then
         hang_end="end"
-        if [ "${fftw_install}" == "yes" ] || [ "${gadget_install}" == "yes" ] || [ "${fftw_for_gadget_install}" == "yes" ] || [ "${imagemagick_install}" == "yes" ] || [ "${libpng_install}" == "yes" ]; then
+        if [ "${fftw_install}" == "yes" ] || [ "${gadget_install}"          == "yes" ] \
+                                          || [ "${fftw_for_gadget_install}" == "yes" ] \
+                                          || [ "${imagemagick_install}"     == "yes" ]; then
             hang_end=""
         fi
         hang="$(tree_beginning ${concept_level} ${hang_end})"
-        table+=("${hang}HDF5"                       "${hdf5_version}"                 "\"${hdf5_dir}\"")
+        table+=("${hang}HDF5" "${hdf5_version}" "\"${hdf5_dir}\"")
     fi
     # FFTW
     if [ "${fftw_install}" == "yes" ]; then
         hang_end="end"
-        if [ "${gadget_install}" == "yes" ] || [ "${fftw_for_gadget_install}" == "yes" ] || [ "${imagemagick_install}" == "yes" ] || [ "${libpng_install}" == "yes" ]; then
+        if [ "${gadget_install}" == "yes" ] || [ "${fftw_for_gadget_install}" == "yes" ] \
+                                            || [ "${imagemagick_install}"     == "yes" ]; then
             hang_end=""
         fi
         hang="$(tree_beginning ${concept_level} ${hang_end})"
-        table+=("${hang}FFTW"                       "${fftw_version}"                 "\"${fftw_dir}\"")
+        table+=("${hang}FFTW" "${fftw_version}" "\"${fftw_dir}\"")
     fi
     # GADGET
     gadget_level=${concept_level}
     if [ "${gadget_install}" == "yes" ]; then
         hang_end="end"
-        if [ "${imagemagick_install}" == "yes" ] || [ "${libpng_install}" == "yes" ]; then
+        if [ "${imagemagick_install}" == "yes" ]; then
             hang_end=""
         fi
         hang="$(tree_beginning ${gadget_level} ${hang_end})"
-        table+=("${hang}GADGET"           "${gadget_version}"               "\"${gadget_dir}\"")
+        table+=("${hang}GADGET" "${gadget_version}" "\"${gadget_dir}\"")
         ((gadget_level += 1))
     fi
     last_branch="yes"
-    if [ "${imagemagick_install}" == "yes" ] || [ "${libpng_install}" == "yes" ]; then
+    if [ "${imagemagick_install}" == "yes" ]; then
         last_branch="no"
     fi
     # FFTW for GADGET
@@ -1208,31 +1570,54 @@ if [ "${zlib_install}"            == "yes" ] \
             hang_end=""
         fi
         hang="$(tree_beginning ${gadget_level} ${hang_end})"
-        table+=("${hang}FFTW"             "${fftw_for_gadget_version}"      "\"${fftw_for_gadget_dir}\"")
+        table+=("${hang}FFTW" "${fftw_for_gadget_version}" "\"${fftw_for_gadget_dir}\"")
     fi
     # ImageMagick
-    imagemagick_level=${concept_level}
+    last_branch="yes"
     if [ "${imagemagick_install}" == "yes" ]; then
         hang_end="end"
-        hang="$(tree_beginning ${imagemagick_level} ${hang_end})"
-        table+=("${hang}ImageMagick"      "${imagemagick_version}"          "\"${imagemagick_dir}\"")
-        ((imagemagick_level += 1))
+        hang="$(tree_beginning ${concept_level} ${hang_end})"
+        table+=("${hang}ImageMagick" "${imagemagick_version}" "\"${imagemagick_dir}\"")
     fi
-    last_branch="yes"
-    # libpng
-    if [ "${libpng_install}" == "yes" ]; then
-        hang_end="end"
-        hang="$(tree_beginning ${imagemagick_level} ${hang_end})"
-        table+=("${hang}libpng"           "${libpng_version}"               "\"${libpng_dir}\"")
-    fi
-    disable_status
-    heading "Installation overview"
     echo "The following software will be installed"
     print_table table[@] 3
+fi
+# Print out Python package installation overview
+if [ "${install_any_pypackages}" == "yes" ]; then
+    table=("${esc_bold}Name${esc_normal}" "${esc_bold}Version${esc_normal}" "")
+    if [ "${blessings_install}"  == "yes" ]; then
+        table+=("Blessings"     "${blessings_version}"  "")
+    fi
+    if [ "${cython_install}"     == "yes" ]; then
+           table+=("Cython"     "${cython_version}"     "")
+    fi
+    if [ "${cython_gsl_install}" == "yes" ]; then
+           table+=("Cython_GSL" "${cython_gsl_version}" "")
+    fi
+    if [ "${h5py_install}"       == "yes" ]; then
+           table+=("H5Py"       "${h5py_version}"       "")
+    fi
+    if [ "${matplotlib_install}" == "yes" ]; then
+           table+=("Matplotlib" "${matplotlib_version}" "")
+    fi
+    if [ "${mpi4py_install}"     == "yes" ]; then
+           table+=("MPI4Py"     "${mpi4py_version}"     "")
+    fi
+    if [ "${numpy_install}"      == "yes" ]; then
+           table+=("NumPy"      "${numpy_version}"      "")
+    fi
+    if [ "${pexpect_install}"    == "yes" ]; then
+           table+=("Pexpect"    "${pexpect_version}"    "")
+    fi
+    if [ "${install_any_software}" ]; then
+        echo
+    fi
+    echo "The following Python packages will be installed"
+    print_table table[@] 3
+fi
+if [ "${install_anything}" == "yes" ]; then
     sleep ${sleep_time}
     enable_status
-else
-    install_anything="no"
 fi
 
 
@@ -1283,47 +1668,47 @@ download()
 mkdir -p "${top_dir}/tmp"
 # Download the source code for all programs that should be installed
 disable_status
-if [ "${zlib_install}" == "yes" ]; then
+if [ "${zlib_install}"            == "yes" ]; then
     download "zlib"
 fi
-if [ "${libpng_install}" == "yes" ]; then
+if [ "${libpng_install}"          == "yes" ]; then
     download "libpng"
 fi
-if [ "${imagemagick_install}" == "yes" ]; then
-    download "ImageMagick"
-fi
-if [ "${gsl_install}" == "yes" ]; then
+if [ "${gsl_install}"             == "yes" ]; then
     download "GSL"
 fi
-if [ "${mpi_install}" == "yes" ]; then
+if [ "${mpi_install}"             == "yes" ]; then
     download "MPI"
 fi
-if [ "${hdf5_install}" == "yes" ]; then
+if [ "${hdf5_install}"            == "yes" ]; then
     download "HDF5"
 fi
-if [ "${fftw_install}" == "yes" ]; then
+if [ "${fftw_install}"            == "yes" ]; then
     download "FFTW"
 fi
-if [ "${freetype_install}" == "yes" ]; then
+if [ "${freetype_install}"        == "yes" ]; then
     download "FreeType"
 fi
-if [ "${ncurses_install}" == "yes" ]; then
+if [ "${ncurses_install}"         == "yes" ]; then
     download "ncurses"
 fi
-if [ "${openssl_install}" == "yes" ]; then
+if [ "${openssl_install}"         == "yes" ]; then
     download "OpenSSL"
 fi
-if [ "${python_install}" == "yes" ]; then
+if [ "${python_install}"          == "yes" ]; then
     download "Python"
 fi
-if [ "${concept_install}" == "yes" ]; then
+if [ "${concept_install}"         == "yes" ]; then
     download "CONCEPT"
 fi
 if [ "${fftw_for_gadget_install}" == "yes" ]; then
     download "FFTW for Gadget"
 fi
-if [ "${gadget_install}" == "yes" ]; then
+if [ "${gadget_install}"          == "yes" ]; then
     download "GADGET"
+fi
+if [ "${imagemagick_install}"     == "yes" ]; then
+    download "ImageMagick"
 fi
 enable_status
 
@@ -1346,7 +1731,16 @@ extract()
         progname="${1// /_}"
         progname="${progname,,}"
         cd "${top_dir}/tmp/${progname}"
-        archive="$(ls -p | grep -v /)"
+        archive="$(ls -p -1 | grep -v /)"
+        n_files=$(echo "${archive}" | wc -l)
+        if [ -z "${archive}" ]; then
+            error "Did not find any files in \"${top_dir}/tmp/${progname}\""
+            exit 1
+        elif [ ${n_files} -gt 1 ]; then
+            error "Found multiple files in \"${top_dir}/tmp/${progname}\"."
+            error "I am confused about which to extract. Exiting."
+            exit 1
+        fi
     fi
     case "${archive}" in
         # 7zip
@@ -1439,7 +1833,9 @@ extract()
         *tzip)       unzip    -p       "${archive}" | tar -ixvf -;;
         *.zip)       unzip             "${archive}"              ;;
         # unknown
-        *) error "Could not understand the compression format of \"${archive}\""; exit 1;;
+        *) error "Could not understand the compression format of \"${archive}\""
+           exit 1
+           ;;
     esac
     rm -f "${archive}"
     if [ "$2" != "yes" ]; then
@@ -1485,6 +1881,7 @@ if [ "${zlib_install}" == "yes" ]; then
     fi
     zlib_test_log="${zlib_dir}/test_log"
     if [ "${zlib_test_success}" == "no" ]; then
+        mkdir -p "${zlib_dir}"
         cp "test_log" "${zlib_test_log}"
     fi
     make install 2>&1
@@ -1508,16 +1905,18 @@ if [ "${libpng_install}" == "yes" ]; then
     fi
     libpng_test_log="${libpng_dir}/test_log"
     if [ "${libpng_test_success}" == "no" ]; then
+        mkdir -p "${libpng_dir}"
         cp "test_log" "${libpng_test_log}"
     fi
     make ZLIBLIB="${ZLIBLIB}" ZLIBINC="${ZLIBINC}" install 2>&1
     reset_environment
-    cp "LICENSE" "${libpng_dir}/"
+    cp "LICENSE" "${libpng_dir}/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/libpng"
 fi
 
-# ImageMagick (as ImageMagick has a hard time finding libpng, some hacks are needed)
+# ImageMagick (as ImageMagick has a hard time finding libpng,
+# some hacks are needed).
 if [ "${imagemagick_install}" == "yes" ]; then
     init_install "ImageMagick"  
     # Delete the lines in the configure file where PNG_CFLAGS, PNG_LIBS,
@@ -1528,10 +1927,40 @@ if [ "${imagemagick_install}" == "yes" ]; then
     sed -i '/ZLIB_LIBS=""/d' ./configure
     export LD_LIBRARY_PATH="${libpng_dir}/lib:${zlib_dir}/lib:${LD_LIBRARY_PATH}"
     export PNG_CFLAGS="-I${libpng_dir}/include/libpng${libpng_version_majors} ${PNG_CFLAGS}"
-    export PNG_LIBS="-lpng${libpng_version_majors} -L${libpng_dir}/lib, -Wl,-rpath=${libpng_dir}/lib ${PNG_LIBS}"
+    export PNG_LIBS="-lpng${libpng_version_majors} -L${libpng_dir}/lib, \
+-Wl,-rpath=${libpng_dir}/lib ${PNG_LIBS}"
     export ZLIB_CFLAGS="-I${zlib_dir}/include ${ZLIB_CFLAGS}"
     export ZLIB_LIBS="-lz -L${zlib_dir}/lib, -Wl,-rpath=${zlib_dir}/lib ${ZLIB_LIBS}"
-    ./configure --prefix="${imagemagick_dir}" --disable-openmp --with-png=yes --with-zlib=yes --with-bzlib=no --with-autotrace=no --with-djvu=no --with-dps=no --with-fftw=no --with-fpx=no --with-fontconfig=no --with-freetype=no --with-gslib=no --with-gvc=no --with-jbig=no --with-jpeg=no --with-lcms=no --with-lqr=no --with-lzma=no --with-magick-plus-plus=no --with-openexr=no --with-openjp2=no --with-pango=no --with-perl=no --with-rsvg=no --with-tiff=no --with-webp=no --with-wmf=no --with-x=no --with-xml=no 2>&1
+    ./configure --prefix="${imagemagick_dir}" \
+                --disable-openmp              \
+                --with-png=yes                \
+                --with-zlib=yes               \
+                --with-bzlib=no               \
+                --with-autotrace=no           \
+                --with-djvu=no                \
+                --with-dps=no                 \
+                --with-fftw=no                \
+                --with-fpx=no                 \
+                --with-fontconfig=no          \
+                --with-freetype=no            \
+                --with-gslib=no               \
+                --with-gvc=no                 \
+                --with-jbig=no                \
+                --with-jpeg=no                \
+                --with-lcms=no                \
+                --with-lqr=no                 \
+                --with-lzma=no                \
+                --with-magick-plus-plus=no    \
+                --with-openexr=no             \
+                --with-openjp2=no             \
+                --with-pango=no               \
+                --with-perl=no                \
+                --with-rsvg=no                \
+                --with-tiff=no                \
+                --with-webp=no                \
+                --with-wmf=no                 \
+                --with-x=no                   \
+                --with-xml=no 2>&1
     make 2>&1
     if [ "${fast_install}" == "no" ]; then
         make check 2>&1 | tee "test_log"
@@ -1539,11 +1968,12 @@ if [ "${imagemagick_install}" == "yes" ]; then
     fi
     imagemagick_test_log="${imagemagick_dir}/test_log"
     if [ "${imagemagick_test_success}" == "no" ]; then
+        mkdir -p "${imagemagick_dir}"
         cp "test_log" "${imagemagick_test_log}"
     fi
     make install 2>&1
     reset_environment
-    cp "AUTHORS.txt" "LICENSE" "NOTICE" "${imagemagick_dir}/"
+    cp "AUTHORS.txt" "LICENSE" "NOTICE" "${imagemagick_dir}/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/imagemagick"
 fi
@@ -1559,10 +1989,11 @@ if [ "${gsl_install}" == "yes" ]; then
     fi
     gsl_test_log="${gsl_dir}/test_log"
     if [ "${gsl_test_success}" == "no" ]; then
+        mkdir -p "${gsl_dir}"
         cp "test_log" "${gsl_test_log}"
     fi
     make install 2>&1
-    cp "COPYING" "README" "${gsl_dir}/"
+    cp "COPYING" "README" "${gsl_dir}/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/gsl"
 fi
@@ -1578,10 +2009,11 @@ if [ "${mpi_install}" == "yes" ]; then
     fi
     mpi_test_log="${mpi_dir}/test_log"
     if [ "${mpi_test_success}" == "no" ]; then
+        mkdir -p "${mpi_dir}"
         cp "test_log" "${mpi_test_log}"
     fi
     make install 2>&1
-    cp "COPYRIGHT" "${mpi_dir}/"
+    cp "COPYRIGHT" "${mpi_dir}/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/mpi"
 fi
@@ -1589,7 +2021,8 @@ fi
 # HDF5
 if [ "${hdf5_install}" == "yes" ]; then
     init_install "HDF5"
-    # Set environment variables and configure options used when building againts MPI and zlib
+    # Set environment variables and configure options used
+    # when building againts MPI and zlib.
     enable_parallel=""
     if [ -n "${mpi_dir}" ]; then
         export CC="${mpi_dir}/bin/mpicc"
@@ -1598,7 +2031,10 @@ if [ "${hdf5_install}" == "yes" ]; then
         enable_parallel="--enable-parallel"
     fi
     if [ -n "${zlib_dir}" ]; then
-        ./configure --enable-shared ${enable_parallel} --with-zlib="${zlib_dir}/include","${zlib_dir}/lib" --prefix="${hdf5_dir}" 2>&1
+        ./configure --enable-shared                                     \
+                    ${enable_parallel}                                  \
+                    --with-zlib="${zlib_dir}/include","${zlib_dir}/lib" \
+                    --prefix="${hdf5_dir}" 2>&1
     else
         ./configure --enable-shared ${enable_parallel} --prefix="${hdf5_dir}" 2>&1
     fi
@@ -1620,7 +2056,8 @@ if [ "${hdf5_install}" == "yes" ]; then
             wait ${tee_pid} || :
             kill -9 ${hdf5_test_killer_pid} || :
             # Measure success based on the last line of "test_log"
-            if [ -z "$(tail -n 1 test_log | grep 'make\[1\]: Leaving directory' 2> /dev/null)" ]; then
+            if [ -z "$(tail -n 1 test_log \
+                       | grep 'make\[1\]: Leaving directory' 2> /dev/null)" ]; then
                 hdf5_test_success="no"
             fi
             # Parallel tests
@@ -1632,7 +2069,8 @@ if [ "${hdf5_install}" == "yes" ]; then
             wait ${tee_pid} || :
             kill -9 ${hdf5_test_killer_pid} || :
             # Measure success based on the last line of "test_log"
-            if [ -z "$(tail -n 1 test_log | grep 'make\[1\]: Leaving directory' 2> /dev/null)" ]; then
+            if [ -z "$(tail -n 1 test_log \
+                       | grep 'make\[1\]: Leaving directory' 2> /dev/null)" ]; then
                 hdf5_test_success="no"
             fi
         else
@@ -1644,7 +2082,8 @@ if [ "${hdf5_install}" == "yes" ]; then
             wait ${tee_pid} || :
             kill -9 ${hdf5_test_killer_pid} || :
             # Measure success based on the last line of "test_log"
-            if [ -z "$(tail -n 1 test_log | grep 'make\[1\]: Leaving directory' 2> /dev/null)" ]; then
+            if [ -z "$(tail -n 1 test_log \
+                       | grep 'make\[1\]: ' 2> /dev/null)" ]; then
                 hdf5_test_success="no"
             fi
         fi
@@ -1656,10 +2095,11 @@ if [ "${hdf5_install}" == "yes" ]; then
     fi
     hdf5_test_log="${hdf5_dir}/test_log"
     if [ "${hdf5_test_success}" == "no" ]; then
+        mkdir -p "${hdf5_dir}"
         cp "test_log" "${hdf5_test_log}"
     fi
     reset_environment
-    cp "COPYING" "README.txt" "${hdf5_dir}/"
+    cp "COPYING" "README.txt" "${hdf5_dir}/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/hdf5"
 fi
@@ -1667,7 +2107,8 @@ fi
 # FFTW
 if [ "${fftw_install}" == "yes" ]; then
     init_install "FFTW"
-    # Set environment variables and configure options used when building againts MPI
+    # Set environment variables and configure options used
+    # when building againts MPI.
     enable_mpi=""
     if [ -n "${mpi_dir}" ]; then
         export CC="${mpi_dir}/bin/mpicc"
@@ -1680,7 +2121,11 @@ if [ "${fftw_install}" == "yes" ]; then
         enable_mpi="--enable-mpi"
     fi    
     # Double-precision
-    ./configure --enable-shared ${enable_mpi} --enable-openmp --enable-threads --prefix="${fftw_dir}" 2>&1
+    ./configure --enable-shared  \
+                ${enable_mpi}    \
+                --enable-openmp  \
+                --enable-threads \
+                --prefix="${fftw_dir}" 2>&1
     make 2>&1
     if [ "${fast_install}" == "no" ]; then
         make check 2>&1 | tee "test_log"
@@ -1688,15 +2133,21 @@ if [ "${fftw_install}" == "yes" ]; then
     fi
     fftw_test_log="${fftw_dir}/test_log"
     if [ "${fftw_test_success}" == "no" ]; then
+        mkdir -p "${fftw_dir}"
         cp "test_log" "${fftw_test_log}"
     fi
     make install 2>&1
     # Single-precision
-    ./configure --enable-shared ${enable_mpi} --enable-openmp --enable-threads --prefix="${fftw_dir}" --enable-float 2>&1
+    ./configure --enable-shared        \
+                ${enable_mpi}          \
+                --enable-openmp        \
+                --enable-threads       \
+                --prefix="${fftw_dir}" \
+                --enable-float 2>&1
     make 2>&1
     make install 2>&1
     reset_environment
-    cp "COPYING" "README" "${fftw_dir}/"
+    cp "COPYING" "README" "${fftw_dir}/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/fftw"
 fi
@@ -1704,11 +2155,15 @@ fi
 # FreeType
 if [ "${freetype_install}" == "yes" ]; then
     init_install "FreeType"
-    ./configure --prefix="${freetype_dir}" --with-zlib=no --with-bzip2=no --with-png=no --with-harfbuzz=no 2>&1
+    ./configure --prefix="${freetype_dir}" \
+                --with-zlib=no             \
+                --with-bzip2=no            \
+                --with-png=no              \
+                --with-harfbuzz=no 2>&1
     make 2>&1
     # FreeType does not come with a test suite
     make install 2>&1
-    (cd docs; cp "FTL.TXT" "GPLv2.TXT" "LICENSE.TXT" "${freetype_dir}/")
+    (cd docs; cp "FTL.TXT" "GPLv2.TXT" "LICENSE.TXT" "${freetype_dir}/" || :)
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/freetype"
 fi
@@ -1739,9 +2194,10 @@ if [ "${ncurses_install}" == "yes" ]; then
     fi
     ncurses_test_log="${ncurses_dir}/include/ncurses/test_log"
     if [ "${ncurses_test_success}" == "no" ]; then
+        mkdir -p "${ncurses_dir}"
         cp "test_log" "${ncurses_test_log}"
     fi
-    cp "AUTHORS" "COPYING" "${ncurses_dir}/include/ncurses/"
+    cp "AUTHORS" "COPYING" "${ncurses_dir}/include/ncurses/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/ncurses"
 fi
@@ -1757,10 +2213,11 @@ if [ "${openssl_install}" == "yes" ]; then
     fi
     openssl_test_log="${openssl_dir}/include/openssl/test_log"
     if [ "${openssl_test_success}" == "no" ]; then
+        mkdir -p "${openssl_dir}"
         cp "test_log" "${openssl_test_log}"
     fi
     make install 2>&1
-    cp "LICENSE" "README" "${openssl_dir}/include/openssl/"
+    cp "LICENSE" "README" "${openssl_dir}/include/openssl/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/openssl"
 fi
@@ -1769,7 +2226,8 @@ fi
 python_version_major=${python_version:0:1}
 if [ "${python_install}" == "yes" ]; then
     init_install "Python"
-    # Set environment variables and configure options used when building againts other libraries
+    # Set environment variables and configure options used
+    # when building againts other libraries.
     with_ensurepip_install=""
     if [ -n "${openssl_dir}" ] && [ -n "${zlib_dir}" ]; then
         with_ensurepip_install="--with-ensurepip=install"
@@ -1792,25 +2250,29 @@ if [ "${python_install}" == "yes" ]; then
     ./configure --enable-shared --prefix="${python_dir}" ${with_ensurepip_install} 2>&1
     make 2>&1
     if [ "${fast_install}" == "no" ]; then
-        if [ ${python_version_major} != 2 ]; then  # Skip tests if using Python 2.x, as they may hang
+        # Skip tests if using Python 2.x, as they may hang
+        if [ ${python_version_major} != 2 ]; then
             make test 2>&1 | tee "test_log"
             [ ${PIPESTATUS[0]} != 0 ] && python_test_success="no"
         fi
     fi
     python_test_log="${python_dir}/test_log"
     if [ "${python_test_success}" == "no" ]; then
+        mkdir -p "${python_dir}"
         cp "test_log" "${python_test_log}"
     fi
     make install 2>&1
     reset_environment
-    cp "LICENSE" "README" "${python_dir}/"
+    cp "LICENSE" "README" "${python_dir}/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/python"
 fi
-# Overwrite the 'python_version' variable with the major.minor version and
-# create a python variable, storing the path to the newly installed Python interpreter.
+# Overwrite the 'python_version' variable with the major.minor version
+# and create a python variable, storing the path to the newly installed
+# Python interpreter.
 if [ -n "${python_dir}" ]; then
-    python_version=$("${python_dir}/bin/python${python_version_major}" -c "from sys import version_info as v; print(str(v.major) + '.' + str(v.minor))")
+    python_version=$("${python_dir}/bin/python${python_version_major}" -c \
+                     "from sys import version_info as v; print(str(v.major) + '.' + str(v.minor))")
     python="${python_dir}/bin/python${python_version}"
 fi
 
@@ -1839,27 +2301,61 @@ pip_download()
     pip_name="${1//_/}"       # Remove underscores from name
     pip_name="${pip_name,,}"  # Ensure lowercase
     mkdir -p "${top_dir}/tmp/pip"
+    # Downloading the Python package
     for n in {1..50}; do
         pip_status="error"
-        "${python}" -m pip install -v -v -v --no-cache-dir --no-binary=:all: --download "${top_dir}/tmp/pip" "${pip_name}${command_end}" 2>&1 || :
-        # If the archive exists in the tmp/pip dir, the download completed successfully
+        "${python}" -m pip download -v -v -v                   \
+                                   --no-cache-dir              \
+                                   --no-binary=:all:           \
+                                   --dest="${top_dir}/tmp/pip" \
+                                   "${pip_name}${command_end}" 2>&1 || :
+        # If the archive exists in the tmp/pip dir,
+        # the download completed successfully.
         if ls "${top_dir}/tmp/pip" | grep -i "${pip_name}" > /dev/null 2>&1; then
             pip_status="success"
         fi
         if [ "${pip_status}" == "error" ]; then
-            # Pip may be too old to support "--no-binary". Try with the (now depricated) "--no-use-wheel"
-            pip_status="error"
-            "${python}" -m pip install -v -v -v --no-cache-dir --no-use-wheel --download "${top_dir}/tmp/pip" "${pip_name}${command_end}" 2>&1 || :
-            # If the archive exists in the tmp/pip dir, the download completed successfully
+            # Pip may be too old to support "download".
+            # Try with the (now depricated) "install --download".
+            "${python}" -m pip install -v -v -v             \
+                                       --no-cache-dir       \
+                                       --no-binary=:all:    \
+                                       --download           \
+                                       "${top_dir}/tmp/pip" \
+                                       "${pip_name}${command_end}" 2>&1 || :
+            # If the archive exists in the tmp/pip dir,
+            # the download completed successfully.
             if ls "${top_dir}/tmp/pip" | grep -i "${pip_name}" > /dev/null 2>&1; then
                 pip_status="success"
             fi
         fi
         if [ "${pip_status}" == "error" ]; then
-            # Pip may be too old to support "--no-cache-dir". Try without
+            # Pip may be too old to support "--no-binary".
+            # Try with the (now depricated) "--no-use-wheel".
             pip_status="error"
-            "${python}" -m pip install -v -v -v --no-use-wheel --download "${top_dir}/tmp/pip" "${pip_name}${command_end}" 2>&1 || :
-            # If the archive exists in the tmp/pip dir, the download completed successfully
+            "${python}" -m pip install -v -v -v             \
+                                       --no-cache-dir       \
+                                       --no-use-wheel       \
+                                       --download           \
+                                       "${top_dir}/tmp/pip" \
+                                       "${pip_name}${command_end}" 2>&1 || :
+            # If the archive exists in the tmp/pip dir,
+            # the download completed successfully.
+            if ls "${top_dir}/tmp/pip" | grep -i "${pip_name}" > /dev/null 2>&1; then
+                pip_status="success"
+            fi
+        fi
+        if [ "${pip_status}" == "error" ]; then
+            # Pip may be too old to support "--no-cache-dir".
+            # Try without.
+            pip_status="error"
+            "${python}" -m pip install -v -v -v             \
+                                       --no-use-wheel       \
+                                       --download           \
+                                       "${top_dir}/tmp/pip" \
+                                       "${pip_name}${command_end}" 2>&1 || :
+            # If the archive exists in the tmp/pip dir,
+            # the download completed successfully.
             if ls "${top_dir}/tmp/pip" | grep -i "${pip_name}" > /dev/null 2>&1; then
                 pip_status="success"
             fi
@@ -1876,11 +2372,12 @@ pip_download()
 }
 
 # Function for installing and upgrading Python packages, utilizing pip
-pip_install()
+pip_install_pypackage()
 {
     # Arguments: Python package name, [version or "upgrade"]
     # (install specific version or update existing version to newest).
-    # If second argument is not provided, the newest version will be installed.
+    # If second argument is not provided, the newest version
+    # will be installed.
     local command_end=""
     if [ "${2}" == "upgrade" ]; then
         current_step="upgradation of ${1}"
@@ -1905,36 +2402,41 @@ pip_install()
     pip_download "${1}" "${2}"
     # Install Python package from source
     if [ "${2}" == "upgrade" ]; then
-        "${python}" -m pip install -v -v -v -b "${top_dir}/tmp/pip/build" --upgrade --no-index --find-links="${top_dir}/tmp/pip" "${pip_name}${command_end}" 2>&1
+        "${python}" -m pip install -v -v -v                          \
+                                   -b                                \
+                                   "${top_dir}/tmp/pip/build"        \
+                                   --upgrade                         \
+                                   --no-index                        \
+                                   --find-links="${top_dir}/tmp/pip" \
+                                   "${pip_name}${command_end}" 2>&1
     else
-        "${python}" -m pip install -v -v -v -b "${top_dir}/tmp/pip/build" --no-index --find-links="${top_dir}/tmp/pip" "${pip_name}${command_end}" 2>&1
+        "${python}" -m pip install -v -v -v                          \
+                                   -b                                \
+                                   "${top_dir}/tmp/pip/build"        \
+                                   --no-index                        \
+                                   --find-links="${top_dir}/tmp/pip" \
+                                   "${pip_name}${command_end}" 2>&1
     fi
     rm -rf "${top_dir}/tmp/pip"
 }
 
 # Upgrade pip
-if [ "${python_install}" == "yes" ]; then
-    pip_install "pip" "upgrade"
+if [ "${pip_install}" == "yes" ]; then
+    pip_install_pypackage "pip" "upgrade"
 fi
 
-# Make sure that Yolk3k is installed if any Python packages should be installed
-if [ "${blessings_install}"  == "yes" ] \
-|| [ "${cython_install}"     == "yes" ] \
-|| [ "${cython_gsl_install}" == "yes" ] \
-|| [ "${h5py_install}"       == "yes" ] \
-|| [ "${matplotlib_install}" == "yes" ] \
-|| [ "${mpi4py_install}"     == "yes" ] \
-|| [ "${numpy_install}"      == "yes" ] \
-|| [ "${pexpect_install}"    == "yes" ]; then
-    install_anything="yes"
+# Make sure that Yolk3k is installed
+# if any Python packages should be installed.
+if [ "${install_any_pypackages}" == "yes" ]; then
     yolk_preinstalled="yes"
     if [ -z "$(${python} -m pip show yolk3k)" ]; then
         yolk_preinstalled="no"
-        pip_install "Yolk3k"
+        pip_install_pypackage "Yolk3k"
     fi
 fi
 
-# Upgrade all packages pre-installed with Python
+# Upgrade all packages pre-installed
+# with the newly installed Python distribution.
 if [ "${python_install}" == "yes" ]; then
     for n in {1..50}; do
         disable_status
@@ -1942,7 +2444,7 @@ if [ "${python_install}" == "yes" ]; then
         enable_status
         if [ -n "${packages_to_upgrade}" ]; then
             for package in ${packages_to_upgrade}; do
-                pip_install "${package}" "upgrade"
+                pip_install_pypackage "${package}" "upgrade"
             done
         else
             break
@@ -1953,12 +2455,14 @@ if [ "${python_install}" == "yes" ]; then
         # version. Though not strictly a "test failure", add warning to
         # Python's test_log.
         python_test_success="no"
-        printf "\nWarning: These Python packages could not be upgraded to their newest versions:\n" | tee -a "${python_dir}/test_log"
+        printf "\nWarning: These Python packages could not be upgraded \
+to their newest versions:\n" | tee -a "${python_dir}/test_log"
         printf "${packages_to_upgrade}\n\n" | tee -a "${python_dir}/test_log"
     fi
 fi
 
-# Function for finding the newest version of Python packages, utilizing yolk.
+# Function for finding the newest version of Python packages,
+# utilizing yolk.
 yolk_version()
 {
     # Arguments: Python package name
@@ -1990,172 +2494,68 @@ pip_validate_version()
 
 # Function that finds the newest Python package versions or check if the
 # requested version exists, by calling "yolk_version" and
-# "pip_validate_version". It also sets the "pythonpackage_preinstalled",
-# "pypackage_dir" and "pypackage_version" variables.
+# "pip_validate_version". It also sets the "pypackage_version" variable
+# to whatever version is already installed (or leaves it be otherwise).
 python_check_package()
 {
     # Arguments: Python package name, default install directory
     pip_name="${1//_/}"  # Remove underscores from name
-    eval "${1,,}_preinstalled=\"yes\""
-    eval "[ -n \"\$(${python} -m pip show \"${pip_name}\")\" ] || ${1,,}_preinstalled=\"no\""
     eval "pypackage_preinstalled=\"\${${1,,}_preinstalled}\""
     eval "pypackage_version=\"\${${1,,}_version}\""
     if [ "${pypackage_preinstalled}" == "no" ]; then
-        eval "${1,,}_dir=\"${2}\""
         if [ "${pypackage_version}" == "newest" ]; then
             yolk_version "${1}"
         else
             pip_validate_version "${1}"
         fi
     else
-        eval "${1,,}_dir=\"\$(${python} -m pip show ${pip_name} | grep 'Location: ' | awk '{sub(\$1 FS,\"\" );print}')\""
         eval "${1,,}_version=\"pre-installed\""
     fi
 }
 
-# Check that specified Python package informations are correct and
-# gather new from PyPI.
-# Blessings
-if [ -z "${blessings_install}" ]; then
-    python_check_package "Blessings"  "${python_dir}/lib/python${python_version}/site-packages/blessings"
-else
-    blessings_preinstalled="yes"
-    if [ "${blessings_install}" == "yes" ]; then
-        blessings_preinstalled="no"
+# Check that specified Python package informations
+# are correct and gather new from PyPI.
+for pypackage in "Blessings"  \
+                 "Cython"     \
+                 "Cython_GSL" \
+                 "H5Py"       \
+                 "Matplotlib" \
+                 "MPI4Py"     \
+                 "NumPy"      \
+                 "Pexpect"; do
+    eval "pypackage_install=\"\${${pypackage}_install}\""
+    if [ "${pypackage_install}" == "yes" ]; then
+        python_check_package "${pypackage}"
     fi
-fi
-# Cython
-if [ -z "${cython_install}" ]; then
-    python_check_package "Cython"     "${python_dir}/lib/python${python_version}/site-packages/Cython"
-else
-    cython_preinstalled="yes"
-    if [ "${cython_install}" == "yes" ]; then
-        cython_preinstalled="no"
-    fi
-fi
-# Cython_GSL
-if [ -z "${cython_gsl_install}" ]; then
-    python_check_package "Cython_GSL" "${python_dir}/lib/python${python_version}/site-packages/cython_gsl"
-else
-    cython_gsl_preinstalled="yes"
-    if [ "${cython_gsl_install}" == "yes" ]; then
-        cython_gsl_preinstalled="no"
-    fi
-fi
-# NumPy
-if [ -z "${numpy_install}" ]; then
-    python_check_package "NumPy"      "${python_dir}/lib/python${python_version}/site-packages/numpy"
-else
-    numpy_preinstalled="yes"
-    if [ "${numpy_install}" == "yes" ]; then
-        numpy_preinstalled="no"
-    fi
-fi
-# Matplotlib
-if [ -z "${matplotlib_install}" ]; then
-    python_check_package "Matplotlib" "${python_dir}/lib/python${python_version}/site-packages/matplotlib"
-else
-    matplotlib_preinstalled="yes"
-    if [ "${matplotlib_install}" == "yes" ]; then
-        matplotlib_preinstalled="no"
-    fi
-fi
-# MPI4Py
-if [ -z "${mpi4py_install}" ]; then
-    python_check_package "MPI4Py"     "${python_dir}/lib/python${python_version}/site-packages/mpi4py"
-else
-    mpi4py_preinstalled="yes"
-    if [ "${mpi4py_install}" == "yes" ]; then
-        mpi4py_preinstalled="no"
-    fi
-fi
-# Pexpect
-if [ -z "${pexpect_install}" ]; then
-    python_check_package "Pexpect"    "${python_dir}/lib/python${python_version}/site-packages/pexpect"
-else
-    pexpect_preinstalled="yes"
-    if [ "${pexpect_install}" == "yes" ]; then
-        pexpect_preinstalled="no"
-    fi
-fi
-# H5Py
-if [ -z "${h5py_install}" ]; then
-    python_check_package "H5Py"       "${python_dir}/lib/python${python_version}/site-packages/h5py-${h5py_version}-py${python_version}-$(uname -s | awk '{print tolower($0)}')-$(uname -m).egg/h5py"
-else
-    h5py_preinstalled="yes"
-    if [ "${h5py_install}" == "yes" ]; then
-        h5py_preinstalled="no"
-    fi
-fi
-
-# Print out Python package installation overview
-if [ "${blessings_preinstalled}"  == "no" ] \
-|| [ "${cython_preinstalled}"     == "no" ] \
-|| [ "${cython_gsl_preinstalled}" == "no" ] \
-|| [ "${h5py_preinstalled}"       == "no" ] \
-|| [ "${matplotlib_preinstalled}" == "no" ] \
-|| [ "${mpi4py_preinstalled}"     == "no" ] \
-|| [ "${numpy_preinstalled}"      == "no" ] \
-|| [ "${pexpect_preinstalled}"    == "no" ]; then
-    table=("${esc_bold}Name${esc_normal}" "${esc_bold}Version${esc_normal}" "${esc_bold}Installation path${esc_normal}")
-    if [ "${blessings_preinstalled}" == "no" ]; then
-        table+=("Blessings"               "${blessings_version}"            "\"${blessings_dir}\"")
-    fi
-    if [ "${cython_preinstalled}" == "no" ]; then
-           table+=("Cython"               "${cython_version}"               "\"${cython_dir}\"")
-    fi
-    if [ "${cython_gsl_preinstalled}" == "no" ]; then
-           table+=("Cython_GSL"           "${cython_gsl_version}"           "\"${cython_gsl_dir}\"")
-    fi
-    if [ "${h5py_preinstalled}" == "no" ]; then
-           table+=("H5Py"                 "${h5py_version}"                 "\"${h5py_dir}\"")
-    fi
-    if [ "${matplotlib_preinstalled}" == "no" ]; then
-           table+=("Matplotlib"           "${matplotlib_version}"           "\"${matplotlib_dir}\"")
-    fi
-    if [ "${mpi4py_preinstalled}" == "no" ]; then
-           table+=("MPI4Py"               "${mpi4py_version}"               "\"${mpi4py_dir}\"")
-    fi
-    if [ "${numpy_preinstalled}" == "no" ]; then
-           table+=("NumPy"                "${numpy_version}"                "\"${numpy_dir}\"")
-    fi
-    if [ "${pexpect_preinstalled}" == "no" ]; then
-           table+=("Pexpect"              "${pexpect_version}"              "\"${pexpect_dir}\"")
-    fi
-    disable_status
-    heading "Python packages overview"
-    echo "The following Python packages will be installed"
-    print_table table[@] 3
-    sleep ${sleep_time}
-    enable_status
-fi
+done
 
 # Install Python packages from PyPI
 
 # Blessings
-if [ "${blessings_preinstalled}" == "no" ]; then
-    pip_install "Blessings" "${blessings_version}"
+if [ "${blessings_install}" == "yes" ]; then
+    pip_install_pypackage "Blessings" "${blessings_version}"
 fi
 
 # Cython
-if [ "${cython_preinstalled}" == "no" ]; then
-    pip_install "Cython" "${cython_version}"
+if [ "${cython_install}" == "yes" ]; then
+    pip_install_pypackage "Cython" "${cython_version}"
 fi
 
 # The Cython_GSL Python package
-if [ "${cython_gsl_preinstalled}" == "no" ]; then
+if [ "${cython_gsl_install}" == "yes" ]; then
     export LD_LIBRARY_PATH="${gsl_dir}/lib:${LD_LIBRARY_PATH}"
-    pip_install "Cython_GSL" "${cython_gsl_version}"
+    pip_install_pypackage "Cython_GSL" "${cython_gsl_version}"
     reset_environment
 fi
 
 # NumPy
-if [ "${numpy_preinstalled}" == "no" ]; then
-    pip_install "NumPy" "${numpy_version}"
+if [ "${numpy_install}" == "yes" ]; then
+    pip_install_pypackage "NumPy" "${numpy_version}"
 fi
 
-# Matplotlib (as Matplotlib has a hard time finding FreeType, some hacks are needed)
-if [ "${matplotlib_preinstalled}" == "no" ]; then
+# Matplotlib (as Matplotlib has a hard time finding FreeType,
+# some hacks are needed).
+if [ "${matplotlib_install}" == "yes" ]; then
     current_step="installation of Matplotlib ${matplotlib_version}"
     heading "Installing Matplotlib ${matplotlib_version}"
     set_status "Installing Matplotlib ${matplotlib_version}"
@@ -2165,10 +2565,19 @@ if [ "${matplotlib_preinstalled}" == "no" ]; then
     # depends on other Python packages not directly used by CO𝘕CEPT.
     # Most often these dependencies are downloaded automatically by the
     # previous command. In case of failure, we do it manually.
-    deps=(        "pyparsing"                 "python-dateutil" "pytz" "cycler")  # NumPy already installed
-    # From http://matplotlib.org/users/installing.html, except for pyparsing, where !=2.0.0,>=1.5.6
-    # is taken from setupext.py of the matplotlib source.
-    dep_versions=(">=1.5.6,!=2.0.0,!=2.0.4"   ">=1.1,!=2.1"     ""     ">=0.9")
+    if [ "${numpy_preinstalled}" == "yes" ] || [ "${numpy_install}" == "yes" ]; then
+        # NumPy already installed
+        deps=(        "pyparsing"                 "python-dateutil" "pytz" "cycler")
+        # From http://matplotlib.org/users/installing.html, except for pyparsing,
+        # where !=2.0.0,>=1.5.6 is taken from setupext.py of the matplotlib source.
+        dep_versions=(">=1.5.6,!=2.0.0,!=2.0.4"   ">=1.1,!=2.1"     ""     ">=0.9")
+    else
+        # NumPy not installed. Add it as a matplotlib dependency
+        deps=(        "numpy" "pyparsing"                 "python-dateutil" "pytz" "cycler")
+        # From http://matplotlib.org/users/installing.html, except for pyparsing,
+        # where !=2.0.0,>=1.5.6 is taken from setupext.py of the matplotlib source.
+        dep_versions=(">=1.6" ">=1.5.6,!=2.0.0,!=2.0.4"   ">=1.1,!=2.1"     ""     ">=0.9")
+    fi
     # An illegal version of pyparsing may be downloaded by Matplotlib!
     pyparsing_downloaded="$(ls "${top_dir}/tmp/pip" | grep -i "pyparsing" || :)"
     illegal_pyparsings=("2.0.0" "2.0.4")
@@ -2192,31 +2601,49 @@ if [ "${matplotlib_preinstalled}" == "no" ]; then
     cp "setup.cfg.template" "setup.cfg"
     sed -i "/basedirlist/c\basedirlist = ${freetype_dir}" "setup.cfg"
     cp -r "${freetype_dir}/include/freetype"*/* "${freetype_dir}/include"
-    export CPPFLAGS="-I${freetype_dir}/include -I${freetype_dir}/include/freetype"*" -I${libpng_dir}/include -I${libpng_dir}/include/libpng${libpng_version_majors} -I${zlib_dir}/include ${CPPFLAGS}"
-    export LDFLAGS="-L${freetype_dir}/lib -Wl,-rpath=${freetype_dir}/lib -L${libpng_dir}/lib -Wl,-rpath=${libpng_dir}/lib -L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
+    export CPPFLAGS="-I${freetype_dir}/include                              \
+                     -I${freetype_dir}/include/freetype"*"                  \
+                     -I${libpng_dir}/include                                \
+                     -I${libpng_dir}/include/libpng${libpng_version_majors} \
+                     -I${zlib_dir}/include ${CPPFLAGS}"
+    export LDFLAGS="-L${freetype_dir}/lib          \
+                    -Wl,-rpath=${freetype_dir}/lib \
+                    -L${libpng_dir}/lib            \
+                    -Wl,-rpath=${libpng_dir}/lib   \
+                    -L${zlib_dir}/lib              \
+                    -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
     export PATH="${freetype_dir}/bin:${libpng_dir}/bin:${PATH}"
     export LD_LIBRARY_PATH="${libpng_dir}/lib:${zlib_dir}/lib:${LD_LIBRARY_PATH}"
-    export PKG_CONFIG_PATH="${libpng_dir}/lib/pkgconfig:${zlib_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
-    "${python}" -m pip install -v -v -v -b "${top_dir}/tmp/pip/build" --no-index --find-links="${top_dir}/tmp/pip" . 2>&1
+    export PKG_CONFIG_PATH="${libpng_dir}/lib/pkgconfig:${zlib_dir}/lib/pkgconfig:\
+${PKG_CONFIG_PATH}"
+    "${python}" -m pip install -v -v -v                          \
+                               -b                                \
+                               "${top_dir}/tmp/pip/build"        \
+                               --no-index                        \
+                               --find-links="${top_dir}/tmp/pip" \
+                               . 2>&1
     reset_environment
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/pip"
 fi
 
 # MPI4Py
-if [ "${mpi4py_preinstalled}" == "no" ]; then
+if [ "${mpi4py_install}" == "yes" ]; then
     export PATH="${mpi_dir}/bin:${PATH}"
-    pip_install "MPI4Py" "${mpi4py_version}"
+    pip_install_pypackage "MPI4Py" "${mpi4py_version}"
     reset_environment
 fi
 
 # Pexpect (this has to be before H5Py, for whatever reason)
-if [ "${pexpect_preinstalled}" == "no" ]; then
-    pip_install "Pexpect" "${pexpect_version}"
+if [ "${pexpect_install}" == "yes" ]; then
+    pip_install_pypackage "Pexpect" "${pexpect_version}"
 fi
 
-# H5Py (manual invocation of setup.py is needed as --mpi needs to be supplied)
-if [ "${h5py_preinstalled}" == "no" ]; then
+# H5Py (manual invocation of setup.py is needed
+# as --mpi needs to be supplied).
+if [ "${h5py_install}" == "yes" ]; then
+    # Note that the Python package dependencies NumPy, Cython and six
+    # (ships with matplotlib) are already installed.
     current_step="installation of H5Py ${h5py_version}"
     heading "Installing H5Py ${h5py_version}"
     set_status "Installing H5Py ${h5py_version}"
@@ -2242,13 +2669,16 @@ logs_dir="${concept_dir}/logs"
 output_dir="${concept_dir}/output"
 if [ "${concept_install}" == "yes" ]; then
     init_install "CONCEPT"
-    mv ./* "${top_dir}"  # This leaves the .paths file behind in the concept-master folder
+    # Move everything (but the .paths file) from the concept-master 
+    # directory to "top_dir".
+    mv ./* "${top_dir}"
     cd "${top_dir}"; rm -rf "${top_dir}/tmp/concept"
     # Create empty logs and output directories
     mkdir -p "${logs_dir}"
     mkdir -p "${output_dir}"
 
-    # Create the .paths file, storing important paths used by the program
+    # Create the .paths file, 
+    # storing important paths used by the program.
     current_step="creation of the .paths file"
     printf "\nWriting paths to .paths\n"
     set_status "Writing paths to .paths"
@@ -2308,8 +2738,6 @@ zlib_dir='${zlib_dir}'
 #########
 # The executable script of the CO𝘕CEPT code
 concept='${concept}'
-# The convert executable from ImageMagick
-convert='${convert}'
 # The installer script
 installer='${installer}'
 # The MPI C compiler
@@ -2321,7 +2749,11 @@ python='${python}'
 # The Python3 configuration executable
 python_config='${python_config}'
 " > "${dotpaths}"
+# The following ImageMagick lines were removed:
+# # The convert executable from ImageMagick
+# convert='${convert}'
 fi
+
 
 
 #####################################################
@@ -2338,7 +2770,12 @@ if [ "${fftw_for_gadget_install}" == "yes" ]; then
     export MPILIBS="-lmpi"
     export PATH="${mpi_dir}/bin:${PATH}"
     # Double-precision
-    ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --enable-type-prefix --prefix="${fftw_for_gadget_dir}" 2>&1
+    ./configure --enable-shared      \
+                --enable-mpi         \
+                --enable-openmp      \
+                --enable-threads     \
+                --enable-type-prefix \
+                --prefix="${fftw_for_gadget_dir}" 2>&1
     make 2>&1
     if [ "${fast_install}" == "no" ]; then
         make check 2>&1 | tee "test_log"
@@ -2347,7 +2784,13 @@ if [ "${fftw_for_gadget_install}" == "yes" ]; then
     make install 2>&1
     # Single-precision
     make clean
-    ./configure --enable-shared --enable-mpi --enable-openmp --enable-threads --enable-float --enable-type-prefix --prefix="${fftw_for_gadget_dir}" 2>&1
+    ./configure --enable-shared      \
+                --enable-mpi         \
+                --enable-openmp      \
+                --enable-threads     \
+                --enable-float       \
+                --enable-type-prefix \
+                --prefix="${fftw_for_gadget_dir}" 2>&1
     make 2>&1
     if [ "${fast_install}" == "no" ]; then
         make check 2>&1 | tee -a "test_log"
@@ -2355,11 +2798,12 @@ if [ "${fftw_for_gadget_install}" == "yes" ]; then
     fi
     fftw_for_gadget_test_log="${fftw_for_gadget_dir}/test_log"
     if [ "${fftw_for_gadget_test_success}" == "no" ]; then
+        mkdir -p "${fftw_for_gadget_dir}"
         cp "test_log" "${fftw_for_gadget_test_log}"
     fi
     make install 2>&1
     reset_environment
-    cp "COPYING" "README" "${fftw_for_gadget_dir}/"
+    cp "COPYING" "README" "${fftw_for_gadget_dir}/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/fftw_for_gadget"
 fi
@@ -2371,6 +2815,7 @@ if [ "${gadget_install}" == "yes" ]; then
     mv ./* "${gadget_dir}"
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/gadget"
+    # GADGET will be tested as part of the CO𝘕CEPT test suite
 fi
 
 # All installation done
@@ -2403,7 +2848,8 @@ if [ "${fast_install}" == "no" ] && [ "${concept_install}" == "yes" ]; then
                 rm -f "${gadget_test_log}"
             fi
         fi
-        # Run complete CO𝘕CEPT test suite if basic CO𝘕CEPT test finished successfully
+        # Run complete CO𝘕CEPT test suite if basic CO𝘕CEPT test
+        # finished successfully.
         if [ "${concept_test_success}" == "yes" ]; then
             current_step="testing ${esc_concept}"
             heading "Testing ${esc_concept}"
@@ -2499,7 +2945,8 @@ erroneous_test_notice()
         if [ -n "${2}" ]; then
             printf "${2}\n"
         else
-            printf "As ${real_name} did seem to install correctly, this is usually not of any concern.\n"
+            printf "As ${real_name} did seem to install correctly, "
+            printf "this is usually not of any concern.\n"
         fi
         printf "The logged output of the tests can be found in\n"
         printf "\"${test_log_path}\"\n"
@@ -2518,7 +2965,8 @@ erroneous_test_notice "ncurses"
 erroneous_test_notice "OpenSSL"
 erroneous_test_notice "Python"
 erroneous_test_notice "zlib"
-erroneous_test_notice "CONCEPT" "${esc_italic}This should usually be taken seriously!${esc_no_italic}"
+erroneous_test_notice "CONCEPT" \
+                      "${esc_italic}This should usually be taken seriously!${esc_no_italic}"
 if [ "${any_test_error_notices}" == "yes" ]; then
     printf "The logged output of the entire installation process can be found in\n"
     printf "\"${log}\"\n"

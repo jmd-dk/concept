@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
 #
-# CO𝘕CEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
@@ -16,8 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at
-# jeppe.mosgaard.dakin(at)post.au.dk
+# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -35,28 +34,32 @@ source "${this_dir}/../environment"
 "${this_dir}/clean"
 
 # Create list of output times
-"${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', [0.5])"
+"${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', (0.1, 0.5, 1))"
 
 # Generate ICs
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local
 
-# Run the CO𝘕CEPT code on the generated ICs, with 1, 2 and 4 processes.
-# Keep only the latest frame
+# Run the CO𝘕CEPT code on the generated ICs, with 1, 2 and 4 processes
 "${concept}" -n 1 -p "${this_dir}/params" --local
-mv "${this_dir}/output/snapshot_a=0.50" "${this_dir}/output/snapshot_cython_1"
+rm -rf "${this_dir}/output_cython_1"
+mv "${this_dir}/output" "${this_dir}/output_cython_1"
 "${concept}" -n 2 -p "${this_dir}/params" --local
-mv "${this_dir}/output/snapshot_a=0.50" "${this_dir}/output/snapshot_cython_2"
+rm -rf "${this_dir}/output_cython_2"
+mv "${this_dir}/output" "${this_dir}/output_cython_2"
 "${concept}" -n 4 -p "${this_dir}/params" --local
-mv "${this_dir}/output/snapshot_a=0.50" "${this_dir}/output/snapshot_cython_4"
+rm -rf "${this_dir}/output_cython_4"
+mv "${this_dir}/output" "${this_dir}/output_cython_4"
 
-# Run the CO𝘕CEPT code in pure Python mode on the generated ICs, with 1, 2 and 4 processes.
-# Keep only the latest frame
+# Run the CO𝘕CEPT code in pure Python mode on the generated ICs, with 1, 2 and 4 processes
 "${concept}" -n 1 -p "${this_dir}/params" --pure-python --local
-mv "${this_dir}/output/snapshot_a=0.50" "${this_dir}/output/snapshot_python_1"
+rm -rf "${this_dir}/output_python_1"
+mv "${this_dir}/output" "${this_dir}/output_python_1"
 "${concept}" -n 2 -p "${this_dir}/params" --pure-python --local
-mv "${this_dir}/output/snapshot_a=0.50" "${this_dir}/output/snapshot_python_2"
+rm -rf "${this_dir}/output_python_2"
+mv "${this_dir}/output" "${this_dir}/output_python_2"
 "${concept}" -n 4 -p "${this_dir}/params" --pure-python --local
-mv "${this_dir}/output/snapshot_a=0.50" "${this_dir}/output/snapshot_python_4"
+rm -rf "${this_dir}/output_python_4"
+mv "${this_dir}/output" "${this_dir}/output_python_4"
 
 # Analyze the output snapshots
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local

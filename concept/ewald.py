@@ -1,7 +1,7 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
 #
-# CO𝘕CEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
@@ -14,8 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at
-# jeppe.mosgaard.dakin(at)post.au.dk
+# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -100,8 +99,7 @@ def summation(x, y, z):
                 if dist > maxdist:
                     continue
                 scalarpart = -dist**(-3)*(erfc(dist*recp_2rs)
-                                          + dist*recp_sqrt_π_rs
-                                          * exp(dist2*minus_recp_4rs2))
+                                          + dist*recp_sqrt_π_rs* exp(dist2*minus_recp_4rs2))
                 force_x += dist_x*scalarpart
                 force_y += dist_y*scalarpart
                 force_z += dist_z*scalarpart
@@ -125,7 +123,6 @@ def summation(x, y, z):
     force[1] = force_y
     force[2] = force_z
     return force
-
 
 # Master function of this module. Returns the Ewald force correction.
 @cython.header(# Arguments

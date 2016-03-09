@@ -1,9 +1,9 @@
 # This Python file uses the following encoding: utf-8
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
 #
-# CO𝘕CEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
@@ -16,8 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at
-# jeppe.mosgaard.dakin(at)post.au.dk
+# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -66,18 +65,18 @@ and then changed in the following ways:
 
 
 # For Python 2.x compatibility
-from __future__ import nested_scopes, generators, division, absolute_import, with_statement, print_function, unicode_literals
+from __future__ import nested_scopes, generators, division
+from __future__ import absolute_import, with_statement, print_function, unicode_literals
 import sys
 if sys.version_info.major < 3:
     from codecs import open
 def non_nested_exec(s):
     exec(s)
-
-
 from copy import deepcopy
 import imp, itertools, os, re, shutil, unicodedata
 # For development purposes only
 from time import sleep
+
 
 
 # Mapping of modules to extension types defined within (Cython classes)
@@ -93,7 +92,7 @@ def oneline(filename):
     paren_counts = {'paren': 0, 'brack': 0, 'curly': 0}
     def count_parens(line):
         if line.lstrip().startswith('#'):
-            return
+            return line
         L = len(line)
         for j, ch in enumerate(line):
             # Inside quotations?
@@ -112,7 +111,9 @@ def oneline(filename):
                     in_triple_quotes[1] = not in_triple_quotes[1]
                     if not in_triple_quotes[1]:
                         in_quotes[0] = in_quotes[1] = False
-            if ch == '#':
+            # Break at and remove inline comment
+            if ch == '#' and not in_quotes[0] and not in_quotes[1]:
+                line = line[:j].rstrip() + '\n'
                 break
             # Count parentheses outside quotes
             if not in_quotes[0] and not in_quotes[1]:
@@ -128,7 +129,7 @@ def oneline(filename):
                     paren_counts['curly'] += 1
                 elif ch == '}':
                     paren_counts['curly'] -= 1
-        return
+        return line
 
     new_lines = []
     multiline_statement = []
@@ -136,7 +137,7 @@ def oneline(filename):
     multiline_decorator = False
     with open(filename, 'r', encoding='utf-8') as pyxfile:
         for i, line in enumerate(pyxfile):
-            count_parens(line)
+            line = count_parens(line)
             if (paren_counts['paren'] > 0 or
                 paren_counts['brack'] > 0 or
                 paren_counts['curly'] > 0) and not multiline:
@@ -146,8 +147,10 @@ def oneline(filename):
                     multiline_decorator = True
                     new_lines.append(line)
                     continue
-                if '#' in line:
-                    line = line[:line.index('#')]
+                if line.lstrip().startswith('#'):
+                    # Delete full-line comment
+                    # within multiline statement.
+                    line = ''
                 if line:
                     multiline_statement.append(line.rstrip())
             elif (paren_counts['paren'] > 0 or
@@ -157,8 +160,10 @@ def oneline(filename):
                 if multiline_decorator:
                     new_lines.append(line)
                     continue
-                if '#' in line:
-                    line = line[:line.index('#')]
+                if line.lstrip().startswith('#'):
+                    # Delete full-line comment
+                    # within multiline statement.
+                    line = ''
                 if line:
                     multiline_statement.append(' ' + line.strip())
             elif multiline:
@@ -183,7 +188,9 @@ def cimport_commons(filename):
         lines = pyxfile.read().split('\n')
     for i, line in enumerate(lines):
         if line.startswith('from commons import *'):
-            lines = lines[:(i + 1)] + ['cimport cython', 'from commons cimport *'] + lines[(i + 1):]
+            lines = (  lines[:(i + 1)]
+                     + ['cimport cython', 'from commons cimport *']
+                     + lines[(i + 1):])
             break
     with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.writelines('\n'.join(lines))
@@ -216,7 +223,10 @@ def cimport_function(filename):
         lines = pyxfile.read().split('\n')
     for i, line in enumerate(lines):
         if line.lstrip().startswith('cimport'):
-            lines[i] = re.sub('cimport.*\((.*?)\)', lambda match: match.group(1).replace('import ', 'cimport ').replace("'", '').replace("'", ''), line)
+            lines[i] = re.sub('cimport.*\((.*?)\)',
+                              lambda match: (match.group(1).replace('import ', 'cimport ')
+                                                           .replace("'", '').replace("'", '')),
+                                             line)
     with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.writelines('\n'.join(lines))
 
@@ -241,7 +251,8 @@ def cythonstring2code(filename):
             if not in_purePythonsection:
                 if unindent:
                     line_without_triple_quotes = line
-                    if line.startswith(' '*(indentation + 4) + '"""') or line.startswith(' '*(indentation + 4) + "'''"):
+                    if (   line.startswith(' '*(indentation + 4) + '"""') 
+                        or line.startswith(' '*(indentation + 4) + "'''")):
                         line_without_triple_quotes = line.replace('"""', '').replace("'''", '')
                     if len(line_without_triple_quotes) > 4:
                         new_lines.append(line_without_triple_quotes[4:])
@@ -280,7 +291,8 @@ def power2product(filename):
             expressions = [line[indices[i-1] + 2:indices[i+1]] for i, index
                            in enumerate(indices[:-2]) if i > 0]
             modified_line = ''
-            # Only change nonvariable, int powers. This also excludes **kwargs
+            # Only change nonvariable, int powers.
+            # This also excludes **kwargs.
             for ex, expression in enumerate(expressions):
                 power = None
                 expression_power = expression[expression.find('**') + 2:]
@@ -312,7 +324,8 @@ def power2product(filename):
                         nr_of_signs += symbol in '+-'
                         if (nr_of_signs > power_with_sign or symbol not in '+- .0123456789'):
                             break
-                    # I'm not sure if "expression_power[-1] != ')'" is safe!
+                    # I'm not sure whether
+                    # "expression_power[-1] != ')'" is safe!
                     if i == len(expression_power) - 1 and expression_power[-1] != ')':
                         i += 1
                     power = expression_power[:i]
@@ -329,7 +342,11 @@ def power2product(filename):
                 base = ''
                 before_base = ''
                 nested_power = False
-                if integer_power and (expression_base.replace(' ', '') == '' or (expression_base.replace(' ', '')[-1] == ')' and expression_base.count(')') != expression_base.count('('))) and firstcall:
+                if (integer_power and (    expression_base.replace(' ', '')     == ''
+                                       or (expression_base.replace(' ', '')[-1] == ')'
+                                           and (expression_base.count(')')
+                                                != expression_base.count('('))))
+                                  and firstcall):
                     parentheses = 0
                     done = False
                     completed = False
@@ -346,10 +363,12 @@ def power2product(filename):
                         if parentheses == 0 and done:
                             completed = True
                     if symbol_before_paren and symbol_before_paren not in ('+-*/%&|^@()='):
-                        # Base is really a function input, like sin(a)**2. Do nothing
+                        # Base is really a function input,
+                        # like sin(a)**2. Do nothing.
                         modified_line = modified_line if modified_line else line
                         continue
-                    # Nested power, as in the last ** in '(a**2 + b**2)**3'
+                    # Nested power,
+                    # as in the last ** in '(a**2 + b**2)**3'.
                     nested_power = True
                 elif expression_base.replace(' ', '')[-1] == ')':
                     # Base in parentheses
@@ -366,8 +385,10 @@ def power2product(filename):
                     base = expression_base[::-1][0:(i + 1)][::-1]
                     before_base = expression_base[::-1][(i + 1):][::-1]
                     before_base_rstrip = before_base.rstrip()
-                    if before_base_rstrip and before_base_rstrip[-1].lower() not in ('+-*/%&|^@()='):
-                        # Base is really a function input, like sin(a)**2. Do nothing
+                    if (before_base_rstrip
+                        and before_base_rstrip[-1].lower() not in ('+-*/%&|^@()=')):
+                        # Base is really a function input,
+                        # like sin(a)**2. Do nothing.
                         modified_line = modified_line if modified_line else line
                         continue
                 else:
@@ -385,7 +406,8 @@ def power2product(filename):
                                 done = True
                             if brackets == 0 and done:
                                 break
-                        brackets_width_content = expression_base[(len(expression_base) - i - 1):].rstrip()
+                        brackets_width_content = (expression_base[(len(expression_base) - i - 1):]
+                                                  .rstrip())
                         expression_base = expression_base[:(len(expression_base) - i - 1)]
                     for i, symbol in enumerate(reversed(expression_base)):
                         try:
@@ -396,7 +418,8 @@ def power2product(filename):
                                 break
                     base = base[1:].replace(' ', '') + brackets_width_content
                     before_base = expression_base[::-1][i:][::-1]
-                # Replaces ** with a string of multiplications for integer powers
+                # Replaces ** with a string of multiplications
+                # for integer powers.
                 if integer_power:
                     if nested_power and firstcall:
                         operation = expression_base + pyxpp_power + power
@@ -606,7 +629,8 @@ def cython_decorators(filename):
                 # Look for returntype
                 returntype = ''
                 for j, hline in enumerate(header):
-                    if 'returns=' in hline:
+                    hline = re.sub('returns *= *', 'returns=', hline)
+                    if 'returns=' in hline and not hline.lstrip().startswith('#'):
                         in_brackets = 0
                         for c in hline[(hline.index('returns=') + 8):]:
                             if c == '[':
@@ -616,11 +640,13 @@ def cython_decorators(filename):
                             elif c == ')' or (c == ',' and not in_brackets):
                                 break
                             returntype += c
-                        header[j] = header[j].replace('returns=' + returntype, ' '*len('returns=' + returntype))
+                        header[j] = hline.replace('returns=' + returntype,
+                                                  ' '*len('returns=' + returntype))
                         if not header[j].replace(',', '').strip():
                             del header[j]
                         else:
-                            # Looks for lonely comma due to removal of "returns="
+                            # Looks for lonely comma
+                            # due to removal of "returns=".
                             lonely = True
                             for k, c in enumerate(header[j]):
                                 if c == ',' and lonely:
@@ -639,7 +665,8 @@ def cython_decorators(filename):
                                 break
                             elif c != ' ':
                                 break
-                # Change @cython.header to @cython.locals, if header contains declarations.
+                # Change @cython.header to @cython.locals,
+                # if header contains declarations.
                 # Otherwise, remove it.
                 if '=' in ''.join(header):
                     header[0] = header[0].replace(headertype, 'locals')
@@ -659,7 +686,8 @@ def cython_decorators(filename):
                               'wraparound(False)',
                                ) if decorator
                               ]
-                header = [' '*n_spaces + '@cython.' + decorator for decorator in decorators] + header
+                header = ([' '*n_spaces + '@cython.' + decorator for decorator in decorators]
+                          + header)
                 if returntype:
                     header += [' '*n_spaces + '@cython.returns(' + returntype + ')']
                 # Place the new header among the lines
@@ -678,10 +706,14 @@ def make_pxd(filename):
                'StandardSnapshot': 'from snapshot cimport StandardSnapshot',
                'GadgetSnapshot':   'from snapshot cimport GadgetSnapshot',
                # Function pointers
-               'func_b_ddd':   'ctypedef bint '    + '(*func_b_ddd_pxd)'   + '(double, double, double)',
-               'func_d_dd':    'ctypedef double '  + '(*func_d_dd_pxd)'    + '(double, double)',
-               'func_d_ddd':   'ctypedef double '  + '(*func_d_ddd_pxd)'   + '(double, double, double)',
-               'func_ddd_ddd': 'ctypedef double* ' + '(*func_ddd_ddd_pxd)' + '(double, double, double)',
+               'func_b_ddd':   ('ctypedef bint '
+                                '(*func_b_ddd_pxd)(double, double, double)'),
+               'func_d_dd':    ('ctypedef double '
+                                '(*func_d_dd_pxd)(double, double)'),
+               'func_d_ddd':   ('ctypedef double '
+                                '(*func_d_ddd_pxd)(double, double, double)'),
+               'func_ddd_ddd': ('ctypedef double* '
+                                '(*func_ddd_ddd_pxd)(double, double, double)'),
                # External definitions
                'fftw_plan':          ('cdef extern from "fft.c":\n'
                                       '    ctypedef struct fftw_plan_struct:\n'
@@ -711,7 +743,8 @@ def make_pxd(filename):
     #                             """'
     pxd_lines.append('# pxd hints\n')
     for i, line in enumerate(code):
-        if line.replace(' ', '').startswith('pxd="""') or line.replace(' ', '').startswith("pxd='''"):
+        if (   line.replace(' ', '').startswith('pxd="""')
+            or line.replace(' ', '').startswith("pxd='''")):
             quote_type = '"""' if line.replace(' ', '').startswith('pxd="""') else "'''"
             for j, line in enumerate(code[(i + 1):]):
                 if line.startswith(quote_type):
@@ -723,7 +756,9 @@ def make_pxd(filename):
     else:
         pxd_lines.append('\n')
     # Import all types with spaces (e.g. "long int") from commons.py
-    types_with_spaces = [(key.replace(' ', ''), key) for key in imp.load_source('commons', 'commons.py').C2np.keys() if ' ' in key]
+    types_with_spaces = [(key.replace(' ', ''), key)
+                         for key in imp.load_source('commons', 'commons.py').C2np.keys()
+                         if ' ' in key]
     types_with_spaces = sorted(types_with_spaces, key=lambda t: len(t[1]), reverse=True)
     # Function that finds non-indented function definitions in a block
     # of code (list of lines). It appends to header_lines and pxd_lines.
@@ -731,7 +766,8 @@ def make_pxd(filename):
         for i, line in enumerate(code):
             if line.startswith('def '):
                 # Function definition found.
-                # Find out whether cdef (cfunc) of cpdef (ccall) function
+                # Find out whether cdef (cfunc)
+                # or cpdef (ccall) function.
                 cpdef = False
                 purepy_func = True
                 for cp_line in reversed(code[:i]):
@@ -773,7 +809,8 @@ def make_pxd(filename):
                 # not it, continue.
                 if only_funcname and only_funcname != function_name:
                     continue
-                # Replace default keyword argument values with an asterisk.
+                # Replace default keyword argument values
+                # with an asterisk.
                 for j, c in enumerate(function_args):
                     if c == '=':
                         if function_args[j + 1] == ' ':
@@ -788,7 +825,8 @@ def make_pxd(filename):
                         if c == '=' and function_args[j + 1] != '*':
                             for k in range(j + 1, len(function_args)):
                                 if function_args[k] in (',', ' '):
-                                    function_args = function_args[:(j + 1)] + '*' + function_args[k:]
+                                    function_args = (function_args[:(j + 1)] + '*'
+                                                                             + function_args[k:])
                                     break
                                 elif k == len(function_args) - 1:
                                     function_args = function_args[:(j + 1)] + '*'
@@ -810,7 +848,8 @@ def make_pxd(filename):
                             # Above function decorators
                             break
                         if line.startswith('@cython.returns(') and return_vals[j] is None:
-                            # Return value found. Assume it is a one-liner
+                            # Return value found.
+                            # Assume it is a one-liner.
                             return_val = line[16:].strip()
                             if return_val[-1] == ')':
                                 return_val = return_val[:-1].strip()
@@ -818,8 +857,8 @@ def make_pxd(filename):
                             return_val = return_val.replace("'", '')
                             return_vals[j] = return_val
                         if k != 0 and line.startswith('def '):
-                            # Previous function reached. The current function
-                            # must be a pure Python function
+                            # Previous function reached. The current
+                            # function must be a pure Python function.
                             function_args[j] = None
                             break
                         line = line.replace(' ', '')
@@ -852,7 +891,8 @@ def make_pxd(filename):
                                             header_lines.append(customs[argtype.replace('*', '')])
                                         if 'func_' in argtype:
                                             argtype += '_pxd'
-                                            argtype = argtype.replace('*', '') + '*'*argtype.count('*')
+                                            argtype = (argtype.replace('*', '')
+                                                       + '*'*argtype.count('*'))
                                         function_args[j] = function_args[j].strip()
                                         function_args[j] = function_args[j].strip(',')
                                         function_args[j] = function_args[j].strip()
@@ -865,7 +905,7 @@ def make_pxd(filename):
                         line_before = deepcopy(line)
                 # Due to a bug in the above, the last argument can
                 # sometimes include the closing parenthesis.
-                # Remove this
+                # Remove this parenthesis.
                 function_args[-1] = function_args[-1].replace(')', '')
                 # None's in function_args means pure Python functions
                 if None in function_args:
@@ -924,7 +964,9 @@ def make_pxd(filename):
                     break
             if m == len(code) - 1:
                 m += 1
-            class_code_unindented = [line if len(line) < 4 else line[4:] for line in code[(l + k + j + j0 + i + 4):(m + l + k + j + j0 + i + 4 )]]
+            class_code_unindented = [line if len(line) < 4 else line[4:]
+                                     for line in code[(l + k + j + j0 + i + 4)
+                                                      :(m + l + k + j + j0 + i + 4 )]]
             pxd_lines.append(' '*8 + '# Methods\n')
             find_functions(class_code_unindented, indent=4)
             # Remove the '# Methods' line if the class has no methods
@@ -962,7 +1004,9 @@ def make_pxd(filename):
                 declaration = declaration.replace('=', '')
                 globals_code = (globals_code[:i] + ['@cython.cfunc',
                                                    '@cython.locals' + line[14:],
-                                                   'def ' + globals_phony_funcname + declaration + ':',
+                                                   ('def '
+                                                    + globals_phony_funcname + declaration
+                                                    + ':'),
                                                    '    pass'] + globals_code[(i + 1):])
                 break
         if done:
@@ -988,7 +1032,9 @@ def make_pxd(filename):
                             break
                     for j in range(len(lines)):
                         lines[j] = '    ' + lines[j].strip() + '\n'
-                    pxd_lines = pxd_lines[:(variable_index + i)] + lines + pxd_lines[(variable_index + i + 1):]
+                    pxd_lines = (pxd_lines[:(variable_index + i)]
+                                 + lines
+                                 + pxd_lines[(variable_index + i + 1):])
                     done = False
                     break
                 else:
@@ -1018,7 +1064,8 @@ def make_pxd(filename):
     total_lines += pxd_lines
     # If nothing else, place a comment in the pxd file
     if not total_lines:
-        total_lines = ['# This module does not expose any c-level functions or classes to the outside world\n']
+        total_lines = ['# This module does not expose any c-level functions or classes '
+                       'to the outside world\n']
     # Update/create .pxd
     with open(pxd_filename, 'w', encoding='utf-8') as pxdfile:
         pxdfile.writelines(total_lines)
@@ -1032,8 +1079,42 @@ def constant_expressions(filename):
     expressions = []
     expressions_cython = []
     declaration_linenrs = []
-    operations = ('.', '+', '-', '**', '*', '/', '^', '&', '|', '@', ',', '(', ')', '[', ']', '{', '}')
-    operations_names = ('dot', 'pls', 'min', 'pow', 'tim', 'div', 'car', 'and', 'bar', 'at', 'com', 'opar', 'cpar', 'obra', 'cbra', 'ocur', 'ccur')
+    operations = ('.',
+                  '+',
+                  '-',
+                  '**',
+                  '*',
+                  '/',
+                  '^',
+                  '&',
+                  '|',
+                  '@',
+                  ',',
+                  '(',
+                  ')',
+                  '[',
+                  ']',
+                  '{',
+                  '}',
+                  )
+    operations_names = ('dot',
+                        'pls',
+                        'min',
+                        'pow',
+                        'tim',
+                        'div',
+                        'car',
+                        'and',
+                        'bar',
+                        'at',
+                        'com',
+                        'opar',
+                        'cpar',
+                        'obra',
+                        'cbra',
+                        'ocur',
+                        'ccur',
+                        )
     while True:
         no_blackboard_bold_R = True
         for i, line in enumerate(lines):
@@ -1053,14 +1134,19 @@ def constant_expressions(filename):
             variables = [expression.replace(' ', '')]
             for op in operations:
                 variables = list(itertools.chain(*[var.split(op) for var in variables]))
-            variables = [var for var in list(set(variables)) if var and var[0] not in '.0123456789']
+            variables = [var for var in list(set(variables))
+                             if var and var[0] not in '.0123456789']
             linenr_where_defined = [-1]*len(variables)
             for v, var in enumerate(variables):
                 for j, line2 in enumerate(reversed(lines[:(i + 1)])):
                     line2 = ' '*(len(line2) - len(line2.lstrip()))  + line2.replace(' ', '')
                     for op in operations:
                         line2 = line2.replace(op, '')
-                    if ' ' + var + '=' in line2 or ',' + var + '=' in line2 or ';' + var + '=' in line2 or '=' + var + '=' in line2 or line2.startswith(var + '='):
+                    if (   (' ' + var + '=') in line2
+                        or (',' + var + '=') in line2
+                        or (';' + var + '=') in line2
+                        or ('=' + var + '=') in line2
+                        or line2.startswith(var + '=')):
                         linenr_where_defined[v] = i - j
                         break
             if linenr_where_defined:
@@ -1069,7 +1155,8 @@ def constant_expressions(filename):
                 declaration_linenrs.append(-1)
             # Remove again if duplicate
             for j in range(len(expressions) - 1):
-                if expressions[j] == expressions[-1] and declaration_linenrs[j] == declaration_linenrs[-1]:
+                if (expressions[j] == expressions[-1]
+                    and declaration_linenrs[j] == declaration_linenrs[-1]):
                     expressions.pop()
                     expressions_cython.pop()
                     declaration_linenrs.pop()
@@ -1090,7 +1177,10 @@ def constant_expressions(filename):
                 continue
             # Go down until indentation level 0 is reached
             for j, line in enumerate(lines[(i + 1):]):
-                if len(line) > 0 and line[0] not in '# ' and not line.startswith('"""') and not line.startswith("'''"):
+                if (len(line) > 0
+                    and line[0] not in '# '
+                    and not line.startswith('"""')
+                    and not line.startswith("'''")):
                     linenr_unrecognized = i + j
                     break
     # Insert Cython declarations of constant expressions
@@ -1107,7 +1197,10 @@ def constant_expressions(filename):
         for e, n in enumerate(declaration_linenrs):
             if i == n:
                 indentation = ' '*(len(lines[i - 1]) - len(lines[i - 1].lstrip()))
-                new_lines.append(indentation + 'cython.declare(' + expressions_cython[e] + "='double')")
+                new_lines.append(indentation
+                                 + 'cython.declare('
+                                 + expressions_cython[e]
+                                 + "='double')")
                 new_lines.append(indentation + expressions_cython[e] + ' = ' + expressions[e])
     with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.writelines('\n'.join(new_lines))

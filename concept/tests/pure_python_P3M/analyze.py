@@ -1,7 +1,7 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
 #
-# CO𝘕CEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
@@ -14,8 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at
-# jeppe.mosgaard.dakin(at)post.au.dk
+# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -24,91 +23,105 @@
 # This file has to be run in pure Python mode!
 
 # Include the concept_dir in the searched paths and get directory of this file
-import sys, os
+import glob, sys, os
 sys.path.append(os.environ['concept_dir'])
 this_dir = os.path.dirname(os.path.realpath(__file__))
 
+# The name of this test
+this_test = os.path.basename(this_dir)
+
 # Imports from the CO𝘕CEPT code
 from commons import *
-from snapshot import load_particles
-
-# Determine the number of snapshots from the outputlist file
-N_snapshots = 1
+from snapshot import load_into_standard
 
 # Read in data from the CO𝘕CEPT snapshots
-particles_cython = []
-for i in (1, 2, 4):
-    particles_cython.append(load_particles(this_dir + '/output/snapshot_cython_' + str(i), compare_params=False))
-particles_python = []
-for i in (1, 2, 4):
-    particles_python.append(load_particles(this_dir + '/output/snapshot_python_' + str(i), compare_params=False))
+a = []
+particles = {'cython': {1: [], 2: [], 4: []},
+             'python': {1: [], 2: [], 4: []}}
+for cp in particles.keys():
+    for n in (1, 2, 4):
+        for fname in sorted(glob.glob('{}/output_{}_{}/snapshot_a=*'.format(this_dir, cp, n)),
+                            key=lambda s: s[(s.index('=') + 1):]):
+            snapshot = load_into_standard(fname, compare_params=False)
+            if cp == 'cython' and n == 1:
+                a.append(snapshot.params['a'])
+            particles[cp][n].append(snapshot.particles_list[0])
+N_snapshots = len(a)
 
-# Using the particle order of the 0'th snapshot as the standard, find the corresponding
-# ID's in the snapshots and order these particles accoringly.
-N = particles_python[0].N
+# Begin analysis
+masterprint('Analyzing {} data ...'.format(this_test))
+
+# Using the particle order of the cython snapshot as the standard, find the corresponding
+# ID's in the python snapshots and order these particles accoringly.
+N = particles['cython'][1][0].N
 D2 = zeros(N)
 ID = zeros(N, dtype='int')
 for i in range(N_snapshots):
-    for j in range(3):
-        x = particles_cython[j].posx
-        y = particles_cython[j].posy
-        z = particles_cython[j].posz
-        x_procs = particles_python[j].posx
-        y_procs = particles_python[j].posy
-        z_procs = particles_python[j].posz
-        for l in range(N):
+    for n in (1, 2, 4):
+        x_cython = particles['cython'][n][i].posx
+        y_cython = particles['cython'][n][i].posy
+        z_cython = particles['cython'][n][i].posz
+        x_python = particles['python'][n][i].posx
+        y_python = particles['python'][n][i].posy
+        z_python = particles['python'][n][i].posz
+        for j in range(N):
             for k in range(N):
-                dx = x[l] - x_procs[k]
+                dx = x_cython[j] - x_python[k]
                 if dx > 0.5*boxsize:
                     dx -= boxsize
                 elif dx < -0.5*boxsize:
                     dx += boxsize
-                dy = y[l] - y_procs[k]
+                dy = y_cython[j] - y_python[k]
                 if dy > 0.5*boxsize:
                     dy -= boxsize
                 elif dy < -0.5*boxsize:
                     dy += boxsize
-                dz = z[l] - z_procs[k]
+                dz = z_cython[j] - z_python[k]
                 if dz > 0.5*boxsize:
                     dz -= boxsize
                 elif dz < -0.5*boxsize:
                     dz += boxsize
                 D2[k] = dx**2 + dy**2 + dz**2
-            ID[l] = np.argmin(D2)
-        particles_python[j].posx = particles_python[j].posx[ID]
-        particles_python[j].posy = particles_python[j].posy[ID]
-        particles_python[j].posz = particles_python[j].posz[ID]
-        particles_python[j].momx = particles_python[j].momx[ID]
-        particles_python[j].momy = particles_python[j].momy[ID]
-        particles_python[j].momz = particles_python[j].momz[ID]
+            ID[j] = np.argmin(D2)
+        particles['python'][n][i].posx = particles['python'][n][i].posx[ID]
+        particles['python'][n][i].posy = particles['python'][n][i].posy[ID]
+        particles['python'][n][i].posz = particles['python'][n][i].posz[ID]
+        particles['python'][n][i].momx = particles['python'][n][i].momx[ID]
+        particles['python'][n][i].momy = particles['python'][n][i].momy[ID]
+        particles['python'][n][i].momz = particles['python'][n][i].momz[ID]
 
-# Compute distance between particles in the snapshot pairs
-fig_file = this_dir + '/result.png'
-x_python = [particles_python[j].posx for j in range(3)]
-y_python = [particles_python[j].posx for j in range(3)]
-z_python = [particles_python[j].posx for j in range(3)]
-x_cython = [particles_cython[j].posx for j in range(3)]
-y_cython = [particles_cython[j].posx for j in range(3)]
-z_cython = [particles_cython[j].posx for j in range(3)]
-dist = [sqrt(np.array([min([(x_cython[j][i] - x_python[j][i] + xsgn*boxsize)**2 + (y_cython[j][i] - y_python[j][i] + ysgn*boxsize)**2 + (z_cython[j][i] - z_python[j][i] + zsgn*boxsize)**2 for xsgn in (-1, 0, +1) for ysgn in (-1, 0, 1) for zsgn in (-1, 0, 1)]) for i in range(N)])) for j in range(3)]
+# Compute distance between particles in the two snapshots
+dist = collections.OrderedDict([(1, []), (2, []), (4, [])])
+for i in range(N_snapshots):
+    x = {(cp, n): particles[cp][n][i].posx for cp in ('cython', 'python') for n in (1, 2, 4)}
+    y = {(cp, n): particles[cp][n][i].posy for cp in ('cython', 'python') for n in (1, 2, 4)}
+    z = {(cp, n): particles[cp][n][i].posz for cp in ('cython', 'python') for n in (1, 2, 4)}
+    for n in (1, 2, 4):
+        dist[n].append(sqrt(np.array([min([(x['cython', n][j] - x['python', n][j] + xsgn*boxsize)**2 + (y['cython', n][j] - y['python', n][j] + ysgn*boxsize)**2 + (z['cython', n][j] - z['python', n][j] + zsgn*boxsize)**2 for xsgn in (-1, 0, +1) for ysgn in (-1, 0, +1) for zsgn in (-1, 0, +1)]) for j in range(N)])))
 
 # Plot
+fig_file = this_dir + '/result.png'
 fig, ax = plt.subplots(3, sharex=True, sharey=True)
-for i, a, d in zip((1, 2, 4), ax, dist):
-    a.plot(d/boxsize, 'sr')
-    a.set_ylabel('$|\mathbf{x}_{\mathrm{pp}' + str(i) + '} - \mathbf{x}_{\mathrm{c}' + str(i) + '}|/\mathrm{boxsize}$')
+for n, d, ax_i in zip(dist.keys(), dist.values(), ax):
+    for i in range(N_snapshots):
+        ax_i.plot(np.array(d[i])/boxsize, '.', alpha=.7, label='$a={}$'.format(a[i]), zorder=-i)
+    ax_i.set_ylabel('$|\mathbf{x}_{\mathrm{pp}' + str(n) + '} - \mathbf{x}_{\mathrm{c}' + str(n) + '}|/\mathrm{boxsize}$')
 ax[-1].set_xlabel('Particle number')
 plt.xlim(0, N - 1)
-plt.ylim(0, 1)
 fig.subplots_adjust(hspace=0)
-plt.setp([ax.get_xticklabels() for ax in fig.axes[:-1]], visible=False)
+plt.setp([ax_i.get_xticklabels() for ax_i in ax[:-1]], visible=False)
+ax[0].legend(loc='best').get_frame().set_alpha(0.3)
+plt.tight_layout()
 plt.savefig(fig_file)
+
+# Done analyzing
+masterprint('done')
 
 # Printout error message for unsuccessful test
 tol = 1e-2
-if any(np.mean(dist[j]/boxsize) > tol for j in range(3)):
+if any(np.mean(np.array(d)/boxsize) > tol for d in dist.values()):
     masterwarn('Some or all pure Python runs with nprocs = {1, 2, 4} yielded results\n'
-               + 'different from the compiled run!\n'
+               + 'different from their compiled counterparts!\n'
                + 'See "{}" for a visualization.'.format(fig_file))
     sys.exit(1)
 

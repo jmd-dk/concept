@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
 #
-# CO𝘕CEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
@@ -16,8 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at
-# jeppe.mosgaard.dakin(at)post.au.dk
+# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -111,7 +110,7 @@ absolute_path()
 # concept directory. Otherwise, return the absolute path back again.
 sensible_path()
 {
-"${python}" -B -c "
+"${python}" -c "
 path = '${1}'
 from os.path import relpath
 rel = relpath(path, '${concept_dir}')
@@ -189,11 +188,14 @@ parser.add_argument('-p', '--params',
                     default='${params_unspecified}',
                     )
 parser.add_argument('-q', '--queue',
-                    help='queue for submission of the remote job. If omitted the script will try to choose the best.',
+                    help=('queue for submission of the remote job. '
+                          'If omitted the script will choose a queue'
+                          'with a matching number of cores/node'),
                     default='${queue_unspecified}',
                     )
 parser.add_argument('-t', '--test',
-                    help='run test TEST. TEST can be any subdirectory of the tests directory. Use TEST=all to run all tests',
+                    help=('run test TEST. TEST can be any subdirectory of the tests directory. '
+                          'Use TEST=all to run all tests'),
                     default='${test_unspecified}',
                     )
 parser.add_argument('-u', '--util',
@@ -233,7 +235,8 @@ print('graceful_exit',
       args.queue,
       args.test,
       args.util[0],
-      '\"' + '\"__space__\"'.join(args.util[1:]).replace(' ','__space__') + '\"' if len(args.util) > 1 else '\"\"',
+      ('\"' + '\"__space__\"'.join(args.util[1:]).replace(' ','__space__')
+       + '\"' if len(args.util) > 1 else '\"\"'),
       args.walltime,
       args.local,
       args.pure_python,
@@ -380,7 +383,8 @@ if [ "${pure_python}" == "True" ] ; then
         (cd "${concept_dir}" && for f in *.so; do mv "${f}" "${f%.so}.so_"; done)
     fi
 else
-    # Rename compiled Cython modules *.so_ back to *.so and compile with Cython
+    # Rename compiled Cython modules *.so_ back to *.so
+    # and compile with Cython.
     if ls "${concept_dir}/"*.so_ > /dev/null 2>&1; then
         (cd "${concept_dir}" && for f in *.so_; do mv "${f}" "${f%.so_}.so"; done)
     fi
@@ -466,7 +470,8 @@ mkdir -p "${logs_dir}"
 # Determine whether this script is run locally or remotely via ssh.
 # Always treat tests as if they were run locally.
 remote="False"
-if [ "${local}" == "False" ] && [ "${test}" == "${test_unspecified}" ] && ([ -n "${SSH_CLIENT}" ] || [ -n "${SSH_TTY}" ]); then
+if [ "${local}" == "False" ] && [ "${test}" == "${test_unspecified}" ] \
+                             && ([ -n "${SSH_CLIENT}" ] || [ -n "${SSH_TTY}" ]); then
     remote="True"
 fi
 
@@ -489,7 +494,8 @@ elif [ ${#queues[@]} -gt 0 ] && [ "${remote}" == "True" ]; then
             fi
         done
         if [ $((${nprocs} % ${ppn})) != 0 ]; then
-            colorprint "Error: Job submission refused: The number of processes (${nprocs}) is not divisible by the number of cores per node in any queue" "red"
+            colorprint "Error: Job submission refused: The number of processes (${nprocs}) is not \
+divisible by the number of cores per node in any queue" "red"
             exit 1
         fi
         nodes="$((${nprocs} / ${ppn}))"
@@ -508,9 +514,11 @@ elif [ ${#queues[@]} -gt 0 ] && [ "${remote}" == "True" ]; then
             exit 1
         fi
         nodes=$((${nprocs} / ${ppn}))
-        # Check that the explicitly chosen queue can be run with all the node's CPUs in use
+        # Check that the explicitly chosen queue can be run
+        # with all the node's CPUs in use.
         if [ $((${nprocs} % ${ppn})) != 0 ]; then
-            colorprint "Warning: The number of processes (${nprocs}) is not divisible by the number of cores per node (${ppn}) in queue ${queue}" "red"
+            colorprint "Warning: The number of processes (${nprocs}) is not divisible by \
+the number of cores per node (${ppn}) in queue ${queue}" "red"
             read -p "Submit anyway? [y/N] " yn
             case "${yn}" in
                 [Yy]* ) ;;
@@ -518,7 +526,8 @@ elif [ ${#queues[@]} -gt 0 ] && [ "${remote}" == "True" ]; then
                 ""    ) echo "Job submission refused"; trap : 0; exit 0;;
                 *     ) echo "Job submission refused"; trap : 0; exit 0;;
             esac
-            # Not every CPU pr. node should be used. Find the right number
+            # Not every CPU pr. node should be used.
+            # Find the right number.
             while [ ${ppn} -gt 1 ]; do
                 ((ppn -= 1))
                 if [ $((${nprocs} % ${ppn})) == 0 ]; then
@@ -563,9 +572,11 @@ source \"${concept}\"
 
 # Print start messages
 if [ \"${pure_python}\" == \"True\" ]; then
-    colorprint \"Running CONCEPT in pure Python mode remotely on \$(hostname -f) as job \${jobid}\" \"yellow\" > \"${logs_dir}/\${jobid}\"
+    colorprint \"Running CONCEPT in pure Python mode remotely on \$(hostname -f) \
+as job \${jobid}\" \"yellow\" > \"${logs_dir}/\${jobid}\"
 else
-    colorprint \"Running CONCEPT remotely on \$(hostname -f) as job \${jobid}\" \"yellow\" > \"${logs_dir}/\${jobid}\"
+    colorprint \"Running CONCEPT remotely on \$(hostname -f) \
+as job \${jobid}\" \"yellow\" > \"${logs_dir}/\${jobid}\"
 fi
 echo \"Entry point:   \\\\\"${main_rel}\\\\\"\"               >> \"${logs_dir}/\${jobid}\"
 if [ \"${params_rel}\" == \"None\" ]; then
@@ -589,24 +600,31 @@ fi
 
 # Run the code. Both stdout and stderr are being logged to logs_dir/jobid,
 # while the stderr alone is also logged to logs_dir/jobid_err.
-(cd \"${concept_dir}\" && \"${mpiexec}\" \"${python}\" -B \${m_flag} \"\${main_as_library}\" \"params='${params}'\" \"scp_password='${scp_password}'\" >> \"${logs_dir}/\${jobid}\" 2>> >(tee -a \"${logs_dir}/\${jobid}_err\"))
+(cd \"${concept_dir}\" && \"${mpiexec}\" \"${python}\" -B \${m_flag} \"\${main_as_library}\" \
+\"params='${params}'\" \"scp_password='${scp_password}'\" \
+>> \"${logs_dir}/\${jobid}\" 2>> >(tee -a \"${logs_dir}/\${jobid}_err\"))
 
 # Run complete. Remove error log if empty
 if [ -f \"${logs_dir}/\${jobid}_err\" ] && [ ! -s \"${logs_dir}/\${jobid}_err\" ]; then
     rm \"${logs_dir}/\${jobid}_err\"
 else
-    colorprint \"\\\nSome warnings/errors occured during CONCEPT run!\" \"red\" >> \"${logs_dir}/\${jobid}\" 2>&1
-    colorprint \"Check the following error log for more information:\"  \"red\" >> \"${logs_dir}/\${jobid}\" 2>&1
-    colorprint \"\\\\\"${logs_dir}/\${jobid}_err\\\\\"\"                \"red\" >> \"${logs_dir}/\${jobid}\" 2>&1
+    colorprint \"\\\nSome warnings/errors occured during CONCEPT run!\" \"red\" \
+>> \"${logs_dir}/\${jobid}\" 2>&1
+    colorprint \"Check the following error log for more information:\"  \"red\" \
+>> \"${logs_dir}/\${jobid}\" 2>&1
+    colorprint \"\\\\\"${logs_dir}/\${jobid}_err\\\\\"\"                \"red\" \
+>> \"${logs_dir}/\${jobid}\" 2>&1
 fi
 " > "${this_dir}/jobscript"
     # Check for the qsub command
     qsub_path="$(which qsub 2> /dev/null || :)"
     if [ -z "${qsub_path}" ]; then
-        colorprint "Error: Could not find the 'qsub' command. Is PBS installed and on the PATH?" "red"
+        colorprint "Error: Could not find the 'qsub' command. \
+Is PBS installed and on the PATH?" "red"
         exit 1
     fi
-    # Submit the remote job from within the logs directory, so that autogenerated files will be dumped there
+    # Submit the remote job from within the logs directory,
+    # so that autogenerated files will be dumped there.
     jobid=$(cd "${logs_dir}" && qsub "${this_dir}/jobscript")
     jobid="${jobid%.*}"
     colorprint "\nSubmitting job" "yellow"
@@ -618,7 +636,8 @@ fi
     "${utilities_dir}/watch" "${jobid}"
 else
     # Run locally.
-    # Construct a jobid that does not conflict with the content of the logs dir
+    # Construct a jobid that does not conflict
+    # with the content of the logs dir.
     jobid=0
     while :; do
         if [ ! -f "${logs_dir}/${jobid}" ]; then
@@ -654,15 +673,19 @@ else
     # Run the code. Print stdout and stderr to the terminal while at the
     # same time logging them to logs_dir/jobid. The stderr alone is also
     # logged to logs_dir/jobid_err.
-    "${mpiexec}" -n "${nprocs}" "${python}" -B ${m_flag} "${main_as_library}" "params='${params}'" "scp_password='${scp_password}'" 2> >(tee -a "${logs_dir}/${jobid}_err") | tee -a "${logs_dir}/${jobid}"
+    "${mpiexec}" -n "${nprocs}" "${python}" -B ${m_flag} "${main_as_library}" \
+                 "params='${params}'" "scp_password='${scp_password}'"        \
+                 2> >(tee -a "${logs_dir}/${jobid}_err") | tee -a "${logs_dir}/${jobid}"
     # Get exit status of the above CO𝘕CEPT run
     concept_exit_status="${PIPESTATUS[0]}"
     # Run complete. Remove error log if empty
     if [ -f "${logs_dir}/${jobid}_err" ] && [ ! -s "${logs_dir}/${jobid}_err" ]; then
         rm "${logs_dir}/${jobid}_err"
     else
-        colorprint "\nSome warnings/errors occured during CONCEPT run!" "red" 2>&1 | tee -a "${logs_dir}/${jobid}"
-        colorprint "Check the following error log for more information:" "red" 2>&1 | tee -a "${logs_dir}/${jobid}"
+        colorprint "\nSome warnings/errors occured during CONCEPT run!" "red"  \
+                   2>&1 | tee -a "${logs_dir}/${jobid}"
+        colorprint "Check the following error log for more information:" "red" \
+                   2>&1 | tee -a "${logs_dir}/${jobid}"
         colorprint "\"${logs_dir}/${jobid}_err\"" "red" 2>&1 | tee -a "${logs_dir}/${jobid}"
     fi
     # If the CO𝘕CEPT run exited erroneously, exit now

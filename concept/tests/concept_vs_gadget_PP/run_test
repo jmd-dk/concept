@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
 #
-# CO𝘕CEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
@@ -16,8 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at
-# jeppe.mosgaard.dakin(at)post.au.dk
+# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -34,7 +33,7 @@ source "${this_dir}/../environment"
 "${this_dir}/clean"
 
 # Create list of output times, used by both CO𝘕CEPT and GADGET
-"${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', [1])"
+"${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', (0.1, 0.5, 1))"
 
 # Create the Ewald grid using Cython
 ewald_gridsize=$(grep -o "ewald_gridsize[ =0-9]*" "${this_dir}/params" | awk '{printf $NF}')

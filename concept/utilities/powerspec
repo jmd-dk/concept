@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
 #
-# CO𝘕CEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
@@ -16,8 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at
-# jeppe.mosgaard.dakin(at)post.au.dk
+# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -96,7 +95,12 @@ snapshot_filenames="$(echo "${info}" | grep -x Information.* | awk '{print $3}')
 boxsizes="$(          echo "${info}" | grep -x boxsize.*     | awk '{print $2}')"
 
 # Print out which snapshots will be used
-echo "Powerspectra will be produced of the following snapshots:"
+plural=""
+N_snapshots="$(echo "${snapshot_filenames}" | wc -l)"
+if [ ${N_snapshots} -gt 1 ]; then
+    plural="s"
+fi
+echo "Powerspectra will be produced of the following snapshot${plural}:"
 echo "${snapshot_filenames}"
 
 # For each snapshot, run the CO𝘕CEPT code to create the powerspectrum

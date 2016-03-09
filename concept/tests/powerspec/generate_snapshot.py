@@ -1,7 +1,7 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
 #
-# CO𝘕CEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
@@ -14,8 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at
-# jeppe.mosgaard.dakin(at)post.au.dk
+# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -28,7 +27,7 @@ this_dir = os.path.dirname(os.path.realpath(__file__))
 
 # Imports from the CO𝘕CEPT code
 from commons import *
-from species import construct
+from species import construct_particles
 from snapshot import save
 
 # Function for generating random numbers from a normal distribution
@@ -38,7 +37,7 @@ from numpy.random import normal
 N_lin = 128
 N = N_lin**3
 mass = Ωm*ϱ*boxsize**3/N
-particles = construct('dark matter particles', 'dark matter', mass, N)
+particles = construct_particles('dark matter particles', 'dark matter', mass, N)
 posx = empty(N)
 posy = empty(N)
 posz = empty(N)
@@ -65,4 +64,5 @@ particles.populate(momy, 'momy')
 particles.populate(momz, 'momz')
 
 # Save snapshot
-save(particles, a_begin, this_dir + '/snapshot')
+save([particles], a_begin, this_dir + '/snapshot')
+

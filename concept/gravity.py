@@ -1,7 +1,7 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
 #
-# CO𝘕CEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
@@ -14,8 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at
-# jeppe.mosgaard.dakin(at)post.au.dk
+# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -207,6 +206,7 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
 
 # Function for computing the gravitational force
 # by direct summation on all particles
+# (the particle particle or PP method).
 @cython.header(# Arguments
                particles='Particles',
                Δt='double',
@@ -390,7 +390,7 @@ def PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, mom):
         mom[i] += force*PM_fac
 
 # Function for computing the gravitational force
-# by the particle mesh method.
+# by the particle mesh (PM) method.
 @cython.header(# Arguments
                particles='Particles',
                Δt='double',
@@ -507,41 +507,37 @@ def PM(particles, Δt, only_long_range=False):
     for i in range(2, domain_grid.shape[0] - 2):
         for j in range(2, domain_grid.shape[1] - 2):
             for k in range(2, domain_grid.shape[2] - 2):
-                force_grid[i - 2,
-                           j - 2,
-                           k - 2] = (ℝ[2/3]*(domain_grid[i + 1, j, k]
-                                           - domain_grid[i - 1, j, k])
-                                  - ℝ[1/12]*(domain_grid[i + 2, j, k]
-                                           - domain_grid[i - 2, j, k]))
+                force_grid[i - 2,j - 2, k - 2] = (  ℝ[2/3] *(  domain_grid[i + 1, j, k]
+                                                             - domain_grid[i - 1, j, k])
+                                                  - ℝ[1/12]*(  domain_grid[i + 2, j, k]
+                                                             - domain_grid[i - 2, j, k]))
     # Update local x-momenta
     PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, momx)
-    # Compute the forces in the y-direction via the four point rule
+    # Compute the local forces in the
+    # y-direction via the four point rule.
     for i in range(2, domain_grid.shape[0] - 2):
         for j in range(2, domain_grid.shape[1] - 2):
             for k in range(2, domain_grid.shape[2] - 2):
-                force_grid[i - 2,
-                           j - 2,
-                           k - 2] = (ℝ[2/3]*(domain_grid[i, j + 1, k]
-                                           - domain_grid[i, j - 1, k])
-                                  - ℝ[1/12]*(domain_grid[i, j + 2, k]
-                                           - domain_grid[i, j - 2, k]))
+                force_grid[i - 2, j - 2, k - 2] = (  ℝ[2/3] *(  domain_grid[i, j + 1, k]
+                                                              - domain_grid[i, j - 1, k])
+                                                   - ℝ[1/12]*(  domain_grid[i, j + 2, k]
+                                                              - domain_grid[i, j - 2, k]))
     # Update local y-momenta
     PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, momy)
-    # Compute the forces in the z-direction via the four point rule
+    # Compute the local forces in the
+    # z-direction via the four point rule.
     for i in range(2, domain_grid.shape[0] - 2):
         for j in range(2, domain_grid.shape[1] - 2):
             for k in range(2, domain_grid.shape[2] - 2):
-                force_grid[i - 2,
-                           j - 2,
-                           k - 2] = (ℝ[2/3]*(domain_grid[i, j, k + 1]
-                                           - domain_grid[i, j, k - 1])
-                                  - ℝ[1/12]*(domain_grid[i, j, k + 2]
-                                           - domain_grid[i, j, k - 2]))
+                force_grid[i - 2, j - 2, k - 2] = (  ℝ[2/3] *(  domain_grid[i, j, k + 1]
+                                                              - domain_grid[i, j, k - 1])
+                                                   - ℝ[1/12]*(  domain_grid[i, j, k + 2]
+                                                              - domain_grid[i, j, k - 2]))
     # Update local z-momenta
     PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, momz)
 
-# This collection of functions simply test whether the passed
-# coordinates lie within a certain domain boundary or not.
+# This collection of functions simply test whether or not the passed
+# coordinates lie within a certain domain boundary.
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -784,7 +780,8 @@ def in_boundary_leftbackwarddown(posx_local_i, posy_local_i, posz_local_i):
     return (posx_local_i < boundary_x_min and posy_local_i < boundary_y_min
                                           and posz_local_i < boundary_z_min)
 
-# Function for computing the gravitational force by the particle mesh method
+# Function for computing the gravitational force
+# by the particle particle particle mesh (P³M) method.
 @cython.header(# Arguments
                particles='Particles',
                Δt='double',
@@ -906,47 +903,33 @@ def P3M(particles, Δt):
                 # Enlarge buffers if needed
                 if posx_local_boundary_mv.shape[0] == N_boundary1:
                     indices_boundary = realloc(indices_boundary,
-                                               (N_boundary1 + Δmemory)
-                                               *sizeof('Py_ssize_t'))
+                                               (N_boundary1 + Δmemory)*sizeof('Py_ssize_t'))
                     indices_boundary_mv = cast(indices_boundary,
-                                               'Py_ssize_t[:(N_boundary1 '
-                                               + '+ Δmemory)]')
+                                               'Py_ssize_t[:(N_boundary1 + Δmemory)]')
                     posx_local_boundary = realloc(posx_local_boundary,
-                                                  (N_boundary1 + Δmemory)
-                                                  *sizeof('double'))
+                                                  (N_boundary1 + Δmemory)*sizeof('double'))
                     posx_local_boundary_mv = cast(posx_local_boundary,
-                                                  'double[:(N_boundary1 '
-                                                  + '+ Δmemory)]')
+                                                  'double[:(N_boundary1 + Δmemory)]')
                     posy_local_boundary = realloc(posy_local_boundary,
-                                                  (N_boundary1 + Δmemory)
-                                                  *sizeof('double'))
+                                                  (N_boundary1 + Δmemory)*sizeof('double'))
                     posy_local_boundary_mv = cast(posy_local_boundary,
-                                                  'double[:(N_boundary1 '
-                                                  + '+ Δmemory)]')
+                                                  'double[:(N_boundary1 + Δmemory)]')
                     posz_local_boundary = realloc(posz_local_boundary,
-                                                  (N_boundary1 + Δmemory)
-                                                  *sizeof('double'))
+                                                  (N_boundary1 + Δmemory)*sizeof('double'))
                     posz_local_boundary_mv = cast(posz_local_boundary,
-                                                  'double[:(N_boundary1 '
-                                                  + '+ Δmemory)]')
+                                                  'double[:(N_boundary1 + Δmemory)]')
                     Δmomx_local_boundary = realloc(Δmomx_local_boundary,
-                                                   (N_boundary1 + Δmemory)
-                                                   *sizeof('double'))
+                                                   (N_boundary1 + Δmemory)*sizeof('double'))
                     Δmomx_local_boundary_mv = cast(Δmomx_local_boundary,
-                                                   'double[:(N_boundary1 '
-                                                   + '+ Δmemory)]')
+                                                   'double[:(N_boundary1 + Δmemory)]')
                     Δmomy_local_boundary = realloc(Δmomy_local_boundary,
-                                                   (N_boundary1 + Δmemory)
-                                                   *sizeof('double'))
+                                                   (N_boundary1 + Δmemory)*sizeof('double'))
                     Δmomy_local_boundary_mv = cast(Δmomy_local_boundary,
-                                                   'double[:(N_boundary1 '
-                                                   + '+ Δmemory)]')
+                                                   'double[:(N_boundary1 + Δmemory)]')
                     Δmomz_local_boundary = realloc(Δmomz_local_boundary,
-                                                   (N_boundary1 + Δmemory)
-                                                   *sizeof('double'))
+                                                   (N_boundary1 + Δmemory)*sizeof('double'))
                     Δmomz_local_boundary_mv = cast(Δmomz_local_boundary,
-                                                   'double[:(N_boundary1 '
-                                                   + '+ Δmemory)]')
+                                                   'double[:(N_boundary1 + Δmemory)]')
             # Check if particle should be sent to the right
             if in_boundary2(posx_local_i, posy_local_i, posz_local_i):
                 # Particle i should be send
@@ -962,26 +945,15 @@ def P3M(particles, Δt):
                 # Enlarge buffers if needed
                 if indices_send_mv.shape[0] == N_boundary2:
                     indices_send = realloc(indices_send,
-                                           (N_boundary2 + Δmemory)
-                                           *sizeof('Py_ssize_t'))
-                    indices_send_mv = cast(indices_send,
-                                           'Py_ssize_t[:(N_boundary2 + Δmemory)]')
+                                           (N_boundary2 + Δmemory)*sizeof('Py_ssize_t'))
+                    indices_send_mv = cast(indices_send, 'Py_ssize_t[:(N_boundary2 + Δmemory)]')
                 if Δmomx_local_mv.shape[0] == N_boundary2:
-                    Δmomx_local = realloc(Δmomx_local,
-                                          (N_boundary2 + Δmemory)
-                                          *sizeof('double'))
-                    Δmomx_local_mv = cast(Δmomx_local,
-                                          'double[:(N_boundary2 + Δmemory)]')
-                    Δmomy_local = realloc(Δmomy_local,
-                                          (N_boundary2 + Δmemory)
-                                          *sizeof('double'))
-                    Δmomy_local_mv = cast(Δmomy_local,
-                                          'double[:(N_boundary2 + Δmemory)]')
-                    Δmomz_local = realloc(Δmomz_local,
-                                          (N_boundary2 + Δmemory)
-                                          *sizeof('double'))
-                    Δmomz_local_mv = cast(Δmomz_local,
-                                          'double[:(N_boundary2 + Δmemory)]')
+                    Δmomx_local = realloc(Δmomx_local, (N_boundary2 + Δmemory)*sizeof('double'))
+                    Δmomx_local_mv = cast(Δmomx_local, 'double[:(N_boundary2 + Δmemory)]')
+                    Δmomy_local = realloc(Δmomy_local, (N_boundary2 + Δmemory)*sizeof('double'))
+                    Δmomy_local_mv = cast(Δmomy_local, 'double[:(N_boundary2 + Δmemory)]')
+                    Δmomz_local = realloc(Δmomz_local, (N_boundary2 + Δmemory)*sizeof('double'))
+                    Δmomz_local_mv = cast(Δmomz_local, 'double[:(N_boundary2 + Δmemory)]')
         # Communicate the number of particles to be communicated
         N_extrn = sendrecv(N_boundary2, dest=rank_send, source=rank_recv)
         # Enlarge the receive buffers if needed
