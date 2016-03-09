@@ -1,7 +1,7 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
 #
-# CO𝘕CEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
@@ -14,8 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at
-# jeppe.mosgaard.dakin(at)post.au.dk
+# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -29,7 +28,7 @@ sys.path.append(os.environ['concept_dir'])
 
 # Imports from the CO𝘕CEPT code
 from commons import *
-from species import construct
+from species import construct_particles
 from snapshot import save
 
 # Create the particles.
@@ -38,7 +37,7 @@ from snapshot import save
 # actual particle itself.
 N = 8
 mass = Ωm*ϱ*boxsize**3/N
-particles = construct('dark matter particles', 'dark matter', mass, N)
+particles = construct_particles('GADGET halos', 'dark matter', mass, N)
 particles.populate(np.array([0.26]*4 + [0.74]*4)*boxsize, 'posx')
 particles.populate(np.array([0.25, 0.25, 0.75, 0.75]*2)*boxsize, 'posy')
 particles.populate(np.array([0.25, 0.75, 0.75, 0.25]*2)*boxsize, 'posz')
@@ -47,5 +46,5 @@ particles.populate(zeros(N), 'momy')
 particles.populate(zeros(N), 'momz')
 
 # Save snapshot
-save(particles, a_begin, IC_file)
+save([particles], a_begin, IC_file)
 

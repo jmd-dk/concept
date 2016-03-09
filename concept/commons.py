@@ -1,7 +1,7 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
 #
-# CO𝘕CEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
@@ -14,8 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at
-# jeppe.mosgaard.dakin(at)post.au.dk
+# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -32,16 +31,35 @@
 ############################################
 from __future__ import division  # Needed for Python3 division in Cython
 # Miscellaneous modules
-import collections, contextlib, ctypes, cython, imp, inspect, matplotlib, numpy as np, os, re
-import shutil, sys, unicodedata
+import collections, contextlib, ctypes, cython, imp, inspect, itertools, matplotlib, numpy as np
+import os, re, shutil, sys, unicodedata
 # For math
 from numpy import (arange, asarray, concatenate, cumsum, delete, empty, linspace, loadtxt, ones,
                    unravel_index, zeros)
 from numpy.random import random
 # Use a matplotlib backend that does not require a running X-server
 matplotlib.use('Agg')
+# Customize matplotlib
+matplotlib.rcParams.update({# Font
+                            'text.usetex': True,
+                            'font.family': 'serif',
+                            'font.serif' : 'Computer Modern',
+                            })
+color_cycle = ['lime', 'b', 'g', 'r', 'c', 'm', 'y', 'k']
+try:
+    # Matplotlib >= 1.5
+    matplotlib.rcParams.update({# Default colors
+                                'axes.prop_cycle': matplotlib.cycler('color', color_cycle),
+                                })
+except:
+    # Matplotlib < 1.5
+    matplotlib.rcParams.update({# Default colors
+                                'axes.color_cycle': color_cycle,
+                                })
+    
 # For plotting
 import matplotlib.pyplot as plt
+# For I/O
 import h5py
 # For fancy terminal output
 from blessings import Terminal
@@ -485,9 +503,9 @@ scp_password = argd.get('scp_password', '')
 
 
 
-########################
-# The unicode function #
-########################
+#####################
+# Unicode functions #
+#####################
 # The pyxpp script convert all Unicode source code characters into
 # ASCII. The function below grants the code access to
 # Unicode string literals, by undoing the convertion.
@@ -496,15 +514,53 @@ if not cython.compiled:
     def unicode(c):
         return c
 else:
-    """
-    @cython.header(c='str', returns='str')
+    @cython.header(# Arguments
+                   c='str',
+                   # Locals
+                   d='dict',
+                   returns='str',
+                   )
     def unicode(c):
+        d = {'__space__': ' ',
+             '__dash__' : '-',
+             }
         if len(c) > 10 and c.startswith('__UNICODE__'):
             c = c[11:]
-        c = c.replace('__space__', ' ')
-        c = c.replace('__dash__', '-')
+        for pat, sub in d.items():
+            c = c.replace(pat, sub)
         return unicodedata.lookup(c)
-    """
+
+# This function takes in a number (string) and
+# returns it written in Unicode subscript.
+@cython.header(# Arguments
+               s='str',
+               # Locals
+               c='str',
+               returns='str',
+               )
+def unicode_subscript(s):
+    return ''.join([unicode_subscripts[c] for c in s])
+cython.declare(unicode_subscripts='dict')
+unicode_subscripts = dict(zip('0123456789-+e',
+                              [unicode(c) for c in ('₀', '₁', '₂', '₃', '₄',
+                                                    '₅', '₆', '₇', '₈', '₉',
+                                                    '₋', '₊', 'ₑ')]))
+
+# This function takes in a number (string) and
+# returns it written in Unicode superscript.
+@cython.header(# Arguments
+               s='str',
+               # Locals
+               c='str',
+               returns='str',
+               )
+def unicode_superscript(s):
+    return ''.join([unicode_superscripts[c] for c in s])
+cython.declare(unicode_supercripts='dict')
+unicode_superscripts = dict(zip('0123456789-+e',
+                                [unicode(c) for c in ('⁰', '¹', '²', '³', '⁴',
+                                                      '⁵', '⁶', '⁷', '⁸', '⁹',
+                                                      '⁻')] + ['', unicode('×') + '10']))
 
 
 
@@ -553,13 +609,21 @@ if os.path.isfile(paths['params']):
 def to_rgb(value):
     if isinstance(value, int) or isinstance(value, float):
         value = str(value)
-    return np.array(matplotlib.colors.ColorConverter().to_rgb(value), dtype=C2np['double'])
+    try:
+        rgb = np.array(matplotlib.colors.ColorConverter().to_rgb(value), dtype=C2np['double'])
+    except:
+        # Could not convert value to color
+        return np.array([-1, -1, -1])
+    return rgb
 cython.declare(# Input/output
                IC_file='str',
                snapshot_type='str',
                output_dirs='dict',
                output_bases='dict',
                output_times='dict',
+               powerspec_select='dict',
+               powerspec_plot_select='dict',
+               render_select='dict',
                # Numerical parameter
                boxsize='double',
                ewald_gridsize='Py_ssize_t',
@@ -575,10 +639,9 @@ cython.declare(# Input/output
                ΩΛ='double',
                a_begin='double',
                # Graphics
-               powerspec_plot='bint',
-               color='double[::1]',
+               render_colors='dict',
                bgcolor='double[::1]',
-               resolution='unsigned int',
+               resolution='int',
                liverender='str',
                remote_liverender='str',
                terminal_colormap='str',
@@ -613,6 +676,27 @@ output_times = {key: tuple(sorted(set([float(nr) for nr in (list(val) if hasattr
                                                             else np.ravel(val))
                                        if nr or nr == 0])))
                 for key, val in output_times.items()}
+powerspec_select = {}
+if 'powerspec_select' in params:
+    if isinstance(params['powerspec_select'], dict):
+        powerspec_select = params['powerspec_select']
+    else:
+        powerspec_select = {'all': bool(params['powerspec_select'])}
+powerspec_select = {key.lower(): bool(val) for key, val in powerspec_select.items()}
+powerspec_plot_select = {}
+if 'powerspec_plot_select' in params:
+    if isinstance(params['powerspec_plot_select'], dict):
+        powerspec_plot_select = params['powerspec_plot_select']
+    else:
+        powerspec_plot_select = {'all': bool(params['powerspec_plot_select'])}
+powerspec_plot_select = {key.lower(): bool(val) for key, val in powerspec_plot_select.items()}
+render_select = {}
+if 'render_select' in params:
+    if isinstance(params['render_select'], dict):
+        render_select = params['render_select']
+    else:
+        render_select = {'all': bool(params['render_select'])}
+render_select = {key.lower(): bool(val) for key, val in render_select.items()}
 # Numerical parameters
 boxsize = float(params.get('boxsize', 1))
 ewald_gridsize = int(params.get('ewald_gridsize', 64))
@@ -630,8 +714,13 @@ H0 = float(params.get('H0', 70*units.km/(units.s*units.Mpc)))
 ΩΛ = float(params.get(unicode('Ω') + unicode('Λ'), 0.7))
 a_begin = float(params.get('a_begin', 0.02))
 # Graphics
-powerspec_plot = bool(params.get('powerspec_plot', False))
-color = to_rgb(params.get('color', 'lime'))
+if isinstance(params.get('render_colors', {}), dict):
+    render_colors = params.get('render_colors', {})
+elif to_rgb(params['render_colors'])[0] != -1:
+    render_colors = {'all': to_rgb(params['render_colors'])}
+else:
+    render_colors = dict(params['render_colors'])
+render_colors = {key.lower(): to_rgb(val) for key, val in render_colors.items()}
 bgcolor = to_rgb(params.get('bgcolor', 'black'))
 resolution = int(params.get('resolution', 1080))
 liverender = sensible_path(str(params.get('liverender', '')))
@@ -731,7 +820,7 @@ G_Newton = 6.6738e-11*units.m**3/units.kg/units.s**2
 # The real size of the padded dimension of PM_gridsize
 PM_gridsize_padding = 2*(PM_gridsize//2 + 1)
 # The cube of PM_gridsize. This is defined here because it is a very
-# large integer (long long int), making the ℝ-syntax unpractical
+# large integer (long long int) (use of the ℝ-syntax requires doubles)
 PM_gridsize3 = cast(PM_gridsize, 'long long int')**3
 # Name of file storing the Ewald grid
 ewald_file = '.ewald_gridsize=' + str(ewald_gridsize) + '.hdf5'
@@ -913,7 +1002,8 @@ def isclose(a, b, rel_tol=1e-09, abs_tol=0):
         tol = abs_tol
     return abs(a - b) <= tol
 
-# Function that checks if a (floating point) number is actually an integer
+# Function that checks if a (floating point) number
+# is actually an integer.
 @cython.header(x='double',
                rel_tol='double',
                abs_tol='double',
@@ -1028,7 +1118,7 @@ def significant_figures(number, nfigs, fmt=''):
         if fmt.lower() == 'latex':
             exponent = exponent.replace('e', r'\times 10^{') + '}'
         elif fmt.lower() == 'unicode':
-            exponent = ''.join([unicode_exponent_fmt[c] for c in exponent])
+            exponent = unicode_superscript(exponent)
     else:
         coefficient = number_str
         exponent = ''
@@ -1045,11 +1135,3 @@ def significant_figures(number, nfigs, fmt=''):
         coefficient += '0'*n_missing_zeros
     number_str = coefficient + exponent
     return number_str
-# Dict mapping from ordinary to superscript numbers used in
-# the significant_figures function.
-cython.declare(unicode_exponent_fmt='dict')
-unicode_exponent_fmt = dict(zip('0123456789-e',
-                                [unicode(c) for c in('⁰', '¹', '²', '³', '⁴',
-                                                     '⁵', '⁶', '⁷', '⁸', '⁹', '⁻')]
-                                + [unicode('×') + '10']))
-

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
 #
-# CO𝘕CEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
@@ -16,8 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at
-# jeppe.mosgaard.dakin(at)post.au.dk
+# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -49,21 +48,24 @@ cp "${this_dir}/output/snapshot" "${this_dir}/output/subdir/snapshot_1"
 # Generate two different render parameterfiles
 echo "
 output_bases = {'render': 'render'}
-color      = 'g'
+render_select = {'all': True}
+render_colors = {'dark matter particles': 'g'}
 bgcolor    = '0'
 resolution = 234
 " > "${this_dir}/render.params_0"
 echo "
 output_bases = {'render': ''}
-color      = (1, 0.2, 0.3)
+render_select = {'all': True}
+render_colors = {'dark matter particles': (1, 0.2, 0.3)}
 bgcolor    = 'LightYellow'
 resolution = 1080
 " > "${this_dir}/render.params_1"
 
 # Render the single snapshot without explicitly specifying a render parameter file
 "${concept}" -n 1 -u render "${this_dir}/output/snapshot" --local
+mv "${this_dir}/output/render_snapshot.png" "${this_dir}/output/render_snapshot_default.png"
 
-# Render the single snapshot
+# Render the single snapshot by specifying a render parameter file
 "${concept}" -n 1 -p "${this_dir}/render.params_0" -u render "${this_dir}/output/snapshot" --local
 
 # Render all (both) snapshots in the subdir, using 2 processes

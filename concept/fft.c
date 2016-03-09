@@ -1,8 +1,8 @@
 /*
 This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-Copyright © 2015 Jeppe Mosgaard Dakin.
+Copyright © 2015-2016 Jeppe Mosgaard Dakin.
 
-CO𝘕CEPT is free software: you can redistribute it and/or modify
+CO𝘕CEPT is free software: You can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
@@ -15,8 +15,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 
-The auther of CO𝘕CEPT can be contacted at
-jeppe.mosgaard.dakin(at)post.au.dk
+The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 The latest version of CO𝘕CEPT is available at
 https://github.com/jmd-dk/concept/
 */
@@ -35,23 +34,33 @@ transforms through Cython.
 */
 
 /* Note on indexing.
-- In real space, before any transformations:
-  grid[i, j, k] --> grid[((i - gridstart_local_i)*gridsize_j + j)*gridsize_padding + k], provided we execute this on the correct process, where (gridstart_local_i <= i && i < gridstart_local_i + gridsize_local_i)
+- In real space, before any transformations,
+  provided that we execute this on the correct process, where
+  (gridstart_local_i <= i && i < gridstart_local_i + gridsize_local_i):
+  grid[i, j, k] --> grid[((i - gridstart_local_i)*gridsize_j + j)
+                         *gridsize_padding + k]
   That is, each process can acces every element in its slab by:
   for (i = 0; i < gridsize_local_i; ++i){
       for (j = 0; j < gridsize_j; ++j){
           for (k = 0; k < gridsize_k; ++k){
-              double element = grid[(i*gridsize_j + j)*gridsize_padding + k]; // This is the [i + gridstart_local_i, j, k]'th element
+              // This is the [i + gridstart_local_i, j, k]'th element
+              double element = grid[(i*gridsize_j + j)
+                                    *gridsize_padding + k];
           }
       }
   }
-- After a forward, inplace r2c transformation:
-  grid[i, j, k] --> grid[((j - gridstart_local_j)*gridsize_i + i)*gridsize_padding + k], provided we execute this on the correct process, where (gridstart_local_j <= j && j < gridstart_local_j + gridsize_local_j)
+- After a forward, inplace r2c transformation,
+  provided that we execute this on the correct process, where
+  (gridstart_local_j <= j && j < gridstart_local_j + gridsize_local_j):
+  grid[i, j, k] --> grid[((j - gridstart_local_j)*gridsize_i + i)
+                         *gridsize_padding + k]
   That is, each process can acces every element in its slab by:
   for (i = 0; i < gridsize_i; ++i){
       for (j = 0; j < gridsize_local_j; ++j){
           for (k = 0; k < gridsize_k; ++k){
-              double element = grid[(j*gridsize_i + i)*gridsize_padding + k]; // This is the [i, j + gridstart_local_j, k]'th element
+              // This is the [i, j + gridstart_local_j, k]'th element
+              double element = grid[(j*gridsize_i + i)
+                                    *gridsize_padding + k];
           }
       }
   }
@@ -85,8 +94,8 @@ struct fftw_return_struct fftw_setup(ptrdiff_t gridsize_i,
     // Size of last dimension with padding
     ptrdiff_t gridsize_padding = 2*(gridsize_k/2 + 1);
 
-    // Initialize parallel fftw (note that MPI_Init should not be called,
-    // as mpi is already running via MPI4Py).
+    // Initialize parallel fftw (note that MPI_Init should not be
+    // called, as MPI is already running via MPI4Py).
     fftw_mpi_init();
 
     // Process identification
@@ -148,14 +157,14 @@ struct fftw_return_struct fftw_setup(ptrdiff_t gridsize_i,
                                                        grid,
                                                        (fftw_complex*) grid,
                                                        MPI_COMM_WORLD,
-                                         rigor_flag | FFTW_MPI_TRANSPOSED_OUT);
+                                                       rigor_flag | FFTW_MPI_TRANSPOSED_OUT);
     fftw_plan plan_backward = fftw_mpi_plan_dft_c2r_3d(gridsize_i,
                                                        gridsize_j,
                                                        gridsize_k,
                                                        (fftw_complex*) grid,
                                                        grid,
                                                        MPI_COMM_WORLD,
-                                          rigor_flag | FFTW_MPI_TRANSPOSED_IN);
+                                                       rigor_flag | FFTW_MPI_TRANSPOSED_IN);
 
     // If new wisdom is acquired, the master process saves it to disk
     fftw_mpi_gather_wisdom(MPI_COMM_WORLD);
@@ -174,7 +183,6 @@ struct fftw_return_struct fftw_setup(ptrdiff_t gridsize_i,
     return fftw_struct;
 }
 
-
 // Call this function when all FFT work is done
 void fftw_clean(double* grid, fftw_plan plan_forward, fftw_plan plan_backward){
     fftw_free(grid);
@@ -182,4 +190,3 @@ void fftw_clean(double* grid, fftw_plan plan_forward, fftw_plan plan_backward){
     fftw_destroy_plan(plan_backward);
     fftw_mpi_cleanup();
 }
-

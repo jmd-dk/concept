@@ -8,9 +8,9 @@
 
 # Input/output
 output_bases = {'render': 'render'}
+render_select = {'all': True}
 
 # Graphics
-color      = 'lime'
 bgcolor    = 'black'
 resolution = 1080
 

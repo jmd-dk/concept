@@ -1,7 +1,7 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
 #
-# CO𝘕CEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
@@ -14,8 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at
-# jeppe.mosgaard.dakin(at)post.au.dk
+# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -28,10 +27,9 @@ from commons import *
 # Cython imports
 cimport('from analysis import powerspec')
 cimport('from graphics import render, terminal_render')
-cimport('from utilities import delegate')
-cimport('from species import construct')
 cimport('from integration import expand, cosmic_time, scalefactor_integral')
 cimport('from snapshot import load_particles, save')
+cimport('from utilities import delegate')
 
 
 
@@ -66,34 +64,37 @@ def do_kick_drift_integrals(index):
 # Function which dump all types of output. The return value signifies
 # whether or not something has been dumped.
 @cython.header(# Arguments
-               particles='Particles',
+               particles_list='list',
                output_filenames='dict',
                op='str',
                # Locals
+               particles='Particles',
                returns='bint',
                )
-def dump(particles, output_filenames, op=None):
+def dump(particles_list, output_filenames, op=None):
     global a, a_dump, drift_fac, i_dump, kick_fac
     # Do nothing if not at dump time
     if a != a_dump:
         return False
     # Synchronize positions and momenta before dumping
     if op == 'drift':
-        particles.drift(drift_fac[0])
+        for particles in particles_list:
+            particles.drift(drift_fac[0])
     elif op == 'kick':
-        particles.kick(kick_fac[1])
+        for particles in particles_list:
+            particles.kick(kick_fac[1])
     # Dump terminal render
     if a in terminal_render_times:
-        terminal_render(particles)
+        terminal_render(particles_list)
     # Dump snapshot
     if a in snapshot_times:
-        save(particles, a, output_filenames['snapshot'].format(a))
+        save(particles_list, a, output_filenames['snapshot'].format(a))
     # Dump powerspectrum
     if a in powerspec_times:
-        powerspec(particles, output_filenames['powerspec'].format(a))
+        powerspec(particles_list, a, output_filenames['powerspec'].format(a))
     # Dump render
     if a in render_times:
-        render(particles, a, output_filenames['render'].format(a),
+        render(particles_list, a, output_filenames['render'].format(a),
                cleanup=(a == render_times[len(render_times) - 1]))
     # Increment dump time
     i_dump += 1
@@ -106,9 +107,10 @@ def dump(particles, output_filenames, op=None):
 
 # Function containing the main time loop of CO𝘕CEPT
 @cython.header(# Locals
-               timestep='ptrdiff_t',
-               particles='Particles',
                output_filenames='dict',
+               particles='Particles',
+               particles_list='list',
+               timestep='Py_ssize_t',
                Δt_update_freq='Py_ssize_t',
                )
 def timeloop():
@@ -119,7 +121,7 @@ def timeloop():
     # Get the output filename patterns
     output_filenames = prepare_output_times()
     # Load initial conditions
-    particles = load_particles(IC_file)
+    particles_list = load_particles(IC_file)
     # The number of time steps before Δt is updated
     Δt_update_freq = 10
     # Initial cosmic time t, where a(t) = a_begin
@@ -137,7 +139,7 @@ def timeloop():
     i_dump = 0
     a_dump = a_dumps[i_dump]
     # Possible output at a == a_begin
-    dump(particles, output_filenames)
+    dump(particles_list, output_filenames)
     # The main time loop
     masterprint('Begin main time loop')
     timestep = -1
@@ -145,20 +147,22 @@ def timeloop():
         timestep += 1
         # Print out message at beginning of each time step
         masterprint(terminal.bold('\nTime step {}'.format(timestep))
-                    + '{:<14} {}'    .format('\nScale factor:', significant_figures(a, 4,
-                                                                                    fmt='Unicode'))
-                    + '{:<14} {} Gyr'.format('\nCosmic time:', significant_figures(t/units.Gyr, 4,
-                                                                                   fmt='Unicode'))
+                    + '{:<14} {}'    .format('\nScale factor:',
+                                             significant_figures(a, 4, fmt='Unicode'))
+                    + '{:<14} {} Gyr'.format('\nCosmic time:',
+                                             significant_figures(t/units.Gyr, 4, fmt='Unicode'))
                     )
         # Kick (first time is only half a kick, as kick_fac[1] == 0)
         do_kick_drift_integrals(0)
-        particles.kick(kick_fac[0] + kick_fac[1])
-        if dump(particles, output_filenames, 'drift'):
+        for particles in particles_list:  # SHOULD NOT BE DONE SEQUENTIALLY !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            particles.kick(kick_fac[0] + kick_fac[1])
+        if dump(particles_list, output_filenames, 'drift'):
             continue
         # Update Δt every Δt_update_freq time step
         if not (timestep % Δt_update_freq):
             # Let the positions catch up to the momenta
-            particles.drift(drift_fac[0])
+            for particles in particles_list:
+                particles.drift(drift_fac[0])
             Δt = Δt_factor*t
             # Reset the second kick factor,
             # making the next operation a half kick.
@@ -166,8 +170,9 @@ def timeloop():
             continue
         # Drift
         do_kick_drift_integrals(1)
-        particles.drift(drift_fac[0] + drift_fac[1])
-        if dump(particles, output_filenames, 'kick'):
+        for particles in particles_list:
+            particles.drift(drift_fac[0] + drift_fac[1])
+        if dump(particles_list, output_filenames, 'kick'):
             continue
 
 # Function which checks the sanity of the user supplied output times,
@@ -222,7 +227,8 @@ def prepare_output_times():
         ndigits = 0
         while True:
             fmt = '{:.' + str(ndigits) + 'f}'
-            if (len(set([fmt.format(ot) for ot in times])) == len(times) and (fmt.format(times[0]) != fmt.format(0) or not times[0])):
+            if (len(set([fmt.format(ot) for ot in times])) == len(times)
+                and (fmt.format(times[0]) != fmt.format(0) or not times[0])):
                 break
             ndigits += 1    
         # Store output name patterns                   

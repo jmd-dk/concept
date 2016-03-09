@@ -1,7 +1,7 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
 #
-# CO𝘕CEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
@@ -14,8 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at
-# jeppe.mosgaard.dakin(at)post.au.dk
+# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -59,6 +58,7 @@ class Particles:
         double softening
         str species
         str type
+        str representation
         double[::1] posx_mv
         double[::1] posy_mv
         double[::1] posz_mv
@@ -80,6 +80,7 @@ class Particles:
         self.softening = 1
         self.species = 'generic species'
         self.type = 'generic particles'
+        self.representation = 'particles'
         # Manually allocate memory for particle data
         self.posx = malloc(self.N_allocated*sizeof('double'))
         self.posy = malloc(self.N_allocated*sizeof('double'))
@@ -173,27 +174,33 @@ class Particles:
         Δt is really ∫_t^(t + Δt) dt/a**2.
         """
         masterprint('Drifting', self.type, '...')
-        # Extracting variables
-        posx = self.posx
-        posy = self.posy
-        posz = self.posz
-        momx = self.momx
-        momy = self.momy
-        momz = self.momz
-        # The factor 1/mass*∫_t^(t + Δt) dt/a**2
-        fac = Δt/self.mass
-        # Update positions
-        for i in range(self.N_local):
-            posx[i] += momx[i]*fac
-            posy[i] += momy[i]*fac
-            posz[i] += momz[i]*fac
-            # Toroidal boundaries
-            posx[i] = mod(posx[i], boxsize)
-            posy[i] = mod(posy[i], boxsize)
-            posz[i] = mod(posz[i], boxsize)
+        if self.representation == 'particles':
+            # Particle drift
+            posx = self.posx
+            posy = self.posy
+            posz = self.posz
+            momx = self.momx
+            momy = self.momy
+            momz = self.momz
+            # The factor 1/mass*∫_t^(t + Δt) dt/a**2
+            fac = Δt/self.mass
+            # Update positions
+            for i in range(self.N_local):
+                posx[i] += momx[i]*fac
+                posy[i] += momy[i]*fac
+                posz[i] += momz[i]*fac
+                # Toroidal boundaries
+                posx[i] = mod(posx[i], boxsize)
+                posy[i] = mod(posy[i], boxsize)
+                posz[i] = mod(posz[i], boxsize) 
+
+        elif self.representation == 'fluid':
+            # Fluid drift
+            pass
+
+        masterprint('done')
         # Some partiles may have drifted out of the local domain.
         # Exchange particles to the correct processes.
-        masterprint('done')
         exchange(self)
 
     # Method for updating particle momenta
@@ -206,8 +213,7 @@ class Particles:
         """Note that the time step size Δt is really ∫_t^(t + Δt) dt/a.
         """
         kick_algorithm = kick_algorithms[self.species]
-        masterprint('Kicking ({}) {} ...'.format(kick_algorithm,
-                                                 self.type))
+        masterprint('Kicking ({}) {} ...'.format(kick_algorithm, self.type))
         # Delegate the work to the appropriate function based on species
         if kick_algorithm == 'PP':
             PP(self, Δt)
@@ -216,7 +222,7 @@ class Particles:
         elif kick_algorithm == 'P3M':
             P3M(self, Δt)
         elif master:
-            abort(('Species "{}" has been assigned the kickalgorithm "{}", '
+            abort(('Species "{}" has been assigned the kick algorithm "{}", '
                    + 'which is not implemented!').format(self.species, kick_algorithm))
         masterprint('done')
 
@@ -246,12 +252,13 @@ class Particles:
                particles='Particles',
                returns='Particles',
                )
-def construct(particle_type, particle_species, mass, N):
+def construct_particles(particle_type, particle_species, mass, N):
     # Instantiate Particles instance
     particles = Particles(N)
     # Attach information to the particles
     particles.type = particle_type
     particles.species = particle_species
+    particles.representation = 'particles'
     particles.mass = mass
     if particle_species in softeningfactors:
         particles.softening = softeningfactors[particle_species]*boxsize/(N**ℝ[1/3])

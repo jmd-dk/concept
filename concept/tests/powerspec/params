@@ -1,7 +1,7 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
 #
-# CO𝘕CEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
@@ -14,8 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at
-# jeppe.mosgaard.dakin(at)post.au.dk
+# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -25,12 +24,11 @@
 snapshot_type = 'standard'
 output_dirs   = {'powerspec': paths['params_dir'] + '/output'}
 output_bases  = {'powerspec': 'powerspec'}
+powerspec_select = {'all': True}
+powerspec_plot_select = {'all': True}
 
 # Numerical parameters
 boxsize     = 512*Mpc
 PM_gridsize = 256
 R_tophat    = 8*Mpc
-
-# Graphics
-powerspec_plot = True
 

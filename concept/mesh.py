@@ -1,7 +1,7 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
 #
-# CO𝘕CEPT is free software: you can redistribute it and/or modify
+# CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
@@ -14,8 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at
-# jeppe.mosgaard.dakin(at)post.au.dk
+# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -750,7 +749,7 @@ def domain2PM():
         Barrier()
 
 
-# Function for transfering the data in the PM grid to the domain grid.
+# Function for transfering the data in the PM grid to the domain grid
 @cython.header(# Locals
                ID_send='int',
                ID_recv='int',
@@ -811,7 +810,7 @@ def PM_CIC(particles):
     # Values of local pseudo mesh points contribute to the lower mesh
     # points of domain_grid on other processes.
     # Do the needed communication.
-    communicate_domain_boundaries(mode=0)  
+    communicate_domain_boundaries(mode=0)
     # Communicate the interpolated data
     # in the domain grid into the PM grid.
     domain2PM()
@@ -964,7 +963,6 @@ if use_PM:
                                .format(PM_gridsize, nprocs, rigor))
             if master and os.path.isfile(wisdom_filename):
                 os.remove(wisdom_filename)
-        
         # Unpack fftw_struct
         PM_gridsize_local_i = fftw_struct.gridsize_local_i
         PM_gridsize_local_j = fftw_struct.gridsize_local_j
@@ -1252,12 +1250,14 @@ if master and 'P3M' in kick_algorithms.values():
         or domain_size_k < P3M_scale*P3M_cutoff):
         msg = ('A PM_gridsize of ' + str(PM_gridsize) + ' and ' + str(nprocs) + ' processes '
                + 'results in following domain partition: ' + str(list(domain_cuts)) + '.\n'
-               + 'The smallest domain width is ' + str(np.min([domain_size_i, domain_size_j,
-                                                                              domain_size_k]))
+               + 'The smallest domain width is ' + str(np.min([domain_size_i,
+                                                               domain_size_j,
+                                                               domain_size_k]))
                + ' grid cells, while the choice of P3M_scale (' + str(P3M_scale) + ') and '
                + 'P3M_cutoff (' + str(P3M_cutoff) + ')\nmeans that the domains must be at least '
-               + str(int(np.ceil(P3M_scale*P3M_cutoff))) + ' grid cells for the P3M algorithm to work.'
-            )
+               + str(int(np.ceil(P3M_scale*P3M_cutoff)))
+               + ' grid cells for the P3M algorithm to work.'
+               )
         abort(msg)
     if ((   domain_size_i < 2*P3M_scale*P3M_cutoff
          or domain_size_j < 2*P3M_scale*P3M_cutoff
