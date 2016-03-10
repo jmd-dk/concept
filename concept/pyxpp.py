@@ -706,14 +706,14 @@ def make_pxd(filename):
                'StandardSnapshot': 'from snapshot cimport StandardSnapshot',
                'GadgetSnapshot':   'from snapshot cimport GadgetSnapshot',
                # Function pointers
-               'func_b_ddd':   ('ctypedef bint '
-                                '(*func_b_ddd_pxd)(double, double, double)'),
-               'func_d_dd':    ('ctypedef double '
-                                '(*func_d_dd_pxd)(double, double)'),
-               'func_d_ddd':   ('ctypedef double '
-                                '(*func_d_ddd_pxd)(double, double, double)'),
-               'func_ddd_ddd': ('ctypedef double* '
-                                '(*func_ddd_ddd_pxd)(double, double, double)'),
+               'func_b_ddd':     ('ctypedef bint '
+                                  '(*func_b_ddd_pxd)(double, double, double)'),
+               'func_d_dd':      ('ctypedef double '
+                                  '(*func_d_dd_pxd)(double, double)'),
+               'func_d_ddd':     ('ctypedef double '
+                                  '(*func_d_ddd_pxd)(double, double, double)'),
+               'func_dstar_ddd': ('ctypedef double* '
+                                  '(*func_dstar_ddd_pxd)(double, double, double)'),
                # External definitions
                'fftw_plan':          ('cdef extern from "fft.c":\n'
                                       '    ctypedef struct fftw_plan_struct:\n'

@@ -27,9 +27,6 @@ from commons import *
 # Cython imports
 cimport('from mesh import CIC_grid2coordinates_vector, tabulate_vectorfield')
 
-# Pure Python imports
-from os.path import isfile
-
 
 
 # Cython function for computing Ewald correction
@@ -187,6 +184,7 @@ def ewald(x, y, z):
     return force
 
 
+
 # Set parameters for the Ewald summation at import time
 cython.declare(h_lower='int',
                h_upper='int',
@@ -225,7 +223,7 @@ cython.declare(i='int',
                )
 if 'PP' in kick_algorithms.values() and use_Ewald:
     filepath = paths['concept_dir'] + '/' + ewald_file
-    if isfile(filepath):
+    if os.path.isfile(filepath):
         # Ewald grid already tabulated. Load it
         with h5py.File(filepath,
                        mode='r',
@@ -234,11 +232,11 @@ if 'PP' in kick_algorithms.values() and use_Ewald:
             grid = hdf5_file['data'][...].reshape([ewald_gridsize]*3 + [3])
     else:
         # No tabulated Ewald grid found. Compute it. The factor 0.5
-        # ensures that only the first octant of the box is tabulated
+        # ensures that only the first octant of the box is tabulated.
         masterprint('Tabulating Ewald grid of linear size',
                     ewald_gridsize, '...')
         grid = tabulate_vectorfield(ewald_gridsize,
+                                    3,
                                     summation,
                                     0.5/(ewald_gridsize - 1),
                                     filepath)
-        masterprint('done')
