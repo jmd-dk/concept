@@ -40,12 +40,13 @@ from numpy.random import random
 # Use a matplotlib backend that does not require a running X-server
 matplotlib.use('Agg')
 # Customize matplotlib
-matplotlib.rcParams.update({# Font
-                            'text.usetex': True,
-                            'font.family': 'serif',
-                            'font.serif' : 'Computer Modern',
+matplotlib.rcParams.update({# Use a font that ships with matplotlib
+                            'text.usetex'       : False,
+                            'font.family'       : 'serif',
+                            'font.serif'        : 'cmr10',
+                            'axes.unicode_minus': False,
                             })
-color_cycle = ['lime', 'b', 'g', 'r', 'c', 'm', 'y', 'k']
+color_cycle = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
 try:
     # Matplotlib >= 1.5
     matplotlib.rcParams.update({# Default colors
@@ -195,7 +196,7 @@ if not cython.compiled:
         elif dtype in ('func_b_ddd',
                        'func_d_dd',
                        'func_d_ddd',
-                       'func_ddd_ddd',
+                       'func_dstar_ddd',
                        ):
             dtype='object'
         elif dtype[-1] == '*':
@@ -262,10 +263,10 @@ from cython_gsl cimport *
 # Functions for manual memory management
 from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
 # Function type definitions of the form func_returntype_argumenttypes
-ctypedef bint    (*func_b_ddd)  (double, double, double)
-ctypedef double  (*func_d_dd)   (double, double)
-ctypedef double  (*func_d_ddd)  (double, double, double)
-ctypedef double* (*func_ddd_ddd)(double, double, double)
+ctypedef bint    (*func_b_ddd)    (double, double, double)
+ctypedef double  (*func_d_dd)     (double, double)
+ctypedef double  (*func_d_ddd)    (double, double, double)
+ctypedef double* (*func_dstar_ddd)(double, double, double)
 # Create a fused number type containing all necessary numerical types
 ctypedef fused number:
     cython.int
@@ -1086,7 +1087,7 @@ def masterwarn(msg, *args, indent=0, prefix='Warning', **kwargs):
               **kwargs)
 
 # This function formats a floating point number to have nfigs
-# significant figures. Set fmt to 'LaTeX' to format to LaTeX math code
+# significant figures. Set fmt to 'TeX' to format to TeX math code
 # (e.g. '1.234\times 10^{-5}') or 'Unicode' to format to superscript
 # Unicode (e.g. 1.234×10⁻⁵).
 @cython.header(# Arguments
@@ -1101,6 +1102,7 @@ def masterwarn(msg, *args, indent=0, prefix='Warning', **kwargs):
                returns='str',
                )
 def significant_figures(number, nfigs, fmt=''):
+    fmt = fmt.lower()
     # Format the number using nfigs
     number_str = ('{:.' + str(nfigs) + 'g}').format(number)
     # Handle the exponent
@@ -1115,9 +1117,9 @@ def significant_figures(number, nfigs, fmt=''):
         if exponent.startswith('e+'):
             exponent = 'e' + exponent[2:]
         # Handle formatting
-        if fmt.lower() == 'latex':
+        if fmt == 'tex':
             exponent = exponent.replace('e', r'\times 10^{') + '}'
-        elif fmt.lower() == 'unicode':
+        elif fmt == 'unicode':
             exponent = unicode_superscript(exponent)
     else:
         coefficient = number_str
@@ -1134,4 +1136,10 @@ def significant_figures(number, nfigs, fmt=''):
             coefficient += '.'
         coefficient += '0'*n_missing_zeros
     number_str = coefficient + exponent
+    # The mathtext matplotlib module has a typographical bug;
+    # it inserts a space after a decimal point.
+    # Prevent this by not letting the decimal point being part
+    # of the mathematical expression.
+    if fmt == 'tex':
+        number_str = number_str.replace('.', '$.$')
     return number_str

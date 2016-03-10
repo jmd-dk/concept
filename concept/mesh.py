@@ -77,14 +77,14 @@ else:
 def partition(size, size_point=1):
     """This function takes in the size (nr. of elements) of an array as
     and returns an array of local sizes, corresponding to a linear, fair
-    partition of the array. If the array cannot be partition completely
-    fair, the higher ranks will recieve one additional element.
-    The starting index for a given rank can of course be computed using
-    the array of local sizes. For the sake of efficiency though, it is
-    stored as the 'nprocs' element of the returned array.
+    partition of the array. If the array cannot be partitioned
+    completely fair, the higher ranks will recieve one additional
+    element. The starting index for a given rank can of course be
+    computed using the array of local sizes. For the sake of efficiency
+    though, it is stored as the 'nprocs' element of the returned array.
     In each gridpoint can be placed a scalar, a vector etc. This changes
     the sizes and the start index. To indicate the nr. of numbers in
-    each gridpoint, set te optional 'size_point' argument.
+    each gridpoint, set the optional 'size_point' argument.
     """
     # The size of the local part of the array, for lower ranks
     size_local_lower = size//nprocs
@@ -108,10 +108,12 @@ def partition(size, size_point=1):
             sizes_local[i] *= size_point
     return sizes_local
 
-# Function for tabulating a cubic grid with vector values
+# Function for initializing and tabulating a cubic grid with
+# vector values of a given dimension.
 @cython.header(# Arguments
                gridsize='Py_ssize_t',
-               func='func_ddd_ddd',
+               N_dim='Py_ssize_t',
+               func='func_dstar_ddd',
                factor='double',
                filename='str',
                # Locals
@@ -132,23 +134,46 @@ def partition(size, size_point=1):
                size_point='Py_ssize_t',
                sizes_local='Py_ssize_t[::1]',
                start_local='Py_ssize_t',
+               vector_value='double*',
                ℓ_local='Py_ssize_t',
                ℓ='Py_ssize_t',
                returns='double[:, :, :, ::1]',
                )
-def tabulate_vectorfield(gridsize, func, factor, filename=''):
+def tabulate_vectorfield(gridsize, N_dim, func, factor, filename=''):
     """ This function tabulates a cubic grid of size
-    gridsize*gridsize*gridsize with vector values computed by the
-    function func, as
-    grid[i, j, k] = func(i*factor, j*factor, k*factor).
+    gridsize*gridsize*gridsize with vector values of the given
+    dimension N_dim computed by the function func,
+    as grid[i, j, k] = func(i*factor, 
+                            j*factor,
+                            k*factor).
     If filename is set, the tabulated grid is saved to a hdf5 file
     with this name.
+    The first point grid[0, 0, 0] corresponds to the origin of the box,
+    while the last point grid[gridsize - 1,
+                              gridsize - 1,
+                              gridsize - 1]
+    corresponds to the physical point ((gridsize - 1)/gridsize*boxsize,
+                                       (gridsize - 1)/gridsize*boxsize,
+                                       (gridsize - 1)/gridsize*boxsize).
+    This means that grid[gridsize, gridsize, gridsize] is the corner
+    of the box the longest away from the origin. This point is not
+    represented in the grid because of the periodicity of the box,
+    which means that physically, this point is the same as the origin.
+    The mapping from grid indices to physical coordinates is thus
+    (i, j, z) --> (i/gridsize*boxsize,
+                   j/gridsize*boxsize,
+                   k/gridsize*boxsize)
+    Therefore, if you wish to tabulate a global field (extending over
+    the entire box), the factor argument should be
+    proportional to boxsize/gridsize. If you wish to only tabulate say
+    one octant of the box, this volume is no more periodic, and so
+    the factor should be proportional to 0.5*boxsize/(gridsize - 1).
     """
-    # The grid has a shape of gridsize*gridsize*gridsize*3.
+    # The grid has a shape of gridsize*gridsize*gridsize*dimensions.
     # That is, grid is not really cubic, but rather four-dimensional.
-    shape = np.array([gridsize]*3 + [3], dtype=C2np['Py_ssize_t'])
-    # The number of scalars and vectors in the grid,
-    # when viewed as a 3D box of vectors.
+    shape = np.array([gridsize]*3 + [N_dim], dtype=C2np['Py_ssize_t'])
+    # The number of elements in each point, edge, face and
+    # in the total, when the grid is viewed as a 3D box of vectors.
     size_point = shape[3]
     size_edge = shape[2]*size_point
     size_face = shape[1]*size_edge
@@ -178,13 +203,13 @@ def tabulate_vectorfield(gridsize, func, factor, filename=''):
         ℓ -= j*size_edge
         k = ℓ//size_point
         # Fill grid_local
-        vector = func(i*factor, j*factor, k*factor)
-        for dim in range(3):
-            grid_local[ℓ_local + dim] = vector[dim]
-    # Gather the local grids parts into a common, global grid
+        vector_value = func(i*factor, j*factor, k*factor)
+        for dim in range(N_dim):
+            grid_local[ℓ_local + dim] = vector_value[dim]
+    # Gather the local grid parts into a common, global grid
     Allgatherv(sendbuf=grid_local, 
                recvbuf=(grid, sizes_local[:nprocs]))
-    # Return now if the grid should not be saved to fisk
+    # Return now if the grid should not be saved to disk
     if not filename:
         return grid
     # Save grid to disk using parallel HDF5
@@ -193,9 +218,8 @@ def tabulate_vectorfield(gridsize, func, factor, filename=''):
         dset[start_local:(start_local + size_local)] = grid_local
     return grid
 
-
-# Function for doing lookup in a grid with vector values and
-# CIC-interpolating to specified coordinates
+# Function for doing lookup in a grid with scalar values and
+# CIC-interpolating to specified coordinates.
 @cython.header(# Argument
                grid='double[:, :, ::1]',
                x='double',
@@ -1294,8 +1318,7 @@ if use_PM:
     # in the next domain. Also, an additional layer of thickness 2 is
     # given on top of the previous layer. This shall be used as a ghost
     # layer for finite differencing.
-    domain_grid = zeros([PM_gridsize//domain_cuts[i] + 1 + 2*2
-                         for i in range(3)],
+    domain_grid = zeros([PM_gridsize//domain_cuts[i] + 1 + 2*2 for i in range(3)],
                         dtype=C2np['double'])
     # Memoryview of the domain grid without the ghost layers
     domain_grid_noghosts = domain_grid[2:(domain_grid.shape[0] - 2),
@@ -1306,13 +1329,16 @@ if use_PM:
     for i in range(3):
         if not master:
             break
-        if PM_gridsize != domain_cuts[i]*(domain_grid.shape[i] - 1 - 2*2):
-            msg = ('A PM_gridsize of ' + str(PM_gridsize) + ' cannot be'
-                   + ' equally shared among ' + str(nprocs) + ' processes')
+        domain_gridsize = domain_grid_noghosts.shape[i] - 1
+        if PM_gridsize != domain_cuts[i]*domain_gridsize:
+            msg = ('A PM_gridsize of {} cannot be equally shared among {} processes'
+                   .format(PM_gridsize, nprocs))
+            masterprint('domain_cuts[0] =', domain_cuts[0],
+                'domain_grid_noghosts.shape[0] =', domain_grid_noghosts.shape[0])
             abort(msg)
-        if np.min([domain_grid.shape[i] for i in range(3)]) < 2 + 1 + 2*2:
-            msg = ('A PM_gridsize of ' + str(PM_gridsize) + ' is too small'
-                   + ' for ' + str(nprocs) + ' processes')
+        if domain_gridsize < 2:
+            msg = ('A PM_gridsize of {} is too small for {} processes'
+                   .format(PM_gridsize, nprocs))
             abort(msg)
 else:
     # As these should be importable,

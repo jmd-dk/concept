@@ -128,7 +128,7 @@ def plot_powerspec(data_list, a, filename, power_dict):
                    fontsize=14,
                    )
         plt.title('{} at $a = {}$'.format(typename,
-                                          significant_figures(a, 4, fmt='LaTeX')),
+                                          significant_figures(a, 4, fmt='TeX')),
                   fontsize=16,
                   )
         plt.gca().tick_params(labelsize=13)
@@ -323,7 +323,7 @@ def render(particles_list, a, filename, cleanup=True):
         artist_particles.set_alpha(alpha)
         # Print the current scale factor on the figure
         if master:
-            a_str = '$a = {}$'.format(significant_figures(a, 4, 'LaTeX'))
+            a_str = '$a = {}$'.format(significant_figures(a, 4, 'TeX'))
             artist_text.set_text(a_str)
             # Make the text color black or white,
             # dependent on the bgcolor

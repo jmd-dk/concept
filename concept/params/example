@@ -40,7 +40,7 @@ render_select = {                       # Toogle rendering for each type
 
 # Numerical parameters
 boxsize          = 16*Mpc		# Linear size of the simulation box
-ewald_gridsize   = 64			# Linear size of the grid of Ewald corrections
+ewald_gridsize   = 8			# Linear size of the grid of Ewald corrections
 PM_gridsize      = 128			# Linear size of the particle-mesh grid
 P3M_scale        = 1.25			# The long/short-range force split scale
 P3M_cutoff       = 4.8			# Maximum reach of short-range force

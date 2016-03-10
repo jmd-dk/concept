@@ -105,6 +105,8 @@ def dump(particles_list, output_filenames, op=None):
     kick_fac[1] = 0
     return True
 
+cimport('from mesh import CIC_particles2grid')
+
 # Function containing the main time loop of CO𝘕CEPT
 @cython.header(# Locals
                output_filenames='dict',

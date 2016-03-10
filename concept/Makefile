@@ -117,7 +117,10 @@ includes    = $(fftw_incl) $(gsl_incl) $(mpi_incl) $(python_incl)
 CC                = $(mpicc)
 python_cflags     = $(foreach flag,$(shell $(python_config) --cflags), \
                                    $(call sensible_path,'$(flag)'))
-unwanted_warnings = unreachable-code uninitialized
+unwanted_warnings = unreachable-code \
+                    uninitialized    \
+                    unused-result    \
+                    unused-but-set-variable
 other_cflags      = -pthread             \
                     -std=c99             \
                     -fno-strict-aliasing \
