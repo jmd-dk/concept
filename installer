@@ -2690,7 +2690,6 @@ if [ "${concept_install}" == "yes" ]; then
     installer="${top_dir}/installer"
     mpicc="${mpi_dir}/bin/mpicc"
     mpiexec="${mpi_dir}/bin/mpiexec"
-    python_config="${python_dir}/bin/python${python_version}-config"
     echo "# This file contains absolute paths to directories and files used by the
 # program. You must manually edit the paths below. All other files rely on
 # these paths, as they are not given anywhere else.
@@ -2744,10 +2743,8 @@ installer='${installer}'
 mpicc='${mpicc}'
 # The MPI executable
 mpiexec='${mpiexec}'
-# The Python3 interpreter
+# The Python interpreter
 python='${python}'
-# The Python3 configuration executable
-python_config='${python_config}'
 " > "${dotpaths}"
 # The following ImageMagick lines were removed:
 # # The convert executable from ImageMagick

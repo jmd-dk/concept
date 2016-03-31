@@ -32,39 +32,40 @@ this_test = os.path.basename(this_dir)
 
 # Imports from the CO𝘕CEPT code
 from commons import *
-from snapshot import load_into_standard, load_particles
+from snapshot import load
 
 # Read in data from the CO𝘕CEPT snapshots
 a = []
-particles = []
+components = []
 for fname in sorted(glob.glob(this_dir + '/output/snapshot_a=*'),
                     key=lambda s: s[(s.index('=') + 1):]):
-    snapshot = load_into_standard(fname, compare_params=False)
+    snapshot = load(fname, compare_params=False)
     a.append(snapshot.params['a'])
-    particles.append(snapshot.particles_list[0])
+    components.append(snapshot.components[0])
 N_snapshots = len(a)
 
 # Read in data from the GADGET snapshots
-particles_gadget = []
+components_gadget = []
 for fname in sorted(glob.glob(this_dir + '/output/snapshot_gadget_*'),
                     key=lambda s: s[(s.index('gadget_') + 7):])[:N_snapshots]:
-    particles_gadget.append(load_particles(fname, compare_params=False)[0])
+    components_gadget.append(load(fname, compare_params=False, only_components=True)[0])
 
 # Begin analysis
 masterprint('Analyzing {} data ...'.format(this_test))
 
-# Using the particle order of CO𝘕CEPT as the standard, find the corresponding
-# ID's in the GADGET snapshots and order these particles accoringly.
-N = particles[0].N
+# Using the particle order of CO𝘕CEPT as the standard,
+# find the corresponding ID's in the GADGET snapshots
+# and order these particles accoringly.
+N = components[0].N
 D2 = zeros(N)
 ID = zeros(N, dtype='int')
 for i in range(N_snapshots):
-    x = particles[i].posx
-    y = particles[i].posy
-    z = particles[i].posz
-    x_gadget = particles_gadget[i].posx
-    y_gadget = particles_gadget[i].posy
-    z_gadget = particles_gadget[i].posz
+    x = components[i].posx
+    y = components[i].posy
+    z = components[i].posz
+    x_gadget = components_gadget[i].posx
+    y_gadget = components_gadget[i].posy
+    z_gadget = components_gadget[i].posz
     for j in range(N):
         for k in range(N):
             dx = x[j] - x_gadget[k]
@@ -84,22 +85,22 @@ for i in range(N_snapshots):
                 dz += boxsize
             D2[k] = dx**2 + dy**2 + dz**2
         ID[j] = np.argmin(D2)
-    particles_gadget[i].posx = particles_gadget[i].posx[ID]
-    particles_gadget[i].posy = particles_gadget[i].posy[ID]
-    particles_gadget[i].posz = particles_gadget[i].posz[ID]
-    particles_gadget[i].momx = particles_gadget[i].momx[ID]
-    particles_gadget[i].momy = particles_gadget[i].momy[ID]
-    particles_gadget[i].momz = particles_gadget[i].momz[ID]
+    components_gadget[i].posx = components_gadget[i].posx[ID]
+    components_gadget[i].posy = components_gadget[i].posy[ID]
+    components_gadget[i].posz = components_gadget[i].posz[ID]
+    components_gadget[i].momx = components_gadget[i].momx[ID]
+    components_gadget[i].momy = components_gadget[i].momy[ID]
+    components_gadget[i].momz = components_gadget[i].momz[ID]
 
 # Compute distance between particles in the two snapshots
 dist = []
 for i in range(N_snapshots):
-    x = particles[i].posx
-    y = particles[i].posy
-    z = particles[i].posz
-    x_gadget = particles_gadget[i].posx
-    y_gadget = particles_gadget[i].posy
-    z_gadget = particles_gadget[i].posz
+    x = components[i].posx
+    y = components[i].posy
+    z = components[i].posz
+    x_gadget = components_gadget[i].posx
+    y_gadget = components_gadget[i].posy
+    z_gadget = components_gadget[i].posz
     dist.append(sqrt(np.array([min([(x[j] - x_gadget[j] + xsgn*boxsize)**2 + (y[j] - y_gadget[j] + ysgn*boxsize)**2 + (z[j] - z_gadget[j] + zsgn*boxsize)**2 for xsgn in (-1, 0, +1) for ysgn in (-1, 0, +1) for zsgn in (-1, 0, +1)]) for j in range(N)])))
     # Plot
     plt.plot(dist[i]/boxsize, '.', alpha=.7, label='$a={}$'.format(a[i]), zorder=-i)
@@ -119,7 +120,7 @@ masterprint('done')
 # Printout error message for unsuccessful test
 tol = 1e-3
 if any(np.mean(d/boxsize) > tol for d in dist):
-    masterwarn('The results from {} disagree with those from GADGET.\n'.format(terminal.CONCEPT)
-               + 'See "{}" for a visualization.'.format(fig_file))
+    masterwarn('The results from CO𝘕CEPT disagree with those from GADGET.\n'
+               'See "{}" for a visualization.'.format(fig_file))
     sys.exit(1)
 

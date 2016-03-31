@@ -26,30 +26,30 @@ from commons import *
 
 # Cython imports
 cimport('from graphics import plot_powerspec')
-cimport('from mesh import PM_grid, PM_CIC, PM_FFT, PM_gridsize_local_j, PM_gridstart_local_j')
+cimport('from mesh import slab, CIC_component2slabs, slabs_FFT, slab_size_j, slab_start_j')
 
 
 
-# Calculate the power spectrum of the particle configuration
+# Function for calculating power spectra of components
 @cython.header(# Arguments
-               particles_list='list',
+               components='list',
                a='double',
                filename='str',
                # Locals
                P='double',
-               PM_grid_jik='double*',
+               slab_jik='double*',
                W2='double',
                fmt='str',
                header='str',
-               i='int',
-               j='int',
-               j_global='int',
-               k='int',
+               i='Py_ssize_t',
+               j='Py_ssize_t',
+               j_global='Py_ssize_t',
+               k='Py_ssize_t',
                k2='Py_ssize_t',
-               ki='int',
-               kj='int',
-               kk='int',
-               particles='Particles',
+               ki='Py_ssize_t',
+               kj='Py_ssize_t',
+               kk='Py_ssize_t',
+               component='Component',
                power='double[::1]',
                power_fac='double',
                power_fac2='double',
@@ -65,101 +65,96 @@ cimport('from mesh import PM_grid, PM_CIC, PM_FFT, PM_gridsize_local_j, PM_grids
                σ_tophat='dict',
                σ_tophat_σ='dict',
                )
-def powerspec(particles_list, a, filename):
-    global PM_grid, mask, k_magnitudes_masked, power_N, power_dict, power_σ2_dict
+def powerspec(components, a, filename):
+    global slab, mask, k_magnitudes_masked, power_N, power_dict, power_σ2_dict
     # Do not compute any power spectra if
     # powerspec_select does not contain any True values.
     if not any(powerspec_select.values()):
         return
     # Dicts storing the rms density variation and its standard deviation
-    # as values, with the paticle types as keys.
+    # as values, with the component names as keys.
     σ_tophat   = {}
     σ_tophat_σ = {}
-    # Do a seperate power spectrum for each particle type
-    for particles in particles_list:
-        # If particles.type are not in power_dict, it means that
-        # power spectra for particles of the i'th type should not be
-        # computed, or that no power spectra have been computed yet.
-        if particles.type not in power_dict:
-            # The power spectrum of the i'th particles should only be
-            # computed if {'type i': True} or {'all': True} exist
-            # in powerspec_select. Also, if 'type i' exists,
+    # Compute a seperate power spectrum for each component
+    for component in components:
+        # If component.name are not in power_dict, it means that
+        # power spectra for the i'th component should not be computed,
+        # or that no power spectra have been computed yet.
+        if component.name not in power_dict:
+            # The power spectrum of the i'th component should only be
+            # computed if {component.name: True} or {'all': True} exist
+            # in powerspec_select. Also, if component.name exists,
             # the value for 'all' is ignored.
-            if particles.type.lower() in powerspec_select:
-                if not powerspec_select[particles.type.lower()]:
+            if component.name.lower() in powerspec_select:
+                if not powerspec_select[component.name.lower()]:
                     continue
             elif not powerspec_select.get('all', False):
                 continue
-            # Power spectrum of these particles should be computed!
+            # Power spectrum of this component should be computed!
             # Allocate arrays for the final powerspectra results
-            # for the i'th particle type.
-            power_dict[particles.type]    = empty(k2_max, dtype=C2np['double'])
-            power_σ2_dict[particles.type] = empty(k2_max, dtype=C2np['double'])
-        masterprint('Computing power spectrum of {} ...'.format(particles.type))
+            # for the i'th component.
+            power_dict[component.name]    = empty(k2_max + 1, dtype=C2np['double'])
+            power_σ2_dict[component.name] = empty(k2_max + 1, dtype=C2np['double'])
+        masterprint('Computing power spectrum of {} ...'.format(component.name))
         # Assign short names for the arrays storing the results
-        power    = power_dict[particles.type]
-        power_σ2 = power_σ2_dict[particles.type]
-        # CIC interpolate particles to the PM mesh
+        power    = power_dict[component.name]
+        power_σ2 = power_σ2_dict[component.name]
+        # CIC interpolate component to the slabs
         # and do Fourier transformation.
-        if particles.representation == 'particles':
-            PM_CIC(particles)
-        elif particles.representation == 'fluid':
-            pass
-        PM_FFT()
+        CIC_component2slabs(component)
+        slabs_FFT()
         # Reset power, power multiplicity and power variance
         for k2 in range(k2_max):
             power[k2] = 0
             power_N[k2] = 0
             power_σ2[k2] = 0
-        # Begin loop over PM_grid. As the first and second dimensions
+        # Begin loop over slab. As the first and second dimensions
         # are transposed due to the FFT, start with the j-dimension.
-        for j in range(PM_gridsize_local_j):
+        for j in range(slab_size_j):
             # The j-component of the wave vector
-            j_global = j + PM_gridstart_local_j
-            if j_global > nyquist:
-                kj = j_global - PM_gridsize
+            j_global = j + slab_start_j
+            if j_global > φ_gridsize_half:
+                kj = j_global - φ_gridsize
             else:
                 kj = j_global
             # Square root of the j-component of the deconvolution
-            sqrt_deconv_j = sinc(kj*ℝ[π/PM_gridsize])
+            sqrt_deconv_j = sinc(kj*ℝ[π/φ_gridsize])
             # Loop over the entire first dimension
-            for i in range(PM_gridsize):
+            for i in range(φ_gridsize):
                 # The i-component of the wave vector
-                if i > nyquist:
-                    ki = i - PM_gridsize
+                if i > φ_gridsize_half:
+                    ki = i - φ_gridsize
                 else:
                     ki = i
                 # Square root of the product of the i-
                 # and the j-component of the deconvolution.
-                sqrt_deconv_ij = sinc(ki*ℝ[π/PM_gridsize])*sqrt_deconv_j
+                sqrt_deconv_ij = sinc(ki*ℝ[π/φ_gridsize])*sqrt_deconv_j
                 # Loop over the entire last dimension in steps of two,
                 # as contiguous pairs of elements are the real and
                 # imaginary part of the same complex number.
-                for k in range(0, PM_gridsize_padding, 2):
+                for k in range(0, slab_size_padding, 2):
                     # The k-component of the wave vector
                     kk = k//2
                     # The squared magnitude of the wave vector
                     k2 = ki**2 + kj**2 + kk**2
-                    if k2 == 0 or k2 == k2_max:
-                        continue
                     # Square root of the product of
                     # all components of the deconvolution.
-                    sqrt_deconv_ijk = sqrt_deconv_ij*sinc(kk*ℝ[π/PM_gridsize])
+                    sqrt_deconv_ijk = sqrt_deconv_ij*sinc(kk*ℝ[π/φ_gridsize])
                     # The reciprocal of the product of
                     # all components of the deconvolution.
                     recp_deconv_ijk = 1/(sqrt_deconv_ijk**2)
-                    # Pointer to the [j, i, k]'th element in PM_grid.
+                    # Pointer to the [j, i, k]'th element of the slab.
                     # The complex number is then given as
-                    # Re = PM_grid_jik[0], Im = PM_grid_jik[1].
-                    PM_grid_jik = cython.address(PM_grid[j, i, k:])
+                    # Re = slab_jik[0], Im = slab_jik[1].
+                    slab_jik = cython.address(slab[j, i, k:])
                     # Do the deconvolution
-                    PM_grid_jik[0] *= recp_deconv_ijk  # Real part
-                    PM_grid_jik[1] *= recp_deconv_ijk  # Imag part
+                    slab_jik[0] *= recp_deconv_ijk  # Real part
+                    slab_jik[1] *= recp_deconv_ijk  # Imag part
                     # Increase the multiplicity
                     power_N[k2] += 1
                     # The power is the squared magnitude
                     # of the complex number
-                    P = PM_grid_jik[0]**2 + PM_grid_jik[1]**2
+                    P = slab_jik[0]**2 + slab_jik[1]**2
                     # Increase the power. This is unnormalized for now.
                     power[k2] += P
                     # Increase the variance. For now, this is only the
@@ -177,6 +172,13 @@ def powerspec(particles_list, a, filename):
                op=MPI.SUM)
         if not master:
             continue
+        # Remove the k2 == 0 elements (the background)
+        # of the power arrays.
+        power_N[0] = power[0] = power_σ2[0] = 0
+        # Remove the k2 == k2_max elemenets of the power arrays,
+        # as this comes from only one data (grid) point as is therefore
+        # highly uncertain.
+        power_N[k2_max] = power[k2_max] = power_σ2[k2_max] = 0
         # Boolean mask of the arrays and a masked version of the
         # k_magnitudes array. Both are identical for every
         # power spectrum in the current run.
@@ -186,7 +188,7 @@ def powerspec(particles_list, a, filename):
         # Transform power from being the sum to being the mean,
         # by dividing by power_N. Also normalize to unity by dividing
         # by N**2 (each of the N particles contribute with a total value
-        # of 1 to PM_grid, which is then squared to get the power).
+        # of 1 to the φ grid, which is then squared to get the power).
         # Finally, transform to physical units by multiplying by the box
         # volume. At the same time, transform power_σ2 from being the
         # sum of squares to being the actual variance,
@@ -194,7 +196,7 @@ def powerspec(particles_list, a, filename):
         # Remember that as of now, power_σ2 holds the sums of
         # unnormalized squared powers.
         # Finally, divide by power_N to correct for the sample size.
-        power_fac = ℝ[boxsize**3]/cast(particles.N, 'double')**2
+        power_fac = ℝ[boxsize**3]/cast(component.N, 'double')**2
         power_fac2 = power_fac**2
         for k2 in range(k2_max):
             if power_N[k2] != 0:
@@ -202,7 +204,7 @@ def powerspec(particles_list, a, filename):
                 power_σ2[k2] = (power_σ2[k2]*power_fac2/power_N[k2] - power[k2]**2)/power_N[k2]
         # Compute the rms density variation σ_tophat
         # together with its standard deviation σ_tophat_σ.
-        σ_tophat[particles.type], σ_tophat_σ[particles.type] = rms_density_variation(power,
+        σ_tophat[component.name], σ_tophat_σ[component.name] = rms_density_variation(power,
                                                                                      power_σ2)
         masterprint('done')
     # Only the master process should write
@@ -215,26 +217,26 @@ def powerspec(particles_list, a, filename):
     spectrum_plural = 'spectrum' if len(power_dict) == 1 else 'spectra'
     masterprint('Saving power {} to "{}" ...'.format(spectrum_plural, filename))
     header = ('# Power {} at a = {:.6g} '.format(spectrum_plural, a) 
-              + 'computed with a grid of linear size {}\n#\n'.format(PM_gridsize))
-    # Header lines for particle type, σ_tophat and quantity
+              + 'computed with a grid of linear size {}\n#\n'.format(φ_gridsize))
+    # Header lines for component name, σ_tophat and quantity
     fmt = '{:<15}'
     row_type = [' ']
     row_σ_tophat = [' ']
-    row_quantity = ['k [Mpc' + unicode('⁻') + unicode('¹') + ']']
-    for particles in particles_list:
-        if particles.type not in power_dict:
+    row_quantity = [unicode('k [Mpc⁻¹]')]
+    for component in components:
+        if component.name not in power_dict:
             continue
         fmt += '{:<2}'  # Space
         row_type.append(' ')
         row_σ_tophat.append(' ')
         row_quantity.append(' ')
         fmt += '{:^33}  '  # Either type, σ_tophat or power and σ(power)
-        row_type.append(particles.type)
+        row_type.append(component.name)
         row_σ_tophat.append(unicode('σ') + unicode_subscript('{:.2g}'.format(R_tophat/units.Mpc))
-                            + ' = {:.4g} '.format(σ_tophat[particles.type]) + unicode('±')
-                            + ' {:.4g}'.format(σ_tophat_σ[particles.type]))
-        row_quantity.append('power [Mpc' + unicode('³') + ']')
-        row_quantity.append(unicode('σ') + '(power) [Mpc' + unicode('³') + ']')
+                            + ' = {:.4g} '.format(σ_tophat[component.name]) + unicode('±')
+                            + ' {:.4g}'.format(σ_tophat_σ[component.name]))
+        row_quantity.append(unicode('power [Mpc³]'))
+        row_quantity.append(unicode('σ(power) [Mpc³]'))
     header += '# ' + fmt.format(*row_type) + '\n'
     header += '# ' + fmt.format(*row_σ_tophat) + '\n'
     header += '# ' + fmt.replace('{:^33} ', ' {:<16} {:<16}').format(*row_quantity) + '\n'
@@ -243,12 +245,12 @@ def powerspec(particles_list, a, filename):
         powerspec_file.write(header)
     # Mask the data and pack it into a list
     data_list = [k_magnitudes_masked]
-    for particles in particles_list:
-        if particles.type not in power_dict:
+    for component in components:
+        if component.name not in power_dict:
             continue
-        data_list.append(asarray(power_dict[particles.type])[mask])
+        data_list.append(asarray(power_dict[component.name])[mask])
         # Take sqrt to convert power_σ2 to power_σ
-        data_list.append(np.sqrt(asarray(power_σ2_dict[particles.type])[mask]))
+        data_list.append(np.sqrt(asarray(power_σ2_dict[component.name])[mask]))
     # Write data to file
     with open(filename, 'a+b') as powerspec_file:
         np.savetxt(powerspec_file,
@@ -338,7 +340,7 @@ def rms_density_variation(power, power_σ2):
     # Then take the square root to get the standard deviation from the
     # variance.
     σ_σ = sqrt(1/(4*σ2)*σ2_σ2)
-    return (σ, σ_σ)
+    return σ, σ_σ
 
 # Function returning the integrand of σ², the square of the rms density
 # variation, given an unnormalized k².
@@ -358,7 +360,7 @@ def σ2_integrand(power, k2):
        = 1/(2π)³∫_0^∞ dk 4πk² power W²
        = 1/(2π)³∫_0^∞ dk²/(2k) 4πk² power W²
        = 1/(2π)²∫_0^∞ dk² k power W²,
-    where dk² = k_fac² = (2π/boxsize)²
+    where dk² = (2π/boxsize)²
           --> 1/(2π)² dk² = 1/boxsize²
     and W = 3(sin(kR) - kR*cos(kR))/(kR)³.
     The W2 variable below is really W²/9.
@@ -378,23 +380,19 @@ def σ2_integrand(power, k2):
 # Initialize variables used for the powerspectrum computation at import
 # time, if such computation should ever take place.
 cython.declare(k2_max='Py_ssize_t',
-               k_fac='double',
                k_magnitudes='double[::1]',
                k_magnitudes_masked='double[::1]',
                mask='object',  # This is only ever used as a NumPy array
-               nyquist='int',
                power_N='int[::1]',
                power_dict='object',     # OrderedDict
                power_σ2_dict='object',  # OrderedDict
                )
 if powerspec_times or special_params.get('special', '') == 'powerspec':
-    # Maximum value of any k-component (grid units)
-    nyquist = PM_gridsize//2
-    # Maximum value of k squared (grid units)
-    k2_max = 3*nyquist**2
+    # Maximum value of k squared (grid units) 
+    k2_max = 3*φ_gridsize_half**2
     # Array counting the multiplicity of power data points
-    power_N = empty(k2_max, dtype=C2np['int'])
-    # (Ordered) dictionaries with particle types as keys and
+    power_N = empty(k2_max + 1, dtype=C2np['int'])
+    # (Ordered) dictionaries with component names as keys and
     # power and power_σ2 as values.
     power_dict = collections.OrderedDict()
     power_σ2_dict = collections.OrderedDict()
@@ -407,5 +405,5 @@ if powerspec_times or special_params.get('special', '') == 'powerspec':
     k_magnitudes_masked = np.array([], dtype=C2np['double'])
     # Create array of physical k-magnitudes
     if master:
-        k_fac = 2*π/boxsize
-        k_magnitudes = k_fac*np.sqrt(arange(k2_max, dtype=C2np['double']))
+        k_magnitudes = 2*π/boxsize*np.sqrt(arange(1 + k2_max, dtype=C2np['double']))
+

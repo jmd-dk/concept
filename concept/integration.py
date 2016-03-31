@@ -90,8 +90,8 @@ def rkf45(ḟ, f_start, t_start, t_end, δ, ϵ, save_intermediate):
         k4 = h*ḟ(t + c4*h, f + a41*k1 + a42*k2 + a43*k3)
         k5 = h*ḟ(t + c5*h, f + a51*k1 + a52*k2 + a53*k3 + a54*k4)
         k6 = h*ḟ(t + c6*h, f + a61*k1 + a62*k2 + a63*k3 + a64*k4 + a65*k5)
-        f5 = f     + b1*k1            +  b3*k3 +  b4*k4 +  b5*k5 + b6*k6
-        f4 = f     + d1*k1            +  d3*k3 +  d4*k4 +  d5*k5
+        f5 = f               +  b1*k1          +  b3*k3 +  b4*k4 +  b5*k5 + b6*k6
+        f4 = f               +  d1*k1          +  d3*k3 +  d4*k4 +  d5*k5
         # The error estimate
         error = abs(f5 - f4) + machine_ϵ
         # The local tolerence
@@ -292,3 +292,4 @@ integrand_cum = malloc(alloc_cum*sizeof('double'))
 t_cum_mv = cast(t_cum, 'double[:alloc_cum]')
 f_cum_mv = cast(f_cum, 'double[:alloc_cum]')
 integrand_cum_mv = cast(integrand_cum, 'double[:alloc_cum]')
+

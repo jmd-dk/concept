@@ -32,7 +32,7 @@ this_test = os.path.basename(this_dir)
 
 # Imports from the CO𝘕CEPT code
 from commons import *
-from snapshot import load_into_standard, load_gadget
+from snapshot import load
 
 # Read in data from the CO𝘕CEPT snapshots
 a = []
@@ -42,8 +42,8 @@ x1 = []
 x1_std = []
 for fname in sorted(glob.glob(this_dir + '/output/snapshot_a=*'),
                     key=lambda s: s[(s.index('=') + 1):]):
-    snapshot = load_into_standard(fname, compare_params=False)
-    posx = snapshot.particles_list[0].posx
+    snapshot = load(fname, compare_params=False)
+    posx = snapshot.components[0].posx
     a.append(snapshot.params['a'])
     x0.append(np.mean(posx[:4]))
     x0_std.append(np.std(posx[:4]))
@@ -58,8 +58,8 @@ x1_gadget = []
 x1_std_gadget = []
 for fname in sorted(glob.glob(this_dir + '/output/snapshot_gadget_*'),
                     key=lambda s: s[(s.index('gadget_') + 7):])[:N_snapshots]:
-    snapshot = load_gadget(fname, compare_params=False)
-    posx_gadget = snapshot.particles.posx[np.argsort(snapshot.ID)]
+    snapshot = load(fname, compare_params=False)
+    posx_gadget = snapshot.components[0].posx[np.argsort(snapshot.ID)]
     x0_gadget.append(np.mean(posx_gadget[:4]))
     x0_std_gadget.append(np.std(posx_gadget[:4]))
     x1_gadget.append(np.mean(posx_gadget[4:]))
@@ -86,12 +86,12 @@ tol = N_snapshots*100*np.finfo('float32').eps
 if np.sum(x0_std_gadget) > tol or np.sum(x1_std_gadget) > tol:
     masterprint('done')
     masterwarn('Unequal x-positions for the 2*4 particles in the GADGET snapshots.\n'
-               + 'It is no good to compare the CONCEPT results to these.')
+               'It is no good to compare the CO𝘕CEPT results to these.')
     sys.exit(1)
 if np.sum(x0_std) > tol or np.sum(x1_std) > tol:
     masterprint('done')
     masterwarn('Unequal x-positions for the 2*4 particles in the snapshots.\n'
-               + 'The symmetric initial conditions has produced nonsymmetric results!')
+               'The symmetric initial conditions has produced nonsymmetrical results!')
     sys.exit(1)
 
 # Done analyzing
@@ -101,7 +101,7 @@ masterprint('done')
 tol = 1e-2
 if (max(np.abs(np.array(x0)/np.array(x0_gadget) - 1)) > tol 
     or max(np.abs(np.array(x1)/np.array(x1_gadget) - 1)) > tol):
-    masterwarn('The results from {} disagree with those from GADGET.\n'.format(terminal.CONCEPT)
-          + 'See "{}" for a visualization.'.format(fig_file))
+    masterwarn('The results from CO𝘕CEPT disagree with those from GADGET.\n'
+               'See "{}" for a visualization.'.format(fig_file))
     sys.exit(1)
 

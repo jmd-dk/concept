@@ -25,7 +25,7 @@
 from commons import *
 
 # Cython imports
-cimport('from mesh import CIC_grid2coordinates_vector, tabulate_vectorfield')
+cimport('from mesh import CIC_vectorgrid2coordinates, tabulate_vectorfield')
 
 
 
@@ -68,7 +68,6 @@ def summation(x, y, z):
     all particle images except the nearest one. Note that this nearest
     image need not be the actual particle.
     """
-
     # The Ewald force vector and its components
     force = vector
     force_x = force_y = force_z = 0
@@ -95,8 +94,8 @@ def summation(x, y, z):
                 dist = sqrt(dist2)
                 if dist > maxdist:
                     continue
-                scalarpart = -dist**(-3)*(erfc(dist*recp_2rs)
-                                          + dist*recp_sqrt_π_rs* exp(dist2*minus_recp_4rs2))
+                scalarpart = -dist**(-3)*(erfc(dist*ℝ[1/(2*rs)])
+                                          + dist*ℝ[1/(sqrt(π)*rs)]*exp(dist2*ℝ[-1/(4*rs**2)]))
                 force_x += dist_x*scalarpart
                 force_y += dist_y*scalarpart
                 force_z += dist_z*scalarpart
@@ -111,7 +110,7 @@ def summation(x, y, z):
                 ky = ℝ[2*π]*sumindex_y
                 kz = ℝ[2*π]*sumindex_z
                 k2 = kx**2 + ky**2 + kz**2
-                scalarpart = ℝ[-4*π]/k2*exp(-k2*rs2)*sin(kx*x + ky*y + kz*z)
+                scalarpart = ℝ[-4*π]/k2*exp(-k2*ℝ[rs**2])*sin(kx*x + ky*y + kz*z)
                 force_x += kx*scalarpart
                 force_y += ky*scalarpart
                 force_z += kz*scalarpart
@@ -137,16 +136,15 @@ def summation(x, y, z):
                )
 def ewald(x, y, z):
     """This function performs a look up of the Ewald correction to the
-    fully periodic gravitational force (corresponding to 1/r**2) on a
+    fully periodic gravitational force (corresponding to 1/r²) on a
     particle due to some other particle at a position (x, y, z) relative
-    to the first particle. It is important that the passed coordinates
+    to the first particle. It is important that the parsed coordinates
     are of the nearest periodic image of the other particle, and not
     necessarily of the particle itself. This means that
     0 <= |x|, |y|, |z| < boxsize/2. The returned value is thus the force
     arising on the first particle due to all periodic images of the
     second particle, except for the nearest one.
     """
-
     # Only the positive octant of the box is tabulated. Flip the sign of
     # the coordinates so that they reside inside this octant.
     if x > 0:
@@ -167,10 +165,10 @@ def ewald(x, y, z):
     # Look up Ewald force and do a CIC interpolation. Since the
     # coordinates are to the nearest image, they must be scaled by
     # 2/boxsize to reside in the range 0 <= x, y, z < 1.
-    force = CIC_grid2coordinates_vector(grid, x*ℝ[2/boxsize],
-                                              y*ℝ[2/boxsize],
-                                              z*ℝ[2/boxsize],
-                                        )
+    force = CIC_vectorgrid2coordinates(grid, x*ℝ[2/boxsize],
+                                             y*ℝ[2/boxsize],
+                                             z*ℝ[2/boxsize],
+                                       )
     # Put the sign back in for negative input
     if isnegative_x:
         force[0] *= -1
@@ -189,15 +187,10 @@ def ewald(x, y, z):
 cython.declare(h_lower='int',
                h_upper='int',
                maxdist='double',
-               maxh='double',
                maxh2='double',
-               minus_recp_4rs2='double',
                n_lower='int',
                n_upper='int',
-               recp_2rs='double',
-               recp_sqrt_π_rs='double',
                rs='double',
-               rs2='double',
                )
 # The values chosen match those listed in the article mentioned in the
 # docstring of the summation function. These are also those used
@@ -206,15 +199,11 @@ rs = 0.25  # Corresponds to alpha = 2
 maxdist = 3.6
 maxh2 = 10
 # Derived constants
-maxh = sqrt(maxh2)
-h_lower = int(-maxh)  # GADGET: -4 (also the case here for maxh2=10)
-h_upper = int(maxh) + 1  # GADGET: 5 (also the case here for maxh2=10)
-minus_recp_4rs2 = -1/(4*rs**2)
+h_lower = int(-sqrt(maxh2))  # GADGET: -4 (also the case here for maxh2=10)
+h_upper = int(+sqrt(maxh2)) + 1  # GADGET: 5 (also the case here for maxh2=10)
 n_lower = int(-(maxdist + 1))  # GADGET: -4 (same here for maxdist=3.6)
-n_upper = int(maxdist + 1) + 1  # GADGET: 5 (same here for maxdist=3.6)
-recp_2rs = 1/(2*rs)
-recp_sqrt_π_rs = 1/(sqrt(π)*rs)
-rs2 = rs**2
+n_upper = int(maxdist + 1) + 1  # GADGET: 5 (same here for maxdist=3.6) 
+
 # Initialize the grid at import time, if Ewald summation is to be used
 cython.declare(i='int',
                p='str',
@@ -240,3 +229,5 @@ if 'PP' in kick_algorithms.values() and use_Ewald:
                                     summation,
                                     0.5/(ewald_gridsize - 1),
                                     filepath)
+        masterprint('done')
+

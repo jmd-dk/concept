@@ -21,7 +21,7 @@
 
 
 # Input/output
-IC_file       = paths['params_dir'] + '/IC'
+IC_file       = paths['params_dir'] + '/IC.hdf5'
 snapshot_type = 'standard'
 output_dirs   = {'snapshot': paths['params_dir'] + '/output'}
 output_bases  = {'snapshot': 'snapshot'}
@@ -29,7 +29,7 @@ output_times  = {'snapshot': loadtxt(paths['params_dir'] + '/outputlist')}
 
 # Numerical parameters
 boxsize     = 8*Mpc
-PM_gridsize = 8	
+φ_gridsize = 8	
 Δt_factor   = 0.01
 
 # Cosmological parameters

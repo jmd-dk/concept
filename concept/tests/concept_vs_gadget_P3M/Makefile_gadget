@@ -13,7 +13,7 @@ OPT   +=  -DPERIODIC
 #OPT   +=  -DUNEQUALSOFTENINGS
 
 
-#--------------------------------------- Things that are always recommended
+#------------------------------------ Things that are always recommended
 OPT   +=  -DPEANOHILBERT
 OPT   +=  -DWALLCLOCK   
 
@@ -116,7 +116,8 @@ INCL   = allvars.h  proto.h  tags.h  Makefile
 CFLAGS = $(OPTIONS) $(GSL_INCL) $(FFTW_INCL) $(HDF5INCL) $(MPI_INCL)
 
 
-ifeq (NOTYPEPREFIX_FFTW,$(findstring NOTYPEPREFIX_FFTW,$(OPT)))    # fftw installed with type prefix?
+# FFTW installed with type prefix?
+ifeq (NOTYPEPREFIX_FFTW,$(findstring NOTYPEPREFIX_FFTW,$(OPT)))
   FFTW_LIB = $(FFTW_LIBS) -lrfftw_mpi -lfftw_mpi -lrfftw -lfftw
 else
 ifeq (DOUBLEPRECISION_FFTW,$(findstring DOUBLEPRECISION_FFTW,$(OPT)))

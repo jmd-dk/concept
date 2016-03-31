@@ -26,13 +26,14 @@ from commons import *
 
 # Cython imports
 cimport('from ewald import ewald')
-cimport('from communication import find_N_recv, neighboring_ranks')
-cimport('from mesh import CIC_grid2coordinates_scalar, PM2domain')
-cimport('from mesh import PM_grid, PM_CIC, PM_FFT, PM_IFFT')
-cimport('from mesh import PM_gridsize_local_j, PM_gridstart_local_j')
-cimport('from mesh import domain_grid, domain_grid_noghosts')
-cimport('from mesh import domain_size_x,  domain_size_y,  domain_size_z')
-cimport('from mesh import domain_start_x, domain_start_y, domain_start_z')
+cimport('from communication import find_N_recv, rank_neighboring_domain')
+cimport('from communication import domain_size_x,  domain_size_y,  domain_size_z')
+cimport('from communication import domain_start_x, domain_start_y, domain_start_z')
+cimport('from mesh import CIC_scalargrid2coordinates, slabs2φ')
+cimport('from mesh import slab, CIC_component2slabs, slabs_FFT, slabs_IFFT')
+cimport('from mesh import slab_size_j, slab_start_j')
+cimport('from mesh import φ, φ_noghosts')
+
 
 
 
@@ -173,7 +174,7 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
                     force[2] -= z/r3
                 else:
                     # The force from the actual particle,
-                    # without periodic images
+                    # without periodic images.
                     r3 = (x**2 + y**2 + z**2 + softening2)**1.5
                     force[0] = -x/r3
                     force[1] = -y/r3
@@ -208,7 +209,7 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
 # by direct summation on all particles
 # (the particle particle or PP method).
 @cython.header(# Arguments
-               particles='Particles',
+               component='Component',
                Δt='double',
                # Locals
                ID_recv='int',
@@ -235,9 +236,9 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
                posz_local_mv='double[::1]',
                softening2='double',
                )
-def PP(particles, Δt):
-    """ This function updates the momenta of all particles via the
-    particle-particle (PP) method.
+def PP(component, Δt):
+    """ This function updates the momenta of all particles in the
+    parsed component via the particle-particle (PP) method.
     Note that the time step size Δt is really ∫_t^(t + Δt) dt/a.
     """
     global posx_extrn, posy_extrn, posz_extrn
@@ -246,19 +247,19 @@ def PP(particles, Δt):
     global posx_extrn_mv, posy_extrn_mv, posz_extrn_mv
     global Δmomx_local_mv, Δmomy_local_mv, Δmomz_local_mv
     global Δmomx_extrn_mv, Δmomy_extrn_mv, Δmomz_extrn_mv
-    # Extract variables from particles
-    N_local = particles.N_local
-    mass = particles.mass
-    momx_local = particles.momx
-    momy_local = particles.momy
-    momz_local = particles.momz
-    posx_local = particles.posx
-    posy_local = particles.posy
-    posz_local = particles.posz
-    posx_local_mv = particles.posx_mv
-    posy_local_mv = particles.posy_mv
-    posz_local_mv = particles.posz_mv
-    softening2 = particles.softening**2
+    # Extract variables from the component
+    N_local = component.N_local
+    mass = component.mass
+    momx_local    = component.momx
+    momy_local    = component.momy
+    momz_local    = component.momz
+    posx_local    = component.posx
+    posy_local    = component.posy
+    posz_local    = component.posz
+    posx_local_mv = component.posx_mv
+    posy_local_mv = component.posy_mv
+    posz_local_mv = component.posz_mv
+    softening2    = component.softening**2
     # Update local momenta due to forces between local particles.
     # Note that "vector" is not actually used due to flag_input=0.
     direct_summation(posx_local, posy_local, posz_local,
@@ -275,7 +276,7 @@ def PP(particles, Δt):
         return
     # Update local momenta and compute and send external momentum
     # changes due to forces between local and external particles.
-    # Find out how many particles will be recieved from each process
+    # Find out how many particles will be recieved from each process.
     N_extrns = find_N_recv(np.array([N_local], dtype=C2np['Py_ssize_t']))
     N_extrn_max = N_extrns[rank]
     # Enlarges the buffers if necessary
@@ -385,19 +386,19 @@ def PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, mom):
         y = (posy[i] - domain_start_y)/domain_size_y
         z = (posz[i] - domain_start_z)/domain_size_z
         # Look up the force via a CIC interpolation in the force grid
-        force = CIC_grid2coordinates_scalar(force_grid, x, y, z)
+        force = CIC_scalargrid2coordinates(force_grid, x, y, z)
         # Update the i'th momentum
         mom[i] += force*PM_fac
 
 # Function for computing the gravitational force
 # by the particle mesh (PM) method.
 @cython.header(# Arguments
-               particles='Particles',
+               component='Component',
                Δt='double',
                only_long_range='bint',
                # Locals
                Greens_deconv='double',
-               PM_grid_jik='double*',
+               slab_jik='double*',
                sqrt_deconv_ij='double',
                sqrt_deconv_ijk='double',
                sqrt_deconv_j='double',
@@ -409,134 +410,129 @@ def PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, mom):
                momx='double*',
                momy='double*',
                momz='double*',
-               i='int',
-               j='int',
-               j_global='int',
-               k='int',
-               ki='int',
-               kj='int',
-               kk='int',
-               k2='unsigned long int',
+               i='Py_ssize_t',
+               j='Py_ssize_t',
+               j_global='Py_ssize_t',
+               k='Py_ssize_t',
+               ki='Py_ssize_t',
+               kj='Py_ssize_t',
+               kk='Py_ssize_t',
+               k2='Py_ssize_t',
                x='double',
                y='double',
                z='double',
                )
-def PM(particles, Δt, only_long_range=False):
+def PM(component, Δt, only_long_range=False):
     """This function updates the momenta of all particles via the
     particle-mesh (PM) method.
     Note that the time step size Δt is really ∫_t^(t + Δt) dt/a.
     """
-    global PM_grid, domain_grid, domain_grid_noghosts, force_grid
-    # Extract variables from particles
-    N_local = particles.N_local
-    mass = particles.mass
-    posx = particles.posx
-    posy = particles.posy
-    posz = particles.posz
-    momx = particles.momx
-    momy = particles.momy
-    momz = particles.momz
+    # Extract variables from component
+    N_local = component.N_local
+    mass    = component.mass
+    posx    = component.posx
+    posy    = component.posy
+    posz    = component.posz
+    momx    = component.momx
+    momy    = component.momy
+    momz    = component.momz
     # CIC interpolate the particles
     # and do forward Fourier transformation.
-    PM_CIC(particles)
-    PM_FFT()
+    CIC_component2slabs(component)
+    slabs_FFT()
     # Loop through the local j-dimension
-    for j in range(PM_gridsize_local_j):
-        # The j-component of the wave vector. Since PM_grid is
+    for j in range(slab_size_j):
+        # The j-component of the wave vector. Since the slabs are
         # distributed along the j-dimension, an offset must be used.
-        j_global = j + PM_gridstart_local_j
-        if j_global > ℝ[0.5*PM_gridsize]:
-            kj = j_global - PM_gridsize
+        j_global = j + slab_start_j
+        if j_global > φ_gridsize_half:
+            kj = j_global - φ_gridsize
         else:
             kj = j_global
         # Square root of the j-component of the deconvolution
-        sqrt_deconv_j = sinc(kj*ℝ[π/PM_gridsize])
+        sqrt_deconv_j = sinc(kj*ℝ[π/φ_gridsize])
         # Loop through the complete i-dimension
-        for i in range(PM_gridsize):
+        for i in range(φ_gridsize):
             # The i-component of the wave vector
-            if i > ℝ[0.5*PM_gridsize]:
-                ki = i - PM_gridsize
+            if i > φ_gridsize_half:
+                ki = i - φ_gridsize
             else:
                 ki = i
             # Square root of the product of the i-
             # and the j-component of the deconvolution.
-            sqrt_deconv_ij = sinc(ki*ℝ[π/PM_gridsize])*sqrt_deconv_j
+            sqrt_deconv_ij = sinc(ki*ℝ[π/φ_gridsize])*sqrt_deconv_j
             # Loop through the complete, padded k-dimension
             # in steps of 2 (one complex number at a time).
-            for k in range(0, PM_gridsize_padding, 2):
+            for k in range(0, slab_size_padding, 2):
                 # The k-component of the wave vector
                 kk = k//2
-                # Zero-division is illegal in pure Python. The
-                # [0, 0, 0] element of the PM grid will be set later.
+                # The squared magnitude of the wave vector
+                k2 = ki**2 + kj**2 + kk**2
+                # Zero-division is illegal in pure Python.
+                # The global [0, 0, 0] element of the slabs will be set
+                # later anyway.
                 if not cython.compiled:
-                    if ki == kj == kk == 0:
+                    if k2 == 0:
                         continue
                 # Square root of the product of
                 # all components of the deconvolution.
-                sqrt_deconv_ijk = sqrt_deconv_ij*sinc(kk*ℝ[π/PM_gridsize])
-                # Pointer to the [j, i, k]'th element in PM_grid.
+                sqrt_deconv_ijk = sqrt_deconv_ij*sinc(kk*ℝ[π/φ_gridsize])
+                # Pointer to the [j, i, k]'th element of the slab.
                 # The complex number is then given as
-                # Re = PM_grid_jik[0], Im = PM_grid_jik[1].
-                PM_grid_jik = cython.address(PM_grid[j, i, k:])
-                # Multiply by the Greens function 1/k2 to get the the
+                # Re = slab_jik[0], Im = slab_jik[1].
+                slab_jik = cython.address(slab[j, i, k:])
+                # Multiply by the Greens function 1/k2 to get the
                 # potential. Deconvolve twice for the two CIC
                 # interpolations (the mass assignment and the upcomming
-                # force interpolation). Remember that PM_grid is
+                # force interpolation). Remember that slab is
                 # transposed in the first two dimensions due to the
                 # forward FFT.
-                k2 = ki**2 + kj**2 + kk**2
                 Greens_deconv = 1/(k2*sqrt_deconv_ijk**4)
                 if only_long_range:
                     Greens_deconv *= exp(k2*longrange_exponent_fac)
-                PM_grid_jik[0] *= Greens_deconv  # Real part
-                PM_grid_jik[1] *= Greens_deconv  # Imag part
-    # The global [0, 0, 0] element of the PM grid should be zero
-    if PM_gridstart_local_j == 0:
-        PM_grid[0, 0, 0] = 0  # Real part
-        PM_grid[0, 0, 1] = 0  # Imag part
-    # Fourier transform the grid back to coordinate space.
-    # Now the grid stores potential values.
-    PM_IFFT()
-    # Communicate the potential stored in the PM mesh to the domain grid
-    PM2domain()
-    # The factor which shold be multiplied
-    # on the PM grid to get actual units.
+                slab_jik[0] *= Greens_deconv  # Real part
+                slab_jik[1] *= Greens_deconv  # Imag part
+    # The global [0, 0, 0] element of the slabs should be zero
+    if slab_start_j == 0:
+        slab[0, 0, 0] = 0  # Real part
+        slab[0, 0, 1] = 0  # Imag part
+    # Fourier transform the slabs back to coordinate space.
+    # Now the slabs stores potential values.
+    slabs_IFFT()
+    # Communicate the potential stored in the slabs to φ
+    slabs2φ()
+    # The factor with which to multiply the values in the slab
+    # in order to get actual units.
     PM_fac = PM_fac_const*mass**2*Δt
     # Compute the local forces in the
     # x-direction via the four point rule.
-    for i in range(2, domain_grid.shape[0] - 2):
-        for j in range(2, domain_grid.shape[1] - 2):
-            for k in range(2, domain_grid.shape[2] - 2):
-                force_grid[i - 2,j - 2, k - 2] = (  ℝ[2/3] *(  domain_grid[i + 1, j, k]
-                                                             - domain_grid[i - 1, j, k])
-                                                  - ℝ[1/12]*(  domain_grid[i + 2, j, k]
-                                                             - domain_grid[i - 2, j, k]))
+    for i in range(2, φ.shape[0] - 2):
+        for j in range(2, φ.shape[1] - 2):
+            for k in range(2, φ.shape[2] - 2):
+                force_grid[i - 2,j - 2, k - 2] = (  ℝ[2/3] *(φ[i + 1, j, k] - φ[i - 1, j, k])
+                                                  - ℝ[1/12]*(φ[i + 2, j, k] - φ[i - 2, j, k]))
     # Update local x-momenta
     PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, momx)
     # Compute the local forces in the
     # y-direction via the four point rule.
-    for i in range(2, domain_grid.shape[0] - 2):
-        for j in range(2, domain_grid.shape[1] - 2):
-            for k in range(2, domain_grid.shape[2] - 2):
-                force_grid[i - 2, j - 2, k - 2] = (  ℝ[2/3] *(  domain_grid[i, j + 1, k]
-                                                              - domain_grid[i, j - 1, k])
-                                                   - ℝ[1/12]*(  domain_grid[i, j + 2, k]
-                                                              - domain_grid[i, j - 2, k]))
+    for i in range(2, φ.shape[0] - 2):
+        for j in range(2, φ.shape[1] - 2):
+            for k in range(2, φ.shape[2] - 2):
+                force_grid[i - 2, j - 2, k - 2] = (  ℝ[2/3] *(φ[i, j + 1, k] - φ[i, j - 1, k])
+                                                   - ℝ[1/12]*(φ[i, j + 2, k] - φ[i, j - 2, k]))
     # Update local y-momenta
     PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, momy)
     # Compute the local forces in the
     # z-direction via the four point rule.
-    for i in range(2, domain_grid.shape[0] - 2):
-        for j in range(2, domain_grid.shape[1] - 2):
-            for k in range(2, domain_grid.shape[2] - 2):
-                force_grid[i - 2, j - 2, k - 2] = (  ℝ[2/3] *(  domain_grid[i, j, k + 1]
-                                                              - domain_grid[i, j, k - 1])
-                                                   - ℝ[1/12]*(  domain_grid[i, j, k + 2]
-                                                              - domain_grid[i, j, k - 2]))
+    for i in range(2, φ.shape[0] - 2):
+        for j in range(2, φ.shape[1] - 2):
+            for k in range(2, φ.shape[2] - 2):
+                force_grid[i - 2, j - 2, k - 2] = (  ℝ[2/3] *(φ[i, j, k + 1] - φ[i, j, k - 1])
+                                                   - ℝ[1/12]*(φ[i, j, k + 2] - φ[i, j, k - 2]))
     # Update local z-momenta
     PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, momz)
 
-# This collection of functions simply test whether or not the passed
+# This collection of functions simply test whether or not the parsed
 # coordinates lie within a certain domain boundary.
 @cython.header(# Arguments
                posx_local_i='double',
@@ -783,7 +779,7 @@ def in_boundary_leftbackwarddown(posx_local_i, posy_local_i, posz_local_i):
 # Function for computing the gravitational force
 # by the particle particle particle mesh (P³M) method.
 @cython.header(# Arguments
-               particles='Particles',
+               component='Component',
                Δt='double',
                # Locals
                N_extrn='Py_ssize_t',
@@ -809,7 +805,7 @@ def in_boundary_leftbackwarddown(posx_local_i, posy_local_i, posz_local_i):
                softening2='double',
                Δmemory='Py_ssize_t',
                )
-def P3M(particles, Δt):
+def P3M(component, Δt):
     """The long-range part is computed via the PM function. Local
     particles also interact via short-range direct summation. Finally,
     each process send particles near its boundary to the corresponding
@@ -838,17 +834,17 @@ def P3M(particles, Δt):
     global indices_send, indices_send_mv
     global indices_boundary, indices_boundary_mv
     # Compute the long-range force via the PM method
-    PM(particles, Δt, True)
-    # Extract variables from particles
-    N_local = particles.N_local
-    mass = particles.mass
-    momx_local = particles.momx
-    momy_local = particles.momy
-    momz_local = particles.momz
-    posx_local = particles.posx
-    posy_local = particles.posy
-    posz_local = particles.posz
-    softening2 = particles.softening**2
+    PM(component, Δt, True)
+    # Extract variables from component
+    N_local    = component.N_local
+    mass       = component.mass
+    momx_local = component.momx
+    momy_local = component.momy
+    momz_local = component.momz
+    posx_local = component.posx
+    posy_local = component.posy
+    posz_local = component.posz
+    softening2 = component.softening**2
     # Compute the short-range interactions within the local domain.
     # Note that "vector" is not actually used due to flag_input=0.
     direct_summation(posx_local, posy_local, posz_local,
@@ -1025,9 +1021,9 @@ cython.declare(force_grid='double[:, :, ::1]')
 if use_PM:
     # This grid willl contain the forces in the PM algorithm,
     # one component at a time.
-    force_grid = zeros((domain_grid_noghosts.shape[0],
-                        domain_grid_noghosts.shape[1],
-                        domain_grid_noghosts.shape[2]), dtype=C2np['double'])
+    force_grid = empty((φ_noghosts.shape[0],
+                        φ_noghosts.shape[1],
+                        φ_noghosts.shape[2]), dtype=C2np['double'])
 
 
 # Initialize stuff for the PP and P3M algorithms at import time
@@ -1058,32 +1054,6 @@ cython.declare(boundary_ranks_recv='int[::1]',
                posz_extrn_mv='double[::1]',
                posz_local_boundary='double*',
                posz_local_boundary_mv='double[::1]',
-               rank_right='int',
-               rank_left='int',
-               rank_forward='int',
-               rank_backward='int',
-               rank_up='int',
-               rank_down='int',
-               rank_rightforward='int',
-               rank_rightbackward='int',
-               rank_rightup='int',
-               rank_rightdown='int',
-               rank_leftforward='int',
-               rank_leftbackward='int',
-               rank_leftup='int',
-               rank_leftdown='int',
-               rank_forwardup='int',
-               rank_forwarddown='int',
-               rank_backwardup='int',
-               rank_backwarddown='int',
-               rank_rightforwardup='int',
-               rank_rightforwarddown='int',
-               rank_rightbackwardup='int',
-               rank_rightbackwarddown='int',
-               rank_leftforwardup='int',
-               rank_leftforwarddown='int',
-               rank_leftbackwardup='int',
-               rank_leftbackwarddown='int',
                Δmomx_extrn='double*',
                Δmomx_extrn_mv='double[::1]',
                Δmomx_local='double*',
@@ -1144,49 +1114,35 @@ posz_local_boundary_mv = cast(posz_local_boundary, 'double[:1]')
 Δmomx_local_boundary_mv = cast(Δmomx_local_boundary, 'double[:1]')
 Δmomy_local_boundary_mv = cast(Δmomy_local_boundary, 'double[:1]')
 Δmomz_local_boundary_mv = cast(Δmomz_local_boundary, 'double[:1]')
-# Find the ranks of all neighboring domains
-neighbors = neighboring_ranks()
-rank_right = neighbors['right']
-rank_left = neighbors['left']
-rank_forward = neighbors['forward']
-rank_backward = neighbors['backward']
-rank_up = neighbors['up']
-rank_down = neighbors['down']
-rank_rightforward = neighbors['rightforward']
-rank_rightbackward = neighbors['rightbackward']
-rank_rightup = neighbors['rightup']
-rank_rightdown = neighbors['rightdown']
-rank_leftforward = neighbors['leftforward']
-rank_leftbackward = neighbors['leftbackward']
-rank_leftup = neighbors['leftup']
-rank_leftdown = neighbors['leftdown']
-rank_forwardup = neighbors['forwardup']
-rank_forwarddown = neighbors['forwarddown']
-rank_backwardup = neighbors['backwardup']
-rank_backwarddown = neighbors['backwarddown']
-rank_rightforwardup = neighbors['rightforwardup']
-rank_rightforwarddown = neighbors['rightforwarddown']
-rank_rightbackwardup = neighbors['rightbackwardup']
-rank_rightbackwarddown = neighbors['rightbackwarddown']
-rank_leftforwardup = neighbors['leftforwardup']
-rank_leftforwarddown = neighbors['leftforwarddown']
-rank_leftbackwardup = neighbors['leftbackwardup']
-rank_leftbackwarddown = neighbors['leftbackwarddown']
 # Save the neighboring ranks in a particular order,
 # for use in the P3M algorithm
-boundary_ranks_send = np.array([rank_right, rank_forward, rank_up,
-                                rank_rightforward, rank_rightbackward,
-                                rank_rightup, rank_rightdown,
-                                rank_forwardup, rank_forwarddown,
-                                rank_rightforwardup, rank_rightforwarddown,
-                                rank_rightbackwardup, rank_rightbackwarddown, 
+boundary_ranks_send = np.array([rank_neighboring_domain(+1,  0,  0),
+                                rank_neighboring_domain( 0, +1,  0),
+                                rank_neighboring_domain( 0,  0, +1),
+                                rank_neighboring_domain(+1, +1,  0),
+                                rank_neighboring_domain(+1, -1,  0),
+                                rank_neighboring_domain(+1,  0, +1),
+                                rank_neighboring_domain(+1,  0, -1),
+                                rank_neighboring_domain( 0, +1, +1),
+                                rank_neighboring_domain( 0, +1, -1),
+                                rank_neighboring_domain(+1, +1, +1),
+                                rank_neighboring_domain(+1, +1, -1),
+                                rank_neighboring_domain(+1, -1, +1),
+                                rank_neighboring_domain(+1, -1, -1),
                                 ], dtype=C2np['int'])
-boundary_ranks_recv = np.array([rank_left,  rank_backward, rank_down,
-                                rank_leftbackward, rank_leftforward,
-                                rank_leftdown, rank_leftup,
-                                rank_backwarddown, rank_backwardup,
-                                rank_leftbackwarddown, rank_leftbackwardup,
-                                rank_leftforwarddown, rank_leftforwardup,
+boundary_ranks_recv = np.array([rank_neighboring_domain(-1,  0,  0),
+                                rank_neighboring_domain( 0, -1,  0),
+                                rank_neighboring_domain( 0,  0, -1),
+                                rank_neighboring_domain(-1, -1,  0),
+                                rank_neighboring_domain(-1, +1,  0),
+                                rank_neighboring_domain(-1,  0, -1),
+                                rank_neighboring_domain(-1,  0, +1),
+                                rank_neighboring_domain( 0, -1, -1),
+                                rank_neighboring_domain( 0, -1, +1),
+                                rank_neighboring_domain(-1, -1, -1),
+                                rank_neighboring_domain(-1, -1, +1),
+                                rank_neighboring_domain(-1, +1, -1),
+                                rank_neighboring_domain(-1, +1, +1),
                                 ], dtype=C2np['int'])
 # Function pointer arrays to the in-boundary test functions
 in_boundary1_funcs = malloc(13*sizeof('func_b_ddd'))
@@ -1226,3 +1182,4 @@ boundary_y_max = domain_start_y + domain_size_y - P3M_cutoff_phys
 boundary_y_min = domain_start_y + P3M_cutoff_phys
 boundary_z_max = domain_start_z + domain_size_z - P3M_cutoff_phys
 boundary_z_min = domain_start_z + P3M_cutoff_phys
+

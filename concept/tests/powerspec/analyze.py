@@ -32,14 +32,14 @@ this_test = os.path.basename(this_dir)
 
 # Imports from the CO𝘕CEPT code
 from commons import *
-from snapshot import load_particles
+from snapshot import load
 
 # Read in the particles
-particles = load_particles(this_dir + '/snapshot')[0]
-N = particles.N
-posx = particles.posx
-posy = particles.posy
-posz = particles.posz
+component = load(IC_file, only_components=True)[0]
+N = component.N
+posx = component.posx
+posy = component.posy
+posz = component.posz
 
 # Begin analysis
 masterprint('Analyzing {} data ...'.format(this_test))
@@ -80,7 +80,7 @@ plt.savefig(this_dir + '/histogram.png')
 if abs(erf(1/sqrt(2)) - sum(abs(counts_contrast) < σ)/counts_contrast.size) > 0.1:
     masterprint('done')
     masterwarn('The particle distribution do not seem to be Gaussian.\n'
-               + 'See "{}".'.format(this_dir + '/histogram.png'))
+               'See "{}".'.format(this_dir + '/histogram.png'))
     sys.exit(1)
 
 # Load in σ
@@ -98,8 +98,8 @@ masterprint('done')
 # Do the σ from CO𝘕CEPT agree with the one computed via the cubic boxes?
 tol = 1e-2
 if abs(1 - σ_concept/σ) > tol:
-    masterwarn(('The rms density variation σ = {} from "{}" do not agree with direct computation ({}).\n'
-                + 'The power spectrum from which σ is calulated is plotted in "{}"').format(σ_concept, powerspec_filename,
-                                                                                            σ,         powerspec_filename + '.png'))
+    masterwarn(('The rms density variation σ = {:.6g} from "{}" do not agree with direct '
+                'computation ({:.6g}). The power spectrum from which σ is calulated is plotted '
+                'in "{}"').format(σ_concept, powerspec_filename, σ, powerspec_filename + '.png'))
     sys.exit(1)
 

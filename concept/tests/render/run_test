@@ -42,8 +42,8 @@ source "${this_dir}/../environment"
 mkdir -p "${this_dir}/output"
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_snapshot.py" --pure-python --local
 mkdir -p "${this_dir}/output/subdir"
-cp "${this_dir}/output/snapshot" "${this_dir}/output/subdir/snapshot_0"
-cp "${this_dir}/output/snapshot" "${this_dir}/output/subdir/snapshot_1"
+cp "${this_dir}/output/snapshot.hdf5" "${this_dir}/output/subdir/snapshot_0.hdf5"
+cp "${this_dir}/output/snapshot.hdf5" "${this_dir}/output/subdir/snapshot_1.hdf5"
 
 # Generate two different render parameterfiles
 echo "
@@ -62,11 +62,11 @@ resolution = 1080
 " > "${this_dir}/render.params_1"
 
 # Render the single snapshot without explicitly specifying a render parameter file
-"${concept}" -n 1 -u render "${this_dir}/output/snapshot" --local
+"${concept}" -n 1 -u render "${this_dir}/output/snapshot.hdf5" --local
 mv "${this_dir}/output/render_snapshot.png" "${this_dir}/output/render_snapshot_default.png"
 
 # Render the single snapshot by specifying a render parameter file
-"${concept}" -n 1 -p "${this_dir}/render.params_0" -u render "${this_dir}/output/snapshot" --local
+"${concept}" -n 1 -p "${this_dir}/render.params_0" -u render "${this_dir}/output/snapshot.hdf5" --local
 
 # Render all (both) snapshots in the subdir, using 2 processes
 "${concept}" -n 2 -p "${this_dir}/render.params_1" -u render "${this_dir}/output/subdir" --local

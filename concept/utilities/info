@@ -22,11 +22,13 @@
 
 
 
-# This utility can produce renders of snapshots.
+# This utility prints out information about snapshots.
+# More specifically, it prints the meta data contained in the snapshot
+# (everything except the actual component data).
 # You can run this file directly as
-# utilities/render path
+# utilities/info path
 # or invoke it via the concept script as
-# ./render --util render path
+# ./concept --util info path
 # In both cases, path is the path to a snapshot file
 # or a directory containing snapshot files.
 
@@ -102,68 +104,25 @@ if [ "${called_from_concept}" != "True" ]; then
     exit 0
 fi
 
-# If no parameterfile is supplied,
-# use the one that goes along with this utility.
-if [ "${params}" == "None" ]; then
-    params="${this_file}.params"
-fi
-
 # Convert to absolute path
 path="$(absolute_path "${path}" "${workdir}")"
 
-# Get information about all snapshots in the path
-info="$("${concept}" --pure-python --util info "${path}")"
-snapshot_filenames_fmt="$(echo "${info}" | grep -x Information.* | awk '{print $3}')"
-boxsizes="$(              echo "${info}" | grep -x boxsize.*     | awk '{print $2}')"
-# Remove escape sequence from snapshot filenames
-snapshot_filenames=""
-for snapshot_filename in ${snapshot_filenames_fmt}; do
-    snapshot_filename="$(${python} -B -c "import re;                                             \
-                                          print('\"{}\"'.format(re.search('\"(.*?)\"',           \
-                                                                          '${snapshot_filename}' \
-                                                                          ).group(1)))")"
-    if [ -z "${snapshot_filenames}" ]; then
-        snapshot_filenames="${snapshot_filename}"
-    else
-        snapshot_filenames="${snapshot_filenames}
-${snapshot_filename}"
-    fi
-done
-
-# Print out the snapshots which will be rendered
-N_snapshots="$(echo "${snapshot_filenames}" | wc -l)"
-if [ ${N_snapshots} == 1 ]; then
-    echo "A render will be produced of the following snapshot:"
-else
-    echo "Renders will be produced of the following snapshots:"
-fi
-echo "${snapshot_filenames}"
-
-# For each snapshot, run the CO𝘕CEPT code to create the render
-i=0
-for snapshot_filename in ${snapshot_filenames}; do
-    # Get the i'th boxsize
-    ((i += 1))
-    boxsize=$(echo ${boxsizes} | awk "{print \$${i}}")
-    # Make temporary parameter file with every information needed
-    printf "boxsize = ${boxsize}
-special_params = {
-    'special':           '$(basename ${this_file})',
-    'snapshot_filename': ${snapshot_filename},
+# Make temporary parameter file with every information needed
+printf "special_params = {
+    'special': '$(basename ${this_file})',
+    'path'   : '${path}',
                   }
-$(cat "${params}")
 " > "${this_file}.params.full"
-    # Run CO𝘕CEPT to produce the render
-    "${concept}" -m "${main}"                  \
-                 -n  ${nprocs}                 \
-                 -p "${this_file}.params.full" \
-                 -q "${queue}"                 \
-                 -w "${walltime}"              \
-                 ${local_flag} ${pure_python_flag}
-done
+
+# Run CO𝘕CEPT to printout the snapshot information.
+# Always run locally using 1 process.
+"${concept}" -m "${main}"                  \
+             -n 1                          \
+             -p "${this_file}.params.full" \
+             --local ${pure_python_flag}
 
 # Cleanup
-rm "${this_file}.params.full"
+rm -f "${this_file}.params.full"
 
 # Exit gracefully
 colorprint "$(basename ${this_file}) utility ran successfully" "green"

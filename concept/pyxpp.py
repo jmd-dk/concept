@@ -1,3 +1,4 @@
+# Define the encoding, for Python 2 compatibility:
 # This Python file uses the following encoding: utf-8
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
@@ -80,11 +81,27 @@ from time import sleep
 
 
 # Mapping of modules to extension types defined within (Cython classes)
-extension_types = {'species':  'Particles',
-                   'snapshot': 'StandardSnapshot, GadgetSnapshot',
+extension_types = {'species':  'Component',
+                   'snapshot': 'StandardSnapshot, Gadget2Snapshot',
                    }
 
 
+
+# Remove any wrongly specified extension types
+extension_types_that_exist = {}
+for module, extension_type_str in extension_types.items():
+    filename = module + '.py'
+    if os.path.isfile(filename):
+        with open(filename, 'r', encoding='utf-8') as pyfile:
+            text = pyfile.read()
+        for extension_type in extension_type_str.split(','):
+            extension_type = extension_type.replace(' ', '')
+            if re.search('class +' + extension_type + ' *:', text):
+                if module in extension_types_that_exist:
+                    extension_types_that_exist[module] += ', ' + extension_type
+                else:
+                    extension_types_that_exist[module] = extension_type
+extension_types = extension_types_that_exist
 
 def oneline(filename):
     in_quotes = [False, False]
@@ -222,11 +239,13 @@ def cimport_function(filename):
     with open(filename, 'r', encoding='utf-8') as pyxfile:
         lines = pyxfile.read().split('\n')
     for i, line in enumerate(lines):
-        if line.lstrip().startswith('cimport'):
-            lines[i] = re.sub('cimport.*\((.*?)\)',
-                              lambda match: (match.group(1).replace('import ', 'cimport ')
-                                                           .replace("'", '').replace("'", '')),
-                                             line)
+        if line.replace(' ', '').startswith('cimport('):
+            line = re.sub('cimport.*\((.*?)\)',
+                          lambda match: eval(match.group(1)).replace('import ', 'cimport '),
+                          line).rstrip()
+            if line.endswith(','):
+                line = line[:-1]
+            lines[i] = line
     with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.writelines('\n'.join(lines))
 
@@ -463,12 +482,26 @@ def power2product(filename):
 
 def unicode2ASCII(filename):
     with open(filename, 'r', encoding='utf-8') as pyxfile:
-        text = [char for char in pyxfile.read()]
+        text = list(pyxfile.read())
+    N_wrongly_encoded = 0
+    skip = False
     for i, char in enumerate(text):
+        if skip:
+            skip = False
+            continue
         if ord(char) > 127:
-            text[i] = '__UNICODE__' + unicodedata.name(char)
-            text[i] = text[i].replace(' ', '__space__')
-            text[i] = text[i].replace('-', '__dash__')
+            try:
+                unicodename = unicodedata.name(char)
+            except:
+                unicodename = unicodedata.name(char + text[i + 1])
+                skip = True
+            text[i - N_wrongly_encoded] = '{}{}{}'.format('__BEGIN_UNICODE__',
+                                                          unicodename,
+                                                          '__END_UNICODE__')
+            text[i - N_wrongly_encoded] = text[i].replace(' ', '__space__')
+            text[i - N_wrongly_encoded] = text[i].replace('-', '__dash__')
+            if skip:
+                N_wrongly_encoded += 1
     text = ''.join(text)
     with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.write(text)
@@ -608,10 +641,18 @@ def C_casting(filename):
         pyxfile.writelines(new_lines)
 
 
+
 def cython_decorators(filename):
     with open(filename, 'r', encoding='utf-8') as pyxfile:
         lines = pyxfile.read().split('\n')
+    inside_class = False
     for i, line in enumerate(lines):
+        if (   line.startswith('class ')
+            or line.startswith('cdef class ')
+            or line.startswith('cpdef class ')):
+            inside_class = True
+        elif inside_class and len(line) > 0 and line[0] not in ' #':
+            inside_class = False
         for headertype in ('pheader', 'header'):
             if line.lstrip().startswith('@cython.' + headertype):
                 # Search for def statement
@@ -672,14 +713,23 @@ def cython_decorators(filename):
                     header[0] = header[0].replace(headertype, 'locals')
                 else:
                     header = []
-                # Add in all the other decorators
+                # Add in all the other decorators.
+                # A @cython.header should transform into @cython.cfunc
+                # whiel a @cython.pheader should transform into a
+                # @cython.ccall. Additional decorators should be placed
+                # below. The @cython.inline decorator should not be
+                # placed on top of:
+                # - So-called special methods, like __init__
+                # - Class methods decorated with @cython.pheader (cpdef)
                 pyfuncs = ('__init__', '__cinit__', '__dealloc__')
                 decorators = [decorator for decorator in
                               (('ccall' if headertype == 'pheader' else 'cfunc')
                                if all(' ' + pyfunc + '(' not in def_line
                                       for pyfunc in pyfuncs) else '',
-                              'inline' if all(' ' + pyfunc + '(' not in def_line
-                                              for pyfunc in pyfuncs) else '',
+                              'inline' if (all(' ' + pyfunc + '(' not in def_line
+                                              for pyfunc in pyfuncs)
+                                           and (not inside_class or headertype != 'pheader')
+                                           ) else '',
                               'boundscheck(False)',
                               'cdivision(True)',
                               'initializedcheck(False)',
@@ -701,13 +751,13 @@ def cython_decorators(filename):
 
 
 def make_pxd(filename):
-    customs = {# Classes
-               'Particles':        'from species cimport Particles',
-               'StandardSnapshot': 'from snapshot cimport StandardSnapshot',
-               'GadgetSnapshot':   'from snapshot cimport GadgetSnapshot',
-               # Function pointers
+    # Dictionary mapping custom ctypes to their definiton
+    # or an import of their definition.
+    customs = {# Function pointers
                'func_b_ddd':     ('ctypedef bint '
                                   '(*func_b_ddd_pxd)(double, double, double)'),
+               'func_d_d':       ('ctypedef double '
+                                  '(*func_d_d_pxd)(double)'),
                'func_d_dd':      ('ctypedef double '
                                   '(*func_d_dd_pxd)(double, double)'),
                'func_d_ddd':     ('ctypedef double '
@@ -732,6 +782,12 @@ def make_pxd(filename):
                                       '        fftw_plan plan_forward\n'
                                       '        fftw_plan plan_backward'),
                }
+    # Add Cython classes (extension types) to customs
+    for module, extension_type_str in extension_types.items():
+        for extension_type in extension_type_str.split(','):
+            extension_type = extension_type.replace(' ', '')
+            customs[extension_type] = 'from {} cimport {}'.format(module, extension_type)
+    # Begin constructing pxd
     header_lines = []
     pxd_filename = filename[:-3] + 'pxd'
     pxd_lines = []
@@ -886,9 +942,11 @@ def make_pxd(filename):
                                         # Add spaces back to multiword argument types
                                         for t in types_with_spaces:
                                             argtype = argtype.replace(t[0], t[1])
-                                        # Add suffix _pxd to the "func_" types
+                                        # If a custum type is used,
+                                        # append an import for it to the header.
                                         if argtype.replace('*', '') in customs:
                                             header_lines.append(customs[argtype.replace('*', '')])
+                                        # Add suffix _pxd to the "func_" types
                                         if 'func_' in argtype:
                                             argtype += '_pxd'
                                             argtype = (argtype.replace('*', '')
@@ -955,6 +1013,15 @@ def make_pxd(filename):
                                 if line.startswith('        """'):
                                     break
                                 pxd_lines.append(line + '\n')
+                                # If a custum type is used,
+                                # append an import for it to the header.
+                                argexpressions = line.split()
+                                if len(argexpressions) > 2 and  argexpressions[0] == 'public':
+                                    argtype = argexpressions[1]
+                                else:
+                                    argtype = argexpressions[0]
+                                if argtype in customs:
+                                    header_lines.append(customs[argtype])
                             break
                     break
             # Now locate methods.
@@ -1066,6 +1133,12 @@ def make_pxd(filename):
     if not total_lines:
         total_lines = ['# This module does not expose any c-level functions or classes '
                        'to the outside world\n']
+    # Do not write to pxd if it already exist in the correct state
+    if os.path.isfile(pxd_filename):
+        with open(pxd_filename, 'r', encoding='utf-8') as pxdfile:
+            existing_pxd_lines = pxdfile.readlines()
+        if total_lines == existing_pxd_lines:
+            return
     # Update/create .pxd
     with open(pxd_filename, 'w', encoding='utf-8') as pxdfile:
         pxdfile.writelines(total_lines)
@@ -1073,7 +1146,7 @@ def make_pxd(filename):
 
 
 def constant_expressions(filename):
-    # Find constant expressions using the ℝ['expression'] syntax
+    # Find constant expressions using the ℝ[expression] syntax
     with open(filename, 'r', encoding='utf-8') as pyxfile:
         lines = pyxfile.read().split('\n')
     expressions = []
@@ -1117,19 +1190,46 @@ def constant_expressions(filename):
                         )
     while True:
         no_blackboard_bold_R = True
+        module_scope = True
         for i, line in enumerate(lines):
+            if len(line) > 0 and line[0] not in ' #':
+                module_scope = True
+            if len(line) > 0 and line[0] != '#' and 'def ' in line:
+                module_scope = False
             search = re.search('ℝ\[(.*?)\]', line)
             if not search or line.replace(' ', '').startswith('#'):
                 continue
-            no_blackboard_bold_R = False
             expression = search.group(1)
+            R_statement = search.group(0)
+            if expression.count('[') != expression.count(']'):
+                # Expression contains brackets,
+                # which ruin the above regex.
+                n_bra = 0
+                started = False
+                started_bra = False
+                for l, c in enumerate(line):
+                    if c == 'ℝ':
+                        started = True
+                        R_index = l
+                    if started and c == '[':
+                        if not started_bra:
+                            start_index = l + 1
+                        started_bra = True
+                        n_bra += 1
+                    if started and c == ']':
+                        n_bra -= 1
+                    if started_bra and n_bra == 0:
+                        expression = line[start_index:l]
+                        R_statement = line[R_index:(l + 1)]
+                        break
+            no_blackboard_bold_R = False
             expressions.append(expression)
             expression_cython = 'ℝ_' + expression.replace(' ', '')
             for op, op_name in zip(operations, operations_names):
                 expression_cython = expression_cython.replace(op, '_{}_'.format(op_name))
             expression_cython = expression_cython.replace('__', '_')
             expressions_cython.append(expression_cython)
-            lines[i] = line.replace(search.group(0), expression_cython)
+            lines[i] = line.replace(R_statement, expression_cython)
             # Find out where the declaration should be
             variables = [expression.replace(' ', '')]
             for op in operations:
@@ -1137,22 +1237,29 @@ def constant_expressions(filename):
             variables = [var for var in list(set(variables))
                              if var and var[0] not in '.0123456789']
             linenr_where_defined = [-1]*len(variables)
-            for v, var in enumerate(variables):
-                for j, line2 in enumerate(reversed(lines[:(i + 1)])):
-                    line2 = ' '*(len(line2) - len(line2.lstrip()))  + line2.replace(' ', '')
-                    for op in operations:
-                        line2 = line2.replace(op, '')
-                    if (   (' ' + var + '=') in line2
-                        or (',' + var + '=') in line2
-                        or (';' + var + '=') in line2
-                        or ('=' + var + '=') in line2
-                        or line2.startswith(var + '=')):
-                        linenr_where_defined[v] = i - j
-                        break
+            for w, end in enumerate((i + 1, len(lines))):  # Second time: Check module scope
+                if w == 1 and module_scope:
+                    break
+                for v, var in enumerate(variables):
+                    if linenr_where_defined[v] != -1:
+                        continue
+                    for j, line2 in enumerate(reversed(lines[:end])):
+                        line2 = ' '*(len(line2) - len(line2.lstrip()))  + line2.replace(' ', '')
+                        for op in operations:
+                            line2 = line2.replace(op, '')
+                        if (   (' ' + var + '=') in line2
+                            or (',' + var + '=') in line2
+                            or (';' + var + '=') in line2
+                            or ('=' + var + '=') in line2
+                            or line2.startswith(var + '=')):
+                            linenr_where_defined[v] = end - 1 - j
+                            break
             if linenr_where_defined:
                 declaration_linenrs.append(max(linenr_where_defined))
             else:
                 declaration_linenrs.append(-1)
+            # If inside a function and declaration_linenrs[-1] == -1,
+            # the variable may be declared in the module scope.
             # Remove again if duplicate
             for j in range(len(expressions) - 1):
                 if (expressions[j] == expressions[-1]
@@ -1210,7 +1317,7 @@ def constant_expressions(filename):
 # Interpret the input argument
 filename = sys.argv[1]
 if filename.endswith('.py'):
-    # A .py-file is passed. Copy file to .pyx and work with this copy
+    # A .py-file is parsed. Copy file to .pyx and work with this copy
     filename_pyx = filename[:-2] + 'pyx'
     shutil.copy(filename, filename_pyx)
     filename = filename_pyx
@@ -1229,7 +1336,7 @@ if filename.endswith('.py'):
     malloc_realloc(filename)
     C_casting(filename)
 elif filename.endswith('.pyx'):
-    # A .pyx-file is passed. Make the pxd
+    # A .pyx-file is parsed. Make the pxd
     make_pxd(filename)
 else:
     raise Exception('Got "{}", which is neither a .py nor a .pyx file'.format(filename))

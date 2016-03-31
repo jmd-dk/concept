@@ -38,7 +38,7 @@ source "${this_dir}/../environment"
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_snapshot.py" --pure-python --local
 
 # Compute powerspectrum of the snapshot
-"${concept}" -n 1 -p "${this_dir}/params" -u powerspec "${this_dir}/snapshot" --local
+"${concept}" -n 1 -p "${this_dir}/params" -u powerspec "${this_dir}/snapshot.hdf5" --local
 
 # Analyze the output snapshots
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local

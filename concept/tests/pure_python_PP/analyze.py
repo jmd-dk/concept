@@ -32,20 +32,23 @@ this_test = os.path.basename(this_dir)
 
 # Imports from the CO𝘕CEPT code
 from commons import *
-from snapshot import load_into_standard
+from snapshot import load
 
 # Read in data from the CO𝘕CEPT snapshots
 a = []
-particles = {'cython': {1: [], 2: [], 4: []},
-             'python': {1: [], 2: [], 4: []}}
-for cp in particles.keys():
-    for n in (1, 2, 4):
+nprocs_list = sorted(int(dname[(dname.index('python_') + 7):])
+                     for dname in [os.path.basename(dname)
+                                   for dname in glob.glob('{}/output_python_*'.format(this_dir))])
+components = {'cython': {n: [] for n in nprocs_list},
+              'python': {n: [] for n in nprocs_list}}
+for cp in components.keys():
+    for n in nprocs_list:
         for fname in sorted(glob.glob('{}/output_{}_{}/snapshot_a=*'.format(this_dir, cp, n)),
                             key=lambda s: s[(s.index('=') + 1):]):
-            snapshot = load_into_standard(fname, compare_params=False)
+            snapshot = load(fname, compare_params=False)
             if cp == 'cython' and n == 1:
                 a.append(snapshot.params['a'])
-            particles[cp][n].append(snapshot.particles_list[0])
+            components[cp][n].append(snapshot.components[0])
 N_snapshots = len(a)
 
 # Begin analysis
@@ -53,17 +56,17 @@ masterprint('Analyzing {} data ...'.format(this_test))
 
 # Using the particle order of the cython snapshot as the standard, find the corresponding
 # ID's in the python snapshots and order these particles accoringly.
-N = particles['cython'][1][0].N
+N = components['cython'][1][0].N
 D2 = zeros(N)
 ID = zeros(N, dtype='int')
 for i in range(N_snapshots):
-    for n in (1, 2, 4):
-        x_cython = particles['cython'][n][i].posx
-        y_cython = particles['cython'][n][i].posy
-        z_cython = particles['cython'][n][i].posz
-        x_python = particles['python'][n][i].posx
-        y_python = particles['python'][n][i].posy
-        z_python = particles['python'][n][i].posz
+    for n in nprocs_list:
+        x_cython = components['cython'][n][i].posx
+        y_cython = components['cython'][n][i].posy
+        z_cython = components['cython'][n][i].posz
+        x_python = components['python'][n][i].posx
+        y_python = components['python'][n][i].posy
+        z_python = components['python'][n][i].posz
         for j in range(N):
             for k in range(N):
                 dx = x_cython[j] - x_python[k]
@@ -83,25 +86,34 @@ for i in range(N_snapshots):
                     dz += boxsize
                 D2[k] = dx**2 + dy**2 + dz**2
             ID[j] = np.argmin(D2)
-        particles['python'][n][i].posx = particles['python'][n][i].posx[ID]
-        particles['python'][n][i].posy = particles['python'][n][i].posy[ID]
-        particles['python'][n][i].posz = particles['python'][n][i].posz[ID]
-        particles['python'][n][i].momx = particles['python'][n][i].momx[ID]
-        particles['python'][n][i].momy = particles['python'][n][i].momy[ID]
-        particles['python'][n][i].momz = particles['python'][n][i].momz[ID]
+        components['python'][n][i].posx = components['python'][n][i].posx[ID]
+        components['python'][n][i].posy = components['python'][n][i].posy[ID]
+        components['python'][n][i].posz = components['python'][n][i].posz[ID]
+        components['python'][n][i].momx = components['python'][n][i].momx[ID]
+        components['python'][n][i].momy = components['python'][n][i].momy[ID]
+        components['python'][n][i].momz = components['python'][n][i].momz[ID]
 
 # Compute distance between particles in the two snapshots
-dist = collections.OrderedDict([(1, []), (2, []), (4, [])])
+dist = collections.OrderedDict((n, []) for n in nprocs_list)
 for i in range(N_snapshots):
-    x = {(cp, n): particles[cp][n][i].posx for cp in ('cython', 'python') for n in (1, 2, 4)}
-    y = {(cp, n): particles[cp][n][i].posy for cp in ('cython', 'python') for n in (1, 2, 4)}
-    z = {(cp, n): particles[cp][n][i].posz for cp in ('cython', 'python') for n in (1, 2, 4)}
-    for n in (1, 2, 4):
-        dist[n].append(sqrt(np.array([min([(x['cython', n][j] - x['python', n][j] + xsgn*boxsize)**2 + (y['cython', n][j] - y['python', n][j] + ysgn*boxsize)**2 + (z['cython', n][j] - z['python', n][j] + zsgn*boxsize)**2 for xsgn in (-1, 0, +1) for ysgn in (-1, 0, +1) for zsgn in (-1, 0, +1)]) for j in range(N)])))
+    x = {(cp, n): components[cp][n][i].posx for cp in ('cython', 'python') for n in nprocs_list}
+    y = {(cp, n): components[cp][n][i].posy for cp in ('cython', 'python') for n in nprocs_list}
+    z = {(cp, n): components[cp][n][i].posz for cp in ('cython', 'python') for n in nprocs_list}
+    for n in nprocs_list:
+        dist[n].append(sqrt(np.array([min([  (x['cython', n][j] - x['python', n][j]
+                                              + xsgn*boxsize)**2
+                                           + (y['cython', n][j] - y['python', n][j]
+                                              + ysgn*boxsize)**2
+                                           + (z['cython', n][j] - z['python', n][j]
+                                              + zsgn*boxsize)**2
+                                           for xsgn in (-1, 0, +1)
+                                           for ysgn in (-1, 0, +1)
+                                           for zsgn in (-1, 0, +1)])
+                                      for j in range(N)])))
 
 # Plot
 fig_file = this_dir + '/result.png'
-fig, ax = plt.subplots(3, sharex=True, sharey=True)
+fig, ax = plt.subplots(len(nprocs_list), sharex=True, sharey=True)
 for n, d, ax_i in zip(dist.keys(), dist.values(), ax):
     for i in range(N_snapshots):
         ax_i.plot(np.array(d[i])/boxsize, '.', alpha=.7, label='$a={}$'.format(a[i]), zorder=-i)
@@ -120,9 +132,9 @@ masterprint('done')
 # Printout error message for unsuccessful test
 tol = 1e-4
 if any(np.mean(np.array(d)/boxsize) > tol for d in dist.values()):
-    masterwarn('Some or all pure Python runs with nprocs = {1, 2, 4} yielded results\n'
+    masterwarn('Some or all pure Python runs with nprocs = {} yielded results\n'
                + 'different from their compiled counterparts!\n'
-               + 'See "{}" for a visualization.'.format(fig_file))
+               + 'See "{}" for a visualization.'.format(nprocs_list, fig_file))
     sys.exit(1)
 
 # Compare the two tabulated grids

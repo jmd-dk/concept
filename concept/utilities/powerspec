@@ -23,14 +23,21 @@
 
 
 # This utility can produce powerspectra of snapshots.
-# Run it by invoking the concept script with the
-# --u powerspec path
-# option, where path is the path to snapshot file
-# or a directory containing snapshots.
+# You can run this file directly as
+# utilities/powerspec path
+# or invoke it via the concept script as
+# ./concept --util powerspec path
+# In both cases, path is the path to a snapshot file
+# or a directory containing snapshot files.
+
+
 
 # Absolute paths to this file and its directory
 this_file="$(readlink -f "${BASH_SOURCE[0]}")"
 this_dir="$(dirname "${this_file}")"
+
+# Source the concept script
+source "${this_dir}/../concept"
 
 # Set up error trapping
 ctrl_c()
@@ -43,71 +50,98 @@ abort()
     colorprint "An error occurred while using the \"$(basename ${this_file})\" utility!" "red"
     exit 1
 }
-trap 'ctrl_c' SIGINT
-trap 'abort' EXIT
-set -e
-
-# Source the concept script
-source "${this_dir}/../concept"
-
-# This script should always be called indirectly using the concept script
-if [ "${called_from_concept}" != "True" ]; then
-    colorprint "Error: The $(basename ${this_file}) utility must be called via the concept script, as" "red"
-    colorprint "./concept -u $(basename ${this_file}) path" "red"
-    exit 1
+if [ "${called_from_concept}" == "True" ]; then
+    trap 'ctrl_c' SIGINT
+    trap 'abort' EXIT
+    set -e
 fi
 
-# If no parameterfile is supplied, use the one that goes along with this utility
+# Use Python's argparse module to handle command-line arguments
+args=$("${python}" -c "
+import argparse, sys
+# Setup command-line arguments
+parser = argparse.ArgumentParser(prog='$(basename ${this_file})',
+                                 description='Run the CO𝘕CEPT $(basename ${this_file}) utility')
+parser.add_argument('path',
+                    help='path to snapshot or directory of snapshots',
+                    )
+# Enables Python to write directly to screen (stderr)
+# in case of help request.
+stdout_copy = sys.stdout
+sys.stdout = sys.stderr
+# Now do the actual argument parsing,
+# including writing out the help message.
+if '${called_from_concept}' == 'True':
+    # Called from concept - Through exception on illegal args
+    args = parser.parse_args()
+else:
+    # Called directly - Allow what appears to be illegal args
+    # (these might be known to the concept script).
+    args, unknown_args = parser.parse_known_args()
+# Reset stdout
+sys.stdout = stdout_copy
+# Print out the arguments.
+# These will be captured in the Bash 'args' variable.
+print(  ' argparse_finished=yes'
+      + '; path=\"{}\"'.format(args.path)
+      )
+" "$@")
+# Evaluate the handled arguments into this scope
+eval "${args}"
+# Exit if argparse exited without finishing
+if [ "${argparse_finished}" != "yes" ]; then
+    trap : 0
+    exit 0
+fi
+
+# If not called indirectly through the concept script,
+# call the concept script now.
+if [ "${called_from_concept}" != "True" ]; then
+    "${this_dir}/../concept" --util "${this_file}" "$@"
+    trap : 0
+    exit 0
+fi
+
+# If no parameterfile is supplied,
+# use the one that goes along with this utility.
 if [ "${params}" == "None" ]; then
     params="${this_file}.params"
-fi
-
-# Check for required positional arguments
-if [ "$#" -lt 1 ] || [ -z "$1" ]; then
-    colorprint "Error: The $(basename ${this_file}) utility is missing a required argument: path" "red"
-    exit 1
-fi
-path="$1"
-if [ "$#" -gt 1 ]; then
-    badvars=""
-    for badvar in ${@:2}; do
-        if [ -n "${badvar}" ]; then
-            badvars="${badvars}, \"${badvar}\""
-        fi
-    done
-    badvars="${badvars:2}"
-    colorprint "Warning: The following arguments will be ignored by the $(basename ${this_file}) utility:" "red"
-    colorprint "${badvars}" "red"
 fi
 
 # Convert to absolute path
 path="$(absolute_path "${path}" "${workdir}")"
 
-# Does the path exist?
-if [ ! -f "${path}" ] && [ ! -d "${path}" ]; then
-    colorprint "Error: The path \"${path}\" does not exist!" "red"
-    exit 1
-fi
-
 # Get information about all snapshots in the path
-info="$("${concept}" --util snapshot_info "${path}")"
-snapshot_filenames="$(echo "${info}" | grep -x Information.* | awk '{print $3}')"
-boxsizes="$(          echo "${info}" | grep -x boxsize.*     | awk '{print $2}')"
+info="$("${concept}" --pure-python --util info "${path}")"
+snapshot_filenames_fmt="$(echo "${info}" | grep -x Information.* | awk '{print $3}')"
+boxsizes="$(              echo "${info}" | grep -x boxsize.*     | awk '{print $2}')"
+# Remove escape sequence from snapshot filenames
+snapshot_filenames=""
+for snapshot_filename in ${snapshot_filenames_fmt}; do
+    snapshot_filename="$(${python} -B -c "import re;                                             \
+                                          print('\"{}\"'.format(re.search('\"(.*?)\"',           \
+                                                                          '${snapshot_filename}' \
+                                                                          ).group(1)))")"
+    if [ -z "${snapshot_filenames}" ]; then
+        snapshot_filenames="${snapshot_filename}"
+    else
+        snapshot_filenames="${snapshot_filenames}
+${snapshot_filename}"
+    fi
+done
 
-# Print out which snapshots will be used
-plural=""
+# Print out the snapshots of which a powerspectrum will be computed
 N_snapshots="$(echo "${snapshot_filenames}" | wc -l)"
-if [ ${N_snapshots} -gt 1 ]; then
-    plural="s"
+if [ ${N_snapshots} == 1 ]; then
+    echo "A powerspectrum will be produced of the following snapshot:"
+else
+    echo "Powerspectra will be produced of the following snapshots:"
 fi
-echo "Powerspectra will be produced of the following snapshot${plural}:"
 echo "${snapshot_filenames}"
 
 # For each snapshot, run the CO𝘕CEPT code to create the powerspectrum
 i=0
 for snapshot_filename in ${snapshot_filenames}; do
-    # Remove quotes (and escape sequence!) from snapshot filename
-    snapshot_filename="$(${python} -B -c "import re; print(re.search('\"(.*?)\"', '${snapshot_filename}').group(1))")"
     # Get the i'th boxsize
     ((i += 1))
     boxsize=$(echo ${boxsizes} | awk "{print \$${i}}")
@@ -115,13 +149,18 @@ for snapshot_filename in ${snapshot_filenames}; do
     printf "boxsize = ${boxsize}
 use_PM = True
 special_params = {
-    'special':           'powerspec',
-    'snapshot_filename': '${snapshot_filename}',
+    'special':           '$(basename ${this_file})',
+    'snapshot_filename': ${snapshot_filename},
                   }
 $(cat "${params}")
 " > "${this_file}.params.full"
     # Run CO𝘕CEPT to produce the powerspectrum
-    "${concept}" -m "${main}" -n ${nprocs} -p "${this_file}.params.full" -q "${queue}" -w "${walltime}" ${local_flag} ${pure_python_flag}
+    "${concept}" -m "${main}"                  \
+                 -n  ${nprocs}                 \
+                 -p "${this_file}.params.full" \
+                 -q "${queue}"                 \
+                 -w "${walltime}"              \
+                 ${local_flag} ${pure_python_flag}
 done
 
 # Cleanup

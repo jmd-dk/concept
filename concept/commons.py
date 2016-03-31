@@ -65,12 +65,9 @@ import h5py
 # For fancy terminal output
 from blessings import Terminal
 terminal = Terminal(force_styling=True)
-terminal.CONCEPT = 'CO\x1b[3mN\x1b[23mCEPT'
 # For timing
-from time import time
+from time import sleep, time
 from datetime import timedelta
-# For development purposes only
-from time import sleep
 
 
 
@@ -107,6 +104,99 @@ rank = comm.rank
 # Flag identifying the master/root process (that which have rank 0)
 master = not rank
 
+
+
+#############################
+# Print and abort functions #
+#############################
+# Function for printing messages as well as timed progress messages
+def masterprint(msg, *args, indent=0, end='\n', **kwargs):
+    global progressprint_time
+    if not master:
+        return
+    if msg == 'done':
+        # End of progress message
+        interval = timedelta(seconds=(time() - progressprint_time)).__str__()
+        if interval.startswith('0:'):
+            # Less than an hour
+            interval = interval[2:]
+            if interval.startswith('00:'):
+                # Less than a minute
+                interval = interval[3:]
+                if interval.startswith('00.'):
+                    if interval[3:6] == '000':
+                        # Less than a millisecond
+                        interval = '< 1 ms'
+                    else:
+                        # Less than a second
+                        interval = interval[3:6].lstrip('0') + ' ms'
+                else:
+                    # Between a second and a minute
+                    if interval.startswith('0'):
+                        # Between 1 and 10 seconds
+                        if '.' in interval:
+                            interval = interval[1:(interval.index('.') + 2)] + ' s'
+                    else:
+                        # Between 10 seconds and a minute
+                        if '.' in interval:
+                            interval = interval[:interval.index('.')] + ' s'
+            else:
+                # Between a minute and an hour
+                if interval.startswith('0'):
+                    interval = interval[1:]
+                if '.' in interval:
+                    interval = interval[:interval.index('.')]
+        else:
+            # More than an hour
+            if '.' in interval:
+                interval = interval[:interval.index('.')]
+        # Stitch text pieces together
+        text = ' done after {}{}'.format(interval,
+                                         (' ' + ' '.join([str(arg) for arg in args])) if args
+                                                                                      else '')
+        # Convert to proper Unicode characters
+        text = unicode(text)
+        # Print out timing
+        print(text, flush=True, end=end, **kwargs)
+    else:
+        # Create time stamp for use in future progress message
+        progressprint_time = time()
+        # Stitch text pieces together
+        text = '{}{}{}'.format(' '*indent,
+                               msg,
+                               (' ' + ' '.join([str(arg) for arg in args])) if args else '')
+        # Convert to proper Unicode characters
+        text = unicode(text)
+        # If the text ends with '...', a newline should not be placed
+        if text.endswith('...'):
+            end = ''
+        # Print out message
+        print(text, flush=True, end=end, **kwargs)
+
+# Function for printing warnings
+def masterwarn(msg, *args, indent=0, prefix='Warning', end='\n', **kwargs):
+    if not master:
+        return
+    any_warnings[0] = True
+    # Stitch text pieces together
+    text = '{}{}: {} {}'.format(' '*indent,
+                                prefix,
+                                msg,
+                                ' '.join([str(arg) for arg in args]))
+    text = unicode(text)
+    # Print out message
+    print(terminal.bold_red(text),
+                            file=sys.stderr,
+                            flush=True,
+                            end=end,
+                            **kwargs)
+# Flag specifying whether or not any warnings have been given.
+# The actual boolean needs to be insdie of a mutable container,
+# as otherwise changes in its state will not be visible to other
+# modules which have imported this variable. 
+cython.declare(any_warnings='list')
+any_warnings = [False]
+
 # Raised exceptions inside cdef functions do not generally propagte
 # out to the caller. In places where exceptions are normally raised
 # manualy, call this function with a descriptive message instead.
@@ -114,6 +204,7 @@ def abort(msg=''):
     masterwarn(msg, prefix='Aborting')
     sys.stderr.flush()
     sys.stdout.flush()
+    sleep(1)
     comm.Abort(1)
 
 
@@ -194,6 +285,7 @@ if not cython.compiled:
         if dtype in C2np:
             dtype = C2np[dtype]
         elif dtype in ('func_b_ddd',
+                       'func_d_d',
                        'func_d_dd',
                        'func_d_ddd',
                        'func_dstar_ddd',
@@ -204,7 +296,7 @@ if not cython.compiled:
             # Emulate these as lists of arrays.
             return [empty(1, dtype=sizeof(dtype[:-1]).dtype)]
         elif master:
-            abort(dtype + ' not implemented as a Numpy dtype in commons.py')
+            abort(dtype + ' not implemented as a NumPy dtype in commons.py')
         return np.array([1], dtype=dtype)
     def malloc(a):
         if isinstance(a, list):
@@ -216,13 +308,26 @@ if not cython.compiled:
         p.resize(a[0], refcheck=False)
         return p
     def free(a):
-        pass
+        # NumPy arrays cannot be manually freed.
+        # Resize the array to the minimal size.
+        a.resize([0], refcheck=False)
     # Casting
     def cast(a, dtype):
         match = re.search('(.*)\[', dtype)
         if match:
             # Pointer to array cast assumed
-            # (array to array in pure Python).
+            shape = dtype.replace(':', '')
+            shape = shape[(shape.index('[') + 1):]
+            shape = shape.rstrip()[:-1]
+            if shape[-1] != ',':
+                shape += ','
+            shape = '(' + shape + ')'
+            try:
+                shape = eval(shape, inspect.stack()[1][0].f_locals)
+            except:
+                shape = eval(shape, inspect.stack()[1][0].f_globals)
+            a = np.ctypeslib.as_array(a, shape)
+            a = np.reshape(a, shape)
             return a
         else:
             # Scalar
@@ -248,6 +353,9 @@ if not cython.compiled:
     # simply execute the statements parsed to it as a string,
     # within the namespace of the call.
     def cimport(import_statement):
+        import_statement = import_statement.strip()
+        if import_statement.endswith(','):
+            import_statement = import_statement[:-1]
         exec(import_statement, inspect.getmodule(inspect.stack()[1][0]).__dict__)
 
 
@@ -264,6 +372,7 @@ from cython_gsl cimport *
 from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
 # Function type definitions of the form func_returntype_argumenttypes
 ctypedef bint    (*func_b_ddd)    (double, double, double)
+ctypedef double  (*func_d_d)      (double)
 ctypedef double  (*func_d_dd)     (double, double)
 ctypedef double  (*func_d_ddd)    (double, double, double)
 ctypedef double* (*func_dstar_ddd)(double, double, double)
@@ -510,26 +619,28 @@ scp_password = argd.get('scp_password', '')
 # The pyxpp script convert all Unicode source code characters into
 # ASCII. The function below grants the code access to
 # Unicode string literals, by undoing the convertion.
-if not cython.compiled:
-    # Dummy unicode function for pure Python
-    def unicode(c):
-        return c
-else:
-    @cython.header(# Arguments
-                   c='str',
-                   # Locals
-                   d='dict',
-                   returns='str',
-                   )
-    def unicode(c):
-        d = {'__space__': ' ',
-             '__dash__' : '-',
-             }
-        if len(c) > 10 and c.startswith('__UNICODE__'):
-            c = c[11:]
-        for pat, sub in d.items():
-            c = c.replace(pat, sub)
-        return unicodedata.lookup(c)
+@cython.header(s='str', returns='str')
+def unicode(s):
+    return re.subn('__BEGIN_UNICODE__.*?__END_UNICODE__', unicode_repl, s)[0]
+@cython.pheader(# Arguments
+                match='object',  # re match object
+                # Locals
+                pat='str',
+                s='str', 
+                sub='str',
+                returns='str',
+                )
+def unicode_repl(match):
+    s = match.group()
+    s = s[17:(len(s) - 15)]
+    for pat, sub in unicode_repl_dict.items():
+        s = s.replace(pat, sub)
+    s = unicodedata.lookup(s)
+    return s
+cython.declare(unicode_repl_dict='dict')
+unicode_repl_dict = {'__space__': ' ',
+                     '__dash__' : '-',
+                     }
 
 # This function takes in a number (string) and
 # returns it written in Unicode subscript.
@@ -549,19 +660,13 @@ unicode_subscripts = dict(zip('0123456789-+e',
 
 # This function takes in a number (string) and
 # returns it written in Unicode superscript.
-@cython.header(# Arguments
-               s='str',
-               # Locals
-               c='str',
-               returns='str',
-               )
 def unicode_superscript(s):
     return ''.join([unicode_superscripts[c] for c in s])
 cython.declare(unicode_supercripts='dict')
 unicode_superscripts = dict(zip('0123456789-+e',
                                 [unicode(c) for c in ('⁰', '¹', '²', '³', '⁴',
                                                       '⁵', '⁶', '⁷', '⁸', '⁹',
-                                                      '⁻')] + ['', unicode('×') + '10']))
+                                                      '⁻', '', '×', '10')]))
 
 
 
@@ -628,7 +733,7 @@ cython.declare(# Input/output
                # Numerical parameter
                boxsize='double',
                ewald_gridsize='Py_ssize_t',
-               PM_gridsize='ptrdiff_t',
+               φ_gridsize='ptrdiff_t',
                P3M_scale='double',
                P3M_cutoff='double',
                softeningfactors='dict',
@@ -660,6 +765,8 @@ cython.declare(# Input/output
 IC_file = sensible_path(str(params.get('IC_file', '')))
 snapshot_type = (str(params.get('snapshot_type', 'standard'))
                  .lower().replace(' ', ''))
+if master and snapshot_type not in ('standard', 'gadget2'):
+    abort('Does not recognize snapshot type "{}"'.format(params['snapshot_type']))
 output_dirs = dict(params.get('output_dirs', {}))
 for kind in ('snapshot', 'powerspec', 'render'):
     output_dirs[kind] = str(output_dirs.get(kind, paths['output_dir']))
@@ -701,18 +808,18 @@ render_select = {key.lower(): bool(val) for key, val in render_select.items()}
 # Numerical parameters
 boxsize = float(params.get('boxsize', 1))
 ewald_gridsize = int(params.get('ewald_gridsize', 64))
-PM_gridsize = int(params.get('PM_gridsize', 64))
+φ_gridsize = int(params.get(unicode('φ_gridsize'), 64))
 P3M_scale = float(params.get('P3M_scale', 1.25))
 P3M_cutoff = float(params.get('P3M_cutoff', 4.8))
 softeningfactors = dict(params.get('softeningfactors', {}))
 for kind in ('dark matter', ):
     softeningfactors[kind] = float(softeningfactors.get(kind, 0.03))
-Δt_factor = float(params.get(unicode('Δ') + 't_factor', 0.01))
+Δt_factor = float(params.get(unicode('Δt_factor'), 0.01))
 R_tophat = float(params.get('R_tophat', 8*units.Mpc))
 # Cosmological parameters
 H0 = float(params.get('H0', 70*units.km/(units.s*units.Mpc)))
-Ωm = float(params.get(unicode('Ω') + 'm', 0.3))
-ΩΛ = float(params.get(unicode('Ω') + unicode('Λ'), 0.7))
+Ωm = float(params.get(unicode('Ωm'), 0.3))
+ΩΛ = float(params.get(unicode('ΩΛ'), 0.7))
 a_begin = float(params.get('a_begin', 0.02))
 # Graphics
 if isinstance(params.get('render_colors', {}), dict):
@@ -737,8 +844,7 @@ kick_algorithms = dict(params.get('kick_algorithms', {}))
 for kind in ('dark matter', ):
     kick_algorithms[kind] = str(kick_algorithms.get(kind, 'PP'))
 use_Ewald = bool(params.get('use_Ewald', False))
-if (set(('PM', 'P3M')) & set(kick_algorithms.values())
-    or output_times['powerspec']):
+if set(('PM', 'P3M')) & set(kick_algorithms.values()) or output_times['powerspec']:
     use_PM = bool(params.get('use_PM', True))
 else:
     use_PM = bool(params.get('use_PM', False))
@@ -747,6 +853,8 @@ if 'P3M' in kick_algorithms.values():
 else:
     use_P3M = bool(params.get('use_P3M', False))
 fftw_rigor = params.get('fftw_rigor', 'estimate').lower()
+if master and fftw_rigor not in ('estimate', 'measure', 'patient', 'exhaustive'):
+    abort('Does not recognize FFTW rigor "{}"'.format(params['fftw_rigor']))
 # Extra hidden parameters via the special_params variable
 special_params = dict(params.get('special_params', {}))
 
@@ -775,8 +883,9 @@ vector_mv = cast(vector, 'double[:3]')
 cython.declare(a_dumps='tuple',
                a_max='double',
                G_Newton='double',
-               PM_gridsize3='long long int',
-               PM_gridsize_padding='ptrdiff_t',
+               φ_gridsize3='long long int',
+               φ_gridsize_half='Py_ssize_t',
+               slab_size_padding='ptrdiff_t',
                ewald_file='str',
                powerspec_dir='str',
                powerspec_base='str',
@@ -818,35 +927,37 @@ G_Newton = 6.6738e-11*units.m**3/units.kg/units.s**2
 ϱ = 3*H0**2/(8*π*G_Newton)
 # The average, comoving matter density
 ϱm = Ωm*ϱ
-# The real size of the padded dimension of PM_gridsize
-PM_gridsize_padding = 2*(PM_gridsize//2 + 1)
-# The cube of PM_gridsize. This is defined here because it is a very
+# The real size of the padded (last) dimension of global slab grid
+slab_size_padding = 2*(φ_gridsize//2 + 1)
+# Half of φ_gridsize (use of the ℝ-syntax requires doubles)
+φ_gridsize_half = φ_gridsize//2
+# The cube of φ_gridsize. This is defined here because it is a very
 # large integer (long long int) (use of the ℝ-syntax requires doubles)
-PM_gridsize3 = cast(PM_gridsize, 'long long int')**3
+φ_gridsize3 = cast(φ_gridsize, 'long long int')**3
 # Name of file storing the Ewald grid
 ewald_file = '.ewald_gridsize=' + str(ewald_gridsize) + '.hdf5'
 # All constant factors across the PM scheme is gathered in the PM_fac
-# variable. It's contributions are:
+# variable. Its contributions are:
 # For CIC interpolating particle masses/volume to the grid points:
-#     particles.mass/(boxsize/PM_gridsize)**3
+#     particles.mass/(boxsize/φ_gridsize)**3
 # Normalization due to forwards and backwards Fourier transforms:
-#     1/PM_gridsize**3
+#     1/φ_gridsize**3
 # Factor in the Greens function:
-#     -4*π*G_Newton/((2*π/((boxsize/PM_gridsize)*PM_gridsize))**2)   
+#     -4*π*G_Newton/((2*π/((boxsize/φ_gridsize)*φ_gridsize))**2)   
 # From finite differencing to get the forces:
-#     -PM_gridsize/boxsize
+#     -φ_gridsize/boxsize
 # For converting acceleration to momentum
 #     particles.mass*Δt
 # Everything except the mass and the time are constant, and is condensed
 # into the PM_fac_const variable.
-PM_fac_const = G_Newton*PM_gridsize/(π*boxsize**2)
+PM_fac_const = G_Newton*φ_gridsize/(π*boxsize**2)
 # The exponential cutoff for the long-range force looks like
 # exp(-k2*rs2). In the code, the wave vector is in grid units in stead
-# of radians. The conversion is 2*π/PM_gridsize. The total factor on k2
+# of radians. The conversion is 2*π/φ_gridsize. The total factor on k2
 # in the exponential is then
-longrange_exponent_fac = -(2*π/PM_gridsize*P3M_scale)**2
+longrange_exponent_fac = -(2*π/φ_gridsize*P3M_scale)**2
 # The short-range/long-range force scale
-P3M_scale_phys = P3M_scale*boxsize/PM_gridsize
+P3M_scale_phys = P3M_scale*boxsize/φ_gridsize
 # Particles within this distance to the surface of the domain should
 # interact with particles in the neighboring domain via the shortrange
 # force, when the P3M algorithm is used.
@@ -983,8 +1094,8 @@ def sinc(x):
 
 # Function that compares two numbers (identical to math.isclose)
 @cython.header(# Arguments
-               a='double',
-               b='double',
+               a=number,
+               b=number,
                rel_tol='double',
                abs_tol='double',
                # Locals
@@ -993,7 +1104,7 @@ def sinc(x):
                tol='double',
                returns='bint',
                )
-def isclose(a, b, rel_tol=1e-09, abs_tol=0):
+def isclose(a, b, rel_tol=1e-9, abs_tol=0):
     size_a, size_b = abs(a), abs(b)
     if size_a >= size_b:
         tol = rel_tol*size_a
@@ -1012,79 +1123,6 @@ def isclose(a, b, rel_tol=1e-09, abs_tol=0):
                )
 def isint(x, abs_tol=1e-6):
     return isclose(x, round(x), 0, abs_tol)
-
-# Function for printing messages as well as timed progress messages
-def masterprint(msg, *args, indent=0, end='\n', **kwargs):
-    global progressprint_time
-    if not master:
-        return
-    if msg == 'done':
-        # End of progress message
-        interval = timedelta(seconds=(time() - progressprint_time)).__str__()
-        if interval.startswith('0:'):
-            # Less than an hour
-            interval = interval[2:]
-            if interval.startswith('00:'):
-                # Less than a minute
-                interval = interval[3:]
-                if interval.startswith('00.'):
-                    if interval[3:6] == '000':
-                        # Less than a millisecond
-                        interval = '< 1 ms'
-                    else:
-                        # Less than a second
-                        interval = interval[3:6].lstrip('0') + ' ms'
-                else:
-                    # Between a second and a minute
-                    if interval.startswith('0'):
-                        # Between 1 and 10 seconds
-                        if '.' in interval:
-                            interval = interval[1:(interval.index('.') + 2)] + ' s'
-                    else:
-                        # Between 10 seconds and a minute
-                        if '.' in interval:
-                            interval = interval[:interval.index('.')] + ' s'
-            else:
-                # Between a minute and an hour
-                if interval.startswith('0'):
-                    interval = interval[1:]
-                if '.' in interval:
-                    interval = interval[:interval.index('.')]
-        else:
-            # More than an hour
-            if '.' in interval:
-                interval = interval[:interval.index('.')]
-        print(' done after ' + interval, *args, flush=True, **kwargs)
-    else:
-        # Create time stamp for use in progress message
-        progressprint_time = time()
-        # Print out message
-        msg = str(msg).replace('CONCEPT', terminal.CONCEPT)
-        args = [arg.replace('CONCEPT', terminal.CONCEPT)
-                if isinstance(arg, str) else arg for arg in args]
-        if ((args and isinstance(args[-1], str) and args[-1].endswith('...'))
-            or not args and msg.endswith('...')):
-            end = ''
-        print(' '*indent + msg, *args, flush=True, end=end, **kwargs)
-
-# Function for printing warnings
-def masterwarn(msg, *args, indent=0, prefix='Warning', **kwargs):
-    if not master:
-        return
-    msg = str(msg).replace('CONCEPT', terminal.CONCEPT)
-    if args:
-        args = [arg.replace('CONCEPT', terminal.CONCEPT)
-                if isinstance(arg, str) else str(arg) for arg in args]
-        print(terminal.bold_red(' '*indent + 'Warning: '
-                                + ' '.join([msg] + args)),
-                                file=sys.stderr,
-                                flush=True,
-                                **kwargs)
-    else:
-        print(terminal.bold_red(' '*indent + prefix + ': ' + msg),
-              file=sys.stderr,
-              flush=True,
-              **kwargs)
 
 # This function formats a floating point number to have nfigs
 # significant figures. Set fmt to 'TeX' to format to TeX math code
@@ -1143,3 +1181,4 @@ def significant_figures(number, nfigs, fmt=''):
     if fmt == 'tex':
         number_str = number_str.replace('.', '$.$')
     return number_str
+

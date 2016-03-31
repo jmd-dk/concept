@@ -40,7 +40,7 @@ import subprocess
                filename='str',
                power_dict='object',  # OrderedDict
                # Locals
-               filename_type='str',
+               filename_component='str',
                i='Py_ssize_t',
                k='double[::1]',
                kmax='double',
@@ -52,10 +52,18 @@ import subprocess
                power_σ='double[::1]',
                powermin='double',
                tmp='str',
-               typename='str',
-               typenames='list',
+               name='str',
+               names='list',
                )
 def plot_powerspec(data_list, a, filename, power_dict):
+    """This function will do seperate power spectrum
+    plots for each component.
+    The power spectra are given in dat_list, which are a list with
+    the following content: [k, power, power_σ, power, power_σ, ...]
+    where a pair of power and power_σ is for one component.
+    The power_dict is an ordered dict and hold the component names
+    for the power spectra in data_list, in the correct order.
+    """
     # Only the master process takes part in the power spectra plotting
     if not master:
         return
@@ -72,37 +80,37 @@ def plot_powerspec(data_list, a, filename, power_dict):
     k = data_list[0]
     kmin = k[0]
     kmax = k[k.shape[0] - 1]
-    # Get relevant indices and particle types from power_dict
+    # Get relevant indices and component name from power_dict
     power_indices = []
-    typenames = []
-    for i, typename in enumerate(power_dict.keys()):
-        # The power spectrum of the i'th particles should only be
-        # plotted if {typename: True} or {'all': True} exist
-        # in powerspec_plot_select. Also, if typename exists,
+    names = []
+    for i, name in enumerate(power_dict.keys()):
+        # The power spectrum of the i'th component should only be
+        # plotted if {name: True} or {'all': True} exist
+        # in powerspec_plot_select. Also, if name exists,
         # the value for 'all' is ignored.
-        if typename.lower() in powerspec_plot_select:
-            if not powerspec_plot_select[typename.lower()]:
+        if name.lower() in powerspec_plot_select:
+            if not powerspec_plot_select[name.lower()]:
                 continue
         elif not powerspec_plot_select.get('all', False):
             continue
         # The i'th power spectrum should be plotted
         power_indices.append(1 + 2*i)
-        typenames.append(typename.replace(' ', '-'))
-    # Plot the power spectrum for each particle type separately
-    for power_index, typename in zip(power_indices, typenames):
-        # The filename should reflect the individual particle types,
-        # when several particle types are being plotted.
-        filename_type = filename
-        if len(typenames) > 1:
+        names.append(name.replace(' ', '-'))
+    # Plot the power spectrum for each component separately
+    for power_index, name in zip(power_indices, names):
+        # The filename should reflect the individual component names,
+        # when several components are being plotted.
+        filename_component = filename
+        if len(names) > 1:
             if '_a=' in filename:
-                filename_type = filename.replace('_a=', '_{}_a='.format(typename))
+                filename_component = filename.replace('_a=', '_{}_a='.format(name))
             else:
-                filename_type = filename.replace('.png', '_{}.png'.format(typename))
-        # The filename should reflect the individual particle types
-        masterprint('Plotting power spectrum of {} and saving to "{}" ...'.format(typename,
-                                                                                  filename_type))
+                filename_component = filename.replace('.png', '_{}.png'.format(name))
+        # The filename should reflect the individual component names
+        masterprint('Plotting power spectrum of {} and saving to "{}" ...'
+                    .format(name, filename_component))
         # Extract the power and its standard
-        # deviation for the i'th particle type.
+        # deviation for the i'th component.
         power   = data_list[power_index]
         power_σ = data_list[power_index + 1]
         powermin = min(power)
@@ -127,19 +135,18 @@ def plot_powerspec(data_list, a, filename, power_dict):
         plt.ylabel('power $\mathrm{[' + base_length + '^3]}$',
                    fontsize=14,
                    )
-        plt.title('{} at $a = {}$'.format(typename,
-                                          significant_figures(a, 4, fmt='TeX')),
+        plt.title('{} at $a = {}$'.format(name, significant_figures(a, 4, fmt='TeX')),
                   fontsize=16,
                   )
         plt.gca().tick_params(labelsize=13)
         plt.tight_layout()
-        plt.savefig(filename_type)
+        plt.savefig(filename_component)
         # Finish progress message
         masterprint('done')
 
-# Setting up figure and plot the particles
+# Function for 3D renderings of the components
 @cython.header(# Arguments
-               particles_list='list',
+               components='list',
                a='double',
                filename='str',
                cleanup='bint',
@@ -153,23 +160,23 @@ def plot_powerspec(data_list, a, filename, power_dict):
                combined='double[:, :, ::1]',
                dirname='str',
                figname='str',
-               filename_type='str',
-               filename_type_alpha='str',
-               filename_type_alpha_part='str',
-               filenames_type_alpha='list',
-               filenames_type_alpha_part='list',
+               filename_component='str',
+               filename_component_alpha='str',
+               filename_component_alpha_part='str',
+               filenames_component_alpha='list',
+               filenames_component_alpha_part='list',
                i='int',
                j='int',
                part='int',
-               particle_type='str',
-               particle_types='tuple',
-               particles='Particles',
+               name='str',
+               names='tuple',
+               component='Component',
                render_dirname='str',
                rgb='int',
                size='double',
                tmp_image='float[:, :, ::1]',
                )
-def render(particles_list, a, filename, cleanup=True):
+def render(components, a, filename, cleanup=True):
     global render_dict, render_image
     # Do not render anything if
     # render_select does not contain any True values.
@@ -197,20 +204,20 @@ def render(particles_list, a, filename, cleanup=True):
             default_colors = itertools.cycle([to_rgb(c)
                                               for c in matplotlib.rcParams['axes.color_cycle']
                                               if not all(to_rgb(c) == bgcolor)])
-        for particles in particles_list:
-            # The i'th particles should only be rendered if
-            # {'type i': True} or {'all': True} exist in render_select.
-            # Also, if 'type i' exists, the value for 'all' is ignored.
-            if particles.type.lower() in render_select:
-                if not render_select[particles.type.lower()]:
+        for component in components:
+            # The i'th component should only be rendered if
+            # {name: True} or {'all': True} exist in render_select.
+            # Also, if name exists, the value for 'all' is ignored.
+            if component.name.lower() in render_select:
+                if not render_select[component.name.lower()]:
                     continue
             elif not render_select.get('all', False):
                 continue
-            # These particles should be rendered!
-            # Prepare a figure for the render of the i'th particle type.
+            # This component should be rendered!
+            # Prepare a figure for the render of the i'th component.
             # The 77.50 scaling is needed to
             # map the resolution to pixel units.
-            figname = 'render_{}'.format(particles.type)
+            figname = 'render_{}'.format(component.name)
             fig = plt.figure(figname,
                              figsize=[resolution/77.50]*2)
             try:
@@ -219,15 +226,15 @@ def render(particles_list, a, filename, cleanup=True):
             except:
                 # Matplotlib 1.x
                 ax = fig.gca(projection='3d', axisbg=bgcolor)
-            # The color of the particles
-            if particles.type.lower() in render_colors:
-                color = render_colors[particles.type.lower()]
+            # The color of this component
+            if component.name.lower() in render_colors:
+                color = render_colors[component.name.lower()]
             else:
-                # No color specified for these particular particles.
+                # No color specified for this particular component.
                 # Use default cyclic colors.
                 color = next(default_colors)
-            # The artist for the particles
-            artist_particles = ax.scatter(0, 0, 0, c=color, lw=0)
+            # The artist for the component
+            artist_component = ax.scatter(0, 0, 0, c=color, lw=0)
             # The artist for the scalefactor text
             artist_text = ax.text(+0.25*boxsize,
                                   -0.30*boxsize,
@@ -266,14 +273,14 @@ def render(particles_list, a, filename, cleanup=True):
                 tl.set_visible(False)
             for tl in ax.w_zaxis.get_ticklabels():
                 tl.set_visible(False)
-            # Store the figure, axes and the particles
+            # Store the figure, axes and the component
             # and text artists in the render_dict.
-            render_dict[particles.type] = {'fig': fig,
+            render_dict[component.name] = {'fig': fig,
                                            'ax': ax,
-                                           'artist_particles': artist_particles,
+                                           'artist_component': artist_component,
                                            'artist_text': artist_text,
                                            }
-        # Return if no particles are to be rendered
+        # Return if no component is to be rendered
         if not render_dict:
             return
         # Create the temporary render directory if necessary
@@ -281,26 +288,40 @@ def render(particles_list, a, filename, cleanup=True):
             if master:
                 os.makedirs(render_dirname, exist_ok=True)
             Barrier()
-    # Render each particle type separately
-    for particles in particles_list:
-        if particles.type not in render_dict:
+    # Print out progress message
+    names = tuple(render_dict.keys())
+    if len(names) == 1:
+        masterprint('Rendering {} and saving to "{}" ...'.format(component.name, filename))
+    else:
+        masterprint('Rendering:')
+        for name in names:
+            filename_component = filename
+            if '_a=' in filename:
+                filename_component = filename.replace('_a=', '_{}_a='.format(name))
+            else:
+                filename_component = filename.replace('.png', '_{}.png'.format(name))
+            masterprint('Rendering {} and saving to "{}"'.format(name, filename_component),
+                        indent=4)
+        masterprint('...', indent=4)
+    # Render each component separately
+    for component in components:
+        if component.name not in render_dict:
             continue
-        masterprint('Rendering {} ...'.format(particles.type))
         # Switch to the render figure
-        figname = 'render_{}'.format(particles.type)
+        figname = 'render_{}'.format(component.name)
         plt.figure(figname)
         # Extract figure elements
-        fig = render_dict[particles.type]['fig']
-        ax = render_dict[particles.type]['ax']
-        artist_particles = render_dict[particles.type]['artist_particles']
-        artist_text = render_dict[particles.type]['artist_text']
-        # Extract particle data
-        N = particles.N
-        N_local = particles.N_local
+        fig = render_dict[component.name]['fig']
+        ax = render_dict[component.name]['ax']
+        artist_component = render_dict[component.name]['artist_component']
+        artist_text = render_dict[component.name]['artist_text']
+        # Extract component data
+        N = component.N
+        N_local = component.N_local
         # Update particle positions on the figure
-        artist_particles._offsets3d = juggle_axes(particles.posx_mv[:N_local],
-                                                  particles.posy_mv[:N_local],
-                                                  particles.posz_mv[:N_local],
+        artist_component._offsets3d = juggle_axes(component.posx_mv[:N_local],
+                                                  component.posy_mv[:N_local],
+                                                  component.posz_mv[:N_local],
                                                   zdir='z')
         # The particle size on the figure.
         # The size is chosen such that the particles stand side
@@ -319,8 +340,8 @@ def render(particles_list, a, filename, cleanup=True):
             size *= alpha/alpha_min
             alpha = alpha_min
         # Apply size and alpha
-        artist_particles.set_sizes([size])
-        artist_particles.set_alpha(alpha)
+        artist_component.set_sizes([size])
+        artist_component.set_alpha(alpha)
         # Print the current scale factor on the figure
         if master:
             a_str = '$a = {}$'.format(significant_figures(a, 4, 'TeX'))
@@ -333,13 +354,14 @@ def render(particles_list, a, filename, cleanup=True):
                 artist_text.set_color('black')
         # Save the render
         if nprocs == 1:
-            filename_type_alpha_part = '{}/{}_alpha.png'.format(render_dirname,
-                                                                particles.type.replace(' ', '-'))
+            filename_component_alpha_part = ('{}/{}_alpha.png'
+                                              .format(render_dirname,
+                                                      component.name.replace(' ', '-')))
         else:
-            filename_type_alpha_part = ('{}/{}_alpha_{}.png'
-                                        .format(render_dirname,
-                                                particles.type.replace(' ', '-'),
-                                                rank))
+            filename_component_alpha_part = ('{}/{}_alpha_{}.png'
+                                             .format(render_dirname,
+                                                     component.name.replace(' ', '-'),
+                                                     rank))
         if nprocs == 1 == len(render_dict):
             # As this is the only render which should be done, it can
             # be saved directly in its final, non-transparent state.
@@ -347,77 +369,75 @@ def render(particles_list, a, filename, cleanup=True):
                         bbox_inches='tight',
                         pad_inches=0,
                         transparent=False)
+            masterprint('done')
         else:
             # Save transparent render
-            plt.savefig(filename_type_alpha_part,
+            plt.savefig(filename_component_alpha_part,
                         bbox_inches='tight',
                         pad_inches=0,
                         transparent=True)
-        masterprint('done')
     # All rendering done
     Barrier()
     # The partial renders will now be combined into full renders,
     # stored in the 'render_image', variable. Partial renders of the
-    # j'th particle type will be handled by the process with rank j.
+    # j'th component will be handled by the process with rank j.
     if not (nprocs == 1 == len(render_dict)):
-        masterprint('Compositing partial renders ...')
-        particle_types = tuple(render_dict.keys())
-        # Loop over particle types designated to each process
+        # Loop over components designated to each process
         for i in range(1 + len(render_dict)//nprocs):
             # Break out when there is no more work for this process
             j = rank + nprocs*i
-            if j >= len(particle_types):
+            if j >= len(names):
                 break
-            particle_type = particle_types[j].replace(' ', '-')
+            name = names[j].replace(' ', '-')
             if nprocs == 1:
                 # Simply load the already fully constructed image
-                filename_type_alpha = '{}/{}_alpha.png'.format(render_dirname, particle_type)
-                render_image = plt.imread(filename_type_alpha)
+                filename_component_alpha = '{}/{}_alpha.png'.format(render_dirname, name)
+                render_image = plt.imread(filename_component_alpha)
             else:
                 # Create list of filenames for the partial renders
-                filenames_type_alpha_part = ['{}/{}_alpha_{}.png'.format(render_dirname,
-                                                                         particle_type,
-                                                                         part)
+                filenames_component_alpha_part = ['{}/{}_alpha_{}.png'.format(render_dirname,
+                                                                              name,
+                                                                              part)
                                              for part in range(nprocs)]
                 # Read in the partial renders and blend
                 # them together into the render_image variable.
-                blend(filenames_type_alpha_part)
-                # Save combined render of particle type j
+                blend(filenames_component_alpha_part)
+                # Save combined render of the j'th component
                 # with transparency. Theese are then later combined into
-                # a render containing all particle types.
-                if len(particle_types) > 1:
-                    filename_type_alpha = '{}/{}_alpha.png'.format(render_dirname, particle_type)
-                    plt.imsave(filename_type_alpha, render_image)
+                # a render containing all components.
+                if len(names) > 1:
+                    filename_component_alpha = '{}/{}_alpha.png'.format(render_dirname, name)
+                    plt.imsave(filename_component_alpha, render_image)
             # Add opaque background to render_image
             add_background()
-            # Save combined render of particle type j
+            # Save combined render of the j'th component
             # without transparency.
-            filename_type = filename
-            if len(particle_types) > 1:
+            filename_component = filename
+            if len(names) > 1:
                 if '_a=' in filename:
-                    filename_type = filename.replace('_a=', '_{}_a='.format(particle_type))
+                    filename_component = filename.replace('_a=', '_{}_a='.format(name))
                 else:
-                    filename_type = filename.replace('.png', '_{}.png'.format(particle_type))
-            plt.imsave(filename_type, render_image)
+                    filename_component = filename.replace('.png', '_{}.png'.format(name))
+            plt.imsave(filename_component, render_image)
         Barrier()
-        # Finally, combine the full renders of individual particle types
-        # into a total render containing all particles.
-        if master and len(particle_types) > 1:
-            filenames_type_alpha = ['{}/{}_alpha.png'.format(render_dirname,
-                                                             particle_type.replace(' ', '-'))
-                                    for particle_type in particle_types]
-            blend(filenames_type_alpha)
+        masterprint('done')
+        # Finally, combine the full renders of individual components
+        # into a total render containing all components.
+        if master and len(names) > 1:
+            masterprint('Combining component renders and saving to "{}" ...'.format(filename))
+            filenames_component_alpha = ['{}/{}_alpha.png'.format(render_dirname,
+                                                                  name.replace(' ', '-'))
+                                         for name in names]
+            blend(filenames_component_alpha)
             # Add opaque background to render_image and save it
             add_background()
             plt.imsave(filename, render_image)
-        masterprint('done')
+            masterprint('done')
     # Remove the temporary directory, if cleanup is requested
     if master and cleanup and not (nprocs == 1 == len(render_dict)):
         shutil.rmtree(render_dirname)
     # Update the live render (local and remote)
-    #update_liverender(filename_type)
-
-
+    #update_liverender(filename_component)
 
 # Function which takes in a list of filenames of images and blend them
 # together into the global render_image array.
@@ -532,48 +552,48 @@ def update_liverender(filename):
     else:
         masterprint('done')
 
-# This function projects the particle positions onto the xy-plane
-# and renders this projection directly in the terminal, using
-# ANSI/VT100 control sequences.
+# This function projects the particle/fluid element positions onto the
+# xy-plane and renders this projection directly in the terminal,
+# using ANSI/VT100 control sequences.
 @cython.header(# Arguments
-               particles_list='list',
+               components='list',
                # Locals
                N='Py_ssize_t',
                N_local='Py_ssize_t',
                N_total='Py_ssize_t',
-               colornumber='Py_ssize_t',
+               colornumber='int',
+               colornumber_offset='int',
                i='Py_ssize_t',
                index_x='Py_ssize_t',
                index_y='Py_ssize_t',
                j='Py_ssize_t',
                maxoverdensity='Py_ssize_t',
                maxval='Py_ssize_t',
-               particles='Particles',
+               component='Component',
                posx='double*',
                posy='double*',
                projection_ANSI='list',
                scalec='double',
                )
-def terminal_render(particles_list):
-    global projection
+def terminal_render(components):
     # Project all particle positions onto the 2D projection array,
     # counting the number of particles in each pixel.
     projection[...] = 0
     N_total = 0
-    for particles in particles_list:
-        if particles.representation == 'particles':
+    for component in components:
+        if component.representation == 'particles':
             # Extract relevant particle data
-            N = particles.N
-            N_local = particles.N_local
+            N = component.N
+            N_local = component.N_local
             N_total += N
-            posx = particles.posx
-            posy = particles.posy
+            posx = component.posx
+            posy = component.posy
             # Do the projection
             for i in range(N_local):
                 index_x = int(posx[i]*projection_scalex)
                 index_y = int(posy[i]*projection_scaley)
                 projection[index_y, index_x] += 1
-        elif particles.representation == 'fluid':
+        elif component.representation == 'fluid':
             pass
     # Sum up local projections into the master process
     Reduce(sendbuf=(MPI.IN_PLACE if master else projection),
@@ -593,10 +613,11 @@ def terminal_render(particles_list):
     # color. When printed together, these strings produce an ANSI image
     # of the projection.
     projection_ANSI = []
-    scalec = 240/maxval
+    scalec = terminal_colormap_rgb.shape[0]/maxval
+    colornumber_offset = 256 - terminal_colormap_rgb.shape[0]
     for i in range(projection.shape[0]):
         for j in range(projection.shape[1]):
-            colornumber = int(16 + projection[i, j]*scalec)
+            colornumber = int(colornumber_offset + projection[i, j]*scalec)
             if colornumber > 255:
                 colornumber = 255
             projection_ANSI.append('\x1b[48;5;{}m '.format(colornumber))
@@ -612,8 +633,8 @@ cython.declare(render_dict='object',  # OrderedDict
                )
 # Prepare a figure for the render
 if render_times or special_params.get('special', '') == 'render':
-    # (Ordered) dictionary containing the figure, axes, particles
-    # artist and text artist for each particle type.
+    # (Ordered) dictionary containing the figure, axes, component
+    # artist and text artist for each component.
     render_dict = collections.OrderedDict()
 # The array storing the render
 render_image = empty((resolution, resolution, 4), dtype=C2np['float'])
@@ -628,20 +649,25 @@ if terminal_render_times:
     cython.declare(projection='Py_ssize_t[:, ::1]',
                    projection_scalex='double',
                    projection_scaley='double',
+                   terminal_colormap_rgb='double[:, ::1]',
                    )
     projection = np.empty((terminal_resolution//2, terminal_resolution),
                           dtype=C2np['Py_ssize_t'])
     projection_scalex = projection.shape[1]/boxsize
     projection_scaley = projection.shape[0]/boxsize
-    # Construct instance of the colormap with 256 - 16 = 240 colors
-    colormap_240 = getattr(matplotlib.cm, terminal_colormap)(arange(240))[:, :3]
-    # Apply the colormap to the terminal, remapping the 240 higher color
-    # numbers. The 16 lowest are left alone in order not to mess with
-    # standard terminal coloring.
-    if terminal_render_times:
-        for i in range(240):
-            colorhex = matplotlib.colors.rgb2hex(colormap_240[i])
+    # Construct terminal colormap with 256 - 16 - 2 = 238 colors
+    # and apply it to the terminal, remapping the 238 higher color
+    # numbers. The 16 + 2 = 18 lowest are left alone in order not to
+    # mess with standard terminal coloring and the colors used for the
+    # CO𝘕CEPT logo at startup.
+    if master:
+        terminal_colormap_rgb = np.ascontiguousarray(getattr(matplotlib.cm, terminal_colormap)
+                                                     (arange(238))[:, :3])
+        for i, rgb in enumerate(asarray(terminal_colormap_rgb)):
+            colorhex = matplotlib.colors.rgb2hex(rgb)
             masterprint('\x1b]4;{};rgb:{}/{}/{}\x1b\\'
-                         .format(16 + i, colorhex[1:3],
-                                         colorhex[3:5],
-                                         colorhex[5:]), end='')
+                         .format(256 - terminal_colormap_rgb.shape[0] + i, colorhex[1:3],
+                                                                           colorhex[3:5],
+                                                                           colorhex[5:]),
+                        end='')
+

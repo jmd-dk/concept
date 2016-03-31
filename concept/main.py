@@ -25,11 +25,12 @@
 from commons import *
 
 # Cython imports
+from snapshot import load
 cimport('from analysis import powerspec')
 cimport('from graphics import render, terminal_render')
 cimport('from integration import expand, cosmic_time, scalefactor_integral')
-cimport('from snapshot import load_particles, save')
 cimport('from utilities import delegate')
+cimport('from snapshot import save')
 
 
 
@@ -64,37 +65,38 @@ def do_kick_drift_integrals(index):
 # Function which dump all types of output. The return value signifies
 # whether or not something has been dumped.
 @cython.header(# Arguments
-               particles_list='list',
+               components='list',
                output_filenames='dict',
                op='str',
                # Locals
-               particles='Particles',
+               component='Component',
                returns='bint',
                )
-def dump(particles_list, output_filenames, op=None):
+def dump(components, output_filenames, op=None):
     global a, a_dump, drift_fac, i_dump, kick_fac
     # Do nothing if not at dump time
     if a != a_dump:
         return False
     # Synchronize positions and momenta before dumping
     if op == 'drift':
-        for particles in particles_list:
-            particles.drift(drift_fac[0])
+        for component in components:
+            component.drift(drift_fac[0])
     elif op == 'kick':
-        for particles in particles_list:
-            particles.kick(kick_fac[1])
+        for component in components:
+            # Do not do this sequentially !!!!!!!!!
+            component.kick(kick_fac[1])
     # Dump terminal render
     if a in terminal_render_times:
-        terminal_render(particles_list)
+        terminal_render(components)
     # Dump snapshot
     if a in snapshot_times:
-        save(particles_list, a, output_filenames['snapshot'].format(a))
+        save(components, a, output_filenames['snapshot'].format(a))
     # Dump powerspectrum
     if a in powerspec_times:
-        powerspec(particles_list, a, output_filenames['powerspec'].format(a))
+        powerspec(components, a, output_filenames['powerspec'].format(a))
     # Dump render
     if a in render_times:
-        render(particles_list, a, output_filenames['render'].format(a),
+        render(components, a, output_filenames['render'].format(a),
                cleanup=(a == render_times[len(render_times) - 1]))
     # Increment dump time
     i_dump += 1
@@ -105,13 +107,11 @@ def dump(particles_list, output_filenames, op=None):
     kick_fac[1] = 0
     return True
 
-cimport('from mesh import CIC_particles2grid')
-
 # Function containing the main time loop of CO𝘕CEPT
 @cython.header(# Locals
                output_filenames='dict',
-               particles='Particles',
-               particles_list='list',
+               component='Component',
+               components='list',
                timestep='Py_ssize_t',
                Δt_update_freq='Py_ssize_t',
                )
@@ -123,7 +123,40 @@ def timeloop():
     # Get the output filename patterns
     output_filenames = prepare_output_times()
     # Load initial conditions
-    particles_list = load_particles(IC_file)
+    components = load(IC_file, only_components=True)
+
+
+    # # delta
+    # cython.declare(fluid_gridsize='Py_ssize_t',
+    #                delta='double[:, :, ::1]',
+    #                fac='double',
+    #                i='Py_ssize_t',
+    #                j='Py_ssize_t',
+    #                k='Py_ssize_t',
+    #                )
+    # fluid_gridsize = 128
+    # component = components[0]
+
+    # delta = np.zeros([fluid_gridsize]*3)
+    # CIC_component2grid(component, delta)
+    # fac = fluid_gridsize**3/component.N
+    # for i in range(fluid_gridsize):
+    #     for j in range(fluid_gridsize):
+    #         for k in range(fluid_gridsize):
+    #             delta[i, j, k] = delta[i, j, k]*fac - 1
+    # # Save delta
+    # with h5py.File('ICs/fluid.hdf5', mode='w', driver='mpio', comm=comm) as hdf5_file:
+    #     dset = hdf5_file.create_dataset('data', 3*[fluid_gridsize], dtype=C2np['double'])
+    #     dset[...] = delta
+    # # LOAD
+    # #with h5py.File('ICs/fluid.hdf5',
+    # #               mode='r',
+    # #               driver='mpio',
+    # #               comm=comm) as hdf5_file:
+    # #    grid = hdf5_file['data'][...].reshape([ewald_gridsize]*3)
+    # abort('successully saved fluid')
+
+
     # The number of time steps before Δt is updated
     Δt_update_freq = 10
     # Initial cosmic time t, where a(t) = a_begin
@@ -141,7 +174,7 @@ def timeloop():
     i_dump = 0
     a_dump = a_dumps[i_dump]
     # Possible output at a == a_begin
-    dump(particles_list, output_filenames)
+    dump(components, output_filenames)
     # The main time loop
     masterprint('Begin main time loop')
     timestep = -1
@@ -156,15 +189,15 @@ def timeloop():
                     )
         # Kick (first time is only half a kick, as kick_fac[1] == 0)
         do_kick_drift_integrals(0)
-        for particles in particles_list:  # SHOULD NOT BE DONE SEQUENTIALLY !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            particles.kick(kick_fac[0] + kick_fac[1])
-        if dump(particles_list, output_filenames, 'drift'):
+        for component in components:  # SHOULD NOT BE DONE SEQUENTIALLY !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            component.kick(kick_fac[0] + kick_fac[1])
+        if dump(components, output_filenames, 'drift'):
             continue
         # Update Δt every Δt_update_freq time step
         if not (timestep % Δt_update_freq):
             # Let the positions catch up to the momenta
-            for particles in particles_list:
-                particles.drift(drift_fac[0])
+            for component in components:
+                component.drift(drift_fac[0])
             Δt = Δt_factor*t
             # Reset the second kick factor,
             # making the next operation a half kick.
@@ -172,9 +205,9 @@ def timeloop():
             continue
         # Drift
         do_kick_drift_integrals(1)
-        for particles in particles_list:
-            particles.drift(drift_fac[0] + drift_fac[1])
-        if dump(particles_list, output_filenames, 'kick'):
+        for component in components:
+            component.drift(drift_fac[0] + drift_fac[1])
+        if dump(components, output_filenames, 'kick'):
             continue
 
 # Function which checks the sanity of the user supplied output times,
@@ -260,8 +293,12 @@ cython.declare(a='double',
 # Run the time loop
 timeloop()
 # Simulation done
-masterprint(terminal.bold_green(terminal.CONCEPT + ' run finished'))
+if any_warnings[0]:
+    masterprint('\nCO𝘕CEPT run finished')
+else:
+    masterprint(terminal.bold_green('\nCO𝘕CEPT run finished successfully'))
 # Due to an error having to do with the Python -m switch,
 # the program must explicitly be told to exit.
 Barrier()
 sys.exit()
+

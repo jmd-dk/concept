@@ -29,7 +29,7 @@ output_times  = {'snapshot': loadtxt(paths['params_dir'] + '/outputlist')}
 
 # Numerical parameters
 boxsize          = 8*Mpc/0.7	# (Gadget implicitly uses length/h)
-PM_gridsize      = 32
+φ_gridsize       = 32
 P3M_scale        = 1.25
 P3M_cutoff       = 4.5
 softeningfactors = {'dark matter': 0.03}	

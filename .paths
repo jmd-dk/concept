@@ -55,6 +55,4 @@ mpicc='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/mpich/bin/mpicc'
 mpiexec='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/mpich/bin/mpiexec'
 # The Python3 interpreter
 python='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python/bin/python3.5'
-# The Python3 configuration executable
-python_config='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python/bin/python3.5-config'
 
