@@ -25,12 +25,73 @@
 from commons import *
 
 # Cython imports
-cimport('from communication import cutout_domains, neighboring_ranks')
+from communication import smart_mpi
+cimport('from communication import communicate_domain_boundaries,                    '
+                                  'communicate_domain_ghosts,                        '
+                                  'rank_neighboring_domain,                          '
+                                  'domain_layout_local_indices,                      '
+                                  'domain_subdivisions,                              '
+                                  'domain_size_x,  domain_size_y,  domain_size_z,    '
+                                  'domain_start_x, domain_start_y, domain_start_z,   '
+        )
+
+
 
 # Seperate but roughly equivalent imports in pure Python and Cython
 if not cython.compiled:
-    # FFT functionality via NumPy
-    from numpy.fft import rfftn, irfftn
+    # Emulate FFTW's fftw_execute in pure Python
+    def fftw_execute(plan):
+        # The pure Python FFT implementation is serial.
+        # Every process computes the entire FFT of the temporary
+        # varaible φ_global_pure_python.
+        φ_global_pure_python = empty((φ_gridsize, φ_gridsize, slab_size_padding))
+        Allgatherv(slab, φ_global_pure_python)
+        if plan == plan_forward:
+            # Delete the padding on last dimension
+            for i in range(slab_size_padding - φ_gridsize):
+                φ_global_pure_python = delete(φ_global_pure_python, -1, axis=2)
+            # Do real transform via NumPy
+            φ_global_pure_python = np.fft.rfftn(φ_global_pure_python)
+            # FFTW transposes the first two dimensions
+            φ_global_pure_python = φ_global_pure_python.transpose([1, 0, 2])
+            # FFTW represents the complex array by doubles only
+            tmp = empty((φ_gridsize, φ_gridsize, slab_size_padding))
+            for i in range(slab_size_padding):
+                if i % 2:
+                    tmp[:, :, i] = φ_global_pure_python.imag[:, :, i//2]
+                else:
+                    tmp[:, :, i] = φ_global_pure_python.real[:, :, i//2]
+            φ_global_pure_python = tmp
+            # As in FFTW, distribute the slabs along the y-dimension
+            # (which is the first dimension now, due to transposing).
+            slab[...] = φ_global_pure_python[slab_start_j:(slab_start_j + slab_size_j), :, :]
+        elif plan == plan_backward:
+            # FFTW represents the complex array by doubles only.
+            # Go back to using complex entries.
+            tmp = zeros((φ_gridsize, φ_gridsize, slab_size_padding/2),
+                        dtype='complex128')
+            for i in range(slab_size_padding):
+                if i % 2:
+                    tmp[:, :, i//2] += 1j*φ_global_pure_python[:, :, i]
+                else:
+                    tmp[:, :, i//2] += φ_global_pure_python[:, :, i]
+            φ_global_pure_python = tmp
+            # FFTW transposes the first
+            # two dimensions back to normal.
+            φ_global_pure_python = φ_global_pure_python.transpose([1, 0, 2])
+            # Do real inverse transform via NumPy
+            φ_global_pure_python = np.fft.irfftn(φ_global_pure_python, s=[φ_gridsize]*3)
+            # Remove the autoscaling provided by NumPy
+            φ_global_pure_python *= φ_gridsize3
+            # Add padding on last dimension, as in FFTW
+            padding = empty((φ_gridsize,
+                             φ_gridsize,
+                             slab_size_padding - φ_gridsize,
+                             ))
+            φ_global_pure_python = concatenate((φ_global_pure_python, padding), axis=2)
+            # As in FFTW, distribute the slabs along the x-dimension
+            slab[...] = φ_global_pure_python[slab_start_i:(slab_start_i + slab_size_i), :, :]
+
 else:
     # Lines in triple quotes will be executed in the .pyx file
     """
@@ -221,7 +282,7 @@ def tabulate_vectorfield(gridsize, N_dim, func, factor, filename=''):
 # Function for doing lookup in a grid with scalar values and
 # CIC-interpolating to specified coordinates.
 @cython.header(# Argument
-               grid='double[:, :, ::1]',
+               grid='double[:, :, :]',
                x='double',
                y='double',
                z='double',
@@ -243,19 +304,19 @@ def tabulate_vectorfield(gridsize, N_dim, func, factor, filename=''):
                z_upper='Py_ssize_t',
                returns='double',
                )
-def CIC_grid2coordinates_scalar(grid, x, y, z):
-    """This function look up tabulated scalars in a grid and
+def CIC_scalargrid2coordinates(grid, x, y, z):
+    """This function looks up tabulated scalars in a grid and
     interpolates to (x, y, z) via the cloud in cell (CIC) method. Input
     arguments must be normalized so that 0 <= x, y, z < 1. If x, y or z
     is exactly equal to 1, they will be corrected to 1 - ϵ. It is
     assumed that the grid is nonperiodic (that is,
     the grid has closed ends).
     """
-    # Extract the size of the regular grid
+    # Extract the shape of the grid
     gridsize_x_minus_1 = grid.shape[0] - 1
     gridsize_y_minus_1 = grid.shape[1] - 1
     gridsize_z_minus_1 = grid.shape[2] - 1
-    # Correct for extreme values in the passed coordinates.
+    # Correct for extreme values in the parsed coordinates.
     # This is to catch inputs which are slighly larger than 1 due to
     # numerical errors.
     if x >= 1:
@@ -285,19 +346,19 @@ def CIC_grid2coordinates_scalar(grid, x, y, z):
     Wyu = y - y_lower  # = 1 - (y_upper - y)
     Wzu = z - z_lower  # = 1 - (z_upper - z)
     # Return the sum of the weighted grid values
-    return (  grid[x_lower, y_lower, z_lower]*Wxl*Wyl*Wzl
-            + grid[x_lower, y_lower, z_upper]*Wxl*Wyl*Wzu
-            + grid[x_lower, y_upper, z_lower]*Wxl*Wyu*Wzl
-            + grid[x_lower, y_upper, z_upper]*Wxl*Wyu*Wzu
-            + grid[x_upper, y_lower, z_lower]*Wxu*Wyl*Wzl
-            + grid[x_upper, y_lower, z_upper]*Wxu*Wyl*Wzu
-            + grid[x_upper, y_upper, z_lower]*Wxu*Wyu*Wzl
-            + grid[x_upper, y_upper, z_upper]*Wxu*Wyu*Wzu)
+    return (  grid[x_lower, y_lower, z_lower]*ℝ[Wxl*Wyl]*Wzl
+            + grid[x_lower, y_lower, z_upper]*ℝ[Wxl*Wyl]*Wzu
+            + grid[x_lower, y_upper, z_lower]*ℝ[Wxl*Wyu]*Wzl
+            + grid[x_lower, y_upper, z_upper]*ℝ[Wxl*Wyu]*Wzu
+            + grid[x_upper, y_lower, z_lower]*ℝ[Wxu*Wyl]*Wzl
+            + grid[x_upper, y_lower, z_upper]*ℝ[Wxu*Wyl]*Wzu
+            + grid[x_upper, y_upper, z_lower]*ℝ[Wxu*Wyu]*Wzl
+            + grid[x_upper, y_upper, z_upper]*ℝ[Wxu*Wyu]*Wzu)
 
 # Function for doing lookup in a grid with vector values and
 # CIC-interpolating to specified coordinates
 @cython.header(# Argument
-               grid='double[:, :, :, ::1]',
+               grid='double[:, :, :, :]',
                x='double',
                y='double',
                z='double',
@@ -308,7 +369,7 @@ def CIC_grid2coordinates_scalar(grid, x, y, z):
                Wyu='double',
                Wzl='double',
                Wzu='double',
-               dim='Py_ssize_t',
+               dim='int',
                gridsize_x_minus_1='int',
                gridsize_y_minus_1='int',
                gridsize_z_minus_1='int',
@@ -320,8 +381,8 @@ def CIC_grid2coordinates_scalar(grid, x, y, z):
                z_upper='Py_ssize_t',
                returns='double*',
                )
-def CIC_grid2coordinates_vector(grid, x, y, z):
-    """This function look up tabulated vectors in a grid and
+def CIC_vectorgrid2coordinates(grid, x, y, z):
+    """This function looks up tabulated vectors in a grid and
     interpolates to (x, y, z) via the cloud in cell (CIC) method.
     Input arguments must be normalized so that 0 <= x, y, z < 1.
     If x, y or z is exactly equal to 1, they will be corrected to 1 - ϵ.
@@ -329,19 +390,19 @@ def CIC_grid2coordinates_vector(grid, x, y, z):
     the last gridpoint in any dimension are physical distinct and that
     the grid has closed ends).
     """
-    # Extract the size of the regular grid
+    # Extract the shape of the grid
     gridsize_x_minus_1 = grid.shape[0] - 1
     gridsize_y_minus_1 = grid.shape[1] - 1
     gridsize_z_minus_1 = grid.shape[2] - 1
-    # Correct for extreme values in the passed coordinates.
+    # Correct for extreme values in the parsed coordinates.
     # This is to catch inputs which are slighly larger than 1 due to
     # numerical errors.
     if x >= 1:
-        x = 1 - ℝ[2*machine_ϵ]
+        x = ℝ[1 - 2*machine_ϵ]
     if y >= 1:
-        y = 1 - ℝ[2*machine_ϵ]
+        y = ℝ[1 - 2*machine_ϵ]
     if z >= 1:
-        z = 1 - ℝ[2*machine_ϵ]
+        z = ℝ[1 - 2*machine_ϵ]
     # Scale the coordinates so that 0 <= x, y, z < (gridsize - 1)
     x *= gridsize_x_minus_1
     y *= gridsize_y_minus_1
@@ -364,32 +425,30 @@ def CIC_grid2coordinates_vector(grid, x, y, z):
     Wzu = z - z_lower  # = 1 - (z_upper - z)
     # Assign the weighted grid values to the vector components
     for dim in range(3):
-        vector[dim] = ( grid[x_lower, y_lower, z_lower, dim]*Wxl*Wyl*Wzl
-                      + grid[x_lower, y_lower, z_upper, dim]*Wxl*Wyl*Wzu
-                      + grid[x_lower, y_upper, z_lower, dim]*Wxl*Wyu*Wzl
-                      + grid[x_lower, y_upper, z_upper, dim]*Wxl*Wyu*Wzu
-                      + grid[x_upper, y_lower, z_lower, dim]*Wxu*Wyl*Wzl
-                      + grid[x_upper, y_lower, z_upper, dim]*Wxu*Wyl*Wzu
-                      + grid[x_upper, y_upper, z_lower, dim]*Wxu*Wyu*Wzl
-                      + grid[x_upper, y_upper, z_upper, dim]*Wxu*Wyu*Wzu)
+        vector[dim] = ( grid[x_lower, y_lower, z_lower, dim]*ℝ[Wxl*Wyl]*Wzl
+                      + grid[x_lower, y_lower, z_upper, dim]*ℝ[Wxl*Wyl]*Wzu
+                      + grid[x_lower, y_upper, z_lower, dim]*ℝ[Wxl*Wyu]*Wzl
+                      + grid[x_lower, y_upper, z_upper, dim]*ℝ[Wxl*Wyu]*Wzu
+                      + grid[x_upper, y_lower, z_lower, dim]*ℝ[Wxu*Wyl]*Wzl
+                      + grid[x_upper, y_lower, z_upper, dim]*ℝ[Wxu*Wyl]*Wzu
+                      + grid[x_upper, y_upper, z_lower, dim]*ℝ[Wxu*Wyu]*Wzl
+                      + grid[x_upper, y_upper, z_upper, dim]*ℝ[Wxu*Wyu]*Wzu)
     return vector
 
-# Function for CIC-interpolating particle coordinates
-# to a cubic grid with scalar values.
+# Function for CIC-interpolating particle/fluid element coordinates
+# to a cubic grid holding scalar values.
 @cython.header(# Argument
-               particles='Particles',
-               grid='double[:, :, ::1]',
+               component='Component',
+               domain_grid='double[:, :, ::1]',
+               communicate_boundaries='bint',
                # Locals
+               domain_grid_noghosts='double[:, :, :]',
+               fac='double',
                posx='double*',
                posy='double*',
                posz='double*',
-               gridsize_i_minus_1='int',
-               gridsize_j_minus_1='int',
-               gridsize_k_minus_1='int',
-               gridsize_i_minus_1_over_domain_size_x='double',
-               gridsize_j_minus_1_over_domain_size_y='double',
-               gridsize_k_minus_1_over_domain_size_z='double',
                i='Py_ssize_t',
+               shape='tuple',
                x='double',
                y='double',
                z='double',
@@ -406,37 +465,200 @@ def CIC_grid2coordinates_vector(grid, x, y, z):
                Wyu='double',
                Wzu='double',
                )
-def CIC_particles2grid(particles, grid):
-    """This function CIC-interpolates particle coordinates
-    to grid storing scalar values. The passed grid should be
-    nullified beforehand.
+def CIC_component2grid(component, domain_grid, communicate_boundaries=True):
+    """This function CIC-interpolates particle/fluid element coordinates
+    to domain_grid storing scalar values. The physical extend of the
+    parsed domain_grid should match the domain exactly. The interpolated
+    values will be added to the grid. Therefore, if the grid should
+    contain the interpolated vales only, the grid must be nullified 
+    beforehand.
     """
-    # Extract variables
-    posx = particles.posx
-    posy = particles.posy
-    posz = particles.posz
-    # Extract the size of the regular grid
-    gridsize_i_minus_1 = grid.shape[0] - 1
-    gridsize_j_minus_1 = grid.shape[1] - 1
-    gridsize_k_minus_1 = grid.shape[2] - 1
-    # The conversion factors between comoving length and grid units
-    gridsize_i_minus_1_over_domain_size_x = gridsize_i_minus_1/domain_size_x
-    gridsize_j_minus_1_over_domain_size_y = gridsize_j_minus_1/domain_size_y
-    gridsize_k_minus_1_over_domain_size_z = gridsize_k_minus_1/domain_size_z
-    # Interpolate each particle
-    for i in range(particles.N_local):
+    # Memoryview of the domain grid without the ghost layers
+    domain_grid_noghosts = domain_grid[2:(domain_grid.shape[0] - 2),
+                                       2:(domain_grid.shape[1] - 2),
+                                       2:(domain_grid.shape[2] - 2)]
+    # Do the interpolation
+    if component.representation == 'particles':
+        # Extract variables
+        posx = component.posx
+        posy = component.posy
+        posz = component.posz
+        # Extract the shape of the grid
+        shape = tuple([domain_grid_noghosts.shape[dim] - 1 for dim in range(3)])
+        # Interpolate each particle
+        for i in range(component.N_local):
+            # Get, translate and scale the coordinates so that
+            # 0 <= i < gridsize_i - 1 for i in (x, y, z).
+            x = (posx[i] - domain_start_x)*ℝ[shape[0]/domain_size_x]
+            y = (posy[i] - domain_start_y)*ℝ[shape[1]/domain_size_y]
+            z = (posz[i] - domain_start_z)*ℝ[shape[2]/domain_size_z]
+            # Correct for coordinates which are
+            # exactly at an upper domain boundary.
+            if x == ℝ[shape[0]]:
+                x -= ℝ[2*machine_ϵ]
+            if y == ℝ[shape[1]]:
+                y -= ℝ[2*machine_ϵ]
+            if z == ℝ[shape[2]]:
+                z -= ℝ[2*machine_ϵ]
+            # Indices of the 8 vertices (6 faces)
+            # of the grid surrounding (x, y, z).
+            x_lower = int(x)
+            y_lower = int(y)
+            z_lower = int(z)
+            x_upper = x_lower + 1
+            y_upper = y_lower + 1
+            z_upper = z_lower + 1
+            # The linear weights according to the
+            # CIC rule W = 1 - |dist| if |dist| < 1.
+            Wxl = x_upper - x  # = 1 - (x - x_lower)
+            Wyl = y_upper - y  # = 1 - (y - y_lower)
+            Wzl = z_upper - z  # = 1 - (z - z_lower)
+            Wxu = x - x_lower  # = 1 - (x_upper - x)
+            Wyu = y - y_lower  # = 1 - (y_upper - y)
+            Wzu = z - z_lower  # = 1 - (z_upper - z)
+            # Assign the weights to the grid points
+            domain_grid_noghosts[x_lower, y_lower, z_lower] += ℝ[Wxl*Wyl]*Wzl
+            domain_grid_noghosts[x_lower, y_lower, z_upper] += ℝ[Wxl*Wyl]*Wzu
+            domain_grid_noghosts[x_lower, y_upper, z_lower] += ℝ[Wxl*Wyu]*Wzl
+            domain_grid_noghosts[x_lower, y_upper, z_upper] += ℝ[Wxl*Wyu]*Wzu
+            domain_grid_noghosts[x_upper, y_lower, z_lower] += ℝ[Wxu*Wyl]*Wzl
+            domain_grid_noghosts[x_upper, y_lower, z_upper] += ℝ[Wxu*Wyl]*Wzu
+            domain_grid_noghosts[x_upper, y_upper, z_lower] += ℝ[Wxu*Wyu]*Wzl
+            domain_grid_noghosts[x_upper, y_upper, z_upper] += ℝ[Wxu*Wyu]*Wzu
+        # Values of local pseudo mesh points contribute to the lower
+        # mesh points of domain grid on other processes.
+        # Do the needed communication.
+        if communicate_boundaries:
+            communicate_domain_boundaries(domain_grid, mode=0)
+    elif component.representation == 'fluid':
+        pass
+
+# Function for CIC-interpolating particle/fluid element coordinates
+# to a cubic grid holding scalar values.
+@cython.header(# Argument
+               component='Component',
+               a='double',
+               # Locals
+               posx='double*',
+               posy='double*',
+               posz='double*',
+               i='Py_ssize_t',
+               x='double',
+               y='double',
+               z='double',
+               x_lower='int',
+               y_lower='int',
+               z_lower='int',
+               x_upper='int',
+               y_upper='int',
+               z_upper='int',
+               Wxl='double',
+               Wyl='double',
+               Wzl='double',
+               Wxu='double',
+               Wyu='double',
+               Wzu='double',
+               var='str',
+               δ_noghosts='double[:, :, :]',
+               δ='double*',
+               ux='double*',
+               uy='double*',
+               uz='double*',
+               ux_noghosts='double[:, :, :]',
+               uy_noghosts='double[:, :, :]',
+               uz_noghosts='double[:, :, :]',
+               momx='double*',
+               momy='double*',
+               momz='double*',
+               momx_i='double',
+               momy_i='double',
+               momz_i='double',
+               δ_fac='double',
+               u_fac='double',
+               δ_mv='double[:, :, ::1]',
+               ux_mv='double[:, :, ::1]',
+               uy_mv='double[:, :, ::1]',
+               uz_mv='double[:, :, ::1]',
+               original_representation='str',
+               dim='int',
+               shape='tuple',
+               size='Py_ssize_t',
+               )
+def CIC_particles2fluid(component, a):
+    """This function CIC-interpolates particle positions to fluid grids.
+    The parsed component should contain particle data, but not
+    necessarily fluid data (any pre-existing fluid data will be
+    overwritten). The particle data are then used to create the fluid
+    grids (δ, ux, uy, uz). In addition, since the relation between
+    momentum (particle data) p and velocity (fluid data) u is
+    p = u*m*a,
+    where a is the scale factor (m is the particle mass), the scale
+    factor is also needed in order to do the transformation.
+    The size of the fluid grids are determined by
+    component.gridsize.
+    Note that only the truly local part of the fluid grids will contain
+    the correct data after calling this function (both pseudo points
+    and ghost layers will contain junk).
+    To save memory, the particle data will be freed (resized to a
+    minimum size) during the process.
+    The behaviour of this function is independent of
+    component.representation.
+    """
+    # Backup of original representation
+    original_representation = component.representation
+    # Instantiate fluid grids spanning the local domains
+    component.representation = 'fluid'
+    shape = tuple([component.gridsize//ds for ds in domain_subdivisions])
+    if master and any([component.gridsize != domain_subdivisions[dim]*shape[dim]
+                       for dim in range(3)]):
+            abort('The gridsize of the {} component is {}\n'
+                  'which cannot be equally shared among {} processes'
+                  .format(component.name, component.gridsize, nprocs))
+    component.resize(shape)
+    # Extract fluid data variables
+    δ  = component.δ
+    ux = component.ux
+    uy = component.uy
+    uz = component.uz
+    δ_mv = component.δ_mv
+    ux_mv = component.ux_mv
+    uy_mv = component.uy_mv
+    uz_mv = component.uz_mv
+    δ_noghosts  = component.δ_noghosts
+    ux_noghosts = component.ux_noghosts
+    uy_noghosts = component.uy_noghosts
+    uz_noghosts = component.uz_noghosts
+    # Nullify fluid grids
+    size = np.prod(shape)
+    for i in range(size):
+        δ[i] = 0
+        ux[i] = 0
+        uy[i] = 0
+        uz[i] = 0
+    # Extract particle data variables
+    posx = component.posx
+    posy = component.posy
+    posz = component.posz
+    momx = component.momx
+    momy = component.momy
+    momz = component.momz
+    # Interpolate each particle to the grids.
+    # In the loop, simply assign the raw weight to the δ grid and the
+    # unweighted momenta to the ux, uy and uz grids. Convertions to the
+    # correct units will be done afterwards.
+    for i in range(component.N_local):
         # Get, translate and scale the coordinates so that
         # 0 <= i < gridsize_i - 1 for i in (x, y, z).
-        x = (posx[i] - domain_start_x)*gridsize_i_minus_1_over_domain_size_x
-        y = (posy[i] - domain_start_y)*gridsize_j_minus_1_over_domain_size_y
-        z = (posz[i] - domain_start_z)*gridsize_k_minus_1_over_domain_size_z
+        x = (posx[i] - domain_start_x)*ℝ[shape[0]/domain_size_x]
+        y = (posy[i] - domain_start_y)*ℝ[shape[1]/domain_size_y]
+        z = (posz[i] - domain_start_z)*ℝ[shape[2]/domain_size_z]
         # Correct for coordinates which are
         # exactly at an upper domain boundary.
-        if x == gridsize_i_minus_1:
+        if x == ℝ[shape[0]]:
             x -= ℝ[2*machine_ϵ]
-        if y == gridsize_j_minus_1:
+        if y == ℝ[shape[1]]:
             y -= ℝ[2*machine_ϵ]
-        if z == gridsize_k_minus_1:
+        if z == ℝ[shape[2]]:
             z -= ℝ[2*machine_ϵ]
         # Indices of the 8 vertices (6 faces)
         # of the grid surrounding (x, y, z).
@@ -454,500 +676,261 @@ def CIC_particles2grid(particles, grid):
         Wxu = x - x_lower  # = 1 - (x_upper - x)
         Wyu = y - y_lower  # = 1 - (y_upper - y)
         Wzu = z - z_lower  # = 1 - (z_upper - z)
-        # Assign the weights to the grid points
-        grid[x_lower, y_lower, z_lower] += Wxl*Wyl*Wzl
-        grid[x_lower, y_lower, z_upper] += Wxl*Wyl*Wzu
-        grid[x_lower, y_upper, z_lower] += Wxl*Wyu*Wzl
-        grid[x_lower, y_upper, z_upper] += Wxl*Wyu*Wzu
-        grid[x_upper, y_lower, z_lower] += Wxu*Wyl*Wzl
-        grid[x_upper, y_lower, z_upper] += Wxu*Wyl*Wzu
-        grid[x_upper, y_upper, z_lower] += Wxu*Wyu*Wzl
-        grid[x_upper, y_upper, z_upper] += Wxu*Wyu*Wzu
+        # Assign the raw weights to the δ grid
+        δ_noghosts[x_lower, y_lower, z_lower] += ℝ[Wxl*Wyl]*Wzl
+        δ_noghosts[x_lower, y_lower, z_upper] += ℝ[Wxl*Wyl]*Wzu
+        δ_noghosts[x_lower, y_upper, z_lower] += ℝ[Wxl*Wyu]*Wzl
+        δ_noghosts[x_lower, y_upper, z_upper] += ℝ[Wxl*Wyu]*Wzu
+        δ_noghosts[x_upper, y_lower, z_lower] += ℝ[Wxu*Wyl]*Wzl
+        δ_noghosts[x_upper, y_lower, z_upper] += ℝ[Wxu*Wyl]*Wzu
+        δ_noghosts[x_upper, y_upper, z_lower] += ℝ[Wxu*Wyu]*Wzl
+        δ_noghosts[x_upper, y_upper, z_upper] += ℝ[Wxu*Wyu]*Wzu
+        # Extract momentum of the i'th particle
+        momx_i = momx[i]
+        momy_i = momy[i]
+        momz_i = momz[i]
+        # Assign the unweighted momentum to the ux grid
+        ux_noghosts[x_lower, y_lower, z_lower] += momx_i
+        ux_noghosts[x_lower, y_lower, z_upper] += momx_i
+        ux_noghosts[x_lower, y_upper, z_lower] += momx_i
+        ux_noghosts[x_lower, y_upper, z_upper] += momx_i
+        ux_noghosts[x_upper, y_lower, z_lower] += momx_i
+        ux_noghosts[x_upper, y_lower, z_upper] += momx_i
+        ux_noghosts[x_upper, y_upper, z_lower] += momx_i
+        ux_noghosts[x_upper, y_upper, z_upper] += momx_i
+        # Assign the unweighted momentum to the uy grid
+        uy_noghosts[x_lower, y_lower, z_lower] += momy_i
+        uy_noghosts[x_lower, y_lower, z_upper] += momy_i
+        uy_noghosts[x_lower, y_upper, z_lower] += momy_i
+        uy_noghosts[x_lower, y_upper, z_upper] += momy_i
+        uy_noghosts[x_upper, y_lower, z_lower] += momy_i
+        uy_noghosts[x_upper, y_lower, z_upper] += momy_i
+        uy_noghosts[x_upper, y_upper, z_lower] += momy_i
+        uy_noghosts[x_upper, y_upper, z_upper] += momy_i
+        # Assign the unweighted momentum to the uz grid
+        uz_noghosts[x_lower, y_lower, z_lower] += momz_i
+        uz_noghosts[x_lower, y_lower, z_upper] += momz_i
+        uz_noghosts[x_lower, y_upper, z_lower] += momz_i
+        uz_noghosts[x_lower, y_upper, z_upper] += momz_i
+        uz_noghosts[x_upper, y_lower, z_lower] += momz_i
+        uz_noghosts[x_upper, y_lower, z_upper] += momz_i
+        uz_noghosts[x_upper, y_upper, z_lower] += momz_i
+        uz_noghosts[x_upper, y_upper, z_upper] += momz_i
+    # The particle data is no longer needed. Free it to save memory
+    component.representation = 'particles'
+    component.resize(1)
+    # Values of local pseudo mesh points contribute to the lower
+    # mesh points of the domain (fluid) grids on other processes.
+    # Do the needed communications.
+    communicate_domain_boundaries(δ_mv, mode=0)
+    communicate_domain_boundaries(ux_mv, mode=0)
+    communicate_domain_boundaries(uy_mv, mode=0)
+    communicate_domain_boundaries(uz_mv, mode=0)
+    # The formula for getting the δ grid from the particles is
+    # δ = CIC_grid/μ - 1,
+    # where CIC_grid is the interpolated grid (using just raw weights,
+    # meaning that each particle contribute a total of 1 to the grid)
+    # and μ is the mean of the interpolated grid:
+    # μ = sum(CIC_grid)/prod(CIC_grid.shape)
+    #   = N/gridsize**3,
+    # As of now, the values in δ correspond to those of CIC_grid.
+    #
+    # The formula for getting the ux, uy and uz grid from the
+    # particles is
+    # u = mom/(mass*a),
+    # where a is the current scale factor.
+    # As of now, the values in ux, uy and uz correspond to those of mom.
+    #
+    # Apply the above transformations.
+    δ_fac = float(component.gridsize)**3/component.N
+    u_fac = 1/(component.mass*a)
+    for i in range(size):
+        δ[i] = δ[i]*δ_fac - 1
+        ux[i] *= u_fac
+        uy[i] *= u_fac
+        uz[i] *= u_fac
+    # Re-insert the original representation
+    component.representation = original_representation
 
-
-# Function for communicating boundary values of the
-# domain grid between processes.
+# Function for CIC interpolating component coordinates to the slabs
 @cython.header(# Arguments
-               mode='int',
+               component='Component',
+               )
+def CIC_component2slabs(component):
+    # Nullify the slab and φ grid
+    slab[...] = 0
+    φ[...] = 0
+    # Interpolate component coordinates to φ (without the ghost layers)
+    CIC_component2grid(component, φ)
+    # Communicate the interpolated data in φ into the slabs
+    φ2slabs()
+
+# Function for CIC interpolating the component coordinates of all
+# components to the slabs.
+@cython.header(# Arguments
+               components='list',
                # Locals
-               i='int',
-               j='int',
-               k='int',
-               grid_slice_backward='double[:, ::1]',
-               grid_slice_backwarddown='double[:]',
-               grid_slice_down='double[:, :]',
-               grid_slice_forward='double[:, ::1]',
-               grid_slice_forwardup='double[:]',
-               grid_slice_left='double[:, ::1]',
-               grid_slice_leftbackward='double[::1]',
-               grid_slice_leftdown='double[:]',
-               grid_slice_right='double[:, ::1]',
-               grid_slice_rightup='double[:]',
-               grid_slice_rightforward='double[::1]',
-               grid_slice_up='double[:, :]',
+               component='Component',
                )
-def communicate_domain_boundaries(mode=0):
-    """The domain_grid_noghosts is here referred to as "the grid".
-    This function can operate in either mode 0 or mode 1.
-    Mode 0: The upper three faces (right, forward, up) of the grid as
-    well as the upper three edges (right forward, right upward, forward
-    upward) and the right, forward, upward point is communicated to the
-    processes where these correspond to the lower faces/edges/point.
-    The received values are added to the existing lower
-    faces/edges/point. Mode 1: The lower three faces (left, backward,
-    down) of the grid as well as the lower three edges (left backward,
-    left downward, backward downward) and the left, backward, downward
-    point is communicated to the processes where these correspond to the
-    upper faces/edges/point. The received values replace the existing
-    upper faces/edges/point.
-    """
-    global domain_grid_noghosts
-    global sendbuf_faceij, sendbuf_faceik, sendbuf_facejk
-    global recvbuf_faceij, recvbuf_faceik, recvbuf_facejk
-    global sendbuf_edge, recvbuf_edge
-    # 2D slices (contiguous and noncontiguous) of the domain grid
-    grid_slice_right = domain_grid_noghosts[domain_size_i, :, :]
-    grid_slice_left = domain_grid_noghosts[0, :, :]
-    grid_slice_forward = domain_grid_noghosts[:, domain_size_j, :]
-    grid_slice_backward = domain_grid_noghosts[:, 0, :]
-    grid_slice_up = domain_grid_noghosts[:, :, domain_size_k]
-    grid_slice_down = domain_grid_noghosts[:, :, 0]
-    # 1D slices (contiguous and noncontiguous) of the domain grid
-    grid_slice_rightforward = domain_grid_noghosts[domain_size_i, domain_size_j, :]
-    grid_slice_leftbackward = domain_grid_noghosts[0, 0, :]
-    grid_slice_rightup = domain_grid_noghosts[domain_size_i, :, domain_size_k]
-    grid_slice_leftdown = domain_grid_noghosts[0, :, 0]
-    grid_slice_forwardup = domain_grid_noghosts[:, domain_size_j, domain_size_k]
-    grid_slice_backwarddown = domain_grid_noghosts[:, 0, 0]
-    # If mode == 0, communicate the upper faces/edges/point to the
-    # corresponding processes. Add the received data to the existing
-    # lower values.
-    if mode == 0:
-        # Cummunicate the right face
-        for j in range(domain_size_j):
-            for k in range(domain_size_k):
-                sendbuf_facejk[j, k] = grid_slice_right[j, k]
-        Sendrecv(sendbuf_facejk, dest=rank_right, recvbuf=recvbuf_facejk,
-                 source=rank_left)
-        # Add the received contribution to the left face
-        for j in range(domain_size_j):
-            for k in range(domain_size_k):
-                grid_slice_left[j, k] += recvbuf_facejk[j, k]
-        # Cummunicate the forward face
-        for i in range(domain_size_i):
-            for k in range(domain_size_k):
-                sendbuf_faceik[i, k] = grid_slice_forward[i, k]
-        Sendrecv(sendbuf_faceik, dest=rank_forward, recvbuf=recvbuf_faceik,
-                 source=rank_backward)
-        # Add the received contribution to the backward face
-        for i in range(domain_size_i):
-            for k in range(domain_size_k):
-                grid_slice_backward[i, k] += recvbuf_faceik[i, k]
-        # Cummunicate the upward face
-        for i in range(domain_size_i):
-            for j in range(domain_size_j):
-                sendbuf_faceij[i, j] = grid_slice_up[i, j]
-        Sendrecv(sendbuf_faceij, dest=rank_up, recvbuf=recvbuf_faceij,
-                 source=rank_down)
-        # Add the received contribution to the lower face
-        for i in range(domain_size_i):
-            for j in range(domain_size_j):
-                grid_slice_down[i, j] += recvbuf_faceij[i, j]
-        # Communicate the right, forward edge
-        for k in range(domain_size_k):
-            sendbuf_edge[k] = grid_slice_rightforward[k]
-        Sendrecv(sendbuf_edge[:domain_size_k], dest=rank_rightforward,
-                 recvbuf=recvbuf_edge, source=rank_leftbackward)
-        # Add the received contribution to the left, backward edge
-        for k in range(domain_size_k):
-            grid_slice_leftbackward[k] += recvbuf_edge[k]
-        # Communicate the right, upward edge
-        for j in range(domain_size_j):
-            sendbuf_edge[j] = grid_slice_rightup[j]
-        Sendrecv(sendbuf_edge[:domain_size_j], dest=rank_rightup,
-                 recvbuf=recvbuf_edge, source=rank_leftdown)
-        # Add the received contribution to the left, downward edge
-        for j in range(domain_size_j):
-            grid_slice_leftdown[j] += recvbuf_edge[j]
-        # Communicate the forward, upward edge
-        for i in range(domain_size_i):
-            sendbuf_edge[i] = grid_slice_forwardup[i]
-        Sendrecv(sendbuf_edge[:domain_size_i], dest=rank_forwardup,
-                 recvbuf=recvbuf_edge, source=rank_backwarddown)
-        # Add the received contribution to the backward, downward edge
-        for i in range(domain_size_i):
-            grid_slice_backwarddown[i] += recvbuf_edge[i]
-        # Communicate the right, forward, upward point
-        domain_grid_noghosts[0, 0, 0] += sendrecv(domain_grid_noghosts[domain_size_i,
-                                                                       domain_size_j,
-                                                                       domain_size_k],
-                                                  dest=rank_rightforwardup,
-                                                  source=rank_leftbackwarddown)
-    # If mode == 1, communicate the lower faces/edges/point to the
-    # corresponding processes. Replace the existing upper values with
-    # the received data.
-    elif mode == 1:
-        # Cummunicate the left face
-        for j in range(domain_size_j):
-            for k in range(domain_size_k):
-                sendbuf_facejk[j, k] = grid_slice_left[j, k]
-        Sendrecv(sendbuf_facejk, dest=rank_left, recvbuf=recvbuf_facejk,
-                 source=rank_right)
-        # Copy the received contribution to the right face
-        for j in range(domain_size_j):
-            for k in range(domain_size_k):
-                grid_slice_right[j, k] = recvbuf_facejk[j, k]
-        # Cummunicate the backward face
-        for i in range(domain_size_i):
-            for k in range(domain_size_k):
-                sendbuf_faceik[i, k] = grid_slice_backward[i, k]
-        Sendrecv(sendbuf_faceik, dest=rank_backward, recvbuf=recvbuf_faceik,
-                 source=rank_forward)
-        # Copy the received contribution to the forward face
-        for i in range(domain_size_i):
-            for k in range(domain_size_k):
-                grid_slice_forward[i, k] = recvbuf_faceik[i, k]
-        # Cummunicate the downward face
-        for i in range(domain_size_i):
-            for j in range(domain_size_j):
-                sendbuf_faceij[i, j] = grid_slice_down[i, j]
-        Sendrecv(sendbuf_faceij, dest=rank_down, recvbuf=recvbuf_faceij,
-                 source=rank_up)
-        # Copy the received contribution to the upper face
-        for i in range(domain_size_i):
-            for j in range(domain_size_j):
-                grid_slice_up[i, j] = recvbuf_faceij[i, j]
-        # Communicate the left, backward edge
-        for k in range(domain_size_k):
-            sendbuf_edge[k] = grid_slice_leftbackward[k]
-        Sendrecv(sendbuf_edge[:domain_size_k], dest=rank_leftbackward,
-                 recvbuf=recvbuf_edge, source=rank_rightforward)
-        # Copy the received contribution to the right, forward edge
-        for k in range(domain_size_k):
-            grid_slice_rightforward[k] = recvbuf_edge[k]
-        # Communicate the left, downward edge
-        for j in range(domain_size_j):
-            sendbuf_edge[j] = grid_slice_leftdown[j]
-        Sendrecv(sendbuf_edge[:domain_size_j], dest=rank_leftdown,
-                 recvbuf=recvbuf_edge, source=rank_rightup)
-        # Copy the received contribution to the right, upward edge
-        for j in range(domain_size_j):
-            grid_slice_rightup[j] = recvbuf_edge[j]
-        # Communicate the backward, downward edge
-        for i in range(domain_size_i):
-            sendbuf_edge[i] = grid_slice_backwarddown[i]
-        Sendrecv(sendbuf_edge[:domain_size_i], dest=rank_backwarddown,
-                 recvbuf=recvbuf_edge, source=rank_forwardup)
-        # Copy the received contribution to the forward, upward edge
-        for i in range(domain_size_i):
-            grid_slice_forwardup[i] = recvbuf_edge[i]
-        # Communicate the left, backward, downward point
-        domain_grid_noghosts[domain_size_i,
-                             domain_size_j,
-                             domain_size_k] = sendrecv(domain_grid_noghosts[0, 0, 0],
-                                                       dest=rank_leftbackwarddown,
-                                                       source=rank_rightforwardup)
+def CIC_components2slabs(components):
+    # Nullify the slab and φ grid
+    slab[...] = 0
+    φ[...] = 0
+    # Interpolate component coordinates to φ (without the ghost layers)
+    for component in components:
+        # EACH COMPONENT SHOULD BE WEIGHTED BY THEIR MASS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
+        CIC_component2grid(component, φ, communicate_boundaries=False)
+    # Now do the communication of psedo points
+    communicate_domain_boundaries(φ, mode=0)
+    # Communicate the interpolated data in φ into the slabs
+    φ2slabs()
 
-
-# Function for communicating ghost layers of the
-# domain grid between processes.
+# Function for transfering the interpolated data in φ to the slabs
 @cython.header(# Locals
-               ghost_backward='double[:, :, ::1]',
-               ghost_down='double[:, :, ::1]',
-               ghost_forward='double[:, :, ::1]',
-               ghost_left='double[:, :, ::1]',
-               ghost_right='double[:, :, ::1]',
-               ghost_up='double[:, :, ::1]',
-               layer_backward='double[:, :, ::1]',
-               layer_down='double[:, :, ::1]',
-               layer_forward='double[:, :, ::1]',
-               layer_left='double[:, :, ::1]',
-               layer_right='double[:, :, ::1]',
-               layer_up='double[:, :, ::1]',
-               )
-def communicate_domain_ghosts():
-    """The ghost layers are two gridpoints in thickness.
-    """
-    global domain_grid, domain_grid_noghosts
-    global sendbuf_ghostij, sendbuf_ghostik, sendbuf_ghostjk
-    global recvbuf_ghostij, recvbuf_ghostik, recvbuf_ghostjk
-
-    # The boundary layers (faces of thickness 2) which should
-    # be send to other processes and used as ghost layers.
-    layer_right = domain_grid_noghosts[(domain_grid_noghosts.shape[0] - 3):
-                                       (domain_grid_noghosts.shape[0] - 1),
-                                       :,
-                                       :]
-    layer_left = domain_grid_noghosts[1:3, :, :]
-    layer_forward = domain_grid_noghosts[:, (domain_grid_noghosts.shape[1] - 3):
-                                            (domain_grid_noghosts.shape[1] - 1),
-                                            :]
-    layer_backward = domain_grid_noghosts[:, 1:3, :]
-    layer_up = domain_grid_noghosts[:, :, (domain_grid_noghosts.shape[2] - 3):
-                                          (domain_grid_noghosts.shape[2] - 1)]
-    layer_down = domain_grid_noghosts[:, :, 1:3]
-    # Ghost layers of the local domain grid
-    ghost_right = domain_grid[(domain_grid.shape[0] - 2):,
-                              2:(domain_grid.shape[1] - 2),
-                              2:(domain_grid.shape[2] - 2)]
-    ghost_left = domain_grid[:2,
-                             2:(domain_grid.shape[1] - 2),
-                             2:(domain_grid.shape[2] - 2)]
-    ghost_forward = domain_grid[2:(domain_grid.shape[0] - 2),
-                                (domain_grid.shape[1] - 2):,
-                                2:(domain_grid.shape[2] - 2)]
-    ghost_backward = domain_grid[2:(domain_grid.shape[0] - 2),
-                                 :2,
-                                 2:(domain_grid.shape[2] - 2)]
-    ghost_up = domain_grid[2:(domain_grid.shape[0] - 2),
-                           2:(domain_grid.shape[1] - 2),
-                           (domain_grid.shape[2] - 2):]
-    ghost_down = domain_grid[2:(domain_grid.shape[0] - 2),
-                             2:(domain_grid.shape[1] - 2),
-                             :2]
-    # Cummunicate the right boundary layer
-    sendbuf_ghostjk[...] = layer_right[...]
-    Sendrecv(sendbuf_ghostjk, dest=rank_right, recvbuf=recvbuf_ghostjk, source=rank_left)
-    ghost_left[...] = recvbuf_ghostjk[...]
-    # Cummunicate the left boundary layer
-    sendbuf_ghostjk[...] = layer_left[...]
-    Sendrecv(sendbuf_ghostjk, dest=rank_left, recvbuf=recvbuf_ghostjk, source=rank_right)
-    ghost_right[...] = recvbuf_ghostjk[...]
-    # Cummunicate the forward boundary layer
-    sendbuf_ghostik[...] = layer_forward[...]
-    Sendrecv(sendbuf_ghostik, dest=rank_forward, recvbuf=recvbuf_ghostik, source=rank_backward)
-    ghost_backward[...] = recvbuf_ghostik[...]
-    # Cummunicate the backward boundary layer
-    sendbuf_ghostik[...] = layer_backward[...]
-    Sendrecv(sendbuf_ghostik, dest=rank_backward, recvbuf=recvbuf_ghostik, source=rank_forward)
-    ghost_forward[...] = recvbuf_ghostik[...]
-    # Cummunicate the upward boundary layer
-    sendbuf_ghostij[...] = layer_up[...]
-    Sendrecv(sendbuf_ghostij, dest=rank_up, recvbuf=recvbuf_ghostij, source=rank_down)
-    ghost_down[...] = recvbuf_ghostij[...]
-    # Cummunicate the downward boundary layer
-    sendbuf_ghostij[...] = layer_down[...]
-    Sendrecv(sendbuf_ghostij, dest=rank_down, recvbuf=recvbuf_ghostij, source=rank_up)
-    ghost_up[...] = recvbuf_ghostij[...]
-
-# Function for transfering the interpolated data
-# in the domain grid to the PM grid.
-@cython.header(# Locals
-               ID_send='int',
-               ID_recv='int',
-               i='int',
-               j='int',
-               k='int',
                ℓ='int',
+               request='object',  # mpi4py.MPI.Request object
                )
-def domain2PM():
-    global PM_grid, domainPM_sendbuf, domainPM_recvbuf
-    # Communicate the interpolated domain grid to the PM grid
-    for ℓ in range(ℓmax):
+def φ2slabs():
+    # Communicate the interpolated φ to the slabs
+    for ℓ in range(N_φ2slabs_communications):
         # Send part of the local domain
         # grid to the corresponding process.
-        if ℓ < PM_send_rank.shape[0]:
-            ID_send = PM_send_rank[ℓ]
-            for i in range(PM_send_i_start[ℓ], PM_send_i_end[ℓ]):
-                for j in range(domain_size_j):
-                    for k in range(domain_size_k):
-                        domainPM_sendbuf[i - PM_send_i_start[ℓ],
-                                         j,
-                                         k] = domain_grid_noghosts[i, j, k]
-            # A non-blocking send is used. Otherwise the
-            # program will hang on large messages.
-            Isend(domainPM_sendbuf, dest=ID_send)
-        # The lower ranks storing the PM mesh receives the message
-        if ℓ < PM_recv_rank.shape[0]:
-            ID_recv = PM_recv_rank[ℓ]
-            Recv(domainPM_recvbuf, source=ID_recv)
-            for i in range(PM_recv_i_start[ℓ], PM_recv_i_end[ℓ]):
-                for j in range(PM_recv_j_start[ℓ], PM_recv_j_end[ℓ]):
-                    for k in range(PM_recv_k_start[ℓ], PM_recv_k_end[ℓ]):
-                        PM_grid[i, j, k] = domainPM_recvbuf[i,
-                                                            j - PM_recv_j_start[ℓ],
-                                                            k - PM_recv_k_start[ℓ]]
-        # Catch-up point for the processes. This ensures
-        # that the communication is complete, and hence that
-        # the non-blocking send is done.
-        Barrier()
+        if ℓ < slabs2φ_sendrecv_ranks.shape[0]:
+            # A non-blocking send is used, because the communication
+            # is not pairwise.
+            # Since the slabs extend throughout the entire yz-plane,
+            # we should send the entire yz-part of φ
+            # (excluding ghost and pseudo points).
+            request = smart_mpi(φ_noghosts[φ_sendrecv_i_start[ℓ]:φ_sendrecv_i_end[ℓ],
+                                           :φ_size_j,
+                                           :φ_size_k],
+                                dest=slabs2φ_sendrecv_ranks[ℓ],
+                                mpifun='Isend')
+        # The lower ranks storing the slabs receives the message.
+        # In the x-dimension, the slabs are always thinner than (or at
+        # least as thin as) the domain.
+        if ℓ < φ2slabs_recvsend_ranks.shape[0]:
+            smart_mpi(block_recv=slab[:,
+                                      slab_sendrecv_j_start[ℓ]:slab_sendrecv_j_end[ℓ],
+                                      slab_sendrecv_k_start[ℓ]:slab_sendrecv_k_end[ℓ]],
+                      source=φ2slabs_recvsend_ranks[ℓ],
+                      mpifun='Recv')
+        # Wait for the non-blockind send to be complete before
+        # continuing. Otherwise, data in the send buffer - which is
+        # still in use by the non-blocking send - might get overwritten
+        # by the next (non-blocking) send.
+        request.wait()
 
-
-# Function for transfering the data in the PM grid to the domain grid
+# Function for transfering the data in the slabs to φ
 @cython.header(# Locals
-               ID_send='int',
-               ID_recv='int',
-               i='int',
-               j='int',
-               k='int',
                ℓ='int',
+               request='object',  # mpi4py.MPI.Request object
                )
-def PM2domain():
-    global domain_grid_noghosts, domainPM_sendbuf, domainPM_recvbuf
-    # Communicate the interpolated domain grid to the PM grid
-    for ℓ in range(ℓmax):
-        # The lower ranks storing the PM mesh sends part of their slab
-        if ℓ < PM_recv_rank.shape[0]:
-            ID_send = PM_recv_rank[ℓ]
-            for i in range(PM_recv_i_start[ℓ], PM_recv_i_end[ℓ]):
-                for j in range(PM_recv_j_start[ℓ], PM_recv_j_end[ℓ]):
-                    for k in range(PM_recv_k_start[ℓ], PM_recv_k_end[ℓ]):
-                        domainPM_recvbuf[i,
-                                         j - PM_recv_j_start[ℓ],
-                                         k - PM_recv_k_start[ℓ],
-                                         ] = PM_grid[i, j, k]
-            # A non-blocking send is used. Otherwise the program will
-            # hang on large messages.
-            Isend(domainPM_recvbuf, dest=ID_send)
-        # The corresponding process receives the message
-        if ℓ < PM_send_rank.shape[0]:
-            ID_recv = PM_send_rank[ℓ]
-            Recv(domainPM_sendbuf, source=ID_recv)
-            for i in range(PM_send_i_start[ℓ], PM_send_i_end[ℓ]):
-                for j in range(domain_size_j):
-                    for k in range(domain_size_k):
-                        domain_grid_noghosts[i, j, k] = domainPM_sendbuf[i - PM_send_i_start[ℓ],
-                                                                         j,
-                                                                         k]
-        # Catch-up point for the processes. This ensures that the communication
-        # is complete, and hence that the non-blocking send is done.
-        Barrier()
-    # The upper boundaries (not the ghost layers) of the domain grid
-    # should be a copy of the lower boundaries of the next domain.
-    # Do the needed communication.
-    communicate_domain_boundaries(mode=1)
-    # Communicate the ghost layers of the domain grid
-    communicate_domain_ghosts()
+def slabs2φ():
+    # Communicate the slabs to φ
+    for ℓ in range(N_φ2slabs_communications):
+        # The lower ranks storing the slabs sends part of their slab
+        if ℓ < φ2slabs_recvsend_ranks.shape[0]:
+            # A non-blocking send is used, because the communication
+            # is not pairwise.
+            # In the x-dimension, the slabs are always thinner than (or
+            # at least as thin as) the domain.
+            request = smart_mpi(block_send=slab[:,
+                                                slab_sendrecv_j_start[ℓ]:slab_sendrecv_j_end[ℓ],
+                                                slab_sendrecv_k_start[ℓ]:slab_sendrecv_k_end[ℓ]],
+                                dest=φ2slabs_recvsend_ranks[ℓ],
+                                mpifun='Isend')
+        # The corresponding process receives the message.
+        # Since the slabs extend throughout the entire yz-plane,
+        # we receive into the entire yz-part of φ
+        # (excluding ghost and pseudo points).
+        if ℓ < slabs2φ_sendrecv_ranks.shape[0]:
+            smart_mpi(block_recv=φ_noghosts[φ_sendrecv_i_start[ℓ]:φ_sendrecv_i_end[ℓ],
+                                            :φ_size_j,
+                                            :φ_size_k],
+                      source=slabs2φ_sendrecv_ranks[ℓ],
+                      mpifun='Recv')
+        # Wait for the non-blockind send to be complete before
+        # continuing. Otherwise, data in the send buffer - which is
+        # still in use by the non-blocking send - might get overwritten
+        # by the next (non-blocking) send.
+        request.wait()
+    # The right/forward/upper boundaries (the layer of pseudo points,
+    # not the ghost layer) of φ should be a copy of the
+    # left/backward/lower boundaries of the neighboring
+    # right/forward/upper domain. Do the needed communication.
+    communicate_domain_boundaries(φ, mode=1)
+    # Communicate the ghost layers of φ
+    communicate_domain_ghosts(φ)
 
-# Function for CIC interpolating particles to the PM mesh
-@cython.header(# Arguments
-               particles='Particles',
-               )
-def PM_CIC(particles):
-    global PM_grid, domain_grid, domain_grid_noghosts
-    # Nullify the PM mesh and the domain grid
-    PM_grid[...] = 0
-    domain_grid[...] = 0
-    # Interpolate particle coordinates to the domain grid
-    # (without the ghost layers).
-    CIC_particles2grid(particles, domain_grid_noghosts)
-    # Values of local pseudo mesh points contribute to the lower mesh
-    # points of domain_grid on other processes.
-    # Do the needed communication.
-    communicate_domain_boundaries(mode=0)
-    # Communicate the interpolated data
-    # in the domain grid into the PM grid.
-    domain2PM()
-
-# Function performing a forward Fourier transformation of the PM mesh
+# Function performing a forward Fourier transformation of the slabs
 @cython.header()
-def PM_FFT():
-    # Fourier transform the PM grid forwards from real to Fourier space
+def slabs_FFT():
+    # Fourier transform the slabs forwards from real to Fourier space
     fftw_execute(plan_forward)
 
-# Function performing a backward Fourier transformation of the PM mesh
+# Function performing a backward Fourier transformation of the slabs
 @cython.header()
-def PM_IFFT():
-    # Fourier transform the PM grid backwards from Fourier to real
+def slabs_IFFT():
+    # Fourier transform the slabs backwards from Fourier to real
     # space. Note that this is an unnormalized transform, as defined by
-    # FFTW. To do the normalization, devide all elements of PM_grid
-    # by PM_gridsize**3.
+    # FFTW. To do the normalization, divide all elements of the slab
+    # by φ_gridsize**3.
     fftw_execute(plan_backward)
 
 
 
-# Initializes PM_grid and related stuff at import time,
-# if the PM_grid should be used.
-cython.declare(fftw_struct='fftw_return_struct',
-               fftw_struct_grid='double*',
-               PM_gridsize_local_i='ptrdiff_t',
-               PM_gridsize_local_j='ptrdiff_t',
-               PM_gridstart_local_i='ptrdiff_t',
-               PM_gridstart_local_j='ptrdiff_t',
-               PM_grid='double[:, :, ::1]',
+# Initializes φ and related stuff (e.g. the slabs) at import time,
+# if φ should be used.
+cython.declare(# The slab grid
+               fftw_struct='fftw_return_struct',
+               slab_size_i='ptrdiff_t',
+               slab_size_j='ptrdiff_t',
+               slab_start_i='ptrdiff_t',
+               slab_start_j='ptrdiff_t',
+               slab='double[:, :, ::1]',
                plan_forward='fftw_plan',
                plan_backward='fftw_plan',
+               # The φ grid
+               φ='double[:, :, ::1]',
+               φ_noghosts='double[:, :, :]',
+               φ_size_i='Py_ssize_t',
+               φ_size_j='Py_ssize_t',
+               φ_size_k='Py_ssize_t',
+               # For communication between PM and φ
+               N_φ2slabs_communications='int',
+               φ_sendrecv_i_end='int[::1]',
+               φ_sendrecv_i_start='int[::1]',
+               slabs2φ_sendrecv_ranks='int[::1]',
+               slab_sendrecv_j_start='int[::1]',
+               slab_sendrecv_k_start='int[::1]',
+               slab_sendrecv_j_end='int[::1]',
+               slab_sendrecv_k_end='int[::1]',
+               φ2slabs_recvsend_ranks='int[::1]',
                )
 if use_PM:
-    # The PM mesh and functions on it
+    # Initialize the slab grid, distributed along the x-dimension
+    # when in real space and along the y dimension when in
+    # Fourier space.
     if not cython.compiled:
-        # Initialization of the PM mesh in pure Python.
-        PM_gridsize_local_i = PM_gridsize_local_j = int(PM_gridsize/nprocs)
-        if master and PM_gridsize_local_i != PM_gridsize/nprocs:
-            # If PM_gridsize is not divisible by nprocs, the code cannot
+        # Initialization of the slabs in pure Python
+        slab_size_i = slab_size_j = int(φ_gridsize/nprocs)
+        if master and slab_size_i != φ_gridsize/nprocs:
+            # If φ_gridsize is not divisible by nprocs, the code cannot
             # figure out exactly how FFTW distribute the grid among the
             # processes. In stead of guessing, do not even try to
             # emulate the behaviour of FFTW.
             msg = ('The PM method in pure Python mode only works '
-                   + 'when\nPM_gridsize is divisible by the number '
-                   + 'of processes!')
+                   'when\n{}_gridsize is divisible by the number '
+                   'of processes!'.format(unicode('φ'))
+                   )
             abort(msg)
-        PM_gridstart_local_i = PM_gridstart_local_j = PM_gridsize_local_i*rank
-        PM_grid = empty((PM_gridsize_local_i, PM_gridsize,
-                         PM_gridsize_padding), dtype=C2np['double'])
+        slab_start_i = slab_start_j = slab_size_i*rank
+        slab = empty((slab_size_i, φ_gridsize, slab_size_padding), dtype=C2np['double'])
         # The output of the following function is formatted just
         # like that of the MPI implementation of FFTW.
         plan_backward = 'plan_backward'
         plan_forward = 'plan_forward'
-        def fftw_execute(plan):
-            global PM_grid
-            # The pure Python FFT implementation is serial.
-            # Every process computes the entire FFT of the temporary
-            # varaible PM_grid_global.
-            PM_grid_global = empty((PM_gridsize, PM_gridsize,
-                                    PM_gridsize_padding))
-            Allgatherv(PM_grid, PM_grid_global)
-            if plan == plan_forward:
-                # Delete the padding on last dimension
-                for i in range(PM_gridsize_padding - PM_gridsize):
-                    PM_grid_global = delete(PM_grid_global, -1, axis=2)
-                # Do real transform
-                PM_grid_global = rfftn(PM_grid_global)
-                # FFTW transposes the first two dimensions
-                PM_grid_global = PM_grid_global.transpose([1, 0, 2])
-                # FFTW represents the complex array by doubles only
-                tmp = empty((PM_gridsize, PM_gridsize, PM_gridsize_padding))
-                for i in range(PM_gridsize_padding):
-                    if i % 2:
-                        tmp[:, :, i] = PM_grid_global.imag[:, :, i//2]
-                    else:
-                        tmp[:, :, i] = PM_grid_global.real[:, :, i//2]
-                PM_grid_global = tmp
-                # As in FFTW, distribute the slabs along the y-dimension
-                # (which is the first dimension now, due to transposing)
-                PM_grid[...] = PM_grid_global[PM_gridstart_local_j:(PM_gridstart_local_j
-                                                                    + PM_gridsize_local_j),
-                                              :,
-                                              :]
-            elif plan == plan_backward:
-                # FFTW represents the complex array by doubles only.
-                # Go back to using complex entries
-                tmp = zeros((PM_gridsize, PM_gridsize, PM_gridsize_padding/2),
-                            dtype='complex128')
-                for i in range(PM_gridsize_padding):
-                    if i % 2:
-                        tmp[:, :, i//2] += 1j*PM_grid_global[:, :, i]
-                    else:
-                        tmp[:, :, i//2] += PM_grid_global[:, :, i]
-                PM_grid_global = tmp
-                # FFTW transposes the first
-                # two dimensions back to normal.
-                PM_grid_global = PM_grid_global.transpose([1, 0, 2])
-                # Do real inverse transform
-                PM_grid_global = irfftn(PM_grid_global, s=[PM_gridsize]*3)
-                # Remove the autoscaling provided by Numpy
-                PM_grid_global[...] *= PM_gridsize3
-                # Add padding on last dimension, as in FFTW
-                padding = empty((PM_gridsize,
-                                 PM_gridsize,
-                                 PM_gridsize_padding - PM_gridsize,
-                                 ))
-                PM_grid_global = concatenate((PM_grid_global, padding), axis=2)
-                # As in FFTW, distribute the slabs along the x-dimension
-                PM_grid[...] = PM_grid_global[PM_gridstart_local_i:(PM_gridstart_local_i
-                                                                    + PM_gridsize_local_i),
-                                              :,
-                                              :]
     else:
         # Sanity check on user defined fftw_rigor
         fftw_rigors = ('exhaustive', 'patient', 'measure', 'estimate')
@@ -958,392 +941,213 @@ if use_PM:
         # Use a better rigor if wisdom already exist
         for fftw_rigor in fftw_rigors[:(fftw_rigors.index(fftw_rigor) + 1)]:
             wisdom_filename = ('.fftw_wisdom_gridsize={}_nprocs={}_rigor={}'
-                               .format(PM_gridsize, nprocs, fftw_rigor))
+                               .format(φ_gridsize, nprocs, fftw_rigor))
             if os.path.isfile(wisdom_filename):
                 break
         # Initialize fftw_mpi, allocate the grid, initialize the
         # local grid sizes and start indices and do FFTW planning.
         if not os.path.isfile(wisdom_filename):
-            msg = ('Acquiring FFTW wisdom ({}) for grid of linear size {} on '
-                   + '{} {} ...').format(fftw_rigor,
-                                         PM_gridsize,
-                                         nprocs,
-                                         'processes' if nprocs > 1
-                                                     else 'process')
+            msg = ('Acquiring FFTW wisdom ({}) for grid of linear size {} on {} {} ...'
+                   ).format(fftw_rigor,
+                            φ_gridsize,
+                            nprocs,
+                            'processes' if nprocs > 1 else 'process')
             masterprint(msg)
-            fftw_struct = fftw_setup(PM_gridsize,
-                                     PM_gridsize,
-                                     PM_gridsize,
+            fftw_struct = fftw_setup(φ_gridsize,
+                                     φ_gridsize,
+                                     φ_gridsize,
                                      bytes(fftw_rigor, encoding='ascii'))
             masterprint('done')
         else:
-            fftw_struct = fftw_setup(PM_gridsize,
-                                     PM_gridsize,
-                                     PM_gridsize,
+            fftw_struct = fftw_setup(φ_gridsize,
+                                     φ_gridsize,
+                                     φ_gridsize,
                                      bytes(fftw_rigor, encoding='ascii'))
-        # If less rigouros wisdom exist for the same problem, delete it
+        # If less rigouros wisdom exists for the same problem,
+        # delete it.
         for rigor in fftw_rigors[(fftw_rigors.index(fftw_rigor) + 1):]:
             wisdom_filename = ('.fftw_wisdom_gridsize={}_nprocs={}_rigor={}'
-                               .format(PM_gridsize, nprocs, rigor))
+                               .format(φ_gridsize, nprocs, rigor))
             if master and os.path.isfile(wisdom_filename):
                 os.remove(wisdom_filename)
-        # Unpack fftw_struct
-        PM_gridsize_local_i = fftw_struct.gridsize_local_i
-        PM_gridsize_local_j = fftw_struct.gridsize_local_j
-        PM_gridstart_local_i = fftw_struct.gridstart_local_i
-        PM_gridstart_local_j = fftw_struct.gridstart_local_j
-        # Wrap a memoryview around the grid. Loop as noted in fft.c, but
-        # use PM_grid[i, j, k] when in real space and PM_grid[j, i, k]
-        # when in Fourier space
-        fftw_struct_grid = fftw_struct.grid
-        if PM_gridsize_local_i > 0:
-            PM_grid = cast(fftw_struct.grid,
-                           'double[:PM_gridsize_local_i, :PM_gridsize, :PM_gridsize_padding]')
-        else:
-            # The process do not participate in the FFT computations
-            PM_grid = empty((0, PM_gridsize, PM_gridsize_padding))
+        # Unpack every variable from fftw_struct except for the grid
+        slab_size_i = fftw_struct.gridsize_local_i
+        slab_size_j = fftw_struct.gridsize_local_j
+        slab_start_i = fftw_struct.gridstart_local_i
+        slab_start_j = fftw_struct.gridstart_local_j
         plan_forward  = fftw_struct.plan_forward
         plan_backward = fftw_struct.plan_backward
-else:
-    # As these should be importable,
-    # they need to be assigned even if not used.
-    PM_grid = empty((1, 1, 1), dtype=C2np['double'])
-    PM_gridsize_local_i = 1
-    PM_gridsize_local_j = 1
-    PM_gridstart_local_i = 0
-    PM_gridstart_local_j = 0
-
-# Information about the domain grid used in the
-# communicate_domain_grid and domain2PM functions.
-# Declarations for the communicate_domain_grid function.
-cython.declare(domain_cuts='int[::1]',
-               domain_layout='int[:, :, ::1]',
-               domain_local='int[::1]',
-               domain_size_x='double',
-               domain_size_y='double',
-               domain_size_z='double',
-               domain_start_x='double',
-               domain_start_y='double',
-               domain_start_z='double',
-               domain_end_x='double',
-               domain_end_y='double',
-               domain_end_z='double',
-               domain_size_i='int',
-               domain_size_j='int',
-               domain_size_k='int',
-               rank_right='int',
-               rank_left='int',
-               rank_forward='int',
-               rank_backward='int',
-               rank_up='int',
-               rank_down='int',
-               rank_rightforward='int',
-               rank_leftbackward='int',
-               rank_rightup='int',
-               rank_leftdown='int',
-               rank_forwardup='int',
-               rank_backwarddown='int',
-               rank_rightforwardup='int',
-               rank_leftbackwarddown='int',
-               recvbuf_edge='double[::1]',
-               recvbuf_faceij='double[:, ::1]',
-               recvbuf_faceik='double[:, ::1]',
-               recvbuf_facejk='double[:, ::1]',
-               sendbuf_edge='double[::1]',
-               sendbuf_faceij='double[:, ::1]',
-               sendbuf_faceik='double[:, ::1]',
-               sendbuf_facejk='double[:, ::1]',
-               )
-# Declarations for the domain2PM function
-cython.declare(ID_recv='int',
-               ID_send='int',
-               PM_gridsize_global_i='int',
-               PM_send_i_end='int[::1]',
-               PM_send_i_end_list='list',
-               PM_send_i_start='int[::1]',
-               PM_send_i_start_list='list',
-               PM_send_rank='int[::1]',
-               PM_send_rank_list='list',
-               PM_recv_i_start='int[::1]',
-               PM_recv_i_start_list='list',
-               PM_recv_j_start='int[::1]',
-               PM_recv_j_start_list='list',
-               PM_recv_k_start='int[::1]',
-               PM_recv_k_start_list='list',
-               PM_recv_i_end='int[::1]',
-               PM_recv_i_end_list='list',
-               PM_recv_j_end='int[::1]',
-               PM_recv_j_end_list='list',
-               PM_recv_k_end='int[::1]',
-               PM_recv_k_end_list='list',
-               PM_recv_rank='int[::1]',
-               PM_recv_rank_list='list',
-               domain_start_i='int',
-               domain_start_j='int',
-               domain_start_k='int',
-               domain_end_i='int',
-               domain_end_j='int',
-               domain_end_k='int',
-               domainPM_sendbuf='double[:, :, ::1]',
-               domainPM_recvbuf='double[:, :, ::1]',
-               ℓ='int',
-               ℓmax='int',
-               )
-if use_PM:
-    # Number of domains in all three dimensions
-    domain_cuts = np.array(cutout_domains(nprocs), dtype=C2np['int'])
-    # The 3D layout of the division of the box
-    domain_layout = arange(nprocs, dtype=C2np['int']).reshape(domain_cuts)
-    # The indices in domain_layout of the local domain
-    domain_local = np.array(np.unravel_index(rank, domain_cuts), dtype=C2np['int'])
-    # The linear size of the domains, which are the same for all of them
-    domain_size_x = boxsize/domain_cuts[0]
-    domain_size_y = boxsize/domain_cuts[1]
-    domain_size_z = boxsize/domain_cuts[2]
-    # The start and end positions of the local domain
-    domain_start_x = domain_local[0]*domain_size_x
-    domain_start_y = domain_local[1]*domain_size_y
-    domain_start_z = domain_local[2]*domain_size_z
-    domain_end_x = domain_start_x + domain_size_x
-    domain_end_y = domain_start_x + domain_size_x
-    domain_end_z = domain_start_x + domain_size_x
-    # Get the ranks of the 6 neighboring processes
-    neighbors = neighboring_ranks()
-    rank_right = neighbors['right']
-    rank_left = neighbors['left']
-    rank_forward = neighbors['forward']
-    rank_backward = neighbors['backward']
-    rank_up = neighbors['up']
-    rank_down = neighbors['down']
-    # Now get the ranks of the 6 diagonal neighboring processes
-    rank_rightforward = neighbors['rightforward']
-    rank_leftbackward = neighbors['leftbackward']
-    rank_rightup = neighbors['rightup']
-    rank_leftdown = neighbors['leftdown']
-    rank_forwardup = neighbors['forwardup']
-    rank_backwarddown = neighbors['backwarddown']
-    # Finally get the ranks of the two 3D-diagonal neighboring processes
-    rank_rightforwardup = neighbors['rightforwardup']
-    rank_leftbackwarddown = neighbors['leftbackwarddown']
-    # The actual size of the domain grid. This is 1 less than the
-    # allocated size in each dimension, as the last element is actually
-    # the first element of the domain on some other process.
-    domain_size_i = PM_gridsize//domain_cuts[0]
-    domain_size_j = PM_gridsize//domain_cuts[1]
-    domain_size_k = PM_gridsize//domain_cuts[2]
-    # Send/recieve buffers.
-    # Separate buffers for each face is needed to ensure contiguousity. 
-    sendbuf_faceij = empty((domain_size_i, domain_size_j), dtype=C2np['double'])
-    recvbuf_faceij = empty((domain_size_i, domain_size_j), dtype=C2np['double'])
-    sendbuf_faceik = empty((domain_size_i, domain_size_k), dtype=C2np['double'])
-    recvbuf_faceik = empty((domain_size_i, domain_size_k), dtype=C2np['double'])
-    sendbuf_facejk = empty((domain_size_j, domain_size_k), dtype=C2np['double'])
-    recvbuf_facejk = empty((domain_size_j, domain_size_k), dtype=C2np['double'])
-    sendbuf_edge = empty(np.max((domain_size_i, domain_size_j, domain_size_k)),
-                         dtype=C2np['double'])
-    recvbuf_edge = empty(np.max((domain_size_i, domain_size_j, domain_size_k)),
-                         dtype=C2np['double'])
-
-    # Additional information about the domain grid and the PM mesh,
-    # used in the domain2PM function.
-    # The global start and end indices of
-    # the local domain in the total PM_grid.
-    domain_start_i = domain_local[0]*domain_size_i
-    domain_start_j = domain_local[1]*domain_size_j
-    domain_start_k = domain_local[2]*domain_size_k
-    domain_end_i = domain_start_i + domain_size_i
-    domain_end_j = domain_start_j + domain_size_j
-    domain_end_k = domain_start_k + domain_size_k
-    # PM_gridsize_local_i is the same for all processes participating
-    # in the PM algorithm and 0 otherwise. The global version is equal
-    # to the nonzero value on all processes.
-    PM_gridsize_local_i = PM_gridsize//nprocs
-    if rank < PM_gridsize and PM_gridsize_local_i == 0:
-        PM_gridsize_local_i = 1 
-    PM_gridsize_global_i = PM_gridsize_local_i
-    if PM_gridsize_global_i == 0:
-        PM_gridsize_global_i = 1
-    # Find local i-indices to send and to which process
-    PM_send_i_start_list = []
-    PM_send_i_end_list = []
-    PM_send_rank_list = []
-    for ℓ in range(domain_start_i, domain_end_i, PM_gridsize_global_i):
-        PM_send_i_start_list.append(ℓ - domain_start_i)
-        PM_send_i_end_list.append(ℓ - domain_start_i + PM_gridsize_global_i)
-        PM_send_rank_list.append(ℓ//PM_gridsize_global_i)
-    # Shift the elements so that they
-    # match the communication pattern used.
-    PM_send_i_start_list = list(np.roll(PM_send_i_start_list, -rank))
-    PM_send_i_end_list = list(np.roll(PM_send_i_end_list, -rank))
-    PM_send_rank_list = list(np.roll(PM_send_rank_list, -rank))
-    #
-    # FIXME: THIS IS NOT SUFFICIENT! IF nprocs > PM_grid THE PROGRAM WILL HALT AT domain2PM and PM2domain !!!!!!!!!!!!!!!!!!
-    #
-    # Communicate the start and end (j, k)-indices of the PM grid,
-    # where future parts of the local domains should be received into.
-    PM_recv_i_start_list = []
-    PM_recv_j_start_list = []
-    PM_recv_k_start_list = []
-    PM_recv_i_end_list = []
-    PM_recv_j_end_list = []
-    PM_recv_k_end_list = []
-    PM_recv_rank_list = []
+        # Now unpack the grid from fftw_struct, but wrap it in a
+        # memoryview. Looping over this memoryview should be done as 
+        # noted in fft.c, but use slab[i, j, k] when in real space
+        # and slab[j, i, k] when in Fourier space.
+        if slab_size_i > 0:
+            slab = cast(fftw_struct.grid,
+                        'double[:slab_size_i, :φ_gridsize, :slab_size_padding]')
+        else:
+            # The process do not participate in the FFT computations
+            slab = empty((0, φ_gridsize, slab_size_padding))
+    # Initialize the φ grid, distributed according to the
+    # domain decomposition of the box.
+    # The φ grid stores the same data as the slab grid,
+    # but instead of being distributed in slabs, it is distributed
+    # accoring to the domain of the local process.
+    # It is given an additional layer of points of thickness 1 in
+    # the right/forward/upward ends. These are the pseudo points,
+    # having the same physical coordinates as the first points in the
+    # next domain, for the three directions.
+    # Additionally, around the whole cube, a layer of points of
+    # thickness 2 is added, called the ghost layer. The data here
+    # are simply copied over from neighboring domains.
+    φ = empty([φ_gridsize//domain_subdivisions[dim] + 1 + 2*2 for dim in range(3)],
+              dtype=C2np['double'])
+    # Memoryview of the φ grid without the ghost layers
+    φ_noghosts = φ[2:(φ.shape[0] - 2), 2:(φ.shape[1] - 2), 2:(φ.shape[2] - 2)]
+    # Test if the grid has been constructed correctly.
+    # If not it is because nprocs and φ_gridsize are incompatible.
+    if master:
+        if any(φ_gridsize != domain_subdivisions[dim]*(φ_noghosts.shape[dim] - 1)
+               for dim in range(3)):
+            msg = ('A {}_gridsize of {} cannot be equally shared among {} processes'
+                   .format(unicode('φ'), φ_gridsize, nprocs))
+            abort(msg)
+        if any((φ_noghosts.shape[dim] - 1) < 1 for dim in range(3)):
+            msg = ('A {}_gridsize of {} is too small for {} processes'
+                   .format(unicode('φ'), φ_gridsize, nprocs))
+            abort(msg)
+    # The size (number of grid points) of the truly local part of the φ,
+    # excluding both ghost layers and pseudo points, for each dimension.
+    φ_size_i = φ_noghosts.shape[0] - 1
+    φ_size_j = φ_noghosts.shape[1] - 1
+    φ_size_k = φ_noghosts.shape[2] - 1
+    # Check if the slab is large enough for P3M to work,
+    # if the P3M algorithm is to be used.
+    if master and use_P3M:
+        if (   φ_size_i < P3M_scale*P3M_cutoff
+            or φ_size_j < P3M_scale*P3M_cutoff
+            or φ_size_k < P3M_scale*P3M_cutoff):
+            msg = ('A {}_gridsize of {} and {} processes results in the following domain '
+                   'partitioning: {}.\n The smallest domain width is {} grid cells, while the '
+                   'choice of P3M_scale ({}) and P3M_cutoff ({})\nmeans that the domains must '
+                   'be at least {} grid cells for the P3M algorithm to work.'
+                   ).format(unicode('φ'),
+                            φ_gridsize,
+                            nprocs,
+                            list(domain_subdivisions),
+                            np.min([φ_size_i, φ_size_j, φ_size_k]),
+                            P3M_scale,
+                            P3M_cutoff,
+                            int(np.ceil(P3M_scale*P3M_cutoff)),
+                            )
+            abort(msg)
+        if ((   φ_size_i < 2*P3M_scale*P3M_cutoff
+             or φ_size_j < 2*P3M_scale*P3M_cutoff
+             or φ_size_k < 2*P3M_scale*P3M_cutoff) and np.min(domain_subdivisions) < 3):
+            # If the above is True, the left and the right (say) process
+            # is the same and the boundaries will be send to it twice,
+            # and these will overlap with each other in the left/right
+            # domain, eventually leading to gravity being applied twice.
+            msg = ('A {}_gridsize of {} and {} processes results in the following domain '
+                   'partitioning: {}.\nThe smallest domain width is {} grid cells, while the '
+                   'choice of P3M_scale ({}) and P3M_cutoff ({})\nmeans that the domains must '
+                   'be at least {} grid cells for the P3M algorithm to work.'
+                   ).format(unicode('φ'),
+                            φ_gridsize,
+                            nprocs,
+                            list(domain_subdivisions),
+                            np.min([φ_size_i, φ_size_j, φ_size_k]),
+                            P3M_scale,
+                            P3M_cutoff,
+                            int(np.ceil(2*P3M_scale*P3M_cutoff)),
+                            )
+            abort(msg)
+    # Additional information about φ and the slabs,
+    # used in the φ2slabs function.
+    # The global start and end indices of the local domain in the total
+    # φ grid.
+    φ_start_i = domain_layout_local_indices[0]*φ_size_i
+    φ_start_j = domain_layout_local_indices[1]*φ_size_j
+    φ_start_k = domain_layout_local_indices[2]*φ_size_k
+    φ_end_i = φ_start_i + φ_size_i
+    φ_end_j = φ_start_j + φ_size_j
+    φ_end_k = φ_start_k + φ_size_k
+    # The value of slab_size_i is determined by FFTW. It is equal to
+    # φ_gridsize//nprocs (though not less than 1) for
+    # ranks < φ_gridsize. If nprocs > φ_gridsize so
+    # that slab_size_i == 1, the higher ranked processes cannot
+    # take part in the FFT computation, and so their local version
+    # of slab_size_i is set to 0.
+    # The global version - slab_size_i_global - defined below,
+    # is equal to the nonzero value on all processes.
+    if rank < φ_gridsize and slab_size_i == 0:
+        slab_size_i = 1 
+    slab_size_i_global = slab_size_i
+    if slab_size_i_global == 0:
+        slab_size_i_global = 1
+    # Find local i-indices to send and to which process by
+    # shifting a piece of the number line in order to match
+    # the communication pattern used.
+    φ_sendrecv_i_start = np.roll(asarray([ℓ - φ_start_i
+                                          for ℓ in range(φ_start_i,
+                                                          φ_end_i,
+                                                          slab_size_i_global)],
+                                         dtype=C2np['int']),
+                                 -rank)
+    φ_sendrecv_i_end = np.roll(asarray([ℓ - φ_start_i + slab_size_i_global
+                                        for ℓ in range(φ_start_i,
+                                                        φ_end_i,
+                                                        slab_size_i_global)],
+                                        dtype=C2np['int']),
+                               -rank)
+    slabs2φ_sendrecv_ranks = np.roll(asarray([ℓ//slab_size_i_global
+                                              for ℓ in range(φ_start_i, 
+                                                              φ_end_i,
+                                                              slab_size_i_global)],
+                                             dtype=C2np['int']),
+                                     -rank)
+    # FIXME: THIS IS NOT SUFFICIENT! IF nprocs > φ_gridsize THE PROGRAM WILL HALT AT φ2slabs and slabs2φ !!!!!
+    # Communicate the start and end (j, k)-indices of the slab,
+    # where parts of the local domains should be received into.
+    slab_sendrecv_j_start  = empty(nprocs, dtype=C2np['int'])
+    slab_sendrecv_k_start  = empty(nprocs, dtype=C2np['int'])
+    slab_sendrecv_j_end    = empty(nprocs, dtype=C2np['int'])
+    slab_sendrecv_k_end    = empty(nprocs, dtype=C2np['int'])
+    φ2slabs_recvsend_ranks = empty(nprocs, dtype=C2np['int'])
+    cython.declare(index='Py_ssize_t')  # Just to remove Cython warning
+    index = 0
     for ℓ in range(nprocs):
         # Process ranks to send/recieve to/from
-        ID_send = mod(rank + ℓ, nprocs)
-        ID_recv = mod(rank - ℓ, nprocs)
-        # Send the global y and z start and end indices of the region
-        # to be send, if anything should be send to process ID_send.
-        # Otherwize send None.
-        sendbuf = (domain_start_j,
-                   domain_start_k,
-                   domain_end_j,
-                   domain_end_k) if ID_send in PM_send_rank_list else None
-        recvbuf = sendrecv(sendbuf, dest=ID_send, source=ID_recv)
-        if recvbuf is not None:
-            PM_recv_i_start_list.append(0)
-            PM_recv_i_end_list.append(PM_gridsize_local_i)
-            PM_recv_j_start_list.append(recvbuf[0])
-            PM_recv_k_start_list.append(recvbuf[1])
-            PM_recv_j_end_list.append(recvbuf[2])
-            PM_recv_k_end_list.append(recvbuf[3])
-            PM_recv_rank_list.append(ID_recv)
-    # Memoryview versions of the lists
-    PM_send_i_start = np.array(PM_send_i_start_list, dtype=C2np['int'])
-    PM_send_i_end = np.array(PM_send_i_end_list, dtype=C2np['int'])
-    PM_send_rank = np.array(PM_send_rank_list, dtype=C2np['int'])
-    PM_recv_i_start = np.array(PM_recv_i_start_list, dtype=C2np['int'])
-    PM_recv_j_start = np.array(PM_recv_j_start_list, dtype=C2np['int'])
-    PM_recv_k_start = np.array(PM_recv_k_start_list, dtype=C2np['int'])
-    PM_recv_i_end = np.array(PM_recv_i_end_list, dtype=C2np['int'])
-    PM_recv_j_end = np.array(PM_recv_j_end_list, dtype=C2np['int'])
-    PM_recv_k_end = np.array(PM_recv_k_end_list, dtype=C2np['int'])
-    PM_recv_rank = np.array(PM_recv_rank_list, dtype=C2np['int'])
-    # Buffers
-    domainPM_sendbuf = empty((PM_gridsize_global_i, domain_size_j, domain_size_k),
-                             dtype=C2np['double'])
-    if PM_recv_rank_list != []:
-        domainPM_recvbuf = empty((PM_gridsize_global_i, domain_size_j, domain_size_k),
-                                 dtype=C2np['double'])
-    # ℓ will be the communication loop index.
-    # It runs from 0 t0 ℓmax - 1.
-    ℓmax = np.max([PM_send_rank.shape[0], PM_recv_rank.shape[0]])
-    # Send/recieve buffers used in the communicate_domain_ghosts
-    # function. Separate buffers for each face is needed to
-    # ensure contiguousity.
-    cython.declare(sendbuf_ghostij='double[:, :, ::1]',
-                   recvbuf_ghostij='double[:, :, ::1]',
-                   sendbuf_ghostik='double[:, :, ::1]',
-                   recvbuf_ghostik='double[:, :, ::1]',
-                   sendbuf_ghostjk='double[:, :, ::1]',
-                   recvbuf_ghostjk='double[:, :, ::1]',
-                   )
-    sendbuf_ghostij = empty((domain_size_i + 1, domain_size_j + 1, 2), dtype=C2np['double'])
-    recvbuf_ghostij = empty((domain_size_i + 1, domain_size_j + 1, 2), dtype=C2np['double'])
-    sendbuf_ghostik = empty((domain_size_i + 1, 2, domain_size_k + 1), dtype=C2np['double'])
-    recvbuf_ghostik = empty((domain_size_i + 1, 2, domain_size_k + 1), dtype=C2np['double'])
-    sendbuf_ghostjk = empty((2, domain_size_j + 1, domain_size_k + 1), dtype=C2np['double'])
-    recvbuf_ghostjk = empty((2, domain_size_j + 1, domain_size_k + 1), dtype=C2np['double'])
+        rank_send = np.mod(rank + ℓ, nprocs)
+        rank_recv = np.mod(rank - ℓ, nprocs)
+        # Send the global y and z start and end indices of the domain
+        # to be send, if anything should be send to process rank_send.
+        # Otherwise send None.
+        sendtuple = ((φ_start_j, φ_start_k, φ_end_j, φ_end_k)
+                     if rank_send in asarray(slabs2φ_sendrecv_ranks) else None)
+        recvtuple = sendrecv(sendtuple, dest=rank_send, source=rank_recv)
+        if recvtuple is not None:
+            slab_sendrecv_j_start[index] = recvtuple[0]
+            slab_sendrecv_k_start[index] = recvtuple[1]
+            slab_sendrecv_j_end[index]   = recvtuple[2]
+            slab_sendrecv_k_end[index]   = recvtuple[3]
+            φ2slabs_recvsend_ranks[index]    = rank_recv
+            index += 1
+    # Cut off the tails
+    slab_sendrecv_j_start = slab_sendrecv_j_start[:index]
+    slab_sendrecv_k_start = slab_sendrecv_k_start[:index]
+    slab_sendrecv_j_end = slab_sendrecv_j_end[:index]
+    slab_sendrecv_k_end = slab_sendrecv_k_end[:index]
+    φ2slabs_recvsend_ranks = φ2slabs_recvsend_ranks[:index]
+    # The maximum number of communications it takes to communicate
+    # φ to the slabs (or vice versa).
+    N_φ2slabs_communications = np.max([slabs2φ_sendrecv_ranks.shape[0],
+                                       φ2slabs_recvsend_ranks.shape[0]])
 else:
     # As these should be importable,
     # they need to be assigned even if not used.
-    domain_end_i = 1
-    domain_end_j = 1
-    domain_end_k = 1
-    domain_end_x = 1
-    domain_end_y = 1
-    domain_end_z = 1
-    domain_size_i = 1
-    domain_size_j = 1
-    domain_size_k = 1
-    domain_size_x = 1
-    domain_size_y = 1
-    domain_size_z = 1
-    domain_start_i = 0
-    domain_start_k = 0
-    domain_start_k = 0
-    domain_start_x = 0
-    domain_start_y = 0
-    domain_start_z = 0
+    slab = φ = φ_noghosts = empty((1, 1, 1), dtype=C2np['double'])
+    slab_size_i = 1
+    slab_size_j = 1
+    slab_start_i = 0
+    slab_start_j = 0
 
-# Check if PM_grid is large enough for P3M to work, if the P3M
-# algorithm is to be used.
-if master and 'P3M' in kick_algorithms.values():
-    if (   domain_size_i < P3M_scale*P3M_cutoff
-        or domain_size_j < P3M_scale*P3M_cutoff
-        or domain_size_k < P3M_scale*P3M_cutoff):
-        msg = ('A PM_gridsize of ' + str(PM_gridsize) + ' and ' + str(nprocs) + ' processes '
-               + 'results in following domain partition: ' + str(list(domain_cuts)) + '.\n'
-               + 'The smallest domain width is ' + str(np.min([domain_size_i,
-                                                               domain_size_j,
-                                                               domain_size_k]))
-               + ' grid cells, while the choice of P3M_scale (' + str(P3M_scale) + ') and '
-               + 'P3M_cutoff (' + str(P3M_cutoff) + ')\nmeans that the domains must be at least '
-               + str(int(np.ceil(P3M_scale*P3M_cutoff)))
-               + ' grid cells for the P3M algorithm to work.'
-               )
-        abort(msg)
-    if ((   domain_size_i < 2*P3M_scale*P3M_cutoff
-         or domain_size_j < 2*P3M_scale*P3M_cutoff
-         or domain_size_k < 2*P3M_scale*P3M_cutoff) and np.min(domain_cuts) < 3):
-        # This is only allowed if domain_cuts are at least 3 in each
-        # direction. Otherwise the left and the right (say) process
-        # is the same, and the boundaries will be send to it twize,
-        # and these will overlap with each other in the left/right
-        # domain and gravity will be applied twize.
-        msg = ('A PM_gridsize of ' + str(PM_gridsize) + ' and '
-               + str(nprocs) + ' processes results in following domain'
-               + ' partition: ' + str(list(domain_cuts))
-               + '.\nThe smallest domain width is '
-               + str(np.min([domain_size_i, domain_size_j,
-                             domain_size_k]))
-               + ' grid cells, while the choice of P3M_scale ('
-               + str(P3M_scale) + ') and P3M_cutoff ('
-               + str(P3M_cutoff) + ')\nmeans that the domains must be '
-               + 'at least '
-               + str(int(np.ceil(2*P3M_scale*P3M_cutoff))) + ' grid cells for the '
-               + 'P3M algorithm to work.'
-            )
-        abort(msg)
-
-# Initialize the domain grid if the PM method should be used
-cython.declare(i='Py_ssize_t',
-               domain_grid='double[:, :, ::1]',
-               domain_grid_noghosts='double[:, :, ::1]',
-               )
-if use_PM:
-    # A grid over the local domain. An additional layer of thickness 1
-    # is given to the domain grid, so that these outer points
-    # corresponds to the same physical coordinates as the first points
-    # in the next domain. Also, an additional layer of thickness 2 is
-    # given on top of the previous layer. This shall be used as a ghost
-    # layer for finite differencing.
-    domain_grid = zeros([PM_gridsize//domain_cuts[i] + 1 + 2*2 for i in range(3)],
-                        dtype=C2np['double'])
-    # Memoryview of the domain grid without the ghost layers
-    domain_grid_noghosts = domain_grid[2:(domain_grid.shape[0] - 2),
-                                       2:(domain_grid.shape[1] - 2),
-                                       2:(domain_grid.shape[2] - 2)]
-    # Test if the grid has been constructed correctly.
-    # If not it is because nprocs and PM_gridsize are incompatible.
-    for i in range(3):
-        if not master:
-            break
-        domain_gridsize = domain_grid_noghosts.shape[i] - 1
-        if PM_gridsize != domain_cuts[i]*domain_gridsize:
-            msg = ('A PM_gridsize of {} cannot be equally shared among {} processes'
-                   .format(PM_gridsize, nprocs))
-            masterprint('domain_cuts[0] =', domain_cuts[0],
-                'domain_grid_noghosts.shape[0] =', domain_grid_noghosts.shape[0])
-            abort(msg)
-        if domain_gridsize < 2:
-            msg = ('A PM_gridsize of {} is too small for {} processes'
-                   .format(PM_gridsize, nprocs))
-            abort(msg)
-else:
-    # As these should be importable,
-    # they need to be assigned even if not used.
-    domain_grid = empty([5, 5, 5], dtype=C2np['double'])
-    domain_grid_noghosts = domain_grid[2:(domain_grid.shape[0] - 2),
-                                       2:(domain_grid.shape[1] - 2),
-                                       2:(domain_grid.shape[2] - 2)]

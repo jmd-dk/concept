@@ -25,6 +25,12 @@
 # This script runs the same, random initial conditions with different numbers
 # of processes and compares the result. The PP algorithm is used.
 
+# Number of processes to use
+nprocs_list="1 2 4 8"
+
+# Scale factor values at which to dump output (Python syntax)
+output_times="0.1, 0.5, 1"
+
 # Initialize test environment
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 source "${this_dir}/../environment"
@@ -33,7 +39,7 @@ source "${this_dir}/../environment"
 "${this_dir}/clean"
 
 # Create list of output times, used by both CO𝘕CEPT and GADGET
-"${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', (0.1, 0.5, 1))"
+"${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', (${output_times}))"
 
 # Create the Ewald grid using Cython, if it does not already exist
 # (for fast IC generation).
@@ -46,18 +52,11 @@ fi
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local
 
 # Run the CO𝘕CEPT code on the generated ICs
-"${concept}" -n 1 -p "${this_dir}/params" --local
-rm -rf "${this_dir}/output_1"
-mv "${this_dir}/output" "${this_dir}/output_1"
-"${concept}" -n 2 -p "${this_dir}/params" --local
-rm -rf "${this_dir}/output_2"
-mv "${this_dir}/output" "${this_dir}/output_2"
-"${concept}" -n 4 -p "${this_dir}/params" --local
-rm -rf "${this_dir}/output_4"
-mv "${this_dir}/output" "${this_dir}/output_4"
-"${concept}" -n 8 -p "${this_dir}/params" --local
-rm -rf "${this_dir}/output_8"
-mv "${this_dir}/output" "${this_dir}/output_8"
+for n in ${nprocs_list[@]}; do
+    "${concept}" -n ${n} -p "${this_dir}/params" --local
+    rm -rf "${this_dir}/output_${n}"
+    mv "${this_dir}/output" "${this_dir}/output_${n}"
+done
 
 # Analyze the output snapshots
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local

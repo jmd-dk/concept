@@ -67,17 +67,57 @@ while :; do
 done
 
 # Function for printing colored messages
-terminal_CONCEPT="CO${esc_italic}N${esc_no_italic}CEPT"
 colorprint()
 {
 # Arguments: Message, color
-"${python}" -B -c "
+"${python}" -c "
 import sys
 from blessings import Terminal
 terminal = Terminal(force_styling=True)
-msg = '${1}'.replace('CONCEPT', '${terminal_CONCEPT}')
-print(terminal.bold_${2}(msg), file=(sys.stderr if '${2}' == 'red' else sys.stdout))"
+print(terminal.bold_${2}('${1}'), file=(sys.stderr if '${2}' == 'red' else sys.stdout))"
 }
+
+# Function for printing out a nice CO𝘕CEPT logo
+print_logo()
+{
+    logo='
+   ____     ____             __  ____    _____   ____   _____  
+  / __ \   / __ \     /\    / / / __ \  |  ___| |  _ \ |_   _| 
+ | /  \_| | /  \ |   /  \  / / | /  \_| | |__   | |_) |  | |   
+ ||    _  ||    ||  / /\ \/ /  ||    _  |  __|  |  __/   | |   
+ | \__/ | | \__/ | / /  \  /   | \__/ | | |___  | |      | |   
+  \____/   \____/ /_/    \/     \____/  |_____| |_|      |_|   
+═══════════════════════════════════════════════════════════════
+'
+    # Plot the logo via Python's matplotlib.
+    # This uses up the the 16th and 17th color of the terminal.
+    "${python}" -c "
+import numpy as np, matplotlib
+# Apply colormap
+colors = ([0.09, 0.84, 0.05], [0.98, 0.47, 0.20])
+for i, color in enumerate(colors):
+    colorhex = matplotlib.colors.rgb2hex(color)
+    print('\\x1b]4;{};rgb:{}/{}/{}\\x1b\\\\'
+           .format(16 + i, colorhex[1:3], colorhex[3:5], colorhex[5:]), end='')
+# Construct the colored logo
+logo='''${logo}'''
+logo = logo[1:-1]
+rows = logo.split('\\n')
+ANSI = []
+for i, row in enumerate(rows):
+    for j, c in enumerate(row):
+        colornumber = 17 if i < 6 and 17 < j < 31 else 16
+        ANSI.append('\\x1b[38;5;{}m{}'.format(colornumber, c))
+    ANSI.append('\\x1b[0m\\n')
+# Print the ANSI image
+print(''.join(ANSI), end='')
+     "
+}
+# Print out the logo the first time an execution reaches this point
+if [ "${logo_printed}" != "True" ]; then
+    print_logo
+    export logo_printed="True"
+fi
 
 # Function for converting paths to absolute paths
 absolute_path()
@@ -124,6 +164,21 @@ if [ "${BASH_SOURCE[0]}" != "${0}" ]; then
     return
 fi
 
+# Set up error trapping
+ctrl_c()
+{
+    trap : 0
+    exit 2
+}
+abort()
+{
+    colorprint "An error occurred!" "red"
+    exit 1
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
+
 # Default values of command-line arguments
 local_default="False"
 main_default="${concept_dir}/main.py"
@@ -155,9 +210,11 @@ if [ -z "${TERM}" ] || [ "${TERM}" == "dumb" ]; then
 fi
 
 # Use Python's argparse module to handle command-line arguments
-args=($("${python}" -B -c "
+argparse_success="yes"
+args=$("${python}" -c "
 import argparse, sys
-# Setup command-line arguments
+# Function which checks if input is a
+# representation of a positive integer.
 def positive_int(value):
     def raise_argparse_exception():
         raise argparse.ArgumentTypeError(\"invalid positive int value: '{}'\".format(value))
@@ -172,8 +229,9 @@ def positive_int(value):
     if value < 1:
         raise_argparse_exception()
     return value
+# Setup command-line arguments
 parser = argparse.ArgumentParser(prog='$(basename ${this_file})',
-                                 description='Run the CONCEPT code')
+                                 description='Run the CO𝘕CEPT code')
 parser.add_argument('-m', '--main',
                     help='entry point of the code',
                     default='${main_default}',
@@ -201,7 +259,7 @@ parser.add_argument('-t', '--test',
 parser.add_argument('-u', '--util',
                     nargs='+',
                     help='run utility UTIL. UTIL can be any executable in the utilities directory',
-                    default=['${util_unspecified}'],
+                    default=['${util_unspecified}']*2,  # One for util, one for util_args
                     )
 parser.add_argument('-w', '--walltime',
                      help='set the PBS walltime in whole hours',
@@ -219,64 +277,53 @@ parser.add_argument('--pure-python',
                     action='store_true',
                     )
 # Enables Python to write directly to screen (stderr)
-# in case of help request
+# in case of help request.
 stdout_copy = sys.stdout
 sys.stdout = sys.stderr
-# Now do the actual argument parsing, including writing out the help message
-args = parser.parse_args()
+# Now do the actual argument parsing,
+# including writing out the help message.
+args, unknown_args = parser.parse_known_args()
+# If a utility is to be used, arguments unknown to this script should
+# be parsed on to the utility.
+util_args = args.util[1:]
+if args.util[0] != '${util_unspecified}':
+    util_args += unknown_args
+else:
+    # Do print out error if invalid arguments are given
+    # and no utility should be used.
+    args = parser.parse_args()
 # Reset stdout
 sys.stdout = stdout_copy
 # Print out the arguments.
-# These will be captured in the bash 'args' variable
-print('graceful_exit',
-      args.main,
-      args.nprocs,
-      args.params,
-      args.queue,
-      args.test,
-      args.util[0],
-      ('\"' + '\"__space__\"'.join(args.util[1:]).replace(' ','__space__')
-       + '\"' if len(args.util) > 1 else '\"\"'),
-      args.walltime,
-      args.local,
-      args.pure_python,
+# These will be captured in the Bash 'args' variable
+print(  '  argparse_finished=yes'
+      + '; main=\"{}\"'.format(args.main)
+      + '; nprocs={}'.format(args.nprocs)
+      + '; params=\"{}\"'.format(args.params)
+      + '; queue={}'.format(args.queue)
+      + '; test=\"{}\"'.format(args.test)
+      + '; util=\"{}\"'.format(args.util[0])
+      + '; util_args=({})'.format(\"'\" + \"' '\".join(util_args) + \"'\")  # Bash array
+      + '; walltime={}'.format(args.walltime)
+      + '; local={}'.format(args.local)
+      + '; pure_python={}'.format(args.pure_python)
       )
-" "$@"))
-graceful_exit="${args[0]}"
-main="${args[1]}"
-nprocs="${args[2]}"
-params="${args[3]}"
-queue="${args[4]}"
-test="${args[5]}"
-util="${args[6]}"
-util_args="${args[7]//__space__/ }"
-walltime="${args[8]}"
-local="${args[9]}"
-pure_python="${args[10]}"
-if [ -z "${graceful_exit}" ]; then
-    # Help requested and given. Exit
-    trap : 0
-    exit 0
+" "$@" || echo "argparse_success=\"no\"")
+# Evaluate the handled arguments into this scope
+eval "${args}"
+# Exit if argparse exited without finishing
+if [ "${argparse_finished}" != "yes" ]; then
+    # Python's argparse did not finish, either due to help being
+    # asked for (and given) or invalid arguments.
+    if [ "${argparse_success}" == "yes" ]; then
+        # Help was asked for and given
+        trap : 0
+        exit 0
+    else
+        # Invalid arguments
+        exit 1
+    fi
 fi
-if [ "${#args[@]}" -ne 11 ]; then
-    colorprint "Error: Not every command-line argument was gracefully dealt with!" "red"
-    exit 1
-fi
-
-# Set up error trapping
-ctrl_c()
-{
-    trap : 0
-    exit 2
-}
-abort()
-{
-    colorprint "An error occurred!" "red"
-    exit 1
-}
-trap 'ctrl_c' SIGINT
-trap 'abort' EXIT
-set -e
 
 # Convert all supplied paths to absolute paths
 main="$(absolute_path "${main}")"
@@ -372,7 +419,11 @@ if [ "${util}" != "${util_unspecified}" ]; then
     export pure_python_flag="${pure_python_flag}"
     colorprint "Running the $(basename ${util}) utility" "yellow"
     trap : 0
-    eval called_from_concept=True "${util}" ${util_args}
+    if [ -z "${util_args[0]}" ] && [ ${#util_args[@]} == 1 ]; then
+        called_from_concept="True" "${util}"
+    else
+        called_from_concept="True" "${util}" "${util_args[@]}"
+    fi
     exit 0
 fi
 
@@ -380,13 +431,19 @@ fi
 if [ "${pure_python}" == "True" ] ; then
     # Rename compiled Cython modules *.so to *.so_
     if ls "${concept_dir}/"*.so > /dev/null 2>&1; then
-        (cd "${concept_dir}" && for f in *.so; do mv "${f}" "${f%.so}.so_"; done)
+        (cd "${concept_dir}" && for f in *.so; do
+                                    mv "${f}" "${f%.so}.so_"
+                                done
+         )
     fi
 else
     # Rename compiled Cython modules *.so_ back to *.so
     # and compile with Cython.
     if ls "${concept_dir}/"*.so_ > /dev/null 2>&1; then
-        (cd "${concept_dir}" && for f in *.so_; do mv "${f}" "${f%.so_}.so"; done)
+        (cd "${concept_dir}" && for f in *.so_; do
+                                    mv "${f}" "${f%.so_}.so"
+                                done
+         )
     fi
     (cd "${concept_dir}" && make)
 fi
@@ -452,7 +509,7 @@ if remote_liverender:
                        + \"Remote live renders will not be scp\\\'ed\"
                        ).format(scp_host)
 # Print out the password/passphrase and whether the scp test was
-# successful. These will be captured in the bash 'args' variable.
+# successful. These will be captured in the Bash 'args' variable.
 print(scp_success.replace(' ', '~'),
       scp_password,
       )
@@ -478,7 +535,7 @@ fi
 # Either stop doing further actions, submit job or run it locally
 if [ ${#queues[@]} == 0 ] && [ "${remote}" == "True" ]; then
     # Run remotely but do not use PBS
-    printf "The ${terminal_CONCEPT} code is ready to be submitted\n"
+    printf "The CO𝘕CEPT code is ready to be submitted\n"
     trap : 0
     exit 0
 elif [ ${#queues[@]} -gt 0 ] && [ "${remote}" == "True" ]; then
@@ -572,10 +629,10 @@ source \"${concept}\"
 
 # Print start messages
 if [ \"${pure_python}\" == \"True\" ]; then
-    colorprint \"Running CONCEPT in pure Python mode remotely on \$(hostname -f) \
+    colorprint \"Running CO𝘕CEPT in pure Python mode remotely on \$(hostname -f) \
 as job \${jobid}\" \"yellow\" > \"${logs_dir}/\${jobid}\"
 else
-    colorprint \"Running CONCEPT remotely on \$(hostname -f) \
+    colorprint \"Running CO𝘕CEPT remotely on \$(hostname -f) \
 as job \${jobid}\" \"yellow\" > \"${logs_dir}/\${jobid}\"
 fi
 echo \"Entry point:   \\\\\"${main_rel}\\\\\"\"               >> \"${logs_dir}/\${jobid}\"
@@ -608,7 +665,7 @@ fi
 if [ -f \"${logs_dir}/\${jobid}_err\" ] && [ ! -s \"${logs_dir}/\${jobid}_err\" ]; then
     rm \"${logs_dir}/\${jobid}_err\"
 else
-    colorprint \"\\\nSome warnings/errors occured during CONCEPT run!\" \"red\" \
+    colorprint \"\\\nSome warnings/errors occured during CO𝘕CEPT run!\" \"red\" \
 >> \"${logs_dir}/\${jobid}\" 2>&1
     colorprint \"Check the following error log for more information:\"  \"red\" \
 >> \"${logs_dir}/\${jobid}\" 2>&1
@@ -648,18 +705,18 @@ else
     # Print start message
     echo
     if [ "${pure_python}" == "True" ]; then
-        colorprint "Running CONCEPT in pure Python mode" "yellow" | tee "${logs_dir}/${jobid}"
+        colorprint "Running CO𝘕CEPT in pure Python mode" "yellow" | tee    "${logs_dir}/${jobid}"
     else
-        colorprint "Running CONCEPT" "yellow" | tee "${logs_dir}/${jobid}"
+        colorprint "Running CO𝘕CEPT" "yellow"                     | tee    "${logs_dir}/${jobid}"
     fi
-    echo "Entry point:   \"${main_rel}\""              | tee -a "${logs_dir}/${jobid}"
+    echo "Entry point:   \"${main_rel}\""                         | tee -a "${logs_dir}/${jobid}"
     if [ "${params_rel}" == "None" ]; then
-        echo "Parameterfile: ${params_rel}"            | tee -a "${logs_dir}/${jobid}"
+        echo "Parameterfile: ${params_rel}"                       | tee -a "${logs_dir}/${jobid}"
     else
-        echo "Parameterfile: \"${params_rel}\""        | tee -a "${logs_dir}/${jobid}"
+        echo "Parameterfile: \"${params_rel}\""                   | tee -a "${logs_dir}/${jobid}"
     fi
-    echo "Logfile:       \"${logs_dir_rel}/${jobid}\"" | tee -a "${logs_dir}/${jobid}"
-    echo "Nr. of CPUs:    ${nprocs}"                   | tee -a "${logs_dir}/${jobid}"
+    echo "Logfile:       \"${logs_dir_rel}/${jobid}\""            | tee -a "${logs_dir}/${jobid}"
+    echo "Nr. of CPUs:    ${nprocs}"                              | tee -a "${logs_dir}/${jobid}"
     # Prepare Python options
     if [ "${pure_python}" == "True" ] ; then
         # Run as normal Python script
@@ -673,23 +730,29 @@ else
     # Run the code. Print stdout and stderr to the terminal while at the
     # same time logging them to logs_dir/jobid. The stderr alone is also
     # logged to logs_dir/jobid_err.
-    "${mpiexec}" -n "${nprocs}" "${python}" -B ${m_flag} "${main_as_library}" \
-                 "params='${params}'" "scp_password='${scp_password}'"        \
-                 2> >(tee -a "${logs_dir}/${jobid}_err") | tee -a "${logs_dir}/${jobid}"
-    # Get exit status of the above CO𝘕CEPT run
-    concept_exit_status="${PIPESTATUS[0]}"
+    (("${mpiexec}" -n "${nprocs}"                               \
+                   "${python}" -B                               \
+                               ${m_flag} "${main_as_library}"   \
+                               "params='${params}'"             \
+                               "scp_password='${scp_password}'" \
+     | tee -a "${logs_dir}/${jobid}";                           \
+       echo "${PIPESTATUS[0]}" > "${logs_dir}/.exit_code"       \
+     ) 3>&1 1>&2 2>&3 | tee -a "${logs_dir}/${jobid}"           \
+                               "${logs_dir}/${jobid}_err") 3>&1 1>&2 2>&3
+    sleep 1
+    concept_exit_code="$(cat "${logs_dir}/.exit_code")"
+    # Cleanup
+    rm -f "${logs_dir}/.exit_code"
     # Run complete. Remove error log if empty
     if [ -f "${logs_dir}/${jobid}_err" ] && [ ! -s "${logs_dir}/${jobid}_err" ]; then
         rm "${logs_dir}/${jobid}_err"
     else
-        colorprint "\nSome warnings/errors occured during CONCEPT run!" "red"  \
-                   2>&1 | tee -a "${logs_dir}/${jobid}"
-        colorprint "Check the following error log for more information:" "red" \
-                   2>&1 | tee -a "${logs_dir}/${jobid}"
-        colorprint "\"${logs_dir}/${jobid}_err\"" "red" 2>&1 | tee -a "${logs_dir}/${jobid}"
+        colorprint "\nSome warnings/errors occured during CO𝘕CEPT run!\n\
+Check the following error log for more information:\n\
+\"${logs_dir}/${jobid}_err\"" "red" 2>&1 | tee -a "${logs_dir}/${jobid}" 1>&2
     fi
     # If the CO𝘕CEPT run exited erroneously, exit now
-    if [ "${concept_exit_status}" != "0" ]; then
+    if [ "${concept_exit_code}" != "0" ]; then
         exit 1
     fi
     # Deactivate trap before exiting

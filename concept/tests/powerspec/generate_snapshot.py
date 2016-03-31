@@ -23,7 +23,6 @@
 # Include the concept_dir in the searched paths
 import sys, os
 sys.path.append(os.environ['concept_dir'])
-this_dir = os.path.dirname(os.path.realpath(__file__))
 
 # Imports from the CO𝘕CEPT code
 from commons import *
@@ -37,7 +36,7 @@ from numpy.random import normal
 N_lin = 128
 N = N_lin**3
 mass = Ωm*ϱ*boxsize**3/N
-particles = construct_particles('dark matter particles', 'dark matter', mass, N)
+component = construct_particles('dark matter particles', 'dark matter', N, mass)
 posx = empty(N)
 posy = empty(N)
 posz = empty(N)
@@ -56,13 +55,13 @@ for i in range(N_lin):
             posy[count] = normal(loc=Y, scale=R_tophat) % boxsize
             posz[count] = normal(loc=Z, scale=R_tophat) % boxsize
             count += 1
-particles.populate(posx, 'posx')
-particles.populate(posy, 'posy')
-particles.populate(posz, 'posz')
-particles.populate(momx, 'momx')
-particles.populate(momy, 'momy')
-particles.populate(momz, 'momz')
+component.populate(posx, 'posx')
+component.populate(posy, 'posy')
+component.populate(posz, 'posz')
+component.populate(momx, 'momx')
+component.populate(momy, 'momy')
+component.populate(momz, 'momz')
 
 # Save snapshot
-save([particles], a_begin, this_dir + '/snapshot')
+save([component], a_begin, IC_file)
 

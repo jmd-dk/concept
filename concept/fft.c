@@ -76,7 +76,7 @@ struct fftw_return_struct{
     fftw_plan plan_forward;
     fftw_plan plan_backward;
 };
-// This function initializez fftw_mpi, allocates a grid,
+// This function initializes fftw_mpi, allocates a grid,
 // desides the local lengths and starting indices and
 // creates forwards and backwards plans.
 struct fftw_return_struct fftw_setup(ptrdiff_t gridsize_i,
@@ -106,7 +106,7 @@ struct fftw_return_struct fftw_setup(ptrdiff_t gridsize_i,
     bool master = (rank == root);
 
     // Declaration and allocation of the (local part of the) grid. This
-    // also initializes gridsize_local_(x/y) and gridstart_local_(x/y).
+    // also initializes gridsize_local_(i/j) and gridstart_local_(i/j).
     ptrdiff_t gridsize_local_i, gridstart_local_i,
               gridsize_local_j, gridstart_local_j;
     double* grid = fftw_alloc_real(fftw_mpi_local_size_3d_transposed(

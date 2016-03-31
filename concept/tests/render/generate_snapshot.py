@@ -38,7 +38,7 @@ N = 16**3
 mass = Ωm*ϱ*boxsize**3/N
 mean_sep = boxsize/N**(1/3)
 max_mom = 0.5e+10*units.kpc/units.Gyr*units.m_sun
-particles = construct_particles('dark matter particles', 'dark matter', mass, N)
+component = construct_particles('dark matter particles', 'dark matter', N, mass)
 posx = zeros(N)
 posy = zeros(N)
 posz = zeros(N)
@@ -59,13 +59,13 @@ for i in range(int(round(N**(1/3)))):
             momy[count] = (random()*2 - 1)*max_mom
             momz[count] = (random()*2 - 1)*max_mom
             count += 1
-particles.populate(posx, 'posx')
-particles.populate(posy, 'posy')
-particles.populate(posz, 'posz')
-particles.populate(momx, 'momx')
-particles.populate(momy, 'momy')
-particles.populate(momz, 'momz')
+component.populate(posx, 'posx')
+component.populate(posy, 'posy')
+component.populate(posz, 'posz')
+component.populate(momx, 'momx')
+component.populate(momy, 'momy')
+component.populate(momz, 'momz')
 
 # Save snapshot
-save([particles], a_begin, IC_file)
+save([component], a_begin, IC_file)
 

@@ -29,7 +29,7 @@ output_times  = {'snapshot': loadtxt(paths['params_dir'] + '/outputlist')}
 
 # Numerical parameters
 boxsize     = 16*Mpc/0.7	# (Gadget implicitly uses length/h)
-PM_gridsize = 32
+φ_gridsize  = 32
 Δt_factor   = 0.01
 
 # Cosmological parameters

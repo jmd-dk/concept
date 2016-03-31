@@ -32,36 +32,40 @@ this_test = os.path.basename(this_dir)
 
 # Imports from the CO𝘕CEPT code
 from commons import *
-from snapshot import load_into_standard
+from snapshot import load
 
 # Read in data from the CO𝘕CEPT snapshots
+nprocs_list = sorted(int(dname[(dname.index('_') + 1):])
+                     for dname in [os.path.basename(dname)
+                                   for dname in glob.glob('{}/output_*'.format(this_dir))])
 a = []
-particles = {1: [], 2: [], 4: [], 8: []}
-for n in (1, 2, 4, 8):
+components = {n: [] for n in nprocs_list}
+for n in nprocs_list:
     for fname in sorted(glob.glob('{}/output_{}/snapshot_a=*'.format(this_dir, n)),
                         key=lambda s: s[(s.index('=') + 1):]):
-        snapshot = load_into_standard(fname, compare_params=False)
+        snapshot = load(fname, compare_params=False)
         if n == 1:
             a.append(snapshot.params['a'])
-        particles[n].append(snapshot.particles_list[0])
+        components[n].append(snapshot.components[0])
 N_snapshots = len(a)
 
 # Begin analysis
 masterprint('Analyzing {} data ...'.format(this_test))
 
-# Using the particle order of the n=1 snapshot as the standard, find the corresponding
-# ID's in the snapshots and order these particles accordingly.
-N = particles[1][0].N
+# Using the particle order of the n=1 snapshot as the standard,
+# find the corresponding ID's in the snapshots and order these
+# particles accordingly.
+N = components[1][0].N
 D2 = zeros(N)
 ID = zeros(N, dtype='int')
 for i in range(N_snapshots):
-    x = particles[1][i].posx
-    y = particles[1][i].posy
-    z = particles[1][i].posz
-    for n in (2, 4, 8):
-        x_procs = particles[n][i].posx
-        y_procs = particles[n][i].posy
-        z_procs = particles[n][i].posz
+    x = components[1][i].posx
+    y = components[1][i].posy
+    z = components[1][i].posz
+    for n in nprocs_list:
+        x_procs = components[n][i].posx
+        y_procs = components[n][i].posy
+        z_procs = components[n][i].posz
         for j in range(N):
             for k in range(N):
                 dx = x[j] - x_procs[k]
@@ -81,25 +85,31 @@ for i in range(N_snapshots):
                     dz += boxsize
                 D2[k] = dx**2 + dy**2 + dz**2
             ID[j] = np.argmin(D2)
-        particles[n][i].posx = particles[n][i].posx[ID]
-        particles[n][i].posy = particles[n][i].posy[ID]
-        particles[n][i].posz = particles[n][i].posz[ID]
-        particles[n][i].momx = particles[n][i].momx[ID]
-        particles[n][i].momy = particles[n][i].momy[ID]
-        particles[n][i].momz = particles[n][i].momz[ID]
+        components[n][i].posx = components[n][i].posx[ID]
+        components[n][i].posy = components[n][i].posy[ID]
+        components[n][i].posz = components[n][i].posz[ID]
+        components[n][i].momx = components[n][i].momx[ID]
+        components[n][i].momy = components[n][i].momy[ID]
+        components[n][i].momz = components[n][i].momz[ID]
 
 # Compute distance between particles in the two snapshots
-dist = collections.OrderedDict([(2, []), (4, []), (8, [])])
+dist = collections.OrderedDict((n, []) for n in nprocs_list[1:])
 for i in range(N_snapshots):
-    x = {n: particles[n][i].posx for n in (1, 2, 4, 8)}
-    y = {n: particles[n][i].posy for n in (1, 2, 4, 8)}
-    z = {n: particles[n][i].posz for n in (1, 2, 4, 8)}
-    for n in (2, 4, 8):
-        dist[n].append(sqrt(np.array([min([(x[1][j] - x[n][j] + xsgn*boxsize)**2 + (y[1][j] - y[n][j] + ysgn*boxsize)**2 + (z[1][j] - z[n][j] + zsgn*boxsize)**2 for xsgn in (-1, 0, +1) for ysgn in (-1, 0, +1) for zsgn in (-1, 0, +1)]) for j in range(N)])))
+    x = {n: components[n][i].posx for n in nprocs_list}
+    y = {n: components[n][i].posy for n in nprocs_list}
+    z = {n: components[n][i].posz for n in nprocs_list}
+    for n in nprocs_list[1:]:
+        dist[n].append(sqrt(np.array([min([  (x[1][j] - x[n][j] + xsgn*boxsize)**2
+                                           + (y[1][j] - y[n][j] + ysgn*boxsize)**2
+                                           + (z[1][j] - z[n][j] + zsgn*boxsize)**2
+                                           for xsgn in (-1, 0, +1)
+                                           for ysgn in (-1, 0, +1)
+                                           for zsgn in (-1, 0, +1)])
+                                      for j in range(N)])))
 
 # Plot
 fig_file = this_dir + '/result.png'
-fig, ax = plt.subplots(3, sharex=True, sharey=True)
+fig, ax = plt.subplots(len(nprocs_list) - 1, sharex=True, sharey=True)
 for n, d, ax_i in zip(dist.keys(), dist.values(), ax):
     for i in range(N_snapshots):
         ax_i.plot(np.array(d[i])/boxsize, '.', alpha=.7, label='$a={}$'.format(a[i]), zorder=-i)
@@ -117,8 +127,8 @@ masterprint('done')
 
 # Printout error message for unsuccessful test
 tol = 1e-3
-if any(np.mean(np.array(dist[n])/boxsize) > tol for n in (2, 4, 8)):
+if any(np.mean(np.array(d)/boxsize) > tol for d in dist.values()):
     masterwarn('Runs with different numbers of processes yield different results!\n'
-               + 'See "{}" for a visualization.'.format(fig_file))
+               'See "{}" for a visualization.'.format(fig_file))
     sys.exit(1)
 

@@ -22,11 +22,12 @@
 
 
 
-# This utility can produce renders of snapshots.
+# This utility can convert between different types of snapshots,
+# and even make changes to the global parameters and component attributes.
 # You can run this file directly as
-# utilities/render path
+# utilities/convert path
 # or invoke it via the concept script as
-# ./render --util render path
+# ./concept --util convert path
 # In both cases, path is the path to a snapshot file
 # or a directory containing snapshot files.
 
@@ -65,6 +66,10 @@ parser = argparse.ArgumentParser(prog='$(basename ${this_file})',
 parser.add_argument('path',
                     help='path to snapshot or directory of snapshots',
                     )
+parser.add_argument('attributes',
+                    nargs='*',
+                    help='space-separated list of global parameters and component attributes',
+                    )
 # Enables Python to write directly to screen (stderr)
 # in case of help request.
 stdout_copy = sys.stdout
@@ -84,8 +89,11 @@ sys.stdout = stdout_copy
 # These will be captured in the Bash 'args' variable.
 print(  ' argparse_finished=yes'
       + '; path=\"{}\"'.format(args.path)
+      + '; attributes=\"{}\"'.format(args.attributes)
       )
 " "$@")
+#       + '; representation=\"{}\"'.format({r[:r.index('=')]: r[(r.index('=') + 1):]
+#                                          for r in args.representation})  # Python dict
 # Evaluate the handled arguments into this scope
 eval "${args}"
 # Exit if argparse exited without finishing
@@ -104,19 +112,21 @@ fi
 
 # If no parameterfile is supplied,
 # use the one that goes along with this utility.
+params_given="True"
 if [ "${params}" == "None" ]; then
     params="${this_file}.params"
+    params_given="False"
 fi
 
 # Convert to absolute path
 path="$(absolute_path "${path}" "${workdir}")"
 
-# Get information about all snapshots in the path
+# Find snapshots in the path
 info="$("${concept}" --pure-python --util info "${path}")"
 snapshot_filenames_fmt="$(echo "${info}" | grep -x Information.* | awk '{print $3}')"
-boxsizes="$(              echo "${info}" | grep -x boxsize.*     | awk '{print $2}')"
 # Remove escape sequence from snapshot filenames
 snapshot_filenames=""
+snapshot_filenames_tuple=""
 for snapshot_filename in ${snapshot_filenames_fmt}; do
     snapshot_filename="$(${python} -B -c "import re;                                             \
                                           print('\"{}\"'.format(re.search('\"(.*?)\"',           \
@@ -124,43 +134,40 @@ for snapshot_filename in ${snapshot_filenames_fmt}; do
                                                                           ).group(1)))")"
     if [ -z "${snapshot_filenames}" ]; then
         snapshot_filenames="${snapshot_filename}"
+        snapshot_filenames_tuple="${snapshot_filename}, "
     else
         snapshot_filenames="${snapshot_filenames}
 ${snapshot_filename}"
+    snapshot_filenames_tuple="${snapshot_filenames_tuple} ${snapshot_filename}, "
     fi
 done
+snapshot_filenames_tuple="(${snapshot_filenames_tuple})"
 
-# Print out the snapshots which will be rendered
+# Print out which snapshots will be converted
 N_snapshots="$(echo "${snapshot_filenames}" | wc -l)"
 if [ ${N_snapshots} == 1 ]; then
-    echo "A render will be produced of the following snapshot:"
+    echo "The following snapshot will be converted:"
 else
-    echo "Renders will be produced of the following snapshots:"
+    echo "The following snapshots will be converted:"
 fi
 echo "${snapshot_filenames}"
 
-# For each snapshot, run the CO𝘕CEPT code to create the render
-i=0
-for snapshot_filename in ${snapshot_filenames}; do
-    # Get the i'th boxsize
-    ((i += 1))
-    boxsize=$(echo ${boxsizes} | awk "{print \$${i}}")
-    # Make temporary parameter file with every information needed
-    printf "boxsize = ${boxsize}
-special_params = {
-    'special':           '$(basename ${this_file})',
-    'snapshot_filename': ${snapshot_filename},
+# Make temporary parameter file with every information needed
+printf "special_params = {
+    'special':            '$(basename ${this_file})',
+    'params_given':       ${params_given},
+    'attributes':         ${attributes},
+    'snapshot_filenames': ${snapshot_filenames_tuple},
                   }
 $(cat "${params}")
 " > "${this_file}.params.full"
-    # Run CO𝘕CEPT to produce the render
-    "${concept}" -m "${main}"                  \
-                 -n  ${nprocs}                 \
-                 -p "${this_file}.params.full" \
-                 -q "${queue}"                 \
-                 -w "${walltime}"              \
-                 ${local_flag} ${pure_python_flag}
-done
+# Run CO𝘕CEPT to perform the convertion
+"${concept}" -m "${main}"                  \
+             -n  ${nprocs}                 \
+             -p "${this_file}.params.full" \
+             -q "${queue}"                 \
+             -w "${walltime}"              \
+             ${local_flag} ${pure_python_flag}
 
 # Cleanup
 rm "${this_file}.params.full"

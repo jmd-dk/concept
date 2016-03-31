@@ -22,9 +22,14 @@
 
 
 
-# This script performs a comparioson test betwen the CO𝘕CEPT code's P3M algorithm
-# in compiled and pure Python mode. ICs are generated randomly,
-# containing 4**3 particles.
+# This script runs the same, random initial conditions in both compiled
+# and pure Python mode and compares the results. The P3M algorithm is used.
+
+# Number of processes to use
+nprocs_list="1 2 4"
+
+# Scale factor values at which to dump output (Python syntax)
+output_times="0.1, 0.5, 1"
 
 # Initialize test environment
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
@@ -34,32 +39,23 @@ source "${this_dir}/../environment"
 "${this_dir}/clean"
 
 # Create list of output times
-"${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', (0.1, 0.5, 1))"
+"${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', (${output_times}))"
 
 # Generate ICs
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local
 
-# Run the CO𝘕CEPT code on the generated ICs, with 1, 2 and 4 processes
-"${concept}" -n 1 -p "${this_dir}/params" --local
-rm -rf "${this_dir}/output_cython_1"
-mv "${this_dir}/output" "${this_dir}/output_cython_1"
-"${concept}" -n 2 -p "${this_dir}/params" --local
-rm -rf "${this_dir}/output_cython_2"
-mv "${this_dir}/output" "${this_dir}/output_cython_2"
-"${concept}" -n 4 -p "${this_dir}/params" --local
-rm -rf "${this_dir}/output_cython_4"
-mv "${this_dir}/output" "${this_dir}/output_cython_4"
-
-# Run the CO𝘕CEPT code in pure Python mode on the generated ICs, with 1, 2 and 4 processes
-"${concept}" -n 1 -p "${this_dir}/params" --pure-python --local
-rm -rf "${this_dir}/output_python_1"
-mv "${this_dir}/output" "${this_dir}/output_python_1"
-"${concept}" -n 2 -p "${this_dir}/params" --pure-python --local
-rm -rf "${this_dir}/output_python_2"
-mv "${this_dir}/output" "${this_dir}/output_python_2"
-"${concept}" -n 4 -p "${this_dir}/params" --pure-python --local
-rm -rf "${this_dir}/output_python_4"
-mv "${this_dir}/output" "${this_dir}/output_python_4"
+# Run the CO𝘕CEPT code on the generated ICs
+for n in ${nprocs_list[@]}; do
+    "${concept}" -n ${n} -p "${this_dir}/params" --local
+    rm -rf "${this_dir}/output_cython_${n}"
+    mv "${this_dir}/output" "${this_dir}/output_cython_${n}"
+done
+# Run the CO𝘕CEPT code in pure Python mode on the generated ICs
+for n in ${nprocs_list[@]}; do
+    "${concept}" -n ${n} -p "${this_dir}/params" --pure-python --local
+    rm -rf "${this_dir}/output_python_${n}"
+    mv "${this_dir}/output" "${this_dir}/output_python_${n}"
+done
 
 # Analyze the output snapshots
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local

@@ -21,6 +21,7 @@
 
 
 # Input/output
+IC_file       = paths['params_dir'] + '/snapshot.hdf5'
 snapshot_type = 'standard'
 output_dirs   = {'powerspec': paths['params_dir'] + '/output'}
 output_bases  = {'powerspec': 'powerspec'}
@@ -29,6 +30,6 @@ powerspec_plot_select = {'all': True}
 
 # Numerical parameters
 boxsize     = 512*Mpc
-PM_gridsize = 256
+φ_gridsize  = 256
 R_tophat    = 8*Mpc
 

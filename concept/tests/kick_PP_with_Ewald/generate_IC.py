@@ -34,15 +34,15 @@ from snapshot import save
 # Create the particles
 N = 8
 mass = Ωm*ϱ*boxsize**3/N
-particles = construct_particles('GADGET halos', 'dark matter', mass, N)
+components = construct_particles('GADGET halos', 'dark matter', N, mass)
 d = 0.005
-particles.populate(np.array([0.25 - d]*4 + [0.75 + d]*4)*boxsize, 'posx')
-particles.populate(np.array([0.25, 0.25, 0.75, 0.75]*2)*boxsize, 'posy')
-particles.populate(np.array([0.25, 0.75, 0.75, 0.25]*2)*boxsize, 'posz')
-particles.populate(zeros(N), 'momx')
-particles.populate(zeros(N), 'momy')
-particles.populate(zeros(N), 'momz')
+components.populate(np.array([0.25 - d]*4 + [0.75 + d]*4)*boxsize, 'posx')
+components.populate(np.array([0.25, 0.25, 0.75, 0.75]*2) *boxsize, 'posy')
+components.populate(np.array([0.25, 0.75, 0.75, 0.25]*2) *boxsize, 'posz')
+components.populate(zeros(N), 'momx')
+components.populate(zeros(N), 'momy')
+components.populate(zeros(N), 'momz')
 
 # Save snapshot
-save([particles], a_begin, IC_file)
+save([components], a_begin, IC_file)
 
