@@ -29,6 +29,8 @@ logs_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/logs'
 mpi_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/mpich'
 # Directory containing CO𝘕CEPT output
 output_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/output'
+# Directory containing CO𝘕CEPT parameter files
+params_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/params'
 # Directory of Python
 python_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python'
 # Directory containing tests for the CO𝘕CEPT code

@@ -28,7 +28,7 @@ sys.path.append(os.environ['concept_dir'])
 
 # Imports from the CO𝘕CEPT code
 from commons import *
-from species import construct_particles
+from species import Component
 from snapshot import save
 
 # Create close to homogeneous particles
@@ -36,7 +36,7 @@ N = 8**3
 mass = Ωm*ϱ*boxsize**3/N
 mean_sep = boxsize/N**(1/3)
 max_mom = 0.5e+10*units.kpc/units.Gyr*units.m_sun
-component = construct_particles('dark matter particles', 'dark matter', N, mass)
+component = Component('test particles', 'dark matter particles', N, mass)
 posx = zeros(N)
 posy = zeros(N)
 posz = zeros(N)

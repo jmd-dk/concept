@@ -26,7 +26,7 @@ from commons import *
 
 # Cython imports
 from communication import smart_mpi
-cimport('from species import construct_fluid, construct_particles')
+cimport('from species import Component, get_representation')
 cimport('from communication import domain_layout_local_indices, domain_subdivisions, exchange')
 
 # Pure Python imports
@@ -58,11 +58,14 @@ class StandardSnapshot:
         """
         public dict params
         public list components
+        public dict units
         """
         # Dict containing all the parameters of the snapshot
         self.params = {}
         # List of components
         self.components = []
+        # Dict containing the base units in str format
+        self.units = {}
 
     # Methd that saves the snapshot to an hdf5 file
     @cython.pheader(# Argument
@@ -90,9 +93,9 @@ class StandardSnapshot:
         masterprint('Saving standard snapshot "{}":'.format(filename))
         with h5py.File(filename, mode='w', driver='mpio', comm=comm) as hdf5_file:
             # Save used base units
-            hdf5_file.attrs['unit length'] = base_length
-            hdf5_file.attrs['unit time']   = base_time
-            hdf5_file.attrs['unit mass']   = base_mass
+            hdf5_file.attrs['unit length'] = self.units['length']
+            hdf5_file.attrs['unit time']   = self.units['time']
+            hdf5_file.attrs['unit mass']   = self.units['mass']
             # Save global attributes
             hdf5_file.attrs['H0']          = self.params['H0']
             hdf5_file.attrs['a']           = self.params['a']
@@ -104,13 +107,12 @@ class StandardSnapshot:
             for component in self.components:
                 component_h5 = hdf5_file.create_group('components/' + component.name)
                 # Save the general component attributes
-                component_h5.attrs['species']         = component.species
-                component_h5.attrs['representation']  = component.representation
+                component_h5.attrs['species'] = component.species
                 component_h5.attrs['mass'] = component.mass
                 if component.representation == 'particles':
                     # Write out progress message
-                    masterprint('Writing out {} {} ({}) ...'.format(component.N,
-                                                                    component.name,
+                    masterprint('Writing out {} ({} {}) ...'.format(component.name,
+                                                                    component.N,
                                                                     component.species),
                                 indent=4)
                     # Save particle attributes
@@ -137,7 +139,7 @@ class StandardSnapshot:
                     masterprint('done')
                 elif component.representation == 'fluid':
                     # Write out progress message
-                    masterprint('Writing out {} ({}) of linear size {} ...'
+                    masterprint('Writing out {} ({} with gridsize {}) ...'
                                 .format(component.name, component.species, component.gridsize),
                                 indent=4)
                     # Save fluid attributes
@@ -222,9 +224,12 @@ class StandardSnapshot:
         # Load all components
         with h5py.File(filename, mode='r', driver='mpio', comm=comm) as hdf5_file:
             # Load used base units
-            snapshot_unit_length = eval(hdf5_file.attrs['unit length'], units_dict)
-            snapshot_unit_time   = eval(hdf5_file.attrs['unit time'],   units_dict)
-            snapshot_unit_mass   = eval(hdf5_file.attrs['unit mass'],   units_dict)
+            self.units['length'] = hdf5_file.attrs['unit length']
+            self.units['time']   = hdf5_file.attrs['unit time']
+            self.units['mass']   = hdf5_file.attrs['unit mass']
+            snapshot_unit_length = eval(self.units['length'], units_dict)
+            snapshot_unit_time   = eval(self.units['time'],   units_dict)
+            snapshot_unit_mass   = eval(self.units['mass'],   units_dict)
             # Load global attributes
             self.params['H0']      = hdf5_file.attrs['H0']*(1/snapshot_unit_time)
             self.params['a']       = hdf5_file.attrs['a']
@@ -239,21 +244,21 @@ class StandardSnapshot:
             # Load component data
             for name, component_h5 in hdf5_file['components'].items():
                 # Load the general component attributes
-                species        = component_h5.attrs['species']
-                representation = component_h5.attrs['representation']
-                mass           = component_h5.attrs['mass']*snapshot_unit_mass
+                species = component_h5.attrs['species']
+                representation = get_representation(species)
+                mass = component_h5.attrs['mass']*snapshot_unit_mass
                 if representation == 'particles':
                     # Construct a Component instance and append it
                     # to this snapshot's list of components.
                     N = component_h5.attrs['N']
-                    component = construct_particles(name, species, N, mass)
+                    component = Component(name, species, N, mass)
                     self.components.append(component)
                     # Done loading component attributes
                     if only_params:
                         continue
                     # Write out progress message
                     if not only_params:
-                        masterprint('Reading in {} {} ({}) ...'.format(N, name, species), indent=4)
+                        masterprint('Reading in {} ({} {}) ...'.format(name, N, species), indent=4)
                     # Extract HDF5 datasets
                     posx_h5 = component_h5['posx']
                     posy_h5 = component_h5['posy']
@@ -295,14 +300,14 @@ class StandardSnapshot:
                     # Construct a Component instance and append it
                     # to this snapshot's list of components.
                     gridsize = component_h5.attrs['gridsize']
-                    component = construct_fluid(name, species, gridsize, mass)
+                    component = Component(name, species, gridsize, mass)
                     self.components.append(component)
                     # Done loading component attributes
                     if only_params:
                         continue
                     # Write out progress message
                     if not only_params:
-                        masterprint('Reading in {} ({}) of linear size {} ...'
+                        masterprint('Reading in {} ({} with gridsize {}) ...'
                                     .format(name, species, gridsize), indent=4)
                     # Extract HDF5 datasets
                     δ_h5 = component_h5[unicode('δ')]
@@ -375,14 +380,17 @@ class StandardSnapshot:
         # Pupulate snapshot with the components
         self.components = components
         # Populate snapshot with the parsed scalefactor
-        # and global parameters.
-        self.params['H0']      = H0
-        self.params['a']       = a
-        self.params['boxsize'] = boxsize
-        self.params['Ωm']      = Ωm
-        self.params['ΩΛ']      = ΩΛ
-        # Add/overwrite parameters with those parsed
-        self.params.update(params)
+        # and global parameters. If a params dict is parsed,
+        # use values from this instead.
+        self.params['H0']      = params.get('H0',      H0)
+        self.params['a']       = params.get('a',       a)
+        self.params['boxsize'] = params.get('boxsize', boxsize)
+        self.params['Ωm']      = params.get('Ωm',      Ωm)
+        self.params['ΩΛ']      = params.get('ΩΛ',      ΩΛ)
+        # Populate the base units with the global base units
+        self.units['length'] = unit_length
+        self.units['time']   = unit_time
+        self.units['mass']   = unit_mass
 
 # Class storing a Gadget2 snapshot. Besides holding methods for
 # saving/loading, it stores particle data (positions, momenta, mass)
@@ -441,13 +449,13 @@ class Gadget2Snapshot:
         corresponding to dark matter particles, are supported.
         """
         component = self.component
-        if master and component.representation != 'particles':
-            abort('The GAGDET2 snapshot type can only store components represented as particles\n'
-                  '(the representation of the {} is "{}")'
-                  .format(component.name, component.representation))
+        if master and component.species != 'dark matter particles':
+            abort('The GAGDET2 snapshot type can only store dark matter particles\n'
+                  '(the species of the {} component is "{}")'
+                  .format(component.name, component.species))
         masterprint('Saving GADGET2 snapshot "{}":'.format(filename))
-        masterprint('Writing out {} {} ({}) ...'.format(component.N,
-                                                        component.name,
+        masterprint('Writing out {} ({} {}) ...'.format(component.name,
+                                                        component.N,
                                                         component.species),
                     indent=4)
         N = component.N
@@ -565,6 +573,7 @@ class Gadget2Snapshot:
                     N_locals='tuple',
                     blockname='str',
                     file_position='Py_ssize_t',
+                    header='object',  # collections.OrderedDict
                     mass='double',
                     name='str',
                     offset='Py_ssize_t',
@@ -585,7 +594,7 @@ class Gadget2Snapshot:
             masterprint('Loading GADGET2 snapshot "{}":'.format(filename))
         # Only type 1 (halo) particles are supported
         name = 'GADGET halos'
-        species = 'dark matter'
+        species = 'dark matter particles'
         # Read in the snapshot
         offset = 0
         with open(filename, 'rb') as f:
@@ -635,13 +644,13 @@ class Gadget2Snapshot:
             N = header['Npart'][1]
             unit = 1e+10*units.m_sun/header['HubbleParam']
             mass = header['Massarr'][1]*unit
-            self.component = construct_particles(name, species, N, mass)
+            self.component = Component(name, species, N, mass)
             self.components = [self.component]
             # Done loading component attributes
             if only_params:
                 return
             # Write out progress message
-            masterprint('Reading in {} {} ({}) ...'.format(N, name, species), indent=4)
+            masterprint('Reading in {} ({} {}) ...'.format(name, N, species), indent=4)
             # Compute a fair distribution
             # of component data to the processes.
             N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
@@ -737,43 +746,55 @@ class Gadget2Snapshot:
         # the process with the lowest rank has the lowest ID's.
         start_local = int(np.sum(smart_mpi(component.N_local, mpifun='allgather')[:rank]))
         self.ID = arange(start_local, start_local + component.N_local, dtype=C2np['unsigned int'])
-        # The header data
-        self.params['header'] = collections.OrderedDict()
-        header = self.params['header']
+        # Populate snapshot with the parsed scalefactor
+        # and global parameters. If a params dict is parsed,
+        # use values from this instead.
+        self.params['H0']      = params.get('H0',      H0)
+        self.params['a']       = params.get('a',       a)
+        self.params['boxsize'] = params.get('boxsize', boxsize)
+        self.params['Ωm']      = params.get('Ωm',      Ωm)
+        self.params['ΩΛ']      = params.get('ΩΛ',      ΩΛ)
+        # Build the GADGET header
+        self.update_header()
+
+    # Method for constructing the GADGET header from the other
+    # parameters in the params dict.
+    @cython.header(# Locals
+                   component='Component',
+                   h='double',
+                   header='object',  # collections.OrderedDict
+                   params='dict',
+                   unit='double',
+                   )
+    def update_header(self):
+        # Extract variabled
+        component = self.component
+        params = self.params
+        # The GADGET header is constructed from scratch
+        params['header'] = collections.OrderedDict()
+        header = params['header']
+        # Fill the header
         header['Npart'] = [0, component.N, 0, 0, 0, 0]
         unit = 100*units.km/(units.s*units.Mpc)
-        h = params.get('H0', H0)/unit
+        h = params['H0']/unit
         unit = 1e+10*units.m_sun/h
         header['Massarr']       = [0.0, component.mass/unit, 0.0, 0.0, 0.0, 0.0]
-        header['Time']          = a
-        header['Redshift']      = 1/a - 1
+        header['Time']          = params['a']
+        header['Redshift']      = 1/params['a'] - 1
         header['FlagSfr']       = 0
         header['FlagFeedback']  = 0
         header['Nall']          = [0, component.N, 0, 0, 0, 0]
         header['FlagCooling']   = 0
         header['Numfiles']      = 1
         unit = units.kpc/h
-        header['BoxSize']       = params.get('boxsize', boxsize)/unit
-        header['Omega0']        = params.get('Ωm', Ωm)
-        header['OmegaLambda']   = params.get('ΩΛ', ΩΛ)
+        header['BoxSize']       = params['boxsize']/unit
+        header['Omega0']        = params['Ωm']
+        header['OmegaLambda']   = params['ΩΛ']
         header['HubbleParam']   = h
         header['FlagAge']       = 0
         header['FlagMetals']    = 0
         header['NallHW']        = [0, 0, 0, 0, 0, 0]
         header['flag_entr_ics'] = 1
-        # Also include some of the header fields as parameters
-        # directly in the params dict. These are the same as
-        # those included in the params dict of
-        # standard type snapshots.
-        self.params['a']       = header['Time']
-        unit = units.kpc/header['HubbleParam']
-        self.params['boxsize'] = header['BoxSize']*unit
-        unit = 100*units.km/(units.s*units.Mpc)
-        self.params['H0']      = header['HubbleParam']*unit
-        self.params['Ωm']      = header['Omega0']
-        self.params['ΩΛ']      = header['OmegaLambda']
-        # Add/overwrite parameters with those parsed
-        self.params.update(params)
 
     # Method used for reading series of bytes from the snapshot file
     @cython.header(# Arguments
@@ -843,7 +864,7 @@ def compare_parameters(params, filename, indent=4):
     if not isclose(boxsize, float(params['boxsize']), reltol):
         msg += (indent_str + 'boxsize: ' + vs + ' [{}]').format(boxsize,
                                                                 params['boxsize'],
-                                                                base_length)
+                                                                unit_length)
     if not isclose(H0, float(params['H0']), reltol):
         unit = units.km/(units.s*units.Mpc)
         msg += (indent_str + 'H0: ' + vs + ' [{}]'

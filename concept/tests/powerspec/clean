@@ -24,5 +24,10 @@
 
 # This script does cleanup after a test
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-(cd "${this_dir}" && rm -f output* histogram.png powerspec_snapshot powerspec_snapshot.png snapshot)
+(cd "${this_dir}" && rm -f output*                \
+                           histogram.png          \
+                           powerspec_snapshot     \
+                           powerspec_snapshot.png \
+                           snapshot.hdf5          \
+ )
 

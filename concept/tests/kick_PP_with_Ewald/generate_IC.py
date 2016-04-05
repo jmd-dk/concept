@@ -28,13 +28,13 @@ sys.path.append(os.environ['concept_dir'])
 
 # Imports from the CO𝘕CEPT code
 from commons import *
-from species import construct_particles
+from species import Component
 from snapshot import save
 
 # Create the particles
 N = 8
 mass = Ωm*ϱ*boxsize**3/N
-components = construct_particles('GADGET halos', 'dark matter', N, mass)
+components = Component('GADGET halos', 'dark matter particles', N, mass)
 d = 0.005
 components.populate(np.array([0.25 - d]*4 + [0.75 + d]*4)*boxsize, 'posx')
 components.populate(np.array([0.25, 0.25, 0.75, 0.75]*2) *boxsize, 'posy')

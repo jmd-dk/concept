@@ -213,7 +213,7 @@ fi
 argparse_success="yes"
 args=$("${python}" -c "
 import argparse, sys
-# Function which checks if input is a
+# Function which checks whether input is a
 # representation of a positive integer.
 def positive_int(value):
     def raise_argparse_exception():

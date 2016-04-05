@@ -29,11 +29,10 @@ cimport('from ewald import ewald')
 cimport('from communication import find_N_recv, rank_neighboring_domain')
 cimport('from communication import domain_size_x,  domain_size_y,  domain_size_z')
 cimport('from communication import domain_start_x, domain_start_y, domain_start_z')
-cimport('from mesh import CIC_scalargrid2coordinates, slabs2φ')
-cimport('from mesh import slab, CIC_component2slabs, slabs_FFT, slabs_IFFT')
-cimport('from mesh import slab_size_j, slab_start_j')
+cimport('from mesh import CIC_components2slabs, CIC_scalargrid2coordinates')
+cimport('from mesh import slab, slab_size_j, slab_start_j, slabs_FFT, slabs_IFFT, slabs2φ')
 cimport('from mesh import φ, φ_noghosts')
-
+cimport('from mesh import grad')
 
 
 
@@ -208,7 +207,7 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
 # Function for computing the gravitational force
 # by direct summation on all particles
 # (the particle particle or PP method).
-@cython.header(# Arguments
+@cython.pheader(# Arguments
                component='Component',
                Δt='double',
                # Locals
@@ -361,40 +360,93 @@ def PP(component, Δt):
                 Δmomy_extrn[i] = 0
                 Δmomz_extrn[i] = 0
 
-# Function for updating all particle momenta in a particular direction,
-# used in the PM algorithm.
-@cython.header(# Arguments
-               N_local='Py_ssize_t',
-               PM_fac='double',
-               force_grid='double[:, :, ::1]',
-               posx='double*',
-               posy='double*',
-               posz='double*',
-               mom='double*',
-               # Locals
-               i='Py_ssize_t',
-               x='double',
-               y='double',
-               z='double',
-               force='double'
-               )
-def PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, mom):
-    for i in range(N_local):
-        # The coordinates of the i'th particle,
-        # transformed so that 0 <= x, y, z < 1.
-        x = (posx[i] - domain_start_x)/domain_size_x
-        y = (posy[i] - domain_start_y)/domain_size_y
-        z = (posz[i] - domain_start_z)/domain_size_z
-        # Look up the force via a CIC interpolation in the force grid
-        force = CIC_scalargrid2coordinates(force_grid, x, y, z)
-        # Update the i'th momentum
-        mom[i] += force*PM_fac
-
 # Function for computing the gravitational force
 # by the particle mesh (PM) method.
+@cython.pheader(# Arguments
+                components='object',
+                Δt='double',
+                # Locals
+                PM_fac='double',
+                domain_buffer='double[:, :, ::1]',
+                component='Component',
+                dim='int',
+                mom='double*',
+                posx='double*',
+                posy='double*',
+                posz='double*',
+                )
+def PM(components, Δt):
+    """This function updates the momenta of all particles via the
+    particle-mesh (PM) method.
+    Note that the time step size Δt is really ∫_t^(t + Δt) dt/a.
+    """
+    # For each dimension, differentiate the potential φ to get the
+    # acceleration field. Then extrapolate to the particles or
+    # fluid elements.
+    for dim in range(3):
+        # Do the differentiation of φ
+        domain_buffer = grad(φ, dim)
+        for component in components:
+            if component.representation == 'particles':
+                # Extract variables from component
+                posx = component.posx
+                posy = component.posy
+                posz = component.posz
+                if dim == 0:
+                    mom = component.momx
+                elif dim == 1:
+                    mom = component.momy
+                elif dim == 2:
+                    mom = component.momz
+                # The factor with which to multiply the values
+                # in domain_buffer (the differentiated potential)
+                # in order to get momentum units.
+                PM_fac = PM_fac_const*component.mass*Δt
+                # Update the dim momentum component of particle i
+                for i in range(component.N_local):
+                    # The coordinates of the i'th particle,
+                    # transformed so that 0 <= x, y, z < 1.
+                    x = (posx[i] - domain_start_x)/domain_size_x
+                    y = (posy[i] - domain_start_y)/domain_size_y
+                    z = (posz[i] - domain_start_z)/domain_size_z
+                    # Look up the force via a CIC interpolation,
+                    # convert it to momentum units and add it to the
+                    # momentum of particle i.
+                    mom[i] += PM_fac*CIC_scalargrid2coordinates(domain_buffer, x, y, z)
+            elif component.representation == 'fluid':
+                # Extract variables from component
+                if dim == 0:
+                    u_noghosts = component.ux_noghosts
+                elif dim == 1:
+                    u_noghosts = component.uy_noghosts
+                elif dim == 2:
+                    u_noghosts = component.uz_noghosts
+                domain_size_i = u_noghosts.shape[0] - 1
+                domain_size_j = u_noghosts.shape[1] - 1
+                domain_size_k = u_noghosts.shape[2] - 1
+                # The factor with which to multiply the values
+                # in domain_buffer (the differentiated potential)
+                # in order to get velocity units.
+                # Remember that u = mom/(mass*a).
+                PM_fac = PM_fac_const*Δt
+                for i in range(u_noghosts.shape[0]):
+                    for j in range(u_noghosts.shape[1]):
+                        for k in range(u_noghosts.shape[2]):
+                            # The coordinates of the i'th fluid element,
+                            # transformed so that 0 <= x, y, z < 1.
+                            x = i*domain_size_x/domain_size_i
+                            y = j*domain_size_x/domain_size_j
+                            z = k*domain_size_x/domain_size_k
+                            # Look up the force via a CIC interpolation,
+                            # convert it to momentum units and add it to the
+                            # momentum of particle i.
+                            u_noghosts[i, j, k] += PM_fac*CIC_scalargrid2coordinates(domain_buffer,
+                                                                                     x, y, z)
+
+# Function which constructs the total gravitational potential φ due
+# to all components.
 @cython.header(# Arguments
-               component='Component',
-               Δt='double',
+               components='list',
                only_long_range='bint',
                # Locals
                Greens_deconv='double',
@@ -402,43 +454,26 @@ def PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, mom):
                sqrt_deconv_ij='double',
                sqrt_deconv_ijk='double',
                sqrt_deconv_j='double',
-               PM_fac='double',
-               force='double',
-               posx='double*',
-               posy='double*',
-               posz='double*',
-               momx='double*',
-               momy='double*',
-               momz='double*',
                i='Py_ssize_t',
                j='Py_ssize_t',
                j_global='Py_ssize_t',
                k='Py_ssize_t',
                ki='Py_ssize_t',
+               ki2_plus_kj2='Py_ssize_t',
                kj='Py_ssize_t',
+               kj2='Py_ssize_t',
                kk='Py_ssize_t',
                k2='Py_ssize_t',
-               x='double',
-               y='double',
-               z='double',
                )
-def PM(component, Δt, only_long_range=False):
-    """This function updates the momenta of all particles via the
-    particle-mesh (PM) method.
-    Note that the time step size Δt is really ∫_t^(t + Δt) dt/a.
+def build_φ(components, only_long_range=False):
+    """This function computes the gravitational potential φ due to
+    all components given in the components argument.
+    Pseudo points and ghost layers will be communicated.
     """
-    # Extract variables from component
-    N_local = component.N_local
-    mass    = component.mass
-    posx    = component.posx
-    posy    = component.posy
-    posz    = component.posz
-    momx    = component.momx
-    momy    = component.momy
-    momz    = component.momz
+    masterprint('Computing the gravitational potential ...')
     # CIC interpolate the particles
     # and do forward Fourier transformation.
-    CIC_component2slabs(component)
+    CIC_components2slabs(components)
     slabs_FFT()
     # Loop through the local j-dimension
     for j in range(slab_size_j):
@@ -449,6 +484,7 @@ def PM(component, Δt, only_long_range=False):
             kj = j_global - φ_gridsize
         else:
             kj = j_global
+        kj2 = kj**2
         # Square root of the j-component of the deconvolution
         sqrt_deconv_j = sinc(kj*ℝ[π/φ_gridsize])
         # Loop through the complete i-dimension
@@ -458,6 +494,7 @@ def PM(component, Δt, only_long_range=False):
                 ki = i - φ_gridsize
             else:
                 ki = i
+            ki2_plus_kj2 = ki**2 + kj2
             # Square root of the product of the i-
             # and the j-component of the deconvolution.
             sqrt_deconv_ij = sinc(ki*ℝ[π/φ_gridsize])*sqrt_deconv_j
@@ -467,7 +504,7 @@ def PM(component, Δt, only_long_range=False):
                 # The k-component of the wave vector
                 kk = k//2
                 # The squared magnitude of the wave vector
-                k2 = ki**2 + kj**2 + kk**2
+                k2 = ki2_plus_kj2 + kk**2
                 # Zero-division is illegal in pure Python.
                 # The global [0, 0, 0] element of the slabs will be set
                 # later anyway.
@@ -484,7 +521,7 @@ def PM(component, Δt, only_long_range=False):
                 # Multiply by the Greens function 1/k2 to get the
                 # potential. Deconvolve twice for the two CIC
                 # interpolations (the mass assignment and the upcomming
-                # force interpolation). Remember that slab is
+                # force interpolation). Remember that the slab is
                 # transposed in the first two dimensions due to the
                 # forward FFT.
                 Greens_deconv = 1/(k2*sqrt_deconv_ijk**4)
@@ -501,36 +538,8 @@ def PM(component, Δt, only_long_range=False):
     slabs_IFFT()
     # Communicate the potential stored in the slabs to φ
     slabs2φ()
-    # The factor with which to multiply the values in the slab
-    # in order to get actual units.
-    PM_fac = PM_fac_const*mass**2*Δt
-    # Compute the local forces in the
-    # x-direction via the four point rule.
-    for i in range(2, φ.shape[0] - 2):
-        for j in range(2, φ.shape[1] - 2):
-            for k in range(2, φ.shape[2] - 2):
-                force_grid[i - 2,j - 2, k - 2] = (  ℝ[2/3] *(φ[i + 1, j, k] - φ[i - 1, j, k])
-                                                  - ℝ[1/12]*(φ[i + 2, j, k] - φ[i - 2, j, k]))
-    # Update local x-momenta
-    PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, momx)
-    # Compute the local forces in the
-    # y-direction via the four point rule.
-    for i in range(2, φ.shape[0] - 2):
-        for j in range(2, φ.shape[1] - 2):
-            for k in range(2, φ.shape[2] - 2):
-                force_grid[i - 2, j - 2, k - 2] = (  ℝ[2/3] *(φ[i, j + 1, k] - φ[i, j - 1, k])
-                                                   - ℝ[1/12]*(φ[i, j + 2, k] - φ[i, j - 2, k]))
-    # Update local y-momenta
-    PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, momy)
-    # Compute the local forces in the
-    # z-direction via the four point rule.
-    for i in range(2, φ.shape[0] - 2):
-        for j in range(2, φ.shape[1] - 2):
-            for k in range(2, φ.shape[2] - 2):
-                force_grid[i - 2, j - 2, k - 2] = (  ℝ[2/3] *(φ[i, j, k + 1] - φ[i, j, k - 1])
-                                                   - ℝ[1/12]*(φ[i, j, k + 2] - φ[i, j, k - 2]))
-    # Update local z-momenta
-    PM_update_mom(N_local, PM_fac, force_grid, posx, posy, posz, momz)
+    # Finalize progress message
+    masterprint('done')
 
 # This collection of functions simply test whether or not the parsed
 # coordinates lie within a certain domain boundary.
@@ -778,7 +787,7 @@ def in_boundary_leftbackwarddown(posx_local_i, posy_local_i, posz_local_i):
 
 # Function for computing the gravitational force
 # by the particle particle particle mesh (P³M) method.
-@cython.header(# Arguments
+@cython.pheader(# Arguments
                component='Component',
                Δt='double',
                # Locals
@@ -786,6 +795,7 @@ def in_boundary_leftbackwarddown(posx_local_i, posy_local_i, posz_local_i):
                N_local='Py_ssize_t',
                N_boundary1='Py_ssize_t',
                N_boundary2='Py_ssize_t',
+               dim='int',
                i='Py_ssize_t',
                in_boundary1='func_b_ddd',
                in_boundary2='func_b_ddd',
@@ -833,8 +843,12 @@ def P3M(component, Δt):
     global Δmomx_local_mv, Δmomy_local_mv, Δmomz_local_mv
     global indices_send, indices_send_mv
     global indices_boundary, indices_boundary_mv
+    # TEMPORARY HACK!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    # THIS WILL OVERWRITE φ. THE P3M-METHOD SHOULD ONLY BE USED IN
+    # SINGLE-COMPONENT SIMULATIONS!
+    build_φ([component], only_long_range=True)
     # Compute the long-range force via the PM method
-    PM(component, Δt, True)
+    PM([component], Δt)
     # Extract variables from component
     N_local    = component.N_local
     mass       = component.mass
@@ -1016,14 +1030,6 @@ def P3M(component, Δt):
             momy_local[indices_send[i]] += Δmomy_local[i]
             momz_local[indices_send[i]] += Δmomz_local[i]
 
-# Initialize the force grid if the PM method should be used
-cython.declare(force_grid='double[:, :, ::1]')
-if use_PM:
-    # This grid willl contain the forces in the PM algorithm,
-    # one component at a time.
-    force_grid = empty((φ_noghosts.shape[0],
-                        φ_noghosts.shape[1],
-                        φ_noghosts.shape[2]), dtype=C2np['double'])
 
 
 # Initialize stuff for the PP and P3M algorithms at import time

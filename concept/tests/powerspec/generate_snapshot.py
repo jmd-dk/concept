@@ -26,7 +26,7 @@ sys.path.append(os.environ['concept_dir'])
 
 # Imports from the CO𝘕CEPT code
 from commons import *
-from species import construct_particles
+from species import Component
 from snapshot import save
 
 # Function for generating random numbers from a normal distribution
@@ -36,7 +36,7 @@ from numpy.random import normal
 N_lin = 128
 N = N_lin**3
 mass = Ωm*ϱ*boxsize**3/N
-component = construct_particles('dark matter particles', 'dark matter', N, mass)
+component = Component('test particles', 'dark matter particles', N, mass)
 posx = empty(N)
 posy = empty(N)
 posz = empty(N)

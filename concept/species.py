@@ -25,7 +25,7 @@
 from commons import *
 
 # Cython imports
-cimport('from gravity import PP, PM, P3M')
+import gravity
 cimport('from communication import exchange')
 
 
@@ -42,13 +42,13 @@ class Component:
     @cython.header(# Arguments
                    name='str',
                    species='str',
-                   representation='str',
+                   N_or_gridsize='Py_ssize_t',
                    mass='double',
                    # Locals
-                   shape='Py_ssize_t[::1]',
+                   shape='tuple',
                    size='Py_ssize_t',
                    )
-    def __init__(self, name, species, representation, mass):
+    def __init__(self, name, species, N_or_gridsize, mass):
         # The triple quoted string below serves as the type declaration
         # for the data attributes of the Component type.
         # It will get picked up by the pyxpp script
@@ -96,13 +96,22 @@ class Component:
         # General component attributes
         self.name           = name
         self.species        = species
-        self.representation = representation
         self.mass           = mass
+        # Determine the representation based on the species
+        self.representation = get_representation(self.species)
         # Particle component attributes
-        self.N           = 1
         self.N_allocated = 1
         self.N_local     = 1
-        self.softening   = 1      
+        if self.representation == 'particles':
+            self.N         = N_or_gridsize
+            if self.species in softeningfactors:
+                self.softening = softeningfactors[self.species]*boxsize/(self.N**ℝ[1/3])
+            elif master:
+                abort('Species "{}" do not have an assigned softening factor!'
+                      .format(self.species))
+        else:
+            self.N         = 1
+            self.softening = 1
         # Particle data
         self.posx = malloc(self.N_allocated*sizeof('double'))
         self.posy = malloc(self.N_allocated*sizeof('double'))
@@ -117,10 +126,13 @@ class Component:
         self.momy_mv = cast(self.momy, 'double[:self.N_allocated]')
         self.momz_mv = cast(self.momz, 'double[:self.N_allocated]')
         # Fluid component attributes
-        self.gridsize = 1
+        if self.representation == 'fluid':
+            self.gridsize = N_or_gridsize
+        else:
+            self.gridsize = 1
         # Fluid data
-        shape = ones(3, dtype=C2np['Py_ssize_t'])
-        size = np.prod(shape)
+        shape = tuple([1]*3)
+        size = shape[0]*shape[1]*shape[2]
         self.δ  = malloc(size*sizeof('double'))
         self.ux = malloc(size*sizeof('double'))
         self.uy = malloc(size*sizeof('double'))
@@ -316,16 +328,7 @@ class Component:
         """
         kick_algorithm = kick_algorithms[self.species]
         masterprint('Kicking ({}) {} ...'.format(kick_algorithm, self.name))
-        # Delegate the work to the appropriate function based on species
-        if kick_algorithm == 'PP':
-            PP(self, Δt)
-        elif kick_algorithm == 'PM':
-            PM(self, Δt)
-        elif kick_algorithm == 'P3M':
-            P3M(self, Δt)
-        elif master:
-            abort(('Species "{}" has been assigned the kick algorithm "{}", '
-                   + 'which is not implemented!').format(self.species, kick_algorithm))
+        getattr(gravity, kick_algorithm)(self, Δt)
         masterprint('done')
 
     # This method is automaticlly called when a Component instance
@@ -347,43 +350,28 @@ class Component:
             free(self.δ)
 
 
-
-# Constructor function for Component instances representing particles
-@cython.header(# Argument
-               name='str',
+@cython.header(# Arguments
                species='str',
-               N='Py_ssize_t',
-               mass='double',
                # Locals
-               component='Component',
-               returns='Component',
+               key='tuple',
+               representation='str',
+               returns='str'
                )
-def construct_particles(name, species, N, mass):
-    # Instantiate Component instance
-    component = Component(name, species, 'particles', mass)
-    # Attach particle attributes
-    component.N = N
-    if species in softeningfactors:
-        component.softening = softeningfactors[species]*boxsize/(N**ℝ[1/3])
-    elif master:
-        abort('Species "{}" do not have an assigned softening length!'.format(species))
-    return component
-
-# Constructor function for Component instances representing a fluid
-@cython.header(# Argument
-               name='str',
-               species='str',
-               gridsize='Py_ssize_t',
-               mass='double',
-               # Locals
-               component='Component',
-               returns='Component',
-               )
-def construct_fluid(name, species, gridsize, mass):
-    # Instantiate Component instance
-    component = Component(name, species, 'fluid', mass)
-    # Attach particle attributes
-    component.gridsize = gridsize
-    return component
-
+def get_representation(species):
+    for key, representation in representation_of_species.items():
+        if species in key:
+            return representation
+    abort('Species "{}" not implemented'.format(species))
+cython.declare(representation_of_species='dict')
+representation_of_species = {('baryons',
+                              'dark energy particles',
+                              'dark matter particles',
+                              'neutrinos',
+                              ): 'particles',
+                             ('baryon fluid',
+                              'dark matter fluid',
+                              'dark energy fluid',
+                              'neutrino fluid',
+                              ): 'fluid'
+                             }
 

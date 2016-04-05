@@ -129,10 +129,10 @@ def plot_powerspec(data_list, a, filename, power_dict):
         plt.ylim(ymin=float(tmp[0] + tmp[3:]))
         tmp = '{:.1e}'.format(maxpowermax)
         plt.ylim(ymax=float(str(int(tmp[0]) + 1) + tmp[3:]))
-        plt.xlabel('$k$ $\mathrm{[' + base_length + '^{-1}]}$',
+        plt.xlabel('$k$ $\mathrm{[' + unit_length + '^{-1}]}$',
                    fontsize=14,
                    )
-        plt.ylabel('power $\mathrm{[' + base_length + '^3]}$',
+        plt.ylabel('power $\mathrm{[' + unit_length + '^3]}$',
                    fontsize=14,
                    )
         plt.title('{} at $a = {}$'.format(name, significant_figures(a, 4, fmt='TeX')),
@@ -171,7 +171,7 @@ def plot_powerspec(data_list, a, filename, power_dict):
                name='str',
                names='tuple',
                component='Component',
-               render_dirname='str',
+               render_dir='str',
                rgb='int',
                size='double',
                tmp_image='float[:, :, ::1]',
@@ -187,7 +187,7 @@ def render(components, a, filename, cleanup=True):
         filename += '.png'
     # The directory for storing the temporary renders
     dirname = os.path.dirname(filename)
-    render_dirname = '{}/.renders'.format(dirname)
+    render_dir = '{}/.renders'.format(dirname)
     # Initialize figures by building up render_dict, if this is the
     # first time this function is called.
     if not render_dict:
@@ -286,7 +286,7 @@ def render(components, a, filename, cleanup=True):
         # Create the temporary render directory if necessary
         if not (nprocs == 1 == len(render_dict)):
             if master:
-                os.makedirs(render_dirname, exist_ok=True)
+                os.makedirs(render_dir, exist_ok=True)
             Barrier()
     # Print out progress message
     names = tuple(render_dict.keys())
@@ -355,11 +355,11 @@ def render(components, a, filename, cleanup=True):
         # Save the render
         if nprocs == 1:
             filename_component_alpha_part = ('{}/{}_alpha.png'
-                                              .format(render_dirname,
+                                              .format(render_dir,
                                                       component.name.replace(' ', '-')))
         else:
             filename_component_alpha_part = ('{}/{}_alpha_{}.png'
-                                             .format(render_dirname,
+                                             .format(render_dir,
                                                      component.name.replace(' ', '-'),
                                                      rank))
         if nprocs == 1 == len(render_dict):
@@ -391,11 +391,11 @@ def render(components, a, filename, cleanup=True):
             name = names[j].replace(' ', '-')
             if nprocs == 1:
                 # Simply load the already fully constructed image
-                filename_component_alpha = '{}/{}_alpha.png'.format(render_dirname, name)
+                filename_component_alpha = '{}/{}_alpha.png'.format(render_dir, name)
                 render_image = plt.imread(filename_component_alpha)
             else:
                 # Create list of filenames for the partial renders
-                filenames_component_alpha_part = ['{}/{}_alpha_{}.png'.format(render_dirname,
+                filenames_component_alpha_part = ['{}/{}_alpha_{}.png'.format(render_dir,
                                                                               name,
                                                                               part)
                                              for part in range(nprocs)]
@@ -406,7 +406,7 @@ def render(components, a, filename, cleanup=True):
                 # with transparency. Theese are then later combined into
                 # a render containing all components.
                 if len(names) > 1:
-                    filename_component_alpha = '{}/{}_alpha.png'.format(render_dirname, name)
+                    filename_component_alpha = '{}/{}_alpha.png'.format(render_dir, name)
                     plt.imsave(filename_component_alpha, render_image)
             # Add opaque background to render_image
             add_background()
@@ -425,7 +425,7 @@ def render(components, a, filename, cleanup=True):
         # into a total render containing all components.
         if master and len(names) > 1:
             masterprint('Combining component renders and saving to "{}" ...'.format(filename))
-            filenames_component_alpha = ['{}/{}_alpha.png'.format(render_dirname,
+            filenames_component_alpha = ['{}/{}_alpha.png'.format(render_dir,
                                                                   name.replace(' ', '-'))
                                          for name in names]
             blend(filenames_component_alpha)
@@ -435,7 +435,7 @@ def render(components, a, filename, cleanup=True):
             masterprint('done')
     # Remove the temporary directory, if cleanup is requested
     if master and cleanup and not (nprocs == 1 == len(render_dict)):
-        shutil.rmtree(render_dirname)
+        shutil.rmtree(render_dir)
     # Update the live render (local and remote)
     #update_liverender(filename_component)
 

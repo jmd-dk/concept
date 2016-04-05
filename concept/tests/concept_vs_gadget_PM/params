@@ -20,15 +20,18 @@
 
 
 
+# Directory of this parameter file (non-parameter variable)
+_this_dir = os.path.dirname(paths['params'])
+
 # Input/output
-IC_file       = paths['params_dir'] + '/IC'
-snapshot_type = 'Gadget 2'
-output_dirs   = {'snapshot': paths['params_dir'] + '/output'}
+IC_file       = _this_dir + '/IC'
+snapshot_type = 'GADGET2'
+output_dirs   = {'snapshot': _this_dir + '/output'}
 output_bases  = {'snapshot': 'snapshot'}
-output_times  = {'snapshot': loadtxt(paths['params_dir'] + '/outputlist')}
+output_times  = {'snapshot': loadtxt(_this_dir + '/outputlist')}
 
 # Numerical parameters
-boxsize     = 16*Mpc/0.7	# (Gadget implicitly uses length/h)
+boxsize     = 16*Mpc/0.7	# (GADGET implicitly uses length/h)
 φ_gridsize  = 32
 Δt_factor   = 0.01
 
@@ -39,4 +42,4 @@ H0      = 70*km/s/Mpc
 a_begin = 0.02
 
 # Simulation options
-kick_algorithms = {'dark matter': 'PM'}
+kick_algorithms = {'dark matter particles': 'PM'}

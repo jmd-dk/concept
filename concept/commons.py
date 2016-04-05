@@ -425,194 +425,6 @@ from libc.math cimport (sin, cos, tan,
 
 
 
-#############
-# Constants #
-#############
-cython.declare(machine_ϵ='double',
-               π='double',
-               )
-machine_ϵ = np.finfo(C2np['double']).eps
-π = np.pi
-
-
-
-##################
-# Physical units #
-##################
-# The names of the three base units
-cython.declare(base_length='str',
-               base_time='str',
-               base_mass='str',
-               )
-base_length = 'Mpc'
-base_time = 'Gyr'
-base_mass = '1e+10*m_sun'
-# Python class storing the values of all units as class attributes
-class Units_class():
-    # Values of base units
-    pc     = 1e-6
-    yr     = 1e-9
-    m_sun  = 1e-10
-    # Prefixes of the base units
-    kpc    = 1e+3*pc
-    Mpc    = 1e+6*pc
-    Gpc    = 1e+9*pc
-    kyr    = 1e+3*yr
-    Myr    = 1e+6*yr
-    Gyr    = 1e+9*yr
-    km_sun = 1e+3*m_sun
-    Mm_sun = 1e+6*m_sun
-    Gm_sun = 1e+9*m_sun
-    # Square and cubic parsecs
-    pc2     = pc**2
-    kpc2    = kpc**2
-    Mpc2    = Mpc**2
-    Gpc2    = Gpc**2
-    pc3     = pc**3
-    kpc3    = kpc**3
-    Mpc3    = Mpc**3
-    Gpc3    = Gpc**3
-    # Non-base units
-    AU      = π/(60*60*180)*pc
-    m       = AU/149597870700
-    cm      = 1e-2*m
-    km      = 1e+3*m
-    day     = yr/365.25  # Uses Julian years
-    hr      = day/24
-    minutes = hr/60
-    s       = minutes/60
-    kg      = m_sun/1.989e+30
-    g       = 1e-3*kg
-    # Make instance creation possible (though superfluous)
-    def __init__(self, **kwargs):
-        pass
-# In the case of pure Python, use Units_class directly
-if not cython.compiled:
-    Units = Units_class
-# In the case of Cython, use a struct to hold the units
-pxd = """
-ctypedef struct Units:
-    # Base units
-    double pc, yr, m_sun
-    # Prefixes of the base units
-    double kpc, Mpc, Gpc
-    double kyr, Myr, Gyr
-    double km_sun, Mm_sun, Gm_sun
-    # Square and cubic parsecs
-    double pc2, kpc2, Mpc2, Gpc2
-    double pc3, kpc3, Mpc3, Gpc3
-    # Non-base units
-    double AU, m, cm, km
-    double day, hr, minutes, s
-    double kg, g
-"""
-# Instantiate the Units_class instance (Python) / struct (Cython)
-cython.declare(units='Units')
-units = Units(# Base units
-              pc     = Units_class.pc,
-              yr     = Units_class.yr,
-              m_sun  = Units_class.m_sun,
-              # Prefixes of the base units
-              kpc    = Units_class.kpc,
-              Mpc    = Units_class.Mpc,
-              Gpc    = Units_class.Gpc,
-              kyr    = Units_class.kyr,
-              Myr    = Units_class.Myr,
-              Gyr    = Units_class.Gyr,
-              km_sun = Units_class.km_sun,
-              Mm_sun = Units_class.Mm_sun,
-              Gm_sun = Units_class.Gm_sun,
-              # Square and cubic parsecs
-              pc2     = Units_class.pc2,
-              kpc2    = Units_class.kpc2,
-              Mpc2    = Units_class.Mpc2,
-              Gpc2    = Units_class.Gpc2,
-              pc3     = Units_class.pc3,
-              kpc3    = Units_class.kpc3,
-              Mpc3    = Units_class.Mpc3,
-              Gpc3    = Units_class.Gpc3,
-              # Non-base units
-              AU      = Units_class.AU,
-              m       = Units_class.m,
-              cm      = Units_class.cm,
-              km      = Units_class.km,
-              day     = Units_class.day,
-              hr      = Units_class.hr,
-              minutes = Units_class.minutes,
-              s       = Units_class.s,
-              kg      = Units_class.kg,
-              g       = Units_class.g,
-              )
-# Grab the dict from the Units_class and store it separately
-cython.declare(units_dict='dict')
-units_dict = {key: val for key, val in Units_class.__dict__.items() if not key.startswith('_')}
-
-
-
-###########################################
-# Absolute paths to directories and files #
-###########################################
-# The paths are stored in the top_dir/.paths file
-cython.declare(paths='dict')
-top_dir = os.path.abspath('.')
-while True:
-    if '.paths' in os.listdir(top_dir):
-        break
-    elif master and top_dir == '/':
-        abort('Cannot find the .paths file!')
-    top_dir = os.path.dirname(top_dir)
-paths_module = imp.load_source('paths', top_dir + '/.paths')
-paths = {key: value for key, value in paths_module.__dict__.items()
-         if isinstance(key, str) and not key.startswith('__')}
-# Function for converting an absolute path to its "sensible" form.
-# That is, this function returns the relative path with respect to the
-# concept directory, if it is no more than one directory above the
-# concept directory. Otherwise, return the absolute path back again.
-@cython.header(# Arguments
-               path='str',
-               # Locals
-               relpath='str',
-               returns='str',
-               )
-def sensible_path(path):
-    if not path:
-        return path
-    relpath = os.path.relpath(path, paths['concept_dir'])
-    if relpath.startswith('../../'):
-        return path
-    return relpath
-
-
-
-##########################
-# Command line arguments #
-##########################
-# Handle command line arguments given to the Python interpreter
-# (not those explicitly given to the run script).
-# Construct a dict from command line arguments of the form
-# "params='/path/to/params'"
-cython.declare(argd='dict',
-               globals_dict='dict',
-               scp_password='str',
-               )
-argd = {}
-for arg in sys.argv:
-    with contextlib.suppress(Exception):
-        exec(arg, argd)
-globals_dict = {}
-exec('', globals_dict)
-for key in globals_dict.keys():
-    argd.pop(key, None)
-# Extract command line arguments from the dict. If not given,
-# give the arguments some default value.
-# The parameter file
-paths['params'] = argd.get('params', '')
-paths['params_dir'] = '' if not paths['params'] else os.path.dirname(paths['params'])
-# The scp password
-scp_password = argd.get('scp_password', '')
-
-
-
 #####################
 # Unicode functions #
 #####################
@@ -666,17 +478,281 @@ cython.declare(unicode_supercripts='dict')
 unicode_superscripts = dict(zip('0123456789-+e',
                                 [unicode(c) for c in ('⁰', '¹', '²', '³', '⁴',
                                                       '⁵', '⁶', '⁷', '⁸', '⁹',
-                                                      '⁻', '', '×', '10')]))
+                                                      '⁻', '', '×10')]))
+
+
+
+##################################
+# Paths to directories and files #
+##################################
+# The paths are stored in the top_dir/.paths file
+cython.declare(paths='dict')
+top_dir = os.path.abspath('.')
+while True:
+    if '.paths' in os.listdir(top_dir):
+        break
+    elif master and top_dir == '/':
+        abort('Cannot find the .paths file!')
+    top_dir = os.path.dirname(top_dir)
+paths_module = imp.load_source('paths', top_dir + '/.paths')
+paths = {key: value for key, value in paths_module.__dict__.items()
+         if isinstance(key, str) and not key.startswith('__')}
+# Function for converting an absolute path to its "sensible" form.
+# That is, this function returns the relative path with respect to the
+# concept directory, if it is no more than one directory above the
+# concept directory. Otherwise, return the absolute path back again.
+@cython.header(# Arguments
+               path='str',
+               # Locals
+               relpath='str',
+               returns='str',
+               )
+def sensible_path(path):
+    if not path:
+        return path
+    relpath = os.path.relpath(path, paths['concept_dir'])
+    if relpath.startswith('../../'):
+        return path
+    return relpath
+
+
+
+##########################
+# Command line arguments #
+##########################
+# Handle command line arguments given to the Python interpreter
+# (not those explicitly given to the concept script).
+# Construct a dict from command line arguments of the form
+# "params='/path/to/params'"
+cython.declare(argd='dict',
+               globals_dict='dict',
+               scp_password='str',
+               )
+argd = {}
+for arg in sys.argv:
+    with contextlib.suppress(Exception):
+        exec(arg, argd)
+globals_dict = {}
+exec('', globals_dict)
+for key in globals_dict.keys():
+    argd.pop(key, None)
+# Extract command line arguments from the dict.
+# If not given, give the arguments some default values.
+# The parameter file
+paths['params'] = argd.get('params', '')
+# The scp password
+scp_password = argd.get('scp_password', '')
+
+
+
+##################
+# Pure constants #
+##################
+cython.declare(machine_ϵ='double',
+               π='double',
+               )
+machine_ϵ = np.finfo(C2np['double']).eps
+π = np.pi
+
+
+
+##################
+# Physical units #
+##################
+# Dicts relating all implemented units to the basic
+# three units (pc, yr, m_sun). Julian years are used.
+unit_length_relations = {'pc' : 1,
+                         'kpc': 1e+3,
+                         'Mpc': 1e+6,
+                         'Gpc': 1e+9,
+                         'AU' :                π/(60*60*180),
+                         'm'  :                π/(60*60*180)/149597870700,
+                         'mm' : 1e-3          *π/(60*60*180)/149597870700,
+                         'cm' : 1e-2          *π/(60*60*180)/149597870700,
+                         'km' : 1e+3          *π/(60*60*180)/149597870700,
+                         'ly' :      299792458*π/(60*60*180)/149597870700/(1/365.25/24/60/60),
+                         'kly': 1e+3*299792458*π/(60*60*180)/149597870700/(1/365.25/24/60/60),
+                         'Mly': 1e+6*299792458*π/(60*60*180)/149597870700/(1/365.25/24/60/60),
+                         'Gly': 1e+9*299792458*π/(60*60*180)/149597870700/(1/365.25/24/60/60),
+                         }
+unit_time_relations = {'yr' :     1,
+                       'kyr':     1e+3,
+                       'Myr':     1e+6,
+                       'Gyr':     1e+9,
+                       'day':     1/365.25,
+                       'hr' :     1/365.25/24,
+                       'minutes': 1/365.25/24/60,
+                       's':       1/365.25/24/60/60,
+                       }
+unit_mass_relations = {'m_sun' : 1,
+                       'km_sun': 1e+3,
+                       'Mm_sun': 1e+6,
+                       'Gm_sun': 1e+9,
+                       'kg'    :      1/1.989e+30,
+                       'g'     : 1e-3*1/1.989e+30,
+                       }
+# Attempt to read in the parameter file. This is really only
+# to get any user defined units, as the parameter file will
+# be properly read in later. First construct a namespace in which the
+# parameters can be read in.
+params = vars(np)
+params.update({# The paths dict
+               'paths': paths,
+               # Modules
+               'numpy': np,
+               'np'   : np,
+               'os'   : os,
+               're'   : re,
+               'sys'  : sys,
+               # Constants
+               'machine_ϵ' : machine_ϵ,
+               'eps'       : machine_ϵ,
+               'pi'        : π,
+               unicode('π'): π,
+               })
+# Add units to the params namespace. These do not represent the choice
+# of units; the names should merely exist to avoid errors when reading
+# the parameter file.
+params.update(unit_length_relations)
+params.update(unit_time_relations)
+params.update(unit_mass_relations)
+# Now do the actual read of the parameters
+# in order to get the user defined units.
+if os.path.isfile(paths['params']):
+    with open(paths['params'], encoding='utf-8') as params_file:
+        with contextlib.suppress(Exception):
+            exec(params_file.read(), params)
+# The names of the three fundamental units,
+# all with a numerical value of 1. If these are not defined in the
+# parameter file, give them to some reasonable values.
+cython.declare(unit_length='str',
+               unit_time='str',
+               unit_mass='str',
+               )
+unit_length = params.get('unit_length', 'Mpc')
+unit_time   = params.get('unit_time',   'Gyr')
+unit_mass   = params.get('unit_mass',   '1e+10*m_sun')
+# Python class storing the values of all units as class attributes
+class Units_class():
+    # Values of basic units,
+    # determined from the choice of fundamental units.
+    pc     = 1/eval(unit_length, unit_length_relations)
+    yr     = 1/eval(unit_time, unit_time_relations)
+    m_sun  = 1/eval(unit_mass, unit_mass_relations)
+    # Prefixes of the basic units
+    kpc    = unit_length_relations['kpc']*pc
+    Mpc    = unit_length_relations['Mpc']*pc
+    Gpc    = unit_length_relations['Gpc']*pc
+    kyr    = unit_time_relations['kyr']*yr
+    Myr    = unit_time_relations['Myr']*yr
+    Gyr    = unit_time_relations['Gyr']*yr
+    km_sun = unit_mass_relations['km_sun']*m_sun
+    Mm_sun = unit_mass_relations['Mm_sun']*m_sun
+    Gm_sun = unit_mass_relations['Gm_sun']*m_sun
+    # Non-basic units
+    ly      = unit_length_relations['ly']*pc
+    kly     = unit_length_relations['kly']*pc
+    Mly     = unit_length_relations['Mly']*pc
+    Gly     = unit_length_relations['Gly']*pc
+    AU      = unit_length_relations['AU']*pc
+    m       = unit_length_relations['m']*pc
+    mm      = unit_length_relations['mm']*pc
+    cm      = unit_length_relations['cm']*pc
+    km      = unit_length_relations['km']*pc
+    day     = unit_time_relations['day']*yr
+    hr      = unit_time_relations['hr']*yr
+    minutes = unit_time_relations['minutes']*yr
+    s       = unit_time_relations['s']*yr
+    kg      = unit_mass_relations['kg']*m_sun
+    g       = unit_mass_relations['g']*m_sun
+    # Make instance creation possible (though superfluous)
+    def __init__(self, **kwargs):
+        pass
+# In the case of pure Python, use Units_class directly
+if not cython.compiled:
+    Units = Units_class
+# In the case of Cython, use a struct to hold the units
+pxd = """
+ctypedef struct Units:
+    # Basic units
+    double pc, yr, m_sun
+    # Prefixes of the basic units
+    double kpc, Mpc, Gpc
+    double kyr, Myr, Gyr
+    double km_sun, Mm_sun, Gm_sun
+    # Non-basic units
+    double AU, m, mm, cm, km, ly, kly, Mly, Gly
+    double day, hr, minutes, s
+    double kg, g
+"""
+# Instantiate the Units_class instance (Python) / struct (Cython)
+cython.declare(units='Units')
+units = Units(# Basic units
+              pc     = Units_class.pc,
+              yr     = Units_class.yr,
+              m_sun  = Units_class.m_sun,
+              # Prefixes of the basic units
+              kpc    = Units_class.kpc,
+              Mpc    = Units_class.Mpc,
+              Gpc    = Units_class.Gpc,
+              kyr    = Units_class.kyr,
+              Myr    = Units_class.Myr,
+              Gyr    = Units_class.Gyr,
+              km_sun = Units_class.km_sun,
+              Mm_sun = Units_class.Mm_sun,
+              Gm_sun = Units_class.Gm_sun,
+              # Non-basic units
+              AU      = Units_class.AU,
+              m       = Units_class.m,
+              mm      = Units_class.mm,
+              cm      = Units_class.cm,
+              km      = Units_class.km,
+              ly      = Units_class.ly,
+              kly     = Units_class.kly,
+              Mly     = Units_class.Mly,
+              Gly     = Units_class.Gly,
+              day     = Units_class.day,
+              hr      = Units_class.hr,
+              minutes = Units_class.minutes,
+              s       = Units_class.s,
+              kg      = Units_class.kg,
+              g       = Units_class.g,
+              )
+# Grab the dict from the Units_class and store it separately
+cython.declare(units_dict='dict')
+units_dict = {key: val for key, val in Units_class.__dict__.items() if not key.startswith('_')}
 
 
 
 ################################################################
 # Import all user specified parameters from the parameter file #
 ################################################################
-# Dict constituting the namespace for the statements
+# Subclass the dict to create a dict-likeobject which keeps track of the
+# number of lookups on each key. This is used to identify unknown
+# (and therefore unused) parameters defined by the user.
+class DictWithCounter(dict):
+    def __init__(self, d):
+        self.counter = collections.defaultdict(int)
+        super().__init__(d)
+    def __getitem__(self, key):
+        self.counter[key] += 1
+        return super().__getitem__(key)
+    def get(self, key, default=None):
+        if key in self:
+            self.counter[key] += 1
+        return super().get(key, default)
+    def useall(self):
+        for key in self.keys():
+            self.counter[key] += 1
+    # List of specified but unused parameters, not including parameters
+    # starting with an '_'.
+    @property
+    def unused(self):
+        return [key for key in self.keys() if self.counter[key] == 0 and not key.startswith('_')]
+# Dict-like object constituting the namespace for the statements
 # in the user specified parameter file.
-# Everything from NumPy should be available when defining parameters
-params = vars(np)
+# Everything from NumPy should be available when defining parameters.
+params = DictWithCounter(vars(np))
 # Units from the units extension type should be available
 # when defining parameters.
 params.update(units_dict)
@@ -689,17 +765,23 @@ params.update({# The paths dict
                'os'   : os,
                're'   : re,
                'sys'  : sys,
-               # Unicode variables
-               unicode('π'): π,
                # Constants
-               'pi'       : π,
-               'machine_ϵ': machine_ϵ,
+               'machine_ϵ' : machine_ϵ,
+               'eps'       : machine_ϵ,
+               'pi'        : π,
+               unicode('π'): π,
                })
+# At this point params does not contain actual parameters.
+# Mark all items in params as used.
+params.useall()
 # "Import" the parameter file by executing it
 # in the namespace defined by the params dict.
 if os.path.isfile(paths['params']):
     with open(paths['params'], encoding='utf-8') as params_file:
         exec(params_file.read(), params)
+# Also mark the unit-parameters as used
+for u in ('length', 'time', 'mass'):
+    params.counter['unit_{}'.format(u)] += 1
 # The parameters are now being processed as follows:
 # - Some parameters are explicitly casted.
 # - Spaces are removed from the 'snapshot_type' parameter, and all
@@ -812,12 +894,12 @@ ewald_gridsize = int(params.get('ewald_gridsize', 64))
 P3M_scale = float(params.get('P3M_scale', 1.25))
 P3M_cutoff = float(params.get('P3M_cutoff', 4.8))
 softeningfactors = dict(params.get('softeningfactors', {}))
-for kind in ('dark matter', ):
+for kind in ('dark matter particles', ):
     softeningfactors[kind] = float(softeningfactors.get(kind, 0.03))
 Δt_factor = float(params.get(unicode('Δt_factor'), 0.01))
 R_tophat = float(params.get('R_tophat', 8*units.Mpc))
 # Cosmological parameters
-H0 = float(params.get('H0', 70*units.km/(units.s*units.Mpc)))
+H0 = float(params.get('H0', 80*units.km/(units.s*units.Mpc)))
 Ωm = float(params.get(unicode('Ωm'), 0.3))
 ΩΛ = float(params.get(unicode('ΩΛ'), 0.7))
 a_begin = float(params.get('a_begin', 0.02))
@@ -841,7 +923,7 @@ terminal_colormap = str(params.get('terminal_colormap', 'gnuplot2'))
 terminal_resolution = int(params.get('terminal_resolution', 80))
 # Simulation options
 kick_algorithms = dict(params.get('kick_algorithms', {}))
-for kind in ('dark matter', ):
+for kind in ('dark matter particles', ):
     kick_algorithms[kind] = str(kick_algorithms.get(kind, 'PP'))
 use_Ewald = bool(params.get('use_Ewald', False))
 if set(('PM', 'P3M')) & set(kick_algorithms.values()) or output_times['powerspec']:
@@ -862,6 +944,15 @@ special_params = dict(params.get('special_params', {}))
 output_times = {key: tuple([(a_begin if np.abs(nr - a_begin) < 10*machine_ϵ else nr)
                             for nr in val])
                 for key, val in output_times.items()}
+
+# Done reading in parameters.
+# Warn the user about specified but unknown parameters.
+if params.unused:
+    if len(params.unused) == 1:
+        msg = 'The following unknown parameter was specified:\n'
+    else:
+        msg = 'The following unknown parameters were specified:\n'
+    masterwarn(msg + '\n'.join(params.unused))
 
 
 
@@ -1128,18 +1219,18 @@ def isint(x, abs_tol=1e-6):
 # significant figures. Set fmt to 'TeX' to format to TeX math code
 # (e.g. '1.234\times 10^{-5}') or 'Unicode' to format to superscript
 # Unicode (e.g. 1.234×10⁻⁵).
-@cython.header(# Arguments
-               number='double',
-               nfigs='int',
-               fmt='str',
-               # Locals
-               coefficient='str',
-               exponent='str',
-               n_missing_zeros='int',
-               number_str='str',
-               returns='str',
-               )
-def significant_figures(number, nfigs, fmt=''):
+@cython.pheader(# Arguments
+                number='double',
+                nfigs='int',
+                fmt='str',
+                # Locals
+                coefficient='str',
+                exponent='str',
+                n_missing_zeros='int',
+                number_str='str',
+                returns='str',
+                )
+def significant_figures(number, nfigs, fmt='', incl_zeros=True):
     fmt = fmt.lower()
     # Format the number using nfigs
     number_str = ('{:.' + str(nfigs) + 'g}').format(number)
@@ -1163,17 +1254,22 @@ def significant_figures(number, nfigs, fmt=''):
         coefficient = number_str
         exponent = ''
     # Pad with zeros in case of too few significant digits
-    digits = coefficient.replace('.', '').replace('-', '')
-    for i, d in enumerate(digits):
-        if d != '0':
-            digits = digits[i:]
-            break
-    n_missing_zeros = nfigs - len(digits)
-    if n_missing_zeros > 0:
-        if not '.' in coefficient:
-            coefficient += '.'
-        coefficient += '0'*n_missing_zeros
+    if incl_zeros:
+        digits = coefficient.replace('.', '').replace('-', '')
+        for i, d in enumerate(digits):
+            if d != '0':
+                digits = digits[i:]
+                break
+        n_missing_zeros = nfigs - len(digits)
+        if n_missing_zeros > 0:
+            if not '.' in coefficient:
+                coefficient += '.'
+            coefficient += '0'*n_missing_zeros
+    # Combine
     number_str = coefficient + exponent
+    #
+    if not incl_zeros and exponent and len(number_str) > 2 and number_str[1] != '.':
+        number_str = number_str[2:]
     # The mathtext matplotlib module has a typographical bug;
     # it inserts a space after a decimal point.
     # Prevent this by not letting the decimal point being part

@@ -2667,16 +2667,17 @@ fi
 # The CO𝘕CEPT code
 logs_dir="${concept_dir}/logs"
 output_dir="${concept_dir}/output"
+params_dir="${concept_dir}/params"
 if [ "${concept_install}" == "yes" ]; then
     init_install "CONCEPT"
     # Move everything (but the .paths file) from the concept-master 
     # directory to "top_dir".
     mv ./* "${top_dir}"
     cd "${top_dir}"; rm -rf "${top_dir}/tmp/concept"
-    # Create empty logs and output directories
+    # Create directories
     mkdir -p "${logs_dir}"
     mkdir -p "${output_dir}"
-
+    mkdir -p "${params_dir}"
     # Create the .paths file, 
     # storing important paths used by the program.
     current_step="creation of the .paths file"
@@ -2715,12 +2716,14 @@ hdf5_dir='${hdf5_dir}'
 imagemagick_dir='${imagemagick_dir}'
 # Directory of libpng
 libpng_dir='${libpng_dir}'
-# Directory containing CO𝘕CEPT logs
+# Directory containing CO𝘕CEPT log files
 logs_dir='${logs_dir}'
 # Directory of MPI
 mpi_dir='${mpi_dir}'
 # Directory containing CO𝘕CEPT output
 output_dir='${output_dir}'
+# Directory containing CO𝘕CEPT parameter files
+params_dir='${params_dir}'
 # Directory of Python
 python_dir='${python_dir}'
 # Directory containing tests for the CO𝘕CEPT code
