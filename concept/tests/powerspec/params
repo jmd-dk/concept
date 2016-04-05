@@ -20,10 +20,13 @@
 
 
 
+# Directory of this parameter file (non-parameter variable)
+_this_dir = os.path.dirname(paths['params'])
+
 # Input/output
-IC_file       = paths['params_dir'] + '/snapshot.hdf5'
+IC_file       = _this_dir + '/snapshot.hdf5'
 snapshot_type = 'standard'
-output_dirs   = {'powerspec': paths['params_dir'] + '/output'}
+output_dirs   = {'powerspec': _this_dir + '/output'}
 output_bases  = {'powerspec': 'powerspec'}
 powerspec_select = {'all': True}
 powerspec_plot_select = {'all': True}

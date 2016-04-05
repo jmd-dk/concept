@@ -20,19 +20,22 @@
 
 
 
+# Directory of this parameter file (non-parameter variable)
+_this_dir = os.path.dirname(paths['params'])
+
 # Input/output
-IC_file       = paths['params_dir'] + '/IC.hdf5'
+IC_file       = _this_dir + '/IC.hdf5'
 snapshot_type = 'standard'
-output_dirs   = {'snapshot': paths['params_dir'] + '/output'}
+output_dirs   = {'snapshot': _this_dir + '/output'}
 output_bases  = {'snapshot': 'snapshot'}
-output_times  = {'snapshot': loadtxt(paths['params_dir'] + '/outputlist')}
+output_times  = {'snapshot': loadtxt(_this_dir + '/outputlist')}
 
 # Numerical parameters
 boxsize          = 4*Mpc
 φ_gridsize       = 32
 P3M_scale        = 1.25
 P3M_cutoff       = 4.8
-softeningfactors = {'dark matter': 0.03}	
+softeningfactors = {'dark matter particles': 0.03}	
 Δt_factor        = 0.1
 
 # Cosmological parameters
@@ -42,5 +45,5 @@ H0      = 70*km/s/Mpc
 a_begin = 0.02
 
 # Simulation options
-kick_algorithms = {'dark matter': 'P3M'}
+kick_algorithms = {'dark matter particles': 'P3M'}
 

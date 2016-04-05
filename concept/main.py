@@ -28,6 +28,7 @@ from commons import *
 from snapshot import load
 cimport('from analysis import powerspec')
 cimport('from graphics import render, terminal_render')
+cimport('from gravity import PM, build_φ')
 cimport('from integration import expand, cosmic_time, scalefactor_integral')
 cimport('from utilities import delegate')
 cimport('from snapshot import save')
@@ -69,7 +70,6 @@ def do_kick_drift_integrals(index):
                output_filenames='dict',
                op='str',
                # Locals
-               component='Component',
                returns='bint',
                )
 def dump(components, output_filenames, op=None):
@@ -79,12 +79,9 @@ def dump(components, output_filenames, op=None):
         return False
     # Synchronize positions and momenta before dumping
     if op == 'drift':
-        for component in components:
-            component.drift(drift_fac[0])
+        drift(components, drift_fac[0])
     elif op == 'kick':
-        for component in components:
-            # Do not do this sequentially !!!!!!!!!
-            component.kick(kick_fac[1])
+        kick(components, kick_fac[1])
     # Dump terminal render
     if a in terminal_render_times:
         terminal_render(components)
@@ -107,11 +104,61 @@ def dump(components, output_filenames, op=None):
     kick_fac[1] = 0
     return True
 
+# Function which kick all of the components
+@cython.header(# Arguments
+               components='list',
+               fac='double',
+               # Locals
+               component='Component',
+               component_group='list',
+               component_groups='dict',
+               )
+def kick(components, fac):
+    # Group the components based on assigned kick algorithms
+    component_groups = {}
+    for component in components:
+        if master and component.species not in kick_algorithms:
+            abort('Species "{}" do not have an assigned kick algorithm!'.format(component.species))
+        kick_algorithm = kick_algorithms[component.species]
+        component_groups.setdefault(kick_algorithm, []).append(component)
+    # First kick the components which used the PM method
+    if 'PM' in component_groups:
+        # Construct the potential φ due to all components
+        build_φ(components)
+        # Simultaneously kick all components
+        # that are using the PM method.
+        masterprint('Kicking (PM) {} ...'
+                    .format(', '.join([component.name
+                                       for component in component_groups['PM']])))
+        PM(component_groups['PM'], fac)
+        masterprint('done')
+    # Now kick all other components sequentially
+    for kick_algorithm, component_group in component_groups.items():
+        if kick_algorithm in ('PM', ):
+            continue
+        for component in component_group:
+            component.kick(fac)
+
+# Function which drift all of the components
+@cython.header(# Arguments
+               components='list',
+               fac='double',
+               # Locals
+               component='Component',
+               )
+def drift(components, fac):
+    # Simply drift the components sequentially
+    for component in components:
+        component.drift(fac)
+
+
 # Function containing the main time loop of CO𝘕CEPT
 @cython.header(# Locals
-               output_filenames='dict',
                component='Component',
                components='list',
+               dim='int',
+               kick_algorithm='str',
+               output_filenames='dict',
                timestep='Py_ssize_t',
                Δt_update_freq='Py_ssize_t',
                )
@@ -124,39 +171,6 @@ def timeloop():
     output_filenames = prepare_output_times()
     # Load initial conditions
     components = load(IC_file, only_components=True)
-
-
-    # # delta
-    # cython.declare(fluid_gridsize='Py_ssize_t',
-    #                delta='double[:, :, ::1]',
-    #                fac='double',
-    #                i='Py_ssize_t',
-    #                j='Py_ssize_t',
-    #                k='Py_ssize_t',
-    #                )
-    # fluid_gridsize = 128
-    # component = components[0]
-
-    # delta = np.zeros([fluid_gridsize]*3)
-    # CIC_component2grid(component, delta)
-    # fac = fluid_gridsize**3/component.N
-    # for i in range(fluid_gridsize):
-    #     for j in range(fluid_gridsize):
-    #         for k in range(fluid_gridsize):
-    #             delta[i, j, k] = delta[i, j, k]*fac - 1
-    # # Save delta
-    # with h5py.File('ICs/fluid.hdf5', mode='w', driver='mpio', comm=comm) as hdf5_file:
-    #     dset = hdf5_file.create_dataset('data', 3*[fluid_gridsize], dtype=C2np['double'])
-    #     dset[...] = delta
-    # # LOAD
-    # #with h5py.File('ICs/fluid.hdf5',
-    # #               mode='r',
-    # #               driver='mpio',
-    # #               comm=comm) as hdf5_file:
-    # #    grid = hdf5_file['data'][...].reshape([ewald_gridsize]*3)
-    # abort('successully saved fluid')
-
-
     # The number of time steps before Δt is updated
     Δt_update_freq = 10
     # Initial cosmic time t, where a(t) = a_begin
@@ -187,17 +201,16 @@ def timeloop():
                     + '{:<14} {} Gyr'.format('\nCosmic time:',
                                              significant_figures(t/units.Gyr, 4, fmt='Unicode'))
                     )
-        # Kick (first time is only half a kick, as kick_fac[1] == 0)
+        # Kick
+        # (the first time is only half a kick, as kick_fac[1] == 0).
         do_kick_drift_integrals(0)
-        for component in components:  # SHOULD NOT BE DONE SEQUENTIALLY !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            component.kick(kick_fac[0] + kick_fac[1])
+        kick(components, kick_fac[0] + kick_fac[1])
         if dump(components, output_filenames, 'drift'):
             continue
         # Update Δt every Δt_update_freq time step
         if not (timestep % Δt_update_freq):
             # Let the positions catch up to the momenta
-            for component in components:
-                component.drift(drift_fac[0])
+            drift(components, drift_fac[0])
             Δt = Δt_factor*t
             # Reset the second kick factor,
             # making the next operation a half kick.
@@ -205,8 +218,7 @@ def timeloop():
             continue
         # Drift
         do_kick_drift_integrals(1)
-        for component in components:
-            component.drift(drift_fac[0] + drift_fac[1])
+        drift(components, drift_fac[0] + drift_fac[1])
         if dump(components, output_filenames, 'kick'):
             continue
 

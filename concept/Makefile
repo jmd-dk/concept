@@ -298,6 +298,9 @@ clean_logs:
 # Remove output files
 clean_output:
 	$(RM) -r $(output_dir)/* $(output_dir)/.[^.]*
+# Remove parameter files in the params dir ending with .params
+clean_params:
+	$(RM) -r $(params_dir)/*.params* $(params_dir)/.[^.]*.params*
 # Remove files produced by running tests
 clean_tests:
 	$(foreach clean_file,$(wildcard $(tests_dir)/*/clean),$(clean_file);)
@@ -307,5 +310,5 @@ clean_utilities:
 	$(RM) -r $(top_dir)/concept_backup $(top_dir)/tmp
 # Remove all unnecessary files,
 # leaving CO𝘕CEPT in a distribution ready state.
-distclean: clean clean_auxiliary clean_logs clean_output clean_tests clean_utilities
+distclean: clean clean_auxiliary clean_logs clean_output clean_params clean_tests clean_utilities
 

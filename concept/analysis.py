@@ -47,7 +47,9 @@ cimport('from mesh import slab, CIC_component2slabs, slabs_FFT, slab_size_j, sla
                k='Py_ssize_t',
                k2='Py_ssize_t',
                ki='Py_ssize_t',
+               ki2_plus_kj2='Py_ssize_t',
                kj='Py_ssize_t',
+               kj2='Py_ssize_t',
                kk='Py_ssize_t',
                component='Component',
                power='double[::1]',
@@ -117,6 +119,7 @@ def powerspec(components, a, filename):
                 kj = j_global - φ_gridsize
             else:
                 kj = j_global
+            kj2 = kj**2
             # Square root of the j-component of the deconvolution
             sqrt_deconv_j = sinc(kj*ℝ[π/φ_gridsize])
             # Loop over the entire first dimension
@@ -126,6 +129,7 @@ def powerspec(components, a, filename):
                     ki = i - φ_gridsize
                 else:
                     ki = i
+                ki2_plus_kj2 = ki**2 + kj2
                 # Square root of the product of the i-
                 # and the j-component of the deconvolution.
                 sqrt_deconv_ij = sinc(ki*ℝ[π/φ_gridsize])*sqrt_deconv_j
@@ -136,7 +140,7 @@ def powerspec(components, a, filename):
                     # The k-component of the wave vector
                     kk = k//2
                     # The squared magnitude of the wave vector
-                    k2 = ki**2 + kj**2 + kk**2
+                    k2 = ki2_plus_kj2 + kk**2
                     # Square root of the product of
                     # all components of the deconvolution.
                     sqrt_deconv_ijk = sqrt_deconv_ij*sinc(kk*ℝ[π/φ_gridsize])

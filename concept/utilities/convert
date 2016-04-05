@@ -112,36 +112,28 @@ fi
 
 # If no parameterfile is supplied,
 # use the one that goes along with this utility.
-params_given="True"
 if [ "${params}" == "None" ]; then
     params="${this_file}.params"
-    params_given="False"
 fi
 
 # Convert to absolute path
 path="$(absolute_path "${path}" "${workdir}")"
 
-# Find snapshots in the path
-info="$("${concept}" --pure-python --util info "${path}")"
-snapshot_filenames_fmt="$(echo "${info}" | grep -x Information.* | awk '{print $3}')"
-# Remove escape sequence from snapshot filenames
-snapshot_filenames=""
-snapshot_filenames_tuple=""
-for snapshot_filename in ${snapshot_filenames_fmt}; do
-    snapshot_filename="$(${python} -B -c "import re;                                             \
-                                          print('\"{}\"'.format(re.search('\"(.*?)\"',           \
-                                                                          '${snapshot_filename}' \
-                                                                          ).group(1)))")"
-    if [ -z "${snapshot_filenames}" ]; then
-        snapshot_filenames="${snapshot_filename}"
-        snapshot_filenames_tuple="${snapshot_filename}, "
-    else
-        snapshot_filenames="${snapshot_filenames}
-${snapshot_filename}"
-    snapshot_filenames_tuple="${snapshot_filenames_tuple} ${snapshot_filename}, "
+# Get filenames of snapshots and create matching (temporary) parameter files
+if [ -z "${pure_python_flag}" ]; then
+    # Make now, as the output of the next concept call will be captured
+    if ls "${concept_dir}/"*.so_ > /dev/null 2>&1; then
+        (cd "${concept_dir}" && for f in *.so_; do
+                                    mv "${f}" "${f%.so_}.so"
+                                done
+         )
     fi
-done
-snapshot_filenames_tuple="(${snapshot_filenames_tuple})"
+    (cd "${concept_dir}" && make)
+fi
+info="$("${concept}" --local ${pure_python_flag} --util info --generate-paramsfile "${path}")"
+snapshot_filenames="$(echo "${info}" | grep -x Parameters.* | grep -o '".*"')"
+snapshot_params_filenames="$(echo "${info}" | grep -x '".*"')"
+snapshot_params_filenames="${snapshot_params_filenames//\"/}"
 
 # Print out which snapshots will be converted
 N_snapshots="$(echo "${snapshot_filenames}" | wc -l)"
@@ -152,25 +144,33 @@ else
 fi
 echo "${snapshot_filenames}"
 
-# Make temporary parameter file with every information needed
-printf "special_params = {
-    'special':            '$(basename ${this_file})',
-    'params_given':       ${params_given},
-    'attributes':         ${attributes},
-    'snapshot_filenames': ${snapshot_filenames_tuple},
+# For each snapshot, run the CO𝘕CEPT code and do the conversion
+for ((i = 1; i <= N_snapshots; i += 1)); do
+    # Get the i'th snapshot and generated parameter file
+    snapshot_filename="$(echo "${snapshot_filenames}" | sed "${i}q;d")"
+    snapshot_params_filename="$(echo "${snapshot_params_filenames}" | sed "${i}q;d")"
+    # Make temporary parameter file with everything needed
+    printf "special_params = {
+    'special':           '$(basename ${this_file})',
+    'attributes':        ${attributes},
+    'snapshot_filename': ${snapshot_filename},
                   }
+$(cat "${snapshot_params_filename}")
 $(cat "${params}")
 " > "${this_file}.params.full"
-# Run CO𝘕CEPT to perform the convertion
-"${concept}" -m "${main}"                  \
-             -n  ${nprocs}                 \
-             -p "${this_file}.params.full" \
-             -q "${queue}"                 \
-             -w "${walltime}"              \
-             ${local_flag} ${pure_python_flag}
+    # Cleanup
+    rm -f "${snapshot_params_filename}"
+    # Run CO𝘕CEPT to do the conversion
+    "${concept}" -m "${main}"                  \
+                 -n  ${nprocs}                 \
+                 -p "${this_file}.params.full" \
+                 -q "${queue}"                 \
+                 -w "${walltime}"              \
+                 ${local_flag} ${pure_python_flag}
+done
 
 # Cleanup
-rm "${this_file}.params.full"
+rm -f "${this_file}.params.full"
 
 # Exit gracefully
 colorprint "$(basename ${this_file}) utility ran successfully" "green"

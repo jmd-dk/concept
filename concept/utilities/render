@@ -111,24 +111,21 @@ fi
 # Convert to absolute path
 path="$(absolute_path "${path}" "${workdir}")"
 
-# Get information about all snapshots in the path
-info="$("${concept}" --pure-python --util info "${path}")"
-snapshot_filenames_fmt="$(echo "${info}" | grep -x Information.* | awk '{print $3}')"
-boxsizes="$(              echo "${info}" | grep -x boxsize.*     | awk '{print $2}')"
-# Remove escape sequence from snapshot filenames
-snapshot_filenames=""
-for snapshot_filename in ${snapshot_filenames_fmt}; do
-    snapshot_filename="$(${python} -B -c "import re;                                             \
-                                          print('\"{}\"'.format(re.search('\"(.*?)\"',           \
-                                                                          '${snapshot_filename}' \
-                                                                          ).group(1)))")"
-    if [ -z "${snapshot_filenames}" ]; then
-        snapshot_filenames="${snapshot_filename}"
-    else
-        snapshot_filenames="${snapshot_filenames}
-${snapshot_filename}"
+# Get filenames of snapshots and create matching (temporary) parameter files
+if [ -z "${pure_python_flag}" ]; then
+    # Make now, as the output of the next concept call will be captured
+    if ls "${concept_dir}/"*.so_ > /dev/null 2>&1; then
+        (cd "${concept_dir}" && for f in *.so_; do
+                                    mv "${f}" "${f%.so_}.so"
+                                done
+         )
     fi
-done
+    (cd "${concept_dir}" && make)
+fi
+info="$("${concept}" --local ${pure_python_flag} --util info --generate-paramsfile "${path}")"
+snapshot_filenames="$(echo "${info}" | grep -x Parameters.* | grep -o '".*"')"
+snapshot_params_filenames="$(echo "${info}" | grep -x '".*"')"
+snapshot_params_filenames="${snapshot_params_filenames//\"/}"
 
 # Print out the snapshots which will be rendered
 N_snapshots="$(echo "${snapshot_filenames}" | wc -l)"
@@ -140,19 +137,20 @@ fi
 echo "${snapshot_filenames}"
 
 # For each snapshot, run the CO𝘕CEPT code to create the render
-i=0
-for snapshot_filename in ${snapshot_filenames}; do
-    # Get the i'th boxsize
-    ((i += 1))
-    boxsize=$(echo ${boxsizes} | awk "{print \$${i}}")
+for ((i = 1; i <= N_snapshots; i += 1)); do
+    # Get the i'th snapshot and generated parameter file
+    snapshot_filename="$(echo "${snapshot_filenames}" | sed "${i}q;d")"
+    snapshot_params_filename="$(echo "${snapshot_params_filenames}" | sed "${i}q;d")"
     # Make temporary parameter file with every information needed
-    printf "boxsize = ${boxsize}
-special_params = {
+    printf "special_params = {
     'special':           '$(basename ${this_file})',
     'snapshot_filename': ${snapshot_filename},
                   }
+$(cat "${snapshot_params_filename}")
 $(cat "${params}")
 " > "${this_file}.params.full"
+    # Cleanup
+    rm -f "${snapshot_params_filename}"
     # Run CO𝘕CEPT to produce the render
     "${concept}" -m "${main}"                  \
                  -n  ${nprocs}                 \
@@ -163,7 +161,7 @@ $(cat "${params}")
 done
 
 # Cleanup
-rm "${this_file}.params.full"
+rm -f "${this_file}.params.full"
 
 # Exit gracefully
 colorprint "$(basename ${this_file}) utility ran successfully" "green"
