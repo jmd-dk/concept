@@ -128,9 +128,11 @@ def convert():
             component.representation = 'particles'
             exchange(component)
             component.representation = 'fluid'
-            # The mass attribute is now the mass of each fluid element. 
-            # Since the total mass of the component should be the same
-            # as before, the mass and the gridsize are related.
+            # The mass attribute is now the average mass of a fluid
+            # element. Since the total mass of the component should be
+            # the same as before, the mass and the gridsize are related,
+            # as mass = totmass/gridsize**3
+            #         = N*original_mass/gridsize**3.
             # If either mass or gridsize is given by the user,
             # use this to determine the other.
             if 'gridsize' in attributes[name] and 'mass' not in attributes[name]:
@@ -144,11 +146,15 @@ def convert():
                         masterwarn('The specified mass for the "{}" component\n'
                                    'leads to a relative increase of {:.9g}\n'
                                    'for the total mass of this component.'
+                                   'Note that for fluids, the specified mass should be\n'
+                                   'the average mass of a fluid element.'
                                    .format(component.name, tot_mass/original_tot_mass - 1))
                     else:
                         masterwarn('The specified mass for the "{}" component\n'
                                    'leads to a relative decrease of {:.9g}\n'
-                                   'for the total mass of this component.'
+                                   'for the total mass of this component.\n'
+                                   'Note that for fluids, the specified mass should be\n'
+                                   'the average mass of a fluid element.'
                                    .format(component.name, 1 - tot_mass/original_tot_mass))
             elif 'gridsize' not in attributes[name] and 'mass' not in attributes[name]:
                 # If neither the gridsize nor the mass is specified,

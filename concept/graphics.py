@@ -95,7 +95,7 @@ def plot_powerspec(data_list, a, filename, power_dict):
             continue
         # The i'th power spectrum should be plotted
         power_indices.append(1 + 2*i)
-        names.append(name.replace(' ', '-'))
+        names.append(name)
     # Plot the power spectrum for each component separately
     for power_index, name in zip(power_indices, names):
         # The filename should reflect the individual component names,
@@ -103,9 +103,11 @@ def plot_powerspec(data_list, a, filename, power_dict):
         filename_component = filename
         if len(names) > 1:
             if '_a=' in filename:
-                filename_component = filename.replace('_a=', '_{}_a='.format(name))
+                filename_component = filename.replace('_a=',
+                                                      '_{}_a='.format(name.replace(' ', '-')))
             else:
-                filename_component = filename.replace('.png', '_{}.png'.format(name))
+                filename_component = filename.replace('.png',
+                                                      '_{}.png'.format(name.replace(' ', '-')))
         # The filename should reflect the individual component names
         masterprint('Plotting power spectrum of {} and saving to "{}" ...'
                     .format(name, filename_component))

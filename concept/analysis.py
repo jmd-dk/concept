@@ -26,7 +26,7 @@ from commons import *
 
 # Cython imports
 cimport('from graphics import plot_powerspec')
-cimport('from mesh import slab, CIC_component2slabs, slabs_FFT, slab_size_j, slab_start_j')
+cimport('from mesh import slab, CIC_components2slabs, slabs_FFT, slab_size_j, slab_start_j')
 
 
 
@@ -56,6 +56,7 @@ cimport('from mesh import slab, CIC_component2slabs, slabs_FFT, slab_size_j, sla
                power_fac='double',
                power_fac2='double',
                power_σ2='double[::1]',
+               power_σ2_k2='double',
                recp_deconv_ijk='double',
                row_quantity='list',
                row_type='list',
@@ -64,6 +65,7 @@ cimport('from mesh import slab, CIC_component2slabs, slabs_FFT, slab_size_j, sla
                sqrt_deconv_ij='double',
                sqrt_deconv_ijk='double',
                sqrt_deconv_j='double',
+               totmass='double',
                σ_tophat='dict',
                σ_tophat_σ='dict',
                )
@@ -103,7 +105,7 @@ def powerspec(components, a, filename):
         power_σ2 = power_σ2_dict[component.name]
         # CIC interpolate component to the slabs
         # and do Fourier transformation.
-        CIC_component2slabs(component)
+        CIC_components2slabs([component])
         slabs_FFT()
         # Reset power, power multiplicity and power variance
         for k2 in range(k2_max):
@@ -191,8 +193,9 @@ def powerspec(components, a, filename):
             k_magnitudes_masked = asarray(k_magnitudes)[mask]
         # Transform power from being the sum to being the mean,
         # by dividing by power_N. Also normalize to unity by dividing
-        # by N**2 (each of the N particles contribute with a total value
-        # of 1 to the φ grid, which is then squared to get the power).
+        # by totmass**2 (each particle/fluid element contribute to the
+        # φ grid with a total value equal to their mass. The φ grid is
+        # then squared to get the power).
         # Finally, transform to physical units by multiplying by the box
         # volume. At the same time, transform power_σ2 from being the
         # sum of squares to being the actual variance,
@@ -200,12 +203,22 @@ def powerspec(components, a, filename):
         # Remember that as of now, power_σ2 holds the sums of
         # unnormalized squared powers.
         # Finally, divide by power_N to correct for the sample size.
-        power_fac = ℝ[boxsize**3]/cast(component.N, 'double')**2
+        if component.representation == 'particles':
+            totmass = component.N*component.mass
+        elif component.representation == 'fluid':
+            totmass = component.gridsize**3*component.mass
+        power_fac = ℝ[boxsize**3]/totmass**2
         power_fac2 = power_fac**2
         for k2 in range(k2_max):
             if power_N[k2] != 0:
                 power[k2] *= power_fac/power_N[k2]
-                power_σ2[k2] = (power_σ2[k2]*power_fac2/power_N[k2] - power[k2]**2)/power_N[k2]
+                power_σ2_k2 = (power_σ2[k2]*power_fac2/power_N[k2] - power[k2]**2)/power_N[k2]
+                # Round-off errors can lead to slightly negative
+                # power_σ2_k2, which is not acceptable.
+                if power_σ2_k2 > 0:
+                    power_σ2[k2] = power_σ2_k2
+                else:
+                    power_σ2[k2] = 0
         # Compute the rms density variation σ_tophat
         # together with its standard deviation σ_tophat_σ.
         σ_tophat[component.name], σ_tophat_σ[component.name] = rms_density_variation(power,

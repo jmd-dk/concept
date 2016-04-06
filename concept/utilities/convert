@@ -120,16 +120,6 @@ fi
 path="$(absolute_path "${path}" "${workdir}")"
 
 # Get filenames of snapshots and create matching (temporary) parameter files
-if [ -z "${pure_python_flag}" ]; then
-    # Make now, as the output of the next concept call will be captured
-    if ls "${concept_dir}/"*.so_ > /dev/null 2>&1; then
-        (cd "${concept_dir}" && for f in *.so_; do
-                                    mv "${f}" "${f%.so_}.so"
-                                done
-         )
-    fi
-    (cd "${concept_dir}" && make)
-fi
 info="$("${concept}" --local ${pure_python_flag} --util info --generate-paramsfile "${path}")"
 snapshot_filenames="$(echo "${info}" | grep -x Parameters.* | grep -o '".*"')"
 snapshot_params_filenames="$(echo "${info}" | grep -x '".*"')"

@@ -103,7 +103,7 @@ class Component:
         self.N_allocated = 1
         self.N_local     = 1
         if self.representation == 'particles':
-            self.N         = N_or_gridsize
+            self.N = N_or_gridsize
             if self.species in softeningfactors:
                 self.softening = softeningfactors[self.species]*boxsize/(self.N**ℝ[1/3])
             elif master:
@@ -188,21 +188,21 @@ class Component:
             self.resize(asarray(mv3D).shape)
             # Update the data corresponding to the parsed string
             if var == 'δ':
-                self.δ_mv[:mv3D.shape[0],
-                          :mv3D.shape[1],
-                          :mv3D.shape[2]] = mv3D[...]
+                self.δ_mv[2:(2 + mv3D.shape[0]),
+                          2:(2 + mv3D.shape[1]),
+                          2:(2 + mv3D.shape[2])] = mv3D[...]
             elif var == 'ux':
-                self.ux_mv[:mv3D.shape[0],
-                           :mv3D.shape[1],
-                           :mv3D.shape[2]] = mv3D[...]
+                self.ux_mv[2:(2 + mv3D.shape[0]),
+                           2:(2 + mv3D.shape[1]),
+                           2:(2 + mv3D.shape[2])] = mv3D[...]
             elif var == 'uy':
-                self.uy_mv[:mv3D.shape[0],
-                           :mv3D.shape[1],
-                           :mv3D.shape[2]] = mv3D[...]
+                self.uy_mv[2:(2 + mv3D.shape[0]),
+                           2:(2 + mv3D.shape[1]),
+                           2:(2 + mv3D.shape[2])] = mv3D[...]
             elif var == 'uz':
-                self.uz_mv[:mv3D.shape[0],
-                           :mv3D.shape[1],
-                           :mv3D.shape[2]] = mv3D[...]
+                self.uz_mv[2:(2 + mv3D.shape[0]),
+                           2:(2 + mv3D.shape[1]),
+                           2:(2 + mv3D.shape[2])] = mv3D[...]
             else:
                 abort('Wrong component attribute name "{}"!'.format(var))
 
@@ -319,17 +319,21 @@ class Component:
 
     # Method for updating particle momenta/fluid velocity
     @cython.header(# Arguments
-                   Δt='double',
+                   a_integral='double',
                    # Locals
                    kick_algorithm='str',
                    )
-    def kick(self, Δt):
-        """Note that the time step size Δt is really ∫_t^(t + Δt) dt/a.
-        """
-        kick_algorithm = kick_algorithms[self.species]
-        masterprint('Kicking ({}) {} ...'.format(kick_algorithm, self.name))
-        getattr(gravity, kick_algorithm)(self, Δt)
-        masterprint('done')
+    def kick(self, a_integral):
+        if self.representation == 'particles':
+            # Kick particles based on the assigned kick algorithm
+            kick_algorithm = kick_algorithms[self.species]
+            masterprint('Kicking ({}) {} ...'.format(kick_algorithm, self.name))
+            getattr(gravity, kick_algorithm)(self, a_integral)
+            masterprint('done')
+        elif self.representation == 'fluid':
+            # Kick fluid. It is assumed that the φ-interaction part of
+            # the kick has already been performed.
+            pass
 
     # This method is automaticlly called when a Component instance
     # is garbage collected. All manually allocated memory is freed.
@@ -372,6 +376,6 @@ representation_of_species = {('baryons',
                               'dark matter fluid',
                               'dark energy fluid',
                               'neutrino fluid',
-                              ): 'fluid'
+                              ): 'fluid',
                              }
 
