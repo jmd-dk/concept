@@ -391,6 +391,27 @@ if [ "${test}" != "${test_unspecified}" ]; then
     exit 0
 fi
 
+# Compile or do cleanup from last compilation
+if [ "${pure_python}" == "True" ] ; then
+    # Rename compiled Cython modules *.so to *.so_
+    if ls "${concept_dir}/"*.so > /dev/null 2>&1; then
+        (cd "${concept_dir}" && for f in *.so; do
+                                    mv "${f}" "${f%.so}.so_"
+                                done
+         )
+    fi
+else
+    # Rename compiled Cython modules *.so_ back to *.so
+    # and compile with Cython.
+    if ls "${concept_dir}/"*.so_ > /dev/null 2>&1; then
+        (cd "${concept_dir}" && for f in *.so_; do
+                                    mv "${f}" "${f%.so_}.so"
+                                done
+         )
+    fi
+    (cd "${concept_dir}" && make)
+fi
+
 # If a utility is to be run, run it and exit
 if [ "${util}" != "${util_unspecified}" ]; then
     # If no argument was passed after the -u option,
@@ -425,27 +446,6 @@ if [ "${util}" != "${util_unspecified}" ]; then
         called_from_concept="True" "${util}" "${util_args[@]}"
     fi
     exit 0
-fi
-
-# Compile or do cleanup from last compilation
-if [ "${pure_python}" == "True" ] ; then
-    # Rename compiled Cython modules *.so to *.so_
-    if ls "${concept_dir}/"*.so > /dev/null 2>&1; then
-        (cd "${concept_dir}" && for f in *.so; do
-                                    mv "${f}" "${f%.so}.so_"
-                                done
-         )
-    fi
-else
-    # Rename compiled Cython modules *.so_ back to *.so
-    # and compile with Cython.
-    if ls "${concept_dir}/"*.so_ > /dev/null 2>&1; then
-        (cd "${concept_dir}" && for f in *.so_; do
-                                    mv "${f}" "${f%.so_}.so"
-                                done
-         )
-    fi
-    (cd "${concept_dir}" && make)
 fi
 
 # Sensible paths (for clean printout)

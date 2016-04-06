@@ -75,7 +75,7 @@ def rkf45(ḟ, f_start, t_start, t_end, δ, ϵ, save_intermediate):
     # The maximum and minimum step size
     Δt = t_end - t_start
     h_max = 0.1*Δt
-    h_min = 5*machine_ϵ
+    h_min = 10*machine_ϵ
     # Initial values
     h = h_max*ϵ
     i = 0

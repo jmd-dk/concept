@@ -10,42 +10,42 @@
 
 
 # Input/output
-IC_file = 'ICs/example.hdf5'			# Initial condition snapshot
+IC_file = 'ICs/example.hdf5'		# Initial condition snapshot
 snapshot_type = 'standard'		# Type of output snapshots
 output_dirs = {				# Directories for storing output
     'snapshot' : 'output',
     'powerspec': 'output',
     'render'   : 'output',
                }
-output_bases = {			# File basenames for output
+output_bases = {			# File basenames of output
     'snapshot' : 'snapshot',
     'powerspec': 'powerspec',
     'render'   : 'render',
                 }
 output_times = {			# Scale factor values at which to dump output
-    'snapshot'       : 0.1,
+    'snapshot'       : 1,
     'powerspec'      : '',
     'render'         : '',
     'terminal render': '',
                 }
-powerspec_select = {                    # Toogle power spectra computation for each type
+powerspec_select = {                    # Toogle power spectra computation for each component
     'all': True,
                     }
-powerspec_plot_select = {               # Toogle power spectra plotting for each type
+powerspec_plot_select = {               # Toogle power spectra plotting for each component
     'all': False,
                          }
-render_select = {                       # Toogle rendering for each type
+render_select = {                       # Toogle rendering for each component
     'all': True,
                  }
 
 # Numerical parameters
 boxsize          = 16*Mpc		# Linear size of the simulation box
-ewald_gridsize   = 8			# Linear size of the grid of Ewald corrections
-φ_gridsize       = 16			# Linear size of the particle-mesh grid
+ewald_gridsize   = 8			# Linear gridsize of the grid of Ewald corrections
+φ_gridsize       = 32			# Linear gridsize of the potential
 P3M_scale        = 1.25			# The long/short-range force split scale
 P3M_cutoff       = 4.8			# Maximum reach of short-range force
 softeningfactors = {			# The amount of gravitational softening for each species
-    'dark matter': 0.03,
+    'dark matter particles': 0.03,
                     }	
 Δt_factor        = 0.01			# The time step size
 R_tophat         = 8*Mpc		# Radius of tophat used to compute σ
@@ -64,12 +64,12 @@ bgcolor             = 'black'		# Background color of renders
 resolution          = 1080		# The height and width of the render
 liverender          = ''		# Filename of saved live render
 remote_liverender   = ''		# Where to upload the live render
-terminal_colormap   = 'viridis'	        # The colormap to use for the terminal render
+terminal_colormap   = 'gnuplot2'        # The colormap to use for the terminal render
 terminal_resolution = 80		# The width of the terminal render
 
 # Simulation options
 kick_algorithms = {
-    'dark matter': 'PP',		# The algorithm which should be used to kick each species
+    'dark matter particles': 'PP',	# The algorithm which should be used to kick each species
                    }
 use_Ewald = True			# Turn Ewald corrections on or off
 fftw_rigor = 'measure'			# Rigor level when acquiring FFTW wisdom

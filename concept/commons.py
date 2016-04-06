@@ -40,7 +40,7 @@ from numpy.random import random
 # Use a matplotlib backend that does not require a running X-server
 matplotlib.use('Agg')
 # Customize matplotlib
-matplotlib.rcParams.update({# Use a font that ships with matplotlib
+matplotlib.rcParams.update({# Use a nice font that ships with matplotlib
                             'text.usetex'       : False,
                             'font.family'       : 'serif',
                             'font.serif'        : 'cmr10',
@@ -111,67 +111,73 @@ master = not rank
 #############################
 # Function for printing messages as well as timed progress messages
 def masterprint(msg, *args, indent=0, end='\n', **kwargs):
-    global progressprint_time
+    global progressprint_time, progressprint_length, progressprint_maxintervallength
     if not master:
         return
     if msg == 'done':
         # End of progress message
-        interval = timedelta(seconds=(time() - progressprint_time)).__str__()
-        if interval.startswith('0:'):
-            # Less than an hour
-            interval = interval[2:]
-            if interval.startswith('00:'):
-                # Less than a minute
-                interval = interval[3:]
-                if interval.startswith('00.'):
-                    if interval[3:6] == '000':
-                        # Less than a millisecond
-                        interval = '< 1 ms'
-                    else:
-                        # Less than a second
-                        interval = interval[3:6].lstrip('0') + ' ms'
-                else:
-                    # Between a second and a minute
-                    if interval.startswith('0'):
-                        # Between 1 and 10 seconds
-                        if '.' in interval:
-                            interval = interval[1:(interval.index('.') + 2)] + ' s'
-                    else:
-                        # Between 10 seconds and a minute
-                        if '.' in interval:
-                            interval = interval[:interval.index('.')] + ' s'
-            else:
-                # Between a minute and an hour
-                if interval.startswith('0'):
-                    interval = interval[1:]
-                if '.' in interval:
-                    interval = interval[:interval.index('.')]
+        seconds = time() - progressprint_time
+        # Construct the time interval with a sensible amount of
+        # significant figures.
+        milliseconds = 0
+        # More than a millisecond; use whole milliseconds
+        if seconds >= 1e-3:
+            milliseconds = round(1e+3*seconds)
+        interval = timedelta(milliseconds=milliseconds)
+        # More than a second; whose whole deciseconds
+        if interval.total_seconds() >= 1e+0:
+            seconds = 1e-1*round(1e-2*milliseconds)
+            interval = timedelta(seconds=seconds)    
+        # More than 10 seconds; use whole seconds
+        if interval.total_seconds() >= 1e+1:
+            seconds = round(1e-3*milliseconds)
+            interval = timedelta(seconds=seconds)
+        # Print the time interval
+        total_seconds = interval.total_seconds()
+        if total_seconds == 0:
+            interval = '< 1 ms'
+        elif total_seconds < 1:
+            interval = '{} ms'.format(int(1e+3*total_seconds))
+        elif total_seconds < 10:
+            interval = '{} s'.format(total_seconds)
+        elif total_seconds < 60:
+            interval = '{} s'.format(int(total_seconds))
+        elif total_seconds < 60*60:
+            interval = interval.__str__()[2:]
         else:
-            # More than an hour
-            if '.' in interval:
-                interval = interval[:interval.index('.')]
+            interval = interval.__str__()
         # Stitch text pieces together
         text = ' done after {}{}'.format(interval,
                                          (' ' + ' '.join([str(arg) for arg in args])) if args
                                                                                       else '')
         # Convert to proper Unicode characters
         text = unicode(text)
+        # The progressprint_maxintervallength variable store the length
+        # of the longest interval-message so far.
+        if len(text) > progressprint_maxintervallength:
+            progressprint_maxintervallength = len(text)
+        # Prepend the text with whitespace so that all future
+        # interval-messages lign up to the right.
+        text = ' '*(terminal_resolution - progressprint_length
+                                        - progressprint_maxintervallength) + text
         # Print out timing
         print(text, flush=True, end=end, **kwargs)
     else:
-        # Create time stamp for use in future progress message
-        progressprint_time = time()
         # Stitch text pieces together
         text = '{}{}{}'.format(' '*indent,
                                msg,
                                (' ' + ' '.join([str(arg) for arg in args])) if args else '')
         # Convert to proper Unicode characters
         text = unicode(text)
-        # If the text ends with '...', a newline should not be placed
+        # If the text ends with '...',
+        # it is the start of a progress message
         if text.endswith('...'):
+            progressprint_time = time()
+            progressprint_length = len(text)
             end = ''
         # Print out message
         print(text, flush=True, end=end, **kwargs)
+progressprint_maxintervallength = len(' done after ??? ms')
 
 # Function for printing warnings
 def masterwarn(msg, *args, indent=0, prefix='Warning', end='\n', **kwargs):
@@ -837,7 +843,7 @@ cython.declare(# Input/output
                # Simlation options
                kick_algorithms='dict',
                use_Ewald='bint',
-               use_PM='bint',
+               use_φ='bint',
                use_P3M='bint',
                fftw_rigor='str',
                # Hidden parameters
@@ -926,10 +932,12 @@ kick_algorithms = dict(params.get('kick_algorithms', {}))
 for kind in ('dark matter particles', ):
     kick_algorithms[kind] = str(kick_algorithms.get(kind, 'PP'))
 use_Ewald = bool(params.get('use_Ewald', False))
-if set(('PM', 'P3M')) & set(kick_algorithms.values()) or output_times['powerspec']:
-    use_PM = bool(params.get('use_PM', True))
+if (   unicode('φ_gridsize') in params
+    or (set(('PM', 'P3M')) & set(kick_algorithms.values()))
+    or output_times['powerspec']):
+    use_φ = bool(params.get(unicode('use_φ'), True))
 else:
-    use_PM = bool(params.get('use_PM', False))
+    use_φ = bool(params.get(unicode('use_φ'), False))
 if 'P3M' in kick_algorithms.values():
     use_P3M = bool(params.get('use_P3M', True))
 else:
@@ -941,7 +949,7 @@ if master and fftw_rigor not in ('estimate', 'measure', 'patient', 'exhaustive')
 special_params = dict(params.get('special_params', {}))
 
 # Output times very close to a_begin are probably meant to be at a_begin
-output_times = {key: tuple([(a_begin if np.abs(nr - a_begin) < 10*machine_ϵ else nr)
+output_times = {key: tuple([(a_begin if np.abs((nr - a_begin)/a_begin) < 1e-12 else nr)
                             for nr in val])
                 for key, val in output_times.items()}
 
@@ -1029,19 +1037,20 @@ slab_size_padding = 2*(φ_gridsize//2 + 1)
 ewald_file = '.ewald_gridsize=' + str(ewald_gridsize) + '.hdf5'
 # All constant factors across the PM scheme is gathered in the PM_fac
 # variable. Its contributions are:
-# For CIC interpolating particle masses/volume to the grid points:
-#     particles.mass/(boxsize/φ_gridsize)**3
+# For CIC interpolating particle/fluid element masses to the grid
+# points, when really it should be mass densities:
+#     1/(boxsize/φ_gridsize)**3
 # Normalization due to forwards and backwards Fourier transforms:
 #     1/φ_gridsize**3
 # Factor in the Greens function:
 #     -4*π*G_Newton/((2*π/((boxsize/φ_gridsize)*φ_gridsize))**2)   
-# From finite differencing to get the forces:
-#     -φ_gridsize/boxsize
+# The acceleration is the negative gradient of the potential:
+#     -1
 # For converting acceleration to momentum
 #     particles.mass*Δt
 # Everything except the mass and the time are constant, and is condensed
 # into the PM_fac_const variable.
-PM_fac_const = G_Newton*φ_gridsize/(π*boxsize**2)
+PM_fac_const = G_Newton/(π*boxsize)
 # The exponential cutoff for the long-range force looks like
 # exp(-k2*rs2). In the code, the wave vector is in grid units in stead
 # of radians. The conversion is 2*π/φ_gridsize. The total factor on k2

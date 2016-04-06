@@ -103,6 +103,8 @@ for module, extension_type_str in extension_types.items():
                     extension_types_that_exist[module] = extension_type
 extension_types = extension_types_that_exist
 
+
+
 def oneline(filename):
     in_quotes = [False, False]
     in_triple_quotes = [False, False]
@@ -1235,7 +1237,7 @@ def constant_expressions(filename):
             for op in operations:
                 variables = list(itertools.chain(*[var.split(op) for var in variables]))
             variables = [var for var in list(set(variables))
-                             if var and var[0] not in '.0123456789']
+                         if var and var[0] not in '.0123456789']
             linenr_where_defined = [-1]*len(variables)
             for w, end in enumerate((i + 1, len(lines))):  # Second time: Check module scope
                 if w == 1 and module_scope:
@@ -1244,16 +1246,26 @@ def constant_expressions(filename):
                     if linenr_where_defined[v] != -1:
                         continue
                     for j, line2 in enumerate(reversed(lines[:end])):
+                        line2_ori = line2
                         line2 = ' '*(len(line2) - len(line2.lstrip()))  + line2.replace(' ', '')
-                        for op in operations:
-                            line2 = line2.replace(op, '')
-                        if (   (' ' + var + '=') in line2
-                            or (',' + var + '=') in line2
-                            or (';' + var + '=') in line2
-                            or ('=' + var + '=') in line2
-                            or line2.startswith(var + '=')):
-                            linenr_where_defined[v] = end - 1 - j
-                            break
+                        if line2_ori.startswith('def '):
+                            # var as function argument
+                            if (   (' ' + var + '=') in line2
+                                or (',' + var + '=') in line2
+                                or ('(' + var + '=') in line2):
+                                linenr_where_defined[v] = end - 1 - j
+                                break
+                        else:
+                            for op in operations:
+                                line2 = line2.replace(op, '')
+                            if (   (' ' + var + '=') in line2
+                                or (',' + var + '=') in line2
+                                or (';' + var + '=') in line2
+                                or ('=' + var + '=') in line2
+                                or line2.startswith(var + '=')):
+                                linenr_where_defined[v] = end - 1 - j
+                                argh = False
+                                break
             if linenr_where_defined:
                 declaration_linenrs.append(max(linenr_where_defined))
             else:
@@ -1303,7 +1315,10 @@ def constant_expressions(filename):
             new_lines.append('')
         for e, n in enumerate(declaration_linenrs):
             if i == n:
-                indentation = ' '*(len(lines[i - 1]) - len(lines[i - 1].lstrip()))
+                if lines[i].startswith('def '):
+                    indentation = ' '*4
+                else:
+                    indentation = ' '*(len(lines[i - 1]) - len(lines[i - 1].lstrip()))
                 new_lines.append(indentation
                                  + 'cython.declare('
                                  + expressions_cython[e]
