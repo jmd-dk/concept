@@ -266,18 +266,18 @@ $(addsuffix .pyx, $(pyfiles)): %.pyx: %.py $(pyxpp) $(MAKEFILE_LIST)
 # - Implicit cimport statements occur after 'from commons import *'.
 #   Also, every module except commons implicitly cimport cclasses
 #   from the snapshot and species modules.
-analysis.c:                   commons.pxd communication.pxd                 graphics.pxd                             mesh.pxd snapshot.pxd species.pxd
+analysis.c:                   commons.pxd                                   graphics.pxd                             mesh.pxd snapshot.pxd species.pxd
 commons.c:
 communication.c:              commons.pxd                                                                                     snapshot.pxd species.pxd
 ewald.c:                      commons.pxd                                                                            mesh.pxd snapshot.pxd species.pxd
-graphics.c:                   commons.pxd                                                                                     snapshot.pxd species.pxd
+graphics.c:                   commons.pxd communication.pxd                                                                   snapshot.pxd species.pxd
 gravity.c:                    commons.pxd communication.pxd ewald.pxd                                                mesh.pxd snapshot.pxd species.pxd
 integration.c:                commons.pxd                                                                                     snapshot.pxd species.pxd
 main.c:          analysis.pxd commons.pxd                                   graphics.pxd             integration.pxd          snapshot.pxd species.pxd utilities.pxd
 mesh.c:                       commons.pxd communication.pxd           fft.c                                                   snapshot.pxd species.pxd
 snapshot.c:                   commons.pxd communication.pxd                                                                                species.pxd
-species.c:                    commons.pxd communication.pxd                              gravity.pxd                          snapshot.pxd
-utilities.c:     analysis.pxd commons.pxd                                   graphics.pxd                                      snapshot.pxd species.pxd
+species.c:                    commons.pxd communication.pxd                              gravity.pxd                 mesh.pxd snapshot.pxd
+utilities.c:     analysis.pxd commons.pxd communication.pxd                 graphics.pxd                                      snapshot.pxd species.pxd
 
 
 

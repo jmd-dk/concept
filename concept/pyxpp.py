@@ -81,7 +81,7 @@ from time import sleep
 
 
 # Mapping of modules to extension types defined within (Cython classes)
-extension_types = {'species':  'Component',
+extension_types = {'species':  'Component, FluidScalar',
                    'snapshot': 'StandardSnapshot, Gadget2Snapshot',
                    }
 
@@ -578,7 +578,7 @@ def malloc_realloc(filename):
         for line in pyxfile:
             found_alloc = False
             for alloc in ('malloc(', 'realloc('):
-                if alloc in line and 'sizeof(' in line:
+                if alloc in line and 'sizeof(' in line and not line.lstrip().startswith('#'):
                     found_alloc = True
                     paren = 1
                     dtype = ''
@@ -604,8 +604,13 @@ def malloc_realloc(filename):
                                      + "raise MemoryError('Could not "
                                      + alloc[:-1] + ' ' + LHS + "')\n")
             if not found_alloc:
-                line = line.replace(' free(', ' PyMem_Free(')
-                new_lines.append(line)
+                if line.lstrip().startswith('free('):
+                    indent_lvl = len(line) - len(line.lstrip())
+                    ptr = re.search('free\((.*?)\)', line).group(1)
+                    new_lines.append(' '*indent_lvl + 'if ' + ptr + ':\n')
+                    new_lines.append(' '*4 + line.replace('free(', 'PyMem_Free('))
+                else:
+                    new_lines.append(line)
     with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.writelines(new_lines)
 

@@ -41,8 +41,8 @@ def ȧ(t, a):
                f_start='double',
                t_start='double',
                t_end='double',
-               δ='double',
-               ϵ='double',
+               abs_tol='double',
+               rel_tol='double',
                save_intermediate='bint',
                # Locals
                error='double',
@@ -62,11 +62,11 @@ def ȧ(t, a):
                Δt='double',
                returns='double',
                )
-def rkf45(ḟ, f_start, t_start, t_end, δ, ϵ, save_intermediate):
+def rkf45(ḟ, f_start, t_start, t_end, abs_tol, rel_tol, save_intermediate):
     """ḟ(t, f) is the derivative of f with respect to t. Initial values
     are given by f_start and t_start. ḟ will be integrated from t_start
     to t_end. That is, the returned value is f(t_end). The absolute and
-    relative accuracies are given by δ, ϵ. If save_intermediate is True,
+    relative accuracies are given by abs_tol, rel_tol. If save_intermediate is True,
     intermediate values optained during the integration will be kept in
     t_cum, f_cum.
     """
@@ -77,7 +77,7 @@ def rkf45(ḟ, f_start, t_start, t_end, δ, ϵ, save_intermediate):
     h_max = 0.1*Δt
     h_min = 10*machine_ϵ
     # Initial values
-    h = h_max*ϵ
+    h = h_max*rel_tol
     i = 0
     f = f_start
     t = t_start
@@ -95,7 +95,7 @@ def rkf45(ḟ, f_start, t_start, t_end, δ, ϵ, save_intermediate):
         # The error estimate
         error = abs(f5 - f4) + machine_ϵ
         # The local tolerence
-        tolerence = (ϵ*abs(f5) + δ)*sqrt(h/Δt)
+        tolerence = (rel_tol*abs(f5) + abs_tol)*sqrt(h/Δt)
         if error < tolerence:
             # Step accepted
             t += h
@@ -140,7 +140,7 @@ def expand(a, t, Δt):
     """Integrates the Friedmann equation from t to t + Δt,
     where the scale factor at time t is given by a. Returns a(t + Δt).
     """
-    return rkf45(ȧ, a, t, t + Δt, δ=1e-9, ϵ=1e-9, save_intermediate=True)
+    return rkf45(ȧ, a, t, t + Δt, abs_tol=1e-9, rel_tol=1e-9, save_intermediate=True)
 
 
 # Function for calculating integrals of the sort ∫_t^(t + Δt) a^power dt
@@ -218,7 +218,7 @@ def cosmic_time(a, a_lower=machine_ϵ, t_lower=machine_ϵ, t_upper=20*units.Gyr)
     while (abs(a_test - a) > ℝ[2*machine_ϵ]
            and (t_upper - t_lower) > ℝ[2*machine_ϵ]):
         t = (t_upper + t_lower)/2
-        a_test = rkf45(ȧ, a_lower, t_lowest, t, δ=1e-9, ϵ=1e-9,
+        a_test = rkf45(ȧ, a_lower, t_lowest, t, abs_tol=1e-9, rel_tol=1e-9,
                        save_intermediate=False)
         if a_test > a:
             t_upper = t

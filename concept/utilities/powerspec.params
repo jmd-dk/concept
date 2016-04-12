@@ -12,7 +12,7 @@ powerspec_select = {'all': True}
 powerspec_plot_select = {'all': True}
 
 # Numerical parameters
-φ_gridsize  = 128
+φ_gridsize  = 256
 R_tophat    = 8*Mpc
 
 # Simulation options

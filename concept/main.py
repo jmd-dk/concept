@@ -28,7 +28,7 @@ from commons import *
 from snapshot import load
 cimport('from analysis import powerspec')
 cimport('from graphics import render, terminal_render')
-cimport('from gravity import PM, build_φ, fluid_φkick')
+cimport('from gravity import PM, build_φ')
 cimport('from mesh import diff')
 cimport('from integration import expand, cosmic_time, scalefactor_integral')
 cimport('from utilities import delegate')
@@ -72,8 +72,6 @@ def do_kick_drift_integrals(index):
                output_filenames='dict',
                op='str',
                # Locals
-               index='int',
-               integrand='str',
                returns='bint',
                )
 def dump(components, output_filenames, op=None):
@@ -103,12 +101,18 @@ def dump(components, output_filenames, op=None):
     i_dump += 1
     if i_dump < len(a_dumps):
         a_dump = a_dumps[i_dump]
+    return True
+
+@cython.header(# Locals
+               integrand='str',
+               index='int',
+               )
+def nullify_a_integrals():
     # Reset (nullify) the a_integrals, making the next kick operation
     # apply for only half a step, even though 'whole' is used.
     for integrand in a_integrals:
         for index in range(2):
             a_integrals[integrand][index] = 0
-    return True
 
 # Function which kick all of the components
 @cython.header(# Arguments
@@ -137,6 +141,8 @@ def kick(components, step):
             a_integrals_step[integrand] = a_integrals[integrand][1]
         elif step == 'whole':
             a_integrals_step[integrand] = np.sum(a_integrals[integrand])
+        elif master:
+            abort('The value "{}" was given for the step'.format(step))
     # Group the components based on assigned kick algorithms
     # (for particles). Group all fluids together.
     component_groups = collections.defaultdict(list)
@@ -173,10 +179,10 @@ def kick(components, step):
             meshbuf_mv = diff(φ, dim, h)
             # Apply PM kick
             for component in component_groups['PM']:
-                PM(component, a_integrals_step['a⁻¹'], meshbuf_mv, dim)
-            # Apply the potential part of the kick to fluids
+                component.kick(a_integrals_step, meshbuf_mv, dim)
+            # Apply kick to fluids
             for component in component_groups['fluid']:
-                fluid_φkick(component, a_integrals_step['a⁻²'], meshbuf_mv, dim)
+                component.kick(a_integrals_step, meshbuf_mv, dim)
         # Done with potential interactions
         masterprint('done')
     # Now kick all other components sequentially
@@ -184,7 +190,7 @@ def kick(components, step):
         if key in ('PM', 'fluid'):
             continue
         for component in component_group:
-            component.kick(a_integrals_step['a⁻¹'])
+            component.kick(a_integrals_step)
 
 # Function which drift all of the components
 @cython.header(# Arguments
@@ -205,9 +211,13 @@ def drift(components, step):
             a_integrals_step[integrand] = a_integrals[integrand][1]
         elif step == 'whole':
             a_integrals_step[integrand] = np.sum(a_integrals[integrand])
-    # Simply drift the components sequentially
+        elif master:
+            abort('The value "{}" was given for the step'.format(step))
+    # Drift all components sequentially
     for component in components:
-        component.drift(a_integrals_step['a⁻²'])
+        component.drift(a_integrals_step)
+        # Nullify all fluid buffers after each drift
+        component.nullify_fluid_buffers()
 
 # Function containing the main time loop of CO𝘕CEPT
 @cython.header(# Locals
@@ -247,6 +257,10 @@ def timeloop():
     a_dump = a_dumps[i_dump]
     # Possible output at a == a_begin
     dump(components, output_filenames)
+    # Nullify all fluid buffers of all components
+    # before beginning time stepping.
+    for component in components:
+        component.nullify_fluid_buffers()
     # The main time loop
     masterprint('Begin main time loop')
     timestep = -1
@@ -266,20 +280,23 @@ def timeloop():
         do_kick_drift_integrals(0)
         kick(components, 'whole')
         if dump(components, output_filenames, 'drift'):
+            # Reset the a_integrals, starting the leapfrog cycle anew
+            nullify_a_integrals()
             continue
         # Update Δt every Δt_update_freq time step
         if not (timestep % Δt_update_freq):
             # Let the positions catch up to the momenta
             drift(components, 'first half')
             Δt = Δt_factor*t
-            # Reset the second kick factor,
-            # making the next operation a half kick.
-            a_integrals['a⁻¹'][1] = 0
+            # Reset the a_integrals, starting the leapfrog cycle anew
+            nullify_a_integrals()
             continue
         # Drift
         do_kick_drift_integrals(1)
         drift(components, 'whole')
         if dump(components, output_filenames, 'kick'):
+            # Reset the a_integrals, starting the leapfrog cycle anew
+            nullify_a_integrals()
             continue
 
 # Function which checks the sanity of the user supplied output times,
