@@ -445,6 +445,7 @@ def info():
                     masterprint('{:<15} {}'.format('N', component.N), indent=4)
             elif component.representation == 'fluid':
                 masterprint('{:<15} {}'.format('gridsize', component.gridsize), indent=4)
+                masterprint('{:<15} {}'.format('N_fluidvars', component.fluidvars['N']), indent=4)
         # Print out GADGET header for GADGET snapshots
         if snapshot_type == 'gadget2':
             masterprint('GADGET header:')

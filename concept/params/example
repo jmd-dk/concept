@@ -10,7 +10,7 @@
 
 
 # Input/output
-IC_file = 'ICs/example.hdf5'		# Initial condition snapshot
+IC_file = 'ICs/example_converted.hdf5'		# Initial condition snapshot
 snapshot_type = 'standard'		# Type of output snapshots
 output_dirs = {				# Directories for storing output
     'snapshot' : 'output',
@@ -58,7 +58,8 @@ a_begin = 0.02				# Scale factor at beginning of simulation
 
 # Graphics
 render_colors = {                       # Render color for each type
-    'GADGET halos': 'lime',
+    'example component': 'lime',
+    'fluid component':   'lime',
                  }
 bgcolor             = 'black'		# Background color of renders
 resolution          = 1080		# The height and width of the render
@@ -69,7 +70,7 @@ terminal_resolution = 80		# The width of the terminal render
 
 # Simulation options
 kick_algorithms = {
-    'dark matter particles': 'PP',	# The algorithm which should be used to kick each species
+    'dark matter particles': 'PM',	# The algorithm which should be used to kick each species
                    }
 use_Ewald = True			# Turn Ewald corrections on or off
 fftw_rigor = 'measure'			# Rigor level when acquiring FFTW wisdom

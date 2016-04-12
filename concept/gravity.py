@@ -403,27 +403,22 @@ def PM(component, a_integral, meshbuf_mv, dim):
         # momentum of particle i.
         mom[i] += PM_fac*CIC_scalargrid2coordinates(meshbuf_mv, x, y, z)
 
-# Function which apply the potential-part (-a⁻²∇φ) of a fluid kick
+# Function which adds the potential-part (-a⁻²∇φ) to Δu of a fluid
 @cython.header(# Arguments
                component='Component',
                a_integral='double',
                meshbuf_mv='double[:, :, ::1]',
                dim='int',
                # Locals
-               u_noghosts='double[:, :, :]',
+               Δu_mv='double[:, :, ::1]',
                )
-def fluid_φkick(component, a_integral, meshbuf_mv, dim):
+def kick_fluid(component, a_integral, meshbuf_mv, dim):
     """The parsed meshbuf_mv should contain the dim component of ∇φ.
     To do the complete potential-part of the kick, call this function
     once for each dimension.
     """
-    # Extract one of the velocity grids based on the parsed dim
-    if dim == 0:
-        u_noghosts = component.ux_noghosts
-    elif dim == 1:
-        u_noghosts = component.uy_noghosts
-    elif dim == 2:
-        u_noghosts = component.uz_noghosts
+    # Extract one of the velocity update buffers based on the parsed dim
+    Δu_mv = component.fluidvars['u'][dim].Δ_mv
     # The factor with which to multiply the values
     # in meshbuf_mv (the differentiated potential)
     # in order to get velocity units.
@@ -435,7 +430,7 @@ def fluid_φkick(component, a_integral, meshbuf_mv, dim):
     fluid_φ_fac = PM_fac_const*a_integral
     # Interpolate the differentiated potential in meshbuf_mv onto the
     # velocity grid.
-    CIC_grid2grid(u_noghosts, meshbuf_mv, fluid_φ_fac)
+    CIC_grid2grid(Δu_mv, meshbuf_mv, fluid_φ_fac)
 
 # Function which constructs the total gravitational potential φ due
 # to all components.

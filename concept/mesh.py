@@ -463,7 +463,7 @@ def CIC_grid2grid(gridA, gridB, fac=1):
     assumed to be the same. It is assumed that both grids are closed,
     meaning that the upper grid points (for all three directions)
     recide on the physical boundary of the region in which the grid
-    is placed. For domain grids, this corresponds to the the inclusion
+    is placed. For domain grids, this corresponds to the inclusion
     of pseudo points (but not ghost points) in the grids.
     The interpolated values will be added to gridA. Therefore, if the
     grid should contain the interpolated vales only, the grid must be
@@ -569,6 +569,8 @@ def CIC_grid2grid(gridA, gridB, fac=1):
                Wzu='double',
                δ='double*',
                δ_mv='double[:, :, ::1]',
+               δ_noghosts='double[:, :, :]',
+               fluidscalar='FluidScalar',
                )
 def CIC_components2domain_grid(components, domain_grid):
     """This function CIC-interpolates particle/fluid element coordinates
@@ -641,15 +643,11 @@ def CIC_components2domain_grid(components, domain_grid):
             # Do the needed communication.
             communicate_domain_boundaries(domain_grid, mode=0)
         elif component.representation == 'fluid':
-            # Her dur CIC_grid2grid ikke, da δ ikke bare kan ganges med
-            # en fac (man skal først ligge 1 til). Skriv i stedet en kode
-            # meget lig den i CIC_grid2grid, men gør ved δ lidt ligesom
-            # der gøres i CIC_particles2fluid, bare det omvendte
-            # (start med at plusse med 1 og så gang med den korrekte
-            # faktor).
-            # Extract variables
-            δ = component.δ
-            δ_mv = component.δ_mv
+            # Extract δ grid variables
+            fluidscalar = component.fluidvars['δ']
+            δ          = fluidscalar.grid
+            δ_mv       = fluidscalar.grid_mv
+            δ_noghosts = fluidscalar.grid_noghosts
             # Add 1 to the δ grid, transforming it to ρ/ρbar.
             # Each grid value will then be proportional to the amount of
             # mass in that grid point, and the sum of all grid values
@@ -668,7 +666,7 @@ def CIC_components2domain_grid(components, domain_grid):
             # additional factor in the weights. This has the effect of
             # interpolating the total mass of the component onto the
             # domain grid, accoring to a distribution determined by δ.
-            CIC_grid2grid(domain_grid_noghosts, component.δ_noghosts, component.mass)
+            CIC_grid2grid(domain_grid_noghosts, δ_noghosts, component.mass)
             # Now transform δ back to its original form, δ = ρ/ρbar - 1
             for i in range(size):
                 δ[i] -= 1    
@@ -723,6 +721,7 @@ def CIC_components2domain_grid(components, domain_grid):
                dim='int',
                shape='tuple',
                size='Py_ssize_t',
+               fluidscalar='FluidScalar',
                )
 def CIC_particles2fluid(component, a):
     """This function CIC-interpolates particle positions to fluid grids.
@@ -756,18 +755,22 @@ def CIC_particles2fluid(component, a):
                   .format(component.name, component.gridsize, nprocs))
     component.resize(shape)
     # Extract fluid data variables
-    δ  = component.δ
-    ux = component.ux
-    uy = component.uy
-    uz = component.uz
-    δ_mv = component.δ_mv
-    ux_mv = component.ux_mv
-    uy_mv = component.uy_mv
-    uz_mv = component.uz_mv
-    δ_noghosts  = component.δ_noghosts
-    ux_noghosts = component.ux_noghosts
-    uy_noghosts = component.uy_noghosts
-    uz_noghosts = component.uz_noghosts
+    fluidscalar = component.fluidvars['δ']
+    δ           = fluidscalar.grid
+    δ_mv        = fluidscalar.grid_mv
+    δ_noghosts  = fluidscalar.grid_noghosts
+    fluidscalar = component.fluidvars['ux']
+    ux          = fluidscalar.grid
+    ux_mv       = fluidscalar.grid_mv
+    ux_noghosts = fluidscalar.grid_noghosts
+    fluidscalar = component.fluidvars['uy']
+    uy          = fluidscalar.grid
+    uy_mv       = fluidscalar.grid_mv
+    uy_noghosts = fluidscalar.grid_noghosts
+    fluidscalar = component.fluidvars['uz']
+    uz          = fluidscalar.grid
+    uz_mv       = fluidscalar.grid_mv
+    uz_noghosts = fluidscalar.grid_noghosts
     # The number of elements in the fluid grids, including pseudo and
     # and ghost points. Even though the ghost points are never touched
     # by this function, it is easier to include them when performing
@@ -898,7 +901,7 @@ def CIC_particles2fluid(component, a):
         ux[i] *= u_fac
         uy[i] *= u_fac
         uz[i] *= u_fac
-    # Re-insert the original representation
+    # Re-insert the original representation string
     component.representation = original_representation
 
 # Function for CIC interpolating the component coordinates of all
@@ -1014,11 +1017,12 @@ def slabs_IFFT():
 # points will be differentiated along with the actual grid points.
 # To achieve proper units, the physical grid spacing may be specified
 # as h. If not given, grid units (h == 1) are used.
-# The meshbuf is used to store the result. A view of this buffer will be
-# returned.
-# Optionally, a buffer may be supplied as an argument, in which case
-# the result of the differentiations will be added to this buffer
-# instead of being stored in meshbuf.
+# If the buffer argument is not given, the meshbuf is used to store the
+# result. A view of this buffer will be returned.
+# If a buffer is supplied, the result of the differentiations will be
+# added to this buffer instead of being stored in meshbuf. Note that
+# this buffer has to be contiguous (this criteria could be removed
+# if needed).
 # Note that a grid cannot be differentiated in-place by parsing the
 # grid as both the first and third argument, as the differentiation
 # of each grid point requires information from the original
@@ -1027,7 +1031,7 @@ def slabs_IFFT():
                 grid='double[:, :, ::1]',
                 dim='int',
                 h='double',
-                buffer='double[:, :, :]',
+                buffer='double[:, :, ::1]',
                 # Locals
                 buffer_i='Py_ssize_t',
                 buffer_j='Py_ssize_t',
@@ -1096,6 +1100,8 @@ def diff(grid, dim, h=1, buffer=None):
                                                                - grid[i, j, grid_km1])
                                                 - ℝ[1/(12*h)]*(+ grid[i, j, grid_kp2]
                                                                - grid[i, j, grid_km2]))
+        elif master:
+            abort(unicode('The dim argument should be ∈ {1, 2, 3}'))
         return meshbuf_mv
     else:
         # Do the differentiation
@@ -1141,7 +1147,7 @@ def diff(grid, dim, h=1, buffer=None):
                                                             - grid[i, j, grid_km2]))
         elif master:
             abort(unicode('The dim argument should be ∈ {1, 2, 3}'))
-    
+        return buffer
 
 # Function which wraps the meshbuf buffer in a memory view
 @cython.header(# Arguments

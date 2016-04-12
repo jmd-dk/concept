@@ -114,6 +114,7 @@ def masterprint(msg, *args, indent=0, end='\n', **kwargs):
     global progressprint_time, progressprint_length, progressprint_maxintervallength
     if not master:
         return
+    msg = str(msg)
     if msg == 'done':
         # End of progress message
         seconds = time() - progressprint_time
@@ -170,9 +171,29 @@ def masterprint(msg, *args, indent=0, end='\n', **kwargs):
         # Convert to proper Unicode characters
         text = unicode(text)
         # If the text ends with '...',
-        # it is the start of a progress message
+        # it is the start of a progress message.
         if text.endswith('...'):
             progressprint_time = time()
+            progressprint_maxlength = terminal_resolution - progressprint_maxintervallength - 1
+            if len(text) > progressprint_maxlength:
+                # The progress message should span multiple lines.
+                # Do the line splitting explicitly, so that there is
+                # room left over for the time interval.
+                indentation = len(text) - len(text.lstrip())
+                words = text.split()
+                if words[-1] == '...':
+                    words[-2] += ' ...'
+                    words.pop()
+                partial_text = []
+                N_words = len(words)
+                for i in range(N_words):
+                    word = words[i]
+                    partial_text.append(word)
+                    if indentation + len(' '.join(partial_text)) > progressprint_maxlength:
+                        print(' '*indentation + ' '.join(partial_text[:-1]),
+                              flush=True, end='\n', **kwargs)
+                        partial_text = [word]
+                text = ' '*indentation + ' '.join(partial_text)
             progressprint_length = len(text)
             end = ''
         # Print out message
@@ -189,6 +210,7 @@ def masterwarn(msg, *args, indent=0, prefix='Warning', end='\n', **kwargs):
                                 prefix,
                                 msg,
                                 ' '.join([str(arg) for arg in args]))
+    # Convert to proper Unicode characters
     text = unicode(text)
     # Print out message
     print(terminal.bold_red(text),
@@ -333,11 +355,14 @@ if not cython.compiled:
             except:
                 shape = eval(shape, inspect.stack()[1][0].f_globals)
             a = np.ctypeslib.as_array(a, shape)
-            a = np.reshape(a, shape)
+            a = np.reshape(a[:np.prod(shape)], shape)
             return a
-        else:
+        elif dtype in C2np:
             # Scalar
             return C2np[dtype](a)
+        else:
+            # Extension type (Python class in pure Python)
+            return a
     # Dummy fused types
     number = number2 = integer = floating = signed_number = signed_number2 = number_mv = []
     # Mathematical functions

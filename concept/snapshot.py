@@ -26,7 +26,7 @@ from commons import *
 
 # Cython imports
 from communication import smart_mpi
-cimport('from species import Component, get_representation')
+cimport('from species import Component, FluidScalar, get_representation')
 cimport('from communication import domain_layout_local_indices, domain_subdivisions, exchange')
 
 # Pure Python imports
@@ -82,8 +82,11 @@ class StandardSnapshot:
                    domain_start_j='Py_ssize_t',
                    domain_start_k='Py_ssize_t',
                    end_local='Py_ssize_t',
+                   fluidscalar='FluidScalar',
                    shape='tuple',
                    start_local='Py_ssize_t',
+                   δ_mv='double[:, :, ::1]',
+                   l='Py_ssize_t',
                    )
     def save(self, filename):
         # Attach missing extension to filename
@@ -139,46 +142,54 @@ class StandardSnapshot:
                     masterprint('done')
                 elif component.representation == 'fluid':
                     # Write out progress message
-                    masterprint('Writing out {} ({} with gridsize {}) ...'
-                                .format(component.name, component.species, component.gridsize),
+                    masterprint('Writing out {} ({} with {} fluid variables '
+                                'and a gridsize of {}) ...'.format(component.name,
+                                                                    component.species,
+                                                                    component.fluidvars['N'],
+                                                                    component.gridsize),
                                 indent=4)
                     # Save fluid attributes
                     component_h5.attrs['gridsize'] = component.gridsize
-                    # Save fluid grids
-                    shape = (component.gridsize, )*3
-                    δ_h5  = component_h5.create_dataset(unicode('δ'), shape, dtype=C2np['double'])
-                    ux_h5 = component_h5.create_dataset('ux', shape, dtype=C2np['double'])
-                    uy_h5 = component_h5.create_dataset('uy', shape, dtype=C2np['double'])
-                    uz_h5 = component_h5.create_dataset('uz', shape, dtype=C2np['double'])
-                    domain_size_i = component.δ_mv.shape[0] - (1 + 2*2)
-                    domain_size_j = component.δ_mv.shape[1] - (1 + 2*2)
-                    domain_size_k = component.δ_mv.shape[2] - (1 + 2*2)
+                    # Create the "fluidvars" group under
+                    # the component group.
+                    fluidvars_h5 = component_h5.create_group('fluidvars')
+                    fluidvars = component.fluidvars
+                    fluidvars_h5.attrs['N'] = fluidvars['N']                    
+                    # Compute local indices of fluid grids
+                    δ_mv = fluidvars['δ'].grid_mv
+                    domain_size_i = δ_mv.shape[0] - (1 + 2*2)
+                    domain_size_j = δ_mv.shape[1] - (1 + 2*2)
+                    domain_size_k = δ_mv.shape[2] - (1 + 2*2)
                     domain_start_i = domain_layout_local_indices[0]*domain_size_i
                     domain_start_j = domain_layout_local_indices[1]*domain_size_j
                     domain_start_k = domain_layout_local_indices[2]*domain_size_k
                     domain_end_i = domain_start_i + domain_size_i
                     domain_end_j = domain_start_j + domain_size_j
                     domain_end_k = domain_start_k + domain_size_k
-                    δ_h5[domain_start_i:domain_end_i,
-                         domain_start_j:domain_end_j,
-                         domain_start_k:domain_end_k] = component.δ_mv[2:(2 + domain_size_i),
-                                                                       2:(2 + domain_size_j),
-                                                                       2:(2 + domain_size_k)]
-                    ux_h5[domain_start_i:domain_end_i,
-                          domain_start_j:domain_end_j,
-                          domain_start_k:domain_end_k] = component.ux_mv[2:(2 + domain_size_i),
-                                                                         2:(2 + domain_size_j),
-                                                                         2:(2 + domain_size_k)]
-                    uy_h5[domain_start_i:domain_end_i,
-                          domain_start_j:domain_end_j,
-                          domain_start_k:domain_end_k] = component.uy_mv[2:(2 + domain_size_i),
-                                                                         2:(2 + domain_size_j),
-                                                                         2:(2 + domain_size_k)]
-                    uz_h5[domain_start_i:domain_end_i,
-                          domain_start_j:domain_end_j,
-                          domain_start_k:domain_end_k] = component.uz_mv[2:(2 + domain_size_i),
-                                                                         2:(2 + domain_size_j),
-                                                                         2:(2 + domain_size_k)]
+                    # Save fluid grids
+                    shape = (component.gridsize,)*3
+                    for l in range(fluidvars['N']):
+                        fluidvar = fluidvars[l]
+                        fluidvar_h5 = fluidvars_h5.create_group(str(l))
+                        fluidvar_h5.attrs['shape'] = fluidvar.shape
+                        for multi_index in component.iterate_fluidvar(fluidvar):
+                            fluidscalar = fluidvar[multi_index]
+                            fluidscalar_h5 = fluidvar_h5.create_dataset(str(multi_index),
+                                                                        shape,
+                                                                        dtype=C2np['double'])
+                            fluidscalar_h5[domain_start_i:domain_end_i,
+                                           domain_start_j:domain_end_j,
+                                           domain_start_k:domain_end_k] = fluidscalar.grid_mv[
+                                                                             2:(2 + domain_size_i),
+                                                                             2:(2 + domain_size_j),
+                                                                             2:(2 + domain_size_k)]
+                    # Create additional names (hard links)
+                    # for some fluid groups and data sets.
+                    fluidvars_h5[unicode('δ')] = fluidvars_h5['0'][str((0,))]
+                    fluidvars_h5['u']          = fluidvars_h5['1']
+                    fluidvars_h5['ux']         = fluidvars_h5['u'][str((0,))]
+                    fluidvars_h5['uy']         = fluidvars_h5['u'][str((1,))]
+                    fluidvars_h5['uz']         = fluidvars_h5['u'][str((2,))]
                     # Finalize progress message
                     masterprint('done')
                 elif master:
@@ -207,7 +218,6 @@ class StandardSnapshot:
                     snapshot_unit_time='double',
                     start_local='Py_ssize_t',
                     unit='double',
-                    dim='int',
                     domain_end_i='Py_ssize_t',
                     domain_end_j='Py_ssize_t',
                     domain_end_k='Py_ssize_t',
@@ -217,6 +227,14 @@ class StandardSnapshot:
                     domain_start_i='Py_ssize_t',
                     domain_start_j='Py_ssize_t',
                     domain_start_k='Py_ssize_t',
+                    shape='tuple',
+                    multi_index='tuple',
+                    units_fluidvars='double[::1]',
+                    fluidvars='dict',
+                    grid='double*',
+                    size='Py_ssize_t',
+                    fluidscalar='FluidScalar',
+                    l='Py_ssize_t',
                     )
     def load(self, filename, compare_params=True, only_params=False, do_exchange=True):
         if not only_params:
@@ -302,18 +320,18 @@ class StandardSnapshot:
                     gridsize = component_h5.attrs['gridsize']
                     component = Component(name, species, gridsize, mass)
                     self.components.append(component)
+                    # Read in the number of fluid variables
+                    fluidvars_h5 = component_h5['fluidvars']
+                    fluidvars = component.fluidvars
+                    fluidvars['N'] = fluidvars_h5.attrs['N']
                     # Done loading component attributes
                     if only_params:
                         continue
                     # Write out progress message
                     if not only_params:
-                        masterprint('Reading in {} ({} with gridsize {}) ...'
-                                    .format(name, species, gridsize), indent=4)
-                    # Extract HDF5 datasets
-                    δ_h5 = component_h5[unicode('δ')]
-                    ux_h5 = component_h5['ux']
-                    uy_h5 = component_h5['uy']
-                    uz_h5 = component_h5['uz']
+                        masterprint('Reading in {} ({} with {} fluid variables '
+                                    'and a gridsize of {}) ...'
+                                    .format(name, species, fluidvars['N'], gridsize), indent=4)
                     # Compute local indices of fluid grids
                     domain_size_i = gridsize//domain_subdivisions[0]
                     domain_size_j = gridsize//domain_subdivisions[1]
@@ -330,28 +348,44 @@ class StandardSnapshot:
                     domain_end_i = domain_start_i + domain_size_i
                     domain_end_j = domain_start_j + domain_size_j
                     domain_end_k = domain_start_k + domain_size_k
-                    # Populate the Component instance with data from the file
-                    component.populate(δ_h5[domain_start_i:domain_end_i,
-                                            domain_start_j:domain_end_j,
-                                            domain_start_k:domain_end_k], 'δ')
-                    component.populate(ux_h5[domain_start_i:domain_end_i,
-                                             domain_start_j:domain_end_j,
-                                             domain_start_k:domain_end_k], 'ux')
-                    component.populate(uy_h5[domain_start_i:domain_end_i,
-                                             domain_start_j:domain_end_j,
-                                             domain_start_k:domain_end_k], 'uy')
-                    component.populate(uz_h5[domain_start_i:domain_end_i,
-                                             domain_start_j:domain_end_j,
-                                             domain_start_k:domain_end_k], 'uz')
+                    # Extract fluid grids and store them in the
+                    # fluidvars hierarchy on the component.
+                    for l in range(fluidvars['N']):
+                        # Construct fluid scalars according to the
+                        # shape of the fluid variable.
+                        fluidvar_h5 = fluidvars_h5[str(l)]
+                        shape = tuple(fluidvar_h5.attrs['shape'])
+                        fluidvar = empty(shape, dtype='object')
+                        fluidvars[l] = fluidvar
+                        # Instantiate fluid scalars
+                        for multi_index in component.iterate_fluidvar(fluidvar):
+                            fluidvar[multi_index] = FluidScalar()
+                        # Populate fluid scalars
+                        for multi_index in component.iterate_fluidvar(fluidvar):
+                            fluidscalar_h5 = fluidvar_h5[str(multi_index)]
+                            component.populate(fluidscalar_h5[domain_start_i:domain_end_i,
+                                                              domain_start_j:domain_end_j,
+                                                              domain_start_k:domain_end_k],
+                                               l, multi_index)
+                    # Create additional names for some fluid scalars
+                    component.assign_fluidnames()
                     # If the snapshot and the current run uses different
-                    # systems of units, mulitply the component
-                    # velocities (δ has no units) by the snapshot units.
-                    unit = snapshot_unit_length/snapshot_unit_time
-                    if unit != 1:
-                        for i in range(gridsize**3):
-                            component.ux[i] *= unit
-                            component.uy[i] *= unit
-                            component.uz[i] *= unit
+                    # systems of units, mulitply the fluid data
+                    # by the snapshot units.
+                    units_fluidvars = asarray([1,                                        # δ
+                                               snapshot_unit_length/snapshot_unit_time,  # u
+                                               ], dtype=C2np['double'])
+                    size = gridsize**3
+                    for l in range(fluidvars['N']):
+                        unit = units_fluidvars[l]
+                        if unit == 1:
+                            continue
+                        fluidvar = fluidvars[l]
+                        for multi_index in component.iterate_fluidvar(fluidvar):
+                            fluidscalar = fluidvar[multi_index]
+                            grid = fluidscalar.grid
+                            for i in range(size):
+                                grid[i] *= unit
                     # Finalize progress message
                     masterprint('done')
                 elif master:

@@ -24,11 +24,15 @@
 # In the .pyx file, Cython declared variables will also get cimported.
 from commons import *
 
+# Cython imports
+cimport('from communication import domain_size_x,  domain_size_y,  domain_size_z, '
+                                  'domain_start_x, domain_start_y, domain_start_z,'
+        )
+
 # Pure Python imports
 from mpl_toolkits.mplot3d import Axes3D  # Needed for 3D plotting
 from mpl_toolkits.mplot3d.art3d import juggle_axes
 import pexpect
-import subprocess
 
 
 
@@ -167,16 +171,36 @@ def plot_powerspec(data_list, a, filename, power_dict):
                filename_component_alpha_part='str',
                filenames_component_alpha='list',
                filenames_component_alpha_part='list',
-               i='int',
-               j='int',
                part='int',
                name='str',
                names='tuple',
                component='Component',
                render_dir='str',
                rgb='int',
-               size='double',
+               scatter_size='double',
                tmp_image='float[:, :, ::1]',
+
+
+               i='Py_ssize_t',
+               j='Py_ssize_t',
+               k='Py_ssize_t',
+               size='Py_ssize_t',
+               rgba='double[:, ::1]',
+               δ_noghosts='double[:, :, :]',
+               index='Py_ssize_t',
+               size_i='Py_ssize_t',
+               size_j='Py_ssize_t',
+               size_k='Py_ssize_t',
+               fluidscalar='FluidScalar',
+               x='double*',
+               y='double*',
+               z='double*',
+               x_mv='double[::1]',
+               y_mv='double[::1]',
+               z_mv='double[::1]',
+               xi='double',
+               yj='double',
+               zk='double',
                )
 def render(components, a, filename, cleanup=True):
     global render_dict, render_image
@@ -236,7 +260,17 @@ def render(components, a, filename, cleanup=True):
                 # Use default cyclic colors.
                 color = next(default_colors)
             # The artist for the component
-            artist_component = ax.scatter(0, 0, 0, c=color, lw=0)
+            if component.representation == 'particles':
+                artist_component = ax.scatter(0, 0, 0, c=color, alpha=0, lw=0)
+            elif component.representation == 'fluid':
+                fluidscalar = component.fluidvars['δ']
+                N = np.prod(asarray(asarray(fluidscalar.grid_noghosts).shape) - 1)
+                rgba = np.empty((N, 4), dtype=C2np['double'])
+                for i in range(N):
+                    for dim in range(3):
+                        rgba[i, dim] = color[dim]
+                    rgba[i, 3] = 0
+                artist_component = ax.scatter([0]*N, [0]*N, [0]*N, c=rgba, alpha=0, lw=0)
             # The artist for the scalefactor text
             artist_text = ax.text(+0.25*boxsize,
                                   -0.30*boxsize,
@@ -293,7 +327,7 @@ def render(components, a, filename, cleanup=True):
     # Print out progress message
     names = tuple(render_dict.keys())
     if len(names) == 1:
-        masterprint('Rendering {} and saving to "{}" ...'.format(component.name, filename))
+        masterprint('Rendering {} and saving to "{}" ...'.format(names[0], filename))
     else:
         masterprint('Rendering:')
         for name in names:
@@ -317,33 +351,92 @@ def render(components, a, filename, cleanup=True):
         ax = render_dict[component.name]['ax']
         artist_component = render_dict[component.name]['artist_component']
         artist_text = render_dict[component.name]['artist_text']
-        # Extract component data
-        N = component.N
-        N_local = component.N_local
-        # Update particle positions on the figure
-        artist_component._offsets3d = juggle_axes(component.posx_mv[:N_local],
-                                                  component.posy_mv[:N_local],
-                                                  component.posz_mv[:N_local],
-                                                  zdir='z')
-        # The particle size on the figure.
-        # The size is chosen such that the particles stand side
-        # by side in a homogeneous universe (more or less).
-        size = 1000*np.prod(fig.get_size_inches())/N**ℝ[2/3]
-        # The particle alpha on the figure.
-        # The alpha is chosen such that in a homogeneous unvierse,
-        # a column of particles have a collective alpha
-        # of 1 (more or less).
-        alpha = N**ℝ[-1/3]
-        # Alpha values lower than alpha_min appear completely invisible.
-        # Allow no alpha values lower than alpha_min. Shrink the size to
-        # make up for the large alpha.
-        alpha_min = 0.0059
-        if alpha < alpha_min:
-            size *= alpha/alpha_min
-            alpha = alpha_min
-        # Apply size and alpha
-        artist_component.set_sizes([size])
-        artist_component.set_alpha(alpha)
+        if component.representation == 'particles':
+            # Extract particle meta data
+            N = component.N
+            N_local = component.N_local
+            # Update particle positions on the figure
+            artist_component._offsets3d = juggle_axes(component.posx_mv[:N_local],
+                                                      component.posy_mv[:N_local],
+                                                      component.posz_mv[:N_local],
+                                                      zdir='z')
+            # The particle size on the figure.
+            # The size is chosen such that the particles stand side
+            # by side in a homogeneous universe (more or less).
+            scatter_size = 1000*np.prod(fig.get_size_inches())/N**ℝ[2/3]
+            # The particle alpha on the figure.
+            # The alpha is chosen such that in a homogeneous universe,
+            # a column of particles have a collective alpha
+            # of 1 (more or less).
+            alpha = N**ℝ[-1/3]
+            # Alpha values lower than alpha_min appear completely
+            # invisible. Allow no alpha values lower than alpha_min. 
+            # Shrink the size to make up for the larger alpha.
+            alpha_min = 0.0059
+            if alpha < alpha_min:
+                scatter_size *= alpha/alpha_min
+                alpha = alpha_min
+            # Apply size and alpha
+            artist_component.set_sizes([scatter_size])
+            artist_component.set_alpha(alpha)
+        elif component.representation == 'fluid':
+            masterprint('so far so good')
+            # Extract the δ diff buffers.
+            # These will be used to store the fluid element coordinates.
+            fluidscalar = component.fluidvars['δ']
+            size_i = fluidscalar.diffx_mv.shape[0] - 1
+            size_j = fluidscalar.diffx_mv.shape[1] - 1
+            size_k = fluidscalar.diffx_mv.shape[2] - 1
+            size = size_i*size_j*size_k  # Number of local fluid elements
+            x = fluidscalar.diffx
+            y = fluidscalar.diffy
+            z = fluidscalar.diffz
+            x_mv = cast(x, 'double[:size]')
+            y_mv = cast(y, 'double[:size]')
+            z_mv = cast(z, 'double[:size]')
+            δ_noghosts = fluidscalar.grid_noghosts
+            # Grab the color and alpha array from the last artist
+            rgba = artist_component.get_facecolor()
+            # Multiplication factor for alpha values. An alpha value of
+            # 1 is assigned if the relative overdensity
+            # ρ/ρbar = 1 + δ >= 1/alpha_fac.
+            # The chosen alpha_fac is such that in a homogeneous
+            # universe, a column of fluid elements have a collective
+            # alpha of 1 (more or less).
+            N = component.gridsize**3  # Number of fluid elements
+            alpha_fac = N**ℝ[-1/3]
+            # Fill the diff buffers with fluid element coordinates
+            # and update the alpha values in rgba.
+            index = 0
+            for i in range(size_i):
+                xi = domain_start_x + i*ℝ[domain_size_x/size_i]
+                for j in range(size_j):
+                    yj = domain_start_y + j*ℝ[domain_size_y/size_j]
+                    for k in range(size_k):
+                        zk = domain_start_z + k*ℝ[domain_size_z/size_k]
+                        x[index] = xi
+                        y[index] = yj
+                        z[index] = zk
+                        alpha = alpha_fac*(1 + δ_noghosts[i, j, k])
+                        if alpha > 1:
+                            alpha = 1
+                        rgba[index, 3] = alpha
+                        index += 1
+            # The particle (fluid element) size on the figure.
+            # The size is chosen such that the particles stand side
+            # by side in a homogeneous universe (more or less).
+            scatter_size = 1000*np.prod(fig.get_size_inches())/N**ℝ[2/3]
+            # The previous scatter artist cannot be re-used due to a bug
+            # in matplotlib (the colors/alphas cannot be updated).
+            # Get rid of the old scatter plot.
+            artist_component._offsets3d = juggle_axes([-boxsize], [-boxsize], [-boxsize], zdir='z')
+            # Create new scatter plot and stick it into the render_dict
+            artist_component = ax.scatter(x_mv, y_mv, z_mv,
+                                          c=rgba,
+                                          s=scatter_size,
+                                          lw=0,
+                                          )
+            render_dict[component.name]['artist_component'] = artist_component
         # Print the current scale factor on the figure
         if master:
             a_str = '$a = {}$'.format(significant_figures(a, 4, 'TeX'))
@@ -436,8 +529,8 @@ def render(components, a, filename, cleanup=True):
             plt.imsave(filename, render_image)
             masterprint('done')
     # Remove the temporary directory, if cleanup is requested
-    if master and cleanup and not (nprocs == 1 == len(render_dict)):
-        shutil.rmtree(render_dir)
+    #if master and cleanup and not (nprocs == 1 == len(render_dict)):
+    #    shutil.rmtree(render_dir)
     # Update the live render (local and remote)
     #update_liverender(filename_component)
 
