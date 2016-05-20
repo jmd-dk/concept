@@ -165,9 +165,10 @@ def masterprint(msg, *args, indent=0, end='\n', **kwargs):
         print(text, flush=True, end=end, **kwargs)
     else:
         # Stitch text pieces together
+        sep = kwargs.get('sep', ' ')
         text = '{}{}{}'.format(' '*indent,
                                msg,
-                               (' ' + ' '.join([str(arg) for arg in args])) if args else '')
+                               (sep + sep.join([str(arg) for arg in args])) if args else '')
         # Convert to proper Unicode characters
         text = unicode(text)
         # If the text ends with '...',
@@ -206,18 +207,16 @@ def masterwarn(msg, *args, indent=0, prefix='Warning', end='\n', **kwargs):
         return
     any_warnings[0] = True
     # Stitch text pieces together
-    text = '{}{}: {} {}'.format(' '*indent,
+    sep = kwargs.get('sep', ' ')
+    text = '{}{}: {}{}'.format(' '*indent,
                                 prefix,
                                 msg,
-                                ' '.join([str(arg) for arg in args]))
+                                (sep + sep.join([str(arg) for arg in args])) if args else '')
     # Convert to proper Unicode characters
     text = unicode(text)
     # Print out message
-    print(terminal.bold_red(text),
-                            file=sys.stderr,
-                            flush=True,
-                            end=end,
-                            **kwargs)
+    print(terminal.bold_red(text), file=sys.stderr, flush=True, end=end, **kwargs)
+
 # Flag specifying whether or not any warnings have been given.
 # The actual boolean needs to be insdie of a mutable container,
 # as otherwise changes in its state will not be visible to other
@@ -758,6 +757,10 @@ units_dict = {key: val for key, val in Units_class.__dict__.items() if not key.s
 ################################################################
 # Import all user specified parameters from the parameter file #
 ################################################################
+# Function for converting non-iterables to interables of length 1
+# (and cast iterables to lists).
+def any2iter(val):
+    return list(val) if hasattr(val, '__iter__') and not hasattr(val, '__len__') else np.ravel(val)
 # Subclass the dict to create a dict-likeobject which keeps track of the
 # number of lookups on each key. This is used to identify unknown
 # (and therefore unused) parameters defined by the user.
@@ -867,10 +870,14 @@ cython.declare(# Input/output
                terminal_resolution='unsigned int',
                # Simlation options
                kick_algorithms='dict',
-               use_Ewald='bint',
                use_φ='bint',
                use_P3M='bint',
                fftw_rigor='str',
+               # Debugging options
+               debug='bint',
+               enable_Ewald='bint',
+               enable_gravity='bint',
+               enable_Hubble='bint',
                # Hidden parameters
                special_params='dict',
                )
@@ -890,13 +897,21 @@ output_bases = dict(params.get('output_bases', {}))
 for kind in ('snapshot', 'powerspec', 'render'):
     output_bases[kind] = str(output_bases.get(kind, kind))
 output_times = dict(params.get('output_times', {}))
-for kind in ('snapshot', 'powerspec', 'render', 'terminal render'):
-    output_times[kind] = output_times.get(kind, ())
-output_times = {key: tuple(sorted(set([float(nr) for nr in (list(val) if hasattr(val, '__iter__')
-                                                                 and not hasattr(val, '__len__')
-                                                            else np.ravel(val))
-                                       if nr or nr == 0])))
-                for key, val in output_times.items()}
+# Output times not explicitly written as either of type 'a' or 't'
+# is understood as being of type 'a'.
+for time_param in ('a', 't'):
+    output_times[time_param] = dict(output_times.get(time_param, {}))
+for key, val in output_times.items():
+    if key not in ('a', 't'):
+        output_times['a'][key] = tuple(any2iter(output_times['a'].get(key, ()))) + tuple(any2iter(val))
+for time_param in ('a', 't'):
+    output_times[time_param] = dict(output_times.get(time_param, {}))
+    for kind in ('snapshot', 'powerspec', 'render', 'terminal render'):
+        output_times[time_param][kind] = output_times[time_param].get(kind, ())
+output_times = {time_param: {key: tuple(sorted(set([float(nr) for nr in any2iter(val)
+                                                    if nr or nr == 0])))
+                             for key, val in output_times[time_param].items()}
+                for time_param in ('a', 't')}
 powerspec_select = {}
 if 'powerspec_select' in params:
     if isinstance(params['powerspec_select'], dict):
@@ -930,7 +945,7 @@ for kind in ('dark matter particles', ):
 Δt_factor = float(params.get(unicode('Δt_factor'), 0.01))
 R_tophat = float(params.get('R_tophat', 8*units.Mpc))
 # Cosmological parameters
-H0 = float(params.get('H0', 80*units.km/(units.s*units.Mpc)))
+H0 = float(params.get('H0', 70*units.km/(units.s*units.Mpc)))
 Ωm = float(params.get(unicode('Ωm'), 0.3))
 ΩΛ = float(params.get(unicode('ΩΛ'), 0.7))
 a_begin = float(params.get('a_begin', 0.02))
@@ -954,12 +969,11 @@ terminal_colormap = str(params.get('terminal_colormap', 'gnuplot2'))
 terminal_resolution = int(params.get('terminal_resolution', 80))
 # Simulation options
 kick_algorithms = dict(params.get('kick_algorithms', {}))
-for kind in ('dark matter particles', ):
-    kick_algorithms[kind] = str(kick_algorithms.get(kind, 'PP'))
-use_Ewald = bool(params.get('use_Ewald', False))
+#for kind in ('dark matter particles', ):
+#    kick_algorithms[kind] = str(kick_algorithms.get(kind, 'PP'))
 if (   unicode('φ_gridsize') in params
     or (set(('PM', 'P3M')) & set(kick_algorithms.values()))
-    or output_times['powerspec']):
+    or any([output_times[time_param]['powerspec'] for time_param in ('a', 't')])):
     use_φ = bool(params.get(unicode('use_φ'), True))
 else:
     use_φ = bool(params.get(unicode('use_φ'), False))
@@ -970,13 +984,19 @@ else:
 fftw_rigor = params.get('fftw_rigor', 'estimate').lower()
 if master and fftw_rigor not in ('estimate', 'measure', 'patient', 'exhaustive'):
     abort('Does not recognize FFTW rigor "{}"'.format(params['fftw_rigor']))
+# Debugging options
+debug = bool(params.get('debug', False))
+enable_Ewald = bool(params.get('enable_Ewald',
+                               True if 'PP' in kick_algorithms.values() else False))
+enable_gravity = bool(params.get('enable_gravity', True))
+enable_Hubble = bool(params.get('enable_Hubble', True))
 # Extra hidden parameters via the special_params variable
 special_params = dict(params.get('special_params', {}))
 
 # Output times very close to a_begin are probably meant to be at a_begin
-output_times = {key: tuple([(a_begin if np.abs((nr - a_begin)/a_begin) < 1e-12 else nr)
-                            for nr in val])
-                for key, val in output_times.items()}
+output_times['a'] = {key: tuple([(a_begin if np.abs((nr - a_begin)/a_begin) < 1e-12 else nr)
+                                 for nr in val])
+                     for key, val in output_times['a'].items()}
 
 # Done reading in parameters.
 # Warn the user about specified but unknown parameters.
@@ -1004,24 +1024,22 @@ vector_mv = cast(vector, 'double[:3]')
 ############################################
 # Derived and internally defined constants #
 ############################################
-cython.declare(a_dumps='tuple',
-               a_max='double',
-               G_Newton='double',
+cython.declare(G_Newton='double',
                φ_gridsize3='long long int',
                φ_gridsize_half='Py_ssize_t',
                slab_size_padding='ptrdiff_t',
                ewald_file='str',
                powerspec_dir='str',
                powerspec_base='str',
-               powerspec_times='tuple',
+               powerspec_times='dict',
                render_dir='str',
                render_base='str',
-               render_times='tuple',
+               render_times='dict',
                scp_host='str',
                snapshot_dir='str',
                snapshot_base='str',
-               snapshot_times='tuple',
-               terminal_render_times='tuple',
+               snapshot_times='dict',
+               terminal_render_times='dict',
                ϱ='double',
                ϱm='double',
                PM_fac_const='double',
@@ -1029,21 +1047,21 @@ cython.declare(a_dumps='tuple',
                P3M_cutoff_phys='double',
                P3M_scale_phys='double',
                )
-# List of dump times
-a_dumps = tuple(sorted(set([nr for val in output_times.values() for nr in val])))
-# The scale factor at the last time step
-a_max = a_begin if len(a_dumps) == 0 else np.max(a_dumps)
 # Extract output variables from output dicts
 snapshot_dir          = output_dirs['snapshot']
 snapshot_base         = output_bases['snapshot']
-snapshot_times        = output_times['snapshot']
+snapshot_times        = {time_param: output_times[time_param]['snapshot'] 
+                         for time_param in ('a', 't')}
 powerspec_dir         = output_dirs['powerspec']
 powerspec_base        = output_bases['powerspec']
-powerspec_times       = output_times['powerspec']
+powerspec_times       = {time_param: output_times[time_param]['powerspec'] 
+                         for time_param in ('a', 't')}
 render_dir            = output_dirs['render']
 render_base           = output_bases['render']
-render_times          = output_times['render']
-terminal_render_times = output_times['terminal render']
+render_times          = {time_param: output_times[time_param]['render'] 
+                         for time_param in ('a', 't')}
+terminal_render_times = {time_param: output_times[time_param]['terminal render'] 
+                         for time_param in ('a', 't')}
 # Newtons constant
 G_Newton = 6.6738e-11*units.m**3/units.kg/units.s**2
 # The average, comoing density (the critical

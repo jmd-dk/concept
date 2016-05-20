@@ -25,5 +25,4 @@ ewald_gridsize = 64
 
 # Simulation options
 kick_algorithms = {'dark matter particles': 'PP'}
-use_Ewald       = True
 

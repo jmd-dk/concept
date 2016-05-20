@@ -380,7 +380,6 @@ def render(components, a, filename, cleanup=True):
             artist_component.set_sizes([scatter_size])
             artist_component.set_alpha(alpha)
         elif component.representation == 'fluid':
-            masterprint('so far so good')
             # Extract the δ diff buffers.
             # These will be used to store the fluid element coordinates.
             fluidscalar = component.fluidvars['δ']
@@ -529,8 +528,8 @@ def render(components, a, filename, cleanup=True):
             plt.imsave(filename, render_image)
             masterprint('done')
     # Remove the temporary directory, if cleanup is requested
-    #if master and cleanup and not (nprocs == 1 == len(render_dict)):
-    #    shutil.rmtree(render_dir)
+    if master and cleanup and not (nprocs == 1 == len(render_dict)):
+        shutil.rmtree(render_dir)
     # Update the live render (local and remote)
     #update_liverender(filename_component)
 
@@ -727,7 +726,7 @@ cython.declare(render_dict='object',  # OrderedDict
                render_image='float[:, :, ::1]',
                )
 # Prepare a figure for the render
-if render_times or special_params.get('special', '') == 'render':
+if any(render_times.values()) or special_params.get('special', '') == 'render':
     # (Ordered) dictionary containing the figure, axes, component
     # artist and text artist for each component.
     render_dict = collections.OrderedDict()
@@ -739,7 +738,7 @@ if (any(powerspec_plot_select.values())
     and (powerspec_times or special_params.get('special', '') == 'powerspec')):
     fig_powerspec = plt.figure('powerspec')
 # The array storing the terminal render and the color map
-if terminal_render_times:
+if any(terminal_render_times.values()):
     # Allocate the 2D projection array storing the terminal render
     cython.declare(projection='Py_ssize_t[:, ::1]',
                    projection_scalex='double',

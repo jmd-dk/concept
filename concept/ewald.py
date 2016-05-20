@@ -210,7 +210,7 @@ cython.declare(i='int',
                filepath='str',
                grid='double[:, :, :, ::1]',
                )
-if 'PP' in kick_algorithms.values() and use_Ewald:
+if enable_Ewald:
     filepath = paths['concept_dir'] + '/' + ewald_file
     if os.path.isfile(filepath):
         # Ewald grid already tabulated. Load it

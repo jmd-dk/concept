@@ -146,7 +146,7 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
             else:
                 # Compute the gravitational force
                 # (corresponding to 1/r**2).
-                if use_Ewald:
+                if enable_Ewald:
                     # Translate coordinates so they
                     # correspond to the nearest image.
                     if x > ℝ[0.5*boxsize]:
@@ -425,8 +425,8 @@ def kick_fluid(component, a_integral, meshbuf_mv, dim):
     # This is the same as PM_fac used in the PM function, except that
     # here we do not multiply by the mass (as we now want velocity,
     # not momentum). Note however that here a_integral is
-    # ∫_t^(t + Δt)dt/a**2, where in the PM function it is
-    # ∫_t^(t + Δt)dt/a.
+    # ∫_t^(t + Δt)a⁻²dt, where in the PM function it is
+    # ∫_t^(t + Δt)a⁻¹dt.
     fluid_φ_fac = PM_fac_const*a_integral
     # Interpolate the differentiated potential in meshbuf_mv onto the
     # velocity grid.
