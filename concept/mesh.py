@@ -1027,11 +1027,15 @@ def slabs_IFFT():
 # grid as both the first and third argument, as the differentiation
 # of each grid point requires information from the original
 # (non-differentiated) grid.
+# The optional order argument specifies the order of accuracy of the
+# differentiation (the number of neighboring grid points used to
+# approximate the derivative).
 @cython.pheader(# Arguments
                 grid='double[:, :, ::1]',
                 dim='int',
                 h='double',
                 buffer='double[:, :, ::1]',
+                order='int',
                 # Locals
                 buffer_i='Py_ssize_t',
                 buffer_j='Py_ssize_t',
@@ -1055,51 +1059,66 @@ def slabs_IFFT():
                 shape='tuple',
                 returns='double[:, :, ::1]',
                 )
-def diff(grid, dim, h=1, buffer=None):
+def diff(grid, dim, h=1, buffer=None, order=4):
     if buffer is None:
         # Get a buffer for storing the data
         shape = tuple([grid.shape[dim] - 2*2 for dim in range(3)])
         meshbuf_mv = get_meshbuf(shape)
         # Now do the differentiation and save the results in the buffer
         if dim == 0:
-            # Differentiate along the x-direction via the four point rule
-            for i in range(2, grid.shape[0] - 2):
-                buffer_i = i - 2
-                grid_ip1, grid_im1, grid_ip2, grid_im2 = i + 1, i - 1, i + 2, i - 2
-                for j in range(2, grid.shape[1] - 2):
-                    buffer_j = j - 2
-                    for k in range(2, grid.shape[2] - 2):
-                        meshbuf_mv[buffer_i,
-                                   buffer_j, k - 2] = (+ ℝ[2/(3*h)] *(+ grid[grid_ip1, j, k]
-                                                                      - grid[grid_im1, j, k])
-                                                       - ℝ[1/(12*h)]*(+ grid[grid_ip2, j, k]
-                                                                      - grid[grid_im2, j, k]))
-        elif dim == 1:
-            # Differentiate along the y-direction via the four point rule
-            for j in range(2, grid.shape[1] - 2):
-                buffer_j = j - 2
-                grid_jp1, grid_jm1, grid_jp2, grid_jm2 = j + 1, j - 1, j + 2, j - 2
-                for k in range(2, grid.shape[2] - 2):
-                    buffer_k = k - 2
-                    for i in range(2, grid.shape[0] - 2):
-                        meshbuf_mv[i - 2, buffer_j,
-                                          buffer_k] = (+ ℝ[2/(3*h)] *(+ grid[i, grid_jp1, k]
-                                                                      - grid[i, grid_jm1, k])
-                                                       - ℝ[1/(12*h)]*(+ grid[i, grid_jp2, k]
-                                                                      - grid[i, grid_jm2, k]))
-        elif dim == 2:
-            # Differentiate along the z-direction via the four point rule
-            for k in range(2, grid.shape[2] - 2):
-                buffer_k = k - 2
-                grid_kp1, grid_km1, grid_kp2, grid_km2 = k + 1, k - 1, k + 2, k - 2
+            if order == 2:
+                abort('not implemented yet')
+            elif order == 4:
+                # Differentiate along the x-direction via the four point rule
                 for i in range(2, grid.shape[0] - 2):
                     buffer_i = i - 2
+                    grid_ip1, grid_im1, grid_ip2, grid_im2 = i + 1, i - 1, i + 2, i - 2
                     for j in range(2, grid.shape[1] - 2):
-                        meshbuf_mv[buffer_i, j - 2,
-                                   buffer_k] = (+ ℝ[2/(3*h)] *(+ grid[i, j, grid_kp1]
-                                                               - grid[i, j, grid_km1])
-                                                - ℝ[1/(12*h)]*(+ grid[i, j, grid_kp2]
-                                                               - grid[i, j, grid_km2]))
+                        buffer_j = j - 2
+                        for k in range(2, grid.shape[2] - 2):
+                            meshbuf_mv[buffer_i,
+                                       buffer_j, k - 2] = (+ ℝ[2/(3*h)] *(+ grid[grid_ip1, j, k]
+                                                                          - grid[grid_im1, j, k])
+                                                           - ℝ[1/(12*h)]*(+ grid[grid_ip2, j, k]
+                                                                          - grid[grid_im2, j, k]))
+            elif master:
+                abort('Differentiation of order {} is not implemented'.format(order))
+        elif dim == 1:
+            if order == 2:
+                abort('not implemented yet')
+            elif order == 4:
+                # Differentiate along the y-direction via the four point rule
+                for j in range(2, grid.shape[1] - 2):
+                    buffer_j = j - 2
+                    grid_jp1, grid_jm1, grid_jp2, grid_jm2 = j + 1, j - 1, j + 2, j - 2
+                    for k in range(2, grid.shape[2] - 2):
+                        buffer_k = k - 2
+                        for i in range(2, grid.shape[0] - 2):
+                            meshbuf_mv[i - 2, buffer_j,
+                                              buffer_k] = (+ ℝ[2/(3*h)] *(+ grid[i, grid_jp1, k]
+                                                                          - grid[i, grid_jm1, k])
+                                                           - ℝ[1/(12*h)]*(+ grid[i, grid_jp2, k]
+                                                                          - grid[i, grid_jm2, k]))
+            elif master:
+                abort('Differentiation of order {} is not implemented'.format(order))
+        elif dim == 2:
+            if order == 2:
+                abort('not implemented yet')
+            elif order == 4:
+                # Differentiate along the z-direction via the four point rule
+                for k in range(2, grid.shape[2] - 2):
+                    buffer_k = k - 2
+                    grid_kp1, grid_km1, grid_kp2, grid_km2 = k + 1, k - 1, k + 2, k - 2
+                    for i in range(2, grid.shape[0] - 2):
+                        buffer_i = i - 2
+                        for j in range(2, grid.shape[1] - 2):
+                            meshbuf_mv[buffer_i, j - 2,
+                                       buffer_k] = (+ ℝ[2/(3*h)] *(+ grid[i, j, grid_kp1]
+                                                                   - grid[i, j, grid_km1])
+                                                    - ℝ[1/(12*h)]*(+ grid[i, j, grid_kp2]
+                                                                   - grid[i, j, grid_km2]))
+            elif master:
+                abort('Differentiation of order {} is not implemented'.format(order))
         elif master:
             abort(unicode('The dim argument should be ∈ {1, 2, 3}'))
         return meshbuf_mv
@@ -1107,44 +1126,122 @@ def diff(grid, dim, h=1, buffer=None):
         # Do the differentiation
         # and add the results to the supplied buffer.
         if dim == 0:
-            # Differentiate along the x-direction via the four point rule
-            for i in range(2, grid.shape[0] - 2):
-                buffer_i = i - 2
-                grid_ip1, grid_im1, grid_ip2, grid_im2 = i + 1, i - 1, i + 2, i - 2
-                for j in range(2, grid.shape[1] - 2):
-                    buffer_j = j - 2
-                    for k in range(2, grid.shape[2] - 2):
-                        buffer[buffer_i,
-                               buffer_j, k - 2] += (+ ℝ[2/(3*h)] *(+ grid[grid_ip1, j, k]
-                                                                   - grid[grid_im1, j, k])
-                                                    - ℝ[1/(12*h)]*(+ grid[grid_ip2, j, k]
-                                                                   - grid[grid_im2, j, k]))
-        elif dim == 1:
-            # Differentiate along the y-direction via the four point rule
-            for j in range(2, grid.shape[1] - 2):
-                buffer_j = j - 2
-                grid_jp1, grid_jm1, grid_jp2, grid_jm2 = j + 1, j - 1, j + 2, j - 2
-                for k in range(2, grid.shape[2] - 2):
-                    buffer_k = k - 2
-                    for i in range(2, grid.shape[0] - 2):
-                        buffer[i - 2, buffer_j,
-                                      buffer_k] += (+ ℝ[2/(3*h)] *(+ grid[i, grid_jp1, k]
-                                                                   - grid[i, grid_jm1, k])
-                                                    - ℝ[1/(12*h)]*(+ grid[i, grid_jp2, k]
-                                                                   - grid[i, grid_jm2, k]))
-        elif dim == 2:
-            # Differentiate along the z-direction via the four point rule
-            for k in range(2, grid.shape[2] - 2):
-                buffer_k = k - 2
-                grid_kp1, grid_km1, grid_kp2, grid_km2 = k + 1, k - 1, k + 2, k - 2
+            if order == 1:
+                # Differentiate along the x-direction via forward difference
                 for i in range(2, grid.shape[0] - 2):
                     buffer_i = i - 2
+                    grid_ip1 = i + 1
                     for j in range(2, grid.shape[1] - 2):
-                        buffer[buffer_i, j - 2,
-                               buffer_k] += (+ ℝ[2/(3*h)] *(+ grid[i, j, grid_kp1]
-                                                            - grid[i, j, grid_km1])
-                                             - ℝ[1/(12*h)]*(+ grid[i, j, grid_kp2]
-                                                            - grid[i, j, grid_km2]))
+                        buffer_j = j - 2
+                        for k in range(2, grid.shape[2] - 2):
+                            buffer[buffer_i,
+                                   buffer_j, k - 2] += ℝ[1/h]*(+ grid[grid_ip1, j, k]
+                                                               - grid[i,        j, k])
+            elif order == 2:
+                # Differentiate along the x-direction via the two point rule
+                for i in range(2, grid.shape[0] - 2):
+                    buffer_i = i - 2
+                    grid_ip1, grid_im1 = i + 1, i - 1
+                    for j in range(2, grid.shape[1] - 2):
+                        buffer_j = j - 2
+                        for k in range(2, grid.shape[2] - 2):
+                            buffer[buffer_i,
+                                   buffer_j, k - 2] += (ℝ[1/(2*h)]*(+ grid[grid_ip1, j, k]
+                                                                    - grid[grid_im1, j, k])
+                                                        )
+            elif order == 4:
+                # Differentiate along the x-direction via the four point rule
+                for i in range(2, grid.shape[0] - 2):
+                    buffer_i = i - 2
+                    grid_ip1, grid_im1, grid_ip2, grid_im2 = i + 1, i - 1, i + 2, i - 2
+                    for j in range(2, grid.shape[1] - 2):
+                        buffer_j = j - 2
+                        for k in range(2, grid.shape[2] - 2):
+                            buffer[buffer_i,
+                                   buffer_j, k - 2] += (+ ℝ[2/(3*h)] *(+ grid[grid_ip1, j, k]
+                                                                       - grid[grid_im1, j, k])
+                                                        - ℝ[1/(12*h)]*(+ grid[grid_ip2, j, k]
+                                                                       - grid[grid_im2, j, k]))
+            elif master:
+                abort('Differentiation of order {} is not implemented'.format(order))
+        elif dim == 1:
+            if order == 1:
+                # Differentiate along the y-direction via forward difference
+                for j in range(2, grid.shape[1] - 2):
+                    buffer_j = j - 2
+                    grid_jp1 = j + 1
+                    for k in range(2, grid.shape[2] - 2):
+                        buffer_k = k - 2
+                        for i in range(2, grid.shape[0] - 2):
+                            buffer[i - 2, buffer_j,
+                                          buffer_k] += ℝ[1/h]*(+ grid[i, grid_jp1, k]
+                                                               - grid[i, j,        k])
+            elif order == 2:
+                # Differentiate along the y-direction via the two point rule
+                for j in range(2, grid.shape[1] - 2):
+                    buffer_j = j - 2
+                    grid_jp1, grid_jm1 = j + 1, j - 1
+                    for k in range(2, grid.shape[2] - 2):
+                        buffer_k = k - 2
+                        for i in range(2, grid.shape[0] - 2):
+                            buffer[i - 2, buffer_j,
+                                          buffer_k] += (ℝ[1/(2*h)]*(+ grid[i, grid_jp1, k]
+                                                                    - grid[i, grid_jm1, k])
+                                                        )
+            elif order == 4:
+                # Differentiate along the y-direction via the four point rule
+                for j in range(2, grid.shape[1] - 2):
+                    buffer_j = j - 2
+                    grid_jp1, grid_jm1, grid_jp2, grid_jm2 = j + 1, j - 1, j + 2, j - 2
+                    for k in range(2, grid.shape[2] - 2):
+                        buffer_k = k - 2
+                        for i in range(2, grid.shape[0] - 2):
+                            buffer[i - 2, buffer_j,
+                                          buffer_k] += (+ ℝ[2/(3*h)] *(+ grid[i, grid_jp1, k]
+                                                                       - grid[i, grid_jm1, k])
+                                                        - ℝ[1/(12*h)]*(+ grid[i, grid_jp2, k]
+                                                                       - grid[i, grid_jm2, k]))
+            elif master:
+                abort('Differentiation of order {} is not implemented'.format(order))
+        elif dim == 2:
+            if order == 1:
+                # Differentiate along the z-direction via forward difference
+                for k in range(2, grid.shape[2] - 2):
+                    buffer_k = k - 2
+                    grid_kp1 = k + 1
+                    for i in range(2, grid.shape[0] - 2):
+                        buffer_i = i - 2
+                        for j in range(2, grid.shape[1] - 2):
+                            buffer[buffer_i, j - 2,
+                                   buffer_k] += ℝ[1/h]*(+ grid[i, j, grid_kp1]
+                                                        - grid[i, j, k])
+            elif order == 2:
+                # Differentiate along the z-direction via the two point rule
+                for k in range(2, grid.shape[2] - 2):
+                    buffer_k = k - 2
+                    grid_kp1, grid_km1 = k + 1, k - 1
+                    for i in range(2, grid.shape[0] - 2):
+                        buffer_i = i - 2
+                        for j in range(2, grid.shape[1] - 2):
+                            buffer[buffer_i, j - 2,
+                                   buffer_k] += (ℝ[1/(2*h)]*(+ grid[i, j, grid_kp1]
+                                                             - grid[i, j, grid_km1])
+                                                 )
+            elif order == 4:
+                # Differentiate along the z-direction via the four point rule
+                for k in range(2, grid.shape[2] - 2):
+                    buffer_k = k - 2
+                    grid_kp1, grid_km1, grid_kp2, grid_km2 = k + 1, k - 1, k + 2, k - 2
+                    for i in range(2, grid.shape[0] - 2):
+                        buffer_i = i - 2
+                        for j in range(2, grid.shape[1] - 2):
+                            buffer[buffer_i, j - 2,
+                                   buffer_k] += (+ ℝ[2/(3*h)] *(+ grid[i, j, grid_kp1]
+                                                                - grid[i, j, grid_km1])
+                                                 - ℝ[1/(12*h)]*(+ grid[i, j, grid_kp2]
+                                                                - grid[i, j, grid_km2]))
+            elif master:
+                abort('Differentiation of order {} is not implemented'.format(order))
         elif master:
             abort(unicode('The dim argument should be ∈ {1, 2, 3}'))
         return buffer

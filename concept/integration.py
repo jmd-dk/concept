@@ -26,14 +26,32 @@ from commons import *
 
 
 
-# The Friedmann equation, used to integrate
-# the scale factor forwards in time.
-@cython.header(t='double',
+# This function implements the Hubble parameter H(a)=ȧ/a,
+# as described by the Friedmann equation.
+# The Hubble parameter is only ever written here. Every time the Hubble
+# parameter is used in the code, this function should be called.
+@cython.header(# Arguments
                a='double',
+               # Locals
+               returns='double',
+               )
+def hubble(a):
+    # Currently, only matter (Ωm) and a cosmological constant (ΩΛ)
+    # is implemented in the Friedmann equation.
+    if enable_Hubble:
+        return H0*sqrt(Ωm/(a**3 + machine_ϵ) + ΩΛ)
+    return 0
+
+# Function returning the time differentiated scale factor,
+# used to integrate the scale factor forwards in time.
+@cython.header(# Argumetns
+               t='double',
+               a='double',
+               # Locals
                returns='double',
                )
 def ȧ(t, a):
-    return a*H0*sqrt(Ωm/(a**3 + machine_ϵ) + ΩΛ)
+    return a*hubble(a)
 
 # Function for solving ODEs of the form ḟ(t, f)
 @cython.header(# Arguments
@@ -51,7 +69,7 @@ def ȧ(t, a):
                f5='double',
                h='double',
                h_max='double',
-               i='int',
+               i='Py_ssize_t',
                k1='double',
                k2='double',
                k3='double',
@@ -62,16 +80,16 @@ def ȧ(t, a):
                Δt='double',
                returns='double',
                )
-def rkf45(ḟ, f_start, t_start, t_end, abs_tol, rel_tol, save_intermediate):
+def rkf45(ḟ, f_start, t_start, t_end, abs_tol, rel_tol, save_intermediate=False):
     """ḟ(t, f) is the derivative of f with respect to t. Initial values
     are given by f_start and t_start. ḟ will be integrated from t_start
     to t_end. That is, the returned value is f(t_end). The absolute and
-    relative accuracies are given by abs_tol, rel_tol. If save_intermediate is True,
-    intermediate values optained during the integration will be kept in
-    t_cum, f_cum.
+    relative accuracies are given by abs_tol, rel_tol.
+    If save_intermediate is True, intermediate values optained during
+    the integration will be kept in t_tab, f_tab.
     """
-    global alloc_cum, f_cum, f_cum_mv, integrand_cum, integrand_cum_mv
-    global size_cum, t_cum, t_cum_mv
+    global alloc_tab, f_tab, f_tab_mv, integrand_tab, integrand_tab_mv
+    global size_tab, t_tab, t_tab_mv
     # The maximum and minimum step size
     Δt = t_end - t_start
     h_max = 0.1*Δt
@@ -102,32 +120,29 @@ def rkf45(ḟ, f_start, t_start, t_end, abs_tol, rel_tol, save_intermediate):
             f = f5
             # Save intermediate t and f values
             if save_intermediate:
-                t_cum[i] = t
-                f_cum[i] = f
+                t_tab[i] = t
+                f_tab[i] = f
                 i += 1
-                # If necessary, t_cum and f_cum get resized (doubled)
-                if i == alloc_cum:
-                    alloc_cum *= 2
-                    t_cum = realloc(t_cum, alloc_cum*sizeof('double'))
-                    f_cum = realloc(f_cum, alloc_cum*sizeof('double'))
-                    integrand_cum = realloc(integrand_cum,
-                                            alloc_cum*sizeof('double'))
-                    t_cum_mv = cast(t_cum, 'double[:alloc_cum]')
-                    f_cum_mv = cast(f_cum, 'double[:alloc_cum]')
-                    integrand_cum_mv = cast(integrand_cum,
-                                            'double[:alloc_cum]')
+                # If necessary, t_tab and f_tab get resized (doubled)
+                if i == alloc_tab:
+                    alloc_tab *= 2
+                    t_tab = realloc(t_tab, alloc_tab*sizeof('double'))
+                    f_tab = realloc(f_tab, alloc_tab*sizeof('double'))
+                    integrand_tab = realloc(integrand_tab, alloc_tab*sizeof('double'))
+                    t_tab_mv = cast(t_tab, 'double[:alloc_tab]')
+                    f_tab_mv = cast(f_tab, 'double[:alloc_tab]')
+                    integrand_tab_mv = cast(integrand_tab, 'double[:alloc_tab]')
         # Updating step size
         h *= 0.95*(tolerence/error)**0.25
         if h > h_max:
             h = h_max
-        if h < h_min:
+        elif h < h_min:
             h = h_min
         if t + h > t_end:
             h = t_end - t
     if save_intermediate:
-        size_cum = i
+        size_tab = i
     return f
-
 
 # Function for updating the scale factor
 @cython.header(# Arguments
@@ -142,54 +157,59 @@ def expand(a, t, Δt):
     """
     return rkf45(ȧ, a, t, t + Δt, abs_tol=1e-9, rel_tol=1e-9, save_intermediate=True)
 
-
-# Function for calculating integrals of the sort ∫_t^(t + Δt) a^power dt
+# Function for calculating integrals of the sort
+# ∫_t^(t + Δt) integrand(a) dt.
 @cython.header(# Arguments
-               power='int',
+               integrand='str',
                # Locals
                acc='gsl_interp_accel*',
+               i='Py_ssize_t',
                integral='double',
                spline='gsl_spline*',
                returns='double',
                )
-def scalefactor_integral(power):
-    """This function returns the factor ∫_t^(t + Δt) a**power dt used
-    in the drift (power = -2) and kick (power = -1) operations.
+def scalefactor_integral(integrand):
+    """This function returns the factor
+    ∫_t^(t + Δt) integrand(a) dt
+    used in the drift and kick operations. The integrand is parsed
+    as a string, which may only be one of these implemented values:
+    integrand ∈ {'a⁻¹', 'a⁻²', 'ȧ/a'}
     It is important that the expand function expand(a, t, Δt) has been
     called prior to calling this function, as expand generates the
     values needed in the integration. You can call this function
-    multiple times (and with different values of power) without calling
+    multiple times (and with different integrands) without calling
     expand in between.
     """
-    # If expand has been called as it should, f_cum now stores
-    # accumulated values of a. Compute the integrand a^power.
-    global integrand_cum
-    if power == -1:
-        for i in range(size_cum):
-            integrand_cum[i] = 1/f_cum[i]
-    elif power == -2:
-        for i in range(size_cum):
-            integrand_cum[i] = 1/f_cum[i]**2
-    # Integrate integrand_cum in pure Python or Cython
+    # If expand has been called as it should, f_tab now stores
+    # tabulated values of a. Compute the integrand.
+    if integrand == 'a⁻¹':
+        for i in range(size_tab):
+            integrand_tab[i] = 1/f_tab[i]
+    elif integrand == 'a⁻²':
+        for i in range(size_tab):
+            integrand_tab[i] = 1/f_tab[i]**2
+    elif integrand == 'ȧ/a':
+        for i in range(size_tab):
+            integrand_tab[i] = hubble(f_tab[i])
+    elif master:
+        abort('The scalefactor integral with "{}" as the integrand is not implemented'
+              .format(integrand))
+    # Integrate integrand_tab in pure Python or Cython
     if not cython.compiled:
-        integral = np.trapz(integrand_cum_mv[:size_cum], t_cum_mv[:size_cum])
+        integral = np.trapz(integrand_tab_mv[:size_tab], t_tab_mv[:size_tab])
     else:
         # Allocate an interpolation accelerator
         # and a cubic spline object.
         acc = gsl_interp_accel_alloc()
-        spline = gsl_spline_alloc(gsl_interp_cspline, size_cum)
+        spline = gsl_spline_alloc(gsl_interp_cspline, size_tab)
         # Initialize spline
-        gsl_spline_init(spline, t_cum, integrand_cum, size_cum)
+        gsl_spline_init(spline, t_tab, integrand_tab, size_tab)
         # Integrate the splined function
-        integral = gsl_spline_eval_integ(spline,
-                                         t_cum[0],
-                                         t_cum[size_cum - 1],
-                                         acc)
+        integral = gsl_spline_eval_integ(spline, t_tab[0], t_tab[size_tab - 1], acc)
         # Free the accelerator and the spline object
         gsl_spline_free(spline)
         gsl_interp_accel_free(acc)
     return integral
-
 
 # Function for computing the cosmic time t at some given scale factor a
 @cython.header(# Arguments
@@ -199,8 +219,12 @@ def scalefactor_integral(power):
                t_upper='double',
                # Locals
                a_test='double',
+               a_test_prev='double',
+               abs_tol='double',
+               rel_tol='double',
                t='double',
-               t_lowest='double',
+               t_max='double',
+               t_min='double',
                returns='double',
                )
 def cosmic_time(a, a_lower=machine_ϵ, t_lower=machine_ϵ, t_upper=20*units.Gyr):
@@ -209,26 +233,37 @@ def cosmic_time(a, a_lower=machine_ϵ, t_lower=machine_ϵ, t_upper=20*units.Gyr)
     this function finds the future time at which the scale
     factor will have the value a.
     """
-    # Saves a copy of t_lower, the time at which the scale factor
-    # had a value of a_lower
-    t_lowest = t_lower
+    if not enable_Hubble:
+        abort('A mapping a(t) cannot be constructed when enable_Hubble == False.')
+    # Tolerences
+    abs_tol = 1e-9
+    rel_tol = 1e-9
+    # Saves copies of extreme t values
+    t_min, t_max = t_lower, t_upper
     # Compute the cosmic time at which the scale factor had the value a,
-    # using a binary search
-    a_test = t = -1
-    while (abs(a_test - a) > ℝ[2*machine_ϵ]
-           and (t_upper - t_lower) > ℝ[2*machine_ϵ]):
-        t = (t_upper + t_lower)/2
-        a_test = rkf45(ȧ, a_lower, t_lowest, t, abs_tol=1e-9, rel_tol=1e-9,
-                       save_intermediate=False)
+    # using a binary search.
+    a_test = a_test_prev = t = -1
+    while (    not isclose(a_test,  a,       0, ℝ[2*machine_ϵ])
+           and not isclose(t_upper, t_lower, 0, ℝ[2*machine_ϵ])):
+        t = 0.5*(t_upper + t_lower)
+        a_test = rkf45(ȧ, a_lower, t_min, t, abs_tol, rel_tol)
+        if a_test == a_test_prev:
+            if not isclose(a_test, a):
+                abort('Integration halted.')
+            break
+        a_test_prev = a_test
         if a_test > a:
             t_upper = t
         else:
             t_lower = t
+    # If the result is equal to t_max, it means that the t_upper
+    # argument was too small! Call recursively with double t_upper.
+    if t == t_max:
+        return cosmic_time(a, a_test, t_max, 2*t_max)
     return t
 
-
 # Initialize the Butcher tableau for the Runge–Kutta–Fehlberg
-# method at import time
+# method at import time.
 cython.declare(a21='double',
                a31='double',
                a41='double',
@@ -270,26 +305,25 @@ b1  = 16/135;      b3  = 6656/12825;  b4  = 28561/56430; b5  = -9/50;      b6  =
 c2  = 1/4;         c3  = 3/8;         c4  = 12/13;       c5  = 1;          c6  = 1/2;
 d1  = 25/216;      d3  = 1408/2565;   d4  = 2197/4104;   d5  = -1/5;
 
-# Allocate t_cum, f_cum and integrand_cum at import time.
-# t_cum and f_cum are used to store intermediate values of t, f,
-# in the Runge–Kutta–Fehlberg method. integrand_cum stores the
-# associated values of the integrand in ∫_t^(t + Δt) 1/a dt
-# and ∫_t^(t + Δt) 1/a^2 dt.
-cython.declare(alloc_cum='int',
-               f_cum='double*',
-               f_cum_mv='double[::1]',
-               integrand_cum='double*',
-               integrand_cum_mv='double[::1]',
-               size_cum='int',
-               t_cum='double*',
-               t_cum_mv='double[::1]'
+# Allocate t_tab, f_tab and integrand_tab at import time.
+# t_tab and f_tab are used to store intermediate values of t, f,
+# in the Runge-Kutta-Fehlberg method. integrand_tab stores the
+# associated values of the integrand in ∫_t^(t + Δt) integrand dt.
+cython.declare(alloc_tab='Py_ssize_t',
+               f_tab='double*',
+               f_tab_mv='double[::1]',
+               integrand_tab='double*',
+               integrand_tab_mv='double[::1]',
+               size_tab='Py_ssize_t',
+               t_tab='double*',
+               t_tab_mv='double[::1]'
                )
-alloc_cum = 100
-size_cum = 0
-t_cum = malloc(alloc_cum*sizeof('double'))
-f_cum = malloc(alloc_cum*sizeof('double'))
-integrand_cum = malloc(alloc_cum*sizeof('double'))
-t_cum_mv = cast(t_cum, 'double[:alloc_cum]')
-f_cum_mv = cast(f_cum, 'double[:alloc_cum]')
-integrand_cum_mv = cast(integrand_cum, 'double[:alloc_cum]')
+alloc_tab = 100
+size_tab = 0
+t_tab = malloc(alloc_tab*sizeof('double'))
+f_tab = malloc(alloc_tab*sizeof('double'))
+integrand_tab = malloc(alloc_tab*sizeof('double'))
+t_tab_mv = cast(t_tab, 'double[:alloc_tab]')
+f_tab_mv = cast(f_tab, 'double[:alloc_tab]')
+integrand_tab_mv = cast(integrand_tab, 'double[:alloc_tab]')
 

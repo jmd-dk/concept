@@ -10,7 +10,7 @@
 
 
 # Input/output
-IC_file = 'ICs/example_converted.hdf5'		# Initial condition snapshot
+IC_file = 'ICs/example.hdf5'		# Initial condition snapshot
 snapshot_type = 'standard'		# Type of output snapshots
 output_dirs = {				# Directories for storing output
     'snapshot' : 'output',
@@ -19,22 +19,30 @@ output_dirs = {				# Directories for storing output
                }
 output_bases = {			# File basenames of output
     'snapshot' : 'snapshot',
-    'powerspec': 'powerspec',
-    'render'   : 'render',
+    'powerspec': 'powerspec_fluid',
+    'render'   : 'render_fluid',
                 }
 output_times = {			# Scale factor values at which to dump output
-    'snapshot'       : 1,
-    'powerspec'      : '',
-    'render'         : '',
-    'terminal render': '',
+    'a': {
+        'snapshot'       : '',
+        'powerspec'      : '',
+        'render'         : '',
+        'terminal render': '',
+          },
+    't': {
+        'snapshot'       : 13*Gyr,
+        'powerspec'      : '',
+        'render'         : '',
+        'terminal render': '',
+          },
                 }
-powerspec_select = {                    # Toogle power spectra computation for each component
+powerspec_select = {                    # Toggle power spectra computation for each component
     'all': True,
                     }
-powerspec_plot_select = {               # Toogle power spectra plotting for each component
-    'all': False,
+powerspec_plot_select = {               # Toggle power spectra plotting for each component
+    'all': True,
                          }
-render_select = {                       # Toogle rendering for each component
+render_select = {                       # Toggle rendering for each component
     'all': True,
                  }
 
@@ -51,7 +59,7 @@ softeningfactors = {			# The amount of gravitational softening for each species
 R_tophat         = 8*Mpc		# Radius of tophat used to compute σ
 
 # Cosmological parameters
-H0      = 70*km/s/Mpc			# The Hubble constant
+H0      = 70*km/(s*Mpc)			# The Hubble constant
 Ωm      = 0.3				# Density parameter for matter
 ΩΛ      = 0.7				# Density parameter for dark energy
 a_begin = 0.02				# Scale factor at beginning of simulation
@@ -59,7 +67,8 @@ a_begin = 0.02				# Scale factor at beginning of simulation
 # Graphics
 render_colors = {                       # Render color for each type
     'example component': 'lime',
-    'fluid component':   'lime',
+    'GADGET fluid':   'lime',
+    'GADGET halos':   'lime',
                  }
 bgcolor             = 'black'		# Background color of renders
 resolution          = 1080		# The height and width of the render
@@ -74,4 +83,11 @@ kick_algorithms = {
                    }
 use_Ewald = True			# Turn Ewald corrections on or off
 fftw_rigor = 'measure'			# Rigor level when acquiring FFTW wisdom
+
+# Debugging options
+debug = True                            # Enable debugging messages
+enable_Ewald = True                     # Enable Ewald corrections
+enable_gravity = True                   # Enable gravity generally
+enable_Hubble = 1
+
 

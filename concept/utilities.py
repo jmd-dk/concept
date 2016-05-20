@@ -28,7 +28,6 @@ from commons import *
 # Functions from the 'analysis' and 'graphics' modules are not dumped
 # directly into the global namespace of this module, as functions with
 # identical names are defined here.
-from communication import smart_mpi
 from snapshot import load
 cimport('import analysis, graphics')
 cimport('from communication import domain_subdivisions, exchange')
@@ -63,6 +62,7 @@ def delegate():
                 value='object',  # double or str
                 mass='double',
                 name='str',
+                names='list',
                 original_mass='double',
                 original_representation='str',
                 original_tot_mass='double',
@@ -82,8 +82,7 @@ def convert():
     attributes = collections.defaultdict(dict)
     for attribute_str in special_params['attributes']:
         index = attribute_str.index('=')
-        key = (attribute_str[:index].strip().replace(unicode('Ω'), 'Ω')
-                                            .replace(unicode('Λ'), 'Λ'))
+        key = attribute_str[:index].strip().replace(unicode('Ω'), 'Ω').replace(unicode('Λ'), 'Λ')
         try:
             # Numerical value, possibly with units
             value = eval(attribute_str[(index + 1):], units_dict)
@@ -91,9 +90,16 @@ def convert():
             # String value
             value = attribute_str[(index + 1):].strip()
         if '.' in key:
-            name, attribute = key.split('.')
-            attributes[name.strip()][attribute.strip()] = value
+            index = key.index('.')
+            if index + 1 < len(key) and key[index + 1] not in '0123456789':
+                # Component attribute
+                name, attribute = key.split('.')
+                attributes[name.strip()][attribute.strip()] = value
+            else:
+                # Global parameter
+                params[key] = value
         else:
+            # Global parameter
             params[key] = value
     # The filename of the snapshot to read in
     snapshot_filename = special_params['snapshot_filename']
@@ -101,13 +107,20 @@ def convert():
     snapshot = load(snapshot_filename, compare_params=True,  # Warn the user of non-matching params
                                        do_exchange=False,    # Exchanges happen later, if needed
                                        as_if=snapshot_type)
+    # Warn the user of specified changes to component attributes
+    # of non-existing components.
+    names = [component.name for component in snapshot.components]
+    for name in attributes:
+        if name not in names:
+            masterwarn('The following attributes are specified for the "{}" component, '
+                       'which does not exist:\n'.format(name), attributes[name], sep='')
     # Overwrite parameters in the snapshot with those from the
     # parameter file (those which are currently loaded as globals).
     snapshot.populate(snapshot.components, a_begin)
     # If specific parameters are parsed as attributes,
     # update the snapshot parameters accordingly.
     snapshot.params.update(params)
-    # For GADGET snapshot, also update the GADGET header
+    # For GADGET snapshots, also update the GADGET header
     if snapshot_type == 'gadget2':
         snapshot.update_header()
     # Edit individual components if component attributes are parsed
@@ -119,6 +132,12 @@ def convert():
         original_mass = component.mass
         # Edit component attributes
         for key, val in attributes[name].items():
+            if not hasattr(component, key):
+                # A non-existing attribute was specified. As this is
+                # nonsensical and leads to an error in compiled mode
+                # but not in pure Python mode, do an explicit abort.
+                abort('The following non-existing attribute was specified for\n'
+                      'the "{}" component: {}'.format(component.name, key))
             setattr(component, key, val)
         component.representation = get_representation(component.species)
         # Apply particles <--> fluid convertion, if necessary
@@ -208,8 +227,7 @@ def locate_snapshots(path):
     else:
         filenames = [path]
     # Only use snapshots
-    snapshot_filenames = [filename for filename in filenames
-                          if get_snapshot_type(filename)]
+    snapshot_filenames = [filename for filename in filenames if get_snapshot_type(filename)]
     # Abort if none of the files where snapshots
     if master and not snapshot_filenames:
         if os.path.isdir(path):
@@ -269,7 +287,7 @@ def render():
     # Extract the snapshot filename
     snapshot_filename = special_params['snapshot_filename']
     # Read in the snapshot
-    snapshot = load(snapshot_filename, compare_params=False)
+    snapshot = load(snapshot_filename, compare_params=True)
     # Construct output filename based on the snapshot filename.
     # Importantly, remove any file extension signalling a snapshot.
     output_dir, basename = os.path.split(snapshot_filename)
@@ -361,17 +379,18 @@ def info():
                     masterprint('# Input/output', file=file)
                     masterprint("IC_file = '{}'".format(sensible_path(snapshot_filename)),
                                 file=file)
-                    masterprint('# Unit system', file=file)
-                    masterprint("unit_length = '{}'".format(snapshot.units['length']), file=file)
-                    masterprint("unit_time = '{}'".format(snapshot.units['time']), file=file)
-                    masterprint("unit_mass = '{}'".format(snapshot.units['mass']), file=file)
+                    if hasattr(snapshot, 'units'):
+                        masterprint('# Unit system', file=file)
+                        masterprint("unit_length = '{}'".format(snapshot.units['length']), file=file)
+                        masterprint("unit_time = '{}'".format(snapshot.units['time']), file=file)
+                        masterprint("unit_mass = '{}'".format(snapshot.units['mass']), file=file)
                     masterprint('# Numerical parameters', file=file)
                     unit = 100*units.km/(units.s*units.Mpc)
                     h = params['H0']/unit
                     value = params['boxsize']*h
                     if isint(value):
-                        masterprint('boxsize = {}*{:.12g}*{}'.format(int(round(value)),
-                                                                          h, unit_length),
+                        masterprint('boxsize = {}/{:.12g}*{}'.format(int(round(value)), h,
+                                                                     unit_length),
                                     file=file)
                     else:
                         masterprint('boxsize = {:.12g}*{}'.format(params['boxsize'], unit_length),

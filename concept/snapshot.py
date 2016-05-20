@@ -38,12 +38,10 @@ import struct
 # saving/loading, it stores component data.
 @cython.cclass
 class StandardSnapshot:
-    """The params dict contain the following entries:
-    'H0'
-    'a'
-    'boxsize'
-    'Ωm'
-    'ΩΛ'
+    """This class represents the standard snapshot type. Besides holding
+    the components in the components list, the unit system is declared
+    in the units dict. Finally, the cosmological parameters and the
+    boxsize is stored in the params dict.
     """
     # The filename extension for this type of snapshot
     extension = '.hdf5'
@@ -431,15 +429,25 @@ class StandardSnapshot:
 # and also Gadget ID's and the Gadget header.
 @cython.cclass
 class Gadget2Snapshot:
-    """Only Gadget2 type 1 (halo) particles,
-    corresponding to dark matter particles, are supported.
-    The params dict contain the following entries:
-    'H0'
-    'a'
-    'boxsize'
-    'Ωm'
-    'ΩΛ'
-    'header'
+    """This class represents snapshots of the "gadget2" type, meaning
+    the second type of snapshot native to GADGET2. Only GADGET2 type 1
+    (halo) particles,vcorresponding to dark matter particles, are
+    supported.
+    As is the case for the standard snapshot class, this class contains
+    a list components (the components attribute) and dict of parameters
+    (the params attribute). Besides holding the cosmological parameters
+    and the boxsize, the params dict also contains a a "header" key,
+    the item of which is the GADGET2 header, represented as an ordered
+    dict. This class does not have a units attribute, as no global
+    unit system is used by GADGET snapshots.
+    As only a single component (GADGET halos) are supported, the
+    components list will always contain this single component only. For
+    ease of access, the component attribute is also defined, referring
+    directly to this component. Finally, the ID attribute holds the
+    GADGET IDs of particles. When constructing a Gadget2Snapshot
+    instance by other means than by loading from a snapshot on disk,
+    these are generated in a somewhat arbitrary (but consistent)
+    fashion.
     """
     # The filename extension for this type of snapshot
     extension = ''

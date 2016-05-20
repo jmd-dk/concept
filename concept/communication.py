@@ -457,7 +457,7 @@ def communicate_domain_boundaries(domain_grid, mode=0):
                ghost_start_k='Py_ssize_t',
                )
 def communicate_domain_ghosts(domain_grid):
-    """This function assumes that the values at the pseudo point in the
+    """This function assumes that the values at the pseudo points in the
     domain grid are already correctly set. This means that the entire
     physical grid is fully constructed. This function copies the
     boundary layers of the domain grid to the neighboring processes.

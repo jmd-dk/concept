@@ -26,7 +26,10 @@ from commons import *
 
 # Cython imports
 import gravity
-cimport('from communication import exchange')
+cimport('from communication import communicate_domain_boundaries, '
+                                  'communicate_domain_ghosts,     '
+                                  'exchange,                      '
+        )
 cimport('from mesh import diff')
 cimport('from gravity import PM, kick_fluid')
 
@@ -118,28 +121,39 @@ class FluidScalar:
         self.diffz_mv = cast(self.diffz,
                              'double[:shape_noghosts[0], :shape_noghosts[1], :shape_noghosts[2]]')
 
-    # Method for nullifying the buffers attached to the fluid scalar
-    # (the update buffer Δ and the three differentiation buffers
-    # diffx, diffy, diffz).
+    # Method for nullifying the update buffer Δ
+    # attached to the fluid scalar.
+    @cython.header(# Locals
+                   i='Py_ssize_t',
+                   size_noghosts='Py_ssize_t',
+                   Δ='double*',
+                   )
+    def nullify_Δ(self):
+        # Extract buffer pointer and its size
+        Δ = self.Δ
+        size_noghosts = np.prod(asarray(self.Δ_mv).shape)
+        # Nullify
+        for i in range(size_noghosts):
+            Δ[i] = 0
+
+    # Method for nullifying the diff buffers diffx, diffy, diffz,
+    # attached to the fluid scalar.
     @cython.header(# Locals
                    diffx='double*',
                    diffy='double*',
                    diffz='double*',
                    i='Py_ssize_t',
                    size_noghosts='Py_ssize_t',
-                   Δ='double*',
                    )
-    def nullify_buffers(self):
+    def nullify_diff(self):
         # Extract buffer pointers
-        Δ = self.Δ
         diffx = self.diffx
         diffy = self.diffy
         diffz = self.diffz
         # All of the buffers have the same size
-        size_noghosts = np.prod(asarray(self.Δ_mv).shape)
+        size_noghosts = np.prod(asarray(self.diffx_mv).shape)
         # Nullify
         for i in range(size_noghosts):
-            Δ[i] = 0
             diffx[i] = 0
             diffy[i] = 0
             diffz[i] = 0
@@ -356,9 +370,6 @@ class Component:
     @cython.header(# Arguments
                    a_integrals='dict',
                    # Locals
-                   diffx_mv='double[:, :, ::1]',
-                   diffy_mv='double[:, :, ::1]',
-                   diffz_mv='double[:, :, ::1]',
                    fac='double',
                    fluidscalar='FluidScalar',
                    grid_mv='double[:, :, ::1]',
@@ -370,10 +381,59 @@ class Component:
                    momx='double*',
                    momy='double*',
                    momz='double*',
+
+                   δ_noghosts='double[:, :, :]',
+                   ux_noghosts='double[:, :, :]',
+                   uy_noghosts='double[:, :, :]',
+                   uz_noghosts='double[:, :, :]',
+                   j='Py_ssize_t',
+                   k='Py_ssize_t',
+                   a_integral1='double',
+                   a_integral2='double',
+                   δ_Δ_mv='double[:, :, ::1]',
+                   δ_diffx_mv='double[:, :, ::1]',
+                   δ_diffy_mv='double[:, :, ::1]',
+                   δ_diffz_mv='double[:, :, ::1]',
+                   ux_diffx_mv='double[:, :, ::1]',
+                   ux_diffy_mv='double[:, :, ::1]',
+                   ux_diffz_mv='double[:, :, ::1]',
+                   uy_diffx_mv='double[:, :, ::1]',
+                   uy_diffy_mv='double[:, :, ::1]',
+                   uy_diffz_mv='double[:, :, ::1]',
+                   uz_diffx_mv='double[:, :, ::1]',
+                   uz_diffy_mv='double[:, :, ::1]',
+                   uz_diffz_mv='double[:, :, ::1]',
+                   ux_Δ_mv='double[:, :, ::1]',
+                   uy_Δ_mv='double[:, :, ::1]',
+                   uz_Δ_mv='double[:, :, ::1]',
+                   dim='int',
+
+
+
+                   δ_Δ='double*',
+                   δ_grid='double*',
+                   δ_diffx='double*',
+                   δ_diffy='double*',
+                   δ_diffz='double*',
+                   ux_grid='double*',
+                   ux_diffx='double*',
+                   ux_diffy='double*',
+                   ux_diffz='double*',
+                   ux_Δ='double*',
+                   uy_grid='double*',
+                   uy_diffx='double*',
+                   uy_diffy='double*',
+                   uy_diffz='double*',
+                   uy_Δ='double*',
+                   uz_grid='double*',
+                   uz_diffx='double*',
+                   uz_diffy='double*',
+                   uz_diffz='double*',
+                   uz_Δ='double*',
+                   size_noghosts='Py_ssize_t',
+                   a_integral='double',
                    )
     def drift(self, a_integrals):
-        """a_integral is ∫_t^(t + Δt)a⁻²dt
-        """
         if self.representation == 'particles':
             masterprint('Drifting {} ...'.format(self.name))
             posx = self.posx
@@ -399,28 +459,183 @@ class Component:
             exchange(self)
         elif self.representation == 'fluid':
             masterprint('Evolving fluid variables of {} ...'.format(self.name))
-            # Communicate pseudo and ghost points of fluid grids
-
-
             # Pre-tabulate all three differentiations of each fluid
             # scalar and store the results in the
             # designated diff buffers.
             # The physical grid spacing h is the same in all directions.
             h = boxsize/self.gridsize
             for fluidscalar in self.iterate_fluidvars():
-                # Extract grids
+                # Extract memoryview of the grid
                 grid_mv = fluidscalar.grid_mv
-                diffx_mv = fluidscalar.diffx_mv
-                diffy_mv = fluidscalar.diffy_mv
-                diffz_mv = fluidscalar.diffz_mv
-                # Do the differentiation
-                diff(grid_mv, 0, h, diffx_mv)
-                diff(grid_mv, 1, h, diffy_mv)
-                diff(grid_mv, 2, h, diffz_mv)
-            # Evolve the fluid variables
+                # Communicate pseudo and ghost points of fluid grid
+                communicate_domain_boundaries(grid_mv, mode=1)
+                communicate_domain_ghosts(grid_mv)
+                # Do the differentiations
+                fluidscalar.nullify_diff()
+                diff(grid_mv, 0, h, fluidscalar.diffx_mv, order=4)
+                diff(grid_mv, 1, h, fluidscalar.diffy_mv, order=4)
+                diff(grid_mv, 2, h, fluidscalar.diffz_mv, order=4)
+            # Extract grids
+            fluidscalar = self.fluidvars['δ']
+            δ_grid = fluidscalar.grid
+            δ_Δ = fluidscalar.Δ
+            δ_diffx = fluidscalar.diffx
+            δ_diffy = fluidscalar.diffy
+            δ_diffz = fluidscalar.diffz
+
+            δ_Δ_mv = fluidscalar.Δ_mv
+            δ_diffx_mv = fluidscalar.diffx_mv
+            δ_diffy_mv = fluidscalar.diffy_mv
+            δ_diffz_mv = fluidscalar.diffz_mv
+            δ_noghosts = fluidscalar.grid_noghosts
+
+            fluidscalar = self.fluidvars['u'][0]
+            ux_grid = fluidscalar.grid
+            ux_Δ = fluidscalar.Δ
+            ux_diffx = fluidscalar.diffx
+            ux_diffy = fluidscalar.diffy
+            ux_diffz = fluidscalar.diffz
+            ux_noghosts = fluidscalar.grid_noghosts
+            ux_diffx_mv = fluidscalar.diffx_mv
+            ux_diffy_mv = fluidscalar.diffy_mv
+            ux_diffz_mv = fluidscalar.diffz_mv
+            ux_Δ_mv = fluidscalar.Δ_mv
+            fluidscalar = self.fluidvars['u'][1]
+            uy_grid = fluidscalar.grid
+            uy_Δ = fluidscalar.Δ
+            uy_diffx = fluidscalar.diffx
+            uy_diffy = fluidscalar.diffy
+            uy_diffz = fluidscalar.diffz
+            uy_noghosts = fluidscalar.grid_noghosts
+            uy_diffx_mv = fluidscalar.diffx_mv
+            uy_diffy_mv = fluidscalar.diffy_mv
+            uy_diffz_mv = fluidscalar.diffz_mv
+            uy_Δ_mv = fluidscalar.Δ_mv
+            fluidscalar = self.fluidvars['u'][2]
+            uz_grid = fluidscalar.grid
+            uz_Δ = fluidscalar.Δ
+            uz_diffx = fluidscalar.diffx
+            uz_diffy = fluidscalar.diffy
+            uz_diffz = fluidscalar.diffz
+            uz_noghosts = fluidscalar.grid_noghosts
+            uz_diffx_mv = fluidscalar.diffx_mv
+            uz_diffy_mv = fluidscalar.diffy_mv
+            uz_diffz_mv = fluidscalar.diffz_mv
+            uz_Δ_mv = fluidscalar.Δ_mv
+            # The number of elements in each grid
+            size_noghosts = np.prod(asarray(fluidscalar.grid_noghosts).shape)
+
+            # Compute updates to δ
+            a_integral = a_integrals['a⁻¹']
+            for i in range(δ_Δ_mv.shape[0]):
+                for j in range(δ_Δ_mv.shape[1]):
+                    for k in range(δ_Δ_mv.shape[2]):
+                        δ_Δ_mv[i, j, k] = -a_integral*((+ δ_diffx_mv[i, j, k]*ux_noghosts[i, j, k]
+                                                        + δ_diffy_mv[i, j, k]*uy_noghosts[i, j, k]
+                                                        + δ_diffz_mv[i, j, k]*uz_noghosts[i, j, k]
+                                                        )
+                                                       + (1 + δ_noghosts[i, j, k])*(+ ux_diffx_mv[i, j, k]
+                                                                                    + uy_diffy_mv[i, j, k]
+                                                                                    + uz_diffz_mv[i, j, k]
+                                                                                    )
+                                                       )
+            # Compute updates to u
+            a_integral1 = a_integrals['a⁻¹']
+            a_integral2 = a_integrals['ȧ/a']
+            for i in range(ux_Δ_mv.shape[0]):
+                for j in range(ux_Δ_mv.shape[1]):
+                    for k in range(ux_Δ_mv.shape[2]):
+                        ux_Δ_mv[i, j, k] += (- a_integral1*(+ ux_noghosts[i, j, k]*ux_diffx_mv[i, j, k]
+                                                            + uy_noghosts[i, j, k]*ux_diffy_mv[i, j, k]
+                                                            + uz_noghosts[i, j, k]*ux_diffz_mv[i, j, k]
+                                                            )
+                                             - a_integral2*ux_noghosts[i, j, k]
+                                             )
+                        uy_Δ_mv[i, j, k] += (- a_integral1*(+ ux_noghosts[i, j, k]*uy_diffx_mv[i, j, k]
+                                                            + uy_noghosts[i, j, k]*uy_diffy_mv[i, j, k]
+                                                            + uz_noghosts[i, j, k]*uy_diffz_mv[i, j, k]
+                                                            )
+                                             - a_integral2*uy_noghosts[i, j, k]
+                                             )
+                        uz_Δ_mv[i, j, k] += (- a_integral1*(+ ux_noghosts[i, j, k]*uz_diffx_mv[i, j, k]
+                                                            + uy_noghosts[i, j, k]*uz_diffy_mv[i, j, k]
+                                                            + uz_noghosts[i, j, k]*uz_diffz_mv[i, j, k]
+                                                            )
+                                             - a_integral2*uz_noghosts[i, j, k]
+                                             )
+
+            # Apply updates
+            for i in range(δ_noghosts.shape[0]):
+                for j in range(δ_noghosts.shape[1]):
+                    for k in range(δ_noghosts.shape[2]):
+                        δ_noghosts[i, j, k] += δ_Δ_mv[i, j, k]
+                        ux_noghosts[i, j, k] += ux_Δ_mv[i, j, k]
+                        uy_noghosts[i, j, k] += uy_Δ_mv[i, j, k]
+                        uz_noghosts[i, j, k] += uz_Δ_mv[i, j, k]
+            # Nullify velocity update buffers, preparing them for the
+            # potential kick of the next time step.
+            for dim in range(3):
+                fluidscalar = self.fluidvars['u'][dim]
+                fluidscalar.nullify_Δ()
 
 
             masterprint('done')
+
+            M = self.mass*self.gridsize**3
+            # masterprint('\n\ncorrect total mass:', M)
+            # # Actual mass at present time
+            # ρbar = M/boxsize**3
+            # Vcell = (boxsize/self.gridsize)**3
+            # m = 0
+            # for i in range(δ_noghosts.shape[0] - 1):
+            #     for j in range(δ_noghosts.shape[1] - 1):
+            #         for k in range(δ_noghosts.shape[2] - 1):
+            #             m += (δ_noghosts[i, j, k] + 1)*ρbar*Vcell
+            # masterprint('actual total mass:', m)
+
+
+            # Check and correct for δ < -1
+            most_negative = [0]
+            for i in range(δ_noghosts.shape[0]):
+                for j in range(δ_noghosts.shape[1]):
+                    for k in range(δ_noghosts.shape[2]):
+                        if δ_noghosts[i, j, k] < -1:
+                            if δ_noghosts[i, j, k] < most_negative[0]:
+                                most_negative = [δ_noghosts[i, j, k], i, j, k]
+                            # # Make vacuum
+                            # δ_noghosts[i, j, k] = -1
+                            # ux_noghosts[i, j, k] = 0
+                            # uy_noghosts[i, j, k] = 0
+                            # uz_noghosts[i, j, k] = 0
+                            δ_noghosts[i, j, k] = 1e-13 - 1
+                            # HERE YOU LOOSE MOMENTUM!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+            if most_negative[0] < -1:
+                masterwarn('Most negative', unicode('δ: δ[{}, {}, {}] = {}').format(*most_negative[1:], most_negative[0]))
+                abort('hertil, og ikke længere!')
+                # Actual mass after δ < -1 corrections
+                m = 0
+                for i in range(δ_noghosts.shape[0] - 1):
+                    for j in range(δ_noghosts.shape[1] - 1):
+                        for k in range(δ_noghosts.shape[2] - 1):
+                            m += (δ_noghosts[i, j, k] + 1)*self.mass
+                # masterprint('actual total mass after delta corrections:', m)
+                # Global correction
+                m_ratio = M/m
+                for i in range(δ_noghosts.shape[0] - 1):
+                    for j in range(δ_noghosts.shape[1] - 1):
+                        for k in range(δ_noghosts.shape[2] - 1):
+                            # ρ --> ρ*m_ratio
+                            δ_noghosts[i, j, k] = (δ_noghosts[i, j, k] + 1)*m_ratio - 1
+                # Actual mass after global correction
+                m = 0
+                for i in range(δ_noghosts.shape[0] - 1):
+                    for j in range(δ_noghosts.shape[1] - 1):
+                        for k in range(δ_noghosts.shape[2] - 1):
+                            m += (δ_noghosts[i, j, k] + 1)*self.mass
+                # masterprint('actual total mass after global correction:', m, '\n')
+
+
         
     # Method for kicking particles and fluids
     @cython.pheader(# Arguments
@@ -493,7 +708,8 @@ class Component:
         if self.representation != 'fluid':
             return
         for fluidscalar in self.iterate_fluidvars():
-            fluidscalar.nullify_buffers()
+            fluidscalar.nullify_Δ()
+            fluidscalar.nullify_diff()
 
     # Generator for looping over all the scalar fluid grids within
     # the component.

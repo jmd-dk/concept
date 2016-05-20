@@ -26,9 +26,9 @@ from commons import *
 
 # Cython imports
 from snapshot import load
-cimport('from analysis import powerspec')
+cimport('from analysis import debug_info, powerspec')
 cimport('from graphics import render, terminal_render')
-cimport('from gravity import PM, build_φ')
+cimport('from gravity import build_φ')
 cimport('from mesh import diff')
 cimport('from integration import expand, cosmic_time, scalefactor_integral')
 cimport('from utilities import delegate')
@@ -38,69 +38,103 @@ cimport('from snapshot import save')
 
 # Function that computes the kick and drift factors (integrals).
 # The result is stored in a_integrals[integrand][index],
-# where index is the argument and can be either 0 or 1. 
+# where index == 0 corresponds to step == 'first half' and
+# index == 1 correspinds to step == 'second hald'. 
 @cython.header(# Arguments
-               index='int',
+               step='str',
                # Locals
                a_next='double',
+               index='int',
+               integrand='str',
                t_next='double',
                )
-def do_kick_drift_integrals(index):
-    global a, a_integrals, a_dump, t, Δt
+def scalefactor_integrals(step):
+    global a, a_integrals, t, Δt
     # Update the scale factor and the cosmic time. This also
     # tabulates a(t), needed for the scalefactor integrals.
     a_next = expand(a, t, 0.5*Δt)
     t_next = t + 0.5*Δt
-    if a_next >= a_dump:
-        # Dump time reached. A smaller time step than
-        # 0.5*Δt is needed to hit a_dump exactly.
-        a_next = a_dump
-        t_next = cosmic_time(a_dump, a, t, t_next)
-        expand(a, t, t_next - t)
+    if t_next > next_dump[1]:
+        # Dump time reached and exceeded. A smaller time step than
+        # 0.5*Δt is needed to hit dump time exactly.    
+        t_next = next_dump[1]
+        # Find a_next = a(t_next) and tabulate a(t)
+        a_next = expand(a, t, t_next - t)
+        if next_dump[0] == 'a':
+            # This should be the same as the result above,
+            # but this is included to ensure agreement of future
+            # floating point comparisons.
+            a_next = next_dump[2]
     a = a_next
     t = t_next
+    # Map the step string to the index integer
+    if step == 'first half':
+        index = 0
+    elif step == 'second half':
+        index = 1
+    elif master:
+        abort('The value "{}" was given for the step'.format(step))
     # Do the scalefactor integrals
-    # ∫_t^(t + Δt/2)a⁻¹dt,
-    # ∫_t^(t + Δt/2)a⁻²dt.
-    a_integrals['a⁻¹'][index] = scalefactor_integral(-1)
-    a_integrals['a⁻²'][index] = scalefactor_integral(-2)
+    for integrand in a_integrals:
+        a_integrals[integrand][index] = scalefactor_integral(integrand)
 
 # Function which dump all types of output. The return value signifies
 # whether or not something has been dumped.
 @cython.header(# Arguments
                components='list',
                output_filenames='dict',
+               final_render='tuple',
                op='str',
                # Locals
+               filename='str',
+               time_param='str',
+               time_val='double',
                returns='bint',
                )
-def dump(components, output_filenames, op=None):
-    global a, a_dump, i_dump
+def dump(components, output_filenames, final_render, op=None):
+    global a, t, i_dump, dumps, next_dump
     # Do nothing if not at dump time
-    if a != a_dump:
-        return False
+    if t != next_dump[1]:
+        if next_dump[0] == 'a':
+            if a != next_dump[2]:
+                return False
+        else:
+            return False
     # Synchronize positions and momenta before dumping
     if op == 'drift':
         drift(components, 'first half')
     elif op == 'kick':
         kick(components, 'second half')
     # Dump terminal render
-    if a in terminal_render_times:
-        terminal_render(components)
+    for time_val, time_param in zip((a, t), ('a', 't')):
+        if time_val in terminal_render_times[time_param]:
+            terminal_render(components)
     # Dump snapshot
-    if a in snapshot_times:
-        save(components, a, output_filenames['snapshot'].format(a))
+    for time_val, time_param in zip((a, t), ('a', 't')):
+        if time_val in snapshot_times[time_param]:
+            filename = output_filenames['snapshot'].format(time_param, time_val)
+            if time_param == 't':
+                filename += unit_time
+            save(components, a, filename)
     # Dump powerspectrum
-    if a in powerspec_times:
-        powerspec(components, a, output_filenames['powerspec'].format(a))
+    for time_val, time_param in zip((a, t), ('a', 't')):
+        if time_val in powerspec_times[time_param]:
+            filename = output_filenames['powerspec'].format(time_param, time_val)
+            if time_param == 't':
+                filename += unit_time
+            powerspec(components, a, filename)
     # Dump render
-    if a in render_times:
-        render(components, a, output_filenames['render'].format(a),
-               cleanup=(a == render_times[len(render_times) - 1]))
+    for time_val, time_param in zip((a, t), ('a', 't')):
+        if time_val in render_times[time_param]:
+            filename = output_filenames['render'].format(time_param, time_val)
+            if time_param == 't':
+                filename += unit_time
+            render(components, a, filename,
+                   cleanup=((time_param, time_val) == final_render))
     # Increment dump time
     i_dump += 1
-    if i_dump < len(a_dumps):
-        a_dump = a_dumps[i_dump]
+    if i_dump < len(dumps):
+        next_dump = dumps[i_dump]
     return True
 
 @cython.header(# Locals
@@ -131,6 +165,10 @@ def nullify_a_integrals():
                φ='double[:, :, ::1]',
                )
 def kick(components, step):
+    # Regardless of species, a 'kick' is always defined as the
+    # gravitational interaction.
+    if not enable_gravity:
+        return
     # Construct the local dict a_integrals_step,
     # based on which type of step is to be performed.
     a_integrals_step = {}
@@ -216,47 +254,54 @@ def drift(components, step):
     # Drift all components sequentially
     for component in components:
         component.drift(a_integrals_step)
-        # Nullify all fluid buffers after each drift
-        component.nullify_fluid_buffers()
 
 # Function containing the main time loop of CO𝘕CEPT
 @cython.header(# Locals
                component='Component',
                components='list',
                dim='int',
+               final_render='tuple',
                kick_algorithm='str',
                output_filenames='dict',
                timestep='Py_ssize_t',
                Δt_update_freq='Py_ssize_t',
                )
 def timeloop():
-    global a, a_dump, a_integrals, i_dump, t, Δt
-    # Do nothing if no dump times exist
-    if len(a_dumps) == 0:
-        return
+    global a, a_integrals, i_dump, next_dump, t, Δt
+    # Initial cosmic time t, where a(t) = a_begin
+    if enable_Hubble:
+        a = a_begin
+        t = cosmic_time(a)
+    else:
+        a = 1
+        t = 0
     # Get the output filename patterns
-    output_filenames = prepare_output_times()
+    output_filenames, final_render = prepare_output_times(t)
+    # Do nothing if no dump times exist
+    if len(dumps) == 0:
+        return
     # Load initial conditions
     components = load(IC_file, only_components=True)
     # The number of time steps before Δt is updated
     Δt_update_freq = 10
-    # Initial cosmic time t, where a(t) = a_begin
-    a = a_begin
-    t = cosmic_time(a)
     # The time step size should be a
     # small fraction of the age of the universe.
-    Δt = Δt_factor*t
-    # Arrays containing the drift and kick factors ∫_t^(t + Δt/2)dt/a
-    # and ∫_t^(t + Δt/2)dt/a**2. The two elements in each variable are
+    if enable_Hubble:
+        Δt = Δt_factor*t
+    else:
+        Δt = 0.1*Δt_factor*dumps[len(dumps) - 1][1]
+    # Arrays containing the factors ∫_t^(t + Δt/2) integrand(a) dt
+    # for different integrands. The two elements in each variable are
     # the first and second half of the factor for the entire time step.
     a_integrals = {'a⁻¹': zeros(2, dtype=C2np['double']),
                    'a⁻²': zeros(2, dtype=C2np['double']),
+                   'ȧ/a': zeros(2, dtype=C2np['double']),
                    }
-    # Scalefactor at next dump and a corresponding index
+    # Specification of next dump and a corresponding index
     i_dump = 0
-    a_dump = a_dumps[i_dump]
-    # Possible output at a == a_begin
-    dump(components, output_filenames)
+    next_dump = dumps[i_dump]
+    # Possible output at the beginning of simulation
+    dump(components, output_filenames, final_render)
     # Nullify all fluid buffers of all components
     # before beginning time stepping.
     for component in components:
@@ -264,7 +309,7 @@ def timeloop():
     # The main time loop
     masterprint('Begin main time loop')
     timestep = -1
-    while i_dump < len(a_dumps):
+    while i_dump < len(dumps):
         timestep += 1
         # Print out message at beginning of each time step
         masterprint(terminal.bold('\nTime step {}'.format(timestep))
@@ -273,13 +318,15 @@ def timeloop():
                     + '{:<14} {} Gyr'.format('\nCosmic time:',
                                              significant_figures(t/units.Gyr, 4, fmt='Unicode'))
                     )
+        # Analyze and print out debugging information, if required
+        debug_info(components, a)
         # Kick
         # (even though 'whole' is used, the first kick (and the first
         # kick after a dump) is really only half a step (the first
         # half), as a_integrals[integrand][1] == 0 for every integrand).
-        do_kick_drift_integrals(0)
+        scalefactor_integrals('first half')
         kick(components, 'whole')
-        if dump(components, output_filenames, 'drift'):
+        if dump(components, output_filenames, final_render, 'drift'):
             # Reset the a_integrals, starting the leapfrog cycle anew
             nullify_a_integrals()
             continue
@@ -287,82 +334,120 @@ def timeloop():
         if not (timestep % Δt_update_freq):
             # Let the positions catch up to the momenta
             drift(components, 'first half')
-            Δt = Δt_factor*t
+            if enable_Hubble:
+                Δt = Δt_factor*t
+            elif Δt < Δt_factor*t:
+                Δt = Δt_factor*t
             # Reset the a_integrals, starting the leapfrog cycle anew
             nullify_a_integrals()
             continue
         # Drift
-        do_kick_drift_integrals(1)
+        scalefactor_integrals('second half')
         drift(components, 'whole')
-        if dump(components, output_filenames, 'kick'):
+        if dump(components, output_filenames, final_render, 'kick'):
             # Reset the a_integrals, starting the leapfrog cycle anew
             nullify_a_integrals()
             continue
 
 # Function which checks the sanity of the user supplied output times,
 # creates output directories and defines the output filename patterns.
-@cython.header(# Locals
-               fmt='str',
-               msg='str',
-               ndigits='int',
-               ot='double',
-               output_base='str',
-               output_dir='str',
-               output_kind='str',
-               output_filenames='dict',
-               output_time='tuple',
-               times='list',
-               returns='dict',
-               )
-def prepare_output_times():
+# A Python function is used because it contains a closure
+# (a lambda function).
+def prepare_output_times(t_begin):
+    global dumps
     # Check that the output times are legal
     if master:
-        for output_kind, output_time in output_times.items():
-            if output_time and np.min(output_time) < a_begin:
-                msg = ('Cannot produce a {} at time a = {}, as the simulation starts at a = {}.'
-                       ).format(output_kind, np.min(output_time), a_begin)
-                abort(msg)
+        for time_param, at_begin in zip(('a', 't'), (a_begin, t_begin)):
+            for output_kind, output_time in output_times[time_param].items():
+                if output_time and np.min(output_time) < at_begin:
+                    msg = ('Cannot produce a {} at time {} = {}, '
+                           'as the simulation starts at {} = {}.'
+                           ).format(output_kind, time_param,np.min(output_time), time_param,
+                                    at_begin)
+                    abort(msg)
     # Create output directories if necessary
     if master:
-        for output_kind, output_time in output_times.items():
-            # Do not create directory if this kind of output
-            # should never be dumped to the disk.
-            if not output_time or not output_kind in output_dirs:
-                continue
-            # Create directory
-            output_dir = output_dirs[output_kind]
-            if output_dir:
-                os.makedirs(output_dir, exist_ok=True)
+        for time_param in ('a', 't'):
+            for output_kind, output_time in output_times[time_param].items():
+                # Do not create directory if this kind of output
+                # should never be dumped to the disk.
+                if not output_time or not output_kind in output_dirs:
+                    continue
+                # Create directory
+                output_dir = output_dirs[output_kind]
+                if output_dir:
+                    os.makedirs(output_dir, exist_ok=True)
     Barrier()
     # Construct the patterns for the output file names. This involves
     # determining the number of digits of the scalefactor in the output
-    # filenames. There should be enogh digits so that adjacent dumps do
+    # filenames. There should be enough digits so that adjacent dumps do
     # not overwrite each other, and so that the name of the first dump
     # differs from that of the IC, should it use the same
     # naming convention.
     output_filenames = {}
-    for output_kind, output_time in output_times.items():
-        # This kind of output does not matter if
-        # it should never be dumped to the disk.
-        if not output_time or not output_kind in output_dirs:
-            continue
-        # Compute number of digits 
-        times = sorted(set((a_begin, ) + output_time))
-        ndigits = 0
-        while True:
-            fmt = '{:.' + str(ndigits) + 'f}'
-            if (len(set([fmt.format(ot) for ot in times])) == len(times)
-                and (fmt.format(times[0]) != fmt.format(0) or not times[0])):
-                break
-            ndigits += 1    
-        # Store output name patterns                   
-        output_dir = output_dirs[output_kind]
-        output_base = output_bases[output_kind]
-        output_filenames[output_kind] = ('{}/{}{}a='.format(output_dir,
-                                                            output_base,
-                                                            '_' if output_base else '')
-                                         + fmt)
-    return output_filenames
+    for time_param, at_begin in zip(('a', 't'), (a_begin, t_begin)):
+        for output_kind, output_time in output_times[time_param].items():
+            # This kind of output does not matter if
+            # it should never be dumped to the disk.
+            if not output_time or not output_kind in output_dirs:
+                continue
+            # Compute number of digits
+            times = sorted(set((at_begin, ) + output_time))
+            ndigits = 0
+            while True:
+                fmt = '{:.' + str(ndigits) + 'f}'
+                if (len(set([fmt.format(ot) for ot in times])) == len(times)
+                    and (fmt.format(times[0]) != fmt.format(0) or not times[0])):
+                    break
+                ndigits += 1
+            fmt = '{}=' + fmt
+            # Use the format (that is, either the format from the a
+            # output times or the t output times) with the largest
+            # number of digits.
+            if output_kind in output_filenames:
+                if int(re.search('[0-9]+',
+                                 re.search('{.+?}',
+                                           output_filenames[output_kind])
+                                 .group()).group()) >= ndigits:
+                    continue
+            # Store output name patterns
+            output_dir = output_dirs[output_kind]
+            output_base = output_bases[output_kind]
+            output_filenames[output_kind] = ('{}/{}{}'.format(output_dir,
+                                                              output_base,
+                                                              '_' if output_base else '')
+                                             + fmt)
+    # Lists of sorted dump times of both kinds
+    a_dumps = sorted(set([nr for val in output_times['a'].values() for nr in val]))
+    t_dumps = sorted(set([nr for val in output_times['t'].values() for nr in val]))
+    # Both lists combined into one list of lists, the first ([1])
+    # element of which are the cosmic time in both cases.
+    dumps = [['a', -1, a] for a in a_dumps]
+    a_lower = t_lower = machine_ϵ
+    for i, d in enumerate(dumps):
+        d[1] = cosmic_time(d[2], a_lower, t_lower)
+        a_lower, t_lower = d[2], d[1]
+    dumps += [['t', t] for t in t_dumps]
+    # Sort the list according to the cosmic time
+    dumps = sorted(dumps, key=(lambda d: d[1]))
+    # It is possible for an a-time to have the same cosmic time value
+    # as a t-time. This case should count as only a single dump time.
+    for i, d in enumerate(dumps):
+        if i + 1 < len(dumps) and d[1] == dumps[i + 1][1]:
+            # Remove the t-time, leaving the a-time
+            dumps.pop(i + 1)
+    # Determine the final render time (scalefactor or cosmic time).
+    # Place the result in a tuple (eg. ('a', 1) or ('t', 13.7)).
+    final_render = ()
+    if render_times['t']:
+        final_render_t = render_times['t'][len(render_times['t']) - 1]
+        final_render = ('t', final_render_t)
+    if render_times['a']:
+        final_render_a = render_times['a'][len(render_times['a']) - 1]
+        final_render_t = cosmic_time(final_render_a)
+        if not final_render or (final_render and final_render_t > final_render[1]):
+            final_render = ('a', final_render_t)
+    return output_filenames, final_render
 
 # If anything special should happen, rather than starting the timeloop
 if special_params:
@@ -372,9 +457,10 @@ if special_params:
 
 # Declare global variables used in above functions
 cython.declare(a='double',
-               a_dump='double',
                a_integrals='dict',
                i_dump='Py_ssize_t',
+               dumps='list',
+               next_dump='list',
                t='double',
                Δt='double',
                )

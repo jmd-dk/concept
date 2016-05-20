@@ -392,6 +392,53 @@ def σ2_integrand(power, k2):
         W2 = ℝ[1/9]
     return k_magnitudes[k2]*power[k2]*W2
 
+# Function for doing debugging analysis
+@cython.header(# Arguments
+               components='list',
+               a='double',
+               # Locals
+               component='Component',
+               fluidscalar='FluidScalar',
+               i='Py_ssize_t',
+               j='Py_ssize_t',
+               k='Py_ssize_t',
+               mass_tot='double',
+               δ_noghosts='double[:, :, :]',
+               )
+def debug_info(components, a):
+    if not debug:
+        return
+    # Componentwise analysis
+    for component in components:
+        if component.representation == 'particles':
+            pass
+        elif component.representation == 'fluid':
+            ##################
+            # The total mass #
+            ##################
+            fluidscalar = component.fluidvars['δ']
+            δ_noghosts = fluidscalar.grid_noghosts
+            mass_tot = 0
+            # Add up local δ values
+            for i in range(δ_noghosts.shape[0] - 1):
+                for j in range(δ_noghosts.shape[1] - 1):
+                    for k in range(δ_noghosts.shape[2] - 1):
+                        mass_tot += δ_noghosts[i, j, k]
+            # Add up all local δ sums into the master
+            mass_tot = reduce(mass_tot, op=MPI.SUM)
+            if master:
+                # Debug print the total δ
+                debug_print(unicode('Total δ({}) = {:.12e}').format(component.name, mass_tot))
+                # Convert sum of δ to mass via mass = (δ + 1)*mass_avg
+                # ==> mass_tot = (Σδ + N)*mass_avg, N = gridsize**3.
+                mass_tot = (mass_tot + component.gridsize**3)*component.mass
+                # Debug print the total mass
+                debug_print('Total mass({}) = {:.12e} {}'
+                            .format(component.name, mass_tot, unit_mass))
+# Function for printing out debugging info,
+# used in the debug_info function above.
+def debug_print(*args, **kwargs):
+    masterprint(terminal.bold_cyan('Debug info:'), *args, **kwargs)
 
 
 # Initialize variables used for the powerspectrum computation at import
@@ -404,7 +451,7 @@ cython.declare(k2_max='Py_ssize_t',
                power_dict='object',     # OrderedDict
                power_σ2_dict='object',  # OrderedDict
                )
-if powerspec_times or special_params.get('special', '') == 'powerspec':
+if any(powerspec_times.values()) or special_params.get('special', '') == 'powerspec':
     # Maximum value of k squared (grid units) 
     k2_max = 3*φ_gridsize_half**2
     # Array counting the multiplicity of power data points
