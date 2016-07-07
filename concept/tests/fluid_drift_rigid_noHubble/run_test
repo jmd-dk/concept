@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+
+# This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
+# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+#
+# CO𝘕CEPT is free software: You can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# CO𝘕CEPT is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
+#
+# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The latest version of CO𝘕CEPT is available at
+# https://github.com/jmd-dk/concept/
+
+
+
+# This script performs a drift test of a fluid with a spatially
+# homogeneus velocity field. Neither gravity nor Hubble expansion is enabled.
+
+# Initialize test environment
+this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+source "${this_dir}/../environment"
+
+# Cleanup from last test run
+"${this_dir}/clean"
+
+# Generate ICs
+"${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local
+
+# Run the CO𝘕CEPT code on the fluid ICs
+"${concept}" -n 1 -p "${this_dir}/params" --local | tee "${this_dir}/log"
+exit_code=${PIPESTATUS[0]}
+if [ ${exit_code} -ne 0 ]; then
+    exit ${exit_code}
+fi
+
+# Play the terminal renders in the logfile as a movie
+"${concept}" --util play -f 4 "${this_dir}/log"
+
+# Analyze the output snapshots
+"${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
+
+# Finalize test environment
+test_done=true source "${this_dir}/../environment"
+

@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
 # Copyright © 2015-2016 Jeppe Mosgaard Dakin.
 #
@@ -19,10 +21,25 @@
 # https://github.com/jmd-dk/concept/
 
 
+# This script performs a drift test of the CO𝘕CEPT code with gravity
+# and the Hubble expansion turned off. Only a single particle is present.
 
-# Numerical parameters
-ewald_gridsize = 64
+# Initialize test environment
+this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+source "${this_dir}/../environment"
 
-# Simulation options
-kick_algorithms = {'dark matter particles': 'PP'}
+# Cleanup from last test run
+"${this_dir}/clean"
+
+# Generate ICs
+"${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local
+
+# Run the CO𝘕CEPT code on the generated ICs
+"${concept}" -n 1 -p "${this_dir}/params" --local
+
+# Analyze the output snapshot
+"${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
+
+# Finalize test environment
+test_done=true source "${this_dir}/../environment"
 

@@ -36,3 +36,6 @@ boxsize     = 512*Mpc
 φ_gridsize  = 256
 R_tophat    = 8*Mpc
 
+# Cosmological parameters
+a_begin = 0.02
+

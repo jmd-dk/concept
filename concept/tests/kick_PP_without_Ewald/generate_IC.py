@@ -46,5 +46,5 @@ component.populate(zeros(N), 'momy')
 component.populate(zeros(N), 'momz')
 
 # Save snapshot
-save([component], a_begin, IC_file)
+save([component], IC_file)
 

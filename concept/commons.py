@@ -32,8 +32,10 @@
 from __future__ import division  # Needed for Python3 division in Cython
 # Miscellaneous modules
 import collections, contextlib, ctypes, cython, imp, inspect, itertools, matplotlib, numpy as np
-import os, re, shutil, sys, unicodedata
+import os, re, shutil, sys, types, unicodedata
 # For math
+# (note that numpy.array is purposely not imported directly into the
+# global namespace, as this does not play well with Cython).
 from numpy import (arange, asarray, concatenate, cumsum, delete, empty, linspace, loadtxt, ones,
                    unravel_index, zeros)
 from numpy.random import random
@@ -114,6 +116,7 @@ def masterprint(msg, *args, indent=0, end='\n', **kwargs):
     global progressprint_time, progressprint_length, progressprint_maxintervallength
     if not master:
         return
+    terminal_resolution = 80
     msg = str(msg)
     if msg == 'done':
         # End of progress message
@@ -166,11 +169,12 @@ def masterprint(msg, *args, indent=0, end='\n', **kwargs):
     else:
         # Stitch text pieces together
         sep = kwargs.get('sep', ' ')
-        text = '{}{}{}'.format(' '*indent,
-                               msg,
-                               (sep + sep.join([str(arg) for arg in args])) if args else '')
+        text = '{}{}'.format(msg,
+                             (sep + sep.join([str(arg) for arg in args])) if args else '')
         # Convert to proper Unicode characters
         text = unicode(text)
+        # Indent text
+        text = ' '*indent + ('\n' + ' '*indent).join(text.split('\n'))
         # If the text ends with '...',
         # it is the start of a progress message.
         if text.endswith('...'):
@@ -202,33 +206,29 @@ def masterprint(msg, *args, indent=0, end='\n', **kwargs):
 progressprint_maxintervallength = len(' done after ??? ms')
 
 # Function for printing warnings
-def masterwarn(msg, *args, indent=0, prefix='Warning', end='\n', **kwargs):
+def masterwarn(msg, *args, skipline=True, indent=0, prefix='Warning', end='\n', **kwargs):
     if not master:
         return
-    any_warnings[0] = True
+    universals.any_warnings = True
     # Stitch text pieces together
     sep = kwargs.get('sep', ' ')
-    text = '{}{}: {}{}'.format(' '*indent,
-                                prefix,
-                                msg,
-                                (sep + sep.join([str(arg) for arg in args])) if args else '')
+    text = '{}: {}{}'.format(prefix,
+                             msg,
+                             (sep + sep.join([str(arg) for arg in args])) if args else '')
     # Convert to proper Unicode characters
     text = unicode(text)
+    # Indent text
+    text = ' '*indent + ('\n' + ' '*indent).join(text.split('\n'))
+    # Add initial newline if skipline == True
+    text = ('\n' if skipline else '') + text
     # Print out message
     print(terminal.bold_red(text), file=sys.stderr, flush=True, end=end, **kwargs)
-
-# Flag specifying whether or not any warnings have been given.
-# The actual boolean needs to be insdie of a mutable container,
-# as otherwise changes in its state will not be visible to other
-# modules which have imported this variable. 
-cython.declare(any_warnings='list')
-any_warnings = [False]
 
 # Raised exceptions inside cdef functions do not generally propagte
 # out to the caller. In places where exceptions are normally raised
 # manualy, call this function with a descriptive message instead.
-def abort(msg=''):
-    masterwarn(msg, prefix='Aborting')
+def abort(msg='', *args, **kwargs):
+    masterwarn(msg, *args, prefix='Aborting', **kwargs)
     sys.stderr.flush()
     sys.stdout.flush()
     sleep(1)
@@ -308,20 +308,15 @@ if not cython.compiled:
     setattr(cython, 'address', address)
     # C allocation syntax for memory management
     def sizeof(dtype):
-        # C dtype names to Numpy dtype names
+        # C dtype names to NumPy dtype names
         if dtype in C2np:
             dtype = C2np[dtype]
-        elif dtype in ('func_b_ddd',
-                       'func_d_d',
-                       'func_d_dd',
-                       'func_d_ddd',
-                       'func_dstar_ddd',
-                       ):
-            dtype='object'
         elif dtype[-1] == '*':
             # Allocate pointer array of pointers (eg. int**).
             # Emulate these as lists of arrays.
             return [empty(1, dtype=sizeof(dtype[:-1]).dtype)]
+        elif dtype.startswith('func_'):
+            dtype='object'
         elif master:
             abort(dtype + ' not implemented as a NumPy dtype in commons.py')
         return np.array([1], dtype=dtype)
@@ -329,17 +324,19 @@ if not cython.compiled:
         if isinstance(a, list):
             # Pointer to pointer represented as list of arrays
             return a
-        return empty(a[0], dtype=a.dtype)
+        return empty(int(a[0]), dtype=a.dtype)
     def realloc(p, a):
         # Reallocation of pointer assumed
-        p.resize(a[0], refcheck=False)
+        p.resize(int(a[0]), refcheck=False)
         return p
     def free(a):
         # NumPy arrays cannot be manually freed.
         # Resize the array to the minimal size.
-        a.resize([0], refcheck=False)
+        a.resize(0, refcheck=False)
     # Casting
     def cast(a, dtype):
+        if not isinstance(dtype, str):
+            dtype = dtype.__name__
         match = re.search('(.*)\[', dtype)
         if match:
             # Pointer to array cast assumed
@@ -387,6 +384,42 @@ if not cython.compiled:
         if import_statement.endswith(','):
             import_statement = import_statement[:-1]
         exec(import_statement, inspect.getmodule(inspect.stack()[1][0]).__dict__)
+# Function for building "structs" (really simple namespaces).
+# In compiled mode, this function body will be copied and
+# specialised for each kind of struct created.
+# This function returns a struct and a dict over the parsed fields.
+# Note that these are not linked, meaning that you should not alter
+# the values of a (struct, dict)-pair after creation if you are using
+# the dict at all (the dict is useful for dynamic evaluations).
+# In the current implementation, pointers are not allowed.
+def build_struct(**kwargs):
+    # Regardless of the input kwargs, bring it to the form {key: val}
+    for key, val in kwargs.items():
+        if isinstance(val, tuple):
+            # Type and value given
+            ctype, val = val
+        else:
+            # Only type given. Initialize value to zero.
+            ctype = val
+            try:
+                val = C2np[ctype]()
+            except:
+                val = eval(ctype)()
+        kwargs[key] = val
+    for key, val in kwargs.items():
+        if isinstance(val, str):
+            # Evaluate value given as string expression
+            namespace = {k: v for d in (globals(), kwargs) for k, v in d.items()}
+            try:
+                kwargs[key] = eval(val, namespace)
+            except:
+                pass
+    if not cython.compiled:
+        # In pure Python, emulate a struct by a simple namespace
+        struct = types.SimpleNamespace(**kwargs)
+    else:
+        struct = ...  # To be added by pyxpp
+    return struct, kwargs
 
 
 
@@ -459,13 +492,63 @@ from libc.math cimport (sin, cos, tan,
 # Unicode functions #
 #####################
 # The pyxpp script convert all Unicode source code characters into
-# ASCII. The function below grants the code access to
-# Unicode string literals, by undoing the convertion.
+# ASCII using the below function.
+@cython.header(# Arguments
+               s='str',
+               # Locals
+               c='str',
+               char_list='list',
+               in_unicode_char='bint',
+               pat='str',
+               sub='str',
+               unicode_char='str',
+               unicode_name='str',
+               returns='str',
+               )
+def asciify(s):
+    char_list = []
+    in_unicode_char = False
+    unicode_char = ''
+    for c in s:
+        if in_unicode_char or ord(c) > 127:
+            # Unicode
+            in_unicode_char = True
+            unicode_char += c
+            try:
+                unicode_name = unicodedata.name(unicode_char)
+                # unicode_char is a string (of length 1 or more)
+                # regarded as a single univode character.
+                for pat, sub in unicode_subs.items():
+                    unicode_name = unicode_name.replace(pat, sub)
+                char_list.append('{}{}{}'.format(unicode_tags['begin'],
+                                                 unicode_name,
+                                                 unicode_tags['end'],
+                                                 )
+                                 )
+                in_unicode_char = False
+                unicode_char = ''
+            except:
+                pass
+        else:
+            # ASCII
+            char_list.append(c)
+    return ''.join(char_list)
+cython.declare(unicode_subs='dict', unicode_tags='dict')
+unicode_subs = {' ': '__SPACE__',
+                '-': '__DASH__',
+                }
+unicode_tags = {'begin': '__BEGIN_UNICODE__',
+                'end':   '__END_UNICODE__',
+                }
+
+# The function below grants the code access to
+# Unicode string literals by undoing the convertion of the
+# ascii function above.
 @cython.header(s='str', returns='str')
 def unicode(s):
-    return re.subn('__BEGIN_UNICODE__.*?__END_UNICODE__', unicode_repl, s)[0]
+    return re.sub('{}(.*?){}'.format(unicode_tags['begin'], unicode_tags['end']), unicode_repl, s)
 @cython.pheader(# Arguments
-                match='object',  # re match object
+                match='object',  # re.match object
                 # Locals
                 pat='str',
                 s='str', 
@@ -473,16 +556,10 @@ def unicode(s):
                 returns='str',
                 )
 def unicode_repl(match):
-    s = match.group()
-    s = s[17:(len(s) - 15)]
-    for pat, sub in unicode_repl_dict.items():
-        s = s.replace(pat, sub)
-    s = unicodedata.lookup(s)
-    return s
-cython.declare(unicode_repl_dict='dict')
-unicode_repl_dict = {'__space__': ' ',
-                     '__dash__' : '-',
-                     }
+    s = match.group(1)
+    for pat, sub in unicode_subs.items():
+        s = s.replace(sub, pat)
+    return unicodedata.lookup(s)
 
 # This function takes in a number (string) and
 # returns it written in Unicode subscript.
@@ -579,9 +656,11 @@ scp_password = argd.get('scp_password', '')
 # Pure constants #
 ##################
 cython.declare(machine_ϵ='double',
+               inf='double',
                π='double',
                )
 machine_ϵ = np.finfo(C2np['double']).eps
+inf = cast(np.inf, 'double')
 π = np.pi
 
 
@@ -637,6 +716,7 @@ params.update({# The paths dict
                # Constants
                'machine_ϵ' : machine_ϵ,
                'eps'       : machine_ϵ,
+               'inf'       : inf,
                'pi'        : π,
                unicode('π'): π,
                })
@@ -654,7 +734,7 @@ if os.path.isfile(paths['params']):
             exec(params_file.read(), params)
 # The names of the three fundamental units,
 # all with a numerical value of 1. If these are not defined in the
-# parameter file, give them to some reasonable values.
+# parameter file, give them some reasonable values.
 cython.declare(unit_length='str',
                unit_time='str',
                unit_mass='str',
@@ -662,95 +742,39 @@ cython.declare(unit_length='str',
 unit_length = params.get('unit_length', 'Mpc')
 unit_time   = params.get('unit_time',   'Gyr')
 unit_mass   = params.get('unit_mass',   '1e+10*m_sun')
-# Python class storing the values of all units as class attributes
-class Units_class():
-    # Values of basic units,
-    # determined from the choice of fundamental units.
-    pc     = 1/eval(unit_length, unit_length_relations)
-    yr     = 1/eval(unit_time, unit_time_relations)
-    m_sun  = 1/eval(unit_mass, unit_mass_relations)
-    # Prefixes of the basic units
-    kpc    = unit_length_relations['kpc']*pc
-    Mpc    = unit_length_relations['Mpc']*pc
-    Gpc    = unit_length_relations['Gpc']*pc
-    kyr    = unit_time_relations['kyr']*yr
-    Myr    = unit_time_relations['Myr']*yr
-    Gyr    = unit_time_relations['Gyr']*yr
-    km_sun = unit_mass_relations['km_sun']*m_sun
-    Mm_sun = unit_mass_relations['Mm_sun']*m_sun
-    Gm_sun = unit_mass_relations['Gm_sun']*m_sun
-    # Non-basic units
-    ly      = unit_length_relations['ly']*pc
-    kly     = unit_length_relations['kly']*pc
-    Mly     = unit_length_relations['Mly']*pc
-    Gly     = unit_length_relations['Gly']*pc
-    AU      = unit_length_relations['AU']*pc
-    m       = unit_length_relations['m']*pc
-    mm      = unit_length_relations['mm']*pc
-    cm      = unit_length_relations['cm']*pc
-    km      = unit_length_relations['km']*pc
-    day     = unit_time_relations['day']*yr
-    hr      = unit_time_relations['hr']*yr
-    minutes = unit_time_relations['minutes']*yr
-    s       = unit_time_relations['s']*yr
-    kg      = unit_mass_relations['kg']*m_sun
-    g       = unit_mass_relations['g']*m_sun
-    # Make instance creation possible (though superfluous)
-    def __init__(self, **kwargs):
-        pass
-# In the case of pure Python, use Units_class directly
-if not cython.compiled:
-    Units = Units_class
-# In the case of Cython, use a struct to hold the units
-pxd = """
-ctypedef struct Units:
-    # Basic units
-    double pc, yr, m_sun
-    # Prefixes of the basic units
-    double kpc, Mpc, Gpc
-    double kyr, Myr, Gyr
-    double km_sun, Mm_sun, Gm_sun
-    # Non-basic units
-    double AU, m, mm, cm, km, ly, kly, Mly, Gly
-    double day, hr, minutes, s
-    double kg, g
-"""
-# Instantiate the Units_class instance (Python) / struct (Cython)
-cython.declare(units='Units')
-units = Units(# Basic units
-              pc     = Units_class.pc,
-              yr     = Units_class.yr,
-              m_sun  = Units_class.m_sun,
-              # Prefixes of the basic units
-              kpc    = Units_class.kpc,
-              Mpc    = Units_class.Mpc,
-              Gpc    = Units_class.Gpc,
-              kyr    = Units_class.kyr,
-              Myr    = Units_class.Myr,
-              Gyr    = Units_class.Gyr,
-              km_sun = Units_class.km_sun,
-              Mm_sun = Units_class.Mm_sun,
-              Gm_sun = Units_class.Gm_sun,
-              # Non-basic units
-              AU      = Units_class.AU,
-              m       = Units_class.m,
-              mm      = Units_class.mm,
-              cm      = Units_class.cm,
-              km      = Units_class.km,
-              ly      = Units_class.ly,
-              kly     = Units_class.kly,
-              Mly     = Units_class.Mly,
-              Gly     = Units_class.Gly,
-              day     = Units_class.day,
-              hr      = Units_class.hr,
-              minutes = Units_class.minutes,
-              s       = Units_class.s,
-              kg      = Units_class.kg,
-              g       = Units_class.g,
-              )
-# Grab the dict from the Units_class and store it separately
-cython.declare(units_dict='dict')
-units_dict = {key: val for key, val in Units_class.__dict__.items() if not key.startswith('_')}
+# Construct a struct containing the values of all units
+units, units_dict = build_struct(# Values of basic units,
+                                 # determined from the choice of fundamental units.
+                                 pc     = ('double', 1/eval(unit_length, unit_length_relations)),
+                                 yr     = ('double', 1/eval(unit_time,   unit_time_relations)),
+                                 m_sun  = ('double', 1/eval(unit_mass,   unit_mass_relations)),
+                                 # Prefixes of the basic units
+                                 kpc    = ('double', 'unit_length_relations["kpc"]*pc'),
+                                 Mpc    = ('double', 'unit_length_relations["Mpc"]*pc'),
+                                 Gpc    = ('double', 'unit_length_relations["Gpc"]*pc'),
+                                 kyr    = ('double', 'unit_time_relations["kyr"]*yr'),
+                                 Myr    = ('double', 'unit_time_relations["Myr"]*yr'),
+                                 Gyr    = ('double', 'unit_time_relations["Gyr"]*yr'),
+                                 km_sun = ('double', 'unit_mass_relations["km_sun"]*m_sun'),
+                                 Mm_sun = ('double', 'unit_mass_relations["Mm_sun"]*m_sun'),
+                                 Gm_sun = ('double', 'unit_mass_relations["Gm_sun"]*m_sun'),
+                                 # Non-basic units
+                                 ly      = ('double', 'unit_length_relations["ly"]*pc'),
+                                 kly     = ('double', 'unit_length_relations["kly"]*pc'),
+                                 Mly     = ('double', 'unit_length_relations["Mly"]*pc'),
+                                 Gly     = ('double', 'unit_length_relations["Gly"]*pc'),
+                                 AU      = ('double', 'unit_length_relations["AU"]*pc'),
+                                 m       = ('double', 'unit_length_relations["m"]*pc'),
+                                 mm      = ('double', 'unit_length_relations["mm"]*pc'),
+                                 cm      = ('double', 'unit_length_relations["cm"]*pc'),
+                                 km      = ('double', 'unit_length_relations["km"]*pc'),
+                                 day     = ('double', 'unit_time_relations["day"]*yr'),
+                                 hr      = ('double', 'unit_time_relations["hr"]*yr'),
+                                 minutes = ('double', 'unit_time_relations["minutes"]*yr'),
+                                 s       = ('double', 'unit_time_relations["s"]*yr'),
+                                 kg      = ('double', 'unit_mass_relations["kg"]*m_sun'),
+                                 g       = ('double', 'unit_mass_relations["g"]*m_sun'),
+                                 )
 
 
 
@@ -860,21 +884,22 @@ cython.declare(# Input/output
                Ωm='double',
                ΩΛ='double',
                a_begin='double',
+               t_begin='double',
                # Graphics
                render_colors='dict',
                bgcolor='double[::1]',
                resolution='int',
                liverender='str',
                remote_liverender='str',
-               terminal_colormap='str',
-               terminal_resolution='unsigned int',
+               terminal_render_colormap='str',
+               terminal_render_resolution='unsigned int',
                # Simlation options
                kick_algorithms='dict',
                use_φ='bint',
                use_P3M='bint',
                fftw_rigor='str',
                # Debugging options
-               debug='bint',
+               enable_debugging='bint',
                enable_Ewald='bint',
                enable_gravity='bint',
                enable_Hubble='bint',
@@ -948,7 +973,8 @@ R_tophat = float(params.get('R_tophat', 8*units.Mpc))
 H0 = float(params.get('H0', 70*units.km/(units.s*units.Mpc)))
 Ωm = float(params.get(unicode('Ωm'), 0.3))
 ΩΛ = float(params.get(unicode('ΩΛ'), 0.7))
-a_begin = float(params.get('a_begin', 0.02))
+a_begin = float(params.get('a_begin', -1))
+t_begin = float(params.get('t_begin', -1))
 # Graphics
 if isinstance(params.get('render_colors', {}), dict):
     render_colors = params.get('render_colors', {})
@@ -965,12 +991,10 @@ if liverender and not liverender.endswith('.png'):
 remote_liverender = str(params.get('remote_liverender', ''))
 if remote_liverender and not remote_liverender.endswith('.png'):
     remote_liverender += '.png'
-terminal_colormap = str(params.get('terminal_colormap', 'gnuplot2'))
-terminal_resolution = int(params.get('terminal_resolution', 80))
+terminal_render_colormap = str(params.get('terminal_render_colormap', 'gnuplot2'))
+terminal_render_resolution = int(params.get('terminal_render_resolution', 80))
 # Simulation options
 kick_algorithms = dict(params.get('kick_algorithms', {}))
-#for kind in ('dark matter particles', ):
-#    kick_algorithms[kind] = str(kick_algorithms.get(kind, 'PP'))
 if (   unicode('φ_gridsize') in params
     or (set(('PM', 'P3M')) & set(kick_algorithms.values()))
     or any([output_times[time_param]['powerspec'] for time_param in ('a', 't')])):
@@ -985,7 +1009,7 @@ fftw_rigor = params.get('fftw_rigor', 'estimate').lower()
 if master and fftw_rigor not in ('estimate', 'measure', 'patient', 'exhaustive'):
     abort('Does not recognize FFTW rigor "{}"'.format(params['fftw_rigor']))
 # Debugging options
-debug = bool(params.get('debug', False))
+enable_debugging = bool(params.get('enable_debugging', False))
 enable_Ewald = bool(params.get('enable_Ewald',
                                True if 'PP' in kick_algorithms.values() else False))
 enable_gravity = bool(params.get('enable_gravity', True))
@@ -1110,6 +1134,20 @@ scp_host = re.search('@(.*):', remote_liverender).group(1) if remote_liverender 
 
 
 
+##############
+# Universals #
+##############
+# Universals are non-constant cross-module level global variables.
+# These are stored in the following struct.
+universals, _ = build_struct(# Flag specifying whether or not any warnings have been given
+                             any_warnings=('bint', False),
+                             # Scale factor and cosmic time
+                             a=('double', a_begin),
+                             t=('double', t_begin),
+                             )
+
+
+
 ############################
 # Custom defined functions #
 ############################
@@ -1177,8 +1215,12 @@ def mod(x, length):
     if not (signed_number in integer and signed_number2 in floating):
         if x < 0:
             x += length
+            if x == length:
+                x = 0
         elif x >= length:
             x -= length
+            if x < 0:
+                x = 0
         return x
 
 # Summation function for 1D memory views of numbers
@@ -1271,6 +1313,7 @@ def isint(x, abs_tol=1e-6):
 # significant figures. Set fmt to 'TeX' to format to TeX math code
 # (e.g. '1.234\times 10^{-5}') or 'Unicode' to format to superscript
 # Unicode (e.g. 1.234×10⁻⁵).
+# Set incl_zeros to False to avoid zero-padding.
 @cython.pheader(# Arguments
                 number='double',
                 nfigs='int',
@@ -1319,12 +1362,9 @@ def significant_figures(number, nfigs, fmt='', incl_zeros=True):
             coefficient += '0'*n_missing_zeros
     # Combine
     number_str = coefficient + exponent
-    #
-    if not incl_zeros and exponent and len(number_str) > 2 and number_str[1] != '.':
-        number_str = number_str[2:]
     # The mathtext matplotlib module has a typographical bug;
     # it inserts a space after a decimal point.
-    # Prevent this by not letting the decimal point being part
+    # Prevent this by not letting the decimal point be part
     # of the mathematical expression.
     if fmt == 'tex':
         number_str = number_str.replace('.', '$.$')

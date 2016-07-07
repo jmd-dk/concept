@@ -65,5 +65,5 @@ component.populate(momy, 'momy')
 component.populate(momz, 'momz')
 
 # Save snapshot
-save([component], a_begin, IC_file)
+save([component], IC_file)
 

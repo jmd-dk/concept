@@ -22,15 +22,15 @@ output_bases = {			# File basenames of output
     'powerspec': 'powerspec_fluid',
     'render'   : 'render_fluid',
                 }
-output_times = {			# Scale factor values at which to dump output
-    'a': {
-        'snapshot'       : '',
+output_times = {
+    'a': {	# Scale factor values at which to dump output
+        'snapshot'       : 1,
         'powerspec'      : '',
         'render'         : '',
         'terminal render': '',
           },
-    't': {
-        'snapshot'       : 13*Gyr,
+    't': {	# Cosmic times at which to dump output
+        'snapshot'       : '',
         'powerspec'      : '',
         'render'         : '',
         'terminal render': '',
@@ -48,8 +48,8 @@ render_select = {                       # Toggle rendering for each component
 
 # Numerical parameters
 boxsize          = 16*Mpc		# Linear size of the simulation box
-ewald_gridsize   = 8			# Linear gridsize of the grid of Ewald corrections
-φ_gridsize       = 32			# Linear gridsize of the potential
+ewald_gridsize   = 64			# Linear gridsize of the grid of Ewald corrections
+φ_gridsize       = 64			# Linear gridsize of the potential
 P3M_scale        = 1.25			# The long/short-range force split scale
 P3M_cutoff       = 4.8			# Maximum reach of short-range force
 softeningfactors = {			# The amount of gravitational softening for each species
@@ -67,27 +67,23 @@ a_begin = 0.02				# Scale factor at beginning of simulation
 # Graphics
 render_colors = {                       # Render color for each type
     'example component': 'lime',
-    'GADGET fluid':   'lime',
-    'GADGET halos':   'lime',
                  }
-bgcolor             = 'black'		# Background color of renders
-resolution          = 1080		# The height and width of the render
-liverender          = ''		# Filename of saved live render
-remote_liverender   = ''		# Where to upload the live render
-terminal_colormap   = 'gnuplot2'        # The colormap to use for the terminal render
-terminal_resolution = 80		# The width of the terminal render
+bgcolor                    = 'black'	# Background color of renders
+resolution                 = 1080	# The height and width of the render
+liverender                 = ''		# Filename of saved live render
+remote_liverender          = ''		# Where to upload the live render
+terminal_render_colormap   = 'gnuplot2'	# The colormap to use for the terminal render
+terminal_render_resolution = 80		# The width of the terminal render
 
 # Simulation options
 kick_algorithms = {
     'dark matter particles': 'PM',	# The algorithm which should be used to kick each species
                    }
-use_Ewald = True			# Turn Ewald corrections on or off
 fftw_rigor = 'measure'			# Rigor level when acquiring FFTW wisdom
 
 # Debugging options
-debug = True                            # Enable debugging messages
-enable_Ewald = True                     # Enable Ewald corrections
-enable_gravity = True                   # Enable gravity generally
-enable_Hubble = 1
-
+enable_Ewald     = True			# Enable Ewald corrections
+enable_gravity   = True			# Enable gravity generally
+enable_Hubble    = True			# Enable Hubble expansion
+enable_debugging = False		# Enable debugging mode
 

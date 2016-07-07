@@ -33,7 +33,6 @@ cimport('from mesh import slab, CIC_components2slabs, slabs_FFT, slab_size_j, sl
 # Function for calculating power spectra of components
 @cython.header(# Arguments
                components='list',
-               a='double',
                filename='str',
                # Locals
                P='double',
@@ -69,7 +68,7 @@ cimport('from mesh import slab, CIC_components2slabs, slabs_FFT, slab_size_j, sl
                σ_tophat='dict',
                σ_tophat_σ='dict',
                )
-def powerspec(components, a, filename):
+def powerspec(components, filename):
     global slab, mask, k_magnitudes_masked, power_N, power_dict, power_σ2_dict
     # Do not compute any power spectra if
     # powerspec_select does not contain any True values.
@@ -233,8 +232,14 @@ def powerspec(components, a, filename):
     # numbers are guaranteed to be positive, as with power spectra.
     spectrum_plural = 'spectrum' if len(power_dict) == 1 else 'spectra'
     masterprint('Saving power {} to "{}" ...'.format(spectrum_plural, filename))
-    header = ('# Power {} at a = {:.6g} '.format(spectrum_plural, a) 
-              + 'computed with a grid of linear size {}\n#\n'.format(φ_gridsize))
+    header = ('# Power {} at t = {:.6g} {}{} '
+              'computed with a grid of linear size {}\n#\n'
+              .format(spectrum_plural,
+                      universals.t,
+                      unit_time,
+                      ', a = {:.6g}'.format(universals.a) if enable_Hubble else '',
+                      φ_gridsize)
+              )
     # Header lines for component name, σ_tophat and quantity
     fmt = '{:<15}'
     row_type = [' ']
@@ -276,7 +281,7 @@ def powerspec(components, a, filename):
                                                      + 4*' ' + '%-13.6e')))
     masterprint('done')
     # Plot the power spectra
-    plot_powerspec(data_list, a, filename, power_dict)
+    plot_powerspec(data_list, filename, power_dict)
 
 # Function which computes σ_tophat (the rms density variation)
 # and its standard deviation σ_tophat_σ from the power spectrum.
@@ -395,46 +400,117 @@ def σ2_integrand(power, k2):
 # Function for doing debugging analysis
 @cython.header(# Arguments
                components='list',
-               a='double',
                # Locals
                component='Component',
+               dim='int',
                fluidscalar='FluidScalar',
                i='Py_ssize_t',
                j='Py_ssize_t',
                k='Py_ssize_t',
+               mass='double',
                mass_tot='double',
+               mom='double*',
+               mom_tot='double',
+               u_noghosts='double[:, :, :]',
+               unit='double',
                δ_noghosts='double[:, :, :]',
+               δ_tot='double',
                )
-def debug_info(components, a):
-    if not debug:
+def debug(components):
+    if not enable_debugging:
         return
     # Componentwise analysis
     for component in components:
         if component.representation == 'particles':
-            pass
+            #####################
+            # The total momenta #
+            #####################
+            for dim in range(3):
+                mom = component.mom[dim]
+                mom_tot = 0
+                # Add up local mom values
+                for i in range(component.N_local):
+                    mom_tot += mom[i]
+                # Add up all local mom sums into the master
+                if master:
+                    mom_tot = reduce(mom_tot, op=MPI.SUM)
+                else:
+                    reduce(mom_tot, op=MPI.SUM)
+                # Debug print the total momentum
+                unit = units.m_sun*units.Mpc/units.Gyr
+                debug_print(unicode('Total {}-momentum({}) = {} {}')
+                            .format('xyz'[dim],
+                                    component.name,
+                                    significant_figures(mom_tot/unit, 12,
+                                                        fmt='unicode', incl_zeros=False),
+                                    unicode('m☉ Mpc Gyr⁻¹'),
+                                    )
+                            )
         elif component.representation == 'fluid':
             ##################
             # The total mass #
             ##################
             fluidscalar = component.fluidvars['δ']
             δ_noghosts = fluidscalar.grid_noghosts
-            mass_tot = 0
+            δ_tot = 0
             # Add up local δ values
             for i in range(δ_noghosts.shape[0] - 1):
                 for j in range(δ_noghosts.shape[1] - 1):
                     for k in range(δ_noghosts.shape[2] - 1):
-                        mass_tot += δ_noghosts[i, j, k]
+                        δ_tot += δ_noghosts[i, j, k]
             # Add up all local δ sums into the master
-            mass_tot = reduce(mass_tot, op=MPI.SUM)
             if master:
-                # Debug print the total δ
-                debug_print(unicode('Total δ({}) = {:.12e}').format(component.name, mass_tot))
-                # Convert sum of δ to mass via mass = (δ + 1)*mass_avg
-                # ==> mass_tot = (Σδ + N)*mass_avg, N = gridsize**3.
-                mass_tot = (mass_tot + component.gridsize**3)*component.mass
-                # Debug print the total mass
-                debug_print('Total mass({}) = {:.12e} {}'
-                            .format(component.name, mass_tot, unit_mass))
+                δ_tot = reduce(δ_tot, op=MPI.SUM)
+            else:
+                reduce(δ_tot, op=MPI.SUM)
+            # Debug print the total δ
+            debug_print(unicode('Total δ({}) = {}')
+                        .format(component.name,
+                                significant_figures(mass_tot, 12,
+                                                    fmt='unicode', incl_zeros=False),
+                                )
+                        )
+            if abs(δ_tot) > 1e-3:
+                masterwarn('wrong delta!')
+                sleep(5)
+            # Convert sum of δ to mass via mass = (δ + 1)*mass_avg
+            # ==> mass_tot = (Σδ + N)*mass_avg, N = gridsize**3.
+            mass_tot = (δ_tot + component.gridsize**3)*component.mass
+            # Debug print the total mass
+            debug_print('Total mass({}) = {} {}'
+                        .format(component.name,
+                                significant_figures(mass_tot/units.m_sun, 12,
+                                                    fmt='unicode', incl_zeros=False),
+                                unicode('m☉'),
+                                )
+                        )
+            #####################
+            # The total momenta #
+            #####################
+            for dim, fluidscalar in enumerate(component.fluidvars['u']):
+                u_noghosts = fluidscalar.grid_noghosts
+                mom_tot = 0
+                # Add up local mom values
+                for i in range(u_noghosts.shape[0] - 1):
+                    for j in range(u_noghosts.shape[1] - 1):
+                        for k in range(u_noghosts.shape[2] - 1):
+                            mass = (δ_noghosts[i, j, k] + 1)*component.mass
+                            mom_tot += mass*u_noghosts[i, j, k]
+                # Add up all local mom sums into the master
+                if master:
+                    mom_tot = reduce(mom_tot, op=MPI.SUM)
+                else:
+                    reduce(mom_tot, op=MPI.SUM)
+                # Debug print the total momentum
+                unit = 1/universals.a*units.m_sun*units.Mpc/units.Gyr
+                debug_print(unicode('Total {}-momentum({}) = {} {}')
+                            .format('xyz'[dim],
+                                    component.name,
+                                    significant_figures(mom_tot/unit, 12,
+                                                        fmt='unicode', incl_zeros=False),
+                                    unicode('a⁻¹ m☉ Mpc Gyr⁻¹'),
+                                    )
+                            )
 # Function for printing out debugging info,
 # used in the debug_info function above.
 def debug_print(*args, **kwargs):
@@ -446,7 +522,7 @@ def debug_print(*args, **kwargs):
 cython.declare(k2_max='Py_ssize_t',
                k_magnitudes='double[::1]',
                k_magnitudes_masked='double[::1]',
-               mask='object',  # This is only ever used as a NumPy array
+               mask='object',           # numpy.ndarray
                power_N='int[::1]',
                power_dict='object',     # OrderedDict
                power_σ2_dict='object',  # OrderedDict

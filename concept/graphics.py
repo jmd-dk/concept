@@ -40,7 +40,6 @@ import pexpect
 # and saving the figure to filename.
 @cython.header(# Arguments
                data_list='list',
-               a='double',
                filename='str',
                power_dict='object',  # OrderedDict
                # Locals
@@ -59,7 +58,7 @@ import pexpect
                name='str',
                names='list',
                )
-def plot_powerspec(data_list, a, filename, power_dict):
+def plot_powerspec(data_list, filename, power_dict):
     """This function will do seperate power spectrum
     plots for each component.
     The power spectra are given in dat_list, which are a list with
@@ -106,7 +105,10 @@ def plot_powerspec(data_list, a, filename, power_dict):
         # when several components are being plotted.
         filename_component = filename
         if len(names) > 1:
-            if '_a=' in filename:
+            if '_t=' in filename:
+                filename_component = filename.replace('_t=',
+                                                      '_{}_t='.format(name.replace(' ', '-')))
+            elif '_a=' in filename:
                 filename_component = filename.replace('_a=',
                                                       '_{}_a='.format(name.replace(' ', '-')))
             else:
@@ -141,7 +143,7 @@ def plot_powerspec(data_list, a, filename, power_dict):
         plt.ylabel('power $\mathrm{[' + unit_length + '^3]}$',
                    fontsize=14,
                    )
-        plt.title('{} at $a = {}$'.format(name, significant_figures(a, 4, fmt='TeX')),
+        plt.title('{} at $a = {}$'.format(name, significant_figures(universals.a, 4, fmt='TeX')),
                   fontsize=16,
                   )
         plt.gca().tick_params(labelsize=13)
@@ -153,7 +155,6 @@ def plot_powerspec(data_list, a, filename, power_dict):
 # Function for 3D renderings of the components
 @cython.header(# Arguments
                components='list',
-               a='double',
                filename='str',
                cleanup='bint',
                # Locals
@@ -162,6 +163,7 @@ def plot_powerspec(data_list, a, filename, power_dict):
                a_str='str',
                alpha='double',
                alpha_min='double',
+               artists_text='dict',
                color='double[::1]',
                combined='double[:, :, ::1]',
                dirname='str',
@@ -171,6 +173,8 @@ def plot_powerspec(data_list, a, filename, power_dict):
                filename_component_alpha_part='str',
                filenames_component_alpha='list',
                filenames_component_alpha_part='list',
+               label_props='list',
+               label_spacing='double',
                part='int',
                name='str',
                names='tuple',
@@ -178,9 +182,6 @@ def plot_powerspec(data_list, a, filename, power_dict):
                render_dir='str',
                rgb='int',
                scatter_size='double',
-               tmp_image='float[:, :, ::1]',
-
-
                i='Py_ssize_t',
                j='Py_ssize_t',
                k='Py_ssize_t',
@@ -191,6 +192,7 @@ def plot_powerspec(data_list, a, filename, power_dict):
                size_i='Py_ssize_t',
                size_j='Py_ssize_t',
                size_k='Py_ssize_t',
+               t_str='str',
                fluidscalar='FluidScalar',
                x='double*',
                y='double*',
@@ -202,7 +204,7 @@ def plot_powerspec(data_list, a, filename, power_dict):
                yj='double',
                zk='double',
                )
-def render(components, a, filename, cleanup=True):
+def render(components, filename, cleanup=True):
     global render_dict, render_image
     # Do not render anything if
     # render_select does not contain any True values.
@@ -271,13 +273,28 @@ def render(components, a, filename, cleanup=True):
                         rgba[i, dim] = color[dim]
                     rgba[i, 3] = 0
                 artist_component = ax.scatter([0]*N, [0]*N, [0]*N, c=rgba, alpha=0, lw=0)
-            # The artist for the scalefactor text
-            artist_text = ax.text(+0.25*boxsize,
-                                  -0.30*boxsize,
-                                  +0.00*boxsize,
-                                  '',
-                                  fontsize=16,
-                                  )
+            # The artists for the cosmic time and scale factor text
+            artists_text = {}
+            label_spacing = 0.07
+            label_props = [(label_spacing,     label_spacing, 'left'),
+                           (1 - label_spacing, label_spacing, 'right')]
+            if universals.t != -1:
+                artists_text['t'] = ax.text2D(label_props[0][0],
+                                              label_props[0][1],
+                                              '',
+                                              fontsize=16,
+                                              horizontalalignment=label_props[0][2],
+                                              transform=ax.transAxes,
+                                              )
+                label_props.pop(0)
+            if universals.a != -1 and enable_Hubble:
+                artists_text['a'] = ax.text2D(label_props[0][0],
+                                              label_props[0][1],
+                                              '',
+                                              fontsize=16,
+                                              horizontalalignment=label_props[0][2],
+                                              transform=ax.transAxes,
+                                              )
             # Configure axis options
             ax.set_aspect('equal')
             ax.dist = 8.55  # Zoom level
@@ -309,12 +326,15 @@ def render(components, a, filename, cleanup=True):
                 tl.set_visible(False)
             for tl in ax.w_zaxis.get_ticklabels():
                 tl.set_visible(False)
+            ax.set_xlabel('x')
+            ax.set_ylabel('y')
+            ax.set_zlabel('z')
             # Store the figure, axes and the component
             # and text artists in the render_dict.
             render_dict[component.name] = {'fig': fig,
                                            'ax': ax,
                                            'artist_component': artist_component,
-                                           'artist_text': artist_text,
+                                           'artists_text': artists_text,
                                            }
         # Return if no component is to be rendered
         if not render_dict:
@@ -332,7 +352,9 @@ def render(components, a, filename, cleanup=True):
         masterprint('Rendering:')
         for name in names:
             filename_component = filename
-            if '_a=' in filename:
+            if '_t=' in filename:
+                filename_component = filename.replace('_t=', '_{}_t='.format(name))
+            elif '_a=' in filename:
                 filename_component = filename.replace('_a=', '_{}_a='.format(name))
             else:
                 filename_component = filename.replace('.png', '_{}.png'.format(name))
@@ -350,7 +372,7 @@ def render(components, a, filename, cleanup=True):
         fig = render_dict[component.name]['fig']
         ax = render_dict[component.name]['ax']
         artist_component = render_dict[component.name]['artist_component']
-        artist_text = render_dict[component.name]['artist_text']
+        artists_text = render_dict[component.name]['artists_text']
         if component.representation == 'particles':
             # Extract particle meta data
             N = component.N
@@ -436,16 +458,23 @@ def render(components, a, filename, cleanup=True):
                                           lw=0,
                                           )
             render_dict[component.name]['artist_component'] = artist_component
-        # Print the current scale factor on the figure
+        # Print the current cosmic time and scale factor on the figure
         if master:
-            a_str = '$a = {}$'.format(significant_figures(a, 4, 'TeX'))
-            artist_text.set_text(a_str)
+            t_str = a_str = ''
+            if universals.t != -1:
+                t_str = ('$t = {}\,'.format(significant_figures(universals.t, 4, 'TeX'))
+                         + '\mathrm{' + unit_time + '}$')
+                artists_text['t'].set_text(t_str)
+            if universals.a != -1 and enable_Hubble:
+                a_str = '$a = {}$'.format(significant_figures(universals.a, 4, 'TeX'))
+                artists_text['a'].set_text(a_str)
             # Make the text color black or white,
             # dependent on the bgcolor
-            if sum(bgcolor) < 1:
-                artist_text.set_color('white')
-            else:
-                artist_text.set_color('black')
+            for artist_text in artists_text.values():
+                if sum(bgcolor) < 1:
+                    artist_text.set_color('white')
+                else:
+                    artist_text.set_color('black')
         # Save the render
         if nprocs == 1:
             filename_component_alpha_part = ('{}/{}_alpha.png'
@@ -508,7 +537,9 @@ def render(components, a, filename, cleanup=True):
             # without transparency.
             filename_component = filename
             if len(names) > 1:
-                if '_a=' in filename:
+                if '_t=' in filename:
+                    filename_component = filename.replace('_t=', '_{}_t='.format(name))
+                elif '_a=' in filename:
                     filename_component = filename.replace('_a=', '_{}_a='.format(name))
                 else:
                     filename_component = filename.replace('.png', '_{}.png'.format(name))
@@ -654,41 +685,69 @@ def update_liverender(filename):
                # Locals
                N='Py_ssize_t',
                N_local='Py_ssize_t',
-               N_total='Py_ssize_t',
                colornumber='int',
                colornumber_offset='int',
+               gridsize='Py_ssize_t',
                i='Py_ssize_t',
                index_x='Py_ssize_t',
                index_y='Py_ssize_t',
                j='Py_ssize_t',
-               maxoverdensity='Py_ssize_t',
-               maxval='Py_ssize_t',
+               mass='double',
+               maxoverdensity='double',
+               maxval='double',
                component='Component',
                posx='double*',
                posy='double*',
                projection_ANSI='list',
                scalec='double',
+               size_x='Py_ssize_t',
+               size_y='Py_ssize_t',
+               size_z='Py_ssize_t',
+               total_mass='double',
+               δ_noghosts='double[:, :, :]',
                )
 def terminal_render(components):
     # Project all particle positions onto the 2D projection array,
     # counting the number of particles in each pixel.
     projection[...] = 0
-    N_total = 0
+    total_mass = 0
     for component in components:
         if component.representation == 'particles':
             # Extract relevant particle data
             N = component.N
             N_local = component.N_local
-            N_total += N
+            mass = component.mass
             posx = component.posx
             posy = component.posy
-            # Do the projection
+            # Update the total mass
+            total_mass += N*mass
+            # Do the projection. Each particle is weighted by its mass.
             for i in range(N_local):
                 index_x = int(posx[i]*projection_scalex)
                 index_y = int(posy[i]*projection_scaley)
-                projection[index_y, index_x] += 1
+                try:
+                    projection[index_y, index_x] += mass
+                except:
+                    print(index_y, posy[i]/boxsize, index_x, posx[i]/boxsize, flush=True)
+                    sleep(100)
         elif component.representation == 'fluid':
-            pass
+            # Extract relevant fluid data
+            gridsize = component.gridsize
+            mass = component.mass
+            δ_noghosts = component.fluidvars['δ'].grid_noghosts
+            size_x = δ_noghosts.shape[0] - 1
+            size_y = δ_noghosts.shape[1] - 1
+            size_z = δ_noghosts.shape[2] - 1
+            # Update the total mass
+            total_mass += gridsize**3*mass
+            # Do the projection. Each fluid element is weighted by
+            # its mass.
+            for i in range(size_x):
+                index_x = int((domain_start_x + i*domain_size_x/size_x)*projection_scalex)
+                for j in range(size_y):
+                    index_y = int((domain_start_y + j*domain_size_y/size_y)*projection_scaley)
+                    projection[index_y, index_x] += mass*(np.sum(δ_noghosts[i, j, :size_z])
+                                                          + size_z)
     # Sum up local projections into the master process
     Reduce(sendbuf=(MPI.IN_PLACE if master else projection),
            recvbuf=(projection   if master else None),
@@ -698,8 +757,8 @@ def terminal_render(components):
     # Values in the projection array equal to or larger than maxval
     # will be mapped to color nr. 255. The value of the maxoverdensity
     # is arbitrarily chosen.
-    maxoverdensity = 12
-    maxval = maxoverdensity*N_total//(projection.shape[0]*projection.shape[1])
+    maxoverdensity = 10
+    maxval = maxoverdensity*total_mass/(projection.shape[0]*projection.shape[1])
     if maxval < 5:
         maxval = 5
     # Construct list of strings, each string being a space prepended
@@ -707,8 +766,8 @@ def terminal_render(components):
     # color. When printed together, these strings produce an ANSI image
     # of the projection.
     projection_ANSI = []
-    scalec = terminal_colormap_rgb.shape[0]/maxval
-    colornumber_offset = 256 - terminal_colormap_rgb.shape[0]
+    scalec = terminal_render_colormap_rgb.shape[0]/maxval
+    colornumber_offset = 256 - terminal_render_colormap_rgb.shape[0]
     for i in range(projection.shape[0]):
         for j in range(projection.shape[1]):
             colornumber = int(colornumber_offset + projection[i, j]*scalec)
@@ -740,13 +799,13 @@ if (any(powerspec_plot_select.values())
 # The array storing the terminal render and the color map
 if any(terminal_render_times.values()):
     # Allocate the 2D projection array storing the terminal render
-    cython.declare(projection='Py_ssize_t[:, ::1]',
+    cython.declare(projection='double[:, ::1]',
                    projection_scalex='double',
                    projection_scaley='double',
-                   terminal_colormap_rgb='double[:, ::1]',
+                   terminal_render_colormap_rgb='double[:, ::1]',
                    )
-    projection = np.empty((terminal_resolution//2, terminal_resolution),
-                          dtype=C2np['Py_ssize_t'])
+    projection = np.empty((terminal_render_resolution//2, terminal_render_resolution),
+                          dtype=C2np['double'])
     projection_scalex = projection.shape[1]/boxsize
     projection_scaley = projection.shape[0]/boxsize
     # Construct terminal colormap with 256 - 16 - 2 = 238 colors
@@ -755,13 +814,14 @@ if any(terminal_render_times.values()):
     # mess with standard terminal coloring and the colors used for the
     # CO𝘕CEPT logo at startup.
     if master:
-        terminal_colormap_rgb = np.ascontiguousarray(getattr(matplotlib.cm, terminal_colormap)
-                                                     (arange(238))[:, :3])
-        for i, rgb in enumerate(asarray(terminal_colormap_rgb)):
+        terminal_render_colormap_rgb = np.ascontiguousarray(getattr(matplotlib.cm,
+                                                                    terminal_render_colormap)
+                                                            (arange(238))[:, :3])
+        for i, rgb in enumerate(asarray(terminal_render_colormap_rgb)):
             colorhex = matplotlib.colors.rgb2hex(rgb)
             masterprint('\x1b]4;{};rgb:{}/{}/{}\x1b\\'
-                         .format(256 - terminal_colormap_rgb.shape[0] + i, colorhex[1:3],
-                                                                           colorhex[3:5],
-                                                                           colorhex[5:]),
+                         .format(256 - terminal_render_colormap_rgb.shape[0] + i, colorhex[1:3],
+                                                                                  colorhex[3:5],
+                                                                                  colorhex[5:]),
                         end='')
 

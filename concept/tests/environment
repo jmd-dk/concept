@@ -38,7 +38,7 @@
 #################
 # Print success message, deactivate trap and return to test script
 if [ "${test_done}" = true ]; then
-    colorprint "${test_name} test ran successfully" "green"
+    colorprint "${this_test} test ran successfully" "green"
     trap : 0
     return
 fi
@@ -71,7 +71,20 @@ done
 export concept_dir="${concept_dir}"
 
 # The name of the test (the directory name)
-test_name=$(basename "${0%/*}")
+export this_test=$(basename "${0%/*}")
+
+# Function which can extract parameters from the 'params' file in the current test directory
+get_param()
+{
+    "${concept}" -n 1                                                    \
+                 -p "${this_dir}/params"                                 \
+                 -m "from commons import *; print('param_var =', ${1})"  \
+                 --pure-python                                           \
+                 --local                                                 \
+                 | grep "param_var"                                      \
+                 | tail -n 1                                             \
+                 | sed 's/^.\{12\}//'
+}
 
 # Set up error trapping
 ctrl_c()
@@ -81,7 +94,7 @@ ctrl_c()
 }
 abort()
 {
-    colorprint "An error occurred during ${test_name} test!" "red"
+    colorprint "An error occurred during ${this_test} test!" "red"
     exit 1
 }
 trap 'ctrl_c' SIGINT

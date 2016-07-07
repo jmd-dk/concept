@@ -134,8 +134,8 @@ def exchange(component, reset_buffers=False):
     # No need to consider exchange of particles if running serially
     if nprocs == 1:
         return
-    # Fluids are not exchangeable
-    if component.representation == 'fluid':
+    # Only particles are exchangeable
+    if component.representation != 'particles':
         return
     # The original size of the send buffer
     sendbuf_size_original = sendbuf_mv.shape[0]

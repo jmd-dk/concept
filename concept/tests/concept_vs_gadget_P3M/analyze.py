@@ -22,14 +22,18 @@
 
 # This file has to be run in pure Python mode!
 
-# Include the concept_dir in the searched paths
-# and get directory of this file.
+# Standard test imports
 import glob, sys, os
-sys.path.append(os.environ['concept_dir'])
+
+# Absolute paths to the directory of this file
 this_dir = os.path.dirname(os.path.realpath(__file__))
 
-# The name of this test
-this_test = os.path.basename(this_dir)
+# Pull in environment variables
+for env_var in ('concept_dir', 'this_test'):
+    exec('{env_var} = os.environ["{env_var}"]'.format(env_var=env_var))
+
+# Include the concept_dir in the searched paths
+sys.path.append(concept_dir)
 
 # Imports from the CO𝘕CEPT code
 from commons import *
@@ -116,7 +120,7 @@ for i in range(N_snapshots):
 fig_file = this_dir + '/result.png'
 plt.xlabel('Particle number')
 plt.ylabel('$|\mathbf{x}_{\mathrm{CO}N\mathrm{CEPT}}'
-           '- \mathbf{x}_{\mathrm{GADGET}}|/\mathrm{boxsize}$')
+           '-\mathbf{x}_{\mathrm{GADGET}}|/\mathrm{boxsize}$')
 plt.xlim(0, N - 1)
 plt.legend(loc='best').get_frame().set_alpha(0.3)
 plt.tight_layout()

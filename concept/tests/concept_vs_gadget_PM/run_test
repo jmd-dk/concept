@@ -32,31 +32,38 @@ source "${this_dir}/../environment"
 # Cleanup from last test run
 "${this_dir}/clean"
 
-# Create list of output times, used by both CO𝘕CEPT and GADGET
-"${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', (0.1, 0.5, 1))"
-
 # Generate ICs
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local
 
 # Run the CO𝘕CEPT code on the generated ICs
-rm -f "${concept_dir}/.fftw_wisdom_gridsize=16_nprocs=1"
+rm -f "${concept_dir}/.fftw_wisdom_gridsize=$(get_param 'φ_gridsize')_nprocs=1"
 "${concept}" -n 1 -p "${this_dir}/params" --local
+
+# Dump list of snapshot output times used by GADGET
+"${python}" -c "import numpy as np
+np.savetxt('${this_dir}/outputlist', $(get_param "snapshot_times['a']"))"
 
 # Create an edited version of Makefile_gadget with correct parth information
 cp "${this_dir}/Makefile_gadget" "${this_dir}/Makefile_gadget_edited"
 sed -i "/^ *CC= / s/ [^# ]/ \"${mpicc//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
 path="${mpi_dir}/include"
-sed -i "/^ *MPI_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+sed -i "/^ *MPI_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" \
+       "${this_dir}/Makefile_gadget_edited"
 path="${mpi_dir}/lib"
-sed -i "/^ *MPI_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+sed -i "/^ *MPI_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" \
+       "${this_dir}/Makefile_gadget_edited"
 path="${gsl_dir}/include"
-sed -i "/^ *GSL_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+sed -i "/^ *GSL_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" \
+       "${this_dir}/Makefile_gadget_edited"
 path="${gsl_dir}/lib"
-sed -i "/^ *GSL_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+sed -i "/^ *GSL_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" \
+       "${this_dir}/Makefile_gadget_edited"
 path="${fftw_for_gadget_dir}/include"
-sed -i "/^ *FFTW_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+sed -i "/^ *FFTW_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" \
+       "${this_dir}/Makefile_gadget_edited"
 path="${fftw_for_gadget_dir}/lib"
-sed -i "/^ *FFTW_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+sed -i "/^ *FFTW_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" \
+       "${this_dir}/Makefile_gadget_edited"
 
 # Make a local copy of the files in the GADGET2 directory and copy the edited Makefile
 Gadget2_local_dir="${this_dir}/Gadget2_local"
@@ -69,8 +76,12 @@ cp "${this_dir}/Makefile_gadget_edited" "${Gadget2_local_dir}/Makefile"
 cp "${this_dir}/pm_periodic_edited.c" "${Gadget2_local_dir}/pm_periodic.c"
 cp "${this_dir}/timestep_edited.c" "${Gadget2_local_dir}/timestep.c"
 
-# Build Gadget and run simulation based on the ICs
-(cd "${Gadget2_local_dir}" && make clean && make && "${mpiexec}" -n 1 "${Gadget2_local_dir}/Gadget2" ../params_gadget)  # It is crucial to use a relative path as the path has a max allowed length in GADGET
+# Build Gadget and run simulation based on the ICs.
+# Note that it is crucial to use a relative path to the parameter file
+# as the path has a maximum allowed length in GADGET.
+(cd "${Gadget2_local_dir}" && make clean \
+                           && make       \
+                           && "${mpiexec}" -n 1 "${Gadget2_local_dir}/Gadget2" ../params_gadget)
 
 # Analyze the output snapshots
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local

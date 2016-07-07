@@ -24,5 +24,9 @@
 
 # This script does cleanup after a test
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-(cd "${this_dir}" && rm -rf IC.hdf5 output* result.png)
+(cd "${this_dir}" && rm -rf IC.hdf5      \
+                            output*      \
+                            params_ewals \
+                            result.png   \
+ )
 

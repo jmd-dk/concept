@@ -41,11 +41,11 @@ H0      = 70*km/s/Mpc
 a_begin = 0.02
 
 # Graphics
-render_colors       = {'test particles': 'DarkGreen'}
-bgcolor             = '0'
-resolution          = 1080
-terminal_colormap   = 'gnuplot2'
-terminal_resolution = 80
+render_colors              = {'test particles': 'DarkGreen'}
+bgcolor                    = '0'
+resolution                 = 1080
+terminal_render_colormap   = 'gnuplot2'
+terminal_render_resolution = 80
 
 # Simulation options
 kick_algorithms = {'dark matter particles': 'PM'}

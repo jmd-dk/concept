@@ -63,6 +63,7 @@ def delegate():
                 mass='double',
                 name='str',
                 names='list',
+                names_lower='list',
                 original_mass='double',
                 original_representation='str',
                 original_tot_mass='double',
@@ -82,7 +83,7 @@ def convert():
     attributes = collections.defaultdict(dict)
     for attribute_str in special_params['attributes']:
         index = attribute_str.index('=')
-        key = attribute_str[:index].strip().replace(unicode('Ω'), 'Ω').replace(unicode('Λ'), 'Λ')
+        key = asciify(attribute_str[:index].strip())
         try:
             # Numerical value, possibly with units
             value = eval(attribute_str[(index + 1):], units_dict)
@@ -108,21 +109,30 @@ def convert():
                                        do_exchange=False,    # Exchanges happen later, if needed
                                        as_if=snapshot_type)
     # Warn the user of specified changes to component attributes
-    # of non-existing components.
+    # of non-existing components. Allow for components written in a
+    # different case.
     names = [component.name for component in snapshot.components]
-    for name in attributes:
+    names_lower = [name.lower() for name in names]
+    for name in dict(attributes):  # New dict neeed as keys are removed during iteration
         if name not in names:
-            masterwarn('The following attributes are specified for the "{}" component, '
-                       'which does not exist:\n'.format(name), attributes[name], sep='')
+            # Specified component name not present.
+            # Maybe the problem is due to lower/upper case.
+            if name.lower() in names_lower:
+                # The component name is written in a different case.
+                # Move specified attributes over to the properly
+                # written name and set the wrongly written name key
+                # to have an empty value.
+                attributes[names[names_lower.index(name.lower())]].update(attributes[name])
+                del attributes[name]
+            else:
+                masterwarn('The following attributes are specified for the "{}" component, '
+                           'which does not exist:\n'.format(name), attributes[name], sep='')
     # Overwrite parameters in the snapshot with those from the
     # parameter file (those which are currently loaded as globals).
-    snapshot.populate(snapshot.components, a_begin)
-    # If specific parameters are parsed as attributes,
-    # update the snapshot parameters accordingly.
-    snapshot.params.update(params)
-    # For GADGET snapshots, also update the GADGET header
-    if snapshot_type == 'gadget2':
-        snapshot.update_header()
+    # If paremters are parsed directly, these should take precedence
+    # over those from the parameter file.
+    universals.a = a_begin
+    snapshot.populate(snapshot.components, params)
     # Edit individual components if component attributes are parsed
     for component in snapshot.components:
         # The (original) name of this component
@@ -140,7 +150,7 @@ def convert():
                       'the "{}" component: {}'.format(component.name, key))
             setattr(component, key, val)
         component.representation = get_representation(component.species)
-        # Apply particles <--> fluid convertion, if necessary
+        # Apply particles --> fluid convertion, if necessary
         if original_representation == 'particles' and component.representation == 'fluid':
             # To do the convertion, the particles need to be
             # distributed according to which domain they are in.
@@ -188,10 +198,11 @@ def convert():
             # CIC-interpolate particle data to fluid data
             mass = component.mass
             component.mass = original_mass
-            CIC_particles2fluid(component, snapshot.params['a'])
+            universals.a = snapshot.params['a']
+            CIC_particles2fluid(component)
             component.mass = mass
         elif original_representation == 'fluid' and component.representation == 'particles':
-            pass
+            abort('Cannot convert fluid to particles')
     # Remove original file extension
     # (the correct extension will be added by the save function).
     converted_snapshot_filename = snapshot_filename
@@ -270,7 +281,8 @@ def powerspec():
     if output_filename == snapshot_filename:
         output_filename = '{}/powerspec_{}'.format(output_dir, basename)
     # Produce powerspectrum of the snapshot
-    analysis.powerspec(snapshot.components, snapshot.params['a'], output_filename)
+    universals.a = snapshot.params['a']
+    analysis.powerspec(snapshot.components, output_filename)
 
 # Function that produces a render of the file
 # specified by the special_params['snapshot_filename'] parameter.
@@ -308,9 +320,8 @@ def render():
     if output_filename == snapshot_filename:
         output_filename = '{}/render_{}'.format(output_dir, basename)
     # Render the snapshot
-    graphics.render(snapshot.components,
-                    snapshot.params['a'],
-                    output_filename)
+    universals.a = snapshot.params['a']
+    graphics.render(snapshot.components, output_filename)
 
 # Function for printing all informations within a snapshot
 @cython.pheader(# Locals
@@ -465,9 +476,11 @@ def info():
             elif component.representation == 'fluid':
                 masterprint('{:<15} {}'.format('gridsize', component.gridsize), indent=4)
                 masterprint('{:<15} {}'.format('N_fluidvars', component.fluidvars['N']), indent=4)
-        # Print out GADGET header for GADGET snapshots
+        # Print out GADGET header for GADGET2 snapshots
         if snapshot_type == 'gadget2':
             masterprint('GADGET header:')
             for key, val in params['header'].items():
                 masterprint('{:<15} {}'.format(key, val), indent=4)
+        # End of information
+        masterprint('')
 
