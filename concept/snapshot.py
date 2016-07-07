@@ -43,8 +43,24 @@ class StandardSnapshot:
     in the units dict. Finally, the cosmological parameters and the
     boxsize is stored in the params dict.
     """
+    # The properly written name of this snapshot type
+    # (only used for printing).
+    name = 'standard'
     # The filename extension for this type of snapshot
     extension = '.hdf5'
+
+    # Static method for identifying a file to be a snapshot of this type
+    @staticmethod
+    def is_this_type(filename):
+        # Test for standard format by looking up the 'ΩΛ' attribute
+        # in the HDF5 data structure.
+        try:
+            with h5py.File(filename, mode='r') as f:
+                f.attrs[unicode('ΩΛ')]
+                return True
+        except:
+            pass
+        return False
 
     # Initialization method
     @cython.header
@@ -197,9 +213,7 @@ class StandardSnapshot:
     # Method for loading in a standard snapshot from disk
     @cython.pheader(# Argument
                     filename='str',
-                    compare_params='bint',
                     only_params='bint',
-                    do_exchange='bint',
                     # Locals
                     N_local='Py_ssize_t',
                     N_locals='tuple',
@@ -233,10 +247,15 @@ class StandardSnapshot:
                     size='Py_ssize_t',
                     fluidscalar='FluidScalar',
                     l='Py_ssize_t',
+                    i='Py_ssize_t',
+                    momx='double*',
+                    momy='double*',
+                    momz='double*',
+                    posx='double*',
+                    posy='double*',
+                    posz='double*',
                     )
-    def load(self, filename, compare_params=True, only_params=False, do_exchange=True):
-        if not only_params:
-            masterprint('Loading snapshot "{}":'.format(filename))
+    def load(self, filename, only_params=False):
         # Load all components
         with h5py.File(filename, mode='r', driver='mpio', comm=comm) as hdf5_file:
             # Load used base units
@@ -252,11 +271,6 @@ class StandardSnapshot:
             self.params['boxsize'] = hdf5_file.attrs['boxsize']*snapshot_unit_length
             self.params['Ωm']      = hdf5_file.attrs[unicode('Ωm')]
             self.params['ΩΛ']      = hdf5_file.attrs[unicode('ΩΛ')]
-            # Check if the parameters of the snapshot
-            # matches those of the current simulation run.
-            # Display a warning if they do not.
-            if compare_params:
-                compare_parameters(self.params, filename)
             # Load component data
             for name, component_h5 in hdf5_file['components'].items():
                 # Load the general component attributes
@@ -272,7 +286,9 @@ class StandardSnapshot:
                     # Done loading component attributes
                     if only_params:
                         continue
-                    # Write out progress message
+                    # Write out progress message.
+                    # Indent the message, as this is a submessage of
+                    # the total load message.
                     if not only_params:
                         masterprint('Reading in {} ({} {}) ...'.format(name, N, species), indent=4)
                     # Extract HDF5 datasets
@@ -296,20 +312,26 @@ class StandardSnapshot:
                     component.populate(momx_h5[start_local:end_local], 'momx')
                     component.populate(momy_h5[start_local:end_local], 'momy')
                     component.populate(momz_h5[start_local:end_local], 'momz')
+                    posx = component.posx
+                    posy = component.posy
+                    posz = component.posz
+                    momx = component.momx
+                    momy = component.momy
+                    momz = component.momz
                     # If the snapshot and the current run uses different
                     # systems of units, mulitply the component positions
                     # and momenta by the snapshot units.
                     if snapshot_unit_length != 1:
                         for i in range(N_local):
-                            component.posx[i] *= snapshot_unit_length
-                            component.posy[i] *= snapshot_unit_length
-                            component.posz[i] *= snapshot_unit_length
+                            posx[i] *= snapshot_unit_length
+                            posy[i] *= snapshot_unit_length
+                            posz[i] *= snapshot_unit_length
                     unit = snapshot_unit_length/snapshot_unit_time*snapshot_unit_mass
                     if unit != 1:
                         for i in range(N_local):
-                            component.momx[i] *= unit
-                            component.momy[i] *= unit
-                            component.momz[i] *= unit
+                            momx[i] *= unit
+                            momy[i] *= unit
+                            momz[i] *= unit
                     # Finalize progress message
                     masterprint('done')
                 elif representation == 'fluid':
@@ -357,7 +379,7 @@ class StandardSnapshot:
                         fluidvars[l] = fluidvar
                         # Instantiate fluid scalars
                         for multi_index in component.iterate_fluidvar(fluidvar):
-                            fluidvar[multi_index] = FluidScalar()
+                            fluidvar[multi_index] = FluidScalar(l, multi_index)
                         # Populate fluid scalars
                         for multi_index in component.iterate_fluidvar(fluidvar):
                             fluidscalar_h5 = fluidvar_h5[str(multi_index)]
@@ -384,38 +406,31 @@ class StandardSnapshot:
                             grid = fluidscalar.grid
                             for i in range(size):
                                 grid[i] *= unit
-                    # Finalize progress message
+                    # Finalize indented progress message
                     masterprint('done')
                 elif master:
                     abort('Does not know how to load component "{}" with representation "{}"'
                           .format(name, representation))
-        # Scatter particles to the correct domain-specific process.
-        # Setting reset_indices_send == True ensures that buffers
-        # will be reset afterwards, as this initial exchange is not
-        # representable for those to come.
-        if not only_params and do_exchange:
-            for component in self.components[:(len(self.components) - 1)]:
-                exchange(component, reset_buffers=False)
-            # Reset communication buffers after last exchange
-            exchange(component, reset_buffers=True)
 
     # This method populate the snapshot with component data
     # and additional parameters.
     @cython.pheader(# Arguments
                     components='list',
-                    a='double',
                     params='dict',
                     # Locals
                     key='str',
                     )
-    def populate(self, components, a, params={}):
+    def populate(self, components, params={}):
         # Pupulate snapshot with the components
         self.components = components
         # Populate snapshot with the parsed scalefactor
         # and global parameters. If a params dict is parsed,
         # use values from this instead.
         self.params['H0']      = params.get('H0',      H0)
-        self.params['a']       = params.get('a',       a)
+        if enable_Hubble:
+            self.params['a']   = params.get('a',       universals.a)
+        else:
+            self.params['a']   = -1
         self.params['boxsize'] = params.get('boxsize', boxsize)
         self.params['Ωm']      = params.get('Ωm',      Ωm)
         self.params['ΩΛ']      = params.get('ΩΛ',      ΩΛ)
@@ -449,10 +464,28 @@ class Gadget2Snapshot:
     these are generated in a somewhat arbitrary (but consistent)
     fashion.
     """
+    # The properly written name of this snapshot type
+    # (only used for printing).
+    name = 'GADGET2'
     # The filename extension for this type of snapshot
     extension = ''
 
-    # Initialization method.
+    # Static method for identifying a file to be a snapshot of this type
+    @staticmethod
+    def is_this_type(filename):
+        # Test for GADGET2 format by checking the existence
+        # of the 'HEAD' identifier.
+        try:
+            with open(filename, 'rb') as f:
+                f.seek(4)
+                head = struct.unpack('4s', f.read(struct.calcsize('4s')))
+                if head[0] == b'HEAD':
+                    return True
+        except:
+            pass
+        return False
+
+    # Initialization method
     @cython.header
     def __init__(self):
         # The triple quoted string below serves as the type declaration
@@ -606,9 +639,7 @@ class Gadget2Snapshot:
     # Method for loading in a GADGET2 snapshot of type 2 from disk
     @cython.pheader(# Arguments
                     filename='str',
-                    compare_params='bint',
                     only_params='bint',
-                    do_exchange='bint',
                     # Locals
                     N='Py_ssize_t',
                     N_local='Py_ssize_t',
@@ -624,7 +655,7 @@ class Gadget2Snapshot:
                     start_local='Py_ssize_t',
                     unit='double',
                     )
-    def load(self, filename, compare_params=True, only_params=False, do_exchange=True):
+    def load(self, filename, only_params=False):
         """ It is assumed that the snapshot on the disk is a GADGET2
         snapshot of type 2 and that it uses single precision. The
         Gadget2Snapshot instance stores the data (positions and
@@ -632,8 +663,6 @@ class Gadget2Snapshot:
         particles, corresponding to dark matter particles,
         are supported.
         """
-        if not only_params:
-            masterprint('Loading GADGET2 snapshot "{}":'.format(filename))
         # Only type 1 (halo) particles are supported
         name = 'GADGET halos'
         species = 'dark matter particles'
@@ -676,11 +705,6 @@ class Gadget2Snapshot:
             self.params['boxsize'] = header['BoxSize']*unit
             self.params['Ωm']      = header['Omega0']
             self.params['ΩΛ']      = header['OmegaLambda']
-            # Check if the parameters of the snapshot matches
-            # those of the current simulation run. Display a warning
-            # if they do not.
-            if compare_params:
-                compare_parameters(self.params, filename)
             # Construct a Component instance and pack it
             # into this snapshot's list of components.
             N = header['Npart'][1]
@@ -691,7 +715,9 @@ class Gadget2Snapshot:
             # Done loading component attributes
             if only_params:
                 return
-            # Write out progress message
+            # Write out progress message.
+            # Indent the message, as this is a submessage of
+            # the total load message.
             masterprint('Reading in {} ({} {}) ...'.format(name, N, species), indent=4)
             # Compute a fair distribution
             # of component data to the processes.
@@ -747,22 +773,15 @@ class Gadget2Snapshot:
             f.seek(4*start_local, 1)  # 4 = sizeof(unsigned int)
             file_position = f.tell()
             self.ID = np.fromfile(f, dtype=C2np['unsigned int'], count=N_local)
-            # Finalize progress message
+            # Finalize indented progress message
             masterprint('done')
             # Possible additional meta data ignored
-        # Scatter particles to the correct domain-specific process.
-        # Setting reset_indices_send == True ensures that buffers
-        # will be reset afterwards, as this initial exchange is not
-        # representable for those to come.
-        if do_exchange:
-            exchange(self.component, reset_buffers=True)
 
     # This method populate the snapshot with component data
     # as well as ID's (which are not used by this code) and
     # additional header information.
     @cython.pheader(# Arguments
                     components='list',
-                    a='double',
                     params='dict',
                     # Locals
                     component='Component',
@@ -770,7 +789,7 @@ class Gadget2Snapshot:
                     start_local='Py_ssize_t',
                     unit='double',
                     )
-    def populate(self, components, a, params={}):
+    def populate(self, components, params={}):
         """The following header fields depend on the particles:
             Npart, Massarr, Nall.
         The following header fields depend on the current time:
@@ -792,7 +811,10 @@ class Gadget2Snapshot:
         # and global parameters. If a params dict is parsed,
         # use values from this instead.
         self.params['H0']      = params.get('H0',      H0)
-        self.params['a']       = params.get('a',       a)
+        if enable_Hubble:
+            self.params['a']   = params.get('a',       universals.a)
+        else:
+            self.params['a']   = -1
         self.params['boxsize'] = params.get('boxsize', boxsize)
         self.params['Ωm']      = params.get('Ωm',      Ωm)
         self.params['ΩΛ']      = params.get('ΩΛ',      ΩΛ)
@@ -872,103 +894,21 @@ class Gadget2Snapshot:
 
 
 
-# Function whick takes in a dict of parameters and compare their
-# values to those of the current run. If any disagreement is found,
-# write a warning message.
-@cython.header(# Arguments
-               params='dict',
-               filename='str',
-               indent='bint',
-               # Locals
-               indent_str='str',
-               msg='str',
-               reltol='double',
-               vs='str',
-               )
-def compare_parameters(params, filename, indent=4):
-    """Specifically, the following parameters are compared:
-    a (compared against a_begin)
-    boxsize
-    H0
-    Ωm
-    ΩΛ
-    """
-    # The relative tolerence by which the parameters are compared
-    reltol = 1e-6
-    # Format strings
-    vs = '{:.' + str(int(1 - log10(reltol))) + 'g}'
-    vs += ' vs ' + vs
-    indent_str = '\n' + ' '*2*indent
-    msg = ''
-    # Do the comparisons one by one
-    if not isclose(a_begin, float(params['a']), reltol):
-        msg += (indent_str + 'a_begin: ' + vs).format(a_begin, params['a'])
-    if not isclose(boxsize, float(params['boxsize']), reltol):
-        msg += (indent_str + 'boxsize: ' + vs + ' [{}]').format(boxsize,
-                                                                params['boxsize'],
-                                                                unit_length)
-    if not isclose(H0, float(params['H0']), reltol):
-        unit = units.km/(units.s*units.Mpc)
-        msg += (indent_str + 'H0: ' + vs + ' [{}]'
-                ).format(H0/unit,
-                         params['H0']/unit,
-                         'km s{inv} Mpc{inv}'.format(inv=(unicode('⁻¹')))
-                         )
-    if not isclose(Ωm, float(params['Ωm']), reltol):
-        msg += (indent_str + unicode('Ωm: ') + vs).format(Ωm, params['Ωm'])
-    if not isclose(ΩΛ, float(params['ΩΛ']), reltol):
-        msg += (indent_str + unicode('ΩΛ: ') + vs).format(ΩΛ, params['ΩΛ'])
-    if msg:
-        msg = ('Mismatch between current parameters and those in the snapshot "{}":{}'
-               ).format(filename, msg)
-        masterwarn(msg, indent=indent)
-
-# Function for determining the snapshot type of a file
-@cython.header(# Arguments
-               filename='str',
-               # Locals
-               head='tuple',
-               returns='str',
-               )
-def get_snapshot_type(filename):
-    # Abort if the file does not exist
-    if master and not os.path.exists(filename):
-        abort('The snapshot file "{}" does not exist'.format(filename))
-    # Test for standard HDF5 format by looking up ΩΛ
-    try:
-        with h5py.File(filename, mode='r') as f:
-            f.attrs[unicode('ΩΛ')]
-            return 'standard'
-    except:
-        pass
-    # Test for GADGET2 2 format by searching for a HEAD identifier
-    try:
-        with open(filename, 'rb') as f:
-            f.seek(4)
-            head = struct.unpack('4s', f.read(struct.calcsize('4s')))
-            if head[0] == b'HEAD':
-                return 'gadget2'
-    except:
-        pass
-    # Return None if the file is not a valid snapshot
-    return None
-
 # Function that saves the current state of the simulation
 # - consisting of global parameters as well as the list of components -
 # to a snapshot file. The type of snapshot to be saved is determined by
 # the snapshot_type parameter.
 @cython.header(# Argument
                components='list',
-               a='double',
                filename='str',
                # Locals
                snapshot='object'  # Any implemented snapshot type
                )
-def save(components, a, filename):
+def save(components, filename):
     # Instantiate snapshot of the appropriate type
     snapshot = eval(snapshot_type.capitalize() + 'Snapshot()')
     # Populate the snapshot with data and save it to disk
-    snapshot.populate(components, a)
+    snapshot.populate(components)
     snapshot.save(filename)
 
 # Function that loads a snapshot file.
@@ -981,6 +921,7 @@ def save(components, a, filename):
                 do_exchange='bint',
                 as_if='str',
                 # Locals
+                component='Component',
                 input_type='str',
                 snapshot='object',          # Some snapshot type
                 snapshot_newtype='object',  # Some snapshot type
@@ -999,7 +940,7 @@ def load(filename, compare_params=True,
     When only_params == True, a snapshot object will be returned,
     containing both parameters (.params) and components (.components),
     just as when only_params == False. These components will have
-    correctly specified attributes, but no no actual component data.
+    correctly specified attributes, but no actual component data.
     """
     # If no snapshot should be loaded, return immediately
     if not filename:
@@ -1007,14 +948,39 @@ def load(filename, compare_params=True,
     # Determine snapshot type
     input_type = get_snapshot_type(filename)
     if master and input_type is None:
-        abort('Cannot recognize "{}" as neither a standard nor a GADGET2 snapshot'
-              .format(filename))
+        abort('Cannot recognize "{}" as one of the implemented snapshot types ({}).'
+              .format(filename,
+                      ', '.join([snapshot_class.name for snapshot_class in snapshot_classes])))
+    # Begin loading message. The load methods of the snapshot classes
+    # will elaborate further with indented messages.
+    if only_params:
+        masterprint('Loading parameters of {} snapshot "{}"'.format(input_type, filename))
+    else:
+        masterprint('Loading {} snapshot "{}":'.format(input_type, filename))
     # Instantiate snapshot of the appropriate type
     snapshot = eval(input_type.capitalize() + 'Snapshot()')
     # Load the snapshot from disk
-    snapshot.load(filename, compare_params=compare_params,
-                            only_params=only_params,
-                            do_exchange=do_exchange)
+    snapshot.load(filename, only_params=only_params)
+    # Check if the parameters of the snapshot matches those of the
+    # current simulation run. Display a warning if they do not.
+    # This warning should be indented under the loading message.
+    if compare_params:
+        compare_parameters(snapshot.params, filename, indent=4)
+    # Check that all particles are positioned within the box.
+    # Particles exactly on the upper boundaries will be moved to the
+    # physically equivalent lower boundaries.
+    for component in snapshot.components:
+        out_of_bounds_check(component)
+    # Scatter particles to the correct domain-specific process
+    if not only_params and do_exchange:
+        # Do exchanges for all but the last component,
+        # reusing the communication buffers.
+        for component in snapshot.components[:(len(snapshot.components) - 1)]:
+            exchange(component, reset_buffers=False)
+        # Do exchange of the last component and reset communication
+        # buffers, as these initial exchanges are not representable
+        # for those to come during the actual simulation.
+        exchange(snapshot.components[len(snapshot.components) - 1], reset_buffers=True)
     # If the caller is interested in the components only,
     # return the list of components.
     if only_components:
@@ -1023,19 +989,156 @@ def load(filename, compare_params=True,
     # and populate it with the loaded data.
     if as_if and as_if != input_type:
         snapshot_newtype = eval(as_if.capitalize() + 'Snapshot()')
-        snapshot_newtype.populate(snapshot.components,
-                                  snapshot.params['a'],
-                                  snapshot.params)
+        snapshot_newtype.populate(snapshot.components, snapshot.params)
         return snapshot_newtype
     # Return the loaded snapshot
     return snapshot
 
+# Function for determining the snapshot type of a file
+@cython.header(# Arguments
+               filename='str',
+               # Locals
+               head='tuple',
+               returns='str',
+               )
+def get_snapshot_type(filename):
+    """Call the 'is_this_type' class method of each snapshot class until
+    the file is recognized as a specific snapshot type.
+    The returned name of the snapshot type is in the same format as the
+    explicit name of the snapshot class, but with the "Snapshot" suffix
+    removed and all characters are converted to lowercase.
+    If the file is not recognized as any snapshot type at all,
+    do not throw an error but simply return None.
+    """
+    # Abort if the file does not exist
+    if master and not os.path.exists(filename):
+        abort('The snapshot file "{}" does not exist'.format(filename))
+    # Get the snapshot type by asking each snapshot class whether they
+    # recognize the file.
+    for snapshot_class in snapshot_classes:
+        if snapshot_class.is_this_type(filename):
+            return snapshot_class.__name__.rstrip('Snapshot').lower()
+    # Return None if the file is not a valid snapshot
+    return None
+
+# Function whick takes in a dict of parameters and compare their
+# values to those of the current run. If any disagreement is found,
+# write a warning message.
+@cython.header(# Arguments
+               params='dict',
+               filename='str',
+               indent='int',
+               # Locals
+               indent_str='str',
+               msg='str',
+               reltol='double',
+               unit='double',
+               vs='str',
+               )
+def compare_parameters(params, filename, indent=0):
+    """Specifically, the following parameters are compared:
+    a (compared against a_begin)
+    boxsize
+    H0
+    Ωm
+    ΩΛ
+    """
+    # The relative tolerence by which the parameters are compared
+    reltol = 1e-6
+    # Format strings
+    vs = '{:.' + str(int(1 - log10(reltol))) + 'g}'
+    vs += ' vs ' + vs
+    indent_str = '\n    '
+    msg = ''
+    # Do the comparisons one by one
+    if enable_Hubble and a_begin != -1:
+        if not isclose(a_begin, float(params['a']), reltol):
+            msg += (indent_str + 'a_begin: ' + vs).format(a_begin, params['a'])
+    if not isclose(boxsize, float(params['boxsize']), reltol):
+        msg += (indent_str + 'boxsize: ' + vs + ' [{}]').format(boxsize,
+                                                                params['boxsize'],
+                                                                unit_length)
+    if not isclose(H0, float(params['H0']), reltol):
+        unit = units.km/(units.s*units.Mpc)
+        msg += (indent_str + 'H0: ' + vs + ' [{}]'
+                ).format(H0/unit,
+                         params['H0']/unit,
+                         'km s{inv} Mpc{inv}'.format(inv=(unicode('⁻¹')))
+                         )
+    if not isclose(Ωm, float(params['Ωm']), reltol):
+        msg += (indent_str + unicode('Ωm: ') + vs).format(Ωm, params['Ωm'])
+    if not isclose(ΩΛ, float(params['ΩΛ']), reltol):
+        msg += (indent_str + unicode('ΩΛ: ') + vs).format(ΩΛ, params['ΩΛ'])
+    if msg:
+        msg = ('Mismatch between current parameters and those in the snapshot "{}":{}'
+               ).format(filename, msg)
+        masterwarn(msg, skipline=False, indent=indent)
+
+# Function which does a sanity check of particle components,
+# ensuring that they are within the box.
+@cython.header(# Arguments
+               component='Component',
+               # Locals
+               i='Py_ssize_t',
+               posx='double*',
+               posy='double*',
+               posz='double*',
+               )
+def out_of_bounds_check(component):
+    """If any particles are outside of the box, the program
+    will terminate. Particles located exactly at the upper box
+    boundaries will be moved to the (physically equivalent) lower
+    boundaries. Note that no communication will be performed! Therefore,
+    you should always call the exchange function after this function.
+    """
+    # Only components with particle representation can be out of bounds,
+    # as these are the only ones with explicit positions.
+    if component.representation != 'particles':
+        return
+    # Extract position variables
+    posx = component.posx
+    posy = component.posy
+    posz = component.posz
+    # Do the check for each particle in the component
+    for i in range(component.N_local):
+        # Move particles at the very upper boundaries of the box
+        # to the lower boundaries instead.
+        if posx[i] == boxsize:
+            posx[i] = 0
+        if posy[i] == boxsize:
+            posy[i] = 0
+        if posz[i] == boxsize:
+            posz[i] = 0
+        # Abort on out of bounds
+        if (   not (0 <= posx[i] < boxsize)
+            or not (0 <= posy[i] < boxsize)
+            or not (0 <= posz[i] < boxsize)):
+            abort('Particle number {} of component "{}" has position '
+                  '({:.9g}, {:.9g}, {:.9g}) {}, which is outside of the cubic box '
+                  'of side length {:.9g} {}'.format(i,
+                                                    component.name, 
+                                                    posx[i],
+                                                    posy[i],
+                                                    posz[i],
+                                                    unit_length,
+                                                    boxsize,
+                                                    unit_length),
+                  )
 
 
-# Possible filename extensions for snapshots
-cython.declare(snapshot_extensions='tuple')
-snapshot_extensions = tuple([snapshot_class.extension for snapshot_class in (StandardSnapshot,
-                                                                             Gadget2Snapshot,
-                                                                             )
-                             if snapshot_class.extension])
 
+# Construct tuple of possible filename extensions for snapshots
+# by simply grabbing the 'extension' class variable off of all
+# classes defined in this module with the name '...Snapshot'.
+cython.declare(snapshot_classes='tuple',
+               snapshot_extensions='tuple',
+               )
+snapshot_classes = tuple([var for name, var in globals().items()
+                          if (    hasattr(var, '__module__')
+                              and var.__module__ == 'snapshot'
+                              and inspect.isclass(var)
+                              and name.endswith('Snapshot')
+                              )
+                          ])
+snapshot_extensions = tuple(set([snapshot_class.extension for snapshot_class in snapshot_classes
+                                 if snapshot_class.extension]))

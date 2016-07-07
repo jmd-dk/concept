@@ -26,7 +26,7 @@ from commons import *
 
 # Cython imports
 from snapshot import load
-cimport('from analysis import debug_info, powerspec')
+cimport('from analysis import debug, powerspec')
 cimport('from graphics import render, terminal_render')
 cimport('from gravity import build_φ')
 cimport('from mesh import diff')
@@ -39,7 +39,7 @@ cimport('from snapshot import save')
 # Function that computes the kick and drift factors (integrals).
 # The result is stored in a_integrals[integrand][index],
 # where index == 0 corresponds to step == 'first half' and
-# index == 1 correspinds to step == 'second hald'. 
+# index == 1 corresponds to step == 'second half'. 
 @cython.header(# Arguments
                step='str',
                # Locals
@@ -49,24 +49,28 @@ cimport('from snapshot import save')
                t_next='double',
                )
 def scalefactor_integrals(step):
-    global a, a_integrals, t, Δt
+    global a_integrals, Δt
     # Update the scale factor and the cosmic time. This also
     # tabulates a(t), needed for the scalefactor integrals.
-    a_next = expand(a, t, 0.5*Δt)
-    t_next = t + 0.5*Δt
-    if t_next > next_dump[1]:
-        # Dump time reached and exceeded. A smaller time step than
-        # 0.5*Δt is needed to hit dump time exactly.    
+    a_next = expand(universals.a, universals.t, 0.5*Δt)
+    t_next = universals.t + 0.5*Δt
+    if t_next + 1e-3*Δt > next_dump[1]:
+        # Case 1: Dump time reached and exceeded.
+        # A smaller time step than
+        # 0.5*Δt is needed to hit dump time exactly. 
+        # Case 2: Dump time very nearly reached.
+        # Go directly to dump time (otherwize the next time step wilĺ
+        # be very small).
         t_next = next_dump[1]
         # Find a_next = a(t_next) and tabulate a(t)
-        a_next = expand(a, t, t_next - t)
+        a_next = expand(universals.a, universals.t, t_next - universals.t)
         if next_dump[0] == 'a':
             # This should be the same as the result above,
             # but this is included to ensure agreement of future
             # floating point comparisons.
             a_next = next_dump[2]
-    a = a_next
-    t = t_next
+    # Update the universal scale factor and cosmic time
+    universals.a, universals.t = a_next, t_next
     # Map the step string to the index integer
     if step == 'first half':
         index = 0
@@ -92,11 +96,11 @@ def scalefactor_integrals(step):
                returns='bint',
                )
 def dump(components, output_filenames, final_render, op=None):
-    global a, t, i_dump, dumps, next_dump
+    global i_dump, dumps, next_dump
     # Do nothing if not at dump time
-    if t != next_dump[1]:
+    if universals.t != next_dump[1]:
         if next_dump[0] == 'a':
-            if a != next_dump[2]:
+            if universals.a != next_dump[2]:
                 return False
         else:
             return False
@@ -106,30 +110,30 @@ def dump(components, output_filenames, final_render, op=None):
     elif op == 'kick':
         kick(components, 'second half')
     # Dump terminal render
-    for time_val, time_param in zip((a, t), ('a', 't')):
+    for time_val, time_param in zip((universals.a, universals.t), ('a', 't')):
         if time_val in terminal_render_times[time_param]:
             terminal_render(components)
     # Dump snapshot
-    for time_val, time_param in zip((a, t), ('a', 't')):
+    for time_val, time_param in zip((universals.a, universals.t), ('a', 't')):
         if time_val in snapshot_times[time_param]:
             filename = output_filenames['snapshot'].format(time_param, time_val)
             if time_param == 't':
                 filename += unit_time
-            save(components, a, filename)
+            save(components, filename)
     # Dump powerspectrum
-    for time_val, time_param in zip((a, t), ('a', 't')):
+    for time_val, time_param in zip((universals.a, universals.t), ('a', 't')):
         if time_val in powerspec_times[time_param]:
             filename = output_filenames['powerspec'].format(time_param, time_val)
             if time_param == 't':
                 filename += unit_time
-            powerspec(components, a, filename)
+            powerspec(components, filename)
     # Dump render
-    for time_val, time_param in zip((a, t), ('a', 't')):
+    for time_val, time_param in zip((universals.a, universals.t), ('a', 't')):
         if time_val in render_times[time_param]:
             filename = output_filenames['render'].format(time_param, time_val)
             if time_param == 't':
                 filename += unit_time
-            render(components, a, filename,
+            render(components, filename,
                    cleanup=((time_param, time_val) == final_render))
     # Increment dump time
     i_dump += 1
@@ -267,29 +271,60 @@ def drift(components, step):
                Δt_update_freq='Py_ssize_t',
                )
 def timeloop():
-    global a, a_integrals, i_dump, next_dump, t, Δt
-    # Initial cosmic time t, where a(t) = a_begin
+    global a_integrals, i_dump, next_dump, Δt
+    # Initial cosmic time t and scale factor a(t)
+    universals.t = universals.a = -1
     if enable_Hubble:
-        a = a_begin
-        t = cosmic_time(a)
+        # Hubble expansion enabled.
+        # A specification of initial scale factor or
+        # cosmic time is needed.
+        if a_begin == -1:
+            # No a_begin specified
+            if t_begin != -1:
+                # t_begin specified
+                universals.t = t_begin
+                universals.a = expand(machine_ϵ, machine_ϵ, t)
+        else:
+            # a_begin specified
+            if t_begin != -1:
+                masterwarn('Ignoring t_begin = {}*{} becuase enable_Hubble == True\n'
+                           'and a_begin is specified'.format(t_begin, unit_time))
+            universals.a = a_begin
+            universals.t = cosmic_time(universals.a)
     else:
-        a = 1
-        t = 0
+        # Hubble expansion disabled.
+        # Values of the scale factor (and therefore a_begin)
+        # are meaningless. If specified, use t = t_begin,
+        # otherwize start the clock from zero.
+        if a_begin != -1:
+            masterwarn('Ignoring a_begin = {} becuase enable_Hubble == False'.format(a_begin))
+        if t_begin == -1:
+            universals.t = 0
+        else:
+            universals.t = t_begin
+        universals.a = 1
     # Get the output filename patterns
-    output_filenames, final_render = prepare_output_times(t)
+    output_filenames, final_render = prepare_output_times()
     # Do nothing if no dump times exist
-    if len(dumps) == 0:
+    if len(dumps) == 0: 
         return
+    # Abort if a start time could not be specified
+    if universals.t == universals.a == -1:
+        abort('No initial scale factor or time specified!')
     # Load initial conditions
     components = load(IC_file, only_components=True)
     # The number of time steps before Δt is updated
     Δt_update_freq = 10
-    # The time step size should be a
-    # small fraction of the age of the universe.
+    # The time step size
     if enable_Hubble:
-        Δt = Δt_factor*t
+        # The time step size should be a
+        # small fraction of the age of the universe. 
+        Δt = Δt_factor*universals.t
     else:
-        Δt = 0.1*Δt_factor*dumps[len(dumps) - 1][1]
+        # Simply divide the simulation time span into equal chunks
+        Δt = Δt_factor*(dumps[len(dumps) - 1][1] - universals.t)
+    # Reduce time step size if it is too large for any component
+    Δt = reduce_Δt(components, Δt, give_notice=False)
     # Arrays containing the factors ∫_t^(t + Δt/2) integrand(a) dt
     # for different integrands. The two elements in each variable are
     # the first and second half of the factor for the entire time step.
@@ -307,19 +342,22 @@ def timeloop():
     for component in components:
         component.nullify_fluid_buffers()
     # The main time loop
-    masterprint('Begin main time loop')
+    masterprint('Beginning of main time loop')
     timestep = -1
     while i_dump < len(dumps):
         timestep += 1
         # Print out message at beginning of each time step
         masterprint(terminal.bold('\nTime step {}'.format(timestep))
-                    + '{:<14} {}'    .format('\nScale factor:',
-                                             significant_figures(a, 4, fmt='Unicode'))
-                    + '{:<14} {} Gyr'.format('\nCosmic time:',
-                                             significant_figures(t/units.Gyr, 4, fmt='Unicode'))
+                    + ('{:<' + ('14' if enable_Hubble else '13') + '} {} {}')
+                      .format('\nCosmic time:',
+                              significant_figures(universals.t, 4, fmt='Unicode'),
+                              unit_time)
+                    + ('{:<14} {}'.format('\nScale factor:',
+                                          significant_figures(universals.a, 4, fmt='Unicode'))
+                       if enable_Hubble else '')
                     )
         # Analyze and print out debugging information, if required
-        debug_info(components, a)
+        debug(components)
         # Kick
         # (even though 'whole' is used, the first kick (and the first
         # kick after a dump) is really only half a step (the first
@@ -331,13 +369,13 @@ def timeloop():
             nullify_a_integrals()
             continue
         # Update Δt every Δt_update_freq time step
-        if not (timestep % Δt_update_freq):
+        if enable_Hubble and not (timestep % Δt_update_freq):
             # Let the positions catch up to the momenta
             drift(components, 'first half')
-            if enable_Hubble:
-                Δt = Δt_factor*t
-            elif Δt < Δt_factor*t:
-                Δt = Δt_factor*t
+            # Update the time step size
+            # (increase it according to Δt_factor, but not above what
+            # any of the components allow for).
+            Δt = reduce_Δt(components, Δt_factor*universals.t, give_notice=False)
             # Reset the a_integrals, starting the leapfrog cycle anew
             nullify_a_integrals()
             continue
@@ -348,22 +386,121 @@ def timeloop():
             # Reset the a_integrals, starting the leapfrog cycle anew
             nullify_a_integrals()
             continue
+        # Reduce time step size if it is too large for any component
+        Δt = reduce_Δt(components, Δt)
+    # All dumps completed; end of time loop
+    masterprint('\nEnd of main time loop'
+                + ('{:<' + ('14' if enable_Hubble else '13') + '} {} {}')
+                   .format('\nCosmic time:',
+                           significant_figures(universals.t, 4, fmt='Unicode'),
+                           unit_time)
+                + ('{:<14} {}'.format('\nScale factor:',
+                                      significant_figures(universals.a, 4, fmt='Unicode'))
+                   if enable_Hubble else '')
+                )
+
+@cython.header(# Arguments
+               components='list',
+               Δt='double',
+               give_notice='bint',
+               # Locals
+               cell_size='double',
+               component='Component',
+               dim='int',
+               fac='double',
+               fastest_component='Component',
+               u='double[:, :, :]',
+               i='Py_ssize_t',
+               j='Py_ssize_t',
+               k='Py_ssize_t',
+               u_ijk='double',
+               u_max='double',
+               ẋ_max='double',
+               Δt_max='double',
+               Δt_max_component='double',
+               )
+def reduce_Δt(components, Δt, give_notice=True):
+    # Safety factor. A value of 1 allows for a maximum velocity
+    # corresponding to one grid cell per time step. To be on the safe
+    # side, this value should be smaller than 1.
+    fac = 0.9
+    # Find the maximum velocity of fluid components
+    # and compute the maximum allowed time step size Δt_max
+    # based on this maximum velocity.
+    Δt_max = inf
+    fastest_component = None
+    for component in components:
+        if component.representation != 'fluid':
+            continue
+        # Find maximum, local velocity for this component
+        u_max = 0
+        for dim in range(3):
+            u = component.fluidvars['u'][dim].grid_noghosts
+            size_i = u.shape[0]
+            size_j = u.shape[1]
+            size_k = u.shape[2]
+            for i in range(size_i):
+                for j in range(size_j):
+                    for k in range(size_k):
+                        u_ijk = u[i, j, k]
+                        if u_ijk > u_max:
+                            u_max = u_ijk
+                        elif -u_ijk > u_max:
+                            u_max = -u_ijk
+        # Communicate maximum global velocity of this component
+        # to all processes.
+        u_max = allreduce(u_max, op=MPI.MAX)
+        # In the odd case of a completely static fluid,
+        # set u_max to be just above 0.
+        if u_max == 0:
+            u_max = machine_ϵ 
+        # Compute maximum allowed timestep size Δt for this component.
+        # Imortantly, because Δt is an interval of cosmic time t,
+        # free ofany scaling by the scale factor a, the cosmic time
+        # derivative of the comoving coordinates, ẋ = u/a,
+        # should be used in stead of the peculiar velocity u directly.
+        cell_size = boxsize/component.gridsize
+        ẋ_max = u_max/universals.a
+        Δt_max_component = fac*cell_size/ẋ_max
+        # The component with the lowest value of the maximally allowed
+        # time step size determines the global maximally allowed
+        # time step size.
+        if Δt_max_component < Δt_max:
+            Δt_max = Δt_max_component
+            fastest_component = component
+    # Adjust the current time step size Δt if it greater than the
+    # largest allowed value Δt_max.
+    if Δt > Δt_max:
+        if give_notice:
+            masterprint('Rescaling time step size by a factor {:.1g} due to large velocities of {}'
+                        .format(Δt_max/Δt, fastest_component.name))
+        Δt = Δt_max
+    return Δt
+
+
+
 
 # Function which checks the sanity of the user supplied output times,
 # creates output directories and defines the output filename patterns.
 # A Python function is used because it contains a closure
 # (a lambda function).
-def prepare_output_times(t_begin):
+def prepare_output_times():
+    """As this function uses universals.t and universals.a as the
+    initial values of the cosmic time and the scale factor, you must
+    initialize these properly before calling this function.
+    """
     global dumps
     # Check that the output times are legal
     if master:
-        for time_param, at_begin in zip(('a', 't'), (a_begin, t_begin)):
+        for time_param, at_begin in zip(('a', 't'), (universals.a, universals.t)):
             for output_kind, output_time in output_times[time_param].items():
                 if output_time and np.min(output_time) < at_begin:
-                    msg = ('Cannot produce a {} at time {} = {}, '
-                           'as the simulation starts at {} = {}.'
-                           ).format(output_kind, time_param,np.min(output_time), time_param,
-                                    at_begin)
+                    msg = ('Cannot produce a {} at {} = {:.6g}{}, '
+                           'as the simulation starts at {} = {:.6g}{}.'
+                           ).format(output_kind, time_param, np.min(output_time),
+                                    (' ' + unit_time) if time_param == 't' else '',
+                                    time_param, at_begin,
+                                    (' ' + unit_time) if time_param == 't' else '')
                     abort(msg)
     # Create output directories if necessary
     if master:
@@ -385,7 +522,7 @@ def prepare_output_times(t_begin):
     # differs from that of the IC, should it use the same
     # naming convention.
     output_filenames = {}
-    for time_param, at_begin in zip(('a', 't'), (a_begin, t_begin)):
+    for time_param, at_begin in zip(('a', 't'), (universals.a, universals.t)):
         for output_kind, output_time in output_times[time_param].items():
             # This kind of output does not matter if
             # it should never be dumped to the disk.
@@ -456,18 +593,16 @@ if special_params:
     sys.exit()
 
 # Declare global variables used in above functions
-cython.declare(a='double',
-               a_integrals='dict',
+cython.declare(a_integrals='dict',
                i_dump='Py_ssize_t',
                dumps='list',
                next_dump='list',
-               t='double',
                Δt='double',
                )
 # Run the time loop
 timeloop()
 # Simulation done
-if any_warnings[0]:
+if universals.any_warnings:
     masterprint('\nCO𝘕CEPT run finished')
 else:
     masterprint(terminal.bold_green('\nCO𝘕CEPT run finished successfully'))

@@ -22,13 +22,18 @@
 
 # This file has to be run in pure Python mode!
 
-# Include the concept_dir in the searched paths and get directory of this file
-import sys, os
-sys.path.append(os.environ['concept_dir'])
+# Standard test imports
+import glob, sys, os
+
+# Absolute paths to the directory of this file
 this_dir = os.path.dirname(os.path.realpath(__file__))
 
-# The name of this test
-this_test = os.path.basename(this_dir)
+# Pull in environment variables
+for env_var in ('concept_dir', 'this_test'):
+    exec('{env_var} = os.environ["{env_var}"]'.format(env_var=env_var))
+
+# Include the concept_dir in the searched paths
+sys.path.append(concept_dir)
 
 # Imports from the CO𝘕CEPT code
 from commons import *
@@ -72,8 +77,10 @@ counts_contrast = counts.flatten()/N_in_cubes_homo - 1
 # Is the distribution Gaussian? If not, the snapshot has not been generated correctly
 plt.figure()
 plt.hist(counts_contrast, 100)
-s = r'{:g}% within $1\sigma$'.format(np.round(100*sum(abs(counts_contrast) < σ)/counts_contrast.size))
-plt.text(np.sum(plt.xlim())/2, np.sum(plt.ylim())/2, s, ha='center', bbox={'facecolor': 'white', 'alpha': 0.85, 'edgecolor': 'none'})
+s = (r'{:g}% within $1\sigma$'
+     .format(np.round(100*sum(abs(counts_contrast) < σ)/counts_contrast.size)))
+plt.text(np.sum(plt.xlim())/2, np.sum(plt.ylim())/2, s, ha='center',
+         bbox={'facecolor': 'white', 'alpha': 0.85, 'edgecolor': 'none'})
 plt.xlabel('Count contrast')
 plt.ylabel('\# of occurrences')
 plt.savefig(this_dir + '/histogram.png')

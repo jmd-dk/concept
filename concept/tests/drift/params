@@ -28,7 +28,7 @@ IC_file       = _this_dir + '/IC'
 snapshot_type = 'GADGET2'
 output_dirs   = {'snapshot': _this_dir + '/output'}
 output_bases  = {'snapshot': 'snapshot'}
-output_times  = {'snapshot': loadtxt(_this_dir + '/outputlist')}
+output_times  = {'snapshot': linspace(0.03, 1, 25)}
 
 # Numerical parameters
 boxsize          = 21*Mpc/0.7	# (GADGET implicitly uses length/h)
@@ -44,4 +44,7 @@ a_begin = 0.02
 
 # Simulation options
 kick_algorithms = {'dark matter particles': 'PP'}
+
+# Debugging options
+enable_Ewald = False
 

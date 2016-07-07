@@ -233,7 +233,8 @@ def positive_int(value):
 parser = argparse.ArgumentParser(prog='$(basename ${this_file})',
                                  description='Run the CO𝘕CEPT code')
 parser.add_argument('-m', '--main',
-                    help='entry point of the code',
+                    help=('entry point of the code. '
+                          'Can be a Python filename or command.'),
                     default='${main_default}',
                     )
 parser.add_argument('-n', '--nprocs',
@@ -325,8 +326,16 @@ if [ "${argparse_finished}" != "yes" ]; then
     fi
 fi
 
+# Check whether the main "file" is really a string of commands
+main_as_command="no"
+if [[ "${main}" == *"print("* ]]; then
+    main_as_command="yes"
+fi
+
 # Convert all supplied paths to absolute paths
-main="$(absolute_path "${main}")"
+if [ "${main_as_command}" == "no" ]; then
+    main="$(absolute_path "${main}")"
+fi
 if [ "${params}" != "${params_unspecified}" ]; then
     params="$(absolute_path "${params}")"
 fi
@@ -338,7 +347,7 @@ if [ "${util}" != "${util_unspecified}" ]; then
 fi
 
 # Do the supplied paths exist?
-if [ ! -f "${main}" ]; then
+if [ "${main_as_command}" == "no" ] && [ ! -f "${main}" ]; then
     colorprint "Error: Entry point \"${main}\" does not exist!" "red"
     exit 1
 fi
@@ -382,7 +391,7 @@ if [ "${test}" != "${test_unspecified}" ]; then
             colorprint "\nRunning $(basename ${dir}) test" "yellow"
             "${dir}/run_test"
         done
-        colorprint "All tests ran successfully" "green"
+        colorprint "\nAll tests ran successfully" "green"
     else
         colorprint "Running $(basename ${test}) test" "yellow"
         trap : 0
@@ -449,7 +458,11 @@ if [ "${util}" != "${util_unspecified}" ]; then
 fi
 
 # Sensible paths (for clean printout)
-main_rel="$(sensible_path ${main})"
+if [ "${main_as_command}" == "no" ]; then
+    main_rel="$(sensible_path ${main})"
+else
+    main_rel="${main}"
+fi
 params_rel="$(sensible_path ${params})"
 logs_dir_rel="$(sensible_path ${logs_dir})"
 
@@ -645,14 +658,20 @@ echo \"Logfile:       \\\\\"${logs_dir_rel}/\${jobid}\\\\\"\" >> \"${logs_dir}/\
 echo \"Nr. of CPUs:   ${nprocs}\"                             >> \"${logs_dir}/\${jobid}\"
 
 # Prepare Python options
-if [ \"${pure_python}\" == \"True\" ]; then
-    # Run as normal Python script
+if [ \"${main_as_command}\" == \"yes\" ]; then
+    # Run as Python command
     main_as_library=\"${main}\"
-    m_flag=\"\"
+    m_flag=\"-c\"
 else
-    # Run as compiled library module
-    main_as_library=\"$(basename "${main%.*}.so")\"
-    m_flag=\"-m\"
+    if [ \"${pure_python}\" == \"True\" ]; then
+        # Run as normal Python script
+        main_as_library=\"${main}\"
+        m_flag=\"\"
+    else
+        # Run as compiled library module
+        main_as_library=\"$(basename "${main%.*}.so")\"
+        m_flag=\"-m\"
+    fi
 fi
 
 # Run the code. Both stdout and stderr are being logged to logs_dir/jobid,
@@ -718,14 +737,20 @@ else
     echo "Logfile:       \"${logs_dir_rel}/${jobid}\""            | tee -a "${logs_dir}/${jobid}"
     echo "Nr. of CPUs:    ${nprocs}"                              | tee -a "${logs_dir}/${jobid}"
     # Prepare Python options
-    if [ "${pure_python}" == "True" ] ; then
-        # Run as normal Python script
+    if [ "${main_as_command}" == "yes" ]; then
+        # Run as Python command
         main_as_library="${main}"
-        m_flag=""
+        m_flag="-c"
     else
-        # Run as compiled library module
-        main_as_library="$(basename "${main%.*}.so")"
-        m_flag="-m"
+        if [ "${pure_python}" == "True" ]; then
+            # Run as normal Python script
+            main_as_library="${main}"
+            m_flag=""
+        else
+            # Run as compiled library module
+            main_as_library="$(basename "${main%.*}.so")"
+            m_flag="-m"
+        fi
     fi
     # Run the code. Print stdout and stderr to the terminal while at the
     # same time logging them to logs_dir/jobid. The stderr alone is also

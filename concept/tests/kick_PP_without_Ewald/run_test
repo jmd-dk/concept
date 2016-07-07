@@ -34,30 +34,37 @@ source "${this_dir}/../environment"
 # Cleanup from last test run
 "${this_dir}/clean"
 
-# Create list of output times, used by both CO𝘕CEPT and GADGET
-"${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', np.linspace(0.03, 0.11, 10))"
-
 # Generate ICs
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local
 
 # Run the CO𝘕CEPT code on the generated ICs
 "${concept}" -n 1 -p "${this_dir}/params" --local
 
+# Dump list of snapshot output times used by GADGET
+"${python}" -c "import numpy as np
+np.savetxt('${this_dir}/outputlist', $(get_param "snapshot_times['a']"))"
+
 # Create an edited version of Makefile_gadget with correct path information
 cp "${this_dir}/Makefile_gadget" "${this_dir}/Makefile_gadget_edited"
 sed -i "/^ *CC= / s/ [^# ]/ \"${mpicc//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
 path="${mpi_dir}/include"
-sed -i "/^ *MPI_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+sed -i "/^ *MPI_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" \
+       "${this_dir}/Makefile_gadget_edited"
 path="${mpi_dir}/lib"
-sed -i "/^ *MPI_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+sed -i "/^ *MPI_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" \
+       "${this_dir}/Makefile_gadget_edited"
 path="${gsl_dir}/include"
-sed -i "/^ *GSL_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+sed -i "/^ *GSL_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" \
+       "${this_dir}/Makefile_gadget_edited"
 path="${gsl_dir}/lib"
-sed -i "/^ *GSL_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+sed -i "/^ *GSL_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" \
+       "${this_dir}/Makefile_gadget_edited"
 path="${fftw_for_gadget_dir}/include"
-sed -i "/^ *FFTW_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+sed -i "/^ *FFTW_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" \
+       "${this_dir}/Makefile_gadget_edited"
 path="${fftw_for_gadget_dir}/lib"
-sed -i "/^ *FFTW_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+sed -i "/^ *FFTW_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" \
+       "${this_dir}/Makefile_gadget_edited"
 
 # Make a local copy of the files in the Gadget2 directory and copy the edited Makefile
 Gadget2_local_dir="${this_dir}/Gadget2_local"
@@ -68,12 +75,19 @@ cp "${this_dir}/Makefile_gadget_edited" "${Gadget2_local_dir}/Makefile"
 # Remove the tabulated Ewald grid from the local Gadget2 directory
 # and edit forcetree.c so that future generated Ewald corrections are set to zero.
 rm -f "${Gadget2_local_dir}/ewald_spc_table_64.dat"
-sed -i "/fcorrx\[i\]\[j\]\[k\] = force\[0\];/c\fcorrx\[i\]\[j\]\[k\] = 0.0;" "${Gadget2_local_dir}/forcetree.c"
-sed -i "/fcorry\[i\]\[j\]\[k\] = force\[1\];/c\fcorry\[i\]\[j\]\[k\] = 0.0;" "${Gadget2_local_dir}/forcetree.c"
-sed -i "/fcorrz\[i\]\[j\]\[k\] = force\[2\];/c\fcorrz\[i\]\[j\]\[k\] = 0.0;" "${Gadget2_local_dir}/forcetree.c"
+sed -i "/fcorrx\[i\]\[j\]\[k\] = force\[0\];/c\fcorrx\[i\]\[j\]\[k\] = 0.0;" \
+       "${Gadget2_local_dir}/forcetree.c"
+sed -i "/fcorry\[i\]\[j\]\[k\] = force\[1\];/c\fcorry\[i\]\[j\]\[k\] = 0.0;" \
+       "${Gadget2_local_dir}/forcetree.c"
+sed -i "/fcorrz\[i\]\[j\]\[k\] = force\[2\];/c\fcorrz\[i\]\[j\]\[k\] = 0.0;" \
+       "${Gadget2_local_dir}/forcetree.c"
 
-# Build GADGET and run simulation based on the ICs
-(cd "${Gadget2_local_dir}" && make clean && make && "${mpiexec}" -n 1 "${Gadget2_local_dir}/Gadget2" ../params_gadget)  # It is crucial to use a relative path as the path has a max allowed length in GADGET
+# Build Gadget and run simulation based on the ICs.
+# Note that it is crucial to use a relative path to the parameter file
+# as the path has a maximum allowed length in GADGET.
+(cd "${Gadget2_local_dir}" && make clean \
+                           && make       \
+                           && "${mpiexec}" -n 1 "${Gadget2_local_dir}/Gadget2" ../params_gadget)
 
 # Analyze the output snapshots
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local

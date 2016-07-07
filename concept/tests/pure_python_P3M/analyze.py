@@ -22,13 +22,18 @@
 
 # This file has to be run in pure Python mode!
 
-# Include the concept_dir in the searched paths and get directory of this file
+# Standard test imports
 import glob, sys, os
-sys.path.append(os.environ['concept_dir'])
+
+# Absolute paths to the directory of this file
 this_dir = os.path.dirname(os.path.realpath(__file__))
 
-# The name of this test
-this_test = os.path.basename(this_dir)
+# Pull in environment variables
+for env_var in ('concept_dir', 'this_test'):
+    exec('{env_var} = os.environ["{env_var}"]'.format(env_var=env_var))
+
+# Include the concept_dir in the searched paths
+sys.path.append(concept_dir)
 
 # Imports from the CO𝘕CEPT code
 from commons import *

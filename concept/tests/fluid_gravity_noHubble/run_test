@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+
+# This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
+# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+#
+# CO𝘕CEPT is free software: You can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# CO𝘕CEPT is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
+#
+# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The latest version of CO𝘕CEPT is available at
+# https://github.com/jmd-dk/concept/
+
+
+
+# This script performs a gravity test on a initially stationary
+# fluid. The fluid density is homogeneous in the y- and z-directions
+# but forms an offset sine curve (one period) in the x-direction.
+
+# Initialize test environment
+this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+source "${this_dir}/../environment"
+
+# Cleanup from last test run
+"${this_dir}/clean"
+
+# Get the φ_gridsize parameter and store it in the variable 'gridsize'
+gridsize=$(get_param "φ_gridsize")
+
+# Generate ICs
+"${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local
+
+# Run the CO𝘕CEPT code on the particle ICs
+"${concept}" -n 1 -p "${this_dir}/params" --local | tee "${this_dir}/log_particles"
+exit_code=${PIPESTATUS[0]}
+if [ ${exit_code} -ne 0 ]; then
+    exit ${exit_code}
+fi
+
+# Play the terminal renders in the logfile as a movie
+"${concept}" --util play -f 4 "${this_dir}/log_particles"
+
+# Move particle snapshots to a new directory
+mkdir "${this_dir}/output/particles"
+mv "${this_dir}/output/snapshot"* "${this_dir}/output/particles/"
+
+# Function for converting particle snapshots to fluid snapshots
+particles2fluid()
+{
+    "${concept}" --util convert "${1}"                   \
+        "control particles.species  = dark matter fluid" \
+        "control particles.gridsize = ${gridsize}"       \
+        "control particles.name     = converted fluid"
+}
+
+# Convert particle ICs to fluid ICs
+particles2fluid "${this_dir}/IC.hdf5"
+mv "${this_dir}/IC.hdf5" "${this_dir}/IC_particles.hdf5"
+mv "${this_dir}/IC_converted.hdf5" "${this_dir}/IC.hdf5"
+
+# Run the CO𝘕CEPT code on the fluid ICs
+"${concept}" -n 1 -p "${this_dir}/params" --local | tee "${this_dir}/log_fluid"
+exit_code=${PIPESTATUS[0]}
+if [ ${exit_code} -ne 0 ]; then
+    exit ${exit_code}
+fi
+
+# Play the terminal renders in the logfile as a movie
+"${concept}" --util play -f 4 "${this_dir}/log_particles"
+
+# Move fluid snapshots to a new directory
+mkdir "${this_dir}/output/fluid"
+mv "${this_dir}/output/snapshot"* "${this_dir}/output/fluid/"
+
+# Convert particle snapshots to fluid snapshots
+particles2fluid "${this_dir}/output/particles"
+
+# Analyze the output snapshots
+"${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
+
+# Finalize test environment
+test_done=true source "${this_dir}/../environment"
+

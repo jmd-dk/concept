@@ -49,6 +49,9 @@ and then changed in the following ways:
   cython.cfunc and cython.inline (among others), while cython.pheader
   turns into cython.ccall (among others).
 - Integer powers will be replaced by products.
+- Calls to build_struct will be replaced with specialized C structs
+  which are declared dynamically from the call. Type declarations
+  of this struct, its fields and its corresponding dict are inserted.
 - Unicode non-ASCII letters will be replaced with ASCII-strings.
 - __init__ methods in cclasses are renamed to __cinit__.
 - Replace (with '0') or remove ':' and '...' intelligently, when taking
@@ -73,8 +76,9 @@ if sys.version_info.major < 3:
     from codecs import open
 def non_nested_exec(s):
     exec(s)
+# General imports
 from copy import deepcopy
-import imp, itertools, os, re, shutil, unicodedata
+import collections, imp, itertools, os, re, shutil, unicodedata
 # For development purposes only
 from time import sleep
 
@@ -102,6 +106,11 @@ for module, extension_type_str in extension_types.items():
                 else:
                     extension_types_that_exist[module] = extension_type
 extension_types = extension_types_that_exist
+
+
+
+# Import the non-compiled commons module
+commons_module = imp.load_source('commons', 'commons.py')
 
 
 
@@ -289,6 +298,138 @@ def cythonstring2code(filename):
                 else:
                     new_lines.append(line)
                     unindent = False
+    with open(filename, 'w', encoding='utf-8') as pyxfile:
+        pyxfile.writelines(new_lines)
+
+
+
+def cython_structs(filename):
+    # Function which returns a copy of the build_struct function
+    # from commons.py:
+    def get_build_struct():
+        build_struct_code = []
+        with open('commons.py', 'r', encoding='utf-8') as commonsfile:
+            indentation = -1
+            for line in commonsfile:
+                if line.lstrip().startswith('def build_struct('):
+                    # Start of build_struct found
+                    indentation = len(line) - len(line.lstrip())
+                    build_struct_code.append(line[indentation:])
+                    continue
+                if indentation != -1:
+                    if (    not line.lstrip().startswith('#')
+                        and len(line) - len(line.lstrip()) <= indentation
+                        and line.strip()):
+                        # End of build_struct found
+                        break
+                    if len(line) - len(line.lstrip()) > indentation:
+                        build_struct_code.append(line[indentation:])
+        for line in reversed(build_struct_code):
+            if not line.strip() or line.lstrip().startswith('#'):
+                build_struct_code.pop()
+            else:
+                break
+        return build_struct_code
+    # Search the file for calls to build_struct
+    build_struct_code = []
+    new_lines = []
+    struct_kinds = []
+    with open(filename, 'r', encoding='utf-8') as pyxfile:
+        for line in pyxfile:
+            if (    'build_struct(' in line
+                and '=build_struct(' in line.replace(' ', '')
+                and not line.lstrip().startswith('#')
+                ):
+                # Call found.
+                # Get assigned names.
+                varnames = line[:line.index('=')].replace(' ', '').split(',')
+                # Get field names, types and values. These are stored
+                # as triples og strings in struct_content.
+                struct_content = line[(line.index('(') + 1):line.rindex(')')].split('=')
+                for i, part in enumerate(struct_content[:-1]):
+                    # The field name
+                    if i == 0:
+                        name = part
+                    else:
+                        name = part[(part.rindex(',') + 1):].strip()
+                    decl = struct_content[i + 1][:struct_content[i + 1].rindex(',')]
+                    if re.search('\(.*,', decl.replace(' ', '')):
+                        # Both type and value given.
+                        # Find type.
+                        ctype_start = len(decl)
+                        if "'" in decl:
+                            ctype_start = decl.index("'")
+                        if '"' in decl and decl.index('"') < ctype_start:
+                            ctype_start = decl.index('"')
+                        quote_type = decl[ctype_start]
+                        ctype = ''
+                        for j, c in enumerate(decl[(ctype_start + 1):]):
+                            if c == quote_type:
+                                break
+                            ctype += c
+                        # Find value
+                        value = decl[(ctype_start + 1 + j + 1):].strip()
+                        if value[0] == ',':
+                            value = value[1:]
+                        if value[-1] == ')':
+                            value = value[:-1]
+                        value = value
+                    else:
+                        # Only type given. Initialize to zero.
+                        if decl.count('"') == 2:
+                            ctype = re.search('(".*")', decl).group(1)
+                        if decl.count("'") == 2:
+                            ctype = re.search("('.*')", decl).group(1)
+                        ctype = ctype.replace('"', '').replace("'", '').strip()
+                        value = '0'
+                    struct_content[i] = (name.strip(), ctype.strip(), value.strip())
+                struct_content.pop()
+                # The name of the struct type is eg. struct_double_double_int
+                struct_kind = '_'.join([t[1] for t in struct_content])
+                # Insert modified version of the build_struct function,
+                # initializing all values to zero.
+                if not build_struct_code:
+                    build_struct_code = get_build_struct()
+                for build_struct_line in build_struct_code:
+                    build_struct_line = build_struct_line.replace('build_struct(', 'build_struct_{}('.format(struct_kind))
+                    build_struct_line = build_struct_line.replace('...',
+                                                                  'struct_{}({})'.format(struct_kind,
+                                                                                         ', '.join(['0']*len(struct_content))))
+                    
+                    new_lines.append(build_struct_line)
+                # Insert declaration of struct
+                indentation = len(line) - len(line.lstrip())
+                new_lines.append(' '*indentation + "cython.declare({}='struct_{}')\n"
+                                                   .format(varnames[0], struct_kind))
+                # Insert declaration of dict
+                if len(varnames) == 2:
+                    new_lines.append(' '*indentation + "cython.declare({}='dict')\n"
+                                                       .format(varnames[1]))
+                # Insert modified build_struct call
+                new_lines.append(line.replace('build_struct(',
+                                              'build_struct_{}('.format(struct_kind)))
+                # Set values
+                for name, ctype, value in struct_content:
+                    if value != '0':
+                        new_lines.append("{}{}.{} = {}['{}']\n".format(' '*indentation,
+                                                                       varnames[0], 
+                                                                       name,
+                                                                       varnames[1],
+                                                                       name)
+                                         )
+                # Insert pxd declaration of the struct
+                if struct_kind not in struct_kinds:
+                    struct_kinds.append(struct_kind)
+                    new_lines.append(' '*indentation + 'pxd = """\n')
+                    new_lines.append('{}ctypedef struct struct_{}:\n'.format(' '*indentation, struct_kind))
+                    for name, ctype, val in struct_content:
+                        new_lines.append('{}    {} {}\n'.format(' '*indentation,
+                                                                ctype.replace('"', '').replace("'", ''),
+                                                                name))
+                    new_lines.append(' '*indentation + '"""\n')
+            else:
+                # No call found in this line
+                new_lines.append(line)
     with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.writelines(new_lines)
 
@@ -484,30 +625,10 @@ def power2product(filename):
 
 def unicode2ASCII(filename):
     with open(filename, 'r', encoding='utf-8') as pyxfile:
-        text = list(pyxfile.read())
-    N_wrongly_encoded = 0
-    skip = False
-    for i, char in enumerate(text):
-        if skip:
-            skip = False
-            continue
-        if ord(char) > 127:
-            try:
-                unicodename = unicodedata.name(char)
-            except:
-                unicodename = unicodedata.name(char + text[i + 1])
-                skip = True
-            text[i - N_wrongly_encoded] = '{}{}{}'.format('__BEGIN_UNICODE__',
-                                                          unicodename,
-                                                          '__END_UNICODE__')
-            text[i - N_wrongly_encoded] = text[i].replace(' ', '__space__')
-            text[i - N_wrongly_encoded] = text[i].replace('-', '__dash__')
-            if skip:
-                N_wrongly_encoded += 1
-    text = ''.join(text)
+        text = pyxfile.read()
+    text = commons_module.asciify(text)
     with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.write(text)
-    return
 
 
 
@@ -820,7 +941,7 @@ def make_pxd(filename):
         pxd_lines.append('\n')
     # Import all types with spaces (e.g. "long int") from commons.py
     types_with_spaces = [(key.replace(' ', ''), key)
-                         for key in imp.load_source('commons', 'commons.py').C2np.keys()
+                         for key in commons_module.C2np.keys()
                          if ' ' in key]
     types_with_spaces = sorted(types_with_spaces, key=lambda t: len(t[1]), reverse=True)
     # Function that finds non-indented function definitions in a block
@@ -1159,42 +1280,26 @@ def constant_expressions(filename):
     expressions = []
     expressions_cython = []
     declaration_linenrs = []
-    operations = ('.',
-                  '+',
-                  '-',
-                  '**',
-                  '*',
-                  '/',
-                  '^',
-                  '&',
-                  '|',
-                  '@',
-                  ',',
-                  '(',
-                  ')',
-                  '[',
-                  ']',
-                  '{',
-                  '}',
-                  )
-    operations_names = ('dot',
-                        'pls',
-                        'min',
-                        'pow',
-                        'tim',
-                        'div',
-                        'car',
-                        'and',
-                        'bar',
-                        'at',
-                        'com',
-                        'opar',
-                        'cpar',
-                        'obra',
-                        'cbra',
-                        'ocur',
-                        'ccur',
-                        )
+    operators = collections.OrderedDict([('.',  'dot' ),
+                                         ('+',  'pls' ),
+                                         ('-',  'min' ),
+                                         ('**', 'pow' ),
+                                         ('*',  'tim' ),
+                                         ('/',  'div' ),
+                                         ('^',  'car' ),
+                                         ('&',  'and' ),
+                                         ('|',  'bar' ),
+                                         ('@',  'at'  ),
+                                         (',',  'com' ),
+                                         ('(',  'opar'),
+                                         (')',  'cpar'),
+                                         ('[',  'obra'),
+                                         (']',  'cbra'),
+                                         ('{',  'ocur'),
+                                         ('}',  'ccur'),
+                                         ("'",  'qte' ),
+                                         ('"',  'dqte'),
+                                         ])
     while True:
         no_blackboard_bold_R = True
         module_scope = True
@@ -1203,43 +1308,27 @@ def constant_expressions(filename):
                 module_scope = True
             if len(line) > 0 and line[0] != '#' and 'def ' in line:
                 module_scope = False
-            search = re.search('ℝ\[(.*?)\]', line)
+            search = re.search('ℝ\[.+\]', line)
             if not search or line.replace(' ', '').startswith('#'):
                 continue
-            expression = search.group(1)
-            R_statement = search.group(0)
-            if expression.count('[') != expression.count(']'):
-                # Expression contains brackets,
-                # which ruin the above regex.
-                n_bra = 0
-                started = False
-                started_bra = False
-                for l, c in enumerate(line):
-                    if c == 'ℝ':
-                        started = True
-                        R_index = l
-                    if started and c == '[':
-                        if not started_bra:
-                            start_index = l + 1
-                        started_bra = True
-                        n_bra += 1
-                    if started and c == ']':
-                        n_bra -= 1
-                    if started_bra and n_bra == 0:
-                        expression = line[start_index:l]
-                        R_statement = line[R_index:(l + 1)]
-                        break
+            R_statement_fullmatch = search.group(0)
+            R_statement = R_statement_fullmatch[:2]
+            for c in R_statement_fullmatch[2:]:
+                R_statement += c
+                if R_statement.count('[') == R_statement.count(']'):
+                    break
+            expression = R_statement[2:-1].strip()
             no_blackboard_bold_R = False
             expressions.append(expression)
             expression_cython = 'ℝ_' + expression.replace(' ', '')
-            for op, op_name in zip(operations, operations_names):
+            for op, op_name in operators.items():
                 expression_cython = expression_cython.replace(op, '_{}_'.format(op_name))
             expression_cython = expression_cython.replace('__', '_')
             expressions_cython.append(expression_cython)
             lines[i] = line.replace(R_statement, expression_cython)
             # Find out where the declaration should be
             variables = [expression.replace(' ', '')]
-            for op in operations:
+            for op in operators.keys():
                 variables = list(itertools.chain(*[var.split(op) for var in variables]))
             variables = [var for var in list(set(variables))
                          if var and var[0] not in '.0123456789']
@@ -1261,7 +1350,7 @@ def constant_expressions(filename):
                                 linenr_where_defined[v] = end - 1 - j
                                 break
                         else:
-                            for op in operations:
+                            for op in operators.keys():
                                 line2 = line2.replace(op, '')
                             if (   (' ' + var + '=') in line2
                                 or (',' + var + '=') in line2
@@ -1344,6 +1433,9 @@ if filename.endswith('.py'):
     # Actions
     oneline(filename)
     cythonstring2code(filename)
+
+    cython_structs(filename)
+
     cimport_commons(filename)
     cimport_cclasses(filename)
     cimport_function(filename)

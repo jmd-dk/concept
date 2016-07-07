@@ -101,6 +101,7 @@ sensible_path = $(shell $(python) -c "import os;                                
                                       path = prefix + path;                                       \
                                       path = path.replace(' ', chr(92) + ' ');                    \
                                       path = path.replace(2*chr(92), chr(92));                    \
+                                      path = path.strip();                                        \
                                       print(path);                                                \
                                       "                                                           \
                   )
@@ -115,7 +116,7 @@ $(foreach path,$(paths),$(eval $(path)=$(call sensible_path,$($(path)))))
 # Settings for compilation and linking #
 ########################################
 # Function which eliminates duplicates
-uniq = $(if $1,$(firstword $1) $(call uniq,$(filter-out $(firstword $1),$1)))
+uniq = $(strip $(if $1,$(firstword $1) $(call uniq,$(filter-out $(firstword $1),$1))))
 # The python configuration script
 python_config = $(shell readlink -f $$(which $(python)))-config
 # Options passed when cythonizing .pyx files

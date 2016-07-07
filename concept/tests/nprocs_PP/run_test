@@ -28,9 +28,6 @@
 # Number of processes to use
 nprocs_list="1 2 4 8"
 
-# Scale factor values at which to dump output (Python syntax)
-output_times="0.1, 0.5, 1"
-
 # Initialize test environment
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 source "${this_dir}/../environment"
@@ -38,13 +35,10 @@ source "${this_dir}/../environment"
 # Cleanup from last test run
 "${this_dir}/clean"
 
-# Create list of output times, used by both CO𝘕CEPT and GADGET
-"${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', (${output_times}))"
-
 # Create the Ewald grid using Cython, if it does not already exist
-# (for fast IC generation).
-ewald_gridsize=$(grep -o "ewald_gridsize[ =0-9]*" "${this_dir}/params" | awk '{printf $NF}')
-if [ ! -f "${concept_dir}/.ewald_gridsize=${ewald_gridsize}.hdf5" ]; then
+if [ ! -f "${concept_dir}/.ewald_gridsize=$(get_param 'ewald_gridsize').hdf5" ]; then
+    grep "ewald_gridsize"  "${this_dir}/params" >  "${this_dir}/params_ewald"
+    grep "kick_algorithms" "${this_dir}/params" >> "${this_dir}/params_ewald"
     "${concept}" -n 1 -p "${this_dir}/params_ewald" --local
 fi
 

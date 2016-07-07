@@ -28,11 +28,11 @@ IC_file       = _this_dir + '/IC.hdf5'
 snapshot_type = 'standard'
 output_dirs   = {'snapshot': _this_dir + '/output'}
 output_bases  = {'snapshot': 'snapshot'}
-output_times  = {'snapshot': loadtxt(_this_dir + '/outputlist')}
+output_times  = {'snapshot': (0.1, 0.5, 1)}
 
 # Numerical parameters
 boxsize          = 8*Mpc
-ewald_gridsize   = 64
+ewald_gridsize   = 8
 softeningfactors = {'dark matter particles': 0.03}	
 Δt_factor        = 0.01
 

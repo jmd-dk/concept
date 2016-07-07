@@ -410,15 +410,16 @@ def PM(component, a_integral, meshbuf_mv, dim):
                meshbuf_mv='double[:, :, ::1]',
                dim='int',
                # Locals
-               Δu_mv='double[:, :, ::1]',
+               udim_Δgravity_mv='double[:, :, ::1]',
                )
 def kick_fluid(component, a_integral, meshbuf_mv, dim):
-    """The parsed meshbuf_mv should contain the dim component of ∇φ.
+    """The parsed meshbuf_mv should contain the dim'th component of ∇φ.
     To do the complete potential-part of the kick, call this function
     once for each dimension.
     """
-    # Extract one of the velocity update buffers based on the parsed dim
-    Δu_mv = component.fluidvars['u'][dim].Δ_mv
+    # Extract one of the gravitational velocity update buffers
+    # based on the parsed dim.
+    udim_Δgravity_mv = component.fluidvars['u'][dim].Δgravity_mv
     # The factor with which to multiply the values
     # in meshbuf_mv (the differentiated potential)
     # in order to get velocity units.
@@ -430,7 +431,7 @@ def kick_fluid(component, a_integral, meshbuf_mv, dim):
     fluid_φ_fac = PM_fac_const*a_integral
     # Interpolate the differentiated potential in meshbuf_mv onto the
     # velocity grid.
-    CIC_grid2grid(Δu_mv, meshbuf_mv, fluid_φ_fac)
+    CIC_grid2grid(udim_Δgravity_mv, meshbuf_mv, fluid_φ_fac)
 
 # Function which constructs the total gravitational potential φ due
 # to all components.
@@ -460,6 +461,9 @@ def build_φ(components, only_long_range=False):
     all components given in the components argument.
     Pseudo points and ghost layers will be communicated.
     """
+    if not use_φ:
+        masterwarn(unicode('The φ mesh is not initialized. '
+                           'Have you specified φ_gridsize in the parameter file?'))
     masterprint('Computing the gravitational potential ...')
     # CIC interpolate the particles
     # and do forward Fourier transformation.

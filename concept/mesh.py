@@ -671,11 +671,10 @@ def CIC_components2domain_grid(components, domain_grid):
             for i in range(size):
                 δ[i] -= 1    
 
-# Function for CIC-interpolating particle/fluid element coordinates
+# Function for CIC-interpolating particle coordinates
 # to a cubic grid holding scalar values.
 @cython.header(# Argument
                component='Component',
-               a='double',
                # Locals
                posx='double*',
                posy='double*',
@@ -723,7 +722,7 @@ def CIC_components2domain_grid(components, domain_grid):
                size='Py_ssize_t',
                fluidscalar='FluidScalar',
                )
-def CIC_particles2fluid(component, a):
+def CIC_particles2fluid(component):
     """This function CIC-interpolates particle positions to fluid grids.
     The parsed component should contain particle data, but not
     necessarily fluid data (any pre-existing fluid data will be
@@ -731,10 +730,9 @@ def CIC_particles2fluid(component, a):
     grids (δ, ux, uy, uz). In addition, since the relation between
     momentum (particle data) p and velocity (fluid data) u is
     p = u*m*a,
-    where a is the scale factor (m is the particle mass), the scale
-    factor is also needed in order to do the transformation.
-    The size of the fluid grids are determined by
-    component.gridsize.
+    where a is the scale factor (m is the particle mass), the current
+    value of universals.a is used in order to do the transformation.
+    The size of the fluid grids are determined by component.gridsize.
     Note that only the truly local part of the fluid grids will contain
     the correct data after calling this function (both pseudo points
     and ghost layers will contain junk).
@@ -893,7 +891,7 @@ def CIC_particles2fluid(component, a):
     #
     # Apply the above transformations.
     δ_fac = float(component.gridsize)**3/component.N
-    u_fac = 1/(component.mass*a)
+    u_fac = 1/(component.mass*universals.a)
     tot_δ = 0
     for i in range(size):
         δ[i] = δ[i]*δ_fac - 1
@@ -1021,7 +1019,7 @@ def slabs_IFFT():
 # result. A view of this buffer will be returned.
 # If a buffer is supplied, the result of the differentiations will be
 # added to this buffer instead of being stored in meshbuf. Note that
-# this buffer has to be contiguous (this criteria could be removed
+# this buffer has to be contiguous (this criterion could be removed
 # if needed).
 # Note that a grid cannot be differentiated in-place by parsing the
 # grid as both the first and third argument, as the differentiation
@@ -1120,7 +1118,7 @@ def diff(grid, dim, h=1, buffer=None, order=4):
             elif master:
                 abort('Differentiation of order {} is not implemented'.format(order))
         elif master:
-            abort(unicode('The dim argument should be ∈ {1, 2, 3}'))
+            abort(unicode('The dim argument should be ∈ {0, 1, 2}'))
         return meshbuf_mv
     else:
         # Do the differentiation
@@ -1243,7 +1241,7 @@ def diff(grid, dim, h=1, buffer=None, order=4):
             elif master:
                 abort('Differentiation of order {} is not implemented'.format(order))
         elif master:
-            abort(unicode('The dim argument should be ∈ {1, 2, 3}'))
+            abort(unicode('The dim argument should be ∈ {0, 1, 2}'))
         return buffer
 
 # Function which wraps the meshbuf buffer in a memory view

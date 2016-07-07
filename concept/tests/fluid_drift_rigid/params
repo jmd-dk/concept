@@ -20,9 +20,31 @@
 
 
 
-# Numerical parameters
-ewald_gridsize = 64
+# Directory of this parameter file (non-parameter variable)
+_this_dir = os.path.dirname(paths['params'])
 
-# Simulation options
-kick_algorithms = {'dark matter particles': 'PP'}
+# Input/output
+IC_file       = _this_dir + '/IC.hdf5'
+output_dirs   = {'snapshot': _this_dir + '/output'}
+output_bases  = {'snapshot': 'snapshot'}
+output_times  = {'a': {'snapshot': logspace(log(0.02), log(0.25),  4, base=e)}}
+
+# Numerical parameters
+boxsize          = 64*Mpc
+Δt_factor        = 1  # Purposely set too high
+
+# Cosmological parameters
+H0      = 70*km/(s*Mpc)
+Ωm      = 0.3
+ΩΛ      = 0.7
+a_begin = 0.02
+
+# Graphics
+terminal_render_colormap   = 'ocean'
+terminal_render_resolution = 64
+
+# Debugging options
+enable_gravity = False
+enable_Hubble = True
+
 

@@ -22,13 +22,18 @@
 
 # This file has to be run in pure Python mode!
 
-# Include the concept_dir in the searched paths and get directory of this file
+# Standard test imports
 import glob, sys, os
-sys.path.append(os.environ['concept_dir'])
+
+# Absolute paths to the directory of this file
 this_dir = os.path.dirname(os.path.realpath(__file__))
 
-# The name of this test
-this_test = os.path.basename(this_dir)
+# Pull in environment variables
+for env_var in ('concept_dir', 'this_test'):
+    exec('{env_var} = os.environ["{env_var}"]'.format(env_var=env_var))
+
+# Include the concept_dir in the searched paths
+sys.path.append(concept_dir)
 
 # Imports from the CO𝘕CEPT code
 from commons import *
@@ -117,7 +122,12 @@ fig, ax = plt.subplots(len(nprocs_list), sharex=True, sharey=True)
 for n, d, ax_i in zip(dist.keys(), dist.values(), ax):
     for i in range(N_snapshots):
         ax_i.plot(np.array(d[i])/boxsize, '.', alpha=.7, label='$a={}$'.format(a[i]), zorder=-i)
-    ax_i.set_ylabel('$|\mathbf{x}_{\mathrm{pp}' + str(n) + '} - \mathbf{x}_{\mathrm{c}' + str(n) + '}|/\mathrm{boxsize}$')
+    ax_i.set_ylabel('$|\mathbf{x}_{\mathrm{pp}'
+                    + str(n)
+                    + '} - \mathbf{x}_{\mathrm{c}'
+                    + str(n)
+                    + '}|/\mathrm{boxsize}$'
+                    )
 ax[-1].set_xlabel('Particle number')
 plt.xlim(0, N - 1)
 fig.subplots_adjust(hspace=0)

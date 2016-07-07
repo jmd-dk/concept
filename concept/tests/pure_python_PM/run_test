@@ -28,18 +28,12 @@
 # Number of processes to use
 nprocs_list="1 2 4"
 
-# Scale factor values at which to dump output (Python syntax)
-output_times="0.1, 0.5, 1"
-
 # Initialize test environment
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 source "${this_dir}/../environment"
 
 # Cleanup from last test run
 "${this_dir}/clean"
-
-# Create list of output times
-"${python}" -c "import numpy as np; np.savetxt('${this_dir}' + '/outputlist', (${output_times=}))"
 
 # Generate ICs
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local

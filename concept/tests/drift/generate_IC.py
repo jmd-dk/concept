@@ -43,5 +43,5 @@ particles.populate(zeros(N), 'momy')
 particles.populate(zeros(N), 'momz')
 
 # Save snapshot
-save([particles], a_begin, IC_file)
+save([particles], IC_file)
 

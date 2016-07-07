@@ -1,0 +1,304 @@
+#!/usr/bin/env bash
+
+# This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
+# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+#
+# CO𝘕CEPT is free software: You can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# CO𝘕CEPT is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
+#
+# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The latest version of CO𝘕CEPT is available at
+# https://github.com/jmd-dk/concept/
+
+
+
+# This utility can play animations from log files
+# containing terminal renders.
+# You can run this file directly as
+# utilities/play path
+# or invoke it via the concept script as
+# ./render --util play path
+# In both cases, path is the path to a log file.
+
+
+
+# Absolute paths to this file and its directory
+this_file="$(readlink -f "${BASH_SOURCE[0]}")"
+this_dir="$(dirname "${this_file}")"
+
+# Source the concept script
+source "${this_dir}/../concept"
+
+# Set up error trapping
+ctrl_c()
+{
+    trap : 0
+    exit 2
+}
+abort()
+{
+    colorprint "An error occurred while using the \"$(basename ${this_file})\" utility!" "red"
+    exit 1
+}
+if [ "${called_from_concept}" == "True" ]; then
+    trap 'ctrl_c' SIGINT
+    trap 'abort' EXIT
+    set -e
+fi
+
+# The frame rate to use if not specified by the user
+default_framerate=4
+
+# Use Python's argparse module to handle command-line arguments
+args=$("${python}" -c "
+import argparse, sys
+# Function which checks whether input is a
+# representation of a positive integer.
+def positive_int(value):
+    def raise_argparse_exception():
+        raise argparse.ArgumentTypeError(\"invalid positive int value: '{}'\".format(value))
+    try:
+        value = eval(value)
+        value = float(value)
+    except:
+        raise_argparse_exception()
+    if value != int(value):
+        raise_argparse_exception()
+    value = int(value)
+    if value < 1:
+        raise_argparse_exception()
+    return value
+# Setup command-line arguments
+parser = argparse.ArgumentParser(prog='$(basename ${this_file})',
+                                 description='Run the CO𝘕CEPT $(basename ${this_file}) utility')
+parser.add_argument('path',
+                    help='path to log file',
+                    )
+parser.add_argument('-f', '--frame-rate',
+                    help='frame rate in integer frames/second.',
+                    type=positive_int,
+                    default=${default_framerate},
+                    )
+# Enables Python to write directly to screen (stderr)
+# in case of help request.
+stdout_copy = sys.stdout
+sys.stdout = sys.stderr
+# Now do the actual argument parsing,
+# including writing out the help message.
+if '${called_from_concept}' == 'True':
+    # Called from concept - Through exception on illegal args
+    args = parser.parse_args()
+else:
+    # Called directly - Allow what appears to be illegal args
+    # (these might be known to the concept script).
+    args, unknown_args = parser.parse_known_args()
+# Reset stdout
+sys.stdout = stdout_copy
+# Print out the arguments.
+# These will be captured in the Bash 'args' variable.
+print(  ' argparse_finished=yes'
+      + '; path=\"{}\"'.format(args.path)
+      + '; framerate=\"{}\"'.format(args.frame_rate)
+      )
+" "$@")
+# Evaluate the handled arguments into this scope
+eval "${args}"
+# Exit if argparse exited without finishing
+if [ "${argparse_finished}" != "yes" ]; then
+    trap : 0
+    exit 0
+fi
+
+# If not called indirectly through the concept script,
+# call the concept script now.
+if [ "${called_from_concept}" != "True" ]; then
+    "${this_dir}/../concept" --util "${this_file}" "$@"
+    trap : 0
+    exit 0
+fi
+
+# Convert to absolute path
+path_ori="${path}"
+path="$(absolute_path "${path}" "${workdir}")"
+
+# Check that the log file exist
+if [ ! -f "${path}" ]; then
+    # File does not seem to exist. Look for it in the logs directory.
+    if [ -f "${logs_dir}/${path_ori}" ]; then
+        # File found. Convert to absolute path.
+        path="$(absolute_path "${logs_dir}/${path_ori}" "${workdir}")"
+    else
+        colorprint "Error: File \"${path}\" does not exist!" "red"
+        exit 1
+    fi
+fi
+
+# The ANSI/VT100 escape character in printed format
+esc=$(printf "\x1b")
+
+# Get the colormap
+hex="[0-9a-f][0-9a-f]/[0-9a-f][0-9a-f]/[0-9a-f][0-9a-f]"
+colormap="$(cat "${path}" | grep -o "${esc}\]4;[0-9]*;rgb:${hex}${esc}\\\\" || :)"
+
+# Get the line numbers of the terminal renders
+terminal_renders="$(cat "${path}" | grep -n "${esc}\[48;5;[0-9]*m " | grep -o "[0-9]*:" || :)"
+N_terminal_renders=0
+start_lines=()
+end_lines=()
+old_linenr=0
+for line in ${terminal_renders}; do
+    linenr=${line%%:*}
+    ((diff = linenr - old_linenr))
+    if [ ${diff} -gt 1 ]; then
+        # First line of new terminal render found
+        if [ ${N_terminal_renders} -gt 0 ]; then
+            end_lines+=(${old_linenr})
+        fi
+        start_lines+=(${linenr})
+        ((N_terminal_renders += 1))
+    fi
+    old_linenr=${linenr}
+done
+end_lines+=(${old_linenr})
+
+# Abort if the log file does not contain any terminal renders
+if [ ${N_terminal_renders} == 0 ]; then
+    colorprint "Error: File \"${path}\" does not contain any terminal renders!" "red"
+    exit 1
+fi
+
+# Load the entire log file into an array by line
+content="$(cat "${path}")"
+lines=()
+while read -r line; do
+   lines+=("${line}")
+done <<< "${content}"
+
+# Get the terminal resolution used during the simulation
+terminal_render_resolution=$(echo "${lines[start_lines[0]]}" | grep -o " " | wc -l)
+
+# Find cosmic time and scale factor for each frame
+N_cosmic_time_displays=$(echo "${lines}"  | grep "Cosmic time:"  | wc -l)
+N_scale_factor_displays=$(echo "${lines}" | grep "Scale factor:" | wc -l)
+use_scale_factor="no"
+if [ ${N_cosmic_time_displays} == ${N_scale_factor_displays} ]; then
+    use_scale_factor="yes"
+fi
+for ((i = 0; i < N_terminal_renders; i += 1)); do
+    for ((j = ${end_lines[i]}; j < ${#lines[@]}; j += 1)); do
+        # Find cosmic time
+        if [[ "${lines[j]}" == "Cosmic time:"* ]]; then
+            cosmic_time="${lines[j]/Cosmic time:/}"
+            cosmic_time="${cosmic_time#"${cosmic_time%%[![:space:]]*}"}"
+            cosmic_times[i]="Cosmic time: ${cosmic_time}"
+            break
+        fi
+    done
+    if [ ${use_scale_factor} == "yes" ]; then
+        for ((j = ${end_lines[i]}; j < ${#lines[@]}; j += 1)); do
+            # Find scale factor
+            if [[ "${lines[j]}" == "Scale factor:"* ]]; then
+                scale_factor="${lines[j]/Scale factor:/}"
+                scale_factor="${scale_factor#"${scale_factor%%[![:space:]]*}"}"
+                scale_factors[i]="Scale factor: ${scale_factor}"
+                break
+            fi
+        done
+    fi
+    # Time stamp strings
+    if [ ${use_scale_factor} == "yes" ]; then
+        ((N_spaces = ${terminal_render_resolution} - ${#cosmic_times[i]} - ${#scale_factors[i]}))
+        if [ ${N_spaces} -lt 4 ]; then
+            N_spaces=4
+        fi
+        spaces="$(printf "%${N_spaces}s" | sed 's/ / /g')"
+        time_stamps[i]="${cosmic_times[i]}${spaces}${scale_factors[i]}"
+    else
+        ((N_spaces = ${terminal_render_resolution} - ${#cosmic_times[i]}))
+        if [ ${N_spaces} -lt 4 ]; then
+            N_spaces=4
+        fi
+        spaces="$(printf "%${N_spaces}s" | sed 's/ / /g')"
+        time_stamps[i]="${cosmic_times[i]}${spaces}"
+    fi
+done
+# Find longest time stamp string
+time_stamp_length=0
+for ((i = 0; i < N_terminal_renders; i += 1)); do
+    time_stamp="${time_stamps[i]}"
+    if [ ${#time_stamp} -gt ${time_stamp_length} ]; then
+        time_stamp_length=${#time_stamp}
+    fi
+done
+# Append spaces to end of time stamp strings to make them of equal length
+for ((i = 0; i < N_terminal_renders; i += 1)); do
+    time_stamp="${time_stamps[i]}"
+    ((N_spaces = ${time_stamp_length} - ${#time_stamp})) || :
+    spaces="$(printf "%${N_spaces}s" | sed 's/ / /g')"
+    time_stamps[i]="${time_stamp}${spaces}"
+done
+
+# Load all terminal renders into memory
+for ((i = 0; i < N_terminal_renders; i += 1)); do
+    terminal_render[i]="$(awk "NR >= ${start_lines[i]} && NR <= ${end_lines[i]}" "${path}")"
+done
+
+# Prepare for playing the movie
+((height = end_lines[0] - start_lines[0] + 1))
+width=${terminal_render_resolution}
+if [ ${width} -lt ${time_stamp_length} ]; then
+    width=${time_stamp_length}
+fi
+dt=$(${python} -c "print(1.0/${framerate})")  # Time between frames in seconds
+((T = N_terminal_renders/framerate)) || :
+if [ ${T} -lt 1 ]; then
+    framerate=${N_terminal_renders}
+    dt=$(${python} -c "print(1.0/${framerate})")
+fi
+dt_ms=$(${python} -c "print(int(${dt}*1000))")  # Time between frames in ms
+esc_left="${esc}[${width}D"
+new_frame="${esc_left}${esc}[${height}A"
+
+# Apply the colormap
+for color in ${colormap}; do
+    printf "${color}"
+done
+
+# Play movie
+t0=$(($(date +%s%N)/1000000))  # Time in ms
+for ((i = 0; i < N_terminal_renders - 1; i += 1)); do
+    # Display frame
+    printf "${terminal_render[i]}"
+    # Print the current cosmic time and scale factor below the frame
+    printf "\n${time_stamps[i]}"
+    # Sleep so that the frame is up for dt time
+    t1=$(($(date +%s%N)/1000000))  # Time in ms
+    ((elapsed = t1 - t0))
+    t0=$(($(date +%s%N)/1000000))  # Time in ms
+    if [ ${elapsed} -lt ${dt_ms} ]; then
+        remaining=$(${python} -c "print((${dt_ms} - ${elapsed})*0.001)")
+        sleep ${remaining}
+    fi
+    printf "${new_frame}"
+done
+# Display the last frame
+printf "${terminal_render[N_terminal_renders - 1]}"
+# Print the final cosmic time and scale factor below the frame
+printf "\n${time_stamps[N_terminal_renders - 1]}"
+# Finished displaying movie
+printf "\n"
+
+# Exit gracefully
+colorprint "$(basename ${this_file}) utility ran successfully" "green"
+trap : 0
+
