@@ -83,7 +83,7 @@ cp "${this_dir}/Makefile_gadget_edited" "${Gadget2_local_dir}/Makefile"
 # as the path has a maximum allowed length in GADGET.
 (cd "${Gadget2_local_dir}" && make clean \
                            && make       \
-                           && "${mpiexec}" -n 1 "${Gadget2_local_dir}/Gadget2" ../params_gadget)
+                           && "${Gadget2_local_dir}/Gadget2" ../params_gadget)
 
 # Analyze the output snapshots
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local

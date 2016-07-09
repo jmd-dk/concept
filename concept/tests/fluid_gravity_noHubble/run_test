@@ -56,7 +56,7 @@ mv "${this_dir}/output/snapshot"* "${this_dir}/output/particles/"
 # Function for converting particle snapshots to fluid snapshots
 particles2fluid()
 {
-    "${concept}" --util convert "${1}"                   \
+    "${concept}" --local --util convert "${1}"           \
         "control particles.species  = dark matter fluid" \
         "control particles.gridsize = ${gridsize}"       \
         "control particles.name     = converted fluid"

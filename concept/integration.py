@@ -465,11 +465,49 @@ def rk2_midpoint_fluid(component, a_integrals):
                 ux_Δ_noghosts[i, j, k] += ux_noghosts[i, j, k]
                 uy_Δ_noghosts[i, j, k] += uy_noghosts[i, j, k]
                 uz_Δ_noghosts[i, j, k] += uz_noghosts[i, j, k]
+
+
+    δ_vacuum = -1 + 1e-6
+    for i in range(size_i):
+        for j in range(size_j):
+            for k in range(size_k):
+                if δ_Δ_noghosts[i, j, k] < -1:
+                    # masterprint('CORRECTING FOR NEGATIVE MASS first')
+                    Δδ = δ_vacuum - δ_Δ_noghosts[i, j, k]
+                    δ_Δ_noghosts[i, j, k] +=  Δδ
+                    δ_Δ_noghosts[mod(i - 1, component.gridsize), j, k] -= Δδ/6
+                    δ_Δ_noghosts[mod(i + 1, component.gridsize), j, k] -= Δδ/6
+                    δ_Δ_noghosts[i, mod(j - 1, component.gridsize), k] -= Δδ/6
+                    δ_Δ_noghosts[i, mod(j + 1, component.gridsize), k] -= Δδ/6
+                    δ_Δ_noghosts[i, j, mod(k - 1, component.gridsize)] -= Δδ/6
+                    δ_Δ_noghosts[i, j, mod(k + 1, component.gridsize)] -= Δδ/6
+                    masterwarn('REMOVED VACUUM')
+
+
+
     # Compute whole step from the midpoint (the Δ buffers) and apply it
     # at the beginning (the grids). That is, use Δ as the RHS and grid
     # as the LHS.
     component.swap_fluid_LHS_RHS()
     evolve_fluid(component, a_integrals, step_frac=1)
+
+
+    for i in range(size_i):
+        for j in range(size_j):
+            for k in range(size_k):
+                if δ_noghosts[i, j, k] < -1:
+                    # masterprint('CORRECTING FOR NEGATIVE MASS second')
+                    Δδ = δ_vacuum - δ_noghosts[i, j, k]
+                    δ_noghosts[i, j, k] +=  Δδ
+                    δ_noghosts[mod(i - 1, component.gridsize), j, k] -= Δδ/6
+                    δ_noghosts[mod(i + 1, component.gridsize), j, k] -= Δδ/6
+                    δ_noghosts[i, mod(j - 1, component.gridsize), k] -= Δδ/6
+                    δ_noghosts[i, mod(j + 1, component.gridsize), k] -= Δδ/6
+                    δ_noghosts[i, j, mod(k - 1, component.gridsize)] -= Δδ/6
+                    δ_noghosts[i, j, mod(k + 1, component.gridsize)] -= Δδ/6
+                    masterwarn('REMOVED VACUUM')
+
+
 
 # Function which updates a fluid component using both the actual data
 # (grid) and the update buffer (Δ) of fluid scalars, controlled by

@@ -93,10 +93,6 @@
 ##################
 # Specifications #
 ##################
-# ImageMagick is no longer needed by CO𝘕CEPT
-#if [ -z "${imagemagick_install}" ]; then
-#    imagemagick_install="no"
-#fi
 # This function sets the variables "name_dir" (if not set already)
 # and "name_preinstalled".
 set_dir()
@@ -229,6 +225,14 @@ abort()
 trap 'ctrl_c' SIGINT
 trap 'abort' EXIT
 set -e
+
+# For the terminal to be able to print Unicode characters correctly,
+# the terminal charset need to be compatible.
+export LC_CTYPE="en_US.UTF-8"
+# Set the terminal if unset or broken
+if [ -z "${TERM}" ] || [ "${TERM}" == "dumb" ]; then
+    export TERM="linux"
+fi
 
 # ANSI/VT100 escape sequences
 esc="\x1b"
@@ -1327,7 +1331,7 @@ print_table()
         [ ${c} == ${nc} ] && c=0
     done
 
-    # Reinsert spaces and UNICODE characters
+    # Reinsert spaces and Unicode characters
     table=("${table_with_esc[@]}")
     modify_element "~" "\ "
     modify_element "^" "┌"
