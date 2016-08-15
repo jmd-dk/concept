@@ -25,19 +25,20 @@
 from commons import *
 
 # Cython imports
+from mesh import diff
 from snapshot import load
 cimport('from analysis import debug, powerspec')
 cimport('from graphics import render, terminal_render')
 cimport('from gravity import build_φ')
-cimport('from mesh import diff')
-cimport('from integration import expand, cosmic_time, scalefactor_integral')
+cimport('from integration import cosmic_time, expand, initiate_time, scalefactor_integral')
 cimport('from utilities import delegate')
 cimport('from snapshot import save')
 
 
 
-# Function that computes the kick and drift factors (integrals).
-# The result is stored in a_integrals[integrand][index],
+# Function that computes several time integrals with integrands having
+# to do with the scale factor (e.g. ∫dta⁻¹, ∫dtȧ/a)
+# The result is stored in ᔑdt_steps[integrand][index],
 # where index == 0 corresponds to step == 'first half' and
 # index == 1 corresponds to step == 'second half'. 
 @cython.header(# Arguments
@@ -49,7 +50,7 @@ cimport('from snapshot import save')
                t_next='double',
                )
 def scalefactor_integrals(step):
-    global a_integrals, Δt
+    global ᔑdt_steps, Δt
     # Update the scale factor and the cosmic time. This also
     # tabulates a(t), needed for the scalefactor integrals.
     a_next = expand(universals.a, universals.t, 0.5*Δt)
@@ -79,8 +80,8 @@ def scalefactor_integrals(step):
     elif master:
         abort('The value "{}" was given for the step'.format(step))
     # Do the scalefactor integrals
-    for integrand in a_integrals:
-        a_integrals[integrand][index] = scalefactor_integral(integrand)
+    for integrand in ᔑdt_steps:
+        ᔑdt_steps[integrand][index] = scalefactor_integral(integrand)
 
 # Function which dump all types of output. The return value signifies
 # whether or not something has been dumped.
@@ -145,19 +146,19 @@ def dump(components, output_filenames, final_render, op=None):
                integrand='str',
                index='int',
                )
-def nullify_a_integrals():
-    # Reset (nullify) the a_integrals, making the next kick operation
+def nullify_ᔑdt_steps():
+    # Reset (nullify) the ᔑdt_steps, making the next kick operation
     # apply for only half a step, even though 'whole' is used.
-    for integrand in a_integrals:
+    for integrand in ᔑdt_steps:
         for index in range(2):
-            a_integrals[integrand][index] = 0
+            ᔑdt_steps[integrand][index] = 0
 
 # Function which kick all of the components
 @cython.header(# Arguments
                components='list',
                step='str',
                # Locals
-               a_integrals_step='dict',
+               ᔑdt='dict',
                component='Component',
                component_group='list',
                component_groups='object',  # collections.defaultdict
@@ -173,16 +174,16 @@ def kick(components, step):
     # gravitational interaction.
     if not enable_gravity:
         return
-    # Construct the local dict a_integrals_step,
+    # Construct the local dict ᔑdt,
     # based on which type of step is to be performed.
-    a_integrals_step = {}
-    for integrand in a_integrals:
+    ᔑdt = {}
+    for integrand in ᔑdt_steps:
         if step == 'first half':
-            a_integrals_step[integrand] = a_integrals[integrand][0]
+            ᔑdt[integrand] = ᔑdt_steps[integrand][0]
         elif step == 'second half':
-            a_integrals_step[integrand] = a_integrals[integrand][1]
+            ᔑdt[integrand] = ᔑdt_steps[integrand][1]
         elif step == 'whole':
-            a_integrals_step[integrand] = np.sum(a_integrals[integrand])
+            ᔑdt[integrand] = np.sum(ᔑdt_steps[integrand])
         elif master:
             abort('The value "{}" was given for the step'.format(step))
     # Group the components based on assigned kick algorithms
@@ -203,28 +204,38 @@ def kick(components, step):
         # Print combined progress message, as all these kicks are done
         # simultaneously for all the components.
         if 'PM' in component_groups and not 'fluid' in component_groups:
-            masterprint('Kicking (PM) {} ...'.format(', '.join(
-                        [component.name for component in component_groups['PM']])))
+            masterprint('Kicking (PM) {} ...'
+                        .format(', '.join([component.name
+                                           for component in component_groups['PM']])
+                                )
+                        )
         elif 'PM' not in component_groups and 'fluid' in component_groups:
-            masterprint('Kicking (potential only) {} ...'.format(', '.join(
-                        [component.name for component in component_groups['fluid']])))
+            masterprint('Kicking (potential only) {} ...'
+                        .format(', '.join([component.name
+                                           for component in component_groups['fluid']])
+                                )
+                        )
         else:
-            masterprint('Kicking (PM) {} and (potential only) {} ...'.format(', '.join(
-                          [component.name for component in component_groups['PM']]
-                        + [component.name for component in component_groups['fluid']]))) 
+            masterprint('Kicking (PM) {} and (potential only) {} ...'
+                        .format(', '.join([component.name
+                                           for component in component_groups['PM']]),
+                                ', '.join([component.name
+                                           for component in component_groups['fluid']])
+                                )
+                        )
         # For each dimension, differentiate φ and apply the force to
         # all components which interact with φ (particles using the PM
         # method and all fluids).
         h = boxsize/φ_gridsize  # Physical grid spacing of φ
         for dim in range(3):
             # Do the differentiation of φ
-            meshbuf_mv = diff(φ, dim, h)
+            meshbuf_mv = diff(φ, dim, h, order=4)
             # Apply PM kick
             for component in component_groups['PM']:
-                component.kick(a_integrals_step, meshbuf_mv, dim)
+                component.kick(ᔑdt, meshbuf_mv, dim)
             # Apply kick to fluids
             for component in component_groups['fluid']:
-                component.kick(a_integrals_step, meshbuf_mv, dim)
+                component.kick(ᔑdt, meshbuf_mv, dim)
         # Done with potential interactions
         masterprint('done')
     # Now kick all other components sequentially
@@ -232,32 +243,32 @@ def kick(components, step):
         if key in ('PM', 'fluid'):
             continue
         for component in component_group:
-            component.kick(a_integrals_step)
+            component.kick(ᔑdt)
 
 # Function which drift all of the components
 @cython.header(# Arguments
                components='list',
                step='str',
                # Locals
-               a_integrals_step='dict',
+               ᔑdt='dict',
                component='Component',
                )
 def drift(components, step):
-    # Construct the local dict a_integrals_step,
+    # Construct the local dict ᔑdt,
     # based on which type of step is to be performed.
-    a_integrals_step = {}
-    for integrand in a_integrals:
+    ᔑdt = {}
+    for integrand in ᔑdt_steps:
         if step == 'first half':
-            a_integrals_step[integrand] = a_integrals[integrand][0]
+            ᔑdt[integrand] = ᔑdt_steps[integrand][0]
         elif step == 'second half':
-            a_integrals_step[integrand] = a_integrals[integrand][1]
+            ᔑdt[integrand] = ᔑdt_steps[integrand][1]
         elif step == 'whole':
-            a_integrals_step[integrand] = np.sum(a_integrals[integrand])
+            ᔑdt[integrand] = np.sum(ᔑdt_steps[integrand])
         elif master:
             abort('The value "{}" was given for the step'.format(step))
     # Drift all components sequentially
     for component in components:
-        component.drift(a_integrals_step)
+        component.drift(ᔑdt)
 
 # Function containing the main time loop of CO𝘕CEPT
 @cython.header(# Locals
@@ -271,46 +282,22 @@ def drift(components, step):
                Δt_update_freq='Py_ssize_t',
                )
 def timeloop():
-    global a_integrals, i_dump, next_dump, Δt
-    # Initial cosmic time t and scale factor a(t)
-    universals.t = universals.a = -1
-    if enable_Hubble:
-        # Hubble expansion enabled.
-        # A specification of initial scale factor or
-        # cosmic time is needed.
-        if a_begin == -1:
-            # No a_begin specified
-            if t_begin != -1:
-                # t_begin specified
-                universals.t = t_begin
-                universals.a = expand(machine_ϵ, machine_ϵ, t)
-        else:
-            # a_begin specified
-            if t_begin != -1:
-                masterwarn('Ignoring t_begin = {}*{} becuase enable_Hubble == True\n'
-                           'and a_begin is specified'.format(t_begin, unit_time))
-            universals.a = a_begin
-            universals.t = cosmic_time(universals.a)
-    else:
-        # Hubble expansion disabled.
-        # Values of the scale factor (and therefore a_begin)
-        # are meaningless. If specified, use t = t_begin,
-        # otherwize start the clock from zero.
-        if a_begin != -1:
-            masterwarn('Ignoring a_begin = {} becuase enable_Hubble == False'.format(a_begin))
-        if t_begin == -1:
-            universals.t = 0
-        else:
-            universals.t = t_begin
-        universals.a = 1
+    global ᔑdt_steps, i_dump, next_dump, Δt
     # Get the output filename patterns
+    # and create the global list "dumps".
+    # Avoid sanity checks by setting a = t = -∞.
+    universals.a = universals.t = -inf
     output_filenames, final_render = prepare_output_times()
     # Do nothing if no dump times exist
     if len(dumps) == 0: 
         return
-    # Abort if a start time could not be specified
-    if universals.t == universals.a == -1:
-        abort('No initial scale factor or time specified!')
+    # Determine the correct initial values for the cosmic time
+    # universals.t and the scale factor a(universals.t) = universals.a.
+    initiate_time()
+    # Get the output filename patterns once again
+    # and recreate the global list "dumps", this time with proper
+    # values of universals.a and universals.t.
+    output_filenames, final_render = prepare_output_times()
     # Load initial conditions
     components = load(IC_file, only_components=True)
     # The number of time steps before Δt is updated
@@ -328,18 +315,21 @@ def timeloop():
     # Arrays containing the factors ∫_t^(t + Δt/2) integrand(a) dt
     # for different integrands. The two elements in each variable are
     # the first and second half of the factor for the entire time step.
-    a_integrals = {'a⁻¹': zeros(2, dtype=C2np['double']),
-                   'a⁻²': zeros(2, dtype=C2np['double']),
-                   'ȧ/a': zeros(2, dtype=C2np['double']),
-                   }
+    ᔑdt_steps = {'a⁻¹': zeros(2, dtype=C2np['double']),
+                 'a⁻²': zeros(2, dtype=C2np['double']),
+                 'ȧ/a': zeros(2, dtype=C2np['double']),
+                 }
     # Specification of next dump and a corresponding index
     i_dump = 0
     next_dump = dumps[i_dump]
     # Possible output at the beginning of simulation
     dump(components, output_filenames, final_render)
-    # Nullify all fluid buffers of all components
-    # before beginning time stepping.
+    # Before beginning time stepping,
+    # communicate pseudo and ghost points on all fluid grids
+    # and nullify all fluid buffers of every component.
+    # For particle components, these are no-op's.
     for component in components:
+        component.communicate_fluid_grids()
         component.nullify_fluid_buffers()
     # The main time loop
     masterprint('Beginning of main time loop')
@@ -361,12 +351,12 @@ def timeloop():
         # Kick
         # (even though 'whole' is used, the first kick (and the first
         # kick after a dump) is really only half a step (the first
-        # half), as a_integrals[integrand][1] == 0 for every integrand).
+        # half), as ᔑdt_steps[integrand][1] == 0 for every integrand).
         scalefactor_integrals('first half')
         kick(components, 'whole')
         if dump(components, output_filenames, final_render, 'drift'):
-            # Reset the a_integrals, starting the leapfrog cycle anew
-            nullify_a_integrals()
+            # Reset the ᔑdt_steps, starting the leapfrog cycle anew
+            nullify_ᔑdt_steps()
             continue
         # Update Δt every Δt_update_freq time step
         if enable_Hubble and not (timestep % Δt_update_freq):
@@ -376,15 +366,15 @@ def timeloop():
             # (increase it according to Δt_factor, but not above what
             # any of the components allow for).
             Δt = reduce_Δt(components, Δt_factor*universals.t, give_notice=False)
-            # Reset the a_integrals, starting the leapfrog cycle anew
-            nullify_a_integrals()
+            # Reset the ᔑdt_steps, starting the leapfrog cycle anew
+            nullify_ᔑdt_steps()
             continue
         # Drift
         scalefactor_integrals('second half')
         drift(components, 'whole')
         if dump(components, output_filenames, final_render, 'kick'):
-            # Reset the a_integrals, starting the leapfrog cycle anew
-            nullify_a_integrals()
+            # Reset the ᔑdt_steps, starting the leapfrog cycle anew
+            nullify_ᔑdt_steps()
             continue
         # Reduce time step size if it is too large for any component
         Δt = reduce_Δt(components, Δt)
@@ -407,23 +397,35 @@ def timeloop():
                cell_size='double',
                component='Component',
                dim='int',
-               fac='double',
+               fac_reduce='double',
+               fac_stability='double',
                fastest_component='Component',
-               u='double[:, :, :]',
+               ϱ='double[:, :, :]',
+               ϱux='double[:, :, :]',
+               ϱuy='double[:, :, :]',
+               ϱuz='double[:, :, :]',
                i='Py_ssize_t',
                j='Py_ssize_t',
                k='Py_ssize_t',
-               u_ijk='double',
                u_max='double',
+               ϱux_ijk='double',
+               ϱuy_ijk='double',
+               ϱuz_ijk='double',
+               u2_ijk='double',
+               u2_max='double',
                ẋ_max='double',
                Δt_max='double',
                Δt_max_component='double',
+               ϱ_ijk='double',
                )
 def reduce_Δt(components, Δt, give_notice=True):
     # Safety factor. A value of 1 allows for a maximum velocity
     # corresponding to one grid cell per time step. To be on the safe
     # side, this value should be smaller than 1.
-    fac = 0.9
+    fac_stability = 0.9
+    # When the current time step size Δt is too large, it will be
+    # reduced to the maximally allowed time step times this factor.
+    fac_reduce = 0.9
     # Find the maximum velocity of fluid components
     # and compute the maximum allowed time step size Δt_max
     # based on this maximum velocity.
@@ -433,20 +435,25 @@ def reduce_Δt(components, Δt, give_notice=True):
         if component.representation != 'fluid':
             continue
         # Find maximum, local velocity for this component
-        u_max = 0
-        for dim in range(3):
-            u = component.fluidvars['u'][dim].grid_noghosts
-            size_i = u.shape[0]
-            size_j = u.shape[1]
-            size_k = u.shape[2]
-            for i in range(size_i):
-                for j in range(size_j):
-                    for k in range(size_k):
-                        u_ijk = u[i, j, k]
-                        if u_ijk > u_max:
-                            u_max = u_ijk
-                        elif -u_ijk > u_max:
-                            u_max = -u_ijk
+        u2_max = 0
+        ϱ   = component.fluidvars['ϱ'].grid_noghosts
+        ϱux = component.fluidvars['ϱux'].grid_noghosts
+        ϱuy = component.fluidvars['ϱux'].grid_noghosts
+        ϱuz = component.fluidvars['ϱux'].grid_noghosts
+        size_i = ϱux.shape[0] - 1
+        size_j = ϱux.shape[1] - 1
+        size_k = ϱux.shape[2] - 1
+        for i in range(size_i):
+            for j in range(size_j):
+                for k in range(size_k):
+                    ϱ_ijk = ϱ[i, j, k]
+                    ϱux_ijk = ϱux[i, j, k]
+                    ϱuy_ijk = ϱuy[i, j, k]
+                    ϱuz_ijk = ϱuz[i, j, k]
+                    u2_ijk = (ϱux_ijk**2 + ϱuy_ijk**2 + ϱuz_ijk**2)/ϱ_ijk**2
+                    if u2_ijk > u2_max:
+                        u2_max = u2_ijk
+        u_max = sqrt(u2_max)
         # Communicate maximum global velocity of this component
         # to all processes.
         u_max = allreduce(u_max, op=MPI.MAX)
@@ -456,12 +463,15 @@ def reduce_Δt(components, Δt, give_notice=True):
             u_max = machine_ϵ 
         # Compute maximum allowed timestep size Δt for this component.
         # Imortantly, because Δt is an interval of cosmic time t,
-        # free ofany scaling by the scale factor a, the cosmic time
+        # free of any scaling by the scale factor a, the cosmic time
         # derivative of the comoving coordinates, ẋ = u/a,
         # should be used in stead of the peculiar velocity u directly.
+        # The sqrt(3) is because the simulation is in 3D. With sqrt(3)
+        # included and fac_stability == 1, the below is the general
+        # 3-dimensional Courant condition.
         cell_size = boxsize/component.gridsize
         ẋ_max = u_max/universals.a
-        Δt_max_component = fac*cell_size/ẋ_max
+        Δt_max_component = ℝ[fac_stability/sqrt(3)]*cell_size/ẋ_max
         # The component with the lowest value of the maximally allowed
         # time step size determines the global maximally allowed
         # time step size.
@@ -472,13 +482,10 @@ def reduce_Δt(components, Δt, give_notice=True):
     # largest allowed value Δt_max.
     if Δt > Δt_max:
         if give_notice:
-            masterprint('Rescaling time step size by a factor {:.1g} due to large velocities of {}'
+            masterwarn('Rescaling time step size by a factor {:.1g} due to large velocities of {}'
                         .format(Δt_max/Δt, fastest_component.name))
-        Δt = Δt_max
+        Δt = fac_reduce*Δt_max
     return Δt
-
-
-
 
 # Function which checks the sanity of the user supplied output times,
 # creates output directories and defines the output filename patterns.
@@ -532,12 +539,12 @@ def prepare_output_times():
             times = sorted(set((at_begin, ) + output_time))
             ndigits = 0
             while True:
-                fmt = '{:.' + str(ndigits) + 'f}'
+                fmt = '{{:.{}f}}'.format(ndigits)
                 if (len(set([fmt.format(ot) for ot in times])) == len(times)
                     and (fmt.format(times[0]) != fmt.format(0) or not times[0])):
                     break
                 ndigits += 1
-            fmt = '{}=' + fmt
+            fmt = '{{}}={}'.format(fmt)
             # Use the format (that is, either the format from the a
             # output times or the t output times) with the largest
             # number of digits.
@@ -593,7 +600,7 @@ if special_params:
     sys.exit()
 
 # Declare global variables used in above functions
-cython.declare(a_integrals='dict',
+cython.declare(ᔑdt_steps='dict',
                i_dump='Py_ssize_t',
                dumps='list',
                next_dump='list',
@@ -610,4 +617,3 @@ else:
 # the program must explicitly be told to exit.
 Barrier()
 sys.exit()
-

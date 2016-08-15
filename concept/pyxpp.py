@@ -41,8 +41,9 @@ and then changed in the following ways:
   below 'from commons import *'.
 - Do a cimport of all @cython.cclass classes (not applied to commons.py)
 - Transform the 'cimport()' function calls into proper cimports.
-- Replace 'ℝ[expression]' with a double variable, which is equal to
-  'expression' and defined on a suitable line.
+- Replace 'ℝ[expression]' with a double variable and 'ℤ[expression]'
+  with a Py_ssize_t variable which is equal to 'expression' and defined
+  on a suitable line.
 - Replaces the cython.header and cython.pheader decorators with
   all of the Cython decorators which improves performance. The
   difference between the two is that cython.header turns into
@@ -79,6 +80,8 @@ def non_nested_exec(s):
 # General imports
 from copy import deepcopy
 import collections, imp, itertools, os, re, shutil, unicodedata
+# For math
+import numpy as np
 # For development purposes only
 from time import sleep
 
@@ -499,7 +502,7 @@ def power2product(filename):
                         if x == int(x):
                             integer_power = True
                     except:
-                        pass
+                        ...
                 expression_base = expression[:expression.find('**')]
                 base = ''
                 before_base = ''
@@ -1274,152 +1277,242 @@ def make_pxd(filename):
 
 
 def constant_expressions(filename):
-    # Find constant expressions using the ℝ[expression] syntax
-    with open(filename, 'r', encoding='utf-8') as pyxfile:
-        lines = pyxfile.read().split('\n')
-    expressions = []
-    expressions_cython = []
-    declaration_linenrs = []
-    operators = collections.OrderedDict([('.',  'dot' ),
-                                         ('+',  'pls' ),
-                                         ('-',  'min' ),
-                                         ('**', 'pow' ),
-                                         ('*',  'tim' ),
-                                         ('/',  'div' ),
-                                         ('^',  'car' ),
-                                         ('&',  'and' ),
-                                         ('|',  'bar' ),
-                                         ('@',  'at'  ),
-                                         (',',  'com' ),
-                                         ('(',  'opar'),
-                                         (')',  'cpar'),
-                                         ('[',  'obra'),
-                                         (']',  'cbra'),
-                                         ('{',  'ocur'),
-                                         ('}',  'ccur'),
-                                         ("'",  'qte' ),
-                                         ('"',  'dqte'),
-                                         ])
-    while True:
-        no_blackboard_bold_R = True
-        module_scope = True
-        for i, line in enumerate(lines):
-            if len(line) > 0 and line[0] not in ' #':
-                module_scope = True
-            if len(line) > 0 and line[0] != '#' and 'def ' in line:
-                module_scope = False
-            search = re.search('ℝ\[.+\]', line)
-            if not search or line.replace(' ', '').startswith('#'):
-                continue
-            R_statement_fullmatch = search.group(0)
-            R_statement = R_statement_fullmatch[:2]
-            for c in R_statement_fullmatch[2:]:
-                R_statement += c
-                if R_statement.count('[') == R_statement.count(']'):
-                    break
-            expression = R_statement[2:-1].strip()
-            no_blackboard_bold_R = False
-            expressions.append(expression)
-            expression_cython = 'ℝ_' + expression.replace(' ', '')
-            for op, op_name in operators.items():
-                expression_cython = expression_cython.replace(op, '_{}_'.format(op_name))
-            expression_cython = expression_cython.replace('__', '_')
-            expressions_cython.append(expression_cython)
-            lines[i] = line.replace(R_statement, expression_cython)
-            # Find out where the declaration should be
-            variables = [expression.replace(' ', '')]
-            for op in operators.keys():
-                variables = list(itertools.chain(*[var.split(op) for var in variables]))
-            variables = [var for var in list(set(variables))
-                         if var and var[0] not in '.0123456789']
-            linenr_where_defined = [-1]*len(variables)
-            for w, end in enumerate((i + 1, len(lines))):  # Second time: Check module scope
-                if w == 1 and module_scope:
-                    break
-                for v, var in enumerate(variables):
-                    if linenr_where_defined[v] != -1:
-                        continue
-                    for j, line2 in enumerate(reversed(lines[:end])):
-                        line2_ori = line2
-                        line2 = ' '*(len(line2) - len(line2.lstrip()))  + line2.replace(' ', '')
-                        if line2_ori.startswith('def '):
-                            # var as function argument
-                            if (   (' ' + var + '=') in line2
-                                or (',' + var + '=') in line2
-                                or ('(' + var + '=') in line2):
+    sets = {'ℝ': 'double',
+            'ℤ': 'Py_ssize_t',
+            }
+    def indentation_level(line):
+        line_lstrip = line.lstrip()
+        if not line_lstrip or line_lstrip.startswith('#'):
+            return -1
+        return len(line) - len(line_lstrip)
+    for blackboard_bold_symbol, ctype in sets.items():
+        # Find constant expressions using the
+        # ℝ[expression] or ℤ[expression] syntax.
+        with open(filename, 'r', encoding='utf-8') as pyxfile:
+            lines = pyxfile.read().split('\n')
+        expressions = []
+        expressions_cython = []
+        declaration_linenrs = []
+        declaration_placements = []
+        operators = collections.OrderedDict([('.',  'DOT' ),
+                                             ('+',  'PLS' ),
+                                             ('-',  'MIN' ),
+                                             ('**', 'POW' ),
+                                             ('*',  'TIM' ),
+                                             ('/',  'DIV' ),
+                                             ('\\', 'BSL' ),
+                                             ('^',  'CAR' ),
+                                             ('&',  'AND' ),
+                                             ('|',  'BAR' ),
+                                             ('@',  'AT'  ),
+                                             (',',  'COM' ),
+                                             ('(',  'OPAR'),
+                                             (')',  'CPAR'),
+                                             ('[',  'OBRA'),
+                                             (']',  'CBRA'),
+                                             ('{',  'OCUR'),
+                                             ('}',  'CCUR'),
+                                             ("'",  'QTE' ),
+                                             ('"',  'DQTE'),
+                                             (':',  'COL' ),
+                                             (';',  'SCOL'),
+                                             ('!',  'BAN' ),
+                                             ('#',  'SHA' ),
+                                             ('$',  'DOL' ),
+                                             ('%',  'PER' ),
+                                             ('?',  'QUE' ),
+                                             ('<',  'LTH' ),
+                                             ('>',  'GTH' ),
+                                             ('`',  'GRA' ),
+                                             ('~',  'TIL' ),
+                                             ])
+        while True:
+            no_blackboard_bold_R = True
+            module_scope = True
+            for i, line in enumerate(lines):
+                if len(line) > 0 and line[0] not in ' #':
+                    module_scope = True
+                if len(line) > 0 and line[0] != '#' and 'def ' in line:
+                    module_scope = False
+                search = re.search(blackboard_bold_symbol + '\[.+\]', line)
+                if not search or line.replace(' ', '').startswith('#'):
+                    continue
+                R_statement_fullmatch = search.group(0)
+                R_statement = R_statement_fullmatch[:2]
+                for c in R_statement_fullmatch[2:]:
+                    R_statement += c
+                    if R_statement.count('[') == R_statement.count(']'):
+                        break
+                expression = R_statement[2:-1].strip()
+                # Integer literals to double literals when dividing
+                if ctype == 'double':
+                    # Integer in numerator
+                    expression = re.sub('[0-9]+\.?[0-9]*/[^/]',
+                                        lambda numerator: (     numerator.group() if '.' in numerator.group()
+                                                           else numerator.group()[:-2] + '.0/' + numerator.group()[-1]),
+                                        expression)
+                    # Integer in denominator
+                    expression = re.sub('[^/]/[0-9]+\.?[0-9]*',
+                                        lambda denominator: (     denominator.group() if '.' in denominator.group()
+                                                             else denominator.group() + '.0'),
+                                        expression)
+                no_blackboard_bold_R = False
+                expressions.append(expression)
+                expression_cython = blackboard_bold_symbol + '_' + expression.replace(' ', '')
+                for op, op_name in operators.items():
+                    expression_cython = expression_cython.replace(op, '__{}__'.format(op_name))
+                expressions_cython.append(expression_cython)
+                lines[i] = line.replace(R_statement, expression_cython)
+                # Find out where the declaration should be
+                variables = expression.replace(' ', '')                             # Remove spaces
+                variables = re.sub('(?P<quote>[\'"]).*?(?P=quote)', '', variables)  # Remove string literals using single and double quotes
+                variables = [variables]
+                for op in operators.keys():
+                    variables = list(itertools.chain(*[var.split(op) for var in variables]))
+                variables = [var for var in list(set(variables))
+                             if var and var[0] not in '.0123456789']
+                linenr_where_defined = [-1]*len(variables)
+                placements = ['below']*len(variables)
+                for w, end in enumerate((i + 1, len(lines))):  # Second time: Check module scope
+                    if w == 1 and module_scope:
+                        break
+                    for v, var in enumerate(variables):
+                        if linenr_where_defined[v] != -1:
+                            continue
+                        for j, line2 in enumerate(reversed(lines[:end])):
+                            line2_ori = line2
+                            line2 = ' '*(len(line2) - len(line2.lstrip()))  + line2.replace(' ', '')
+                            if line2_ori.startswith('def ') and re.search('[\(,]{}[,=\)]'.format(var), line2):
+                                # var as function argument
                                 linenr_where_defined[v] = end - 1 - j
                                 break
-                        else:
-                            for op in operators.keys():
-                                line2 = line2.replace(op, '')
-                            if (   (' ' + var + '=') in line2
-                                or (',' + var + '=') in line2
-                                or (';' + var + '=') in line2
-                                or ('=' + var + '=') in line2
-                                or line2.startswith(var + '=')):
-                                linenr_where_defined[v] = end - 1 - j
-                                argh = False
-                                break
-            if linenr_where_defined:
-                declaration_linenrs.append(max(linenr_where_defined))
-            else:
-                declaration_linenrs.append(-1)
-            # If inside a function and declaration_linenrs[-1] == -1,
-            # the variable may be declared in the module scope.
-            # Remove again if duplicate
-            for j in range(len(expressions) - 1):
-                if (expressions[j] == expressions[-1]
-                    and declaration_linenrs[j] == declaration_linenrs[-1]):
-                    expressions.pop()
-                    expressions_cython.pop()
-                    declaration_linenrs.pop()
-                    break
-        if no_blackboard_bold_R:
-            break
-    # Find out where the last import statement is. Unrecognized
-    # definitions should occur below this line.
-    linenr_unrecognized = -1
-    for i, line in enumerate(lines):
-        if 'import ' in line:
-            if '#' in line and line.index('#') < line.index('import '):
-                continue
-            if line.index('import ') != 0 and line[line.index('import ') - 1] not in 'c ':
-                continue
-            if i + 1 < len(lines) and ('"""' in lines[i + 1] or "'''" in lines[i + 1]):
-                linenr_unrecognized = i + 1
-                continue
-            # Go down until indentation level 0 is reached
-            for j, line in enumerate(lines[(i + 1):]):
-                if (len(line) > 0
-                    and line[0] not in '# '
-                    and not line.startswith('"""')
-                    and not line.startswith("'''")):
-                    linenr_unrecognized = i + j
-                    break
-    # Insert Cython declarations of constant expressions
-    new_lines = []
-    for i, line in enumerate(lines):
-        new_lines.append(line)
-        # Unrecognized definitions
-        if i == linenr_unrecognized:
-            for e, expression_cython in enumerate(expressions_cython):
-                if declaration_linenrs[e] == -1:
-                    new_lines.append('cython.declare(' + expression_cython + "='double')")
-                    new_lines.append(expression_cython + ' = ' + expressions[e])
-            new_lines.append('')
-        for e, n in enumerate(declaration_linenrs):
-            if i == n:
-                if lines[i].startswith('def '):
-                    indentation = ' '*4
+                            else:
+                                for op in operators.keys():
+                                    line2 = line2.replace(op, '')
+                                if (   (' ' + var + '=') in line2
+                                    or (',' + var + '=') in line2
+                                    or (';' + var + '=') in line2
+                                    or ('=' + var + '=') in line2
+                                    or line2.startswith(var + '=')):
+                                    # var declaration found
+                                    linenr_where_defined[v] = end - 1 - j
+                                    # Continue searching for var in previous lines
+                                    linenr_where_defined_first = -1
+                                    for k, line3 in enumerate(reversed(lines[:linenr_where_defined[v]])):
+                                        line3_ori = line3
+                                        line3 = ' '*(len(line3) - len(line3.lstrip()))  + line3.replace(' ', '')
+                                        if line3_ori.startswith('def '):
+                                            # Function definition reached
+                                            break
+                                        if (   (' ' + var + '=') in line3
+                                            or (',' + var + '=') in line3
+                                            or (';' + var + '=') in line3
+                                            or ('=' + var + '=') in line3
+                                            or line3.startswith(var + '=')):
+                                            # Additional var declaration found
+                                            linenr_where_defined_first = linenr_where_defined[v] - 1 - k
+                                    # Locate "barriers" between linenr_where_defined and linenr_where_defined_first.
+                                    # A "barrier" consists of code with an indentation level smaller
+                                    # than that at linenr_where_defined, located somewhere between
+                                    # linenr_where_defined and linenr_where_defined_first.
+                                    # If such barriers exist, the defintion to be inserted cannot just
+                                    # be placed right below linenr_where_defined, but should be
+                                    # moved closer down towards where it is used and placed at an
+                                    # indentation level equal to that of the barrier with the smallest
+                                    # indentation level.
+                                    if linenr_where_defined_first != -1:
+                                        indentationlvl_where_defined = indentation_level(lines[linenr_where_defined[v]])
+                                        indentationlvl_barrier = indentationlvl_where_defined
+                                        for line3 in lines[(linenr_where_defined_first + 1):linenr_where_defined[v]]:
+                                                indentationlvl = indentation_level(line3)
+                                                if -1 < indentationlvl < indentationlvl_barrier:
+                                                    indentationlvl_barrier = indentationlvl
+                                        if indentationlvl_barrier < indentationlvl_where_defined:
+                                            # A barrier exists!
+                                            # Search downwards from linenr_where_defined[v] to i
+                                            # (the line where ℝ[...] is used) until an
+                                            # indentation level <= indentationlvl_barrier is found.
+                                            # This should be the place where the new declaration should be placed.
+                                            for k, line3 in enumerate(lines[(linenr_where_defined[v] + 1):(i + 1)]):
+                                                indentationlvl = indentation_level(line3)
+                                                if -1 < indentationlvl <= indentationlvl_barrier:
+                                                    # Change linenr_where_defined[v] to be this linenr,
+                                                    # where the barrier does not matter.
+                                                    linenr_where_defined[v] = linenr_where_defined[v] + 1 + k
+                                                    # Note that the declaration should now be inserted above
+                                                    # this line!
+                                                    placements[v] = 'above'
+                                                    break
+                                    # Break because original var declaration is found
+                                    break
+                if linenr_where_defined:
+                    index_max = np.argmax(linenr_where_defined)
+                    declaration_linenrs.append(linenr_where_defined[index_max])
+                    declaration_placements.append(placements[index_max])
                 else:
-                    indentation = ' '*(len(lines[i - 1]) - len(lines[i - 1].lstrip()))
-                new_lines.append(indentation
-                                 + 'cython.declare('
-                                 + expressions_cython[e]
-                                 + "='double')")
-                new_lines.append(indentation + expressions_cython[e] + ' = ' + expressions[e])
-    with open(filename, 'w', encoding='utf-8') as pyxfile:
-        pyxfile.writelines('\n'.join(new_lines))
+                    declaration_linenrs.append(-1)
+                    declaration_placements.append('below')
+                # If inside a function and declaration_linenrs[-1] == -1,
+                # the variable may be declared in the module scope.
+                # Remove again if duplicate
+                for j in range(len(expressions) - 1):
+                    if (expressions[j] == expressions[-1]
+                        and declaration_linenrs[j] == declaration_linenrs[-1]):
+                        expressions.pop()
+                        expressions_cython.pop()
+                        declaration_linenrs.pop()
+                        declaration_placements.pop()
+                        break
+            if no_blackboard_bold_R:
+                break
+        # Find out where the last import statement is. Unrecognized
+        # definitions should occur below this line.
+        linenr_unrecognized = -1
+        for i, line in enumerate(lines):
+            if 'import ' in line:
+                if '#' in line and line.index('#') < line.index('import '):
+                    continue
+                if line.index('import ') != 0 and line[line.index('import ') - 1] not in 'c ':
+                    continue
+                if i + 1 < len(lines) and ('"""' in lines[i + 1] or "'''" in lines[i + 1]):
+                    linenr_unrecognized = i + 1
+                    continue
+                # Go down until indentation level 0 is reached
+                for j, line in enumerate(lines[(i + 1):]):
+                    if (len(line) > 0
+                        and line[0] not in '# '
+                        and not line.startswith('"""')
+                        and not line.startswith("'''")):
+                        linenr_unrecognized = i + j
+                        break
+        # Insert Cython declarations of constant expressions
+        new_lines = []
+        for i, line in enumerate(lines):
+            new_lines.append(line)
+            # Unrecognized definitions
+            if i == linenr_unrecognized:
+                for e, expression_cython in enumerate(expressions_cython):
+                    if declaration_linenrs[e] == -1:
+                        new_lines.append('cython.declare(' + expression_cython + "='{}')".format(ctype))
+                        new_lines.append(expression_cython + ' = ' + expressions[e])
+                new_lines.append('')
+            for e, n in enumerate(declaration_linenrs):
+                if i == n:
+                    if lines[i].startswith('def '):
+                        indentation = ' '*4
+                    else:
+                        indentation = ' '*(len(line) - len(line.lstrip()))
+                    if declaration_placements[e] == 'above':
+                        new_lines.pop()
+                    new_lines.append(indentation
+                                     + 'cython.declare('
+                                     + expressions_cython[e]
+                                     + "='{}')".format(ctype))
+                    new_lines.append(indentation + expressions_cython[e] + ' = ' + expressions[e])
+                    if declaration_placements[e] == 'above':
+                        new_lines.append(line)
+        with open(filename, 'w', encoding='utf-8') as pyxfile:
+            pyxfile.writelines('\n'.join(new_lines))
 
 
 
@@ -1433,9 +1526,7 @@ if filename.endswith('.py'):
     # Actions
     oneline(filename)
     cythonstring2code(filename)
-
     cython_structs(filename)
-
     cimport_commons(filename)
     cimport_cclasses(filename)
     cimport_function(filename)

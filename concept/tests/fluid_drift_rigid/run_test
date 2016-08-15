@@ -36,11 +36,7 @@ source "${this_dir}/../environment"
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local
 
 # Run the CO𝘕CEPT code on the fluid ICs
-"${concept}" -n 1 -p "${this_dir}/params" --local -n 1 | tee "${this_dir}/log"
-exit_code=${PIPESTATUS[0]}
-if [ ${exit_code} -ne 0 ]; then
-    exit ${exit_code}
-fi
+"${concept}" -n 1 -p "${this_dir}/params" --local -n 1
 
 # Analyze the output snapshots
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local

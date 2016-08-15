@@ -24,11 +24,6 @@
 # In the .pyx file, Cython declared variables will also get cimported.
 from commons import *
 
-# Cython imports
-cimport('from communication import communicate_domain_boundaries, communicate_domain_ghosts')
-cimport('from mesh import diff')
-
-cimport('from analysis import debug')
 
 
 # This function implements the Hubble parameter H(a)=ȧ/a,
@@ -41,10 +36,11 @@ cimport('from analysis import debug')
                returns='double',
                )
 def hubble(a):
-    # Currently, only matter (Ωm) and a cosmological constant (ΩΛ)
-    # is implemented in the Friedmann equation.
     if enable_Hubble:
-        return H0*sqrt(Ωm/(a**3 + machine_ϵ) + ΩΛ)
+        return H0*sqrt(+ Ωr/(a**4 + machine_ϵ)  # Radiation
+                       + Ωm/(a**3 + machine_ϵ)  # Matter
+                       + ΩΛ                     # Cosmological constant
+                       )
     return 0
 
 # Function returning the time differentiated scale factor,
@@ -353,284 +349,268 @@ def cosmic_time(a, a_lower=machine_ϵ, t_lower=machine_ϵ, t_upper=-1):
 cython.declare(t_max_ever='double')
 t_max_ever = 20*units.Gyr
 
-# Function which evolves a fluid component forwards by one time step,
-# the size of which is defined by the scale factor integrals given.
-# The first-order Runge-Kutta (Euler) method is used.
+# Function which sets the value of universals.a and universals.t
+# based on the user parameters a_begin and t_begin together with the
+# cosmology if enable_Hubble == True.
+@cython.header
+def initiate_time():
+    if enable_Hubble:
+        # Hubble expansion enabled.
+        # A specification of initial scale factor or
+        # cosmic time is needed.
+        if 'a_begin' in user_params:
+            # a_begin specified
+            if 't_begin' in user_params:
+                # t_begin also specified
+                masterwarn('Ignoring t_begin = {}*{} becuase enable_Hubble == True\n'
+                           'and a_begin is specified'.format(t_begin, unit_time))
+            universals.a = a_begin
+            universals.t = cosmic_time(universals.a)
+        elif 't_begin' in user_params:
+            # a_begin not specified, t_begin specified
+            universals.t = t_begin
+            universals.a = expand(machine_ϵ, machine_ϵ, universals.t)
+        else:
+            # Neither a_begin nor t_begin is specified.
+            # One or the other is needed when enable_Hubble == True.
+            abort('No initial scale factor (a_begin) or initial cosmic time (t_begin) specified. '
+                  'A specification of one or the other is needed when enable_Hubble == True.')
+    else:
+        # Hubble expansion disabled.
+        # Values of the scale factor (and therefore a_begin)
+        # are meaningless.
+        # Set universals.a to unity, effectively ignoring its existence.
+        universals.a = 1
+        if 'a_begin' in user_params:
+            masterwarn('Ignoring a_begin = {} becuase enable_Hubble == False'.format(a_begin))
+        # Use universals.t = t_begin, which defaults to 0 when not
+        # supplied by the user, as specified in commons.py.
+        universals.t = t_begin
+
 @cython.header(# Arguments
                component='Component',
-               a_integrals='dict',
+               ᔑdt='dict',
                # Locals
-               i='Py_ssize_t',
-               j='Py_ssize_t',
-               k='Py_ssize_t',
-               size_i='Py_ssize_t',
-               size_j='Py_ssize_t',
-               size_k='Py_ssize_t',
-               ux_noghosts='double[:, :, :]',
-               ux_Δ_noghosts='double[:, :, :]',
-               uy_noghosts='double[:, :, :]',
-               uy_Δ_noghosts='double[:, :, :]',
-               uz_noghosts='double[:, :, :]',
-               uz_Δ_noghosts='double[:, :, :]',
-               δ_noghosts='double[:, :, :]',
-               δ_Δ_noghosts='double[:, :, :]',
-               )
-def rk1_euler_fluid(component, a_integrals):
-    if component.representation != 'fluid':
-        abort('Cannot integrate fluid variables of component "{}" with representation "{}"'
-              .format(component.name, component.representation))
-    # Extract scalar grids
-    δ_noghosts  = component.fluidvars['δ'].grid_noghosts
-    ux_noghosts = component.fluidvars['ux'].grid_noghosts
-    uy_noghosts = component.fluidvars['uy'].grid_noghosts
-    uz_noghosts = component.fluidvars['uz'].grid_noghosts
-    δ_Δ_noghosts = component.fluidvars['δ'].Δ_noghosts
-    ux_Δ_noghosts = component.fluidvars['ux'].Δ_noghosts
-    uy_Δ_noghosts = component.fluidvars['uy'].Δ_noghosts
-    uz_Δ_noghosts = component.fluidvars['uz'].Δ_noghosts
-    # Sizes of the grids
-    size_i = δ_noghosts.shape[0]
-    size_j = δ_noghosts.shape[1]
-    size_k = δ_noghosts.shape[2]
-    # Nullify the Δ buffers on all fluid variables
-    component.nullify_fluid_Δ()
-    # Compute whole step from the start, storing the step in the
-    # Δ buffers (that is, use grid as RHS and Δ as LHS).
-    # Ideally, the grid should be used as both LHS and RHS,
-    # removing the need for the Δ buffers. With the way LHS and RHS
-    # are implemented, this is not currently possible.
-    component.swap_fluid_LHS_RHS()
-    evolve_fluid(component, a_integrals, step_frac=1)
-    component.swap_fluid_LHS_RHS()
-    # Take the whole step
-    for i in range(size_i):
-        for j in range(size_j):
-            for k in range(size_k):
-                δ_noghosts[i, j, k]  +=  δ_Δ_noghosts[i, j, k] 
-                ux_noghosts[i, j, k] += ux_Δ_noghosts[i, j, k] 
-                uy_noghosts[i, j, k] += uy_Δ_noghosts[i, j, k] 
-                uz_noghosts[i, j, k] += uz_Δ_noghosts[i, j, k]
-
-# Function which evolves a fluid component forwards by one time step,
-# the size of which is defined by the scale factor integrals given.
-# The second-order Runge-Kutta midpoint method is used.
-@cython.header(# Arguments
-               component='Component',
-               a_integrals='dict',
-               # Locals
-               i='Py_ssize_t',
-               j='Py_ssize_t',
-               k='Py_ssize_t',
-               size_i='Py_ssize_t',
-               size_j='Py_ssize_t',
-               size_k='Py_ssize_t',
-               ux_noghosts='double[:, :, :]',
-               ux_Δ_noghosts='double[:, :, :]',
-               uy_noghosts='double[:, :, :]',
-               uy_Δ_noghosts='double[:, :, :]',
-               uz_noghosts='double[:, :, :]',
-               uz_Δ_noghosts='double[:, :, :]',
-               δ_noghosts='double[:, :, :]',
-               δ_Δ_noghosts='double[:, :, :]',
-               )
-def rk2_midpoint_fluid(component, a_integrals):
-    if component.representation != 'fluid':
-        abort('Cannot integrate fluid variables of component "{}" with representation "{}"'
-              .format(component.name, component.representation))
-    # Extract scalar grids
-    δ_noghosts    = component.fluidvars['δ'].grid_noghosts
-    δ_Δ_noghosts  = component.fluidvars['δ'].Δ_noghosts
-    ux_noghosts   = component.fluidvars['ux'].grid_noghosts
-    uy_noghosts   = component.fluidvars['uy'].grid_noghosts
-    uz_noghosts   = component.fluidvars['uz'].grid_noghosts
-    ux_Δ_noghosts = component.fluidvars['ux'].Δ_noghosts
-    uy_Δ_noghosts = component.fluidvars['uy'].Δ_noghosts
-    uz_Δ_noghosts = component.fluidvars['uz'].Δ_noghosts
-    # Sizes of the grids
-    size_i = δ_noghosts.shape[0] - 1
-    size_j = δ_noghosts.shape[1] - 1
-    size_k = δ_noghosts.shape[2] - 1
-    # Nullify the Δ buffers on all fluid variables
-    component.nullify_fluid_Δ()
-    # Compute half step from the start, storing the step in the
-    # Δ buffers (that is, use grid as RHS and Δ as LHS).
-    component.swap_fluid_LHS_RHS()
-    evolve_fluid(component, a_integrals, step_frac=0.5)
-    # Take the half step,
-    # storing the resulting fluid in the Δ buffers.
-    for i in range(size_i):
-        for j in range(size_j):
-            for k in range(size_k):
-                δ_Δ_noghosts[i, j, k]  +=  δ_noghosts[i, j, k]
-                ux_Δ_noghosts[i, j, k] += ux_noghosts[i, j, k]
-                uy_Δ_noghosts[i, j, k] += uy_noghosts[i, j, k]
-                uz_Δ_noghosts[i, j, k] += uz_noghosts[i, j, k]
-
-
-    δ_vacuum = -1 + 1e-6
-    for i in range(size_i):
-        for j in range(size_j):
-            for k in range(size_k):
-                if δ_Δ_noghosts[i, j, k] < -1:
-                    # masterprint('CORRECTING FOR NEGATIVE MASS first')
-                    Δδ = δ_vacuum - δ_Δ_noghosts[i, j, k]
-                    δ_Δ_noghosts[i, j, k] +=  Δδ
-                    δ_Δ_noghosts[mod(i - 1, component.gridsize), j, k] -= Δδ/6
-                    δ_Δ_noghosts[mod(i + 1, component.gridsize), j, k] -= Δδ/6
-                    δ_Δ_noghosts[i, mod(j - 1, component.gridsize), k] -= Δδ/6
-                    δ_Δ_noghosts[i, mod(j + 1, component.gridsize), k] -= Δδ/6
-                    δ_Δ_noghosts[i, j, mod(k - 1, component.gridsize)] -= Δδ/6
-                    δ_Δ_noghosts[i, j, mod(k + 1, component.gridsize)] -= Δδ/6
-                    masterwarn('REMOVED VACUUM')
-
-
-
-    # Compute whole step from the midpoint (the Δ buffers) and apply it
-    # at the beginning (the grids). That is, use Δ as the RHS and grid
-    # as the LHS.
-    component.swap_fluid_LHS_RHS()
-    evolve_fluid(component, a_integrals, step_frac=1)
-
-
-    for i in range(size_i):
-        for j in range(size_j):
-            for k in range(size_k):
-                if δ_noghosts[i, j, k] < -1:
-                    # masterprint('CORRECTING FOR NEGATIVE MASS second')
-                    Δδ = δ_vacuum - δ_noghosts[i, j, k]
-                    δ_noghosts[i, j, k] +=  Δδ
-                    δ_noghosts[mod(i - 1, component.gridsize), j, k] -= Δδ/6
-                    δ_noghosts[mod(i + 1, component.gridsize), j, k] -= Δδ/6
-                    δ_noghosts[i, mod(j - 1, component.gridsize), k] -= Δδ/6
-                    δ_noghosts[i, mod(j + 1, component.gridsize), k] -= Δδ/6
-                    δ_noghosts[i, j, mod(k - 1, component.gridsize)] -= Δδ/6
-                    δ_noghosts[i, j, mod(k + 1, component.gridsize)] -= Δδ/6
-                    masterwarn('REMOVED VACUUM')
-
-
-
-# Function which updates a fluid component using both the actual data
-# (grid) and the update buffer (Δ) of fluid scalars, controlled by
-# the LHS and RHS references on the fluid scalars.
-@cython.header(# Arguments
-               component='Component',
-               a_integrals='dict',
-               step_frac='double',
-               # Locals
-               LHS='double[:, :, :]',
-               RHS='double[:, :, :]',
-               RHS_mv='double[:, :, ::1]',
-               diffx_mv='double[:, :, ::1]',
-               diffy_mv='double[:, :, ::1]',
-               diffz_mv='double[:, :, ::1]',
-               fluidscalar='FluidScalar',
+               shape='tuple',
+               ϱ='double[:, :, ::1]',
+               ϱux='double[:, :, ::1]',
+               ϱuy='double[:, :, ::1]',
+               ϱuz='double[:, :, ::1]',
+               ϱˣ='double[:, :, ::1]',
+               ϱuxˣ='double[:, :, ::1]',
+               ϱuyˣ='double[:, :, ::1]',
+               ϱuzˣ='double[:, :, ::1]',
+               ϱ_ijk='double',
+               ϱux_ijk='double',
+               ϱuy_ijk='double',
+               ϱuz_ijk='double',
                h='double',
                i='Py_ssize_t',
-               integrals='dict',
                j='Py_ssize_t',
                k='Py_ssize_t',
-               size_i='Py_ssize_t',
-               size_j='Py_ssize_t',
-               size_k='Py_ssize_t',
-               ux_RHS='double[:, :, :]',
-               uy_RHS='double[:, :, :]',
-               uz_RHS='double[:, :, :]',
-               ux_diffx_mv='double[:, :, ::1]',
-               ux_diffy_mv='double[:, :, ::1]',
-               ux_diffz_mv='double[:, :, ::1]',
-               uy_diffx_mv='double[:, :, ::1]',
-               uy_diffy_mv='double[:, :, ::1]',
-               uy_diffz_mv='double[:, :, ::1]',
-               uz_diffx_mv='double[:, :, ::1]',
-               uz_diffy_mv='double[:, :, ::1]',
-               uz_diffz_mv='double[:, :, ::1]',
-               Δgravity_mv='double[:, :, ::1]',
-               δ_RHS='double[:, :, :]',
-               δ_diffx_mv='double[:, :, ::1]',
-               δ_diffy_mv='double[:, :, ::1]',
-               δ_diffz_mv='double[:, :, ::1]',
-               δ_noghosts='double[:, :, :]',
-               δ_Δ_noghosts='double[:, :, :]',
+               ϱux_source='double[:, :, ::1]',
+               ϱuy_source='double[:, :, ::1]',
+               ϱuz_source='double[:, :, ::1]',
+               indices_local_start='Py_ssize_t[::1]',
+               indices_local_end='Py_ssize_t[::1]',
+               indices_start='Py_ssize_t[::1]',
+               indices_end='Py_ssize_t[::1]',
+               step='int',
+               steps='int[::1]',
+               i_step='Py_ssize_t',
+               step_order='str',
+               ϱ_flux='double',
+               ϱux_flux='double',
+               ϱuy_flux='double',
+               ϱuz_flux='double',
+               ϱ_sjk ='double',
+               ϱ_isk ='double',
+               ϱ_ijs ='double',
+               Σϱu_ijk='double',
+               Σu_ijk='double',
+               ux_sjk='double',
+               uy_isk='double',
+               uz_ijs='double',
+               ϱux_sjk='double',
+               ϱuy_sjk='double',
+               ϱuz_sjk='double',
+               ϱux_isk='double',
+               ϱuy_isk='double',
+               ϱuz_isk='double',
+               ϱux_ijs='double',
+               ϱuy_ijs='double',
+               ϱuz_ijs='double',
                )
-def evolve_fluid(component, a_integrals, step_frac):
-    """Do not call this function directly. Instead call e.g. the
-    rk2_midpoint_fluid function which in turn calls this function.
+def maccormack(component, ᔑdt):
+    """First forward differencing and then backward differencing.
     """
-    if component.representation != 'fluid':
-        abort('Cannot evolve fluid variables of component "{}" with representation "{}"'
-              .format(component.name, component.representation))
-    # Version of a_integrals, scaled according to step_fac
-    integrals = {key: step_frac*val for key, val in a_integrals.items()}    
-    # Pre-tabulate all three differentiations of each fluid
-    # scalar and store the results in the
-    # designated diff buffers.
-    # The physical grid spacing h is the same in all directions.
+    # Parameters
+    step_order = 'forward, backward'
+    shape = component.fluidvars['shape']
     h = boxsize/component.gridsize
-    for fluidscalar in component.iterate_fluidvars():
-        # Extract memoryview of the grid
-        RHS_mv = fluidscalar.RHS_mv
-        # Communicate pseudo and ghost points of fluid grid
-        communicate_domain_boundaries(RHS_mv, mode=1)
-        communicate_domain_ghosts(RHS_mv)
-        # Do the differentiations
-        fluidscalar.nullify_diff()
-        diff(RHS_mv, 0, h, fluidscalar.diffx_mv, order=2)
-        diff(RHS_mv, 1, h, fluidscalar.diffy_mv, order=2)
-        diff(RHS_mv, 2, h, fluidscalar.diffz_mv, order=2)
-    # Extract RHS and diff scalar grids
-    δ_RHS       = component.fluidvars['δ'].RHS_noghosts
-    δ_diffx_mv  = component.fluidvars['δ'].diffx_mv
-    δ_diffy_mv  = component.fluidvars['δ'].diffy_mv
-    δ_diffz_mv  = component.fluidvars['δ'].diffz_mv
-    ux_RHS      = component.fluidvars['ux'].RHS_noghosts
-    ux_diffx_mv = component.fluidvars['ux'].diffx_mv
-    ux_diffy_mv = component.fluidvars['ux'].diffy_mv
-    ux_diffz_mv = component.fluidvars['ux'].diffz_mv
-    uy_RHS      = component.fluidvars['uy'].RHS_noghosts
-    uy_diffx_mv = component.fluidvars['uy'].diffx_mv
-    uy_diffy_mv = component.fluidvars['uy'].diffy_mv
-    uy_diffz_mv = component.fluidvars['uy'].diffz_mv
-    uz_RHS      = component.fluidvars['uz'].RHS_noghosts
-    uz_diffx_mv = component.fluidvars['uz'].diffx_mv
-    uz_diffy_mv = component.fluidvars['uz'].diffy_mv
-    uz_diffz_mv = component.fluidvars['uz'].diffz_mv
-    # Sizes of the grids
-    size_i = δ_RHS.shape[0] - 1
-    size_j = δ_RHS.shape[1] - 1
-    size_k = δ_RHS.shape[2] - 1
-    # Update the δ fluid variable
-    LHS = component.fluidvars['δ'].LHS_noghosts
-    for i in range(size_i):
-        for j in range(size_j):
-            for k in range(size_k):
-                # ∂ₜδ = -a⁻¹∇·([1 + δ]u)
-                #     = -a⁻¹(∇δ·u + (1 + δ)∇·u)
-                LHS[i, j, k] += -ℝ[integrals['a⁻¹']]*(+ δ_diffx_mv[i, j, k]*ux_RHS[i, j, k]
-                                                      + δ_diffy_mv[i, j, k]*uy_RHS[i, j, k]
-                                                      + δ_diffz_mv[i, j, k]*uz_RHS[i, j, k]
-                                                      + (1 + δ_RHS[i, j, k])*(+ ux_diffx_mv[i, j, k]
-                                                                              + uy_diffy_mv[i, j, k]
-                                                                              + uz_diffz_mv[i, j, k]
-                                                                              )
-                                                      )
-    # Update the u fluid variable
-    for fluidscalar in component.fluidvars['u']:
-        LHS = fluidscalar.LHS_noghosts
-        RHS = fluidscalar.RHS_noghosts
-        Δgravity_mv = fluidscalar.Δgravity_mv
-        diffx_mv    = fluidscalar.diffx_mv
-        diffy_mv    = fluidscalar.diffy_mv
-        diffz_mv    = fluidscalar.diffz_mv
-        for i in range(size_i):
-            for j in range(size_j):
-                for k in range(size_k):
-                    # ∂ₜu = -a⁻²∇φ - a⁻¹u·∇u - (ȧ/a)u
-                    LHS[i, j, k] += (# Gravitational term
-                                     step_frac*Δgravity_mv[i, j, k]
-                                     # Other terms
-                                     - ℝ[integrals['a⁻¹']]*(+ ux_RHS[i, j, k]*diffx_mv[i, j, k]
-                                                            + uy_RHS[i, j, k]*diffy_mv[i, j, k]
-                                                            + uz_RHS[i, j, k]*diffz_mv[i, j, k]
-                                                            )
-                                     - ℝ[integrals['ȧ/a']]*RHS[i, j, k]
+    # Arrays of start and end indices for the local part of the
+    # fluid grids, meaning disregarding pseudo points and ghost points.
+    # We have 2 ghost points in the beginning and 1 pseudo point and
+    # 2 ghost points in the end.
+    indices_local_start = asarray([2, 2, 2], dtype=C2np['Py_ssize_t'])
+    indices_local_end   = asarray(shape    , dtype=C2np['Py_ssize_t']) - 2 - 1
+    if step_order == 'forward, backward':
+        steps = asarray([+1, -1], dtype=C2np['int'])
+    elif step_order == 'backward, forward':
+        steps = asarray([-1, +1], dtype=C2np['int'])
+    # Extract fluid grids
+    ϱ = component.fluidvars['ϱ'].grid_mv
+    ϱux = component.fluidvars['ϱux'].grid_mv
+    ϱuy = component.fluidvars['ϱuy'].grid_mv
+    ϱuz = component.fluidvars['ϱuz'].grid_mv
+    # Extract starred fluid grids
+    ϱˣ = component.fluidvars['ϱ'].gridˣ_mv
+    ϱuxˣ = component.fluidvars['ϱux'].gridˣ_mv
+    ϱuyˣ = component.fluidvars['ϱuy'].gridˣ_mv
+    ϱuzˣ = component.fluidvars['ϱuz'].gridˣ_mv
+    # Extract needed source term grids
+    ϱux_source = component.fluidvars['ϱux'].source_mv
+    ϱuy_source = component.fluidvars['ϱuy'].source_mv
+    ϱuz_source = component.fluidvars['ϱuz'].source_mv
+    # Add source terms.
+    # In addition to local grid points, loop over 
+    # one layer of grid points in both directions.
+    for         i in range(ℤ[indices_local_start[0] - 1], ℤ[indices_local_end[0] + 1]):
+        for     j in range(ℤ[indices_local_start[1] - 1], ℤ[indices_local_end[1] + 1]):
+            for k in range(ℤ[indices_local_start[2] - 1], ℤ[indices_local_end[2] + 1]):
+                ϱux[i, j, k] += ℝ[ᔑdt['a⁻²']]*ϱux_source[i, j, k]
+                ϱuy[i, j, k] += ℝ[ᔑdt['a⁻²']]*ϱuy_source[i, j, k]
+                ϱuz[i, j, k] += ℝ[ᔑdt['a⁻²']]*ϱuz_source[i, j, k]
+    # Nullify the grids of the starred variables
+    component.nullify_fluid_gridˣ()
+    # The two MacCormack steps. Source terms will be added later.
+    for i_step in range(2):
+        step = steps[i_step]
+        # Determine which part of the grids to loop over
+        if i_step == 0:
+            # First step
+            if step == +1:  # forward, backward
+                # In addition to local grid points, loop over 
+                # one layer of grid points in the backward directions.
+                indices_start = asarray(indices_local_start) - 1
+                indices_end   = indices_local_end
+            elif step == -1:  # backward, forward
+                # In addition to local grid points, loop over 
+                # one layer of grid points in the forward directions.
+                indices_start = indices_local_start
+                indices_end   = asarray(indices_local_end) + 1
+        elif i_step == 1:
+            # Second step.
+            # Loop over local grid points only.
+            indices_start = indices_local_start
+            indices_end   = indices_local_end
+        # Loop which compute the starred variables from the unstarred
+        # (first step) or update the unstarred variables from the
+        # starred (second step).
+        for         i in range(ℤ[indices_start[0]], ℤ[indices_end[0]]):
+            for     j in range(ℤ[indices_start[1]], ℤ[indices_end[1]]):
+                for k in range(ℤ[indices_start[2]], ℤ[indices_end[2]]):
+                    # Density at this point
+                    ϱ_ijk = ϱ[i, j, k]
+                    # Density at forward (backward) points
+                    ϱ_sjk = ϱ[i + step, j       , k       ]
+                    ϱ_isk = ϱ[i       , j + step, k       ]
+                    ϱ_ijs = ϱ[i       , j       , k + step]
+                    # Momentum densities at this point
+                    ϱux_ijk = ϱux[i, j, k]
+                    ϱuy_ijk = ϱuy[i, j, k]
+                    ϱuz_ijk = ϱuz[i, j, k]
+                    Σϱu_ijk = ϱux_ijk + ϱuy_ijk + ϱuz_ijk
+                    # Momentum densities at forward (backward) points
+                    ϱux_sjk = ϱux[i + step, j       , k       ]
+                    ϱux_isk = ϱux[i       , j + step, k       ]
+                    ϱux_ijs = ϱux[i       , j       , k + step]
+                    ϱuy_sjk = ϱuy[i + step, j       , k       ]
+                    ϱuy_isk = ϱuy[i       , j + step, k       ]
+                    ϱuy_ijs = ϱuy[i       , j       , k + step]
+                    ϱuz_sjk = ϱuz[i + step, j       , k       ]
+                    ϱuz_isk = ϱuz[i       , j + step, k       ]
+                    ϱuz_ijs = ϱuz[i       , j       , k + step]
+                    # Velocity sum at this point
+                    Σu_ijk = Σϱu_ijk/ϱ_ijk
+                    # Velocities at forward (backward) points
+                    ux_sjk = ϱux_sjk/ϱ_sjk
+                    uy_isk = ϱuy_isk/ϱ_isk
+                    uz_ijs = ϱuz_ijs/ϱ_ijs
+                    # Flux of ϱ (ϱ*u)
+                    ϱ_flux = step*(# Forward fluxes
+                                   + ϱux_sjk
+                                   + ϱuy_isk
+                                   + ϱuz_ijs
+                                   # Local fluxes
+                                   - Σϱu_ijk
+                                   )
+                    # Flux of ϱux (ϱux*u)
+                    ϱux_flux = step*(# Forward fluxes
+                                     + ϱux_sjk*ux_sjk
+                                     + ϱux_isk*uy_isk
+                                     + ϱux_ijs*uz_ijs
+                                     # Local fluxes
+                                     - ϱux_ijk*Σu_ijk
                                      )
+                    # Flux of ϱuy (ϱuy*u)
+                    ϱuy_flux = step*(# Forward fluxes
+                                     + ϱuy_sjk*ux_sjk
+                                     + ϱuy_isk*uy_isk
+                                     + ϱuy_ijs*uz_ijs
+                                     # Local fluxes
+                                     - ϱuy_ijk*Σu_ijk
+                                     )
+                    # Flux of ϱuz (ϱuz*u)
+                    ϱuz_flux = step*(# Forward fluxes
+                                     + ϱuz_sjk*ux_sjk
+                                     + ϱuz_isk*uy_isk
+                                     + ϱuz_ijs*uz_ijs
+                                     # Local fluxes
+                                     - ϱuz_ijk*Σu_ijk
+                                     )
+                    # Update ϱ
+                    ϱˣ[i, j, k] += (# Initial value
+                                    + ϱ_ijk
+                                    # Flux
+                                    - ℝ[ᔑdt['a⁻¹']/h]*ϱ_flux
+                                    )
+                    # Update ϱux
+                    ϱuxˣ[i, j, k] += (# Initial value
+                                      + ϱux_ijk
+                                      # Flux
+                                      - ℝ[ᔑdt['a⁻¹']/h]*ϱux_flux
+                                      # Hubble drag
+                                      - ℝ[ᔑdt['ȧ/a']]*ϱux_ijk
+                                      )
+                    # Update ϱuy
+                    ϱuyˣ[i, j, k] += (# Initial value
+                                      + ϱuy_ijk
+                                      # Flux
+                                      - ℝ[ᔑdt['a⁻¹']/h]*ϱuy_flux
+                                      # Hubble drag
+                                      - ℝ[ᔑdt['ȧ/a']]*ϱuy_ijk
+                                      )
+                    # Update ϱuz
+                    ϱuzˣ[i, j, k] += (# Initial value
+                                      + ϱuz_ijk
+                                      # Flux
+                                      - ℝ[ᔑdt['a⁻¹']/h]*ϱuz_flux
+                                      # Hubble drag
+                                      - ℝ[ᔑdt['ȧ/a']]*ϱuz_ijk
+                                      )
+        # Swap the role of the fluid variable grids and buffers
+        ϱ  , ϱˣ   = ϱˣ  , ϱ
+        ϱux, ϱuxˣ = ϱuxˣ, ϱux
+        ϱuy, ϱuyˣ = ϱuyˣ, ϱuy
+        ϱuz, ϱuzˣ = ϱuzˣ, ϱuz
+    # Because the fluid variables have been updated twice
+    # (the two steps above), the values of the fluid grids
+    # need to be halved.
+    for         i in range(ℤ[indices_local_start[0]], ℤ[indices_local_end[0]]):
+        for     j in range(ℤ[indices_local_start[1]], ℤ[indices_local_end[1]]):
+            for k in range(ℤ[indices_local_start[2]], ℤ[indices_local_end[2]]):
+                ϱ  [i, j, k] *= 0.5
+                ϱux[i, j, k] *= 0.5
+                ϱuy[i, j, k] *= 0.5
+                ϱuz[i, j, k] *= 0.5

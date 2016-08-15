@@ -112,13 +112,12 @@ master = not rank
 # Print and abort functions #
 #############################
 # Function for printing messages as well as timed progress messages
-def masterprint(msg, *args, indent=0, end='\n', **kwargs):
+def masterprint(*args, indent=0, sep=' ', end='\n', fun=None, **kwargs):
     global progressprint_time, progressprint_length, progressprint_maxintervallength
     if not master:
         return
     terminal_resolution = 80
-    msg = str(msg)
-    if msg == 'done':
+    if args[0] == 'done':
         # End of progress message
         seconds = time() - progressprint_time
         # Construct the time interval with a sensible amount of
@@ -151,9 +150,9 @@ def masterprint(msg, *args, indent=0, end='\n', **kwargs):
         else:
             interval = interval.__str__()
         # Stitch text pieces together
-        text = ' done after {}{}'.format(interval,
-                                         (' ' + ' '.join([str(arg) for arg in args])) if args
-                                                                                      else '')
+        text = ' done after {}'.format(interval)
+        if len(args) > 1:
+            text += sep + sep.join([str(arg) for arg in args[1:]])
         # Convert to proper Unicode characters
         text = unicode(text)
         # The progressprint_maxintervallength variable store the length
@@ -164,13 +163,14 @@ def masterprint(msg, *args, indent=0, end='\n', **kwargs):
         # interval-messages lign up to the right.
         text = ' '*(terminal_resolution - progressprint_length
                                         - progressprint_maxintervallength) + text
+        # Apply supplied function to text
+        if fun:
+            text = fun(text)
         # Print out timing
         print(text, flush=True, end=end, **kwargs)
     else:
         # Stitch text pieces together
-        sep = kwargs.get('sep', ' ')
-        text = '{}{}'.format(msg,
-                             (sep + sep.join([str(arg) for arg in args])) if args else '')
+        text = sep.join([str(arg) for arg in args])
         # Convert to proper Unicode characters
         text = unicode(text)
         # Indent text
@@ -201,34 +201,32 @@ def masterprint(msg, *args, indent=0, end='\n', **kwargs):
                 text = ' '*indentation + ' '.join(partial_text)
             progressprint_length = len(text)
             end = ''
+        # Apply supplied function to text
+        if fun:
+            text = fun(text)
         # Print out message
         print(text, flush=True, end=end, **kwargs)
 progressprint_maxintervallength = len(' done after ??? ms')
 
 # Function for printing warnings
-def masterwarn(msg, *args, skipline=True, indent=0, prefix='Warning', end='\n', **kwargs):
+def masterwarn(*args, skipline=True, prefix='Warning', **kwargs):
     if not master:
         return
-    universals.any_warnings = True
-    # Stitch text pieces together
-    sep = kwargs.get('sep', ' ')
-    text = '{}: {}{}'.format(prefix,
-                             msg,
-                             (sep + sep.join([str(arg) for arg in args])) if args else '')
-    # Convert to proper Unicode characters
-    text = unicode(text)
-    # Indent text
-    text = ' '*indent + ('\n' + ' '*indent).join(text.split('\n'))
-    # Add initial newline if skipline == True
-    text = ('\n' if skipline else '') + text
+    try:
+        universals.any_warnings = True
+    except:
+        ...
+    # Add initial newline (if skipline == True) to prefix
+    # and append a colon.
+    prefix = ('\n' if skipline else '') + prefix + ':'
     # Print out message
-    print(terminal.bold_red(text), file=sys.stderr, flush=True, end=end, **kwargs)
+    masterprint(prefix, *args, fun=terminal.bold_red, file=sys.stderr, **kwargs)
 
 # Raised exceptions inside cdef functions do not generally propagte
 # out to the caller. In places where exceptions are normally raised
 # manualy, call this function with a descriptive message instead.
-def abort(msg='', *args, **kwargs):
-    masterwarn(msg, *args, prefix='Aborting', **kwargs)
+def abort(*args, **kwargs):
+    masterwarn(*args, prefix='Aborting', **kwargs)
     sys.stderr.flush()
     sys.stdout.flush()
     sleep(1)
@@ -368,14 +366,15 @@ if not cython.compiled:
                        arcsinh, arccosh, arctanh,
                        exp, log, log2, log10,
                        sqrt,
-                       round,
+                       ceil, round,
                        )
     from math import erf, erfc
-    # Dummy ℝ dict for constant expressions
+    # Dummy ℝ and ℤ dict for constant expressions
     class DummyDict(dict):
         def __getitem__(self, key):
             return key
     ℝ = DummyDict()
+    ℤ = DummyDict()
     # The cimport function, which in the case of pure Python should
     # simply execute the statements parsed to it as a string,
     # within the namespace of the call.
@@ -413,7 +412,7 @@ def build_struct(**kwargs):
             try:
                 kwargs[key] = eval(val, namespace)
             except:
-                pass
+                ...
     if not cython.compiled:
         # In pure Python, emulate a struct by a simple namespace
         struct = types.SimpleNamespace(**kwargs)
@@ -482,7 +481,7 @@ from libc.math cimport (sin, cos, tan,
                         atanh as arctanh,
                         exp, log, log2, log10,
                         sqrt, erf, erfc,
-                        round,
+                        ceil, round,
                         )
 """
 
@@ -528,7 +527,7 @@ def asciify(s):
                 in_unicode_char = False
                 unicode_char = ''
             except:
-                pass
+                ...
         else:
             # ASCII
             char_list.append(c)
@@ -704,34 +703,33 @@ unit_mass_relations = {'m_sun' : 1,
 # to get any user defined units, as the parameter file will
 # be properly read in later. First construct a namespace in which the
 # parameters can be read in.
-params = vars(np)
-params.update({# The paths dict
-               'paths': paths,
-               # Modules
-               'numpy': np,
-               'np'   : np,
-               'os'   : os,
-               're'   : re,
-               'sys'  : sys,
-               # Constants
-               'machine_ϵ' : machine_ϵ,
-               'eps'       : machine_ϵ,
-               'inf'       : inf,
-               'pi'        : π,
-               unicode('π'): π,
-               })
-# Add units to the params namespace. These do not represent the choice
-# of units; the names should merely exist to avoid errors when reading
-# the parameter file.
-params.update(unit_length_relations)
-params.update(unit_time_relations)
-params.update(unit_mass_relations)
+user_params = dict(vars(np))
+user_params.update({# The paths dict
+                    'paths': paths,
+                    # Modules
+                    'numpy': np,
+                    'np'   : np,
+                    'os'   : os,
+                    're'   : re,
+                    'sys'  : sys,
+                    # Constants
+                    'machine_ϵ' : machine_ϵ,
+                    'eps'       : machine_ϵ,
+                    'inf'       : inf,
+                    unicode('π'): π,
+                    })
+# Add units to the user_params namespace.
+# These do not represent the choice of units; the names should merely
+# exist to avoid errors when reading the parameter file.
+user_params.update(unit_length_relations)
+user_params.update(unit_time_relations)
+user_params.update(unit_mass_relations)
 # Now do the actual read of the parameters
 # in order to get the user defined units.
 if os.path.isfile(paths['params']):
     with open(paths['params'], encoding='utf-8') as params_file:
         with contextlib.suppress(Exception):
-            exec(params_file.read(), params)
+            exec(params_file.read(), user_params)
 # The names of the three fundamental units,
 # all with a numerical value of 1. If these are not defined in the
 # parameter file, give them some reasonable values.
@@ -739,9 +737,9 @@ cython.declare(unit_length='str',
                unit_time='str',
                unit_mass='str',
                )
-unit_length = params.get('unit_length', 'Mpc')
-unit_time   = params.get('unit_time',   'Gyr')
-unit_mass   = params.get('unit_mass',   '1e+10*m_sun')
+unit_length = user_params.get('unit_length', 'Mpc')
+unit_time   = user_params.get('unit_time',   'Gyr')
+unit_mass   = user_params.get('unit_mass',   '1e+10*m_sun')
 # Construct a struct containing the values of all units
 units, units_dict = build_struct(# Values of basic units,
                                  # determined from the choice of fundamental units.
@@ -776,7 +774,59 @@ units, units_dict = build_struct(# Values of basic units,
                                  g       = ('double', 'unit_mass_relations["g"]*m_sun'),
                                  )
 
-
+# Function which converts a string of units to the
+# corresponding numerical value.
+@cython.header(# Arguments
+               unit_str='str',
+               # Locals
+               c='str',
+               i='Py_ssize_t',
+               key='str',
+               mapping='dict',
+               pat='str',
+               previous='str',
+               rep='str',
+               superscript_ASCII='str',
+               superscript_unicode='str',
+               unit='double',
+               unit_list='list',
+               returns='double',
+               )
+def evaluate_unit(unit_str):
+    """Example unit_str: 'm☉ Mpc Gyr⁻¹'
+    """
+    # Mapping of replacement in unit_str
+    mapping = {' ' : '*',
+               'm☉': 'm_sun',
+               }
+    # Do replacements
+    for pat, rep in mapping.items():
+        unit_str = unit_str.replace(pat, rep)
+    # Construct list of single unicode characters
+    unit_list = list(unicode(unit_str))
+    # Place '**' before and parentheses around superscripts.
+    # This alters the elements of unit_list.
+    for i, c in enumerate(unit_list):
+        for superscript_ASCII, superscript_unicode in unicode_superscripts.items():
+            if c == superscript_unicode:
+                # Convert to ASCII
+                unit_list[i] = superscript_ASCII
+                # Insert '**(' if first character of exponent 
+                previous = unit_list[i - 1]
+                if len(previous) > 1:
+                    previous = previous[len(previous) - 1]
+                if previous not in '+-0123456789':
+                    unit_list[i] = '**(' + unit_list[i]
+                # Insert ')' if last character of exponent
+                if (   i + 1 == len(unit_list)
+                    or unit_list[i + 1] not in unicode_superscripts.values()):
+                    unit_list[i] += ')'
+                break
+    # Transformation done
+    unit_str = ''.join(unit_list)
+    # Evaluate the transformed unit string
+    unit = eval(unit_str, units_dict)
+    return unit
 
 ################################################################
 # Import all user specified parameters from the parameter file #
@@ -785,61 +835,89 @@ units, units_dict = build_struct(# Values of basic units,
 # (and cast iterables to lists).
 def any2iter(val):
     return list(val) if hasattr(val, '__iter__') and not hasattr(val, '__len__') else np.ravel(val)
-# Subclass the dict to create a dict-likeobject which keeps track of the
-# number of lookups on each key. This is used to identify unknown
+# Subclass the dict to create a dict-like object which keeps track of
+# the number of lookups on each key. This is used to identify unknown
 # (and therefore unused) parameters defined by the user.
+# Transform all keys to unicode during lookups and assignments.
 class DictWithCounter(dict):
     def __init__(self, d):
         self.counter = collections.defaultdict(int)
         super().__init__(d)
+    # Lookup methods, which increase the count by 1
     def __getitem__(self, key):
+        key = unicode(key)
         self.counter[key] += 1
         return super().__getitem__(key)
     def get(self, key, default=None):
-        if key in self:
-            self.counter[key] += 1
+        key = unicode(key)
+        self.counter[key] += 1
         return super().get(key, default)
+    def __contains__(self, key):
+        key = unicode(key)
+        self.counter[key] += 1
+        return super().__contains__(key)
+    # Other methods
+    def __setitem__(self, key, value):
+        key = unicode(key)
+        return super().__setitem__(key, value)
+    def use(self, key):
+        key = unicode(key)
+        self.counter[key] += 1
     def useall(self):
         for key in self.keys():
-            self.counter[key] += 1
+            self.use(key)
+    # def unuse(self, key):
+        # self.use(key, times=-1)
     # List of specified but unused parameters, not including parameters
     # starting with an '_'.
     @property
     def unused(self):
-        return [key for key in self.keys() if self.counter[key] == 0 and not key.startswith('_')]
+        list_of_unused = []
+        for key in self.keys():
+            key = unicode(key)
+            if self.counter[key] < 1 and not key.startswith('_'):
+                list_of_unused.append(key)
+        return list_of_unused
 # Dict-like object constituting the namespace for the statements
 # in the user specified parameter file.
+# Note that the previously defined user_params is overwritten.
 # Everything from NumPy should be available when defining parameters.
-params = DictWithCounter(vars(np))
-# Units from the units extension type should be available
+user_params = DictWithCounter(dict(vars(np)))
+# Units from the units struct should be available
 # when defining parameters.
-params.update(units_dict)
+user_params.update(units_dict)
 # Additional things which should be available when defining parameters
-params.update({# The paths dict
-               'paths': paths,
-               # Modules
-               'numpy': np,
-               'np'   : np,
-               'os'   : os,
-               're'   : re,
-               'sys'  : sys,
-               # Constants
-               'machine_ϵ' : machine_ϵ,
-               'eps'       : machine_ϵ,
-               'pi'        : π,
-               unicode('π'): π,
-               })
-# At this point params does not contain actual parameters.
-# Mark all items in params as used.
-params.useall()
+user_params.update({# The paths dict
+                    'paths': paths,
+                    # Modules
+                    'numpy': np,
+                    'np'   : np,
+                    'os'   : os,
+                    're'   : re,
+                    'sys'  : sys,
+                    # Constants
+                    'machine_ϵ' : machine_ϵ,
+                    'eps'       : machine_ϵ,
+                    'inf'       : inf,
+                    unicode('π'): π,
+                    })
+# At this point, user_params does not contain actual parameters.
+# Mark all items in user_params as used.
+user_params.useall()
 # "Import" the parameter file by executing it
-# in the namespace defined by the params dict.
+# in the namespace defined by the user_params namespace.
 if os.path.isfile(paths['params']):
     with open(paths['params'], encoding='utf-8') as params_file:
-        exec(params_file.read(), params)
+        exec(params_file.read(), user_params)
+# Insert asciify'ed versions of 
+# for key in dict(user_params).keys():
+#     ascii_key = asciify(key)
+#     if ascii_key != key:
+#         user_params[ascii_key] = user_params[key]
+#         user_params.unuse(key)
 # Also mark the unit-parameters as used
 for u in ('length', 'time', 'mass'):
-    params.counter['unit_{}'.format(u)] += 1
+    user_params.use('unit_{}'.format(u))
 # The parameters are now being processed as follows:
 # - Some parameters are explicitly casted.
 # - Spaces are removed from the 'snapshot_type' parameter, and all
@@ -882,6 +960,7 @@ cython.declare(# Input/output
                # Cosmological parameters
                H0='double',
                Ωm='double',
+               Ωr='double',
                ΩΛ='double',
                a_begin='double',
                t_begin='double',
@@ -907,21 +986,21 @@ cython.declare(# Input/output
                special_params='dict',
                )
 # Input/output
-IC_file = sensible_path(str(params.get('IC_file', '')))
-snapshot_type = (str(params.get('snapshot_type', 'standard'))
+IC_file = sensible_path(str(user_params.get('IC_file', '')))
+snapshot_type = (str(user_params.get('snapshot_type', 'standard'))
                  .lower().replace(' ', ''))
 if master and snapshot_type not in ('standard', 'gadget2'):
-    abort('Does not recognize snapshot type "{}"'.format(params['snapshot_type']))
-output_dirs = dict(params.get('output_dirs', {}))
+    abort('Does not recognize snapshot type "{}"'.format(user_params['snapshot_type']))
+output_dirs = dict(user_params.get('output_dirs', {}))
 for kind in ('snapshot', 'powerspec', 'render'):
     output_dirs[kind] = str(output_dirs.get(kind, paths['output_dir']))
     if not output_dirs[kind]:
         output_dirs[kind] = paths['output_dir']
 output_dirs = {key: sensible_path(path) for key, path in output_dirs.items()}
-output_bases = dict(params.get('output_bases', {}))
+output_bases = dict(user_params.get('output_bases', {}))
 for kind in ('snapshot', 'powerspec', 'render'):
     output_bases[kind] = str(output_bases.get(kind, kind))
-output_times = dict(params.get('output_times', {}))
+output_times = dict(user_params.get('output_times', {}))
 # Output times not explicitly written as either of type 'a' or 't'
 # is understood as being of type 'a'.
 for time_param in ('a', 't'):
@@ -933,103 +1012,89 @@ for time_param in ('a', 't'):
     output_times[time_param] = dict(output_times.get(time_param, {}))
     for kind in ('snapshot', 'powerspec', 'render', 'terminal render'):
         output_times[time_param][kind] = output_times[time_param].get(kind, ())
-output_times = {time_param: {key: tuple(sorted(set([float(nr) for nr in any2iter(val)
+output_times = {time_param: {key: tuple(sorted(set([float(eval(nr, units_dict) if isinstance(nr, str) else nr)
+                                                    for nr in any2iter(val)
                                                     if nr or nr == 0])))
                              for key, val in output_times[time_param].items()}
                 for time_param in ('a', 't')}
 powerspec_select = {}
-if 'powerspec_select' in params:
-    if isinstance(params['powerspec_select'], dict):
-        powerspec_select = params['powerspec_select']
+if 'powerspec_select' in user_params:
+    if isinstance(user_params['powerspec_select'], dict):
+        powerspec_select = user_params['powerspec_select']
     else:
-        powerspec_select = {'all': bool(params['powerspec_select'])}
+        powerspec_select = {'all': bool(user_params['powerspec_select'])}
 powerspec_select = {key.lower(): bool(val) for key, val in powerspec_select.items()}
 powerspec_plot_select = {}
-if 'powerspec_plot_select' in params:
-    if isinstance(params['powerspec_plot_select'], dict):
-        powerspec_plot_select = params['powerspec_plot_select']
+if 'powerspec_plot_select' in user_params:
+    if isinstance(user_params['powerspec_plot_select'], dict):
+        powerspec_plot_select = user_params['powerspec_plot_select']
     else:
-        powerspec_plot_select = {'all': bool(params['powerspec_plot_select'])}
+        powerspec_plot_select = {'all': bool(user_params['powerspec_plot_select'])}
 powerspec_plot_select = {key.lower(): bool(val) for key, val in powerspec_plot_select.items()}
 render_select = {}
-if 'render_select' in params:
-    if isinstance(params['render_select'], dict):
-        render_select = params['render_select']
+if 'render_select' in user_params:
+    if isinstance(user_params['render_select'], dict):
+        render_select = user_params['render_select']
     else:
-        render_select = {'all': bool(params['render_select'])}
+        render_select = {'all': bool(user_params['render_select'])}
 render_select = {key.lower(): bool(val) for key, val in render_select.items()}
 # Numerical parameters
-boxsize = float(params.get('boxsize', 1))
-ewald_gridsize = int(params.get('ewald_gridsize', 64))
-φ_gridsize = int(params.get(unicode('φ_gridsize'), 64))
-P3M_scale = float(params.get('P3M_scale', 1.25))
-P3M_cutoff = float(params.get('P3M_cutoff', 4.8))
-softeningfactors = dict(params.get('softeningfactors', {}))
+boxsize = float(user_params.get('boxsize', 1))
+ewald_gridsize = int(user_params.get('ewald_gridsize', 64))
+φ_gridsize = int(user_params.get('φ_gridsize', 64))
+P3M_scale = float(user_params.get('P3M_scale', 1.25))
+P3M_cutoff = float(user_params.get('P3M_cutoff', 4.8))
+softeningfactors = dict(user_params.get('softeningfactors', {}))
 for kind in ('dark matter particles', ):
     softeningfactors[kind] = float(softeningfactors.get(kind, 0.03))
-Δt_factor = float(params.get(unicode('Δt_factor'), 0.01))
-R_tophat = float(params.get('R_tophat', 8*units.Mpc))
+Δt_factor = float(user_params.get('Δt_factor', 0.01))
+R_tophat = float(user_params.get('R_tophat', 8*units.Mpc))
 # Cosmological parameters
-H0 = float(params.get('H0', 70*units.km/(units.s*units.Mpc)))
-Ωm = float(params.get(unicode('Ωm'), 0.3))
-ΩΛ = float(params.get(unicode('ΩΛ'), 0.7))
-a_begin = float(params.get('a_begin', -1))
-t_begin = float(params.get('t_begin', -1))
+H0 = float(user_params.get('H0', 70*units.km/(units.s*units.Mpc)))
+Ωr = float(user_params.get('Ωr', 0))
+Ωm = float(user_params.get('Ωm', 0.3))
+ΩΛ = float(user_params.get('ΩΛ', 0.7))
+a_begin = float(user_params.get('a_begin', 1))
+t_begin = float(user_params.get('t_begin', 0))
 # Graphics
-if isinstance(params.get('render_colors', {}), dict):
-    render_colors = params.get('render_colors', {})
-elif to_rgb(params['render_colors'])[0] != -1:
-    render_colors = {'all': to_rgb(params['render_colors'])}
+if isinstance(user_params.get('render_colors', {}), dict):
+    render_colors = user_params.get('render_colors', {})
+elif to_rgb(user_params['render_colors'])[0] != -1:
+    render_colors = {'all': to_rgb(user_params['render_colors'])}
 else:
-    render_colors = dict(params['render_colors'])
+    render_colors = dict(user_params['render_colors'])
 render_colors = {key.lower(): to_rgb(val) for key, val in render_colors.items()}
-bgcolor = to_rgb(params.get('bgcolor', 'black'))
-resolution = int(params.get('resolution', 1080))
-liverender = sensible_path(str(params.get('liverender', '')))
+bgcolor = to_rgb(user_params.get('bgcolor', 'black'))
+resolution = int(user_params.get('resolution', 1080))
+liverender = sensible_path(str(user_params.get('liverender', '')))
 if liverender and not liverender.endswith('.png'):
     liverender += '.png'
-remote_liverender = str(params.get('remote_liverender', ''))
+remote_liverender = str(user_params.get('remote_liverender', ''))
 if remote_liverender and not remote_liverender.endswith('.png'):
     remote_liverender += '.png'
-terminal_render_colormap = str(params.get('terminal_render_colormap', 'gnuplot2'))
-terminal_render_resolution = int(params.get('terminal_render_resolution', 80))
+terminal_render_colormap = str(user_params.get('terminal_render_colormap', 'gnuplot2'))
+terminal_render_resolution = int(user_params.get('terminal_render_resolution', 80))
 # Simulation options
-kick_algorithms = dict(params.get('kick_algorithms', {}))
-if (   unicode('φ_gridsize') in params
+kick_algorithms = dict(user_params.get('kick_algorithms', {}))
+if (   'φ_gridsize' in user_params
     or (set(('PM', 'P3M')) & set(kick_algorithms.values()))
     or any([output_times[time_param]['powerspec'] for time_param in ('a', 't')])):
-    use_φ = bool(params.get(unicode('use_φ'), True))
+    use_φ = bool(user_params.get('use_φ', True))
 else:
-    use_φ = bool(params.get(unicode('use_φ'), False))
+    use_φ = bool(user_params.get('use_φ', False))
 if 'P3M' in kick_algorithms.values():
-    use_P3M = bool(params.get('use_P3M', True))
+    use_P3M = bool(user_params.get('use_P3M', True))
 else:
-    use_P3M = bool(params.get('use_P3M', False))
-fftw_rigor = params.get('fftw_rigor', 'estimate').lower()
-if master and fftw_rigor not in ('estimate', 'measure', 'patient', 'exhaustive'):
-    abort('Does not recognize FFTW rigor "{}"'.format(params['fftw_rigor']))
+    use_P3M = bool(user_params.get('use_P3M', False))
+fftw_rigor = user_params.get('fftw_rigor', 'estimate').lower()
 # Debugging options
-enable_debugging = bool(params.get('enable_debugging', False))
-enable_Ewald = bool(params.get('enable_Ewald',
-                               True if 'PP' in kick_algorithms.values() else False))
-enable_gravity = bool(params.get('enable_gravity', True))
-enable_Hubble = bool(params.get('enable_Hubble', True))
+enable_debugging = bool(user_params.get('enable_debugging', False))
+enable_Ewald = bool(user_params.get('enable_Ewald',
+                                    True if 'PP' in kick_algorithms.values() else False))
+enable_gravity = bool(user_params.get('enable_gravity', True))
+enable_Hubble = bool(user_params.get('enable_Hubble', True))
 # Extra hidden parameters via the special_params variable
-special_params = dict(params.get('special_params', {}))
-
-# Output times very close to a_begin are probably meant to be at a_begin
-output_times['a'] = {key: tuple([(a_begin if np.abs((nr - a_begin)/a_begin) < 1e-12 else nr)
-                                 for nr in val])
-                     for key, val in output_times['a'].items()}
-
-# Done reading in parameters.
-# Warn the user about specified but unknown parameters.
-if params.unused:
-    if len(params.unused) == 1:
-        msg = 'The following unknown parameter was specified:\n'
-    else:
-        msg = 'The following unknown parameters were specified:\n'
-    masterwarn(msg + '\n'.join(params.unused))
+special_params = dict(user_params.get('special_params', {}))
 
 
 
@@ -1042,6 +1107,20 @@ cython.declare(vector='double*',
                )
 vector = malloc(3*sizeof('double'))
 vector_mv = cast(vector, 'double[:3]')
+
+
+
+##############
+# Universals #
+##############
+# Universals are non-constant cross-module level global variables.
+# These are stored in the following struct.
+universals, _ = build_struct(# Flag specifying whether or not any warnings have been given
+                             any_warnings=('bint', False),
+                             # Scale factor and cosmic time
+                             a=('double', a_begin),
+                             t=('double', t_begin),
+                             )
 
 
 
@@ -1064,8 +1143,8 @@ cython.declare(G_Newton='double',
                snapshot_base='str',
                snapshot_times='dict',
                terminal_render_times='dict',
-               ϱ='double',
-               ϱm='double',
+               ϱbar='double',
+               ϱmbar='double',
                PM_fac_const='double',
                longrange_exponent_fac='double',
                P3M_cutoff_phys='double',
@@ -1090,9 +1169,9 @@ terminal_render_times = {time_param: output_times[time_param]['terminal render']
 G_Newton = 6.6738e-11*units.m**3/units.kg/units.s**2
 # The average, comoing density (the critical
 # comoving density since we only study flat universes)
-ϱ = 3*H0**2/(8*π*G_Newton)
+ϱbar = 3*H0**2/(8*π*G_Newton)
 # The average, comoving matter density
-ϱm = Ωm*ϱ
+ϱmbar = Ωm*ϱbar
 # The real size of the padded (last) dimension of global slab grid
 slab_size_padding = 2*(φ_gridsize//2 + 1)
 # Half of φ_gridsize (use of the ℝ-syntax requires doubles)
@@ -1134,20 +1213,6 @@ scp_host = re.search('@(.*):', remote_liverender).group(1) if remote_liverender 
 
 
 
-##############
-# Universals #
-##############
-# Universals are non-constant cross-module level global variables.
-# These are stored in the following struct.
-universals, _ = build_struct(# Flag specifying whether or not any warnings have been given
-                             any_warnings=('bint', False),
-                             # Scale factor and cosmic time
-                             a=('double', a_begin),
-                             t=('double', t_begin),
-                             )
-
-
-
 ############################
 # Custom defined functions #
 ############################
@@ -1181,6 +1246,16 @@ else:
                 m = a[i]
         return m
     """
+
+# Max function for 2 numbers
+@cython.header(a=number,
+               b=number,
+               returns=number,
+               )
+def pairmax(a, b):
+    if a > b:
+        return a
+    return b
 
 # Min function for 1D memory views of numbers
 if not cython.compiled:
@@ -1291,7 +1366,7 @@ def sinc(x):
                )
 def isclose(a, b, rel_tol=1e-9, abs_tol=0):
     size_a, size_b = abs(a), abs(b)
-    if size_a >= size_b:
+    if size_a > size_b:
         tol = rel_tol*size_a
     else:
         tol = rel_tol*size_b
@@ -1309,11 +1384,8 @@ def isclose(a, b, rel_tol=1e-9, abs_tol=0):
 def isint(x, abs_tol=1e-6):
     return isclose(x, round(x), 0, abs_tol)
 
-# This function formats a floating point number to have nfigs
-# significant figures. Set fmt to 'TeX' to format to TeX math code
-# (e.g. '1.234\times 10^{-5}') or 'Unicode' to format to superscript
-# Unicode (e.g. 1.234×10⁻⁵).
-# Set incl_zeros to False to avoid zero-padding.
+# Function which format numbers to have a
+# specific number of significant figures.
 @cython.pheader(# Arguments
                 number='double',
                 nfigs='int',
@@ -1325,10 +1397,20 @@ def isint(x, abs_tol=1e-6):
                 number_str='str',
                 returns='str',
                 )
-def significant_figures(number, nfigs, fmt='', incl_zeros=True):
+def significant_figures(number, nfigs, fmt='', incl_zeros=True, scientific=False):
+    """This function formats a floating point number to have nfigs
+    significant figures.
+    Set fmt to 'TeX' to format to TeX math code
+    (e.g. '1.234\times 10^{-5}') or 'Unicode' to format to superscript
+    Unicode (e.g. 1.234×10⁻⁵).
+    Set incl_zeros to False to avoid zero-padding.
+    Set scientific to True to force scientific notation.
+    """
     fmt = fmt.lower()
+    if fmt not in ('', 'tex', 'unicode'):
+        abort('Formatting mode "{}" not understood'.format(fmt))
     # Format the number using nfigs
-    number_str = ('{:.' + str(nfigs) + 'g}').format(number)
+    number_str = ('{:.' + str(nfigs) + ('e' if scientific else 'g') + '}').format(number)
     # Handle the exponent
     if 'e' in number_str:
         e_index = number_str.index('e')
@@ -1348,6 +1430,10 @@ def significant_figures(number, nfigs, fmt='', incl_zeros=True):
     else:
         coefficient = number_str
         exponent = ''
+    # Remove coefficient if it is just 1 (as in 1×10¹⁰ --> 10¹⁰)
+    if coefficient == '1' and exponent and fmt in ('tex', 'unicode') and not scientific:
+        coefficient = ''
+        exponent = exponent.replace(r'\times ', '').replace(unicode('×'), '')
     # Pad with zeros in case of too few significant digits
     if incl_zeros:
         digits = coefficient.replace('.', '').replace('-', '')
@@ -1370,3 +1456,41 @@ def significant_figures(number, nfigs, fmt='', incl_zeros=True):
         number_str = number_str.replace('.', '$.$')
     return number_str
 
+
+
+####################################################
+# Sanity checks and corrections to user parameters #
+####################################################
+if master and fftw_rigor not in ('estimate', 'measure', 'patient', 'exhaustive'):
+    abort('Does not recognize FFTW rigor "{}"'.format(user_params['fftw_rigor']))
+# Warn about unused but specified parameters.
+if user_params.unused:
+    if len(user_params.unused) == 1:
+        msg = 'The following unknown parameter was specified:\n'
+    else:
+        msg = 'The following unknown parameters were specified:\n'
+    masterwarn(msg + '\n'.join(user_params.unused))
+# Warn about non-flat geometry due to Ωr + Ωm + ΩΛ ≠ 1
+if not isclose(Ωr + Ωm + ΩΛ, 1, rel_tol=0, abs_tol=1e-4):
+    masterwarn('The density parameters '
+               'Ωr = {:.4g}, '
+               'Ωm = {:.4g}, '
+               'ΩΛ = {:.4g} '
+               'add up to {:.4g} ≠ 1, implying a non-flat geometry. '
+               'Only flat geometries are properly handled by the code.'
+               .format(Ωr, Ωm, ΩΛ, Ωr + Ωm + ΩΛ)
+               )
+# Output times very close to t_begin or a_begin
+# are probably meant to be exactly at t_begin or a_begin
+for time_param in ('t', 'a'):
+    output_times[time_param] = {key: tuple([a_begin if isclose(float(nr), a_begin) else nr
+                                            for nr in val])
+                                for key, val in output_times[time_param].items()}
+snapshot_times        = {time_param: output_times[time_param]['snapshot'] 
+                         for time_param in ('a', 't')}
+powerspec_times       = {time_param: output_times[time_param]['powerspec'] 
+                         for time_param in ('a', 't')}
+render_times          = {time_param: output_times[time_param]['render'] 
+                         for time_param in ('a', 't')}
+terminal_render_times = {time_param: output_times[time_param]['terminal render'] 
+                         for time_param in ('a', 't')}

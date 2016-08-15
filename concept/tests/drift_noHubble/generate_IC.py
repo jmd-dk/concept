@@ -33,7 +33,7 @@ from snapshot import save
 
 # Create the particles
 N = 1
-mass = Ωm*ϱ*boxsize**3/N
+mass = ϱmbar*boxsize**3/N
 particles = Component('test particles', 'dark matter particles', N, mass)
 particles.populate(np.array([0.75])*boxsize, 'posx')
 particles.populate(np.array([0.75])*boxsize, 'posy')

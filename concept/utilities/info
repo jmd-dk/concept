@@ -15,7 +15,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
-#
+#me $
 # The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
@@ -26,12 +26,12 @@
 # More specifically, it prints the meta data contained in the snapshot
 # (everything except the actual component data).
 # You can run this file directly as
-# utilities/info path [--generate-paramsfile]
+# utilities/info path [--generate-params [paramsdir]]
 # or invoke it via the concept script as
-# ./concept --util info path [--generate-paramsfile]
+# ./concept --util info path [--generate-params [paramsdir]]
 # In both cases, path is the path to a snapshot file
 # or a directory containing snapshot files.
-# When the --generate-paramsfile flag is set, only the global
+# When the --generate-params flag is set, only the global
 # parameters which goes into a parameter file will be printed,
 # and in a format understandable by CO𝘕CEPT.
 
@@ -52,7 +52,7 @@ ctrl_c()
 }
 abort()
 {
-    colorprint "An error occurred while using the \"$(basename ${this_file})\" utility!" "red"
+    colorprint "An error occurred while using the \"$(basename "${this_file}")\" utility!" "red"
     exit 1
 }
 if [ "${called_from_concept}" == "True" ]; then
@@ -65,15 +65,17 @@ fi
 args=$("${python}" -c "
 import argparse, sys
 # Setup command-line arguments
-parser = argparse.ArgumentParser(prog='$(basename ${this_file})',
-                                 description='Run the CO𝘕CEPT $(basename ${this_file}) utility')
+parser = argparse.ArgumentParser(prog='$(basename "${this_file}")',
+                                 description='Run the CO𝘕CEPT $(basename "${this_file}") utility')
 parser.add_argument('path',
                     help='path to snapshot or directory of snapshots',
                     )
-parser.add_argument('-g', '--generate-paramsfile',
-                    help='Only print out the global parameters which goes into a parameter file',
+parser.add_argument('-g', '--generate-params',
+                    nargs='?',
+                    help=('generate parameter file(s) from snapshot(s). Where to save '
+                          'the parameter file(s) can be specified as the second argument'),
+                    const='${params_dir}',
                     default=False,
-                    action='store_true',
                     )
 # Enables Python to write directly to screen (stderr)
 # in case of help request.
@@ -92,11 +94,11 @@ else:
 sys.stdout = stdout_copy
 # Print out the arguments.
 # These will be captured in the Bash 'args' variable.
-print('argparse_finished=yes'                                   + ';',
-      'path=\"{}\"'.format(args.path)                           + ';',
-      'generate_paramsfile={}'.format(args.generate_paramsfile) + ';',
+print('argparse_finished=yes'                           + ';',
+      'path=\"{}\"'.format(args.path)                   + ';',
+      'generate_params={}'.format(args.generate_params) + ';',
       )
-" "$@")
+" "$@" || :)
 # Evaluate the handled arguments into this scope
 eval "${args}"
 # Exit if argparse exited without finishing
@@ -108,7 +110,7 @@ fi
 # If not called indirectly through the concept script,
 # call the concept script now.
 if [ "${called_from_concept}" != "True" ]; then
-    "${this_dir}/../concept" --util "${this_file}" "$@"
+    "${concept}" --util "${this_file}" "$@"
     trap : 0
     exit 0
 fi
@@ -122,26 +124,35 @@ fi
 # Convert to absolute path
 path="$(absolute_path "${path}" "${workdir}")"
 
+# If supplied, convert parameter directory to absolute path
+# and put it in quotes. 
+if [ "${generate_params}" != "False" ]; then
+    generate_params="\'$(absolute_path "${generate_params}" "${workdir}")\'"
+fi
+
 # Make temporary parameter file with every information needed
+mkdir -p "${this_dir}/params"
+params_filename="${this_dir}/params/$(basename "${this_file}").params"
 printf "special_params = {
-    'special'            : '$(basename ${this_file})',
-    'generate paramsfile': ${generate_paramsfile},
-    'path'               : '${path}',
+    'special'        : '$(basename "${this_file}")',
+    'generate params': ${generate_params},
+    'path'           : '${path}',
                   }
 $(cat "${params}")
-" > "${this_file}.params.full"
+" > "${params_filename}"
 
 # Run CO𝘕CEPT to printout the snapshot information.
 # Always run locally using 1 process.
 "${concept}" -m "${main}"                  \
              -n 1                          \
-             -p "${this_file}.params.full" \
-             --local ${pure_python_flag}
+             -p "${params_filename}"       \
+             --local                       \
+             ${pure_python_flag}
 
 # Cleanup
-rm -f "${this_file}.params.full"
+rm -f "${params_filename}"
 
 # Exit gracefully
-colorprint "$(basename ${this_file}) utility ran successfully" "green"
+colorprint "$(basename "${this_file}") utility ran successfully" "green"
 trap : 0
 

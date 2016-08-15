@@ -30,16 +30,18 @@ from commons import *
 # identical names are defined here.
 from snapshot import load
 cimport('import analysis, graphics')
+cimport('from analysis import measure')
 cimport('from communication import domain_subdivisions, exchange')
+cimport('from integration import initiate_time')
 cimport('from mesh import CIC_particles2fluid')
 cimport('from snapshot import get_snapshot_type, snapshot_extensions')
 cimport('from species import get_representation')
 
 
 
-# Entry point to this module.
+# Entry point of this module.
 # Call this function to perform a special operation,
-# defined by the special_params dict.
+# defined in the special_params dict.
 @cython.header()
 def delegate():
     eval(special_params['special'] + '()')
@@ -48,7 +50,9 @@ def delegate():
 # special_params['snapshot_filenames'] parameter to the snapshot type
 # given in the snapshot_type parameter.
 @cython.pheader(# Locals
+                a='double',
                 component='Component',
+                dim='int',
                 ext='str',
                 index='int',
                 snapshot='object',
@@ -66,16 +70,22 @@ def delegate():
                 names_lower='list',
                 original_mass='double',
                 original_representation='str',
-                original_tot_mass='double',
-                tot_mass='double',
+                rel_tol='double',
+                unit_str='str',
+                σmom_fluid='double[::1]',
+                σmom_particles='double[::1]',
+                Σmass_fluid='double',
+                Σmass_particles='double',
+                Σmom_fluid='double[::1]',
+                Σmom_particles='double[::1]',
                 )
 def convert():
-    """This function will convert all snapshots listed in the
-    special_params['snapshot_filenames'] parameter to the type
+    """This function will convert the snapshot given in the
+    special_params['snapshot_filename'] parameter to the type
     specified by the snapshot_type parameter.
-    If special_params['component attributes'] is not empty, it contains
-    information about individual component attributes which should be
-    changed.
+    If special_params['attributes'] is not empty, it contains
+    information about global parameters and individual componen
+    attributes which should be changed.
     """
     # Create dict of global parameters (params) and (default)dict of
     # component attributes (attributes) from the parsed attributes.
@@ -108,6 +118,12 @@ def convert():
     snapshot = load(snapshot_filename, compare_params=True,  # Warn the user of non-matching params
                                        do_exchange=False,    # Exchanges happen later, if needed
                                        as_if=snapshot_type)
+    # Some of the functions used later use the value of universals.a.
+    # Set this equal to the scale factor value in the snapshot.
+    # In the end of this function, the original value of
+    # universals.a will be reassigned.
+    a = universals.a
+    universals.a = snapshot.params['a']
     # Warn the user of specified changes to component attributes
     # of non-existing components. Allow for components written in a
     # different case.
@@ -131,7 +147,6 @@ def convert():
     # parameter file (those which are currently loaded as globals).
     # If paremters are parsed directly, these should take precedence
     # over those from the parameter file.
-    universals.a = a_begin
     snapshot.populate(snapshot.components, params)
     # Edit individual components if component attributes are parsed
     for component in snapshot.components:
@@ -156,35 +171,40 @@ def convert():
             # distributed according to which domain they are in.
             component.representation = 'particles'
             exchange(component)
+            # The total particle mass and momentum
+            Σmass_particles = component.mass*component.N
+            Σmom_particles, σmom_particles = measure(component, 'momentum')
+            # Done treating component as particles.
+            # Reassign the fluid representation
             component.representation = 'fluid'
-            # The mass attribute is now the average mass of a fluid
-            # element. Since the total mass of the component should be
-            # the same as before, the mass and the gridsize are related,
-            # as mass = totmass/gridsize**3
-            #         = N*original_mass/gridsize**3.
+            # The mass attribute shall now be the average mass of a
+            # fluid element. Since the total mass of the component
+            # should be the same as before, the mass and the gridsize
+            # are related, as
+            # mass = totmass/gridsize**3
+            #      = N*original_mass/gridsize**3.
             # If either mass or gridsize is given by the user,
             # use this to determine the other.
             if 'gridsize' in attributes[name] and 'mass' not in attributes[name]:
                 component.mass *= float(component.N)/component.gridsize**3
             elif 'mass' in attributes[name] and 'gridsize' not in attributes[name]:
                 component.gridsize = int(round((original_mass/component.mass*component.N)**ℝ[1/3]))
-                original_tot_mass = original_mass*component.N
-                tot_mass = component.mass*component.gridsize**3
-                if not isclose(original_tot_mass, tot_mass, 1e-6):
-                    if tot_mass > original_tot_mass:
+                Σmass_fluid = component.mass*component.gridsize**3
+                if not isclose(Σmass_particles, Σmass_fluid, 1e-6):
+                    if Σmass_fluid > Σmass_particles:
                         masterwarn('The specified mass for the "{}" component\n'
                                    'leads to a relative increase of {:.9g}\n'
                                    'for the total mass of this component.'
                                    'Note that for fluids, the specified mass should be\n'
                                    'the average mass of a fluid element.'
-                                   .format(component.name, tot_mass/original_tot_mass - 1))
+                                   .format(component.name, Σmass_fluid/Σmass_particles - 1))
                     else:
                         masterwarn('The specified mass for the "{}" component\n'
                                    'leads to a relative decrease of {:.9g}\n'
                                    'for the total mass of this component.\n'
                                    'Note that for fluids, the specified mass should be\n'
                                    'the average mass of a fluid element.'
-                                   .format(component.name, 1 - tot_mass/original_tot_mass))
+                                   .format(component.name, 1 - Σmass_fluid/Σmass_particles))
             elif 'gridsize' not in attributes[name] and 'mass' not in attributes[name]:
                 # If neither the gridsize nor the mass is specified,
                 # the number of gridpoints in the fluid
@@ -195,12 +215,58 @@ def convert():
                 # of fluid elements will not be exactly equal to the
                 # number of particles. Adjust the mass accordingly.
                 component.mass *= component.N/component.gridsize**3
-            # CIC-interpolate particle data to fluid data
+            # CIC-interpolate particle data to fluid data.
+            # Temporarily let the mass attribute be the original
+            # particle mass and universals.a be the scale factor
+            # in the snapshot.
             mass = component.mass
             component.mass = original_mass
-            universals.a = snapshot.params['a']
             CIC_particles2fluid(component)
             component.mass = mass
+            # Measure the total mass and momentum of the fluid
+            Σmass_fluid = measure(component, 'mass')
+            Σmom_fluid, σmom_fluid  = measure(component, 'momentum')
+            # Warn the user about changes in the total mass
+            rel_tol = 1e-9
+            if not isclose(Σmass_particles, Σmass_fluid, rel_tol):
+                masterwarn('Interpolation of particles to fluid did not preserve mass:\n'
+                           'Total particle mass: {{:.{num}g}}\n'
+                           'Total fluid mass:    {{:.{num}g}}'
+                           .format(num=int(ceil(-log10(rel_tol))))
+                           .format(Σmass_particles, Σmass_fluid)
+                     )
+            # Warn the user about changes in the
+            # total momentum after interpolation.
+            if not all([isclose(Σmom_particles[dim], Σmom_fluid[dim], rel_tol,
+                                abs_tol=rel_tol*component.gridsize**3*(+ σmom_particles[dim]
+                                                                       + σmom_fluid[dim]))
+                        for dim in range(3)]):
+                unit_str = '{}*{}/{}'.format(unit_mass, unit_length, unit_time)
+                masterwarn('Interpolation of particles to fluid did not preserve momentum:\n'
+                           'Total particle momentum: [{{:.{num}g}}, {{:.{num}g}}, {{:.{num}g}}] {{}}\n'
+                           'Total fluid momentum:    [{{:.{num}g}}, {{:.{num}g}}, {{:.{num}g}}] {{}}'
+                           .format(num=int(ceil(-log10(rel_tol))))
+                           .format(*Σmom_particles, unit_str,
+                                   *Σmom_fluid,     unit_str)
+                     )
+            # If the particle number equal the number of grid points,
+            # then (roughly) one grid point corresponds to one particle.
+            # In this case, the convertion from particles to fluid should
+            # preserve the momentum distribution. For this particular case,
+            # warn the user about changes in the
+            # standard deviation of the momentum after interpolation.
+            if component.gridsize**3 == component.N:
+                rel_tol = 1e-1
+                if not all([isclose(σmom_particles[dim], σmom_fluid[dim], rel_tol)
+                            for dim in range(3)]):
+                    unit_str = '{}*{}/{}'.format(unit_mass, unit_length, unit_time)
+                    masterwarn('Interpolation of particles to fluid did not preserve momentum spread:\n'
+                               'σ(particle momentum): [{{:.{num}g}}, {{:.{num}g}}, {{:.{num}g}}] {{}}\n'
+                               'σ(fluid momentum):    [{{:.{num}g}}, {{:.{num}g}}, {{:.{num}g}}] {{}}'
+                               .format(num=int(ceil(-log10(rel_tol))))
+                               .format(*σmom_particles, unit_str,
+                                       *σmom_fluid,     unit_str)
+                         )
         elif original_representation == 'fluid' and component.representation == 'particles':
             abort('Cannot convert fluid to particles')
     # Remove original file extension
@@ -216,6 +282,8 @@ def convert():
     converted_snapshot_filename += '_converted'
     # Save the converted snapshot
     snapshot.save(converted_snapshot_filename)
+    # Reassign the original value of universals.a
+    universals.a = a
 
 # Function for finding all snapshots in a directory
 @cython.pheader(# Arguments
@@ -260,6 +328,9 @@ def locate_snapshots(path):
                 snapshot_filename='str',
                 )
 def powerspec():
+    # Initial cosmic time universals.t
+    # and scale factor a(universals.t) = universals.a.
+    initiate_time()
     # Extract the snapshot filename
     snapshot_filename = special_params['snapshot_filename']
     # Read in the snapshot
@@ -281,7 +352,6 @@ def powerspec():
     if output_filename == snapshot_filename:
         output_filename = '{}/powerspec_{}'.format(output_dir, basename)
     # Produce powerspectrum of the snapshot
-    universals.a = snapshot.params['a']
     analysis.powerspec(snapshot.components, output_filename)
 
 # Function that produces a render of the file
@@ -296,6 +366,9 @@ def powerspec():
                 snapshot_filename='str',
                 )
 def render():
+    # Initial cosmic time universals.t
+    # and scale factor a(universals.t) = universals.a.
+    initiate_time()
     # Extract the snapshot filename
     snapshot_filename = special_params['snapshot_filename']
     # Read in the snapshot
@@ -320,27 +393,27 @@ def render():
     if output_filename == snapshot_filename:
         output_filename = '{}/render_{}'.format(output_dir, basename)
     # Render the snapshot
-    universals.a = snapshot.params['a']
-    graphics.render(snapshot.components, output_filename)
+    graphics.render(snapshot.components, output_filename,
+                    True, '.renders_{}'.format(basename))
 
 # Function for printing all informations within a snapshot
 @cython.pheader(# Locals
+                alt_str='str',
                 component='Component',
                 cube_root_N='double',
                 h='double',
                 heading='str',
+                index='int',
+                ext='str',
+                param_num='int',
+                parameter_filename='str',
                 params='dict',
                 path='str',
                 snapshot='object',
                 snapshot_filenames='list',
                 snapshot_type='str',
                 unit='double',
-                unit_str='str',
                 value='double',
-                index='int',
-                ext='str',
-                parameter_filename='str',
-                param_num='int',
                 )
 def info():
     # This function should not run in parallel
@@ -358,12 +431,15 @@ def info():
         # If a parameter file should be generated from the snapshot,
         # print out the content which should be placed in parameter file
         # to stdout and directly to a new parameter file.
-        if special_params['generate paramsfile']:
+        # The value of special_params['generate params'] is either a
+        # directory path where the parameter file should be placed,
+        # or False if no parameter file should be generated.
+        if special_params['generate params']:
             # Make sure that the params dir exist
             if master:
-                os.makedirs(paths['params_dir'], exist_ok=True)
+                os.makedirs(special_params['generate params'], exist_ok=True)
             # The filename of the new parameter file
-            parameter_filename = '{}/{}'.format(paths['params_dir'],
+            parameter_filename = '{}/{}'.format(special_params['generate params'],
                                                 os.path.basename(snapshot_filename))
             for ext in snapshot_extensions:
                 if parameter_filename.endswith(ext):
@@ -408,11 +484,10 @@ def info():
                                     file=file)
                     masterprint('# Cosmological parameters', file=file)
                     unit = units.km/(units.s*units.Mpc)
-                    unit_str = unicode('km s⁻¹ Mpc⁻¹')
                     masterprint('H0 = {:.12g}*km/(s*Mpc)'.format(params['H0']/unit), file=file)
                     masterprint('a_begin = {:.12g}'.format(params['a']), file=file)
-                    masterprint('{} = {:.12g}'.format(unicode('Ωm'), params['Ωm']), file=file)
-                    masterprint('{} = {:.12g}'.format(unicode('ΩΛ'), params['ΩΛ']), file=file)
+                    masterprint('Ωm = {:.12g}'.format(params['Ωm']), file=file)
+                    masterprint('ΩΛ = {:.12g}'.format(params['ΩΛ']), file=file)
             masterprint('\nThe above parameters have been written to\n"{}"'.format(parameter_filename))
             # Done writing out parameters
             continue
@@ -436,8 +511,7 @@ def info():
                                                                        mass_basicunit)))
         # Print out global parameters
         unit = units.km/(units.s*units.Mpc)
-        unit_str = unicode('km s⁻¹ Mpc⁻¹')
-        masterprint('{:<19} {:.12g} {}'.format('H0', params['H0']/unit, unit_str))
+        masterprint('{:<19} {:.12g} km s⁻¹ Mpc⁻¹'.format('H0', params['H0']/unit))
         masterprint('{:<19} {:.12g}'.format('a', params['a']))
         # The boxsize should also be printed as boxsize/h, if integer
         unit = 100*units.km/(units.s*units.Mpc)
@@ -449,27 +523,28 @@ def info():
         masterprint('{:<19} {:.12g} {}{}'.format('boxsize',
                                                  params['boxsize'],
                                                  unit_length, alt_str))
-        masterprint('{:<19} {:.12g}'.format(unicode('Ωm'), params['Ωm']))
-        masterprint('{:<19} {:.12g}'.format(unicode('ΩΛ'), params['ΩΛ']))
+        masterprint('{:<19} {:.12g}'.format('Ωm', params['Ωm']))
+        masterprint('{:<19} {:.12g}'.format('ΩΛ', params['ΩΛ']))
         # Print out component information
         for component in snapshot.components:
             masterprint(component.name + ':')
             # General attributes
             masterprint('{:<15} {}'.format('species', component.species), indent=4)
             value = component.mass/units.m_sun
-            masterprint('{:<15} {} {}'.format('mass',
+            masterprint('{:<15} {} m☉'.format('mass',
                                               significant_figures(value, 6,
-                                                                  fmt='unicode', incl_zeros=False),
-                                              unicode('m☉')), indent=4)
+                                                                  fmt='unicode', incl_zeros=False)
+                                              ),
+                        indent=4)
             # Representation-specific attributes
             if component.representation == 'particles':
                 cube_root_N = float(component.N)**ℝ[1/3]
                 if isint(cube_root_N):
                     # Print both the particle number N and its
                     # cube root, if integer.
-                    masterprint('{:<15} {} = {}{}'.format('N',
-                                                          component.N,
-                                                          int(round(cube_root_N)), unicode('³')),
+                    masterprint('{:<15} {} = {}³'.format('N',
+                                                         component.N,
+                                                         int(round(cube_root_N))),
                                 indent=4)
                 else:
                     masterprint('{:<15} {}'.format('N', component.N), indent=4)

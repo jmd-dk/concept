@@ -43,6 +43,7 @@ import pexpect
                filename='str',
                power_dict='object',  # OrderedDict
                # Locals
+               a_string='str',
                filename_component='str',
                i='Py_ssize_t',
                k='double[::1]',
@@ -54,6 +55,7 @@ import pexpect
                power_indices='list',
                power_σ='double[::1]',
                powermin='double',
+               t_string='str',
                tmp='str',
                name='str',
                names='list',
@@ -137,15 +139,19 @@ def plot_powerspec(data_list, filename, power_dict):
         plt.ylim(ymin=float(tmp[0] + tmp[3:]))
         tmp = '{:.1e}'.format(maxpowermax)
         plt.ylim(ymax=float(str(int(tmp[0]) + 1) + tmp[3:]))
-        plt.xlabel('$k$ $\mathrm{[' + unit_length + '^{-1}]}$',
-                   fontsize=14,
-                   )
-        plt.ylabel('power $\mathrm{[' + unit_length + '^3]}$',
-                   fontsize=14,
-                   )
-        plt.title('{} at $a = {}$'.format(name, significant_figures(universals.a, 4, fmt='TeX')),
-                  fontsize=16,
-                  )
+        plt.xlabel('$k$ $\mathrm{{[{}^{{-1}}]}}$'.format(unit_length), fontsize=14)
+        plt.ylabel('power $\mathrm{{[{}^3]}}$'.format(unit_length),    fontsize=14)
+        t_string = '$t = {}\, \mathrm{{{}}}$'.format(significant_figures(universals.t,
+                                                                         4,
+                                                                         fmt='TeX',
+                                                                         ),
+                                                     unit_time)
+        a_string = ', $a = {}$'.format(significant_figures(universals.a, 
+                                                           4,
+                                                           fmt='TeX',
+                                                           )
+                                       ) if enable_Hubble else ''
+        plt.title('{} at {}{}'.format(name, t_string, a_string), fontsize=16)
         plt.gca().tick_params(labelsize=13)
         plt.tight_layout()
         plt.savefig(filename_component)
@@ -157,16 +163,17 @@ def plot_powerspec(data_list, filename, power_dict):
                components='list',
                filename='str',
                cleanup='bint',
+               tmp_dirname='str',
                # Locals
                N='Py_ssize_t',
                N_local='Py_ssize_t',
+               Vcell='double',
                a_str='str',
                alpha='double',
                alpha_min='double',
                artists_text='dict',
                color='double[::1]',
                combined='double[:, :, ::1]',
-               dirname='str',
                figname='str',
                filename_component='str',
                filename_component_alpha='str',
@@ -182,12 +189,13 @@ def plot_powerspec(data_list, filename, power_dict):
                render_dir='str',
                rgb='int',
                scatter_size='double',
+               size_nopseudo_noghost='Py_ssize_t',
                i='Py_ssize_t',
                j='Py_ssize_t',
                k='Py_ssize_t',
                size='Py_ssize_t',
                rgba='double[:, ::1]',
-               δ_noghosts='double[:, :, :]',
+               ϱ_noghosts='double[:, :, :]',
                index='Py_ssize_t',
                size_i='Py_ssize_t',
                size_j='Py_ssize_t',
@@ -203,8 +211,12 @@ def plot_powerspec(data_list, filename, power_dict):
                xi='double',
                yj='double',
                zk='double',
+               ϱbar_component='double',
+               posx_mv='double[::1]',
+               posy_mv='double[::1]',
+               posz_mv='double[::1]',
                )
-def render(components, filename, cleanup=True):
+def render(components, filename, cleanup=True, tmp_dirname='.renders'):
     global render_dict, render_image
     # Do not render anything if
     # render_select does not contain any True values.
@@ -214,8 +226,7 @@ def render(components, filename, cleanup=True):
     if not filename.endswith('.png'):
         filename += '.png'
     # The directory for storing the temporary renders
-    dirname = os.path.dirname(filename)
-    render_dir = '{}/.renders'.format(dirname)
+    render_dir = '{}/{}'.format(os.path.dirname(filename), tmp_dirname)
     # Initialize figures by building up render_dict, if this is the
     # first time this function is called.
     if not render_dict:
@@ -265,8 +276,7 @@ def render(components, filename, cleanup=True):
             if component.representation == 'particles':
                 artist_component = ax.scatter(0, 0, 0, c=color, alpha=0, lw=0)
             elif component.representation == 'fluid':
-                fluidscalar = component.fluidvars['δ']
-                N = np.prod(asarray(asarray(fluidscalar.grid_noghosts).shape) - 1)
+                N = np.prod(-2 + asarray(component.fluidvars['shape']) - 1 - 2)
                 rgba = np.empty((N, 4), dtype=C2np['double'])
                 for i in range(N):
                     for dim in range(3):
@@ -278,21 +288,19 @@ def render(components, filename, cleanup=True):
             label_spacing = 0.07
             label_props = [(label_spacing,     label_spacing, 'left'),
                            (1 - label_spacing, label_spacing, 'right')]
-            if universals.t != -1:
-                artists_text['t'] = ax.text2D(label_props[0][0],
-                                              label_props[0][1],
+            artists_text['t'] = ax.text2D(label_props[0][0],
+                                          label_props[0][1],
+                                          '',
+                                          fontsize=16,
+                                          horizontalalignment=label_props[0][2],
+                                          transform=ax.transAxes,
+                                          )
+            if enable_Hubble:
+                artists_text['a'] = ax.text2D(label_props[1][0],
+                                              label_props[1][1],
                                               '',
                                               fontsize=16,
-                                              horizontalalignment=label_props[0][2],
-                                              transform=ax.transAxes,
-                                              )
-                label_props.pop(0)
-            if universals.a != -1 and enable_Hubble:
-                artists_text['a'] = ax.text2D(label_props[0][0],
-                                              label_props[0][1],
-                                              '',
-                                              fontsize=16,
-                                              horizontalalignment=label_props[0][2],
+                                              horizontalalignment=label_props[1][2],
                                               transform=ax.transAxes,
                                               )
             # Configure axis options
@@ -336,6 +344,34 @@ def render(components, filename, cleanup=True):
                                            'artist_component': artist_component,
                                            'artists_text': artists_text,
                                            }
+            # Explicit arrays of positions are needed
+            # also for fluid components.
+            if component.representation == 'fluid':
+                size_i = component.fluidvars['shape_noghosts'][0] - 1
+                size_j = component.fluidvars['shape_noghosts'][1] - 1
+                size_k = component.fluidvars['shape_noghosts'][2] - 1
+                # Number of local fluid elements
+                size = size_i*size_j*size_k
+                # Allocate arrays for storing grid positions
+                posx_mv = empty(size, dtype='double')
+                posy_mv = empty(size, dtype='double')
+                posz_mv = empty(size, dtype='double')
+                # Fill the arrays
+                index = 0
+                for i in range(size_i):
+                    xi = domain_start_x + i*ℝ[domain_size_x/size_i]
+                    for j in range(size_j):
+                        yj = domain_start_y + j*ℝ[domain_size_y/size_j]
+                        for k in range(size_k):
+                            zk = domain_start_z + k*ℝ[domain_size_z/size_k]
+                            posx_mv[index] = xi
+                            posy_mv[index] = yj
+                            posz_mv[index] = zk
+                            index += 1
+                # Place the grids in the render_dict
+                render_dict[component.name]['posx_mv'] = posx_mv
+                render_dict[component.name]['posy_mv'] = posy_mv
+                render_dict[component.name]['posz_mv'] = posz_mv
         # Return if no component is to be rendered
         if not render_dict:
             return
@@ -402,43 +438,27 @@ def render(components, filename, cleanup=True):
             artist_component.set_sizes([scatter_size])
             artist_component.set_alpha(alpha)
         elif component.representation == 'fluid':
-            # Extract the δ diff buffers.
-            # These will be used to store the fluid element coordinates.
-            fluidscalar = component.fluidvars['δ']
-            size_i = fluidscalar.diffx_mv.shape[0] - 1
-            size_j = fluidscalar.diffx_mv.shape[1] - 1
-            size_k = fluidscalar.diffx_mv.shape[2] - 1
-            size = size_i*size_j*size_k  # Number of local fluid elements
-            x = fluidscalar.diffx
-            y = fluidscalar.diffy
-            z = fluidscalar.diffz
-            x_mv = cast(x, 'double[:size]')
-            y_mv = cast(y, 'double[:size]')
-            z_mv = cast(z, 'double[:size]')
-            δ_noghosts = fluidscalar.grid_noghosts
+            # Extract the ϱ grid
+            ϱ_noghosts = component.fluidvars['ϱ'].grid_noghosts
             # Grab the color and alpha array from the last artist
             rgba = artist_component.get_facecolor()
             # Multiplication factor for alpha values. An alpha value of
             # 1 is assigned if the relative overdensity
-            # ρ/ρbar = 1 + δ >= 1/alpha_fac.
+            # ϱ(component)/ϱbar(component) >= 1/alpha_fac.
             # The chosen alpha_fac is such that in a homogeneous
             # universe, a column of fluid elements have a collective
             # alpha of 1 (more or less).
+            Vcell = (boxsize/component.gridsize)**3
+            ϱbar_component = component.mass/Vcell
             N = component.gridsize**3  # Number of fluid elements
             alpha_fac = N**ℝ[-1/3]
             # Fill the diff buffers with fluid element coordinates
             # and update the alpha values in rgba.
             index = 0
-            for i in range(size_i):
-                xi = domain_start_x + i*ℝ[domain_size_x/size_i]
-                for j in range(size_j):
-                    yj = domain_start_y + j*ℝ[domain_size_y/size_j]
-                    for k in range(size_k):
-                        zk = domain_start_z + k*ℝ[domain_size_z/size_k]
-                        x[index] = xi
-                        y[index] = yj
-                        z[index] = zk
-                        alpha = alpha_fac*(1 + δ_noghosts[i, j, k])
+            for         i in range(ℤ[ϱ_noghosts.shape[0] - 1]):
+                for     j in range(ℤ[ϱ_noghosts.shape[1] - 1]):
+                    for k in range(ℤ[ϱ_noghosts.shape[2] - 1]):
+                        alpha = ℝ[alpha_fac/ϱbar_component]*ϱ_noghosts[i, j, k]
                         if alpha > 1:
                             alpha = 1
                         rgba[index, 3] = alpha
@@ -452,7 +472,9 @@ def render(components, filename, cleanup=True):
             # Get rid of the old scatter plot.
             artist_component._offsets3d = juggle_axes([-boxsize], [-boxsize], [-boxsize], zdir='z')
             # Create new scatter plot and stick it into the render_dict
-            artist_component = ax.scatter(x_mv, y_mv, z_mv,
+            artist_component = ax.scatter(render_dict[component.name]['posx_mv'],
+                                          render_dict[component.name]['posy_mv'],
+                                          render_dict[component.name]['posz_mv'],
                                           c=rgba,
                                           s=scatter_size,
                                           lw=0,
@@ -461,11 +483,10 @@ def render(components, filename, cleanup=True):
         # Print the current cosmic time and scale factor on the figure
         if master:
             t_str = a_str = ''
-            if universals.t != -1:
-                t_str = ('$t = {}\,'.format(significant_figures(universals.t, 4, 'TeX'))
-                         + '\mathrm{' + unit_time + '}$')
-                artists_text['t'].set_text(t_str)
-            if universals.a != -1 and enable_Hubble:
+            t_str = '$t = {}\, \mathrm{{{}}}$'.format(significant_figures(universals.t, 4, 'TeX'),
+                                                      unit_time)
+            artists_text['t'].set_text(t_str)
+            if enable_Hubble:
                 a_str = '$a = {}$'.format(significant_figures(universals.a, 4, 'TeX'))
                 artists_text['a'].set_text(a_str)
             # Make the text color black or white,
@@ -685,6 +706,7 @@ def update_liverender(filename):
                # Locals
                N='Py_ssize_t',
                N_local='Py_ssize_t',
+               Vcell='double',
                colornumber='int',
                colornumber_offset='int',
                gridsize='Py_ssize_t',
@@ -704,11 +726,12 @@ def update_liverender(filename):
                size_y='Py_ssize_t',
                size_z='Py_ssize_t',
                total_mass='double',
-               δ_noghosts='double[:, :, :]',
+               ϱ_noghosts='double[:, :, :]',
                )
 def terminal_render(components):
     # Project all particle positions onto the 2D projection array,
     # counting the number of particles in each pixel.
+    # The projection is done onto the xy-plane.
     projection[...] = 0
     total_mass = 0
     for component in components:
@@ -725,29 +748,25 @@ def terminal_render(components):
             for i in range(N_local):
                 index_x = int(posx[i]*projection_scalex)
                 index_y = int(posy[i]*projection_scaley)
-                try:
-                    projection[index_y, index_x] += mass
-                except:
-                    print(index_y, posy[i]/boxsize, index_x, posx[i]/boxsize, flush=True)
-                    sleep(100)
+                projection[index_y, index_x] += mass
         elif component.representation == 'fluid':
             # Extract relevant fluid data
             gridsize = component.gridsize
             mass = component.mass
-            δ_noghosts = component.fluidvars['δ'].grid_noghosts
-            size_x = δ_noghosts.shape[0] - 1
-            size_y = δ_noghosts.shape[1] - 1
-            size_z = δ_noghosts.shape[2] - 1
+            Vcell = (boxsize/gridsize)**3
+            ϱ_noghosts = component.fluidvars['ϱ'].grid_noghosts
+            size_x = ϱ_noghosts.shape[0] - 1
+            size_y = ϱ_noghosts.shape[1] - 1
+            size_z = ϱ_noghosts.shape[2] - 1
             # Update the total mass
             total_mass += gridsize**3*mass
-            # Do the projection. Each fluid element is weighted by
-            # its mass.
+            # Do the projection.
+            # Each fluid element is weighted by its mass.
             for i in range(size_x):
                 index_x = int((domain_start_x + i*domain_size_x/size_x)*projection_scalex)
                 for j in range(size_y):
                     index_y = int((domain_start_y + j*domain_size_y/size_y)*projection_scaley)
-                    projection[index_y, index_x] += mass*(np.sum(δ_noghosts[i, j, :size_z])
-                                                          + size_z)
+                    projection[index_y, index_x] += Vcell*np.sum(ϱ_noghosts[i, j, :size_z])
     # Sum up local projections into the master process
     Reduce(sendbuf=(MPI.IN_PLACE if master else projection),
            recvbuf=(projection   if master else None),
@@ -816,7 +835,7 @@ if any(terminal_render_times.values()):
     if master:
         terminal_render_colormap_rgb = np.ascontiguousarray(getattr(matplotlib.cm,
                                                                     terminal_render_colormap)
-                                                            (arange(238))[:, :3])
+                                                            (linspace(0, 1, 238))[:, :3])
         for i, rgb in enumerate(asarray(terminal_render_colormap_rgb)):
             colorhex = matplotlib.colors.rgb2hex(rgb)
             masterprint('\x1b]4;{};rgb:{}/{}/{}\x1b\\'

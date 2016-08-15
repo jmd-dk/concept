@@ -26,16 +26,19 @@ from commons import *
 
 # Cython imports
 import gravity
-cimport('from communication import exchange')
+cimport('from communication import communicate_domain_boundaries, communicate_domain_ghosts, exchange')
 cimport('from gravity import PM, kick_fluid')
-cimport('from integration import rk1_euler_fluid, rk2_midpoint_fluid')
+cimport('from integration import maccormack')
 
 
 
 # Class which serves as the data structure for a scalar fluid grid
 # (each component of a fluid variable is stored as a collection of
-# scalar grids). Each scalar fluid has its own name,
-# e.g. δ, u[0], u[1], u[2]. This name is not used directly in the code.
+# scalar grids). Each scalar fluid has its own name, e.g.
+# ϱ     (varnum == 0, multi_index == 0),
+# ϱu[0] (varnum == 1, multi_index == 0),
+# ϱu[1] (varnum == 1, multi_index == 1),
+# ϱu[2] (varnum == 1, multi_index == 2),
 @cython.cclass
 class FluidScalar:
     # Initialization method
@@ -59,59 +62,35 @@ class FluidScalar:
         double* grid
         public double[:, :, ::1] grid_mv
         public double[:, :, :] grid_noghosts
-        # The update buffer
-        double* Δ
-        public double[:, :, ::1] Δ_mv
-        public double[:, :, :] Δ_noghosts
-        # References to data and update buffer
-        public double[:, :, ::1] LHS_mv
-        public double[:, :, :] LHS_noghosts
-        public double[:, :, ::1] RHS_mv
-        public double[:, :, :] RHS_noghosts
-        # The additional gravitational update buffer
-        # for the velocity variable.
-        double* Δgravity
-        public double[:, :, ::1] Δgravity_mv
-        # The differentiation buffers
-        double* diffx
-        double* diffy
-        double* diffz
-        public double[:, :, ::1] diffx_mv
-        public double[:, :, ::1] diffy_mv
-        public double[:, :, ::1] diffz_mv
+        # The starred buffer
+        double* gridˣ
+        public double[:, :, ::1] gridˣ_mv
+        public double[:, :, :] gridˣ_noghosts
+        # The source term buffer
+        double* source
+        public double[:, :, ::1] source_mv
+        public double[:, :, :] source_noghosts
         """
-        # Name and index of fluid variable
+        # Number and index of fluid variable
         self.varnum = varnum
         self.multi_index = tuple(any2iter(multi_index))
         # Minimal starting layout
-        shape = tuple([1]*3)
-        size = shape[0]*shape[1]*shape[2]
+        shape = (1, 1, 1)
+        size = np.prod(shape)
         # The data itself
         self.grid = malloc(size*sizeof('double'))
         self.grid_mv = cast(self.grid, 'double[:shape[0], :shape[1], :shape[2]]')
         self.grid_noghosts = self.grid_mv[:, :, :]
-        # The update buffer
-        self.Δ = malloc(size*sizeof('double'))
-        self.Δ_mv = cast(self.Δ, 'double[:shape[0], :shape[1], :shape[2]]')
-        self.Δ_noghosts = self.Δ_mv[:, :, :]
-        # References to the memoryviews containing the present data
-        # (LHS) and the buffers used to compute the future data (RHS).
-        self.LHS_mv       = self.grid_mv
-        self.LHS_noghosts = self.grid_noghosts
-        self.RHS_mv       = self.Δ_mv
-        self.RHS_noghosts = self.Δ_noghosts
-        # The additional gravitational update buffer
-        # for the velocity variable.
-        self.Δgravity = malloc(size*sizeof('double'))
-        self.Δgravity_mv = cast(self.Δgravity, 'double[:shape[0], :shape[1], :shape[2]]')
-        # The differentiation buffers
-        self.diffx = malloc(size*sizeof('double'))
-        self.diffy = malloc(size*sizeof('double'))
-        self.diffz = malloc(size*sizeof('double'))
-        self.diffx_mv = cast(self.diffx, 'double[:shape[0], :shape[1], :shape[2]]')
-        self.diffy_mv = cast(self.diffy, 'double[:shape[0], :shape[1], :shape[2]]')
-        self.diffz_mv = cast(self.diffz, 'double[:shape[0], :shape[1], :shape[2]]')
+        # The starred buffer
+        self.gridˣ = malloc(size*sizeof('double'))
+        self.gridˣ_mv = cast(self.gridˣ, 'double[:shape[0], :shape[1], :shape[2]]')
+        self.gridˣ_noghosts = self.gridˣ_mv[:, :, :]
+        # Source term buffer
+        self.source = malloc(size*sizeof('double'))
+        self.source_mv = cast(self.source, 'double[:shape[0], :shape[1], :shape[2]]')
+        self.source_noghosts = self.source_mv[:, :, :]
 
+    # Method for resizing all grids of this scalar fluid
     @cython.header(# Arguments
                    shape_nopseudo_noghost='tuple',
                    # Locals
@@ -124,7 +103,7 @@ class FluidScalar:
     def resize(self, shape_nopseudo_noghost):
         # The full shape and size of the grid,
         # with pseudo and ghost points.
-        shape = tuple([s + 1 + 2*2 for s in shape_nopseudo_noghost])
+        shape = tuple([2 + s + 1 + 2 for s in shape_nopseudo_noghost])
         size = np.prod(shape)
         # The shape and size of the grid
         # with no ghost points but with pseudo points.
@@ -136,105 +115,66 @@ class FluidScalar:
         self.grid_noghosts = self.grid_mv[2:(self.grid_mv.shape[0] - 2),
                                           2:(self.grid_mv.shape[1] - 2),
                                           2:(self.grid_mv.shape[2] - 2)]
-        # The update buffer
-        self.Δ = realloc(self.Δ, size*sizeof('double'))
-        self.Δ_mv = cast(self.Δ, 
-                         'double[:shape[0], :shape[1], :shape[2]]')
-        self.Δ_noghosts = self.Δ_mv[2:(self.Δ_mv.shape[0] - 2),
-                                    2:(self.Δ_mv.shape[1] - 2),
-                                    2:(self.Δ_mv.shape[2] - 2)]
-        # References to the memoryviews containing the present data
-        # (LHS) and the buffers used to compute the future data (RHS).
-        self.LHS_mv       = self.grid_mv
-        self.LHS_noghosts = self.grid_noghosts
-        self.RHS_mv       = self.Δ_mv
-        self.RHS_noghosts = self.Δ_noghosts
-        # The additional gravitational update buffer
-        # for the velocity variable (no ghost points).
+        # The starred buffer
+        self.gridˣ = realloc(self.gridˣ, size*sizeof('double'))
+        self.gridˣ_mv = cast(self.gridˣ, 'double[:shape[0], :shape[1], :shape[2]]')
+        self.gridˣ_noghosts = self.gridˣ_mv[2:(self.gridˣ_mv.shape[0] - 2),
+                                            2:(self.gridˣ_mv.shape[1] - 2),
+                                            2:(self.gridˣ_mv.shape[2] - 2)]
+        # The source term buffer for the ϱu variable
         if self.varnum == 1:
-            self.Δgravity = realloc(self.Δgravity, size_noghosts*sizeof('double'))
-            self.Δgravity_mv = cast(self.Δgravity, 
-                                    'double[:shape_noghosts[0], :shape_noghosts[1], :shape_noghosts[2]]')
-        # The differentiation buffers (no ghost points)
-        self.diffx = realloc(self.diffx, size_noghosts*sizeof('double'))
-        self.diffy = realloc(self.diffy, size_noghosts*sizeof('double'))
-        self.diffz = realloc(self.diffz, size_noghosts*sizeof('double'))
-        self.diffx_mv = cast(self.diffx,
-                             'double[:shape_noghosts[0], :shape_noghosts[1], :shape_noghosts[2]]')
-        self.diffy_mv = cast(self.diffy,
-                             'double[:shape_noghosts[0], :shape_noghosts[1], :shape_noghosts[2]]')
-        self.diffz_mv = cast(self.diffz,
-                             'double[:shape_noghosts[0], :shape_noghosts[1], :shape_noghosts[2]]')
+            self.source = realloc(self.source, size*sizeof('double'))
+            self.source_mv = cast(self.source, 'double[:shape[0], :shape[1], :shape[2]]')
+            self.source_noghosts = self.source_mv[2:(self.source_mv.shape[0] - 2),
+                                                  2:(self.source_mv.shape[1] - 2),
+                                                  2:(self.source_mv.shape[2] - 2)]
 
-    # Method for nullifying the update buffer Δ (including Δgravity)
-    # attached to the fluid scalar.
-    @cython.pheader(# Locals
-                    i='Py_ssize_t',
-                    size='Py_ssize_t',
-                    Δ='double*',
-                    )
-    def nullify_Δ(self):
-        # Extract buffer pointer and its size
-        Δ = self.Δ
-        size = np.prod(asarray(self.Δ_mv).shape)
-        # Nullify update buffer
-        for i in range(size):
-            Δ[i] = 0
-
-    # Method for nullifying the gravitational update buffer Δgravity
-    @cython.pheader(# Locals
-                    i='Py_ssize_t',
-                    size_noghosts='Py_ssize_t',
-                    Δgravity='double*',
-                    )
-    def nullify_Δgravity(self):
-        # Only the velocity variable have a gravitational buffer
-        if self.varnum != 1:
-            return
-        # Extract gravitational buffer pointer and its size
-        Δgravity = self.Δgravity
-        size_noghosts = np.prod(asarray(self.Δgravity_mv).shape)
-        # Nullify gravitational update buffer
-        for i in range(size_noghosts):
-            Δgravity[i] = 0
-
-    # Method for nullifying the diff buffers diffx, diffy, diffz,
-    # attached to the fluid scalar.
-    @cython.pheader(# Locals
-                    diffx='double*',
-                    diffy='double*',
-                    diffz='double*',
-                    i='Py_ssize_t',
-                    size_noghosts='Py_ssize_t',
-                    )
-    def nullify_diff(self):
-        # Extract buffer pointers
-        diffx = self.diffx
-        diffy = self.diffy
-        diffz = self.diffz
-        # All of the buffers have the same size
-        size_noghosts = np.prod(asarray(self.diffx_mv).shape)
-        # Nullify
-        for i in range(size_noghosts):
-            diffx[i] = 0
-            diffy[i] = 0
-            diffz[i] = 0
-
-    # Method for swapping the LHS and RHS references
+    # Method for communicating pseudo and ghost points
     @cython.header()
-    def swap_LHS_RHS(self):
-        self.LHS_mv,       self.RHS_mv       = self.RHS_mv,       self.LHS_mv
-        self.LHS_noghosts, self.RHS_noghosts = self.RHS_noghosts, self.LHS_noghosts
+    def communicate_pseudo_ghosts(self):
+        """The entire local grid should already be constructed.
+        Whether the pseudo and grid points presently holds
+        correct values or not is irrelevant.
+        """
+        communicate_domain_boundaries(self.grid_mv, mode=1)
+        communicate_domain_ghosts(self.grid_mv)
+
+    # Method for nullifying the starred grid
+    @cython.pheader(# Locals
+                    i='Py_ssize_t',
+                    gridˣ='double*',
+                    )
+    def nullify_gridˣ(self):
+        # Extract starred buffer pointer
+        gridˣ = self.gridˣ
+        # Nullify starred buffer
+        for i in range(np.prod(asarray(self.gridˣ_mv).shape)):
+            gridˣ[i] = 0
+
+    # Method for nullifying the source term buffer
+    @cython.pheader(# Locals
+                    i='Py_ssize_t',
+                    source='double*',
+                    )
+    def nullify_source(self):
+        # Extract source term buffer pointer
+        source = self.source
+        # Nullify source term buffer
+        for i in range(np.prod(asarray(self.source_mv).shape)):
+            source[i] = 0
+
+    # Method for nullifying all buffers
+    @cython.pheader()
+    def nullify_buffers(self):
+        self.nullify_gridˣ()
+        self.nullify_source()
 
     # This method is automaticlly called when a FluidScalar instance
     # is garbage collected. All manually allocated memory is freed.
     def __dealloc__(self):
         free(self.grid)
-        free(self.Δ)
-        free(self.Δgravity)
-        free(self.diffx)
-        free(self.diffy)
-        free(self.diffz)
+        free(self.gridˣ)
+        free(self.source)
 
     # String representation
     def __str__(self):
@@ -263,8 +203,9 @@ class Component:
                    species='str',
                    N_or_gridsize='Py_ssize_t',
                    mass='double',
+                   N_fluidvars='Py_ssize_t',
                    )
-    def __init__(self, name, species, N_or_gridsize, mass):
+    def __init__(self, name, species, N_or_gridsize, mass, N_fluidvars=2):
         # The triple quoted string below serves as the type declaration
         # for the data attributes of the Component type.
         # It will get picked up by the pyxpp script
@@ -351,20 +292,29 @@ class Component:
             self.gridsize = N_or_gridsize
         else:
             self.gridsize = 1
-        # Construct the two lowest order fluid variables (δ and u)
-        self.fluidvars = {'N': 2}  # N is the number of fluid variables
+        # Construct the fluidvars dict, storing all fluid variables
+        # and meta data. 'N' is the number of fluid variables and
+        # 'shape' and 'shape_noghosts' are the shape of the fluid scalar
+        # grids, with and without ghost points, respectively (both
+        # include pseudo points).
+        self.fluidvars = {'N'             : N_fluidvars,
+                          'shape'         : (1, 1, 1),
+                          'shape_noghosts': (1, 1, 1),
+                          }
+        # Create the two lowest order fluid variables (ϱ and ϱu)
+        # SHOULD BE DEPENDENT ON THE PARSED N_fluidvars !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         self.fluidvars[0] = asarray([FluidScalar(0)], dtype='object')
         self.fluidvars[1] = asarray([FluidScalar(1, dim) for dim in range(3)], dtype='object')
         # Also assign some convenient names for the fluid grids
         self.assign_fluidnames()
 
     # This method populate the Component pos/mom arrays (for a
-    # particles representation) or the δ/u arrays (for a fluid
-    # representation) with data. It is deliberately designed so that
-    # you have to make a call for each attribute. You should construct
-    # the data array within the call itself, as this will minimize
-    # memory usage. This data array is 1D for particle data and 3D
-    # for fluid data.
+    # particles representation) or the fluid variable arrays (for a
+    # fluid representation) with data. It is deliberately designed so
+    # that you have to make a call for each attribute. You should
+    # construct the data array within the call itself, as this will
+    # minimize memory usage. This data array is 1D for particle data and
+    # 3D for fluid data.
     @cython.header(# Arguments
                    data='object',  # 1D/3D (particles/fluid) memoryview
                    var='object',   # str or int-like
@@ -406,7 +356,7 @@ class Component:
                 else:
                     abort('The "{}" component does not have fluid variable with number {}'
                           .format(self.name, var))
-            # Reallocate fluid grids if necessary
+            # Reallocate fluid grids if necessary           
             self.resize(asarray(mv3D).shape)
             # Populate the scalar grid given by 'indices' of the fluid
             # given by 'var' with the parsed data. This data should not
@@ -421,19 +371,20 @@ class Component:
     # This method will grow/shrink the data attributes.
     # Note that it will update N_allocated but not N_local.
     @cython.header(# Arguments
-                   shape='object',  # Py_ssize_t or tuple
+                   size_or_shape_nopseudo_noghosts='object',  # Py_ssize_t or tuple
                    # Locals
                    N_allocated='Py_ssize_t',
                    fluidscalar='FluidScalar',
-                   msg='str',
                    s='Py_ssize_t',
+                   shape_nopseudo_noghosts='tuple',
                    size='Py_ssize_t',
-                   δ_mv='double[:, :, ::1]',
+                   s_old='Py_ssize_t',
                    )
-    def resize(self, shape):
+    def resize(self, size_or_shape_nopseudo_noghosts):
         if self.representation == 'particles':
-            if shape != self.N_allocated:
-                self.N_allocated = shape
+            size = size_or_shape_nopseudo_noghosts
+            if size != self.N_allocated:
+                self.N_allocated = size
                 # Reallocate particle data
                 self.posx = realloc(self.posx, self.N_allocated*sizeof('double'))
                 self.posy = realloc(self.posy, self.N_allocated*sizeof('double'))
@@ -455,29 +406,31 @@ class Component:
                 self.pos_mv = [self.posx_mv, self.posy_mv, self.posz_mv]
                 self.mom_mv = [self.momx_mv, self.momy_mv, self.momz_mv]
         elif self.representation == 'fluid':
+            shape_nopseudo_noghosts = size_or_shape_nopseudo_noghosts
             # The allocated shape of the fluid grids are 5 points
             # (one layer of pseudo points and two layers of ghost points
-            # before and after the logical grid) longer than the logical
+            # before and after the local grid) longer than the local
             # shape, in each direction.
-            δ_mv = self.fluidvars['δ'].grid_mv
-            if (   shape[0] + 1 + 2*2 != δ_mv.shape[0]
-                or shape[1] + 1 + 2*2 != δ_mv.shape[1]
-                or shape[2] + 1 + 2*2 != δ_mv.shape[2]):
-                if any([s < 1 for s in shape]):
-                    msg = ('Attempted to resize fluid grids of the {} component\n'
-                           'to a shape of {}.').format(self.name, shape)
-                    abort(msg)
+            if any([2 + s + 1 + 2 != s_old for s, s_old in zip(shape_nopseudo_noghosts,
+                                                               self.fluidvars['shape'])]):
+                if any([s < 1 for s in shape_nopseudo_noghosts]):
+                    abort('Attempted to resize fluid grids of the {} component'
+                          'to a shape of {}'.format(self.name, shape_nopseudo_noghosts))
+                # Reassign the shape meta data
+                self.fluidvars['shape']          = tuple([2 + s + 1 + 2 for s in shape_nopseudo_noghosts])
+                self.fluidvars['shape_noghosts'] = tuple([    s + 1     for s in shape_nopseudo_noghosts])
                 # Reallocate fluid data
-                for fluidscalar in self.iterate_fluidvars():
-                    fluidscalar.resize(shape)
+                for fluidscalar in self.iterate_fluidscalars():
+                    fluidscalar.resize(shape_nopseudo_noghosts)
 
     # Method for integrating particle positions/fluid values
     # forward in time.
     @cython.header(# Arguments
-                   a_integrals='dict',
+                   ᔑdt='dict',
                    # Locals
                    dim='int',
                    fac='double',
+                   fluidscalar='FluidScalar',
                    i='Py_ssize_t',
                    momx='double*',
                    momy='double*',
@@ -486,7 +439,7 @@ class Component:
                    posy='double*',
                    posz='double*',
                    )
-    def drift(self, a_integrals):
+    def drift(self, ᔑdt):
         if self.representation == 'particles':
             masterprint('Drifting {} ...'.format(self.name))
             posx = self.posx
@@ -496,7 +449,7 @@ class Component:
             momy = self.momy
             momz = self.momz
             # The factor 1/mass*∫_t^(t + Δt)a⁻²dt
-            fac = a_integrals['a⁻²']/self.mass
+            fac = ᔑdt['a⁻²']/self.mass
             # Update positions
             for i in range(self.N_local):
                 posx[i] += momx[i]*fac
@@ -511,44 +464,41 @@ class Component:
             # Exchange particles to the correct processes.
             exchange(self)
         elif self.representation == 'fluid':
-            # Evolve the fluid using the second-order midpoint
-            # Runge-Kutta method.
+            # Evolve the fluid using the MacCormack method
             masterprint('Evolving fluid variables of {} ...'.format(self.name))
-            rk2_midpoint_fluid(self, a_integrals)
-            # Nullify gravitational update buffers, preparing them for
-            # the potential kick of the next time step.
-            for dim in range(3):
-                self.fluidvars['u'][dim].nullify_Δgravity()
+            maccormack(self, ᔑdt)
+            # Communicate the pseudo and ghost points
+            # of all fluid variables.
+            self.communicate_fluid_grids()
             masterprint('done')
 
     # Method for kicking particles and fluids
     @cython.pheader(# Arguments
-                    a_integrals='dict',
+                    ᔑdt='dict',
                     meshbuf_mv='double[:, :, ::1]',
                     dim='int',
                     # Locals
                     kick_algorithm='str',
                     )
-    def kick(self, a_integrals, meshbuf_mv=None, dim=-1):
+    def kick(self, ᔑdt, meshbuf_mv=None, dim=-1):
         """In the case of a component carrying particles, a 'kick' is a
         complete update of all the particles momenta (momx, momy
         and momz). When the assigned kick algorithm is 'PM', a complete
         kick is achieved by calling this function three times, one for
         each dimension (dim == 0, dim == 1, dim == 2). For all other
         kick algorithms, a complete kick is achieved by a single call.
-        These other algorithms do not need anything other than
-        a_integral, while 'PM' also needs meshbuf (storing the values of
+        These other algorithms do not need anything other than ᔑdt,
+        while 'PM' also needs meshbuf (storing the values of
         [-∇φ]_dim) and dim.
         In the case of a fluid component, a 'kick' is not a complete
         update of the velocity field, or any other fluid variable. It is
-        merely the computation of the -∇φ∫_t^(t + Δt)a⁻²dt part of Δu.
+        merely the computation of the source term -∇φ*ϱ.
         Fluid components do not have a choice for the kick algorithm,
         as this is the only implemented way for a fluid to receive
         gravitational forces. As in the 'PM' method for particles,
         meshbuf_mv and dim need to be parsed and only the dim'th
-        component are updated (ux, uy or uz). These updates are stored
-        in the special gravitational buffers Δgravity on the three
-        fluid scalars.
+        component are updated (ϱux, ϱuy or ϱuz). These updates are
+        stored in the special source buffers on the three fluid scalars.
         """
         if self.representation == 'particles':
             # The assigned kick algorithm
@@ -556,88 +506,108 @@ class Component:
             if kick_algorithm == 'PM':
                 # For the PM algoritm, call the PM function with
                 # all the supplied arguments.
-                PM(self, a_integrals['a⁻¹'], meshbuf_mv, dim)
+                PM(self, ᔑdt, meshbuf_mv, dim)
             else:
                 # For all other kick algorithms, the kick is done
                 # completely in one go.
                 # Write out progess message and do the kick.
                 masterprint('Kicking ({}) {} ...'.format(kick_algorithm, self.name))
-                getattr(gravity, kick_algorithm)(self, a_integrals['a⁻¹'])
+                getattr(gravity, kick_algorithm)(self, ᔑdt)
                 masterprint('done')
         elif self.representation == 'fluid':
-            # Interpolate [-∇φa⁻²]_dim to the Δgravity buffer
-            # on the dim'th fluid scalar of the fluid variable u.
-            kick_fluid(self, a_integrals['a⁻²'], meshbuf_mv, dim)
+            # Nullify source buffer on fluid scalar ϱu[dim]
+            self.fluidvars['ϱu'][dim].nullify_source()
+            # Interpolate (-∇φ)[dim] to the source buffer
+            # on fluid scalar ϱu[dim].
+            kick_fluid(self, meshbuf_mv, dim)
 
     # Method which assigns convenient names to some
     # fluid variables and fluid scalars.
-    @cython.header()
+    @cython.header(# Locals
+                   dim='int',
+                   l='Py_ssize_t',
+                   )
     def assign_fluidnames(self):
-        # As some fluid variables do not exist in general,
+        """After running this method,
+        fluid scalars can be accessed as e.g.
+        self.fluidvars['ϱ']   == self.fluidvars[0][0]
+        self.fluidvars['ϱux'] == self.fluidvars['ϱu'][0] == self.fluidvars[1][0]
+        self.fluidvars['ϱuy'] == self.fluidvars['ϱu'][1] == self.fluidvars[1][1]
+        self.fluidvars['ϱuz'] == self.fluidvars['ϱu'][2] == self.fluidvars[1][2]
+        """
+        # As higher fluid variables may not have names in general,
         # enclose the assignments in a try block. The assignments
         # should be ordered accoring to the fluid variable number.
         try:
-            # δ
-            self.fluidvars[fluidvarnames[0]]       = self.fluidvars[0][0]
-            # u
-            self.fluidvars[fluidvarnames[1]]       = self.fluidvars[1]
-            self.fluidvars[fluidvarnames[1] + 'x'] = self.fluidvars[1][0]
-            self.fluidvars[fluidvarnames[1] + 'y'] = self.fluidvars[1][1]
-            self.fluidvars[fluidvarnames[1] + 'z'] = self.fluidvars[1][2]
+            for l in range(self.fluidvars['N']):
+                if l == 0:
+                    # ϱ
+                    self.fluidvars[fluidvarnames[l]] = self.fluidvars[l][0]
+                elif l == 1:
+                    # ϱu
+                    self.fluidvars[fluidvarnames[l]] = self.fluidvars[l]
+                    for dim in range(3):
+                        self.fluidvars[fluidvarnames[l] + 'xyz'[dim]] = self.fluidvars[l][dim]
         except:
-            pass
+            ...
 
-    # Method for nullifying all fluid buffers of a component with the
-    # fluid representation. This include the update buffer (Δ),
-    # the gravitational update buffer when applicable (Δgravity)
-    # and the three differentiation buffers (diffx, diffy, diffz).
+    # Generator for looping over all the scalar fluid grids within
+    # the component.
+    def iterate_fluidscalars(self):
+        fluidvars = self.fluidvars
+        for l in range(fluidvars['N']):
+            fluidvar = fluidvars[l]
+            for multi_index in self.iterate_fluidscalar_indices(fluidvar):
+                yield fluidvar[multi_index]
+
+    # Generator for looping over all multi-indices of a fluid variable
+    @staticmethod
+    def iterate_fluidscalar_indices(fluidvar):
+        it = np.nditer(fluidvar, flags=('refs_ok', 'multi_index'))
+        while not it.finished:
+            yield it.multi_index
+            it.iternext()
+
+    # Method for communicating pseudo and ghost points
+    # on all fluid scalars.
+    @cython.header(# Locals
+                   fluidscalar='FluidScalar',
+                   )
+    def communicate_fluid_grids(self):
+        if self.representation != 'fluid':
+            return
+        for fluidscalar in self.iterate_fluidscalars():
+            fluidscalar.communicate_pseudo_ghosts()
+
+    # Method which calls the nullify_gridˣ on all fluid scalars
+    @cython.header(# Locals
+                   fluidscalar='FluidScalar',
+                   )
+    def nullify_fluid_gridˣ(self):
+        if self.representation != 'fluid':
+            return
+        for fluidscalar in self.iterate_fluidscalars():
+            fluidscalar.nullify_gridˣ()
+
+    # Method which calls the nullify_source on all fluid scalars
+    @cython.header(# Locals
+                   fluidscalar='FluidScalar',
+                   )
+    def nullify_fluid_source(self):
+        if self.representation != 'fluid':
+            return
+        for fluidscalar in self.iterate_fluidscalars():
+            fluidscalar.nullify_source()
+
+    # Method for nullifying all buffers on all fluid scalars
     @cython.header(# Locals
                    fluidscalar='FluidScalar',
                    )
     def nullify_fluid_buffers(self):
         if self.representation != 'fluid':
             return
-        for fluidscalar in self.iterate_fluidvars():
-            fluidscalar.nullify_Δ()
-            fluidscalar.nullify_Δgravity()
-            fluidscalar.nullify_diff()
-
-    # Generator for looping over all the scalar fluid grids within
-    # the component.
-    def iterate_fluidvars(self):
-        fluidvars = self.fluidvars
-        for l in range(fluidvars['N']):
-            fluidvar = fluidvars[l]
-            for multi_index in self.iterate_fluidvar(fluidvar):
-                yield fluidvar[multi_index]
-
-    # Generator for looping over all multi-indices of a fluid variable
-    @staticmethod
-    def iterate_fluidvar(fluidvar):
-        it = np.nditer(fluidvar, flags=('refs_ok', 'multi_index'))
-        while not it.finished:
-            yield it.multi_index
-            it.iternext()
-
-    # Method which calls the nullify_Δ on all fluid scalars
-    @cython.header(# Locals
-                   fluidscalar='FluidScalar',
-                   )
-    def nullify_fluid_Δ(self):
-        if self.representation != 'fluid':
-            return
-        for fluidscalar in self.iterate_fluidvars():
-            fluidscalar.nullify_Δ()
-
-    # Method which calls the swap_LHS_RHS on all fluid scalars
-    @cython.header(# Locals
-                   fluidscalar='FluidScalar',
-                   )
-    def swap_fluid_LHS_RHS(self):
-        if self.representation != 'fluid':
-            return
-        for fluidscalar in self.iterate_fluidvars():
-            fluidscalar.swap_LHS_RHS()
+        for fluidscalar in self.iterate_fluidscalars():
+            fluidscalar.nullify_buffers()
 
     # This method is automaticlly called when a Component instance
     # is garbage collected. All manually allocated memory is freed.
@@ -680,5 +650,5 @@ representation_of_species = {('baryons',
                               ): 'fluid',
                              }
 # Mapping from fluid variable number to name
-cython.declare(fluidvarname='tuple')
-fluidvarnames = ('δ', 'u')
+cython.declare(fluidvarnames='tuple')
+fluidvarnames = ('ϱ', 'ϱu')

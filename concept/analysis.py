@@ -25,8 +25,15 @@
 from commons import *
 
 # Cython imports
+from mesh import diff
+cimport('from communication import communicate_domain_boundaries, communicate_domain_ghosts')
 cimport('from graphics import plot_powerspec')
-cimport('from mesh import slab, CIC_components2slabs, slabs_FFT, slab_size_j, slab_start_j')
+cimport('from mesh import CIC_components2slabs, '
+        '                 slab,                 '
+        '                 slab_size_j,          '
+        '                 slab_start_j,         '
+        '                 slabs_FFT,            '
+        )
 
 
 
@@ -254,17 +261,17 @@ def powerspec(components, filename):
         row_quantity.append(' ')
         fmt += '{:^33}  '  # Either type, σ_tophat or power and σ(power)
         row_type.append(component.name)
-        row_σ_tophat.append(unicode('σ') + unicode_subscript('{:.2g}'.format(R_tophat/units.Mpc))
-                            + ' = {:.4g} '.format(σ_tophat[component.name]) + unicode('±')
+        row_σ_tophat.append('σ' + unicode_subscript('{:.2g}'.format(R_tophat/units.Mpc))
+                            + ' = {:.4g} '.format(σ_tophat[component.name]) + '±'
                             + ' {:.4g}'.format(σ_tophat_σ[component.name]))
-        row_quantity.append(unicode('power [Mpc³]'))
-        row_quantity.append(unicode('σ(power) [Mpc³]'))
+        row_quantity.append('power [Mpc³]')
+        row_quantity.append('σ(power) [Mpc³]')
     header += '# ' + fmt.format(*row_type) + '\n'
     header += '# ' + fmt.format(*row_σ_tophat) + '\n'
     header += '# ' + fmt.replace('{:^33} ', ' {:<16} {:<16}').format(*row_quantity) + '\n'
     # Write header to file
     with open(filename, 'w', encoding='utf-8') as powerspec_file:
-        powerspec_file.write(header)
+        powerspec_file.write(unicode(header))
     # Mask the data and pack it into a list
     data_list = [k_magnitudes_masked]
     for component in components:
@@ -397,124 +404,359 @@ def σ2_integrand(power, k2):
         W2 = ℝ[1/9]
     return k_magnitudes[k2]*power[k2]*W2
 
+# Function which can measure different quantities of a parsed component
+@cython.header(# Arguments
+               component='Component',
+               quantity='str',
+               # Locals
+               N='Py_ssize_t',
+               N_elements='Py_ssize_t',
+               Vcell='double',
+               diff_backward='double[:, :, ::1]',
+               diff_forward='double[:, :, ::1]',
+               diff_max='double[::1]',
+               diff_max_dim='double',
+               diff_size='double',
+               dim='int',
+               fluidscalar='FluidScalar',
+               h='double',
+               i='Py_ssize_t',
+               j='Py_ssize_t',
+               k='Py_ssize_t',
+               mass='double',
+               mom='double*',
+               mom_dim='double',
+               mom_i='double',
+               names='list',
+               u_arr='object',  # np.ndarray
+               ϱu_noghosts='double[:, :, :]',
+               Δdiff='double',
+               Δdiff_max='double[::1]',
+               Δdiff_max_dim='double',
+               Δdiff_max_list='list',
+               Δdiff_max_normalized='double[::1]',
+               Δdiff_max_normalized_list='list',
+               Σmass='double',
+               Σmom='double[::1]',
+               Σmom_dim='double',
+               Σmom2_dim='double',
+               Σϱ='double',
+               Σϱ2='double',
+               ϱ='FluidScalar',
+               ϱ_arr='object',  # np.ndarray
+               ϱ_mv='double[:, :, ::1]',
+               ϱ_noghosts='double[:, :, :]',
+               σ2mom_dim='double',
+               σ2ϱ='double',
+               σmom='double[::1]',
+               σmom_dim='double',
+               σϱ='double',
+               returns='object',
+               )
+def measure(component, quantity):
+    """Implemented quantities are:
+    'momentum'
+    'mass'           (fluid quantity)
+    'discontinuity'  (fluid quantity)
+    """
+    # Extract variables
+    N = component.N
+    N_elements = component.gridsize**3
+    mass = component.mass
+    Vcell = (boxsize/component.gridsize)**3
+    ϱ = component.fluidvars['ϱ']
+    ϱ_mv = ϱ.grid_mv
+    ϱ_noghosts = ϱ.grid_noghosts
+    # Quantities exhibited by both particle and fluid components
+    if quantity == 'momentum':
+        Σmom = empty(3, dtype=C2np['double'])
+        σmom = empty(3, dtype=C2np['double'])
+        if component.representation == 'particles':
+            # Total momentum of all particles, for each dimension
+            for dim in range(3):
+                mom = component.mom[dim]
+                Σmom_dim = Σmom2_dim = 0
+                # Add up local particle momenta
+                for i in range(component.N_local):
+                    mom_i = mom[i]
+                    Σmom_dim  += mom_i
+                    Σmom2_dim += mom_i**2
+                # Add up local particle momenta sums 
+                Σmom_dim  = allreduce(Σmom_dim,  op=MPI.SUM)
+                Σmom2_dim = allreduce(Σmom2_dim, op=MPI.SUM)
+                # Compute global standard deviation
+                σ2mom_dim = Σmom2_dim/N - (Σmom_dim/N)**2
+                if σ2mom_dim < 0:
+                    # Negative (about -machine_ϵ) σ² can happen due
+                    # to round-off errors.
+                    σ2mom_dim = 0
+                σmom_dim = sqrt(σ2mom_dim)
+                # Pack results
+                Σmom[dim] = Σmom_dim
+                σmom[dim] = σmom_dim
+        elif component.representation == 'fluid':
+            # Total momentum of all fluid elements, for each dimension
+            for dim, fluidscalar in enumerate(component.fluidvars['ϱu']):
+                ϱu_noghosts = fluidscalar.grid_noghosts
+                Σmom_dim = Σmom2_dim = 0
+                # Add up local fluid element momenta
+                for         i in range(ℤ[ϱ_noghosts.shape[0] - 1]):
+                    for     j in range(ℤ[ϱ_noghosts.shape[1] - 1]):
+                        for k in range(ℤ[ϱ_noghosts.shape[2] - 1]):
+                            # Momentum p is given by
+                            # p = m*u*a
+                            #   = (ϱ*Vcell)*(ϱu/ϱ)*a
+                            #   = ϱu*Vcell*a
+                            mom_dim = ϱu_noghosts[i, j, k]*ℝ[Vcell*universals.a]
+                            Σmom_dim  += mom_dim
+                            Σmom2_dim += mom_dim**2
+                # Add up local fluid element momenta sums
+                Σmom_dim  = allreduce(Σmom_dim,  op=MPI.SUM)
+                Σmom2_dim = allreduce(Σmom2_dim, op=MPI.SUM)
+                # Compute global standard deviation
+                σ2mom_dim = Σmom2_dim/N_elements - (Σmom_dim/N_elements)**2
+                if σ2mom_dim < 0:
+                    # Negative (about -machine_ϵ) σ² can happen due
+                    # to round-off errors.
+                    σ2mom_dim = 0
+                σmom_dim = sqrt(σ2mom_dim)
+                # Pack results
+                Σmom[dim] = Σmom_dim
+                σmom[dim] = σmom_dim
+        return Σmom, σmom
+    # Fluid quantities
+    elif quantity == 'ϱ':
+        # Compute sum(ϱ) and std(ϱ)
+        if component.representation == 'particles':
+            # Particle components have no ϱ
+            abort('The measure function was called with the "{}" component with '
+                  'quantity=\'ϱ\', but particle components do not have ϱ'
+                  .format(component.name)
+                  )
+        elif component.representation == 'fluid':
+            # NumPy array of local part of ϱ with no pseudo points
+            ϱ_arr = asarray(ϱ_noghosts[:(ϱ_noghosts.shape[0] - 1),
+                                       :(ϱ_noghosts.shape[1] - 1),
+                                       :(ϱ_noghosts.shape[2] - 1)])
+            # Total ϱ of all fluid elements
+            Σϱ = np.sum(ϱ_arr)
+            # Total ϱ² of all fluid elements
+            Σϱ2 = np.sum(ϱ_arr**2)
+            # Add up local sums
+            Σϱ  = allreduce(Σϱ,  op=MPI.SUM)
+            Σϱ2 = allreduce(Σϱ2, op=MPI.SUM)
+            # Compute global standard deviation
+            σ2ϱ = Σϱ2/N_elements - (Σϱ/N_elements)**2
+            if σ2ϱ < 0:
+                # Negative (about -machine_ϵ) σ² can happen due
+                # to round-off errors.
+                σ2ϱ = 0
+            σϱ = sqrt(σ2ϱ)
+        return Σϱ, σϱ
+    elif quantity == 'mass':
+        if component.representation == 'particles':
+            # The total mass is fixed for particle components
+            masterwarn('The measure function was called with the "{}" component with '
+                       'quantity=\'mass\'. This is a redundant call as the total mass of a '
+                       'particle component is fixed'
+                       .format(component.name)
+                       )
+            Σmass = component.N*mass
+        elif component.representation == 'fluid':
+            # Get total ϱ
+            Σϱ, σϱ = measure(component, 'ϱ')
+            # Convert total ϱ to total mass via
+            # mass_elemet = ϱ*Vcell
+            # --> Σmass = Σϱ*Vcell
+            Σmass = Σϱ*Vcell
+        return Σmass
+    elif quantity == 'discontinuity':
+        if component.representation == 'particles':
+            # Particle components have no discontinuity
+            abort('The measure function was called with the "{}" component with '
+                  'quantity=\'discontinuity\', which is not applicable to particle componnets'
+                  .format(component.name)
+                  )
+        elif component.representation == 'fluid':
+            # Lists to store results which will be returned
+            names = []
+            Δdiff_max_normalized_list = []
+            Δdiff_max_list = []
+            # The grid spacing in physical units
+            h = boxsize/component.gridsize
+            # The meshbuf buffer will be used for storing the
+            # backwards differentiated grid. Another grid is needed
+            # for storing the forward differentiated grid.
+            diff_forward = empty(component.fluidvars['shape_noghosts'], dtype=C2np['double'])
+            # Find the maximum discontinuity in each fluid grid
+            for fluidscalar in component.iterate_fluidscalars():
+                # Store the name of the fluid scalar
+                names.append('{}{}'.format('ϱ' if fluidscalar.varnum == 0 else 'ϱu',
+                                           ''  if fluidscalar.varnum == 0 else 'xyz'[fluidscalar.multi_index[0]]))
+                # Communicate pseudo and ghost points of the grid
+                communicate_domain_boundaries(fluidscalar.grid_mv, mode=1)
+                communicate_domain_ghosts(fluidscalar.grid_mv)
+                # Differentiate the grid in all three directions via
+                # both forward and backward difference. For each
+                # direction, save the largest difference between
+                # the two. Also save the largest differential in
+                # each direction.
+                Δdiff_max = empty(3, dtype=C2np['double'])
+                diff_max = empty(3, dtype=C2np['double'])
+                for dim in range(3):
+                    # Nullify the forward diff buffer (the backward
+                    # diff buffer is really meshbuf, which will be
+                    # nullified by the diff method).
+                    diff_forward[...] = 0
+                    # Do the differentiations.
+                    # Use diff_forward as buffer for the forwards
+                    # difference and meshbuf (here called diff_backward)
+                    # as buffer for the backwards dfifference.
+                    diff_forward  = diff(fluidscalar.grid_mv, dim, h, diff_forward, order=1, direction='forward')
+                    diff_backward = diff(fluidscalar.grid_mv, dim, h, None,         order=1, direction='backward')
+                    # Find the largest difference between the results of the
+                    # forward and backward difference,
+                    Δdiff_max_dim = 0
+                    diff_max_dim = 0
+                    for         i in range(ℤ[ϱ_noghosts.shape[0] - 1]):
+                        for     j in range(ℤ[ϱ_noghosts.shape[1] - 1]):
+                            for k in range(ℤ[ϱ_noghosts.shape[2] - 1]):
+                                # The maximum difference of the two differentials
+                                Δdiff = abs(diff_forward[i, j, k] - diff_backward[i, j, k])
+                                if Δdiff > Δdiff_max_dim:
+                                    Δdiff_max_dim = Δdiff
+                                # The maximum differential
+                                diff_size = abs(diff_forward[i, j, k])
+                                if diff_size > diff_max_dim:
+                                    diff_max_dim = diff_size
+                                diff_size = abs(diff_backward[i, j, k])
+                                if diff_size > diff_max_dim:
+                                    diff_max_dim = diff_size
+                    # Use the global maxima
+                    Δdiff_max_dim = allreduce(Δdiff_max_dim, op=MPI.MAX)
+                    diff_max_dim  = allreduce(diff_max_dim,  op=MPI.MAX)
+                    # Pack results into lists
+                    Δdiff_max[dim] = Δdiff_max_dim
+                    diff_max[dim] = diff_max_dim
+                Δdiff_max_list.append(Δdiff_max)
+                # Maximum discontinuity (difference between forward and
+                # backward difference) normalized accoring to
+                # the largest slope.
+                Δdiff_max_normalized_list.append(np.array([Δdiff_max[dim]/diff_max[dim]
+                                                           if Δdiff_max[dim] > 0 else 0
+                                                           for dim in range(3)],
+                                                          dtype=C2np['double'],
+                                                          )
+                                                 )
+        return names, Δdiff_max_list, Δdiff_max_normalized_list
+    elif master:
+        abort('The measure function was called with quantity=\'{}\', which is not implemented'
+              .format(quantity))
+
 # Function for doing debugging analysis
 @cython.header(# Arguments
                components='list',
                # Locals
                component='Component',
                dim='int',
-               fluidscalar='FluidScalar',
-               i='Py_ssize_t',
-               j='Py_ssize_t',
-               k='Py_ssize_t',
-               mass='double',
-               mass_tot='double',
-               mom='double*',
-               mom_tot='double',
-               u_noghosts='double[:, :, :]',
-               unit='double',
-               δ_noghosts='double[:, :, :]',
-               δ_tot='double',
+               name='str',
+               Δdiff_max='double[::1]',
+               Δdiff_max_normalized='double[::1]',
+               Σmass='double',
+               Σmass_correct='double',
+               Σmom='double[::1]',
+               Σϱ='double',
+               σmom='double[::1]',
+               σϱ='double',
                )
 def debug(components):
+    """This function will compute many different quantities from the
+    component data and print out the results. For obvious inconsistent
+    results, a warning will be given.
+    """
     if not enable_debugging:
         return
     # Componentwise analysis
     for component in components:
-        if component.representation == 'particles':
-            #####################
-            # The total momenta #
-            #####################
-            for dim in range(3):
-                mom = component.mom[dim]
-                mom_tot = 0
-                # Add up local mom values
-                for i in range(component.N_local):
-                    mom_tot += mom[i]
-                # Add up all local mom sums into the master
-                if master:
-                    mom_tot = reduce(mom_tot, op=MPI.SUM)
-                else:
-                    reduce(mom_tot, op=MPI.SUM)
-                # Debug print the total momentum
-                unit = units.m_sun*units.Mpc/units.Gyr
-                debug_print(unicode('Total {}-momentum({}) = {} {}')
-                            .format('xyz'[dim],
-                                    component.name,
-                                    significant_figures(mom_tot/unit, 12,
-                                                        fmt='unicode', incl_zeros=False),
-                                    unicode('m☉ Mpc Gyr⁻¹'),
-                                    )
-                            )
-        elif component.representation == 'fluid':
-            ##################
-            # The total mass #
-            ##################
-            fluidscalar = component.fluidvars['δ']
-            δ_noghosts = fluidscalar.grid_noghosts
-            δ_tot = 0
-            # Add up local δ values
-            for i in range(δ_noghosts.shape[0] - 1):
-                for j in range(δ_noghosts.shape[1] - 1):
-                    for k in range(δ_noghosts.shape[2] - 1):
-                        δ_tot += δ_noghosts[i, j, k]
-            # Add up all local δ sums into the master
-            if master:
-                δ_tot = reduce(δ_tot, op=MPI.SUM)
-            else:
-                reduce(δ_tot, op=MPI.SUM)
-            # Debug print the total δ
-            debug_print(unicode('Total δ({}) = {}')
-                        .format(component.name,
-                                significant_figures(mass_tot, 12,
-                                                    fmt='unicode', incl_zeros=False),
-                                )
+        # sum(momentum) and std(momentum) in each dimension
+        Σmom, σmom = measure(component, 'momentum')
+        unit = units.m_sun*units.Mpc/units.Gyr
+        for dim in range(3):
+            debug_print('total {}-momentum'.format('xyz'[dim]),
+                        component,
+                        Σmom[dim],
+                        'm☉ Mpc Gyr⁻¹',
                         )
-            if abs(δ_tot) > 1e-3:
-                masterwarn('wrong delta!')
-                sleep(5)
-            # Convert sum of δ to mass via mass = (δ + 1)*mass_avg
-            # ==> mass_tot = (Σδ + N)*mass_avg, N = gridsize**3.
-            mass_tot = (δ_tot + component.gridsize**3)*component.mass
-            # Debug print the total mass
-            debug_print('Total mass({}) = {} {}'
-                        .format(component.name,
-                                significant_figures(mass_tot/units.m_sun, 12,
-                                                    fmt='unicode', incl_zeros=False),
-                                unicode('m☉'),
-                                )
+            debug_print('standard deviation of {}-momentum'.format('xyz'[dim]),
+                        component,
+                        σmom[dim],
+                        'm☉ Mpc Gyr⁻¹',
                         )
-            #####################
-            # The total momenta #
-            #####################
-            for dim, fluidscalar in enumerate(component.fluidvars['u']):
-                u_noghosts = fluidscalar.grid_noghosts
-                mom_tot = 0
-                # Add up local mom values
-                for i in range(u_noghosts.shape[0] - 1):
-                    for j in range(u_noghosts.shape[1] - 1):
-                        for k in range(u_noghosts.shape[2] - 1):
-                            mass = (δ_noghosts[i, j, k] + 1)*component.mass
-                            mom_tot += mass*u_noghosts[i, j, k]
-                # Add up all local mom sums into the master
-                if master:
-                    mom_tot = reduce(mom_tot, op=MPI.SUM)
-                else:
-                    reduce(mom_tot, op=MPI.SUM)
-                # Debug print the total momentum
-                unit = 1/universals.a*units.m_sun*units.Mpc/units.Gyr
-                debug_print(unicode('Total {}-momentum({}) = {} {}')
-                            .format('xyz'[dim],
-                                    component.name,
-                                    significant_figures(mom_tot/unit, 12,
-                                                        fmt='unicode', incl_zeros=False),
-                                    unicode('a⁻¹ m☉ Mpc Gyr⁻¹'),
-                                    )
-                            )
+        # sum(ϱ) and std(ϱ)
+        if component.representation == 'fluid':
+            Σϱ, σϱ = measure(component, 'ϱ')
+            debug_print('total ϱ', component, Σϱ)
+            debug_print('standard deviation of ϱ', component, σϱ)
+        # The total mass
+        if component.representation == 'fluid':
+            Σmass = measure(component, 'mass')
+            debug_print('total mass', component, Σmass, 'm☉')
+            # Warn if the total mass is incorrect
+            Σmass_correct = component.gridsize**3*component.mass
+            if not isclose(Σmass, Σmass_correct):
+                masterwarn('Component "{}" ought to have a total mass of {} m☉'
+                           .format(component.name,
+                                   significant_figures(Σmass_correct/units.m_sun,
+                                                       12,
+                                                       fmt='unicode',
+                                                       incl_zeros=False,
+                                                       scientific=True,
+                                                       ),
+                                   )
+                    )
+        # The maximum discontinuities in the fluid scalars,
+        # for each dimension. Here, a discontinuity means a difference
+        # in forward and backward difference.
+        if component.representation == 'fluid':
+            for name, Δdiff_max, Δdiff_max_normalized in zip(*measure(component, 'discontinuity')):
+                for dim in range(3):
+                    debug_print('maximum            {}-discontinuity in {}'.format('xyz'[dim], name),
+                                component,
+                                Δdiff_max[dim],
+                                'Mpc⁻¹',
+                                )
+                    debug_print('maximum normalized {}-discontinuity in {}'.format('xyz'[dim], name),
+                                component,
+                                Δdiff_max_normalized[dim],
+                                )
+
 # Function for printing out debugging info,
-# used in the debug_info function above.
-def debug_print(*args, **kwargs):
-    masterprint(terminal.bold_cyan('Debug info:'), *args, **kwargs)
+# used in the debug function above.
+@cython.header(# Arguments
+               quantity='str',
+               component='Component',
+               value='double',
+               unit_str='str',
+               # Locals
+               text='str',
+               unit='double',
+               value_str='str',
+               )
+def debug_print(quantity, component, value, unit_str='1'):
+    unit = evaluate_unit(unit_str)
+    value_str = significant_figures(value/unit,
+                                    12,
+                                    fmt='unicode',
+                                    incl_zeros=False,
+                                    scientific=True,
+                                    )
+    text = '{} {}({}) = {}{}'.format(terminal.bold_cyan('Debug info:'),
+                                     quantity[0].upper() + quantity[1:],
+                                     component.name,
+                                     value_str,
+                                     ' ' + unit_str if unit_str != '1' else '',
+                                     )
+    masterprint(text)
 
 
 # Initialize variables used for the powerspectrum computation at import

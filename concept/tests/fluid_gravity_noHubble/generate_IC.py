@@ -31,42 +31,54 @@ from commons import *
 from species import Component
 from snapshot import save
 
-# Create a global, stationary sine wave along the x-direction
-for sine_resolution in range(1, 2*φ_gridsize):
-    N_sine = [round(sine_resolution*(2 + np.sin(2*π*i/φ_gridsize)))
-              for i in range(φ_gridsize)]
-    if N_sine.count(max(N_sine)) == 1:
-        N_sine = asarray(N_sine, dtype=C2np['int'])
-        break
-Nx = np.sum(N_sine)
+# Create a global sine wave along the x-direction:
+# ϱ(x, y, z) = ϱ(x) ∝ (2 + sin(2*π*x/boxsize)).
+# The function ∫_{x1}^{x2}dxϱ(x)
+ᔑdxϱ = lambda x1, x2: 2*(x2 - x1) + boxsize/π*(cos(π*x1/boxsize)**2 - cos(π*x2/boxsize)**2)
+# Function which finds x2 in ∫_{x1}^{x2}dxϱ(x) == mass_unitless
+def binary_search(x, mass_unitless, x_lower=None, x_upper=None):
+    # Find ᔑdxϱ(x, x_next) == mass_unitless
+    if x_lower is None:
+        x_lower = x
+    if x_upper is None:
+        x_upper = boxsize
+    x_next = 0.5*(x_lower + x_upper)
+    mass_unitless_test = ᔑdxϱ(x, x_next)
+    if isclose(mass_unitless_test, mass_unitless, rel_tol=1e-12):
+        return x_next
+    elif mass_unitless_test < mass_unitless:
+        x_lower = x_next
+    elif mass_unitless_test > mass_unitless:
+        x_upper = x_next
+    return binary_search(x, mass_unitless, x_lower=x_lower, x_upper=x_upper)
+# Compute positions of particles
+Nx = φ_gridsize*10
 Ny = Nz = φ_gridsize
 N = Nx*Ny*Nz
-mass = Ωm*ϱ*boxsize**3/N
-particles = Component('control particles', 'dark matter particles', N, mass)
+mass = ϱmbar*boxsize**3/N
+mass_unitless_tot = ᔑdxϱ(0, boxsize)
+mass_unitless = mass_unitless_tot/Nx
 posx = zeros(N)
 posy = zeros(N)
 posz = zeros(N)
 momx = zeros(N)
 momy = zeros(N)
 momz = zeros(N)
+x = 0
 count = 0
-for i in range(φ_gridsize):
-    x = i/φ_gridsize*boxsize
-    for n in range(N_sine[i]):
-        for j in range(Ny):
-            y = j/Ny*boxsize
-            for k in range(Nz):
-                z = k/Nz*boxsize
-                posx[count] = x
-                posy[count] = y
-                posz[count] = z
-                count += 1
-        # Increase x slightly, filling the entire x-length of the fluid element with particles.
-        # Each fluid element is then represented by a line of particles.
-        x += boxsize/φ_gridsize/N_sine[i]
-# Shift all x-positions so that the particle lines corresponding to fluid elements are centeres
-# around the fluid elements.
-posx = np.mod(posx + 0.5*boxsize/φ_gridsize, boxsize)
+for i in range(Nx):
+    for j in range(Ny):
+        y = j/Ny*boxsize
+        for k in range(Nz):
+            z = k/Nz*boxsize
+            posx[count] = x
+            posy[count] = y
+            posz[count] = z
+            count += 1
+    if i < Nx - 1:
+        x = binary_search(x, mass_unitless)
+# Instantiate particles
+particles = Component('control particles', 'dark matter particles', N, mass)
 particles.populate(posx, 'posx')
 particles.populate(posy, 'posy')
 particles.populate(posz, 'posz')

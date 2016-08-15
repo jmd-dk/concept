@@ -31,7 +31,7 @@ from snapshot import save
 
 # Create close to homogeneous particles
 N = 4**3
-mass = Ωm*ϱ*boxsize**3/N
+mass = ϱmbar*boxsize**3/N
 mean_sep = boxsize/N**(1/3)
 max_mom = 0.5e+10*units.kpc/units.Gyr*units.m_sun
 component = Component('test particles', 'dark matter particles', N, mass)
