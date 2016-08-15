@@ -129,15 +129,25 @@ class FluidScalar:
                                                   2:(self.source_mv.shape[1] - 2),
                                                   2:(self.source_mv.shape[2] - 2)]
 
-    # Method for communicating pseudo and ghost points
-    @cython.header()
-    def communicate_pseudo_ghosts(self):
+    # Method for communicating pseudo and ghost points of grids
+    @cython.pheader()
+    def communicate_grid(self):
         """The entire local grid should already be constructed.
         Whether the pseudo and grid points presently holds
         correct values or not is irrelevant.
         """
         communicate_domain_boundaries(self.grid_mv, mode=1)
         communicate_domain_ghosts(self.grid_mv)
+
+    # Method for communicating pseudo and ghost points of source buffers
+    @cython.pheader()
+    def communicate_source(self):
+        """The entire local grid of source values should already be
+        constructed. Whether the pseudo and grid points presently holds
+        correct values or not is irrelevant.
+        """
+        communicate_domain_boundaries(self.source_mv, mode=1)
+        communicate_domain_ghosts(self.source_mv)
 
     # Method for nullifying the starred grid
     @cython.pheader(# Locals
@@ -479,6 +489,7 @@ class Component:
                     dim='int',
                     # Locals
                     kick_algorithm='str',
+                    ϱu_dim='FluidScalar',
                     )
     def kick(self, ᔑdt, meshbuf_mv=None, dim=-1):
         """In the case of a component carrying particles, a 'kick' is a
@@ -515,11 +526,16 @@ class Component:
                 getattr(gravity, kick_algorithm)(self, ᔑdt)
                 masterprint('done')
         elif self.representation == 'fluid':
-            # Nullify source buffer on fluid scalar ϱu[dim]
-            self.fluidvars['ϱu'][dim].nullify_source()
-            # Interpolate (-∇φ)[dim] to the source buffer
-            # on fluid scalar ϱu[dim].
+            # Extract fluid scalar ϱu[dim], the source buffer of which
+            # should be updated.
+            ϱu_dim = self.fluidvars['ϱu'][dim]
+            # Nullify source buffer
+            ϱu_dim.nullify_source()
+            # Interpolate (-∇φ)[dim] to the source buffer of ϱu_dim
             kick_fluid(self, meshbuf_mv, dim)
+            # Communicate the pseudo and ghost points of source buffer
+            # of ϱu_dim.
+            ϱu_dim.communicate_source()
 
     # Method which assigns convenient names to some
     # fluid variables and fluid scalars.
@@ -577,7 +593,18 @@ class Component:
         if self.representation != 'fluid':
             return
         for fluidscalar in self.iterate_fluidscalars():
-            fluidscalar.communicate_pseudo_ghosts()
+            fluidscalar.communicate_grid()
+
+    # Method for communicating pseudo and ghost points
+    # on all fluid scalars.
+    @cython.header(# Locals
+                   fluidscalar='FluidScalar',
+                   )
+    def communicate_fluid_sources(self):
+        if self.representation != 'fluid':
+            return
+        for fluidscalar in self.iterate_fluidscalars():
+            fluidscalar.communicate_source()
 
     # Method which calls the nullify_gridˣ on all fluid scalars
     @cython.header(# Locals
