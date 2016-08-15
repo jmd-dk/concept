@@ -176,9 +176,9 @@ set_version()
 # If you specify a version in the middle column and this version
 # cannot be found, it will again fall back to the right column.
 set_version "concept"         "newest"  # only newest work
-set_version "freetype"        "2.6.3"   "2.6.3"
+set_version "freetype"        "2.6.5"   "2.6.5"
 set_version "python"          "3.5.2"
-set_version "libpng"          "1.6.23"  "1.6.21"
+set_version "libpng"          "1.6.24"  "1.6.24"
 set_version "ncurses"         "6.0"     "6.0"
 set_version "openssl"         "1.0.2h"  "1.0.2g"
 set_version "fftw"            "3.3.4"   "3.3.4"
@@ -190,11 +190,11 @@ set_version "mpi"             "3.2"     "3.2"
 set_version "zlib"            "1.2.8"   "1.2.8"
 # Python packages
 set_version "blessings"       "1.6"
-set_version "cython"          "0.24"    # 0.23 does not work
+set_version "cython"          "0.24.1"    # 0.23 does not work
 set_version "cython_gsl"      "0.2.1"
 set_version "matplotlib"      "1.5.1"
 set_version "numpy"           "1.11.1"
-set_version "pexpect"         "4.0.1"
+set_version "pexpect"         "4.2.0"
 set_version "mpi4py"          "2.0.0"   # 2.0.0 breaks h5py 2.5.0
 set_version "h5py"            "2.6.0"
 # No longer installed by default

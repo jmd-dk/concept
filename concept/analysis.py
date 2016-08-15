@@ -428,7 +428,6 @@ def σ2_integrand(power, k2):
                mom_dim='double',
                mom_i='double',
                names='list',
-               u_arr='object',  # np.ndarray
                ϱu_noghosts='double[:, :, :]',
                Δdiff='double',
                Δdiff_max='double[::1]',
@@ -444,6 +443,7 @@ def σ2_integrand(power, k2):
                Σϱ2='double',
                ϱ='FluidScalar',
                ϱ_arr='object',  # np.ndarray
+               ϱu_arr='object', # np.ndarray
                ϱ_mv='double[:, :, ::1]',
                ϱ_noghosts='double[:, :, :]',
                σ2mom_dim='double',
@@ -497,19 +497,19 @@ def measure(component, quantity):
         elif component.representation == 'fluid':
             # Total momentum of all fluid elements, for each dimension
             for dim, fluidscalar in enumerate(component.fluidvars['ϱu']):
+                # Momentum p is given by
+                # p = m*u*a
+                #   = (ϱ*Vcell)*(ϱu/ϱ)*a
+                #   = ϱu*Vcell*a
+                # NumPy array of local part of ϱu with no pseudo points
                 ϱu_noghosts = fluidscalar.grid_noghosts
-                Σmom_dim = Σmom2_dim = 0
-                # Add up local fluid element momenta
-                for         i in range(ℤ[ϱ_noghosts.shape[0] - 1]):
-                    for     j in range(ℤ[ϱ_noghosts.shape[1] - 1]):
-                        for k in range(ℤ[ϱ_noghosts.shape[2] - 1]):
-                            # Momentum p is given by
-                            # p = m*u*a
-                            #   = (ϱ*Vcell)*(ϱu/ϱ)*a
-                            #   = ϱu*Vcell*a
-                            mom_dim = ϱu_noghosts[i, j, k]*ℝ[Vcell*universals.a]
-                            Σmom_dim  += mom_dim
-                            Σmom2_dim += mom_dim**2
+                ϱu_arr = asarray(ϱu_noghosts[:(ϱu_noghosts.shape[0] - 1),
+                                             :(ϱu_noghosts.shape[1] - 1),
+                                             :(ϱu_noghosts.shape[2] - 1)])
+                # Total dim't momentum of all fluid elements
+                Σmom_dim = np.sum(ϱu_arr)*Vcell*universals.a
+                # Total dim'th momentum squared of all fluid elements
+                Σmom2_dim = np.sum(ϱu_arr**2)*(Vcell*universals.a)**2
                 # Add up local fluid element momenta sums
                 Σmom_dim  = allreduce(Σmom_dim,  op=MPI.SUM)
                 Σmom2_dim = allreduce(Σmom2_dim, op=MPI.SUM)

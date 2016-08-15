@@ -332,7 +332,7 @@ def cosmic_time(a, a_lower=machine_ϵ, t_lower=machine_ϵ, t_upper=-1):
                     break
                 else:
                     # Integration halted for whatever reason
-                    abort('Integration halted.', a_test, a, t_max, t)
+                    abort('Integration of scale factor a(t) halted')
             break
         a_test_prev = a_test
         if a_test > a:

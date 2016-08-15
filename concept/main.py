@@ -283,21 +283,17 @@ def drift(components, step):
                )
 def timeloop():
     global ᔑdt_steps, i_dump, next_dump, Δt
-    # Get the output filename patterns
-    # and create the global list "dumps".
-    # Avoid sanity checks by setting a = t = -∞.
-    universals.a = universals.t = -inf
-    output_filenames, final_render = prepare_output_times()
     # Do nothing if no dump times exist
-    if len(dumps) == 0: 
+    if not (  [nr for val in output_times['a'].values() for nr in val]
+            + [nr for val in output_times['t'].values() for nr in val]):
         return
-    # Determine the correct initial values for the cosmic time
+    # Determine and set the correct initial values for the cosmic time
     # universals.t and the scale factor a(universals.t) = universals.a.
     initiate_time()
     # Get the output filename patterns once again
     # and recreate the global list "dumps", this time with proper
     # values of universals.a and universals.t.
-    output_filenames, final_render = prepare_output_times()
+    output_filenames, final_render = prepare_output_times()    
     # Load initial conditions
     components = load(IC_file, only_components=True)
     # The number of time steps before Δt is updated

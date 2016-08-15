@@ -41,27 +41,25 @@ from snapshot import load
 
 # Read in data from the snapshots
 fluids = {'particles simulations': [], 'fluid simulations': []}
-times = []
+a = []
 for kind in ('particles', 'fluid'):
     if kind == 'particles':
-        regex = '{}/output/{}/snapshot_t=*_converted*'.format(this_dir, kind)
+        regex = '{}/output/{}/snapshot_a=*_converted*'.format(this_dir, kind)
     elif kind == 'fluid':
-        regex = '{}/output/{}/snapshot_t=*'.format(this_dir, kind)
+        regex = '{}/output/{}/snapshot_a=*'.format(this_dir, kind)
     for fname in sorted(glob.glob(regex),
                         key=lambda s: s[(s.index('=') + 1):]):
         snapshot = load(fname, compare_params=False)
         fluids[kind + ' simulations'].append(snapshot.components[0])
         if kind == 'particles':
-            times.append(float(re.search('snapshot_t=(.*)' + unit_time, fname).group(1)))
-N_snapshots = len(times)
+            a.append(snapshot.params['a'])
+N_snapshots = len(a)
 gridsize = fluids['particles simulations'][0].gridsize
 # Sort data chronologically
-order = np.argsort(times)
-times = [times[o]  for o in order]
+order = np.argsort(a)
+a = [a[o] for o in order]
 for kind in ('particles', 'fluid'):
     fluids[kind + ' simulations'] = [fluids[kind + ' simulations'][o] for o in order]
-# Use precise times
-times = snapshot_times['t']
 
 # Begin analysis
 masterprint('Analyzing {} data ...'.format(this_test))
@@ -75,7 +73,7 @@ for kind, markertype, options in zip(('particles', 'fluid'),
                                      ('ro', 'b*'),
                                      ({'markerfacecolor': 'none', 'markeredgecolor': 'r'}, {}),
                                      ):
-    for ax_i, fluid, t in zip(ax, fluids[kind + ' simulations'], times):
+    for ax_i, fluid, a_i in zip(ax, fluids[kind + ' simulations'], a):
         ϱ[kind + ' simulations'].append(fluid.fluidvars['ϱ'].grid_noghosts[:gridsize, 0, 0])
         ax_i.plot(x, ϱ[kind + ' simulations'][-1],
                   markertype,
@@ -91,7 +89,7 @@ for kind, markertype, options in zip(('particles', 'fluid'),
                                                     ),
                                 unit_length)
                         )
-        ax_i.set_title(r'$t={:.3g}\,\mathrm{{{}}}$'.format(t, unit_time))
+        ax_i.set_title(r'$a={:.3g}$'.format(a_i))
 plt.xlim(0, boxsize)
 plt.legend(loc='best').get_frame().set_alpha(0.3)
 plt.xlabel(r'$x\,\mathrm{{[{}]}}$'.format(unit_length))
@@ -101,7 +99,7 @@ plt.savefig(fig_file)
 # Fluid elements in yz-slices should all have the same ϱ and ϱu
 tol_fac = 1e-6
 for kind in ('particles', 'fluid'):
-    for fluid, t in zip(fluids[kind + ' simulations'], times):
+    for fluid, a_i in zip(fluids[kind + ' simulations'], a):
         for fluidscalar in fluid.iterate_fluidscalars():
             grid = fluidscalar.grid_noghosts[:gridsize, :gridsize, :gridsize]
             for i in range(gridsize):
@@ -109,22 +107,22 @@ for kind in ('particles', 'fluid'):
                 if not isclose(np.std(yz_slice), 0,
                                rel_tol=0,
                                abs_tol=(tol_fac*np.std(grid) + machine_ϵ)):
-                    masterwarn('Non-uniformities have emerged after {} {} '
+                    masterwarn('Non-uniformities have emerged at a = {} '
                                'in yz-slices of fluid scalar variable {} '
                                'in {} simulation.\n'
                                'See "{}" for a visualization.'
-                               .format(t, unit_time, fluidscalar, kind.rstrip('s'), fig_file))
+                               .format(a_i, fluidscalar, kind.rstrip('s'), fig_file))
                     sys.exit(1)
 
 # Compare ϱ's from the fluid and snapshot simulations
 tol_fac = 2e-2
-for ϱ_fluid, ϱ_particles, t in zip(ϱ['fluid simulations'], ϱ['particles simulations'], times):
+for ϱ_fluid, ϱ_particles, a_i in zip(ϱ['fluid simulations'], ϱ['particles simulations'], a):
     if not isclose(np.mean(abs(ϱ_fluid - ϱ_particles)), 0,
                    rel_tol=0,
                    abs_tol=(tol_fac*np.std(ϱ_fluid) + machine_ϵ)):
-        masterwarn('Fluid did not gravitate correctly up to t = {} {}.\n'
+        masterwarn('Fluid did not gravitate correctly up to a = {}.\n'
                    'See "{}" for a visualization.'
-                   .format(t, unit_time, fig_file))
+                   .format(a_i, fig_file))
         sys.exit(1)
 
 # Done analyzing
