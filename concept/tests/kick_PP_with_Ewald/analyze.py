@@ -81,13 +81,13 @@ plt.errorbar(a, x0_gadget, yerr=x0_std_gadget, fmt='--<b', label='GADGET (left)'
 plt.errorbar(a, x1_gadget, yerr=x1_std_gadget, fmt='-->b', label='GADGET (right)')
 plt.legend(loc='best').get_frame().set_alpha(0.3)
 plt.xlabel('$a$')
-plt.ylabel(r'$x\,\mathrm{[' + unit_length + ']}$')
+plt.ylabel(r'$x\,\mathrm{{[{}]}}$'.format(unit_length))
 plt.ylim(0, boxsize)
 plt.tight_layout()
 plt.savefig(fig_file)
 
 # There should be no variance on the x positions.
-tol = N_snapshots*100*np.finfo('float32').eps
+tol = 1e+2*N_snapshots*np.finfo(C2np['float']).eps
 if np.sum(x0_std_gadget) > tol or np.sum(x1_std_gadget) > tol:
     masterprint('done')
     masterwarn('Unequal x-positions for the 2*4 particles in the GADGET snapshots.\n'

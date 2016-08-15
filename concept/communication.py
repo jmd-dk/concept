@@ -360,9 +360,9 @@ def communicate_domain_boundaries(domain_grid, mode=0):
     # The size (number of grid points) of the truly local part of the
     # domain grid, excluding both ghost layers and pseudo points,
     # for each dimension.
-    domain_size_i =  domain_grid_noghosts.shape[0] - 1
-    domain_size_j =  domain_grid_noghosts.shape[1] - 1
-    domain_size_k =  domain_grid_noghosts.shape[2] - 1
+    domain_size_i = domain_grid_noghosts.shape[0] - 1
+    domain_size_j = domain_grid_noghosts.shape[1] - 1
+    domain_size_k = domain_grid_noghosts.shape[2] - 1
     # Set the operation to be performed with the received data
     # based on the mode.
     if mode == 0:
@@ -467,7 +467,7 @@ def communicate_domain_ghosts(domain_grid):
     """
     # The start and end indices of the right/forward/upward
     # boundary layers. The 5 is due to the ghost layer (thickness 2),
-    # the layer of pseudo points (thickness 2) and the boundary layer
+    # the layer of pseudo points (thickness 1) and the boundary layer
     # itself (thickness 2).
     # The left/backward/downward boundary layers are always from index
     # 3 to 3 + 2 = 5, where the 3 is due to the ghost layer (thickness

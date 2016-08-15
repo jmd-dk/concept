@@ -10,7 +10,7 @@
 
 
 # Input/output
-IC_file = 'ICs/example.hdf5'		# Initial condition snapshot
+IC_file = 'ICs/example_converted.hdf5'	        # Initial condition snapshot
 snapshot_type = 'standard'		# Type of output snapshots
 output_dirs = {				# Directories for storing output
     'snapshot' : 'output',
@@ -19,8 +19,8 @@ output_dirs = {				# Directories for storing output
                }
 output_bases = {			# File basenames of output
     'snapshot' : 'snapshot',
-    'powerspec': 'powerspec_fluid',
-    'render'   : 'render_fluid',
+    'powerspec': 'powerspec',
+    'render'   : 'render',
                 }
 output_times = {
     'a': {	# Scale factor values at which to dump output
@@ -49,19 +49,20 @@ render_select = {                       # Toggle rendering for each component
 # Numerical parameters
 boxsize          = 16*Mpc		# Linear size of the simulation box
 ewald_gridsize   = 64			# Linear gridsize of the grid of Ewald corrections
-φ_gridsize       = 64			# Linear gridsize of the potential
+φ_gridsize       = 16			# Linear gridsize of the potential
 P3M_scale        = 1.25			# The long/short-range force split scale
 P3M_cutoff       = 4.8			# Maximum reach of short-range force
 softeningfactors = {			# The amount of gravitational softening for each species
     'dark matter particles': 0.03,
                     }	
-Δt_factor        = 0.01			# The time step size
+Δt_factor        = 0.01		        # The time step size
 R_tophat         = 8*Mpc		# Radius of tophat used to compute σ
 
 # Cosmological parameters
 H0      = 70*km/(s*Mpc)			# The Hubble constant
+Ωr      = 0			        # Density parameter for radiation
 Ωm      = 0.3				# Density parameter for matter
-ΩΛ      = 0.7				# Density parameter for dark energy
+ΩΛ      = 0.7				# Density parameter for cosmological constant
 a_begin = 0.02				# Scale factor at beginning of simulation
 
 # Graphics
@@ -80,6 +81,11 @@ kick_algorithms = {
     'dark matter particles': 'PM',	# The algorithm which should be used to kick each species
                    }
 fftw_rigor = 'measure'			# Rigor level when acquiring FFTW wisdom
+
+# System of units
+unit_length = 'Mpc'
+unit_time   = 'Gyr'
+unit_mass   = '1e+10*m_sun'
 
 # Debugging options
 enable_Ewald     = True			# Enable Ewald corrections

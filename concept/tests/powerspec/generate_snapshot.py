@@ -35,7 +35,7 @@ from numpy.random import normal
 # Create close to homogeneous particles
 N_lin = 128
 N = N_lin**3
-mass = Ωm*ϱ*boxsize**3/N
+mass = ϱmbar*boxsize**3/N
 component = Component('test particles', 'dark matter particles', N, mass)
 posx = empty(N)
 posy = empty(N)

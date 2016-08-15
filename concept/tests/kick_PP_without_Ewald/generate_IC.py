@@ -36,7 +36,7 @@ from snapshot import save
 # any direction, as the nearest particle image in all cases must be the
 # actual particle itself.
 N = 8
-mass = Ωm*ϱ*boxsize**3/N
+mass = ϱmbar*boxsize**3/N
 component = Component('GADGET halos', 'dark matter particles', N, mass)
 component.populate(np.array([0.26]*4 + [0.74]*4)*boxsize, 'posx')
 component.populate(np.array([0.25, 0.25, 0.75, 0.75]*2)*boxsize, 'posy')

@@ -122,7 +122,8 @@ fig, ax = plt.subplots(len(nprocs_list), sharex=True, sharey=True)
 for n, d, ax_i in zip(dist.keys(), dist.values(), ax):
     for i in range(N_snapshots):
         ax_i.plot(np.array(d[i])/boxsize, '.', alpha=.7, label='$a={}$'.format(a[i]), zorder=-i)
-    ax_i.set_ylabel('$|\mathbf{x}_{\mathrm{pp}' + str(n) + '} - \mathbf{x}_{\mathrm{c}' + str(n) + '}|/\mathrm{boxsize}$')
+    ax_i.set_ylabel('$|\mathbf{{x}}_{{\mathrm{{pp}}{n}}} - \mathbf{{x}}_{{\mathrm{{c}}{n}}}|'
+                    '/\mathrm{{boxsize}}$'.format(n=n))   
 ax[-1].set_xlabel('Particle number')
 plt.xlim(0, N - 1)
 fig.subplots_adjust(hspace=0)

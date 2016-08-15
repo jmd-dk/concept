@@ -47,7 +47,7 @@ ctrl_c()
 }
 abort()
 {
-    colorprint "An error occurred while using the \"$(basename ${this_file})\" utility!" "red"
+    colorprint "An error occurred while using the \"$(basename "${this_file}")\" utility!" "red"
     exit 1
 }
 if [ "${called_from_concept}" == "True" ]; then
@@ -79,10 +79,12 @@ def positive_int(value):
         raise_argparse_exception()
     return value
 # Setup command-line arguments
-parser = argparse.ArgumentParser(prog='$(basename ${this_file})',
-                                 description='Run the CO𝘕CEPT $(basename ${this_file}) utility')
+parser = argparse.ArgumentParser(prog='$(basename "${this_file}")',
+                                 description='Run the CO𝘕CEPT $(basename "${this_file}") utility')
 parser.add_argument('path',
-                    help='path to log file',
+                    help='path to log file or log file name',
+                    nargs='?',
+                    default='__newest__',
                     )
 parser.add_argument('-f', '--frame-rate',
                     help='frame rate in integer frames/second.',
@@ -110,7 +112,7 @@ print(  ' argparse_finished=yes'
       + '; path=\"{}\"'.format(args.path)
       + '; framerate=\"{}\"'.format(args.frame_rate)
       )
-" "$@")
+" "$@" || :)
 # Evaluate the handled arguments into this scope
 eval "${args}"
 # Exit if argparse exited without finishing
@@ -122,9 +124,23 @@ fi
 # If not called indirectly through the concept script,
 # call the concept script now.
 if [ "${called_from_concept}" != "True" ]; then
-    "${this_dir}/../concept" --util "${this_file}" "$@"
+    "${concept}" --util "${this_file}" "$@"
     trap : 0
     exit 0
+fi
+
+# If no path argument was supplied, play the latest log file
+if [ "${path}" == "__newest__" ]; then
+    printf "No log file specified - Will play the latest"
+    path="$(ls -t "${logs_dir}" | head -n 1)"
+    if [ -z "${path}" ]; then
+        echo
+        colorprint "Error: The logs directory \"${logs_dir}\" is empty" "red"
+        exit 1
+    fi
+    path="${path%_err}"
+    echo " (${path})"
+    path="${logs_dir}/${path}"
 fi
 
 # Convert to absolute path
@@ -299,6 +315,6 @@ printf "\n${time_stamps[N_terminal_renders - 1]}"
 printf "\n"
 
 # Exit gracefully
-colorprint "$(basename ${this_file}) utility ran successfully" "green"
+colorprint "$(basename "${this_file}") utility ran successfully" "green"
 trap : 0
 

@@ -59,7 +59,7 @@ class StandardSnapshot:
                 f.attrs[unicode('ΩΛ')]
                 return True
         except:
-            pass
+            ...
         return False
 
     # Initialization method
@@ -99,7 +99,7 @@ class StandardSnapshot:
                    fluidscalar='FluidScalar',
                    shape='tuple',
                    start_local='Py_ssize_t',
-                   δ_mv='double[:, :, ::1]',
+                   ϱ_mv='double[:, :, ::1]',
                    l='Py_ssize_t',
                    )
     def save(self, filename):
@@ -170,10 +170,10 @@ class StandardSnapshot:
                     fluidvars = component.fluidvars
                     fluidvars_h5.attrs['N'] = fluidvars['N']                    
                     # Compute local indices of fluid grids
-                    δ_mv = fluidvars['δ'].grid_mv
-                    domain_size_i = δ_mv.shape[0] - (1 + 2*2)
-                    domain_size_j = δ_mv.shape[1] - (1 + 2*2)
-                    domain_size_k = δ_mv.shape[2] - (1 + 2*2)
+                    ϱ_mv = fluidvars['ϱ'].grid_mv
+                    domain_size_i = ϱ_mv.shape[0] - (1 + 2*2)
+                    domain_size_j = ϱ_mv.shape[1] - (1 + 2*2)
+                    domain_size_k = ϱ_mv.shape[2] - (1 + 2*2)
                     domain_start_i = domain_layout_local_indices[0]*domain_size_i
                     domain_start_j = domain_layout_local_indices[1]*domain_size_j
                     domain_start_k = domain_layout_local_indices[2]*domain_size_k
@@ -186,7 +186,7 @@ class StandardSnapshot:
                         fluidvar = fluidvars[l]
                         fluidvar_h5 = fluidvars_h5.create_group(str(l))
                         fluidvar_h5.attrs['shape'] = fluidvar.shape
-                        for multi_index in component.iterate_fluidvar(fluidvar):
+                        for multi_index in component.iterate_fluidscalar_indices(fluidvar):
                             fluidscalar = fluidvar[multi_index]
                             fluidscalar_h5 = fluidvar_h5.create_dataset(str(multi_index),
                                                                         shape,
@@ -199,11 +199,11 @@ class StandardSnapshot:
                                                                              2:(2 + domain_size_k)]
                     # Create additional names (hard links)
                     # for some fluid groups and data sets.
-                    fluidvars_h5[unicode('δ')] = fluidvars_h5['0'][str((0,))]
-                    fluidvars_h5['u']          = fluidvars_h5['1']
-                    fluidvars_h5['ux']         = fluidvars_h5['u'][str((0,))]
-                    fluidvars_h5['uy']         = fluidvars_h5['u'][str((1,))]
-                    fluidvars_h5['uz']         = fluidvars_h5['u'][str((2,))]
+                    fluidvars_h5[unicode('ϱ')]   = fluidvars_h5['0'][str((0,))]
+                    fluidvars_h5[unicode('ϱu')]  = fluidvars_h5['1']
+                    fluidvars_h5[unicode('ϱux')] = fluidvars_h5[unicode('ϱu')][str((0,))]
+                    fluidvars_h5[unicode('ϱuy')] = fluidvars_h5[unicode('ϱu')][str((1,))]
+                    fluidvars_h5[unicode('ϱuz')] = fluidvars_h5[unicode('ϱu')][str((2,))]
                     # Finalize progress message
                     masterprint('done')
                 elif master:
@@ -220,6 +220,7 @@ class StandardSnapshot:
                     end_local='Py_ssize_t',
                     gridsize='Py_ssize_t',
                     N='Py_ssize_t',
+                    N_fluidvars='Py_ssize_t',
                     mass='double',
                     representation='str',
                     species='str',
@@ -335,15 +336,15 @@ class StandardSnapshot:
                     # Finalize progress message
                     masterprint('done')
                 elif representation == 'fluid':
+                    # Read in the number of fluid variables
+                    fluidvars_h5 = component_h5['fluidvars']
+                    N_fluidvars = fluidvars_h5.attrs['N']                    
                     # Construct a Component instance and append it
                     # to this snapshot's list of components.
                     gridsize = component_h5.attrs['gridsize']
-                    component = Component(name, species, gridsize, mass)
-                    self.components.append(component)
-                    # Read in the number of fluid variables
-                    fluidvars_h5 = component_h5['fluidvars']
+                    component = Component(name, species, gridsize, mass, N_fluidvars)
                     fluidvars = component.fluidvars
-                    fluidvars['N'] = fluidvars_h5.attrs['N']
+                    self.components.append(component)
                     # Done loading component attributes
                     if only_params:
                         continue
@@ -369,19 +370,13 @@ class StandardSnapshot:
                     domain_end_j = domain_start_j + domain_size_j
                     domain_end_k = domain_start_k + domain_size_k
                     # Extract fluid grids and store them in the
-                    # fluidvars hierarchy on the component.
+                    # fluidvars dict on the component.
                     for l in range(fluidvars['N']):
-                        # Construct fluid scalars according to the
-                        # shape of the fluid variable.
+                        # Fluid scalars are already instantiated.
+                        # Now populate them.
                         fluidvar_h5 = fluidvars_h5[str(l)]
-                        shape = tuple(fluidvar_h5.attrs['shape'])
-                        fluidvar = empty(shape, dtype='object')
-                        fluidvars[l] = fluidvar
-                        # Instantiate fluid scalars
-                        for multi_index in component.iterate_fluidvar(fluidvar):
-                            fluidvar[multi_index] = FluidScalar(l, multi_index)
-                        # Populate fluid scalars
-                        for multi_index in component.iterate_fluidvar(fluidvar):
+                        fluidvar = fluidvars[l]
+                        for multi_index in component.iterate_fluidscalar_indices(fluidvar):
                             fluidscalar_h5 = fluidvar_h5[str(multi_index)]
                             component.populate(fluidscalar_h5[domain_start_i:domain_end_i,
                                                               domain_start_j:domain_end_j,
@@ -392,16 +387,16 @@ class StandardSnapshot:
                     # If the snapshot and the current run uses different
                     # systems of units, mulitply the fluid data
                     # by the snapshot units.
-                    units_fluidvars = asarray([1,                                        # δ
-                                               snapshot_unit_length/snapshot_unit_time,  # u
+                    units_fluidvars = asarray([snapshot_unit_mass/snapshot_unit_length**3,                       # ϱ
+                                               snapshot_unit_mass/(snapshot_unit_length**2*snapshot_unit_time),  # ϱu
                                                ], dtype=C2np['double'])
-                    size = gridsize**3
+                    size = np.prod(fluidvars['shape'])
                     for l in range(fluidvars['N']):
                         unit = units_fluidvars[l]
                         if unit == 1:
                             continue
                         fluidvar = fluidvars[l]
-                        for multi_index in component.iterate_fluidvar(fluidvar):
+                        for multi_index in component.iterate_fluidscalar_indices(fluidvar):
                             fluidscalar = fluidvar[multi_index]
                             grid = fluidscalar.grid
                             for i in range(size):
@@ -430,7 +425,7 @@ class StandardSnapshot:
         if enable_Hubble:
             self.params['a']   = params.get('a',       universals.a)
         else:
-            self.params['a']   = -1
+            self.params['a']   = universals.a
         self.params['boxsize'] = params.get('boxsize', boxsize)
         self.params['Ωm']      = params.get('Ωm',      Ωm)
         self.params['ΩΛ']      = params.get('ΩΛ',      ΩΛ)
@@ -482,7 +477,7 @@ class Gadget2Snapshot:
                 if head[0] == b'HEAD':
                     return True
         except:
-            pass
+            ...
         return False
 
     # Initialization method
@@ -814,7 +809,7 @@ class Gadget2Snapshot:
         if enable_Hubble:
             self.params['a']   = params.get('a',       universals.a)
         else:
-            self.params['a']   = -1
+            self.params['a']   = universals.a
         self.params['boxsize'] = params.get('boxsize', boxsize)
         self.params['Ωm']      = params.get('Ωm',      Ωm)
         self.params['ΩΛ']      = params.get('ΩΛ',      ΩΛ)
@@ -1031,7 +1026,7 @@ def get_snapshot_type(filename):
                # Locals
                indent_str='str',
                msg='str',
-               reltol='double',
+               rel_tol='double',
                unit='double',
                vs='str',
                )
@@ -1044,31 +1039,29 @@ def compare_parameters(params, filename, indent=0):
     ΩΛ
     """
     # The relative tolerence by which the parameters are compared
-    reltol = 1e-6
+    rel_tol = 1e-6
     # Format strings
-    vs = '{:.' + str(int(1 - log10(reltol))) + 'g}'
-    vs += ' vs ' + vs
+    vs = '{{:.{num}g}} vs {{:.{num}g}}'.format(num=int(1 - log10(rel_tol)))
     indent_str = '\n    '
     msg = ''
     # Do the comparisons one by one
-    if enable_Hubble and a_begin != -1:
-        if not isclose(a_begin, float(params['a']), reltol):
-            msg += (indent_str + 'a_begin: ' + vs).format(a_begin, params['a'])
-    if not isclose(boxsize, float(params['boxsize']), reltol):
-        msg += (indent_str + 'boxsize: ' + vs + ' [{}]').format(boxsize,
-                                                                params['boxsize'],
-                                                                unit_length)
-    if not isclose(H0, float(params['H0']), reltol):
+    if enable_Hubble and not isclose(a_begin, float(params['a']), rel_tol):
+        msg += '{}a_begin: {}'.format(indent_str,
+                                      vs.format(a_begin, params['a']))
+    if not isclose(boxsize, float(params['boxsize']), rel_tol):
+        msg += '{}boxsize: {} [{}]'.format(indent_str,
+                                           vs.format(boxsize, params['boxsize']),
+                                           unit_length)
+    if not isclose(H0, float(params['H0']), rel_tol):
         unit = units.km/(units.s*units.Mpc)
-        msg += (indent_str + 'H0: ' + vs + ' [{}]'
-                ).format(H0/unit,
-                         params['H0']/unit,
-                         'km s{inv} Mpc{inv}'.format(inv=(unicode('⁻¹')))
-                         )
-    if not isclose(Ωm, float(params['Ωm']), reltol):
-        msg += (indent_str + unicode('Ωm: ') + vs).format(Ωm, params['Ωm'])
-    if not isclose(ΩΛ, float(params['ΩΛ']), reltol):
-        msg += (indent_str + unicode('ΩΛ: ') + vs).format(ΩΛ, params['ΩΛ'])
+        msg += '{}H0: {} [km s⁻¹ Mpc⁻¹]'.format(indent_str,
+                                                vs.format(H0/unit, params['H0']/unit))
+    if not isclose(Ωm, float(params['Ωm']), rel_tol):
+        msg += '{}Ωm: {}'.format(indent_str,
+                                 vs.format(Ωm, params['Ωm']))
+    if not isclose(ΩΛ, float(params['ΩΛ']), rel_tol):
+        msg += '{}ΩΛ: {}'.format(indent_str,
+                                 vs.format(ΩΛ, params['ΩΛ']))
     if msg:
         msg = ('Mismatch between current parameters and those in the snapshot "{}":{}'
                ).format(filename, msg)

@@ -44,7 +44,7 @@ if [ -z "${workdir}" ]; then
 fi
 
 # For the terminal to be able to print Unicode characters correctly,
-# the terminal charset need to be compatible.
+# the terminal charset needs to be compatible.
 export LC_CTYPE="en_US.UTF-8"
 # Set the terminal if unset or broken
 if [ -z "${TERM}" ] || [ "${TERM}" == "dumb" ]; then
@@ -190,6 +190,7 @@ set -e
 # Default values of command-line arguments
 local_default="False"
 main_default="${concept_dir}/main.py"
+nowatch_default="False"
 nprocs_default=1
 params_default="None"
 pure_python_default="False"
@@ -211,7 +212,6 @@ cd "${concept_dir}"
 export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
 
 # Use Python's argparse module to handle command-line arguments
-argparse_success="yes"
 args=$("${python}" -c "
 import argparse, sys
 # Function which checks whether input is a
@@ -231,7 +231,7 @@ def positive_int(value):
         raise_argparse_exception()
     return value
 # Setup command-line arguments
-parser = argparse.ArgumentParser(prog='$(basename ${this_file})',
+parser = argparse.ArgumentParser(prog='$(basename "${this_file}")',
                                  description='Run the CO𝘕CEPT code')
 parser.add_argument('-m', '--main',
                     help=('entry point of the code. '
@@ -273,6 +273,11 @@ parser.add_argument('--local',
                     default=${local_default},
                     action='store_true',
                     )
+parser.add_argument('--nowatch',
+                    help='do not follow the submitted job via the watch utility',
+                    default=${nowatch_default},
+                    action='store_true',
+                    )
 parser.add_argument('--pure-python',
                     help='run in pure Python mode',
                     default=${pure_python_default},
@@ -308,28 +313,23 @@ print(  '  argparse_finished=yes'
       + '; util_args=({})'.format(\"'\" + \"' '\".join(util_args) + \"'\")  # Bash array
       + '; walltime={}'.format(args.walltime)
       + '; local={}'.format(args.local)
+      + '; nowatch={}'.format(args.nowatch)
       + '; pure_python={}'.format(args.pure_python)
       )
-" "$@" || echo "argparse_success=\"no\"")
+" "$@" || :)
 # Evaluate the handled arguments into this scope
 eval "${args}"
 # Exit if argparse exited without finishing
 if [ "${argparse_finished}" != "yes" ]; then
-    # Python's argparse did not finish, either due to help being
-    # asked for (and given) or invalid arguments.
-    if [ "${argparse_success}" == "yes" ]; then
-        # Help was asked for and given
-        trap : 0
-        exit 0
-    else
-        # Invalid arguments
-        exit 1
-    fi
+    trap : 0
+    exit 0
 fi
 
 # Check whether the main "file" is really a string of commands
 main_as_command="no"
-if [[ "${main}" == *"print("* ]]; then
+if (   [[ "${main}" == *"print("* ]] \
+    || [[ "${main}" == *";"*      ]] \
+    || [[ "${main}" == *$'\n'*    ]]); then
     main_as_command="yes"
 fi
 
@@ -373,7 +373,11 @@ fi
 if [ "${nprocs}" == "${nprocs_unspecified}" ]; then
     nprocs="${nprocs_default}"
     if [ "${running_test_or_util}" == "False" ]; then
-        echo "Number of processes not specified - Will use ${nprocs}"
+        if [ ${nprocs} == 1 ]; then
+            echo "Number of processes not specified - Will run serially"
+        else
+            echo "Number of processes not specified - Will use ${nprocs}"
+        fi
     fi
 fi
 if [ "${params}" == "${params_unspecified}" ]; then
@@ -389,12 +393,12 @@ if [ "${test}" != "${test_unspecified}" ]; then
         trap : 0
         for dir in "${tests_dir}/"*/; do
             dir=${dir%*/}
-            colorprint "\nRunning $(basename ${dir}) test" "yellow"
+            colorprint "\nRunning $(basename "${dir}") test" "yellow"
             "${dir}/run_test"
         done
         colorprint "\nAll tests ran successfully" "green"
     else
-        colorprint "Running $(basename ${test}) test" "yellow"
+        colorprint "Running $(basename "${test}") test" "yellow"
         trap : 0
         "${test}/run_test"
     fi
@@ -422,6 +426,15 @@ else
     (cd "${concept_dir}" && make)
 fi
 
+# Determine whether this script is run locally or remotely via ssh.
+# Always treat tests as if they were run locally.
+remote="False"
+if [ "${local}" == "False" ] && [ "${test}" == "${test_unspecified}" ] \
+                             && ([ -n "${SSH_CLIENT}" ] || [ -n "${SSH_TTY}" ]); then
+    remote="True"
+fi
+export remote="${remote}"
+
 # If a utility is to be run, run it and exit
 if [ "${util}" != "${util_unspecified}" ]; then
     # If no argument was passed after the -u option,
@@ -438,17 +451,26 @@ if [ "${util}" != "${util_unspecified}" ]; then
     export test="${test}"
     export util="${util}"
     export walltime="${walltime}"
+    export local="${local}"
     local_flag=""
     if [ "${local}" == "True" ]; then
         local_flag="--local"
     fi
     export local_flag="${local_flag}"
+    export nowatch="${nowatch}"
+    nowatch_flag=""
+    if [ "${nowatch}" == "True" ]; then
+        nowatch_flag="--nowatch"
+    fi
+    export nowatch_flag="${nowatch_flag}"
+    export pure_python="${pure_python}"
     pure_python_flag=""
     if [ "${pure_python}" == "True" ]; then
         pure_python_flag="--pure-python"
     fi
     export pure_python_flag="${pure_python_flag}"
-    colorprint "Running the $(basename ${util}) utility" "yellow"
+    # Run utility util and exit
+    colorprint "Running the $(basename "${util}") utility" "yellow"
     trap : 0
     if [ -z "${util_args[0]}" ] && [ ${#util_args[@]} == 1 ]; then
         called_from_concept="True" "${util}"
@@ -482,7 +504,7 @@ if remote_liverender:
     # Create test file to be scp'ed
     test_filename = '${this_dir}/.scp_test'
     with open(test_filename, 'a'):
-        pass
+        ...
     # Spawn the interactive process
     cmd = 'scp \"{}\" \"{}\"'.format(test_filename, remote_liverender)
     scp_host = re.search('@(.*):', remote_liverender).group(1)
@@ -538,18 +560,15 @@ fi
 # Create the logs dir if it does not exist
 mkdir -p "${logs_dir}"
 
-# Determine whether this script is run locally or remotely via ssh.
-# Always treat tests as if they were run locally.
-remote="False"
-if [ "${local}" == "False" ] && [ "${test}" == "${test_unspecified}" ] \
-                             && ([ -n "${SSH_CLIENT}" ] || [ -n "${SSH_TTY}" ]); then
-    remote="True"
-fi
-
 # Either stop doing further actions, submit job or run it locally
 if [ ${#queues[@]} == 0 ] && [ "${remote}" == "True" ]; then
-    # Run remotely but do not use PBS
-    printf "The CO𝘕CEPT code is ready to be submitted\n"
+    # This script was invoked remotely but no queues are known.
+    # Do not submit the job.
+    printf "\nThe CO𝘕CEPT code is ready to be submitted.\n\
+Automatic PBS submition can be enabled by specifying one or more queue names and the \
+corresponding number of cores/node in the \"queues\" and \"ppns\" arrays in the concept script.\n\
+Alternatively, supply the --local flag when invoking the concept script to run the code directly, \
+without submitting it as a PBS job.\n\n"
     trap : 0
     exit 0
 elif [ ${#queues[@]} -gt 0 ] && [ "${remote}" == "True" ]; then
@@ -610,7 +629,7 @@ the number of cores per node (${ppn}) in queue ${queue}" "red"
     fi
     # Write a jobscript file
     printf "#!/usr/bin/env bash
-#PBS -N CONCEPT:${params}:CONCEPT
+#PBS -N CONCEPT:${params_rel}:CONCEPT
 #PBS -q ${queue}
 #PBS -l nodes=${nodes}:ppn=${ppn}
 #PBS -l walltime=${walltime}:00:00
@@ -623,6 +642,14 @@ cd \"${logs_dir}\"
 # Get the ID of the current job
 jobid=\"\${PBS_JOBID%%.*}\"
 
+# For the terminal to be able to print Unicode characters correctly,
+# the terminal charset needs to be compatible.
+export LC_CTYPE=\"en_US.UTF-8\"
+# Set the terminal if unset or broken
+if [ -z \"\${TERM}\" ] || [ \"\${TERM}\" == \"dumb\" ]; then
+    export TERM=\"linux\"
+fi
+
 # Set and export path environment variables
 export PATH=\"${PATH}:\${PATH}\"
 export LD_LIBRARY_PATH=\"${LD_LIBRARY_PATH}:\${LD_LIBRARY_PATH}\"
@@ -630,24 +657,17 @@ export LD_LIBRARY_PATH=\"${LD_LIBRARY_PATH}:\${LD_LIBRARY_PATH}\"
 # On some systems, libpng finds a wrong version of the zlib shared
 # library. To fix this we export the zlib library at run time.
 export LD_LIBRARY_PATH=\"${zlib_dir}/lib:\${LD_LIBRARY_PATH}\"
-# For the terminal to be able to print Unicode characters correctly,
-# the terminal charset need to be compatible.
-export LC_CTYPE=\"en_US.UTF-8\"
-# Set the terminal if unset or broken
-if [ -z \"\${TERM}\" ] || [ \"\${TERM}\" == \"dumb\" ]; then
-    export TERM=\"linux\"
-fi
 
 # Source the concept script
 source \"${concept}\"
 
 # Print start messages
 if [ \"${pure_python}\" == \"True\" ]; then
-    colorprint \"Running CO𝘕CEPT in pure Python mode remotely on \$(hostname -f) \
-as job \${jobid}\" \"yellow\" > \"${logs_dir}/\${jobid}\"
+    colorprint \"Running CO𝘕CEPT job \${jobid} in pure Python mode remotely on \$(hostname -f)\" \
+               \"yellow\" > \"${logs_dir}/\${jobid}\"
 else
-    colorprint \"Running CO𝘕CEPT remotely on \$(hostname -f) \
-as job \${jobid}\" \"yellow\" > \"${logs_dir}/\${jobid}\"
+    colorprint \"Running CO𝘕CEPT job \${jobid} remotely on \$(hostname -f)\" \
+               \"yellow\" > \"${logs_dir}/\${jobid}\"
 fi
 echo \"Entry point:   \\\\\"${main_rel}\\\\\"\"               >> \"${logs_dir}/\${jobid}\"
 if [ \"${params_rel}\" == \"None\" ]; then
@@ -686,11 +706,11 @@ if [ -f \"${logs_dir}/\${jobid}_err\" ] && [ ! -s \"${logs_dir}/\${jobid}_err\" 
     rm \"${logs_dir}/\${jobid}_err\"
 else
     colorprint \"\\\nSome warnings/errors occured during CO𝘕CEPT run!\" \"red\" \
->> \"${logs_dir}/\${jobid}\" 2>&1
+               >> \"${logs_dir}/\${jobid}\" 2>&1
     colorprint \"Check the following error log for more information:\"  \"red\" \
->> \"${logs_dir}/\${jobid}\" 2>&1
+               >> \"${logs_dir}/\${jobid}\" 2>&1
     colorprint \"\\\\\"${logs_dir}/\${jobid}_err\\\\\"\"                \"red\" \
->> \"${logs_dir}/\${jobid}\" 2>&1
+               >> \"${logs_dir}/\${jobid}\" 2>&1
 fi
 " > "${this_dir}/jobscript"
     # Check for the qsub command
@@ -705,12 +725,19 @@ Is PBS installed and on the PATH?" "red"
     jobid=$(cd "${logs_dir}" && qsub "${this_dir}/jobscript")
     jobid="${jobid%.*}"
     colorprint "\nSubmitting job" "yellow"
-    echo "Job ${jobid} submitted to queue ${queue}"
-    echo "You can now kill (Ctrl-C) this script without cancelling the job"
-    # Deactivate trap and call the watch script
-    sleep 1
+    echo "Job ${jobid} (parameterfile \"${params_rel}\") submitted to queue ${queue}"
+    # Deactivate traps before exiting
     trap : 0
-    "${utilities_dir}/watch" "${jobid}"
+    if [ "${nowatch}" == "False" ]; then
+        echo "You can now kill (Ctrl-C) this script without cancelling the job"
+    fi
+    sleep 1
+    # Invoke the watch utility on the submitted job
+    # unless --nowatch was supplied.
+    if [ "${nowatch}" == "False" ]; then
+        "${concept}" --util watch "${jobid}"
+    fi
+    exit 0
 else
     # Run locally.
     # Construct a jobid that does not conflict
@@ -762,13 +789,13 @@ else
                                "params='${params}'"             \
                                "scp_password='${scp_password}'" \
      | tee -a "${logs_dir}/${jobid}";                           \
-       echo "${PIPESTATUS[0]}" > "${logs_dir}/.exit_code"       \
+       echo "${PIPESTATUS[0]}" > "${this_dir}/.exit_code"       \
      ) 3>&1 1>&2 2>&3 | tee -a "${logs_dir}/${jobid}"           \
                                "${logs_dir}/${jobid}_err") 3>&1 1>&2 2>&3
     sleep 1
-    concept_exit_code="$(cat "${logs_dir}/.exit_code")"
+    concept_exit_code="$(cat "${this_dir}/.exit_code")"
     # Cleanup
-    rm -f "${logs_dir}/.exit_code"
+    rm -f "${this_dir}/.exit_code"
     # Run complete. Remove error log if empty
     if [ -f "${logs_dir}/${jobid}_err" ] && [ ! -s "${logs_dir}/${jobid}_err" ]; then
         rm "${logs_dir}/${jobid}_err"
@@ -781,6 +808,7 @@ Check the following error log for more information:\n\
     if [ "${concept_exit_code}" != "0" ]; then
         exit 1
     fi
-    # Deactivate trap before exiting
+    # Deactivate trap and exit
     trap : 0
+    exit 0
 fi

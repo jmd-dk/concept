@@ -31,7 +31,7 @@ output_times  = {'a': {'snapshot': logspace(log(0.02), log(0.25),  4, base=e)}}
 
 # Numerical parameters
 boxsize          = 64*Mpc
-Δt_factor        = 1  # Purposely set too high
+Δt_factor        = 1  # Deliberately set too high
 
 # Cosmological parameters
 H0      = 70*km/(s*Mpc)
@@ -46,5 +46,4 @@ terminal_render_resolution = 64
 # Debugging options
 enable_gravity = False
 enable_Hubble = True
-
 

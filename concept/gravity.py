@@ -25,6 +25,7 @@
 from commons import *
 
 # Cython imports
+from mesh import diff
 cimport('from ewald import ewald')
 cimport('from communication import find_N_recv, rank_neighboring_domain')
 cimport('from communication import domain_size_x,  domain_size_y,  domain_size_z')
@@ -32,7 +33,6 @@ cimport('from communication import domain_start_x, domain_start_y, domain_start_
 cimport('from mesh import CIC_components2slabs, CIC_grid2grid, CIC_scalargrid2coordinates')
 cimport('from mesh import slab, slab_size_j, slab_start_j, slabs_FFT, slabs_IFFT, slabs2φ')
 cimport('from mesh import φ, φ_noghosts')
-cimport('from mesh import diff')
 
 
 
@@ -55,7 +55,7 @@ cimport('from mesh import diff')
                Δmomz_j='double*',
                mass_j='double',
                N_local_j='Py_ssize_t',
-               a_integral='double',
+               ᔑdt='dict',
                softening2='double',
                only_short_range='bint',
                flag_input='int',
@@ -81,7 +81,7 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
                      mass_i, N_local_i,
                      posx_j, posy_j, posz_j, Δmomx_j, Δmomy_j, Δmomz_j,
                      mass_j, N_local_j,
-                     a_integral, softening2, flag_input, only_short_range=False):
+                     ᔑdt, softening2, flag_input, only_short_range=False):
     """This function takes in positions and momenta of particles located
     in the domain designated the calling process, as well as positions
     and preallocated nullified momentum changes for particles located in
@@ -105,7 +105,7 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
     # p_i --> p_i + ∫_t^(t + Δt) F/a*dt = p_i + m_i*F*∫_t^(t + Δt) dt/a
     #       = p_i + (-G*m_i*m_j/r**2)*∫_t^(t + Δt) dt/a
     #       = p_i - 1/r**2*(G*m_i*m_j*∫_t^(t + Δt) dt/a)
-    eom_factor = G_Newton*mass_i*mass_j*a_integral
+    eom_factor = G_Newton*mass_i*mass_j*ᔑdt['a⁻¹']
     # Direct summation
     force = vector
     i_end = N_local_i if flag_input > 0 else N_local_i - 1
@@ -208,7 +208,7 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
 # (the particle particle or PP method).
 @cython.pheader(# Arguments
                component='Component',
-               a_integral='double',
+               ᔑdt='dict',
                # Locals
                ID_recv='int',
                ID_send='int',
@@ -234,7 +234,7 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
                posz_local_mv='double[::1]',
                softening2='double',
                )
-def PP(component, a_integral):
+def PP(component, ᔑdt):
     """ This function updates the momenta of all particles in the
     parsed component via the particle-particle (PP) method.
     """
@@ -265,7 +265,7 @@ def PP(component, a_integral):
                      posx_local, posy_local, posz_local,
                      vector, vector, vector,
                      mass, N_local,
-                     a_integral, softening2,
+                     ᔑdt, softening2,
                      0)
     # All work done if only one domain exists
     # (if run on a single process).
@@ -331,7 +331,7 @@ def PP(component, a_integral):
                          posx_extrn, posy_extrn, posz_extrn,
                          Δmomx_extrn, Δmomy_extrn, Δmomz_extrn,
                          mass, N_extrn,
-                         a_integral, softening2,
+                         ᔑdt, softening2,
                          flag_input)
         # When flag_input == 2, no momentum updates has been computed.
         # Do not sent or recieve these noncomputed updates.
@@ -362,7 +362,7 @@ def PP(component, a_integral):
 # by the particle mesh (PM) method.
 @cython.header(# Arguments
                component='Component',
-               a_integral='double',
+               ᔑdt='dict',
                meshbuf_mv='double[:, :, ::1]',
                dim='int',
                # Locals
@@ -373,7 +373,7 @@ def PP(component, a_integral):
                posy='double*',
                posz='double*',
                )
-def PM(component, a_integral, meshbuf_mv, dim):
+def PM(component, ᔑdt, meshbuf_mv, dim):
     """This function updates the momenta of all particles via the
     particle-mesh (PM) method.
     """
@@ -390,7 +390,7 @@ def PM(component, a_integral, meshbuf_mv, dim):
     # The factor with which to multiply the values
     # in meshbuf_mv (the differentiated potential)
     # in order to get momentum units.
-    PM_fac = PM_fac_const*component.mass*a_integral
+    PM_fac = PM_fac_const*component.mass*ᔑdt['a⁻¹']
     # Update the dim momentum component of particle i
     for i in range(component.N_local):
         # The coordinates of the i'th particle,
@@ -403,35 +403,29 @@ def PM(component, a_integral, meshbuf_mv, dim):
         # momentum of particle i.
         mom[i] += PM_fac*CIC_scalargrid2coordinates(meshbuf_mv, x, y, z)
 
-# Function which adds the potential-part (-a⁻²∇φ) to Δu of a fluid
+# Function which 'kicks' a fluid component, adding the gravitational
+# source term [-∇φ]_dim*ϱ to the source buffer of the ϱu[dim] fluid
+# variable of the component.
 @cython.header(# Arguments
                component='Component',
-               a_integral='double',
                meshbuf_mv='double[:, :, ::1]',
                dim='int',
-               # Locals
-               udim_Δgravity_mv='double[:, :, ::1]',
                )
-def kick_fluid(component, a_integral, meshbuf_mv, dim):
+def kick_fluid(component, meshbuf_mv, dim):
     """The parsed meshbuf_mv should contain the dim'th component of ∇φ.
     To do the complete potential-part of the kick, call this function
     once for each dimension.
     """
-    # Extract one of the gravitational velocity update buffers
-    # based on the parsed dim.
-    udim_Δgravity_mv = component.fluidvars['u'][dim].Δgravity_mv
-    # The factor with which to multiply the values
-    # in meshbuf_mv (the differentiated potential)
-    # in order to get velocity units.
-    # This is the same as PM_fac used in the PM function, except that
-    # here we do not multiply by the mass (as we now want velocity,
-    # not momentum). Note however that here a_integral is
-    # ∫_t^(t + Δt)a⁻²dt, where in the PM function it is
-    # ∫_t^(t + Δt)a⁻¹dt.
-    fluid_φ_fac = PM_fac_const*a_integral
-    # Interpolate the differentiated potential in meshbuf_mv onto the
-    # velocity grid.
-    CIC_grid2grid(udim_Δgravity_mv, meshbuf_mv, fluid_φ_fac)
+    # The factor with which to multiply the values in meshbuf_mv
+    # (the differentiated potential, [∇φ]_dim) in order to get units of
+    # acceleration is given by PM_fac_const. As the source term
+    # is -∇φ*ϱ, we also need to multiply each
+    # grid point [i, j, k] by ϱ[i, j, k].
+    CIC_grid2grid(component.fluidvars['ϱu'][dim].source_noghosts,
+                  meshbuf_mv,
+                  fac=PM_fac_const,
+                  fac_grid=component.fluidvars['ϱ'].grid_noghosts,
+                  )
 
 # Function which constructs the total gravitational potential φ due
 # to all components.
@@ -462,10 +456,10 @@ def build_φ(components, only_long_range=False):
     Pseudo points and ghost layers will be communicated.
     """
     if not use_φ:
-        masterwarn(unicode('The φ mesh is not initialized. '
-                           'Have you specified φ_gridsize in the parameter file?'))
+        masterwarn('The φ mesh is not initialized. '
+                   'Have you specified φ_gridsize in the parameter file?')
     masterprint('Computing the gravitational potential ...')
-    # CIC interpolate the particles
+    # CIC interpolate the particles/fluid elements onto the slabs
     # and do forward Fourier transformation.
     CIC_components2slabs(components)
     slabs_FFT()
@@ -786,7 +780,7 @@ def in_boundary_leftbackwarddown(posx_local_i, posy_local_i, posz_local_i):
 # by the particle particle particle mesh (P³M) method.
 @cython.pheader(# Arguments
                component='Component',
-               a_integral='double',
+               ᔑdt='dict',
                # Locals
                N_extrn='Py_ssize_t',
                N_local='Py_ssize_t',
@@ -814,7 +808,7 @@ def in_boundary_leftbackwarddown(posx_local_i, posy_local_i, posz_local_i):
                softening2='double',
                Δmemory='Py_ssize_t',
                )
-def P3M(component, a_integral):
+def P3M(component, ᔑdt):
     """The long-range part is computed via the PM function. Local
     particles also interact via short-range direct summation. Finally,
     each process send particles near its boundary to the corresponding
@@ -853,7 +847,7 @@ def P3M(component, a_integral):
         # Do the differentiation of φ
         meshbuf_mv = diff(φ, dim, h)
         # Apply the long-range kick
-        PM(component, a_integral, meshbuf_mv, dim)
+        PM(component, ᔑdt, meshbuf_mv, dim)
     # Extract variables from component
     N_local    = component.N_local
     mass       = component.mass
@@ -872,7 +866,7 @@ def P3M(component, a_integral):
                      posx_local, posy_local, posz_local,
                      vector, vector, vector,
                      mass, N_local,
-                     a_integral, softening2, 0,
+                     ᔑdt, softening2, 0,
                      only_short_range=True)
     # All work done if only one domain
     # exists (if run on a single process)
@@ -1013,7 +1007,7 @@ def P3M(component, a_integral):
                          posx_extrn, posy_extrn, posz_extrn,
                          Δmomx_extrn, Δmomy_extrn, Δmomz_extrn,
                          mass, N_extrn,
-                         a_integral, softening2, 1,
+                         ᔑdt, softening2, 1,
                          only_short_range=True)
         # Apply the momentum changes to the local particle momentum data
         for i in range(N_boundary1):

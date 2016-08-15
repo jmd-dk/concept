@@ -35,17 +35,20 @@ from snapshot import save
 # traversing the box in the x-direction over 10 Gyr.
 # The y-velocity is 0 and the z-velocity is random.
 gridsize = 64
+Vcell = (boxsize/gridsize)**3
 speed = boxsize/(10*units.Gyr)
 N = gridsize**3
-mass = Ωm*ϱ*boxsize**3/N
+mass = ϱmbar*boxsize**3/N
 component = Component('test fluid', 'dark matter fluid', gridsize, mass)
-ρ_noghosts = empty([gridsize]*3)
+ϱ_noghosts = empty([gridsize]*3)
 for i in range(gridsize):
-    ρ_noghosts[i, :, :] = 2 + np.sin(2*π*i/gridsize)
-component.populate(ρ_noghosts/np.mean(ρ_noghosts) - 1, 'δ')
-component.populate(ones([gridsize]*3)*speed,                  'u', 0)
-component.populate(zeros([gridsize]*3),                       'u', 1)
-component.populate(ones([gridsize]*3)*speed*(random()*2 - 1), 'u', 2)
+    ϱ_noghosts[i, :, :] = 2 + np.sin(2*π*i/gridsize)  # Unitless
+ϱ_noghosts /= sum(ϱ_noghosts)                         # Normalize
+ϱ_noghosts *= ϱmbar*gridsize**3                       # Apply units
+component.populate(ϱ_noghosts,                                           'ϱ'    )
+component.populate(ϱ_noghosts*ones([gridsize]*3)*speed,                  'ϱu', 0)
+component.populate(ϱ_noghosts*zeros([gridsize]*3),                       'ϱu', 1)
+component.populate(ϱ_noghosts*ones([gridsize]*3)*speed*(random()*2 - 1), 'ϱu', 2)
 
 # Save snapshot
 save([component], IC_file)
