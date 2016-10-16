@@ -37,7 +37,7 @@
 # - zlib     (needed by libpng, HDF5 and Python)
 # - libpng   (needed by matplotlib)
 # - GSL
-# - MPICH
+# - OpenMPI
 # - HDF5
 # - FFTW
 # - FreeType (needed by matplotlib)
@@ -65,8 +65,12 @@
 # gsl library:
 # gsl_dir=/path/to/gsl /path/to/installer
 # The set of such environment variables correspond to the program names
-# above (though using lowercase only), except for mpich,
+# above (though using lowercase only), except for openmpi,
 # which are just mpi_dir.
+#
+# You may specify which MPI implementation to use - either OpenMPI or
+# MPICH - by setting the "mpi" environment variable to "openmpi" or
+# "mpich", respectively. The default is OpenMPI.
 # 
 # Should you choose to use a pre-installed Python distribution
 # (by setting the python_dir variable), any missing Python packages
@@ -93,6 +97,16 @@
 ##################
 # Specifications #
 ##################
+# The MPI implementation to use
+if [ -z "${mpi}" ]; then
+    # Use OpenMPI by default
+    mpi="openmpi"
+elif [ "${mpi,,}" != "openmpi" ] && [ "${mpi,,}" != "mpich" ]; then
+    echo "Specified MPI implementation mpi=\"${mpi}\" not recognized.
+Will use OpenMPI" >&2
+    mpi="openmpi"
+fi
+mpi="${mpi,,}"
 # This function sets the variables "name_dir" (if not set already)
 # and "name_preinstalled".
 set_dir()
@@ -146,7 +160,7 @@ set_dir "gsl"             "__top_dir__/gsl"
 set_dir "hdf5"            "__top_dir__/hdf5"
 set_dir "imagemagick"     "__top_dir__/imagemagick"
 set_dir "libpng"          "__top_dir__/libpng"
-set_dir "mpi"             "__top_dir__/mpich"
+set_dir "mpi"             "__top_dir__/${mpi}"
 set_dir "python"          "__top_dir__/python"
 set_dir "ncurses"         "${python_dir}"
 set_dir "openssl"         "${python_dir}"
@@ -180,23 +194,27 @@ set_version "freetype"        "2.7"     "2.6.5"
 set_version "python"          "3.5.2"
 set_version "libpng"          "1.6.25"  "1.6.23"
 set_version "ncurses"         "6.0"     "6.0"
-set_version "openssl"         "1.0.2j"  "1.0.2i"  # Python 3.5.2 seems incompatible with 1.1.0b
+set_version "openssl"         "1.0.2j"  "1.0.2i"  # Python 3.5.2 seems incompatible with OpenSSL 1.1.0b
 set_version "fftw"            "3.3.5"   "3.3.5"
 set_version "gadget"          "2.0.7"
 set_version "fftw_for_gadget" "2.1.5"   "2.1.5"
-set_version "gsl"             "2.2"     "2.2"
+set_version "gsl"             "2.2.1"   "2.2.1"
 set_version "hdf5"            "1.8.17"  "1.8.17"
-set_version "mpi"             "3.2"     "3.2"
+if [ "${mpi}" == "openmpi" ]; then
+    set_version "mpi"         "2.0.1"
+elif [ "${mpi}" == "mpich" ]; then
+    set_version "mpi"         "3.2"     "3.2"
+fi
 set_version "zlib"            "1.2.8"   "1.2.8"
 # Python packages
 set_version "blessings"       "1.6"
-set_version "cython"          "0.24.1"    # 0.23 does not work
+set_version "cython"          "0.24.1"  # 0.23 does not work
 set_version "cython_gsl"      "0.2.1"
-set_version "matplotlib"      "1.5.1"
-set_version "numpy"           "1.11.1"
-set_version "pexpect"         "4.2.0"
-set_version "mpi4py"          "2.0.0"   # 2.0.0 breaks h5py 2.5.0
-set_version "h5py"            "2.6.0"
+set_version "matplotlib"      "1.5.3"
+set_version "numpy"           "1.11.2"
+set_version "pexpect"         "4.2.1"
+set_version "mpi4py"          "2.0.0"
+set_version "h5py"            "2.6.0"  # 2.5.0 does not work with mpi4py 2.0.0
 # No longer installed by default
 set_version "imagemagick"     "6.9.3-3" "6.9.1-10"
 # Note that the versions may be changed further down due to known
@@ -865,9 +883,13 @@ validate_url()
         exit_on_error="$2"
     fi
     if [ "${progname}" == "mpi" ]; then
-        # Specifically, "MPI" is "MPICH"
-        current_step="validation of MPICH link"
-        set_status "Validating MPICH link"
+        if [ "${mpi}" == "openmpi" ]; then
+            current_step="validation of OpenMPI link"
+            set_status "Validating OpenMPI link"
+        elif [ "${mpi}" == "mpich" ]; then
+            current_step="validation of MPICH link"
+            set_status "Validating MPICH link"
+        fi
     else
         current_step="validation of ${1/CONCEPT/$esc_concept} link"
         set_status "Validating ${1/CONCEPT/$esc_concept_double_backslashes} link"
@@ -912,9 +934,12 @@ fallback()
     progname="${progname// /_}"
     eval "progname_version=\"\${${progname}_version}\""
     eval "progname_version_fallback=\"\${${progname}_version_fallback}\""
-    # Specifically, "MPI" is "MPICH"
     if [ "${progname}" == "mpi" ]; then
-        realname="MPICH"
+        if [ "${mpi}" == "openmpi" ]; then
+            realname="OpenMPI"
+        elif [ "${mpi}" == "mpich" ]; then
+            realname="MPICH"
+        fi
     else
         realname="${1}"
     fi
@@ -1140,32 +1165,60 @@ if [ "${gsl_install}" == "yes" ]; then
     fi
 fi
 
-# MPICH
+# MPI
 if [ "${mpi_install}" == "yes" ]; then
-    if [ "${mpi_version}" == "newest" ]; then
-        current_step="search for latest version of MPICH"
-        set_status "Searching for latest version of MPICH"
-        mpi_url="http://www.mpich.org/downloads"
-        mpi_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate ${mpi_url} \
-                       | grep -m 1 -o -P "(?<=mpich-).*(?=stable)"                      \
-                       | awk '{print $1}' || :)"
-    fi
-    mpi_url="http://www.mpich.org/static/downloads/${mpi_version}/mpich-${mpi_version}.tar.gz"
-    # Check if already installed and/or downloaded
-    check_progress "MPI"
-    # If not yet downloaded, validate the URL
-    if [ "${mpi_downloaded}" != "yes" ]; then
-        validate_url "MPI" "false"
-        if [ "${validate_url_status}" != "success" ]; then
-            echo "Primary MPICH link broken: ${mpi_url}"
-            fallback "MPI"
-            mpi_url="http://fossies.org/linux/misc/mpich-${mpi_version}.tar.gz"
-            echo "Using secondary MPICH link: ${mpi_url}"
-            # Check if already installed and/or downloaded
-            check_progress "MPI"
-            # If not yet downloaded, validate the URL
-            if [ "${mpi_downloaded}" != "yes" ]; then
-                validate_url "MPI"
+    if [ "${mpi}" == "openmpi" ]; then
+        # OpenMPI
+        if [ "${mpi_version}" == "newest" ]; then
+            current_step="search for latest version of OpenMPI"
+            set_status "Searching for latest version of OpenMPI"
+            mpi_url="https://www.open-mpi.org/software/ompi"
+            mpi_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate ${mpi_url} \
+                           | grep -m 1 -o -P "(?<=>openmpi-).*(?=.tar.gz)")"
+        fi
+        mpi_version_major="$(echo "${mpi_version}" | grep -m 1 -o -P "[0-9]*" \
+                                                   | head -n 1)"
+        mpi_version_major_dot_minor="$(echo "${mpi_version}" | grep -m 1 -o -P \
+                                            "${mpi_version_major}\.[0-9]*")"
+        mpi_url="https://www.open-mpi.org/software/ompi/v${mpi_version_major_dot_minor}/downloads/openmpi-${mpi_version}.tar.gz"
+        # Check if already installed and/or downloaded
+        check_progress "MPI"
+        # If not yet downloaded, validate the URL
+        if [ "${mpi_downloaded}" != "yes" ]; then
+            validate_url "MPI" "false"
+            if [ "${validate_url_status}" != "success" ]; then
+                echo "Primary OpenMPI link broken: ${mpi_url}"
+                error "Error: The installer does not know of a secondary OpenMPI link"
+                exit 1
+            fi
+        fi
+    elif [ "${mpi}" == "mpich" ]; then
+        # MPICH
+        if [ "${mpi_version}" == "newest" ]; then
+            current_step="search for latest version of MPICH"
+            set_status "Searching for latest version of MPICH"
+            mpi_url="http://www.mpich.org/downloads"
+            mpi_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate ${mpi_url} \
+                           | grep -m 1 -o -P "(?<=mpich-).*(?=stable)"                      \
+                           | awk '{print $1}' || :)"
+        fi
+        mpi_url="http://www.mpich.org/static/downloads/${mpi_version}/mpich-${mpi_version}.tar.gz"
+        # Check if already installed and/or downloaded
+        check_progress "MPI"
+        # If not yet downloaded, validate the URL
+        if [ "${mpi_downloaded}" != "yes" ]; then
+            validate_url "MPI" "false"
+            if [ "${validate_url_status}" != "success" ]; then
+                echo "Primary MPICH link broken: ${mpi_url}"
+                fallback "MPI"
+                mpi_url="http://fossies.org/linux/misc/mpich-${mpi_version}.tar.gz"
+                echo "Using secondary MPICH link: ${mpi_url}"
+                # Check if already installed and/or downloaded
+                check_progress "MPI"
+                # If not yet downloaded, validate the URL
+                if [ "${mpi_downloaded}" != "yes" ]; then
+                    validate_url "MPI"
+                fi
             fi
         fi
     fi
@@ -1600,21 +1653,21 @@ print_table()
 # This overview take the form of the following tables.
 # Programs which should not be installed will not be shown.
 #
-# Name           Version  Installation path
-# CO𝘕CEPT        ...      "/..."
-# ├─Python       ...      "/..."
-# │ ├─FreeType   ...      "/..."
-# │ ├─ncurses    ...      "/..."
-# │ ├─OpenSSL    ...      "/..."
-# │ └─zlib       ...      "/..."
-# ├─GSL          ...      "/..."
-# ├─MPICH        ...      "/..."
-# ├─HDF5         ...      "/..."
-# ├─FFTW         ...      "/..."
-# ├─GADGET       ...      "/..."
-# │  └─FFTW      ...      "/..."
-# └─ImageMagick  ...      "/..."
-#    └─libpng    ...      "/..."
+# Name            Version  Installation path
+# CO𝘕CEPT         ...      "/..."
+# ├─Python        ...      "/..."
+# │ ├─FreeType    ...      "/..."
+# │ ├─ncurses     ...      "/..."
+# │ ├─OpenSSL     ...      "/..."
+# │ └─zlib        ...      "/..."
+# ├─GSL           ...      "/..."
+# ├─OpenMPI/MPICH ...      "/..."
+# ├─HDF5          ...      "/..."
+# ├─FFTW          ...      "/..."
+# ├─GADGET        ...      "/..."
+# │  └─FFTW       ...      "/..."
+# └─ImageMagick   ...      "/..."
+#    └─libpng     ...      "/..."
 #
 # Name        Version
 # blessings   ...
@@ -1783,8 +1836,13 @@ if [ "${install_any_software}" == "yes" ]; then
             hang_end=""
         fi
         hang="$(tree_beginning ${concept_level} ${hang_end})"
-        table+=("${hang}MPICH$([ "${mpi_installed}" == "yes" ] && echo '*' || :)" \
-                "${mpi_version}" "\"${mpi_dir}\"")
+        if [ "${mpi}" == "openmpi" ]; then
+            table+=("${hang}OpenMPI$([ "${mpi_installed}" == "yes" ] && echo '*' || :)" \
+                    "${mpi_version}" "\"${mpi_dir}\"")
+        elif [ "${mpi}" == "mpich" ]; then
+            table+=("${hang}MPICH$([ "${mpi_installed}" == "yes" ] && echo '*' || :)" \
+                    "${mpi_version}" "\"${mpi_dir}\"")
+        fi
     fi
     # HDF5
     if [ "${hdf5_install}" == "yes" ]; then
@@ -1933,9 +1991,13 @@ download()
         current_step="the downloading of FFTW ${progversion} for GADGET"
         heading "Downloading FFTW ${progversion} for GADGET"
     elif [ "${progname}" == "mpi" ]; then
-        # Specifically, "MPI" is "MPICH"
-        current_step="the downloading of MPICH ${progversion}"
-        heading "Downloading MPICH ${progversion}"
+        if [ "${mpi}" == "openmpi" ]; then
+            current_step="the downloading of OpenMPI ${progversion}"
+            heading "Downloading OpenMPI ${progversion}"
+        elif [ "${mpi}" == "mpich" ]; then
+            current_step="the downloading of MPICH ${progversion}"
+            heading "Downloading MPICH ${progversion}"
+        fi
     else
         current_step="the downloading of ${1/CONCEPT/$esc_concept} ${progversion}"
         heading "Downloading ${1/CONCEPT/$esc_concept} ${progversion}"
@@ -2161,10 +2223,15 @@ init_install()
         heading "Installing FFTW ${progversion} for GADGET"
         set_status "Installing FFTW ${progversion} for GADGET"
     elif [ "${progname}" == "mpi" ]; then
-        # Specifically, "MPI" is "MPICH"
-        current_step="the installation of MPICH ${progversion}"
-        heading "Installing MPICH ${progversion}"
-        set_status "Installing MPICH ${progversion}"
+        if [ "${mpi}" == "openmpi" ]; then
+            current_step="the installation of OpenMPI ${progversion}"
+            heading "Installing OpenMPI ${progversion}"
+            set_status "Installing OpenMPI ${progversion}"
+        elif [ "${mpi}" == "mpich" ]; then
+            current_step="the installation of MPICH ${progversion}"
+            heading "Installing MPICH ${progversion}"
+            set_status "Installing MPICH ${progversion}"
+        fi
     else
         current_step="the installation of ${1/CONCEPT/$esc_concept} ${progversion}"
         heading "Installing ${1/CONCEPT/$esc_concept} ${progversion}"
@@ -2325,30 +2392,48 @@ Date:    $(date)
 " >> "${gsl_dir}/.installation_finished"
 fi
 
-# MPICH
+# MPI
 if [ "${mpi_install}" == "yes" ] && [ "${mpi_installed}" == "no" ]; then
-    init_install "MPI"
-    ./configure --enable-shared --prefix="${mpi_dir}" 2>&1
-    make 2>&1
-    if [ "${fast_install}" == "no" ]; then
-        make testing 2>&1 | tee "test_log"
-        [ ${PIPESTATUS[0]} != 0 ] && mpi_test_success="no"
-    fi
-    mpi_test_log="${mpi_dir}/test_log"
-    if [ "${mpi_test_success}" == "no" ]; then
-        mkdir -p "${mpi_dir}"
-        cp "test_log" "${mpi_test_log}"
-    fi
-    make install 2>&1
-    cp "COPYRIGHT" "${mpi_dir}/" || :
-    cd "${top_dir}"
-    rm -rf "${top_dir}/tmp/mpi"
-    # Write out success notice
-    echo "The following has been fully installed:
+    if [ "${mpi}" == "openmpi" ]; then
+        # OpenMPI
+        init_install "MPI"
+        ./configure --prefix="${mpi_dir}" 2>&1
+        make all 2>&1        
+        make install 2>&1
+        cp "AUTHORS" "LICENSE" "${mpi_dir}/" || :
+        cd "${top_dir}"
+        rm -rf "${top_dir}/tmp/mpi"
+        # Write out success notice
+        echo "The following has been fully installed:
 Program: MPI
 Version: ${mpi_version}
 Date:    $(date)
 " >> "${mpi_dir}/.installation_finished"
+    elif [ "${mpi}" == "mpich" ]; then
+        # MPICH
+        init_install "MPI"
+        ./configure --enable-shared --prefix="${mpi_dir}" 2>&1
+        make 2>&1
+        if [ "${fast_install}" == "no" ]; then
+            make testing 2>&1 | tee "test_log"
+            [ ${PIPESTATUS[0]} != 0 ] && mpi_test_success="no"
+        fi
+        mpi_test_log="${mpi_dir}/test_log"
+        if [ "${mpi_test_success}" == "no" ]; then
+            mkdir -p "${mpi_dir}"
+            cp "test_log" "${mpi_test_log}"
+        fi
+        make install 2>&1
+        cp "COPYRIGHT" "${mpi_dir}/" || :
+        cd "${top_dir}"
+        rm -rf "${top_dir}/tmp/mpi"
+        # Write out success notice
+        echo "The following has been fully installed:
+Program: MPI
+Version: ${mpi_version}
+Date:    $(date)
+" >> "${mpi_dir}/.installation_finished"
+    fi
 fi
 
 # HDF5
@@ -3226,7 +3311,11 @@ if [ "${install_anything}" == "yes" ]; then
     copyright_notice "hdf5"            "HDF5"
     copyright_notice "imagemagick"     "ImageMagick"
     copyright_notice "libpng"          "libpng"
-    copyright_notice "mpi"             "MPICH"
+    if [ "${mpi}" == "openmpi" ]; then
+        copyright_notice "mpi"         "OpenMPI"
+    elif [ "${mpi}" == "mpich" ]; then
+        copyright_notice "mpi"         "MPICH"
+    fi
     copyright_notice "ncurses"         "ncurses"
     copyright_notice "openssl"         "OpenSSL"
     copyright_notice "zlib"            "zlib"
@@ -3268,7 +3357,11 @@ erroneous_test_notice()
         printf "${esc_bold}${esc_red}Warning: ${esc_normal}"
         real_name="${1/CONCEPT/$esc_concept}"
         if [ "${real_name}" == "MPI" ]; then
-            real_name="MPICH"
+            if [ "${mpi}" == "openmpi" ]; then
+                real_name="OpenMPI"
+            elif [ "${mpi}" == "mpich" ]; then
+                real_name="MPICH"
+            fi
         fi
         printf "Some tests of ${real_name} did not pass successfully.\n"
         if [ -n "${2}" ]; then
