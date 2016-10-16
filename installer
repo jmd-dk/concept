@@ -2695,7 +2695,7 @@ if [ "${python_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
         first_line=${first_line%:*}
         ((last_line = first_line + 3))
         sed -i "${first_line},${last_line}s/.//" "Modules/Setup.dist"
-        sed -i "${first_line}s/.*/SSL=${openssl_dir//\//\\\/}/" "Modules/Setup.dist"
+        sed -i "${first_line}s/.*/SSL=${openssl_dir//\//\\/}/" "Modules/Setup.dist"
     fi
     if [ -n "${zlib_dir}" ]; then
         export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
