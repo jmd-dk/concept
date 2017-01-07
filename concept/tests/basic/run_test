@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -26,23 +26,38 @@
 # It runs the code with no parameter file in both pure Python
 # and compiled mode.
 
-# Initialize test environment
+# Absolute path and name of the directory of this file
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-source "${this_dir}/../environment"
+this_test="$(basename "${this_dir}")"
 
-# Clean and run in pure Python with different number of cpus
+# Set up error trapping
+ctrl_c()
+{
+    trap : 0
+    exit 2
+}
+abort()
+{
+    colorprint "An error occurred during ${this_test} test!" "red"
+    exit 1
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
+
+# Clean and run in pure Python with different number of CPUs
 (cd "${concept_dir}" && make clean)
 "${concept}"      --pure-python --local
 "${concept}" -n 1 --pure-python --local
 "${concept}" -n 2 --pure-python --local
 "${concept}" -n 4 --pure-python --local
 
-# Build and run in compiled mode with different number of cpus
+# Build and run in compiled mode with different number of CPUs
 "${concept}"      --local
 "${concept}" -n 1 --local
 "${concept}" -n 2 --local
 "${concept}" -n 4 --local
 
-# Finalize test environment
-test_done=true source "${this_dir}/../environment"
+# Test ran successfully. Deactivate traps.
+trap : 0
 

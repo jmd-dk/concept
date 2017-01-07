@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -31,42 +31,22 @@
 ############################################
 from __future__ import division  # Needed for Python3 division in Cython
 # Miscellaneous modules
-import collections, contextlib, ctypes, cython, imp, inspect, itertools, matplotlib, numpy as np
-import os, re, shutil, sys, types, unicodedata
+import collections, contextlib, ctypes, cython, imp, inspect, itertools
+import os, re, shutil, sys, textwrap, types, unicodedata
 # For math
 # (note that numpy.array is purposely not imported directly into the
 # global namespace, as this does not play well with Cython).
-from numpy import (arange, asarray, concatenate, cumsum, delete, empty, linspace, loadtxt, ones,
-                   unravel_index, zeros)
-from numpy.random import random
-# Use a matplotlib backend that does not require a running X-server
-matplotlib.use('Agg')
-# Customize matplotlib
-matplotlib.rcParams.update({# Use a nice font that ships with matplotlib
-                            'text.usetex'       : False,
-                            'font.family'       : 'serif',
-                            'font.serif'        : 'cmr10',
-                            'axes.unicode_minus': False,
-                            })
-color_cycle = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
-try:
-    # Matplotlib >= 1.5
-    matplotlib.rcParams.update({# Default colors
-                                'axes.prop_cycle': matplotlib.cycler('color', color_cycle),
-                                })
-except:
-    # Matplotlib < 1.5
-    matplotlib.rcParams.update({# Default colors
-                                'axes.color_cycle': color_cycle,
-                                })
-    
+import numpy as np
+from numpy import arange, asarray, empty, linspace, ones, zeros
 # For plotting
+import matplotlib
+matplotlib.use('Agg')  # Use a matplotlib backend that does not require a running X-server
 import matplotlib.pyplot as plt
 # For I/O
+from glob import glob
 import h5py
 # For fancy terminal output
-from blessings import Terminal
-terminal = Terminal(force_styling=True)
+import blessings
 # For timing
 from time import sleep, time
 from datetime import timedelta
@@ -108,61 +88,131 @@ master = not rank
 
 
 
+#################################
+# Miscellaneous initialisations #
+#################################
+# The time before the main computation begins
+if master:
+    start_time = time()
+# Initialize the pseudo-random number generator and declare the
+# functions random and random_gassian, returning random numbers from
+# the uniform distibution between 0 and 1 and a gaussian distribution
+# with variable mean and spread, respectively.
+# Both the pure Python and the compiled version of the functions use the
+# Mersenne Twister algorithm to generate the random numbers.
+# Despite of this, their exact implementation differs enough to make
+# the generated sequence of random numbers completely different for
+# pure Python and compiled runs.
+# Use a seed which is different for each MPI rank. Also avoid a seed
+# of 0, as this may lead to clashes with the default seed used by GSL.
+random_seed = 1 + rank
+if not cython.compiled:
+    # In pure Python, use NumPy's random module
+    np.random.seed(random_seed)
+    random = np.random.random
+    random_gaussian = np.random.normal
+else:
+    # Use GSL in compiled mode
+    cython.declare(random_number_generator='gsl_rng*')
+    random_number_generator = gsl_rng_alloc(gsl_rng_mt19937)
+    gsl_rng_set(random_number_generator, random_seed)
+    @cython.header(returns='double')
+    def random():
+        return gsl_rng_uniform_pos(random_number_generator)
+    @cython.header(loc='double',
+                   scale='double',
+                   returns='double',
+                   )
+    def random_gaussian(loc=0, scale=1):
+        return loc + gsl_ran_gaussian(random_number_generator, scale)
+# Initialise a Blessings Terminal object,
+# capable of producing fancy terminal formatting.
+terminal = blessings.Terminal(force_styling=True)
+# Customize matplotlib
+matplotlib.rcParams.update({# Use a nice font that ships with matplotlib
+                            'text.usetex'       : False,
+                            'font.family'       : 'serif',
+                            'font.serif'        : 'cmr10',
+                            'axes.unicode_minus': False,
+                            # Use outward pointing ticks
+                            'xtick.direction': 'out',
+                            'ytick.direction': 'out',
+                            })
+color_cycle = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
+try:
+    # Matplotlib ≥ 1.5
+    matplotlib.rcParams.update({# Default colors
+                                'axes.prop_cycle': matplotlib.cycler('color', color_cycle),
+                                })
+except:
+    # Matplotlib < 1.5
+    matplotlib.rcParams.update({# Default colors
+                                'axes.color_cycle': color_cycle,
+                                })
+
+
+
 #############################
 # Print and abort functions #
 #############################
+# Function which takes in a previously saved time as input
+# and returns the time which has elapsed since then, nicely formatted.
+def time_since(initial_time):
+    """The argument should be in the UNIX time stamp format,
+    e.g. what is returned by the time function.
+    """
+    # Time since initial_time, in seconds
+    seconds = time() - initial_time
+    # Construct the time interval with a sensible amount of
+    # significant figures.
+    milliseconds = 0
+    # More than a millisecond; use whole milliseconds
+    if seconds >= 1e-3:
+        milliseconds = round(1e+3*seconds)
+    interval = timedelta(milliseconds=milliseconds)
+    # More than a second; use whole deciseconds
+    if interval.total_seconds() >= 1e+0:
+        seconds = 1e-1*round(1e-2*milliseconds)
+        interval = timedelta(seconds=seconds)    
+    # More than 10 seconds; use whole seconds
+    if interval.total_seconds() >= 1e+1:
+        seconds = round(1e-3*milliseconds)
+        interval = timedelta(seconds=seconds)
+    # Return a fitting string representation of the interval
+    total_seconds = interval.total_seconds()
+    if total_seconds == 0:
+        return '< 1 ms'
+    if total_seconds < 1:
+        return '{} ms'.format(int(1e+3*total_seconds))
+    if total_seconds < 10:
+        return '{} s'.format(total_seconds)
+    if total_seconds < 60:
+        return '{} s'.format(int(total_seconds))
+    if total_seconds < 3600:
+        return str(interval)[2:]
+    return str(interval)
+
 # Function for printing messages as well as timed progress messages
-def masterprint(*args, indent=0, sep=' ', end='\n', fun=None, **kwargs):
-    global progressprint_time, progressprint_length, progressprint_maxintervallength
+def masterprint(*args, indent=0, sep=' ', end='\n', fun=None, wrap=True, **kwargs):
     if not master:
         return
     terminal_resolution = 80
     if args[0] == 'done':
         # End of progress message
-        seconds = time() - progressprint_time
-        # Construct the time interval with a sensible amount of
-        # significant figures.
-        milliseconds = 0
-        # More than a millisecond; use whole milliseconds
-        if seconds >= 1e-3:
-            milliseconds = round(1e+3*seconds)
-        interval = timedelta(milliseconds=milliseconds)
-        # More than a second; whose whole deciseconds
-        if interval.total_seconds() >= 1e+0:
-            seconds = 1e-1*round(1e-2*milliseconds)
-            interval = timedelta(seconds=seconds)    
-        # More than 10 seconds; use whole seconds
-        if interval.total_seconds() >= 1e+1:
-            seconds = round(1e-3*milliseconds)
-            interval = timedelta(seconds=seconds)
-        # Print the time interval
-        total_seconds = interval.total_seconds()
-        if total_seconds == 0:
-            interval = '< 1 ms'
-        elif total_seconds < 1:
-            interval = '{} ms'.format(int(1e+3*total_seconds))
-        elif total_seconds < 10:
-            interval = '{} s'.format(total_seconds)
-        elif total_seconds < 60:
-            interval = '{} s'.format(int(total_seconds))
-        elif total_seconds < 60*60:
-            interval = interval.__str__()[2:]
-        else:
-            interval = interval.__str__()
-        # Stitch text pieces together
-        text = ' done after {}'.format(interval)
+        text = ' done after {}'.format(time_since(progressprint['time']))
         if len(args) > 1:
             text += sep + sep.join([str(arg) for arg in args[1:]])
         # Convert to proper Unicode characters
         text = unicode(text)
-        # The progressprint_maxintervallength variable store the length
-        # of the longest interval-message so far.
-        if len(text) > progressprint_maxintervallength:
-            progressprint_maxintervallength = len(text)
+        # The progressprint['maxintervallength'] variable store the
+        # length of the longest interval-message so far.
+        if len(text) > progressprint['maxintervallength']:
+            progressprint['maxintervallength'] = len(text)
         # Prepend the text with whitespace so that all future
         # interval-messages lign up to the right.
-        text = ' '*(terminal_resolution - progressprint_length
-                                        - progressprint_maxintervallength) + text
+        text = ' '*(+ terminal_resolution
+                    - progressprint['length']
+                    - progressprint['maxintervallength']) + text
         # Apply supplied function to text
         if fun:
             text = fun(text)
@@ -173,43 +223,76 @@ def masterprint(*args, indent=0, sep=' ', end='\n', fun=None, **kwargs):
         text = sep.join([str(arg) for arg in args])
         # Convert to proper Unicode characters
         text = unicode(text)
-        # Indent text
-        text = ' '*indent + ('\n' + ' '*indent).join(text.split('\n'))
-        # If the text ends with '...',
-        # it is the start of a progress message.
-        if text.endswith('...'):
-            progressprint_time = time()
-            progressprint_maxlength = terminal_resolution - progressprint_maxintervallength - 1
-            if len(text) > progressprint_maxlength:
-                # The progress message should span multiple lines.
-                # Do the line splitting explicitly, so that there is
-                # room left over for the time interval.
-                indentation = len(text) - len(text.lstrip())
-                words = text.split()
-                if words[-1] == '...':
-                    words[-2] += ' ...'
-                    words.pop()
-                partial_text = []
-                N_words = len(words)
-                for i in range(N_words):
-                    word = words[i]
-                    partial_text.append(word)
-                    if indentation + len(' '.join(partial_text)) > progressprint_maxlength:
-                        print(' '*indentation + ' '.join(partial_text[:-1]),
-                              flush=True, end='\n', **kwargs)
-                        partial_text = [word]
-                text = ' '*indentation + ' '.join(partial_text)
-            progressprint_length = len(text)
+        # Convert any paths in text (recognized by surrounding quotes)
+        # to sensible paths.
+        text = re.sub('"(.+?)"', lambda m: '"{}"'.format(sensible_path(m.group(1))), text)
+        # Add indentation, and also wrap long message if wrap == True
+        indentation = ' '*indent
+        is_progress_message = text.endswith('...')
+        if wrap:
+            # Wrap text into lines which fit the terminal resolution.
+            # Also indent all lines. Do this in a way that preserves
+            # any newline characters already present in the text.
+            lines = list(itertools.chain(*[textwrap.wrap(hard_line, terminal_resolution,
+                                                         initial_indent=indentation,
+                                                         subsequent_indent=indentation,
+                                                         replace_whitespace=False,
+                                                         break_long_words=False,
+                                                         break_on_hyphens=False,
+                                                         )
+                                           for hard_line in text.split('\n')
+                                           ])
+                         )
+            # If the text ends with '...', it is the start of a
+            # progress message. In that case, the last line should
+            # have some left over space to the right
+            # for the upcomming "done in ???".
+            if is_progress_message:
+                maxlength = terminal_resolution - progressprint['maxintervallength'] - 1
+                # Separate the last line from the rest
+                last_line = lines.pop().lstrip()
+                # The trailing ... should never stand on its own
+                if last_line == '...':
+                    last_line = lines.pop().lstrip() + ' ...'
+                # Replace spaces before ... with underscores
+                last_line = re.sub('( +)\.\.\.$', lambda m: '_'*len(m.group(1)) + '...', last_line)
+                # Add the wrapped and indented last line
+                # back in with the rest.
+                lines += textwrap.wrap(last_line, maxlength,
+                                       initial_indent=indentation,
+                                       subsequent_indent=indentation,
+                                       replace_whitespace=False,
+                                       break_long_words=False,
+                                       break_on_hyphens=False,
+                                       )
+                # Convert the inserted underscores back into spaces
+                lines[-1] = re.sub('(_+)\.\.\.$', lambda m: ' '*len(m.group(1)) + '...', lines[-1])
+                progressprint['length'] = len(lines[-1])
+            text = '\n'.join(lines)          
+        else:
+            # Do not wrap the text into multiple lines,
+            # regardless of the length of the text.
+            # Add indentation.
+            text = indentation + text
+            # If the text ends with '...', it is the start of a
+            # progress message. In that case, the text should
+            # have some left over space to the right
+            # for the upcomming "done in ???".
+            if is_progress_message:
+                progressprint['length'] = len(text)
+        # General progress message handling
+        if is_progress_message:
+            progressprint['time'] = time()
             end = ''
         # Apply supplied function to text
         if fun:
             text = fun(text)
         # Print out message
         print(text, flush=True, end=end, **kwargs)
-progressprint_maxintervallength = len(' done after ??? ms')
+progressprint = {'maxintervallength': len(' done after ??? ms')}
 
 # Function for printing warnings
-def masterwarn(*args, skipline=True, prefix='Warning', **kwargs):
+def masterwarn(*args, skipline=True, prefix='Warning', wrap=True, **kwargs):
     if not master:
         return
     try:
@@ -218,19 +301,37 @@ def masterwarn(*args, skipline=True, prefix='Warning', **kwargs):
         ...
     # Add initial newline (if skipline == True) to prefix
     # and append a colon.
-    prefix = ('\n' if skipline else '') + prefix + ':'
+    prefix = '{}{}{}'.format('\n' if skipline else '', prefix, ':' if args else '')
     # Print out message
-    masterprint(prefix, *args, fun=terminal.bold_red, file=sys.stderr, **kwargs)
+    masterprint(prefix, *args, fun=terminal.bold_red, wrap=wrap, file=sys.stderr, **kwargs)
 
 # Raised exceptions inside cdef functions do not generally propagte
 # out to the caller. In places where exceptions are normally raised
 # manualy, call this function with a descriptive message instead.
-def abort(*args, **kwargs):
-    masterwarn(*args, prefix='Aborting', **kwargs)
+# Also, to ensure correct teardown of the MPI environment before
+# exiting, call this function with exit_code=0 to shutdown a
+# successfull CO𝘕CEPT run.
+def abort(*args, exit_code=1, prefix='Aborting', **kwargs):
+    # Print out final messages
+    if master:
+        if exit_code != 0:
+            masterwarn(*args, prefix=prefix, **kwargs)
+            sleep(1)
+        masterprint('Total execution time: {}'.format(time_since(start_time)), **kwargs)
+    # For a proper exit, all processes should reach this point
+    if exit_code == 0:
+        Barrier()
+    # Ensure that every printed message is flushed
     sys.stderr.flush()
     sys.stdout.flush()
     sleep(1)
-    comm.Abort(1)
+    # Teardown the MPI environment, either gently or by force
+    if exit_code == 0:
+        MPI.Finalize()
+    else:
+        comm.Abort(exit_code)
+    # Exit Python
+    sys.exit(exit_code)
 
 
 
@@ -361,13 +462,14 @@ if not cython.compiled:
     number = number2 = integer = floating = signed_number = signed_number2 = number_mv = []
     # Mathematical functions
     from numpy import (sin, cos, tan,
-                       arcsin,  arccos, arctan,
+                       arcsin, arccos, arctan,
                        sinh, cosh, tanh,
                        arcsinh, arccosh, arctanh,
                        exp, log, log2, log10,
                        sqrt,
-                       ceil, round,
+                       floor, ceil, round,
                        )
+    cbrt = lambda x: x**(1/3)
     from math import erf, erfc
     # Dummy ℝ and ℤ dict for constant expressions
     class DummyDict(dict):
@@ -428,7 +530,8 @@ def build_struct(**kwargs):
 pxd = """
 # Get full access to all of Cython
 cimport cython
-# GNU Scientific Library
+# Import everything from cython_gsl,
+# granting access to most of GNU Scientific Library.
 from cython_gsl cimport *
 # Functions for manual memory management
 from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
@@ -480,8 +583,9 @@ from libc.math cimport (sin, cos, tan,
                         acosh as arccosh, 
                         atanh as arctanh,
                         exp, log, log2, log10,
-                        sqrt, erf, erfc,
-                        ceil, round,
+                        sqrt, cbrt,
+                        erf, erfc,
+                        floor, ceil, round,
                         )
 """
 
@@ -536,8 +640,8 @@ cython.declare(unicode_subs='dict', unicode_tags='dict')
 unicode_subs = {' ': '__SPACE__',
                 '-': '__DASH__',
                 }
-unicode_tags = {'begin': '__BEGIN_UNICODE__',
-                'end':   '__END_UNICODE__',
+unicode_tags = {'begin': 'BEGIN_UNICODE__',
+                'end':   '__END_UNICODE',
                 }
 
 # The function below grants the code access to
@@ -655,12 +759,14 @@ scp_password = argd.get('scp_password', '')
 # Pure constants #
 ##################
 cython.declare(machine_ϵ='double',
-               inf='double',
                π='double',
+               ρ_vacuum='double',
+               ထ='double',
                )
 machine_ϵ = np.finfo(C2np['double']).eps
-inf = cast(np.inf, 'double')
 π = np.pi
+ρ_vacuum = 1e+2*machine_ϵ
+ထ = cast(np.inf, 'double')
 
 
 
@@ -703,7 +809,7 @@ unit_mass_relations = {'m_sun' : 1,
 # to get any user defined units, as the parameter file will
 # be properly read in later. First construct a namespace in which the
 # parameters can be read in.
-user_params = dict(vars(np))
+user_params = vars(np).copy()
 user_params.update({# The paths dict
                     'paths': paths,
                     # Modules
@@ -712,11 +818,19 @@ user_params.update({# The paths dict
                     'os'   : os,
                     're'   : re,
                     'sys'  : sys,
+                    # Functions
+                    'rand'  : np.random.random,
+                    'random': np.random.random,
+                    # MPI variables
+                    'master': master,
+                    'nprocs': nprocs,
+                    'rank'  : rank,
                     # Constants
                     'machine_ϵ' : machine_ϵ,
                     'eps'       : machine_ϵ,
-                    'inf'       : inf,
                     unicode('π'): π,
+                    unicode('ထ'): ထ,
+                    'ထ'         : ထ,
                     })
 # Add units to the user_params namespace.
 # These do not represent the choice of units; the names should merely
@@ -774,67 +888,17 @@ units, units_dict = build_struct(# Values of basic units,
                                  g       = ('double', 'unit_mass_relations["g"]*m_sun'),
                                  )
 
-# Function which converts a string of units to the
-# corresponding numerical value.
-@cython.header(# Arguments
-               unit_str='str',
-               # Locals
-               c='str',
-               i='Py_ssize_t',
-               key='str',
-               mapping='dict',
-               pat='str',
-               previous='str',
-               rep='str',
-               superscript_ASCII='str',
-               superscript_unicode='str',
-               unit='double',
-               unit_list='list',
-               returns='double',
-               )
-def evaluate_unit(unit_str):
-    """Example unit_str: 'm☉ Mpc Gyr⁻¹'
-    """
-    # Mapping of replacement in unit_str
-    mapping = {' ' : '*',
-               'm☉': 'm_sun',
-               }
-    # Do replacements
-    for pat, rep in mapping.items():
-        unit_str = unit_str.replace(pat, rep)
-    # Construct list of single unicode characters
-    unit_list = list(unicode(unit_str))
-    # Place '**' before and parentheses around superscripts.
-    # This alters the elements of unit_list.
-    for i, c in enumerate(unit_list):
-        for superscript_ASCII, superscript_unicode in unicode_superscripts.items():
-            if c == superscript_unicode:
-                # Convert to ASCII
-                unit_list[i] = superscript_ASCII
-                # Insert '**(' if first character of exponent 
-                previous = unit_list[i - 1]
-                if len(previous) > 1:
-                    previous = previous[len(previous) - 1]
-                if previous not in '+-0123456789':
-                    unit_list[i] = '**(' + unit_list[i]
-                # Insert ')' if last character of exponent
-                if (   i + 1 == len(unit_list)
-                    or unit_list[i + 1] not in unicode_superscripts.values()):
-                    unit_list[i] += ')'
-                break
-    # Transformation done
-    unit_str = ''.join(unit_list)
-    # Evaluate the transformed unit string
-    unit = eval(unit_str, units_dict)
-    return unit
+
 
 ################################################################
 # Import all user specified parameters from the parameter file #
 ################################################################
-# Function for converting non-iterables to interables of length 1
+# Function for converting non-iterables to lists of one element
 # (and cast iterables to lists).
 def any2iter(val):
-    return list(val) if hasattr(val, '__iter__') and not hasattr(val, '__len__') else np.ravel(val)
+    if not hasattr(val, '__iter__') or hasattr(val, '__len__'):
+        val = np.ravel(val)
+    return list(val)
 # Subclass the dict to create a dict-like object which keeps track of
 # the number of lookups on each key. This is used to identify unknown
 # (and therefore unused) parameters defined by the user.
@@ -882,7 +946,7 @@ class DictWithCounter(dict):
 # in the user specified parameter file.
 # Note that the previously defined user_params is overwritten.
 # Everything from NumPy should be available when defining parameters.
-user_params = DictWithCounter(dict(vars(np)))
+user_params = DictWithCounter(vars(np).copy())
 # Units from the units struct should be available
 # when defining parameters.
 user_params.update(units_dict)
@@ -895,11 +959,19 @@ user_params.update({# The paths dict
                     'os'   : os,
                     're'   : re,
                     'sys'  : sys,
+                    # Functions
+                    'rand'  : np.random.random,
+                    'random': np.random.random,
+                    # MPI variables
+                    'master': master,
+                    'nprocs': nprocs,
+                    'rank'  : rank,
                     # Constants
                     'machine_ϵ' : machine_ϵ,
                     'eps'       : machine_ϵ,
-                    'inf'       : inf,
                     unicode('π'): π,
+                    unicode('ထ'): ထ,
+                    'ထ'         : ထ,
                     })
 # At this point, user_params does not contain actual parameters.
 # Mark all items in user_params as used.
@@ -909,27 +981,27 @@ user_params.useall()
 if os.path.isfile(paths['params']):
     with open(paths['params'], encoding='utf-8') as params_file:
         exec(params_file.read(), user_params)
-# Insert asciify'ed versions of 
-# for key in dict(user_params).keys():
-#     ascii_key = asciify(key)
-#     if ascii_key != key:
-#         user_params[ascii_key] = user_params[key]
-#         user_params.unuse(key)
 # Also mark the unit-parameters as used
 for u in ('length', 'time', 'mass'):
     user_params.use('unit_{}'.format(u))
 # The parameters are now being processed as follows:
-# - Some parameters are explicitly casted.
+# - All parameters are explicitly casted to their appropriate type.
+# - Parameters which should be integer are rounded before casted.
+# - Parameters not present in the parameter file
+#   will be given default values.
 # - Spaces are removed from the 'snapshot_type' parameter, and all
 #   characters are converted to lowercase.
 # - The 'output_times' are sorted and duplicates (for each type of
 #   output) are removed.
+# - Ellipses used as dictionary values will be replaced by whatever
+#   non-ellipsis value also present in the same dictionary. Below is the
+#   function replace_ellipsis which takes care of this replacement.
 # - Paths below or just one level above the concept directory are made
 #   relative to this directory in order to reduce screen clutter.
-# - The 'special_params' parameter is set to an empty dictionary if it
-#   is not defined in params.py.
 # - Colors are transformed to (r, g, b) arrays. Below is the function
-#   that handles the color input.
+#   to_rgb which handles this transformation.
+def to_int(value):
+    return int(round(float(value)))
 def to_rgb(value):
     if isinstance(value, int) or isinstance(value, float):
         value = str(value)
@@ -939,6 +1011,15 @@ def to_rgb(value):
         # Could not convert value to color
         return np.array([-1, -1, -1])
     return rgb
+def replace_ellipsis(d):
+    parameter = ''
+    for val in d.values():
+        if val is not ... and any(any2iter(val)):
+            parameter = val
+            break
+    for key, val in d.items():
+        if val is ...:
+            d[key] = parameter
 cython.declare(# Input/output
                IC_file='str',
                snapshot_type='str',
@@ -955,7 +1036,6 @@ cython.declare(# Input/output
                P3M_scale='double',
                P3M_cutoff='double',
                softeningfactors='dict',
-               Δt_factor='double',
                R_tophat='double',
                # Cosmological parameters
                H0='double',
@@ -992,19 +1072,23 @@ snapshot_type = (str(user_params.get('snapshot_type', 'standard'))
 if master and snapshot_type not in ('standard', 'gadget2'):
     abort('Does not recognize snapshot type "{}"'.format(user_params['snapshot_type']))
 output_dirs = dict(user_params.get('output_dirs', {}))
+replace_ellipsis(output_dirs)
 for kind in ('snapshot', 'powerspec', 'render'):
     output_dirs[kind] = str(output_dirs.get(kind, paths['output_dir']))
     if not output_dirs[kind]:
         output_dirs[kind] = paths['output_dir']
 output_dirs = {key: sensible_path(path) for key, path in output_dirs.items()}
 output_bases = dict(user_params.get('output_bases', {}))
+replace_ellipsis(output_bases)
 for kind in ('snapshot', 'powerspec', 'render'):
     output_bases[kind] = str(output_bases.get(kind, kind))
 output_times = dict(user_params.get('output_times', {}))
+replace_ellipsis(output_times)
 # Output times not explicitly written as either of type 'a' or 't'
 # is understood as being of type 'a'.
 for time_param in ('a', 't'):
     output_times[time_param] = dict(output_times.get(time_param, {}))
+    replace_ellipsis(output_times[time_param])
 for key, val in output_times.items():
     if key not in ('a', 't'):
         output_times['a'][key] = tuple(any2iter(output_times['a'].get(key, ()))) + tuple(any2iter(val))
@@ -1017,37 +1101,40 @@ output_times = {time_param: {key: tuple(sorted(set([float(eval(nr, units_dict) i
                                                     if nr or nr == 0])))
                              for key, val in output_times[time_param].items()}
                 for time_param in ('a', 't')}
-powerspec_select = {}
+powerspec_select = {'all': True}
 if 'powerspec_select' in user_params:
     if isinstance(user_params['powerspec_select'], dict):
         powerspec_select = user_params['powerspec_select']
+        replace_ellipsis(powerspec_select)
     else:
-        powerspec_select = {'all': bool(user_params['powerspec_select'])}
+        powerspec_select = {'all': user_params['powerspec_select']}
 powerspec_select = {key.lower(): bool(val) for key, val in powerspec_select.items()}
-powerspec_plot_select = {}
+powerspec_plot_select = {'all': True}
 if 'powerspec_plot_select' in user_params:
     if isinstance(user_params['powerspec_plot_select'], dict):
         powerspec_plot_select = user_params['powerspec_plot_select']
+        replace_ellipsis(powerspec_plot_select)
     else:
-        powerspec_plot_select = {'all': bool(user_params['powerspec_plot_select'])}
+        powerspec_plot_select = {'all': user_params['powerspec_plot_select']}
 powerspec_plot_select = {key.lower(): bool(val) for key, val in powerspec_plot_select.items()}
-render_select = {}
+render_select = {'all': True}
 if 'render_select' in user_params:
     if isinstance(user_params['render_select'], dict):
         render_select = user_params['render_select']
+        replace_ellipsis(render_select)
     else:
-        render_select = {'all': bool(user_params['render_select'])}
+        render_select = {'all': user_params['render_select']}
 render_select = {key.lower(): bool(val) for key, val in render_select.items()}
 # Numerical parameters
 boxsize = float(user_params.get('boxsize', 1))
-ewald_gridsize = int(user_params.get('ewald_gridsize', 64))
-φ_gridsize = int(user_params.get('φ_gridsize', 64))
+ewald_gridsize = to_int(user_params.get('ewald_gridsize', 64))
+φ_gridsize = to_int(user_params.get('φ_gridsize', 64))
 P3M_scale = float(user_params.get('P3M_scale', 1.25))
 P3M_cutoff = float(user_params.get('P3M_cutoff', 4.8))
 softeningfactors = dict(user_params.get('softeningfactors', {}))
+replace_ellipsis(softeningfactors)
 for kind in ('dark matter particles', ):
     softeningfactors[kind] = float(softeningfactors.get(kind, 0.03))
-Δt_factor = float(user_params.get('Δt_factor', 0.01))
 R_tophat = float(user_params.get('R_tophat', 8*units.Mpc))
 # Cosmological parameters
 H0 = float(user_params.get('H0', 70*units.km/(units.s*units.Mpc)))
@@ -1057,15 +1144,16 @@ H0 = float(user_params.get('H0', 70*units.km/(units.s*units.Mpc)))
 a_begin = float(user_params.get('a_begin', 1))
 t_begin = float(user_params.get('t_begin', 0))
 # Graphics
-if isinstance(user_params.get('render_colors', {}), dict):
-    render_colors = user_params.get('render_colors', {})
-elif to_rgb(user_params['render_colors'])[0] != -1:
-    render_colors = {'all': to_rgb(user_params['render_colors'])}
-else:
-    render_colors = dict(user_params['render_colors'])
+render_colors = {}
+if 'render_colors' in user_params:
+    if isinstance(user_params['render_colors'], dict):
+        render_colors = user_params['render_colors']
+        replace_ellipsis(render_colors)
+    else:
+        render_colors = {'all': user_params['render_colors']}
 render_colors = {key.lower(): to_rgb(val) for key, val in render_colors.items()}
 bgcolor = to_rgb(user_params.get('bgcolor', 'black'))
-resolution = int(user_params.get('resolution', 1080))
+resolution = to_int(user_params.get('resolution', 1080))
 liverender = sensible_path(str(user_params.get('liverender', '')))
 if liverender and not liverender.endswith('.png'):
     liverender += '.png'
@@ -1073,9 +1161,10 @@ remote_liverender = str(user_params.get('remote_liverender', ''))
 if remote_liverender and not remote_liverender.endswith('.png'):
     remote_liverender += '.png'
 terminal_render_colormap = str(user_params.get('terminal_render_colormap', 'gnuplot2'))
-terminal_render_resolution = int(user_params.get('terminal_render_resolution', 80))
+terminal_render_resolution = to_int(user_params.get('terminal_render_resolution', 80))
 # Simulation options
 kick_algorithms = dict(user_params.get('kick_algorithms', {}))
+replace_ellipsis(kick_algorithms)
 if (   'φ_gridsize' in user_params
     or (set(('PM', 'P3M')) & set(kick_algorithms.values()))
     or any([output_times[time_param]['powerspec'] for time_param in ('a', 't')])):
@@ -1115,12 +1204,14 @@ vector_mv = cast(vector, 'double[:3]')
 ##############
 # Universals are non-constant cross-module level global variables.
 # These are stored in the following struct.
-universals, _ = build_struct(# Flag specifying whether or not any warnings have been given
-                             any_warnings=('bint', False),
-                             # Scale factor and cosmic time
-                             a=('double', a_begin),
-                             t=('double', t_begin),
-                             )
+# Note that you should never use the universals_dict, as updates to
+# universals are not reflected in universals_dict.
+universals, universals_dict = build_struct(# Flag specifying whether or not any warnings have been given
+                                           any_warnings=('bint', False),
+                                           # Scale factor and cosmic time
+                                           a=('double', a_begin),
+                                           t=('double', t_begin),
+                                           )
 
 
 
@@ -1143,8 +1234,8 @@ cython.declare(G_Newton='double',
                snapshot_base='str',
                snapshot_times='dict',
                terminal_render_times='dict',
-               ϱbar='double',
-               ϱmbar='double',
+               ρbar='double',
+               ρmbar='double',
                PM_fac_const='double',
                longrange_exponent_fac='double',
                P3M_cutoff_phys='double',
@@ -1165,13 +1256,13 @@ render_times          = {time_param: output_times[time_param]['render']
                          for time_param in ('a', 't')}
 terminal_render_times = {time_param: output_times[time_param]['terminal render'] 
                          for time_param in ('a', 't')}
-# Newtons constant
-G_Newton = 6.6738e-11*units.m**3/units.kg/units.s**2
+# Newton's gravitational constant
+G_Newton = 6.6738e-11*units.m**3/(units.kg*units.s**2)
 # The average, comoing density (the critical
 # comoving density since we only study flat universes)
-ϱbar = 3*H0**2/(8*π*G_Newton)
+ρbar = 3*H0**2/(8*π*G_Newton)
 # The average, comoving matter density
-ϱmbar = Ωm*ϱbar
+ρmbar = Ωm*ρbar
 # The real size of the padded (last) dimension of global slab grid
 slab_size_padding = 2*(φ_gridsize//2 + 1)
 # Half of φ_gridsize (use of the ℝ-syntax requires doubles)
@@ -1181,8 +1272,8 @@ slab_size_padding = 2*(φ_gridsize//2 + 1)
 φ_gridsize3 = cast(φ_gridsize, 'long long int')**3
 # Name of file storing the Ewald grid
 ewald_file = '.ewald_gridsize=' + str(ewald_gridsize) + '.hdf5'
-# All constant factors across the PM scheme is gathered in the PM_fac
-# variable. Its contributions are:
+# All constant factors across the PM scheme is gathered in the
+# PM_fac_const variable. Its contributions are:
 # For CIC interpolating particle/fluid element masses to the grid
 # points, when really it should be mass densities:
 #     1/(boxsize/φ_gridsize)**3
@@ -1210,6 +1301,64 @@ P3M_scale_phys = P3M_scale*boxsize/φ_gridsize
 P3M_cutoff_phys = P3M_scale_phys*P3M_cutoff
 # The host name in the 'remote_liverender' parameter
 scp_host = re.search('@(.*):', remote_liverender).group(1) if remote_liverender else ''
+
+
+
+#####################
+# Update units_dict #
+#####################
+# In the code, the units_dict is often used as a name space for
+# evaluating a Python expression given as a str which may include units.
+# These expressions are some times supplied by the user, and so may
+# contain all sorts of "units". Update the units_dict with quantities so
+# that quite general evaluations can take place.
+# Add physical quantities.
+units_dict.setdefault('G_Newton'              , G_Newton              )
+units_dict.setdefault('H0'                    , H0                    )
+units_dict.setdefault('P3M_cutoff_phys'       , P3M_cutoff_phys       )
+units_dict.setdefault('P3M_scale_phys'        , P3M_scale_phys        )
+units_dict.setdefault('PM_fac_const'          , PM_fac_const          )
+units_dict.setdefault('R_tophat'              , R_tophat              )
+units_dict.setdefault('a_begin'               , a_begin               )
+units_dict.setdefault('boxsize'               , boxsize               )
+units_dict.setdefault('longrange_exponent_fac', longrange_exponent_fac)
+units_dict.setdefault('t_begin'               , t_begin               )
+units_dict.setdefault(        'Ωm'            , Ωm                    )
+units_dict.setdefault(unicode('Ωm')           , Ωm                    )
+units_dict.setdefault(        'Ωr'            , Ωr                    )
+units_dict.setdefault(unicode('Ωr')           , Ωr                    )
+units_dict.setdefault(        'ΩΛ'            , ΩΛ                    )
+units_dict.setdefault(unicode('ΩΛ')           , ΩΛ                    )
+units_dict.setdefault(        'ρ_vacuum'      , ρ_vacuum              )
+units_dict.setdefault(unicode('ρ_vacuum')     , ρ_vacuum              )
+units_dict.setdefault(        'ρbar'          , ρbar                  )
+units_dict.setdefault(unicode('ρbar')         , ρbar                  )
+units_dict.setdefault(        'ρmbar'         , ρmbar                 )
+units_dict.setdefault(unicode('ρmbar')        , ρmbar                 )
+# Add dimensionless sizes
+units_dict.setdefault('P3M_scale'                 , P3M_scale                 )
+units_dict.setdefault('P3M_cutoff'                , P3M_cutoff                )
+units_dict.setdefault('ewald_gridsize'            , ewald_gridsize            )
+units_dict.setdefault('resolution'                , resolution                )
+units_dict.setdefault('slab_size_padding'         , slab_size_padding         )
+units_dict.setdefault('softeningfactors'          , softeningfactors          )
+units_dict.setdefault('terminal_render_resolution', terminal_render_resolution)
+units_dict.setdefault(        'φ_gridsize'        , φ_gridsize                )
+units_dict.setdefault(unicode('φ_gridsize')       , φ_gridsize                )
+units_dict.setdefault(        'φ_gridsize_half'   , φ_gridsize_half           )
+units_dict.setdefault(unicode('φ_gridsize_half')  , φ_gridsize_half           )
+units_dict.setdefault(        'φ_gridsize3'       , φ_gridsize3               )
+units_dict.setdefault(unicode('φ_gridsize3')      , φ_gridsize3               )
+# Add numbers
+units_dict.setdefault(        'machine_ϵ' , machine_ϵ)
+units_dict.setdefault(unicode('machine_ϵ'), machine_ϵ)
+units_dict.setdefault(        'π'         , π        )
+units_dict.setdefault(unicode('π')        , π        )
+units_dict.setdefault(        'ထ'         , ထ        )
+units_dict.setdefault(unicode('ထ')        , ထ        )
+# Add everything from NumPy
+for key, val in vars(np).items():
+    units_dict.setdefault(key, val)
 
 
 
@@ -1387,17 +1536,19 @@ def isint(x, abs_tol=1e-6):
 # Function which format numbers to have a
 # specific number of significant figures.
 @cython.pheader(# Arguments
-                number='double',
+                data='object',  # Single number or container of numbers
                 nfigs='int',
                 fmt='str',
                 # Locals
                 coefficient='str',
                 exponent='str',
                 n_missing_zeros='int',
+                number='object',  # Single number of any type
                 number_str='str',
-                returns='str',
+                return_list='list',
+                returns='object',  # String or list of strings
                 )
-def significant_figures(number, nfigs, fmt='', incl_zeros=True, scientific=False):
+def significant_figures(numbers, nfigs, fmt='', incl_zeros=True, scientific=False):
     """This function formats a floating point number to have nfigs
     significant figures.
     Set fmt to 'TeX' to format to TeX math code
@@ -1409,53 +1560,117 @@ def significant_figures(number, nfigs, fmt='', incl_zeros=True, scientific=False
     fmt = fmt.lower()
     if fmt not in ('', 'tex', 'unicode'):
         abort('Formatting mode "{}" not understood'.format(fmt))
-    # Format the number using nfigs
-    number_str = ('{:.' + str(nfigs) + ('e' if scientific else 'g') + '}').format(number)
-    # Handle the exponent
-    if 'e' in number_str:
-        e_index = number_str.index('e')
-        coefficient = number_str[:e_index]
-        exponent = number_str[e_index:]
-        # Remove superfluous 0 in exponent
-        if exponent.startswith('e+0') or exponent.startswith('e-0'):
-            exponent = exponent[:2] + exponent[3:]
-        # Remove plus sign in exponent
-        if exponent.startswith('e+'):
-            exponent = 'e' + exponent[2:]
-        # Handle formatting
+    return_list = []
+    for number in any2iter(numbers):
+        # Format the number using nfigs
+        number_str = ('{{:.{}{}}}'
+                      .format((nfigs - 1) if scientific else nfigs, 'e' if scientific else 'g')
+                      .format(number)
+                      )
+        # Handle the exponent
+        if 'e' in number_str:
+            e_index = number_str.index('e')
+            coefficient = number_str[:e_index]
+            exponent = number_str[e_index:]
+            # Remove superfluous 0 in exponent
+            if exponent.startswith('e+0') or exponent.startswith('e-0'):
+                exponent = exponent[:2] + exponent[3:]
+            # Remove plus sign in exponent
+            if exponent.startswith('e+'):
+                exponent = 'e' + exponent[2:]
+            # Handle formatting
+            if fmt == 'tex':
+                exponent = exponent.replace('e', r'\times 10^{') + '}'
+            elif fmt == 'unicode':
+                exponent = unicode_superscript(exponent)
+        else:
+            coefficient = number_str
+            exponent = ''
+        # Remove coefficient if it is just 1 (as in 1×10¹⁰ --> 10¹⁰)
+        if coefficient == '1' and exponent and fmt in ('tex', 'unicode') and not scientific:
+            coefficient = ''
+            exponent = exponent.replace(r'\times ', '').replace(unicode('×'), '')
+        # Pad with zeros in case of too few significant digits
+        if incl_zeros:
+            digits = coefficient.replace('.', '').replace('-', '')
+            for i, d in enumerate(digits):
+                if d != '0':
+                    digits = digits[i:]
+                    break
+            n_missing_zeros = nfigs - len(digits)
+            if n_missing_zeros > 0:
+                if not '.' in coefficient:
+                    coefficient += '.'
+                coefficient += '0'*n_missing_zeros
+        # Combine
+        number_str = coefficient + exponent
+        # The mathtext matplotlib module has a typographical bug;
+        # it inserts a space after a decimal point.
+        # Prevent this by not letting the decimal point be part
+        # of the mathematical expression.
         if fmt == 'tex':
-            exponent = exponent.replace('e', r'\times 10^{') + '}'
-        elif fmt == 'unicode':
-            exponent = unicode_superscript(exponent)
+            number_str = number_str.replace('.', '$.$')
+        return_list.append(number_str)
+    # If only one string should be returned,
+    # return as a string directly.
+    if len(return_list) == 1:
+        return return_list[0]
     else:
-        coefficient = number_str
-        exponent = ''
-    # Remove coefficient if it is just 1 (as in 1×10¹⁰ --> 10¹⁰)
-    if coefficient == '1' and exponent and fmt in ('tex', 'unicode') and not scientific:
-        coefficient = ''
-        exponent = exponent.replace(r'\times ', '').replace(unicode('×'), '')
-    # Pad with zeros in case of too few significant digits
-    if incl_zeros:
-        digits = coefficient.replace('.', '').replace('-', '')
-        for i, d in enumerate(digits):
-            if d != '0':
-                digits = digits[i:]
-                break
-        n_missing_zeros = nfigs - len(digits)
-        if n_missing_zeros > 0:
-            if not '.' in coefficient:
-                coefficient += '.'
-            coefficient += '0'*n_missing_zeros
-    # Combine
-    number_str = coefficient + exponent
-    # The mathtext matplotlib module has a typographical bug;
-    # it inserts a space after a decimal point.
-    # Prevent this by not letting the decimal point be part
-    # of the mathematical expression.
-    if fmt == 'tex':
-        number_str = number_str.replace('.', '$.$')
-    return number_str
+        return return_list
 
+# Function which converts a string of units to the
+# corresponding numerical value.
+@cython.header(# Arguments
+               unit_str='str',
+               # Locals
+               c='str',
+               i='Py_ssize_t',
+               key='str',
+               mapping='dict',
+               pat='str',
+               previous='str',
+               rep='str',
+               superscript_ASCII='str',
+               superscript_unicode='str',
+               unit='double',
+               unit_list='list',
+               returns='double',
+               )
+def evaluate_unit(unit_str):
+    """Example unit_str: 'm☉ Mpc Gyr⁻¹'
+    """
+    # Mapping of replacement in unit_str
+    mapping = {' ' : '*',
+               'm☉': 'm_sun',
+               }
+    # Do replacements
+    for pat, rep in mapping.items():
+        unit_str = unit_str.replace(pat, rep)
+    # Construct list of single unicode characters
+    unit_list = list(unicode(unit_str))
+    # Place '**' before and parentheses around superscripts.
+    # This alters the elements of unit_list.
+    for i, c in enumerate(unit_list):
+        for superscript_ASCII, superscript_unicode in unicode_superscripts.items():
+            if c == superscript_unicode:
+                # Convert to ASCII
+                unit_list[i] = superscript_ASCII
+                # Insert '**(' if first character of exponent 
+                previous = unit_list[i - 1]
+                if len(previous) > 1:
+                    previous = previous[len(previous) - 1]
+                if previous not in '+-0123456789':
+                    unit_list[i] = '**(' + unit_list[i]
+                # Insert ')' if last character of exponent
+                if (   i + 1 == len(unit_list)
+                    or unit_list[i + 1] not in unicode_superscripts.values()):
+                    unit_list[i] += ')'
+                break
+    # Transformation done
+    unit_str = ''.join(unit_list)
+    # Evaluate the transformed unit string
+    unit = eval(unit_str, units_dict)
+    return unit
 
 
 ####################################################
@@ -1494,3 +1709,22 @@ render_times          = {time_param: output_times[time_param]['render']
                          for time_param in ('a', 't')}
 terminal_render_times = {time_param: output_times[time_param]['terminal render'] 
                          for time_param in ('a', 't')}
+
+
+
+###########################################################
+# Functionality for "from commons import *" when compiled #
+###########################################################
+# Function which floods the current module namespace with variables from
+# the uncompiled version of this module. This is effectively equivalent
+# to "from commons import *", except that the uncompiled version is
+# guaranteed to be used.
+def commons_flood():
+    if cython.compiled:
+        commons_module = imp.load_source('commons_pure_python', '{}/commons.py'.format(paths['concept_dir']))
+        inspect.getmodule(inspect.stack()[0][0]).__dict__.update(commons_module.__dict__)
+    else:
+        # Running in pure Python mode.
+        # It is assumed that "from commons import *" has already
+        # been run, leaving nothing to do.
+        ...

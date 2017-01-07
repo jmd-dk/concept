@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,22 +25,44 @@
 # This script performs a comparison test between the CO𝘕CEPT code's and the
 # GADGET code's PM implementation.
 
-# Initialize test environment
+# Absolute path and name of the directory of this file
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-source "${this_dir}/../environment"
+this_test="$(basename "${this_dir}")"
+
+# Set up error trapping
+ctrl_c()
+{
+    trap : 0
+    exit 2
+}
+abort()
+{
+    colorprint "An error occurred during ${this_test} test!" "red"
+    exit 1
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
 
 # Cleanup from last test run
 "${this_dir}/clean"
 
 # Generate ICs
-"${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local
+echo "$(cat "${this_dir}/params")
+φ_gridsize = 12
+" > "${this_dir}/ic.params"
+"${concept}" -n 1                                    \
+             -p "${this_dir}/ic.params"              \
+             -u ic --name    'GADGET halos'          \
+                   --species 'dark matter particles' \
+             --local
 
 # Run the CO𝘕CEPT code on the generated ICs
 rm -f "${concept_dir}/.fftw_wisdom_gridsize=$(get_param 'φ_gridsize')_nprocs=1"
 "${concept}" -n 1 -p "${this_dir}/params" --local
 
 # Dump list of snapshot output times used by GADGET
-"${python}" -c "import numpy as np
+"${python}" -B -c "import numpy as np
 np.savetxt('${this_dir}/outputlist', $(get_param "snapshot_times['a']"))"
 
 # Create an edited version of Makefile_gadget with correct parth information
@@ -86,6 +108,6 @@ cp "${this_dir}/timestep_edited.c" "${Gadget2_local_dir}/timestep.c"
 # Analyze the output snapshots
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
 
-# Finalize test environment
-test_done=true source "${this_dir}/../environment"
+# Test ran successfully. Deactivate traps.
+trap : 0
 

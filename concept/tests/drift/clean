@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,7 +27,8 @@ this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 (cd "${this_dir}" && rm -rf Gadget2_local            \
                             IC                       \
                             Makefile_gadget_edited   \
-                            output*                  \
+                            output                   \
+                            outputlist               \
                             params_ewald             \
                             params_gadget-usedvalues \
                             result.png               \

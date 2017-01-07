@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,27 +22,18 @@
 
 # This file has to be run in pure Python mode!
 
-# Standard test imports
-import glob, sys, os
-
-# Absolute paths to the directory of this file
-this_dir = os.path.dirname(os.path.realpath(__file__))
-
-# Pull in environment variables
-for env_var in ('concept_dir', 'this_test'):
-    exec('{env_var} = os.environ["{env_var}"]'.format(env_var=env_var))
-
-# Include the concept_dir in the searched paths
-sys.path.append(concept_dir)
-
 # Imports from the CO𝘕CEPT code
 from commons import *
 from snapshot import load
 
+# Absolute path and name of the directory of this file
+this_dir  = os.path.dirname(os.path.realpath(__file__))
+this_test = os.path.basename(this_dir)
+
 # Read in data from the CO𝘕CEPT snapshots
 a = []
 components = []
-for fname in sorted(glob.glob(this_dir + '/output/snapshot_a=*'),
+for fname in sorted(glob(this_dir + '/output/snapshot_a=*'),
                     key=lambda s: s[(s.index('=') + 1):]):
     snapshot = load(fname, compare_params=False)
     a.append(snapshot.params['a'])
@@ -51,7 +42,7 @@ N_snapshots = len(a)
 
 # Read in data from the GADGET snapshots
 components_gadget = []
-for fname in sorted(glob.glob(this_dir + '/output/snapshot_gadget_*'),
+for fname in sorted(glob(this_dir + '/output/snapshot_gadget_*'),
                     key=lambda s: s[(s.index('gadget_') + 7):])[:N_snapshots]:
     components_gadget.append(load(fname, compare_params=False, only_components=True)[0])
 
@@ -114,7 +105,12 @@ for i in range(N_snapshots):
                                     for zsgn in (-1, 0, +1)])
                                for j in range(N)])))
     # Plot
-    plt.plot(dist[i]/boxsize, '.', alpha=.7, label='$a={}$'.format(a[i]), zorder=-i)
+    plt.semilogy(machine_ϵ + dist[i]/boxsize,
+                 '.',
+                 alpha=0.7,
+                 label='$a={}$'.format(a[i]),
+                 zorder=-i,
+                 )
 
 # Finalize plot
 fig_file = this_dir + '/result.png'
@@ -122,17 +118,16 @@ plt.xlabel('Particle number')
 plt.ylabel('$|\mathbf{x}_{\mathrm{CO}N\mathrm{CEPT}}'
            '-\mathbf{x}_{\mathrm{GADGET}}|/\mathrm{boxsize}$')
 plt.xlim(0, N - 1)
-plt.legend(loc='best').get_frame().set_alpha(0.3)
+plt.legend(loc='best').get_frame().set_alpha(0.7)
 plt.tight_layout()
 plt.savefig(fig_file)
-
-# Done analyzing
-masterprint('done')
 
 # Printout error message for unsuccessful test
 tol = 1e-3
 if any(np.mean(d/boxsize) > tol for d in dist):
-    masterwarn('The results from CO𝘕CEPT disagree with those from GADGET.\n'
-               'See "{}" for a visualization.'.format(fig_file))
-    sys.exit(1)
+    abort('The results from CO𝘕CEPT disagree with those from GADGET.\n'
+          'See "{}" for a visualization.'.format(fig_file))
+
+# Done analyzing
+masterprint('done')
 

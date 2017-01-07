@@ -2,7 +2,7 @@
 # This Python file uses the following encoding: utf-8
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,13 +24,21 @@
 
 
 """
-This is the .pyx preprocessor script. Run it with a .py file or a
-.pyx file file as the first argument. If a .pyx file is given, a .pxd
-file will be created, containing all Cython declarations of classes
-(@cython.cclass), functions (@cython.header, @cython.pheader,
-@cython.cfunc, @cython.ccall) and variables (cython.declare()).
-When a .py file is given, a .pyx copy of this file will be created,
-and then changed in the following ways:
+This is the .pyx preprocessor script.
+It can be run with the following three sets of arguments,
+all arguments being filenames:
+- module.py commons.py
+  Creates module.pyx, a version of module.py with cython-legal and
+  optimized syntax.
+- .types.pyx commons.py .types.pyx module0.pyx module1.pyx ...
+  Creates .types.pyx, a file containing import for all extension classes
+  from module0.pyx, module1.pyx, ..., together with globally defined
+  types.
+- module.pyx commons.py .types.pyx
+  Created module.pxd, the cython header for module.pyx.
+
+In the first case where a .pyx file is created from a .py file,
+the following changes happens to the source code (in the .pyx file):
 - Transform statements written over multiple lines into single lines.
   The exception is decorator statements, which remain multilined.
 - Removes pure Python commands between 'if not cython.compiled:' and
@@ -39,7 +47,6 @@ and then changed in the following ways:
   clause is optional.
 - Insert the lines 'cimport cython' and 'from commons cimport *' just
   below 'from commons import *'.
-- Do a cimport of all @cython.cclass classes (not applied to commons.py)
 - Transform the 'cimport()' function calls into proper cimports.
 - Replace 'ℝ[expression]' with a double variable and 'ℤ[expression]'
   with a Py_ssize_t variable which is equal to 'expression' and defined
@@ -62,9 +69,11 @@ and then changed in the following ways:
   appropriate pointer type.
 - Replaced the cast() function with actual Cython syntax, e.g. 
   <double[::1]>.
+- A comment will be added to the end of the file, listing all the
+  implemented extension types within the file.
 
-  This script is not written very elegantly, and do not leave
-  the modified code in a very clean state either. Sorry...
+This script is not written very elegantly, and do not leave
+the modified code in a very clean state either. Sorry...
 """
 
 
@@ -82,38 +91,6 @@ from copy import deepcopy
 import collections, imp, itertools, os, re, shutil, unicodedata
 # For math
 import numpy as np
-# For development purposes only
-from time import sleep
-
-
-
-# Mapping of modules to extension types defined within (Cython classes)
-extension_types = {'species':  'Component, FluidScalar',
-                   'snapshot': 'StandardSnapshot, Gadget2Snapshot',
-                   }
-
-
-
-# Remove any wrongly specified extension types
-extension_types_that_exist = {}
-for module, extension_type_str in extension_types.items():
-    filename = module + '.py'
-    if os.path.isfile(filename):
-        with open(filename, 'r', encoding='utf-8') as pyfile:
-            text = pyfile.read()
-        for extension_type in extension_type_str.split(','):
-            extension_type = extension_type.replace(' ', '')
-            if re.search('class +' + extension_type + ' *:', text):
-                if module in extension_types_that_exist:
-                    extension_types_that_exist[module] += ', ' + extension_type
-                else:
-                    extension_types_that_exist[module] = extension_type
-extension_types = extension_types_that_exist
-
-
-
-# Import the non-compiled commons module
-commons_module = imp.load_source('commons', 'commons.py')
 
 
 
@@ -142,7 +119,7 @@ def oneline(filename):
                     in_triple_quotes[1] = not in_triple_quotes[1]
                     if not in_triple_quotes[1]:
                         in_quotes[0] = in_quotes[1] = False
-            # Break at and remove inline comment
+            # Break at # and remove inline comment
             if ch == '#' and not in_quotes[0] and not in_quotes[1]:
                 line = line[:j].rstrip() + '\n'
                 break
@@ -218,32 +195,11 @@ def cimport_commons(filename):
     with open(filename, 'r', encoding='utf-8') as pyxfile:
         lines = pyxfile.read().split('\n')
     for i, line in enumerate(lines):
-        if line.startswith('from commons import *'):
+        if line.startswith('from {} import *'.format(commons_name)):
             lines = (  lines[:(i + 1)]
-                     + ['cimport cython', 'from commons cimport *']
+                     + ['cimport cython', 'from {} cimport *'.format(commons_name)]
                      + lines[(i + 1):])
             break
-    with open(filename, 'w', encoding='utf-8') as pyxfile:
-        pyxfile.writelines('\n'.join(lines))
-
-
-
-def cimport_cclasses(filename):
-    # Do not import cclasses into the commons module
-    if filename == 'commons.pyx':
-        return
-    with open(filename, 'r', encoding='utf-8') as pyxfile:
-        lines = pyxfile.read().split('\n')
-    insert_on_line = -1
-    for i, line in enumerate(lines):
-        if line.startswith('from commons cimport *'):
-            insert_on_line = i
-            break
-    cimports = []
-    for key, val in extension_types.items():
-        if filename != key + '.pyx':
-            cimports.append('from {} cimport {}'.format(key, val))
-    lines = lines[:(insert_on_line + 1)] + cimports + lines[(insert_on_line + 1):]
     with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.writelines('\n'.join(lines))
 
@@ -311,7 +267,7 @@ def cython_structs(filename):
     # from commons.py:
     def get_build_struct():
         build_struct_code = []
-        with open('commons.py', 'r', encoding='utf-8') as commonsfile:
+        with open('{}.py'.format(commons_name), 'r', encoding='utf-8') as commonsfile:
             indentation = -1
             for line in commonsfile:
                 if line.lstrip().startswith('def build_struct('):
@@ -439,187 +395,83 @@ def cython_structs(filename):
 
 
 def power2product(filename):
-    pyxpp_power = '__pyxpp_power__'
-
-    def pow2prod(line, firstcall=True):
-        if '**' in line or pyxpp_power in line:
-            line = line.rstrip('\n')
-            line = line.replace(pyxpp_power, '**', 1)
-            # Place spaces before and after **
-            indices = [starstar.start() for starstar
-                       in re.finditer('\*\*', line)]
-            for i, index in enumerate(indices):
-                line = line[:(index + 2*i)] + ' ** ' + line[(index + 2*i) + 2:]
-            # Split line into segments containing ** operators
-            indices = [-2] + [starstar.start() for starstar
-                              in re.finditer('\*\*', line + '** **')]
-            expressions = [line[indices[i-1] + 2:indices[i+1]] for i, index
-                           in enumerate(indices[:-2]) if i > 0]
-            modified_line = ''
-            # Only change nonvariable, int powers.
-            # This also excludes **kwargs.
-            for ex, expression in enumerate(expressions):
-                power = None
-                expression_power = expression[expression.find('**') + 2:]
-                # Exclude **kwargs
-                if expression_power.strip().startswith('kwargs'):
-                    modified_line = modified_line if modified_line else line
-                    continue
-                if expression_power.replace(' ', '')[0] == '(':
-                    # Power in parentheses
-                    parentheses = 0
-                    done = False
-                    for i, symbol in enumerate(expression_power):
-                        if symbol == '(':
-                            parentheses += 1
-                            done = True
-                        elif symbol == ')':
-                            parentheses -= 1
-                        if parentheses == 0 and done:
-                            break
-                    power = expression_power[:i + 1]
-                    after_power = expression_power[i + 1:]
-                else:
-                    # Power not in parentheses
-                    power_with_sign = (True if
-                                       expression_power.replace(' ', '')[0]
-                                       in '+-' else False)
-                    nr_of_signs = 0
-                    for i, symbol in enumerate(expression_power):
-                        nr_of_signs += symbol in '+-'
-                        if (nr_of_signs > power_with_sign or symbol not in '+- .0123456789'):
-                            break
-                    # I'm not sure whether
-                    # "expression_power[-1] != ')'" is safe!
-                    if i == len(expression_power) - 1 and expression_power[-1] != ')':
-                        i += 1
-                    power = expression_power[:i]
-                    after_power = expression_power[i:]
-                integer_power = False
-                if power is not None:
-                    try:
-                        x = eval(power)
-                        if x == int(x):
-                            integer_power = True
-                    except:
-                        ...
-                expression_base = expression[:expression.find('**')]
-                base = ''
-                before_base = ''
-                nested_power = False
-                if (integer_power and (    expression_base.replace(' ', '')     == ''
-                                       or (expression_base.replace(' ', '')[-1] == ')'
-                                           and (expression_base.count(')')
-                                                != expression_base.count('('))))
-                                  and firstcall):
-                    parentheses = 0
-                    done = False
-                    completed = False
-                    symbol_before_paren = ''
-                    for symbol in reversed(expression_base.replace(' ', '')):
-                        if completed:
-                            symbol_before_paren = symbol
-                            break
-                        if symbol == '(':
-                            parentheses += 1
-                        elif symbol == ')':
-                            parentheses -= 1
-                            done = True
-                        if parentheses == 0 and done:
-                            completed = True
-                    if symbol_before_paren and symbol_before_paren not in ('+-*/%&|^@()='):
-                        # Base is really a function input,
-                        # like sin(a)**2. Do nothing.
-                        modified_line = modified_line if modified_line else line
-                        continue
-                    # Nested power,
-                    # as in the last ** in '(a**2 + b**2)**3'.
-                    nested_power = True
-                elif expression_base.replace(' ', '')[-1] == ')':
-                    # Base in parentheses
-                    done = False
-                    parentheses = 0
-                    for i, symbol in enumerate(reversed(expression_base)):
-                        if symbol == '(':
-                            parentheses += 1
-                        elif symbol == ')':
-                            parentheses -= 1
-                            done = True
-                        if parentheses == 0 and done:
-                            break
-                    base = expression_base[::-1][0:(i + 1)][::-1]
-                    before_base = expression_base[::-1][(i + 1):][::-1]
-                    before_base_rstrip = before_base.rstrip()
-                    if (before_base_rstrip
-                        and before_base_rstrip[-1].lower() not in ('+-*/%&|^@()=')):
-                        # Base is really a function input,
-                        # like sin(a)**2. Do nothing.
-                        modified_line = modified_line if modified_line else line
-                        continue
-                else:
-                    # Base not in parentheses
-                    brackets_width_content = ''
-                    if expression_base.replace(' ', '')[-1] == ']':
-                        # Base ends with a bracket
-                        done = False
-                        brackets = 0
-                        for i, symbol in enumerate(reversed(expression_base)):
-                            if symbol == '[':
-                                brackets += 1
-                            elif symbol == ']':
-                                brackets -= 1
-                                done = True
-                            if brackets == 0 and done:
-                                break
-                        brackets_width_content = (expression_base[(len(expression_base) - i - 1):]
-                                                  .rstrip())
-                        expression_base = expression_base[:(len(expression_base) - i - 1)]
-                    for i, symbol in enumerate(reversed(expression_base)):
-                        try:
-                            base = symbol + base
-                            non_nested_exec(base.replace('.', '') + ' = 0')
-                        except:
-                            if symbol not in '.0123456789' and base != ' '*len(base):
-                                break
-                    base = base[1:].replace(' ', '') + brackets_width_content
-                    before_base = expression_base[::-1][i:][::-1]
-                # Replaces ** with a string of multiplications
-                # for integer powers.
-                if integer_power:
-                    if nested_power and firstcall:
-                        operation = expression_base + pyxpp_power + power
-                    else:
-                        operation = ('(' + ((base + '*')*int(abs(eval(power))))[:-1] + ')')
-                        if eval(power) < 0:
-                            operation = '(1/' + operation + ')'
-                else:
-                        operation = base + '**' + power
-                # Stitch together a modified version of the line
-                if ex < len(expressions) - 1 and len(expressions) > 1:
-                    expressions[ex] = expressions[ex][:-1]
-                    expressions[ex + 1] = expressions[ex + 1][len(power) + 0:]
-                if ex < len(expressions) - 1:
-                    modified_line += before_base + operation
-                else:
-                    modified_line += before_base + operation + after_power
-            return modified_line + '\n'
-        return line
+    keywords = ('assert',
+                'elif',
+                'except',
+                'from',
+                'if',
+                'in',
+                'is',
+                'not',
+                'or',
+                'raise',
+                'return',
+                'try',
+                'while',
+                'with',
+                'yield',
+                )
     new_lines = []
     with open(filename, 'r', encoding='utf-8') as pyxfile:
         for line in pyxfile:
-            # Replace 'a **= b' with 'a = a**b'
-            if '**=' in line:
-                LHS = line[:line.find('**=')]
-                RHS = line[(line.find('**=') + 3):].strip()
-                if '#' in RHS:
-                    RHS = RHS[:RHS.find('#')].rstrip()
-                line = LHS + '= ' + LHS.strip() + '**(' + RHS + ')'
-            # Replace ** --> pyxpp_power
-            line = line.replace('**', ' ' + pyxpp_power + ' ')
-            # Integer power --> products
-            line = pow2prod(line)
-            while pyxpp_power in line:
-                line = pow2prod(line, firstcall=False)
+            while True:
+                match = re.search('([\w.]+(\[.*\])?|\(.*\))\s*\*\*\s*([0-9.]+)', line)
+                if not match:
+                    break
+                match_str   = [None]*4
+                start_index = [None]*4
+                end_index   = [None]*4
+                for i in (1, 3):
+                    match_str[i] = match.group(i)
+                    start_index[i], end_index[i] = match.span(i)
+                # Only integer exponents should be accepted
+                try:
+                    exponent = int(match_str[3])
+                    if exponent != float(match_str[3]):
+                        break
+                except:
+                    break
+                # Nested parentheses can lead to too small start_index
+                # for the first group. Fix this issue.
+                if ')' in match_str[1]:
+                    N_parens = 0
+                    for i, c in enumerate(reversed(match_str[1])):
+                        if c == '(':
+                            N_parens += 1
+                            if N_parens == 0:
+                                start_index[1] = end_index[1] - i - 1
+                                break
+                        elif c == ')':
+                            N_parens -= 1
+                    # If the base is a function call, do nothing.
+                    # Be careful with keywords prior to the base.
+                    match_before = re.search('[\w.]+\s*$', line[:start_index[1]])
+                    if match_before:
+                        match_before_str = match_before.group().rstrip()
+                        if match_before_str not in keywords:
+                            break
+                elif ']' in match_str[1]:
+                    # If more than one pair of [] is in the line,
+                    # and the base is not in parentheses, every [] left
+                    # of the base gets in the match. Fix thís issue.
+                    N_brackets = 0
+                    break_on_nonword = False
+                    for i, c in enumerate(reversed(match_str[1])):
+                        if break_on_nonword and not re.search('[\w.]', c):
+                            start_index[1] = end_index[1] - i
+                            break
+                        if c == '[':
+                            N_brackets += 1
+                            if N_brackets == 0:
+                                # Leftmost bracket found. Keep searching
+                                # to the left until non-word-character
+                                # is found.
+                                break_on_nonword = True
+                        elif c == ']': 
+                            N_brackets -= 1
+                # Stitch together new line
+                mul = '*'.join([line[start_index[1]:end_index[1]]]*exponent)
+                line = '{}({}){}'.format(line[:start_index[1]], mul, line[end_index[3]:])
             new_lines.append(line)
     with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.writelines(new_lines)
@@ -629,7 +481,7 @@ def power2product(filename):
 def unicode2ASCII(filename):
     with open(filename, 'r', encoding='utf-8') as pyxfile:
         text = pyxfile.read()
-    text = commons_module.asciify(text)
+    text = commons.asciify(text)
     with open(filename, 'w', encoding='utf-8') as pyxfile:
         pyxfile.write(text)
 
@@ -881,49 +733,401 @@ def cython_decorators(filename):
 
 
 
-def make_pxd(filename):
+def constant_expressions(filename):
+    sets = {'ℝ': 'double',
+            'ℤ': 'Py_ssize_t',
+            }
+    def indentation_level(line):
+        line_lstrip = line.lstrip()
+        if not line_lstrip or line_lstrip.startswith('#'):
+            return -1
+        return len(line) - len(line_lstrip)
+    def variable_changed(var, line):
+        line_ori = line
+        line = line.replace(' ', '')
+        return (  re.search('for +{} +in '.format(var), line_ori)
+                or ('=' + var + '=') in line2
+                or line.startswith(var + '='  )
+                or line.startswith(var + '+=' )
+                or line.startswith(var + '-=' )
+                or line.startswith(var + '*=' )
+                or line.startswith(var + '/=' )
+                or line.startswith(var + '**=')
+                or line.startswith(var + '^=' )
+                or line.startswith(var + '&=' )
+                or line.startswith(var + '|=' )
+                or line.startswith(var + '@=' )
+                or (',' + var + '='  ) in line
+                or (',' + var + '+=' ) in line
+                or (',' + var + '-=' ) in line
+                or (',' + var + '*=' ) in line
+                or (',' + var + '/=' ) in line
+                or (',' + var + '**=') in line
+                or (',' + var + '^=' ) in line
+                or (',' + var + '&=' ) in line
+                or (',' + var + '|=' ) in line
+                or (',' + var + '@=' ) in line
+                or (';' + var + '='  ) in line
+                or (';' + var + '+=' ) in line
+                or (';' + var + '-=' ) in line
+                or (';' + var + '*=' ) in line
+                or (';' + var + '/=' ) in line
+                or (';' + var + '**=') in line
+                or (';' + var + '^=' ) in line
+                or (';' + var + '&=' ) in line
+                or (';' + var + '|=' ) in line
+                or (';' + var + '@=' ) in line
+                )
+    for blackboard_bold_symbol, ctype in sets.items():
+        # Find constant expressions using the
+        # ℝ[expression] or ℤ[expression] syntax.
+        with open(filename, 'r', encoding='utf-8') as pyxfile:
+            lines = pyxfile.read().split('\n')
+        expressions = []
+        expressions_cython = []
+        declaration_linenrs = []
+        declaration_placements = []
+        operators = collections.OrderedDict([('.',  'DOT' ),
+                                             ('+',  'PLS' ),
+                                             ('-',  'MIN' ),
+                                             ('**', 'POW' ),
+                                             ('*',  'TIM' ),
+                                             ('/',  'DIV' ),
+                                             ('\\', 'BSL' ),
+                                             ('^',  'CAR' ),
+                                             ('&',  'AND' ),
+                                             ('|',  'BAR' ),
+                                             ('@',  'AT'  ),
+                                             (',',  'COM' ),
+                                             ('(',  'OPAR'),
+                                             (')',  'CPAR'),
+                                             ('[',  'OBRA'),
+                                             (']',  'CBRA'),
+                                             ('{',  'OCUR'),
+                                             ('}',  'CCUR'),
+                                             ("'",  'QTE' ),
+                                             ('"',  'DQTE'),
+                                             (':',  'COL' ),
+                                             (';',  'SCOL'),
+                                             ('!',  'BAN' ),
+                                             ('#',  'SHA' ),
+                                             ('$',  'DOL' ),
+                                             ('%',  'PER' ),
+                                             ('?',  'QUE' ),
+                                             ('<',  'LTH' ),
+                                             ('>',  'GTH' ),
+                                             ('`',  'GRA' ),
+                                             ('~',  'TIL' ),
+                                             ])
+        while True:
+            no_blackboard_bold_R = True
+            module_scope = True
+            for i, line in enumerate(lines):
+                if len(line) > 0 and line[0] not in ' #':
+                    module_scope = True
+                if len(line) > 0 and line[0] != '#' and 'def ' in line:
+                    module_scope = False
+                search = re.search(blackboard_bold_symbol + '\[.+\]', line)
+                if not search or line.replace(' ', '').startswith('#'):
+                    continue
+                R_statement_fullmatch = search.group(0)
+                R_statement = R_statement_fullmatch[:2]
+                for c in R_statement_fullmatch[2:]:
+                    R_statement += c
+                    if R_statement.count('[') == R_statement.count(']'):
+                        break
+                expression = R_statement[2:-1].strip()
+                # Integer literals to double literals when dividing
+                if ctype == 'double':
+                    # Integer in numerator
+                    expression = re.sub('[0-9]+\.?[0-9]*/[^/]',
+                                        lambda numerator: (     numerator.group() if '.' in numerator.group()
+                                                           else numerator.group()[:-2] + '.0/' + numerator.group()[-1]),
+                                        expression)
+                    # Integer in denominator
+                    expression = re.sub('[^/]/[0-9]+\.?[0-9]*',
+                                        lambda denominator: (     denominator.group() if '.' in denominator.group()
+                                                             else denominator.group() + '.0'),
+                                        expression)
+                no_blackboard_bold_R = False
+                expressions.append(expression)
+                expression_cython = blackboard_bold_symbol + '_' + expression.replace(' ', '')
+                for op, op_name in operators.items():
+                    expression_cython = expression_cython.replace(op, '__{}__'.format(op_name))
+                expressions_cython.append(expression_cython)
+                lines[i] = line.replace(R_statement, expression_cython)
+                # Find out where the declaration should be
+                variables = expression.replace(' ', '')                             # Remove spaces
+                variables = re.sub('(?P<quote>[\'"]).*?(?P=quote)', '', variables)  # Remove string literals using single and double quotes
+                variables = [variables]
+                for op in operators.keys():
+                    # Split variables on operators, excluding '.'
+                    # (attributes are handled afterwards).
+                    if op != '.':
+                        variables = list(itertools.chain(*[var.split(op) for var in variables]))
+                for v, var in enumerate(variables):
+                    # Variable attributes are not consideres variables
+                    if '.' in var:
+                        variables[v] = var[:var.index('.')]
+                variables = [var for var in list(set(variables))
+                             if var and var[0] not in '.0123456789']
+                linenr_where_defined = [-1]*len(variables)
+                placements = ['below']*len(variables)
+                for w, end in enumerate((i + 1, len(lines))):  # Second time: Check module scope
+                    if w == 1 and module_scope:
+                        break
+                    for v, var in enumerate(variables):
+                        if linenr_where_defined[v] != -1:
+                            continue
+                        for j, line2 in enumerate(reversed(lines[:end])):
+                            line2_ori = line2
+                            line2 = ' '*(len(line2) - len(line2.lstrip()))  + line2.replace(' ', '')
+                            if line2_ori.startswith('def ') and re.search('[\(,]{}[,=\)]'.format(var), line2):
+                                # var as function argument
+                                linenr_where_defined[v] = end - 1 - j
+                                break
+                            else:
+                                if variable_changed(var, line2_ori):
+                                    # var declaration found
+                                    linenr_where_defined[v] = end - 1 - j
+                                    # Continue searching for var in previous lines
+                                    linenr_where_defined_first = -1
+                                    for k, line3 in enumerate(reversed(lines[:linenr_where_defined[v]])):
+                                        line3_ori = line3
+                                        line3 = ' '*(len(line3) - len(line3.lstrip()))  + line3.replace(' ', '')
+                                        if line3_ori.startswith('def '):
+                                            # Function definition reached
+                                            break
+                                        if indentation_level(line3_ori) == 4:
+                                            # Upper level of function reached.
+                                            # Definitions above this point does not matter.
+                                            break
+                                        if variable_changed(var, line3_ori):
+                                            # Additional var declaration found
+                                            linenr_where_defined_first = linenr_where_defined[v] - 1 - k
+                                    # Locate "barriers" between linenr_where_defined and linenr_where_defined_first.
+                                    # A "barrier" consists of code with an indentation level smaller
+                                    # than that at linenr_where_defined, located somewhere between
+                                    # linenr_where_defined and linenr_where_defined_first.
+                                    # If such barriers exist, the defintion to be inserted cannot just
+                                    # be placed right below linenr_where_defined, but should be
+                                    # moved closer down towards where it is used and placed at an
+                                    # indentation level equal to that of the barrier with the smallest
+                                    # indentation level.
+                                    if linenr_where_defined_first != -1:
+                                        indentationlvl_where_defined = indentation_level(lines[linenr_where_defined[v]])
+                                        indentationlvl_barrier = indentationlvl_where_defined
+                                        for line3 in lines[(linenr_where_defined_first + 1):linenr_where_defined[v]]:
+                                                indentationlvl = indentation_level(line3)
+                                                if -1 < indentationlvl < indentationlvl_barrier:
+                                                    indentationlvl_barrier = indentationlvl
+                                        if indentationlvl_barrier < indentationlvl_where_defined:
+                                            # A barrier exists!
+                                            # Search downwards from linenr_where_defined[v] to i
+                                            # (the line where ℝ[...] is used) until an
+                                            # indentation level <= indentationlvl_barrier is found.
+                                            # This should be the place where the new declaration should be placed.
+                                            for k, line3 in enumerate(lines[(linenr_where_defined[v] + 1):(i + 1)]):
+                                                indentationlvl = indentation_level(line3)
+                                                if -1 < indentationlvl <= indentationlvl_barrier:
+                                                    # Change linenr_where_defined[v] to be this linenr,
+                                                    # where the barrier does not matter.
+                                                    linenr_where_defined[v] = linenr_where_defined[v] + 1 + k
+                                                    # Note that the declaration should now be inserted above
+                                                    # this line!
+                                                    placements[v] = 'above'
+                                                    break
+                                    # Break because original var declaration is found
+                                    break
+                if linenr_where_defined:
+                    index_max = np.argmax(linenr_where_defined)
+                    declaration_linenrs.append(linenr_where_defined[index_max])
+                    declaration_placements.append(placements[index_max])
+                else:
+                    declaration_linenrs.append(-1)
+                    declaration_placements.append('below')
+                # If inside a function and declaration_linenrs[-1] == -1,
+                # the variable may be declared in the module scope.
+                # Remove again if duplicate
+                for j in range(len(expressions) - 1):
+                    if (expressions[j] == expressions[-1]
+                        and declaration_linenrs[j] == declaration_linenrs[-1]):
+                        expressions.pop()
+                        expressions_cython.pop()
+                        declaration_linenrs.pop()
+                        declaration_placements.pop()
+                        break
+            if no_blackboard_bold_R:
+                break
+        # Find out where the last import statement is. Unrecognized
+        # definitions should occur below this line.
+        linenr_unrecognized = -1
+        for i, line in enumerate(lines):
+            if 'import ' in line:
+                if '#' in line and line.index('#') < line.index('import '):
+                    continue
+                if line.index('import ') != 0 and line[line.index('import ') - 1] not in 'c ':
+                    continue
+                if i + 1 < len(lines) and ('"""' in lines[i + 1] or "'''" in lines[i + 1]):
+                    linenr_unrecognized = i + 1
+                    continue
+                # Go down until indentation level 0 is reached
+                for j, line in enumerate(lines[(i + 1):]):
+                    if (len(line) > 0
+                        and line[0] not in '# '
+                        and not line.startswith('"""')
+                        and not line.startswith("'''")):
+                        linenr_unrecognized = i + j
+                        break
+        # Insert Cython declarations of constant expressions
+        new_lines = []
+        fname = None
+        declarations_placed = collections.defaultdict(list)
+        for i, line in enumerate(lines):
+            # Append original line
+            new_lines.append(line)
+            # Detect whether we are inside a function or not
+            if line.startswith('def '):
+                fname = line[4:line.index('(')].lstrip()
+            elif line.strip() and line[0] not in (' ', '#'):
+                fname = None
+            # Unrecognized definitions
+            if i == linenr_unrecognized:
+                for e, expression_cython in enumerate(expressions_cython):
+                    if declaration_linenrs[e] == -1:
+                        if not expression_cython in declarations_placed[fname]:
+                            new_lines.append('cython.declare(' + expression_cython + "='{}')".format(ctype))
+                            if fname:
+                                # Remember that this variable has been declared in this function
+                                declarations_placed[fname].append(expression_cython)
+                        new_lines.append(expression_cython + ' = ' + expressions[e])
+                new_lines.append('')
+            for e, n in enumerate(declaration_linenrs):
+                if i == n:
+                    indentation = ' '*(len(line) - len(line.lstrip()))
+                    if declaration_placements[e] == 'below' and line.rstrip().endswith(':'):
+                        indentation += ' '*4
+                    if declaration_placements[e] == 'above':
+                        new_lines.pop()
+                    if not expressions_cython[e] in declarations_placed[fname]:
+                        new_lines.append(indentation
+                                         + 'cython.declare('
+                                         + expressions_cython[e]
+                                         + "='{}')".format(ctype))
+                        if fname:
+                            # Remember that this variable has been declared in this function
+                            declarations_placed[fname].append(expressions_cython[e])
+                    new_lines.append(indentation + expressions_cython[e] + ' = ' + expressions[e])
+                    if declaration_placements[e] == 'above':
+                        new_lines.append(line)
+        with open(filename, 'w', encoding='utf-8') as pyxfile:
+            pyxfile.writelines('\n'.join(new_lines))
+
+
+
+def find_extension_types(filename):
+    # Find extension types
+    with open(filename, 'r', encoding='utf-8') as pyxfile:
+        code = pyxfile.read().split('\n')
+    class_names = []
+    for i, line in enumerate(code):
+        if line.startswith('@cython.cclass'):
+            # Class found
+            class_name = None
+            for line in code[(i + 1):]:
+                if len(line) > 6 and line[:6] == 'class ':
+                    class_name = line[6:line.index(':')].strip()
+                    break
+            if class_name is None:
+                break
+            # Classname found
+            class_names.append(class_name)
+    # Write all extension types at the end of the .pyx file
+    with open(filename, 'a', encoding='utf-8') as pyxfile:
+        pyxfile.write('\n\n\n# __pyxinfo__\n')
+        if class_names:
+            pyxfile.write('# Extension types implemented by this module:\n')
+            pyxfile.write('# {}{}\n'.format(' '*4, ', '.join(class_names)))
+
+
+
+def make_types(filename):
     # Dictionary mapping custom ctypes to their definiton
     # or an import of their definition.
-    customs = {# Function pointers
-               'func_b_ddd':     ('ctypedef bint '
-                                  '(*func_b_ddd_pxd)(double, double, double)'),
-               'func_d_d':       ('ctypedef double '
-                                  '(*func_d_d_pxd)(double)'),
-               'func_d_dd':      ('ctypedef double '
-                                  '(*func_d_dd_pxd)(double, double)'),
-               'func_d_ddd':     ('ctypedef double '
-                                  '(*func_d_ddd_pxd)(double, double, double)'),
-               'func_dstar_ddd': ('ctypedef double* '
-                                  '(*func_dstar_ddd_pxd)(double, double, double)'),
-               # External definitions
-               'fftw_plan':          ('cdef extern from "fft.c":\n'
-                                      '    ctypedef struct fftw_plan_struct:\n'
-                                      '        pass\n'
-                                      '    ctypedef fftw_plan_struct *fftw_plan'),
-               'fftw_return_struct': ('cdef extern from "fft.c":\n'
-                                      '    ctypedef struct fftw_plan_struct:\n'
-                                      '        pass\n'
-                                      '    ctypedef fftw_plan_struct *fftw_plan\n'
-                                      '    struct fftw_return_struct:\n'
-                                      '        ptrdiff_t gridsize_local_i\n'
-                                      '        ptrdiff_t gridsize_local_j\n'
-                                      '        ptrdiff_t gridstart_local_i\n'
-                                      '        ptrdiff_t gridstart_local_j\n'
-                                      '        double* grid\n'
-                                      '        fftw_plan plan_forward\n'
-                                      '        fftw_plan plan_backward'),
-               }
-    # Add Cython classes (extension types) to customs
-    for module, extension_type_str in extension_types.items():
-        for extension_type in extension_type_str.split(','):
-            extension_type = extension_type.replace(' ', '')
-            customs[extension_type] = 'from {} cimport {}'.format(module, extension_type)
+    custom_types = {# Function pointers
+                    'func_b_ddd':     'ctypedef bint '
+                                      '(*func_b_ddd_pxd)(double, double, double)',
+                    'func_d_d':       'ctypedef double '
+                                      '(*func_d_d_pxd)(double)',
+                    'func_d_dd':      'ctypedef double '
+                                      '(*func_d_dd_pxd)(double, double)',
+                    'func_d_ddd':     'ctypedef double '
+                                      '(*func_d_ddd_pxd)(double, double, double)',
+                    'func_dstar_ddd': 'ctypedef double* '
+                                      '(*func_dstar_ddd_pxd)(double, double, double)',
+                    # External definitions
+                    'fftw_plan':          'cdef extern from "fft.c":\n'
+                                          '    ctypedef struct fftw_plan_struct:\n'
+                                          '        pass\n'
+                                          '    ctypedef fftw_plan_struct *fftw_plan',
+                    'fftw_return_struct': 'cdef extern from "fft.c":\n'
+                                          '    ctypedef struct fftw_plan_struct:\n'
+                                          '        pass\n'
+                                          '    ctypedef fftw_plan_struct *fftw_plan\n'
+                                          '    struct fftw_return_struct:\n'
+                                          '        ptrdiff_t gridsize_local_i\n'
+                                          '        ptrdiff_t gridsize_local_j\n'
+                                          '        ptrdiff_t gridstart_local_i\n'
+                                          '        ptrdiff_t gridstart_local_j\n'
+                                          '        double* grid\n'
+                                          '        fftw_plan plan_forward\n'
+                                          '        fftw_plan plan_backward',
+                    }
+    # Add Cython classes (extension types) to custom_types
+    for other_pyxfile in all_pyxfiles:
+        module = other_pyxfile[:-4]
+        with open(other_pyxfile, 'r', encoding='utf-8') as pyxfile:
+            code = pyxfile.read().split('\n')
+        for i, line in enumerate(reversed(code)):
+            if line == '# __pyxinfo__':
+                code = code[-i:]
+                break
+        for i, line in enumerate(code):
+            if line == '# Extension types implemented by this module:':
+                line = code[i + 1].lstrip('#').lstrip(' ')
+                for extension_type in line.split(','):
+                    extension_type = extension_type.replace(' ', '')
+                    custom_types[extension_type] = 'from {} cimport {}'.format(module, extension_type)
+                break
+    # Do not write to the types file
+    # if it already has the correct content.
+    if os.path.isfile(filename):
+        with open(filename, 'r', encoding='utf-8') as pyxfile:
+            existing_custom_types_content = pyxfile.read()
+        try:
+            existing_custom_types = eval(existing_custom_types_content)
+            if existing_custom_types == custom_types:
+                return
+        except:
+            print('Warning: Could not interpret the content of "{}".'.format(filename))
+    # Write the dictionary to the types file:
+    with open(filename, 'w', encoding='utf-8') as pyxfile:
+        pyxfile.write(str(custom_types))
+
+
+
+def make_pxd(filename):
+    # Read in the custom types from the types file
+    with open(filename_types, 'r', encoding='utf-8') as pyxfile:
+        custom_types_content = pyxfile.read()
+    custom_types = eval(custom_types_content)
     # Begin constructing pxd
     header_lines = []
     pxd_filename = filename[:-3] + 'pxd'
     pxd_lines = []
     with open(filename, 'r', encoding='utf-8') as pyxfile:
-        code = pyxfile.read().split('\n')
+        code_str = pyxfile.read()
+    code = code_str.split('\n')
     # Find pxd hints of the form 'pxd = """'
     #                             int var1
     #                             double var2
@@ -942,9 +1146,9 @@ def make_pxd(filename):
         pxd_lines.pop()
     else:
         pxd_lines.append('\n')
-    # Import all types with spaces (e.g. "long int") from commons.py
+    # Import all types with spaces (e.g. "long int") from the commons module
     types_with_spaces = [(key.replace(' ', ''), key)
-                         for key in commons_module.C2np.keys()
+                         for key in commons.C2np.keys()
                          if ' ' in key]
     types_with_spaces = sorted(types_with_spaces, key=lambda t: len(t[1]), reverse=True)
     # Function that finds non-indented function definitions in a block
@@ -973,20 +1177,16 @@ def make_pxd(filename):
                 # Find function name and args
                 open_paren = line.index('(')
                 function_name = line[3:open_paren].strip()
-                try:
-                    closed_paren = line.index(')')
-                    function_args = line[(open_paren + 1):closed_paren]
-                except ValueError:
-                    # Closed paren on a later line
-                    function_args = []
-                    for line in code[i:]:
-                        function_args.append(line)
-                        if ')' in line:
-                            closed_paren = line.index(')')
-                            function_args[0] = function_args[0][(open_paren + 1):]
-                            function_args[-1] = function_args[-1][:closed_paren]
-                            function_args = re.sub(' +', ' ', ' '.join(function_args))
-                            break
+                N_parens = 0
+                for j, c in enumerate(line[open_paren:]):
+                    if c == '(':
+                        N_parens += 1
+                    elif c == ')':
+                        N_parens -= 1
+                    if N_parens == 0:
+                        closed_paren = open_paren + j
+                        break
+                function_args = line[(open_paren + 1):closed_paren]
                 function_args = function_args.strip()
                 if len(function_args) > 0 and function_args[-1] == ',':
                     function_args = function_args[:-1]
@@ -998,6 +1198,19 @@ def make_pxd(filename):
                     continue
                 # Replace default keyword argument values
                 # with an asterisk.
+                function_args_bak = ''
+                while function_args_bak != function_args:
+                    function_args_bak = deepcopy(function_args)
+                    inside_quote = {"'": False, '"': False}
+                    for j, c in enumerate(function_args):
+                        # Inside a quote?
+                        for key, val in inside_quote.items():
+                            if c == key:
+                                inside_quote[key] = not val
+                        # Replace spaces inside quotes with a temporary string
+                        if True in inside_quote.values() and c == ' ':
+                            function_args = function_args[:j] + '__pyxpp_space__' + function_args[(j + 1):]
+                            break
                 for j, c in enumerate(function_args):
                     if c == '=':
                         if function_args[j + 1] == ' ':
@@ -1019,6 +1232,7 @@ def make_pxd(filename):
                                     function_args = function_args[:(j + 1)] + '*'
                                     break
                             break
+                function_args = function_args.replace('__pyxpp_space__', ' ')
                 # Find types for the arguments and write them in
                 # front of the arguments in function_args.
                 function_args = function_args.split(',')
@@ -1073,10 +1287,6 @@ def make_pxd(filename):
                                         # Add spaces back to multiword argument types
                                         for t in types_with_spaces:
                                             argtype = argtype.replace(t[0], t[1])
-                                        # If a custum type is used,
-                                        # append an import for it to the header.
-                                        if argtype.replace('*', '') in customs:
-                                            header_lines.append(customs[argtype.replace('*', '')])
                                         # Add suffix _pxd to the "func_" types
                                         if 'func_' in argtype:
                                             argtype += '_pxd'
@@ -1085,7 +1295,8 @@ def make_pxd(filename):
                                         function_args[j] = function_args[j].strip()
                                         function_args[j] = function_args[j].strip(',')
                                         function_args[j] = function_args[j].strip()
-                                        function_args[j] = argtype + ' ' + function_args[j]
+                                        if function_args[j]:
+                                            function_args[j] = argtype + ' ' + function_args[j]
                                         break_k = True
                                         break
                             if break_k:
@@ -1144,15 +1355,6 @@ def make_pxd(filename):
                                 if line.startswith('        """'):
                                     break
                                 pxd_lines.append(line + '\n')
-                                # If a custum type is used,
-                                # append an import for it to the header.
-                                argexpressions = line.split()
-                                if len(argexpressions) > 2 and  argexpressions[0] == 'public':
-                                    argtype = argexpressions[1]
-                                else:
-                                    argtype = argexpressions[0]
-                                if argtype in customs:
-                                    header_lines.append(customs[argtype])
                             break
                     break
             # Now locate methods.
@@ -1246,6 +1448,20 @@ def make_pxd(filename):
         pxd_lines.pop()
     else:
         pxd_lines.append('\n')
+    # Find declarations of non-builtin types (extension types)
+    for vartype, vardeclaration in custom_types.items():
+        # Skip declaration if vartype is defined in this module
+        if vardeclaration.startswith('from {} cimport '.format(filename[:-4])):
+            continue
+        # Search the entire .pyx file for string of the form
+        # varname = 'vartype'.
+        if re.search("""(^|[,;(\s])[_a-zA-Z][_a-zA-Z0-9]*\s*=\s*(?P<quote>['"]){vartype}(?P=quote)"""
+                     .format(vartype=vartype),
+                     code_str,
+                     re.MULTILINE):
+            # Match found.
+            # Assume this is a declaration of the extension type.
+            header_lines.append(vardeclaration)
     # Combine header_lines and pxd_lines
     header_lines = list(set(header_lines))
     while len(header_lines) > 0 and len(header_lines[0].strip()) == 0:
@@ -1276,270 +1492,50 @@ def make_pxd(filename):
 
 
 
-def constant_expressions(filename):
-    sets = {'ℝ': 'double',
-            'ℤ': 'Py_ssize_t',
-            }
-    def indentation_level(line):
-        line_lstrip = line.lstrip()
-        if not line_lstrip or line_lstrip.startswith('#'):
-            return -1
-        return len(line) - len(line_lstrip)
-    for blackboard_bold_symbol, ctype in sets.items():
-        # Find constant expressions using the
-        # ℝ[expression] or ℤ[expression] syntax.
-        with open(filename, 'r', encoding='utf-8') as pyxfile:
-            lines = pyxfile.read().split('\n')
-        expressions = []
-        expressions_cython = []
-        declaration_linenrs = []
-        declaration_placements = []
-        operators = collections.OrderedDict([('.',  'DOT' ),
-                                             ('+',  'PLS' ),
-                                             ('-',  'MIN' ),
-                                             ('**', 'POW' ),
-                                             ('*',  'TIM' ),
-                                             ('/',  'DIV' ),
-                                             ('\\', 'BSL' ),
-                                             ('^',  'CAR' ),
-                                             ('&',  'AND' ),
-                                             ('|',  'BAR' ),
-                                             ('@',  'AT'  ),
-                                             (',',  'COM' ),
-                                             ('(',  'OPAR'),
-                                             (')',  'CPAR'),
-                                             ('[',  'OBRA'),
-                                             (']',  'CBRA'),
-                                             ('{',  'OCUR'),
-                                             ('}',  'CCUR'),
-                                             ("'",  'QTE' ),
-                                             ('"',  'DQTE'),
-                                             (':',  'COL' ),
-                                             (';',  'SCOL'),
-                                             ('!',  'BAN' ),
-                                             ('#',  'SHA' ),
-                                             ('$',  'DOL' ),
-                                             ('%',  'PER' ),
-                                             ('?',  'QUE' ),
-                                             ('<',  'LTH' ),
-                                             ('>',  'GTH' ),
-                                             ('`',  'GRA' ),
-                                             ('~',  'TIL' ),
-                                             ])
-        while True:
-            no_blackboard_bold_R = True
-            module_scope = True
-            for i, line in enumerate(lines):
-                if len(line) > 0 and line[0] not in ' #':
-                    module_scope = True
-                if len(line) > 0 and line[0] != '#' and 'def ' in line:
-                    module_scope = False
-                search = re.search(blackboard_bold_symbol + '\[.+\]', line)
-                if not search or line.replace(' ', '').startswith('#'):
-                    continue
-                R_statement_fullmatch = search.group(0)
-                R_statement = R_statement_fullmatch[:2]
-                for c in R_statement_fullmatch[2:]:
-                    R_statement += c
-                    if R_statement.count('[') == R_statement.count(']'):
-                        break
-                expression = R_statement[2:-1].strip()
-                # Integer literals to double literals when dividing
-                if ctype == 'double':
-                    # Integer in numerator
-                    expression = re.sub('[0-9]+\.?[0-9]*/[^/]',
-                                        lambda numerator: (     numerator.group() if '.' in numerator.group()
-                                                           else numerator.group()[:-2] + '.0/' + numerator.group()[-1]),
-                                        expression)
-                    # Integer in denominator
-                    expression = re.sub('[^/]/[0-9]+\.?[0-9]*',
-                                        lambda denominator: (     denominator.group() if '.' in denominator.group()
-                                                             else denominator.group() + '.0'),
-                                        expression)
-                no_blackboard_bold_R = False
-                expressions.append(expression)
-                expression_cython = blackboard_bold_symbol + '_' + expression.replace(' ', '')
-                for op, op_name in operators.items():
-                    expression_cython = expression_cython.replace(op, '__{}__'.format(op_name))
-                expressions_cython.append(expression_cython)
-                lines[i] = line.replace(R_statement, expression_cython)
-                # Find out where the declaration should be
-                variables = expression.replace(' ', '')                             # Remove spaces
-                variables = re.sub('(?P<quote>[\'"]).*?(?P=quote)', '', variables)  # Remove string literals using single and double quotes
-                variables = [variables]
-                for op in operators.keys():
-                    variables = list(itertools.chain(*[var.split(op) for var in variables]))
-                variables = [var for var in list(set(variables))
-                             if var and var[0] not in '.0123456789']
-                linenr_where_defined = [-1]*len(variables)
-                placements = ['below']*len(variables)
-                for w, end in enumerate((i + 1, len(lines))):  # Second time: Check module scope
-                    if w == 1 and module_scope:
-                        break
-                    for v, var in enumerate(variables):
-                        if linenr_where_defined[v] != -1:
-                            continue
-                        for j, line2 in enumerate(reversed(lines[:end])):
-                            line2_ori = line2
-                            line2 = ' '*(len(line2) - len(line2.lstrip()))  + line2.replace(' ', '')
-                            if line2_ori.startswith('def ') and re.search('[\(,]{}[,=\)]'.format(var), line2):
-                                # var as function argument
-                                linenr_where_defined[v] = end - 1 - j
-                                break
-                            else:
-                                for op in operators.keys():
-                                    line2 = line2.replace(op, '')
-                                if (   (' ' + var + '=') in line2
-                                    or (',' + var + '=') in line2
-                                    or (';' + var + '=') in line2
-                                    or ('=' + var + '=') in line2
-                                    or line2.startswith(var + '=')):
-                                    # var declaration found
-                                    linenr_where_defined[v] = end - 1 - j
-                                    # Continue searching for var in previous lines
-                                    linenr_where_defined_first = -1
-                                    for k, line3 in enumerate(reversed(lines[:linenr_where_defined[v]])):
-                                        line3_ori = line3
-                                        line3 = ' '*(len(line3) - len(line3.lstrip()))  + line3.replace(' ', '')
-                                        if line3_ori.startswith('def '):
-                                            # Function definition reached
-                                            break
-                                        if (   (' ' + var + '=') in line3
-                                            or (',' + var + '=') in line3
-                                            or (';' + var + '=') in line3
-                                            or ('=' + var + '=') in line3
-                                            or line3.startswith(var + '=')):
-                                            # Additional var declaration found
-                                            linenr_where_defined_first = linenr_where_defined[v] - 1 - k
-                                    # Locate "barriers" between linenr_where_defined and linenr_where_defined_first.
-                                    # A "barrier" consists of code with an indentation level smaller
-                                    # than that at linenr_where_defined, located somewhere between
-                                    # linenr_where_defined and linenr_where_defined_first.
-                                    # If such barriers exist, the defintion to be inserted cannot just
-                                    # be placed right below linenr_where_defined, but should be
-                                    # moved closer down towards where it is used and placed at an
-                                    # indentation level equal to that of the barrier with the smallest
-                                    # indentation level.
-                                    if linenr_where_defined_first != -1:
-                                        indentationlvl_where_defined = indentation_level(lines[linenr_where_defined[v]])
-                                        indentationlvl_barrier = indentationlvl_where_defined
-                                        for line3 in lines[(linenr_where_defined_first + 1):linenr_where_defined[v]]:
-                                                indentationlvl = indentation_level(line3)
-                                                if -1 < indentationlvl < indentationlvl_barrier:
-                                                    indentationlvl_barrier = indentationlvl
-                                        if indentationlvl_barrier < indentationlvl_where_defined:
-                                            # A barrier exists!
-                                            # Search downwards from linenr_where_defined[v] to i
-                                            # (the line where ℝ[...] is used) until an
-                                            # indentation level <= indentationlvl_barrier is found.
-                                            # This should be the place where the new declaration should be placed.
-                                            for k, line3 in enumerate(lines[(linenr_where_defined[v] + 1):(i + 1)]):
-                                                indentationlvl = indentation_level(line3)
-                                                if -1 < indentationlvl <= indentationlvl_barrier:
-                                                    # Change linenr_where_defined[v] to be this linenr,
-                                                    # where the barrier does not matter.
-                                                    linenr_where_defined[v] = linenr_where_defined[v] + 1 + k
-                                                    # Note that the declaration should now be inserted above
-                                                    # this line!
-                                                    placements[v] = 'above'
-                                                    break
-                                    # Break because original var declaration is found
-                                    break
-                if linenr_where_defined:
-                    index_max = np.argmax(linenr_where_defined)
-                    declaration_linenrs.append(linenr_where_defined[index_max])
-                    declaration_placements.append(placements[index_max])
-                else:
-                    declaration_linenrs.append(-1)
-                    declaration_placements.append('below')
-                # If inside a function and declaration_linenrs[-1] == -1,
-                # the variable may be declared in the module scope.
-                # Remove again if duplicate
-                for j in range(len(expressions) - 1):
-                    if (expressions[j] == expressions[-1]
-                        and declaration_linenrs[j] == declaration_linenrs[-1]):
-                        expressions.pop()
-                        expressions_cython.pop()
-                        declaration_linenrs.pop()
-                        declaration_placements.pop()
-                        break
-            if no_blackboard_bold_R:
-                break
-        # Find out where the last import statement is. Unrecognized
-        # definitions should occur below this line.
-        linenr_unrecognized = -1
-        for i, line in enumerate(lines):
-            if 'import ' in line:
-                if '#' in line and line.index('#') < line.index('import '):
-                    continue
-                if line.index('import ') != 0 and line[line.index('import ') - 1] not in 'c ':
-                    continue
-                if i + 1 < len(lines) and ('"""' in lines[i + 1] or "'''" in lines[i + 1]):
-                    linenr_unrecognized = i + 1
-                    continue
-                # Go down until indentation level 0 is reached
-                for j, line in enumerate(lines[(i + 1):]):
-                    if (len(line) > 0
-                        and line[0] not in '# '
-                        and not line.startswith('"""')
-                        and not line.startswith("'''")):
-                        linenr_unrecognized = i + j
-                        break
-        # Insert Cython declarations of constant expressions
-        new_lines = []
-        for i, line in enumerate(lines):
-            new_lines.append(line)
-            # Unrecognized definitions
-            if i == linenr_unrecognized:
-                for e, expression_cython in enumerate(expressions_cython):
-                    if declaration_linenrs[e] == -1:
-                        new_lines.append('cython.declare(' + expression_cython + "='{}')".format(ctype))
-                        new_lines.append(expression_cython + ' = ' + expressions[e])
-                new_lines.append('')
-            for e, n in enumerate(declaration_linenrs):
-                if i == n:
-                    if lines[i].startswith('def '):
-                        indentation = ' '*4
-                    else:
-                        indentation = ' '*(len(line) - len(line.lstrip()))
-                    if declaration_placements[e] == 'above':
-                        new_lines.pop()
-                    new_lines.append(indentation
-                                     + 'cython.declare('
-                                     + expressions_cython[e]
-                                     + "='{}')".format(ctype))
-                    new_lines.append(indentation + expressions_cython[e] + ' = ' + expressions[e])
-                    if declaration_placements[e] == 'above':
-                        new_lines.append(line)
-        with open(filename, 'w', encoding='utf-8') as pyxfile:
-            pyxfile.writelines('\n'.join(new_lines))
-
-
-
-# Interpret the input argument
+# Interpret input argument
 filename = sys.argv[1]
-if filename.endswith('.py'):
-    # A .py-file is parsed. Copy file to .pyx and work with this copy
-    filename_pyx = filename[:-2] + 'pyx'
-    shutil.copy(filename, filename_pyx)
-    filename = filename_pyx
-    # Actions
-    oneline(filename)
-    cythonstring2code(filename)
-    cython_structs(filename)
-    cimport_commons(filename)
-    cimport_cclasses(filename)
-    cimport_function(filename)
-    constant_expressions(filename)
-    cython_decorators(filename)
-    power2product(filename)
-    unicode2ASCII(filename)
-    __init__2__cinit__(filename)
-    fix_addresses(filename)
-    malloc_realloc(filename)
-    C_casting(filename)
-elif filename.endswith('.pyx'):
-    # A .pyx-file is parsed. Make the pxd
-    make_pxd(filename)
+filename_commons = sys.argv[2]
+if len(sys.argv) > 3:
+    filename_types = sys.argv[3]
+if len(sys.argv) > 4:
+    all_pyxfiles = sys.argv[4:]
+# Import the non-compiled commons module
+commons_name = filename_commons[:-3]
+commons = imp.load_source(commons_name, filename_commons)
+# Perform operations
+if len(sys.argv) > 4:
+    # Make the types file, containing the definitions of all custom
+    # types implemented in the .pyx files.
+    if filename.endswith('.pyx'):
+        make_types(filename)  # filename == filename_types
+    else:
+        raise Exception('Got "{}" which is not a .pyx file as the first argument, '
+                        'while receiving more than three arguments'.format(filename))
 else:
-    raise Exception('Got "{}", which is neither a .py nor a .pyx file'.format(filename))
+    if filename.endswith('.py'):
+        # A .py-file is parsed.
+        # Copy file to .pyx and work with this copy.
+        filename_pyx = filename[:-2] + 'pyx'
+        shutil.copy(filename, filename_pyx)
+        filename = filename_pyx
+        # Actions
+        oneline(filename)
+        cythonstring2code(filename)
+        cython_structs(filename)
+        cimport_commons(filename)
+        cimport_function(filename)
+        constant_expressions(filename)
+        cython_decorators(filename)
+        power2product(filename)
+        unicode2ASCII(filename)
+        __init__2__cinit__(filename)
+        fix_addresses(filename)
+        malloc_realloc(filename)
+        C_casting(filename)
+        find_extension_types(filename)
+    elif filename.endswith('.pyx'):
+        # A .pyx-file is parsed.
+        # Make the .pxd.
+        make_pxd(filename)
+    else:
+        raise Exception('Got "{}", which is neither a .py nor a .pyx file'.format(filename))

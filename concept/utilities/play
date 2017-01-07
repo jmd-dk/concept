@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -60,7 +60,7 @@ fi
 default_framerate=4
 
 # Use Python's argparse module to handle command-line arguments
-args=$("${python}" -c "
+args=$("${python}" -B -c "
 import argparse, sys
 # Function which checks whether input is a
 # representation of a positive integer.
@@ -87,7 +87,7 @@ parser.add_argument('path',
                     default='__newest__',
                     )
 parser.add_argument('-f', '--frame-rate',
-                    help='frame rate in integer frames/second.',
+                    help='frame rate in integer frames/second',
                     type=positive_int,
                     default=${default_framerate},
                     )
@@ -98,7 +98,7 @@ sys.stdout = sys.stderr
 # Now do the actual argument parsing,
 # including writing out the help message.
 if '${called_from_concept}' == 'True':
-    # Called from concept - Through exception on illegal args
+    # Called from concept - Throw exception on illegal args
     args = parser.parse_args()
 else:
     # Called directly - Allow what appears to be illegal args
@@ -108,10 +108,9 @@ else:
 sys.stdout = stdout_copy
 # Print out the arguments.
 # These will be captured in the Bash 'args' variable.
-print(  ' argparse_finished=yes'
-      + '; path=\"{}\"'.format(args.path)
-      + '; framerate=\"{}\"'.format(args.frame_rate)
-      )
+print('argparse_finished=yes')
+print('path=\"{}\"'.format(args.path))
+print('framerate={}'.format(args.frame_rate))
 " "$@" || :)
 # Evaluate the handled arguments into this scope
 eval "${args}"

@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,28 +22,24 @@
 
 # This file has to be run in pure Python mode!
 
-# Include the concept_dir in the searched paths
-import sys, os
-sys.path.append(os.environ['concept_dir'])
-
 # Imports from the CO𝘕CEPT code
 from commons import *
 from species import Component
 from snapshot import save
 
 # Create a global sine wave along the x-direction:
-# ϱ(x, y, z) = ϱ(x) ∝ (2 + sin(2*π*x/boxsize)).
-# The function ∫_{x1}^{x2}dxϱ(x)
-ᔑdxϱ = lambda x1, x2: 2*(x2 - x1) + boxsize/π*(cos(π*x1/boxsize)**2 - cos(π*x2/boxsize)**2)
-# Function which finds x2 in ∫_{x1}^{x2}dxϱ(x) == mass_unitless
+# ρ(x, y, z) = ρ(x) ∝ (2 + sin(2*π*x/boxsize)).
+# The function ∫_{x1}^{x2}dxρ(x)
+ᔑdxρ = lambda x1, x2: 2*(x2 - x1) + boxsize/π*(cos(π*x1/boxsize)**2 - cos(π*x2/boxsize)**2)
+# Function which finds x2 in ∫_{x1}^{x2}dxρ(x) == mass_unitless
 def binary_search(x, mass_unitless, x_lower=None, x_upper=None):
-    # Find ᔑdxϱ(x, x_next) == mass_unitless
+    # Find ᔑdxρ(x, x_next) == mass_unitless
     if x_lower is None:
         x_lower = x
     if x_upper is None:
         x_upper = boxsize
     x_next = 0.5*(x_lower + x_upper)
-    mass_unitless_test = ᔑdxϱ(x, x_next)
+    mass_unitless_test = ᔑdxρ(x, x_next)
     if isclose(mass_unitless_test, mass_unitless, rel_tol=1e-12):
         return x_next
     elif mass_unitless_test < mass_unitless:
@@ -55,8 +51,8 @@ def binary_search(x, mass_unitless, x_lower=None, x_upper=None):
 Nx = φ_gridsize*10
 Ny = Nz = φ_gridsize
 N = Nx*Ny*Nz
-mass = ϱmbar*boxsize**3/N
-mass_unitless_tot = ᔑdxϱ(0, boxsize)
+mass = ρmbar*boxsize**3/N
+mass_unitless_tot = ᔑdxρ(0, boxsize)
 mass_unitless = mass_unitless_tot/Nx
 posx = zeros(N)
 posy = zeros(N)

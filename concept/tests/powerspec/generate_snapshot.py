@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,17 +20,12 @@
 
 
 
-# Include the concept_dir in the searched paths
-import sys, os
-sys.path.append(os.environ['concept_dir'])
+# This file has to be run in pure Python mode!
 
 # Imports from the CO𝘕CEPT code
 from commons import *
 from species import Component
 from snapshot import save
-
-# Function for generating random numbers from a normal distribution
-from numpy.random import normal
 
 # Create close to homogeneous particles
 N_lin = 128
@@ -51,9 +46,9 @@ for i in range(N_lin):
         Y = j*boxsize_over_N_lin
         for k in range(N_lin):
             Z = k*boxsize_over_N_lin
-            posx[count] = normal(loc=X, scale=R_tophat) % boxsize
-            posy[count] = normal(loc=Y, scale=R_tophat) % boxsize
-            posz[count] = normal(loc=Z, scale=R_tophat) % boxsize
+            posx[count] = random_gaussian(X, R_tophat) % boxsize
+            posy[count] = random_gaussian(Y, R_tophat) % boxsize
+            posz[count] = random_gaussian(Z, R_tophat) % boxsize
             count += 1
 component.populate(posx, 'posx')
 component.populate(posy, 'posy')
@@ -64,4 +59,17 @@ component.populate(momz, 'momz')
 
 # Save snapshot
 save([component], IC_file)
+
+# Expand particle locations by a factor of 2
+posx = component.posx
+posy = component.posy
+posz = component.posz
+for i in range(N):
+    posx[i] *= 2
+    posy[i] *= 2
+    posz[i] *= 2
+
+# Save another snapshot, this time with an enlarged boxsize,
+# matching the expanded particle locations.
+save([component], '{}_double_boxsize{}'.format(*os.path.splitext(IC_file)), {'boxsize': 2*boxsize})
 

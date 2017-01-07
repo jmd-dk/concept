@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -31,16 +31,36 @@
 # snapshot. Different render parameters are used for the two calls to the
 # render utility script.
 
-# Initialize test environment
+# Absolute path and name of the directory of this file
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-source "${this_dir}/../environment"
+this_test="$(basename "${this_dir}")"
+
+# Set up error trapping
+ctrl_c()
+{
+    trap : 0
+    exit 2
+}
+abort()
+{
+    colorprint "An error occurred during ${this_test} test!" "red"
+    exit 1
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
 
 # Cleanup from last test run
 "${this_dir}/clean"
 
-# Generate snapshots
-mkdir -p "${this_dir}/output"
-"${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_snapshot.py" --pure-python --local
+# Generate snapshot
+"${concept}" -n 1                                    \
+             -p "${this_dir}/params"                 \
+             -u ic --name    'test particles'        \
+                   --species 'dark matter particles' \
+             --local
+
+# Make copies of the snapshot
 mkdir -p "${this_dir}/output/subdir"
 cp "${this_dir}/output/snapshot.hdf5" "${this_dir}/output/subdir/snapshot_0.hdf5"
 cp "${this_dir}/output/snapshot.hdf5" "${this_dir}/output/subdir/snapshot_1.hdf5"
@@ -66,17 +86,30 @@ resolution = 1080
 mv "${this_dir}/output/render_snapshot.png" "${this_dir}/output/render_snapshot_default.png"
 
 # Render the single snapshot by specifying a render parameter file
-"${concept}" -n 1 -p "${this_dir}/render.params_0" -u render "${this_dir}/output/snapshot.hdf5" --local
+"${concept}" -n 1                                         \
+             -p "${this_dir}/render.params_0"             \
+             -u render "${this_dir}/output/snapshot.hdf5" \
+             --local
 
 # Render all (both) snapshots in the subdir, using 2 processes
-"${concept}" -n 2 -p "${this_dir}/render.params_1" -u render "${this_dir}/output/subdir" --local
+"${concept}" -n 2                                  \
+             -p "${this_dir}/render.params_1"      \
+             -u render "${this_dir}/output/subdir" \
+             --local
 
 # Analyze the output snapshots
-"${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
+"${concept}" -n 1                        \
+             -p "${this_dir}/params"     \
+             -m "${this_dir}/analyze.py" \
+             --pure-python               \
+             --local
 
 # For the spectacularity of it, run a small simulation demonstrating terminal rendering
 "${concept}" -n 1 -p "${this_dir}/params" --local
 
-# Finalize test environment
-test_done=true source "${this_dir}/../environment"
+# Also demonstrate the play utility
+"${concept}" -u play
+
+# Test ran successfully. Deactivate traps.
+trap : 0
 

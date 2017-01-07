@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,11 +24,11 @@
 
 # This utility can produce powerspectra of snapshots.
 # You can run this file directly as
-# utilities/powerspec path
+# utilities/powerspec paths
 # or invoke it via the concept script as
-# ./concept --util powerspec path
-# In both cases, path is the path to a snapshot file
-# or a directory containing snapshot files.
+# ./concept --util powerspec paths
+# In both cases, paths are paths to snapshot files
+# or directories containing snapshot files.
 
 
 
@@ -57,13 +57,14 @@ if [ "${called_from_concept}" == "True" ]; then
 fi
 
 # Use Python's argparse module to handle command-line arguments
-args=$("${python}" -c "
+args=$("${python}" -B -c "
 import argparse, sys
 # Setup command-line arguments
 parser = argparse.ArgumentParser(prog='$(basename "${this_file}")',
                                  description='Run the CO𝘕CEPT $(basename "${this_file}") utility')
-parser.add_argument('path',
-                    help='path to snapshot or directory of snapshots',
+parser.add_argument('paths',
+                    nargs='+',
+                    help='paths to snapshots or directories of snapshots',
                     )
 # Enables Python to write directly to screen (stderr)
 # in case of help request.
@@ -72,7 +73,7 @@ sys.stdout = sys.stderr
 # Now do the actual argument parsing,
 # including writing out the help message.
 if '${called_from_concept}' == 'True':
-    # Called from concept - Through exception on illegal args
+    # Called from concept - Throw exception on illegal args
     args = parser.parse_args()
 else:
     # Called directly - Allow what appears to be illegal args
@@ -82,9 +83,8 @@ else:
 sys.stdout = stdout_copy
 # Print out the arguments.
 # These will be captured in the Bash 'args' variable.
-print(  ' argparse_finished=yes'
-      + '; path=\"{}\"'.format(args.path)
-      )
+print('argparse_finished=yes')
+print('paths=({})'.format(' '.join(['\"{}\"'.format(paths) for paths in args.paths])))
 " "$@" || :)
 # Evaluate the handled arguments into this scope
 eval "${args}"
@@ -108,25 +108,33 @@ if [ "${params}" == "None" ]; then
     params="${this_file}.params"
 fi
 
-# Convert to absolute path
-path="$(absolute_path "${path}" "${workdir}")"
+# Convert to absolute paths
+for i in ${!paths[@]}; do
+    paths[${i}]="$(absolute_path "${paths[${i}]}" "${workdir}")"
+done
 
 # Get filenames of snapshots and create matching (temporary) parameter files
-info="$("${concept}" --local ${pure_python_flag} --util info "${path}" --generate-params "${this_dir}/params")"
+info="$("${concept}" -p "${params}"                                \
+                     --local                                       \
+                     ${pure_python_flag}                           \
+                     --util info                                   \
+                            "$(bash_array2python_list paths[@])"   \
+                            --generate-params "${this_dir}/params" \
+        )"
 snapshot_filenames="$(echo "${info}" | grep -x Parameters.* | grep -o '".*"')"
 snapshot_params_filenames="$(echo "${info}" | grep -x '".*"')"
 snapshot_params_filenames="${snapshot_params_filenames//\"/}"
 
-# Print out the snapshots of which a powerspectrum will be computed
+# Print out the snapshots of which a power spectrum will be computed
 N_snapshots="$(echo "${snapshot_filenames}" | wc -l)"
 if [ ${N_snapshots} == 1 ]; then
-    echo "A powerspectrum will be produced of the following snapshot:"
+    echo "A power spectrum will be produced of the following snapshot:"
 else
-    echo "Powerspectra will be produced of the following snapshots:"
+    echo "Power spectra will be produced of the following snapshots:"
 fi
 echo "${snapshot_filenames}"
 
-#For each snapshot, run the CO𝘕CEPT code to create the powerspectrum
+# For each snapshot, run the CO𝘕CEPT code to create the power spectrum
 jobids=()
 for ((i = 1; i <= N_snapshots; i += 1)); do
     # Filename of the parameter file to create and use
@@ -135,12 +143,30 @@ for ((i = 1; i <= N_snapshots; i += 1)); do
     snapshot_filename="$(echo "${snapshot_filenames}" | sed "${i}q;d")"
     snapshot_params_filename="$(echo "${snapshot_params_filenames}" | sed "${i}q;d")"
     # Make temporary parameter file with everything needed
-    printf "special_params = {
-    'special':           '$(basename "${this_file}")',
+    printf "
+# The special_params dict, specifying details of the utility run
+special_params = {
+    'special': '$(basename "${this_file}")',
     'snapshot_filename': ${snapshot_filename},
                   }
+# Parameter values which should always be used when running this utility
+use_φ = True
+# Set the path to the parameter file to be the path to the actual
+# parameter file specified by the user, not this autogenerated
+# parameter file.
+params_path_ori = paths['params']
+paths['params'] = '${params}'
+# Autogenerated parameters
 $(cat "${snapshot_params_filename}")
+###################
+# User parameters #
+###################
 $(cat "${params}")
+##########################
+# End of user parameters #
+##########################
+# Reinsert original path to the parameter file
+paths['params'] = params_path_ori
 " > "${params_filename}"
     # Cleanup
     rm -f "${snapshot_params_filename}"

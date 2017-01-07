@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,27 +22,70 @@
 
 
 
-# This script performs a test of the powerspectrum comparing
-# the rms density variation with an estimate obtained by
-# taking the rms of cubes the size of spheres with
-# radius R_tophat.
+# This script performs a test of the power spectrum functionality.
+# It compares the rms density variation with an estimate obtained by
+# taking the rms of cubes the size of spheres with radius R_tophat.
+# It also checks the scaling behavior of power spectra (both axes,
+# that is, both k and power) against the boxsize and the gridsize
+# of the grid used to compute the power spectra.
 
-# Initialize test environment
+# Absolute path and name of the directory of this file
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-source "${this_dir}/../environment"
+this_test="$(basename "${this_dir}")"
+
+# Set up error trapping
+ctrl_c()
+{
+    trap : 0
+    exit 2
+}
+abort()
+{
+    colorprint "An error occurred during ${this_test} test!" "red"
+    exit 1
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
 
 # Cleanup from last test run
 "${this_dir}/clean"
 
 # Generate snapshot
-"${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_snapshot.py" --pure-python --local
+"${concept}" -n 1                                  \
+             -p "${this_dir}/params"               \
+             -m "${this_dir}/generate_snapshot.py" \
+             --pure-python                         \
+             --local
 
-# Compute powerspectrum of the snapshot
+# Compute power spectrum of the first snapshot
 "${concept}" -n 1 -p "${this_dir}/params" -u powerspec "${this_dir}/snapshot.hdf5" --local
+
+# Compute power spectrum of the snapshot with double the boxsize
+cp "${this_dir}/params" "${this_dir}/params_double_boxsize"
+sed -i "s/boxsize *=/boxsize = 2*/" "${this_dir}/params_double_boxsize"
+"${concept}" -n 1                                                    \
+             -p "${this_dir}/params_double_boxsize"                  \
+             -u powerspec "${this_dir}/snapshot_double_boxsize.hdf5" \
+             --local
+
+# Compute power spectrum of the first snapshot using half the gridsize
+mv "${this_dir}/powerspec_snapshot"     "${this_dir}/powerspec_snapshot_original"
+mv "${this_dir}/powerspec_snapshot.png" "${this_dir}/powerspec_snapshot_original.png"
+cp "${this_dir}/params" "${this_dir}/params_half_gridsize"
+sed -i "s/_gridsize *=/_gridsize = 0.5*/" "${this_dir}/params_half_gridsize"
+"${concept}" -n 1                                     \
+             -p "${this_dir}/params_half_gridsize"    \
+             -u powerspec "${this_dir}/snapshot.hdf5" \
+             --local
+mv "${this_dir}/powerspec_snapshot"     "${this_dir}/powerspec_snapshot_half_gridsize"
+mv "${this_dir}/powerspec_snapshot.png" "${this_dir}/powerspec_snapshot_half_gridsize.png"
+mv "${this_dir}/powerspec_snapshot_original"     "${this_dir}/powerspec_snapshot"
+mv "${this_dir}/powerspec_snapshot_original.png" "${this_dir}/powerspec_snapshot.png"
 
 # Analyze the output snapshots
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
 
-# Finalize test environment
-test_done=true source "${this_dir}/../environment"
+# Test ran successfully. Deactivate traps.
+trap : 0
 

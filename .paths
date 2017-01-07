@@ -7,6 +7,9 @@
 ###############
 # Directory containing the CO𝘕CEPT source code
 concept_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept'
+
+ics_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/ICs'
+
 # Directory of FFTW
 fftw_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/fftw'
 # Directory of FFTW2, used by GADGET

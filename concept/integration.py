@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -102,15 +102,15 @@ def rkf45(ḟ, f_start, t_start, t_end, abs_tol, rel_tol, save_intermediate=Fals
     t = t_start
     # Drive the method
     while t < t_end:
-        # The embedded Runge–Kutta–Fehlberg 4(5) step
-        k1 = h*ḟ(t,        f)
-        k2 = h*ḟ(t + c2*h, f + a21*k1)
-        k3 = h*ḟ(t + c3*h, f + a31*k1 + a32*k2)
-        k4 = h*ḟ(t + c4*h, f + a41*k1 + a42*k2 + a43*k3)
-        k5 = h*ḟ(t + c5*h, f + a51*k1 + a52*k2 + a53*k3 + a54*k4)
-        k6 = h*ḟ(t + c6*h, f + a61*k1 + a62*k2 + a63*k3 + a64*k4 + a65*k5)
-        f5 = f               +  b1*k1          +  b3*k3 +  b4*k4 +  b5*k5 + b6*k6
-        f4 = f               +  d1*k1          +  d3*k3 +  d4*k4 +  d5*k5
+        # The embedded Runge-Kutta-Fehlberg 4(5) step
+        k1 = h*ḟ(t             , f)
+        k2 = h*ḟ(t + ℝ[1/4  ]*h, f + ℝ[1/4      ]*k1)
+        k3 = h*ḟ(t + ℝ[3/8  ]*h, f + ℝ[3/32     ]*k1 + ℝ[9/32      ]*k2)
+        k4 = h*ḟ(t + ℝ[12/13]*h, f + ℝ[1932/2197]*k1 + ℝ[-7200/2197]*k2 + ℝ[7296/2197 ]*k3)
+        k5 = h*ḟ(t +          h, f + ℝ[439/216  ]*k1 + ℝ[-8        ]*k2 + ℝ[3680/513  ]*k3 + ℝ[-845/4104  ]*k4)
+        k6 = h*ḟ(t + ℝ[1/2  ]*h, f + ℝ[-8/27    ]*k1 + ℝ[2         ]*k2 + ℝ[-3544/2565]*k3 + ℝ[1859/4104  ]*k4 + ℝ[-11/40]*k5)
+        f5 =                     f + ℝ[16/135   ]*k1                    + ℝ[6656/12825]*k3 + ℝ[28561/56430]*k4 + ℝ[-9/50 ]*k5 + ℝ[2/55]*k6
+        f4 =                     f + ℝ[25/216   ]*k1                    + ℝ[1408/2565 ]*k3 + ℝ[2197/4104  ]*k4 + ℝ[-1/5  ]*k5
         # The error estimate
         error = abs(f5 - f4) + machine_ϵ
         # The local tolerence
@@ -144,46 +144,6 @@ def rkf45(ḟ, f_start, t_start, t_end, abs_tol, rel_tol, save_intermediate=Fals
     if save_intermediate:
         size_tab = i
     return f
-# Initialize the Butcher tableau for the above Runge–Kutta–Fehlberg
-# method at import time.
-cython.declare(a21='double',
-               a31='double',
-               a41='double',
-               a51='double',
-               a61='double',
-               a32='double',
-               a42='double',
-               a52='double',
-               a62='double',
-               a43='double',
-               a53='double',
-               a63='double',
-               a54='double',
-               a64='double',
-               a65='double',
-               b1='double',
-               b3='double',
-               b4='double',
-               b5='double',
-               b6='double',
-               c2='double',
-               c3='double',
-               c4='double',
-               c5='double',
-               c6='double',
-               d1='double',
-               d3='double',
-               d4='double',
-               d5='double',
-               )
-a21 = 1/4;
-a31 = 3/32;        a32 = 9/32;
-a41 = 1932/2197;   a42 = -7200/2197;  a43 = 7296/2197;
-a51 = 439/216;     a52 = -8;          a53 = 3680/513;    a54 = -845/4104;
-a61 = -8/27;       a62 = 2;           a63 = -3544/2565;  a64 = 1859/4104;  a65 = -11/40;
-b1  = 16/135;      b3  = 6656/12825;  b4  = 28561/56430; b5  = -9/50;      b6  = 2/55;
-c2  = 1/4;         c3  = 3/8;         c4  = 12/13;       c5  = 1;          c6  = 1/2;
-d1  = 25/216;      d3  = 1408/2565;   d4  = 2197/4104;   d5  = -1/5;
 # Allocate t_tab, f_tab and integrand_tab at import time.
 # t_tab and f_tab are used to store intermediate values of t, f,
 # in the Runge-Kutta-Fehlberg method. integrand_tab stores the
@@ -386,231 +346,3 @@ def initiate_time():
         # Use universals.t = t_begin, which defaults to 0 when not
         # supplied by the user, as specified in commons.py.
         universals.t = t_begin
-
-@cython.header(# Arguments
-               component='Component',
-               ᔑdt='dict',
-               # Locals
-               shape='tuple',
-               ϱ='double[:, :, ::1]',
-               ϱux='double[:, :, ::1]',
-               ϱuy='double[:, :, ::1]',
-               ϱuz='double[:, :, ::1]',
-               ϱˣ='double[:, :, ::1]',
-               ϱuxˣ='double[:, :, ::1]',
-               ϱuyˣ='double[:, :, ::1]',
-               ϱuzˣ='double[:, :, ::1]',
-               ϱ_ijk='double',
-               ϱux_ijk='double',
-               ϱuy_ijk='double',
-               ϱuz_ijk='double',
-               h='double',
-               i='Py_ssize_t',
-               j='Py_ssize_t',
-               k='Py_ssize_t',
-               ϱux_source='double[:, :, ::1]',
-               ϱuy_source='double[:, :, ::1]',
-               ϱuz_source='double[:, :, ::1]',
-               indices_local_start='Py_ssize_t[::1]',
-               indices_local_end='Py_ssize_t[::1]',
-               indices_start='Py_ssize_t[::1]',
-               indices_end='Py_ssize_t[::1]',
-               step='int',
-               steps='int[::1]',
-               i_step='Py_ssize_t',
-               step_order='str',
-               ϱ_flux='double',
-               ϱux_flux='double',
-               ϱuy_flux='double',
-               ϱuz_flux='double',
-               ϱ_sjk ='double',
-               ϱ_isk ='double',
-               ϱ_ijs ='double',
-               Σϱu_ijk='double',
-               Σu_ijk='double',
-               ux_sjk='double',
-               uy_isk='double',
-               uz_ijs='double',
-               ϱux_sjk='double',
-               ϱuy_sjk='double',
-               ϱuz_sjk='double',
-               ϱux_isk='double',
-               ϱuy_isk='double',
-               ϱuz_isk='double',
-               ϱux_ijs='double',
-               ϱuy_ijs='double',
-               ϱuz_ijs='double',
-               )
-def maccormack(component, ᔑdt):
-    """First forward differencing and then backward differencing.
-    """
-    # Parameters
-    step_order = 'forward, backward'
-    shape = component.fluidvars['shape']
-    h = boxsize/component.gridsize
-    # Arrays of start and end indices for the local part of the
-    # fluid grids, meaning disregarding pseudo points and ghost points.
-    # We have 2 ghost points in the beginning and 1 pseudo point and
-    # 2 ghost points in the end.
-    indices_local_start = asarray([2, 2, 2], dtype=C2np['Py_ssize_t'])
-    indices_local_end   = asarray(shape    , dtype=C2np['Py_ssize_t']) - 2 - 1
-    if step_order == 'forward, backward':
-        steps = asarray([+1, -1], dtype=C2np['int'])
-    elif step_order == 'backward, forward':
-        steps = asarray([-1, +1], dtype=C2np['int'])
-    # Extract fluid grids
-    ϱ = component.fluidvars['ϱ'].grid_mv
-    ϱux = component.fluidvars['ϱux'].grid_mv
-    ϱuy = component.fluidvars['ϱuy'].grid_mv
-    ϱuz = component.fluidvars['ϱuz'].grid_mv
-    # Extract starred fluid grids
-    ϱˣ = component.fluidvars['ϱ'].gridˣ_mv
-    ϱuxˣ = component.fluidvars['ϱux'].gridˣ_mv
-    ϱuyˣ = component.fluidvars['ϱuy'].gridˣ_mv
-    ϱuzˣ = component.fluidvars['ϱuz'].gridˣ_mv
-    # Extract needed source term grids
-    ϱux_source = component.fluidvars['ϱux'].source_mv
-    ϱuy_source = component.fluidvars['ϱuy'].source_mv
-    ϱuz_source = component.fluidvars['ϱuz'].source_mv
-    # Add source terms.
-    # In addition to local grid points, loop over 
-    # one layer of grid points in both directions.
-    for         i in range(ℤ[indices_local_start[0] - 1], ℤ[indices_local_end[0] + 1]):
-        for     j in range(ℤ[indices_local_start[1] - 1], ℤ[indices_local_end[1] + 1]):
-            for k in range(ℤ[indices_local_start[2] - 1], ℤ[indices_local_end[2] + 1]):
-                ϱux[i, j, k] += ℝ[ᔑdt['a⁻²']]*ϱux_source[i, j, k]
-                ϱuy[i, j, k] += ℝ[ᔑdt['a⁻²']]*ϱuy_source[i, j, k]
-                ϱuz[i, j, k] += ℝ[ᔑdt['a⁻²']]*ϱuz_source[i, j, k]
-    # Nullify the grids of the starred variables
-    component.nullify_fluid_gridˣ()
-    # The two MacCormack steps. Source terms will be added later.
-    for i_step in range(2):
-        step = steps[i_step]
-        # Determine which part of the grids to loop over
-        if i_step == 0:
-            # First step
-            if step == +1:  # forward, backward
-                # In addition to local grid points, loop over 
-                # one layer of grid points in the backward directions.
-                indices_start = asarray(indices_local_start) - 1
-                indices_end   = indices_local_end
-            elif step == -1:  # backward, forward
-                # In addition to local grid points, loop over 
-                # one layer of grid points in the forward directions.
-                indices_start = indices_local_start
-                indices_end   = asarray(indices_local_end) + 1
-        elif i_step == 1:
-            # Second step.
-            # Loop over local grid points only.
-            indices_start = indices_local_start
-            indices_end   = indices_local_end
-        # Loop which compute the starred variables from the unstarred
-        # (first step) or update the unstarred variables from the
-        # starred (second step).
-        for         i in range(ℤ[indices_start[0]], ℤ[indices_end[0]]):
-            for     j in range(ℤ[indices_start[1]], ℤ[indices_end[1]]):
-                for k in range(ℤ[indices_start[2]], ℤ[indices_end[2]]):
-                    # Density at this point
-                    ϱ_ijk = ϱ[i, j, k]
-                    # Density at forward (backward) points
-                    ϱ_sjk = ϱ[i + step, j       , k       ]
-                    ϱ_isk = ϱ[i       , j + step, k       ]
-                    ϱ_ijs = ϱ[i       , j       , k + step]
-                    # Momentum densities at this point
-                    ϱux_ijk = ϱux[i, j, k]
-                    ϱuy_ijk = ϱuy[i, j, k]
-                    ϱuz_ijk = ϱuz[i, j, k]
-                    Σϱu_ijk = ϱux_ijk + ϱuy_ijk + ϱuz_ijk
-                    # Momentum densities at forward (backward) points
-                    ϱux_sjk = ϱux[i + step, j       , k       ]
-                    ϱux_isk = ϱux[i       , j + step, k       ]
-                    ϱux_ijs = ϱux[i       , j       , k + step]
-                    ϱuy_sjk = ϱuy[i + step, j       , k       ]
-                    ϱuy_isk = ϱuy[i       , j + step, k       ]
-                    ϱuy_ijs = ϱuy[i       , j       , k + step]
-                    ϱuz_sjk = ϱuz[i + step, j       , k       ]
-                    ϱuz_isk = ϱuz[i       , j + step, k       ]
-                    ϱuz_ijs = ϱuz[i       , j       , k + step]
-                    # Velocity sum at this point
-                    Σu_ijk = Σϱu_ijk/ϱ_ijk
-                    # Velocities at forward (backward) points
-                    ux_sjk = ϱux_sjk/ϱ_sjk
-                    uy_isk = ϱuy_isk/ϱ_isk
-                    uz_ijs = ϱuz_ijs/ϱ_ijs
-                    # Flux of ϱ (ϱ*u)
-                    ϱ_flux = step*(# Forward fluxes
-                                   + ϱux_sjk
-                                   + ϱuy_isk
-                                   + ϱuz_ijs
-                                   # Local fluxes
-                                   - Σϱu_ijk
-                                   )
-                    # Flux of ϱux (ϱux*u)
-                    ϱux_flux = step*(# Forward fluxes
-                                     + ϱux_sjk*ux_sjk
-                                     + ϱux_isk*uy_isk
-                                     + ϱux_ijs*uz_ijs
-                                     # Local fluxes
-                                     - ϱux_ijk*Σu_ijk
-                                     )
-                    # Flux of ϱuy (ϱuy*u)
-                    ϱuy_flux = step*(# Forward fluxes
-                                     + ϱuy_sjk*ux_sjk
-                                     + ϱuy_isk*uy_isk
-                                     + ϱuy_ijs*uz_ijs
-                                     # Local fluxes
-                                     - ϱuy_ijk*Σu_ijk
-                                     )
-                    # Flux of ϱuz (ϱuz*u)
-                    ϱuz_flux = step*(# Forward fluxes
-                                     + ϱuz_sjk*ux_sjk
-                                     + ϱuz_isk*uy_isk
-                                     + ϱuz_ijs*uz_ijs
-                                     # Local fluxes
-                                     - ϱuz_ijk*Σu_ijk
-                                     )
-                    # Update ϱ
-                    ϱˣ[i, j, k] += (# Initial value
-                                    + ϱ_ijk
-                                    # Flux
-                                    - ℝ[ᔑdt['a⁻¹']/h]*ϱ_flux
-                                    )
-                    # Update ϱux
-                    ϱuxˣ[i, j, k] += (# Initial value
-                                      + ϱux_ijk
-                                      # Flux
-                                      - ℝ[ᔑdt['a⁻¹']/h]*ϱux_flux
-                                      # Hubble drag
-                                      - ℝ[ᔑdt['ȧ/a']]*ϱux_ijk
-                                      )
-                    # Update ϱuy
-                    ϱuyˣ[i, j, k] += (# Initial value
-                                      + ϱuy_ijk
-                                      # Flux
-                                      - ℝ[ᔑdt['a⁻¹']/h]*ϱuy_flux
-                                      # Hubble drag
-                                      - ℝ[ᔑdt['ȧ/a']]*ϱuy_ijk
-                                      )
-                    # Update ϱuz
-                    ϱuzˣ[i, j, k] += (# Initial value
-                                      + ϱuz_ijk
-                                      # Flux
-                                      - ℝ[ᔑdt['a⁻¹']/h]*ϱuz_flux
-                                      # Hubble drag
-                                      - ℝ[ᔑdt['ȧ/a']]*ϱuz_ijk
-                                      )
-        # Swap the role of the fluid variable grids and buffers
-        ϱ  , ϱˣ   = ϱˣ  , ϱ
-        ϱux, ϱuxˣ = ϱuxˣ, ϱux
-        ϱuy, ϱuyˣ = ϱuyˣ, ϱuy
-        ϱuz, ϱuzˣ = ϱuzˣ, ϱuz
-    # Because the fluid variables have been updated twice
-    # (the two steps above), the values of the fluid grids
-    # need to be halved.
-    for         i in range(ℤ[indices_local_start[0]], ℤ[indices_local_end[0]]):
-        for     j in range(ℤ[indices_local_start[1]], ℤ[indices_local_end[1]]):
-            for k in range(ℤ[indices_local_start[2]], ℤ[indices_local_end[2]]):
-                ϱ  [i, j, k] *= 0.5
-                ϱux[i, j, k] *= 0.5
-                ϱuy[i, j, k] *= 0.5
-                ϱuz[i, j, k] *= 0.5

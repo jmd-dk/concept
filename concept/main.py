@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,32 +25,33 @@
 from commons import *
 
 # Cython imports
-from mesh import diff
+from mesh import diff_domain
 from snapshot import load
 cimport('from analysis import debug, powerspec')
 cimport('from graphics import render, terminal_render')
 cimport('from gravity import build_φ')
-cimport('from integration import cosmic_time, expand, initiate_time, scalefactor_integral')
+cimport('from integration import cosmic_time, expand, hubble, initiate_time, scalefactor_integral')
 cimport('from utilities import delegate')
 cimport('from snapshot import save')
 
 
 
 # Function that computes several time integrals with integrands having
-# to do with the scale factor (e.g. ∫dta⁻¹, ∫dtȧ/a)
+# to do with the scale factor (e.g. ∫dta⁻¹).
 # The result is stored in ᔑdt_steps[integrand][index],
 # where index == 0 corresponds to step == 'first half' and
 # index == 1 corresponds to step == 'second half'. 
 @cython.header(# Arguments
                step='str',
+               Δt='double',
                # Locals
                a_next='double',
                index='int',
                integrand='str',
                t_next='double',
                )
-def scalefactor_integrals(step):
-    global ᔑdt_steps, Δt
+def scalefactor_integrals(step, Δt):
+    global ᔑdt_steps
     # Update the scale factor and the cosmic time. This also
     # tabulates a(t), needed for the scalefactor integrals.
     a_next = expand(universals.a, universals.t, 0.5*Δt)
@@ -105,7 +106,7 @@ def dump(components, output_filenames, final_render, op=None):
                 return False
         else:
             return False
-    # Synchronize positions and momenta before dumping
+    # Synchronize drift and kick operations before dumping
     if op == 'drift':
         drift(components, 'first half')
     elif op == 'kick':
@@ -121,7 +122,7 @@ def dump(components, output_filenames, final_render, op=None):
             if time_param == 't':
                 filename += unit_time
             save(components, filename)
-    # Dump powerspectrum
+    # Dump power spectrum
     for time_val, time_param in zip((universals.a, universals.t), ('a', 't')):
         if time_val in powerspec_times[time_param]:
             filename = output_filenames['powerspec'].format(time_param, time_val)
@@ -170,8 +171,10 @@ def nullify_ᔑdt_steps():
                φ='double[:, :, ::1]',
                )
 def kick(components, step):
-    # Regardless of species, a 'kick' is always defined as the
-    # gravitational interaction.
+    """For particle components, a kick is just the gravitational
+    interaction. For fluid components, a kick is the gravitational
+    interaction and the Hubble drag.
+    """
     if not enable_gravity:
         return
     # Construct the local dict ᔑdt,
@@ -190,7 +193,7 @@ def kick(components, step):
     # (for particles). Group all fluids together.
     component_groups = collections.defaultdict(list)
     for component in components:
-        if component.representation == 'particles':
+        if component.representation == 'particles' and enable_gravity:
             if master and component.species not in kick_algorithms:
                 abort('Species "{}" do not have an assigned kick algorithm!'.format(component.species))
             component_groups[kick_algorithms[component.species]].append(component)
@@ -199,37 +202,49 @@ def kick(components, step):
     # First let the components (that needs to) interact
     # with the gravitationak potential.
     if 'PM' in component_groups or 'fluid' in component_groups:
-        # Construct the potential φ due to all components
-        φ = build_φ(components)
-        # Print combined progress message, as all these kicks are done
-        # simultaneously for all the components.
-        if 'PM' in component_groups and not 'fluid' in component_groups:
-            masterprint('Kicking (PM) {} ...'
-                        .format(', '.join([component.name
-                                           for component in component_groups['PM']])
-                                )
-                        )
-        elif 'PM' not in component_groups and 'fluid' in component_groups:
-            masterprint('Kicking (potential only) {} ...'
-                        .format(', '.join([component.name
-                                           for component in component_groups['fluid']])
-                                )
-                        )
-        else:
-            masterprint('Kicking (PM) {} and (potential only) {} ...'
-                        .format(', '.join([component.name
-                                           for component in component_groups['PM']]),
-                                ', '.join([component.name
-                                           for component in component_groups['fluid']])
-                                )
-                        )
+        kick_particles = kick_fluid = False
+        # Construct the gravitational potential φ due to all components
+        if enable_gravity:
+            φ = build_φ(components)
+            # Print combined progress message, as all these kicks are done
+            # simultaneously for all the components.
+            if 'PM' in component_groups:
+                kick_particles = True
+            if 'fluid' in component_groups:
+                kick_fluid = True
+            if kick_particles and not kick_fluid:
+                # Only particles (PM)
+                masterprint('Kicking (PM) {} ...'
+                            .format(', '.join([component.name
+                                               for component in component_groups['PM']])
+                                    )
+                            )
+            elif kick_fluid and not kick_particles:
+                # Only fluid
+                masterprint('Kicking (gravity) {} ...'
+                            .format(', '.join([component.name
+                                               for component in component_groups['fluid']])
+                                     )
+                            )
+            else:
+                # NEEDS A CLEANUP !!!
+                # SEPARATE drift and kick functions for particles and fluids.
+                masterprint('Kicking (PM) {} and (fluid) {} ...'
+                            .format(', '.join([component.name
+                                               for component in component_groups['PM']]),
+                                    ', '.join([component.name
+                                               for component in component_groups['fluid']])
+                                    )
+                            )
         # For each dimension, differentiate φ and apply the force to
         # all components which interact with φ (particles using the PM
         # method and all fluids).
         h = boxsize/φ_gridsize  # Physical grid spacing of φ
+        meshbuf_mv = None
         for dim in range(3):
             # Do the differentiation of φ
-            meshbuf_mv = diff(φ, dim, h, order=4)
+            if enable_gravity:
+                meshbuf_mv = diff_domain(φ, dim, h, order=4)
             # Apply PM kick
             for component in component_groups['PM']:
                 component.kick(ᔑdt, meshbuf_mv, dim)
@@ -239,11 +254,12 @@ def kick(components, step):
         # Done with potential interactions
         masterprint('done')
     # Now kick all other components sequentially
-    for key, component_group in component_groups.items():
-        if key in ('PM', 'fluid'):
-            continue
-        for component in component_group:
-            component.kick(ᔑdt)
+    if enable_gravity:
+        for key, component_group in component_groups.items():
+            if key in ('PM', 'fluid'):
+                continue
+            for component in component_group:
+                component.kick(ᔑdt)
 
 # Function which drift all of the components
 @cython.header(# Arguments
@@ -272,17 +288,19 @@ def drift(components, step):
 
 # Function containing the main time loop of CO𝘕CEPT
 @cython.header(# Locals
-               component='Component',
                components='list',
-               dim='int',
                final_render='tuple',
-               kick_algorithm='str',
                output_filenames='dict',
-               timestep='Py_ssize_t',
-               Δt_update_freq='Py_ssize_t',
+               timespan='double',
+               time_step='Py_ssize_t',
+               Δt='double',
+               Δt_begin='double',
+               Δt_max_increase_fac='double',
+               Δt_new='double',
+               Δt_period='Py_ssize_t',
                )
 def timeloop():
-    global ᔑdt_steps, i_dump, next_dump, Δt
+    global ᔑdt_steps, i_dump, next_dump
     # Do nothing if no dump times exist
     if not (  [nr for val in output_times['a'].values() for nr in val]
             + [nr for val in output_times['t'].values() for nr in val]):
@@ -290,90 +308,104 @@ def timeloop():
     # Determine and set the correct initial values for the cosmic time
     # universals.t and the scale factor a(universals.t) = universals.a.
     initiate_time()
-    # Get the output filename patterns once again
-    # and recreate the global list "dumps", this time with proper
-    # values of universals.a and universals.t.
-    output_filenames, final_render = prepare_output_times()    
+    # Get the output filename patterns, the final render time and
+    # the total timespan of the simulation.
+    # This also creates the global list "dumps".
+    output_filenames, final_render, timespan = prepare_output_times()    
     # Load initial conditions
     components = load(IC_file, only_components=True)
-    # The number of time steps before Δt is updated
-    Δt_update_freq = 10
-    # The time step size
-    if enable_Hubble:
-        # The time step size should be a
-        # small fraction of the age of the universe. 
-        Δt = Δt_factor*universals.t
-    else:
-        # Simply divide the simulation time span into equal chunks
-        Δt = Δt_factor*(dumps[len(dumps) - 1][1] - universals.t)
-    # Reduce time step size if it is too large for any component
-    Δt = reduce_Δt(components, Δt, give_notice=False)
+    # The number of time steps before Δt is updated.
+    # Setting Δt_period = 8 prevents the formation of spurious
+    # anisotropies when evolving fluids with the MacCormack method,
+    # as each of the 8 flux directions are then used with the same
+    # time step size.
+    Δt_period = 8
+    # The maximum allowed fractional increase in Δt,
+    # from one time step to the next.
+    Δt_max_increase_fac = 5e-2
+    # Give the initial time step the largest allowed value
+    Δt = Δt_begin = reduce_Δt(components, ထ, ထ, timespan, worry=False)
     # Arrays containing the factors ∫_t^(t + Δt/2) integrand(a) dt
     # for different integrands. The two elements in each variable are
     # the first and second half of the factor for the entire time step.
     ᔑdt_steps = {'a⁻¹': zeros(2, dtype=C2np['double']),
                  'a⁻²': zeros(2, dtype=C2np['double']),
-                 'ȧ/a': zeros(2, dtype=C2np['double']),
                  }
     # Specification of next dump and a corresponding index
     i_dump = 0
     next_dump = dumps[i_dump]
     # Possible output at the beginning of simulation
     dump(components, output_filenames, final_render)
-    # Before beginning time stepping,
-    # communicate pseudo and ghost points on all fluid grids
-    # and nullify all fluid buffers of every component.
-    # For particle components, these are no-op's.
-    for component in components:
-        component.communicate_fluid_grids()
-        component.nullify_fluid_buffers()
     # The main time loop
     masterprint('Beginning of main time loop')
-    timestep = -1
+    time_step = -1
     while i_dump < len(dumps):
-        timestep += 1
+        time_step += 1
+        # Reduce time step size if it is larger than what is allowed
+        Δt = reduce_Δt(components, Δt, Δt_begin, timespan)
         # Print out message at beginning of each time step
-        masterprint(terminal.bold('\nTime step {}'.format(timestep))
-                    + ('{:<' + ('14' if enable_Hubble else '13') + '} {} {}')
-                      .format('\nCosmic time:',
-                              significant_figures(universals.t, 4, fmt='Unicode'),
-                              unit_time)
-                    + ('{:<14} {}'.format('\nScale factor:',
-                                          significant_figures(universals.a, 4, fmt='Unicode'))
-                       if enable_Hubble else '')
+        masterprint('{heading}{cosmic_time}{scale_factor}{step_size}'
+                    .format(heading=terminal.bold('\nTime step {}'.format(time_step)),
+                            cosmic_time=('\nCosmic time:  {} {}'
+                                         .format(significant_figures(universals.t,
+                                                                     4,
+                                                                     fmt='Unicode',
+                                                                     ),
+                                                 unit_time,
+                                                 )
+                                         ),
+                            scale_factor=('\nScale factor: {}'
+                                          .format(significant_figures(universals.a,
+                                                                      4,
+                                                                      fmt='Unicode',
+                                                                      ),
+                                                  )
+                                          if enable_Hubble else ''
+                                          ),
+                            step_size=('\nStep size:    {} {}'
+                                       .format(significant_figures(Δt,
+                                                                   4,
+                                                                   fmt='Unicode',
+                                                                   ),
+                                               unit_time,
+                                               )
+                                       ),
+                            )
                     )
         # Analyze and print out debugging information, if required
         debug(components)
-        # Kick
-        # (even though 'whole' is used, the first kick (and the first
+        # Kick.
+        # Even though 'whole' is used, the first kick (and the first
         # kick after a dump) is really only half a step (the first
-        # half), as ᔑdt_steps[integrand][1] == 0 for every integrand).
-        scalefactor_integrals('first half')
+        # half), as ᔑdt_steps[integrand][1] == 0 for every integrand.
+        scalefactor_integrals('first half', Δt)
         kick(components, 'whole')
         if dump(components, output_filenames, final_render, 'drift'):
             # Reset the ᔑdt_steps, starting the leapfrog cycle anew
             nullify_ᔑdt_steps()
             continue
-        # Update Δt every Δt_update_freq time step
-        if enable_Hubble and not (timestep % Δt_update_freq):
-            # Let the positions catch up to the momenta
+        # Increase the time step size after a full time step size period
+        if not (time_step % Δt_period):
+            # Let the drift operation catch up to the kick operation
             drift(components, 'first half')
-            # Update the time step size
-            # (increase it according to Δt_factor, but not above what
-            # any of the components allow for).
-            Δt = reduce_Δt(components, Δt_factor*universals.t, give_notice=False)
+            # New, bigger time step size, according to Δt ∝ a
+            Δt_new = universals.a*ℝ[Δt_begin/a_begin]
+            # Add small, constant contribution to the new time step size
+            Δt_new += ℝ[Δt_period*Δt_max_increase_fac]*Δt_begin
+            # Make sure that the change in time step size is not too big
+            if  Δt_new > ℝ[exp(Δt_period*Δt_max_increase_fac)]*Δt:
+                Δt_new = ℝ[exp(Δt_period*Δt_max_increase_fac)]*Δt
+            Δt = Δt_new
             # Reset the ᔑdt_steps, starting the leapfrog cycle anew
             nullify_ᔑdt_steps()
             continue
         # Drift
-        scalefactor_integrals('second half')
+        scalefactor_integrals('second half', Δt)
         drift(components, 'whole')
         if dump(components, output_filenames, final_render, 'kick'):
             # Reset the ᔑdt_steps, starting the leapfrog cycle anew
             nullify_ᔑdt_steps()
             continue
-        # Reduce time step size if it is too large for any component
-        Δt = reduce_Δt(components, Δt)
     # All dumps completed; end of time loop
     masterprint('\nEnd of main time loop'
                 + ('{:<' + ('14' if enable_Hubble else '13') + '} {} {}')
@@ -385,102 +417,212 @@ def timeloop():
                    if enable_Hubble else '')
                 )
 
+# This function reduces the time step size Δt if it is too,
+# based on a number of conditions.
 @cython.header(# Arguments
                components='list',
                Δt='double',
-               give_notice='bint',
+               Δt_begin='double',
+               timespan='double',
+               worry='bint',
                # Locals
-               cell_size='double',
                component='Component',
                dim='int',
-               fac_reduce='double',
-               fac_stability='double',
+               fac_Courant='double',
+               fac_Hubble='double',
+               fac_dynamical='double',
+               fac_timespan='double',
                fastest_component='Component',
-               ϱ='double[:, :, :]',
-               ϱux='double[:, :, :]',
-               ϱuy='double[:, :, :]',
-               ϱuz='double[:, :, :]',
                i='Py_ssize_t',
                j='Py_ssize_t',
                k='Py_ssize_t',
+               mass='double',
+               momx='double*',
+               momx_i='double',
+               momy='double*',
+               momy_i='double',
+               momz='double*',
+               momz_i='double',
                u_max='double',
-               ϱux_ijk='double',
-               ϱuy_ijk='double',
-               ϱuz_ijk='double',
+               u2_i='double',
                u2_ijk='double',
                u2_max='double',
-               ẋ_max='double',
+               Δt_Courant='double',
+               Δt_Courant_component='double',
+               Δt_Hubble='double',
+               Δt_dynamical='double',
+               Δt_min='double',
                Δt_max='double',
-               Δt_max_component='double',
-               ϱ_ijk='double',
+               Δt_ratio='double',
+               Δt_ratio_abort='double',
+               Δt_ratio_warn='double',
+               Δt_suggestions='list',
+               Δx='double',
+               ρ='double[:, :, :]',
+               ρ_ijk='double',
+               ρux='double[:, :, :]',
+               ρux_ijk='double',
+               ρuy='double[:, :, :]',
+               ρuy_ijk='double',
+               ρuz='double[:, :, :]',
+               ρuz_ijk='double',
+               returns='double',
                )
-def reduce_Δt(components, Δt, give_notice=True):
-    # Safety factor. A value of 1 allows for a maximum velocity
-    # corresponding to one grid cell per time step. To be on the safe
-    # side, this value should be smaller than 1.
-    fac_stability = 0.9
-    # When the current time step size Δt is too large, it will be
-    # reduced to the maximally allowed time step times this factor.
-    fac_reduce = 0.9
-    # Find the maximum velocity of fluid components
-    # and compute the maximum allowed time step size Δt_max
-    # based on this maximum velocity.
-    Δt_max = inf
+def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
+    """This function computes the maximum allowed value of the
+    time step size Δt. If the current value of Δt is greater than this,
+    the returned value is the reduced Δt.
+    The value of Δt should not be greater than the following:
+    - A small fraction of the dynamical time scale.
+    - A small fraction of the current Hubble time
+      (≃ present age of the universe), if Hubble expansion is enabled.
+    - A small fraction of the total timespan of the simulation.
+    - The largest Δt allowed by the momenta of the components.
+      This amount to the Courant condition for fluids. A very analogous
+      criterion is used for particles. Within this criterion,
+      the maximum distance a particle is allowed to travel within a
+      single time step is determined by the average inter-particle
+      distance, or φ_gridsize if this divides the box into smaller
+      distances than this.
+    The conditions above are written in the same order in the code
+    below. The last condition is by far the most involved.
+    The optional worry argument flag specifies whether or not a
+    drastic reduction in the time step size should trigger a warning
+    (or even abort the program, for really drastic reductions).
+    """
+    # Ratios Δt_max_allowed/Δt, below which the program
+    # will show a warning or abort, respectively.
+    Δt_ratio_warn  = 0.5
+    Δt_ratio_abort = 0.01
+    # Minimum allowed time step size.
+    # If Δt needs to be lower than this, the program will terminate.
+    Δt_min = 1e-4*Δt_begin
+    # List which will store the maximum allowed Δt suggested by the
+    # criteria stated above. The final maximum allowed Δt will be the
+    # smallest of these.
+    Δt_suggestions = []
+    # The maximum allowed time step size suggested by the dynamical
+    # time scale.
+    fac_dynamical = 1e-1
+    Δt_dynamical = fac_dynamical*universals.a**2/sqrt(G_Newton*ρbar)
+    Δt_suggestions.append(Δt_dynamical)
+    # The maximum allowed time step size
+    # suggested by the Hubble parameter.
+    fac_Hubble = 5e-2
+    Δt_Hubble = fac_Hubble/hubble(universals.a) if enable_Hubble else ထ
+    Δt_suggestions.append(Δt_Hubble)
+    # The maximum allowed time step size
+    # suggested by the simulation timespan.
+    fac_timespan = 5e-3
+    Δt_timespan = fac_timespan*timespan
+    Δt_suggestions.append(Δt_timespan)
+    # The maximum allowed time step size
+    # suggested by the Courant condition.
+    fac_Courant = 2e-1
+    Δt_Courant = ထ
     fastest_component = None
     for component in components:
-        if component.representation != 'fluid':
+        if component.representation == 'particles':
+            # Maximum distance a particle should be able to travel
+            # in a single time step.
+            if use_φ and φ_gridsize > ℝ[cbrt(component.N)]:
+                Δx = boxsize/φ_gridsize
+            else:
+                Δx = boxsize/ℝ[cbrt(component.N)]
+            # Find maximum, squared local velocity for this component
+            u2_max = 0
+            mass = component.mass
+            momx = component.momx
+            momy = component.momy
+            momz = component.momz
+            for i in range(component.N_local):
+                momx_i = momx[i]
+                momy_i = momy[i]
+                momz_i = momz[i]
+                u2_i = (momx_i**2 + momy_i**2 + momz_i**2)*ℝ[1/mass**2]
+                if u2_i > u2_max:
+                    u2_max = u2_i
+        elif component.representation == 'fluid':
+            # Distance between neighbouring fluid elements
+            Δx = boxsize/component.gridsize
+            # Find maximum, squared local velocity for this component
+            u2_max = 0
+            ρ   = component.fluidvars['ρ' ].grid_noghosts
+            ρux = component.fluidvars['ρux'].grid_noghosts
+            ρuy = component.fluidvars['ρux'].grid_noghosts
+            ρuz = component.fluidvars['ρux'].grid_noghosts
+            for         i in range(ℤ[ρ.shape[0] - 1]):
+                for     j in range(ℤ[ρ.shape[1] - 1]):
+                    for k in range(ℤ[ρ.shape[2] - 1]):
+                        ρ_ijk   = ρ  [i, j, k]
+                        ρux_ijk = ρux[i, j, k]
+                        ρuy_ijk = ρuy[i, j, k]
+                        ρuz_ijk = ρuz[i, j, k]
+                        u2_ijk = (ρux_ijk**2 + ρuy_ijk**2 + ρuz_ijk**2)/ρ_ijk**2
+                        if u2_ijk > u2_max:
+                            u2_max = u2_ijk
+        else:
             continue
-        # Find maximum, local velocity for this component
-        u2_max = 0
-        ϱ   = component.fluidvars['ϱ'].grid_noghosts
-        ϱux = component.fluidvars['ϱux'].grid_noghosts
-        ϱuy = component.fluidvars['ϱux'].grid_noghosts
-        ϱuz = component.fluidvars['ϱux'].grid_noghosts
-        size_i = ϱux.shape[0] - 1
-        size_j = ϱux.shape[1] - 1
-        size_k = ϱux.shape[2] - 1
-        for i in range(size_i):
-            for j in range(size_j):
-                for k in range(size_k):
-                    ϱ_ijk = ϱ[i, j, k]
-                    ϱux_ijk = ϱux[i, j, k]
-                    ϱuy_ijk = ϱuy[i, j, k]
-                    ϱuz_ijk = ϱuz[i, j, k]
-                    u2_ijk = (ϱux_ijk**2 + ϱuy_ijk**2 + ϱuz_ijk**2)/ϱ_ijk**2
-                    if u2_ijk > u2_max:
-                        u2_max = u2_ijk
+        # The maximum allowed travel distance and maximal squared
+        # velocity are now found, regardless of
+        # component representation.
         u_max = sqrt(u2_max)
         # Communicate maximum global velocity of this component
         # to all processes.
         u_max = allreduce(u_max, op=MPI.MAX)
-        # In the odd case of a completely static fluid,
+        # In the odd case of a completely static component,
         # set u_max to be just above 0.
         if u_max == 0:
-            u_max = machine_ϵ 
-        # Compute maximum allowed timestep size Δt for this component.
-        # Imortantly, because Δt is an interval of cosmic time t,
-        # free of any scaling by the scale factor a, the cosmic time
-        # derivative of the comoving coordinates, ẋ = u/a,
-        # should be used in stead of the peculiar velocity u directly.
-        # The sqrt(3) is because the simulation is in 3D. With sqrt(3)
-        # included and fac_stability == 1, the below is the general
-        # 3-dimensional Courant condition.
-        cell_size = boxsize/component.gridsize
-        ẋ_max = u_max/universals.a
-        Δt_max_component = ℝ[fac_stability/sqrt(3)]*cell_size/ẋ_max
+            u_max = machine_ϵ
+        # Compute maximum allowed time step size Δt for this component.
+        # To get the time step size, the size of the grid cell should be
+        # divided by the velocity. The additional factor of
+        # universals.a**2 is needed because the time step size is
+        # really ᔑ_t^{t + Δt}a⁻²dt. The additional sqrt(3) is because
+        # the simulation is in 3D. With sqrt(3) included and
+        # fac_Courant == 1, the below is the general 3-dimensional
+        # Courant condition.
+        Δt_Courant_component = universals.a**2*ℝ[fac_Courant/sqrt(3)]*Δx/u_max
         # The component with the lowest value of the maximally allowed
         # time step size determines the global maximally allowed
         # time step size.
-        if Δt_max_component < Δt_max:
-            Δt_max = Δt_max_component
+        if Δt_Courant_component < Δt_Courant:
+            Δt_Courant = Δt_Courant_component
             fastest_component = component
+    Δt_suggestions.append(Δt_Courant)
+    # The maximum allowed time step satisfying all the conditions above.
+    # Only the Courant condition is sensitive to particle/fluid data,
+    # and so inter-process communication is only needed there.
+    Δt_max = np.min(Δt_suggestions)
     # Adjust the current time step size Δt if it greater than the
     # largest allowed value Δt_max.
     if Δt > Δt_max:
-        if give_notice:
-            masterwarn('Rescaling time step size by a factor {:.1g} due to large velocities of {}'
-                        .format(Δt_max/Δt, fastest_component.name))
-        Δt = fac_reduce*Δt_max
+        # If Δt should be reduced by a lot, print out a warning
+        # or even abort the program.
+        if worry:
+            # Note that the only condition for which the suggested
+            # maximum Δt may fluctuate greatly is the Courant condition.
+            # We therefore know for sure that if the time step size
+            # needs to be dramatically decreased, it must be due to the
+            # Courant condition.
+            Δt_ratio = Δt_max/Δt
+            if Δt_ratio < Δt_ratio_abort:
+                abort('Due to large velocities of "{}", the time step size needs to be rescaled '
+                      'by a factor {:.1g}. This extreme change is unacceptable.'
+                      .format(fastest_component.name, Δt_ratio))
+            if Δt_ratio < Δt_ratio_warn:
+                masterwarn('Rescaling time step size by a factor {:.1g} '
+                           'due to large velocities of "{}"'
+                           .format(Δt_ratio, fastest_component.name))
+            # Abort if Δt becomes very small,
+            # effectively halting further time evolution.
+            if Δt_max < Δt_min:
+                abort('Time evolution effectively halted with a time step size of {} {unit_time} '
+                      '(originally the time step size was {} {unit_time})'
+                      .format(Δt_max, Δt_begin, unit_time=unit_time)
+                      )
+        # Apply the update 
+        Δt = Δt_max
     return Δt
 
 # Function which checks the sanity of the user supplied output times,
@@ -576,6 +718,9 @@ def prepare_output_times():
         if i + 1 < len(dumps) and d[1] == dumps[i + 1][1]:
             # Remove the t-time, leaving the a-time
             dumps.pop(i + 1)
+    # The t-times for all dumps are now known. We can therefore
+    # determine the total simulation time span.
+    timespan = (dumps[len(dumps) - 1][1] - universals.t)
     # Determine the final render time (scalefactor or cosmic time).
     # Place the result in a tuple (eg. ('a', 1) or ('t', 13.7)).
     final_render = ()
@@ -587,29 +732,25 @@ def prepare_output_times():
         final_render_t = cosmic_time(final_render_a)
         if not final_render or (final_render and final_render_t > final_render[1]):
             final_render = ('a', final_render_t)
-    return output_filenames, final_render
-
-# If anything special should happen, rather than starting the timeloop
-if special_params:
-    delegate()
-    Barrier()
-    sys.exit()
+    return output_filenames, final_render, timespan
 
 # Declare global variables used in above functions
 cython.declare(ᔑdt_steps='dict',
                i_dump='Py_ssize_t',
                dumps='list',
                next_dump='list',
-               Δt='double',
                )
-# Run the time loop
-timeloop()
-# Simulation done
-if universals.any_warnings:
-    masterprint('\nCO𝘕CEPT run finished')
+if special_params:
+    # Instead of running a simulation, run some utility
+    # as defined by the special_params dict.
+    delegate()
 else:
-    masterprint(terminal.bold_green('\nCO𝘕CEPT run finished successfully'))
-# Due to an error having to do with the Python -m switch,
-# the program must explicitly be told to exit.
-Barrier()
-sys.exit()
+    # Run the time loop
+    timeloop()
+    # Simulation done
+    if universals.any_warnings:
+        masterprint('\nCO𝘕CEPT run finished')
+    else:
+        masterprint('\nCO𝘕CEPT run finished successfully', fun=terminal.bold_green)
+# Shutdown CO𝘕CEPT properly
+abort(exit_code=0)

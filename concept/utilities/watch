@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -76,14 +76,8 @@ if [ "${called_from_concept}" == "True" ]; then
     set -e
 fi
 
-# Exit if this script is not run remotely via ssh
-#if ([ -z "${SSH_CLIENT}" ] && [ -z "${SSH_TTY}" ]); then
-#    colorprint "Error: Cannot watch remote job as you are working on a local machine" "red"
-#    exit 1
-#fi
-
 # Use Python's argparse module to handle command-line arguments
-args=$("${python}" -c "
+args=$("${python}" -B -c "
 import argparse, sys
 # Setup command-line arguments
 parser = argparse.ArgumentParser(prog='$(basename "${this_file}")',
@@ -100,7 +94,7 @@ sys.stdout = sys.stderr
 # Now do the actual argument parsing,
 # including writing out the help message.
 if '${called_from_concept}' == 'True':
-    # Called from concept - Through exception on illegal args
+    # Called from concept - Throw exception on illegal args
     args = parser.parse_args()
 else:
     # Called directly - Allow what appears to be illegal args
@@ -110,9 +104,8 @@ else:
 sys.stdout = stdout_copy
 # Print out the arguments.
 # These will be captured in the Bash 'args' variable.
-print(  ' argparse_finished=yes'
-      + '; jobid={}'.format(args.jobid)
-      )
+print('argparse_finished=yes')
+print('jobid={}'.format(args.jobid))
 " "$@" || :)
 # Evaluate the handled arguments into this scope
 eval "${args}"
@@ -130,10 +123,16 @@ if [ "${called_from_concept}" != "True" ]; then
     exit 0
 fi
 
+# Exit if this script is not run remotely via ssh
+if ([ -z "${SSH_CLIENT}" ] && [ -z "${SSH_TTY}" ]); then
+    colorprint "Error: Cannot watch remote job as you are working on a local machine" "red"
+    exit 1
+fi
+
 # Check for the qstat command
 qstat_path="$(which qstat 2> /dev/null || :)"
 if [ -z "${qstat_path}" ]; then
-    colorprint "Error: Could not find the qstat command. Is PBS installed and on the PATH?" "red"
+    colorprint "Error: Could not find the \"qstat\" command. Is PBS installed and on the PATH?" "red"
     exit 1
 fi
 
@@ -306,7 +305,8 @@ done
 
 # Logfile created. Continuously print out its tail until end of job
 echo
-tail -n 1000 -f "${logs_dir}/${jobid}" &
+cat "${logs_dir}/${jobid}"
+tail -n 0 --follow --sleep-interval=${sleep_little} "${logs_dir}/${jobid}" &
 tail_pid=$!
 update_job_info
 inform_on_new_state
@@ -325,6 +325,7 @@ fi
 
 # Kill the tail command silently before exiting
 if [ -n "${tail_pid}" ]; then
+    sleep ${sleep_little}
     exec 3>&2
     exec 2>/dev/null
     kill -SIGKILL ${tail_pid} >/dev/null 2>&1 || :

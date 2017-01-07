@@ -1,6 +1,6 @@
 /*
 This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 
 CO𝘕CEPT is free software: You can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

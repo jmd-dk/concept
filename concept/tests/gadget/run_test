@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,9 +25,24 @@
 # This script performs a basic test of the GADGET installation by running a
 # shortened version of GADGET's lcdm_gas test.
 
-# Initialize test environment
+# Absolute path and name of the directory of this file
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-source "${this_dir}/../environment"
+this_test="$(basename "${this_dir}")"
+
+# Set up error trapping
+ctrl_c()
+{
+    trap : 0
+    exit 2
+}
+abort()
+{
+    colorprint "An error occurred during ${this_test} test!" "red"
+    exit 1
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
 
 # Cleanup from last test run
 "${this_dir}/clean"
@@ -54,7 +69,7 @@ path="${fftw_for_gadget_dir}/lib"
 sed -i "/^ *FFTW_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" \
        "${this_dir}/lcdm_gas.Makefile_edited"
 
-# Copy the parameter and IC file from the gadget installation
+# Copy the IC file and outputlist file from the gadget installation
 cp "${gadget_dir}/ICs/lcdm_gas_littleendian.dat" \
    "${Gadget2_dir}/parameterfiles/outputs_lcdm_gas.txt" "${this_dir}"
 
@@ -78,12 +93,13 @@ if [ ! -f "${this_dir}/lcdm_gas/snapshot_000" ]; then
     colorprint "The snapshot \"${this_dir}/lcdm_gas/snapshot_000\" was not produced!" "red"
     exit 1
 fi
-if [ ! ${snapshot_size} -eq 2228536 ]; then
+expected_size=2228536  # Expected size of snapshot_000 in bytes
+if [ ! ${snapshot_size} -eq ${expected_size} ]; then
     colorprint "The produced snapshot \"${this_dir}/lcdm_gas/snapshot_000\" \
-does not have the expected size!" "red"
+does not have the expected size of ${expected_size} bytes" "red"
     exit 1
 fi
 
-# Finalize test environment
-test_done=true source "${this_dir}/../environment"
+# Test ran successfully. Deactivate traps.
+trap : 0
 
