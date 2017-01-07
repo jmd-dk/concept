@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,9 +24,24 @@
 # This script performs a drift test of the CO𝘕CEPT code with gravity
 # and the Hubble expansion turned off. Only a single particle is present.
 
-# Initialize test environment
+# Absolute path and name of the directory of this file
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-source "${this_dir}/../environment"
+this_test="$(basename "${this_dir}")"
+
+# Set up error trapping
+ctrl_c()
+{
+    trap : 0
+    exit 2
+}
+abort()
+{
+    colorprint "An error occurred during ${this_test} test!" "red"
+    exit 1
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
 
 # Cleanup from last test run
 "${this_dir}/clean"
@@ -40,6 +55,6 @@ source "${this_dir}/../environment"
 # Analyze the output snapshot
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
 
-# Finalize test environment
-test_done=true source "${this_dir}/../environment"
+# Test ran successfully. Deactivate traps.
+trap : 0
 

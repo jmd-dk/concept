@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -99,12 +99,12 @@
 ##################
 # The MPI implementation to use
 if [ -z "${mpi}" ]; then
-    # Use OpenMPI by default
-    mpi="openmpi"
+    # Use MPICH by default
+    mpi="mpich"
 elif [ "${mpi,,}" != "openmpi" ] && [ "${mpi,,}" != "mpich" ]; then
     echo "Specified MPI implementation mpi=\"${mpi}\" not recognized.
-Will use OpenMPI" >&2
-    mpi="openmpi"
+Will use MPICH" >&2
+    mpi="mpich"
 fi
 mpi="${mpi,,}"
 # This function sets the variables "name_dir" (if not set already)
@@ -189,32 +189,32 @@ set_version()
 # "newest" and the installer fails to find the newest version.
 # If you specify a version in the middle column and this version
 # cannot be found, it will again fall back to the right column.
-set_version "concept"         "newest"  # only newest work
+set_version "concept"         "newest"  # Only newest work
 set_version "freetype"        "2.7"     "2.6.5"
-set_version "python"          "3.5.2"
-set_version "libpng"          "1.6.25"  "1.6.23"
+set_version "python"          "3.6.0"
+set_version "libpng"          "1.6.28"  "1.6.23"
 set_version "ncurses"         "6.0"     "6.0"
-set_version "openssl"         "1.0.2j"  "1.0.2i"  # Python 3.5.2 seems incompatible with OpenSSL 1.1.0b
+set_version "openssl"         "1.1.0b"  "1.0.2i"  # Python seems incompatible with OpenSSL 1.1.0c
 set_version "fftw"            "3.3.5"   "3.3.5"
 set_version "gadget"          "2.0.7"
 set_version "fftw_for_gadget" "2.1.5"   "2.1.5"
-set_version "gsl"             "2.2.1"   "2.2.1"
-set_version "hdf5"            "1.8.17"  "1.8.17"
+set_version "gsl"             "2.3"     "2.2.1"
+set_version "hdf5"            "1.8.18"  "1.8.17"  # Error using 1.10.0-patch1
 if [ "${mpi}" == "openmpi" ]; then
-    set_version "mpi"         "2.0.1"
+set_version "mpi"             "2.0.1"
 elif [ "${mpi}" == "mpich" ]; then
-    set_version "mpi"         "3.2"     "3.2"
+set_version "mpi"             "3.2"     "3.2"
 fi
 set_version "zlib"            "1.2.8"   "1.2.8"
 # Python packages
 set_version "blessings"       "1.6"
-set_version "cython"          "0.24.1"  # 0.23 does not work
+set_version "cython"          "0.25.2"
 set_version "cython_gsl"      "0.2.1"
 set_version "matplotlib"      "1.5.3"
-set_version "numpy"           "1.11.2"
+set_version "numpy"           "1.11.3"
 set_version "pexpect"         "4.2.1"
 set_version "mpi4py"          "2.0.0"
-set_version "h5py"            "2.6.0"  # 2.5.0 does not work with mpi4py 2.0.0
+set_version "h5py"            "2.6.0"
 # No longer installed by default
 set_version "imagemagick"     "6.9.3-3" "6.9.1-10"
 # Note that the versions may be changed further down due to known
@@ -292,7 +292,6 @@ sleep 1  # Needed if invoked directly from the web via wget
 if [ "${say_welcome}" != "no" ]; then
     heading "${esc_bold}${esc_yellow}This is the installation script for ${esc_concept},
 the cosmological ${esc_italic}N${esc_no_italic}-body code in Python${esc_normal}"
-    echo
 fi
 
 # Status control sequenses
@@ -307,46 +306,45 @@ status_visible="${status_on}"
 status_finish="finish_successfully"
 
 # Backup of initial environment variables
-CC_backup="${CC}"
-CFLAGS_backup="${CFLAGS}"
-CPPFLAGS_backup="${CPPFLAGS}"
-LD_LIBRARY_PATH_backup="${LD_LIBRARY_PATH}"
-LDFLAGS_backup="${LDFLAGS}"
-LIBS_backup="${LIBS}"
-MPICC_backup="${MPICC}"
-MPILIBS_backup="${MPILIBS}"
-PATH_backup="${PATH}"
-PKG_CONFIG_PATH_backup="${PKG_CONFIG_PATH}"
-PNG_CFLAGS_backup="${PNG_CFLAGS}"
-PNG_LIBS_backup="${PNG_LIBS}"
-ZLIB_CFLAGS_backup="${ZLIB_CFLAGS}"
-ZLIB_LIBS_backup="${ZLIB_LIBS}"
-ZLIBLIB_backup="${ZLIBLIB}"
-ZLIBINC_backup="${ZLIBINC}"
+env_var_names=(CC              \
+               CFLAGS          \
+               CPPFLAGS        \
+               LD_LIBRARY_PATH \
+               LDFLAGS         \
+               LIBS            \
+               MPICC           \
+               MPILIBS         \
+               PATH            \
+               PKG_CONFIG_PATH \
+               PNG_CFLAGS      \
+               PNG_LIBS        \
+               ZLIB_CFLAGS     \
+               ZLIB_LIBS       \
+               ZLIBLIB         \
+               ZLIBINC         \
+               )
+for env_var_name in "${env_var_names[@]}"; do
+    # Save initial state (set/unset) of the environment variable
+    if [ -n "$(eval "echo "\${${env_var_name}+x}"")" ]; then
+        eval "${env_var_name}_set=\"True\""
+    else
+        eval "${env_var_name}_set=\"False\""
+    fi
+    # Save initial value of the environment variable
+    eval "${env_var_name}_backup=\"\${${env_var_name}}\""
+done
 # Function that resets all above environment
 # variables to their initial state.
 reset_environment()
 {
-    for var in "CC"              \
-               "CFLAGS"          \
-               "CPPFLAGS"        \
-               "LD_LIBRARY_PATH" \
-               "LDFLAGS"         \
-               "LIBS"            \
-               "MPICC"           \
-               "MPILIBS"         \
-               "PATH"            \
-               "PKG_CONFIG_PATH" \
-               "PNG_CFLAGS"      \
-               "PNG_LIBS"        \
-               "ZLIB_CFLAGS"     \
-               "ZLIB_LIBS"       \
-               "ZLIBLIB"         \
-               "ZLIBINC"; do
-        if [ -z "$(eval "echo \"\${${var}_backup}\"")" ]; then
-            unset "${var}"
+    for env_var_name in "${env_var_names[@]}"; do
+        eval "env_var_set=\"\${${env_var_name}_set}\""
+        if [ "${env_var_set}" == "True" ]; then
+            # env_var_name initially set
+            eval "export ${env_var_name}=\"\${${env_var_name}_backup}\""
         else
-            eval "export ${var}=\"\${${var}_backup}\""
+            # env_var_name initially unset
+            unset "${env_var_name}"
         fi
     done
 }
@@ -498,6 +496,7 @@ check_system_dependency()
         # Package not installed
         if [ -n "${package_manager}" ]; then
             # Package manager found
+            echo
             echo "Could not find '${1}'"
             echo "You can install it by typing:"
             echo "${install_command} ${2}"
@@ -554,7 +553,7 @@ fi
 # Creating top level directory (top_dir)
 current_step="setup of top level directory"
 if [ "${top_dir_specified}" == "no" ]; then
-    printf "Where should the ${esc_concept} code be installed?"
+    printf "\nWhere should the ${esc_concept} code be installed?"
     read -p "$(echo $'\n> ')" -e top_dir
     if [ -z "${top_dir}" ]; then
         # The user hit enter without writing a path.
@@ -579,7 +578,7 @@ convert_to_abs_path()
     echo "${abs_path}"
 }
 top_dir="$(convert_to_abs_path "${top_dir}")"
-echo "The code will be installed in \"${top_dir}\""
+printf "\nThe code will be installed in \"${top_dir}\"\n"
 mkdir -p "${top_dir}"
 cd "${top_dir}"
 
@@ -621,48 +620,18 @@ fix_path "MPI"
 log="${log/__top_dir__/${top_dir}}"
 dotpaths="${dotpaths/__top_dir__/${top_dir}}"
 
+# Check whether this script is run locally or remotely via ssh
+ssh="True"
+if [ -z "${SSH_CLIENT}" ] && [ -z "${SSH_TTY}" ]; then
+    ssh="False"   
+fi
 
-
-###########################
-# Beginning of subprocess #
-(
-# Set up error trapping
-ctrl_c_subprocess()
-{
-    trap : 0
-    ctrl_c
-    exit 0
-}
-abort_subprocess()
-{
-    trap : 0
-    if [ "${current_step}" != "aborting" ]; then
-        error "An error occurred during ${current_step}!"
-    fi
-    abort
-    exit 0
-}
-trap 'ctrl_c_subprocess' SIGINT
-trap 'abort_subprocess' EXIT
-set -e
-
-# Functions for controlling the current status
-set_status()
-{
-    echo "${status_prefix}${1}"
-}
-disable_status()
-{
-    echo "${status_prefix}${status_disable}"
-}
-enable_status()
-{
-    echo "${status_prefix}${status_enable}"
-}
-successfully_finish_status()
-{
-    echo "${status_prefix}${status_finish_successfully}"
-}
+# Set the "make_jobs" variable, holding the -j option for future
+# make commands, enabling parallel compilations when running locally.
+make_jobs="-j"
+if [ "${ssh}" == "True" ]; then
+    make_jobs=""
+fi
 
 
 
@@ -670,7 +639,6 @@ successfully_finish_status()
 # Dependency discovering #
 ##########################
 current_step="discovery of dependencies"
-set_status "Discovering dependencies"
 # Flags specifying whether or not any Python packages,
 # software (meaning anything but Python packages) or any of those
 # should be installed.
@@ -690,8 +658,8 @@ assume_preinstalled()
     fi    
 }
 if [ "${python_preinstalled}" == "yes" ]; then
-    assume_preinstalled openssl
-    assume_preinstalled ncurses
+    assume_preinstalled "openssl"
+    assume_preinstalled "ncurses"
 fi
 
 # Set "pypackage"_preinstalled variables
@@ -865,6 +833,134 @@ fi
 
 
 
+#######################################################
+# Prompt for configuration of password-less ssh login #
+#######################################################
+# If running remotely via ssh, the installation might be on a cluster,
+# which could consist of several nodes. Running MPI jobs via MPICH
+# on multiple nodes require password-less ssh login to the nodes
+# to be sat up.
+# If MPICH is to be installed and we are running remotely via ssh,
+# prompt the user for automatic setup of password-less ssh login.
+setup_passwordless_ssh="False"
+if [ "${ssh}" == "True" ] && [ "${mpi}" == "mpich" ] && [ "${mpi_install}" == "yes" ]; then
+    # The setup of the password-less ssh login will move any preexisting
+    # ~/.ssh directory to ~/.ssh_before_CONCEPT.
+    passwordless_ssh_note=""
+    if [ -d ~/".ssh" ]; then
+        passwordless_ssh_note=" (the existing ~/.ssh\n\
+directory will be moved to ~/.ssh_before_CONCEPT)"
+    fi
+    # Prompt the user
+    printf "\n
+If this is a cluster of multiple nodes, password-less ssh login to these
+nodes needs to be configured in order for MPICH (and hence ${esc_concept})
+to run multi-node MPI jobs.
+
+Should password-less ssh login to the nodes be configured${passwordless_ssh_note}?"
+    read -p " [Y/n] " yn
+    case "${yn}" in
+        [Yy]* ) setup_passwordless_ssh="True"
+                ;;
+        [Nn]* ) setup_passwordless_ssh="False"
+                ;;
+        ""    ) setup_passwordless_ssh="True"
+                ;;
+        *     ) setup_passwordless_ssh="False"
+                ;;
+    esac
+fi
+
+
+
+###########################
+# Beginning of subprocess #
+(
+# Set up error trapping
+ctrl_c_subprocess()
+{
+    trap : 0
+    ctrl_c
+    exit 0
+}
+abort_subprocess()
+{
+    trap : 0
+    if [ "${current_step}" != "aborting" ]; then
+        error "An error occurred during ${current_step}!"
+    fi
+    abort
+    exit 0
+}
+trap 'ctrl_c_subprocess' SIGINT
+trap 'abort_subprocess' EXIT
+set -e
+
+# Functions for controlling the current status
+set_status()
+{
+    echo "${status_prefix}${1}"
+}
+disable_status()
+{
+    echo "${status_prefix}${status_disable}"
+}
+enable_status()
+{
+    echo "${status_prefix}${status_enable}"
+}
+successfully_finish_status()
+{
+    echo "${status_prefix}${status_finish_successfully}"
+}
+# These are needed to get the spcacing right in the output
+current_step="beginning subprocess"
+set_status "Beginning subprocess"
+
+
+
+##################################################
+# Apply configuration of password-less ssh login #
+##################################################
+# Do the configuration if specified by the user
+if [ "${setup_passwordless_ssh}" == "True" ]; then
+    current_step="configuration of password-less ssh login between nodes"
+    set_status "Configuring password-less ssh login between nodes"
+    # The type of encryption to use for the ssh keys.
+    # Should be "dsa" or "rsa".
+    key_type="rsa"
+    # Move existing ~/.ssh directory
+    if [ -d ~/".ssh" ]; then
+        rm -rf ~/".ssh_before_CONCEPT"
+        mv ~/".ssh" ~/".ssh_before_CONCEPT"
+    fi
+    # Generate a public/private key pair
+    mkdir -p ~/".ssh"
+    ssh-keygen -t "${key_type}" -N "" -f ~/".ssh/id_${key_type}" >/dev/null
+    # Add public key to the list of keys allowed to log in
+    cat ~/".ssh/id_${key_type}.pub" >> ~/".ssh/authorized_keys"
+    cat ~/".ssh/id_${key_type}.pub" >> ~/".ssh/authorized_keys2"
+    # Suppress future confirmation dialogs
+    echo "Host *
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  LogLevel ERROR
+" >> ~/".ssh/config"
+    chmod go-rwx ~/".ssh/config"
+    # Remove any previously known hosts
+    # (there should be none as ~/.ssh is newly created).
+    rm -f "known_hosts"*
+    # Only the user may have write permissions to her home directory,
+    # in order for ssh to allow password-less login. 
+    chmod go-w ~
+    # Ensure that only the user has any acces to the private key
+    chmod go-rwx ~/".ssh/id_${key_type}"
+    # Inform the user on this change
+    printf "\nPassword-less ssh login to nodes has been configured\n"
+fi
+
+
+
 #############################
 # URL's to all the software #
 #############################
@@ -896,19 +992,19 @@ validate_url()
     fi
     url="$(eval "echo \"\${${progname}_url}\"")"
     filename="$(basename "${url}")"
-    for n in {1..10}; do
+    for n in {1..50}; do
         wget_status="success"
         if [[ "${url}" == "ftp://"* ]]; then
             # wget do not always return with a non-zero status on
             # failure when using ftp.
             mkdir -p "${top_dir}/tmp"
             (cd "${top_dir}/tmp"
-             wget -t 1 --timeout 15 --no-check-certificate -q --spider --no-remove-listing \
+             wget -t 1 --timeout 60 --no-check-certificate -q --spider --no-remove-listing \
                   "${url}" || :)
             grep "${filename}" "${top_dir}/tmp/.listing" > /dev/null 2>&1 || wget_status="error"
             rm -f "${top_dir}/tmp/.listing"
         else
-            wget -t 1 --timeout 15 --no-check-certificate -q --spider \
+            wget -t 1 --timeout 60 --no-check-certificate -q --spider \
                  "${url}" || wget_status="error"
         fi
         if [ "${wget_status}" == "success" ]; then
@@ -991,13 +1087,18 @@ check_progress()
     eval "${progname}_installed=\"no\""
     if [ -f "${progdir}/.installation_finished" ]; then
         while read line; do
-            prog_prev="$(echo "${line}" | grep '^Program:*' | sed 's/^Program:\s//g' | sed 's/^ *//')"
+            prog_prev="$(echo "${line}" | grep '^Program:*'      \
+                                        | sed 's/^Program:\s//g' \
+                                        | sed 's/^ *//')"
             if [ -n "${prog_prev}" ]; then
                 prog_prev_real="${prog_prev// /_}"
                 prog_prev_real="${prog_prev_real,,}"
             fi
-            version_prev="$(echo "${line}" | grep '^Version:*' | sed 's/^Version:\s//g' | sed 's/^ *//')"
-            if [ "${version_prev}" == "${progversion}" ] && [ "${prog_prev_real}" == "${progname}" ]; then
+            version_prev="$(echo "${line}" | grep '^Version:*'      \
+                                           | sed 's/^Version:\s//g' \
+                                           | sed 's/^ *//')"
+            if    [ "${version_prev}" == "${progversion}" ] \
+               && [ "${prog_prev_real}" == "${progname}" ]; then
                 eval "${progname}_installed=\"yes\""
                 # Installed programs should always count as downloaded
                 eval "${progname}_downloaded=\"yes\""
@@ -1043,8 +1144,10 @@ check_progress()
     # information about this file.
     eval "${progname}_downloaded=\"no\""
     if [ -f "${download_dir}/.download_finished" ]; then
-        file_prev="$(grep "^File:*" "${download_dir}/.download_finished" | sed 's/^File:\s//g' | sed 's/^ *//')"
-        url_prev="$( grep "^URL:*"  "${download_dir}/.download_finished" | sed 's/^URL:\s//g'  | sed 's/^ *//')"
+        file_prev="$(grep "^File:*" "${download_dir}/.download_finished" | sed 's/^File:\s//g' \
+                                                                         | sed 's/^ *//')"
+        url_prev="$( grep "^URL:*"  "${download_dir}/.download_finished" | sed 's/^URL:\s//g' \
+                                                                         | sed 's/^ *//')"
         if [ -f "${download_dir}/${file_prev}" ] && [ "${url_prev}" == "${url}" ]; then
             eval "${progname}_downloaded=\"yes\""
         fi
@@ -1057,7 +1160,7 @@ if [ "${zlib_install}" == "yes" ]; then
         current_step="search for latest version of zlib"
         set_status "Searching for latest version of zlib"
         zlib_url="http://sourceforge.net/projects/libpng/files/zlib/"
-        zlib_version=$(wget -t 50 --timeout 15 -q -O- --no-check-certificate ${zlib_url} \
+        zlib_version=$(wget -t 50 --timeout 60 -q -O- --no-check-certificate ${zlib_url} \
                        | grep -o "zlib/[0-9.]*"                                          \
                        | grep -o "[0-9.]*"                                               \
                        | sort -u                                                         \
@@ -1092,12 +1195,12 @@ if [ "${libpng_install}" == "yes" ] ; then
         current_step="search for latest version of libpng"
         set_status "Searching for latest version of libpng"
         libpng_url="ftp://ftp.simplesystems.org/pub/png/src/"
-        libpng_version_majors="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate \
+        libpng_version_majors="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate \
                                  ${libpng_url} | grep -o "libpng[0-9]*"                \
                                                | grep -o "[0-9]*"                      \
                                                | sort -u                               \
                                                | tail -n 1 || :)"
-        libpng_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate \
+        libpng_version="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate \
                           ${libpng_url}libpng${libpng_version_majors}/          \
                           | grep -o "libpng-[0-9\.]*.tar.gz"                    \
                           | sort -u                                             \
@@ -1120,8 +1223,8 @@ libpng-${libpng_version}.tar.gz"
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary libpng link broken: ${libpng_url}"
             fallback "libpng"
-            libpng_url="http://sourceforge.net/projects/libpng/files/libpng${libpng_version_majors}/\
-older-releases/${libpng_version}/libpng-${libpng_version}.tar.gz"
+            libpng_url="http://sourceforge.net/projects/libpng/files/\
+libpng${libpng_version_majors}/older-releases/${libpng_version}/libpng-${libpng_version}.tar.gz"
             echo "Using secondary libpng link: ${libpng_url}"
             # Check if already installed and/or downloaded
             check_progress "libpng"
@@ -1139,7 +1242,7 @@ if [ "${gsl_install}" == "yes" ]; then
         current_step="search for latest version of GSL"
         set_status "Searching for latest version of GSL"
         gsl_url="ftp://ftp.gnu.org/gnu/gsl/"
-        gsl_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate ${gsl_url} \
+        gsl_version="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate ${gsl_url} \
                        | grep "gsl-latest.tar.gz"                                       \
                        | grep -o "gsl-[0-9.]*.tar.gz"                                   \
                        | grep -o "[0-9][0-9.]*[0-9]" || :)"
@@ -1173,14 +1276,15 @@ if [ "${mpi_install}" == "yes" ]; then
             current_step="search for latest version of OpenMPI"
             set_status "Searching for latest version of OpenMPI"
             mpi_url="https://www.open-mpi.org/software/ompi"
-            mpi_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate ${mpi_url} \
+            mpi_version="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate ${mpi_url} \
                            | grep -m 1 -o -P "(?<=>openmpi-).*(?=.tar.gz)")"
         fi
         mpi_version_major="$(echo "${mpi_version}" | grep -m 1 -o -P "[0-9]*" \
                                                    | head -n 1)"
         mpi_version_major_dot_minor="$(echo "${mpi_version}" | grep -m 1 -o -P \
                                             "${mpi_version_major}\.[0-9]*")"
-        mpi_url="https://www.open-mpi.org/software/ompi/v${mpi_version_major_dot_minor}/downloads/openmpi-${mpi_version}.tar.gz"
+        mpi_url="https://www.open-mpi.org/software/ompi/v${mpi_version_major_dot_minor}/\
+downloads/openmpi-${mpi_version}.tar.gz"
         # Check if already installed and/or downloaded
         check_progress "MPI"
         # If not yet downloaded, validate the URL
@@ -1198,7 +1302,7 @@ if [ "${mpi_install}" == "yes" ]; then
             current_step="search for latest version of MPICH"
             set_status "Searching for latest version of MPICH"
             mpi_url="http://www.mpich.org/downloads"
-            mpi_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate ${mpi_url} \
+            mpi_version="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate ${mpi_url} \
                            | grep -m 1 -o -P "(?<=mpich-).*(?=stable)"                      \
                            | awk '{print $1}' || :)"
         fi
@@ -1230,11 +1334,12 @@ if [ "${hdf5_install}" == "yes" ]; then
         current_step="search for latest version of HDF5"
         set_status "Searching for latest version of HDF5"
         hdf5_url="ftp://ftp.hdfgroup.org/HDF5/current/src/"
-        hdf5_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate ${hdf5_url} \
+        hdf5_version="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate ${hdf5_url} \
                         | grep -m 1 -o -P "(?<=hdf5-).*(?=.tar\")" || :)"
     fi
-    hdf5_url="ftp://ftp.hdfgroup.org/HDF5/releases/hdf5-${hdf5_version}/src/\
-hdf5-${hdf5_version}.tar.gz"
+    hdf5_version_major="$(echo "${hdf5_version}" | grep -o '[0-9]\.[0-9]*')"
+    hdf5_url="ftp://ftp.hdfgroup.org/HDF5/releases/hdf5-${hdf5_version_major}/\
+hdf5-${hdf5_version}/src/hdf5-${hdf5_version}.tar.gz"
     # Check if already installed and/or downloaded
     check_progress "HDF5"
     # If not yet downloaded, validate the URL
@@ -1262,7 +1367,7 @@ if [ "${fftw_install}" == "yes" ]; then
         current_step="search for latest version of FFTW"
         set_status "Searching for latest version of FFTW"
         fftw_url="http://www.fftw.org/download.html"
-        fftw_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate ${fftw_url} \
+        fftw_version="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate ${fftw_url} \
                         | grep -m 1 -o -P "(?<=fftw-).*(?=.tar.gz\")" || :)"
     fi
     fftw_url="http://www.fftw.org/fftw-${fftw_version}.tar.gz"
@@ -1292,7 +1397,7 @@ if [ "${freetype_install}" == "yes" ]; then
         current_step="search for latest version of FreeType"
         set_status "Searching for latest version of FreeType"
         freetype_url="http://download.savannah.gnu.org/releases/freetype/"
-        freetype_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate ${freetype_url} \
+        freetype_version="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate ${freetype_url} \
                             | grep -o "freetype-[0-9.]*tar"                                       \
                             | sort -u                                                             \
                             | tail -n 1                                                           \
@@ -1328,7 +1433,7 @@ if [ "${ncurses_install}" == "yes" ]; then
         current_step="search for latest version of ncurses"
         set_status "Searching for latest version of ncurses"
         ncurses_url="http://ftp.gnu.org/pub/gnu/ncurses/"
-        ncurses_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate ${ncurses_url} \
+        ncurses_version="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate ${ncurses_url} \
                            | grep -o "ncurses-[0-9.]*tar"                                       \
                            | sort -u                                                            \
                            | tail -n 1                                                          \
@@ -1362,14 +1467,15 @@ if [ "${openssl_install}" == "yes" ]; then
         current_step="search for latest version of OpenSSL"
         set_status "Searching for latest version of OpenSSL"
         openssl_url="ftp://ftp.openssl.org/source/"
-        openssl_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate ${openssl} \
+        openssl_version="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate ${openssl} \
                            | grep "openssl-[0-9].*.tar.gz"                                  \
                            | tail -n 1                                                      \
                            | grep -o -P "(?<=openssl-).*(?=.tar.gz)"                        \
                            | grep -o -P "(?=[0-9]).*(?=.tar.gz)" || :)"
         openssl_version="$(sed 's/.tar.gz.*//' <<< "${openssl_version}")"
     fi
-    openssl_url="ftp://ftp.openssl.org/source/openssl-${openssl_version}.tar.gz"
+
+    openssl_url="https://www.openssl.org/source/openssl-${openssl_version}.tar.gz"
     # Check if already installed and/or downloaded
     check_progress "OpenSSL"
     # If not yet downloaded, validate the URL
@@ -1379,8 +1485,8 @@ if [ "${openssl_install}" == "yes" ]; then
             echo "Primary OpenSSL link broken: ${openssl_url}"
             fallback "openssl"
             openssl_version_without_letter="$(echo ${openssl_version} | grep -o "[[:digit:].]*")"
-            openssl_url="http://openssl.skazkaforyou.com/source/old/${openssl_version_without_letter}/\
-openssl-${openssl_version}.tar.gz"
+            openssl_url="http://openssl.skazkaforyou.com/source/old/\
+${openssl_version_without_letter}/openssl-${openssl_version}.tar.gz"
             echo "Using secondary OpenSSL link: ${openssl_url}"
             # Check if already installed and/or downloaded
             check_progress "OpenSSL"
@@ -1398,7 +1504,7 @@ if [ "${python_install}" == "yes" ]; then
         current_step="search for latest version of Python"
         set_status "Searching for latest version of Python"
         python_url="https://www.python.org/downloads/"
-        python_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate ${python_url} \
+        python_version="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate ${python_url} \
                           | grep -o -P "(?<=Python-).*(?=.tar)"                               \
                           | head -1  || :)"
     fi
@@ -1423,7 +1529,7 @@ if [ "${concept_install}" == "yes" ]; then
         current_step="search for latest version of ${esc_concept}"
         set_status "Searching for latest version of ${esc_concept_double_backslashes}"
         # The version of CO𝘕CEPT is set to the commit number
-        repo_text=$(wget -t 50 --timeout 15 -q -O- --no-check-certificate ${concept_repo_url})
+        repo_text=$(wget -t 50 --timeout 60 -q -O- --no-check-certificate ${concept_repo_url})
         line_nr=$(echo "${repo_text}" | grep -n "  commits" | awk '{print $1}')
         line_nr="${line_nr:0:${#line_nr}-1}"
         ((line_nr -= 2))
@@ -1449,7 +1555,7 @@ if [ "${fftw_for_gadget_install}" == "yes" ]; then
         current_step="search for latest version of FFTW for GADGET"
         set_status "Searching for latest version of FFTW for GADGET"
         fftw_for_gadget_url="http://www.fftw.org/download.html"
-        fftw_for_gadget_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate \
+        fftw_for_gadget_version="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate \
                                    ${fftw_for_gadget_url} | grep -m 1 -o -P              \
                                                                  "(?<=fftw-).*(?=.tar.gz\")" || :)"
     fi
@@ -1462,7 +1568,8 @@ if [ "${fftw_for_gadget_install}" == "yes" ]; then
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary FFTW 2 link broken: ${fftw_for_gadget_url}"
             fallback "FFTW for GADGET"
-            fftw_for_gadget_url="ftp://ftp.fftw.org/pub/fftw/fftw-${fftw_for_gadget_version}.tar.gz"
+            fftw_for_gadget_url="ftp://ftp.fftw.org/pub/fftw/\
+fftw-${fftw_for_gadget_version}.tar.gz"
             echo "Using secondary FFTW 2 link: ${fftw_for_gadget_url}"
             # Check if already installed and/or downloaded
             check_progress "FFTW for GADGET"
@@ -1500,7 +1607,7 @@ if [ "${imagemagick_install}" == "yes" ]; then
         current_step="search for latest version of ImageMagick"
         set_status "Searching for latest version of ImageMagick"
         imagemagick_url="http://www.imagemagick.org/download/releases/"
-        imagemagick_version="$(wget -t 50 --timeout 15 -q -O- --no-check-certificate    \
+        imagemagick_version="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate    \
                                ${imagemagick_url} | grep -o "ImageMagick[0-9\.\-]*.tar" \
                                                   | grep -o "[0-9\.\-]*"                \
                                                   | sort -u                             \
@@ -1519,8 +1626,9 @@ if [ "${imagemagick_install}" == "yes" ]; then
             fallback "ImageMagick"
             imagemagick_version_major="$(echo "${imagemagick_version}" | grep -m 1 -o -P "[0-9]*" \
                                                                        | head -n 1)"
-            imagemagick_version_major_dot_minor="$(echo "${imagemagick_version}" | grep -m 1 -o -P \
-                                                        "${imagemagick_version_major}\.[0-9]*")"
+            imagemagick_version_major_dot_minor="$(echo "${imagemagick_version}" \
+                                                   | grep -m 1 -o -P             \
+                                                   "${imagemagick_version_major}\.[0-9]*")"
             imagemagick_url="http://sourceforge.net/projects/imagemagick/files/old-sources/\
 ${imagemagick_version_major}.x/${imagemagick_version_major_dot_minor}/\
 ImageMagick-${imagemagick_version}.tar.gz"
@@ -1540,7 +1648,8 @@ if [ -n "${python_dir}" ]; then
     python_version_major=${python_version:0:1}
     if [ -f "${python_dir}/bin/python${python_version_major}" ]; then
         python_version=$("${python_dir}/bin/python${python_version_major}" -c \
-                         "from sys import version_info as v; print(str(v.major) + '.' + str(v.minor))")
+                         "from sys import version_info as v; \
+                          print(str(v.major) + '.' + str(v.minor))")
         python="${python_dir}/bin/python${python_version}"
     fi
 fi
@@ -2008,7 +2117,7 @@ download()
     cd "${top_dir}/tmp/${progname}"
     for n in {1..50}; do
         wget_status="success"
-        wget -t 1 --timeout 15 -c --no-check-certificate "${url}" || wget_status="error"
+        wget -t 1 --timeout 60 -c --no-check-certificate "${url}" || wget_status="error"
         if [ "${wget_status}" == "success" ]; then
             break
         fi
@@ -2246,7 +2355,7 @@ if [ "${zlib_install}" == "yes" ] && [ "${zlib_installed}" == "no" ]; then
     init_install "zlib"
     ./configure --shared --prefix="${zlib_dir}" 2>&1
     if [ "${fast_install}" == "no" ]; then
-        make test 2>&1 | tee "test_log"
+        make ${make_jobs} test 2>&1 | tee "test_log"
         [ ${PIPESTATUS[0]} != 0 ] && zlib_test_success="no"
     fi
     zlib_test_log="${zlib_dir}/test_log"
@@ -2254,7 +2363,7 @@ if [ "${zlib_install}" == "yes" ] && [ "${zlib_installed}" == "no" ]; then
         mkdir -p "${zlib_dir}"
         cp "test_log" "${zlib_test_log}"
     fi
-    make install 2>&1
+    make ${make_jobs} install 2>&1
     cp "README" "${zlib_dir}/"
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/zlib"
@@ -2276,7 +2385,7 @@ if [ "${libpng_install}" == "yes" ] && [ "${libpng_installed}" == "no" ]; then
     export ZLIBINC="${zlib_dir}/include"
     ./configure --prefix="${libpng_dir}" 2>&1
     if [ "${fast_install}" == "no" ]; then
-        make ZLIBLIB="${ZLIBLIB}" ZLIBINC="${ZLIBINC}" check 2>&1 | tee "test_log"
+        make ZLIBLIB="${ZLIBLIB}" ZLIBINC="${ZLIBINC}" ${make_jobs} check 2>&1 | tee "test_log"
         [ ${PIPESTATUS[0]} != 0 ] && libpng_test_success="no"
     fi
     libpng_test_log="${libpng_dir}/test_log"
@@ -2284,7 +2393,7 @@ if [ "${libpng_install}" == "yes" ] && [ "${libpng_installed}" == "no" ]; then
         mkdir -p "${libpng_dir}"
         cp "test_log" "${libpng_test_log}"
     fi
-    make ZLIBLIB="${ZLIBLIB}" ZLIBINC="${ZLIBINC}" install 2>&1
+    make ZLIBLIB="${ZLIBLIB}" ZLIBINC="${ZLIBINC}" ${make_jobs} install 2>&1
     reset_environment
     cp "LICENSE" "${libpng_dir}/" || :
     cd "${top_dir}"
@@ -2343,9 +2452,9 @@ if [ "${imagemagick_install}" == "yes" ] && [ "${imagemagick_installed}" == "no"
                 --with-wmf=no                 \
                 --with-x=no                   \
                 --with-xml=no 2>&1
-    make 2>&1
+    make ${make_jobs} 2>&1
     if [ "${fast_install}" == "no" ]; then
-        make check 2>&1 | tee "test_log"
+        make ${make_jobs} check 2>&1 | tee "test_log"
         [ ${PIPESTATUS[0]} != 0 ] && imagemagick_test_success="no"
     fi
     imagemagick_test_log="${imagemagick_dir}/test_log"
@@ -2353,7 +2462,7 @@ if [ "${imagemagick_install}" == "yes" ] && [ "${imagemagick_installed}" == "no"
         mkdir -p "${imagemagick_dir}"
         cp "test_log" "${imagemagick_test_log}"
     fi
-    make install 2>&1
+    make ${make_jobs} install 2>&1
     reset_environment
     cp "AUTHORS.txt" "LICENSE" "NOTICE" "${imagemagick_dir}/" || :
     cd "${top_dir}"
@@ -2370,9 +2479,9 @@ fi
 if [ "${gsl_install}" == "yes" ] && [ "${gsl_installed}" == "no" ]; then
     init_install "GSL"
     ./configure --prefix="${gsl_dir}" 2>&1
-    make 2>&1
+    make ${make_jobs} 2>&1
     if [ "${fast_install}" == "no" ]; then
-        make check 2>&1 | tee "test_log"
+        make ${make_jobs} check 2>&1 | tee "test_log"
         [ ${PIPESTATUS[0]} != 0 ] && gsl_test_success="no"
     fi
     gsl_test_log="${gsl_dir}/test_log"
@@ -2380,7 +2489,7 @@ if [ "${gsl_install}" == "yes" ] && [ "${gsl_installed}" == "no" ]; then
         mkdir -p "${gsl_dir}"
         cp "test_log" "${gsl_test_log}"
     fi
-    make install 2>&1
+    make ${make_jobs} install 2>&1
     cp "COPYING" "README" "${gsl_dir}/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/gsl"
@@ -2397,9 +2506,25 @@ if [ "${mpi_install}" == "yes" ] && [ "${mpi_installed}" == "no" ]; then
     if [ "${mpi}" == "openmpi" ]; then
         # OpenMPI
         init_install "MPI"
+        # Temporary OpenMPI session files can cause OpenMPI to crash.
+        # Remove any temporary directory of the form 
+        # /tmp/openmpi-sessions-*
+        # which belongs to the user.
+        my_username="$(whoami)"
+        ls_output="$(ls -l /tmp | grep openmpi-sessions- || :)"
+        if [ -n "${ls_output}" ]; then
+            while read -r line; do
+                username="$(echo "${line}" | awk '{print $3}')"
+                if [ "${username}" == "${my_username}" ]; then
+                    openmpi_session_dirname="$(echo "${line}" | awk '{print $9}')"
+                    rm -rf "/tmp/${openmpi_session_dirname}" || :
+                fi
+            done <<< "${ls_output}"
+        fi
+        # Install OpenMPI
         ./configure --prefix="${mpi_dir}" 2>&1
-        make all 2>&1        
-        make install 2>&1
+        make ${make_jobs} all 2>&1        
+        make ${make_jobs} install 2>&1
         cp "AUTHORS" "LICENSE" "${mpi_dir}/" || :
         cd "${top_dir}"
         rm -rf "${top_dir}/tmp/mpi"
@@ -2413,9 +2538,9 @@ Date:    $(date)
         # MPICH
         init_install "MPI"
         ./configure --enable-shared --prefix="${mpi_dir}" 2>&1
-        make 2>&1
+        make ${make_jobs} 2>&1
         if [ "${fast_install}" == "no" ]; then
-            make testing 2>&1 | tee "test_log"
+            make ${make_jobs} testing 2>&1 | tee "test_log"
             [ ${PIPESTATUS[0]} != 0 ] && mpi_test_success="no"
         fi
         mpi_test_log="${mpi_dir}/test_log"
@@ -2423,7 +2548,7 @@ Date:    $(date)
             mkdir -p "${mpi_dir}"
             cp "test_log" "${mpi_test_log}"
         fi
-        make install 2>&1
+        make ${make_jobs} install 2>&1
         cp "COPYRIGHT" "${mpi_dir}/" || :
         cd "${top_dir}"
         rm -rf "${top_dir}/tmp/mpi"
@@ -2456,7 +2581,7 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
     else
         ./configure --enable-shared ${enable_parallel} --prefix="${hdf5_dir}" 2>&1
     fi
-    make 2>&1
+    make ${make_jobs} 2>&1
     # On some systems, the HDF5 test (make check) hangs indefinitely.
     # To counteract this, kill the process if it still runs after an
     # hour. Count the test as failed if the last line in test_log is not
@@ -2466,39 +2591,51 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
         # or normal tests otherwise.
         if [ -n "${mpi_dir}" ]; then
             # Serial tests
-            (make check-s 2>&1 & echo $! >&3) 3> "hdf5_test_pid" | tee "test_log" & tee_pid=$!
+            (make ${make_jobs} check-s 2>&1 & echo $! >&3) 3> "hdf5_test_pid" \
+                                                              | tee "test_log" & tee_pid=$!
             sleep 1
             hdf5_test_pid="$(cat 'hdf5_test_pid')"
             rm -f "hdf5_test_pid"
-            (sleep 3600; kill -9 ${hdf5_test_pid}; kill -9 ${tee_pid}) & hdf5_test_killer_pid=$!
+            (trap 'kill $(jobs -p)' EXIT; \
+             sleep 3600;                  \
+             kill -9 ${hdf5_test_pid};    \
+             kill -9 ${tee_pid}) & hdf5_test_killer_pid=$!
             wait ${tee_pid} || :
-            kill -9 ${hdf5_test_killer_pid} || :
+            kill ${hdf5_test_killer_pid} || :  # No forcefull kill (no -9)
             # Measure success based on the last line of "test_log"
             if [ -z "$(tail -n 1 test_log \
                        | grep 'make\[1\]: Leaving directory' 2> /dev/null)" ]; then
                 hdf5_test_success="no"
             fi
             # Parallel tests
-            (make check-p 2>&1 & echo $! >&3) 3> "hdf5_test_pid" | tee -a "test_log" & tee_pid=$!
+            (make ${make_jobs} check-p 2>&1 & echo $! >&3) 3> "hdf5_test_pid" \
+                                                              | tee -a "test_log" & tee_pid=$!
             sleep 1
             hdf5_test_pid="$(cat 'hdf5_test_pid')"
             rm -f "hdf5_test_pid"
-            (sleep 3600; kill -9 ${hdf5_test_pid}; kill -9 ${tee_pid}) & hdf5_test_killer_pid=$!
+            (trap 'kill $(jobs -p)' EXIT; \
+             sleep 3600;                  \
+             kill -9 ${hdf5_test_pid};    \
+             kill -9 ${tee_pid}) & hdf5_test_killer_pid=$!
             wait ${tee_pid} || :
-            kill -9 ${hdf5_test_killer_pid} || :
+            kill ${hdf5_test_killer_pid} || :  # No forcefull kill (no -9)
             # Measure success based on the last line of "test_log"
             if [ -z "$(tail -n 1 test_log \
                        | grep 'make\[1\]: Leaving directory' 2> /dev/null)" ]; then
                 hdf5_test_success="no"
             fi
         else
-            (make check 2>&1 & echo $! >&3) 3> "hdf5_test_pid" | tee "test_log" & tee_pid=$!
+            (make ${make_jobs} check 2>&1 & echo $! >&3) 3> "hdf5_test_pid" \
+                                                            | tee "test_log" & tee_pid=$!
             sleep 1
             hdf5_test_pid="$(cat 'hdf5_test_pid')"
             rm -f "hdf5_test_pid"
-            (sleep 3600; kill -9 ${hdf5_test_pid}; kill -9 ${tee_pid}) & hdf5_test_killer_pid=$!
+            (trap 'kill $(jobs -p)' EXIT; \
+             sleep 3600;                  \
+             kill -9 ${hdf5_test_pid};    \
+             kill -9 ${tee_pid}) & hdf5_test_killer_pid=$!
             wait ${tee_pid} || :
-            kill -9 ${hdf5_test_killer_pid} || :
+            kill ${hdf5_test_killer_pid} || :  # No forcefull kill (no -9)
             # Measure success based on the last line of "test_log"
             if [ -z "$(tail -n 1 test_log \
                        | grep 'make\[1\]: ' 2> /dev/null)" ]; then
@@ -2506,9 +2643,9 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
             fi
         fi
     fi
-    make install 2>&1
+    make ${make_jobs} install 2>&1
     if [ "${fast_install}" == "no" ]; then
-        make check-install 2>&1 | tee -a "test_log"
+        make ${make_jobs} check-install 2>&1 | tee -a "test_log"
         [ ${PIPESTATUS[0]} != 0 ] && hdf5_test_success="no"
     fi
     hdf5_test_log="${hdf5_dir}/test_log"
@@ -2550,9 +2687,9 @@ if [ "${fftw_install}" == "yes" ] && [ "${fftw_installed}" == "no" ]; then
                 --enable-openmp  \
                 --enable-threads \
                 --prefix="${fftw_dir}" 2>&1
-    make 2>&1
+    make ${make_jobs} 2>&1
     if [ "${fast_install}" == "no" ]; then
-        make check 2>&1 | tee "test_log"
+        make ${make_jobs} check 2>&1 | tee "test_log"
         [ ${PIPESTATUS[0]} != 0 ] && fftw_test_success="no"
     fi
     fftw_test_log="${fftw_dir}/test_log"
@@ -2560,7 +2697,7 @@ if [ "${fftw_install}" == "yes" ] && [ "${fftw_installed}" == "no" ]; then
         mkdir -p "${fftw_dir}"
         cp "test_log" "${fftw_test_log}"
     fi
-    make install 2>&1
+    make ${make_jobs} install 2>&1
     # Single-precision
     ./configure --enable-shared        \
                 ${enable_mpi}          \
@@ -2568,8 +2705,8 @@ if [ "${fftw_install}" == "yes" ] && [ "${fftw_installed}" == "no" ]; then
                 --enable-threads       \
                 --prefix="${fftw_dir}" \
                 --enable-float 2>&1
-    make 2>&1
-    make install 2>&1
+    make ${make_jobs} 2>&1
+    make ${make_jobs} install 2>&1
     reset_environment
     cp "COPYING" "README" "${fftw_dir}/" || :
     cd "${top_dir}"
@@ -2590,9 +2727,9 @@ if [ "${freetype_install}" == "yes" ] && [ "${freetype_installed}" == "no" ]; th
                 --with-bzip2=no            \
                 --with-png=no              \
                 --with-harfbuzz=no 2>&1
-    make 2>&1
+    make ${make_jobs} 2>&1
     # FreeType does not come with a test suite
-    make install 2>&1
+    make ${make_jobs} install 2>&1
     (cd docs; cp "FTL.TXT" "GPLv2.TXT" "LICENSE.TXT" "${freetype_dir}/" || :)
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/freetype"
@@ -2608,8 +2745,8 @@ fi
 if [ "${ncurses_install}" == "yes" ] && [ "${ncurses_installed}" == "no" ]; then
     init_install "ncurses"
     ./configure --with-shared --prefix="${ncurses_dir}" 2>&1
-    make 2>&1
-    make install 2>&1
+    make ${make_jobs} 2>&1
+    make ${make_jobs} install 2>&1
     if [ "${fast_install}" == "no" ]; then
         disable_status
         set +e
@@ -2630,7 +2767,7 @@ if [ "${ncurses_install}" == "yes" ] && [ "${ncurses_installed}" == "no" ]; then
     fi
     ncurses_test_log="${ncurses_dir}/include/ncurses/test_log"
     if [ "${ncurses_test_success}" == "no" ]; then
-        mkdir -p "${ncurses_dir}"
+        mkdir -p "${ncurses_dir}/include/ncurses"
         cp "test_log" "${ncurses_test_log}"
     fi
     cp "AUTHORS" "COPYING" "${ncurses_dir}/include/ncurses/" || :
@@ -2648,17 +2785,17 @@ fi
 if [ "${openssl_install}" == "yes" ] && [ "${openssl_installed}" == "no" ]; then
     init_install "OpenSSL"
     ./config shared --prefix="${openssl_dir}" --openssldir="${openssl_dir}/openssl" 2>&1
-    make 2>&1
+    make 2>&1  # Should not be run in parallel!
     if [ "${fast_install}" == "no" ]; then
-        make test 2>&1 | tee "test_log"
+        make test 2>&1 | tee "test_log"  # Should not be run in parallel!
         [ ${PIPESTATUS[0]} != 0 ] && openssl_test_success="no"
     fi
     openssl_test_log="${openssl_dir}/include/openssl/test_log"
     if [ "${openssl_test_success}" == "no" ]; then
-        mkdir -p "${openssl_dir}"
+        mkdir -p "${openssl_dir}/include/openssl"
         cp "test_log" "${openssl_test_log}"
     fi
-    make install 2>&1
+    make install 2>&1  # Should not be run in parallel!
     cp "LICENSE" "README" "${openssl_dir}/include/openssl/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/openssl"
@@ -2703,11 +2840,11 @@ if [ "${python_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
         export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
     fi
     ./configure --enable-shared --prefix="${python_dir}" ${with_ensurepip_install} 2>&1
-    make 2>&1
+    make ${make_jobs} 2>&1
     if [ "${fast_install}" == "no" ]; then
         # Skip tests if using Python 2.x, as they may hang
         if [ ${python_version_major} != 2 ]; then
-            make test 2>&1 | tee "test_log"
+            make ${make_jobs} test 2>&1 | tee "test_log"
             [ ${PIPESTATUS[0]} != 0 ] && python_test_success="no"
         fi
     fi
@@ -2716,7 +2853,7 @@ if [ "${python_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
         mkdir -p "${python_dir}"
         cp "test_log" "${python_test_log}"
     fi
-    make install 2>&1
+    make ${make_jobs} install 2>&1
     reset_environment
     cp "LICENSE" "README" "${python_dir}/" || :
     cd "${top_dir}"
@@ -2886,22 +3023,17 @@ pip_install_pypackage()
     # Download Python package source
     pip_download "${1}" "${2}"
     # Install Python package from source
+    upgrade_flag=""
     if [ "${2}" == "upgrade" ]; then
-        "${python}" -m pip install -v -v -v                          \
-                                   -b                                \
-                                   "${top_dir}/tmp/pip/build"        \
-                                   --upgrade                         \
-                                   --no-index                        \
-                                   --find-links="${top_dir}/tmp/pip" \
-                                   "${pip_name}${command_end}" 2>&1
-    else
-        "${python}" -m pip install -v -v -v                          \
-                                   -b                                \
-                                   "${top_dir}/tmp/pip/build"        \
-                                   --no-index                        \
-                                   --find-links="${top_dir}/tmp/pip" \
-                                   "${pip_name}${command_end}" 2>&1
+        upgrade_flag="--upgrade"
     fi
+    "${python}" -m pip install -v -v -v                          \
+                               -b                                \
+                               "${top_dir}/tmp/pip/build"        \
+                               ${upgrade_flag}                   \
+                               --no-index                        \
+                               --find-links="${top_dir}/tmp/pip" \
+                               "${pip_name}${command_end}" 2>&1
     rm -rf "${top_dir}/tmp/pip"
 }
 
@@ -3013,8 +3145,8 @@ if [ "${matplotlib_install}" == "yes" ] && [ "${matplotlib_installed}" == "no" ]
                     -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
     export PATH="${freetype_dir}/bin:${libpng_dir}/bin:${PATH}"
     export LD_LIBRARY_PATH="${libpng_dir}/lib:${zlib_dir}/lib:${LD_LIBRARY_PATH}"
-    export PKG_CONFIG_PATH="${libpng_dir}/lib/pkgconfig:${zlib_dir}/lib/pkgconfig:\
-${PKG_CONFIG_PATH}"
+    export PKG_CONFIG_PATH="${libpng_dir}/lib/pkgconfig:\
+${zlib_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
     "${python}" -m pip install -v -v -v                          \
                                -b                                \
                                "${top_dir}/tmp/pip/build"        \
@@ -3065,6 +3197,7 @@ fi
 ###########################
 # The CO𝘕CEPT code
 concept="${concept_dir}/concept"
+ics_dir="${concept_dir}/ICs"
 logs_dir="${concept_dir}/logs"
 output_dir="${concept_dir}/output"
 params_dir="${concept_dir}/params"
@@ -3093,11 +3226,29 @@ if [ "${concept_install}" == "yes" ] && [ "${concept_installed}" == "no" ]; then
 # program. You must manually edit the paths below. All other files rely on
 # these paths, as they are not given anywhere else.
 
-###############
-# Directories #
-###############
-# Directory containing the CO𝘕CEPT source code
+#######################
+# CO𝘕CEPT directories #
+#######################
+# Directory containing the source code
 concept_dir='${concept_dir}'
+# Directory intended for initial conditions
+ics_dir='${ics_dir}'
+# Directory containing the log files
+logs_dir='${logs_dir}'
+# Directory intended for output
+output_dir='${output_dir}'
+# Directory intended for parameter files
+params_dir='${params_dir}'
+# Directory containing tests
+tests_dir='${tests_dir}'
+# Top level directory, containing e.g. README.md
+top_dir='${top_dir}'
+# Directory containing utilities
+utilities_dir='${utilities_dir}'
+
+##########################
+# Dependency directories #
+##########################
 # Directory of FFTW
 fftw_dir='${fftw_dir}'
 # Directory of FFTW2, used by GADGET
@@ -3110,26 +3261,12 @@ Gadget2_dir='${Gadget2_dir}'
 gsl_dir='${gsl_dir}'
 # Directory of HDF5
 hdf5_dir='${hdf5_dir}'
-# Directory of ImageMagick
-imagemagick_dir='${imagemagick_dir}'
 # Directory of libpng
 libpng_dir='${libpng_dir}'
-# Directory containing CO𝘕CEPT log files
-logs_dir='${logs_dir}'
 # Directory of MPI
 mpi_dir='${mpi_dir}'
-# Directory containing CO𝘕CEPT output
-output_dir='${output_dir}'
-# Directory containing CO𝘕CEPT parameter files
-params_dir='${params_dir}'
 # Directory of Python
 python_dir='${python_dir}'
-# Directory containing tests for the CO𝘕CEPT code
-tests_dir='${tests_dir}'
-# Top level directory, containing e.g. README.md
-top_dir='${top_dir}'
-# Directory containing utilities for the CO𝘕CEPT code
-utilities_dir='${utilities_dir}'
 # Directory of zlib
 zlib_dir='${zlib_dir}'
 
@@ -3172,14 +3309,14 @@ if [ "${fftw_for_gadget_install}" == "yes" ] && [ "${fftw_for_gadget_installed}"
                 --enable-threads     \
                 --enable-type-prefix \
                 --prefix="${fftw_for_gadget_dir}" 2>&1
-    make 2>&1
+    make ${make_jobs} 2>&1
     if [ "${fast_install}" == "no" ]; then
-        make check 2>&1 | tee "test_log"
+        make ${make_jobs} check 2>&1 | tee "test_log"
         [ ${PIPESTATUS[0]} != 0 ] && fftw_for_gadget_test_success="no"
     fi
-    make install 2>&1
+    make ${make_jobs} install 2>&1
     # Single-precision
-    make clean
+    make ${make_jobs} clean
     ./configure --enable-shared      \
                 --enable-mpi         \
                 --enable-openmp      \
@@ -3187,9 +3324,9 @@ if [ "${fftw_for_gadget_install}" == "yes" ] && [ "${fftw_for_gadget_installed}"
                 --enable-float       \
                 --enable-type-prefix \
                 --prefix="${fftw_for_gadget_dir}" 2>&1
-    make 2>&1
+    make ${make_jobs} 2>&1
     if [ "${fast_install}" == "no" ]; then
-        make check 2>&1 | tee -a "test_log"
+        make ${make_jobs} check 2>&1 | tee -a "test_log"
         [ ${PIPESTATUS[0]} != 0 ] && fftw_for_gadget_test_success="no"
     fi
     fftw_for_gadget_test_log="${fftw_for_gadget_dir}/test_log"
@@ -3197,7 +3334,7 @@ if [ "${fftw_for_gadget_install}" == "yes" ] && [ "${fftw_for_gadget_installed}"
         mkdir -p "${fftw_for_gadget_dir}"
         cp "test_log" "${fftw_for_gadget_test_log}"
     fi
-    make install 2>&1
+    make ${make_jobs} install 2>&1
     reset_environment
     cp "COPYING" "README" "${fftw_for_gadget_dir}/" || :
     cd "${top_dir}"
@@ -3233,7 +3370,8 @@ rm -rf "${top_dir}/tmp"
 ##############################
 # Testing GADGET and CO𝘕CEPT #
 ##############################
-if [ "${fast_install}" == "no" ] && [ "${concept_install}" == "yes" ] && [ "${concept_installed}" == "no" ]; then
+if [ "${fast_install}" == "no" ] && [ "${concept_install}" == "yes" ] \
+                                 && [ "${concept_installed}" == "no" ]; then
     # Run basic CO𝘕CEPT test to test the environment
     current_step="basic test of ${esc_concept}"
     heading "Basic test of ${esc_concept}"
@@ -3400,7 +3538,7 @@ disable_status
 if [ "${any_test_error_notices}" == "no" ]; then
     successfully_finish_status
 fi
-# Deactivate trap before exiting
+# Deactivate traps before exiting subprocess
 trap : 0
 ) > "${log}" &
 log_pid=$!
@@ -3470,7 +3608,7 @@ if [ "$(tail -n 1 "${log}")" == "${status_prefix}${status_finish_successfully}" 
     rm -f "${log}"
 fi
 
-# Installation complete. Deactivate trap before exiting.
+# Installation complete. Deactivate traps before exiting.
 if [ "${say_goodbye}" != "no" ]; then
     printf "${esc_bold}${esc_green}${esc_concept} installation finished${esc_normal}\n"
 fi

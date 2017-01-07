@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,16 +22,12 @@
 
 # This file has to be run in pure Python mode!
 
-# Include the concept_dir in the searched paths
-import sys, os
-sys.path.append(os.environ['concept_dir'])
-
 # Imports from the CO𝘕CEPT code
 from commons import *
 from species import Component
 from snapshot import save
 
-# Create the particles
+# Create the particle
 N = 1
 mass = ϱmbar*boxsize**3/N
 particles = Component('test particles', 'dark matter particles', N, mass)

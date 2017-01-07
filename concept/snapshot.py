@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@ from commons import *
 # Cython imports
 from communication import smart_mpi
 cimport('from species import Component, FluidScalar, get_representation')
-cimport('from communication import domain_layout_local_indices, domain_subdivisions, exchange')
+cimport('from communication import partition, domain_layout_local_indices, domain_subdivisions, exchange')
 
 # Pure Python imports
 import struct
@@ -99,7 +99,7 @@ class StandardSnapshot:
                    fluidscalar='FluidScalar',
                    shape='tuple',
                    start_local='Py_ssize_t',
-                   ϱ_mv='double[:, :, ::1]',
+                   ρ_mv='double[:, :, ::1]',
                    l='Py_ssize_t',
                    )
     def save(self, filename):
@@ -119,7 +119,7 @@ class StandardSnapshot:
             hdf5_file.attrs['boxsize']     = self.params['boxsize']
             hdf5_file.attrs[unicode('Ωm')] = self.params['Ωm']
             hdf5_file.attrs[unicode('ΩΛ')] = self.params['ΩΛ']
-            # Store each component as a seperate group
+            # Store each component as a separate group
             # within /components.
             for component in self.components:
                 component_h5 = hdf5_file.create_group('components/' + component.name)
@@ -133,7 +133,7 @@ class StandardSnapshot:
                                                                     component.species),
                                 indent=4)
                     # Save particle attributes
-                    component_h5.attrs['N']    = component.N
+                    component_h5.attrs['N'] = component.N
                     # Get local indices of the particle data
                     start_local = int(np.sum(smart_mpi(component.N_local,
                                                        mpifun='allgather')[:rank]))
@@ -156,24 +156,36 @@ class StandardSnapshot:
                     masterprint('done')
                 elif component.representation == 'fluid':
                     # Write out progress message
-                    masterprint('Writing out {} ({} with {} fluid variables '
-                                'and a gridsize of {}) ...'.format(component.name,
-                                                                    component.species,
-                                                                    component.fluidvars['N'],
-                                                                    component.gridsize),
+                    masterprint('Writing out {} ({} with '
+                                'gridsize {}, '
+                                '{} fluid variables, '
+                                'sound speed {}) ...'
+                                .format(component.name,
+                                        component.species,
+                                        component.gridsize,
+                                        component.fluidvars['N_fluidvars'],
+                                        ('{} km s⁻¹'.format(significant_figures(component.fluidvars['cs']
+                                                                                /(units.km/units.s),
+                                                                                3,
+                                                                                fmt='unicode',
+                                                                                scientific=True)
+                                                            ) if component.fluidvars['cs'] != 0 else '0'),
+                                        ),
                                 indent=4)
                     # Save fluid attributes
                     component_h5.attrs['gridsize'] = component.gridsize
-                    # Create the "fluidvars" group under
+                    # Create the fluidvars group under
                     # the component group.
                     fluidvars_h5 = component_h5.create_group('fluidvars')
                     fluidvars = component.fluidvars
-                    fluidvars_h5.attrs['N'] = fluidvars['N']                    
+                    # Add fluid properties to the fluidvars group
+                    fluidvars_h5.attrs['N_fluidvars'] = fluidvars['N_fluidvars']
+                    fluidvars_h5.attrs['cs'] = fluidvars['cs']
                     # Compute local indices of fluid grids
-                    ϱ_mv = fluidvars['ϱ'].grid_mv
-                    domain_size_i = ϱ_mv.shape[0] - (1 + 2*2)
-                    domain_size_j = ϱ_mv.shape[1] - (1 + 2*2)
-                    domain_size_k = ϱ_mv.shape[2] - (1 + 2*2)
+                    ρ_mv = fluidvars['ρ'].grid_mv
+                    domain_size_i = ρ_mv.shape[0] - (1 + 2*2)
+                    domain_size_j = ρ_mv.shape[1] - (1 + 2*2)
+                    domain_size_k = ρ_mv.shape[2] - (1 + 2*2)
                     domain_start_i = domain_layout_local_indices[0]*domain_size_i
                     domain_start_j = domain_layout_local_indices[1]*domain_size_j
                     domain_start_k = domain_layout_local_indices[2]*domain_size_k
@@ -181,8 +193,8 @@ class StandardSnapshot:
                     domain_end_j = domain_start_j + domain_size_j
                     domain_end_k = domain_start_k + domain_size_k
                     # Save fluid grids
-                    shape = (component.gridsize,)*3
-                    for l in range(fluidvars['N']):
+                    shape = (component.gridsize, )*3
+                    for l in range(fluidvars['N_fluidvars']):
                         fluidvar = fluidvars[l]
                         fluidvar_h5 = fluidvars_h5.create_group(str(l))
                         fluidvar_h5.attrs['shape'] = fluidvar.shape
@@ -199,11 +211,11 @@ class StandardSnapshot:
                                                                              2:(2 + domain_size_k)]
                     # Create additional names (hard links)
                     # for some fluid groups and data sets.
-                    fluidvars_h5[unicode('ϱ')]   = fluidvars_h5['0'][str((0,))]
-                    fluidvars_h5[unicode('ϱu')]  = fluidvars_h5['1']
-                    fluidvars_h5[unicode('ϱux')] = fluidvars_h5[unicode('ϱu')][str((0,))]
-                    fluidvars_h5[unicode('ϱuy')] = fluidvars_h5[unicode('ϱu')][str((1,))]
-                    fluidvars_h5[unicode('ϱuz')] = fluidvars_h5[unicode('ϱu')][str((2,))]
+                    fluidvars_h5[unicode('ρ')]   = fluidvars_h5['0'][str((0,))]
+                    fluidvars_h5[unicode('ρu')]  = fluidvars_h5['1']
+                    fluidvars_h5[unicode('ρux')] = fluidvars_h5[unicode('ρu')][str((0,))]
+                    fluidvars_h5[unicode('ρuy')] = fluidvars_h5[unicode('ρu')][str((1,))]
+                    fluidvars_h5[unicode('ρuz')] = fluidvars_h5[unicode('ρu')][str((2,))]
                     # Finalize progress message
                     masterprint('done')
                 elif master:
@@ -216,11 +228,9 @@ class StandardSnapshot:
                     only_params='bint',
                     # Locals
                     N_local='Py_ssize_t',
-                    N_locals='tuple',
                     end_local='Py_ssize_t',
                     gridsize='Py_ssize_t',
                     N='Py_ssize_t',
-                    N_fluidvars='Py_ssize_t',
                     mass='double',
                     representation='str',
                     species='str',
@@ -301,10 +311,7 @@ class StandardSnapshot:
                     momz_h5 = component_h5['momz']
                     # Compute a fair distribution of 
                     # particle data to the processes.
-                    N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
-                                + (N//nprocs + 1, )*(N % nprocs))
-                    N_local = N_locals[rank]
-                    start_local = np.sum(N_locals[:rank], dtype=C2np['Py_ssize_t'])
+                    start_local, N_local = partition(N)
                     end_local = start_local + N_local
                     # Populate the Component instance with data from the file
                     component.populate(posx_h5[start_local:end_local], 'posx')
@@ -336,13 +343,15 @@ class StandardSnapshot:
                     # Finalize progress message
                     masterprint('done')
                 elif representation == 'fluid':
-                    # Read in the number of fluid variables
+                    # Read in fluid properties
                     fluidvars_h5 = component_h5['fluidvars']
-                    N_fluidvars = fluidvars_h5.attrs['N']                    
+                    fluid_properties = {'N_fluidvars': fluidvars_h5.attrs['N_fluidvars'],
+                                        'cs'         : fluidvars_h5.attrs['cs'],
+                                        }
                     # Construct a Component instance and append it
                     # to this snapshot's list of components.
                     gridsize = component_h5.attrs['gridsize']
-                    component = Component(name, species, gridsize, mass, N_fluidvars)
+                    component = Component(name, species, gridsize, mass, fluid_properties)
                     fluidvars = component.fluidvars
                     self.components.append(component)
                     # Done loading component attributes
@@ -350,9 +359,22 @@ class StandardSnapshot:
                         continue
                     # Write out progress message
                     if not only_params:
-                        masterprint('Reading in {} ({} with {} fluid variables '
-                                    'and a gridsize of {}) ...'
-                                    .format(name, species, fluidvars['N'], gridsize), indent=4)
+                        masterprint('Reading in {} ({} with '
+                                    'gridsize {}, '
+                                    '{} fluid variables, '
+                                    'sound speed {}) ...'
+                                    .format(name,
+                                            species,
+                                            gridsize,
+                                            fluidvars['N_fluidvars'],
+                                            ('{} km s⁻¹'.format(significant_figures(fluidvars['cs']
+                                                                                    /(units.km/units.s),
+                                                                                    3,
+                                                                                    fmt='unicode',
+                                                                                    scientific=True)
+                                                                ) if fluidvars['cs'] != 0 else '0'),
+                                            ),
+                                    indent=4)
                     # Compute local indices of fluid grids
                     domain_size_i = gridsize//domain_subdivisions[0]
                     domain_size_j = gridsize//domain_subdivisions[1]
@@ -371,13 +393,16 @@ class StandardSnapshot:
                     domain_end_k = domain_start_k + domain_size_k
                     # Extract fluid grids and store them in the
                     # fluidvars dict on the component.
-                    for l in range(fluidvars['N']):
+                    for l in range(fluidvars['N_fluidvars']):
                         # Fluid scalars are already instantiated.
                         # Now populate them.
                         fluidvar_h5 = fluidvars_h5[str(l)]
                         fluidvar = fluidvars[l]
                         for multi_index in component.iterate_fluidscalar_indices(fluidvar):
                             fluidscalar_h5 = fluidvar_h5[str(multi_index)]
+                            # Note that this also performs the needed
+                            # communication to populate pseudo and
+                            # ghost points.
                             component.populate(fluidscalar_h5[domain_start_i:domain_end_i,
                                                               domain_start_j:domain_end_j,
                                                               domain_start_k:domain_end_k],
@@ -387,11 +412,11 @@ class StandardSnapshot:
                     # If the snapshot and the current run uses different
                     # systems of units, mulitply the fluid data
                     # by the snapshot units.
-                    units_fluidvars = asarray([snapshot_unit_mass/snapshot_unit_length**3,                       # ϱ
-                                               snapshot_unit_mass/(snapshot_unit_length**2*snapshot_unit_time),  # ϱu
+                    units_fluidvars = asarray([snapshot_unit_mass/snapshot_unit_length**3,                       # ρ
+                                               snapshot_unit_mass/(snapshot_unit_length**2*snapshot_unit_time),  # ρu
                                                ], dtype=C2np['double'])
                     size = np.prod(fluidvars['shape'])
-                    for l in range(fluidvars['N']):
+                    for l in range(fluidvars['N_fluidvars']):
                         unit = units_fluidvars[l]
                         if unit == 1:
                             continue
@@ -535,12 +560,12 @@ class Gadget2Snapshot:
         if master:
             with open(filename, 'wb') as f:
                 # 8 = 4*1 + 4 = 4*sizeof(s) + sizeof(i)
-                f.write(struct.pack('i', 8))
+                f.write(struct.pack('I', 8))
                 f.write(struct.pack('4s', b'HEAD'))
                 # sizeof(i) + 256 + sizeof(i)
-                f.write(struct.pack('i', 4 + 256 + 4))
-                f.write(struct.pack('i', 8))
-                f.write(struct.pack('i', 256))
+                f.write(struct.pack('I', 4 + 256 + 4))
+                f.write(struct.pack('I', 8))
+                f.write(struct.pack('I', 256))
                 f.write(struct.pack('6I', *header['Npart']))
                 f.write(struct.pack('6d', *header['Massarr']))
                 f.write(struct.pack('d',   header['Time']))
@@ -560,7 +585,7 @@ class Gadget2Snapshot:
                 f.write(struct.pack('i',   header['flag_entr_ics']))
                 # Padding to fill out the 256 bytes
                 f.write(struct.pack('60s', b' '*60))
-                f.write(struct.pack('i', 256))
+                f.write(struct.pack('I', 256))
         # Write the POS block in serial, one process at a time
         unit = units.kpc/header['HubbleParam']
         for i in range(nprocs):
@@ -570,12 +595,12 @@ class Gadget2Snapshot:
                     # The identifier
                     if i == 0:
                         # 8 = 4*1 + 4 = 4*sizeof(s) + sizeof(i)
-                        f.write(struct.pack('i', 8))
+                        f.write(struct.pack('I', 8))
                         f.write(struct.pack('4s', b'POS '))
                         # sizeof(i) + 3*N*sizeof(f) + sizeof(i)
-                        f.write(struct.pack('i', 4 + 3*N*4 + 4))
-                        f.write(struct.pack('i', 8))
-                        f.write(struct.pack('i', 3*N*4))
+                        f.write(struct.pack('I', 4 + 3*N*4 + 4))
+                        f.write(struct.pack('I', 8))
+                        f.write(struct.pack('I', 3*N*4))
                     # The data
                     (asarray(np.vstack((component.posx_mv[:N_local],
                                         component.posy_mv[:N_local],
@@ -584,7 +609,7 @@ class Gadget2Snapshot:
                              dtype=C2np['float'])/unit).tofile(f)
                     # The closing int
                     if i == nprocs - 1:
-                        f.write(struct.pack('i', 3*N*4))
+                        f.write(struct.pack('I', 3*N*4))
         # Write the VEL block in serial, one process at a time
         unit = units.km/units.s*component.mass*header['Time']**1.5
         for i in range(nprocs):
@@ -594,12 +619,12 @@ class Gadget2Snapshot:
                     # The identifier
                     if i == 0:
                         # 8 = 4*1 + 4 = 4*sizeof(s) + sizeof(i)
-                        f.write(struct.pack('i', 8))
+                        f.write(struct.pack('I', 8))
                         f.write(struct.pack('4s', b'VEL '))
                         # sizeof(i) + 3*N*sizeof(f) + sizeof(i)
-                        f.write(struct.pack('i', 4 + 3*N*4 + 4))
-                        f.write(struct.pack('i', 8))
-                        f.write(struct.pack('i', 3*N*4))
+                        f.write(struct.pack('I', 4 + 3*N*4 + 4))
+                        f.write(struct.pack('I', 8))
+                        f.write(struct.pack('I', 3*N*4))
                     # The data
                     (asarray(np.vstack((component.momx_mv[:N_local],
                                         component.momy_mv[:N_local],
@@ -617,17 +642,17 @@ class Gadget2Snapshot:
                     # The identifier
                     if i == 0:
                         # 8 = 4*1 + 4 = 4*sizeof(s) + sizeof(i)
-                        f.write(struct.pack('i', 8))
+                        f.write(struct.pack('I', 8))
                         f.write(struct.pack('4s', b'ID  '))
                         # sizeof(i) + N*sizeof(I) + sizeof(i)
-                        f.write(struct.pack('i', 4 + N*4 + 4))
-                        f.write(struct.pack('i', 8))
-                        f.write(struct.pack('i', N*4))
+                        f.write(struct.pack('I', 4 + N*4 + 4))
+                        f.write(struct.pack('I', 8))
+                        f.write(struct.pack('I', N*4))
                     # The data
                     asarray(self.ID, dtype=C2np['unsigned int']).tofile(f)
                     # The closing int
                     if i == nprocs - 1:
-                        f.write(struct.pack('i', N*4))
+                        f.write(struct.pack('I', N*4))
         # Finalize progress message
         masterprint('done')
 
@@ -638,14 +663,13 @@ class Gadget2Snapshot:
                     # Locals
                     N='Py_ssize_t',
                     N_local='Py_ssize_t',
-                    N_locals='tuple',
                     blockname='str',
                     file_position='Py_ssize_t',
                     header='object',  # collections.OrderedDict
                     mass='double',
                     name='str',
                     offset='Py_ssize_t',
-                    size='int',
+                    size='unsigned int',
                     species='str',
                     start_local='Py_ssize_t',
                     unit='double',
@@ -668,7 +692,7 @@ class Gadget2Snapshot:
             # No unit conversion will be done.
             offset = self.new_block(f, offset)
             blockname = self.read(f, '4s').decode('utf8')  # "HEAD"
-            size = self.read(f, 'i')  # 264
+            size = self.read(f, 'I')  # 264
             offset = self.new_block(f, offset)
             self.params['header'] = collections.OrderedDict()
             header = self.params['header']
@@ -716,17 +740,14 @@ class Gadget2Snapshot:
             masterprint('Reading in {} ({} {}) ...'.format(name, N, species), indent=4)
             # Compute a fair distribution
             # of component data to the processes.
-            N_locals = ((N//nprocs, )*(nprocs - (N % nprocs))
-                        + (N//nprocs + 1, )*(N % nprocs))
-            N_local = N_locals[rank]
-            start_local = np.sum(N_locals[:rank], dtype=C2np['Py_ssize_t'])          
+            start_local, N_local = partition(N)
             # Read in the POS block. The positions are given in kpc/h.
             offset = self.new_block(f, offset)
             unit = units.kpc/header['HubbleParam']
-            name = self.read(f, '4s').decode('utf8')  # "POS "
-            size = self.read(f, 'i')
+            blockname = self.read(f, '4s').decode('utf8')  # "POS "
+            size = self.read(f, 'I')
             offset = self.new_block(f, offset)
-            f.seek(12*start_local, 1)  # 12 = sizeof(float)*Ndims
+            f.seek(12*start_local, 1)  # 12 = sizeof(float)*3
             file_position = f.tell()
             self.component.populate(asarray(np.fromfile(f, dtype=C2np['float'], count=3*N_local)
                                             [0::3], dtype=C2np['double'])*unit,
@@ -744,9 +765,9 @@ class Gadget2Snapshot:
             offset = self.new_block(f, offset)
             unit = units.km/units.s*mass*header['Time']**1.5
             blockname = self.read(f, '4s').decode('utf8')  # "VEL "
-            size = self.read(f, 'i')
+            size = self.read(f, 'I')
             offset = self.new_block(f, offset)
-            f.seek(12*start_local, 1)  # 12 = sizeof(float)*Ndims
+            f.seek(12*start_local, 1)  # 12 = sizeof(float)*3
             file_position = f.tell()
             self.component.populate(asarray(np.fromfile(f, dtype=C2np['float'], count=3*N_local)
                                             [0::3], dtype=C2np['double'])*unit,
@@ -763,7 +784,7 @@ class Gadget2Snapshot:
             # The ID's will be distributed among all processes.
             offset = self.new_block(f, offset)
             blockname = self.read(f, '4s').decode('utf8')  # "ID  "
-            size = self.read(f, 'i')
+            size = self.read(f, 'I')
             offset = self.new_block(f, offset)
             f.seek(4*start_local, 1)  # 4 = sizeof(unsigned int)
             file_position = f.tell()
@@ -884,26 +905,33 @@ class Gadget2Snapshot:
         f.seek(offset)
         # Each block is bracketed with a 4-byte int
         # containing the size of the block
-        offset += 8 + self.read(f, 'i')
+        offset += 8 + self.read(f, 'I')
         return offset
-
-
 
 # Function that saves the current state of the simulation
 # - consisting of global parameters as well as the list of components -
 # to a snapshot file. The type of snapshot to be saved is determined by
 # the snapshot_type parameter.
-@cython.header(# Argument
-               components='list',
-               filename='str',
-               # Locals
-               snapshot='object'  # Any implemented snapshot type
-               )
-def save(components, filename):
+@cython.pheader(# Argument
+                components='list',
+                filename='str',
+                params='dict',
+                # Locals
+                snapshot='object'  # Any implemented snapshot type
+                )
+def save(components, filename, params={}):
+    """Note that since we want this function to be exposed to
+    pure Python, a pheader is used.
+    """
     # Instantiate snapshot of the appropriate type
     snapshot = eval(snapshot_type.capitalize() + 'Snapshot()')
-    # Populate the snapshot with data and save it to disk
-    snapshot.populate(components)
+    # Populate the snapshot with data
+    snapshot.populate(components, params)
+    # Make sure that the directory of the snapshot exists
+    if master:
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+    Barrier()
+    # Save the snapshot to disk
     snapshot.save(filename)
 
 # Function that loads a snapshot file.
@@ -965,8 +993,9 @@ def load(filename, compare_params=True,
     # Particles exactly on the upper boundaries will be moved to the
     # physically equivalent lower boundaries.
     for component in snapshot.components:
-        out_of_bounds_check(component)
-    # Scatter particles to the correct domain-specific process
+        out_of_bounds_check(component, snapshot.params['boxsize'])
+    # Scatter particles to the correct domain-specific process.
+    # Also communicate pseudo and ghost points of fluid variables.
     if not only_params and do_exchange:
         # Do exchanges for all but the last component,
         # reusing the communication buffers.
@@ -976,6 +1005,10 @@ def load(filename, compare_params=True,
         # buffers, as these initial exchanges are not representable
         # for those to come during the actual simulation.
         exchange(snapshot.components[len(snapshot.components) - 1], reset_buffers=True)
+        # Communicate the pseudo and ghost points
+        # of all fluid variables in fluid components.
+        for component in snapshot.components:
+            component.communicate_fluid_grids(mode='populate')
     # If the caller is interested in the components only,
     # return the list of components.
     if only_components:
@@ -1071,13 +1104,14 @@ def compare_parameters(params, filename, indent=0):
 # ensuring that they are within the box.
 @cython.header(# Arguments
                component='Component',
+               snapshot_boxsize='double',
                # Locals
                i='Py_ssize_t',
                posx='double*',
                posy='double*',
                posz='double*',
                )
-def out_of_bounds_check(component):
+def out_of_bounds_check(component, snapshot_boxsize=-1):
     """If any particles are outside of the box, the program
     will terminate. Particles located exactly at the upper box
     boundaries will be moved to the (physically equivalent) lower
@@ -1088,6 +1122,9 @@ def out_of_bounds_check(component):
     # as these are the only ones with explicit positions.
     if component.representation != 'particles':
         return
+    # If no boxsize is parsed, use the global boxsize
+    if snapshot_boxsize == -1:
+        snapshot_boxsize = boxsize
     # Extract position variables
     posx = component.posx
     posy = component.posy
@@ -1096,16 +1133,16 @@ def out_of_bounds_check(component):
     for i in range(component.N_local):
         # Move particles at the very upper boundaries of the box
         # to the lower boundaries instead.
-        if posx[i] == boxsize:
+        if posx[i] == snapshot_boxsize:
             posx[i] = 0
-        if posy[i] == boxsize:
+        if posy[i] == snapshot_boxsize:
             posy[i] = 0
-        if posz[i] == boxsize:
+        if posz[i] == snapshot_boxsize:
             posz[i] = 0
         # Abort on out of bounds
-        if (   not (0 <= posx[i] < boxsize)
-            or not (0 <= posy[i] < boxsize)
-            or not (0 <= posz[i] < boxsize)):
+        if (   not (0 <= posx[i] < snapshot_boxsize)
+            or not (0 <= posy[i] < snapshot_boxsize)
+            or not (0 <= posz[i] < snapshot_boxsize)):
             abort('Particle number {} of component "{}" has position '
                   '({:.9g}, {:.9g}, {:.9g}) {}, which is outside of the cubic box '
                   'of side length {:.9g} {}'.format(i,
@@ -1114,7 +1151,7 @@ def out_of_bounds_check(component):
                                                     posy[i],
                                                     posz[i],
                                                     unit_length,
-                                                    boxsize,
+                                                    snapshot_boxsize,
                                                     unit_length),
                   )
 

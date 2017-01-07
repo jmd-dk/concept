@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,33 +22,24 @@
 
 # This file has to be run in pure Python mode!
 
-# Standard test imports
-import glob, sys, os
-
-# Absolute paths to the directory of this file
-this_dir = os.path.dirname(os.path.realpath(__file__))
-
-# Pull in environment variables
-for env_var in ('concept_dir', 'this_test'):
-    exec('{env_var} = os.environ["{env_var}"]'.format(env_var=env_var))
-
-# Include the concept_dir in the searched paths
-sys.path.append(concept_dir)
-
 # Imports from the CO𝘕CEPT code
 from commons import *
 from snapshot import load
+
+# Absolute path and name of the directory of this file
+this_dir  = os.path.dirname(os.path.realpath(__file__))
+this_test = os.path.basename(this_dir)
 
 # Read in data from the CO𝘕CEPT snapshots
 a = []
 nprocs_list = sorted(int(dname[(dname.index('python_') + 7):])
                      for dname in [os.path.basename(dname)
-                                   for dname in glob.glob('{}/output_python_*'.format(this_dir))])
+                                   for dname in glob('{}/output_python_*'.format(this_dir))])
 components = {'cython': {n: [] for n in nprocs_list},
               'python': {n: [] for n in nprocs_list}}
 for cp in components.keys():
     for n in nprocs_list:
-        for fname in sorted(glob.glob('{}/output_{}_{}/snapshot_a=*'.format(this_dir, cp, n)),
+        for fname in sorted(glob('{}/output_{}_{}/snapshot_a=*'.format(this_dir, cp, n)),
                             key=lambda s: s[(s.index('=') + 1):]):
             snapshot = load(fname, compare_params=False)
             if cp == 'cython' and n == 1:
@@ -121,25 +112,30 @@ fig_file = this_dir + '/result.png'
 fig, ax = plt.subplots(len(nprocs_list), sharex=True, sharey=True)
 for n, d, ax_i in zip(dist.keys(), dist.values(), ax):
     for i in range(N_snapshots):
-        ax_i.plot(np.array(d[i])/boxsize, '.', alpha=.7, label='$a={}$'.format(a[i]), zorder=-i)
+        ax_i.semilogy(machine_ϵ + np.array(d[i])/boxsize,
+                      '.',
+                      alpha=0.7,
+                      label='$a={}$'.format(a[i]),
+                      zorder=-i,
+                      )
     ax_i.set_ylabel('$|\mathbf{{x}}_{{\mathrm{{pp}}{n}}} - \mathbf{{x}}_{{\mathrm{{c}}{n}}}|'
                     '/\mathrm{{boxsize}}$'.format(n=n))
 ax[-1].set_xlabel('Particle number')
 plt.xlim(0, N - 1)
 fig.subplots_adjust(hspace=0)
 plt.setp([ax_i.get_xticklabels() for ax_i in ax[:-1]], visible=False)
-ax[0].legend(loc='best').get_frame().set_alpha(0.3)
+ax[0].legend(loc='best').get_frame().set_alpha(0.7)
 plt.tight_layout()
 plt.savefig(fig_file)
-
-# Done analyzing
-masterprint('done')
 
 # Printout error message for unsuccessful test
 tol = 1e-5
 if any(np.mean(np.array(d)/boxsize) > tol for d in dist.values()):
-    masterwarn('Some or all pure Python runs with nprocs = {} yielded results\n'
-               'different from their compiled counterparts!\n'
-               'See "{}" for a visualization.'.format(nprocs_list, fig_file))
-    sys.exit(1)
+    abort('Some or all pure Python runs with nprocs = {} yielded results\n'
+          'different from their compiled counterparts!\n'
+          'See "{}" for a visualization.'
+          .format(nprocs_list, fig_file))
+
+# Done analyzing
+masterprint('done')
 

@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -61,7 +61,7 @@ import pexpect
                names='list',
                )
 def plot_powerspec(data_list, filename, power_dict):
-    """This function will do seperate power spectrum
+    """This function will do separate power spectrum
     plots for each component.
     The power spectra are given in dat_list, which are a list with
     the following content: [k, power, power_σ, power, power_σ, ...]
@@ -127,7 +127,7 @@ def plot_powerspec(data_list, filename, power_dict):
         maxpowermax = np.max(asarray(power) + asarray(power_σ))
         # Clear the figure
         plt.clf()
-        # Plot powerspectrum
+        # Plot power spectrum
         plt.gca().set_xscale('log')
         plt.gca().set_yscale('log', nonposy='clip')
         plt.errorbar(k, power, yerr=power_σ, fmt='b.', ms=3, ecolor='r', lw=0)
@@ -187,7 +187,6 @@ def plot_powerspec(data_list, filename, power_dict):
                names='tuple',
                component='Component',
                render_dir='str',
-               rgb='int',
                scatter_size='double',
                size_nopseudo_noghost='Py_ssize_t',
                i='Py_ssize_t',
@@ -195,7 +194,7 @@ def plot_powerspec(data_list, filename, power_dict):
                k='Py_ssize_t',
                size='Py_ssize_t',
                rgba='double[:, ::1]',
-               ϱ_noghosts='double[:, :, :]',
+               ρ_noghosts='double[:, :, :]',
                index='Py_ssize_t',
                size_i='Py_ssize_t',
                size_j='Py_ssize_t',
@@ -211,7 +210,7 @@ def plot_powerspec(data_list, filename, power_dict):
                xi='double',
                yj='double',
                zk='double',
-               ϱbar_component='double',
+               ρbar_component='double',
                posx_mv='double[::1]',
                posy_mv='double[::1]',
                posz_mv='double[::1]',
@@ -267,14 +266,23 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
                 ax = fig.gca(projection='3d', axisbg=bgcolor)
             # The color of this component
             if component.name.lower() in render_colors:
+                # This component is given a specific color by the user
                 color = render_colors[component.name.lower()]
+            elif 'all' in render_colors:
+                # All components are given the same color by the user
+                color = render_colors['all']
+            elif len(components) == 1:
+                # Only a single component exists and it has no color
+                # given to it. Assign a nice color.
+                color = to_rgb('lime')
             else:
-                # No color specified for this particular component.
-                # Use default cyclic colors.
+                # No color specified for this particular component,
+                # and multiple components exist.
+                # Assign the next color from the default cyclic colors.
                 color = next(default_colors)
             # The artist for the component
             if component.representation == 'particles':
-                artist_component = ax.scatter(0, 0, 0, c=color, alpha=0, lw=0)
+                artist_component = ax.scatter(0, 0, 0, c=color, depthshade=False, lw=0)
             elif component.representation == 'fluid':
                 N = np.prod(-2 + asarray(component.fluidvars['shape']) - 1 - 2)
                 rgba = np.empty((N, 4), dtype=C2np['double'])
@@ -282,7 +290,7 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
                     for dim in range(3):
                         rgba[i, dim] = color[dim]
                     rgba[i, 3] = 0
-                artist_component = ax.scatter([0]*N, [0]*N, [0]*N, c=rgba, alpha=0, lw=0)
+                artist_component = ax.scatter([0]*N, [0]*N, [0]*N, c=rgba, depthshade=False, lw=0)
             # The artists for the cosmic time and scale factor text
             artists_text = {}
             label_spacing = 0.07
@@ -334,9 +342,6 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
                 tl.set_visible(False)
             for tl in ax.w_zaxis.get_ticklabels():
                 tl.set_visible(False)
-            ax.set_xlabel('x')
-            ax.set_ylabel('y')
-            ax.set_zlabel('z')
             # Store the figure, axes and the component
             # and text artists in the render_dict.
             render_dict[component.name] = {'fig': fig,
@@ -426,7 +431,7 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
             # The alpha is chosen such that in a homogeneous universe,
             # a column of particles have a collective alpha
             # of 1 (more or less).
-            alpha = N**ℝ[-1/3]
+            alpha = 1/cbrt(N)
             # Alpha values lower than alpha_min appear completely
             # invisible. Allow no alpha values lower than alpha_min. 
             # Shrink the size to make up for the larger alpha.
@@ -438,35 +443,43 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
             artist_component.set_sizes([scatter_size])
             artist_component.set_alpha(alpha)
         elif component.representation == 'fluid':
-            # Extract the ϱ grid
-            ϱ_noghosts = component.fluidvars['ϱ'].grid_noghosts
+            # Extract the ρ grid
+            ρ_noghosts = component.fluidvars['ρ'].grid_noghosts
+            # The particle (fluid element) size on the figure.
+            # The size is chosen such that the particles stand side
+            # by side in a homogeneous universe (more or less).
+            N = component.gridsize**3  # Number of fluid elements
+            scatter_size = 1000*np.prod(fig.get_size_inches())/N**ℝ[2/3]
             # Grab the color and alpha array from the last artist
             rgba = artist_component.get_facecolor()
             # Multiplication factor for alpha values. An alpha value of
             # 1 is assigned if the relative overdensity
-            # ϱ(component)/ϱbar(component) >= 1/alpha_fac.
+            # ρ(component)/ρbar(component) >= 1/alpha_fac.
             # The chosen alpha_fac is such that in a homogeneous
             # universe, a column of fluid elements have a collective
-            # alpha of 1 (more or less).
+            # alpha of 1 (more or less).            
+            alpha_fac = 1/cbrt(N)
+            # Alpha values lower than alpha_min appear completely
+            # invisible. Do not allow alpha_fac (the mean alpha) to be
+            # lower than alpha_min.
+            # Shrink the size to make up for the larger alpha.
+            alpha_min = 0.0059
+            if alpha_fac < alpha_min:
+                scatter_size *= alpha_fac/alpha_min
+                alpha_fac = alpha_min
+            # Update the alpha values in rgba array. The rgb-values
+            # remain the same for all renders of this component.
             Vcell = (boxsize/component.gridsize)**3
-            ϱbar_component = component.mass/Vcell
-            N = component.gridsize**3  # Number of fluid elements
-            alpha_fac = N**ℝ[-1/3]
-            # Fill the diff buffers with fluid element coordinates
-            # and update the alpha values in rgba.
+            ρbar_component = component.mass/Vcell
             index = 0
-            for         i in range(ℤ[ϱ_noghosts.shape[0] - 1]):
-                for     j in range(ℤ[ϱ_noghosts.shape[1] - 1]):
-                    for k in range(ℤ[ϱ_noghosts.shape[2] - 1]):
-                        alpha = ℝ[alpha_fac/ϱbar_component]*ϱ_noghosts[i, j, k]
+            for         i in range(ℤ[ρ_noghosts.shape[0] - 1]):
+                for     j in range(ℤ[ρ_noghosts.shape[1] - 1]):
+                    for k in range(ℤ[ρ_noghosts.shape[2] - 1]):
+                        alpha = ℝ[alpha_fac/ρbar_component]*ρ_noghosts[i, j, k]
                         if alpha > 1:
                             alpha = 1
                         rgba[index, 3] = alpha
                         index += 1
-            # The particle (fluid element) size on the figure.
-            # The size is chosen such that the particles stand side
-            # by side in a homogeneous universe (more or less).
-            scatter_size = 1000*np.prod(fig.get_size_inches())/N**ℝ[2/3]
             # The previous scatter artist cannot be re-used due to a bug
             # in matplotlib (the colors/alphas cannot be updated).
             # Get rid of the old scatter plot.
@@ -477,6 +490,7 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
                                           render_dict[component.name]['posz_mv'],
                                           c=rgba,
                                           s=scatter_size,
+                                          depthshade=False,
                                           lw=0,
                                           )
             render_dict[component.name]['artist_component'] = artist_component
@@ -726,7 +740,7 @@ def update_liverender(filename):
                size_y='Py_ssize_t',
                size_z='Py_ssize_t',
                total_mass='double',
-               ϱ_noghosts='double[:, :, :]',
+               ρ_noghosts='double[:, :, :]',
                )
 def terminal_render(components):
     # Project all particle positions onto the 2D projection array,
@@ -754,10 +768,10 @@ def terminal_render(components):
             gridsize = component.gridsize
             mass = component.mass
             Vcell = (boxsize/gridsize)**3
-            ϱ_noghosts = component.fluidvars['ϱ'].grid_noghosts
-            size_x = ϱ_noghosts.shape[0] - 1
-            size_y = ϱ_noghosts.shape[1] - 1
-            size_z = ϱ_noghosts.shape[2] - 1
+            ρ_noghosts = component.fluidvars['ρ'].grid_noghosts
+            size_x = ρ_noghosts.shape[0] - 1
+            size_y = ρ_noghosts.shape[1] - 1
+            size_z = ρ_noghosts.shape[2] - 1
             # Update the total mass
             total_mass += gridsize**3*mass
             # Do the projection.
@@ -766,7 +780,7 @@ def terminal_render(components):
                 index_x = int((domain_start_x + i*domain_size_x/size_x)*projection_scalex)
                 for j in range(size_y):
                     index_y = int((domain_start_y + j*domain_size_y/size_y)*projection_scaley)
-                    projection[index_y, index_x] += Vcell*np.sum(ϱ_noghosts[i, j, :size_z])
+                    projection[index_y, index_x] += Vcell*np.sum(ρ_noghosts[i, j, :size_z])
     # Sum up local projections into the master process
     Reduce(sendbuf=(MPI.IN_PLACE if master else projection),
            recvbuf=(projection   if master else None),
@@ -795,7 +809,7 @@ def terminal_render(components):
             projection_ANSI.append('\x1b[48;5;{}m '.format(colornumber))
         projection_ANSI.append('\x1b[0m\n')
     # Print the ANSI image
-    masterprint(''.join(projection_ANSI), end='')
+    masterprint(''.join(projection_ANSI), end='', wrap=False)
 
 
 

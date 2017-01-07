@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -199,12 +199,13 @@ rs = 0.25  # Corresponds to alpha = 2
 maxdist = 3.6
 maxh2 = 10
 # Derived constants
-h_lower = int(-sqrt(maxh2))  # GADGET: -4 (also the case here for maxh2=10)
-h_upper = int(+sqrt(maxh2)) + 1  # GADGET: 5 (also the case here for maxh2=10)
-n_lower = int(-(maxdist + 1))  # GADGET: -4 (same here for maxdist=3.6)
-n_upper = int(maxdist + 1) + 1  # GADGET: 5 (same here for maxdist=3.6) 
+h_lower = int(-sqrt(maxh2))      # GADGET: -4 (same here for maxh2=10)
+h_upper = int(+sqrt(maxh2)) + 1  # GADGET:  5 (same here for maxh2=10)
+n_lower = int(-(maxdist + 1))    # GADGET: -4 (same here for maxdist=3.6)
+n_upper = int(maxdist + 1) + 1   # GADGET:  5 (same here for maxdist=3.6) 
 
-# Initialize the grid at import time, if Ewald summation is to be used
+# Initialize the wald grid at import time,
+# if Ewald summation is to be used.
 cython.declare(i='int',
                p='str',
                filepath='str',
@@ -225,7 +226,6 @@ if enable_Ewald:
         masterprint('Tabulating Ewald grid of linear size',
                     ewald_gridsize, '...')
         grid = tabulate_vectorfield(ewald_gridsize,
-                                    3,
                                     summation,
                                     0.5/(ewald_gridsize - 1),
                                     filepath)

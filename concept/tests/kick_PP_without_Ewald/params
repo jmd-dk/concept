@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -32,8 +32,7 @@ output_times  = {'snapshot': linspace(0.03, 0.11, 10)}
 
 # Numerical parameters
 boxsize          = 21*Mpc/0.7	# Gadget implicitly uses length/h
-softeningfactors = {'dark matter particles': 0.03}	
-Δt_factor        = 0.01
+softeningfactors = {'dark matter particles': 0.03}
 
 # Cosmological parameters
 H0      = 70*km/s/Mpc

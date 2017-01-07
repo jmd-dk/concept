@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -55,7 +55,7 @@ if [ "${called_from_concept}" == "True" ]; then
 fi
 
 # Use Python's argparse module to handle command-line arguments
-args=$("${python}" -c "
+args=$("${python}" -B -c "
 import argparse, sys
 # Setup command-line arguments (actually, this script takes no arguments)
 parser = argparse.ArgumentParser(prog='$(basename "${this_file}")',
@@ -67,7 +67,7 @@ sys.stdout = sys.stderr
 # Now do the actual argument parsing,
 # including writing out the help message.
 if '${called_from_concept}' == 'True':
-    # Called from concept - Through exception on illegal args
+    # Called from concept - Throw exception on illegal args
     args = parser.parse_args()
 else:
     # Called directly - Allow what appears to be illegal args

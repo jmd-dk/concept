@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,22 +22,13 @@
 
 # This file has to be run in pure Python mode!
 
-# Standard test imports
-import glob, sys, os
-
-# Absolute paths to the directory of this file
-this_dir = os.path.dirname(os.path.realpath(__file__))
-
-# Pull in environment variables
-for env_var in ('concept_dir', 'this_test'):
-    exec('{env_var} = os.environ["{env_var}"]'.format(env_var=env_var))
-
-# Include the concept_dir in the searched paths
-sys.path.append(concept_dir)
-
 # Imports from the CO𝘕CEPT code
 from commons import *
 from snapshot import load
+
+# Absolute path and name of the directory of this file
+this_dir  = os.path.dirname(os.path.realpath(__file__))
+this_test = os.path.basename(this_dir)
 
 # Read in data from the CO𝘕CEPT snapshots
 a = []
@@ -45,7 +36,7 @@ x0 = []
 x0_std = []
 x1 = []
 x1_std = []
-for fname in sorted(glob.glob(this_dir + '/output/snapshot_a=*'),
+for fname in sorted(glob(this_dir + '/output/snapshot_a=*'),
                     key=lambda s: s[(s.index('=') + 1):]):
     snapshot = load(fname, compare_params=False)
     posx = snapshot.components[0].posx
@@ -61,7 +52,7 @@ x0_gadget = []
 x0_std_gadget = []
 x1_gadget = []
 x1_std_gadget = []
-for fname in sorted(glob.glob(this_dir + '/output/snapshot_gadget_*'),
+for fname in sorted(glob(this_dir + '/output/snapshot_gadget_*'),
                     key=lambda s: s[(s.index('gadget_') + 7):])[:N_snapshots]:
     snapshot = load(fname, compare_params=False)
     posx_gadget = snapshot.components[0].posx[np.argsort(snapshot.ID)]
@@ -79,7 +70,7 @@ plt.errorbar(a, x0, yerr=x0_std, fmt='-sr', label='CO$N$CEPT (left)')
 plt.errorbar(a, x1, yerr=x1_std, fmt='-Dr', label='CO$N$CEPT (right)')
 plt.errorbar(a, x0_gadget, yerr=x0_std_gadget, fmt='--<b', label='GADGET (left)')
 plt.errorbar(a, x1_gadget, yerr=x1_std_gadget, fmt='-->b', label='GADGET (right)')
-plt.legend(loc='best').get_frame().set_alpha(0.3)
+plt.legend(loc='best').get_frame().set_alpha(0.7)
 plt.xlabel('$a$')
 plt.ylabel(r'$x\,\mathrm{{[{}]}}$'.format(unit_length))
 plt.ylim(0, boxsize)
@@ -89,24 +80,19 @@ plt.savefig(fig_file)
 # There should be no variance on the x positions.
 tol = 1e+2*N_snapshots*np.finfo(C2np['float']).eps
 if np.sum(x0_std_gadget) > tol or np.sum(x1_std_gadget) > tol:
-    masterprint('done')
-    masterwarn('Unequal x-positions for the 2*4 particles in the GADGET snapshots.\n'
-               'It is no good to compare the CO𝘕CEPT results to these.')
-    sys.exit(1)
+    abort('Unequal x-positions for the 2*4 particles in the GADGET snapshots.\n'
+          'It is no good to compare the CO𝘕CEPT results to these.')
 if np.sum(x0_std) > tol or np.sum(x1_std) > tol:
-    masterprint('done')
-    masterwarn('Unequal x-positions for the 2*4 particles in the snapshots.\n'
-               'The symmetric initial conditions has produced nonsymmetrical results!')
-    sys.exit(1)
-
-# Done analyzing
-masterprint('done')
+    abort('Unequal x-positions for the 2*4 particles in the snapshots.\n'
+          'The symmetric initial conditions has produced nonsymmetrical results!')
 
 # Printout error message for unsuccessful test
 tol = 1e-2
 if (   max(np.abs(np.array(x0)/np.array(x0_gadget) - 1)) > tol
     or max(np.abs(np.array(x1)/np.array(x1_gadget) - 1)) > tol):
-    masterwarn('The results from CO𝘕CEPT disagree with those from GADGET.\n'
-               'See "{}" for a visualization.'.format(fig_file))
-    sys.exit(1)
+    abort('The results from CO𝘕CEPT disagree with those from GADGET.\n'
+          'See "{}" for a visualization.'.format(fig_file))
+
+# Done analyzing
+masterprint('done')
 

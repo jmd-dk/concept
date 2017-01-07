@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,10 +22,6 @@
 
 # This file has to be run in pure Python mode!
 
-# Include the concept_dir in the searched paths
-import sys, os
-sys.path.append(os.environ['concept_dir'])
-
 # Imports from the CO𝘕CEPT code
 from commons import *
 from species import Component
@@ -38,17 +34,17 @@ gridsize = 64
 Vcell = (boxsize/gridsize)**3
 speed = boxsize/(10*units.Gyr)
 N = gridsize**3
-mass = ϱmbar*boxsize**3/N
+mass = ρmbar*boxsize**3/N
 component = Component('test fluid', 'dark matter fluid', gridsize, mass)
-ϱ_noghosts = empty([gridsize]*3)
+ρ = empty([gridsize]*3)
 for i in range(gridsize):
-    ϱ_noghosts[i, :, :] = 2 + np.sin(2*π*i/gridsize)  # Unitless
-ϱ_noghosts /= sum(ϱ_noghosts)                         # Normalize
-ϱ_noghosts *= ϱmbar*gridsize**3                       # Apply units
-component.populate(ϱ_noghosts,                                           'ϱ'    )
-component.populate(ϱ_noghosts*ones([gridsize]*3)*speed,                  'ϱu', 0)
-component.populate(ϱ_noghosts*zeros([gridsize]*3),                       'ϱu', 1)
-component.populate(ϱ_noghosts*ones([gridsize]*3)*speed*(random()*2 - 1), 'ϱu', 2)
+    ρ[i, :, :] = 2 + np.sin(2*π*i/gridsize)  # Unitless
+ρ /= sum(ρ)                                  # Normalize
+ρ *= ρmbar*gridsize**3                       # Apply units
+component.populate(ρ,                        'ρ'    )
+component.populate(ρ*speed,                  'ρu', 0)
+component.populate(zeros([gridsize]*3),      'ρu', 1)
+component.populate(ρ*speed*(random()*2 - 1), 'ρu', 2)
 
 # Save snapshot
 save([component], IC_file)

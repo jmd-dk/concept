@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,12 +27,12 @@ _this_dir = os.path.dirname(paths['params'])
 IC_file       = _this_dir + '/output/snapshot.hdf5'
 snapshot_type = 'standard'
 output_dirs   = {'snapshot'       : _this_dir + '/output'}
-output_times  = {'terminal render': np.linspace(0.02, 1, 10)}
+output_times  = {'terminal render': logspace(log(0.02), log(1), 30, base=e)}
 render_select = {'all': True}
 
 # Numerical parameters
-boxsize     = 8*Mpc
-Δt_factor   = 0.01
+boxsize    = 64*Mpc
+φ_gridsize = 32
 
 # Cosmological parameters
 H0      = 70*km/s/Mpc
@@ -45,7 +45,7 @@ render_colors              = {'test particles': 'DarkGreen'}
 bgcolor                    = '0'
 resolution                 = 1080
 terminal_render_colormap   = 'gnuplot2'
-terminal_render_resolution = 80
+terminal_render_resolution = 64
 
 # Simulation options
 kick_algorithms = {'dark matter particles': 'PM'}

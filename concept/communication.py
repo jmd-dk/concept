@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,6 +25,34 @@
 from commons import *
 
 
+
+# Function for fairly partitioning data among the processes
+@cython.header(# Arguments
+               size='Py_ssize_t',
+               # Locals
+               size_local='Py_ssize_t',
+               start_local='Py_ssize_t',
+               rank_transition='Py_ssize_t',
+               returns='tuple',
+               )
+def partition(size):
+    """This function takes in the size (nr. of elements) of an array
+    and partitions it fairly among the processes.
+    Both the starting index and size of the local part are returned.
+    If the given size cannot be divided evenly, one additional element
+    will be given to the higher ranks.
+    """
+    # Size and starting index of local part of the data
+    size_local = size//nprocs
+    start_local = rank*size_local
+    # Lowest rank which receives one extra data point
+    rank_transition = nprocs + size_local*nprocs - size
+    # Correct local size and starting index for processes receiving
+    # the extra data point.
+    if rank >= rank_transition:
+        size_local += 1
+        start_local += rank - rank_transition
+    return start_local, size_local
 
 # Function for communicating sizes of receive buffers
 @cython.header(# Arguments
@@ -121,7 +149,6 @@ def find_N_recv(N_send):
                Δmemory='Py_ssize_t',
                )
 def exchange(component, reset_buffers=False):
-    global sendbuf, sendbuf_mv
     """This function will do an exchange of particles between processes,
     so that every particle resides on the process in charge of the
     domain where the particle is located. The variable indices_send
@@ -131,6 +158,7 @@ def exchange(component, reset_buffers=False):
     reset_buffers=True to reset these variables to their most basic
     forms, freeing up memory. 
     """
+    global sendbuf, sendbuf_mv
     # No need to consider exchange of particles if running serially
     if nprocs == 1:
         return
@@ -306,225 +334,169 @@ def exchange(component, reset_buffers=False):
     # Finalize exchange message
     masterprint('done')
 
-
-
 # Function for communicating boundary values of a
 # domain grid between processes.
 @cython.header(# Arguments
                domain_grid='double[:, :, ::1]',
-               mode='int',
+               mode='str',
                # Locals
-               domain_grid_noghosts='double[:, :, :]',
-               domain_size_i='Py_ssize_t',
-               domain_size_j='Py_ssize_t',
-               domain_size_k='Py_ssize_t',
+               i='int',
+               index_recv_end_i='Py_ssize_t',
+               index_recv_end_j='Py_ssize_t',
+               index_recv_end_k='Py_ssize_t',
+               index_recv_start_i='Py_ssize_t',
+               index_recv_start_j='Py_ssize_t',
+               index_recv_start_k='Py_ssize_t',
+               index_send_end_i='Py_ssize_t',
+               index_send_end_j='Py_ssize_t',
+               index_send_end_k='Py_ssize_t',
+               index_send_start_i='Py_ssize_t',
+               index_send_start_j='Py_ssize_t',
+               index_send_start_k='Py_ssize_t',
+               j='int',
+               k='int',
                operation='str',
-               point='double',
-               recv_direction='int',
-               recv_index_i='int',
-               recv_index_j='int',
-               recv_index_k='int',
-               send_direction='int',
-               send_index_i='int',
-               send_index_j='int',
-               send_index_k='int',
+               reverse='bint',
                )
-def communicate_domain_boundaries(domain_grid, mode=0):
-    """This function does not operate on the ghost layers of a domain
-    grid. Therefore, when referring to e.g. "the left face" or
-    "the right face" of the grid, what is meant is really the collection
-    of grid points on the physical leftmost or rightmost boundary of the
-    domain (which in the case of the right face will be pseudo points).
-    The parsed domain grid should however be the entire grid,
-    including pseudo points and ghost layers.
-    This function can operate in either mode 0 or mode 1.
-    Mode 0: The upper three faces (right, forward, up) of the grid as
-    well as the upper three edges (right forward, right upward, forward
-    upward) and the right, forward, upward point are communicated to the
-    processes where these correspond to the lower faces/edges/point.
-    The received values are added to the existing lower
-    faces/edges/point.
-    Mode 1: The lower three faces (left, backward, down) of the grid as
-    well as the lower three edges (left backward, left downward,
-    backward downward) and the left, backward, downward point are
-    communicated to the processes where these correspond to the upper
-    faces/edges/point. The received values replace the existing
-    upper faces/edges/point.
-    The comments below describe what happens in the case of mode 0.
-    Parenthesis in comments describe the case of mode 1.
-    """
-    # Memoryview over the domain grid excluding ghost layers
-    domain_grid_noghosts = domain_grid[2:(domain_grid.shape[0] - 2),
-                                       2:(domain_grid.shape[1] - 2),
-                                       2:(domain_grid.shape[2] - 2)]
-    # The size (number of grid points) of the truly local part of the
-    # domain grid, excluding both ghost layers and pseudo points,
-    # for each dimension.
-    domain_size_i = domain_grid_noghosts.shape[0] - 1
-    domain_size_j = domain_grid_noghosts.shape[1] - 1
-    domain_size_k = domain_grid_noghosts.shape[2] - 1
-    # Set the operation to be performed with the received data
-    # based on the mode.
-    if mode == 0:
-        operation = 'add'
-    elif mode == 1:
-        operation = 'copy' 
-    else:
-        abort('Mode {} not implemented'.format(mode))
-    # Send towards the +1 (-1) direction,
-    # meaning right/front/up (left/back/down).
-    send_direction = 1 - 2*mode
-    recv_direction = -send_direction
-    # The indices of the grid values to send/receive
-    # are domain_size_?/0 (0/domain_size_?).
-    send_index_i = (not mode)*domain_size_i
-    send_index_j = (not mode)*domain_size_j
-    send_index_k = (not mode)*domain_size_k
-    recv_index_i = mode*domain_size_i
-    recv_index_j = mode*domain_size_j
-    recv_index_k = mode*domain_size_k
-    # Communicate the right (left) face
-    smart_mpi(domain_grid_noghosts[send_index_i, :domain_size_j, :domain_size_k],
-              domain_grid_noghosts[recv_index_i, :domain_size_j, :domain_size_k],
-              dest  =rank_neighboring_domain(send_direction, 0, 0),
-              source=rank_neighboring_domain(recv_direction, 0, 0),
-              mpifun='Sendrecv',
-              operation=operation)
-    # Communicate the forward (backward) face
-    smart_mpi(domain_grid_noghosts[:domain_size_i, send_index_j, :domain_size_k],
-              domain_grid_noghosts[:domain_size_i, recv_index_j, :domain_size_k],
-              dest  =rank_neighboring_domain(0, send_direction, 0),
-              source=rank_neighboring_domain(0, recv_direction, 0),
-              mpifun='Sendrecv',
-              operation=operation)
-    # Communicate the upward (downward) face
-    smart_mpi(domain_grid_noghosts[:domain_size_i, :domain_size_j, send_index_k],
-              domain_grid_noghosts[:domain_size_i, :domain_size_j, recv_index_k],
-              dest  =rank_neighboring_domain(0, 0, send_direction),
-              source=rank_neighboring_domain(0, 0, recv_direction),
-              mpifun='Sendrecv',
-              operation=operation)
-    # Communicate the right, forward (left, backward) edge
-    smart_mpi(domain_grid_noghosts[send_index_i, send_index_j, :domain_size_k],
-              domain_grid_noghosts[recv_index_i, recv_index_j, :domain_size_k],
-              dest  =rank_neighboring_domain(send_direction, send_direction, 0),
-              source=rank_neighboring_domain(recv_direction, recv_direction, 0),
-              mpifun='Sendrecv',
-              operation=operation)
-    # Communicate the right, upward (left, backward) edge
-    smart_mpi(domain_grid_noghosts[send_index_i, :domain_size_j, send_index_k],
-              domain_grid_noghosts[recv_index_i, :domain_size_j, recv_index_k],
-              dest  =rank_neighboring_domain(send_direction, 0, send_direction),
-              source=rank_neighboring_domain(recv_direction, 0, recv_direction),
-              mpifun='Sendrecv',
-              operation=operation)
-    # Communicate the forward, upward (backward, downward) edge
-    smart_mpi(domain_grid_noghosts[:domain_size_i, send_index_j, send_index_k],
-              domain_grid_noghosts[:domain_size_i, recv_index_j, recv_index_k],
-              dest  =rank_neighboring_domain(0, send_direction, send_direction),
-              source=rank_neighboring_domain(0, recv_direction, recv_direction),
-              mpifun='Sendrecv',
-              operation=operation)
-    # Communicate the right, forward, upward
-    # (left, backward, downward) point.
-    smart_mpi(domain_grid_noghosts[send_index_i:(send_index_i + 1), send_index_j, send_index_k],
-              domain_grid_noghosts[recv_index_i:(recv_index_i + 1), recv_index_j, recv_index_k],
-              dest  =rank_neighboring_domain(send_direction,
-                                             send_direction,
-                                            send_direction),
-              source=rank_neighboring_domain(recv_direction,
-                                             recv_direction,
-                                             recv_direction),
-              mpifun='Sendrecv',
-              operation=operation)
+def communicate_domain(domain_grid, mode=''):
+    """This function can operate in two different modes,
+    'add contributions' and 'populate'. The comments in the function
+    body describe the case of mode == 'add contributions'.
 
-# Function for communicating ghost layers
-# of a domain grid between processes.
-@cython.header(# Arguments
-               domain_grid='double[:, :, ::1]',
-               # Locals
-               boundary_end_i='Py_ssize_t',
-               boundary_end_j='Py_ssize_t',
-               boundary_end_k='Py_ssize_t',
-               boundary_start_i='Py_ssize_t',
-               boundary_start_j='Py_ssize_t',
-               boundary_start_k='Py_ssize_t',
-               domain_grid_noxyghosts='double[:, :, :]',
-               domain_grid_noxzghosts='double[:, :, :]',
-               domain_grid_noyzghosts='double[:, :, :]',
-               ghost_start_i='Py_ssize_t',
-               ghost_start_j='Py_ssize_t',
-               ghost_start_k='Py_ssize_t',
-               )
-def communicate_domain_ghosts(domain_grid):
-    """This function assumes that the values at the pseudo points in the
-    domain grid are already correctly set. This means that the entire
-    physical grid is fully constructed. This function copies the
-    boundary layers of the domain grid to the neighboring processes.
-    That is, a total of 6 faces of depth 2 (boundary layers) are send
-    to the neighboring processes and received into the corresponding
-    ghost layers.
+    Mode 'add contributions':
+    This corresponds to local boundaries += nonlocal pseudos and ghosts.
+    The pseudo and ghost elements get send to the corresponding
+    neighbouring process, where these values are added to the existing
+    local values.
+    
+    Mode 'populate':
+    This corresponds to local pseudos and ghosts = nonlocal boundaries.
+    The values of the local boundary elements get send to the
+    corresponding neighbouring process, where these values replace the
+    existing values of the pseudo and ghost elements.
+    
+    A domain_grid consists of 27 parts; the local bulk,
+    6 faces (2 kinds), 12 edges (4 kinds) and 8 corners (8 kinds),
+    each with the following dimensions:
+    shape[0]*shape[1]*shape[2]  # Bulk
+    2*shape[1]*shape[2]         # Lower face
+    shape[0]*2*shape[2]         # Lower face
+    shape[0]*shape[1]*2         # Lower face
+    3*shape[1]*shape[2]         # Upper face
+    shape[0]*3*shape[2]         # Upper face
+    shape[0]*shape[1]*3         # Upper face
+    2*2*shape[2]                # Lower, lower edge
+    2*shape[1]*2                # Lower, lower edge
+    shape[0]*2*2                # Lower, lower edge
+    2*3*shape[2]                # Lower, upper edge
+    2*shape[1]*3                # Lower, upper edge
+    shape[0]*2*3                # Lower, upper edge
+    3*2*shape[2]                # Upper, lower edge
+    3*shape[1]*2                # Upper, lower edge
+    shape[0]*3*2                # Upper, lower edge
+    3*3*shape[2]                # Upper, upper edge
+    3*shape[1]*3                # Upper, upper edge
+    shape[0]*3*3                # Upper, upper edge
+    2*2*2                       # Lower, lower, lower corner
+    2*2*3                       # Lower, lower, upper corner
+    2*3*2                       # Lower, upper, lower corner
+    3*2*2                       # Upper, lower, lower corner
+    2*3*3                       # Lower, upper, upper corner
+    3*2*3                       # Upper, lower, upper corner
+    3*3*2                       # Upper, upper, lower corner
+    3*3*3                       # Upper, upper, upper corner
+    In the above, shape is the shape of the local grid.
+    That is, the total grid has
+    (shape[0] + 5)*(shape[2] + 5)*(shape[2] + 5) elements.
     """
-    # The start and end indices of the right/forward/upward
-    # boundary layers. The 5 is due to the ghost layer (thickness 2),
-    # the layer of pseudo points (thickness 1) and the boundary layer
-    # itself (thickness 2).
-    # The left/backward/downward boundary layers are always from index
-    # 3 to 3 + 2 = 5, where the 3 is due to the ghost layer (thickness
-    # 2) and the fact that the first layer of actual domain points is
-    # already known to the other process (as a layer of pseudo points
-    # with thickness 1).
-    boundary_start_i = domain_grid.shape[0] - 5
-    boundary_start_j = domain_grid.shape[1] - 5
-    boundary_start_k = domain_grid.shape[2] - 5
-    boundary_end_i = boundary_start_i + 2
-    boundary_end_j = boundary_start_j + 2
-    boundary_end_k = boundary_start_k + 2
-    # The start indices of the right/forward/upward ghost layers
-    ghost_start_i = boundary_end_i + 1
-    ghost_start_j = boundary_end_j + 1
-    ghost_start_k = boundary_end_k + 1
-    # Memoryviews over parts of the domain grid, where ghost layers
-    # in two of the three dimensions have been left out.
-    domain_grid_noyzghosts = domain_grid[:,               2:ghost_start_j, 2:ghost_start_k]
-    domain_grid_noxzghosts = domain_grid[2:ghost_start_i, :,               2:ghost_start_k]
-    domain_grid_noxyghosts = domain_grid[2:ghost_start_i, 2:ghost_start_j,               :]
-    # Send right, receive left
-    smart_mpi(domain_grid_noyzghosts[boundary_start_i:boundary_end_i, :, :],
-              domain_grid_noyzghosts[:2,                              :, :],
-              dest  =rank_neighboring_domain(+1, 0, 0),
-              source=rank_neighboring_domain(-1, 0, 0),
-              mpifun='Sendrecv')
-    # Send forward, receive backward
-    smart_mpi(domain_grid_noxzghosts[:, boundary_start_j:boundary_end_j, :],
-              domain_grid_noxzghosts[:, :2,                              :],
-              dest  =rank_neighboring_domain(0, +1, 0),
-              source=rank_neighboring_domain(0, -1, 0),
-              mpifun='Sendrecv')
-    # Send up, receive down
-    smart_mpi(domain_grid_noxyghosts[:, :, boundary_start_k:boundary_end_k],
-              domain_grid_noxyghosts[:, :,                              :2],
-              dest  =rank_neighboring_domain(0, 0, +1),
-              source=rank_neighboring_domain(0, 0, -1),
-              mpifun='Sendrecv')
-    # Send left, receive right
-    smart_mpi(domain_grid_noyzghosts[3:5,            :, :],
-              domain_grid_noyzghosts[ghost_start_i:, :, :],
-              dest  =rank_neighboring_domain(-1, 0, 0),
-              source=rank_neighboring_domain(+1, 0, 0),
-              mpifun='Sendrecv')
-    # Send backward, receive forward
-    smart_mpi(domain_grid_noxzghosts[:, 3:5, :],
-              domain_grid_noxzghosts[:, ghost_start_j:, :],
-              dest  =rank_neighboring_domain(0, -1, 0),
-              source=rank_neighboring_domain(0, +1, 0),
-              mpifun='Sendrecv')
-    # Send down, receive up
-    smart_mpi(domain_grid_noxyghosts[:, :, 3:5],
-              domain_grid_noxyghosts[:, :, ghost_start_k:],
-              dest  =rank_neighboring_domain(0, 0, -1),
-              source=rank_neighboring_domain(0, 0, +1),
-              mpifun='Sendrecv')
+    # Dependent on the mode, set the operation to be performed on the
+    # received data, and the direction of communication.
+    if mode == 'add contributions':
+        operation = '+='
+        reverse = False
+    elif mode == 'populate':
+        operation = '='
+        reverse = True
+    elif not mode:
+        abort('communicate_domain called with no mode.\n'
+              'Call with mode=\'add contributions\' or mode=\'populate\'.')
+    else:
+        abort('Mode "{}" not implemented'.format(mode))
+    for i in range(-1, 2):
+        if i == -1:
+            # Send left, receive right
+            index_send_start_i = 0
+            index_send_end_i   = 2
+            index_recv_start_i = ℤ[domain_grid.shape[0]] - 5
+            index_recv_end_i   = ℤ[domain_grid.shape[0] - 3]
+        elif i == 0:
+            # Do not send to or receive from this direction.
+            # Include the entire i-dimension of the local bulk.
+            index_send_start_i = 2
+            index_send_end_i   = ℤ[domain_grid.shape[0] - 3]
+            index_recv_start_i = 2
+            index_recv_end_i   = ℤ[domain_grid.shape[0] - 3]
+        else:  # i == -1
+            # Send right, receive left
+            index_send_start_i = ℤ[domain_grid.shape[0] - 3]
+            index_send_end_i   = ℤ[domain_grid.shape[0]]
+            index_recv_start_i = 2
+            index_recv_end_i   = 5
+        for j in range(-1, 2):
+            if j == -1:
+                # Send backward, receive forward
+                index_send_start_j = 0
+                index_send_end_j   = 2
+                index_recv_start_j = ℤ[domain_grid.shape[1] - 5]
+                index_recv_end_j   = ℤ[domain_grid.shape[1] - 3]
+            elif j == 0:
+                # Do not send to or receive from this direction.
+                # Include the entire j-dimension of the local bulk.
+                index_send_start_j = 2
+                index_send_end_j   = ℤ[domain_grid.shape[1] - 3]
+                index_recv_start_j = 2
+                index_recv_end_j   = ℤ[domain_grid.shape[1] - 3]
+            else:  # j == -1
+                # Send forward, receive backward
+                index_send_start_j = ℤ[domain_grid.shape[1] - 3]
+                index_send_end_j   = ℤ[domain_grid.shape[1]]
+                index_recv_start_j = 2
+                index_recv_end_j   = 5
+            for k in range(-1, 2):
+                # Do not communicate the local bulk
+                if i == j == k == 0:
+                    continue
+                if k == -1:
+                    # Send downward, receive upward
+                    index_send_start_k = 0
+                    index_send_end_k   = 2
+                    index_recv_start_k = ℤ[domain_grid.shape[2] - 5]
+                    index_recv_end_k   = ℤ[domain_grid.shape[2] - 3]
+                elif k == 0:
+                    # Do not send to or receive from this direction.
+                    # Include the entire k-dimension of the local bulk.
+                    index_send_start_k = 2
+                    index_send_end_k   = ℤ[domain_grid.shape[2] - 3]
+                    index_recv_start_k = 2
+                    index_recv_end_k   = ℤ[domain_grid.shape[2] - 3]
+                else:  # k == -1
+                    # Send upward, receive downward
+                    index_send_start_k = ℤ[domain_grid.shape[2] - 3]
+                    index_send_end_k   = ℤ[domain_grid.shape[2]]
+                    index_recv_start_k = 2
+                    index_recv_end_k   = 5
+                # Communicate this part
+                smart_mpi(domain_grid[index_send_start_i:index_send_end_i,
+                                      index_send_start_j:index_send_end_j,
+                                      index_send_start_k:index_send_end_k],
+                          domain_grid[index_recv_start_i:index_recv_end_i,
+                                      index_recv_start_j:index_recv_end_j,
+                                      index_recv_start_k:index_recv_end_k],
+                          dest  =rank_neighboring_domain(+i, +j, +k),
+                          source=rank_neighboring_domain(-i, -j, -k),
+                          reverse=reverse,
+                          mpifun='Sendrecv',
+                          operation=operation)
 
 # Function for cutting out domains as rectangular boxes in the best
 # possible way. The return value is an array of 3 elements; the number
@@ -630,10 +602,11 @@ def rank_neighboring_domain(i, j, k):
 
 # Function implementing a more intelligent version of Sendrecv
 @cython.pheader(# Arguments
-                block_send='object',  # Memoryview of any dimension < 4
-                block_recv='object',  # Memoryview of any dimension < 4
+                block_send='object',  # Memoryview of dimension 1, 2 or 3
+                block_recv='object',  # Memoryview of dimension 1, 2 or 3
                 dest='int',
                 source='int',
+                reverse='bint',
                 mpifun='str',
                 operation='str',
                 # Local
@@ -656,9 +629,12 @@ def rank_neighboring_domain(i, j, k):
                 sending='bint',
                 size_recv='Py_ssize_t',
                 size_send='Py_ssize_t',
+                sizes_recv='Py_ssize_t[::1]',
+                reverse_mpifun_mapping='dict',
                 returns='object',  # NumPy array or mpi4py.MPI.Request
                 )
-def smart_mpi(block_send=[], block_recv=[], dest=-1, source=-1, mpifun='', operation='copy'):
+def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1,
+              reverse=False, mpifun='', operation='='):
     """This function will do MPI communication. It will send the data in
     the array/memoryview block_send to the process of rank dest
     and receive data into array/memoryview block_recv from rank source.
@@ -669,18 +645,25 @@ def smart_mpi(block_send=[], block_recv=[], dest=-1, source=-1, mpifun='', opera
     is larger than 1. Though for the sake of performance, always parse
     a fitting block_recv.
     The MPI function to use is specified in the mpifun argument
-    (e.g. mpifun='sendrecv' or mpifun='send').
+    (e.g. mpifun='sendrecv' or mpifun='send'). Uppercase communication
+    (array communication) is always used, regardless of the case of the
+    value of mpifun.
     All arguments are optional, so that it is not needed to specify e.g.
     block_recv when doing a Send. For Cython to be able to compile this,
     a cython.pheader decorator is used (corresponding to cython.ccall
-    or cpdef).
+    or cpdef). Also, if a call to smart_mpi results in a receive but not
+    a send, block_recv can be parsed as the first argument
+    instead of block_send (which is not used in this case).
+    It is allowed not to parse in a block_recv, even when a message
+    should be received. In that case, the recvbuf buffer will be used
+    and returned.
     The received data can either be copied into block_recv (overwriting
     existing data) or it can be added to the existing data. Change
-    this behaviour through the operation argument (operation='copy' or
-    operation='add').
+    this behaviour through the operation argument (operation='=' or
+    operation='+=').
     If the parsed blocks are contiguous, they will be used directly
     in the communication (though in the case of block_recv, only when
-    operation='copy'). If not, contiguous buffers will be used. The
+    operation='='). If not, contiguous buffers will be used. The
     buffers used are the variables sendbuf/sendbuf_mv and
     recvbuf/recvbuf_mv. These will be enlarged if necessary.
     Since the buffers contain doubles, the parsed arrays must also
@@ -691,15 +674,16 @@ def smart_mpi(block_send=[], block_recv=[], dest=-1, source=-1, mpifun='', opera
     What is returned depends on the choice of mpifun. Whenever a message
     should be received, the parsed block_recv is returned (as block_recv
     is populated with values in-place, this is rarely used). When a
-    non-blocking send is used, the MPI request is returned. In all other
-    cases, nothing is returned.
-    It is allowed not to parse in a block_recv, even when a message
-    should be received. In that case, the recvbuf buffer will be used
-    and returned.
+    non-blocking send-only is used, the MPI request is returned. In a
+    blocking send-only is used, None is returned.
+    If reverse == True, the communication is reversed, meaning that
+    sending block_send to dist and receiving into block_recv from source
+    turns into sending block_recv to source and receiving into
+    block_send from dist.
     """
     global sendbuf, sendbuf_mv, recvbuf, recvbuf_mv
     # Sanity check on operation argument
-    if operation not in ('copy', 'add') and master:
+    if operation not in ('=', '+=') and master:
         abort('Operation "{}" is not implemented'.format(operation))
     # Determine whether we are sending and/or receiving
     mpifun = mpifun.lower()
@@ -717,11 +701,29 @@ def smart_mpi(block_send=[], block_recv=[], dest=-1, source=-1, mpifun='', opera
             recving = True
             if source == -1:
                 abort('Cannot receive when no source is given')
-    if not sending and not recving and master:
+    if not sending and not recving:
         if mpifun:
             abort('MPI function "{}" not understood'.format(mpifun))
         else:
             abort('Which MPI function to use is not specified')
+    # If requested, reverse the communication direction
+    if reverse:
+        # Swap the send and receive blocks
+        block_send, block_recv = block_recv, block_send
+        # Swap the source and destination
+        dest, source = source, dest
+        # Reverse the MPI function
+        reverse_mpifun_mapping = {'recv'    : 'send',
+                                  'send'    : 'recv',
+                                  'sendrecv': 'sendrecv',
+                                   }
+        if mpifun not in reverse_mpifun_mapping:
+            abort('MPI function "{}" cannot be reversed'.format(mpifun))
+        mpifun = reverse_mpifun_mapping[mpifun]
+    # If only receiving, block_recv should be
+    # accessible as the first argument.
+    if not sending and recving and len(block_send) and not len(block_recv):
+        block_send, block_recv = block_recv, block_send
     # NumPy arrays over the data
     arr_send = asarray(block_send)
     arr_recv = asarray(block_recv)
@@ -747,7 +749,13 @@ def smart_mpi(block_send=[], block_recv=[], dest=-1, source=-1, mpifun='', opera
     size_recv = 0
     if sending and recving:
         if mpifun == 'allgather':
+            # A block of size_send is to be received from each process
             size_recv = nprocs*size_send
+        elif mpifun == 'allgatherv':
+            # The blocks to be received from each process may have
+            # different sizes. Communicate these sizes.
+            sizes_recv = empty(nprocs, dtype=C2np['Py_ssize_t'])
+            Allgather(asarray(size_send, dtype=C2np['Py_ssize_t']), sizes_recv)
         else:
             # Communicate the size of the data to be exchanged
             size_recv = sendrecv(size_send, dest=dest, source=source)
@@ -771,8 +779,8 @@ def smart_mpi(block_send=[], block_recv=[], dest=-1, source=-1, mpifun='', opera
             sendbuf = realloc(sendbuf, size_send*sizeof('double'))
             sendbuf_mv = cast(sendbuf, 'double[:size_send]')
         data_send = sendbuf_mv[:size_send]
-    if contiguous_recv and operation == 'copy':
-        # Only if operation == 'copy' can we receive
+    if contiguous_recv and operation == '=':
+        # Only if operation == '=' can we receive
         # directly into the input array.
         data_recv = arr_recv
     else:
@@ -812,6 +820,8 @@ def smart_mpi(block_send=[], block_recv=[], dest=-1, source=-1, mpifun='', opera
     # Do the communication
     if mpifun == 'allgather':
         Allgather(data_send, data_recv)
+    elif mpifun == 'allgatherv':
+        Allgatherv(data_send, (data_recv, sizes_recv))
     elif mpifun == 'isend':
         return Isend(data_send, dest=dest)
     elif mpifun == 'recv':
@@ -824,50 +834,51 @@ def smart_mpi(block_send=[], block_recv=[], dest=-1, source=-1, mpifun='', opera
         abort('MPI function "{}" is not implemented'.format(mpifun))
     # Copy or add the received data from the buffer
     # to the parsed block_recv (arr_recv), if needed.
-    if recving:
-        index = 0
-        if operation == 'copy' and not contiguous_recv:
-            if dims_recv == 1:
-                mv_1D = arr_recv
-                for i in range(size_recv):
-                    mv_1D[i] = recvbuf[i]
-            elif dims_recv == 2:
-                mv_2D = arr_recv
-                for i in range(mv_2D.shape[0]):
-                    for j in range(mv_2D.shape[1]):
-                        mv_2D[i, j] = recvbuf[index]
+    if not recving:
+        return
+    index = 0
+    if operation == '=' and not contiguous_recv:
+        if dims_recv == 1:
+            mv_1D = arr_recv
+            for i in range(size_recv):
+                mv_1D[i] = recvbuf[i]
+        elif dims_recv == 2:
+            mv_2D = arr_recv
+            for i in range(mv_2D.shape[0]):
+                for j in range(mv_2D.shape[1]):
+                    mv_2D[i, j] = recvbuf[index]
+                    index += 1
+        elif dims_recv == 3:
+            mv_3D = arr_recv
+            for i in range(mv_3D.shape[0]):
+                for j in range(mv_3D.shape[1]):
+                    for k in range(mv_3D.shape[2]):
+                        mv_3D[i, j, k] = recvbuf[index]
                         index += 1
-            elif dims_recv == 3:
-                mv_3D = arr_recv
-                for i in range(mv_3D.shape[0]):
-                    for j in range(mv_3D.shape[1]):
-                        for k in range(mv_3D.shape[2]):
-                            mv_3D[i, j, k] = recvbuf[index]
-                            index += 1
-            else:
-                abort('Cannot handle block_recv of dimension {}'.format(dims_recv))
-        elif operation == 'add':
-            if dims_recv == 1:
-                mv_1D = arr_recv
-                for i in range(size_recv):
-                    mv_1D[i] += recvbuf[i]
-            elif dims_recv == 2:
-                mv_2D = arr_recv
-                for i in range(mv_2D.shape[0]):
-                    for j in range(mv_2D.shape[1]):
-                        mv_2D[i, j] += recvbuf[index]
+        else:
+            abort('Cannot handle block_recv of dimension {}'.format(dims_recv))
+    elif operation == '+=':
+        if dims_recv == 1:
+            mv_1D = arr_recv
+            for i in range(size_recv):
+                mv_1D[i] += recvbuf[i]
+        elif dims_recv == 2:
+            mv_2D = arr_recv
+            for i in range(mv_2D.shape[0]):
+                for j in range(mv_2D.shape[1]):
+                    mv_2D[i, j] += recvbuf[index]
+                    index += 1
+        elif dims_recv == 3:
+            mv_3D = arr_recv
+            for i in range(mv_3D.shape[0]):
+                for j in range(mv_3D.shape[1]):
+                    for k in range(mv_3D.shape[2]):
+                        mv_3D[i, j, k] += recvbuf[index]
                         index += 1
-            elif dims_recv == 3:
-                mv_3D = arr_recv
-                for i in range(mv_3D.shape[0]):
-                    for j in range(mv_3D.shape[1]):
-                        for k in range(mv_3D.shape[2]):
-                            mv_3D[i, j, k] += recvbuf[index]
-                            index += 1
-            else:
-                abort('Cannot handle block_recv of dimension {}'.format(dims_recv))
-        # Return the now populated block_recv (arr_recv)
-        return arr_recv
+        else:
+            abort('Cannot handle block_recv of dimension {}'.format(dims_recv))
+    # Return the now populated block_recv (arr_recv)
+    return arr_recv
 
 # Cutout domains at import time
 cython.declare(domain_subdivisions='int[::1]',
@@ -893,7 +904,7 @@ domain_subdivisions = cutout_domains(nprocs)
 # The global 3D layout of the division of the box
 domain_layout = arange(nprocs, dtype=C2np['int']).reshape(domain_subdivisions)
 # The indices in domain_layout of the local domain
-domain_layout_local_indices = np.array(np.unravel_index(rank, domain_subdivisions), dtype=C2np['int'])
+domain_layout_local_indices = asarray(np.unravel_index(rank, domain_subdivisions), dtype=C2np['int'])
 # The size of the domain, which are the same for all of them
 domain_size_x = boxsize/domain_subdivisions[0]
 domain_size_y = boxsize/domain_subdivisions[1]

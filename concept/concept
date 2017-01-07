@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,6 +25,16 @@
 # This script runs the CO𝘕CEPT code.
 # Run the script with the -h option to get help.
 
+# Unless this file is being sourced,
+# automatically export all variables when set.
+being_sourced="True"
+if [ "${BASH_SOURCE[0]}" == "${0}" ]; then
+    being_sourced="False"
+fi
+if [ "${being_sourced}" == "False" ]; then
+    set -a
+fi
+
 # List of remote queues and number of CPUs per node
 queues=()
 ppns=()
@@ -40,15 +50,15 @@ this_dir="$(dirname "${this_file}")"
 
 # The user's current working directory
 if [ -z "${workdir}" ]; then
-    export workdir="$(pwd)"
+    workdir="$(pwd)"
 fi
 
 # For the terminal to be able to print Unicode characters correctly,
 # the terminal charset needs to be compatible.
-export LC_CTYPE="en_US.UTF-8"
+LC_CTYPE="en_US.UTF-8"
 # Set the terminal if unset or broken
 if [ -z "${TERM}" ] || [ "${TERM}" == "dumb" ]; then
-    export TERM="linux"
+    TERM="linux"
 fi
 
 # ANSI/VT100 escape sequences
@@ -74,11 +84,14 @@ while :; do
     curr="$(dirname "${curr}")"
 done
 
+# The time before any computation begins
+start_time=$("${python}" -B -c "import time; print(time.time())")
+
 # Function for printing colored messages
 colorprint()
 {
 # Arguments: Message, color
-"${python}" -c "
+"${python}" -B -c "
 import sys
 from blessings import Terminal
 terminal = Terminal(force_styling=True)
@@ -99,7 +112,7 @@ print_logo()
 '
     # Plot the logo via Python's matplotlib.
     # This uses up the the 16th and 17th color of the terminal.
-    "${python}" -c "
+    "${python}" -B -c "
 import numpy as np, matplotlib
 # Apply colormap
 colors = ([0.09, 0.84, 0.05], [0.98, 0.47, 0.20])
@@ -118,11 +131,11 @@ for i, row in enumerate(rows):
         ANSI.append('\\x1b[38;5;{}m{}'.format(colornumber, c))
     ANSI.append('\\x1b[0m\\n')
 # Print the ANSI image
-print(''.join(ANSI), end='')
+print(''.join(ANSI), end='', flush=True)
      "
 }
 # Print out the logo the first time an execution reaches this point
-if [ "${logo_printed}" != "True" ]; then
+if [ "${logo_printed}" != "True" ] && [ "${being_sourced}" == "False" ]; then
     print_logo
     export logo_printed="True"
 fi
@@ -158,15 +171,39 @@ absolute_path()
 # concept directory. Otherwise, return the absolute path back again.
 sensible_path()
 {
-"${python}" -c "
+"${python}" -B -c "
 path = '${1}'
 from os.path import relpath
 rel = relpath(path, '${concept_dir}')
 print(path if rel.startswith('../../') else rel)"
 }
 
+# Function which prints a parsed Bash array
+# in the format of a Python list.
+bash_array2python_list()
+{
+    # Call like this: bash_array2python_list array[@]
+    declare -a array=("${!1}")
+    local list=''
+    local element
+    for element in "${array[@]}"; do
+        # If element is a string, encapsulate it in quotation marks
+        element=$("${python}" -B -c "
+try:
+    eval(\"${element}\")
+    print(\"${element}\")
+except:
+    print('\"{}\"'.format(\"${element}\"))
+")
+        # Append element to list
+        list="$(echo "${list}")${element}, "
+    done
+    list="[$(echo "${list}")]"
+    echo "${list}"
+}
+
 # If this file is being sourced, return now
-if [ "${BASH_SOURCE[0]}" != "${0}" ]; then
+if [ "${being_sourced}" == "True" ]; then
     this_file="${this_file_backup}"
     this_dir="${this_dir_backup}"
     return
@@ -194,7 +231,7 @@ nowatch_default="False"
 nprocs_default=1
 params_default="None"
 pure_python_default="False"
-walltime_default=72
+walltime_default=6
 
 # Initial but illegal values of some command-line arguments,
 # for testing whether these arguments have been supplied.
@@ -207,12 +244,21 @@ util_unspecified="__none__"
 # Change to the concept code directory
 cd "${concept_dir}"
 
+# Add the concept directory to searched paths
+# when importing modules in Python.
+PYTHONPATH="${concept_dir}:${PYTHONPATH}"
+
 # On some systems, libpng finds a wrong version of the zlib shared
 # library. To fix this we export the zlib library at run time.
-export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
+LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
+
+# The MPI executables and libraries should be
+# on the PATH and LD_LIBRARY_PATH, respectively.
+PATH="${mpi_dir}/bin:${PATH}"
+LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}"
 
 # Use Python's argparse module to handle command-line arguments
-args=$("${python}" -c "
+args=$("${python}" -B -c "
 import argparse, sys
 # Function which checks whether input is a
 # representation of a positive integer.
@@ -347,6 +393,46 @@ if [ "${util}" != "${util_unspecified}" ]; then
     util="${utilities_dir}/$(basename "${util}")"
 fi
 
+# Function for doing fuzzy comparisons between
+# illegal concept options and possible correct ones.
+concept_options=("$@")
+suggest_correct_invocation()
+{
+    # First argument: The illegal option
+    # Second argument: The option type ('test' or 'util')
+    illegal_option="$(basename "$1")"
+    invocation="$0"
+    for arg in "${concept_options[@]}"; do
+        if [ "${replace_next}" == "True" ]; then
+            invocation="${invocation} __replace__"
+            replace_next="False"
+        else
+            invocation="${invocation} ${arg}"
+        fi
+        if    ([ "$2" == "test" ] && ([ "${arg}" == "-t" ] || [ "${arg}" == "--test" ])) \
+           || ([ "$2" == "util" ] && ([ "${arg}" == "-u" ] || [ "${arg}" == "--util" ])); then
+            replace_next="True"
+        fi
+    done
+    "${python}" -B -c "
+import difflib, shutil, os
+if '$2' == 'test':
+    files = os.listdir('${tests_dir}')
+    possibilities = [file for file in files if os.path.isdir('${tests_dir}/' + file)]
+elif '$2' == 'util':
+    files = os.listdir('${utilities_dir}')
+    possibilities = [file for file in files if shutil.which('${utilities_dir}/' + file)]
+max_ratio = 0
+for possibility in possibilities:
+    ratio = difflib.SequenceMatcher(a='${illegal_option}', b=possibility).ratio()
+    if ratio > max_ratio:
+        max_ratio = ratio
+        closest_match = possibility
+if max_ratio > 0.01:
+    print('Did you mean:\n${invocation}'.replace('__replace__', closest_match))
+                   "
+}
+
 # Do the supplied paths exist?
 if [ "${main_as_command}" == "no" ] && [ ! -f "${main}" ]; then
     colorprint "Error: Entry point \"${main}\" does not exist!" "red"
@@ -358,117 +444,213 @@ if [ "${params}" != "${params_unspecified}" ] && [ ! -f "${params}" ]; then
 fi
 if [ "${test}" != "${test_unspecified}" ] && [ "${test}" != "all" ] && [ ! -d "${test}" ]; then
     colorprint "Error: Test \"${test}\" does not exist!" "red"
+    # Suggest closest match
+    suggest_correct_invocation "${test}" "test"
     exit 1
 fi
 if [ "${util}" != "${util_unspecified}" ] && [ ! -f "${util}" ]; then
     colorprint "Error: Utility \"${util}\" does not exist!" "red"
+    # Suggest closest match
+    suggest_correct_invocation "${util}" "util"
     exit 1
 fi
 
 # Assigned values to unspecified parameters
-running_test_or_util="False"
-if [ "${util}" != "${util_unspecified}" ] || [ "${test}" != "${test_unspecified}" ]; then
-    running_test_or_util="True"
-fi
 if [ "${nprocs}" == "${nprocs_unspecified}" ]; then
     nprocs="${nprocs_default}"
-    if [ "${running_test_or_util}" == "False" ]; then
-        if [ ${nprocs} == 1 ]; then
-            echo "Number of processes not specified - Will run serially"
-        else
-            echo "Number of processes not specified - Will use ${nprocs}"
-        fi
-    fi
 fi
 if [ "${params}" == "${params_unspecified}" ]; then
     params="${params_default}"
-    if [ "${running_test_or_util}" == "False" ]; then
-        echo "Parameterfile not specified - Will use default parameters"
-    fi
 fi
 
 # If a test is to be run, run it and exit
 if [ "${test}" != "${test_unspecified}" ]; then
+    # Function which can extract parameters from the parameter file
+    # given by "${this_dir}/params". This is used by some tests.
+    get_param()
+    {
+        "${concept}" -n 1                                                    \
+                     -p "${this_dir}/params"                                 \
+                     -m "from commons import *; print('param_var =', ${1})"  \
+                     --pure-python                                           \
+                     --local                                                 \
+                     | grep "param_var"                                      \
+                     | tail -n 1                                             \
+                     | sed 's/^.\{12\}//'
+    }
     if [ "${test}" == "all" ]; then
-        trap : 0
-        for dir in "${tests_dir}/"*/; do
-            dir=${dir%*/}
-            colorprint "\nRunning $(basename "${dir}") test" "yellow"
-            "${dir}/run_test"
+        # Find and run all tests
+        tests="$(cd "${tests_dir}" && "${python}" -B -c "
+import glob
+# List tests in order of required execution.
+# Tests not included here will be run last.
+order = (# Test whether the code is able to compile and run
+         'basic',
+         # Test of the GADGET installation
+         'gadget',
+         # Tests of the particle implementation
+         'drift_noHubble',
+         'drift',
+         'kick_PP_without_Ewald',
+         'kick_PP_with_Ewald',
+         # Tests of the PP implementation
+         'pure_python_PP',
+         'concept_vs_gadget_PP',
+         'nprocs_PP',
+         # Tests of the PM implementation
+         'pure_python_PM',
+         'concept_vs_gadget_PM',
+         'nprocs_PM',
+         # Tests of the P³M implementation
+         'pure_python_P3M',
+         'concept_vs_gadget_P3M',
+         'nprocs_P3M',
+         # Test of the power spectrum functionality
+         'powerspec',
+         # Tests of the fluid implementation
+         'fluid_drift_rigid_noHubble',
+         'fluid_drift_rigid',
+         'fluid_gravity_noHubble',
+         'fluid_gravity',
+         'fluid_vacuum',
+         'fluid_vs_particles',
+         'fluid_pressure',
+         # Tests of other functionality
+         'render',
+         )
+# Find all tests (directories in ${tests_dir}).
+# Skip test if its (directory) name has a leading underscore.
+tests = (dir[:-1] for dir in glob.glob('*/') if not dir.startswith('_'))
+# Sort the tests based on the order given above
+sorted_tests = sorted(tests, key=lambda test: order.index(test) if test in order else len(order))
+for test in sorted_tests:
+    print(test)
+"              )"
+        # Run all tests in the test directory
+        echo "The following tests will be run in order:"
+        for test_name in ${tests}; do
+            echo "    ${test_name}"
+        done
+        for test_name in ${tests}; do
+            start_time_test=$("${python}" -B -c "import time; print(time.time())")
+            colorprint "\nRunning ${test_name} test" "yellow"
+            "${tests_dir}/${test_name}/run_test"
+            colorprint "${test_name} test ran successfully" "green"
+            # Print out the execution time for this test
+            "${python}" -B -c "from commons import *; print('Total execution time: {}'.format(time_since(${start_time_test})))"
         done
         colorprint "\nAll tests ran successfully" "green"
     else
-        colorprint "Running $(basename "${test}") test" "yellow"
-        trap : 0
+        # Run specific test
+        test_name="$(basename "${test}")"
+        colorprint "Running ${test_name} test" "yellow"
         "${test}/run_test"
+        colorprint "${test_name} test ran successfully" "green"
     fi
+    # Print out the total time it took to ran the test(s)
+    "${python}" -B -c "from commons import *; print('Total execution time: {}'.format(time_since(${start_time})))"
+    # Deactivate traps and exit
+    trap : 0
     exit 0
 fi
 
-# Compile or do cleanup from last compilation
-if [ "${pure_python}" == "True" ] ; then
-    # Rename compiled Cython modules *.so to *.so_
-    if ls "${concept_dir}/"*.so > /dev/null 2>&1; then
-        (cd "${concept_dir}" && for f in *.so; do
-                                    mv "${f}" "${f%.so}.so_"
-                                done
-         )
-    fi
-else
-    # Rename compiled Cython modules *.so_ back to *.so
-    # and compile with Cython.
-    if ls "${concept_dir}/"*.so_ > /dev/null 2>&1; then
-        (cd "${concept_dir}" && for f in *.so_; do
-                                    mv "${f}" "${f%.so_}.so"
-                                done
-         )
-    fi
-    (cd "${concept_dir}" && make)
+# Check whether this script is run locally or remotely via ssh
+ssh="True"
+if [ -z "${SSH_CLIENT}" ] && [ -z "${SSH_TTY}" ]; then
+    ssh="False"  
 fi
 
-# Determine whether this script is run locally or remotely via ssh.
+# Determine the MPI implentations used
+if [ -f "${mpi_dir}/bin/ompi_info" ]; then
+    mpi_implementation="openmpi"
+elif [ -f "${mpi_dir}/bin/mpichversion" ]; then
+    mpi_implementation="mpich"
+else
+    mpi_implementation="unknown"
+fi
+
+# MPI implementation specifics
+if [ "${mpi_implementation}" == "openmpi" ]; then
+    # Extra arguments to pass to mpiexec
+    mpiexec_args=""
+    # If OpenMPI complains about openib, it may be having problems
+    # with infiniband. Try adding "-mca btl ^openib" to mpiexec_args.
+    # Note that --prefix should not be used,
+    # as the absolute path to mpiexec is given.
+    # MPI preparations (bash code)
+    mpi_preparations="# Disable aggregation of OpenMPI warnings
+                      export OMPI_MCA_orte_base_help_aggregate=0
+                      # Disable OpenMPI warning about forking
+                      export OMPI_MCA_mpi_warn_on_fork=0
+                      "
+elif [ "${mpi_implementation}" == "mpich" ]; then
+    # Extra arguments to pass to mpiexec
+    mpiexec_args=""
+    # MPI preparations (bash code)
+    mpi_preparations=""
+fi
+eval "${mpi_preparations}"
+
+# Compile or do cleanup from last compilation.
+# The only time where neither should be done
+# is when running the watch utility.
+if [ "$(basename "${util}")" != "watch" ]; then
+    if [ "${pure_python}" == "True" ]; then
+        # Rename compiled Cython modules *.so to *.so_
+        if ls "${concept_dir}/"*.so > /dev/null 2>&1; then
+            (cd "${concept_dir}" && for f in *.so; do
+                                        mv "${f}" "${f%.so}.so_"
+                                    done
+             )
+        fi
+    else
+        # Rename compiled Cython modules *.so_ back to *.so
+        # and compile with Cython.
+        if ls "${concept_dir}/"*.so_ > /dev/null 2>&1; then
+            (cd "${concept_dir}" && for f in *.so_; do
+                                        mv "${f}" "${f%.so_}.so"
+                                    done
+             )
+        fi
+        # Compile all the modules. If working locally, do it in parallel.
+        if [ "${ssh}" == "True" ]; then
+            (cd "${concept_dir}" && make)
+        else
+            (cd "${concept_dir}" && make -j)
+        fi
+    fi
+fi
+
+# Determine wheter to run CO𝘕CEPT locally or remotely (via PBS).
 # Always treat tests as if they were run locally.
 remote="False"
 if [ "${local}" == "False" ] && [ "${test}" == "${test_unspecified}" ] \
-                             && ([ -n "${SSH_CLIENT}" ] || [ -n "${SSH_TTY}" ]); then
+                             && [ "${ssh}" == "True" ]; then
     remote="True"
 fi
-export remote="${remote}"
 
 # If a utility is to be run, run it and exit
 if [ "${util}" != "${util_unspecified}" ]; then
     # If no argument was passed after the -u option,
-    # util_ars should be empty.
-    if [ "${util_args}" == '""' ]; then
+    # util_args should be empty.
+    if [ "${util_args}" == '""' ] || [ "${util_args}" == "''" ]; then
         util_args=""
     fi
-    # Export every command-line argument. These will be fed back into
-    # this script when called from the utility.
-    export main="${main}"
-    export nprocs="${nprocs}"
-    export params="${params}"
-    export queue="${queue}"
-    export test="${test}"
-    export util="${util}"
-    export walltime="${walltime}"
-    export local="${local}"
+    # Set flag variables for the flag command options,
+    # so that a utility can call this script with the same flags enabled
+    # as what used to invoke this script originally.
     local_flag=""
     if [ "${local}" == "True" ]; then
         local_flag="--local"
     fi
-    export local_flag="${local_flag}"
-    export nowatch="${nowatch}"
     nowatch_flag=""
     if [ "${nowatch}" == "True" ]; then
         nowatch_flag="--nowatch"
     fi
-    export nowatch_flag="${nowatch_flag}"
-    export pure_python="${pure_python}"
     pure_python_flag=""
     if [ "${pure_python}" == "True" ]; then
         pure_python_flag="--pure-python"
     fi
-    export pure_python_flag="${pure_python_flag}"
     # Run utility util and exit
     colorprint "Running the $(basename "${util}") utility" "yellow"
     trap : 0
@@ -477,6 +659,8 @@ if [ "${util}" != "${util_unspecified}" ]; then
     else
         called_from_concept="True" "${util}" "${util_args[@]}"
     fi
+    # Print out the total execution time for this utility
+    "${python}" -B -c "from commons import *; print('Total execution time: {}'.format(time_since(${start_time})))"
     exit 0
 fi
 
@@ -650,13 +834,12 @@ if [ -z \"\${TERM}\" ] || [ \"\${TERM}\" == \"dumb\" ]; then
     export TERM=\"linux\"
 fi
 
+# Do MPI preparations, if any
+${mpi_preparations}
+
 # Set and export path environment variables
 export PATH=\"${PATH}:\${PATH}\"
 export LD_LIBRARY_PATH=\"${LD_LIBRARY_PATH}:\${LD_LIBRARY_PATH}\"
-
-# On some systems, libpng finds a wrong version of the zlib shared
-# library. To fix this we export the zlib library at run time.
-export LD_LIBRARY_PATH=\"${zlib_dir}/lib:\${LD_LIBRARY_PATH}\"
 
 # Source the concept script
 source \"${concept}\"
@@ -680,26 +863,37 @@ echo \"Nr. of CPUs:   ${nprocs}\"                             >> \"${logs_dir}/\
 
 # Prepare Python options
 if [ \"${main_as_command}\" == \"yes\" ]; then
-    # Run as Python command
+    # Run main as Python command
     main_as_library=\"${main}\"
     m_flag=\"-c\"
 else
     if [ \"${pure_python}\" == \"True\" ]; then
-        # Run as normal Python script
+        # Run main as normal Python script
         main_as_library=\"${main}\"
         m_flag=\"\"
     else
-        # Run as compiled library module
-        main_as_library=\"$(basename "${main%.*}.so")\"
-        m_flag=\"-m\"
+        main_as_library=\"${main%.*}.so\"
+        if [ -f \"\${main_as_library}\" ]; then
+            # Run main as compiled library module
+            main_as_library=\"\$(basename \"\${main_as_library}\")\"
+            m_flag=\"-m\"
+        else
+            # Run main as normal Python script,
+            # even though the CO𝘕CEPT modules are compiled.
+            main_as_library=\"${main}\"
+            m_flag=\"\"
+        fi
     fi
 fi
 
 # Run the code. Both stdout and stderr are being logged to logs_dir/jobid,
 # while the stderr alone is also logged to logs_dir/jobid_err.
-(cd \"${concept_dir}\" && \"${mpiexec}\" \"${python}\" -B \${m_flag} \"\${main_as_library}\" \
-\"params='${params}'\" \"scp_password='${scp_password}'\" \
->> \"${logs_dir}/\${jobid}\" 2>> >(tee -a \"${logs_dir}/\${jobid}_err\"))
+(cd \"${concept_dir}\" && \"${mpiexec}\" ${mpiexec_args}                                  \
+                                         \"${python}\" -B                                 \
+                                                       \${m_flag} \"\${main_as_library}\" \
+                                                       \"params='${params}'\"             \
+                                                       \"scp_password='${scp_password}'\" \
+ >> \"${logs_dir}/\${jobid}\" 2>> >(tee -a \"${logs_dir}/\${jobid}_err\"))
 
 # Run complete. Remove error log if empty
 if [ -f \"${logs_dir}/\${jobid}_err\" ] && [ ! -s \"${logs_dir}/\${jobid}_err\" ]; then
@@ -766,24 +960,33 @@ else
     echo "Nr. of CPUs:   ${nprocs}"                               | tee -a "${logs_dir}/${jobid}"
     # Prepare Python options
     if [ "${main_as_command}" == "yes" ]; then
-        # Run as Python command
+        # Run main as Python command
         main_as_library="${main}"
         m_flag="-c"
     else
         if [ "${pure_python}" == "True" ]; then
-            # Run as normal Python script
+            # Run mail as normal Python script
             main_as_library="${main}"
             m_flag=""
         else
-            # Run as compiled library module
-            main_as_library="$(basename "${main%.*}.so")"
-            m_flag="-m"
+            main_as_library="${main%.*}.so"
+            if [ -f "${main_as_library}" ]; then
+                # Run main as compiled library module
+                main_as_library="$(basename "${main_as_library}")"
+                m_flag="-m"
+            else
+                # Run main as normal Python script,
+                # even though the CO𝘕CEPT modules are compiled.
+                main_as_library="${main}"
+                m_flag=""
+            fi
         fi
     fi
     # Run the code. Print stdout and stderr to the terminal while at the
     # same time logging them to logs_dir/jobid. The stderr alone is also
     # logged to logs_dir/jobid_err.
     (("${mpiexec}" -n "${nprocs}"                               \
+                   ${mpiexec_args}                              \
                    "${python}" -B                               \
                                ${m_flag} "${main_as_library}"   \
                                "params='${params}'"             \
@@ -808,7 +1011,7 @@ Check the following error log for more information:\n\
     if [ "${concept_exit_code}" != "0" ]; then
         exit 1
     fi
-    # Deactivate trap and exit
+    # Deactivate traps and exit
     trap : 0
     exit 0
 fi

@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -30,8 +30,7 @@ output_bases  = {'snapshot': 'snapshot'}
 output_times  = {'a': {'snapshot': logspace(log(0.02), log(0.25),  4, base=e)}}
 
 # Numerical parameters
-boxsize          = 64*Mpc
-Δt_factor        = 1  # Deliberately set too high
+boxsize = 64*Mpc
 
 # Cosmological parameters
 H0      = 70*km/(s*Mpc)

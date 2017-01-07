@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@
 from commons import *
 
 # Cython imports
-from mesh import diff
+from mesh import diff_domain
 cimport('from ewald import ewald')
 cimport('from communication import find_N_recv, rank_neighboring_domain')
 cimport('from communication import domain_size_x,  domain_size_y,  domain_size_z')
@@ -403,29 +403,33 @@ def PM(component, ᔑdt, meshbuf_mv, dim):
         # momentum of particle i.
         mom[i] += PM_fac*CIC_scalargrid2coordinates(meshbuf_mv, x, y, z)
 
-# Function which 'kicks' a fluid component, adding the gravitational
-# source term [-∇φ]_dim*ϱ to the source buffer of the ϱu[dim] fluid
-# variable of the component.
-@cython.header(# Arguments
-               component='Component',
-               meshbuf_mv='double[:, :, ::1]',
-               dim='int',
-               )
-def kick_fluid(component, meshbuf_mv, dim):
+# Function which gravitationally 'kicks' a fluid component,
+# updating its momentum density.
+@cython.pheader(# Arguments
+                component='Component',
+                ᔑdt='dict',
+                meshbuf_mv='double[:, :, ::1]',
+                ρu_dim='FluidScalar',
+                )
+def kick_fluid(component, ᔑdt, meshbuf_mv, ρu_dim):
     """The parsed meshbuf_mv should contain the dim'th component of ∇φ.
     To do the complete potential-part of the kick, call this function
     once for each dimension.
     """
+    # Accelerate fluid elements gravitationally.
     # The factor with which to multiply the values in meshbuf_mv
     # (the differentiated potential, [∇φ]_dim) in order to get units of
-    # acceleration is given by PM_fac_const. As the source term
-    # is -∇φ*ϱ, we also need to multiply each
-    # grid point [i, j, k] by ϱ[i, j, k].
-    CIC_grid2grid(component.fluidvars['ϱu'][dim].source_noghosts,
-                  meshbuf_mv,
-                  fac=PM_fac_const,
-                  fac_grid=component.fluidvars['ϱ'].grid_noghosts,
-                  )
+    # acceleration is given by PM_fac_const. As the gravitational source
+    # term is -∇φ*ρ, we also need to multiply each grid point
+    # [i, j, k] by ρ[i, j, k], leaving units of momentum/(volume*time).
+    # To convert to momentum/volume, we multiply by
+    # the time step size ᔑdta⁻¹.
+    if enable_gravity:
+        CIC_grid2grid(ρu_dim.grid_noghosts,
+                      meshbuf_mv,
+                      fac=PM_fac_const*ᔑdt['a⁻¹'],
+                      fac_grid=component.fluidvars['ρ'].grid_noghosts,
+                      )
 
 # Function which constructs the total gravitational potential φ due
 # to all components.
@@ -467,7 +471,7 @@ def build_φ(components, only_long_range=False):
     for j in range(slab_size_j):
         # The j-component of the wave vector. Since the slabs are
         # distributed along the j-dimension, an offset must be used.
-        j_global = j + slab_start_j
+        j_global = slab_start_j + j
         if j_global > φ_gridsize_half:
             kj = j_global - φ_gridsize
         else:
@@ -525,7 +529,7 @@ def build_φ(components, only_long_range=False):
     # Now the slabs stores potential values.
     slabs_IFFT()
     # Communicate the potential stored in the slabs to φ
-    slabs2φ()
+    slabs2φ()  # This also populates pseudo and ghost points
     # Finalize progress message
     masterprint('done')
     # Return the potential grid (though this is a global and is often
@@ -836,7 +840,7 @@ def P3M(component, ᔑdt):
     global Δmomx_local_mv, Δmomy_local_mv, Δmomz_local_mv
     global indices_send, indices_send_mv
     global indices_boundary, indices_boundary_mv
-    # TEMPORARY HACK!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    # TEMPORARY HACK !!!
     # THIS WILL OVERWRITE φ. THE P3M-METHOD SHOULD ONLY BE USED IN
     # SINGLE-COMPONENT SIMULATIONS!
     build_φ([component], only_long_range=True)
@@ -845,7 +849,7 @@ def P3M(component, ᔑdt):
     # Compute the long-range force via the PM method
     for dim in range(3):
         # Do the differentiation of φ
-        meshbuf_mv = diff(φ, dim, h)
+        meshbuf_mv = diff_domain(φ, dim, h)
         # Apply the long-range kick
         PM(component, ᔑdt, meshbuf_mv, dim)
     # Extract variables from component

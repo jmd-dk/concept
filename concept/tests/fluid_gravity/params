@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -35,7 +35,6 @@ output_times  = {'a': {'terminal render': logspace(log(0.02), log(0.055), 26, ba
 # Numerical parameters
 boxsize          = 64*Mpc
 φ_gridsize       = 4*8    # Must be a multiplum of 4
-Δt_factor        = 0.02
 
 # Cosmological parameters
 H0      = 70*km/(s*Mpc)

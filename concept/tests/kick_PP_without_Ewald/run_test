@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2016 Jeppe Mosgaard Dakin.
+# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,9 +27,24 @@
 # containing 8 particles placed so that they all correspond to the
 # nearest image of themselves. The particles start out with zero velocity.
 
-# Initialize test environment
+# Absolute path and name of the directory of this file
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-source "${this_dir}/../environment"
+this_test="$(basename "${this_dir}")"
+
+# Set up error trapping
+ctrl_c()
+{
+    trap : 0
+    exit 2
+}
+abort()
+{
+    colorprint "An error occurred during ${this_test} test!" "red"
+    exit 1
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
 
 # Cleanup from last test run
 "${this_dir}/clean"
@@ -41,7 +56,7 @@ source "${this_dir}/../environment"
 "${concept}" -n 1 -p "${this_dir}/params" --local
 
 # Dump list of snapshot output times used by GADGET
-"${python}" -c "import numpy as np
+"${python}" -B -c "import numpy as np
 np.savetxt('${this_dir}/outputlist', $(get_param "snapshot_times['a']"))"
 
 # Create an edited version of Makefile_gadget with correct path information
@@ -92,6 +107,6 @@ sed -i "/fcorrz\[i\]\[j\]\[k\] = force\[2\];/c\fcorrz\[i\]\[j\]\[k\] = 0.0;" \
 # Analyze the output snapshots
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
 
-# Finalize test environment
-test_done=true source "${this_dir}/../environment"
+# Test ran successfully. Deactivate traps.
+trap : 0
 
