@@ -86,25 +86,35 @@ def scalefactor_integrals(step, Δt):
 
 # Function which dump all types of output. The return value signifies
 # whether or not something has been dumped.
-@cython.header(# Arguments
-               components='list',
-               output_filenames='dict',
-               final_render='tuple',
-               op='str',
-               # Locals
-               filename='str',
-               time_param='str',
-               time_val='double',
-               returns='bint',
-               )
-def dump(components, output_filenames, final_render, op=None):
-    global i_dump, dumps, next_dump
-    # Do nothing if not at dump time
+@cython.pheader(# Arguments
+                components='list',
+                output_filenames='dict',
+                final_render='tuple',
+                op='str',
+                do_autosave='bint',
+                # Locals
+                filename='str',
+                time_param='str',
+                time_val='double',
+                returns='bint',
+                )
+def dump(components, output_filenames, final_render, op=None, do_autosave=False):
+    global i_dump, dumps, next_dump, autosave_filename
+    # Do autosaving
+    if not autosave_filename:
+        autosave_filename = '{}/autosave_{}'.format(paths['output_dir'], jobid)
+    if do_autosave:
+        autosave_filename = save(components, autosave_filename)
+    # Do nothing further if not at dump time
     if universals.t != next_dump[1]:
         if next_dump[0] == 'a':
             if universals.a != next_dump[2]:
+                if do_autosave:
+                    return True
                 return False
         else:
+            if do_autosave:
+                return True
             return False
     # Synchronize drift and kick operations before dumping
     if op == 'drift':
@@ -141,7 +151,13 @@ def dump(components, output_filenames, final_render, op=None):
     i_dump += 1
     if i_dump < len(dumps):
         next_dump = dumps[i_dump]
+    else:
+        # Last output have been dumped. Remove autosave file.
+        if master and os.path.isfile(autosave_filename):
+            os.remove(autosave_filename)
     return True
+cython.declare(autosave_filename='str')
+autosave_filename = ''
 
 @cython.header(# Locals
                integrand='str',
@@ -288,7 +304,9 @@ def drift(components, step):
 
 # Function containing the main time loop of CO𝘕CEPT
 @cython.header(# Locals
+               autosave_time='double',
                components='list',
+               do_autosave='bint',
                final_render='tuple',
                output_filenames='dict',
                timespan='double',
@@ -336,6 +354,8 @@ def timeloop():
     next_dump = dumps[i_dump]
     # Possible output at the beginning of simulation
     dump(components, output_filenames, final_render)
+    # Note what time it is, for use with autosaving
+    autosave_time = time()
     # The main time loop
     masterprint('Beginning of main time loop')
     time_step = -1
@@ -380,7 +400,11 @@ def timeloop():
         # half), as ᔑdt_steps[integrand][1] == 0 for every integrand.
         scalefactor_integrals('first half', Δt)
         kick(components, 'whole')
-        if dump(components, output_filenames, final_render, 'drift'):
+        do_autosave = bcast(autosave > 0 and (time() - autosave_time) > ℝ[autosave/units.s])
+        if dump(components, output_filenames, final_render, 'drift', do_autosave):
+            # Restart autosave schedule
+            if do_autosave:
+                autosave_time = time()
             # Reset the ᔑdt_steps, starting the leapfrog cycle anew
             nullify_ᔑdt_steps()
             continue
@@ -402,7 +426,11 @@ def timeloop():
         # Drift
         scalefactor_integrals('second half', Δt)
         drift(components, 'whole')
-        if dump(components, output_filenames, final_render, 'kick'):
+        do_autosave = bcast(autosave > 0 and (time() - autosave_time) > ℝ[autosave/units.s])
+        if dump(components, output_filenames, final_render, 'kick', do_autosave):
+            # Restart autosave schedule
+            if do_autosave:
+                autosave_time = time()
             # Reset the ᔑdt_steps, starting the leapfrog cycle anew
             nullify_ᔑdt_steps()
             continue

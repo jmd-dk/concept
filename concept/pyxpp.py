@@ -591,15 +591,20 @@ def malloc_realloc(filename):
         pyxfile.writelines(new_lines)
 
 
+
 def C_casting(filename):
     new_lines = []
     with open(filename, 'r', encoding='utf-8') as pyxfile:
         # Transform to Cython syntax
         for line in pyxfile:
-            while 'cast(' in line:
+            while re.search('(^| )cast\(', line):
+                match = re.search('(^| )cast\(', line)
+                start = match.start()
+                if line[start] == ' ':
+                    start += 1
                 paren = 1
                 in_quotes = [False, False]
-                for i in range(line.find('cast(') + 5, len(line)):
+                for i in range(start + 5, len(line)):
                     symbol = line[i]
                     if symbol == "'":
                         in_quotes[0] = not in_quotes[0]
@@ -615,7 +620,7 @@ def C_casting(filename):
                         comma_index = i
                 cast_to = ('<' + line[(comma_index + 1):i]
                            .replace("'", '').replace('"', '').strip() + '>')
-                obj_to_cast = ('(' + line[(line.find('cast(') + 5):comma_index]
+                obj_to_cast = ('(' + line[(start + 5):comma_index]
                                + ')')
                 line = (line[:line.find('cast(')] + '(' + cast_to + obj_to_cast + ')'
                         + line[(i + 1):])

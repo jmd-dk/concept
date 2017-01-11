@@ -32,7 +32,6 @@ cimport('from communication import domain_size_x,  domain_size_y,  domain_size_z
 # Pure Python imports
 from mpl_toolkits.mplot3d import Axes3D  # Needed for 3D plotting
 from mpl_toolkits.mplot3d.art3d import juggle_axes
-import pexpect
 
 
 
@@ -596,8 +595,6 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
     # Remove the temporary directory, if cleanup is requested
     if master and cleanup and not (nprocs == 1 == len(render_dict)):
         shutil.rmtree(render_dir)
-    # Update the live render (local and remote)
-    #update_liverender(filename_component)
 
 # Function which takes in a list of filenames of images and blend them
 # together into the global render_image array.
@@ -663,54 +660,6 @@ def add_background():
                 render_image[i, j, rgb] = (alpha*render_image[i, j, rgb]
                                            + (1 - alpha)*bgcolor[rgb])
                 render_image[i, j, 3] = 1
-
-# Update local and remote live renders
-@cython.header(# Arguments
-               filename='str',
-               )
-def update_liverender(filename):
-    # Updating the live render cannot be done in parallel
-    if not master:
-        return
-    # Update the live render with the newly produced render 
-    if liverender:
-        masterprint('Updating live render "{}" ...'.format(liverender), indent=4)
-        shutil.copy(filename, liverender)
-        masterprint('done')
-    # Updating the remote live render with the newly produced render
-    if not remote_liverender or not scp_password:
-        return
-    cmd = 'scp "{}" "{}"'.format(filename, remote_liverender)
-    scp_host = re.search('@(.*):', remote_liverender).group(1)
-    scp_dist = re.search(':(.*)',  remote_liverender).group(1)
-    masterprint('Updating remote live render "{}:{}" ...'.format(scp_host, scp_dist),
-                indent=4)
-    expects = ['password.',
-               'passphrase.',
-               'continue connecting',
-               pexpect.EOF,
-               pexpect.TIMEOUT,
-               ]
-    child = pexpect.spawn(cmd, timeout=15, env={'SSH_ASKPASS': '', 'DISPLAY': ''})
-    for i in range(2):
-        n = child.expect(expects)
-        if n < 2:
-            # scp asks for password or passphrase. Supply it
-            child.sendline(scp_password)
-        elif n == 2:
-            # scp cannot authenticate host. Connect anyway
-            child.sendline('yes')
-        elif n == 3:
-            break
-        else:
-            child.kill(9)
-            break
-    child.close(force=True)
-    if child.status:
-        msg = "Remote live render could not be scp'ed to" + scp_host
-        masterwarn(msg)
-    else:
-        masterprint('done')
 
 # This function projects the particle/fluid element positions onto the
 # xy-plane and renders this projection directly in the terminal,

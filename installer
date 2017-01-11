@@ -51,7 +51,6 @@
 #     - NumPy
 #     - Matplotlib
 #     - MPI4Py
-#     - Pexpect
 #     - H5Py
 #     - Yolk3k and pip (if any of the above)
 # - CO𝘕CEPT
@@ -144,8 +143,7 @@ if [ "${install_explicit_only}" == "yes" ]; then
                     "h5py"            \
                     "matplotlib"      \
                     "mpi4py"          \
-                    "numpy"           \
-                    "pexpect"; do
+                    "numpy"; do
         eval "[ -n \"\${${progname}_install}\" ] || ${progname}_install=\"no\""
     done
 fi
@@ -212,7 +210,6 @@ set_version "cython"          "0.25.2"
 set_version "cython_gsl"      "0.2.1"
 set_version "matplotlib"      "1.5.3"
 set_version "numpy"           "1.11.3"
-set_version "pexpect"         "4.2.1"
 set_version "mpi4py"          "2.0.0"
 set_version "h5py"            "2.6.0"
 # No longer installed by default
@@ -288,7 +285,7 @@ error()
 }
 
 # Print out welcome message
-sleep 1  # Needed if invoked directly from the web via wget
+sleep 2  # Needed if invoked directly from the web via wget
 if [ "${say_welcome}" != "no" ]; then
     heading "${esc_bold}${esc_yellow}This is the installation script for ${esc_concept},
 the cosmological ${esc_italic}N${esc_no_italic}-body code in Python${esc_normal}"
@@ -670,11 +667,10 @@ h5py_preinstalled="no"
 matplotlib_preinstalled="no"
 mpi4py_preinstalled="no"
 numpy_preinstalled="no"
-pexpect_preinstalled="no"
 pip_preinstalled="no"
 if [ "${python_preinstalled}" == "yes" ]; then
     python=$(ls -1 "${python_dir}/bin/python"* | head -n 1)
-    for pypackage in blessings cython cython_gsl h5py matplotlib mpi4py numpy pexpect pip; do
+    for pypackage in blessings cython cython_gsl h5py matplotlib mpi4py numpy pip; do
         pypackage_preinstalled=$("${python}" -c "
 try:
     import ${pypackage}
@@ -728,7 +724,7 @@ if [ -z "${pip_install}" ]; then
         pip_install="yes"
     fi
 fi
-for pypackage in blessings cython cython_gsl h5py matplotlib mpi4py numpy pexpect; do
+for pypackage in blessings cython cython_gsl h5py matplotlib mpi4py numpy; do
     eval "pypackage_install=\"\${${pypackage}_install}\""
     if [ -z "${pypackage_install}" ]; then
         eval "${pypackage}_install=\"no\""
@@ -1660,10 +1656,9 @@ h5py_installed="no"
 matplotlib_installed="no"
 mpi4py_installed="no"
 numpy_installed="no"
-pexpect_installed="no"
 pip_installed="no"
 if [ -n "${python}" ] && [ "${python_installed}" == "yes" ]; then
-    for pypackage in blessings cython cython_gsl h5py matplotlib mpi4py numpy pexpect pip; do
+    for pypackage in blessings cython cython_gsl h5py matplotlib mpi4py numpy pip; do
         pypackage_installed=$("${python}" -c "
 try:
     import ${pypackage}
@@ -1786,7 +1781,6 @@ print_table()
 # matplotlib  ...
 # mpi4py      ...
 # numpy       ...
-# pexpect     ...
 tree_beginning()
 {
     item_level=${1}
@@ -2049,10 +2043,6 @@ if [ "${install_any_pypackages}" == "yes" ]; then
     if [ "${numpy_install}"      == "yes" ]; then
            table+=("NumPy$([ "${numpy_installed}" == "yes" ] && echo '*' || :)" \
                    "${numpy_version}"      "")
-    fi
-    if [ "${pexpect_install}"    == "yes" ]; then
-           table+=("Pexpect$([ "${pexpect_installed}" == "yes" ] && echo '*' || :)" \
-                   "${pexpect_version}"    "")
     fi
     if [ "${install_any_software}" ]; then
         echo
@@ -2887,10 +2877,9 @@ h5py_installed="no"
 matplotlib_installed="no"
 mpi4py_installed="no"
 numpy_installed="no"
-pexpect_installed="no"
 pip_installed="no"
 if [ -n "${python}" ]; then
-    for pypackage in blessings cython cython_gsl h5py matplotlib mpi4py numpy pexpect pip; do
+    for pypackage in blessings cython cython_gsl h5py matplotlib mpi4py numpy pip; do
         pypackage_installed=$("${python}" -c "
 try:
     import ${pypackage}
@@ -3165,11 +3154,6 @@ if [ "${mpi4py_install}" == "yes" ] && [ "${mpi4py_installed}" == "no" ]; then
     reset_environment
 fi
 
-# Pexpect (this has to be before H5Py, for whatever reason)
-if [ "${pexpect_install}" == "yes" ] && [ "${pexpect_installed}" == "no" ]; then
-    pip_install_pypackage "Pexpect" "${pexpect_version}"
-fi
-
 # H5Py (manual invocation of setup.py is needed
 # as --mpi needs to be supplied).
 if [ "${h5py_install}" == "yes" ] && [ "${h5py_installed}" == "no" ]; then
@@ -3223,7 +3207,7 @@ if [ "${concept_install}" == "yes" ] && [ "${concept_installed}" == "no" ]; then
     printf "\nWriting paths to .paths\n"
     set_status "Writing paths to .paths"
     echo "# This file contains absolute paths to directories and files used by the
-# program. You must manually edit the paths below. All other files rely on
+# CO𝘕CEPT code. You must manually edit the paths below. All other files rely on
 # these paths, as they are not given anywhere else.
 
 #######################
@@ -3465,7 +3449,6 @@ if [ "${install_anything}" == "yes" ]; then
     copyright_notice "matplotlib"      "$(printf ${en_quad}%.s {1..4})Matplotlib"
     copyright_notice "mpi4py"          "$(printf ${en_quad}%.s {1..4})MPI4Py"
     copyright_notice "numpy"           "$(printf ${en_quad}%.s {1..4})NumPy"
-    copyright_notice "pexpect"         "$(printf ${en_quad}%.s {1..4})Pexpect"
     printf "\nThese have been installed into separate directories in
 \"${top_dir}\"
 Any use of ${esc_concept} must conform to the license terms of the above

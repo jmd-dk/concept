@@ -15,7 +15,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
-#me $
+#
 # The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
@@ -26,14 +26,16 @@
 # More specifically, it prints the meta data contained in the snapshot
 # (everything except the actual component data).
 # You can run this file directly as
-# utilities/info paths [--generate-params [paramsdir]]
+# utilities/info paths [--generate-params [paramsdir]] [--stats]
 # or invoke it via the concept script as
-# ./concept --util info paths [--generate-params [paramsdir]]
+# ./concept --util info paths [--generate-params [paramsdir]] [--stats]
 # In both cases, paths are paths to snapshot files
 # or directories containing snapshot files.
 # When the --generate-params flag is set, only the global
 # parameters which goes into a parameter file will be printed,
 # and in a format understandable by CO𝘕CEPT.
+# If --stats is specified, component statistics
+# will be computed and printed as well.
 
 
 
@@ -75,8 +77,13 @@ parser.add_argument('-g', '--generate-params',
                     nargs='?',
                     help=('generate parameter file(s) from snapshot(s). Where to save '
                           'the parameter file(s) can be specified as the second argument'),
-                    const='${params_dir}',
+                    const='${this_dir}/params',
                     default=False,
+                    )
+parser.add_argument('--stats',
+                    help='also compute and print out component statistics',
+                    default=False,
+                    action='store_true',
                     )
 # Enables Python to write directly to screen (stderr)
 # in case of help request.
@@ -102,6 +109,7 @@ sys.stdout = stdout_copy
 print('argparse_finished=yes')
 print('paths=({})'.format(' '.join(['\"{}\"'.format(path) for path in args.paths])))
 print('generate_params={}'.format(args.generate_params))
+print('stats={}'.format(args.stats))
 " "$@" || :)
 # Evaluate the handled arguments into this scope
 eval "${args}"
@@ -131,7 +139,7 @@ for i in ${!paths[@]}; do
 done
 
 # If supplied, convert parameter directory to absolute path
-# and put it in quotes. 
+# and put it in quotes.
 if [ "${generate_params}" != "False" ]; then
     generate_params="\'$(absolute_path "${generate_params}" "${workdir}")\'"
 fi
@@ -145,6 +153,7 @@ special_params = {
     'special': '$(basename "${this_file}")',
     'generate params': ${generate_params},
     'paths'          : $(bash_array2python_list paths[@]),
+    'stats'          : ${stats},
                   }
 # Parameter values which should always be used when running this utility
 ...
@@ -164,15 +173,23 @@ $(cat "${params}")
 paths['params'] = params_path_ori
 " > "${params_filename}"
 
-
-
 # Run CO𝘕CEPT to printout the snapshot information.
-# Always run locally using 1 process.
-"${concept}" -m "${main}"                  \
-             -n 1                          \
-             -p "${params_filename}"       \
-             --local                       \
-             ${pure_python_flag}
+# Always run locally using 1 process, unless ${stats} is True.
+if [ "${stats}" == "False" ]; then
+    "${concept}" -m "${main}"            \
+                 -n 1                    \
+                 -p "${params_filename}" \
+                 --local                 \
+                 ${pure_python_flag}
+elif [ "${stats}" == "True" ]; then
+    "${concept}" -m "${main}"            \
+                 -n ${nprocs}            \
+                 -p "${params_filename}" \
+                 -q "${queue}"           \
+                 -w "${walltime}"        \
+                 ${local_flag}           \
+                 ${pure_python_flag}
+fi
 
 # Cleanup
 rm -f "${params_filename}"
