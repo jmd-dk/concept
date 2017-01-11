@@ -422,9 +422,6 @@ def render():
                 σmom='double[::1]',
                 )
 def info():
-    # This function should not run in parallel
-    if not master:
-        return
     # Extract the paths to snapshot(s)
     paths = special_params['paths']
     # Get list of all snapshots
@@ -433,7 +430,10 @@ def info():
     # Print out information about each snapshot
     for snapshot_filename in snapshot_filenames:
         # Load parameters from the snapshot
-        snapshot = load(snapshot_filename, compare_params=False, only_params=False)
+        snapshot = load(snapshot_filename, compare_params=False,
+                                           only_params=(not special_params['stats']),
+                                           do_exchange=False,
+                                           )
         params = snapshot.params
         # If a parameter file should be generated from the snapshot,
         # print out the content which should be placed in parameter file
@@ -464,6 +464,8 @@ def info():
                 parameter_filename += str(param_num)
             # As the following printed information should be parsable,
             # wrapping is deactivated on every call to masterprint.
+            # Do not edit the text in the heading,
+            # as it is grepped for by several of the bash utilities.
             heading = '\nParameters of "{}"'.format(sensible_path(snapshot_filename))
             masterprint(terminal.bold(heading), wrap=False)
             with open(parameter_filename, 'w') as pfile:
@@ -502,7 +504,9 @@ def info():
                         masterprint('a_begin = {:.12g}'.format(params['a']), file=file, wrap=False)
                     masterprint('Ωm = {:.12g}'.format(params['Ωm']), file=file, wrap=False)
                     masterprint('ΩΛ = {:.12g}'.format(params['ΩΛ']), file=file, wrap=False)
-            masterprint('\nThe above parameters have been written to\n"{}"'
+            # Do not edit the printed text below,
+            # as it is grepped for by several of the bash utilities.
+            masterprint('\nThe above parameters have been written to "{}"'
                         .format(parameter_filename),
                         wrap=False)
             # Done writing out parameters. The code below which prints
@@ -566,21 +570,22 @@ def info():
                 masterprint('{:<16} {}'.format('gridsize', component.gridsize), indent=4)
                 masterprint('{:<16} {}'.format('N_fluidvars', component.fluidvars['N_fluidvars']), indent=4)
             # Component statistics
-            Σmom, σmom = measure(component, 'momentum')
-            masterprint('{:<16} [{}, {}, {}] {}'.format('momentum sum',
-                                                        *significant_figures(asarray(Σmom)/units.m_sun,
-                                                                             2,
-                                                                             fmt='unicode',
-                                                                             scientific=True),
-                                                        'm☉ {} {}⁻¹'.format(unit_length, unit_time)),
-                        indent=4)
-            masterprint('{:<16} [{}, {}, {}] {}'.format('momentum spread',
-                                                        *significant_figures(asarray(σmom)/units.m_sun,
-                                                                             2,
-                                                                             fmt='unicode',
-                                                                             scientific=True),
-                                                        'm☉ {} {}⁻¹'.format(unit_length, unit_time)),
-                        indent=4)
+            if special_params['stats']:
+                Σmom, σmom = measure(component, 'momentum')
+                masterprint('{:<16} [{}, {}, {}] {}'.format('momentum sum',
+                                                            *significant_figures(asarray(Σmom)/units.m_sun,
+                                                                                 2,
+                                                                                 fmt='unicode',
+                                                                                 scientific=True),
+                                                            'm☉ {} {}⁻¹'.format(unit_length, unit_time)),
+                            indent=4)
+                masterprint('{:<16} [{}, {}, {}] {}'.format('momentum spread',
+                                                            *significant_figures(asarray(σmom)/units.m_sun,
+                                                                                 2,
+                                                                                 fmt='unicode',
+                                                                                 scientific=True),
+                                                            'm☉ {} {}⁻¹'.format(unit_length, unit_time)),
+                            indent=4)
         # Print out GADGET header for GADGET2 snapshots
         if snapshot_type == 'gadget2':
             masterprint('GADGET header:')

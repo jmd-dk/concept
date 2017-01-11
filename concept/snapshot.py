@@ -101,6 +101,7 @@ class StandardSnapshot:
                    start_local='Py_ssize_t',
                    ρ_mv='double[:, :, ::1]',
                    l='Py_ssize_t',
+                   returns='str',
                    )
     def save(self, filename):
         # Attach missing extension to filename
@@ -221,6 +222,8 @@ class StandardSnapshot:
                 elif master:
                     abort('Does not know how to save component "{}" with representation "{}"'
                           .format(component.name, component.representation))
+        # Return the filename of the saved file
+        return filename
 
     # Method for loading in a standard snapshot from disk
     @cython.pheader(# Argument
@@ -537,6 +540,7 @@ class Gadget2Snapshot:
                     i='int',
                     component='Component',
                     unit='double',
+                    returns='str',
                     )
     def save(self, filename):
         """The snapshot data (positions and velocities) are stored in
@@ -655,6 +659,8 @@ class Gadget2Snapshot:
                         f.write(struct.pack('I', N*4))
         # Finalize progress message
         masterprint('done')
+        # Return the filename of the saved file
+        return filename
 
     # Method for loading in a GADGET2 snapshot of type 2 from disk
     @cython.pheader(# Arguments
@@ -917,7 +923,8 @@ class Gadget2Snapshot:
                 filename='str',
                 params='dict',
                 # Locals
-                snapshot='object'  # Any implemented snapshot type
+                snapshot='object',  # Any implemented snapshot type
+                returns='str',
                 )
 def save(components, filename, params={}):
     """Note that since we want this function to be exposed to
@@ -931,8 +938,10 @@ def save(components, filename, params={}):
     if master:
         os.makedirs(os.path.dirname(filename), exist_ok=True)
     Barrier()
-    # Save the snapshot to disk
-    snapshot.save(filename)
+    # Save the snapshot to disk.
+    # The (maybe altered) filename is returned,
+    # which should also be the return value of this function.
+    return snapshot.save(filename)
 
 # Function that loads a snapshot file.
 # The type of snapshot can be any of the implemented.

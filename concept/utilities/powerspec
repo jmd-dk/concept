@@ -121,8 +121,10 @@ info="$("${concept}" -p "${params}"                                \
                             "$(bash_array2python_list paths[@])"   \
                             --generate-params "${this_dir}/params" \
         )"
-snapshot_filenames="$(echo "${info}" | grep -x Parameters.* | grep -o '".*"')"
-snapshot_params_filenames="$(echo "${info}" | grep -x '".*"')"
+snapshot_filenames="$(echo "${info}" | grep -x 'Parameters.*' | grep -o '".*"')"
+snapshot_params_filenames="$(echo "${info}"                                           \
+                             | grep -x 'The above parameters have been written to .*' \
+                             | grep -o '".*"')"
 snapshot_params_filenames="${snapshot_params_filenames//\"/}"
 
 # Print out the snapshots of which a power spectrum will be computed

@@ -61,24 +61,20 @@ cython.declare(master='bint',
                nprocs='int',
                rank='int',
                )
-# Functions for communication
+# MPI functions for communication (only ones used in the code)
 comm = MPI.COMM_WORLD
-Allgather = comm.Allgather
+Allgather  = comm.Allgather
 Allgatherv = comm.Allgatherv
-Allreduce = comm.Allreduce
-Barrier = comm.Barrier
-Bcast = comm.Bcast
-Gather = comm.Gather
-Gatherv = comm.Gatherv
-Isend = comm.Isend
-Reduce = comm.Reduce
-Recv = comm.Recv
-Scatter = comm.Scatter
-Send = comm.Send
-Sendrecv = comm.Sendrecv
-allreduce = comm.allreduce
-reduce = comm.reduce
-sendrecv = comm.sendrecv
+Barrier    = comm.Barrier
+Gather     = comm.Gather
+Isend      = comm.Isend
+Reduce     = comm.Reduce
+Recv       = comm.Recv
+Send       = comm.Send
+Sendrecv   = comm.Sendrecv
+allreduce  = comm.allreduce
+bcast      = comm.bcast
+sendrecv   = comm.sendrecv
 # Number of processes started with mpiexec
 nprocs = comm.size
 # The unique rank of the running process
@@ -733,10 +729,10 @@ def sensible_path(path):
 # Handle command line arguments given to the Python interpreter
 # (not those explicitly given to the concept script).
 # Construct a dict from command line arguments of the form
-# "params='/path/to/params'"
+# "param='value'"
 cython.declare(argd='dict',
                globals_dict='dict',
-               scp_password='str',
+               jobid='unsigned long long int',
                )
 argd = {}
 for arg in sys.argv:
@@ -750,8 +746,7 @@ for key in globals_dict.keys():
 # If not given, give the arguments some default values.
 # The parameter file
 paths['params'] = argd.get('params', '')
-# The scp password
-scp_password = argd.get('scp_password', '')
+jobid = int(argd.get('jobid', 0))
 
 
 
@@ -854,7 +849,9 @@ cython.declare(unit_length='str',
 unit_length = user_params.get('unit_length', 'Mpc')
 unit_time   = user_params.get('unit_time',   'Gyr')
 unit_mass   = user_params.get('unit_mass',   '1e+10*m_sun')
-# Construct a struct containing the values of all units
+# Construct a struct containing the values of all units.
+# Note that 'min' is not a good name for minutes,
+# as this name is already taken by the min function.
 units, units_dict = build_struct(# Values of basic units,
                                  # determined from the choice of fundamental units.
                                  pc     = ('double', 1/eval(unit_length, unit_length_relations)),
@@ -1029,6 +1026,7 @@ cython.declare(# Input/output
                powerspec_select='dict',
                powerspec_plot_select='dict',
                render_select='dict',
+               autosave='double',
                # Numerical parameter
                boxsize='double',
                ewald_gridsize='Py_ssize_t',
@@ -1048,8 +1046,6 @@ cython.declare(# Input/output
                render_colors='dict',
                bgcolor='double[::1]',
                resolution='int',
-               liverender='str',
-               remote_liverender='str',
                terminal_render_colormap='str',
                terminal_render_resolution='unsigned int',
                # Simlation options
@@ -1091,12 +1087,14 @@ for time_param in ('a', 't'):
     replace_ellipsis(output_times[time_param])
 for key, val in output_times.items():
     if key not in ('a', 't'):
-        output_times['a'][key] = tuple(any2iter(output_times['a'].get(key, ()))) + tuple(any2iter(val))
+        output_times['a'][key] = (  tuple(any2iter(output_times['a'].get(key, ())))
+                                  + tuple(any2iter(val)))
 for time_param in ('a', 't'):
     output_times[time_param] = dict(output_times.get(time_param, {}))
     for kind in ('snapshot', 'powerspec', 'render', 'terminal render'):
         output_times[time_param][kind] = output_times[time_param].get(kind, ())
-output_times = {time_param: {key: tuple(sorted(set([float(eval(nr, units_dict) if isinstance(nr, str) else nr)
+output_times = {time_param: {key: tuple(sorted(set([float(eval(nr, units_dict)
+                                                          if isinstance(nr, str) else nr)
                                                     for nr in any2iter(val)
                                                     if nr or nr == 0])))
                              for key, val in output_times[time_param].items()}
@@ -1125,6 +1123,9 @@ if 'render_select' in user_params:
     else:
         render_select = {'all': user_params['render_select']}
 render_select = {key.lower(): bool(val) for key, val in render_select.items()}
+autosave = float(0 if not user_params.get('autosave', 0) else user_params.get('autosave', 0))
+if autosave < 0:
+    autosave = 0
 # Numerical parameters
 boxsize = float(user_params.get('boxsize', 1))
 ewald_gridsize = to_int(user_params.get('ewald_gridsize', 64))
@@ -1154,12 +1155,6 @@ if 'render_colors' in user_params:
 render_colors = {key.lower(): to_rgb(val) for key, val in render_colors.items()}
 bgcolor = to_rgb(user_params.get('bgcolor', 'black'))
 resolution = to_int(user_params.get('resolution', 1080))
-liverender = sensible_path(str(user_params.get('liverender', '')))
-if liverender and not liverender.endswith('.png'):
-    liverender += '.png'
-remote_liverender = str(user_params.get('remote_liverender', ''))
-if remote_liverender and not remote_liverender.endswith('.png'):
-    remote_liverender += '.png'
 terminal_render_colormap = str(user_params.get('terminal_render_colormap', 'gnuplot2'))
 terminal_render_resolution = to_int(user_params.get('terminal_render_resolution', 80))
 # Simulation options
@@ -1206,7 +1201,7 @@ vector_mv = cast(vector, 'double[:3]')
 # These are stored in the following struct.
 # Note that you should never use the universals_dict, as updates to
 # universals are not reflected in universals_dict.
-universals, universals_dict = build_struct(# Flag specifying whether or not any warnings have been given
+universals, universals_dict = build_struct(# Flag specifying whether any warnings have been given
                                            any_warnings=('bint', False),
                                            # Scale factor and cosmic time
                                            a=('double', a_begin),
@@ -1229,7 +1224,6 @@ cython.declare(G_Newton='double',
                render_dir='str',
                render_base='str',
                render_times='dict',
-               scp_host='str',
                snapshot_dir='str',
                snapshot_base='str',
                snapshot_times='dict',
@@ -1299,8 +1293,6 @@ P3M_scale_phys = P3M_scale*boxsize/φ_gridsize
 # interact with particles in the neighboring domain via the shortrange
 # force, when the P3M algorithm is used.
 P3M_cutoff_phys = P3M_scale_phys*P3M_cutoff
-# The host name in the 'remote_liverender' parameter
-scp_host = re.search('@(.*):', remote_liverender).group(1) if remote_liverender else ''
 
 
 

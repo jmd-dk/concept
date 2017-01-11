@@ -24,7 +24,7 @@ output_bases = {              # File basenames of output
                 }
 output_times = {
     'a': {                    # Scale factor values at which to dump output
-        'snapshot'       : 1,
+        'snapshot'       : '',
         'powerspec'      : '',
         'render'         : '',
         'terminal render': '',
@@ -45,6 +45,7 @@ powerspec_plot_select = {     # Toggle power spectra plotting for each component
 render_select = {             # Toggle rendering for each component
     'all': True,
                  }
+autosave = 1*hr               # How often to autosave
 
 # Numerical parameters
 boxsize          = 16*Mpc  # Linear size of the simulation box
@@ -70,8 +71,6 @@ render_colors = {                        # Render color for each type
                  }
 bgcolor                    = 'black'	 # Background color of renders
 resolution                 = 1080        # The height and width of the render
-liverender                 = ''          # Filename of saved live render
-remote_liverender          = ''          # Where to upload the live render
 terminal_render_colormap   = 'gnuplot2'  # The colormap to use for the terminal render
 terminal_render_resolution = 64          # The width of the terminal render
 
