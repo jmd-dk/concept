@@ -746,13 +746,28 @@ for key in globals_dict.keys():
 # If not given, give the arguments some default values.
 # The parameter file
 paths['params'] = argd.get('params', '')
+# The jobid of the current run
 jobid = int(argd.get('jobid', 0))
 
 
 
-##################
-# Pure constants #
-##################
+######################
+# Read paramter file #
+######################
+# Read in the content of the parameter file.
+# All handling of parameters defined in the parameter file
+# will be done later
+cython.declare(params_file_content='str')
+params_file_content = ''
+if os.path.isfile(paths['params']):
+    with open(paths['params'], encoding='utf-8') as params_file:
+        params_file_content = params_file.read()
+
+
+
+###########################
+# Dimensionless constants #
+###########################
 cython.declare(machine_ϵ='double',
                π='double',
                ρ_vacuum='double',
@@ -833,12 +848,10 @@ user_params.update({# The paths dict
 user_params.update(unit_length_relations)
 user_params.update(unit_time_relations)
 user_params.update(unit_mass_relations)
-# Now do the actual read of the parameters
-# in order to get the user defined units.
-if os.path.isfile(paths['params']):
-    with open(paths['params'], encoding='utf-8') as params_file:
-        with contextlib.suppress(Exception):
-            exec(params_file.read(), user_params)
+# Execute the content of the parameter file in the namespace defined
+# by user_params in order to get the user defined units.
+with contextlib.suppress(Exception):
+    exec(params_file_content, user_params)
 # The names of the three fundamental units,
 # all with a numerical value of 1. If these are not defined in the
 # parameter file, give them some reasonable values.
@@ -975,9 +988,7 @@ user_params.update({# The paths dict
 user_params.useall()
 # "Import" the parameter file by executing it
 # in the namespace defined by the user_params namespace.
-if os.path.isfile(paths['params']):
-    with open(paths['params'], encoding='utf-8') as params_file:
-        exec(params_file.read(), user_params)
+exec(params_file_content, user_params)
 # Also mark the unit-parameters as used
 for u in ('length', 'time', 'mass'):
     user_params.use('unit_{}'.format(u))
@@ -1701,6 +1712,10 @@ render_times          = {time_param: output_times[time_param]['render']
                          for time_param in ('a', 't')}
 terminal_render_times = {time_param: output_times[time_param]['terminal render'] 
                          for time_param in ('a', 't')}
+# Warn about cosmological autosaving time
+if autosave > 1*units.yr:
+    masterwarn('Autosaving will take place every {} {}. Have you forgotten to '
+               'specify the unit of the "autosave" parameter?'.format(autosave, unit_time))
 
 
 

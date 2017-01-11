@@ -93,34 +93,74 @@ def scalefactor_integrals(step, Δt):
                 op='str',
                 do_autosave='bint',
                 # Locals
+                do_dump='bint',
                 filename='str',
+                future_output_times='dict',
+                ot='double',
+                output_kind='str',
+                output_time='tuple',
+                present='double',
                 time_param='str',
                 time_val='double',
                 returns='bint',
                 )
 def dump(components, output_filenames, final_render, op=None, do_autosave=False):
     global i_dump, dumps, next_dump, autosave_filename
-    # Do autosaving
-    if not autosave_filename:
-        autosave_filename = '{}/autosave_{}'.format(paths['output_dir'], jobid)
-    if do_autosave:
-        autosave_filename = save(components, autosave_filename)
     # Do nothing further if not at dump time
-    if universals.t != next_dump[1]:
-        if next_dump[0] == 'a':
-            if universals.a != next_dump[2]:
-                if do_autosave:
-                    return True
-                return False
-        else:
-            if do_autosave:
-                return True
-            return False
+    # and no autosaving should be performed.
+    do_dump = (   (next_dump[0] == 'a' and universals.a == next_dump[2])
+               or (next_dump[0] == 't' and universals.t == next_dump[1])
+               )
+    if not do_dump and not do_autosave:
+        return False
     # Synchronize drift and kick operations before dumping
     if op == 'drift':
         drift(components, 'first half')
     elif op == 'kick':
         kick(components, 'second half')
+    # Do autosaving
+    if not autosave_filename:
+        autosave_filename = '{}/autosave_{}'.format(paths['output_dir'], jobid)
+    if do_autosave:
+        # Save snapshot
+        autosave_filename = save(components, autosave_filename)
+        # Save parameter file corresponding to the snapshot
+        if master:
+            with open(autosave_param_filename, 'w', encoding='utf-8') as autosave_param_file:
+                # Header
+                autosave_param_file.write('# This parameter file is the result '
+                                          'of an autosave of job {},\n'
+                                          '# using the parameter file "{}".\n'
+                                          '# The following is a copy of this '
+                                          'original parameter file.\n\n'
+                                          .format(jobid, paths['params'])
+                                          )
+                # Original paramter file
+                autosave_param_file.write(params_file_content)
+                autosave_param_file.write('\n'*2)
+                # IC snapshot
+                autosave_param_file.write('# The autosaved snapshot file was saved to\n'
+                                          'IC_file = "{}"\n'.format(autosave_filename)
+                                          )
+                # Present time
+                autosave_param_file.write('# The autosave happened at\n')
+                if enable_Hubble:
+                    autosave_param_file.write('a_begin = {:.12g}\n'.format(universals.a))
+                else:
+                    autosave_param_file.write('t_begin = {:.12g}*{}\n'
+                                              .format(universals.t, unit_time))
+                # Future output times
+                future_output_times = {'a': {}, 't': {}}
+                for time_param, present in zip(('a', 't'), (universals.a, universals.t)):
+                    for output_kind, output_time in output_times[time_param].items():
+                        future_output_times[time_param][output_kind] = [ot for ot in output_time
+                                                                        if ot >= present]
+                autosave_param_file.write('# Future output times\n')
+                autosave_param_file.write('output_times = {}\n'.format(future_output_times))
+    # If no output other than autosaves should be dumped,
+    # return now.
+    if not do_dump:
+        return True
     # Dump terminal render
     for time_val, time_param in zip((universals.a, universals.t), ('a', 't')):
         if time_val in terminal_render_times[time_param]:
@@ -145,19 +185,23 @@ def dump(components, output_filenames, final_render, op=None, do_autosave=False)
             filename = output_filenames['render'].format(time_param, time_val)
             if time_param == 't':
                 filename += unit_time
-            render(components, filename,
-                   cleanup=((time_param, time_val) == final_render))
+            render(components, filename, cleanup=((time_param, time_val) == final_render))
     # Increment dump time
     i_dump += 1
     if i_dump < len(dumps):
         next_dump = dumps[i_dump]
     else:
-        # Last output have been dumped. Remove autosave file.
-        if master and os.path.isfile(autosave_filename):
-            os.remove(autosave_filename)
+        # Last output have been dumped. Remove autosave files.
+        if master:
+            for filename in (autosave_filename, autosave_param_filename):
+                if os.path.isfile(filename):
+                    os.remove(filename)
     return True
-cython.declare(autosave_filename='str')
+cython.declare(autosave_filename='str',
+               autosave_param_filename='str',
+               )
 autosave_filename = ''
+autosave_param_filename = '{}/autosave_{}.params'.format(paths['params_dir'], jobid)
 
 @cython.header(# Locals
                integrand='str',
@@ -354,7 +398,7 @@ def timeloop():
     next_dump = dumps[i_dump]
     # Possible output at the beginning of simulation
     dump(components, output_filenames, final_render)
-    # Note what time it is, for use with autosaving
+    # Record what time it is, for use with autosaving
     autosave_time = time()
     # The main time loop
     masterprint('Beginning of main time loop')

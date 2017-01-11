@@ -124,7 +124,11 @@ def oneline(filename):
                 line = line[:j].rstrip() + '\n'
                 break
             # Count parentheses outside quotes
-            if not in_quotes[0] and not in_quotes[1]:
+            if (    not in_quotes[0]
+                and not in_quotes[1]
+                and not in_triple_quotes[0]
+                and not in_triple_quotes[1]
+                ):
                 if ch == '(':
                     paren_counts['paren'] += 1
                 elif ch == ')':
@@ -138,7 +142,6 @@ def oneline(filename):
                 elif ch == '}':
                     paren_counts['curly'] -= 1
         return line
-
     new_lines = []
     multiline_statement = []
     multiline = False

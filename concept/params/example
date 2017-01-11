@@ -24,7 +24,7 @@ output_bases = {              # File basenames of output
                 }
 output_times = {
     'a': {                    # Scale factor values at which to dump output
-        'snapshot'       : '',
+        'snapshot'       : 1,
         'powerspec'      : '',
         'render'         : '',
         'terminal render': '',
@@ -90,4 +90,3 @@ enable_Ewald     = True   # Enable Ewald corrections
 enable_gravity   = True   # Enable gravity generally
 enable_Hubble    = True   # Enable Hubble expansion
 enable_debugging = False  # Enable debugging mode
-
