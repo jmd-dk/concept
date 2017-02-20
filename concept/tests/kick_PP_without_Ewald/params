@@ -31,7 +31,7 @@ output_bases  = {'snapshot': 'snapshot'}
 output_times  = {'snapshot': linspace(0.03, 0.11, 10)}
 
 # Numerical parameters
-boxsize          = 21*Mpc/0.7	# Gadget implicitly uses length/h
+boxsize          = 21*Mpc/0.7  # Gadget implicitly uses length/h
 softeningfactors = {'dark matter particles': 0.03}
 
 # Cosmological parameters
@@ -41,6 +41,6 @@ H0      = 70*km/s/Mpc
 a_begin = 0.02
 
 # Simulation options
-kick_algorithms = {'dark matter particles': 'PP'}
-enable_Ewald    = False
+forces       = {'dark matter particles': {'gravity': 'PP'}}
+enable_Ewald = False
 

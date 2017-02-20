@@ -25,9 +25,7 @@
 from commons import *
 
 # Cython imports
-import gravity
 cimport('from communication import communicate_domain, exchange')
-cimport('from gravity import PM')
 cimport('from fluid import maccormack')
 
 
@@ -186,7 +184,7 @@ class FluidScalar:
         free(self.gridˣ)
 
     # String representation
-    def __str__(self):
+    def __repr__(self):
         if self.varnum < len(fluidvarnames):
             name = fluidvarnames[self.varnum]
         else:
@@ -196,6 +194,8 @@ class FluidScalar:
                                                  ', '.join([str(i) for i in self.multi_index]))
         else:
             return '<fluidscalar {}>'.format(name)
+    def __str__(self):
+        return self.__repr__()
 
 
 # The class governing any component of the universe
@@ -221,10 +221,11 @@ class Component:
         # and indluded in the .pxd file.
         """
         # General component attributes
-        public str name
-        public str species
-        public str representation
+        public dict forces
         public double mass
+        public str name
+        public str representation
+        public str species
         # Particle component attributes
         public Py_ssize_t N
         Py_ssize_t N_allocated
@@ -256,6 +257,15 @@ class Component:
         self.name    = name
         self.species = species
         self.mass    = mass
+        # Attatch information about what forces (including the method
+        # used to compute these forces) act on this species in this
+        # particular simulation to the component instance.
+        self.forces = {}
+        for species in (self.species, 'all'):
+            if species in forces:
+                for species_force in forces[species]:
+                    if not species_force[0] in self.forces:
+                        self.forces[species_force[0]] = species_force[1]
         # Determine the representation based on the species
         self.representation = get_representation(self.species)
         # Particle component attributes
@@ -487,53 +497,6 @@ class Component:
             maccormack(self, ᔑdt)
             masterprint('done')
 
-    # Method for kicking particles and fluids
-    @cython.pheader(# Arguments
-                    ᔑdt='dict',
-                    meshbuf_mv='double[:, :, ::1]',
-                    dim='int',
-                    # Locals
-                    kick_algorithm='str',
-                    ρu_dim='FluidScalar',
-                    )
-    def kick(self, ᔑdt, meshbuf_mv=None, dim=-1):
-        """In the case of a component carrying particles, a 'kick' is a
-        complete update of all the particles momenta (momx, momy
-        and momz). When the assigned kick algorithm is 'PM', a complete
-        kick is achieved by calling this function three times, one for
-        each dimension (dim == 0, dim == 1, dim == 2). For all other
-        kick algorithms, a complete kick is achieved by a single call.
-        These other algorithms do not need anything other than ᔑdt,
-        while 'PM' also needs meshbuf (storing the values of
-        [-∇φ]_dim) and dim.
-        In the case of a fluid component, meshbuf_mv and dim need
-        to be parsed and only the dim'th component are updated
-        (ρux, ρuy or ρuz).
-        """
-        if not enable_gravity:
-            return
-        if self.representation == 'particles':
-            # The assigned kick algorithm
-            kick_algorithm = kick_algorithms[self.species]
-            if kick_algorithm == 'PM':
-                # For the PM algoritm, call the PM function with
-                # all the supplied arguments.
-                PM(self, ᔑdt, meshbuf_mv, dim)
-            else:
-                # For all other kick algorithms, the kick is done
-                # completely in one go.
-                # Write out progess message and do the kick.
-                masterprint('Kicking ({}) {} ...'.format(kick_algorithm, self.name))
-                getattr(gravity, kick_algorithm)(self, ᔑdt)
-                masterprint('done')
-        elif self.representation == 'fluid':
-            # Extract fluid scalar ρu[dim] which should be updated
-            ρu_dim = self.fluidvars['ρu'][dim]
-            # Interpolate -∇φ[dim] to ρu_dim
-            gravity.kick_fluid(self, ᔑdt, meshbuf_mv, ρu_dim)
-            # Communicate the pseudo and ghost points of ρu_dim
-            communicate_domain(ρu_dim.grid_mv, mode='populate')
-
     # Method which assigns convenient names to some
     # fluid variables and fluid scalars.
     @cython.header(# Locals
@@ -661,6 +624,12 @@ class Component:
         free(self.momx)
         free(self.momy)
         free(self.momz)
+
+    # String representation
+    def __repr__(self):
+        return '<component "{}" of species "{}">'.format(self.name, self.species)
+    def __str__(self):
+        return self.__repr__()
 
 
 

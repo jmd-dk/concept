@@ -52,7 +52,7 @@ set -e
 # Create the Ewald grid using Cython, if it does not already exist
 if [ ! -f "${concept_dir}/.ewald_gridsize=$(get_param 'ewald_gridsize').hdf5" ]; then
     grep "ewald_gridsize"  "${this_dir}/params" >  "${this_dir}/params_ewald"
-    grep "kick_algorithms" "${this_dir}/params" >> "${this_dir}/params_ewald"
+    grep "forces"          "${this_dir}/params" >> "${this_dir}/params_ewald"
     "${concept}" -n 1 -p "${this_dir}/params_ewald" --local
 fi
 

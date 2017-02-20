@@ -42,5 +42,5 @@ H0      = 70*km/s/Mpc
 a_begin = 0.02
 
 # Simulation options
-kick_algorithms = {'dark matter particles': 'PP'}
+forces = {'dark matter particles': {'gravity': 'PP'}}
 

@@ -27,7 +27,7 @@ from commons import *
 # Cython imports
 from mesh import diff_domain
 cimport('from ewald import ewald')
-cimport('from communication import find_N_recv, rank_neighboring_domain')
+cimport('from communication import communicate_domain, find_N_recv, rank_neighboring_domain')
 cimport('from communication import domain_size_x,  domain_size_y,  domain_size_z')
 cimport('from communication import domain_start_x, domain_start_y, domain_start_z')
 cimport('from mesh import CIC_components2slabs, CIC_grid2grid, CIC_scalargrid2coordinates')
@@ -36,8 +36,8 @@ cimport('from mesh import φ, φ_noghosts')
 
 
 
-# Function for direct summation of gravitational
-# forces between particles in two domains.
+# Function for direct summation of gravitational forces between
+# particles in two domains (possibly the same).
 @cython.header(# Arguments
                posx_i='double*',
                posy_i='double*',
@@ -121,32 +121,32 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
             # Evaluate the gravitational force in one of three ways:
             # Just the short range force, the total force with Ewald
             # corrections or the total force without Ewald corrections.
-            if only_short_range:
-                # Translate coordinates so they
-                # correspond to the nearest image.
-                if x > ℝ[0.5*boxsize]:
-                    x -= boxsize
-                elif x < ℝ[-0.5*boxsize]:
-                    x += boxsize
-                if y > ℝ[0.5*boxsize]:
-                    y -= boxsize
-                elif y < ℝ[-0.5*boxsize]:
-                    y += boxsize
-                if z > ℝ[0.5*boxsize]:
-                    z -= boxsize
-                elif z < ℝ[-0.5*boxsize]:
-                    z += boxsize
-                r = sqrt(x**2 + y**2 + z**2 + softening2)
-                r3 = r**3
-                r_scaled = r/P3M_scale_phys
-                shortrange_fac = (r_scaled/ℝ[sqrt(π)]*exp(-0.25*r_scaled**2) + erfc(0.5*r_scaled))
-                force[0] = -x/r3*shortrange_fac
-                force[1] = -y/r3*shortrange_fac
-                force[2] = -z/r3*shortrange_fac
-            else:
-                # Compute the gravitational force
-                # (corresponding to 1/r**2).
-                if enable_Ewald:
+            with unswitch:
+                if only_short_range:
+                    # Translate coordinates so they
+                    # correspond to the nearest image.
+                    if x > ℝ[0.5*boxsize]:
+                        x -= boxsize
+                    elif x < ℝ[-0.5*boxsize]:
+                        x += boxsize
+                    if y > ℝ[0.5*boxsize]:
+                        y -= boxsize
+                    elif y < ℝ[-0.5*boxsize]:
+                        y += boxsize
+                    if z > ℝ[0.5*boxsize]:
+                        z -= boxsize
+                    elif z < ℝ[-0.5*boxsize]:
+                        z += boxsize
+                    r = sqrt(x**2 + y**2 + z**2 + softening2)
+                    r_scaled = r*ℝ[1/P3M_scale_phys]
+                    shortrange_fac = (  r_scaled*ℝ[1/sqrt(π)]*exp(-0.25*r_scaled**2)
+                                      + erfc(0.5*r_scaled))
+                    force[0] = -x*ℝ[1/r**3]*shortrange_fac
+                    force[1] = -y*ℝ[1/r**3]*shortrange_fac
+                    force[2] = -z*ℝ[1/r**3]*shortrange_fac
+                elif enable_Ewald:
+                    # Compute the gravitational force
+                    # (corresponding to 1/r**2).
                     # Translate coordinates so they
                     # correspond to the nearest image.
                     if x > ℝ[0.5*boxsize]:
@@ -167,45 +167,54 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
                     force = ewald(x, y, z)
                     # Add in the force from the particle's nearest image
                     r3 = (x**2 + y**2 + z**2 + softening2)**1.5
-                    force[0] -= x/r3
-                    force[1] -= y/r3
-                    force[2] -= z/r3
+                    force[0] -= x*ℝ[1/r3]
+                    force[1] -= y*ℝ[1/r3]
+                    force[2] -= z*ℝ[1/r3]
                 else:
                     # The force from the actual particle,
                     # without periodic images.
                     r3 = (x**2 + y**2 + z**2 + softening2)**1.5
-                    force[0] = -x/r3
-                    force[1] = -y/r3
-                    force[2] = -z/r3
+                    force[0] = -x*ℝ[1/r3]
+                    force[1] = -y*ℝ[1/r3]
+                    force[2] = -z*ℝ[1/r3]
             # Multiply the force by (G*m_i*m_j*∫_t^(t + Δt) dt/a).
             # Note that "force" is now really the momentum change.
             force[0] *= eom_factor
             force[1] *= eom_factor
             force[2] *= eom_factor
             # Update momenta and momentum changes
-            if flag_input == 0:
-                # Group i and j are the same (and belongs to the local
-                # domain). Update momenta of both particles in the pair.
-                momx_i[i] -= force[0]
-                momy_i[i] -= force[1]
-                momz_i[i] -= force[2]
-                momx_i[j] += force[0]
-                momy_i[j] += force[1]
-                momz_i[j] += force[2]
-            else:
-                # Group i and j are different. Update local momenta
-                momx_i[i] -= force[0]
-                momy_i[i] -= force[1]
-                momz_i[i] -= force[2]
-                if flag_input == 1:
-                    # Also update external momentum changes
+            with unswitch:
+                if flag_input == 0:
+                    # Group i and j are the same (and belongs to the
+                    # local domain). Update momenta of both particles
+                    # in the pair.
+                    momx_i[i] -= force[0]
+                    momy_i[i] -= force[1]
+                    momz_i[i] -= force[2]
+                    momx_i[j] += force[0]
+                    momy_i[j] += force[1]
+                    momz_i[j] += force[2]
+                elif flag_input == 1:
+                    # Group i and j are different.
+                    # Update local momenta
+                    # and external momentum changes.
+                    momx_i[i] -= force[0]
+                    momy_i[i] -= force[1]
+                    momz_i[i] -= force[2]
                     Δmomx_j[j] += force[0]
                     Δmomy_j[j] += force[1]
                     Δmomz_j[j] += force[2]
+                else:
+                    # Group i and j are different.
+                    # Update only the local momenta.
+                    momx_i[i] -= force[0]
+                    momy_i[i] -= force[1]
+                    momz_i[i] -= force[2]
+
 
 # Function for computing the gravitational force
 # by direct summation on all particles
-# (the particle particle or PP method).
+# (the particle-particle or PP method).
 @cython.pheader(# Arguments
                component='Component',
                ᔑdt='dict',
@@ -363,7 +372,7 @@ def PP(component, ᔑdt):
 @cython.header(# Arguments
                component='Component',
                ᔑdt='dict',
-               meshbuf_mv='double[:, :, ::1]',
+               gradφ_dim='double[:, :, ::1]',
                dim='int',
                # Locals
                PM_fac='double',
@@ -372,64 +381,60 @@ def PP(component, ᔑdt):
                posx='double*',
                posy='double*',
                posz='double*',
+               x='double',
+               y='double',
+               z='double',
+               ρu_dim='FluidScalar',
                )
-def PM(component, ᔑdt, meshbuf_mv, dim):
-    """This function updates the momenta of all particles via the
-    particle-mesh (PM) method.
+def PM(component, ᔑdt, gradφ_dim, dim):
+    """This function updates the momenta of all particles/fluid elements
+    via the particle-mesh (PM) method.
     """
-    # Extract variables from component
-    posx = component.posx
-    posy = component.posy
-    posz = component.posz
-    if dim == 0:
-        mom = component.momx
-    elif dim == 1:
-        mom = component.momy
-    elif dim == 2:
-        mom = component.momz
-    # The factor with which to multiply the values
-    # in meshbuf_mv (the differentiated potential)
-    # in order to get momentum units.
-    PM_fac = PM_fac_const*component.mass*ᔑdt['a⁻¹']
-    # Update the dim momentum component of particle i
-    for i in range(component.N_local):
-        # The coordinates of the i'th particle,
-        # transformed so that 0 <= x, y, z < 1.
-        x = (posx[i] - domain_start_x)/domain_size_x
-        y = (posy[i] - domain_start_y)/domain_size_y
-        z = (posz[i] - domain_start_z)/domain_size_z
-        # Look up the force via a CIC interpolation,
-        # convert it to momentum units and add it to the
-        # momentum of particle i.
-        mom[i] += PM_fac*CIC_scalargrid2coordinates(meshbuf_mv, x, y, z)
-
-# Function which gravitationally 'kicks' a fluid component,
-# updating its momentum density.
-@cython.pheader(# Arguments
-                component='Component',
-                ᔑdt='dict',
-                meshbuf_mv='double[:, :, ::1]',
-                ρu_dim='FluidScalar',
-                )
-def kick_fluid(component, ᔑdt, meshbuf_mv, ρu_dim):
-    """The parsed meshbuf_mv should contain the dim'th component of ∇φ.
-    To do the complete potential-part of the kick, call this function
-    once for each dimension.
-    """
-    # Accelerate fluid elements gravitationally.
-    # The factor with which to multiply the values in meshbuf_mv
-    # (the differentiated potential, [∇φ]_dim) in order to get units of
-    # acceleration is given by PM_fac_const. As the gravitational source
-    # term is -∇φ*ρ, we also need to multiply each grid point
-    # [i, j, k] by ρ[i, j, k], leaving units of momentum/(volume*time).
-    # To convert to momentum/volume, we multiply by
-    # the time step size ᔑdta⁻¹.
-    if enable_gravity:
+    if component.representation == 'particles':
+        # Extract variables from component
+        posx = component.posx
+        posy = component.posy
+        posz = component.posz
+        if dim == 0:
+            mom = component.momx
+        elif dim == 1:
+            mom = component.momy
+        elif dim == 2:
+            mom = component.momz
+        # The factor with which to multiply the values
+        # in gradφ_dim (the differentiated potential, [∇φ]_dim)
+        # in order to get momentum units.
+        PM_fac = PM_fac_const*component.mass*ᔑdt['a⁻¹']
+        # Update the dim momentum component of particle i
+        for i in range(component.N_local):
+            # The coordinates of the i'th particle,
+            # transformed so that 0 <= x, y, z < 1.
+            x = (posx[i] - domain_start_x)/domain_size_x
+            y = (posy[i] - domain_start_y)/domain_size_y
+            z = (posz[i] - domain_start_z)/domain_size_z
+            # Look up the force via a CIC interpolation,
+            # convert it to momentum units and add it to the
+            # momentum of particle i.
+            mom[i] += PM_fac*CIC_scalargrid2coordinates(gradφ_dim, x, y, z)
+    elif component.representation == 'fluid':
+        # Simply scale and extrapolate the values in gradφ_dim
+        # (the differentiated potential, [∇φ]_dim) to the grid points
+        # of the dim'th component of the fluid variable ρu.
+        # First extract this fluid scalar.
+        ρu_dim = component.fluidvars['ρu'][dim]
+        # The factor with which to multiply the values in gradφ_dim in
+        # order to get units of acceleration is given by PM_fac_const.
+        # As the gravitational source term is -∇φ*ρ, we also need to
+        # multiply each grid point [i, j, k] by ρ[i, j, k], leaving
+        # units of momentum/(volume*time). To convert to
+        # momentum/volume, we multiply by the time step size ᔑdta⁻¹.
         CIC_grid2grid(ρu_dim.grid_noghosts,
-                      meshbuf_mv,
+                      gradφ_dim,
                       fac=PM_fac_const*ᔑdt['a⁻¹'],
                       fac_grid=component.fluidvars['ρ'].grid_noghosts,
                       )
+        # Communicate the pseudo and ghost points of ρu_dim
+        communicate_domain(ρu_dim.grid_mv, mode='populate')
 
 # Function which constructs the total gravitational potential φ due
 # to all components.
@@ -462,7 +467,10 @@ def build_φ(components, only_long_range=False):
     if not use_φ:
         masterwarn('The φ mesh is not initialized. '
                    'Have you specified φ_gridsize in the parameter file?')
-    masterprint('Computing the gravitational potential ...')
+    if only_long_range:
+        masterprint('Computing the long-range gravitational potential ...')
+    else:
+        masterprint('Computing the gravitational potential ...')
     # CIC interpolate the particles/fluid elements onto the slabs
     # and do forward Fourier transformation.
     CIC_components2slabs(components)
@@ -781,7 +789,7 @@ def in_boundary_leftbackwarddown(posx_local_i, posy_local_i, posz_local_i):
                                           and posz_local_i < boundary_z_min)
 
 # Function for computing the gravitational force
-# by the particle particle particle mesh (P³M) method.
+# by the particle-particle-particle mesh (P³M) method.
 @cython.pheader(# Arguments
                component='Component',
                ᔑdt='dict',
@@ -840,18 +848,11 @@ def P3M(component, ᔑdt):
     global Δmomx_local_mv, Δmomy_local_mv, Δmomz_local_mv
     global indices_send, indices_send_mv
     global indices_boundary, indices_boundary_mv
-    # TEMPORARY HACK !!!
-    # THIS WILL OVERWRITE φ. THE P3M-METHOD SHOULD ONLY BE USED IN
-    # SINGLE-COMPONENT SIMULATIONS!
-    build_φ([component], only_long_range=True)
-    # Physical grid spacing of φ
-    h = boxsize/φ_gridsize
-    # Compute the long-range force via the PM method
-    for dim in range(3):
-        # Do the differentiation of φ
-        meshbuf_mv = diff_domain(φ, dim, h)
-        # Apply the long-range kick
-        PM(component, ᔑdt, meshbuf_mv, dim)
+    
+    # NOTE: This function now only supply the short-range force
+    # and should therefore be renamed !!!
+    #
+
     # Extract variables from component
     N_local    = component.N_local
     mass       = component.mass
@@ -890,7 +891,7 @@ def P3M(component, ᔑdt):
     for j in range(13):
         # It is important that the processes iterate synchronously,
         # so that the received data really is what the local process
-        # think it is.
+        # thinks it is.
         Barrier()
         # The ranks of the processes to communicate with
         rank_send = boundary_ranks_send[j]

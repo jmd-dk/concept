@@ -1,4 +1,4 @@
-# This is an examplFalserameterfile to the CO𝘕CEPT code,
+# This is an example parameterfile to the CO𝘕CEPT code,
 # containing every parameter.
 # Parameters can be specified as any valid Python 3 expression.
 # Mathematical as well as NumPy functions and constants are available.
@@ -65,6 +65,12 @@ H0      = 70*km/(s*Mpc)  # The Hubble constant
 ΩΛ      = 0.7            # Density parameter for cosmological constant
 a_begin = 0.02           # Scale factor at beginning of simulation
 
+# Simulation options
+forces = {  # The forces which act on each species
+    'dark matter particles': {'gravity': 'pm'},
+          }
+fftw_rigor = 'measure'  # Rigor level when acquiring FFTW wisdom
+
 # Graphics
 render_colors = {                        # Render color for each type
     'all': 'lime',
@@ -73,12 +79,6 @@ bgcolor                    = 'black'	 # Background color of renders
 resolution                 = 1080        # The height and width of the render
 terminal_render_colormap   = 'gnuplot2'  # The colormap to use for the terminal render
 terminal_render_resolution = 64          # The width of the terminal render
-
-# Simulation options
-kick_algorithms = {	# The algorithm which should be used to kick each species
-    'dark matter particles': 'PM',
-                   }
-fftw_rigor = 'measure'  # Rigor level when acquiring FFTW wisdom
 
 # System of units
 unit_length = 'Mpc'          # Physical length corresponding to a numerical value of 1.0

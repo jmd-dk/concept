@@ -129,6 +129,7 @@ matplotlib.rcParams.update({# Use a nice font that ships with matplotlib
                             'text.usetex'       : False,
                             'font.family'       : 'serif',
                             'font.serif'        : 'cmr10',
+                            'mathtext.fontset'  : 'cm',
                             'axes.unicode_minus': False,
                             # Use outward pointing ticks
                             'xtick.direction': 'out',
@@ -481,6 +482,15 @@ if not cython.compiled:
         if import_statement.endswith(','):
             import_statement = import_statement[:-1]
         exec(import_statement, inspect.getmodule(inspect.stack()[1][0]).__dict__)
+    # A dummy context manager for use with loop unswitching
+    class DummyContextManager:
+        def __call__(self, *args):
+            return self
+        def __enter__(self):
+            ...
+        def __exit__(self, *exc_info):
+            ...
+    unswitch = DummyContextManager()
 # Function for building "structs" (really simple namespaces).
 # In compiled mode, this function body will be copied and
 # specialised for each kind of struct created.
@@ -1002,7 +1012,9 @@ for u in ('length', 'time', 'mass'):
 # - The 'output_times' are sorted and duplicates (for each type of
 #   output) are removed.
 # - Ellipses used as dictionary values will be replaced by whatever
-#   non-ellipsis value also present in the same dictionary. Below is the
+#   non-ellipsis value also present in the same dictionary. If using
+#   Python ≥ 3.6.0, where dictionaries are ordered, ellipses will be
+#   replaced by their nearest, previous non-ellipsis value. Below is the
 #   function replace_ellipsis which takes care of this replacement.
 # - Paths below or just one level above the concept directory are made
 #   relative to this directory in order to reduce screen clutter.
@@ -1028,6 +1040,8 @@ def replace_ellipsis(d):
     for key, val in d.items():
         if val is ...:
             d[key] = parameter
+        elif any(any2iter(val)):
+            parameter = val
 cython.declare(# Input/output
                IC_file='str',
                snapshot_type='str',
@@ -1060,14 +1074,13 @@ cython.declare(# Input/output
                terminal_render_colormap='str',
                terminal_render_resolution='unsigned int',
                # Simlation options
-               kick_algorithms='dict',
+               forces='dict',
                use_φ='bint',
                use_P3M='bint',
                fftw_rigor='str',
                # Debugging options
                enable_debugging='bint',
                enable_Ewald='bint',
-               enable_gravity='bint',
                enable_Hubble='bint',
                # Hidden parameters
                special_params='dict',
@@ -1155,6 +1168,56 @@ H0 = float(user_params.get('H0', 70*units.km/(units.s*units.Mpc)))
 ΩΛ = float(user_params.get('ΩΛ', 0.7))
 a_begin = float(user_params.get('a_begin', 1))
 t_begin = float(user_params.get('t_begin', 0))
+# Simulation options
+forces = dict(user_params.get('forces', {}))
+default_force_methods = {'gravity': 'pm',
+                         }
+replace_ellipsis(forces)
+for key, val in forces.items():
+    if isinstance(val, dict):
+        forces[key] = [(key2, val2) for key2, val2 in val.items()]
+    elif isinstance(val, str):
+        forces[key] = [(val, default_force_methods[val.lower()])]
+    elif isinstance(val, tuple) or isinstance(val, list):
+        if len(val) == 2 and isinstance(val[0], str) and isinstance(val[1], str):
+            if val[1] in default_force_methods:
+                forces[key] = [(val[0], default_force_methods[val[0]]),
+                               (val[1], default_force_methods[val[1]])
+                               ]
+            else:
+                forces[key] = [tuple(val)]
+        else:
+            new_val = []
+            for el in val:
+                if isinstance(el, dict):
+                    new_val += [(key2, val2) for key2, val2 in el.items()]
+                elif isinstance(el, tuple) or isinstance(el, list):
+                    if len(el) == 2:
+                        new_val += [(el[0], el[1])]
+                elif isinstance(el, str):
+                    new_val += [(el, default_force_methods[el.lower()])]
+            forces[key] = new_val
+    for i, t in enumerate(forces[key]):
+        t = (t[0].lower(), t[1].lower())
+        t = (t[0].replace(' ', '_'), t[1].replace(' ', '_'))
+        t = (t[0].replace('-', '_'), t[1].replace('-', '_'))
+        t = (t[0].replace('^', '' ), t[1].replace('^', '' ))
+        for n in range(10):
+            t = (t[0].replace(unicode_superscript(str(n)), str(n)),
+                 t[1].replace(unicode_superscript(str(n)), str(n)))
+        forces[key][i] = t
+force_methods = {t[1] for l in forces.values() for t in l}
+if (   'φ_gridsize' in user_params
+    or (set(('pm', 'p3m')) & force_methods)
+    or any([output_times[time_param]['powerspec'] for time_param in ('a', 't')])):
+    use_φ = bool(user_params.get('use_φ', True))
+else:
+    use_φ = bool(user_params.get('use_φ', False))
+if 'p3m' in force_methods:
+    use_P3M = bool(user_params.get('use_P3M', True))
+else:
+    use_P3M = bool(user_params.get('use_P3M', False))
+fftw_rigor = user_params.get('fftw_rigor', 'estimate').lower()
 # Graphics
 render_colors = {}
 if 'render_colors' in user_params:
@@ -1168,25 +1231,10 @@ bgcolor = to_rgb(user_params.get('bgcolor', 'black'))
 resolution = to_int(user_params.get('resolution', 1080))
 terminal_render_colormap = str(user_params.get('terminal_render_colormap', 'gnuplot2'))
 terminal_render_resolution = to_int(user_params.get('terminal_render_resolution', 80))
-# Simulation options
-kick_algorithms = dict(user_params.get('kick_algorithms', {}))
-replace_ellipsis(kick_algorithms)
-if (   'φ_gridsize' in user_params
-    or (set(('PM', 'P3M')) & set(kick_algorithms.values()))
-    or any([output_times[time_param]['powerspec'] for time_param in ('a', 't')])):
-    use_φ = bool(user_params.get('use_φ', True))
-else:
-    use_φ = bool(user_params.get('use_φ', False))
-if 'P3M' in kick_algorithms.values():
-    use_P3M = bool(user_params.get('use_P3M', True))
-else:
-    use_P3M = bool(user_params.get('use_P3M', False))
-fftw_rigor = user_params.get('fftw_rigor', 'estimate').lower()
 # Debugging options
 enable_debugging = bool(user_params.get('enable_debugging', False))
 enable_Ewald = bool(user_params.get('enable_Ewald',
-                                    True if 'PP' in kick_algorithms.values() else False))
-enable_gravity = bool(user_params.get('enable_gravity', True))
+                                    True if 'pp' in force_methods else False))
 enable_Hubble = bool(user_params.get('enable_Hubble', True))
 # Extra hidden parameters via the special_params variable
 special_params = dict(user_params.get('special_params', {}))

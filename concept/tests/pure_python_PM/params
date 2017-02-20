@@ -31,7 +31,7 @@ output_bases  = {'snapshot': 'snapshot'}
 output_times  = {'snapshot': (0.1, 0.5, 1)}
 
 # Numerical parameters
-boxsize     = 8*Mpc
+boxsize    = 8*Mpc
 φ_gridsize = 8
 
 # Cosmological parameters
@@ -41,5 +41,5 @@ H0      = 70*km/s/Mpc
 a_begin = 0.02
 
 # Simulation options
-kick_algorithms = {'dark matter particles': 'PM'}
+forces = {'dark matter particles': {'gravity': 'PM'}}
 

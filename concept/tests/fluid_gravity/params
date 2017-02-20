@@ -24,17 +24,17 @@
 _this_dir = os.path.dirname(paths['params'])
 
 # Input/output
-IC_file       = _this_dir + '/IC.hdf5'
-output_dirs   = {'snapshot': _this_dir + '/output'}
-output_bases  = {'snapshot': 'snapshot'}
-output_times  = {'a': {'terminal render': logspace(log(0.02), log(0.055), 26, base=e),
-                       'snapshot':        logspace(log(0.02), log(0.055), 3, base=e),
-                       }
-                 }
+IC_file      = _this_dir + '/IC.hdf5'
+output_dirs  = {'snapshot': _this_dir + '/output'}
+output_bases = {'snapshot': 'snapshot'}
+output_times = {'a': {'terminal render': logspace(log(0.02), log(0.055), 26, base=e),
+                      'snapshot':        logspace(log(0.02), log(0.055),  3, base=e),
+                      },
+                }
 
 # Numerical parameters
-boxsize          = 64*Mpc
-φ_gridsize       = 4*8    # Must be a multiplum of 4
+boxsize    = 64*Mpc
+φ_gridsize = 4*8    # Must be a multiplum of 4
 
 # Cosmological parameters
 H0      = 70*km/(s*Mpc)
@@ -47,9 +47,8 @@ terminal_render_colormap   = 'ocean'
 terminal_render_resolution = φ_gridsize
 
 # Simulation options
-kick_algorithms = {'dark matter particles': 'PM'}
+forces = {'all': {'gravity': 'PM'}}
 
 # Debugging options
-enable_gravity = True
 enable_Hubble = True
 
