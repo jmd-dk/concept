@@ -488,15 +488,15 @@ set_package_manager_and_names()
                             break
                             ;;
                 "pacman"  ) install_command="sudo ${package_manager} -S --noconfirm"
-                            set_package_names "gawk"         \
-                                              "gcc"          \
-                                              "gcc"          \
-                                              "gcc-fortran"  \
-                                              "gzip"         \
-                                              "make"         \
-                                              "perl"         \
-                                              "sed"          \
-                                              "tar"          \
+                            set_package_names "gawk"        \
+                                              "gcc"         \
+                                              "gcc"         \
+                                              "gcc-fortran" \
+                                              "gzip"        \
+                                              "make"        \
+                                              "perl"        \
+                                              "sed"         \
+                                              "tar"         \
                                               "wget"
                             break
                             ;;
@@ -2399,6 +2399,7 @@ init_install()
     for f in *; do
         if [ -d "${f}" ]; then
             cd "${f}"
+            break
         fi
     done
 }
@@ -3239,7 +3240,7 @@ if [ "${matplotlib_install}" == "yes" ] && [ "${matplotlib_installed}" == "no" ]
         ((j = i + 1))
         if [[ "${pyparsing_downloaded}" == "pyparsing-${illegal_pyparsings[i]}"* ]]; then
             # Illegal pyparsing downloaded!
-            rm -f "${top_dir}/tmp/pip/pyparsing"*
+            rm -rf "${top_dir}/tmp/pip/pyparsing"*
             break
         fi
     done
@@ -3251,7 +3252,12 @@ if [ "${matplotlib_install}" == "yes" ] && [ "${matplotlib_installed}" == "no" ]
     # Install matplotlib
     cd "${top_dir}/tmp/pip"
     extract "matplotlib"* "yes"
-    cd "matplotlib"*
+    for f in *; do
+        if [ -d "${f}" ] && [[ "${f}" == "matplotlib"* ]]; then
+            cd "${f}"
+            break
+        fi
+    done
     cp "setup.cfg.template" "setup.cfg"
     freetype_include2="$(echo "${freetype_dir}/include/freetype"*)"
     basedirlist="${freetype_dir},\
@@ -3314,7 +3320,12 @@ if [ "${h5py_install}" == "yes" ] && [ "${h5py_installed}" == "no" ]; then
     pip_download "h5py" "${h5py_version}" 300
     cd "${top_dir}/tmp/pip"
     extract "h5py"* "yes"
-    cd "h5py"*
+    for f in *; do
+        if [ -d "${f}" ] && [[ "${f}" == "h5py"* ]]; then
+            cd "${f}"
+            break
+        fi
+    done
     export CC="${mpi_dir}/bin/mpicc"
     # Running setup.py may appear to hang,
     # but it will eventually get going.
