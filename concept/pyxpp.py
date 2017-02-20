@@ -69,6 +69,8 @@ the following changes happens to the source code (in the .pyx file):
   appropriate pointer type.
 - Replaced the cast() function with actual Cython syntax, e.g. 
   <double[::1]>.
+- Loop unswitching is performed on if statements under an unswitch
+  context manager, which are indented under one or more loops.
 - A comment will be added to the end of the file, listing all the
   implemented extension types within the file.
 
@@ -94,7 +96,7 @@ import numpy as np
 
 
 
-def oneline(filename):
+def oneline(lines):
     in_quotes = [False, False]
     in_triple_quotes = [False, False]
     paren_counts = {'paren': 0, 'brack': 0, 'curly': 0}
@@ -146,126 +148,92 @@ def oneline(filename):
     multiline_statement = []
     multiline = False
     multiline_decorator = False
-    with open(filename, 'r', encoding='utf-8') as pyxfile:
-        for i, line in enumerate(pyxfile):
-            line = count_parens(line)
-            if (paren_counts['paren'] > 0 or
-                paren_counts['brack'] > 0 or
-                paren_counts['curly'] > 0) and not multiline:
-                # Multiline statement begins
-                multiline = True
-                if line.lstrip().startswith('@'):
-                    multiline_decorator = True
-                    new_lines.append(line)
-                    continue
-                if line.lstrip().startswith('#'):
-                    # Delete full-line comment
-                    # within multiline statement.
-                    line = ''
-                if line:
-                    multiline_statement.append(line.rstrip())
-            elif (paren_counts['paren'] > 0 or
-                  paren_counts['brack'] > 0 or
-                  paren_counts['curly'] > 0) and multiline:
-                # Multiline statement continues
-                if multiline_decorator:
-                    new_lines.append(line)
-                    continue
-                if line.lstrip().startswith('#'):
-                    # Delete full-line comment
-                    # within multiline statement.
-                    line = ''
-                if line:
-                    multiline_statement.append(' ' + line.strip())
-            elif multiline:
-                # Multiline statement ends
-                multiline = False
-                if multiline_decorator:
-                    multiline_decorator = False
-                    new_lines.append(line)
-                    continue
-                multiline_statement.append(' ' + line.lstrip())
-                new_lines.append(''.join(multiline_statement))
-                multiline_statement = []
+    for i, line in enumerate(lines):
+        line = count_parens(line)
+        if (paren_counts['paren'] > 0 or
+            paren_counts['brack'] > 0 or
+            paren_counts['curly'] > 0) and not multiline:
+            # Multiline statement begins
+            multiline = True
+            if line.lstrip().startswith('@'):
+                multiline_decorator = True
+                new_lines.append(line)
+                continue
+            if line.lstrip().startswith('#'):
+                # Delete full-line comment
+                # within multiline statement.
+                line = ''
+            if line:
+                multiline_statement.append(line.rstrip())
+        elif (paren_counts['paren'] > 0 or
+              paren_counts['brack'] > 0 or
+              paren_counts['curly'] > 0) and multiline:
+            # Multiline statement continues
+            if multiline_decorator:
+                new_lines.append(line)
+                continue
+            if line.lstrip().startswith('#'):
+                # Delete full-line comment
+                # within multiline statement.
+                line = ''
+            if line:
+                multiline_statement.append(' ' + line.strip())
+        elif multiline:
+            # Multiline statement ends
+            multiline = False
+            if multiline_decorator:
+                multiline_decorator = False
+                new_lines.append(line)
+                continue
+            multiline_statement.append(' ' + line.lstrip())
+            new_lines.append(''.join(multiline_statement))
+            multiline_statement = []
+        else:
+            new_lines.append(line)
+    return new_lines
+
+
+
+def cythonstring2code(lines):
+    new_lines = []
+    in_purePythonsection = False
+    unindent = False
+    purePythonsection_start = 0
+    indentation = 0
+    for i, line in enumerate(lines):
+        if (unindent and line.rstrip() != ''
+                     and (len(line) > indentation
+                     and line[indentation] != ' ')):
+            unindent = False
+        if line.lstrip().startswith('if not cython.compiled:'):
+            indentation = len(line) - len(line.lstrip())
+            in_purePythonsection = True
+            purePythonsection_start = i
+        if not in_purePythonsection:
+            if unindent:
+                line_without_triple_quotes = line
+                if (   line.startswith(' '*(indentation + 4) + '"""') 
+                    or line.startswith(' '*(indentation + 4) + "'''")):
+                    line_without_triple_quotes = line.replace('"""', '').replace("'''", '')
+                if len(line_without_triple_quotes) > 4:
+                    new_lines.append(line_without_triple_quotes[4:])
             else:
                 new_lines.append(line)
-    with open(filename, 'w', encoding='utf-8') as pyxfile:
-        pyxfile.writelines(new_lines)
-
-
-
-def cimport_commons(filename):
-    with open(filename, 'r', encoding='utf-8') as pyxfile:
-        lines = pyxfile.read().split('\n')
-    for i, line in enumerate(lines):
-        if line.startswith('from {} import *'.format(commons_name)):
-            lines = (  lines[:(i + 1)]
-                     + ['cimport cython', 'from {} cimport *'.format(commons_name)]
-                     + lines[(i + 1):])
-            break
-    with open(filename, 'w', encoding='utf-8') as pyxfile:
-        pyxfile.writelines('\n'.join(lines))
-
-
-
-def cimport_function(filename):
-    with open(filename, 'r', encoding='utf-8') as pyxfile:
-        lines = pyxfile.read().split('\n')
-    for i, line in enumerate(lines):
-        if line.replace(' ', '').startswith('cimport('):
-            line = re.sub('cimport.*\((.*?)\)',
-                          lambda match: eval(match.group(1)).replace('import ', 'cimport '),
-                          line).rstrip()
-            if line.endswith(','):
-                line = line[:-1]
-            lines[i] = line
-    with open(filename, 'w', encoding='utf-8') as pyxfile:
-        pyxfile.writelines('\n'.join(lines))
-
-
-
-def cythonstring2code(filename):
-    new_lines = []
-    with open(filename, 'r', encoding='utf-8') as pyxfile:
-        in_purePythonsection = False
-        unindent = False
-        purePythonsection_start = 0
-        indentation = 0
-        for i, line in enumerate(pyxfile):
-            if (unindent and line.rstrip() != ''
-                         and (len(line) > indentation
-                         and line[indentation] != ' ')):
+        if (i != purePythonsection_start and in_purePythonsection
+                                         and len(line) >= indentation
+                                         and line[indentation] != ' '
+                                         and line.strip()):
+            in_purePythonsection = False
+            if 'else:' in line:
+                unindent = True
+            else:
+                new_lines.append(line)
                 unindent = False
-            if line.lstrip().startswith('if not cython.compiled:'):
-                indentation = len(line) - len(line.lstrip())
-                in_purePythonsection = True
-                purePythonsection_start = i
-            if not in_purePythonsection:
-                if unindent:
-                    line_without_triple_quotes = line
-                    if (   line.startswith(' '*(indentation + 4) + '"""') 
-                        or line.startswith(' '*(indentation + 4) + "'''")):
-                        line_without_triple_quotes = line.replace('"""', '').replace("'''", '')
-                    if len(line_without_triple_quotes) > 4:
-                        new_lines.append(line_without_triple_quotes[4:])
-                else:
-                    new_lines.append(line)
-            if (i != purePythonsection_start and in_purePythonsection
-                                             and len(line) >= indentation
-                                             and line[indentation] != ' '
-                                             and line.strip()):
-                in_purePythonsection = False
-                if 'else:' in line:
-                    unindent = True
-                else:
-                    new_lines.append(line)
-                    unindent = False
-    with open(filename, 'w', encoding='utf-8') as pyxfile:
-        pyxfile.writelines(new_lines)
+    return new_lines
 
 
 
-def cython_structs(filename):
+def cython_structs(lines):
     # Function which returns a copy of the build_struct function
     # from commons.py:
     def get_build_struct():
@@ -296,452 +264,288 @@ def cython_structs(filename):
     build_struct_code = []
     new_lines = []
     struct_kinds = []
-    with open(filename, 'r', encoding='utf-8') as pyxfile:
-        for line in pyxfile:
-            if (    'build_struct(' in line
-                and '=build_struct(' in line.replace(' ', '')
-                and not line.lstrip().startswith('#')
-                ):
-                # Call found.
-                # Get assigned names.
-                varnames = line[:line.index('=')].replace(' ', '').split(',')
-                # Get field names, types and values. These are stored
-                # as triples og strings in struct_content.
-                struct_content = line[(line.index('(') + 1):line.rindex(')')].split('=')
-                for i, part in enumerate(struct_content[:-1]):
-                    # The field name
-                    if i == 0:
-                        name = part
-                    else:
-                        name = part[(part.rindex(',') + 1):].strip()
-                    decl = struct_content[i + 1][:struct_content[i + 1].rindex(',')]
-                    if re.search('\(.*,', decl.replace(' ', '')):
-                        # Both type and value given.
-                        # Find type.
-                        ctype_start = len(decl)
-                        if "'" in decl:
-                            ctype_start = decl.index("'")
-                        if '"' in decl and decl.index('"') < ctype_start:
-                            ctype_start = decl.index('"')
-                        quote_type = decl[ctype_start]
-                        ctype = ''
-                        for j, c in enumerate(decl[(ctype_start + 1):]):
-                            if c == quote_type:
-                                break
-                            ctype += c
-                        # Find value
-                        value = decl[(ctype_start + 1 + j + 1):].strip()
-                        if value[0] == ',':
-                            value = value[1:]
-                        if value[-1] == ')':
-                            value = value[:-1]
-                        value = value
-                    else:
-                        # Only type given. Initialize to zero.
-                        if decl.count('"') == 2:
-                            ctype = re.search('(".*")', decl).group(1)
-                        if decl.count("'") == 2:
-                            ctype = re.search("('.*')", decl).group(1)
-                        ctype = ctype.replace('"', '').replace("'", '').strip()
-                        value = '0'
-                    struct_content[i] = (name.strip(), ctype.strip(), value.strip())
-                struct_content.pop()
-                # The name of the struct type is eg. struct_double_double_int
-                struct_kind = '_'.join([t[1] for t in struct_content])
-                # Insert modified version of the build_struct function,
-                # initializing all values to zero.
-                if not build_struct_code:
-                    build_struct_code = get_build_struct()
-                for build_struct_line in build_struct_code:
-                    build_struct_line = build_struct_line.replace('build_struct(', 'build_struct_{}('.format(struct_kind))
-                    build_struct_line = build_struct_line.replace('...',
-                                                                  'struct_{}({})'.format(struct_kind,
-                                                                                         ', '.join(['0']*len(struct_content))))
-                    
-                    new_lines.append(build_struct_line)
-                # Insert declaration of struct
-                indentation = len(line) - len(line.lstrip())
-                new_lines.append(' '*indentation + "cython.declare({}='struct_{}')\n"
-                                                   .format(varnames[0], struct_kind))
-                # Insert declaration of dict
-                if len(varnames) == 2:
-                    new_lines.append(' '*indentation + "cython.declare({}='dict')\n"
-                                                       .format(varnames[1]))
-                # Insert modified build_struct call
-                new_lines.append(line.replace('build_struct(',
-                                              'build_struct_{}('.format(struct_kind)))
-                # Set values
-                for name, ctype, value in struct_content:
-                    if value != '0':
-                        new_lines.append("{}{}.{} = {}['{}']\n".format(' '*indentation,
-                                                                       varnames[0], 
-                                                                       name,
-                                                                       varnames[1],
-                                                                       name)
-                                         )
-                # Insert pxd declaration of the struct
-                if struct_kind not in struct_kinds:
-                    struct_kinds.append(struct_kind)
-                    new_lines.append(' '*indentation + 'pxd = """\n')
-                    new_lines.append('{}ctypedef struct struct_{}:\n'.format(' '*indentation, struct_kind))
-                    for name, ctype, val in struct_content:
-                        new_lines.append('{}    {} {}\n'.format(' '*indentation,
-                                                                ctype.replace('"', '').replace("'", ''),
-                                                                name))
-                    new_lines.append(' '*indentation + '"""\n')
-            else:
-                # No call found in this line
-                new_lines.append(line)
-    with open(filename, 'w', encoding='utf-8') as pyxfile:
-        pyxfile.writelines(new_lines)
-
-
-
-def power2product(filename):
-    keywords = ('assert',
-                'elif',
-                'except',
-                'from',
-                'if',
-                'in',
-                'is',
-                'not',
-                'or',
-                'raise',
-                'return',
-                'try',
-                'while',
-                'with',
-                'yield',
-                )
-    new_lines = []
-    with open(filename, 'r', encoding='utf-8') as pyxfile:
-        for line in pyxfile:
-            while True:
-                match = re.search('([\w.]+(\[.*\])?|\(.*\))\s*\*\*\s*([0-9.]+)', line)
-                if not match:
-                    break
-                match_str   = [None]*4
-                start_index = [None]*4
-                end_index   = [None]*4
-                for i in (1, 3):
-                    match_str[i] = match.group(i)
-                    start_index[i], end_index[i] = match.span(i)
-                # Only integer exponents should be accepted
-                try:
-                    exponent = int(match_str[3])
-                    if exponent != float(match_str[3]):
-                        break
-                except:
-                    break
-                # Nested parentheses can lead to too small start_index
-                # for the first group. Fix this issue.
-                if ')' in match_str[1]:
-                    N_parens = 0
-                    for i, c in enumerate(reversed(match_str[1])):
-                        if c == '(':
-                            N_parens += 1
-                            if N_parens == 0:
-                                start_index[1] = end_index[1] - i - 1
-                                break
-                        elif c == ')':
-                            N_parens -= 1
-                    # If the base is a function call, do nothing.
-                    # Be careful with keywords prior to the base.
-                    match_before = re.search('[\w.]+\s*$', line[:start_index[1]])
-                    if match_before:
-                        match_before_str = match_before.group().rstrip()
-                        if match_before_str not in keywords:
-                            break
-                elif ']' in match_str[1]:
-                    # If more than one pair of [] is in the line,
-                    # and the base is not in parentheses, every [] left
-                    # of the base gets in the match. Fix thís issue.
-                    N_brackets = 0
-                    break_on_nonword = False
-                    for i, c in enumerate(reversed(match_str[1])):
-                        if break_on_nonword and not re.search('[\w.]', c):
-                            start_index[1] = end_index[1] - i
-                            break
-                        if c == '[':
-                            N_brackets += 1
-                            if N_brackets == 0:
-                                # Leftmost bracket found. Keep searching
-                                # to the left until non-word-character
-                                # is found.
-                                break_on_nonword = True
-                        elif c == ']': 
-                            N_brackets -= 1
-                # Stitch together new line
-                mul = '*'.join([line[start_index[1]:end_index[1]]]*exponent)
-                line = '{}({}){}'.format(line[:start_index[1]], mul, line[end_index[3]:])
-            new_lines.append(line)
-    with open(filename, 'w', encoding='utf-8') as pyxfile:
-        pyxfile.writelines(new_lines)
-
-
-
-def unicode2ASCII(filename):
-    with open(filename, 'r', encoding='utf-8') as pyxfile:
-        text = pyxfile.read()
-    text = commons.asciify(text)
-    with open(filename, 'w', encoding='utf-8') as pyxfile:
-        pyxfile.write(text)
-
-
-
-def __init__2__cinit__(filename):
-    new_lines = []
-    with open(filename, 'r', encoding='utf-8') as pyxfile:
-        in_cclass = False
-        for line in pyxfile:
-            if len(line) > 13 and line[:14] == '@cython.cclass':
-                in_cclass = True
-            elif (line[0] not in ' \n'
-                  and not (len(line) > 4
-                  and line[:5] == 'class')):
-                in_cclass = False
-            if (in_cclass and len(line) > 16
-                          and line[:17] == '    def __init__('):
-                line = '    def __cinit__(' + line[17:]
-            new_lines.append(line)
-    with open(filename, 'w', encoding='utf-8') as pyxfile:
-        pyxfile.writelines(new_lines)
-
-
-
-def fix_addresses(filename):
-    new_lines = []
-    with open(filename, 'r', encoding='utf-8') as pyxfile:
-        for line in pyxfile:
-            # 'address(' to 'cython.address'
-            if 'address(' in line:
-                line = line.replace('address(', 'cython.address(')
-                line = line.replace('cython.cython.', 'cython.')
-            # cython.address(a[7, ...]) to cython.address(a[7, 0])
-            # cython.address(a[7, :, 1]) to cython.address(a[7, 0, 1])
-            # cython.address(a[7, 9:, 1]) to cython.address(a[7, 9, 1])
-            colons_or_ellipsis = True
-            while 'cython.address(' in line and colons_or_ellipsis:
-                parens = 0
-                address_index = line.find('cython.address(') + 14
-                for i, c in enumerate(line[address_index:]):
-                    if c == '(':
-                        parens += 1
-                    elif c == ')':
-                        parens -= 1
-                    if parens == 0:
-                        break
-                addressof = line[(address_index + 1):(address_index + i)].replace(' ', '')
-                addressof = addressof.replace('...', '0')
-                for j, c in enumerate(addressof):
-                    if c == ':':
-                        if ((j == 0 or addressof[j - 1] in '[,')
-                            and (j == (len(addressof) - 1) or addressof[j + 1] in '],')):
-                            # The case cython.address(a[7, :, 1])
-                            addressof = addressof[:j] + '0' + addressof[(j + 1):]
-                        else:
-                            # The case cython.address(a[7, 9:, 1])
-                            addressof = addressof[:j] + ' ' + addressof[(j + 1):]
-                colons_or_ellipsis = (':' in addressof or '...' in addressof)
-                line = (line[:(address_index + 1)] + addressof + line[(address_index + i):])
-            new_lines.append(line)
-    with open(filename, 'w', encoding='utf-8') as pyxfile:
-        pyxfile.writelines(new_lines)
-
-
-
-def malloc_realloc(filename):
-    new_lines = []
-    with open(filename, 'r', encoding='utf-8') as pyxfile:
-        for line in pyxfile:
-            found_alloc = False
-            for alloc in ('malloc(', 'realloc('):
-                if alloc in line and 'sizeof(' in line and not line.lstrip().startswith('#'):
-                    found_alloc = True
-                    paren = 1
-                    dtype = ''
-                    for i in range(line.find('sizeof(') + 7, len(line)):
-                        symbol = line[i]
-                        if symbol == '(':
-                            paren += 1
-                        elif symbol == ')':
-                            paren -= 1
-                        if paren == 0:
-                            break
-                        dtype += symbol
-                    dtype = dtype.replace("'", '').replace('"', '')
-                    line = (line.replace(alloc, '<' + dtype
-                            + '*> PyMem_' + alloc.capitalize()))
-                    new_lines.append(line)
-                    # Add exception
-                    LHS = line[:line.find('=')].strip()
-                    indentation = (len(line[:line.find('=')])
-                                   - len(line[:line.find('=')].lstrip()))
-                    new_lines.append(' '*indentation + 'if not ' + LHS + ':\n')
-                    new_lines.append(' '*(indentation + 4)
-                                     + "raise MemoryError('Could not "
-                                     + alloc[:-1] + ' ' + LHS + "')\n")
-            if not found_alloc:
-                if line.lstrip().startswith('free('):
-                    indent_lvl = len(line) - len(line.lstrip())
-                    ptr = re.search('free\((.*?)\)', line).group(1)
-                    new_lines.append(' '*indent_lvl + 'if ' + ptr + ':\n')
-                    new_lines.append(' '*4 + line.replace('free(', 'PyMem_Free('))
+    for line in lines:
+        if (    'build_struct(' in line
+            and '=build_struct(' in line.replace(' ', '')
+            and not line.lstrip().startswith('#')
+            ):
+            # Call found.
+            # Get assigned names.
+            varnames = line[:line.index('=')].replace(' ', '').split(',')
+            # Get field names, types and values. These are stored
+            # as triples og strings in struct_content.
+            struct_content = line[(line.index('(') + 1):line.rindex(')')].split('=')
+            for i, part in enumerate(struct_content[:-1]):
+                # The field name
+                if i == 0:
+                    name = part
                 else:
-                    new_lines.append(line)
-    with open(filename, 'w', encoding='utf-8') as pyxfile:
-        pyxfile.writelines(new_lines)
-
-
-
-def C_casting(filename):
-    new_lines = []
-    with open(filename, 'r', encoding='utf-8') as pyxfile:
-        # Transform to Cython syntax
-        for line in pyxfile:
-            while re.search('(^| )cast\(', line):
-                match = re.search('(^| )cast\(', line)
-                start = match.start()
-                if line[start] == ' ':
-                    start += 1
-                paren = 1
-                in_quotes = [False, False]
-                for i in range(start + 5, len(line)):
-                    symbol = line[i]
-                    if symbol == "'":
-                        in_quotes[0] = not in_quotes[0]
-                    if symbol == '"':
-                        in_quotes[1] = not in_quotes[1]
-                    if symbol == '(':
-                        paren += 1
-                    elif symbol == ')':
-                        paren -= 1
-                    if paren == 0:
-                        break
-                    if symbol == ',' and not in_quotes[0] and not in_quotes[1]:
-                        comma_index = i
-                cast_to = ('<' + line[(comma_index + 1):i]
-                           .replace("'", '').replace('"', '').strip() + '>')
-                obj_to_cast = ('(' + line[(start + 5):comma_index]
-                               + ')')
-                line = (line[:line.find('cast(')] + '(' + cast_to + obj_to_cast + ')'
-                        + line[(i + 1):])
+                    name = part[(part.rindex(',') + 1):].strip()
+                decl = struct_content[i + 1][:struct_content[i + 1].rindex(',')]
+                if re.search('\(.*,', decl.replace(' ', '')):
+                    # Both type and value given.
+                    # Find type.
+                    ctype_start = len(decl)
+                    if "'" in decl:
+                        ctype_start = decl.index("'")
+                    if '"' in decl and decl.index('"') < ctype_start:
+                        ctype_start = decl.index('"')
+                    quote_type = decl[ctype_start]
+                    ctype = ''
+                    for j, c in enumerate(decl[(ctype_start + 1):]):
+                        if c == quote_type:
+                            break
+                        ctype += c
+                    # Find value
+                    value = decl[(ctype_start + 1 + j + 1):].strip()
+                    if value[0] == ',':
+                        value = value[1:]
+                    if value[-1] == ')':
+                        value = value[:-1]
+                    value = value
+                else:
+                    # Only type given. Initialize to zero.
+                    if decl.count('"') == 2:
+                        ctype = re.search('(".*")', decl).group(1)
+                    if decl.count("'") == 2:
+                        ctype = re.search("('.*')", decl).group(1)
+                    ctype = ctype.replace('"', '').replace("'", '').strip()
+                    value = '0'
+                struct_content[i] = (name.strip(), ctype.strip(), value.strip())
+            struct_content.pop()
+            # The name of the struct type is eg. struct_double_double_int
+            struct_kind = '_'.join([t[1] for t in struct_content])
+            # Insert modified version of the build_struct function,
+            # initializing all values to zero.
+            if not build_struct_code:
+                build_struct_code = get_build_struct()
+            for build_struct_line in build_struct_code:
+                build_struct_line = build_struct_line.replace('build_struct(', 'build_struct_{}('.format(struct_kind))
+                build_struct_line = build_struct_line.replace('...',
+                                                              'struct_{}({})'.format(struct_kind,
+                                                                                     ', '.join(['0']*len(struct_content))))
+                
+                new_lines.append(build_struct_line)
+            # Insert declaration of struct
+            indentation = len(line) - len(line.lstrip())
+            new_lines.append(' '*indentation + "cython.declare({}='struct_{}')\n"
+                                               .format(varnames[0], struct_kind))
+            # Insert declaration of dict
+            if len(varnames) == 2:
+                new_lines.append(' '*indentation + "cython.declare({}='dict')\n"
+                                                   .format(varnames[1]))
+            # Insert modified build_struct call
+            new_lines.append(line.replace('build_struct(',
+                                          'build_struct_{}('.format(struct_kind)))
+            # Set values
+            for name, ctype, value in struct_content:
+                if value != '0':
+                    new_lines.append("{}{}.{} = {}['{}']\n".format(' '*indentation,
+                                                                   varnames[0], 
+                                                                   name,
+                                                                   varnames[1],
+                                                                   name)
+                                     )
+            # Insert pxd declaration of the struct
+            if struct_kind not in struct_kinds:
+                struct_kinds.append(struct_kind)
+                new_lines.append(' '*indentation + 'pxd = """\n')
+                new_lines.append('{}ctypedef struct struct_{}:\n'.format(' '*indentation, struct_kind))
+                for name, ctype, val in struct_content:
+                    new_lines.append('{}    {} {}\n'.format(' '*indentation,
+                                                            ctype.replace('"', '').replace("'", ''),
+                                                            name))
+                new_lines.append(' '*indentation + '"""\n')
+        else:
+            # No call found in this line
             new_lines.append(line)
-    with open(filename, 'w', encoding='utf-8') as pyxfile:
-        pyxfile.writelines(new_lines)
+    return new_lines
 
 
 
-def cython_decorators(filename):
-    with open(filename, 'r', encoding='utf-8') as pyxfile:
-        lines = pyxfile.read().split('\n')
-    inside_class = False
+def cimport_commons(lines):
     for i, line in enumerate(lines):
-        if (   line.startswith('class ')
-            or line.startswith('cdef class ')
-            or line.startswith('cpdef class ')):
-            inside_class = True
-        elif inside_class and len(line) > 0 and line[0] not in ' #':
-            inside_class = False
-        for headertype in ('pheader', 'header'):
-            if line.lstrip().startswith('@cython.' + headertype):
-                # Search for def statement
-                for j, line2 in enumerate(lines[(i + 1):]):
-                    if 'def ' in line2:
-                        def_line = line2
-                        for k, c in enumerate(def_line):
-                            if c != ' ':
-                                n_spaces = k  # Indentation
-                                break
-                        break
-                headstart = i
-                headlen = j + 1
-                header = lines[headstart:(headstart + headlen)]
-                # Look for returntype
-                returntype = ''
-                for j, hline in enumerate(header):
-                    hline = re.sub('returns *= *', 'returns=', hline)
-                    if 'returns=' in hline and not hline.lstrip().startswith('#'):
-                        in_brackets = 0
-                        for c in hline[(hline.index('returns=') + 8):]:
-                            if c == '[':
-                                in_brackets += 1
-                            elif c == ']':
-                                in_brackets -= 1
-                            elif c == ')' or (c == ',' and not in_brackets):
-                                break
-                            returntype += c
-                        header[j] = hline.replace('returns=' + returntype,
-                                                  ' '*len('returns=' + returntype))
-                        if not header[j].replace(',', '').strip():
-                            del header[j]
-                        else:
-                            # Looks for lonely comma
-                            # due to removal of "returns=".
-                            lonely = True
-                            for k, c in enumerate(header[j]):
-                                if c == ',' and lonely:
-                                    header[j] = header[j][:k] + ' ' + header[j][(k + 1):] 
-                                if c in (',', '('):
-                                    lonely == True
-                                elif c != ' ':
-                                    lonely = False
-                        break
-                for j, hline in enumerate(header):
-                    if '@cython.' + headertype + '(' in hline:
-                        I = header[j].index('@cython.' + headertype + '(') + 15
-                        for k, c in enumerate(header[j][I:]):
-                            if c == ',':
-                                header[j] = header[j][:I] + header[j][(I + k + 1):]
-                                break
-                            elif c != ' ':
-                                break
-                # Change @cython.header to @cython.locals,
-                # if header contains declarations.
-                # Otherwise, remove it.
-                if '=' in ''.join(header):
-                    header[0] = header[0].replace(headertype, 'locals')
+        if line.startswith('from {} import *'.format(commons_name)):
+            lines = (  lines[:(i + 1)]
+                     + ['cimport cython\n', 'from {} cimport *\n'.format(commons_name)]
+                     + lines[(i + 1):])
+            break
+    return lines
+
+
+
+def cimport_function(lines):
+    for i, line in enumerate(lines):
+        if line.replace(' ', '').startswith('cimport('):
+            line = re.sub('cimport.*\((.*?)\)',
+                          lambda match: eval(match.group(1)).replace('import ', 'cimport '),
+                          line).rstrip()
+            if line.endswith(','):
+                line = line[:-1]
+            lines[i] = '{}\n'.format(line)
+    return lines
+
+
+
+def loop_unswitching(lines):
+    # Run through the lines and replace any unswitch context manager
+    # with the unswitched loop(s).
+    new_lines = []
+    while True:
+        skip = 0
+        for i, line in enumerate(lines):
+            # Should this line be skipped?
+            if skip > 0:
+                skip -= 1
+                continue
+            # Search for the following constructs:
+            # with unswitch:
+            #    ...
+            # with unswitch():  # Same as above
+            #    ...
+            # with unswitch(n):  # With n an integer literal or expression
+            #    ...
+            match = re.search('with +unswitch *(\(.*\))? *:', line.strip())
+            if match:
+                # Loop unswitching found.
+                # Determine the number of indentation levels to do
+                # loop unswitching on. This is the n in unswitch(n).
+                # If not specified, this is set to infinity.
+                n = match.group(1)
+                if n:
+                    n = n[1:-1]
+                    if n:
+                        n = eval(n)
+                    else:
+                        n = float('inf')
                 else:
-                    header = []
-                # Add in all the other decorators.
-                # A @cython.header should transform into @cython.cfunc
-                # whiel a @cython.pheader should transform into a
-                # @cython.ccall. Additional decorators should be placed
-                # below. The @cython.inline decorator should not be
-                # placed on top of:
-                # - So-called special methods, like __init__
-                # - Class methods decorated with @cython.pheader (cpdef)
-                pyfuncs = ('__init__', '__cinit__', '__dealloc__')
-                decorators = [decorator for decorator in
-                              (('ccall' if headertype == 'pheader' else 'cfunc')
-                               if all(' ' + pyfunc + '(' not in def_line
-                                      for pyfunc in pyfuncs) else '',
-                              'inline' if (all(' ' + pyfunc + '(' not in def_line
-                                              for pyfunc in pyfuncs)
-                                           and (not inside_class or headertype != 'pheader')
-                                           ) else '',
-                              'boundscheck(False)',
-                              'cdivision(True)',
-                              'initializedcheck(False)',
-                              'wraparound(False)',
-                               ) if decorator
-                              ]
-                header = ([' '*n_spaces + '@cython.' + decorator for decorator in decorators]
-                          + header)
-                if returntype:
-                    header += [' '*n_spaces + '@cython.returns(' + returntype + ')']
-                # Place the new header among the lines
-                del lines[headstart:(headstart + headlen)]
-                for hline in reversed(header):
-                    lines.insert(headstart, hline)
-    # Write all lines to file
-    with open(filename, 'w', encoding='utf-8') as pyxfile:
-        pyxfile.writelines('\n'.join(lines))
+                    n = float('inf')
+                # If n is zero, no loop unswitching shold be performed
+                if n == 0:
+                    continue
+                # Search n nested loops upwards.
+                # Allowed constructs to pass are
+                # - for loops
+                # - while loops
+                # - if/elif/else statements
+                # - with statements
+                # - try/except/finally statements
+                unswitch_lvl = (len(line) - len(line.lstrip()))//4
+                n_nested_loops = 0
+                smallest_lvl = unswitch_lvl
+                for j, line in enumerate(reversed(lines[:i])):
+                    # Skip empty lines and comment lines
+                    line_stripped = line.strip()
+                    if not line_stripped or line_stripped.startswith('#'):
+                        continue
+                    # The indentation level
+                    lvl = (len(line) - len(line.lstrip()))//4
+                    # Check for nested loop
+                    if (   re.search('for .*:'  , line_stripped)
+                        or re.search('while .*:', line_stripped)
+                        ) and lvl < smallest_lvl:
+                        J = j
+                        n_nested_loops += 1
+                        if n_nested_loops == n:
+                            break
+                    # Record smallest indentation level
+                    if lvl < smallest_lvl:
+                        smallest_lvl = lvl
+                    # Break out of the search when encountering a special
+                    # block header (such as a def statement).
+                    if line_stripped.endswith(':'):
+                        if not (   re.search('for .*:'      , line_stripped)
+                                or re.search('while .*:'    , line_stripped)
+                                or re.search('if .*:'       , line_stripped)
+                                or re.search('elif .*:'     , line_stripped)
+                                or re.search('else *:'    , line_stripped)
+                                or re.search('with .*:'     , line_stripped)
+                                or re.search('try ?.*:'     , line_stripped)
+                                or re.search('except ?.*:'  , line_stripped)
+                                or re.search('finally *:' , line_stripped)
+                                ):
+                            break
+                # The loop lines to copy
+                loop_lines = lines[(i - J - 1):i]
+                # Now search downwards to find the if statements indented
+                # under the unswitch context manager.
+                outer_loop_lvl = (len(loop_lines[0]) - len(loop_lines[0].lstrip()))//4
+                patterns = ['{}if .*:'  .format('    '*(unswitch_lvl + 1)),
+                            '{}elif .*:'.format('    '*(unswitch_lvl + 1)),
+                            '{}else *:' .format('    '*(unswitch_lvl + 1)),
+                            ]
+                if_headers = []
+                if_bodies = []
+                loop_body = []
+                under_unswitch = True
+                for j, line in enumerate(lines[(i + 1):]):
+                    # Skip empty lines and comment lines
+                    line_stripped = line.strip()
+                    if not line_stripped or line_stripped.startswith('#'):
+                        continue
+                    # The indentation level
+                    lvl = (len(line) - len(line.lstrip()))//4
+                    # Determine whether or not we are out of the
+                    # unswitch context manager.
+                    if lvl <= unswitch_lvl:
+                        under_unswitch = False
+                    # Break out when all nested loops have ended
+                    if lvl <= outer_loop_lvl:
+                        break
+                    loop_body_end_nr = i + 1 + j
+                    # Record if/elif/else
+                    if under_unswitch:
+                        line_rstripped = line.rstrip()
+                        if lvl == unswitch_lvl + 1 and any(re.search(pattern, line_rstripped)
+                                                           for pattern in patterns):
+                            if_headers.append(line)
+                            if_bodies.append([])
+                            if_body = if_bodies[-1]
+                            continue
+                    # Record code indented under if/elif/else
+                    if under_unswitch:
+                        if_body.append(line)
+                        continue
+                    # Record code also indented under the nested loops,
+                    # but not part of the unswitching.
+                    loop_body.append(line)
+                # Stitch together the recorded pieces to perform
+                # the loop unswitching.
+                lines_unswitched = []
+                for if_header, if_body in zip(if_headers, if_bodies):
+                    # Unswitched if/elif/else statement
+                    indentation = ' '*(len(loop_lines[0]) - len(loop_lines[0].lstrip()))
+                    lines_unswitched.append(indentation + if_header.lstrip())
+                    # Nested loops
+                    lines_unswitched += ['    ' + line for line in loop_lines]
+                    # Body of unswitched if/elif/else statement
+                    lines_unswitched += [line[4:] for line in if_body]
+                    # Remaining loop body
+                    lines_unswitched += ['    ' + line for line in loop_body]
+                # Pop the nested for loops from new_lines, as these should
+                # only be included as the loop unswitching.
+                new_lines = new_lines[:-len(loop_lines)]
+                # Append the unswitched loop lines
+                new_lines += lines_unswitched
+                new_lines += ['#END OF UNSWITCHING{}\n'.format(len(loop_body))]
+                # Flag the line loop to skip the following lines which
+                # are already included in the loop unswitching lines.
+                skip = loop_body_end_nr  - i
+            else:
+                # No loop unswitching on this line
+                new_lines.append(line)
+        # Done with all lines. Run them through again, in case of
+        # nested use of the unswitching context manager.
+        # Break out when no change has happened to any line.
+        if len(lines) == len(new_lines):
+            break
+        lines = new_lines
+        new_lines = []
+    return lines
 
 
 
-def constant_expressions(filename):
+def constant_expressions(lines):
     sets = {'ℝ': 'double',
             'ℤ': 'Py_ssize_t',
             }
@@ -789,8 +593,6 @@ def constant_expressions(filename):
     for blackboard_bold_symbol, ctype in sets.items():
         # Find constant expressions using the
         # ℝ[expression] or ℤ[expression] syntax.
-        with open(filename, 'r', encoding='utf-8') as pyxfile:
-            lines = pyxfile.read().split('\n')
         expressions = []
         expressions_cython = []
         declaration_linenrs = []
@@ -831,6 +633,7 @@ def constant_expressions(filename):
             no_blackboard_bold_R = True
             module_scope = True
             for i, line in enumerate(lines):
+                line = line.rstrip('\n')
                 if len(line) > 0 and line[0] not in ' #':
                     module_scope = True
                 if len(line) > 0 and line[0] != '#' and 'def ' in line:
@@ -863,7 +666,7 @@ def constant_expressions(filename):
                 for op, op_name in operators.items():
                     expression_cython = expression_cython.replace(op, '__{}__'.format(op_name))
                 expressions_cython.append(expression_cython)
-                lines[i] = line.replace(R_statement, expression_cython)
+                lines[i] = '{}\n'.format(line.replace(R_statement, expression_cython))
                 # Find out where the declaration should be
                 variables = expression.replace(' ', '')                             # Remove spaces
                 variables = re.sub('(?P<quote>[\'"]).*?(?P=quote)', '', variables)  # Remove string literals using single and double quotes
@@ -888,6 +691,7 @@ def constant_expressions(filename):
                         if linenr_where_defined[v] != -1:
                             continue
                         for j, line2 in enumerate(reversed(lines[:end])):
+                            line2 = line2.rstrip('\n')
                             line2_ori = line2
                             line2 = ' '*(len(line2) - len(line2.lstrip()))  + line2.replace(' ', '')
                             if line2_ori.startswith('def ') and re.search('[\(,]{}[,=\)]'.format(var), line2):
@@ -901,6 +705,7 @@ def constant_expressions(filename):
                                     # Continue searching for var in previous lines
                                     linenr_where_defined_first = -1
                                     for k, line3 in enumerate(reversed(lines[:linenr_where_defined[v]])):
+                                        line3 = line3.rstrip('\n')
                                         line3_ori = line3
                                         line3 = ' '*(len(line3) - len(line3.lstrip()))  + line3.replace(' ', '')
                                         if line3_ori.startswith('def '):
@@ -926,9 +731,9 @@ def constant_expressions(filename):
                                         indentationlvl_where_defined = indentation_level(lines[linenr_where_defined[v]])
                                         indentationlvl_barrier = indentationlvl_where_defined
                                         for line3 in lines[(linenr_where_defined_first + 1):linenr_where_defined[v]]:
-                                                indentationlvl = indentation_level(line3)
-                                                if -1 < indentationlvl < indentationlvl_barrier:
-                                                    indentationlvl_barrier = indentationlvl
+                                            indentationlvl = indentation_level(line3)
+                                            if -1 < indentationlvl < indentationlvl_barrier:
+                                                indentationlvl_barrier = indentationlvl
                                         if indentationlvl_barrier < indentationlvl_where_defined:
                                             # A barrier exists!
                                             # Search downwards from linenr_where_defined[v] to i
@@ -1004,12 +809,12 @@ def constant_expressions(filename):
                 for e, expression_cython in enumerate(expressions_cython):
                     if declaration_linenrs[e] == -1:
                         if not expression_cython in declarations_placed[fname]:
-                            new_lines.append('cython.declare(' + expression_cython + "='{}')".format(ctype))
+                            new_lines.append('cython.declare(' + expression_cython + "='{}')\n".format(ctype))
                             if fname:
                                 # Remember that this variable has been declared in this function
                                 declarations_placed[fname].append(expression_cython)
-                        new_lines.append(expression_cython + ' = ' + expressions[e])
-                new_lines.append('')
+                        new_lines.append(expression_cython + ' = ' + expressions[e] + '\n')
+                new_lines.append('\n')
             for e, n in enumerate(declaration_linenrs):
                 if i == n:
                     indentation = ' '*(len(line) - len(line.lstrip()))
@@ -1021,28 +826,352 @@ def constant_expressions(filename):
                         new_lines.append(indentation
                                          + 'cython.declare('
                                          + expressions_cython[e]
-                                         + "='{}')".format(ctype))
+                                         + "='{}')\n".format(ctype))
                         if fname:
                             # Remember that this variable has been declared in this function
                             declarations_placed[fname].append(expressions_cython[e])
-                    new_lines.append(indentation + expressions_cython[e] + ' = ' + expressions[e])
+                    new_lines.append(indentation + expressions_cython[e] + ' = ' + expressions[e] + '\n')
                     if declaration_placements[e] == 'above':
                         new_lines.append(line)
-        with open(filename, 'w', encoding='utf-8') as pyxfile:
-            pyxfile.writelines('\n'.join(new_lines))
+        # Exchange the original lines with the modified lines
+        lines = new_lines
+    return lines
+
+
+def cython_decorators(lines):
+    inside_class = False
+    for i, line in enumerate(lines):
+        if (   line.startswith('class ')
+            or line.startswith('cdef class ')
+            or line.startswith('cpdef class ')):
+            inside_class = True
+        elif inside_class and len(line.rstrip('\n')) > 0 and line[0] not in ' #':
+            inside_class = False
+        for headertype in ('pheader', 'header'):
+            if line.lstrip().startswith('@cython.' + headertype):
+                # Search for def statement
+                for j, line2 in enumerate(lines[(i + 1):]):
+                    if 'def ' in line2:
+                        def_line = line2
+                        for k, c in enumerate(def_line):
+                            if c != ' ':
+                                n_spaces = k  # Indentation
+                                break
+                        break
+                headstart = i
+                headlen = j + 1
+                header = lines[headstart:(headstart + headlen)]
+                # Look for returntype
+                returntype = ''
+                for j, hline in enumerate(header):
+                    hline = re.sub('returns *= *', 'returns=', hline)
+                    if 'returns=' in hline and not hline.lstrip().startswith('#'):
+                        in_brackets = 0
+                        for c in hline[(hline.index('returns=') + 8):]:
+                            if c == '[':
+                                in_brackets += 1
+                            elif c == ']':
+                                in_brackets -= 1
+                            elif c == ')' or (c == ',' and not in_brackets):
+                                break
+                            returntype += c
+                        returntype = returntype.strip()
+                        header[j] = hline.replace('returns=' + returntype,
+                                                  ' '*len('returns=' + returntype))
+                        if not header[j].replace(',', '').strip():
+                            del header[j]
+                        else:
+                            # Looks for lonely comma
+                            # due to removal of "returns=".
+                            lonely = True
+                            for k, c in enumerate(header[j]):
+                                if c == ',' and lonely:
+                                    header[j] = header[j][:k] + ' ' + header[j][(k + 1):] 
+                                if c in (',', '('):
+                                    lonely == True
+                                elif c != ' ':
+                                    lonely = False
+                        break
+                for j, hline in enumerate(header):
+                    if '@cython.' + headertype + '(' in hline:
+                        I = header[j].index('@cython.' + headertype + '(') + 15
+                        for k, c in enumerate(header[j][I:]):
+                            if c == ',':
+                                header[j] = header[j][:I] + header[j][(I + k + 1):]
+                                break
+                            elif c != ' ':
+                                break
+                # Change @cython.header to @cython.locals,
+                # if header contains declarations.
+                # Otherwise, remove it.
+                if '=' in ''.join(header):
+                    header[0] = header[0].replace(headertype, 'locals')
+                else:
+                    header = []
+                # Add in all the other decorators.
+                # A @cython.header should transform into @cython.cfunc
+                # whiel a @cython.pheader should transform into a
+                # @cython.ccall. Additional decorators should be placed
+                # below. The @cython.inline decorator should not be
+                # placed on top of:
+                # - So-called special methods, like __init__
+                # - Class methods decorated with @cython.pheader (cpdef)
+                pyfuncs = ('__init__', '__cinit__', '__dealloc__')
+                decorators = [decorator for decorator in
+                              (('ccall' if headertype == 'pheader' else 'cfunc')
+                               if all(' ' + pyfunc + '(' not in def_line
+                                      for pyfunc in pyfuncs) else '',
+                              'inline' if (all(' ' + pyfunc + '(' not in def_line
+                                              for pyfunc in pyfuncs)
+                                           and (not inside_class or headertype != 'pheader')
+                                           ) else '',
+                              'boundscheck(False)',
+                              'cdivision(True)',
+                              'initializedcheck(False)',
+                              'wraparound(False)',
+                               ) if decorator
+                              ]
+                header = ([' '*n_spaces + '@cython.' + decorator + '\n' for decorator in decorators]
+                          + header)
+                if returntype:
+                    header += [' '*n_spaces + '@cython.returns(' + returntype + ')\n']
+                # Place the new header among the lines
+                del lines[headstart:(headstart + headlen)]
+                for hline in reversed(header):
+                    lines.insert(headstart, hline)
+    return lines
 
 
 
-def find_extension_types(filename):
+def power2product(lines):
+    keywords = ('assert',
+                'elif',
+                'except',
+                'from',
+                'if',
+                'in',
+                'is',
+                'not',
+                'or',
+                'raise',
+                'return',
+                'try',
+                'while',
+                'with',
+                'yield',
+                )
+    new_lines = []
+    for line in lines:
+        while True:
+            match = re.search('([\w.]+(\[.*\])?|\(.*\))\s*\*\*\s*([0-9.]+)', line)
+            if not match:
+                break
+            match_str   = [None]*4
+            start_index = [None]*4
+            end_index   = [None]*4
+            for i in (1, 3):
+                match_str[i] = match.group(i)
+                start_index[i], end_index[i] = match.span(i)
+            # Only integer exponents should be accepted
+            try:
+                exponent = int(match_str[3])
+                if exponent != float(match_str[3]):
+                    break
+            except:
+                break
+            # Nested parentheses can lead to too small start_index
+            # for the first group. Fix this issue.
+            if ')' in match_str[1]:
+                N_parens = 0
+                for i, c in enumerate(reversed(match_str[1])):
+                    if c == '(':
+                        N_parens += 1
+                        if N_parens == 0:
+                            start_index[1] = end_index[1] - i - 1
+                            break
+                    elif c == ')':
+                        N_parens -= 1
+                # If the base is a function call, do nothing.
+                # Be careful with keywords prior to the base.
+                match_before = re.search('[\w.]+\s*$', line[:start_index[1]])
+                if match_before:
+                    match_before_str = match_before.group().rstrip()
+                    if match_before_str not in keywords:
+                        break
+            elif ']' in match_str[1]:
+                # If more than one pair of [] is in the line,
+                # and the base is not in parentheses, every [] left
+                # of the base gets in the match. Fix thís issue.
+                N_brackets = 0
+                break_on_nonword = False
+                for i, c in enumerate(reversed(match_str[1])):
+                    if break_on_nonword and not re.search('[\w.]', c):
+                        start_index[1] = end_index[1] - i
+                        break
+                    if c == '[':
+                        N_brackets += 1
+                        if N_brackets == 0:
+                            # Leftmost bracket found. Keep searching
+                            # to the left until non-word-character
+                            # is found.
+                            break_on_nonword = True
+                    elif c == ']': 
+                        N_brackets -= 1
+            # Stitch together new line
+            mul = '*'.join([line[start_index[1]:end_index[1]]]*exponent)
+            line = '{}({}){}'.format(line[:start_index[1]], mul, line[end_index[3]:])
+        new_lines.append(line)
+    return new_lines
+
+
+
+def unicode2ASCII(lines):
+    new_lines = [commons.asciify(line) for line in lines]
+    return new_lines
+
+
+
+def __init__2__cinit__(lines):
+    new_lines = []
+    in_cclass = False
+    for line in lines:
+        if len(line) > 13 and line[:14] == '@cython.cclass':
+            in_cclass = True
+        elif line[0] not in ' \n' and not (len(line) > 4 and line[:5] == 'class'):
+            in_cclass = False
+        if (in_cclass and len(line) > 16
+                      and line[:17] == '    def __init__('):
+            line = '    def __cinit__(' + line[17:]
+        new_lines.append(line)
+    return new_lines
+
+
+
+def fix_addresses(lines):
+    new_lines = []
+    for line in lines:
+        # 'address(' to 'cython.address'
+        if 'address(' in line:
+            line = line.replace('address(', 'cython.address(')
+            line = line.replace('cython.cython.', 'cython.')
+        # cython.address(a[7, ...]) to cython.address(a[7, 0])
+        # cython.address(a[7, :, 1]) to cython.address(a[7, 0, 1])
+        # cython.address(a[7, 9:, 1]) to cython.address(a[7, 9, 1])
+        colons_or_ellipsis = True
+        while 'cython.address(' in line and colons_or_ellipsis:
+            parens = 0
+            address_index = line.find('cython.address(') + 14
+            for i, c in enumerate(line[address_index:]):
+                if c == '(':
+                    parens += 1
+                elif c == ')':
+                    parens -= 1
+                if parens == 0:
+                    break
+            addressof = line[(address_index + 1):(address_index + i)].replace(' ', '')
+            addressof = addressof.replace('...', '0')
+            for j, c in enumerate(addressof):
+                if c == ':':
+                    if ((j == 0 or addressof[j - 1] in '[,')
+                        and (j == (len(addressof) - 1) or addressof[j + 1] in '],')):
+                        # The case cython.address(a[7, :, 1])
+                        addressof = addressof[:j] + '0' + addressof[(j + 1):]
+                    else:
+                        # The case cython.address(a[7, 9:, 1])
+                        addressof = addressof[:j] + ' ' + addressof[(j + 1):]
+            colons_or_ellipsis = (':' in addressof or '...' in addressof)
+            line = (line[:(address_index + 1)] + addressof + line[(address_index + i):])
+        new_lines.append(line)
+    return new_lines
+
+
+
+def malloc_realloc(lines):
+    new_lines = []
+    for line in lines:
+        found_alloc = False
+        for alloc in ('malloc(', 'realloc('):
+            if alloc in line and 'sizeof(' in line and not line.lstrip().startswith('#'):
+                found_alloc = True
+                paren = 1
+                dtype = ''
+                for i in range(line.find('sizeof(') + 7, len(line)):
+                    symbol = line[i]
+                    if symbol == '(':
+                        paren += 1
+                    elif symbol == ')':
+                        paren -= 1
+                    if paren == 0:
+                        break
+                    dtype += symbol
+                dtype = dtype.replace("'", '').replace('"', '')
+                line = (line.replace(alloc, '<' + dtype
+                        + '*> PyMem_' + alloc.capitalize()))
+                new_lines.append(line)
+                # Add exception
+                LHS = line[:line.find('=')].strip()
+                indentation = (len(line[:line.find('=')])
+                               - len(line[:line.find('=')].lstrip()))
+                new_lines.append(' '*indentation + 'if not ' + LHS + ':\n')
+                new_lines.append(' '*(indentation + 4)
+                                 + "raise MemoryError('Could not "
+                                 + alloc[:-1] + ' ' + LHS + "')\n")
+        if not found_alloc:
+            if line.lstrip().startswith('free('):
+                indent_lvl = len(line) - len(line.lstrip())
+                ptr = re.search('free\((.*?)\)', line).group(1)
+                new_lines.append(' '*indent_lvl + 'if ' + ptr + ':\n')
+                new_lines.append(' '*4 + line.replace('free(', 'PyMem_Free('))
+            else:
+                new_lines.append(line)
+    return new_lines
+
+
+
+def C_casting(lines):
+    new_lines = []
+    # Transform to Cython syntax
+    for line in lines:
+        while re.search('(^| )cast\(', line):
+            match = re.search('(^| )cast\(', line)
+            start = match.start()
+            if line[start] == ' ':
+                start += 1
+            paren = 1
+            in_quotes = [False, False]
+            for i in range(start + 5, len(line)):
+                symbol = line[i]
+                if symbol == "'":
+                    in_quotes[0] = not in_quotes[0]
+                if symbol == '"':
+                    in_quotes[1] = not in_quotes[1]
+                if symbol == '(':
+                    paren += 1
+                elif symbol == ')':
+                    paren -= 1
+                if paren == 0:
+                    break
+                if symbol == ',' and not in_quotes[0] and not in_quotes[1]:
+                    comma_index = i
+            cast_to = ('<' + line[(comma_index + 1):i]
+                       .replace("'", '').replace('"', '').strip() + '>')
+            obj_to_cast = ('(' + line[(start + 5):comma_index]
+                           + ')')
+            line = (line[:line.find('cast(')] + '(' + cast_to + obj_to_cast + ')'
+                    + line[(i + 1):])
+        new_lines.append(line)
+    return new_lines
+
+
+
+def find_extension_types(lines):
     # Find extension types
-    with open(filename, 'r', encoding='utf-8') as pyxfile:
-        code = pyxfile.read().split('\n')
     class_names = []
-    for i, line in enumerate(code):
+    for i, line in enumerate(lines):
         if line.startswith('@cython.cclass'):
             # Class found
             class_name = None
-            for line in code[(i + 1):]:
+            for line in lines[(i + 1):]:
                 if len(line) > 6 and line[:6] == 'class ':
                     class_name = line[6:line.index(':')].strip()
                     break
@@ -1050,12 +1179,11 @@ def find_extension_types(filename):
                 break
             # Classname found
             class_names.append(class_name)
-    # Write all extension types at the end of the .pyx file
-    with open(filename, 'a', encoding='utf-8') as pyxfile:
-        pyxfile.write('\n\n\n# __pyxinfo__\n')
-        if class_names:
-            pyxfile.write('# Extension types implemented by this module:\n')
-            pyxfile.write('# {}{}\n'.format(' '*4, ', '.join(class_names)))
+    # Append all extension types at the end of the .pyx file
+    if class_names:
+        lines.append('# Extension types implemented by this module:\n')
+        lines.append('# {}{}\n'.format(' '*4, ', '.join(class_names)))
+    return lines
 
 
 
@@ -1110,8 +1238,8 @@ def make_types(filename):
     # Do not write to the types file
     # if it already has the correct content.
     if os.path.isfile(filename):
-        with open(filename, 'r', encoding='utf-8') as pyxfile:
-            existing_custom_types_content = pyxfile.read()
+        with open(filename, 'r', encoding='utf-8') as types_file:
+            existing_custom_types_content = types_file.read()
         try:
             existing_custom_types = eval(existing_custom_types_content)
             if existing_custom_types == custom_types:
@@ -1119,8 +1247,8 @@ def make_types(filename):
         except:
             print('Warning: Could not interpret the content of "{}".'.format(filename))
     # Write the dictionary to the types file:
-    with open(filename, 'w', encoding='utf-8') as pyxfile:
-        pyxfile.write(str(custom_types))
+    with open(filename, 'w', encoding='utf-8') as types_file:
+        types_file.write(str(custom_types))
 
 
 
@@ -1522,25 +1650,29 @@ if len(sys.argv) > 4:
 else:
     if filename.endswith('.py'):
         # A .py-file is parsed.
-        # Copy file to .pyx and work with this copy.
+        # Read in the lines of the file.
+        with open(filename, 'r', encoding='utf-8') as pyfile:
+            lines = pyfile.readlines()
+        # Apply transformations on the lines
+        lines = oneline(lines)
+        lines = cythonstring2code(lines)
+        lines = cython_structs(lines)
+        lines = cimport_commons(lines)
+        lines = cimport_function(lines)
+        lines = loop_unswitching(lines)
+        lines = constant_expressions(lines)
+        lines = cython_decorators(lines)
+        lines = power2product(lines)
+        lines = unicode2ASCII(lines)
+        lines = __init__2__cinit__(lines)
+        lines = fix_addresses(lines)
+        lines = malloc_realloc(lines)
+        lines = C_casting(lines)
+        lines = find_extension_types(lines)       
+        # Write the modified lines to the .pyx-file
         filename_pyx = filename[:-2] + 'pyx'
-        shutil.copy(filename, filename_pyx)
-        filename = filename_pyx
-        # Actions
-        oneline(filename)
-        cythonstring2code(filename)
-        cython_structs(filename)
-        cimport_commons(filename)
-        cimport_function(filename)
-        constant_expressions(filename)
-        cython_decorators(filename)
-        power2product(filename)
-        unicode2ASCII(filename)
-        __init__2__cinit__(filename)
-        fix_addresses(filename)
-        malloc_realloc(filename)
-        C_casting(filename)
-        find_extension_types(filename)
+        with open(filename_pyx, 'w', encoding='utf-8') as pyxfile:
+            pyxfile.writelines(lines)
     elif filename.endswith('.pyx'):
         # A .pyx-file is parsed.
         # Make the .pxd.

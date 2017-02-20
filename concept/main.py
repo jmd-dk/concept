@@ -25,12 +25,13 @@
 from commons import *
 
 # Cython imports
+import interactions
 from mesh import diff_domain
 from snapshot import load
 cimport('from analysis import debug, powerspec')
 cimport('from graphics import render, terminal_render')
-cimport('from gravity import build_φ')
 cimport('from integration import cosmic_time, expand, hubble, initiate_time, scalefactor_integral')
+cimport('from interactions import find_interactions')
 cimport('from utilities import delegate')
 cimport('from snapshot import save')
 
@@ -231,12 +232,6 @@ def nullify_ᔑdt_steps():
                φ='double[:, :, ::1]',
                )
 def kick(components, step):
-    """For particle components, a kick is just the gravitational
-    interaction. For fluid components, a kick is the gravitational
-    interaction and the Hubble drag.
-    """
-    if not enable_gravity:
-        return
     # Construct the local dict ᔑdt,
     # based on which type of step is to be performed.
     ᔑdt = {}
@@ -249,77 +244,12 @@ def kick(components, step):
             ᔑdt[integrand] = np.sum(ᔑdt_steps[integrand])
         elif master:
             abort('The value "{}" was given for the step'.format(step))
-    # Group the components based on assigned kick algorithms
-    # (for particles). Group all fluids together.
-    component_groups = collections.defaultdict(list)
-    for component in components:
-        if component.representation == 'particles' and enable_gravity:
-            if master and component.species not in kick_algorithms:
-                abort('Species "{}" do not have an assigned kick algorithm!'.format(component.species))
-            component_groups[kick_algorithms[component.species]].append(component)
-        elif component.representation == 'fluid':
-            component_groups['fluid'].append(component)
-    # First let the components (that needs to) interact
-    # with the gravitationak potential.
-    if 'PM' in component_groups or 'fluid' in component_groups:
-        kick_particles = kick_fluid = False
-        # Construct the gravitational potential φ due to all components
-        if enable_gravity:
-            φ = build_φ(components)
-            # Print combined progress message, as all these kicks are done
-            # simultaneously for all the components.
-            if 'PM' in component_groups:
-                kick_particles = True
-            if 'fluid' in component_groups:
-                kick_fluid = True
-            if kick_particles and not kick_fluid:
-                # Only particles (PM)
-                masterprint('Kicking (PM) {} ...'
-                            .format(', '.join([component.name
-                                               for component in component_groups['PM']])
-                                    )
-                            )
-            elif kick_fluid and not kick_particles:
-                # Only fluid
-                masterprint('Kicking (gravity) {} ...'
-                            .format(', '.join([component.name
-                                               for component in component_groups['fluid']])
-                                     )
-                            )
-            else:
-                # NEEDS A CLEANUP !!!
-                # SEPARATE drift and kick functions for particles and fluids.
-                masterprint('Kicking (PM) {} and (fluid) {} ...'
-                            .format(', '.join([component.name
-                                               for component in component_groups['PM']]),
-                                    ', '.join([component.name
-                                               for component in component_groups['fluid']])
-                                    )
-                            )
-        # For each dimension, differentiate φ and apply the force to
-        # all components which interact with φ (particles using the PM
-        # method and all fluids).
-        h = boxsize/φ_gridsize  # Physical grid spacing of φ
-        meshbuf_mv = None
-        for dim in range(3):
-            # Do the differentiation of φ
-            if enable_gravity:
-                meshbuf_mv = diff_domain(φ, dim, h, order=4)
-            # Apply PM kick
-            for component in component_groups['PM']:
-                component.kick(ᔑdt, meshbuf_mv, dim)
-            # Apply kick to fluids
-            for component in component_groups['fluid']:
-                component.kick(ᔑdt, meshbuf_mv, dim)
-        # Done with potential interactions
-        masterprint('done')
-    # Now kick all other components sequentially
-    if enable_gravity:
-        for key, component_group in component_groups.items():
-            if key in ('PM', 'fluid'):
-                continue
-            for component in component_group:
-                component.kick(ᔑdt)
+    # Find out which components interact with each other
+    # under the different interactions.
+    interactions_list = find_interactions(components)
+    # Invoke each interaction sequentially
+    for force, method, receivers, suppliers in interactions_list:
+        getattr(interactions, force)(method, receivers, suppliers, ᔑdt)
 
 # Function which drift all of the components
 @cython.header(# Arguments
@@ -376,6 +306,22 @@ def timeloop():
     output_filenames, final_render, timespan = prepare_output_times()    
     # Load initial conditions
     components = load(IC_file, only_components=True)
+
+
+
+
+
+    # Add fake components
+    # Component = type(components[0])
+    # components += [Component('fake component 0', 'neutrinos', 32, 1),
+    #                Component('fake component 1', 'dark matter fluid', 32, 1),
+    #                ]
+
+
+
+
+
+
     # The number of time steps before Δt is updated.
     # Setting Δt_period = 8 prevents the formation of spurious
     # anisotropies when evolving fluids with the MacCormack method,

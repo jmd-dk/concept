@@ -31,6 +31,7 @@ cimport('from communication import domain_size_x,  domain_size_y,  domain_size_z
 
 # Pure Python imports
 from mpl_toolkits.mplot3d import Axes3D  # Needed for 3D plotting
+from mpl_toolkits.mplot3d import proj3d
 from mpl_toolkits.mplot3d.art3d import juggle_axes
 
 
@@ -215,7 +216,7 @@ def plot_powerspec(data_list, filename, power_dict):
                posz_mv='double[::1]',
                )
 def render(components, filename, cleanup=True, tmp_dirname='.renders'):
-    global render_dict, render_image
+    global render_image
     # Do not render anything if
     # render_select does not contain any True values.
     if not any(render_select.values()):
@@ -250,13 +251,13 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
                     continue
             elif not render_select.get('all', False):
                 continue
-            # This component should be rendered!
+            # This component should be rendered.
             # Prepare a figure for the render of the i'th component.
-            # The 77.50 scaling is needed to
-            # map the resolution to pixel units.
             figname = 'render_{}'.format(component.name)
+            dpi = 100  # The value of dpi is irrelevant
             fig = plt.figure(figname,
-                             figsize=[resolution/77.50]*2)
+                             figsize=[resolution/dpi]*2,
+                             dpi=dpi)
             try:
                 # Matplotlib 2.x
                 ax = fig.gca(projection='3d', facecolor=bgcolor)
@@ -312,35 +313,13 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
                                               )
             # Configure axis options
             ax.set_aspect('equal')
-            ax.dist = 8.55  # Zoom level
+            ax.dist = 9  # Zoom level
             ax.set_xlim(0, boxsize)
             ax.set_ylim(0, boxsize)
             ax.set_zlim(0, boxsize)
-            ax.w_xaxis.set_pane_color(zeros(4))
-            ax.w_yaxis.set_pane_color(zeros(4))
-            ax.w_zaxis.set_pane_color(zeros(4))
-            ax.w_xaxis.gridlines.set_lw(0)
-            ax.w_yaxis.gridlines.set_lw(0)
-            ax.w_zaxis.gridlines.set_lw(0)
-            ax.grid(False)
-            ax.w_xaxis.line.set_visible(False)
-            ax.w_yaxis.line.set_visible(False)
-            ax.w_zaxis.line.set_visible(False)
-            ax.w_xaxis.pane.set_visible(False)
-            ax.w_yaxis.pane.set_visible(False)
-            ax.w_zaxis.pane.set_visible(False)
-            for tl in ax.w_xaxis.get_ticklines():
-                tl.set_visible(False)
-            for tl in ax.w_yaxis.get_ticklines():
-                tl.set_visible(False)
-            for tl in ax.w_zaxis.get_ticklines():
-                tl.set_visible(False)
-            for tl in ax.w_xaxis.get_ticklabels():
-                tl.set_visible(False)
-            for tl in ax.w_yaxis.get_ticklabels():
-                tl.set_visible(False)
-            for tl in ax.w_zaxis.get_ticklabels():
-                tl.set_visible(False)
+            ax.axis('off')  # Remove panes, gridlines, axes, ticks, etc.
+            plt.tight_layout(pad=-1)  # Extra tight layout, to prevent white frame
+            proj3d.persp_transformation = orthographic_proj  # Use orthographic 3D projection
             # Store the figure, axes and the component
             # and text artists in the render_dict.
             render_dict[component.name] = {'fig': fig,
@@ -522,17 +501,11 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
         if nprocs == 1 == len(render_dict):
             # As this is the only render which should be done, it can
             # be saved directly in its final, non-transparent state.
-            plt.savefig(filename,
-                        bbox_inches='tight',
-                        pad_inches=0,
-                        transparent=False)
+            plt.savefig(filename, transparent=False)
             masterprint('done')
         else:
             # Save transparent render
-            plt.savefig(filename_component_alpha_part,
-                        bbox_inches='tight',
-                        pad_inches=0,
-                        transparent=True)
+            plt.savefig(filename_component_alpha_part, transparent=True)
     # All rendering done
     Barrier()
     # The partial renders will now be combined into full renders,
@@ -595,6 +568,22 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
     # Remove the temporary directory, if cleanup is requested
     if master and cleanup and not (nprocs == 1 == len(render_dict)):
         shutil.rmtree(render_dir)
+# Transformation function for orthographic projection
+def orthographic_proj(zfront, zback):
+    """This function is taken from
+    http://stackoverflow.com/questions/23840756
+    To replace the default 3D persepctive projection with
+    3D orthographic perspective, simply write
+    proj3d.persp_transformation = orthographic_proj
+    where proj3d is imported from mpl_toolkits.mplot3d.
+    """
+    a = (zfront + zback)/(zfront - zback)
+    b = -2*(zfront*zback)/(zfront - zback)
+    return asarray([[1, 0,  0   , 0    ],
+                    [0, 1,  0   , 0    ],
+                    [0, 0,  a   , b    ],
+                    [0, 0, -1e-6, zback],
+                    ])
 
 # Function which takes in a list of filenames of images and blend them
 # together into the global render_image array.
@@ -612,7 +601,6 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
                transparency='float',
                )
 def blend(filenames):
-    global render_image
     # Make render_image black and transparent
     render_image[...] = 0
     for filename in filenames:
@@ -651,7 +639,6 @@ def blend(filenames):
                rgb='int',
                )
 def add_background():
-    global render_image
     for i in range(resolution):
         for j in range(resolution):
             alpha = render_image[i, j, 3]
@@ -806,4 +793,3 @@ if any(terminal_render_times.values()):
                                                                                   colorhex[3:5],
                                                                                   colorhex[5:]),
                         end='')
-

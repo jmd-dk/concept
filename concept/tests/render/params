@@ -48,5 +48,5 @@ terminal_render_colormap   = 'gnuplot2'
 terminal_render_resolution = 64
 
 # Simulation options
-kick_algorithms = {'dark matter particles': 'PM'}
+forces = {'dark matter particles': {'gravity': 'PM'}}
 

@@ -1,15 +1,32 @@
 # This file contains absolute paths to directories and files used by the
-# program. You must manually edit the paths below. All other files rely on
+# CO𝘕CEPT code. You must manually edit the paths below. All other files rely on
 # these paths, as they are not given anywhere else.
 
-###############
-# Directories #
-###############
-# Directory containing the CO𝘕CEPT source code
+#######################
+# CO𝘕CEPT directories #
+#######################
+# Directory containing the source code
 concept_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept'
-
+# Directory intended for initial conditions
 ics_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/ICs'
+# Directory containing the log files
+logs_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/logs'
+# Directory intended for output
+output_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/output'
+# Directory intended for parameter files
+params_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/params'
+# Directory containing tests
+tests_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/tests'
+# Top level directory, containing e.g. README.md
+top_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept'
+# Directory containing utilities
+utilities_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/utilities'
 
+##########################
+# Dependency directories #
+##########################
+# Directory of class
+class_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/class'
 # Directory of FFTW
 fftw_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/fftw'
 # Directory of FFTW2, used by GADGET
@@ -22,26 +39,12 @@ Gadget2_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/gadget/Gadget2'
 gsl_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/gsl'
 # Directory of HDF5
 hdf5_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/hdf5'
-# Directory of ImageMagick
-imagemagick_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/imagemagick'
 # Directory of libpng
 libpng_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/libpng'
-# Directory containing CO𝘕CEPT logs
-logs_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/logs'
 # Directory of MPI
 mpi_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/mpich'
-# Directory containing CO𝘕CEPT output
-output_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/output'
-# Directory containing CO𝘕CEPT parameter files
-params_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/params'
 # Directory of Python
 python_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python'
-# Directory containing tests for the CO𝘕CEPT code
-tests_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/tests'
-# Top level directory, containing e.g. README.md
-top_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept'
-# Directory containing utilities for the CO𝘕CEPT code
-utilities_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/utilities'
 # Directory of zlib
 zlib_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/zlib'
 
@@ -50,14 +53,12 @@ zlib_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/zlib'
 #########
 # The executable script of the CO𝘕CEPT code
 concept='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/concept'
-# The convert executable from ImageMagick
-convert='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/imagemagick/bin/convert'
 # The installer script
 installer='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/installer'
 # The MPI C compiler
 mpicc='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/mpich/bin/mpicc'
 # The MPI executable
 mpiexec='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/mpich/bin/mpiexec'
-# The Python3 interpreter
-python='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python/bin/python3.5'
+# The Python interpreter
+python='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python/bin/python3.6'
 
