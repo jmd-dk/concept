@@ -491,7 +491,7 @@ set_package_manager_and_names()
                             set_package_names "gawk"         \
                                               "gcc"          \
                                               "gcc"          \
-                                              "gcc-gfortran" \
+                                              "gcc-fortran"  \
                                               "gzip"         \
                                               "make"         \
                                               "perl"         \
