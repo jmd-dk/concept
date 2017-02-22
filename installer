@@ -42,6 +42,7 @@
 # - FFTW
 # - FreeType (needed by matplotlib)
 # - ncurses  (needed by _curses, which is needed by blessings)
+# - Perl     (needed by OpenSSL)
 # - OpenSSL  (needed by pip)
 # - Python, with the following packages (together with their own Python
 #   package dependencies):
@@ -55,10 +56,10 @@
 #     - MPI4Py
 #     - H5Py
 #     - pip (if any of the above)
+# - CLASS
 # - CO𝘕CEPT
 # - FFTW 2 (needed by GADGET)
 # - GADGET
-# - CLASS
 #
 # By default, any pre-installed versions of the above software will be
 # ignored. Should you wish CO𝘕CEPT to use one such pre-installed
@@ -126,20 +127,21 @@ set_dir()
 # The install_explicit_only environment variable, when set to "yes",
 # disables all implicit installations.
 if [ "${install_explicit_only}" == "yes" ]; then
-    for progname in "zlib"               \
-                    "libpng"             \
-                    "gsl"                \
-                    "mpi"                \
-                    "hdf5"               \
+    for progname in "concept"            \
+                    "class"              \
                     "fftw"               \
+                    "fftw_for_gadget"    \
                     "freetype"           \
+                    "gadget"             \
+                    "gsl"                \
+                    "hdf5"               \
+                    "libpng"             \
+                    "mpi"                \
                     "ncurses"            \
                     "openssl"            \
+                    "perl"               \
                     "python"             \
-                    "concept"            \
-                    "fftw_for_gadget"    \
-                    "gadget"             \
-                    "class"              \
+                    "zlib"               \
                     "blessings"          \
                     "cython"             \
                     "cython_gsl"         \
@@ -164,6 +166,7 @@ set_dir "gsl"             "__top_dir__/gsl"
 set_dir "hdf5"            "__top_dir__/hdf5"
 set_dir "libpng"          "__top_dir__/libpng"
 set_dir "mpi"             "__top_dir__/${mpi}"
+set_dir "perl"            "__top_dir__/perl"
 set_dir "python"          "__top_dir__/python"
 set_dir "ncurses"         "${python_dir}"
 set_dir "openssl"         "${python_dir}"
@@ -174,8 +177,7 @@ dotpaths="__top_dir__/.paths"
 # This function sets the variable "name_version" if not set already.
 # For preinstalled software, set "name_version" to "pre-installed".
 # If a third argument is given, this is the version to fall back to,
-# in case the second argument is "newest" and the newest version
-# cannot be determined.
+# in case of unsuccessful retrievel of the link to the first version.
 set_version()
 {
     # Arguments: Program name, version, [fallback version]
@@ -186,43 +188,42 @@ set_version()
         eval "${1}_version_fallback=\"${3}\""
     fi
 }
-# Specification of software versions. A specification of
-# "newest" will be replaced with the latest stable version. The right
-# column are fallbacks, which will be used if the middle column is
-# "newest" and the installer fails to find the newest version.
-# If you specify a version in the middle column and this version
-# cannot be found, it will again fall back to the right column.
+# Specification of software versions.
+# The rightmost column are fallbacks, which will be used if the middle
+# link to the version given by the middle column is broken.
+# In case of CO𝘕CEPT, the version "newest" should always be used.
 # In the case of CLASS, the version to use should be one which is
 # compatible with Python 3. This is available as a pull request
 # with the hash 12a913d401341884d99804b653dd4be06dbf3ced.
-set_version "class"           "12a913d401341884d99804b653dd4be06dbf3ced" "2.5"
-set_version "concept"         "newest"  # Only newest work
-set_version "freetype"        "2.7"       "2.6.5"
-set_version "python"          "3.6.0"
-set_version "libpng"          "1.6.28"    "1.6.23"
-set_version "ncurses"         "6.0"       "6.0"
-set_version "openssl"         "1.1.0d"    "1.0.2i"  # Python seems incompatible with OpenSSL 1.1.0c
+set_version "concept"         "newest"
+set_version "class"           "12a913d401341884d99804b653dd4be06dbf3ced"
 set_version "fftw"            "3.3.6-pl1" "3.3.5"   # 3.3.6 removed from official site
-set_version "gadget"          "2.0.7"
 set_version "fftw_for_gadget" "2.1.5"     "2.1.5"
+set_version "freetype"        "2.7"       "2.6.5"
+set_version "gadget"          "2.0.7"
 set_version "gsl"             "2.3"       "2.2.1"
 set_version "hdf5"            "1.8.18"    "1.8.17"  # Error using 1.10.0-patch1
+set_version "libpng"          "1.6.28"    "1.6.23"
 if [ "${mpi}" == "openmpi" ]; then
 set_version "mpi"             "2.0.1"
 elif [ "${mpi}" == "mpich" ]; then
-set_version "mpi"             "3.2"     "3.2"
+set_version "mpi"             "3.2"       "3.2"
 fi
-set_version "zlib"            "1.2.11"   "1.2.8"
+set_version "ncurses"         "6.0"       "6.0"
+set_version "openssl"         "1.1.0d"    "1.0.2i"  # Python seems incompatible with OpenSSL 1.1.0c
+set_version "perl"            "5.24.1"
+set_version "python"          "3.6.0"
+set_version "zlib"            "1.2.11"    "1.2.8"
 # Python packages
 set_version "blessings"          "1.6"
 set_version "cython"             "0.25.2"
 set_version "cython_gsl"         "0.2.1"
+set_version "h5py"               "2.6.0"
 set_version "matplotlib"         "2.0.0"
+set_version "mpi4py"             "2.0.0"
 set_version "nose"               "1.3.7"
 set_version "nose_parameterized" "0.5.0"
 set_version "numpy"              "1.12.0"
-set_version "mpi4py"             "2.0.0"
-set_version "h5py"               "2.6.0"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
 # and specific versions of system dependencies.
@@ -321,6 +322,7 @@ env_var_names=(CC               \
                MPICC            \
                MPILIBS          \
                PATH             \
+               PERL             \
                PKG_CONFIG_PATH  \
                PNG_CFLAGS       \
                PNG_LIBS         \
@@ -369,6 +371,7 @@ libpng_test_success="yes"
 mpi_test_success="yes"
 ncurses_test_success="yes"
 openssl_test_success="yes"
+perl_test_success="yes"
 python_test_success="yes"
 zlib_test_success="yes"
 
@@ -404,9 +407,9 @@ current_step="check for preinstalled system dependencies"
 set_package_names()
 {
     # Arguments: Package name for awk, gcc, g++, gfortran, gzip, make,
-    # perl, sed, tar, wget.
+    # sed, tar, wget.
     i=0
-    for package in "awk" "gcc" "gxx" "gfortran" "gzip" "make" "perl" "sed" "tar" "wget"; do
+    for package in "awk" "gcc" "gxx" "gfortran" "gzip" "make" "sed" "tar" "wget"; do
         ((i += 1))
         eval "${package}_package=\${${i}}"
     done
@@ -415,7 +418,7 @@ set_package_manager_and_names()
 {
     # This function takes no arguments
     package_manager=""
-    for pmanager in "apt-get" "dnf" "yum" "zypper" "urpmi" "pacman"; do
+    for pmanager in "apt-get" "dnf" "yum" "zypper" "urpmi" "pacman" "eopkg"; do
         path="$(which "${pmanager}" 2> /dev/null || :)"
         if [ -n "${path}" ]; then
             # Package manager found
@@ -429,7 +432,6 @@ set_package_manager_and_names()
                                               "gfortran" \
                                               "gzip"     \
                                               "make"     \
-                                              "perl"     \
                                               "sed"      \
                                               "tar"      \
                                               "wget"
@@ -442,7 +444,6 @@ set_package_manager_and_names()
                                               "gcc-gfortran" \
                                               "gzip"         \
                                               "make"         \
-                                              "perl"         \
                                               "sed"          \
                                               "tar"          \
                                               "wget"
@@ -455,7 +456,6 @@ set_package_manager_and_names()
                                               "gcc-gfortran" \
                                               "gzip"         \
                                               "make"         \
-                                              "perl"         \
                                               "sed"          \
                                               "tar"          \
                                               "wget"
@@ -468,7 +468,6 @@ set_package_manager_and_names()
                                               "gcc-fortran" \
                                               "gzip"        \
                                               "make"        \
-                                              "perl"        \
                                               "sed"         \
                                               "tar"         \
                                               "wget"
@@ -481,7 +480,6 @@ set_package_manager_and_names()
                                               "gcc-gfortran" \
                                               "gzip"         \
                                               "make"         \
-                                              "perl"         \
                                               "sed"          \
                                               "tar"          \
                                               "wget"
@@ -494,9 +492,20 @@ set_package_manager_and_names()
                                               "gcc-fortran" \
                                               "gzip"        \
                                               "make"        \
-                                              "perl"        \
                                               "sed"         \
                                               "tar"         \
+                                              "wget"
+                            break
+                            ;;
+                "eopkg"   ) install_command="sudo ${package_manager} install -y"
+                            set_package_names "gawk"     \
+                                              "gcc"      \
+                                              "g++"      \
+                                              "gfortran" \
+                                              "gzip"     \
+                                              "make"     \
+                                              "sed"      \
+                                              "tar"      \
                                               "wget"
                             break
                             ;;
@@ -553,7 +562,6 @@ check_system_dependency "g++"      "${gxx_package}"
 check_system_dependency "gfortran" "${gfortran_package}"
 check_system_dependency "gzip"     "${gzip_package}"
 check_system_dependency "make"     "${make_package}"
-check_system_dependency "perl"     "${perl_package}"  # Needed by OpenSSL
 check_system_dependency "sed"      "${sed_package}"
 check_system_dependency "tar"      "${tar_package}"
 check_system_dependency "wget"     "${wget_package}"
@@ -630,6 +638,7 @@ fix_path "zlib"
 fix_path "libpng"
 fix_path "ncurses"
 fix_path "OpenSSL"
+fix_path "Perl"
 fix_path "Python"
 fix_path "FFTW"
 fix_path "GADGET"
@@ -648,9 +657,12 @@ fi
 
 # Set the "make_jobs" variable, holding the -j option for future
 # make commands, enabling parallel compilations when running locally.
+# Also set OMP_NUM_THREADS to 1 when running remotely,
+# so that OpenMP runs serially.
 make_jobs="-j"
 if [ "${ssh}" == "True" ]; then
     make_jobs=""
+    export OMP_NUM_THREADS=1
 fi
 
 
@@ -665,8 +677,6 @@ current_step="discovery of dependencies"
 install_any_pypackages="no"
 install_any_software="no"
 install_anything="no"
-# If Python is pre-installed, assume that OpenSSL
-# and ncurses are also pre-installed.
 assume_preinstalled()
 {
     # Arguments: Program name (lowercase)
@@ -677,9 +687,15 @@ assume_preinstalled()
         eval "${1}_version=\"pre-installed\""
     fi    
 }
+# If Python is pre-installed, assume that OpenSSL
+# and ncurses are also pre-installed.
 if [ "${python_preinstalled}" == "yes" ]; then
     assume_preinstalled "openssl"
     assume_preinstalled "ncurses"
+fi
+# If OpenSSL is pre-installed, assume that Perl is also pre-installed
+if [ "${openssl_preinstalled}" == "yes" ]; then
+    assume_preinstalled "perl"
 fi
 
 # Set "pypackage"_preinstalled variables
@@ -824,7 +840,7 @@ fi
 # libpng (needed by matplotlib)
 if [ -z "${libpng_install}" ]; then
     libpng_install="no"
-    if [ "${libpng_preinstalled}" == "no" ] && [ "${matplotlib_install}"  == "yes" ]; then
+    if [ "${libpng_preinstalled}" == "no" ] && [ "${matplotlib_install}" == "yes" ]; then
         libpng_install="yes"
         install_any_software="yes"
     fi
@@ -832,9 +848,9 @@ fi
 # zlib (needed by HDF5, libpng and Python)
 if [ -z "${zlib_install}" ]; then
     zlib_install="no"
-    if [ "${zlib_preinstalled}" == "no" ] && (   [ "${hdf5_install}"        == "yes" ] \
-                                              || [ "${libpng_install}"      == "yes" ] \
-                                              || [ "${python_install}"      == "yes" ]); then
+    if [ "${zlib_preinstalled}" == "no" ] && (   [ "${hdf5_install}"   == "yes" ] \
+                                              || [ "${libpng_install}" == "yes" ] \
+                                              || [ "${python_install}" == "yes" ]); then
         zlib_install="yes"
         install_any_software="yes"
     fi
@@ -859,8 +875,16 @@ fi
 # OpenSSL (needed by pip)
 if [ -z "${openssl_install}" ]; then
     openssl_install="no"
-    if [ "${openssl_preinstalled}" == "no" ] && [ "${pip_install}"    == "yes" ]; then
+    if [ "${openssl_preinstalled}" == "no" ] && [ "${pip_install}" == "yes" ]; then
         openssl_install="yes"
+        install_any_software="yes"
+    fi
+fi
+# Perl (needed by OpenSSL)
+if [ -z "${perl_install}" ]; then
+    perl_install="no"
+    if [ "${perl_preinstalled}" == "no" ] && [ "${openssl_install}" == "yes" ]; then
+        perl_install="yes"
         install_any_software="yes"
     fi
 fi
@@ -1065,8 +1089,8 @@ validate_url()
     fi
 }
 
-# Function for letting versions fall back to their fallback values,
-# in case of unsuccessful retrievel of primary or newest version.
+# Function for letting versions fall back to their secondary,
+# fallback values, in case of unsuccessful retrievel of primary version.
 fallback()
 {
     # Arguments: Program name
@@ -1083,25 +1107,12 @@ fallback()
     else
         realname="${1}"
     fi
-    if [ -z "${progname_version}" ]; then
-        # Could not identify newest version
-        if [ -z "${progname_version_fallback}" ]; then
-            exit 1
-        fi
-        error "Warning: Could not identify the version number of the latest ${realname}!" 2>&1
+    if [ "${progname_version}" != "${progname_version_fallback}" ]; then
         echo "Falling back to ${realname} version ${progname_version_fallback}"
-        progname_version="${progname_version_fallback}"
-        eval "${progname}_version=\"\${progname_version}\""
-        eval "${progname}_version_fallback=\"\${progname_version_fallback}\""
-    else
-        # Broken link
-        if [ "${progname_version}" != "${progname_version_fallback}" ]; then
-            echo "Falling back to ${realname} version ${progname_version_fallback}"
-        fi
-        progname_version="${progname_version_fallback}"
-        eval "${progname}_version=\"\${progname_version}\""
-        eval "${progname}_version_fallback=\"\${progname_version_fallback}\""
     fi
+    progname_version="${progname_version_fallback}"
+    eval "${progname}_version=\"\${progname_version}\""
+    eval "${progname}_version_fallback=\"\${progname_version_fallback}\""
 }
 
 # Function which checks the download and installation progress
@@ -1177,6 +1188,8 @@ check_progress()
         # the GADGET directory.
         rm -rf "${concept_dir}"
     else
+        # The files of all other programs live isolated
+        # in their very own dedicated directory.
         rm -rf "${progdir}"
     fi
     # The url to the installation file for this program
@@ -1197,374 +1210,6 @@ check_progress()
         fi
     fi
 }
-
-# zlib
-if [ "${zlib_install}" == "yes" ]; then
-    if [ "${zlib_version}" == "newest" ]; then
-        current_step="search for latest version of zlib"
-        set_status "Searching for latest version of zlib"
-        zlib_url="http://sourceforge.net/projects/libpng/files/zlib/"
-        zlib_version=$(wget -t 50 --timeout 60 -q -O- --no-check-certificate ${zlib_url} \
-                       | grep -o "zlib/[0-9.]*"                                          \
-                       | grep -o "[0-9.]*"                                               \
-                       | sort -u                                                         \
-                       | tail -n 1 || :)
-    fi
-    zlib_url="http://sourceforge.net/projects/libpng/files/zlib/${zlib_version}/\
-zlib-${zlib_version}.tar.gz"
-    # Check if already installed and/or downloaded
-    check_progress "zlib"
-    # If not yet downloaded, validate the URL
-    if [ "${zlib_downloaded}" != "yes" ]; then
-        validate_url "zlib" "false"
-        if [ "${validate_url_status}" != "success" ]; then
-            echo "Primary zlib link broken: ${zlib_url}"
-            fallback "zlib"
-            zlib_url="http://zlib.net/zlib-${zlib_version}.tar.gz"
-            echo "Using secondary zlib link: ${zlib_url}"
-            # Check if already installed and/or downloaded
-            check_progress "zlib"
-            # If not yet downloaded, validate the URL
-            if [ "${zlib_downloaded}" != "yes" ]; then
-                validate_url "zlib"
-            fi
-        fi
-    fi
-fi
-
-# libpng
-if [ "${libpng_install}" == "yes" ] ; then
-    # For e.g. libpng_version 1.6.18, libpng_version_majors is 16
-    if [ "${libpng_version}" == "newest" ]; then
-        current_step="search for latest version of libpng"
-        set_status "Searching for latest version of libpng"
-        libpng_url="ftp://ftp.simplesystems.org/pub/png/src/"
-        libpng_version_majors="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate \
-                                 ${libpng_url} | grep -o "libpng[0-9]*"                \
-                                               | grep -o "[0-9]*"                      \
-                                               | sort -u                               \
-                                               | tail -n 1 || :)"
-        libpng_version="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate \
-                          ${libpng_url}libpng${libpng_version_majors}/          \
-                          | grep -o "libpng-[0-9\.]*.tar.gz"                    \
-                          | sort -u                                             \
-                          | tail -n 1                                           \
-                          | grep -o "[0-9\.]*"                                  \
-                          | head -n 1 || :)"
-        libpng_version="${libpng_version:0:${#libpng_version}-1}"
-    else
-        libpng_version_majors="$(echo "${libpng_version}" | grep -m 1 -o -P "[0-9]*\.[0-9]*" \
-                                                          | head -n 1)"
-        libpng_version_majors="$(echo "${libpng_version_majors//./}")"
-    fi
-    libpng_url="ftp://ftp.simplesystems.org/pub/png/src/libpng${libpng_version_majors}/\
-libpng-${libpng_version}.tar.gz"
-    # Check if already installed and/or downloaded
-    check_progress "libpng"
-    # If not yet downloaded, validate the URL
-    if [ "${libpng_downloaded}" != "yes" ]; then
-        validate_url "libpng" "false"
-        if [ "${validate_url_status}" != "success" ]; then
-            echo "Primary libpng link broken: ${libpng_url}"
-            fallback "libpng"
-            libpng_url="http://sourceforge.net/projects/libpng/files/\
-libpng${libpng_version_majors}/older-releases/${libpng_version}/libpng-${libpng_version}.tar.gz"
-            echo "Using secondary libpng link: ${libpng_url}"
-            # Check if already installed and/or downloaded
-            check_progress "libpng"
-            # If not yet downloaded, validate the URL
-            if [ "${libpng_downloaded}" != "yes" ]; then
-                validate_url "libpng"
-            fi
-        fi
-    fi
-fi
-
-# GSL
-if [ "${gsl_install}" == "yes" ]; then
-    if [ "${gsl_version}" == "newest" ]; then
-        current_step="search for latest version of GSL"
-        set_status "Searching for latest version of GSL"
-        gsl_url="ftp://ftp.gnu.org/gnu/gsl/"
-        gsl_version="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate ${gsl_url} \
-                       | grep "gsl-latest.tar.gz"                                       \
-                       | grep -o "gsl-[0-9.]*.tar.gz"                                   \
-                       | grep -o "[0-9][0-9.]*[0-9]" || :)"
-    fi
-    gsl_url="ftp://ftp.gnu.org/gnu/gsl/gsl-${gsl_version}.tar.gz"
-    # Check if already installed and/or downloaded
-    check_progress "GSL"
-    # If not yet downloaded, validate the URL
-    if [ "${gsl_downloaded}" != "yes" ]; then
-        validate_url "GSL" "false"
-        if [ "${validate_url_status}" != "success" ]; then
-            echo "Primary GSL link broken: ${gsl_url}"
-            fallback "GSL"
-            gsl_url="http://ftpmirror.gnu.org/gsl/gsl-${gsl_version}.tar.gz"
-            echo "Using secondary gsl link: ${gsl_url}"
-            # Check if already installed and/or downloaded
-            check_progress "GSL"
-            # If not yet downloaded, validate the URL
-            if [ "${gsl_downloaded}" != "yes" ]; then
-                validate_url "GSL"
-            fi
-        fi
-    fi
-fi
-
-# MPI
-if [ "${mpi_install}" == "yes" ]; then
-    if [ "${mpi}" == "mpich" ]; then
-        # MPICH
-        if [ "${mpi_version}" == "newest" ]; then
-            current_step="search for latest version of MPICH"
-            set_status "Searching for latest version of MPICH"
-            mpi_url="http://www.mpich.org/downloads"
-            mpi_version="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate ${mpi_url} \
-                           | grep -m 1 -o -P "(?<=mpich-).*(?=stable)"                      \
-                           | awk '{print $1}' || :)"
-        fi
-        mpi_url="http://www.mpich.org/static/downloads/${mpi_version}/mpich-${mpi_version}.tar.gz"
-        # Check if already installed and/or downloaded
-        check_progress "MPI"
-        # If not yet downloaded, validate the URL
-        if [ "${mpi_downloaded}" != "yes" ]; then
-            validate_url "MPI" "false"
-            if [ "${validate_url_status}" != "success" ]; then
-                echo "Primary MPICH link broken: ${mpi_url}"
-                fallback "MPI"
-                mpi_url="http://fossies.org/linux/misc/mpich-${mpi_version}.tar.gz"
-                echo "Using secondary MPICH link: ${mpi_url}"
-                # Check if already installed and/or downloaded
-                check_progress "MPI"
-                # If not yet downloaded, validate the URL
-                if [ "${mpi_downloaded}" != "yes" ]; then
-                    validate_url "MPI"
-                fi
-            fi
-        fi
-    elif [ "${mpi}" == "openmpi" ]; then
-        # OpenMPI
-        if [ "${mpi_version}" == "newest" ]; then
-            current_step="search for latest version of OpenMPI"
-            set_status "Searching for latest version of OpenMPI"
-            mpi_url="https://www.open-mpi.org/software/ompi"
-            mpi_version="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate ${mpi_url} \
-                           | grep -m 1 -o -P "(?<=>openmpi-).*(?=.tar.gz)")"
-        fi
-        mpi_version_major="$(echo "${mpi_version}" | grep -m 1 -o -P "[0-9]*" \
-                                                   | head -n 1)"
-        mpi_version_major_dot_minor="$(echo "${mpi_version}" | grep -m 1 -o -P \
-                                            "${mpi_version_major}\.[0-9]*")"
-        mpi_url="https://www.open-mpi.org/software/ompi/v${mpi_version_major_dot_minor}/\
-downloads/openmpi-${mpi_version}.tar.gz"
-        # Check if already installed and/or downloaded
-        check_progress "MPI"
-        # If not yet downloaded, validate the URL
-        if [ "${mpi_downloaded}" != "yes" ]; then
-            validate_url "MPI" "false"
-            if [ "${validate_url_status}" != "success" ]; then
-                echo "Primary OpenMPI link broken: ${mpi_url}"
-                error "Error: The installer does not know of a secondary OpenMPI link"
-                exit 1
-            fi
-        fi
-    fi
-fi
-
-# HDF5
-if [ "${hdf5_install}" == "yes" ]; then
-    if [ "${hdf5_version}" == "newest" ]; then
-        current_step="search for latest version of HDF5"
-        set_status "Searching for latest version of HDF5"
-        hdf5_url="ftp://ftp.hdfgroup.org/HDF5/current/src/"
-        hdf5_version="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate ${hdf5_url} \
-                        | grep -m 1 -o -P "(?<=hdf5-).*(?=.tar\")" || :)"
-    fi
-    hdf5_version_major="$(echo "${hdf5_version}" | grep -o '[0-9]\.[0-9]*')"
-    hdf5_url="ftp://ftp.hdfgroup.org/HDF5/releases/hdf5-${hdf5_version_major}/\
-hdf5-${hdf5_version}/src/hdf5-${hdf5_version}.tar.gz"
-    # Check if already installed and/or downloaded
-    check_progress "HDF5"
-    # If not yet downloaded, validate the URL
-    if [ "${hdf5_downloaded}" != "yes" ]; then
-        validate_url "HDF5" "false"
-        if [ "${validate_url_status}" != "success" ]; then
-            echo "Primary HDF5 link broken: ${hdf5_url}"
-            fallback "HDF5"
-            hdf5_url="https://www.hdfgroup.org/ftp/HDF5/releases/hdf5-${hdf5_version}/src/\
-hdf5-${hdf5_version}.tar.gz"
-            echo "Using secondary HDF5 link: ${hdf5_url}"
-            # Check if already installed and/or downloaded
-            check_progress "HDF5"
-            # If not yet downloaded, validate the URL
-            if [ "${hdf5_downloaded}" != "yes" ]; then
-                validate_url "HDF5"
-            fi
-        fi
-    fi
-fi
-
-# FFTW
-if [ "${fftw_install}" == "yes" ]; then
-    if [ "${fftw_version}" == "newest" ]; then
-        current_step="search for latest version of FFTW"
-        set_status "Searching for latest version of FFTW"
-        fftw_url="http://www.fftw.org/download.html"
-        fftw_version="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate ${fftw_url} \
-                        | grep -m 1 -o -P "(?<=fftw-).*(?=.tar.gz\")" || :)"
-    fi
-    fftw_url="http://www.fftw.org/fftw-${fftw_version}.tar.gz"
-    # Check if already installed and/or downloaded
-    check_progress "FFTW"
-    # If not yet downloaded, validate the URL
-    if [ "${fftw_downloaded}" != "yes" ]; then
-        validate_url "FFTW" "false"
-        if [ "${validate_url_status}" != "success" ]; then
-            echo "Primary FFTW link broken: ${fftw_url}"
-            fallback "FFTW"
-            fftw_url="ftp://ftp.fftw.org/pub/fftw/fftw-${fftw_version}.tar.gz"
-            echo "Using secondary FFTW link: ${fftw_url}"
-            # Check if already installed and/or downloaded
-            check_progress "FFTW"
-            # If not yet downloaded, validate the URL
-            if [ "${fftw_downloaded}" != "yes" ]; then
-                validate_url "FFTW"
-            fi
-        fi
-    fi
-fi
-
-# FreeType
-if [ "${freetype_install}" == "yes" ]; then
-    if [ "${freetype_version}" == "newest" ]; then
-        current_step="search for latest version of FreeType"
-        set_status "Searching for latest version of FreeType"
-        freetype_url="http://download.savannah.gnu.org/releases/freetype/"
-        freetype_version="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate ${freetype_url} \
-                            | grep -o "freetype-[0-9.]*tar"                                       \
-                            | sort -u                                                             \
-                            | tail -n 1                                                           \
-                            | grep -o [0-9.]* || :)"
-        freetype_version="${freetype_version%?}"
-    fi
-    freetype_url="http://download.savannah.gnu.org/releases/freetype/\
-freetype-${freetype_version}.tar.gz"
-    # Check if already installed and/or downloaded
-    check_progress "FreeType"
-    # If not yet downloaded, validate the URL
-    if [ "${freetype_downloaded}" != "yes" ]; then
-        validate_url "FreeType" "false"
-        if [ "${validate_url_status}" != "success" ]; then
-            echo "Primary FreeType link broken: ${freetype_url}"
-            fallback "freetype"
-            freetype_url="http://sourceforge.net/projects/freetype/files/freetype2/\
-${freetype_version}/freetype-${freetype_version}.tar.gz"
-            echo "Using secondary FreeType link: ${freetype_url}"
-            # Check if already installed and/or downloaded
-            check_progress "FreeType"
-            # If not yet downloaded, validate the URL
-            if [ "${freetype_downloaded}" != "yes" ]; then
-                validate_url "FreeType"
-            fi
-        fi
-    fi
-fi
-
-# ncurses
-if [ "${ncurses_install}" == "yes" ]; then
-    if [ "${ncurses_version}" == "newest" ]; then
-        current_step="search for latest version of ncurses"
-        set_status "Searching for latest version of ncurses"
-        ncurses_url="http://ftp.gnu.org/pub/gnu/ncurses/"
-        ncurses_version="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate ${ncurses_url} \
-                           | grep -o "ncurses-[0-9.]*tar"                                       \
-                           | sort -u                                                            \
-                           | tail -n 1                                                          \
-                           | grep -o [0-9.]* || :)"
-        ncurses_version="${ncurses_version%?}"
-    fi
-    ncurses_url="http://ftp.gnu.org/pub/gnu/ncurses/ncurses-${ncurses_version}.tar.gz"
-    # Check if already installed and/or downloaded
-    check_progress "ncurses"
-    # If not yet downloaded, validate the URL
-    if [ "${ncurses_downloaded}" != "yes" ]; then
-        validate_url "ncurses" "false"
-        if [ "${validate_url_status}" != "success" ]; then
-            echo "Primary ncurses link broken: ${ncurses_url}"
-            fallback "ncurses"
-            ncurses_url="ftp://invisible-island.net/ncurses/ncurses-${ncurses_version}.tar.gz"
-            echo "Using secondary ncurses link: ${ncurses_url}"
-            # Check if already installed and/or downloaded
-            check_progress "ncurses"
-            # If not yet downloaded, validate the URL
-            if [ "${ncurses_downloaded}" != "yes" ]; then
-                validate_url "ncurses"
-            fi
-        fi
-    fi
-fi
-
-# OpenSSL
-if [ "${openssl_install}" == "yes" ]; then
-    if [ "${openssl_version}" == "newest" ]; then
-        current_step="search for latest version of OpenSSL"
-        set_status "Searching for latest version of OpenSSL"
-        openssl_url="ftp://ftp.openssl.org/source/"
-        openssl_version="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate ${openssl} \
-                           | grep "openssl-[0-9].*.tar.gz"                                  \
-                           | tail -n 1                                                      \
-                           | grep -o -P "(?<=openssl-).*(?=.tar.gz)"                        \
-                           | grep -o -P "(?=[0-9]).*(?=.tar.gz)" || :)"
-        openssl_version="$(sed 's/.tar.gz.*//' <<< "${openssl_version}")"
-    fi
-
-    openssl_url="https://www.openssl.org/source/openssl-${openssl_version}.tar.gz"
-    # Check if already installed and/or downloaded
-    check_progress "OpenSSL"
-    # If not yet downloaded, validate the URL
-    if [ "${openssl_downloaded}" != "yes" ]; then
-        validate_url "OpenSSL" "false"
-        if [ "${validate_url_status}" != "success" ]; then
-            echo "Primary OpenSSL link broken: ${openssl_url}"
-            fallback "openssl"
-            openssl_version_without_letter="$(echo ${openssl_version} | grep -o "[[:digit:].]*")"
-            openssl_url="http://openssl.skazkaforyou.com/source/old/\
-${openssl_version_without_letter}/openssl-${openssl_version}.tar.gz"
-            echo "Using secondary OpenSSL link: ${openssl_url}"
-            # Check if already installed and/or downloaded
-            check_progress "OpenSSL"
-            # If not yet downloaded, validate the URL
-            if [ "${openssl_downloaded}" != "yes" ]; then
-                validate_url "OpenSSL"
-            fi
-        fi
-    fi
-fi
-
-# Python (note that python_version will be overwritten later!)
-if [ "${python_install}" == "yes" ]; then
-    if [ "${python_version}" == "newest" ]; then
-        current_step="search for latest version of Python"
-        set_status "Searching for latest version of Python"
-        python_url="https://www.python.org/downloads/"
-        python_version="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate ${python_url} \
-                          | grep -o -P "(?<=Python-).*(?=.tar)"                               \
-                          | head -1  || :)"
-    fi
-    python_url="https://www.python.org/ftp/python/${python_version}/Python-${python_version}.tgz"
-    # Check if already installed and/or downloaded
-    check_progress "Python"
-    # If not yet downloaded, validate the URL
-    if [ "${python_downloaded}" != "yes" ]; then
-        validate_url "Python" "false"
-        if [ "${validate_url_status}" != "success" ]; then
-            echo "Primary Python link broken: ${python_url}"
-            error "Error: The installer does not know of a secondary Python link"
-            exit 1
-        fi
-    fi
-fi
 
 # CO𝘕CEPT
 if [ "${concept_install}" == "yes" ]; then
@@ -1593,16 +1238,47 @@ find a specific version of ${esc_concept}!"
     fi
 fi
 
+# CLASS
+if [ "${class_install}" == "yes" ]; then
+    class_url="https://github.com/lesgourg/class_public/archive/${class_version}.tar.gz"
+    # Check if already installed/downloaded
+    check_progress "CLASS"
+    # If not yet downloaded, validate the URL
+    if [ "${class_downloaded}" != "yes" ]; then
+        validate_url "CLASS" "false"
+        if [ "${validate_url_status}" != "success" ]; then
+            echo "Primary CLASS link broken: ${class_url}"
+            error "Error: The installer does not know of a secondary CLASS link"
+            exit 1
+        fi
+    fi
+fi
+
+# FFTW
+if [ "${fftw_install}" == "yes" ]; then
+    fftw_url="http://www.fftw.org/fftw-${fftw_version}.tar.gz"
+    # Check if already installed and/or downloaded
+    check_progress "FFTW"
+    # If not yet downloaded, validate the URL
+    if [ "${fftw_downloaded}" != "yes" ]; then
+        validate_url "FFTW" "false"
+        if [ "${validate_url_status}" != "success" ]; then
+            echo "Primary FFTW link broken: ${fftw_url}"
+            fallback "FFTW"
+            fftw_url="ftp://ftp.fftw.org/pub/fftw/fftw-${fftw_version}.tar.gz"
+            echo "Using secondary FFTW link: ${fftw_url}"
+            # Check if already installed and/or downloaded
+            check_progress "FFTW"
+            # If not yet downloaded, validate the URL
+            if [ "${fftw_downloaded}" != "yes" ]; then
+                validate_url "FFTW"
+            fi
+        fi
+    fi
+fi
+
 # FFTW for GADGET
 if [ "${fftw_for_gadget_install}" == "yes" ]; then
-    if [ "${fftw_for_gadget_version}" == "newest" ]; then
-        current_step="search for latest version of FFTW for GADGET"
-        set_status "Searching for latest version of FFTW for GADGET"
-        fftw_for_gadget_url="http://www.fftw.org/download.html"
-        fftw_for_gadget_version="$(wget -t 50 --timeout 60 -q -O- --no-check-certificate \
-                                   ${fftw_for_gadget_url} | grep -m 1 -o -P              \
-                                                                 "(?<=fftw-).*(?=.tar.gz\")" || :)"
-    fi
     fftw_for_gadget_url="http://www.fftw.org/fftw-${fftw_for_gadget_version}.tar.gz"
     # Check if already installed and/or downloaded
     check_progress "FFTW for GADGET"
@@ -1625,12 +1301,33 @@ fftw-${fftw_for_gadget_version}.tar.gz"
     fi
 fi
 
+# FreeType
+if [ "${freetype_install}" == "yes" ]; then
+    freetype_url="http://download.savannah.gnu.org/releases/freetype/\
+freetype-${freetype_version}.tar.gz"
+    # Check if already installed and/or downloaded
+    check_progress "FreeType"
+    # If not yet downloaded, validate the URL
+    if [ "${freetype_downloaded}" != "yes" ]; then
+        validate_url "FreeType" "false"
+        if [ "${validate_url_status}" != "success" ]; then
+            echo "Primary FreeType link broken: ${freetype_url}"
+            fallback "freetype"
+            freetype_url="http://sourceforge.net/projects/freetype/files/freetype2/\
+${freetype_version}/freetype-${freetype_version}.tar.gz"
+            echo "Using secondary FreeType link: ${freetype_url}"
+            # Check if already installed and/or downloaded
+            check_progress "FreeType"
+            # If not yet downloaded, validate the URL
+            if [ "${freetype_downloaded}" != "yes" ]; then
+                validate_url "FreeType"
+            fi
+        fi
+    fi
+fi
+
 # GADGET
 if [ "${gadget_install}" == "yes" ]; then
-    if [ "${gadget_version}" == "newest" ]; then
-        error "Error: The installer does not know how to search for the newest version of GADGET!"
-        exit 1
-    fi
     gadget_url="http://www.mpa-garching.mpg.de/gadget/gadget-${gadget_version}.tar.gz"
     # Check if already installed/downloaded
     check_progress "GADGET"
@@ -1645,22 +1342,229 @@ if [ "${gadget_install}" == "yes" ]; then
     fi
 fi
 
-# CLASS
-if [ "${class_install}" == "yes" ]; then
-    if [ "${class_version}" == "newest" ]; then
-        error "Error: The installer does not know how to search for the newest version of CLASS!"
-        exit 1
-    fi
-    class_url="https://github.com/lesgourg/class_public/archive/${class_version}.tar.gz"
-    # Check if already installed/downloaded
-    check_progress "CLASS"
+# GSL
+if [ "${gsl_install}" == "yes" ]; then
+    gsl_url="ftp://ftp.gnu.org/gnu/gsl/gsl-${gsl_version}.tar.gz"
+    # Check if already installed and/or downloaded
+    check_progress "GSL"
     # If not yet downloaded, validate the URL
-    if [ "${class_downloaded}" != "yes" ]; then
-        validate_url "CLASS" "false"
+    if [ "${gsl_downloaded}" != "yes" ]; then
+        validate_url "GSL" "false"
         if [ "${validate_url_status}" != "success" ]; then
-            echo "Primary CLASS link broken: ${class_url}"
-            error "Error: The installer does not know of a secondary CLASS link"
+            echo "Primary GSL link broken: ${gsl_url}"
+            fallback "GSL"
+            gsl_url="http://ftpmirror.gnu.org/gsl/gsl-${gsl_version}.tar.gz"
+            echo "Using secondary gsl link: ${gsl_url}"
+            # Check if already installed and/or downloaded
+            check_progress "GSL"
+            # If not yet downloaded, validate the URL
+            if [ "${gsl_downloaded}" != "yes" ]; then
+                validate_url "GSL"
+            fi
+        fi
+    fi
+fi
+
+# HDF5
+if [ "${hdf5_install}" == "yes" ]; then
+    hdf5_version_major="$(echo "${hdf5_version}" | grep -o '[0-9]\.[0-9]*')"
+    hdf5_url="ftp://ftp.hdfgroup.org/HDF5/releases/hdf5-${hdf5_version_major}/\
+hdf5-${hdf5_version}/src/hdf5-${hdf5_version}.tar.gz"
+    # Check if already installed and/or downloaded
+    check_progress "HDF5"
+    # If not yet downloaded, validate the URL
+    if [ "${hdf5_downloaded}" != "yes" ]; then
+        validate_url "HDF5" "false"
+        if [ "${validate_url_status}" != "success" ]; then
+            echo "Primary HDF5 link broken: ${hdf5_url}"
+            fallback "HDF5"
+            hdf5_url="https://www.hdfgroup.org/ftp/HDF5/releases/hdf5-${hdf5_version}/src/\
+hdf5-${hdf5_version}.tar.gz"
+            echo "Using secondary HDF5 link: ${hdf5_url}"
+            # Check if already installed and/or downloaded
+            check_progress "HDF5"
+            # If not yet downloaded, validate the URL
+            if [ "${hdf5_downloaded}" != "yes" ]; then
+                validate_url "HDF5"
+            fi
+        fi
+    fi
+fi
+
+# libpng
+if [ "${libpng_install}" == "yes" ] ; then
+    # For e.g. libpng_version 1.6.18, libpng_version_majors is 16
+    libpng_version_majors="$(echo "${libpng_version}" | grep -m 1 -o -P "[0-9]*\.[0-9]*" \
+                                                      | head -n 1)"
+    libpng_version_majors="$(echo "${libpng_version_majors//./}")"
+    libpng_url="ftp://ftp.simplesystems.org/pub/png/src/libpng${libpng_version_majors}/\
+libpng-${libpng_version}.tar.gz"
+    # Check if already installed and/or downloaded
+    check_progress "libpng"
+    # If not yet downloaded, validate the URL
+    if [ "${libpng_downloaded}" != "yes" ]; then
+        validate_url "libpng" "false"
+        if [ "${validate_url_status}" != "success" ]; then
+            echo "Primary libpng link broken: ${libpng_url}"
+            fallback "libpng"
+            libpng_url="http://sourceforge.net/projects/libpng/files/\
+libpng${libpng_version_majors}/older-releases/${libpng_version}/libpng-${libpng_version}.tar.gz"
+            echo "Using secondary libpng link: ${libpng_url}"
+            # Check if already installed and/or downloaded
+            check_progress "libpng"
+            # If not yet downloaded, validate the URL
+            if [ "${libpng_downloaded}" != "yes" ]; then
+                validate_url "libpng"
+            fi
+        fi
+    fi
+fi
+
+# MPI
+if [ "${mpi_install}" == "yes" ]; then
+    if [ "${mpi}" == "mpich" ]; then
+        # MPICH
+        mpi_url="http://www.mpich.org/static/downloads/${mpi_version}/mpich-${mpi_version}.tar.gz"
+        # Check if already installed and/or downloaded
+        check_progress "MPI"
+        # If not yet downloaded, validate the URL
+        if [ "${mpi_downloaded}" != "yes" ]; then
+            validate_url "MPI" "false"
+            if [ "${validate_url_status}" != "success" ]; then
+                echo "Primary MPICH link broken: ${mpi_url}"
+                fallback "MPI"
+                mpi_url="http://fossies.org/linux/misc/mpich-${mpi_version}.tar.gz"
+                echo "Using secondary MPICH link: ${mpi_url}"
+                # Check if already installed and/or downloaded
+                check_progress "MPI"
+                # If not yet downloaded, validate the URL
+                if [ "${mpi_downloaded}" != "yes" ]; then
+                    validate_url "MPI"
+                fi
+            fi
+        fi
+    elif [ "${mpi}" == "openmpi" ]; then
+        # OpenMPI
+        mpi_version_major="$(echo "${mpi_version}" | grep -m 1 -o -P "[0-9]*" \
+                                                   | head -n 1)"
+        mpi_version_major_dot_minor="$(echo "${mpi_version}" | grep -m 1 -o -P \
+                                            "${mpi_version_major}\.[0-9]*")"
+        mpi_url="https://www.open-mpi.org/software/ompi/v${mpi_version_major_dot_minor}/\
+downloads/openmpi-${mpi_version}.tar.gz"
+        # Check if already installed and/or downloaded
+        check_progress "MPI"
+        # If not yet downloaded, validate the URL
+        if [ "${mpi_downloaded}" != "yes" ]; then
+            validate_url "MPI" "false"
+            if [ "${validate_url_status}" != "success" ]; then
+                echo "Primary OpenMPI link broken: ${mpi_url}"
+                error "Error: The installer does not know of a secondary OpenMPI link"
+                exit 1
+            fi
+        fi
+    fi
+fi
+
+# ncurses
+if [ "${ncurses_install}" == "yes" ]; then
+    ncurses_url="http://ftp.gnu.org/pub/gnu/ncurses/ncurses-${ncurses_version}.tar.gz"
+    # Check if already installed and/or downloaded
+    check_progress "ncurses"
+    # If not yet downloaded, validate the URL
+    if [ "${ncurses_downloaded}" != "yes" ]; then
+        validate_url "ncurses" "false"
+        if [ "${validate_url_status}" != "success" ]; then
+            echo "Primary ncurses link broken: ${ncurses_url}"
+            fallback "ncurses"
+            ncurses_url="ftp://invisible-island.net/ncurses/ncurses-${ncurses_version}.tar.gz"
+            echo "Using secondary ncurses link: ${ncurses_url}"
+            # Check if already installed and/or downloaded
+            check_progress "ncurses"
+            # If not yet downloaded, validate the URL
+            if [ "${ncurses_downloaded}" != "yes" ]; then
+                validate_url "ncurses"
+            fi
+        fi
+    fi
+fi
+
+# OpenSSL
+if [ "${openssl_install}" == "yes" ]; then
+    openssl_url="https://www.openssl.org/source/openssl-${openssl_version}.tar.gz"
+    # Check if already installed and/or downloaded
+    check_progress "OpenSSL"
+    # If not yet downloaded, validate the URL
+    if [ "${openssl_downloaded}" != "yes" ]; then
+        validate_url "OpenSSL" "false"
+        if [ "${validate_url_status}" != "success" ]; then
+            echo "Primary OpenSSL link broken: ${openssl_url}"
+            fallback "openssl"
+            openssl_version_without_letter="$(echo ${openssl_version} | grep -o "[[:digit:].]*")"
+            openssl_url="http://openssl.skazkaforyou.com/source/old/\
+${openssl_version_without_letter}/openssl-${openssl_version}.tar.gz"
+            echo "Using secondary OpenSSL link: ${openssl_url}"
+            # Check if already installed and/or downloaded
+            check_progress "OpenSSL"
+            # If not yet downloaded, validate the URL
+            if [ "${openssl_downloaded}" != "yes" ]; then
+                validate_url "OpenSSL"
+            fi
+        fi
+    fi
+fi
+
+# Perl
+if [ "${perl_install}" == "yes" ]; then
+    perl_url="http://www.cpan.org/src/5.0/perl-${perl_version}.tar.gz"
+    # Check if already installed and/or downloaded
+    check_progress "Perl"
+    # If not yet downloaded, validate the URL
+    if [ "${perl_downloaded}" != "yes" ]; then
+        validate_url "Perl" "false"
+        if [ "${validate_url_status}" != "success" ]; then
+            echo "Primary Perl link broken: ${perl_url}"
+            error "Error: The installer does not know of a secondary Perl link"
             exit 1
+        fi
+    fi
+fi
+
+# Python
+if [ "${python_install}" == "yes" ]; then
+    python_url="https://www.python.org/ftp/python/${python_version}/Python-${python_version}.tgz"
+    # Check if already installed and/or downloaded
+    check_progress "Python"
+    # If not yet downloaded, validate the URL
+    if [ "${python_downloaded}" != "yes" ]; then
+        validate_url "Python" "false"
+        if [ "${validate_url_status}" != "success" ]; then
+            echo "Primary Python link broken: ${python_url}"
+            error "Error: The installer does not know of a secondary Python link"
+            exit 1
+        fi
+    fi
+fi
+
+# zlib
+if [ "${zlib_install}" == "yes" ]; then
+    zlib_url="http://sourceforge.net/projects/libpng/files/zlib/${zlib_version}/\
+zlib-${zlib_version}.tar.gz"
+    # Check if already installed and/or downloaded
+    check_progress "zlib"
+    # If not yet downloaded, validate the URL
+    if [ "${zlib_downloaded}" != "yes" ]; then
+        validate_url "zlib" "false"
+        if [ "${validate_url_status}" != "success" ]; then
+            echo "Primary zlib link broken: ${zlib_url}"
+            fallback "zlib"
+            zlib_url="http://zlib.net/zlib-${zlib_version}.tar.gz"
+            echo "Using secondary zlib link: ${zlib_url}"
+            # Check if already installed and/or downloaded
+            check_progress "zlib"
+            # If not yet downloaded, validate the URL
+            if [ "${zlib_downloaded}" != "yes" ]; then
+                validate_url "zlib"
+            fi
         fi
     fi
 fi
@@ -1669,10 +1573,10 @@ fi
 if [ -n "${python_dir}" ]; then
     python_version_major=${python_version:0:1}
     if [ -f "${python_dir}/bin/python${python_version_major}" ]; then
-        python_version=$("${python_dir}/bin/python${python_version_major}" -c \
-                         "from sys import version_info as v; \
-                          print(str(v.major) + '.' + str(v.minor))")
-        python="${python_dir}/bin/python${python_version}"
+        python_version_major_dot_minor=$("${python_dir}/bin/python${python_version_major}" -c \
+                                         "from sys import version_info as v; \
+                                         print(str(v.major) + '.' + str(v.minor))")
+        python="${python_dir}/bin/python${python_version_major_dot_minor}"
     fi
 fi
 blessings_installed="no"
@@ -1710,37 +1614,28 @@ fi
 
 
 
-# Function for printing out nice tables (this is superior to the
+# Functions for printing out nice tables (these are superior to the
 # "column" command on older systems, as this does not handle
 # formatted output very well).
+modify_element()
+{
+    # Arguments: Character to be replaced, character to replace with
+    for ((i = 0; i < nelements; i += 1)); do
+        element="${table_to_print[i]}"
+        table_to_print[i]="${element//$1/$2}"
+    done
+}
 print_table()
 {
     # Arguments: Array to be printed (passed as array[@]),
     #            number of columns.
-    local table=("${!1}")
-    nelements=${#table[@]}
+    table_to_print=("${!1}")
+    nelements=${#table_to_print[@]}
     nc=${2}
-
     # Replace spaces with tildes
-    modify_element()
-    {
-        for ((i = 0; i < nelements; i += 1)); do
-            element="${table[i]}"
-            table[i]="${element//$1/$2}"
-        done
-    }
     modify_element " " "~"
-
-    # ASCII-fy the table
-    modify_element "─" ">"
-    modify_element "┌" "^"
-    modify_element "│" "|"
-    modify_element "└" "<"
-    modify_element "├" "&"
-
     # Backup of table
-    table_with_esc=("${table[@]}")
-
+    table_with_esc=("${table_to_print[@]}")
     # Remove escape sequences in table
     esc_normal_double_backslashes=$(echo "${esc_normal}" | sed 's,\\,\\\\,g')
     esc_bold_double_backslashes=$(echo "${esc_bold}" | sed 's,\\,\\\\,g')
@@ -1750,42 +1645,33 @@ print_table()
     modify_element "${esc_bold_double_backslashes}" ""
     modify_element "${esc_italic_double_backslashes}" ""
     modify_element "${esc_no_italic_double_backslashes}" ""
-
     # Determine largest length of each column
     maxlengths=($(for i in $(eval "echo {1..${nc}}"); do echo 0; done))
     c=0
     for ((i = 0; i < nelements; i += 1)); do
-        length=${#table[i]}
+        length=${#table_to_print[i]}
         [ ${length} -gt ${maxlengths[c]} ] && maxlengths[c]=${length}
         ((c += 1))
         [ ${c} == ${nc} ] && c=0
     done
-
     # Count number of missing right spaces for each element
     c=0
     for ((i = 0; i < nelements; i += 1)); do
-        element="${table[i]}"
+        element="${table_to_print[i]}"
         nspaces[i]=$((${maxlengths[${c}]} - ${#element}))
         ((c += 1))
         [ ${c} == ${nc} ] && c=0
     done
-
-    # Reinsert spaces and Unicode characters
-    table=("${table_with_esc[@]}")
+    # Reinsert spaces
+    table_to_print=("${table_with_esc[@]}")
     modify_element "~" "\ "
-    modify_element "^" "┌"
-    modify_element ">" "─"
-    modify_element "|" "│"
-    modify_element "<" "└"
-    modify_element "&" "├"
-
     # Print the table
     c=0
     for ((i = 0; i < nelements; i += 1)); do
-        printf "${table[i]}"  # Print element
+        printf "${table_to_print[i]}"  # Print element
         [ ${nspaces[i]} -gt 0 ] && printf ' %.0s' $(eval "echo {1..${nspaces[i]}}")  # Print spaces
         ((c += 1))
-        [ ${c} == ${nc} ] || printf "  "  # Print extra spaces
+        [ ${c} == ${nc} ] ||        printf "  "  # Print extra spaces
         [ ${c} == ${nc} ] && c=0 && printf "\n"  # Print newline
     done
 }
@@ -1802,6 +1688,7 @@ print_table()
 # │ ├─libpng      ...      "/..."
 # │ ├─ncurses     ...      "/..."
 # │ ├─OpenSSL     ...      "/..."
+# │ │ └─Perl      ...      "/..." 
 # │ └─zlib        ...      "/..."
 # ├─GSL           ...      "/..."
 # ├─MPICH/OpenMPI ...      "/..."
@@ -1822,227 +1709,95 @@ print_table()
 # nose                ...
 # nose_parameterized  ...
 # numpy               ...
-tree_beginning()
-{
-    item_level=${1}
-    hang_type='├'
-    if [ "${2}" == "end" ]; then
-        hang_type='└'
-    fi
-    if [ ${item_level} == 0 ]; then
-        # Root of tree: "X"
-        echo ""
-    elif [ ${item_level} == 1 ]; then
-        # Level 1 of tree: "├─X" or "└─X"
-        echo "${hang_type}─"
-    elif [ ${item_level} == 2 ]; then
-        # Level 2 of tree: "│ ├─X" or "│ └─X" or "  ├─X" or  "  └─X"
-        vertical_line="│"
-        if [ "${last_branch}" == "yes" ]; then
-            vertical_line=" "
-        fi
-        echo "${vertical_line} ${hang_type}─"
-    fi
-}
 if [ "${install_anything}" == "yes" ]; then
     disable_status
     heading "Installation overview"
 fi
+# Print out software installation overview
 if [ "${install_any_software}" == "yes" ]; then
     # Title
     table=("${esc_bold}Name${esc_normal}"    \
            "${esc_bold}Version${esc_normal}" \
            "${esc_bold}Installation path${esc_normal}")
     # CO𝘕CEPT
-    concept_level=0
     if [ "${concept_install}" == "yes" ]; then
-        hang="$(tree_beginning ${concept_level})"
-        table+=("${hang}${esc_concept}$([ "${concept_installed}" == "yes" ] && echo '*' || :)" \
+        table+=("${esc_concept}$([ "${concept_installed}" == "yes" ] && echo '*' || :)" \
                 "${concept_version}" "\"${concept_dir}\"")
-        ((concept_level += 1))
     fi
-    # Python
-    python_level=${concept_level}
-    if [ "${python_install}" == "yes" ]; then
-        hang_end="end"
-        if [ "${gsl_install}" == "yes" ] || [ "${mpi_install}"             == "yes" ] \
-                                         || [ "${hdf5_install}"            == "yes" ] \
-                                         || [ "${fftw_install}"            == "yes" ] \
-                                         || [ "${gadget_install}"          == "yes" ] \
-                                         || [ "${fftw_for_gadget_install}" == "yes" ] \
-                                         || [ "${class_install}"           == "yes" ] \
-                                         || [ "${libpng_install}"          == "yes" ]; then
-            hang_end=""
-        fi
-        hang="$(tree_beginning ${python_level} ${hang_end})"
-
-        table+=("${hang}Python$([ "${python_installed}" == "yes" ] && echo '*' || :)" \
-                "${python_version}" "\"${python_dir}\"")
-        ((python_level += 1))
+    # CLASS
+    if [ "${class_install}" == "yes" ]; then
+        table+=("CLASS$([ "${class_installed}" == "yes" ] && echo '*' || :)" \
+                "${class_version}" "\"${class_dir}\"")
     fi
-    last_branch="yes"
-    if [ "${gsl_install}" == "yes" ] || [ "${mpi_install}"             == "yes" ] \
-                                     || [ "${hdf5_install}"            == "yes" ] \
-                                     || [ "${fftw_install}"            == "yes" ] \
-                                     || [ "${gadget_install}"          == "yes" ] \
-                                     || [ "${fftw_for_gadget_install}" == "yes" ] \
-                                     || [ "${class_install}"           == "yes" ] \
-                                     || [ "${libpng_install}"          == "yes" ]; then
-        last_branch="no"
+    # FFTW
+    if [ "${fftw_install}" == "yes" ]; then
+        table+=("FFTW$([ "${fftw_installed}" == "yes" ] && echo '*' || :)" \
+                "${fftw_version}" "\"${fftw_dir}\"")
+    fi
+    # FFTW for gadget
+    if [ "${fftw_for_gadget_install}" == "yes" ]; then
+        table+=("FFTW$([ "${fftw_for_gadget_installed}" == "yes" ] && echo '*' || :)" \
+                "${fftw_for_gadget_version}" "\"${fftw_for_gadget_dir}\"")
     fi
     # FreeType
     if [ "${freetype_install}" == "yes" ]; then
-        hang_end="end"
-        if [ ${python_level} == ${concept_level} ] && [ "${last_branch}" == "no" ]; then
-            hang_end=""
-        fi
-        if [ "${libpng_install}" == "yes" ] || [ "${ncurses_install}" == "yes" ] \
-                                            || [ "${openssl_install}" == "yes" ] \
-                                            || [ "${zlib_install}"    == "yes" ]; then
-            hang_end=""
-        fi
-        hang="$(tree_beginning ${python_level} ${hang_end})"
-        table+=("${hang}FreeType$([ "${freetype_installed}" == "yes" ] && echo '*' || :)" \
+        table+=("FreeType$([ "${freetype_installed}" == "yes" ] && echo '*' || :)" \
                 "${freetype_version}" "\"${freetype_dir}\"")
     fi
+    # Gadget
+    if [ "${gadget_install}" == "yes" ]; then
+        table+=("Gadget$([ "${gadget_installed}" == "yes" ] && echo '*' || :)" \
+                "${gadget_version}" "\"${gadget_dir}\"")
+    fi
+    # GSL
+    if [ "${gsl_install}" == "yes" ]; then
+        table+=("GSL$([ "${gsl_installed}" == "yes" ] && echo '*' || :)" \
+                "${gsl_version}" "\"${gsl_dir}\"")
+    fi
+    # HDF5
+    if [ "${hdf5_install}" == "yes" ]; then
+        table+=("HDF5$([ "${hdf5_installed}" == "yes" ] && echo '*' || :)" \
+                "${hdf5_version}" "\"${hdf5_dir}\"")
+    fi
     # libpng
-    if [ "${freetype_install}" == "yes" ]; then
-        hang_end="end"
-        if [ ${python_level} == ${concept_level} ] && [ "${last_branch}" == "no" ]; then
-            hang_end=""
-        fi
-        if [ "${ncurses_install}" == "yes" ] || [ "${openssl_install}" == "yes" ] \
-                                             || [ "${zlib_install}"    == "yes" ]; then
-            hang_end=""
-        fi
-        hang="$(tree_beginning ${python_level} ${hang_end})"
-        table+=("${hang}libpng$([ "${libpng_installed}" == "yes" ] && echo '*' || :)" \
+    if [ "${libpng_install}" == "yes" ]; then
+        table+=("libpng$([ "${libpng_installed}" == "yes" ] && echo '*' || :)" \
                 "${libpng_version}" "\"${libpng_dir}\"")
+    fi
+    # MPICH/OpenMPI
+    if [ "${mpi_install}" == "yes" ]; then
+        if [ "${mpi}" == "mpich" ]; then
+            table+=("MPICH$([ "${mpi_installed}" == "yes" ] && echo '*' || :)" \
+                    "${mpi_version}" "\"${mpi_dir}\"")
+        elif [ "${mpi}" == "openmpi" ]; then
+            table+=("OpenMPI$([ "${mpi_installed}" == "yes" ] && echo '*' || :)" \
+                    "${mpi_version}" "\"${mpi_dir}\"")
+        fi
     fi
     # ncurses
     if [ "${ncurses_install}" == "yes" ]; then
-        hang_end="end"
-        if [ ${python_level} == ${concept_level} ] && [ "${last_branch}" == "no" ]; then
-            hang_end=""
-        fi
-        if [ "${openssl_install}" == "yes" ] || [ "${zlib_install}" == "yes" ]; then
-            hang_end=""
-        fi
-        hang="$(tree_beginning ${python_level} ${hang_end})"
-        table+=("${hang}ncurses$([ "${ncurses_installed}" == "yes" ] && echo '*' || :)" \
+        table+=("ncurses$([ "${ncurses_installed}" == "yes" ] && echo '*' || :)" \
                 "${ncurses_version}" "\"${ncurses_dir}\"")
     fi
     # OpenSSL
     if [ "${openssl_install}" == "yes" ]; then
-        hang_end="end"
-        if [ ${python_level} == ${concept_level} ] && [ "${last_branch}" == "no" ]; then
-            hang_end=""
-        fi
-        if [ "${zlib_install}" == "yes" ]; then
-            hang_end=""
-        fi
-        hang="$(tree_beginning ${python_level} ${hang_end})"
-        table+=("${hang}OpenSSL$([ "${openssl_installed}" == "yes" ] && echo '*' || :)" \
+        table+=("OpenSSL$([ "${openssl_installed}" == "yes" ] && echo '*' || :)" \
                 "${openssl_version}" "\"${openssl_dir}\"")
+    fi
+    # Perl
+    if [ "${perl_install}" == "yes" ]; then
+        table+=("Perl$([ "${perl_installed}" == "yes" ] && echo '*' || :)" \
+                "${perl_version}" "\"${perl_dir}\"")
+    fi
+    # Python
+    if [ "${python_install}" == "yes" ]; then
+        table+=("Python$([ "${python_installed}" == "yes" ] && echo '*' || :)" \
+                "${python_version}" "\"${python_dir}\"")
     fi
     # zlib
     if [ "${zlib_install}" == "yes" ]; then
-        hang_end="end"
-        if [ ${python_level} == ${concept_level} ] && [ "${last_branch}" == "no" ]; then
-            hang_end=""
-        fi
-        hang="$(tree_beginning ${python_level} ${hang_end})"
-        table+=("${hang}zlib$([ "${zlib_installed}" == "yes" ] && echo '*' || :)" \
+        table+=("zlib$([ "${zlib_installed}" == "yes" ] && echo '*' || :)" \
                 "${zlib_version}" "\"${zlib_dir}\"")
-    fi
-    # GSL
-    if [ "${gsl_install}" == "yes" ]; then
-        hang_end="end"
-        if [ "${mpi_install}" == "yes" ] || [ "${hdf5_install}"            == "yes" ] \
-                                         || [ "${fftw_install}"            == "yes" ] \
-                                         || [ "${gadget_install}"          == "yes" ] \
-                                         || [ "${fftw_for_gadget_install}" == "yes" ] \
-                                         || [ "${class_install}"           == "yes" ]; then
-            hang_end=""
-        fi
-        hang="$(tree_beginning ${concept_level} ${hang_end})"
-        table+=("${hang}GSL$([ "${gsl_installed}" == "yes" ] && echo '*' || :)" \
-                "${gsl_version}" "\"${gsl_dir}\"")
-    fi
-    # MPI
-    if [ "${mpi_install}" == "yes" ]; then
-        hang_end="end"
-        if [ "${hdf5_install}" == "yes" ] || [ "${fftw_install}"            == "yes" ] \
-                                          || [ "${gadget_install}"          == "yes" ] \
-                                          || [ "${fftw_for_gadget_install}" == "yes" ] \
-                                          || [ "${class_install}"           == "yes" ]; then
-            hang_end=""
-        fi
-        hang="$(tree_beginning ${concept_level} ${hang_end})"
-        if [ "${mpi}" == "openmpi" ]; then
-            table+=("${hang}OpenMPI$([ "${mpi_installed}" == "yes" ] && echo '*' || :)" \
-                    "${mpi_version}" "\"${mpi_dir}\"")
-        elif [ "${mpi}" == "mpich" ]; then
-            table+=("${hang}MPICH$([ "${mpi_installed}" == "yes" ] && echo '*' || :)" \
-                    "${mpi_version}" "\"${mpi_dir}\"")
-        fi
-    fi
-    # HDF5
-    if [ "${hdf5_install}" == "yes" ]; then
-        hang_end="end"
-        if [ "${fftw_install}" == "yes" ] || [ "${gadget_install}"          == "yes" ] \
-                                          || [ "${fftw_for_gadget_install}" == "yes" ] \
-                                          || [ "${class_install}"           == "yes" ]; then
-            hang_end=""
-        fi
-        hang="$(tree_beginning ${concept_level} ${hang_end})"
-        table+=("${hang}HDF5$([ "${hdf5_installed}" == "yes" ] && echo '*' || :)" \
-                "${hdf5_version}" "\"${hdf5_dir}\"")
-    fi
-    # FFTW
-    if [ "${fftw_install}" == "yes" ]; then
-        hang_end="end"
-        if [ "${gadget_install}" == "yes" ] || [ "${fftw_for_gadget_install}" == "yes" ] \
-                                            || [ "${class_install}"           == "yes" ]; then
-            hang_end=""
-        fi
-        hang="$(tree_beginning ${concept_level} ${hang_end})"
-        table+=("${hang}FFTW$([ "${fftw_installed}" == "yes" ] && echo '*' || :)" \
-                "${fftw_version}" "\"${fftw_dir}\"")
-    fi
-    # GADGET
-    gadget_level=${concept_level}
-    if [ "${gadget_install}" == "yes" ]; then
-        hang_end="end"
-        if [ "${class_install}" == "yes" ]; then
-            hang_end=""
-        fi
-        hang="$(tree_beginning ${gadget_level} ${hang_end})"
-        table+=("${hang}GADGET$([ "${gadget_installed}" == "yes" ] && echo '*' || :)" \
-                "${gadget_version}" "\"${gadget_dir}\"")
-        ((gadget_level += 1))
-    fi
-    last_branch="yes"
-    if [ "${class_install}" == "yes" ]; then
-        last_branch="no"
-    fi
-    # FFTW for GADGET
-    if [ "${fftw_for_gadget_install}" == "yes" ]; then
-        hang_end="end"
-        if [ ${gadget_level} == ${concept_level} ] && [ "${last_branch}" == "no" ]; then
-            hang_end=""
-        fi
-        hang="$(tree_beginning ${gadget_level} ${hang_end})"
-        table+=("${hang}FFTW$([ "${fftw_for_gadget_installed}" == "yes" ] && echo '*' || :)" \
-                "${fftw_for_gadget_version}" "\"${fftw_for_gadget_dir}\"")
-    fi
-    last_branch="yes"
-    # CLASS
-    if [ "${class_install}" == "yes" ]; then
-        hang_end="end"
-        hang="$(tree_beginning ${concept_level} ${hang_end})"
-        table+=("${hang}CLASS$([ "${class_installed}" == "yes" ] && echo '*' || :)" \
-                "${class_version}" "\"${class_dir}\"")
     fi
     echo "The following software will be installed"
     print_table table[@] 3
@@ -2053,42 +1808,53 @@ if [ "${install_any_software}" == "yes" ]; then
         fi
     done
 fi
+
 # Print out Python package installation overview
 if [ "${install_any_pypackages}" == "yes" ]; then
+    # Title
     table=("${esc_bold}Name${esc_normal}" "${esc_bold}Version${esc_normal}" "")
+    # Blessings
     if [ "${blessings_install}" == "yes" ]; then
         table+=("Blessings$([ "${blessings_installed}" == "yes" ] && echo '*' || :)" \
                 "${blessings_version}" "")
     fi
+    # Cython
     if [ "${cython_install}" == "yes" ]; then
            table+=("Cython$([ "${cython_installed}" == "yes" ] && echo '*' || :)" \
                    "${cython_version}" "")
     fi
+    # Cython_GSL
     if [ "${cython_gsl_install}" == "yes" ]; then
            table+=("Cython_GSL$([ "${cython_gsl_installed}" == "yes" ] && echo '*' || :)" \
                    "${cython_gsl_version}" "")
     fi
+    # H5Py
     if [ "${h5py_install}" == "yes" ]; then
            table+=("H5Py$([ "${h5py_installed}" == "yes" ] && echo '*' || :)" \
                    "${h5py_version}" "")
     fi
+    # Matplotlib
     if [ "${matplotlib_install}" == "yes" ]; then
            table+=("Matplotlib$([ "${matplotlib_installed}" == "yes" ] && echo '*' || :)" \
                    "${matplotlib_version}" "")
     fi
+    # MPI4Py
     if [ "${mpi4py_install}" == "yes" ]; then
            table+=("MPI4Py$([ "${mpi4py_installed}" == "yes" ] && echo '*' || :)" \
                    "${mpi4py_version}" "")
     fi
+    # Nose
     if [ "${nose_install}" == "yes" ]; then
            table+=("Nose$([ "${nose_installed}" == "yes" ] && echo '*' || :)" \
                    "${nose_version}" "")
     fi
+    # Nose-parameterized
     if [ "${nose_parameterized_install}" == "yes" ]; then
            table+=("Nose-parameterized$([ "${nose_parameterized_installed}" == "yes" ] \
                    && echo '*' || :)" \
                    "${nose_parameterized_version}" "")
     fi
+    # NumPy
     if [ "${numpy_install}" == "yes" ]; then
            table+=("NumPy$([ "${numpy_installed}" == "yes" ] && echo '*' || :)" \
                    "${numpy_version}" "")
@@ -2187,26 +1953,35 @@ Date:    $(date)
 mkdir -p "${top_dir}/tmp"
 # Download the source code for all programs that should be installed
 disable_status
-if [ "${zlib_install}"            == "yes" ] && [ "${zlib_downloaded}"            == "no" ]; then
-    download "zlib"
+if [ "${concept_install}"         == "yes" ] && [ "${concept_downloaded}"         == "no" ]; then
+    download "CONCEPT"
 fi
-if [ "${libpng_install}"          == "yes" ] && [ "${libpng_downloaded}"          == "no" ]; then
-    download "libpng"
-fi
-if [ "${gsl_install}"             == "yes" ] && [ "${gsl_downloaded}"             == "no" ]; then
-    download "GSL"
-fi
-if [ "${mpi_install}"             == "yes" ] && [ "${mpi_downloaded}"             == "no" ]; then
-    download "MPI"
-fi
-if [ "${hdf5_install}"            == "yes" ] && [ "${hdf5_downloaded}"            == "no" ]; then
-    download "HDF5"
+if [ "${class_install}"           == "yes" ] && [ "${class_downloaded}"           == "no" ]; then
+    download "CLASS"
 fi
 if [ "${fftw_install}"            == "yes" ] && [ "${fftw_downloaded}"            == "no" ]; then
     download "FFTW"
 fi
+if [ "${fftw_for_gadget_install}" == "yes" ] && [ "${fftw_for_gadget_downloaded}" == "no" ]; then
+    download "FFTW for GADGET"
+fi
 if [ "${freetype_install}"        == "yes" ] && [ "${freetype_downloaded}"        == "no" ]; then
     download "FreeType"
+fi
+if [ "${gadget_install}"          == "yes" ] && [ "${gadget_downloaded}"          == "no" ]; then
+    download "GADGET"
+fi
+if [ "${gsl_install}"             == "yes" ] && [ "${gsl_downloaded}"             == "no" ]; then
+    download "GSL"
+fi
+if [ "${hdf5_install}"            == "yes" ] && [ "${hdf5_downloaded}"            == "no" ]; then
+    download "HDF5"
+fi
+if [ "${libpng_install}"          == "yes" ] && [ "${libpng_downloaded}"          == "no" ]; then
+    download "libpng"
+fi
+if [ "${mpi_install}"             == "yes" ] && [ "${mpi_downloaded}"             == "no" ]; then
+    download "MPI"
 fi
 if [ "${ncurses_install}"         == "yes" ] && [ "${ncurses_downloaded}"         == "no" ]; then
     download "ncurses"
@@ -2214,20 +1989,14 @@ fi
 if [ "${openssl_install}"         == "yes" ] && [ "${openssl_downloaded}"         == "no" ]; then
     download "OpenSSL"
 fi
+if [ "${perl_install}"            == "yes" ] && [ "${perl_downloaded}"            == "no" ]; then
+    download "Perl"
+fi
 if [ "${python_install}"          == "yes" ] && [ "${python_downloaded}"          == "no" ]; then
     download "Python"
 fi
-if [ "${concept_install}"         == "yes" ] && [ "${concept_downloaded}"         == "no" ]; then
-    download "CONCEPT"
-fi
-if [ "${fftw_for_gadget_install}" == "yes" ] && [ "${fftw_for_gadget_downloaded}" == "no" ]; then
-    download "FFTW for GADGET"
-fi
-if [ "${gadget_install}"          == "yes" ] && [ "${gadget_downloaded}"          == "no" ]; then
-    download "GADGET"
-fi
-if [ "${class_install}"           == "yes" ] && [ "${class_downloaded}"           == "no" ]; then
-    download "CLASS"
+if [ "${zlib_install}"            == "yes" ] && [ "${zlib_downloaded}"            == "no" ]; then
+    download "zlib"
 fi
 enable_status
 
@@ -2497,16 +2266,19 @@ if [ "${mpi_install}" == "yes" ] && [ "${mpi_installed}" == "no" ]; then
         # MPICH can be tested by running the code below.
         # Since this require several GB of memory and will occupy up to
         # 30 MPI processes, we skip these tests.
-        # if [ "${fast_install}" == "no" ]; then
-        #     export RUNTESTS_VERBOSE=1
-        #     make ${make_jobs} testing 2>&1 | tee "test_log"
-        #     [ ${PIPESTATUS[0]} != 0 ] && mpi_test_success="no"
-        # fi
-        # mpi_test_log="${mpi_dir}/test_log"
-        # if [ "${mpi_test_success}" == "no" ]; then
-        #     cp "test_log" "${mpi_test_log}"
-        # fi
-        # reset_environment
+        run_mpi_tests="no"
+        if [ "${run_mpi_tests}" == "yes" ]; then
+            if [ "${fast_install}" == "no" ]; then
+                export RUNTESTS_VERBOSE=1
+                make ${make_jobs} testing 2>&1 | tee "test_log"
+                [ ${PIPESTATUS[0]} != 0 ] && mpi_test_success="no"
+            fi
+            mpi_test_log="${mpi_dir}/test_log"
+            if [ "${mpi_test_success}" == "no" ]; then
+                cp "test_log" "${mpi_test_log}"
+            fi
+            reset_environment
+        fi
         cp "COPYRIGHT" "${mpi_dir}/" || :
         cd "${top_dir}"
         rm -rf "${top_dir}/tmp/mpi"
@@ -2734,6 +2506,9 @@ fi
 # ncurses
 if [ "${ncurses_install}" == "yes" ] && [ "${ncurses_installed}" == "no" ]; then
     init_install "ncurses"
+    # Do to a bug in (at least) ncurses 6.0, this is needed on
+    # some systems. See https://trac.sagemath.org/ticket/19762
+    export CPPFLAGS="-P"
     ./configure --with-shared --prefix="${ncurses_dir}" 2>&1
     make ${make_jobs} 2>&1
     make ${make_jobs} install 2>&1
@@ -2760,6 +2535,7 @@ if [ "${ncurses_install}" == "yes" ] && [ "${ncurses_installed}" == "no" ]; then
         mkdir -p "${ncurses_dir}/include/ncurses"
         cp "test_log" "${ncurses_test_log}"
     fi
+    reset_environment
     cp "AUTHORS" "COPYING" "${ncurses_dir}/include/ncurses/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/ncurses"
@@ -2771,9 +2547,37 @@ Date:    $(date)
 " >> "${ncurses_dir}/.installation_finished"
 fi
 
+# Perl
+if [ "${perl_install}" == "yes" ] && [ "${perl_installed}" == "no" ]; then
+    init_install "Perl"
+    ./Configure -de -Dprefix="${perl_dir}" 2>&1
+    make ${make_jobs} 2>&1
+    if [ "${fast_install}" == "no" ]; then
+        make ${make_jobs} test 2>&1 | tee "test_log"
+        [ ${PIPESTATUS[0]} != 0 ] && perl_test_success="no"
+    fi
+    perl_test_log="${perl_dir}/test_log"
+    if [ "${perl_test_success}" == "no" ]; then
+        mkdir -p "${perl_dir}"
+        cp "test_log" "${perl_test_log}"
+    fi
+    make ${make_jobs} install 2>&1
+    cp "AUTHORS" "Copying" "README" "${perl_dir}/" || :
+    cd "${top_dir}"
+    rm -rf "${top_dir}/tmp/perl"
+    # Write out success notice
+    echo "The following has been fully installed:
+Program: Perl
+Version: ${perl_version}
+Date:    $(date)
+" >> "${perl_dir}/.installation_finished"
+fi
+
 # OpenSSL
 if [ "${openssl_install}" == "yes" ] && [ "${openssl_installed}" == "no" ]; then
     init_install "OpenSSL"
+    export PATH="${perl_dir}/bin:${PATH}"
+    export PERL="${perl_dir}/bin/perl"
     ./config shared --prefix="${openssl_dir}" --openssldir="${openssl_dir}/openssl" 2>&1
     make 2>&1  # Should not be run in parallel!
     if [ "${fast_install}" == "no" ]; then
@@ -2786,6 +2590,7 @@ if [ "${openssl_install}" == "yes" ] && [ "${openssl_installed}" == "no" ]; then
         cp "test_log" "${openssl_test_log}"
     fi
     make install 2>&1  # Should not be run in parallel!
+    reset_environment
     cp "LICENSE" "README" "${openssl_dir}/include/openssl/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/openssl"
@@ -2903,13 +2708,13 @@ Version: ${python_version}
 Date:    $(date)
 " >> "${python_dir}/.installation_finished"
 fi
-# Overwrite the 'python_version' variable with the major.minor version
-# and create a python variable, storing the path to the newly installed
-# Python interpreter.
+# Create a python variable, storing the path to
+# the newly installed Python interpreter.
 if [ -n "${python_dir}" ]; then
-    python_version=$("${python_dir}/bin/python${python_version_major}" -c \
-                     "from sys import version_info as v; print(str(v.major) + '.' + str(v.minor))")
-    python="${python_dir}/bin/python${python_version}"
+    python_version_major_dot_minor=$("${python_dir}/bin/python${python_version_major}" -c \
+                                     "from sys import version_info as v; \
+                                     print(str(v.major) + '.' + str(v.minor))")
+    python="${python_dir}/bin/python${python_version_major_dot_minor}"
 fi
 
 
@@ -3273,7 +3078,7 @@ ${zlib_dir}/include,\
 ${zlib_dir}/lib\
 "
     sed -i "/basedirlist/c\basedirlist = ${basedirlist}" "setup.cfg"
-    cp -r "${freetype_include2}/"* "${freetype_dir}/include"
+    cp -r "${freetype_include2}/"* "${freetype_dir}/include/"
     export CPPFLAGS="-I${freetype_dir}/include                              \
                      -I${freetype_include2}                                 \
                      -I${libpng_dir}/include                                \
@@ -3326,11 +3131,11 @@ if [ "${h5py_install}" == "yes" ] && [ "${h5py_installed}" == "no" ]; then
             break
         fi
     done
-    export CC="${mpi_dir}/bin/mpicc"
     # Running setup.py may appear to hang,
     # but it will eventually get going.
     echo "The next step may take an unreasonable amount of time."
     echo "Please be patient ..."
+    export CC="${mpi_dir}/bin/mpicc"
     "${python}" setup.py configure --mpi --hdf5="${hdf5_dir}" 2>&1
     "${python}" setup.py install 2>&1
     reset_environment
@@ -3345,22 +3150,22 @@ fi
 #################
 if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     init_install "CLASS"
-    # Move the content of the current directory (the files of CLASS)
-    # to the CLASS installation directory.
+    # Move the content of the current directory (the files of CLASS,
+    # except .gitignore) to the CLASS installation directory.
     mkdir -p "${class_dir}"
-    mv ./* "${class_dir}"
+    mv ./* "${class_dir}/"
     cd "${class_dir}"
     # The Python prefix does not get set correctly in the Makefile
-    # becuase "${python_dir}/distutils/distutils.cfg" does not exists.
+    # becuase "${python_dir}/distutils/distutils.cfg" does not exist.
     # Set the Python prefix manually.
     sed -i "/PYTHONPREFIX=/c\PYTHONPREFIX = \"${python_dir}\"" Makefile
     # Build CLASS, including Python wrapper
     PYTHON="${python}" make ${make_jobs} 2>&1
     # Test CLASS
-    #if [ "${fast_install}" == "no" ]; then
-    #    "${python}" -m nose "python/test_class.py" 2>&1 | tee "test_log"  # !!! Does this always use all CPUs? How to run serially?
-    #    [ ${PIPESTATUS[0]} != 0 ] && class_test_success="no"
-    #fi
+    if [ "${fast_install}" == "no" ]; then
+        "${python}" -m nose "python/test_class.py" 2>&1 | tee "test_log"
+        [ ${PIPESTATUS[0]} != 0 ] && class_test_success="no"
+    fi
     class_test_log="${class_dir}/test_log"
     if [ "${class_test_success}" == "yes" ]; then
         rm -f "${class_test_log}"
@@ -3397,8 +3202,9 @@ if [ "${concept_install}" == "yes" ] && [ "${concept_installed}" == "no" ]; then
     init_install "CONCEPT"
     # Move everything (but the .paths file) from the concept-master 
     # directory to "top_dir".
-    mv ./* "${top_dir}"
-    cd "${top_dir}"; rm -rf "${top_dir}/tmp/concept"
+    mv ./* "${top_dir}/"
+    cd "${top_dir}"
+    rm -rf "${top_dir}/tmp/concept"
     # Create directories
     mkdir -p "${logs_dir}"
     mkdir -p "${output_dir}"
@@ -3539,7 +3345,7 @@ fi
 if [ "${gadget_install}" == "yes" ] && [ "${gadget_installed}" == "no" ]; then
     init_install "GADGET"
     mkdir -p "${gadget_dir}"
-    mv ./* "${gadget_dir}"
+    mv ./* "${gadget_dir}/"
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/gadget"
     # GADGET will be tested as part of the CO𝘕CEPT test suite.
@@ -3631,8 +3437,8 @@ if [ "${install_anything}" == "yes" ]; then
         printf "The following software have been installed:\n"
     fi
     copyright_notice "class"              "CLASS"
-    copyright_notice "fftw_for_gadget"    "FFTW 2"
     copyright_notice "fftw"               "FFTW 3"
+    copyright_notice "fftw_for_gadget"    "FFTW 2"
     copyright_notice "freetype"           "FreeType"
     copyright_notice "gadget"             "GADGET"
     copyright_notice "gsl"                "GSL"
@@ -3645,6 +3451,7 @@ if [ "${install_anything}" == "yes" ]; then
     fi
     copyright_notice "ncurses"            "ncurses"
     copyright_notice "openssl"            "OpenSSL"
+    copyright_notice "perl"               "Perl"
     copyright_notice "zlib"               "zlib"
     copyright_notice "python"             "Python"
     copyright_notice "blessings"          "$(printf ${en_quad}%.s {1..4})Blessings"
@@ -3703,8 +3510,8 @@ erroneous_test_notice()
     fi
 }
 erroneous_test_notice "CLASS"
-erroneous_test_notice "FFTW for GADGET"
 erroneous_test_notice "FFTW"
+erroneous_test_notice "FFTW for GADGET"
 erroneous_test_notice "FreeType"
 erroneous_test_notice "GADGET"
 erroneous_test_notice "GSL"
@@ -3713,6 +3520,7 @@ erroneous_test_notice "libpng"
 erroneous_test_notice "MPI"
 erroneous_test_notice "ncurses"
 erroneous_test_notice "OpenSSL"
+erroneous_test_notice "Perl"
 erroneous_test_notice "Python"
 erroneous_test_notice "zlib"
 erroneous_test_notice "CONCEPT" \
