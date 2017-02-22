@@ -109,10 +109,13 @@ installer_functions=("set_package_names"             \
                      "download"                      \
                      )
 for installer_function in "${installer_functions[@]}"; do
-function_definition="$("${python}" -B -c "
+    function_definition="$("${python}" -B -c "
 import re, sys
-print(re.search(r'${installer_function}\(\).*?\n}', sys.argv[1], flags=re.DOTALL).group())
-" "${installer_content}")"
+installer = sys.argv[1]
+with open(installer, 'r', encoding='utf-8') as file:
+    installer_content = file.read()
+print(re.search(r'${installer_function}\(\).*?\n}', installer_content, flags=re.DOTALL).group())
+" "${installer}")"
 eval "${function_definition}"
 done
 
