@@ -140,15 +140,18 @@ check_system_dependency "gzip" "${gzip_package}"
 check_system_dependency "tar"  "${tar_package}"
 check_system_dependency "wget" "${wget_package}"
 
-# Make backup of the current CO𝘕CEPT source code
+# Make backup of the current CO𝘕CEPT source code and auxiliary files
+# (but not any installed software dependencies).
 backup_dir="${top_dir}/concept_backup"
 rm -rf "${backup_dir}"
 mkdir "${backup_dir}"
-cp -f "${top_dir}/installer" "${top_dir}/README.md" "${top_dir}/.paths" "${backup_dir}"
-mkdir "${backup_dir}/concept"
-cp -r "${tests_dir}"     "${backup_dir}/concept"
-cp -r "${utilities_dir}" "${backup_dir}/concept"
-cp "${concept_dir}/"*    "${backup_dir}/concept" 2> /dev/null || :
+for f in "${top_dir}/"*; do
+    if [ -f "${f}" ]; then
+        cp "${f}" "${backup_dir}/"
+    fi
+done
+cp "${top_dir}.paths" "${backup_dir}/"
+cp -r "${top_dir}/concept" "${backup_dir}/"
 
 # Download and extract CO𝘕CEPT
 concept_url="https://github.com/jmd-dk/concept/archive/master.tar.gz"

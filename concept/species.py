@@ -27,6 +27,7 @@ from commons import *
 # Cython imports
 cimport('from communication import communicate_domain, exchange')
 cimport('from fluid import maccormack')
+cimport('from integration import Spline, ȧ')
 
 
 
@@ -185,15 +186,8 @@ class FluidScalar:
 
     # String representation
     def __repr__(self):
-        if self.varnum < len(fluidvarnames):
-            name = fluidvarnames[self.varnum]
-        else:
-            name = str(self.varnum)
-        if self.varnum > 0 and self.multi_index:
-            return '<fluidscalar {}[{}]>'.format(name,
-                                                 ', '.join([str(i) for i in self.multi_index]))
-        else:
-            return '<fluidscalar {}>'.format(name)
+        return '<fluidscalar {}[{}]>'.format(self.varnum,
+                                             ', '.join([str(mi) for mi in self.multi_index]))
     def __str__(self):
         return self.__repr__()
 
@@ -212,9 +206,17 @@ class Component:
                    species='str',
                    N_or_gridsize='Py_ssize_t',
                    mass='double',
-                   fluid_properties='dict',
+                   N_fluidvars='Py_ssize_t',
+                   w='object',  # NoneType, float, int, str or dict
+                   # Locals
+                   fluidvar='object',  # np.ndarray with dtype object
+                   fluidvar_shape='tuple',
+                   i='Py_ssize_t',
+                   multi_index='tuple',
                    )
-    def __init__(self, name, species, N_or_gridsize, mass, fluid_properties={}):
+    def __init__(self, name, species, N_or_gridsize, mass,
+                 N_fluidvars=2, w=None,
+                 ):
         # The triple quoted string below serves as the type declaration
         # for the data attributes of the Component type.
         # It will get picked up by the pyxpp script
@@ -226,7 +228,7 @@ class Component:
         public str name
         public str representation
         public str species
-        # Particle component attributes
+        # Particle attributes
         public Py_ssize_t N
         Py_ssize_t N_allocated
         Py_ssize_t N_local
@@ -248,12 +250,37 @@ class Component:
         double[::1] momz_mv
         list pos_mv
         list mom_mv
-        # Fluid component attributes
+        # Fluid attributes
         public Py_ssize_t gridsize
-        # Dict storing the fluid grids
-        public dict fluidvars
+        public tuple shape
+        public tuple shape_noghosts
+        public Py_ssize_t size
+        public Py_ssize_t size_noghosts
+        public dict fluid_names
+        str w_type
+        double w_constant
+        double[:, ::1] w_tabulated
+        str w_expression
+        Spline w_spline
+        # Fluid data
+        list fluidvars
+        FluidScalar ρ
+        object ρu
+        FluidScalar ρux
+        FluidScalar ρuy
+        FluidScalar ρuz
+        object σ  
+        FluidScalar σxx
+        FluidScalar σxy
+        FluidScalar σxz
+        FluidScalar σyx
+        FluidScalar σyy
+        FluidScalar σyz
+        FluidScalar σzx
+        FluidScalar σzy
+        FluidScalar σzz
         """
-        # General component attributes
+        # General attributes
         self.name    = name
         self.species = species
         self.mass    = mass
@@ -268,7 +295,7 @@ class Component:
                         self.forces[species_force[0]] = species_force[1]
         # Determine the representation based on the species
         self.representation = get_representation(self.species)
-        # Particle component attributes
+        # Particle attributes
         self.N_allocated = 1
         self.N_local     = 1
         if self.representation == 'particles':
@@ -281,9 +308,6 @@ class Component:
         else:
             self.N         = 1
             self.softening = 1
-        # Populate the fluid arguments dict
-        fluid_properties['N_fluidvars'] = fluid_properties.get('N_fluidvars', 2)
-        fluid_properties['cs']          = fluid_properties.get('cs'         , 0)
         # Particle data
         self.posx = malloc(self.N_allocated*sizeof('double'))
         self.posy = malloc(self.N_allocated*sizeof('double'))
@@ -309,47 +333,96 @@ class Component:
         self.mom[2] = self.momz
         self.pos_mv = [self.posx_mv, self.posy_mv, self.posz_mv]
         self.mom_mv = [self.momx_mv, self.momy_mv, self.momz_mv]
-        # Fluid component attributes
+        # Fluid attributes
+        self.shape = (1, 1, 1)
+        self.shape_noghosts = (1, 1, 1)
+        self.size = 1
+        self.size_noghosts = 1
         if self.representation == 'fluid':
             self.gridsize = N_or_gridsize
+            # Initialize the equation of state parameter w
+            self.initialize_w(w)
         else:
             self.gridsize = 1
-        # Construct the fluidvars dict, storing all fluid variables
-        # and meta data.
-        self.fluidvars = {# Grid shape
-                          'shape'         : (1, 1, 1),
-                          'size'          : 1,
-                          'shape_noghosts': (1, 1, 1),
-                          'size_noghosts' : 1,
-                          # Fluid properties
-                          'N_fluidvars': fluid_properties['N_fluidvars'],
-                          'cs'         : fluid_properties['cs'],
-                          }
-        # Create the two lowest order fluid variables (ρ and ρu)
-        # SHOULD BE DEPENDENT ON N_fluidvars !!!
-        self.fluidvars[0] = asarray([FluidScalar(0)], dtype='object')
-        self.fluidvars[1] = asarray([FluidScalar(1, dim) for dim in range(3)], dtype='object')
-        # Also assign some convenient names for the fluid grids
-        self.assign_fluidnames()
+        # Fluid data.
+        # Create the N_fluidvars fluid variables
+        # and store them in the list fluidvars.
+        self.fluidvars = []
+        for i in range(N_fluidvars):
+            # The shape of the i'th fluid variable,
+            # when thought of as a tensor.
+            if i == 0:
+                # Special case: The density ρ is a scalar
+                # (rank 0 tensor), not an empty tensor.
+                fluidvar_shape = (1, )
+            else:
+                # The general shape is 3×3×3×...×3 (i times)
+                fluidvar_shape = (3, )*i
+            # Instantiate the tensor
+            fluidvar = empty(fluidvar_shape, dtype='object')
+            # Populate the tensor with fluid scalar fields
+            for multi_index in self.iterate_fluidscalar_indices(fluidvar):
+                fluidvar[multi_index] = FluidScalar(i, multi_index)
+            # Add the fluid variable to the list
+            self.fluidvars.append(fluidvar)
+        # Construct mapping from names of fluid variables (e.g. u)
+        # to their indices in self.fluidvars, and also from names of
+        # fluid scalars (e.g. ρ, ρux) to tuple of the form
+        # (index, multi_index). The fluid scalar is then given
+        # by self.fluidvars[index][multi_index].
+        self.fluid_names = {}
+        fluidvar_names = ('ρ', 'ρu', 'σ')
+        for i, (fluidvar, fluidvar_name) in enumerate(zip(self.fluidvars, fluidvar_names)):
+            # The fluid variable
+            self.fluid_names[fluidvar_name] = i
+            # The fluid scalar
+            for multi_index in self.iterate_fluidscalar_indices(fluidvar):
+                fluidscalar_name = fluidvar_name
+                if i > 0:
+                    fluidscalar_name += ''.join(['xyz'[mi] for mi in multi_index])
+                self.fluid_names[fluidscalar_name] = (i, multi_index)
+        # Assign the fluid variables and scalars as convenient named
+        # attributes on the Component instance.
+        # Use the same naming scheme as above.
+        self.ρ   = self.fluidvars[0][0]
+        self.ρu  = self.fluidvars[1]
+        self.ρux = self.fluidvars[1][0]
+        self.ρuy = self.fluidvars[1][1]
+        self.ρuz = self.fluidvars[1][2]
+        if N_fluidvars > 2:
+            self.σ   = self.fluidvars[2]
+            self.σxx = self.fluidvars[2][0, 0]
+            self.σxy = self.fluidvars[2][0, 1]
+            self.σxz = self.fluidvars[2][0, 2]
+            self.σyx = self.fluidvars[2][1, 0]
+            self.σyy = self.fluidvars[2][1, 1]
+            self.σyz = self.fluidvars[2][1, 2]
+            self.σzx = self.fluidvars[2][2, 0]
+            self.σzy = self.fluidvars[2][2, 1]
+            self.σzz = self.fluidvars[2][2, 2]
+        if N_fluidvars > 3:
+            ...
 
     # This method populate the Component pos/mom arrays (for a
     # particles representation) or the fluid variable arrays (for a
     # fluid representation) with data. It is deliberately designed so
-    # that you have to make a call for each attribute. You should
-    # construct the data array within the call itself, as this will
-    # minimize memory usage. This data array is 1D for particle data and
-    # 3D for fluid data.
+    # that you have to make a call for each attribute (posx, posy, ...
+    # for particle components, ρ, ρux, ρuy, ... for fluid components).
+    # You should construct the data array within the call itself,
+    # as this will minimize memory usage. This data array is 1D for
+    # particle data and 3D for fluid data.
     @cython.header(# Arguments
                    data='object',  # 1D/3D (particles/fluid) memoryview
-                   var='object',   # str or int-like
-                   indices='object',  # Int-like or tuple
+                   var='object',   # int-like or str
+                   multi_index='object',  # int-like or tuple
                    # Locals
+                   fluid_indices='object',  # tuple or int-like
                    fluidscalar='FluidScalar',
+                   index='Py_ssize_t',
                    mv1D='double[::1]',
                    mv3D='double[:, :, ::1]',
-                   tmp='object',  # FluidScalar or np.ndarray
                    )
-    def populate(self, data, var, indices=0):
+    def populate(self, data, var, multi_index=0):
         if self.representation == 'particles':
             mv1D = data
             self.N_local = mv1D.shape[0]
@@ -373,23 +446,50 @@ class Component:
                 abort('Wrong component attribute name "{}"!'.format(var))
         elif self.representation == 'fluid':
             mv3D = data
-            if master and var not in self.fluidvars:
-                if isinstance(var, str):
-                    abort('The "{}" component does not contain a fluid variable with the name "{}"'
-                          .format(self.name, var))
-                else:
+            # The fluid scalar will be given as
+            # self.fluidvars[index][multi_index],
+            # where index is an int and multi_index is a tuple of ints.
+            # These may be given directly as var and multi_index.
+            # Alternatively, var may be a str, in which case it can be
+            # the name of a fluid variable or a fluid scalar.
+            # For each possibility, find index and multi_index.
+            if isinstance(var, int):
+                if not (0 <= var < len(self.fluidvars)):
                     abort('The "{}" component does not have fluid variable with number {}'
                           .format(self.name, var))
+                # The fluid scalar is given as
+                # self.fluidvars[index][multi_index].
+                index = var
+            if isinstance(var, str):
+                if var not in self.fluid_names:
+                    abort('The "{}" component does not contain a fluid variable with the name "{}"'
+                          .format(self.name, var))
+                # Lookup the fluid indices corresponding to var.
+                # This can either be a tuple of the form
+                # (index, multi_index) (for a parsed fluid scalar name)
+                # or just an index (for a parsed fluid name).
+                fluid_indices = self.fluid_names[var]
+                if isinstance(fluid_indices, int):
+                    index = fluid_indices
+                else:  # fluid_indices is a tuple
+                    if multi_index != 0:
+                        masterwarn('Overwriting parsed multi_index ({}) with {}, '
+                                   'deduced from the parsed var = {}.'
+                                   .format(multi_index, fluid_indices[1], var)
+                                   )
+                    index, multi_index = fluid_indices
+            # Type check on the multi_index
+            if not isinstance(multi_index, (int, tuple)):
+                abort('A multi_index of type "{}" was supplied. '
+                      'This should be either an int or a tuple.'
+                      .format(type(multi_index))
+                      )
             # Reallocate fluid grids if necessary           
             self.resize(asarray(mv3D).shape)
-            # Populate the scalar grid given by 'indices' of the fluid
-            # given by 'var' with the parsed data. This data should not
+            # Populate the scalar grid given by index and multi_index
+            # with the parsed data. This data should not
             # include pseudo or ghost points.
-            tmp = self.fluidvars[var]
-            if isinstance(tmp, FluidScalar):
-                fluidscalar = tmp
-            else:
-                fluidscalar = tmp[indices]
+            fluidscalar = self.fluidvars[index][multi_index]
             fluidscalar.grid_noghosts[:mv3D.shape[0], :mv3D.shape[1], :mv3D.shape[2]] = mv3D[...]
             # Populate pseudo and ghost points
             communicate_domain(fluidscalar.grid_mv, mode='populate')
@@ -438,16 +538,16 @@ class Component:
             # before and after the local grid) longer than the local
             # shape, in each direction.
             if not any([2 + s + 1 + 2 != s_old for s, s_old in zip(shape_nopseudo_noghosts,
-                                                                   self.fluidvars['shape'])]):
+                                                                   self.shape)]):
                 return
             if any([s < 1 for s in shape_nopseudo_noghosts]):
                 abort('Attempted to resize fluid grids of the {} component'
                       'to a shape of {}'.format(self.name, shape_nopseudo_noghosts))
             # Recalculate and -assign meta data
-            self.fluidvars['shape']          = tuple([2 + s + 1 + 2 for s in shape_nopseudo_noghosts])
-            self.fluidvars['shape_noghosts'] = tuple([    s + 1     for s in shape_nopseudo_noghosts])
-            self.fluidvars['size']           = np.prod(self.fluidvars['shape'])
-            self.fluidvars['size_noghosts']  = np.prod(self.fluidvars['shape_noghosts'])
+            self.shape          = tuple([2 + s + 1 + 2 for s in shape_nopseudo_noghosts])
+            self.shape_noghosts = tuple([    s + 1     for s in shape_nopseudo_noghosts])
+            self.size           = np.prod(self.shape)
+            self.size_noghosts  = np.prod(self.shape_noghosts)
             # Reallocate fluid data
             for fluidscalar in self.iterate_fluidscalars():
                 fluidscalar.resize(shape_nopseudo_noghosts)
@@ -497,46 +597,265 @@ class Component:
             maccormack(self, ᔑdt)
             masterprint('done')
 
-    # Method which assigns convenient names to some
-    # fluid variables and fluid scalars.
-    @cython.header(# Locals
-                   dim='int',
-                   l='Py_ssize_t',
-                   )
-    def assign_fluidnames(self):
-        """After running this method,
-        fluid scalars can be accessed as e.g.
-        self.fluidvars['ρ']   == self.fluidvars[0][0]
-        self.fluidvars['ρux'] == self.fluidvars['ρu'][0] == self.fluidvars[1][0]
-        self.fluidvars['ρuy'] == self.fluidvars['ρu'][1] == self.fluidvars[1][1]
-        self.fluidvars['ρuz'] == self.fluidvars['ρu'][2] == self.fluidvars[1][2]
+    # Method for computing the equation of state parameter w
+    # at a certain time t or value of the scale factor a.
+    @cython.pheader(# Arguments
+                    t='double',
+                    a='double',
+                    # Locals
+                    value='double',
+                    returns='double',
+                    )
+    def w(self, t=-1, a=-1):
+        """This method should not be called before w has been
+        initialized by the initialize_w method.
         """
-        # As higher fluid variables may not have names in general,
-        # enclose the assignments in a try block. The assignments
-        # should be ordered accoring to the fluid variable number.
+        # If no time or scale factor value is parsed,
+        # use the current time and scale factor value.
+        if t == -1 == a:
+            t = universals.t
+            a = universals.a 
+        # Compute the current w dependent on its type
+        if self.w_type == 'constant':
+            return self.w_constant
+        if self.w_type == 'tabulated (t)':
+            return self.w_spline.eval(t)
+        if self.w_type == 'tabulated (a)':
+            return self.w_spline.eval(a)
+        if self.w_type == 'expression':
+            units_dict['t'] = t
+            units_dict['a'] = a            
+            value = eval_unit(self.w_expression, units_dict)
+            units_dict.pop('t')
+            units_dict.pop('a')
+            return value
+        abort('Did not recognize w type "{}"'.format(self.w_type))
+
+    # Method for computing the proper time derivative
+    # of the equation of state parameter w
+    # at a certain time t or value of the scale factor a.
+    @cython.pheader(# Arguments
+                    t='double',
+                    a='double',
+                    # Locals
+                    w_after='double',
+                    w_before='double',
+                    Δx='double',
+                    returns='double',
+                    )
+    def ẇ(self, t=-1, a=-1):
+        """This method should not be called before w has been
+        initialized by the initialize_w method.
+        """
+        # If no time or scale factor value is parsed,
+        # use the current time and scale factor value.
+        if t == -1 == a:
+            t = universals.t
+            a = universals.a 
+        # Compute the current ẇ dependent on its type
+        if self.w_type == 'constant':
+            return 0
+        if self.w_type == 'tabulated (t)':
+            return self.w_spline.eval_deriv(t)
+        if self.w_type == 'tabulated (a)':
+            # The chain rule: dw/dt = dw/da * da/dt
+            return self.w_spline.eval_deriv(a)*ȧ(t, a)
+        if self.w_type == 'expression':
+            # Approximate the derivative via symmetric difference
+            Δx = 1e+6*machine_ϵ
+            units_dict['t'] = t - Δx
+            units_dict['a'] = a - Δx           
+            w_before = eval_unit(self.w_expression, units_dict)
+            units_dict['t'] = t + Δx
+            units_dict['a'] = a + Δx           
+            w_after = eval_unit(self.w_expression, units_dict)
+            units_dict.pop('t')
+            units_dict.pop('a')
+            return (w_after - w_before)/(2*Δx)
+        abort('Did not recognize w type "{}"'.format(self.w_type))
+
+    # Method which initializes the equation of state parameter w.
+    # Call this before calling the w method.
+    @cython.header(# Arguments
+                   w='object',  # NoneType, float-like, str or dict
+                   # Locals
+                   delim_left='str',
+                   delim_right='str',
+                   done_reading_w='bint',
+                   i='int',
+                   i_tabulated='double[:]',
+                   key='str',
+                   line='str',
+                   pattern='str',
+                   spline='Spline',
+                   unit='double',
+                   w_data='double[:, :]',
+                   w_tabulated='double[:]',
+                   returns='Spline',
+                   )
+    def initialize_w(self, w=None):
+        """The w argument can be one of the following (Python) types:
+        - NoneType  : Assign a constant w depending on the species
+                      of the component.
+                      The w will be stored in self.w_constant and
+                      self.w_type will be set to 'constant'.
+        - float-like: Designates a constant w.
+                      The w will be stored in self.w_constant and
+                      self.w_type will be set to 'constant'.
+        - str       : Designates either some analytical expression or
+                      a filename. In the case of an expression,
+                      this should include eather t or a.
+                      The w will be stored in self.w_expression and
+                      self.w_type will be set to 'expression'.
+                      In case of a filename, the file should contain
+                      tabulated values of w and either t or a. The file
+                      must be in a format understood by numpy.loadtxt,
+                      and a header must be present stating whether w(t)
+                      or w(a) is tabulated. For w(t), the header should
+                      also specify the units for the t column.
+                      Legal formats for the header are:
+                      # a    w(a)
+                      # a    w
+                      # t [Gyr]    w
+                      # t [Gyr]    w(t)
+                      In addition, the two columns may be specified in
+                      the reverse order, parentheses and brackets may be
+                      replaced with any of (), [], {}, <> and the number
+                      of spaces/tabs does not matter.
+                      The tabulated values for t or a wil be stored as
+                      self.w_tabulated[0, :], the tabulated values for w
+                      as self.w_tabulated[1, :] and self.w_type will be
+                      set to 'tabulated (t)' or 'tabulated (a)'.
+        - dict      : The dict has to be of the form
+                      {'t': iterable, 'w': iterable} or
+                      {'a': iterable, 'w': iterable}, where the
+                      iterables are some iterables of matching
+                      tabulated values.
+                      The tabulated values for t or a wil be stored as
+                      self.w_tabulated[0, :], the tabulated values for w
+                      as self.w_tabulated[1, :] and self.w_type will be
+                      set to 'tabulated (t)' or 'tabulated (a)'.
+        If the user parameter w_eos contains the species, whatever is
+        specified as the value there is used instead of the parsed w.
+        """
+        # If the species has been given a w in the user
+        # parameter w_eos, this will overwrite the parsed w.
+        if w is not None and self.species in w_eos:
+            masterprint('Overwriting w = {} for the "{}" component with w = {}.'
+                        .format(w, self.name, w_eos[self.species])
+                        )
+        w = w_eos.get(self.species, w)
+        # Initialize w dependent on its type
         try:
-            for l in range(self.fluidvars['N_fluidvars']):
-                if l == 0:
-                    # ρ
-                    self.fluidvars[fluidvarnames[l]] = self.fluidvars[l][0]
-                elif l == 1:
-                    # ρu
-                    self.fluidvars[fluidvarnames[l]] = self.fluidvars[l]
-                    for dim in range(3):
-                        self.fluidvars[fluidvarnames[l] + 'xyz'[dim]] = self.fluidvars[l][dim]
+            w = float(w)
         except:
             ...
+        if w is None:
+            # Assign w constant value based on the species
+            self.w_type = 'constant'
+            if self.species not in default_w:
+                abort('No default w is defined for the "{}" species'.format(self.species))
+            self.w_constant = default_w[self.species]
+        elif isinstance(w, float):
+            # Assign parsed constant w
+            self.w_type = 'constant'
+            self.w_constant = w
+        elif isinstance(w, str) and os.path.isfile(w):
+            # Load tabulated w from file
+            self.w_type = 'tabulated (?)'
+            w_data = np.loadtxt(w)
+            # Transpose w_data so that it consists of two rows
+            w_data = w_data.T
+            # For varying w it is crucial to know whether w is a
+            # function of t or a.
+            # This should be written in the header of the file.
+            pattern = r'[a-zA-Z]*\s*(?:\(\s*[a-zA-Z0-9\.]+\s*\))?'
+            done_reading_w = False
+            with open(w, 'r', encoding='utf-8') as w_file:
+                while True:
+                    line = w_file.readline().lstrip()
+                    if line and not line.startswith('#'):
+                        break
+                    line = line.replace('#', '').replace('\t', ' ').replace('\n', ' ')
+                    for delim_left, delim_right in zip('[{<', ']}>'):
+                        line = line.replace(delim_left , '(')
+                        line = line.replace(delim_right, ')')
+                    match = re.search(r'\s*({pattern})\s+({pattern})\s*(.*)'.format(pattern=pattern),
+                                      line)                
+                    if match and not match.group(3):
+                        # Header line containing the relevant
+                        # information found.
+                        for i in range(2):
+                            var = match.group(1 + i)
+                            if var[0] == 't':
+                                self.w_type = 'tabulated (t)'
+                                unit_match = re.search('\((.*)\)', var)  # Will be applied later                               
+                            elif var[0] == 'a':
+                                self.w_type = 'tabulated (a)'
+                            elif var[0] == 'w':
+                                # Extract the two rows
+                                w_tabulated = w_data[i, :]
+                                i_tabulated = w_data[(i + 1) % 2, :]
+                                done_reading_w = True
+                    if done_reading_w and '(?)' not in self.w_type:
+                        break
+            # Multiply unit on the time
+            if '(t)' in self.w_type:
+                if unit_match and unit_match.group(1) in units_dict:
+                    unit = eval_unit(unit_match.group(1)) 
+                    i_tabulated = asarray(i_tabulated)*unit
+                elif unit_match:
+                    abort('Time unit "{}" in header of "{}" not understood'.format(unit_match.group(1), w))
+                else:
+                    abort('Could not find time unit in header of "{}"'.format(w))
+        elif isinstance(w, str):
+            # Save the parsed expression for w
+            self.w_type = 'expression'
+            self.w_expression = w
+        elif isinstance(w, dict):
+            # Use the tabulated w giben by the two dict key-value pairs
+            self.w_type = 'tabulated (?)'
+            for key, val in w.items():
+                if key.startswith('t'):
+                    self.w_type = 'tabulated (t)'
+                    i_tabulated = asarray(val, dtype=C2np['double'])
+                elif key.startswith('a'):
+                    self.w_type = 'tabulated (a)'
+                    i_tabulated = asarray(val, dtype=C2np['double'])
+                elif key.startswith('w'):
+                    w_tabulated = asarray(val, dtype=C2np['double'])
+        else:
+            abort('Cannot handle w of type {}'.format(type(w)))
+        # Instantiate a spline in the case of tabulated data.
+        if 'tabulated' in self.w_type:
+            # Check that tabulated values have been found
+            if '(?)' in self.w_type:
+                abort('Could not detect the independent variable (should be \'a\' or \'t\'')
+            # Make sure that the values of i_tabulated are in increasing order
+            order = np.argsort(i_tabulated)
+            i_tabulated = asarray(i_tabulated)[order]
+            w_tabulated = asarray(w_tabulated)[order]
+            # Pack the two rows together
+            self.w_tabulated = empty((2, w_tabulated.shape[0]))
+            self.w_tabulated[0, :] = i_tabulated
+            self.w_tabulated[1, :] = w_tabulated
+            # Construct a Spline object from the tabulated data
+            self.w_spline = Spline(i_tabulated, w_tabulated)
 
-    # Generator for looping over all the scalar fluid grids within
-    # the component.
+    # Generator for looping over all
+    # scalar fluid grids within the component.
     def iterate_fluidscalars(self):
-        fluidvars = self.fluidvars
-        for l in range(fluidvars['N_fluidvars']):
-            fluidvar = fluidvars[l]
-            for multi_index in self.iterate_fluidscalar_indices(fluidvar):
-                yield fluidvar[multi_index]
+        for fluidvar in self.fluidvars:
+            yield from self.iterate_fluidscalar(fluidvar)
 
-    # Generator for looping over all multi-indices of a fluid variable
+    # Generator for looping over all
+    # scalar fluid grids of a fluid variable.
+    def iterate_fluidscalar(self, fluidvar):
+        for multi_index in self.iterate_fluidscalar_indices(fluidvar):
+            yield fluidvar[multi_index]
+
+    # Generator for looping over all multi-indices of a fluid variable.
+    # The yielded multi_index is always a tuple.
     @staticmethod
     def iterate_fluidscalar_indices(fluidvar):
         it = np.nditer(fluidvar, flags=('refs_ok', 'multi_index'))
@@ -616,6 +935,7 @@ class Component:
     # This method is automaticlly called when a Component instance
     # is garbage collected. All manually allocated memory is freed.
     def __dealloc__(self):
+        # Free particle data
         free(self.pos)
         free(self.posx)
         free(self.posy)
@@ -648,17 +968,16 @@ def get_representation(species):
     abort('Species "{}" not implemented'.format(species))
 # Mapping from valid species to their representations
 cython.declare(representation_of_species='dict')
-representation_of_species = {('baryons',
-                              'dark energy particles',
-                              'dark matter particles',
+representation_of_species = {('dark matter particles',
                               'neutrinos',
                               ): 'particles',
-                             ('baryon fluid',
-                              'dark matter fluid',
-                              'dark energy fluid',
+                             ('dark matter fluid',
                               'neutrino fluid',
                               ): 'fluid',
                              }
-# Mapping from fluid variable number to name
-cython.declare(fluidvarnames='tuple')
-fluidvarnames = ('ρ', 'ρu')
+
+# Mapping from valid species to default w values
+cython.declare(default_w='dict')
+default_w = {'dark matter fluid':  0,
+             'neutrino fluid'   :  1/3,
+             }

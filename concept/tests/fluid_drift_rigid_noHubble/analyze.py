@@ -62,7 +62,7 @@ for ax_i, fluid, t, phase in zip(ax, fluids, times, phases):
     ρ_i /= sum(ρ_i)                                                               # Normalize
     ρ_i *= ρmbar*gridsize                                                         # Apply units
     ρ.append(ρ_i)
-    ρ_snapshot.append(fluid.fluidvars['ρ'].grid_noghosts[:gridsize, 0, 0])
+    ρ_snapshot.append(fluid.ρ.grid_noghosts[:gridsize, 0, 0])
     ax_i.plot(x, ρ[-1],
               'r', label='Analytical solution')
     ax_i.plot(x, ρ_snapshot[-1],

@@ -63,7 +63,7 @@ x_fluid = asarray([boxsize*i/gridsize for i in range(gridsize)])
 y = []
 y_interp = []
 for fluid, particles in zip(fluid_components, particle_components):
-    ρ.append(fluid.fluidvars['ρ'].grid_noghosts[:gridsize, 0, 0])
+    ρ.append(fluid.ρ.grid_noghosts[:gridsize, 0, 0])
     y_i = particles.posy.copy()
     A_fluid          = 0.5*(max(ρ[0]) - min(ρ[0]))
     offset_fluid     = 0.5*(max(ρ[0]) + min(ρ[0]))

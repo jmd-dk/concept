@@ -76,7 +76,7 @@ def find_N_recv(N_send):
     how much to receive from every process. The entrance number rank is
     unused (the process do not send to itself). The maximum number to
     receive is useful when allocating receive buffers, so this number is
-    stored in this otherwize unused entrance.
+    stored in this otherwise unused entrance.
     """
     N_recv = empty(nprocs, dtype=C2np['Py_ssize_t'])
     # Check whether N_send is the same for each process to send to
@@ -600,7 +600,7 @@ def rank_neighboring_domain(i, j, k):
                          mod(domain_layout_local_indices[2] + k, domain_subdivisions[2]),
                          ]
 
-# Function implementing a more intelligent version of Sendrecv
+# Very general function for different MPI communications
 @cython.pheader(# Arguments
                 block_send='object',  # Memoryview of dimension 1, 2 or 3
                 block_recv='object',  # Memoryview of dimension 1, 2 or 3

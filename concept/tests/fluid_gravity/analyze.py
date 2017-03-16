@@ -65,7 +65,7 @@ for kind, markertype, options in zip(('particles', 'fluid'),
                                      ({'markerfacecolor': 'none', 'markeredgecolor': 'r'}, {}),
                                      ):
     for ax_i, fluid, a_i in zip(ax, fluids[kind + ' simulations'], a):
-        ρ[kind + ' simulations'].append(fluid.fluidvars['ρ'].grid_noghosts[:gridsize, 0, 0])
+        ρ[kind + ' simulations'].append(fluid.ρ.grid_noghosts[:gridsize, 0, 0])
         ax_i.plot(x, ρ[kind + ' simulations'][-1],
                   markertype,
                   label=(kind.rstrip('s').capitalize() + ' simulation'),

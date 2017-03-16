@@ -284,7 +284,7 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
             if component.representation == 'particles':
                 artist_component = ax.scatter(0, 0, 0, c=color, depthshade=False, lw=0)
             elif component.representation == 'fluid':
-                N = np.prod(-2 + asarray(component.fluidvars['shape']) - 1 - 2)
+                N = np.prod(-2 + asarray(component.shape) - 1 - 2)
                 rgba = np.empty((N, 4), dtype=C2np['double'])
                 for i in range(N):
                     for dim in range(3):
@@ -330,9 +330,9 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
             # Explicit arrays of positions are needed
             # also for fluid components.
             if component.representation == 'fluid':
-                size_i = component.fluidvars['shape_noghosts'][0] - 1
-                size_j = component.fluidvars['shape_noghosts'][1] - 1
-                size_k = component.fluidvars['shape_noghosts'][2] - 1
+                size_i = component.shape_noghosts[0] - 1
+                size_j = component.shape_noghosts[1] - 1
+                size_k = component.shape_noghosts[2] - 1
                 # Number of local fluid elements
                 size = size_i*size_j*size_k
                 # Allocate arrays for storing grid positions
@@ -422,7 +422,7 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
             artist_component.set_alpha(alpha)
         elif component.representation == 'fluid':
             # Extract the ρ grid
-            ρ_noghosts = component.fluidvars['ρ'].grid_noghosts
+            ρ_noghosts = component.ρ.grid_noghosts
             # The particle (fluid element) size on the figure.
             # The size is chosen such that the particles stand side
             # by side in a homogeneous universe (more or less).
@@ -704,7 +704,7 @@ def terminal_render(components):
             gridsize = component.gridsize
             mass = component.mass
             Vcell = (boxsize/gridsize)**3
-            ρ_noghosts = component.fluidvars['ρ'].grid_noghosts
+            ρ_noghosts = component.ρ.grid_noghosts
             size_x = ρ_noghosts.shape[0] - 1
             size_y = ρ_noghosts.shape[1] - 1
             size_z = ρ_noghosts.shape[2] - 1

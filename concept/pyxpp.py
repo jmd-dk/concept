@@ -420,8 +420,9 @@ def loop_unswitching(lines):
                         n = float('inf')
                 else:
                     n = float('inf')
-                # If n is zero, no loop unswitching shold be performed
-                if n == 0:
+                # If n is zero or negative,
+                # no loop unswitching shold be performed.
+                if n < 1:
                     continue
                 # Search n nested loops upwards.
                 # Allowed constructs to pass are
@@ -509,6 +510,31 @@ def loop_unswitching(lines):
                     # Record code also indented under the nested loops,
                     # but not part of the unswitching.
                     loop_body.append(line)
+                # If no else block is present, insert a dummy
+                # else block. This is needed because the unswitched loop
+                # should be run even if the if statement within it
+                # is false.
+                if not if_headers[-1].lstrip().startswith('else'):
+                    # Only insert the else block if it is going to
+                    # contain some code.
+                    empty_else = True
+                    for loop_body_line in loop_body:
+                        loop_body_line = loop_body_line.lstrip()
+                        if loop_body_line and not loop_body_line.startswith('#'):
+                            empty_else = False
+                            break
+                    else:
+                        if len(loop_lines) > 1:
+                            for loop_line in loop_lines[1:]:
+                                loop_line = loop_line.lstrip()
+                                if loop_line and not loop_line.startswith('#'):
+                                    empty_else = False
+                                    break
+                    if not empty_else:
+                        indentation = '    '*(unswitch_lvl + 1)
+                        if_headers.append('{}else:\n'.format(indentation))
+                        if_bodies.append(['{}    # This i an autoinserted else block\n'
+                                          .format(indentation)])
                 # Stitch together the recorded pieces to perform
                 # the loop unswitching.
                 lines_unswitched = []
@@ -527,7 +553,6 @@ def loop_unswitching(lines):
                 new_lines = new_lines[:-len(loop_lines)]
                 # Append the unswitched loop lines
                 new_lines += lines_unswitched
-                new_lines += ['#END OF UNSWITCHING{}\n'.format(len(loop_body))]
                 # Flag the line loop to skip the following lines which
                 # are already included in the loop unswitching lines.
                 skip = loop_body_end_nr  - i
@@ -1048,6 +1073,7 @@ def __init__2__cinit__(lines):
 
 
 def fix_addresses(lines):
+    replacement_str = '__REPLACEADDRESS{}__'
     new_lines = []
     for line in lines:
         # 'address(' to 'cython.address'
@@ -1057,30 +1083,50 @@ def fix_addresses(lines):
         # cython.address(a[7, ...]) to cython.address(a[7, 0])
         # cython.address(a[7, :, 1]) to cython.address(a[7, 0, 1])
         # cython.address(a[7, 9:, 1]) to cython.address(a[7, 9, 1])
-        colons_or_ellipsis = True
-        while 'cython.address(' in line and colons_or_ellipsis:
-            parens = 0
-            address_index = line.find('cython.address(') + 14
-            for i, c in enumerate(line[address_index:]):
-                if c == '(':
-                    parens += 1
-                elif c == ')':
-                    parens -= 1
-                if parens == 0:
-                    break
-            addressof = line[(address_index + 1):(address_index + i)].replace(' ', '')
-            addressof = addressof.replace('...', '0')
-            for j, c in enumerate(addressof):
-                if c == ':':
-                    if ((j == 0 or addressof[j - 1] in '[,')
-                        and (j == (len(addressof) - 1) or addressof[j + 1] in '],')):
-                        # The case cython.address(a[7, :, 1])
-                        addressof = addressof[:j] + '0' + addressof[(j + 1):]
-                    else:
-                        # The case cython.address(a[7, 9:, 1])
-                        addressof = addressof[:j] + ' ' + addressof[(j + 1):]
-            colons_or_ellipsis = (':' in addressof or '...' in addressof)
-            line = (line[:(address_index + 1)] + addressof + line[(address_index + i):])
+        replacements = []
+        line_ori = ''
+        while True:
+            line_ori = line
+            colons_or_ellipsis = True
+            while 'cython.address(' in line and colons_or_ellipsis:
+                parens = 0
+                address_index = line.find('cython.address(', 2) + 14
+                for i, c in enumerate(line[address_index:]):
+                    if c == '(':
+                        parens += 1
+                    elif c == ')':
+                        parens -= 1
+                    if parens == 0:
+                        break
+                addressof = line[(address_index + 1):(address_index + i)].replace(' ', '')
+                addressof = addressof.replace('...', '0')
+                for j, c in enumerate(addressof):
+                    if c == ':':
+                        if ((j == 0 or addressof[j - 1] in '[,')
+                            and (j == (len(addressof) - 1) or addressof[j + 1] in '],')):
+                            # The case cython.address(a[7, :, 1])
+                            addressof = addressof[:j] + '0' + addressof[(j + 1):]
+                        else:
+                            # The case cython.address(a[7, 9:, 1])
+                            addressof = addressof[:j] + ' ' + addressof[(j + 1):]
+                colons_or_ellipsis = ':' in addressof or '...' in addressof               
+                line = line[:(address_index + 1)] + addressof + line[(address_index + i):]
+            # One address corrected
+            if line == line_ori:
+                break
+            # Replace the first occurence of cython.address(...) with
+            # a temporary string.
+            pattern = r'cython\.address\(.+?\)'
+            replacements.append(re.search(pattern, line).group())
+            line = re.sub(pattern,
+                          replacement_str.format(len(replacements) - 1),
+                          line,
+                          count=1,
+                          )
+        # Reinsert the original strings instead of
+        # the replacement strings.
+        for j, replacement in enumerate(replacements):
+            line = line.replace(replacement_str.format(j), replacement)
         new_lines.append(line)
     return new_lines
 
@@ -1218,6 +1264,8 @@ def make_types(filename):
                                           '        double* grid\n'
                                           '        fftw_plan plan_forward\n'
                                           '        fftw_plan plan_backward',
+                    # GSL functions (... understood by make_pxd)
+                    'gsl_...': 'from cython_gsl cimport *',
                     }
     # Add Cython classes (extension types) to custom_types
     for other_pyxfile in all_pyxfiles:
@@ -1589,14 +1637,29 @@ def make_pxd(filename):
         # Skip declaration if vartype is defined in this module
         if vardeclaration.startswith('from {} cimport '.format(filename[:-4])):
             continue
+        # vartype may contain ellipses. These should be replaced
+        # with regular expressions which describe a single
+        # variable name.
+        vartype = vartype.replace('...', r'[_a-zA-Z0-9]*')
         # Search the entire .pyx file for string of the form
         # varname = 'vartype'.
-        if re.search("""(^|[,;(\s])[_a-zA-Z][_a-zA-Z0-9]*\s*=\s*(?P<quote>['"]){vartype}(?P=quote)"""
-                     .format(vartype=vartype),
+        if re.search((  r"""(^|[,;(\s])[_a-zA-Z][_a-zA-Z0-9]*\s*="""
+                      + r"""\s*(?P<quote>['"]){vartype}\*?(?P=quote)"""
+                      ).format(vartype=vartype),
                      code_str,
                      re.MULTILINE):
             # Match found.
             # Assume this is a declaration of the extension type.
+            header_lines.append(vardeclaration)
+            continue
+        # For extension type attributes another syntax is used;
+        # vartype varname
+        # Also search after this.
+        if re.search((  r"""\s*{vartype}\s*\*?\s*"""
+                      + r"""(^|[,;(\s])[_a-zA-Z][_a-zA-Z0-9]*\s*"""
+                      ).format(vartype=vartype),
+                     code_str,
+                     re.MULTILINE):
             header_lines.append(vardeclaration)
     # Combine header_lines and pxd_lines
     header_lines = list(set(header_lines))
@@ -1612,6 +1675,18 @@ def make_pxd(filename):
     if total_lines != []:
         total_lines.append('\n')
     total_lines += pxd_lines
+    # Remove duplicates
+    total_lines_unique = []
+    counter = collections.Counter(total_lines)
+    for i, line in enumerate(total_lines):
+        if (    line.strip()
+            and not line.startswith(' ')
+            and len(line.strip().split()) > 1
+            and counter[line] > 1):
+            counter[line] -= 1
+            continue
+        total_lines_unique.append(line)
+    total_lines = total_lines_unique
     # If nothing else, place a comment in the pxd file
     if not total_lines:
         total_lines = ['# This module does not expose any c-level functions or classes '

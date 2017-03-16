@@ -468,6 +468,12 @@ if not cython.compiled:
                        )
     cbrt = lambda x: x**(1/3)
     from math import erf, erfc
+    # Dummy functions and constants
+    def dummy_func(*args, **kwargs):
+        ...
+    gsl_interp_accel_alloc = dummy_func
+    gsl_interp_cspline     = dummy_func
+    gsl_spline_alloc       = dummy_func
     # Dummy ℝ and ℤ dict for constant expressions
     class DummyDict(dict):
         def __getitem__(self, key):
@@ -696,6 +702,82 @@ unicode_superscripts = dict(zip('0123456789-+e',
                                                       '⁵', '⁶', '⁷', '⁸', '⁹',
                                                       '⁻', '', '×10')]))
 
+# Function which converts a string containing (possibly) units
+# to the corresponding numerical value.
+@cython.pheader(# Arguments
+                unit_str='str',
+                namespace='dict',
+                fail_on_error='bint',
+                # Locals
+                ASCII_char='str',
+                after='str',
+                before='str',
+                c='str',
+                i='Py_ssize_t',
+                mapping='dict',
+                operators='str',
+                pat='str',
+                rep='str',
+                unicode_superscript='str',
+                unit='object',  # double or NoneType
+                unit_list='list',
+                returns='object',  # double or NoneType
+                )
+def eval_unit(unit_str, namespace=None, fail_on_error=True):
+    """This function is roughly equivalent to
+    eval(unit_str, units_dict). Here however more stylized versions
+    of unit_str are legal, e.g. 'm☉ Mpc Gyr⁻¹'.
+    You may specify some other dict than the global units_dict
+    as the namespace to perform the evaluation within,
+    by parsing it as a second argument.
+    If you wish to allow for failures of evaluation, set fail_on_error
+    to False. A failure will now not raise an exception,
+    but merely return None.
+    """
+    # Ensure unicode
+    unit_str = unicode(unit_str)
+    # Replace multiple spaces wiht a single space
+    unit_str = re.sub(r'\s+', ' ', unit_str).strip()
+    # Replace spaces with an asterisk
+    # if no operator is to be find on either side.
+    operators = '+-*/^&|@%<>='
+    unit_list = list(unit_str)
+    for i, c in enumerate(unit_list):
+        if c != ' ' or (i == 0 or i == len(unit_list) - 1):
+            continue
+        before = unit_list[i - 1]
+        after  = unit_list[i + 1]
+        if before not in operators and after not in operators:
+            unit_list[i] = '*'
+    unit_str = ''.join(unit_list)
+    # Various replacements
+    mapping = {'×'          : '*',
+               '^'          : '**',
+               unicode('m☉'): 'm_sun',
+               }
+    for pat, rep in mapping.items():
+        unit_str = unit_str.replace(pat, rep)
+    # Convert superscript to power
+    unit_str = re.sub(unicode('[⁰¹²³⁴⁵⁶⁷⁸⁹⁻⁺]+'), r'**(\g<0>)', unit_str)
+    # Convert unicode superscript ASCII text
+    for ASCII_char, unicode_superscript in unicode_superscripts.items():
+        if unicode_superscript:
+            unit_str = unit_str.replace(unicode_superscript, ASCII_char)
+    # Insert an asterisk between letters and numbers
+    # (though not the other way around).
+    unit_str = re.sub(r'([^_a-zA-Z0-9\.][0-9\.\(\)]+)([_a-zA-Z])', r'\g<1>*\g<2>', unit_str)
+    # Evaluate the transformed unit string
+    if namespace is None:
+        namespace = units_dict
+    if fail_on_error:
+        unit = eval(unit_str, namespace)
+    else:
+        try:
+            unit = eval(unit_str, namespace)
+        except:
+            unit = None
+    return unit
+
 
 
 ##################################
@@ -877,9 +959,9 @@ unit_mass   = user_params.get('unit_mass',   '1e+10*m_sun')
 # as this name is already taken by the min function.
 units, units_dict = build_struct(# Values of basic units,
                                  # determined from the choice of fundamental units.
-                                 pc     = ('double', 1/eval(unit_length, unit_length_relations)),
-                                 yr     = ('double', 1/eval(unit_time,   unit_time_relations)),
-                                 m_sun  = ('double', 1/eval(unit_mass,   unit_mass_relations)),
+                                 pc     = ('double', 1/eval_unit(unit_length, unit_length_relations)),
+                                 yr     = ('double', 1/eval_unit(unit_time,   unit_time_relations)),
+                                 m_sun  = ('double', 1/eval_unit(unit_mass,   unit_mass_relations)),
                                  # Prefixes of the basic units
                                  kpc    = ('double', 'unit_length_relations["kpc"]*pc'),
                                  Mpc    = ('double', 'unit_length_relations["Mpc"]*pc'),
@@ -1060,7 +1142,7 @@ cython.declare(# Input/output
                P3M_cutoff='double',
                softeningfactors='dict',
                R_tophat='double',
-               # Cosmological parameters
+               # Cosmology
                H0='double',
                Ωm='double',
                Ωr='double',
@@ -1073,8 +1155,10 @@ cython.declare(# Input/output
                resolution='int',
                terminal_render_colormap='str',
                terminal_render_resolution='unsigned int',
-               # Simlation options
+               # Physics
                forces='dict',
+               w_eos='dict',
+               # Simlation options
                use_φ='bint',
                use_P3M='bint',
                fftw_rigor='str',
@@ -1117,7 +1201,7 @@ for time_param in ('a', 't'):
     output_times[time_param] = dict(output_times.get(time_param, {}))
     for kind in ('snapshot', 'powerspec', 'render', 'terminal render'):
         output_times[time_param][kind] = output_times[time_param].get(kind, ())
-output_times = {time_param: {key: tuple(sorted(set([float(eval(nr, units_dict)
+output_times = {time_param: {key: tuple(sorted(set([float(eval_unit(nr)
                                                           if isinstance(nr, str) else nr)
                                                     for nr in any2iter(val)
                                                     if nr or nr == 0])))
@@ -1161,14 +1245,14 @@ replace_ellipsis(softeningfactors)
 for kind in ('dark matter particles', ):
     softeningfactors[kind] = float(softeningfactors.get(kind, 0.03))
 R_tophat = float(user_params.get('R_tophat', 8*units.Mpc))
-# Cosmological parameters
+# Cosmology
 H0 = float(user_params.get('H0', 70*units.km/(units.s*units.Mpc)))
 Ωr = float(user_params.get('Ωr', 0))
 Ωm = float(user_params.get('Ωm', 0.3))
 ΩΛ = float(user_params.get('ΩΛ', 0.7))
 a_begin = float(user_params.get('a_begin', 1))
 t_begin = float(user_params.get('t_begin', 0))
-# Simulation options
+# Physics
 forces = dict(user_params.get('forces', {}))
 default_force_methods = {'gravity': 'pm',
                          }
@@ -1207,6 +1291,9 @@ for key, val in forces.items():
                  t[1].replace(unicode_superscript(str(n)), str(n)))
         forces[key][i] = t
 force_methods = {t[1] for l in forces.values() for t in l}
+w_eos = dict(user_params.get('w_eos', {}))
+replace_ellipsis(w_eos)
+# Simulation options
 if (   'φ_gridsize' in user_params
     or (set(('pm', 'p3m')) & force_methods)
     or any([output_times[time_param]['powerspec'] for time_param in ('a', 't')])):
@@ -1272,7 +1359,8 @@ universals, universals_dict = build_struct(# Flag specifying whether any warning
 ############################################
 # Derived and internally defined constants #
 ############################################
-cython.declare(G_Newton='double',
+cython.declare(light_speed='double',
+               G_Newton='double',
                φ_gridsize3='long long int',
                φ_gridsize_half='Py_ssize_t',
                slab_size_padding='ptrdiff_t',
@@ -1309,6 +1397,8 @@ render_times          = {time_param: output_times[time_param]['render']
                          for time_param in ('a', 't')}
 terminal_render_times = {time_param: output_times[time_param]['terminal render'] 
                          for time_param in ('a', 't')}
+# The speed of light in vacuum
+light_speed = 299792458*units.m/units.s
 # Newton's gravitational constant
 G_Newton = 6.6738e-11*units.m**3/(units.kg*units.s**2)
 # The average, comoing density (the critical
@@ -1587,7 +1677,7 @@ def isint(x, abs_tol=1e-6):
 # Function which format numbers to have a
 # specific number of significant figures.
 @cython.pheader(# Arguments
-                data='object',  # Single number or container of numbers
+                numbers='object',  # Single number or container of numbers
                 nfigs='int',
                 fmt='str',
                 # Locals
@@ -1669,59 +1759,6 @@ def significant_figures(numbers, nfigs, fmt='', incl_zeros=True, scientific=Fals
     else:
         return return_list
 
-# Function which converts a string of units to the
-# corresponding numerical value.
-@cython.header(# Arguments
-               unit_str='str',
-               # Locals
-               c='str',
-               i='Py_ssize_t',
-               key='str',
-               mapping='dict',
-               pat='str',
-               previous='str',
-               rep='str',
-               superscript_ASCII='str',
-               superscript_unicode='str',
-               unit='double',
-               unit_list='list',
-               returns='double',
-               )
-def evaluate_unit(unit_str):
-    """Example unit_str: 'm☉ Mpc Gyr⁻¹'
-    """
-    # Mapping of replacement in unit_str
-    mapping = {' ' : '*',
-               'm☉': 'm_sun',
-               }
-    # Do replacements
-    for pat, rep in mapping.items():
-        unit_str = unit_str.replace(pat, rep)
-    # Construct list of single unicode characters
-    unit_list = list(unicode(unit_str))
-    # Place '**' before and parentheses around superscripts.
-    # This alters the elements of unit_list.
-    for i, c in enumerate(unit_list):
-        for superscript_ASCII, superscript_unicode in unicode_superscripts.items():
-            if c == superscript_unicode:
-                # Convert to ASCII
-                unit_list[i] = superscript_ASCII
-                # Insert '**(' if first character of exponent 
-                previous = unit_list[i - 1]
-                if len(previous) > 1:
-                    previous = previous[len(previous) - 1]
-                if previous not in '+-0123456789':
-                    unit_list[i] = '**(' + unit_list[i]
-                # Insert ')' if last character of exponent
-                if (   i + 1 == len(unit_list)
-                    or unit_list[i + 1] not in unicode_superscripts.values()):
-                    unit_list[i] += ')'
-                break
-    # Transformation done
-    unit_str = ''.join(unit_list)
-    # Evaluate the transformed unit string
-    unit = eval(unit_str, units_dict)
-    return unit
 
 
 ####################################################
