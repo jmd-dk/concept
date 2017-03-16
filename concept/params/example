@@ -58,17 +58,22 @@ softeningfactors = {       # The amount of gravitational softening for each spec
                     }	
 R_tophat         = 8*Mpc   # Radius of tophat used to compute σ
 
-# Cosmological parameters
+# Cosmology
 H0      = 70*km/(s*Mpc)  # The Hubble constant
 Ωr      = 0              # Density parameter for radiation
 Ωm      = 0.3            # Density parameter for matter
 ΩΛ      = 0.7            # Density parameter for cosmological constant
 a_begin = 0.02           # Scale factor at beginning of simulation
 
-# Simulation options
+# Physics
 forces = {  # The forces which act on each species
-    'dark matter particles': {'gravity': 'pm'},
+    'dark matter particles': {'gravity': 'pp'},
           }
+w_eos = {  # Equation of state parameter for each fluid species
+    ...: ...,
+         }
+
+# Simulation options
 fftw_rigor = 'measure'  # Rigor level when acquiring FFTW wisdom
 
 # Graphics
@@ -83,10 +88,10 @@ terminal_render_resolution = 64          # The width of the terminal render
 # System of units
 unit_length = 'Mpc'          # Physical length corresponding to a numerical value of 1.0
 unit_time   = 'Gyr'          # Physical time   corresponding to a numerical value of 1.0
-unit_mass   = '1e+10*m_sun'  # Physical mass   corresponding to a numerical value of 1.0
+unit_mass   = '10¹⁰ m☉'      # Physical mass   corresponding to a numerical value of 1.0
 
 # Debugging options
 enable_Ewald     = True   # Enable Ewald corrections
-enable_gravity   = True   # Enable gravity generally
 enable_Hubble    = True   # Enable Hubble expansion
 enable_debugging = False  # Enable debugging mode
+

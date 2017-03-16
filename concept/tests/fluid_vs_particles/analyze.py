@@ -96,7 +96,7 @@ for (a_i,
 
 # Compare the biggest halos of the particle and the fluid simulation
 def find_biggest_halo(component):
-    ρ = component.fluidvars['ρ'].grid_noghosts[:-1, :-1, :-1]
+    ρ = component.ρ.grid_noghosts[:-1, :-1, :-1]
     indices = np.unravel_index(np.argmax(ρ), ρ.shape)
     δ_halo_boundary = 0.5
     halo = zeros(ρ.shape[0]//2)

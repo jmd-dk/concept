@@ -26,6 +26,185 @@ from commons import *
 
 
 
+# Class used for  1D interpolation.
+# In compiled mode, cubic spline interpolation is used.
+# In pure Python mode, linear interpolation is used.
+@cython.cclass
+class Spline:
+    # Initialization method
+    @cython.header(# Arguments
+                   x='double[::1]',
+                   y='double[::1]',
+                   size='Py_ssize_t',
+                   )
+    def __init__(self, x, y, size=-1):
+        # Here x and y = y(x) are the tabulated data.
+        # Optionally, the size of the data to use may be given.
+        #
+        # The triple quoted string below serves as the type declaration
+        # for the data attributes of the Spline type.
+        # It will get picked up by the pyxpp script
+        # and indluded in the .pxd file.
+        """
+        double min
+        double max
+        Py_ssize_t size
+        gsl_interp_accel* acc
+        gsl_spline* spline
+        """
+        # The size of the data to use may be given as
+        # the 'size' argument. If not explicitly given,
+        # use the entirety of the arrays.
+        if size == -1:
+            size = x.shape[0]
+        self.size = size
+        # Allocate an interpolation accelerator
+        # and a (cubic) spline object (no-op in pure Python).
+        self.acc = gsl_interp_accel_alloc()
+        self.spline = gsl_spline_alloc(gsl_interp_cspline, size)
+        # Populate the spline
+        self.tabulate(x, y, size)
+
+    # Method for populating the spline with tabulated values
+    @cython.header(# Arguments
+                   x='double[::1]',
+                   y='double[::1]',
+                   size='Py_ssize_t',
+                   returns='double',
+                   )
+    def tabulate(self, x, y, size=-1):
+        """This method is invoked on instance initialization,
+        but it may be re-invoked later to swap out the tabulated values.
+        The new tabulation should however be
+        of the same size as the original.
+        """
+        # The size of the data to use may be given as
+        # the 'size' argument. If not explicitly given,
+        # use the entirety of the arrays.
+        if size == -1:
+            size = x.shape[0]
+        # Checks on the supplied size as well as the size of x and y
+        if size != self.size:
+            abort('Spline object cannot change size under retabulation.')
+        if size < 3:
+            abort('Too few tabulated values ({}) were given for cubic spline interpolation. '
+                  'At least 3 is needed'.format(size))
+        if x.shape[0] < size:
+            abort('Error in constructing spline: The input x havs a size of {} '
+                  'but a size of {} was requested.'
+                  .format(x.shape[0], size))
+        if y.shape[0] < size:
+            abort('Error in constructing spline: The input y havs a size of {} '
+                  'but a size of {} was required.'
+                  .format(y.shape[0], size))
+        # Store meta data
+        self.min = x[0]
+        self.max = x[size - 1]
+        # Use NumPy in pure Python and GSL when compiled
+        if not cython.compiled:
+            # Simply store the parsed arrays
+            self.x = x
+            self.y = y
+        else:
+            # Initialize the spline
+            gsl_spline_init(self.spline,
+                            cython.address(x[:]),
+                            cython.address(y[:]),
+                            size)
+
+    # Method for doing spline evaluation
+    @cython.header(x='double',
+                   returns='double',
+                   )
+    def eval(self, x):
+        # Check that the supplied x is within the interpolation interval
+        if not (self.min <= x <= self.max):
+            abort('Could not interpolate {} because it is outside the interval [{}, {}].'
+                  .format(x, self.min, self.max)
+                  )
+        # Use NumPy in pure Python and GSL when compiled
+        if not cython.compiled:
+            return np.interp(x, self.x, self.y)
+        else:
+            return gsl_spline_eval(self.spline, x, self.acc)
+
+    # Method for doing spline derivative evaluation
+    @cython.header(x='double',
+                   returns='double',
+                   )
+    def eval_deriv(self, x):
+        # Check that the supplied x is within the interpolation interval
+        if not (self.min <= x <= self.max):
+            abort('Could not interpolate {} because it is outside the interval [{}, {}].'
+                  .format(x, self.min, self.max)
+                  )
+        # Use NumPy in pure Python and GSL when compiled
+        if not cython.compiled:
+            if x == self.min:
+                i0, i1 = 0, 1
+            elif x == self.max:
+                i0, i1 = -2, -1
+            else:
+                i0 = np.where(self.x <= x)[0][-1]
+                i1 = np.where(self.x >= x)[0][ 0]
+            return (self.y[i1] - self.y[i0])/(self.x[i1] - self.x[i0])
+        else:
+            return gsl_spline_eval_deriv(self.spline, x, self.acc)
+
+    # Method for computing the definite integral over some
+    # interval [a, b] of the splined function.
+    @cython.header(# Arguments
+                   a='double',
+                   b='double',
+                   # Locals
+                   sign='int',
+                   ᔑ='double',
+                   returns='double',
+                   )
+    def integrate(self, a, b):
+        # Check that the supplied limits are
+        # within the interpolation interval.
+        if not (self.min <= a <= self.max):
+            abort('Error integrating spline from {} to {}: '
+                  'The first limit is outside the interval [{}, {}].'
+                  .format(a, b, self.min, self.max)
+                  )
+        if not (self.min <= b <= self.max):
+            abort('Error integrating spline from {} to {}: '
+                  'The second limit is outside the interval [{}, {}].'
+                  .format(a, b, self.min, self.max)
+                  )
+        # The function gsl_spline_eval_integ fails for a > b.
+        # Take care of this manually by switching a and b and note
+        # down a sign change.
+        sign = +1
+        if a > b:
+            a, b = b, a
+            sign = -1
+        # Use NumPy in pure Python and GSL when compiled
+        if not cython.compiled:
+            # Create arrays of tabulated points with interpolated
+            # values at both ends.
+            mask = np.logical_and(a <= self.x, self.x <= b)
+            x = np.concatenate(([          a ], self.x[mask], [          b ]))
+            y = np.concatenate(([self.eval(a)], self.y[mask], [self.eval(b)]))
+            # Do trapezoidal integration over the arrays
+            ᔑ = np.trapz(y, x)
+        else:
+            ᔑ = gsl_spline_eval_integ(self.spline, a, b, self.acc)
+        # Remember the sign change for a > b
+        ᔑ *= sign
+        return ᔑ
+
+    # This method is automaticlly called when a Spline instance
+    # is garbage collected. All manually allocated memory is freed.
+    def __dealloc__(self):
+        # Free the accelerator and the spline object
+        gsl_spline_free(self.spline)
+        gsl_interp_accel_free(self.acc)
+
+
+
 # This function implements the Hubble parameter H(a)=ȧ/a,
 # as described by the Friedmann equation.
 # The Hubble parameter is only ever written here. Every time the Hubble
@@ -43,8 +222,9 @@ def hubble(a):
                        )
     return 0
 
-# Function returning the time differentiated scale factor,
-# used to integrate the scale factor forwards in time.
+# Function returning the proper time differentiated scale factor.
+# Because this function is used by rkf45, it needs to take in both
+# t and a as arguments, even though t is not used.
 @cython.header(# Argumetns
                t='double',
                a='double',
@@ -184,10 +364,8 @@ def expand(a, t, Δt):
 @cython.header(# Arguments
                integrand='str',
                # Locals
-               acc='gsl_interp_accel*',
                i='Py_ssize_t',
-               integral='double',
-               spline='gsl_spline*',
+               spline='Spline',
                returns='double',
                )
 def scalefactor_integral(integrand):
@@ -204,39 +382,20 @@ def scalefactor_integral(integrand):
     """
     # If expand has been called as it should, f_tab now stores
     # tabulated values of a. Compute the integrand.
-    if integrand == 'a⁻¹':
-        for i in range(size_tab):
-            integrand_tab[i] = 1/f_tab[i]
-    elif integrand == 'a⁻²':
-        for i in range(size_tab):
-            integrand_tab[i] = 1/f_tab[i]**2
-    elif integrand == 'ȧ/a':
-        for i in range(size_tab):
-            integrand_tab[i] = hubble(f_tab[i])
-    elif master:
-        abort('The scalefactor integral with "{}" as the integrand is not implemented'
-              .format(integrand))
-    # Integrate integrand_tab in pure Python or Cython
-    if not cython.compiled:
-        integral = np.trapz(integrand_tab_mv[:size_tab], t_tab_mv[:size_tab])
-    else:
-        if size_tab < 10:
-            # Use NumPy for small integrations
-            integral = np.trapz(integrand_tab_mv[:size_tab], t_tab_mv[:size_tab])
-        else:
-            # Use GSL for larger integrations.
-            # Allocate an interpolation accelerator
-            # and a cubic spline object.
-            acc = gsl_interp_accel_alloc()
-            spline = gsl_spline_alloc(gsl_interp_cspline, size_tab)
-            # Initialize spline
-            gsl_spline_init(spline, t_tab, integrand_tab, size_tab)
-            # Integrate the splined function
-            integral = gsl_spline_eval_integ(spline, t_tab[0], t_tab[size_tab - 1], acc)
-            # Free the accelerator and the spline object
-            gsl_spline_free(spline)
-            gsl_interp_accel_free(acc)
-    return integral
+    for i in range(size_tab):
+        with unswitch:
+            if integrand == 'a⁻¹':
+                integrand_tab[i] = 1/f_tab[i]
+            elif integrand == 'a⁻²':
+                integrand_tab[i] = 1/f_tab[i]**2
+            elif integrand == 'ȧ/a':
+                integrand_tab[i] = hubble(f_tab[i])
+            elif master:
+                abort('The scalefactor integral with "{}" as the integrand is not implemented'
+                      .format(integrand))
+    # Do the integration over the entire tabulated integrand
+    spline = Spline(t_tab_mv, integrand_tab_mv, size_tab)
+    return spline.integrate(t_tab[0], t_tab[size_tab - 1])
 
 # Function for computing the cosmic time t at some given scale factor a
 @cython.header(# Arguments

@@ -67,7 +67,7 @@ def delegate():
                 attributes='object',  # collections.defaultdict
                 attribute='str',
                 key='str',
-                value='object',  # double or str
+                value='object',  # double, str or NoneType
                 mass='double',
                 name='str',
                 names='list',
@@ -98,10 +98,9 @@ def convert():
     for attribute_str in special_params['attributes']:
         index = attribute_str.index('=')
         key = asciify(attribute_str[:index].strip())
-        try:
-            # Numerical value, possibly with units
-            value = eval(attribute_str[(index + 1):], units_dict)
-        except:
+        # Numerical value, possibly with units
+        value = eval_unit(attribute_str[(index + 1):], fail_on_error=False)
+        if value is None:
             # String value
             value = attribute_str[(index + 1):].strip()
         if '.' in key:
@@ -171,6 +170,8 @@ def convert():
         component.representation = get_representation(component.species)
         # Apply particles --> fluid convertion, if necessary
         if original_representation == 'particles' and component.representation == 'fluid':
+            # Initialize the equation of state parameter
+            component.initialize_w()
             # To do the convertion, the particles need to be
             # distributed according to which domain they are in.
             component.representation = 'particles'
@@ -568,7 +569,7 @@ def info():
                     masterprint('{:<16} {}'.format('N', component.N), indent=4)
             elif component.representation == 'fluid':
                 masterprint('{:<16} {}'.format('gridsize', component.gridsize), indent=4)
-                masterprint('{:<16} {}'.format('N_fluidvars', component.fluidvars['N_fluidvars']), indent=4)
+                masterprint('{:<16} {}'.format('N_fluidvars', len(component.fluidvars)), indent=4)
             # Component statistics
             if special_params['stats']:
                 Σmom, σmom = measure(component, 'momentum')
@@ -608,7 +609,7 @@ def ic():
     # Extract parameters from special_params
     name    = special_params['name']
     species = special_params['species']
-    mass    = eval(str(special_params['mass']), units_dict)
+    mass    = eval_unit(str(special_params['mass']))
     # Generate initial conditions using the Zel'dovich approximation
     component = zeldovich(name, species, mass, a_begin)
     # The IC_file parameter needs to be specified,

@@ -51,10 +51,11 @@ times = snapshot_times['t']
 masterprint('Analyzing {} data ...'.format(this_test))
 
 # Extract information from the first snapshot
-cs = fluids[0].fluidvars['cs']
+w = fluids[0].w_constant
+cs = light_speed*sqrt(w/(1 + w))
 T = boxsize/cs
 t0 = times[0]
-ρ0 = fluids[0].fluidvars['ρ'].grid_noghosts[:gridsize, 0, 0]
+ρ0 = fluids[0].ρ.grid_noghosts[:gridsize, 0, 0]
 ρ_max = max(ρ0)
 ρ_min = min(ρ0)
 ρ_mean = np.mean(ρ0)
@@ -68,7 +69,7 @@ x = [boxsize*i/gridsize for i in range(gridsize)]
 ρ_snapshot = []
 for ax_i, fluid, t in zip(ax, fluids, times):
     ρ.append(ρ_mean + ρ0_sin*cos((t - t0)/T*2*π))
-    ρ_snapshot.append(fluid.fluidvars['ρ'].grid_noghosts[:gridsize, 0, 0])
+    ρ_snapshot.append(fluid.ρ.grid_noghosts[:gridsize, 0, 0])
     ax_i.plot([0, boxsize], [ρ_mean]*2, 'k:' )
     ax_i.plot([0, boxsize], [ρ_max ]*2, 'k--')
     ax_i.plot([0, boxsize], [ρ_min ]*2, 'k--')

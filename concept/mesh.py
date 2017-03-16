@@ -605,7 +605,7 @@ def CIC_components2domain_grid(components, domain_grid):
             # using the cell volume as a factor in the weights,
             # converting density to mass.
             Vcell = (boxsize/component.gridsize)**3
-            CIC_grid2grid(domain_grid_noghosts, component.fluidvars['ρ'].grid_noghosts, Vcell)
+            CIC_grid2grid(domain_grid_noghosts, component.ρ.grid_noghosts, Vcell)
 
 # Function for CIC-interpolating particles of a particle component
 # to fluid grids.
@@ -668,7 +668,6 @@ def CIC_components2domain_grid(components, domain_grid):
                original_representation='str',
                dim='int',
                shape='tuple',
-               fluidscalar='FluidScalar',
                returns='Py_ssize_t',
                )
 def CIC_particles2fluid(component):
@@ -702,22 +701,18 @@ def CIC_particles2fluid(component):
                   .format(component.name, component.gridsize, nprocs))
     component.resize(shape)  # This also nullifies all fluid grids
     # Extract fluid data variables
-    fluidscalar  = component.fluidvars['ρ']
-    ρ            = fluidscalar.grid
-    ρ_mv         = fluidscalar.grid_mv
-    ρ_noghosts   = fluidscalar.grid_noghosts
-    fluidscalar  = component.fluidvars['ρux']
-    ρux          = fluidscalar.grid
-    ρux_mv       = fluidscalar.grid_mv
-    ρux_noghosts = fluidscalar.grid_noghosts
-    fluidscalar  = component.fluidvars['ρuy']
-    ρuy          = fluidscalar.grid
-    ρuy_mv       = fluidscalar.grid_mv
-    ρuy_noghosts = fluidscalar.grid_noghosts
-    fluidscalar  = component.fluidvars['ρuz']
-    ρuz          = fluidscalar.grid
-    ρuz_mv       = fluidscalar.grid_mv
-    ρuz_noghosts = fluidscalar.grid_noghosts
+    ρ            = component.ρ  .grid
+    ρ_mv         = component.ρ  .grid_mv
+    ρ_noghosts   = component.ρ  .grid_noghosts
+    ρux          = component.ρux.grid
+    ρux_mv       = component.ρux.grid_mv
+    ρux_noghosts = component.ρux.grid_noghosts
+    ρuy          = component.ρuy.grid
+    ρuy_mv       = component.ρuy.grid_mv
+    ρuy_noghosts = component.ρuy.grid_noghosts
+    ρuz          = component.ρuz.grid
+    ρuz_mv       = component.ρuz.grid_mv
+    ρuz_noghosts = component.ρuz.grid_noghosts
     # Extract particle data variables
     posx = component.posx
     posy = component.posy
@@ -1465,7 +1460,7 @@ if use_φ:
     cython.declare(index='Py_ssize_t')  # Just to remove Cython warning
     index = 0
     for ℓ in range(nprocs):
-        # Process ranks to send/recieve to/from
+        # Process ranks to send/receive to/from
         rank_send = np.mod(rank + ℓ, nprocs)
         rank_recv = np.mod(rank - ℓ, nprocs)
         # Send the global y and z start and end indices of the domain

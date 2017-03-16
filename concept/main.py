@@ -62,7 +62,7 @@ def scalefactor_integrals(step, Δt):
         # A smaller time step than
         # 0.5*Δt is needed to hit dump time exactly. 
         # Case 2: Dump time very nearly reached.
-        # Go directly to dump time (otherwize the next time step wilĺ
+        # Go directly to dump time (otherwise the next time step wilĺ
         # be very small).
         t_next = next_dump[1]
         # Find a_next = a(t_next) and tabulate a(t)
@@ -306,22 +306,6 @@ def timeloop():
     output_filenames, final_render, timespan = prepare_output_times()    
     # Load initial conditions
     components = load(IC_file, only_components=True)
-
-
-
-
-
-    # Add fake components
-    # Component = type(components[0])
-    # components += [Component('fake component 0', 'neutrinos', 32, 1),
-    #                Component('fake component 1', 'dark matter fluid', 32, 1),
-    #                ]
-
-
-
-
-
-
     # The number of time steps before Δt is updated.
     # Setting Δt_period = 8 prevents the formation of spurious
     # anisotropies when evolving fluids with the MacCormack method,
@@ -565,10 +549,10 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
             Δx = boxsize/component.gridsize
             # Find maximum, squared local velocity for this component
             u2_max = 0
-            ρ   = component.fluidvars['ρ' ].grid_noghosts
-            ρux = component.fluidvars['ρux'].grid_noghosts
-            ρuy = component.fluidvars['ρux'].grid_noghosts
-            ρuz = component.fluidvars['ρux'].grid_noghosts
+            ρ   = component.ρ.grid_noghosts
+            ρux = component.ρux.grid_noghosts
+            ρuy = component.ρux.grid_noghosts
+            ρuz = component.ρux.grid_noghosts
             for         i in range(ℤ[ρ.shape[0] - 1]):
                 for     j in range(ℤ[ρ.shape[1] - 1]):
                     for k in range(ℤ[ρ.shape[2] - 1]):

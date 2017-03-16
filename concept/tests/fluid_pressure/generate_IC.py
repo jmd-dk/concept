@@ -29,14 +29,19 @@ from snapshot import save
 
 # Create stationary, homogeneous matter distribution.
 # Perturb this homogeneous distribution with a 
-# global sine wave along the x-direction.
+# global, stationary sine wave along the x-direction.
+# Make the sound speed of the fluid be such that
+# a pressure wave traverses the box in 10 Gyr.
 gridsize = 64
 cs = boxsize/(10*units.Gyr)
+if cs >= light_speed:
+    abort('Too large sound speed assigned: cs = {} c'.format(cs/light_speed))
+w = cs**2/(light_speed**2 - cs**2)
 Vcell = (boxsize/gridsize)**3
 speed = boxsize/(10*units.Gyr)
 N = gridsize**3
 mass = ρmbar*boxsize**3/N
-component = Component('test fluid', 'dark matter fluid', gridsize, mass, {'cs': cs})
+component = Component('test fluid', 'dark matter fluid', gridsize, mass, w=w)
 ρ = empty([gridsize]*3)
 for i in range(gridsize):
     ρ[i, :, :] = 200 + np.sin(2*π*i/gridsize)  # Unitless

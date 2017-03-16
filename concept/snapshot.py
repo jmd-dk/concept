@@ -27,7 +27,11 @@ from commons import *
 # Cython imports
 from communication import smart_mpi
 cimport('from species import Component, FluidScalar, get_representation')
-cimport('from communication import partition, domain_layout_local_indices, domain_subdivisions, exchange')
+cimport('from communication import partition,                   '
+        '                          domain_layout_local_indices, '
+        '                          domain_subdivisions,         '
+        '                          exchange,                    '
+        )
 
 # Pure Python imports
 import struct
@@ -96,11 +100,15 @@ class StandardSnapshot:
                    domain_start_j='Py_ssize_t',
                    domain_start_k='Py_ssize_t',
                    end_local='Py_ssize_t',
+                   eos_message='str',
                    fluidscalar='FluidScalar',
+                   indices='object',  # int or tuple
+                   index='Py_ssize_t',
+                   multi_index='tuple',
+                   name='str',
                    shape='tuple',
                    start_local='Py_ssize_t',
                    ρ_mv='double[:, :, ::1]',
-                   l='Py_ssize_t',
                    returns='str',
                    )
     def save(self, filename):
@@ -157,33 +165,46 @@ class StandardSnapshot:
                     masterprint('done')
                 elif component.representation == 'fluid':
                     # Write out progress message
+                    if component.w_type == 'constant':
+                        eos_message = ('constant equation of state w = {}'
+                                       .format(significant_figures(component.w_constant,
+                                                                   6,
+                                                                   fmt='unicode',
+                                                                   incl_zeros=False,
+                                                                   )
+                                               )
+                                       )
+                    elif component.w_type == 'tabulated (t)':
+                        eos_message = 'tabulated equation of state w(t)'
+                    elif component.w_type == 'tabulated (a)':
+                        eos_message = 'tabulated equation of state w(a)'
+                    elif component.w_type == 'expression':
+                        eos_message = 'equation of state w = {}'.format(component.w_expression)
+                    else:
+                        abort('Did not recognize w type "{}"'.format(component.w_type))
                     masterprint('Writing out {} ({} with '
                                 'gridsize {}, '
                                 '{} fluid variables, '
-                                'sound speed {}) ...'
+                                '{}) ...'
                                 .format(component.name,
                                         component.species,
                                         component.gridsize,
-                                        component.fluidvars['N_fluidvars'],
-                                        ('{} km s⁻¹'.format(significant_figures(component.fluidvars['cs']
-                                                                                /(units.km/units.s),
-                                                                                3,
-                                                                                fmt='unicode',
-                                                                                scientific=True)
-                                                            ) if component.fluidvars['cs'] != 0 else '0'),
+                                        len(component.fluidvars),
+                                        eos_message,
                                         ),
                                 indent=4)
                     # Save fluid attributes
                     component_h5.attrs['gridsize'] = component.gridsize
-                    # Create the fluidvars group under
-                    # the component group.
-                    fluidvars_h5 = component_h5.create_group('fluidvars')
-                    fluidvars = component.fluidvars
-                    # Add fluid properties to the fluidvars group
-                    fluidvars_h5.attrs['N_fluidvars'] = fluidvars['N_fluidvars']
-                    fluidvars_h5.attrs['cs'] = fluidvars['cs']
+                    component_h5.attrs['N_fluidvars'] = len(component.fluidvars)
+                    component_h5.attrs['w_type'] = component.w_type
+                    if component.w_type == 'constant':
+                        component_h5.attrs['w'] = component.w_constant
+                    elif 'tabulated' in component.w_type:
+                        component_h5.attrs['w'] = component.w_tabulated
+                    elif component.w_type == 'expression':
+                        component_h5.attrs['w'] = component.w_expression
                     # Compute local indices of fluid grids
-                    ρ_mv = fluidvars['ρ'].grid_mv
+                    ρ_mv = component.ρ.grid_mv
                     domain_size_i = ρ_mv.shape[0] - (1 + 2*2)
                     domain_size_j = ρ_mv.shape[1] - (1 + 2*2)
                     domain_size_k = ρ_mv.shape[2] - (1 + 2*2)
@@ -193,30 +214,39 @@ class StandardSnapshot:
                     domain_end_i = domain_start_i + domain_size_i
                     domain_end_j = domain_start_j + domain_size_j
                     domain_end_k = domain_start_k + domain_size_k
-                    # Save fluid grids
+                    # Save fluid grids in groups of name
+                    # "fluidvar_index", with i = 0, 1, ...
+                    # The fluid scalars are then datasets within
+                    # these groups, named "fluidscalar_multi_index",
+                    # where multi_index (0, ), (1, ), ..., (0, 0), ...
                     shape = (component.gridsize, )*3
-                    for l in range(fluidvars['N_fluidvars']):
-                        fluidvar = fluidvars[l]
-                        fluidvar_h5 = fluidvars_h5.create_group(str(l))
-                        fluidvar_h5.attrs['shape'] = fluidvar.shape
+                    for index, fluidvar in enumerate(component.fluidvars):
+                        fluidvar_h5 = component_h5.create_group('fluidvar_{}'.format(index))
                         for multi_index in component.iterate_fluidscalar_indices(fluidvar):
                             fluidscalar = fluidvar[multi_index]
-                            fluidscalar_h5 = fluidvar_h5.create_dataset(str(multi_index),
+                            fluidscalar_h5 = fluidvar_h5.create_dataset('fluidscalar_{}'
+                                                                        .format(multi_index),
                                                                         shape,
                                                                         dtype=C2np['double'])
                             fluidscalar_h5[domain_start_i:domain_end_i,
                                            domain_start_j:domain_end_j,
                                            domain_start_k:domain_end_k] = fluidscalar.grid_mv[
-                                                                             2:(2 + domain_size_i),
-                                                                             2:(2 + domain_size_j),
-                                                                             2:(2 + domain_size_k)]
+                                                                            2:ℤ[2 + domain_size_i],
+                                                                            2:ℤ[2 + domain_size_j],
+                                                                            2:ℤ[2 + domain_size_k]]
                     # Create additional names (hard links)
                     # for some fluid groups and data sets.
-                    fluidvars_h5[unicode('ρ')]   = fluidvars_h5['0'][str((0,))]
-                    fluidvars_h5[unicode('ρu')]  = fluidvars_h5['1']
-                    fluidvars_h5[unicode('ρux')] = fluidvars_h5[unicode('ρu')][str((0,))]
-                    fluidvars_h5[unicode('ρuy')] = fluidvars_h5[unicode('ρu')][str((1,))]
-                    fluidvars_h5[unicode('ρuz')] = fluidvars_h5[unicode('ρu')][str((2,))]
+                    for name, indices in component.fluid_names.items():
+                        if isinstance(indices, int):
+                            # "name" is a fluid variable name (e.g. ρu)
+                            fluidvar_h5 = component_h5['fluidvar_{}'.format(indices)]
+                            component_h5[unicode(name)] = fluidvar_h5
+                        else:  # indices is a tuple
+                            # "name" is a fluid scalar name (e.g. ρ, ρux)
+                            index, multi_index = indices
+                            fluidvar_h5 = component_h5['fluidvar_{}'.format(index)]
+                            fluidscalar_h5 = fluidvar_h5['fluidscalar_{}'.format(multi_index)]  
+                            component_h5[unicode(name)] = fluidscalar_h5
                     # Finalize progress message
                     masterprint('done')
                 elif master:
@@ -230,20 +260,10 @@ class StandardSnapshot:
                     filename='str',
                     only_params='bint',
                     # Locals
-                    N_local='Py_ssize_t',
-                    end_local='Py_ssize_t',
-                    gridsize='Py_ssize_t',
                     N='Py_ssize_t',
-                    mass='double',
-                    representation='str',
-                    species='str',
-                    name='str',
+                    N_local='Py_ssize_t',
+                    N_fluidvars='Py_ssize_t',
                     component='Component',
-                    snapshot_unit_length='double',
-                    snapshot_unit_mass='double',
-                    snapshot_unit_time='double',
-                    start_local='Py_ssize_t',
-                    unit='double',
                     domain_end_i='Py_ssize_t',
                     domain_end_j='Py_ssize_t',
                     domain_end_k='Py_ssize_t',
@@ -253,21 +273,35 @@ class StandardSnapshot:
                     domain_start_i='Py_ssize_t',
                     domain_start_j='Py_ssize_t',
                     domain_start_k='Py_ssize_t',
-                    shape='tuple',
-                    multi_index='tuple',
-                    units_fluidvars='double[::1]',
-                    fluidvars='dict',
-                    grid='double*',
-                    size='Py_ssize_t',
+                    end_local='Py_ssize_t',
+                    eos_message='str',
                     fluidscalar='FluidScalar',
-                    l='Py_ssize_t',
+                    grid='double*',
+                    gridsize='Py_ssize_t',
                     i='Py_ssize_t',
+                    independent='str',
+                    index='Py_ssize_t',
+                    mass='double',
                     momx='double*',
                     momy='double*',
                     momz='double*',
+                    multi_index='tuple',
+                    name='str',
                     posx='double*',
                     posy='double*',
                     posz='double*',
+                    representation='str',
+                    shape='tuple',
+                    size='Py_ssize_t',
+                    snapshot_unit_length='double',
+                    snapshot_unit_mass='double',
+                    snapshot_unit_time='double',
+                    species='str',
+                    start_local='Py_ssize_t',
+                    unit='double',
+                    units_fluidvars='double[::1]',
+                    w='object',  # float, str or np.ndarray
+                    w_type='str',
                     )
     def load(self, filename, only_params=False):
         # Load all components
@@ -276,9 +310,9 @@ class StandardSnapshot:
             self.units['length'] = hdf5_file.attrs['unit length']
             self.units['time']   = hdf5_file.attrs['unit time']
             self.units['mass']   = hdf5_file.attrs['unit mass']
-            snapshot_unit_length = eval(self.units['length'], units_dict)
-            snapshot_unit_time   = eval(self.units['time'],   units_dict)
-            snapshot_unit_mass   = eval(self.units['mass'],   units_dict)
+            snapshot_unit_length = eval_unit(self.units['length'])
+            snapshot_unit_time   = eval_unit(self.units['time'])
+            snapshot_unit_mass   = eval_unit(self.units['mass'])
             # Load global attributes
             self.params['H0']      = hdf5_file.attrs['H0']*(1/snapshot_unit_time)
             self.params['a']       = hdf5_file.attrs['a']
@@ -346,36 +380,50 @@ class StandardSnapshot:
                     # Finalize progress message
                     masterprint('done')
                 elif representation == 'fluid':
-                    # Read in fluid properties
-                    fluidvars_h5 = component_h5['fluidvars']
-                    fluid_properties = {'N_fluidvars': fluidvars_h5.attrs['N_fluidvars'],
-                                        'cs'         : fluidvars_h5.attrs['cs'],
-                                        }
+                    # Read in fluid attributes
+                    gridsize = component_h5.attrs['gridsize']
+                    N_fluidvars = component_h5.attrs['N_fluidvars']
+                    w_type = component_h5.attrs['w_type']
+                    w = component_h5.attrs['w']
+                    if 'tabulated' in w_type:
+                        # Transform w to a dict of the format
+                        # {'t': t, 'w': w} or {'a': a, 'w': w}.
+                        independent = re.search('\((.+)\)', w_type).group(1)
+                        w = {independent: w[0, :], 'w': w[1, :]}
                     # Construct a Component instance and append it
                     # to this snapshot's list of components.
-                    gridsize = component_h5.attrs['gridsize']
-                    component = Component(name, species, gridsize, mass, fluid_properties)
-                    fluidvars = component.fluidvars
+                    component = Component(name, species, gridsize, mass,
+                                          N_fluidvars=N_fluidvars, w=w)
                     self.components.append(component)
                     # Done loading component attributes
                     if only_params:
                         continue
                     # Write out progress message
                     if not only_params:
+                        if w_type == 'constant':
+                            eos_message = ('constant equation of state w = {}'
+                                           .format(significant_figures(w,
+                                                                       6,
+                                                                       fmt='unicode',
+                                                                       incl_zeros=False,
+                                                                       )
+                                                   )
+                                           )
+                        elif w_type == 'tabulated (t)':
+                            eos_message = 'tabulated equation of state w(t)'
+                        elif w_type == 'tabulated (a)':
+                            eos_message = 'tabulated equation of state w(a)'
+                        elif w_type == 'expression':
+                            eos_message = 'equation of state w = {}'.format(w)
                         masterprint('Reading in {} ({} with '
                                     'gridsize {}, '
                                     '{} fluid variables, '
-                                    'sound speed {}) ...'
+                                    '{}) ...'
                                     .format(name,
                                             species,
                                             gridsize,
-                                            fluidvars['N_fluidvars'],
-                                            ('{} km s⁻¹'.format(significant_figures(fluidvars['cs']
-                                                                                    /(units.km/units.s),
-                                                                                    3,
-                                                                                    fmt='unicode',
-                                                                                    scientific=True)
-                                                                ) if fluidvars['cs'] != 0 else '0'),
+                                            N_fluidvars,
+                                            eos_message,
                                             ),
                                     indent=4)
                     # Compute local indices of fluid grids
@@ -385,8 +433,8 @@ class StandardSnapshot:
                     if master and (   gridsize != domain_subdivisions[0]*domain_size_i
                                    or gridsize != domain_subdivisions[1]*domain_size_j
                                    or gridsize != domain_subdivisions[2]*domain_size_k):
-                        abort('The gridsize of the {} component is {}\n'
-                              'which cannot be equally shared among {} processes'
+                        abort('The gridsize of the {} component is {} '
+                              'which cannot be equally shared among {} processes,'
                               .format(name, gridsize, nprocs))
                     domain_start_i = domain_layout_local_indices[0]*domain_size_i
                     domain_start_j = domain_layout_local_indices[1]*domain_size_j
@@ -394,38 +442,30 @@ class StandardSnapshot:
                     domain_end_i = domain_start_i + domain_size_i
                     domain_end_j = domain_start_j + domain_size_j
                     domain_end_k = domain_start_k + domain_size_k
-                    # Extract fluid grids and store them in the
-                    # fluidvars dict on the component.
-                    for l in range(fluidvars['N_fluidvars']):
-                        # Fluid scalars are already instantiated.
-                        # Now populate them.
-                        fluidvar_h5 = fluidvars_h5[str(l)]
-                        fluidvar = fluidvars[l]
+                    # Fluid scalars are already instantiated.
+                    # Now populate them.
+                    for index, fluidvar in enumerate(component.fluidvars):
+                        fluidvar_h5 = component_h5['fluidvar_{}'.format(index)]
                         for multi_index in component.iterate_fluidscalar_indices(fluidvar):
-                            fluidscalar_h5 = fluidvar_h5[str(multi_index)]
+                            fluidscalar_h5 = fluidvar_h5['fluidscalar_{}'.format(multi_index)]
                             # Note that this also performs the needed
                             # communication to populate pseudo and
                             # ghost points.
                             component.populate(fluidscalar_h5[domain_start_i:domain_end_i,
                                                               domain_start_j:domain_end_j,
                                                               domain_start_k:domain_end_k],
-                                               l, multi_index)
-                    # Create additional names for some fluid scalars
-                    component.assign_fluidnames()
+                                               index, multi_index)
                     # If the snapshot and the current run uses different
                     # systems of units, mulitply the fluid data
                     # by the snapshot units.
                     units_fluidvars = asarray([snapshot_unit_mass/snapshot_unit_length**3,                       # ρ
                                                snapshot_unit_mass/(snapshot_unit_length**2*snapshot_unit_time),  # ρu
                                                ], dtype=C2np['double'])
-                    size = np.prod(fluidvars['shape'])
-                    for l in range(fluidvars['N_fluidvars']):
-                        unit = units_fluidvars[l]
+                    size = np.prod(component.shape)
+                    for fluidvar, unit in zip(component.fluidvars, units_fluidvars):
                         if unit == 1:
                             continue
-                        fluidvar = fluidvars[l]
-                        for multi_index in component.iterate_fluidscalar_indices(fluidvar):
-                            fluidscalar = fluidvar[multi_index]
+                        for fluidscalar in component.iterate_fluidscalar(fluidvar):
                             grid = fluidscalar.grid
                             for i in range(size):
                                 grid[i] *= unit

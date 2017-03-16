@@ -30,6 +30,169 @@ cimport('from gravity import build_φ, P3M, PM, PP')
 
 
 
+# # Generic function implementing pairwise interactions
+# # between receivers and suppliers.
+# @cython.header(# Arguments
+#                receivers='list',
+#                suppliers='list',
+#                ᔑdt='dict',
+#                dependencies='str',
+#                # Locals
+#                mutual='bint',
+#                only_supply='bint',
+#                rank_send='int',
+#                rank_recv='int',
+#                receiver='Component',
+#                receiver_i='Component',
+#                receiver_j='Component',
+#                supplier='Component',
+#                )
+# def pairwise(receivers, suppliers, ᔑdt, dependencies='positions'):
+#     """This is the master function for pairwise interactions.
+#     It takes care of all pairings, which include
+#     - Receivers with themselves (interactions bwtween
+#       particles/fluid elements within a component).
+#     - Receivers with other receivers.
+#     - Receivers with suppliers.
+#     """
+#     # List of all particles participating in this interaction
+#     components = receivers + suppliers
+#     # Pair each receiver with all receivers and suppliers
+#     for component_1 in receivers:
+#         for index_component, component_2 in enumerate(components):
+#             # Flag specifying whether component_2 should only supply
+#             # forces to component_1 and not receive any momentum
+#             # updates itself.
+#             only_supply = (index_component >= ℝ[len(receivers)])
+#             # Pair this process/domain with every other process/domain.
+#             # The pairing pattern is as follows. This process is paired
+#             # with two other processes simultaneously; those with a rank
+#             # given by (the local) rank ± i. The local particles/fluid
+#             # elements will be sent to the process rank + i, which then
+#             # compute the pairwise forces between the received
+#             # particles/fluid elements and its local particles/fluid 
+#             # elements. These forces are then applied locally to update
+#             # the local momenta on the process, but external momentum
+#             # updates are also send back to the orginal process where
+#             # these are then applied.
+#             # Note that the first pairing is between this process and
+#             # itself (inter-domain interactions). For even nprocs, the
+#             # last pairing will include this process and a single other
+#             # process. In this case, the momentum upates are not send
+#             # back to the other process, as both processes in the pair
+#             # now hold all of the interaction information.
+#             for i in range(ℤ[1 + nprocs//2]):
+#                 # Process ranks to send/receive to/from
+#                 rank_send = mod(rank + i, nprocs)
+#                 rank_recv = mod(rank - i, nprocs)
+#                 # Flag specifying whether the interaction is mutual,
+#                 # meaning that both component_1 and component_2 should
+#                 # receive momentum updates due to the interaction.
+#                 if only_supply:
+#                     mutual = False
+#                 else:
+#                     mutual = (rank_send != rank_recv)
+#                 # Do the pairwise interaction
+#                 pairwise_domains(component_1, component_2, ᔑdt, dependencies,
+#                                  rank_send, rank_recv, mutual)
+
+# @cython.header(# Arguments
+#                receivers='list',
+#                suppliers='list',
+#                ᔑdt='dict',
+#                dependencies='str',
+#                rank_send='int',
+#                rank_recv='int',
+#                mutual='bint',
+#                # Locals
+#                momentum_dependent='bint',
+#                position_dependent='bint',
+#                ρ_1='double[:, :, :]',
+#                ρux_1='double[:, :, :]',
+#                ρuy_1='double[:, :, :]',
+#                ρuz_1='double[:, :, :]',
+#                )
+# def pairwise_domains(component_1, component_2, ᔑdt, dependencies, rank_send, rank_recv, mutual):
+#     """
+#     """
+#     # Determine force dependencies
+#     position_dependent = 'pos' in dependencies.lower()
+#     momentum_dependent = 'mom' in dependencies.lower()
+#     # Extract local particle/fluid element data of component_1
+#     mass_local1 = component_1.mass
+#     if component_1.representation == 'particles':
+#         N_local1    = component_local1.N
+#         posx_local1 = component_local1.posx
+#         posy_local1 = component_local1.posy
+#         posz_local1 = component_local1.posz
+#         momx_local1 = component_local1.momx
+#         momy_local1 = component_local1.momy
+#         momz_local1 = component_local1.momz
+#     elif component_1.representation == 'fluid':
+#         gridsize_local1 = component_local1.gridsize
+#         ρ_local1        = component_local1.ρ  .grid_noghosts
+#         ρux_local1      = component_local1.ρux.grid_noghosts
+#         ρuy_local1      = component_local1.ρuy.grid_noghosts
+#         ρuz_local1      = component_local1.ρuz.grid_noghosts
+#     # Extract local particle/fluid element data of component_2
+#     mass_local2 = component_2.mass
+#     if component_2.representation == 'particles':
+#         N_local2    = component_local2.N
+#         posx_local2 = component_local2.posx
+#         posy_local2 = component_local2.posy
+#         posz_local2 = component_local2.posz
+#         momx_local2 = component_local2.momx
+#         momy_local2 = component_local2.momy
+#         momz_local2 = component_local2.momz
+#     elif component_2.representation == 'fluid':
+#         gridsize_local2 = component_local2.gridsize
+#         ρ_local2        = component_local2.ρ  .grid_noghosts
+#         ρux_local2      = component_local2.ρux.grid_noghosts
+#         ρuy_local2      = component_local2.ρuy.grid_noghosts
+#         ρuz_local2      = component_local2.ρuz.grid_noghosts
+#     # Communicate particle/fluid element data.
+#     # We choose to communicate component_2 (send local component_2 and
+#     # receive external component_2) and not component_1, as sometimes
+#     # the interaction is not mutual, but only component_2
+#     # acts on component_1.
+#     mass_extnl2 = mass_local2
+#     if rank == rank_send:
+#         # This is a local (inter-domain) interaction,
+#         # so no communication is needed.
+#         if component_2.representation == 'particles':
+#             N_extnl2    = N_local2
+#             posx_extnl2 = posx_local2
+#             posy_extnl2 = posy_local2
+#             posz_extnl2 = posz_local2
+#             momx_extnl2 = momx_local2
+#             momy_extnl2 = momy_local2
+#             momz_extnl2 = momz_local2
+#         elif component_2.representation == 'fluid':
+#             gridsize_extnl2 = gridsize_local2
+#             ρ_extnl2        = ρ_local2
+#             ρux_extnl2      = ρux_local2
+#             ρuy_extnl2      = ρuy_local2
+#             ρuz_extnl2      = ρuz_local2
+#     else:
+#         # Send and receive component_2
+#         if component_2.representation == 'particles':
+#             N_extnl2    = N_local2
+#             if position_dependent:
+#                 # Communicate positions
+#                 ...
+#             if momentum_dependent:
+#                 # Communicate momenta
+#                 ...
+
+
+#     for i in range(N_local_1):
+#         j_start = 0
+#         for j in range(j_start, N_local_1):
+
+
+
+
+
 # Function that carry out the gravitational interaction
 @cython.pheader(# Arguments
                 method='str',
@@ -122,7 +285,6 @@ def gravity(method, receivers, suppliers, ᔑdt):
 @cython.header(# Arguments
                components='list',
                # Locals
-               Interaction='object',  # A new class (via namedtuple)
                component='Component',
                force='str',
                force_method='tuple',
@@ -157,11 +319,6 @@ def find_interactions(components):
     # supply momentum updates to other receivers. Note also that the
     # same force can appear in multiple 4-tuples but with
     # different methods.
-    Interaction = collections.namedtuple('Interaction', ('force',
-                                                         'method',
-                                                         'receivers',
-                                                         'suppliers',
-                                                         ))
     interactions_list = []
     for force, method in forces_implemented:
         if (force, method) not in forces_in_use:
@@ -179,6 +336,13 @@ def find_interactions(components):
         # Store the 4-tuple in the interactions_list
         interactions_list.append(Interaction(force, method, receivers, suppliers))
     return interactions_list
+# Create the Interaction type used in the above function
+Interaction = collections.namedtuple('Interaction', ('force',
+                                                     'method',
+                                                     'receivers',
+                                                     'suppliers',
+                                                     )
+                                     )
 
 # Specification of implemented forces.
 # The order specified here will be the order in which the forces

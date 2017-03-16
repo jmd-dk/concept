@@ -466,7 +466,7 @@ def measure(component, quantity):
     N_elements = component.gridsize**3
     mass = component.mass
     Vcell = boxsize**3/N_elements
-    ρ = component.fluidvars['ρ']
+    ρ = component.ρ
     ρ_mv = ρ.grid_mv
     ρ_noghosts = ρ.grid_noghosts
     # Quantities exhibited by both particle and fluid components
@@ -498,7 +498,7 @@ def measure(component, quantity):
                 σmom[dim] = σmom_dim
         elif component.representation == 'fluid':
             # Total momentum of all fluid elements, for each dimension
-            for dim, fluidscalar in enumerate(component.fluidvars['ρu']):
+            for dim, fluidscalar in enumerate(component.ρu):
                 # NumPy array of local part of ρu with no pseudo points
                 ρu_noghosts = fluidscalar.grid_noghosts
                 ρu_arr = asarray(ρu_noghosts[:(ρu_noghosts.shape[0] - 1),
@@ -587,7 +587,7 @@ def measure(component, quantity):
             # The meshbuf buffer will be used for storing the
             # backwards differentiated grid. Another grid is needed
             # for storing the forward differentiated grid.
-            diff_forward = empty(component.fluidvars['shape_noghosts'], dtype=C2np['double'])
+            diff_forward = empty(component.shape_noghosts, dtype=C2np['double'])
             # Find the maximum discontinuity in each fluid grid
             for fluidscalar in component.iterate_fluidscalars():
                 # Store the name of the fluid scalar
@@ -786,7 +786,7 @@ cython.declare(Σmom_prev='dict')
                value_str='str',
                )
 def debug_print(quantity, component, value, unit_str='1'):
-    unit = evaluate_unit(unit_str)
+    unit = eval_unit(unit_str)
     value_str = significant_figures(value/unit,
                                     12,
                                     fmt='unicode',

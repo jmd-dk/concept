@@ -106,14 +106,24 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
     #       = p_i + (-G*m_i*m_j/r**2)*∫_t^(t + Δt) dt/a
     #       = p_i - 1/r**2*(G*m_i*m_j*∫_t^(t + Δt) dt/a)
     eom_factor = G_Newton*mass_i*mass_j*ᔑdt['a⁻¹']
-    # Direct summation
+    # Direct summation over all pairs of particles (i, j).
+    # If both i and j are on the same process (flag_input == 0),
+    # i should run from 0 to the second last particle index,
+    # then j should run from i + 1 to the last particle index.
     force = vector
     i_end = N_local_i if flag_input > 0 else N_local_i - 1
     for i in range(i_end):
         xi = posx_i[i]
         yi = posy_i[i]
         zi = posz_i[i]
-        j_start = 0 if flag_input > 0 else i + 1
+        # If both i and j are on the same process (flag_input == 0),
+        # then j should run from i + 1 and up.
+        # Otherwise, j should start from zero.
+        with unswitch:
+            if flag_input > 0:
+                j_start = 0
+            else:
+                j_start = i + 1
         for j in range(j_start, N_local_j):
             x = posx_j[j] - xi
             y = posy_j[j] - yi
@@ -182,67 +192,59 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
             force[0] *= eom_factor
             force[1] *= eom_factor
             force[2] *= eom_factor
-            # Update momenta and momentum changes
+            # Update momenta and momentum changes.
+            # Always update the momenta of particles
+            # in the local domain (group i)
+            momx_i[i] -= force[0]
+            momy_i[i] -= force[1]
+            momz_i[i] -= force[2]
             with unswitch:
                 if flag_input == 0:
                     # Group i and j are the same (and belongs to the
-                    # local domain). Update momenta of both particles
-                    # in the pair.
-                    momx_i[i] -= force[0]
-                    momy_i[i] -= force[1]
-                    momz_i[i] -= force[2]
+                    # local domain).
+                    # Also update momenta of particles of group j.
                     momx_i[j] += force[0]
                     momy_i[j] += force[1]
                     momz_i[j] += force[2]
                 elif flag_input == 1:
-                    # Group i and j are different.
-                    # Update local momenta
-                    # and external momentum changes.
-                    momx_i[i] -= force[0]
-                    momy_i[i] -= force[1]
-                    momz_i[i] -= force[2]
+                    # Group i and j are different (and j belongs to a
+                    # different domain).
+                    # Update the external momentum changes.
                     Δmomx_j[j] += force[0]
                     Δmomy_j[j] += force[1]
                     Δmomz_j[j] += force[2]
-                else:
-                    # Group i and j are different.
-                    # Update only the local momenta.
-                    momx_i[i] -= force[0]
-                    momy_i[i] -= force[1]
-                    momz_i[i] -= force[2]
-
 
 # Function for computing the gravitational force
 # by direct summation on all particles
 # (the particle-particle or PP method).
 @cython.pheader(# Arguments
-               component='Component',
-               ᔑdt='dict',
-               # Locals
-               ID_recv='int',
-               ID_send='int',
-               N_extrn='Py_ssize_t',
-               N_extrn_max='Py_ssize_t',
-               N_extrns='Py_ssize_t[::1]',
-               N_local='Py_ssize_t',
-               N_partnerproc_pairs='int',
-               even_nprocs='bint',
-               factor='double',
-               flag_input='int',
-               i='Py_ssize_t',
-               j='int',
-               mass='double',
-               momx_local='double*',
-               momy_local='double*',
-               momz_local='double*',
-               posx_local='double*',
-               posx_local_mv='double[::1]',
-               posy_local='double*',
-               posy_local_mv='double[::1]',
-               posz_local='double*',
-               posz_local_mv='double[::1]',
-               softening2='double',
-               )
+                component='Component',
+                ᔑdt='dict',
+                # Locals
+                ID_recv='int',
+                ID_send='int',
+                N_extrn='Py_ssize_t',
+                N_extrn_max='Py_ssize_t',
+                N_extrns='Py_ssize_t[::1]',
+                N_local='Py_ssize_t',
+                N_partnerproc_pairs='int',
+                even_nprocs='bint',
+                factor='double',
+                flag_input='int',
+                i='Py_ssize_t',
+                j='int',
+                mass='double',
+                momx_local='double*',
+                momy_local='double*',
+                momz_local='double*',
+                posx_local='double*',
+                posx_local_mv='double[::1]',
+                posy_local='double*',
+                posy_local_mv='double[::1]',
+                posz_local='double*',
+                posz_local_mv='double[::1]',
+                softening2='double',
+                )
 def PP(component, ᔑdt):
     """ This function updates the momenta of all particles in the
     parsed component via the particle-particle (PP) method.
@@ -282,7 +284,7 @@ def PP(component, ᔑdt):
         return
     # Update local momenta and compute and send external momentum
     # changes due to forces between local and external particles.
-    # Find out how many particles will be recieved from each process.
+    # Find out how many particles will be received from each process.
     N_extrns = find_N_recv(np.array([N_local], dtype=C2np['Py_ssize_t']))
     N_extrn_max = N_extrns[rank]
     # Enlarges the buffers if necessary
@@ -311,17 +313,17 @@ def PP(component, ᔑdt):
         Δmomx_extrn[i] = 0
         Δmomy_extrn[i] = 0
         Δmomz_extrn[i] = 0
-    # Number of pairs of process partners to send/recieve data to/from
+    # Number of pairs of process partners to send/receive data to/from
     even_nprocs = not (nprocs % 2)
     flag_input = 1
     N_partnerproc_pairs = 1 + nprocs//2
     N_partnerproc_pairs_minus_1 = N_partnerproc_pairs - 1
     for j in range(1, N_partnerproc_pairs):
-        # Process ranks to send/recieve to/from
+        # Process ranks to send/receive to/from
         ID_send = mod(rank + j, nprocs)
         ID_recv = mod(rank - j, nprocs)
         N_extrn = N_extrns[ID_recv]
-        # Send and recieve positions
+        # Send and receive positions
         Sendrecv(posx_local_mv[:N_local], dest=ID_send,
                  recvbuf=posx_extrn_mv, source=ID_recv)
         Sendrecv(posy_local_mv[:N_local], dest=ID_send,
@@ -343,11 +345,11 @@ def PP(component, ᔑdt):
                          ᔑdt, softening2,
                          flag_input)
         # When flag_input == 2, no momentum updates has been computed.
-        # Do not sent or recieve these noncomputed updates.
+        # Do not sent or receive these noncomputed updates.
         if flag_input == 2:
             continue
         # Send momentum updates back to the process from which
-        # positions were recieved. Recieve momentum updates from the
+        # positions were received. Recieve momentum updates from the
         # process which the local positions were send to.
         Sendrecv(Δmomx_extrn_mv[:N_extrn], dest=ID_recv,
                  recvbuf=Δmomx_local_mv, source=ID_send)
@@ -355,7 +357,7 @@ def PP(component, ᔑdt):
                  recvbuf=Δmomy_local_mv, source=ID_send)
         Sendrecv(Δmomz_extrn_mv[:N_extrn], dest=ID_recv,
                  recvbuf=Δmomz_local_mv, source=ID_send)
-        # Apply local momentum updates recieved from other process
+        # Apply local momentum updates received from other process
         for i in range(N_local):
             momx_local[i] += Δmomx_local[i]
             momy_local[i] += Δmomy_local[i]
@@ -421,7 +423,7 @@ def PM(component, ᔑdt, gradφ_dim, dim):
         # (the differentiated potential, [∇φ]_dim) to the grid points
         # of the dim'th component of the fluid variable ρu.
         # First extract this fluid scalar.
-        ρu_dim = component.fluidvars['ρu'][dim]
+        ρu_dim = component.ρu[dim]
         # The factor with which to multiply the values in gradφ_dim in
         # order to get units of acceleration is given by PM_fac_const.
         # As the gravitational source term is -∇φ*ρ, we also need to
@@ -431,7 +433,7 @@ def PM(component, ᔑdt, gradφ_dim, dim):
         CIC_grid2grid(ρu_dim.grid_noghosts,
                       gradφ_dim,
                       fac=PM_fac_const*ᔑdt['a⁻¹'],
-                      fac_grid=component.fluidvars['ρ'].grid_noghosts,
+                      fac_grid=component.ρ.grid_noghosts,
                       )
         # Communicate the pseudo and ghost points of ρu_dim
         communicate_domain(ρu_dim.grid_mv, mode='populate')
@@ -1020,7 +1022,7 @@ def P3M(component, ᔑdt):
             momy_local[indices_boundary[i]] += Δmomy_local_boundary[i]
             momz_local[indices_boundary[i]] += Δmomz_local_boundary[i]
         # Send momentum updates back to the process from which
-        # positions were recieved. Recieve momentum updates from the
+        # positions were received. Recieve momentum updates from the
         # process which the local positions were send to.
         Sendrecv(Δmomx_extrn_mv[:N_extrn], dest=rank_recv,
                  recvbuf=Δmomx_local_mv, source=rank_send)
@@ -1028,7 +1030,7 @@ def P3M(component, ᔑdt):
                  recvbuf=Δmomy_local_mv, source=rank_send)
         Sendrecv(Δmomz_extrn_mv[:N_extrn], dest=rank_recv,
                  recvbuf=Δmomz_local_mv, source=rank_send)
-        # Apply local momentum updates recieved from other process
+        # Apply local momentum updates received from other process
         for i in range(N_boundary2):
             momx_local[indices_send[i]] += Δmomx_local[i]
             momy_local[indices_send[i]] += Δmomy_local[i]

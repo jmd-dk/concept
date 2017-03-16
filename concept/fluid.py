@@ -47,10 +47,10 @@ def maccormack(component, ᔑdt):
     # negative densities, for the first and second MacCormack step.
     max_vacuum_corrections = asarray([1, component.gridsize], dtype=C2np['int'])
     # Extract fluid grid pointers
-    ρ_ptr   = cast(component.fluidvars['ρ'  ], 'FluidScalar').grid
-    ρux_ptr = cast(component.fluidvars['ρux'], 'FluidScalar').grid
-    ρuy_ptr = cast(component.fluidvars['ρuy'], 'FluidScalar').grid
-    ρuz_ptr = cast(component.fluidvars['ρuz'], 'FluidScalar').grid
+    ρ_ptr   = component.ρ.grid
+    ρux_ptr = component.ρux.grid
+    ρuy_ptr = component.ρuy.grid
+    ρuz_ptr = component.ρuz.grid
     # Step/flux directions for the first MacCormack step
     steps = next(maccormack_steps)
     # The two MacCormack steps
@@ -93,7 +93,7 @@ def maccormack(component, ᔑdt):
     # with double their actual values. All grid values thus need
     # to be halved. Note that no further communication is needed as we
     # also halve the pseudo and ghost points.
-    for i in range(component.fluidvars['size']):
+    for i in range(component.size):
         ρ_ptr  [i] *= 0.5
         ρux_ptr[i] *= 0.5
         ρuy_ptr[i] *= 0.5
@@ -103,7 +103,7 @@ def maccormack(component, ᔑdt):
     component.nullify_fluid_gridˣ()
     component.nullify_fluid_Δ()
 
-# Infinite generator cyclicing through the 8 triples of
+# Infinite generator cycling through the 8 triples of
 # step/flux directions, used in the maccormack function.
 def generate_maccormack_steps():
     steps = []
@@ -122,7 +122,6 @@ maccormack_steps = generate_maccormack_steps()
                steps='Py_ssize_t[::1]',
                mc_step='int',
                # Locals
-               cs='double',
                h='double',
                i='Py_ssize_t',
                indices_local_start='Py_ssize_t[::1]',
@@ -139,6 +138,7 @@ maccormack_steps = generate_maccormack_steps()
                uy_isk='double',
                uz_ijk='double',
                uz_ijs='double',
+               w='double',
                ρ='double[:, :, ::1]',
                ρ_ijk='double',
                ρ_ijs='double',
@@ -176,21 +176,21 @@ def evolve_fluid(component, ᔑdt, steps, mc_step):
     # fluid grids, meaning disregarding pseudo points and ghost points.
     # We have 2 ghost points in the beginning and 1 pseudo point and
     # 2 ghost points in the end.
-    shape = component.fluidvars['shape']
-    indices_local_start = asarray([2, 2, 2], dtype=C2np['Py_ssize_t'])
+    shape = component.shape
+    indices_local_start = asarray((2, 2, 2), dtype=C2np['Py_ssize_t'])
     indices_local_end   = asarray(shape    , dtype=C2np['Py_ssize_t']) - 2 - 1
     # Extract fluid grids
-    ρ   = component.fluidvars['ρ'  ].grid_mv
-    ρux = component.fluidvars['ρux'].grid_mv
-    ρuy = component.fluidvars['ρuy'].grid_mv
-    ρuz = component.fluidvars['ρuz'].grid_mv
+    ρ   = component.ρ  .grid_mv
+    ρux = component.ρux.grid_mv
+    ρuy = component.ρuy.grid_mv
+    ρuz = component.ρuz.grid_mv
     # Extract starred fluid grids
-    ρˣ   = component.fluidvars['ρ'  ].gridˣ_mv
-    ρuxˣ = component.fluidvars['ρux'].gridˣ_mv
-    ρuyˣ = component.fluidvars['ρuy'].gridˣ_mv
-    ρuzˣ = component.fluidvars['ρuz'].gridˣ_mv
-    # Extract fluid properties
-    cs = component.fluidvars['cs']
+    ρˣ   = component.ρ  .gridˣ_mv
+    ρuxˣ = component.ρux.gridˣ_mv
+    ρuyˣ = component.ρuy.gridˣ_mv
+    ρuzˣ = component.ρuz.gridˣ_mv
+    # Get the equation of state parameter w at this instance in time
+    w = component.w()
     # In the case of the second MacCormack step, the role of the
     # starred and the unstarred variables should be swapped.
     if mc_step == 1:
@@ -241,21 +241,21 @@ def evolve_fluid(component, ᔑdt, steps, mc_step):
                             + step_j*(ρux_isk*uy_isk - ρux_ijk*uy_ijk)
                             + step_k*(ρux_ijs*uz_ijs - ρux_ijk*uz_ijk)
                             # Pressure term
-                            + step_i*ℝ[cs**2]*(ρ_sjk - ρ_ijk)
+                            + step_i*ℝ[light_speed**2*w/(1 + w)]*(ρ_sjk - ρ_ijk)
                             )
                 # Flux of ρuy (ρuy*u)
                 ρuy_flux = (+ step_i*(ρuy_sjk*ux_sjk - ρuy_ijk*ux_ijk)
                             + step_j*(ρuy_isk*uy_isk - ρuy_ijk*uy_ijk)
                             + step_k*(ρuy_ijs*uz_ijs - ρuy_ijk*uz_ijk)
                             # Pressure term
-                            + step_j*ℝ[cs**2]*(ρ_isk - ρ_ijk)
+                            + step_j*ℝ[light_speed**2*w/(1 + w)]*(ρ_isk - ρ_ijk)
                             )
                 # Flux of ρuz (ρuz*u)
                 ρuz_flux = (+ step_i*(ρuz_sjk*ux_sjk - ρuz_ijk*ux_ijk)
                             + step_j*(ρuz_isk*uy_isk - ρuz_ijk*uy_ijk)
                             + step_k*(ρuz_ijs*uz_ijs - ρuz_ijk*uz_ijk)
                             # Pressure term
-                            + step_k*ℝ[cs**2]*(ρ_ijs - ρ_ijk)
+                            + step_k*ℝ[light_speed**2*w/(1 + w)]*(ρ_ijs - ρ_ijk)
                             )
                 # Update ρ
                 ρˣ[i, j, k] += (# Initial value
@@ -300,7 +300,6 @@ def evolve_fluid(component, ᔑdt, steps, mc_step):
                dist2='Py_ssize_t',
                fac_smoothing='double',
                fac_time='double',
-               fluidscalar='FluidScalar',
                i='Py_ssize_t',
                indices_local_start='Py_ssize_t[::1]',
                indices_local_end='Py_ssize_t[::1]',
@@ -383,38 +382,34 @@ def correct_vacuum(component, mc_step):
     # fluid grids, meaning disregarding pseudo points and ghost points.
     # We have 2 ghost points in the beginning and 1 pseudo point and
     # 2 ghost points in the end.
-    shape = component.fluidvars['shape']
+    shape = component.shape
     indices_local_start = asarray([2, 2, 2], dtype=C2np['Py_ssize_t'])
     indices_local_end   = asarray(shape    , dtype=C2np['Py_ssize_t']) - 2 - 1
     # Extract memory views and pointers to the fluid variables
-    fluidscalar = component.fluidvars['ρ']
-    ρ      = fluidscalar.grid_mv
-    ρ_ptr  = fluidscalar.grid
-    ρˣ     = fluidscalar.gridˣ_mv
-    ρˣ_ptr = fluidscalar.gridˣ
-    Δρ     = fluidscalar.Δ_mv
-    Δρ_ptr = fluidscalar.Δ
-    fluidscalar = component.fluidvars['ρux']
-    ρux      = fluidscalar.grid_mv
-    ρux_ptr  = fluidscalar.grid
-    ρuxˣ     = fluidscalar.gridˣ_mv
-    ρuxˣ_ptr = fluidscalar.gridˣ
-    Δρux     = fluidscalar.Δ_mv
-    Δρux_ptr = fluidscalar.Δ
-    fluidscalar = component.fluidvars['ρuy']
-    ρuy      = fluidscalar.grid_mv
-    ρuy_ptr  = fluidscalar.grid
-    ρuyˣ     = fluidscalar.gridˣ_mv
-    ρuyˣ_ptr = fluidscalar.gridˣ
-    Δρuy     = fluidscalar.Δ_mv
-    Δρuy_ptr = fluidscalar.Δ
-    fluidscalar = component.fluidvars['ρuz']
-    ρuz      = fluidscalar.grid_mv
-    ρuz_ptr  = fluidscalar.grid
-    ρuzˣ     = fluidscalar.gridˣ_mv
-    ρuzˣ_ptr = fluidscalar.gridˣ
-    Δρuz     = fluidscalar.Δ_mv
-    Δρuz_ptr = fluidscalar.Δ
+    ρ        = component.ρ  .grid_mv
+    ρ_ptr    = component.ρ  .grid
+    ρˣ       = component.ρ  .gridˣ_mv
+    ρˣ_ptr   = component.ρ  .gridˣ
+    Δρ       = component.ρ  .Δ_mv
+    Δρ_ptr   = component.ρ  .Δ
+    ρux      = component.ρux.grid_mv
+    ρux_ptr  = component.ρux.grid
+    ρuxˣ     = component.ρux.gridˣ_mv
+    ρuxˣ_ptr = component.ρux.gridˣ
+    Δρux     = component.ρux.Δ_mv
+    Δρux_ptr = component.ρux.Δ
+    ρuy      = component.ρuy.grid_mv
+    ρuy_ptr  = component.ρuy.grid
+    ρuyˣ     = component.ρuy.gridˣ_mv
+    ρuyˣ_ptr = component.ρuy.gridˣ
+    Δρuy     = component.ρuy.Δ_mv
+    Δρuy_ptr = component.ρuy.Δ
+    ρuz      = component.ρuz.grid_mv
+    ρuz_ptr  = component.ρuz.grid
+    ρuzˣ     = component.ρuz.gridˣ_mv
+    ρuzˣ_ptr = component.ρuz.gridˣ
+    Δρuz     = component.ρuz.Δ_mv
+    Δρuz_ptr = component.ρuz.Δ
     # In the case of the second MacCormack step, the role of the
     # starred and the unstarred variables should be swapped.
     if mc_step == 1:
@@ -512,7 +507,7 @@ def correct_vacuum(component, mc_step):
         # Apply vacuum corrections. Note that no further communication
         # is needed as we also apply vacuum corrections to the
         # pseudo and ghost points.
-        for i in range(component.fluidvars['size']):
+        for i in range(component.size):
             ρ_ptr  [i] += Δρ_ptr  [i]
             ρux_ptr[i] += Δρux_ptr[i]
             ρuy_ptr[i] += Δρuy_ptr[i]
