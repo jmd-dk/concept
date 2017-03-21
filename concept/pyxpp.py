@@ -719,7 +719,7 @@ def constant_expressions(lines):
                             line2 = line2.rstrip('\n')
                             line2_ori = line2
                             line2 = ' '*(len(line2) - len(line2.lstrip()))  + line2.replace(' ', '')
-                            if line2_ori.startswith('def ') and re.search('[\(,]{}[,=\)]'.format(var), line2):
+                            if line2_ori.lstrip().startswith('def ') and re.search('[\(,]{}[,=\)]'.format(var), line2):
                                 # var as function argument
                                 linenr_where_defined[v] = end - 1 - j
                                 break
@@ -1164,10 +1164,17 @@ def malloc_realloc(lines):
                                  + alloc[:-1] + ' ' + LHS + "')\n")
         if not found_alloc:
             if line.lstrip().startswith('free('):
+                # Normal frees
                 indent_lvl = len(line) - len(line.lstrip())
-                ptr = re.search('free\((.*?)\)', line).group(1)
-                new_lines.append(' '*indent_lvl + 'if ' + ptr + ':\n')
+                ptr = re.search('free\((.+?)\)', line).group(1)
+                new_lines.append(' '*indent_lvl + 'if ' + ptr + ' is not NULL:\n')
                 new_lines.append(' '*4 + line.replace('free(', 'PyMem_Free('))
+            elif re.search('^gsl_.+?_free\(', line.lstrip()):
+                # GSL frees
+                indent_lvl = len(line) - len(line.lstrip())
+                ptr = re.search('gsl_.+?_free\((.+?)\)', line).group(1)
+                new_lines.append(' '*indent_lvl + 'if ' + ptr + ' is not NULL:\n')
+                new_lines.append(' '*4 + line)
             else:
                 new_lines.append(line)
     return new_lines
@@ -1591,7 +1598,7 @@ def make_pxd(filename):
                                                    ('def '
                                                     + globals_phony_funcname + declaration
                                                     + ':'),
-                                                   '    pass'] + globals_code[(i + 1):])
+                                                   '    ...'] + globals_code[(i + 1):])
                 break
         if done:
             break
@@ -1724,7 +1731,7 @@ if len(sys.argv) > 4:
                         'while receiving more than three arguments'.format(filename))
 else:
     if filename.endswith('.py'):
-        # A .py-file is parsed.
+        # A .py-file is passed.
         # Read in the lines of the file.
         with open(filename, 'r', encoding='utf-8') as pyfile:
             lines = pyfile.readlines()
@@ -1749,7 +1756,7 @@ else:
         with open(filename_pyx, 'w', encoding='utf-8') as pyxfile:
             pyxfile.writelines(lines)
     elif filename.endswith('.pyx'):
-        # A .pyx-file is parsed.
+        # A .pyx-file is passed.
         # Make the .pxd.
         make_pxd(filename)
     else:

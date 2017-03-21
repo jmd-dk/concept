@@ -49,5 +49,5 @@ H0      = 70*km/(s*Mpc)
 a_begin = 0.02
 
 # Simulation options
-forces = {'all': {'gravity': 'PM'}}
+forces = {'all': {'gravity': 'pm'}}
 

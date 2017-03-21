@@ -34,6 +34,7 @@ cimport('from communication import communicate_domain,                          
         '                          domain_subdivisions,                            '
         '                          domain_size_x,  domain_size_y,  domain_size_z,  '
         '                          domain_start_x, domain_start_y, domain_start_z, '
+        '                          domain_volume,                                  '
         )
 
 
@@ -248,7 +249,7 @@ def CIC_scalargrid2coordinates(grid, x, y, z):
     assumed that the grid is nonperiodic (that is,
     the grid has closed ends).
     """
-    # Correct for extreme values in the parsed coordinates.
+    # Correct for extreme values in the passed coordinates.
     # This is to catch inputs which are slighly larger than 1 due to
     # numerical errors.
     if x >= 1:
@@ -319,7 +320,7 @@ def CIC_vectorgrid2coordinates(grid, x, y, z):
     the last gridpoint in any dimension are physical distinct and that
     the grid has closed ends).
     """
-    # Correct for extreme values in the parsed coordinates.
+    # Correct for extreme values in the passed coordinates.
     # This is to catch inputs which are slighly larger than 1 due to
     # numerical errors.
     if x >= 1:
@@ -400,7 +401,7 @@ def CIC_vectorgrid2coordinates(grid, x, y, z):
                 )
 def CIC_grid2grid(gridA, gridB, fac=1, fac_grid=None):
     """This function CIC-interpolates values from one grid (gridB) onto
-    another grid (gridA). The physical extend of the parsed grids are
+    another grid (gridA). The physical extend of the passed grids are
     assumed to be the same. It is assumed that both grids are closed,
     meaning that the upper grid points (for all three directions)
     recide on the physical boundary of the region in which the grid
@@ -411,7 +412,7 @@ def CIC_grid2grid(gridA, gridB, fac=1, fac_grid=None):
     nullified beforehand.
     Before adding the interpolated values to gridA, they are multiplied
     by fac.
-    If fac_grid is parsed, this should be a grid of the same shape as
+    If fac_grid is passed, this should be a grid of the same shape as
     gridA. An additional factor of fac_grid[i, j, k] will then be
     multiplied on the [i, j, k]'th interpolated value.
     """
@@ -495,32 +496,35 @@ def CIC_grid2grid(gridA, gridB, fac=1, fac_grid=None):
                     gridA[iA_upper, jA_upper, kA_lower] += ℝ[value*Wiu*Wju]*Wkl
                     gridA[iA_upper, jA_upper, kA_upper] += ℝ[value*Wiu*Wju]*Wku
 
-# Function for CIC-interpolating particle/fluid element coordinates of
-# all components to a domain grid.
+# Function for CIC-interpolating particles/fluid elements of
+# components to a domain grid.
 @cython.header(# Argument
                components='list',
                domain_grid='double[:, :, ::1]',
+               factors='list',
                # Locals
                component='Component',
                domain_grid_noghosts='double[:, :, :]',
-               posx='double*',
-               posy='double*',
-               posz='double*',
+               factor='double',
                gridsize='double',
                i='Py_ssize_t',
                j='Py_ssize_t',
                k='Py_ssize_t',
                mass='double',
+               posx='double*',
+               posy='double*',
+               posz='double*',
                shape='tuple',
                size='Py_ssize_t',
+               w='double',
                x='double',
-               y='double',
-               z='double',
                x_lower='int',
-               y_lower='int',
-               z_lower='int',
                x_upper='int',
+               y='double',
+               y_lower='int',
                y_upper='int',
+               z='double',
+               z_lower='int',
                z_upper='int',
                Vcell='double',
                Wxl='double',
@@ -530,23 +534,46 @@ def CIC_grid2grid(gridA, gridB, fac=1, fac_grid=None):
                Wyu='double',
                Wzu='double',
                )
-def CIC_components2domain_grid(components, domain_grid):
-    """This function CIC-interpolates particle/fluid element coordinates
+def CIC_components2domain_grid(components, domain_grid, factors=None):
+    """This function CIC-interpolates particle/fluid elements
     to domain_grid storing scalar values. The physical extend of the
-    parsed domain_grid should match the domain exactly. The interpolated
+    passed domain_grid should match the domain exactly. The interpolated
     values will be added to the grid. Therefore, if the grid should
     contain the interpolated vales only, the grid must be nullified 
     beforehand.
-    Each interpolation will be multiplied by the particle/fluid element
-    mass, so that it is the total mass of a component (and not its
-    resolution (particle number/gridsize)) that governs the overall
-    weight for that component.
+    For fluid components what is interpolated is ϱ. To be consistent
+    with this, when interpolating particles, each particle contribute
+    with a total factor of mass/Vcell, where mass is the particle mass
+    and Vcell is the comoving volume of a single cell in
+    the domain_grid.
+    If further (spatially) global factors should be multiplied on any
+    of the components, supply these in the 'factors' list, which must
+    be of the same size as the components list (to only use an extra
+    factor for some components, simply give the other components a
+    factor of 1).
+    Note that while the result of interpolation of particles will result
+    in the comoving density, for fluids this is only true for w = 0.
+    In general, what is interpolated is ϱ = a**(3*w)*(a**3*ρ),
+    where a**3*ρ is the comoving density. If what you really want for
+    fluids is the comoving density, you must thus pass a**(-3*w) as a
+    factor.
     """
+    # Use factors of unity when no factors are supplied
+    if factors is None:
+        factors = [1]*len(components)
+    elif len(factors) != len(components):
+        abort('Got {} components but only {} factors'.format(len(components), len(factors)))
+    # The volume of a single cell of the domain_grid
+    Vcell = domain_volume/( (domain_grid.shape[0] - 5)
+                           *(domain_grid.shape[1] - 5)
+                           *(domain_grid.shape[2] - 5)
+                           )
     # Memoryview of the domain grid without the ghost layers
     domain_grid_noghosts = domain_grid[2:(domain_grid.shape[0] - 2),
                                        2:(domain_grid.shape[1] - 2),
                                        2:(domain_grid.shape[2] - 2)]
-    for component in components:
+    # Do the interpolation
+    for component, factor in zip(components, factors):
         # Do the interpolation
         if component.representation == 'particles':
             # Extract variables
@@ -554,6 +581,8 @@ def CIC_components2domain_grid(components, domain_grid):
             posx = component.posx
             posy = component.posy
             posz = component.posz
+            # Always use mass/Vcell as a factor for particles
+            factor *= mass*ℝ[1/Vcell]
             # Extract the shape of the grid
             shape = tuple([domain_grid_noghosts.shape[dim] - 1 for dim in range(3)])
             # Interpolate each particle
@@ -588,47 +617,41 @@ def CIC_components2domain_grid(components, domain_grid):
                 Wyu = y - y_lower  # = 1 - (y_upper - y)
                 Wzu = z - z_lower  # = 1 - (z_upper - z)
                 # Assign the weights to the grid points
-                domain_grid_noghosts[x_lower, y_lower, z_lower] += ℝ[mass*Wxl*Wyl]*Wzl
-                domain_grid_noghosts[x_lower, y_lower, z_upper] += ℝ[mass*Wxl*Wyl]*Wzu
-                domain_grid_noghosts[x_lower, y_upper, z_lower] += ℝ[mass*Wxl*Wyu]*Wzl
-                domain_grid_noghosts[x_lower, y_upper, z_upper] += ℝ[mass*Wxl*Wyu]*Wzu
-                domain_grid_noghosts[x_upper, y_lower, z_lower] += ℝ[mass*Wxu*Wyl]*Wzl
-                domain_grid_noghosts[x_upper, y_lower, z_upper] += ℝ[mass*Wxu*Wyl]*Wzu
-                domain_grid_noghosts[x_upper, y_upper, z_lower] += ℝ[mass*Wxu*Wyu]*Wzl
-                domain_grid_noghosts[x_upper, y_upper, z_upper] += ℝ[mass*Wxu*Wyu]*Wzu
+                domain_grid_noghosts[x_lower, y_lower, z_lower] += ℝ[factor*Wxl*Wyl]*Wzl
+                domain_grid_noghosts[x_lower, y_lower, z_upper] += ℝ[factor*Wxl*Wyl]*Wzu
+                domain_grid_noghosts[x_lower, y_upper, z_lower] += ℝ[factor*Wxl*Wyu]*Wzl
+                domain_grid_noghosts[x_lower, y_upper, z_upper] += ℝ[factor*Wxl*Wyu]*Wzu
+                domain_grid_noghosts[x_upper, y_lower, z_lower] += ℝ[factor*Wxu*Wyl]*Wzl
+                domain_grid_noghosts[x_upper, y_lower, z_upper] += ℝ[factor*Wxu*Wyl]*Wzu
+                domain_grid_noghosts[x_upper, y_upper, z_lower] += ℝ[factor*Wxu*Wyu]*Wzl
+                domain_grid_noghosts[x_upper, y_upper, z_upper] += ℝ[factor*Wxu*Wyu]*Wzu
             # Values of local pseudo mesh points contribute to the lower
             # mesh points of domain grid on other processes.
             # Do the needed communication.
             communicate_domain(domain_grid, mode='add contributions')
         elif component.representation == 'fluid':
-            # CIC-interpolate ρ to the parsed domain grid,
-            # using the cell volume as a factor in the weights,
-            # converting density to mass.
-            Vcell = (boxsize/component.gridsize)**3
-            CIC_grid2grid(domain_grid_noghosts, component.ρ.grid_noghosts, Vcell)
+            # CIC-interpolate ϱ to the passed domain grid,
+            # using the passed factor (if any).
+            CIC_grid2grid(domain_grid_noghosts,
+                          component.ϱ.grid_noghosts,
+                          factor,
+                          )
 
 # Function for CIC-interpolating particles of a particle component
 # to fluid grids.
 @cython.header(# Argument
                component='Component',
                # Locals
+               Jx='double*',
+               Jx_mv='double[:, :, ::1]',
+               Jx_noghosts='double[:, :, :]',
+               Jy='double*',
+               Jy_mv='double[:, :, ::1]',
+               Jy_noghosts='double[:, :, :]',
+               Jz='double*',
+               Jz_mv='double[:, :, ::1]',
+               Jz_noghosts='double[:, :, :]',
                N_vacuum='Py_ssize_t',
-               mass='double',
-               posx='double*',
-               posy='double*',
-               posz='double*',
-               i='Py_ssize_t',
-               j='Py_ssize_t',
-               k='Py_ssize_t',
-               x='double',
-               y='double',
-               z='double',
-               x_lower='int',
-               y_lower='int',
-               z_lower='int',
-               x_upper='int',
-               y_upper='int',
-               z_upper='int',
                Vcell='double',
                Wlll='double',
                Wllu='double',
@@ -644,54 +667,91 @@ def CIC_components2domain_grid(components, domain_grid):
                Wyu='double',
                Wzl='double',
                Wzu='double',
-               var='str',
-               Δρ='double',
-               Δρ_tot='double',
-               ρ_noghosts='double[:, :, :]',
-               ρ='double*',
-               ρux='double*',
-               ρuy='double*',
-               ρuz='double*',
-               ρux_noghosts='double[:, :, :]',
-               ρuy_noghosts='double[:, :, :]',
-               ρuz_noghosts='double[:, :, :]',
-               momx='double*',
-               momy='double*',
-               momz='double*',
-               momx_i='double',
-               momy_i='double',
-               momz_i='double',
-               ρ_mv='double[:, :, ::1]',
-               ρux_mv='double[:, :, ::1]',
-               ρuy_mv='double[:, :, ::1]',
-               ρuz_mv='double[:, :, ::1]',
-               original_representation='str',
                dim='int',
+               i='Py_ssize_t',
+               j='Py_ssize_t',
+               k='Py_ssize_t',
+               mass='double',
+               momx='double*',
+               momx_i='double',
+               momy='double*',
+               momy_i='double',
+               momz='double*',
+               momz_i='double',
+               original_representation='str',
+               posx='double*',
+               posy='double*',
+               posz='double*',
                shape='tuple',
+               var='str',
+               x='double',
+               x_lower='int',
+               x_upper='int',
+               y='double',
+               y_lower='int',
+               y_upper='int',
+               z='double',
+               z_lower='int',
+               z_upper='int',
+               Δϱ='double',
+               Δϱ_tot='double',
+               ϱ_noghosts='double[:, :, :]',
+               ϱ='double*',
+               ϱ_mv='double[:, :, ::1]',
                returns='Py_ssize_t',
                )
 def CIC_particles2fluid(component):
     """This function CIC-interpolates particle positions to fluid grids.
-    The parsed component should contain particle data, but not
+    The passed component should contain particle data, but not
     necessarily fluid data (any pre-existing fluid data will be
     overwritten). The particle data are then used to create the fluid
-    grids (ρ, ρux, ρuy, ρuz). In addition, since the relation between
-    momentum (particle data) p and velocity (fluid data) u is
-    p = u*m*a,
-    where a is the scale factor (m is the particle mass), the current
-    value of universals.a is used in order to do the transformation.
-    Importantly, the mass attribute should be the particle mass,
-    not the average fluid element mass. The value of the representation
-    attribute does not matter and will not be altered.
-    The size of the fluid grids are determined by component.gridsize.
-    To save memory, the particle data will be freed (resized to a
-    minimum size) during the process.
-    The behaviour of this function is independent of
-    component.representation.
+    grids (ϱ, Jx, Jy, Jz).
+    The relation between the particle data and the fluid density ϱ is
+    ϱ = (N*mass)/Vcell,
+    where N is the number of particles in the cell, mass is the mass of
+    a single particle (all particles have the same mass) and Vcell is
+    the volume of a cell (all cells have the same volume). The number of
+    particles N in the volume is not actually a whole number, but rather
+    a fraction due to the CIC interpolation:
+    N = ΣᵢWᵢ,
+    where Wᵢ is the CIC weights, which sum to 1 for a single particle.
+    We can then express the density field as
+    ϱ = mass/Vcell*ΣᵢWᵢ.
+    Note that the cell volumes (as all volumes) are comoving, meaning no
+    factors of the scale factor a are needed. Remembering that
+    ϱ = a**(3*(1 + w))*ρ, where ρ is the proper density, this convertion
+    thus imply w = 0. This function does not however check that this
+    requirement is actually fulfilled.
+    The relation between particle data and fluid momentum density J is
+    J = a**4*ρ*u
+      = a**(-3*w)*a*ϱ*u
+      = a*ϱ*u,    (w = 0)
+    where u - for each fluid element - is the overall velocity of the
+    fluid element. Crucially, velocities are not added, as two particles
+    within the same cell volume does not lead to a fluid element with
+    a velocity of their sum. Rather, velocities are averaged together
+    using the same weights as above:
+    u = <u>
+      = 1/N*(ΣᵢWᵢ*uᵢ),
+    where uᵢ are the peculiar velocities of the particles.
+    The fluid momentum density then becomes
+    J = a*mass/Vcell*(ΣᵢWᵢ*uᵢ).
+    The relation between a particles velocity uᵢ
+    and its momentum momᵢ is
+    momᵢ = a*mass*uᵢ
+    The final expression for J is then
+    J = 1/Vcell*(ΣᵢWᵢ*momᵢ).  
+    Importantly, the mass attribute of the passed component should be
+    the particle mass, not the average fluid element mass. The value of
+    the representation attribute does not matter and will not
+    be altered. The size of the fluid grids are determined
+    by component.gridsize. To save memory, the particle data will be
+    freed (resized to a minimum size) during the process.
     """
     # Backup of original representation
     original_representation = component.representation
-    # Instantiate fluid grids spanning the local domains
+    # Instantiate fluid grids spanning the local domains.
+    # The newly allocated grids will be nullified.
     component.representation = 'fluid'
     shape = tuple([component.gridsize//ds for ds in domain_subdivisions])
     if master and any([component.gridsize != domain_subdivisions[dim]*shape[dim]
@@ -701,18 +761,18 @@ def CIC_particles2fluid(component):
                   .format(component.name, component.gridsize, nprocs))
     component.resize(shape)  # This also nullifies all fluid grids
     # Extract fluid data variables
-    ρ            = component.ρ  .grid
-    ρ_mv         = component.ρ  .grid_mv
-    ρ_noghosts   = component.ρ  .grid_noghosts
-    ρux          = component.ρux.grid
-    ρux_mv       = component.ρux.grid_mv
-    ρux_noghosts = component.ρux.grid_noghosts
-    ρuy          = component.ρuy.grid
-    ρuy_mv       = component.ρuy.grid_mv
-    ρuy_noghosts = component.ρuy.grid_noghosts
-    ρuz          = component.ρuz.grid
-    ρuz_mv       = component.ρuz.grid_mv
-    ρuz_noghosts = component.ρuz.grid_noghosts
+    ϱ           = component.ϱ .grid
+    ϱ_mv        = component.ϱ .grid_mv
+    ϱ_noghosts  = component.ϱ .grid_noghosts
+    Jx          = component.Jx.grid
+    Jx_mv       = component.Jx.grid_mv
+    Jx_noghosts = component.Jx.grid_noghosts
+    Jy          = component.Jy.grid
+    Jy_mv       = component.Jy.grid_mv
+    Jy_noghosts = component.Jy.grid_noghosts
+    Jz          = component.Jz.grid
+    Jz_mv       = component.Jz.grid_mv
+    Jz_noghosts = component.Jz.grid_noghosts
     # Extract particle data variables
     posx = component.posx
     posy = component.posy
@@ -724,9 +784,10 @@ def CIC_particles2fluid(component):
     mass = component.mass
     Vcell = (boxsize/component.gridsize)**3
     # Interpolate each particle to the grids.
-    # In the loop, simply assign the raw weight to the ρ grid and the
-    # weighted momenta to the ρux, ρuy and ρuz grids. Convertions to the
-    # correct units will be done afterwards.
+    # Constant factors will be multiplied on later.
+    # Thus after the interpolation we will have
+    # ϱ: ΣᵢWᵢ
+    # J: ΣᵢWᵢ*momᵢ
     for i in range(component.N_local):
         # Get, translate and scale the coordinates so that
         # 0 <= i < shape[i] for i in (x, y, z).
@@ -766,46 +827,46 @@ def CIC_particles2fluid(component):
         Wulu = ℝ[Wxu*Wyl]*Wzu
         Wuul = ℝ[Wxu*Wyu]*Wzl
         Wuuu = ℝ[Wxu*Wyu]*Wzu
-        # Assign the raw weights to the ρ grid
-        ρ_noghosts[x_lower, y_lower, z_lower] += Wlll
-        ρ_noghosts[x_lower, y_lower, z_upper] += Wllu
-        ρ_noghosts[x_lower, y_upper, z_lower] += Wlul
-        ρ_noghosts[x_lower, y_upper, z_upper] += Wluu
-        ρ_noghosts[x_upper, y_lower, z_lower] += Wull
-        ρ_noghosts[x_upper, y_lower, z_upper] += Wulu
-        ρ_noghosts[x_upper, y_upper, z_lower] += Wuul
-        ρ_noghosts[x_upper, y_upper, z_upper] += Wuuu
+        # Assign the raw weights to the ϱ grid
+        ϱ_noghosts[x_lower, y_lower, z_lower] += Wlll
+        ϱ_noghosts[x_lower, y_lower, z_upper] += Wllu
+        ϱ_noghosts[x_lower, y_upper, z_lower] += Wlul
+        ϱ_noghosts[x_lower, y_upper, z_upper] += Wluu
+        ϱ_noghosts[x_upper, y_lower, z_lower] += Wull
+        ϱ_noghosts[x_upper, y_lower, z_upper] += Wulu
+        ϱ_noghosts[x_upper, y_upper, z_lower] += Wuul
+        ϱ_noghosts[x_upper, y_upper, z_upper] += Wuuu
         # Extract momentum of the i'th particle
         momx_i = momx[i]
         momy_i = momy[i]
         momz_i = momz[i]
-        # Assign the weighted momentum to the ρux grid
-        ρux_noghosts[x_lower, y_lower, z_lower] += Wlll*momx_i
-        ρux_noghosts[x_lower, y_lower, z_upper] += Wllu*momx_i
-        ρux_noghosts[x_lower, y_upper, z_lower] += Wlul*momx_i
-        ρux_noghosts[x_lower, y_upper, z_upper] += Wluu*momx_i
-        ρux_noghosts[x_upper, y_lower, z_lower] += Wull*momx_i
-        ρux_noghosts[x_upper, y_lower, z_upper] += Wulu*momx_i
-        ρux_noghosts[x_upper, y_upper, z_lower] += Wuul*momx_i
-        ρux_noghosts[x_upper, y_upper, z_upper] += Wuuu*momx_i
-        # Assign the weighted momentum to the ρuy grid
-        ρuy_noghosts[x_lower, y_lower, z_lower] += Wlll*momy_i
-        ρuy_noghosts[x_lower, y_lower, z_upper] += Wllu*momy_i
-        ρuy_noghosts[x_lower, y_upper, z_lower] += Wlul*momy_i
-        ρuy_noghosts[x_lower, y_upper, z_upper] += Wluu*momy_i
-        ρuy_noghosts[x_upper, y_lower, z_lower] += Wull*momy_i
-        ρuy_noghosts[x_upper, y_lower, z_upper] += Wulu*momy_i
-        ρuy_noghosts[x_upper, y_upper, z_lower] += Wuul*momy_i
-        ρuy_noghosts[x_upper, y_upper, z_upper] += Wuuu*momy_i
-        # Assign the weighted momentum to the ρuz grid
-        ρuz_noghosts[x_lower, y_lower, z_lower] += Wlll*momz_i
-        ρuz_noghosts[x_lower, y_lower, z_upper] += Wllu*momz_i
-        ρuz_noghosts[x_lower, y_upper, z_lower] += Wlul*momz_i
-        ρuz_noghosts[x_lower, y_upper, z_upper] += Wluu*momz_i
-        ρuz_noghosts[x_upper, y_lower, z_lower] += Wull*momz_i
-        ρuz_noghosts[x_upper, y_lower, z_upper] += Wulu*momz_i
-        ρuz_noghosts[x_upper, y_upper, z_lower] += Wuul*momz_i
-        ρuz_noghosts[x_upper, y_upper, z_upper] += Wuuu*momz_i
+        # Assign the weighted x-momentum to the Jx grid
+        Jx_noghosts[x_lower, y_lower, z_lower] += Wlll*momx_i
+        Jx_noghosts[x_lower, y_lower, z_upper] += Wllu*momx_i
+        Jx_noghosts[x_lower, y_upper, z_lower] += Wlul*momx_i
+        Jx_noghosts[x_lower, y_upper, z_upper] += Wluu*momx_i
+        Jx_noghosts[x_upper, y_lower, z_lower] += Wull*momx_i
+        Jx_noghosts[x_upper, y_lower, z_upper] += Wulu*momx_i
+        Jx_noghosts[x_upper, y_upper, z_lower] += Wuul*momx_i
+        Jx_noghosts[x_upper, y_upper, z_upper] += Wuuu*momx_i
+        # Assign the weighted y-momentum to the Jy grid
+        Jy_noghosts[x_lower, y_lower, z_lower] += Wlll*momy_i
+        Jy_noghosts[x_lower, y_lower, z_upper] += Wllu*momy_i
+        Jy_noghosts[x_lower, y_upper, z_lower] += Wlul*momy_i
+        Jy_noghosts[x_lower, y_upper, z_upper] += Wluu*momy_i
+        Jy_noghosts[x_upper, y_lower, z_lower] += Wull*momy_i
+        Jy_noghosts[x_upper, y_lower, z_upper] += Wulu*momy_i
+        Jy_noghosts[x_upper, y_upper, z_lower] += Wuul*momy_i
+        Jy_noghosts[x_upper, y_upper, z_upper] += Wuuu*momy_i
+        # Assign the weighted z-momentum to the Jz grid
+        Jz_noghosts[x_lower, y_lower, z_lower] += Wlll*momz_i
+        Jz_noghosts[x_lower, y_lower, z_upper] += Wllu*momz_i
+        Jz_noghosts[x_lower, y_upper, z_lower] += Wlul*momz_i
+        Jz_noghosts[x_lower, y_upper, z_upper] += Wluu*momz_i
+        Jz_noghosts[x_upper, y_lower, z_lower] += Wull*momz_i
+        Jz_noghosts[x_upper, y_lower, z_upper] += Wulu*momz_i
+        Jz_noghosts[x_upper, y_upper, z_lower] += Wuul*momz_i
+        Jz_noghosts[x_upper, y_upper, z_upper] += Wuuu*momz_i
     # The particle data is no longer needed. Free it to save memory.
     component.representation = 'particles'
     component.resize(1)
@@ -814,42 +875,24 @@ def CIC_particles2fluid(component):
     # Do the needed communications.
     component.representation = 'fluid'
     component.communicate_fluid_grids(mode='add contributions')
-    # The formula for getting the ρ grid from the particles is
-    # ρ = CIC_grid*mass/Vcell,
-    # where mass is the particle mass and CIC_grid is the interpolated
-    # grid using just raw weights, meaning that each particle
-    # contribute a total of 1 to CIC_grid.
-    # As of now, the values in ρ correspond to those of CIC_grid.
-    #
-    # The formula for getting the ρux, ρuy and ρuz grids from the
-    # particles is
-    # ρau = CIC_ρ*a*u = (mass/Vcell)*a*CIC_u = (a*CIC_u*mass)/Vcell = CIC_mom/Vcell
-    # where a is the current scale factor and CIC_{ρ, u, mom} is the
-    # interpolated grid with ρ, u or mom multiplied on the raw weights,
-    # respectively.
-    # As of now, the values in ρux, ρuy and ρuz correspond
-    # to those of CIC_mom.
-    #
-    # Apply the above transformations to the fluid elements,
-    # excluding ghosts and peseudo points. Vaccum elements
-    # (fluid elements not interpolated to) will be assigned the
-    # vacuum density ρ_vacuum.
+    # Multiply the missing constant factors on the
+    # interpolated grid values. Here ghosts and pseudo points
+    # are excluded. Vaccum elements (fluid elements not
+    # interpolated to) will be assigned the vacuum density ϱ_vacuum.
     N_vacuum = 0
-    for         i in range(ℤ[ρ_noghosts.shape[0] - 1]):
-        for     j in range(ℤ[ρ_noghosts.shape[1] - 1]):
-            for k in range(ℤ[ρ_noghosts.shape[2] - 1]):
-                if ρ_noghosts[i, j, k] < ρ_vacuum:
+    for         i in range(ℤ[ϱ_noghosts.shape[0] - 1]):
+        for     j in range(ℤ[ϱ_noghosts.shape[1] - 1]):
+            for k in range(ℤ[ϱ_noghosts.shape[2] - 1]):
+                if ϱ_noghosts[i, j, k] < ϱ_vacuum:
                     # Vacuuum element detected. Assign the vacuum
                     # density and leave the momentum at zero.
                     N_vacuum += 1
-                    ρ_noghosts[i, j, k] = ρ_vacuum
+                    ϱ_noghosts[i, j, k] = ϱ_vacuum
                 else:
-                    # ρ
-                    ρ_noghosts[i, j, k] *= ℝ[mass/Vcell]
-                    # ρu
-                    ρux_noghosts[i, j, k] *= ℝ[1/Vcell]
-                    ρuy_noghosts[i, j, k] *= ℝ[1/Vcell]
-                    ρuz_noghosts[i, j, k] *= ℝ[1/Vcell]
+                    ϱ_noghosts [i, j, k] *= ℝ[mass/Vcell]
+                    Jx_noghosts[i, j, k] *= ℝ[1/Vcell]
+                    Jy_noghosts[i, j, k] *= ℝ[1/Vcell]
+                    Jz_noghosts[i, j, k] *= ℝ[1/Vcell]
     # Count up number of vacuum elements from all processes
     N_vacuum = allreduce(N_vacuum, op=MPI.SUM)
     # If any vacuum elements exist, the fact that the assigned vacuum
@@ -858,19 +901,19 @@ def CIC_particles2fluid(component):
     # amount. This act may itself produce densities lower than the
     # vacuum density, so we have to keep doing this until no sub-vaccum
     # densities exist.
-    Δρ_tot = N_vacuum*ρ_vacuum
-    while Δρ_tot != 0:
-        Δρ_tot = 0
-        Δρ = Δρ_tot/component.gridsize**3
-        for         i in range(ℤ[ρ_noghosts.shape[0] - 1]):
-            for     j in range(ℤ[ρ_noghosts.shape[1] - 1]):
-                for k in range(ℤ[ρ_noghosts.shape[2] - 1]):
-                    if ρ_noghosts[i, j, k] > ρ_vacuum:
-                        ρ_noghosts[i, j, k] -= Δρ
-                        if ρ_noghosts[i, j, k] < ρ_vacuum:
-                            Δρ_tot += ρ_vacuum - ρ_noghosts[i, j, k]
-                            ρ_noghosts[i, j, k] = ρ_vacuum
-        Δρ_tot = allreduce(Δρ, op=MPI.SUM)
+    Δϱ_tot = N_vacuum*ϱ_vacuum
+    while Δϱ_tot != 0:
+        Δϱ_tot = 0
+        Δϱ = Δϱ_tot/component.gridsize**3
+        for         i in range(ℤ[ϱ_noghosts.shape[0] - 1]):
+            for     j in range(ℤ[ϱ_noghosts.shape[1] - 1]):
+                for k in range(ℤ[ϱ_noghosts.shape[2] - 1]):
+                    if ϱ_noghosts[i, j, k] > ϱ_vacuum:
+                        ϱ_noghosts[i, j, k] -= Δϱ
+                        if ϱ_noghosts[i, j, k] < ϱ_vacuum:
+                            Δϱ_tot += ϱ_vacuum - ϱ_noghosts[i, j, k]
+                            ϱ_noghosts[i, j, k] = ϱ_vacuum
+        Δϱ_tot = allreduce(Δϱ, op=MPI.SUM)
     # The local bulk of all fluid grids now hold the final values.
     # Populate pseudo and ghost points.
     component.communicate_fluid_grids(mode='populate')
@@ -879,18 +922,27 @@ def CIC_particles2fluid(component):
     # Return the number of fluid elements not interpolated to
     return N_vacuum
 
-# Function for CIC interpolating the component coordinates of all
-# components to the slabs. Each particle/fluid element will be weighted
-# by their mass.
+# Function for CIC interpolating components to the slabs
 @cython.header(# Arguments
                components='list',
+               factors='list',
                )
-def CIC_components2slabs(components):
+def CIC_components2slabs(components, factors=None):
+    """First the components are interpolated onto the φ grid and then
+    these grid values are communicated to the slabs.
+    For fluid components what is interpolated is ϱ. To be consistent
+    with this, when interpolating particles, each particle contribute
+    with a total factor of mass/Vcell, where mass is the particle mass
+    and Vcell is the comoving volume of a single cell in φ.
+    If further weights in the interpolation is required, these can be
+    specified via the factors argument, which must be list the same size
+    as the components list.
+    """
     # Nullify the slab and φ grid
     slab[...] = 0
     φ[...] = 0
     # Interpolate component coordinates weighted by their masses to φ
-    CIC_components2domain_grid(components, φ)
+    CIC_components2domain_grid(components, φ, factors)
     # Communicate the interpolated data in φ into the slabs
     φ2slabs()
 
@@ -994,7 +1046,7 @@ def slabs_IFFT():
 
 # This function differentiates a given grid
 # along the dim dimension once.
-# The parsed grid must include psuedo and ghost points. The pseudo
+# The passed grid must include psuedo and ghost points. The pseudo
 # points will be differentiated along with the actual grid points.
 # To achieve proper units, the physical grid spacing may be specified
 # as h. If not given, grid units (h == 1) are used.
@@ -1006,7 +1058,7 @@ def slabs_IFFT():
 # if needed).
 # The returned grid will include pseudo points but no ghost points.
 # If the supplied buffer include ghost points, these will change.
-# Note that a grid cannot be differentiated in-place by parsing the
+# Note that a grid cannot be differentiated in-place by passing the
 # grid as both the first and third argument, as the differentiation
 # of each grid point requires information from the original
 # (non-differentiated) grid.
@@ -1251,7 +1303,7 @@ cython.declare(# The slab grid
                φ_start_i='Py_ssize_t',
                φ_start_j='Py_ssize_t',
                φ_start_k='Py_ssize_t',
-               # For communication between PM and φ
+               # For communication between φ and the slabs
                N_φ2slabs_communications='int',
                φ_sendrecv_i_end='int[::1]',
                φ_sendrecv_i_start='int[::1]',
@@ -1368,41 +1420,41 @@ if use_φ:
     φ_size_k = φ_noghosts.shape[2] - 1
     # Check if the slab is large enough for P3M to work,
     # if the P3M algorithm is to be used.
-    if master and use_P3M:
-        if (   φ_size_i < P3M_scale*P3M_cutoff
-            or φ_size_j < P3M_scale*P3M_cutoff
-            or φ_size_k < P3M_scale*P3M_cutoff):
+    if master and use_p3m:
+        if (   φ_size_i < p3m_scale*p3m_cutoff
+            or φ_size_j < p3m_scale*p3m_cutoff
+            or φ_size_k < p3m_scale*p3m_cutoff):
             abort('A φ_gridsize of {} and {} processes results in the following domain '
                   'partitioning: {}.\n The smallest domain width is {} grid cells, while the '
-                  'choice of P3M_scale ({}) and P3M_cutoff ({})\nmeans that the domains must '
+                  'choice of p3m_scale ({}) and p3m_cutoff ({})\nmeans that the domains must '
                   'be at least {} grid cells for the P3M algorithm to work.'
                   .format(φ_gridsize,
                           nprocs,
                           list(domain_subdivisions),
                           np.min([φ_size_i, φ_size_j, φ_size_k]),
-                          P3M_scale,
-                          P3M_cutoff,
-                          int(np.ceil(P3M_scale*P3M_cutoff)),
+                          p3m_scale,
+                          p3m_cutoff,
+                          int(np.ceil(p3m_scale*p3m_cutoff)),
                           )
                    )
-        if ((   φ_size_i < 2*P3M_scale*P3M_cutoff
-             or φ_size_j < 2*P3M_scale*P3M_cutoff
-             or φ_size_k < 2*P3M_scale*P3M_cutoff) and np.min(domain_subdivisions) < 3):
+        if ((   φ_size_i < 2*p3m_scale*p3m_cutoff
+             or φ_size_j < 2*p3m_scale*p3m_cutoff
+             or φ_size_k < 2*p3m_scale*p3m_cutoff) and np.min(domain_subdivisions) < 3):
             # If the above is True, the left and the right (say) process
             # is the same and the boundaries will be send to it twice,
             # and these will overlap with each other in the left/right
             # domain, eventually leading to gravity being applied twice.
             abort('A φ_gridsize of {} and {} processes results in the following domain '
                   'partitioning: {}.\nThe smallest domain width is {} grid cells, while the '
-                  'choice of P3M_scale ({}) and P3M_cutoff ({})\nmeans that the domains must '
+                  'choice of p3m_scale ({}) and p3m_cutoff ({})\nmeans that the domains must '
                   'be at least {} grid cells for the P3M algorithm to work.'
                   .format(φ_gridsize,
                           nprocs,
                           list(domain_subdivisions),
                           np.min([φ_size_i, φ_size_j, φ_size_k]),
-                          P3M_scale,
-                          P3M_cutoff,
-                          int(np.ceil(2*P3M_scale*P3M_cutoff)),
+                          p3m_scale,
+                          p3m_cutoff,
+                          int(np.ceil(2*p3m_scale*p3m_cutoff)),
                           )
                    )
     # Additional information about φ and the slabs,

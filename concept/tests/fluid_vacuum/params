@@ -44,7 +44,7 @@ terminal_render_colormap   = 'ocean'
 terminal_render_resolution = min([φ_gridsize, 80])
 
 # Simulation options
-forces = {'all': {'gravity': 'PM'}}
+forces = {'all': {'gravity': 'pm'}}
 
 # Debugging options
 enable_Hubble = False

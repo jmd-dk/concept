@@ -92,7 +92,7 @@ def convert():
     attributes which should be changed.
     """
     # Create dict of global parameters (params) and (default)dict of
-    # component attributes (attributes) from the parsed attributes.
+    # component attributes (attributes) from the passed attributes.
     params = {}
     attributes = collections.defaultdict(dict)
     for attribute_str in special_params['attributes']:
@@ -148,10 +148,10 @@ def convert():
                            'which does not exist:\n{}'.format(name, attributes[name]))
     # Overwrite parameters in the snapshot with those from the
     # parameter file (those which are currently loaded as globals).
-    # If paremters are parsed directly, these should take precedence
+    # If paremters are passed directly, these should take precedence
     # over those from the parameter file.
     snapshot.populate(snapshot.components, params)
-    # Edit individual components if component attributes are parsed
+    # Edit individual components if component attributes are passed
     for component in snapshot.components:
         # The (original) name of this component
         name = component.name
@@ -160,6 +160,12 @@ def convert():
         original_mass = component.mass
         # Edit component attributes
         for key, val in attributes[name].items():
+            if key in ('w', 'eos_w'):
+                # An equation of state parameter w is given.
+                # As this is not just a single attribute, we need to
+                # handle this case on its own.
+                component.initialize_w(val)
+                continue
             if not hasattr(component, key):
                 # A non-existing attribute was specified. As this is
                 # nonsensical and leads to an error in compiled mode
@@ -170,8 +176,6 @@ def convert():
         component.representation = get_representation(component.species)
         # Apply particles --> fluid convertion, if necessary
         if original_representation == 'particles' and component.representation == 'fluid':
-            # Initialize the equation of state parameter
-            component.initialize_w()
             # To do the convertion, the particles need to be
             # distributed according to which domain they are in.
             component.representation = 'particles'
@@ -466,7 +470,7 @@ def info():
             # As the following printed information should be parsable,
             # wrapping is deactivated on every call to masterprint.
             # Do not edit the text in the heading,
-            # as it is grepped for by several of the bash utilities.
+            # as it is grepped for by several of the Bash utilities.
             heading = '\nParameters of "{}"'.format(sensible_path(snapshot_filename))
             masterprint(terminal.bold(heading), wrap=False)
             with open(parameter_filename, 'w') as pfile:
@@ -506,7 +510,7 @@ def info():
                     masterprint('Ωm = {:.12g}'.format(params['Ωm']), file=file, wrap=False)
                     masterprint('ΩΛ = {:.12g}'.format(params['ΩΛ']), file=file, wrap=False)
             # Do not edit the printed text below,
-            # as it is grepped for by several of the bash utilities.
+            # as it is grepped for by several of the Bash utilities.
             masterprint('\nThe above parameters have been written to "{}"'
                         .format(parameter_filename),
                         wrap=False)

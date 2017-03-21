@@ -54,18 +54,18 @@ masterprint('Analyzing {} data ...'.format(this_test))
 fig_file = this_dir + '/result.png'
 fig, ax = plt.subplots(N_snapshots, sharex=True, figsize=(8, 3*N_snapshots))
 x = [boxsize*i/gridsize for i in range(gridsize)]
-ρ = []
-ρ_snapshot = []
+ϱ = []
+ϱ_snapshot = []
 phases = [-t/(10*units.Gyr)*2*π for t in times]
 for ax_i, fluid, t, phase in zip(ax, fluids, times, phases):
-    ρ_i = asarray([2 + np.sin(2*π*i/gridsize + phase) for i in range(gridsize)])  # Unitless
-    ρ_i /= sum(ρ_i)                                                               # Normalize
-    ρ_i *= ρmbar*gridsize                                                         # Apply units
-    ρ.append(ρ_i)
-    ρ_snapshot.append(fluid.ρ.grid_noghosts[:gridsize, 0, 0])
-    ax_i.plot(x, ρ[-1],
+    ϱ_i = asarray([2 + np.sin(2*π*i/gridsize + phase) for i in range(gridsize)])  # Unitless
+    ϱ_i /= sum(ϱ_i)                                                               # Normalize
+    ϱ_i *= ϱ_mbar*gridsize                                                         # Apply units
+    ϱ.append(ϱ_i)
+    ϱ_snapshot.append(fluid.ϱ.grid_noghosts[:gridsize, 0, 0])
+    ax_i.plot(x, ϱ[-1],
               'r', label='Analytical solution')
-    ax_i.plot(x, ρ_snapshot[-1],
+    ax_i.plot(x, ϱ_snapshot[-1],
               'b*', label='Simulation')
     ax_i.set_ylabel(r'$\varrho$ $\mathrm{{[{}\,m_{{\odot}}\,{}^{{-3}}]}}$'
                     .format(significant_figures(1/units.m_sun,
@@ -83,29 +83,29 @@ plt.xlabel(r'$x\,\mathrm{{[{}]}}$'.format(unit_length))
 plt.tight_layout()
 plt.savefig(fig_file)
 
-# Fluid elements in yz-slices should all have the same ρ
-# and all fluid elements should have the same u = ρu/ρ.
-tol_fac_ρ = 1e-6
+# Fluid elements in yz-slices should all have the same ϱ
+# and all fluid elements should have the same u = J/ϱ.
+tol_fac_ϱ = 1e-6
 tol_fac_u = 1e-3
 for fluid, t in zip(fluids, times):
     for fluidscalar in fluid.iterate_fluidscalars():
         varnum = fluidscalar.varnum
         grid = fluidscalar.grid_noghosts[:gridsize, :gridsize, :gridsize]
         if varnum == 0:
-            # ρ
-            ρ_grid = grid
+            # ϱ
+            ϱ_grid = grid
             for i in range(gridsize):
                 yz_slice = grid[i, :, :]
                 if not isclose(np.std(yz_slice), 0,
                                rel_tol=0,
-                               abs_tol=(tol_fac_ρ*np.std(grid) + machine_ϵ)):
+                               abs_tol=(tol_fac_ϱ*np.std(grid) + machine_ϵ)):
                     abort('Non-uniformities have emerged at a = {} '
                           'in yz-slices of fluid scalar variable {}.\n'
                           'See "{}" for a visualization.'
                           .format(t, fluidscalar, fig_file))
         elif varnum == 1:
-            # ρu
-            u_grid = grid/ρ_grid
+            # J
+            u_grid = grid/ϱ_grid
             if not isclose(np.std(u_grid), 0,
                            rel_tol=0,
                            abs_tol=(tol_fac_u*abs(np.mean(u_grid)) + machine_ϵ)):
@@ -113,12 +113,12 @@ for fluid, t in zip(fluids, times):
                       'in fluid scalar variable {}'
                       .format(t, fluidscalar))
 
-# Compare ρ from the snapshots to the analytical solution
+# Compare ϱ from the snapshots to the analytical solution
 tol_fac = 1e-2
-for ρ_i, ρ_snapshot_i, t in zip(ρ, ρ_snapshot, times):
-    if not isclose(np.mean(abs(ρ_i - ρ_snapshot_i)), 0,
+for ϱ_i, ϱ_snapshot_i, t in zip(ϱ, ϱ_snapshot, times):
+    if not isclose(np.mean(abs(ϱ_i - ϱ_snapshot_i)), 0,
                    rel_tol=0,
-                   abs_tol=(tol_fac*np.std(ρ_i) + machine_ϵ)):
+                   abs_tol=(tol_fac*np.std(ϱ_i) + machine_ϵ)):
         abort('Fluid did not drift rigidly up to t = {} {}.\n'
               'See "{}" for a visualization.'
               .format(t, unit_time, fig_file))

@@ -96,11 +96,11 @@ for (a_i,
 
 # Compare the biggest halos of the particle and the fluid simulation
 def find_biggest_halo(component):
-    ρ = component.ρ.grid_noghosts[:-1, :-1, :-1]
-    indices = np.unravel_index(np.argmax(ρ), ρ.shape)
+    ϱ = component.ϱ.grid_noghosts[:-1, :-1, :-1]
+    indices = np.unravel_index(np.argmax(ϱ), ϱ.shape)
     δ_halo_boundary = 0.5
-    halo = zeros(ρ.shape[0]//2)
-    for r in range(ρ.shape[0]//2):
+    halo = zeros(ϱ.shape[0]//2)
+    for r in range(ϱ.shape[0]//2):
         count = 0
         for         i in range(-r, r + 1):
             for     j in range(-r, r + 1):
@@ -108,12 +108,12 @@ def find_biggest_halo(component):
                     if i**2 + j**2 + k**2 > r**2:
                         continue
                     count += 1
-                    I = mod(i + indices[0], ρ.shape[0])
-                    J = mod(j + indices[1], ρ.shape[1])
-                    K = mod(k + indices[2], ρ.shape[2])
-                    halo[r] += ρ[I, J, K]
-                    ρ[I, J, K] = 0
-        halo[r] = halo[r]/(count*ρmbar) - 1
+                    I = mod(i + indices[0], ϱ.shape[0])
+                    J = mod(j + indices[1], ϱ.shape[1])
+                    K = mod(k + indices[2], ϱ.shape[2])
+                    halo[r] += ϱ[I, J, K]
+                    ϱ[I, J, K] = 0
+        halo[r] = halo[r]/(count*ϱ_mbar) - 1
         if halo[r] < δ_halo_boundary:
             return indices, r
 render_filenames = {'particles': [], 'fluid': []}

@@ -52,30 +52,30 @@ masterprint('Analyzing {} data ...'.format(this_test))
 
 # Extract information from the first snapshot
 w = fluids[0].w_constant
-cs = light_speed*sqrt(w/(1 + w))
+cs = light_speed*sqrt(w)
 T = boxsize/cs
 t0 = times[0]
-ρ0 = fluids[0].ρ.grid_noghosts[:gridsize, 0, 0]
-ρ_max = max(ρ0)
-ρ_min = min(ρ0)
-ρ_mean = np.mean(ρ0)
-ρ0_sin = ρ0 - ρ_mean
+ϱ0 = fluids[0].ϱ.grid_noghosts[:gridsize, 0, 0]
+ϱ_max = max(ϱ0)
+ϱ_min = min(ϱ0)
+ϱ_mean = np.mean(ϱ0)
+ϱ0_sin = ϱ0 - ϱ_mean
 
 # Plot
 fig_file = this_dir + '/result.png'
 fig, ax = plt.subplots(N_snapshots, sharex=True, sharey=True, figsize=(8, 3*N_snapshots))
 x = [boxsize*i/gridsize for i in range(gridsize)]
-ρ = []
-ρ_snapshot = []
+ϱ = []
+ϱ_snapshot = []
 for ax_i, fluid, t in zip(ax, fluids, times):
-    ρ.append(ρ_mean + ρ0_sin*cos((t - t0)/T*2*π))
-    ρ_snapshot.append(fluid.ρ.grid_noghosts[:gridsize, 0, 0])
-    ax_i.plot([0, boxsize], [ρ_mean]*2, 'k:' )
-    ax_i.plot([0, boxsize], [ρ_max ]*2, 'k--')
-    ax_i.plot([0, boxsize], [ρ_min ]*2, 'k--')
-    ax_i.plot(x, ρ[-1],
+    ϱ.append(ϱ_mean + ϱ0_sin*cos((t - t0)/T*2*π))
+    ϱ_snapshot.append(fluid.ϱ.grid_noghosts[:gridsize, 0, 0])
+    ax_i.plot([0, boxsize], [ϱ_mean]*2, 'k:' )
+    ax_i.plot([0, boxsize], [ϱ_max ]*2, 'k--')
+    ax_i.plot([0, boxsize], [ϱ_min ]*2, 'k--')
+    ax_i.plot(x, ϱ[-1],
               'r', label='Analytical solution')
-    ax_i.plot(x, ρ_snapshot[-1],
+    ax_i.plot(x, ϱ_snapshot[-1],
               'b*', label='Simulation')
     ax_i.set_ylabel(r'$\varrho$ $\mathrm{{[{}\,m_{{\odot}}\,{}^{{-3}}]}}$'
                     .format(significant_figures(1/units.m_sun,
@@ -109,10 +109,10 @@ for fluid, t in zip(fluids, times):
                       'See "{}" for a visualization.'
                       .format(t, fluidscalar, fig_file))
 
-# Compare ρ from the snapshots to the analytical solution
-abs_tol = 1e-2*np.std(ρ0)
-for ρ_i, ρ_snapshot_i, t in zip(ρ, ρ_snapshot, times):
-    if not isclose(np.mean(abs(ρ_i - ρ_snapshot_i)), 0,
+# Compare ϱ from the snapshots to the analytical solution
+abs_tol = 1e-2*np.std(ϱ0)
+for ϱ_i, ϱ_snapshot_i, t in zip(ϱ, ϱ_snapshot, times):
+    if not isclose(np.mean(abs(ϱ_i - ϱ_snapshot_i)), 0,
                    rel_tol=0,
                    abs_tol=abs_tol):
         abort('Fluid evolution differs from the analytical solution at t = {} {}.\n'

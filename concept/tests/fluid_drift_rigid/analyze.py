@@ -54,19 +54,19 @@ particle_components = [particle_components[o] for o in order]
 # Begin analysis
 masterprint('Analyzing {} data ...'.format(this_test))
 
-# Extract ρ(x) of fluids and y(x) of particles.
-# To compare ρ to y, a scaling is needed.
-# Since the x's in ρ(x) are discretized, but the x's in y(x) are not,
+# Extract ϱ(x) of fluids and y(x) of particles.
+# To compare ϱ to y, a scaling is needed.
+# Since the x's in ϱ(x) are discretized, but the x's in y(x) are not,
 # we interpolate y to the disretized x-values.
 x_fluid = asarray([boxsize*i/gridsize for i in range(gridsize)])
-ρ = []
+ϱ = []
 y = []
 y_interp = []
 for fluid, particles in zip(fluid_components, particle_components):
-    ρ.append(fluid.ρ.grid_noghosts[:gridsize, 0, 0])
+    ϱ.append(fluid.ϱ.grid_noghosts[:gridsize, 0, 0])
     y_i = particles.posy.copy()
-    A_fluid          = 0.5*(max(ρ[0]) - min(ρ[0]))
-    offset_fluid     = 0.5*(max(ρ[0]) + min(ρ[0]))
+    A_fluid          = 0.5*(max(ϱ[0]) - min(ϱ[0]))
+    offset_fluid     = 0.5*(max(ϱ[0]) + min(ϱ[0]))
     A_particles      = 0.5*(max(y_i)  - min(y_i))
     offset_particles = 0.5*(max(y_i)  + min(y_i))
     y_i -= offset_particles 
@@ -81,12 +81,12 @@ for fluid, particles in zip(fluid_components, particle_components):
 # Plot
 fig_file = this_dir + '/result.png'
 fig, ax = plt.subplots(N_snapshots, sharex=True, figsize=(8, 3*N_snapshots))
-for ax_i, particles, ρ_i, y_i, y_interp_i, a_i in zip(ax, particle_components, ρ, y, y_interp, a):
+for ax_i, particles, ϱ_i, y_i, y_interp_i, a_i in zip(ax, particle_components, ϱ, y, y_interp, a):
     ax_i.plot(particles.posx, y_i,
               'ro', markerfacecolor='none', markeredgecolor='r',
               label='Particle simulation')
     ax_i.plot(x_fluid, y_interp_i, 'r')
-    ax_i.plot(x_fluid, ρ_i, 'b*', label='Fluid simulation')
+    ax_i.plot(x_fluid, ϱ_i, 'b*', label='Fluid simulation')
     ax_i.set_ylabel('scaled and shifted $y$,\n' + r'$\varrho$ $\mathrm{{[{}\,m_{{\odot}}\,{}^{{-3}}]}}$'
                     .format(significant_figures(1/units.m_sun,
                                                 3,
@@ -103,29 +103,29 @@ plt.xlabel(r'$x\,\mathrm{{[{}]}}$'.format(unit_length))
 plt.tight_layout()
 plt.savefig(fig_file)
 
-# Fluid elements in yz-slices should all have the same ρ
-# and all fluid elements should have the same u = ρu/ρ.
-tol_fac_ρ = 1e-6
+# Fluid elements in yz-slices should all have the same ϱ
+# and all fluid elements should have the same u = J/ϱ.
+tol_fac_ϱ = 1e-6
 tol_fac_u = 1e-3
 for fluid, a_i in zip(fluid_components, a):
     for fluidscalar in fluid.iterate_fluidscalars():
         varnum = fluidscalar.varnum
         grid = fluidscalar.grid_noghosts[:gridsize, :gridsize, :gridsize]
         if varnum == 0:
-            # ρ
-            ρ_grid = grid
+            # ϱ
+            ϱ_grid = grid
             for i in range(gridsize):
                 yz_slice = grid[i, :, :]
                 if not isclose(np.std(yz_slice), 0,
                                rel_tol=0,
-                               abs_tol=(tol_fac_ρ*np.std(grid) + machine_ϵ)):
+                               abs_tol=(tol_fac_ϱ*np.std(grid) + machine_ϵ)):
                     abort('Non-uniformities have emerged at a = {} '
                           'in yz-slices of fluid scalar variable {}.\n'
                           'See "{}" for a visualization.'
                           .format(a_i, fluidscalar, fig_file))
         elif varnum == 1:
-            # ρu
-            u_grid = grid/ρ_grid
+            # J
+            u_grid = grid/ϱ_grid
             if not isclose(np.std(u_grid), 0,
                            rel_tol=0,
                            abs_tol=(tol_fac_u*abs(np.mean(u_grid)) + machine_ϵ)):
@@ -133,12 +133,12 @@ for fluid, a_i in zip(fluid_components, a):
                       'in fluid scalar variable {}'
                       .format(a_i, fluidscalar))
 
-# Compare ρ to the fluid from the snapshots
+# Compare ϱ to the fluid from the snapshots
 tol_fac = 1e-2
-for ρ_i, y_interp_i, a_i in zip(ρ, y_interp, a):
-    if not isclose(np.mean(np.abs(ρ_i - y_interp_i)), 0,
+for ϱ_i, y_interp_i, a_i in zip(ϱ, y_interp, a):
+    if not isclose(np.mean(np.abs(ϱ_i - y_interp_i)), 0,
                    rel_tol=0,
-                   abs_tol=(tol_fac*np.std(ρ_i) + machine_ϵ)):
+                   abs_tol=(tol_fac*np.std(ϱ_i) + machine_ϵ)):
         abort('Fluid drift differs from particle drift at a = {:.3g}.\n'
               'See "{}" for a visualization.'
               .format(a_i, fig_file))

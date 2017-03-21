@@ -61,16 +61,16 @@ masterprint('Analyzing {} data ...'.format(this_test))
 fig_file = this_dir + '/result.png'
 fig, ax = plt.subplots(N_snapshots, sharex=True, sharey=True, figsize=(8, 3*N_snapshots))
 x = [boxsize*i/gridsize for i in range(gridsize)]
-ρ = {'particles simulations': [], 'fluid simulations': []}
+ϱ = {'particles simulations': [], 'fluid simulations': []}
 for kind, markertype, options in zip(('particles', 'fluid'),
                                      ('ro', 'b*'),
                                      ({'markerfacecolor': 'none', 'markeredgecolor': 'r'}, {}),
                                      ):
     for ax_i, fluid, t in zip(ax, fluids[kind + ' simulations'], times):
-        ρ[kind + ' simulations'].append(fluid.ρ.grid_noghosts[:gridsize,
+        ϱ[kind + ' simulations'].append(fluid.ϱ.grid_noghosts[:gridsize,
                                                               :gridsize,
                                                               :gridsize].mean((1, 2)))
-        ax_i.plot(x, ρ[kind + ' simulations'][-1],
+        ax_i.plot(x, ϱ[kind + ' simulations'][-1],
                   markertype,
                   label=(kind.rstrip('s').capitalize() + ' simulation'),
                   **options,
@@ -91,7 +91,7 @@ plt.xlabel(r'$x\,\mathrm{{[{}]}}$'.format(unit_length))
 plt.tight_layout()
 plt.savefig(fig_file)
 
-# Fluid elements in yz-slices should all have the same ρ and ρu
+# Fluid elements in yz-slices should all have the same ϱ and J
 tol_fac = 1e-6
 for kind in ('particles', 'fluid'):
     for fluid, t in zip(fluids[kind + ' simulations'], times):
@@ -108,20 +108,20 @@ for kind in ('particles', 'fluid'):
                           'See "{}" for a visualization.'
                           .format(t, unit_time, fluidscalar, kind.rstrip('s'), fig_file))
 
-# Compare ρ's from the fluid and snapshot simulations
+# Compare ϱ's from the fluid and snapshot simulations
 discontinuity_tol = 2
 rel_tol = 0.1
-for ρ_fluid, ρ_particles, t in zip(ρ['fluid simulations'], ρ['particles simulations'], times):
-    abs_tol = rel_tol*np.std(ρ_particles)
-    slope_left  = ρ_particles - np.roll(ρ_particles, -1)
-    slope_right = np.roll(ρ_particles, +1) - ρ_particles
+for ϱ_fluid, ϱ_particles, t in zip(ϱ['fluid simulations'], ϱ['particles simulations'], times):
+    abs_tol = rel_tol*np.std(ϱ_particles)
+    slope_left  = ϱ_particles - np.roll(ϱ_particles, -1)
+    slope_right = np.roll(ϱ_particles, +1) - ϱ_particles
     discontinuities = np.abs(slope_right - slope_left)
     discontinuities = [max(d) for d in zip(*[np.roll(discontinuities, r) for r in range(-3, 4)])]
-    if not all(isclose(ρ_fluid_i, ρ_particles_i,
+    if not all(isclose(ϱ_fluid_i, ϱ_particles_i,
                        rel_tol=0,
                        abs_tol=(discontinuity_tol*discontinuity + abs_tol), 
-                       ) for ρ_fluid_i, ρ_particles_i, discontinuity in zip(ρ_fluid,
-                                                                            ρ_particles,
+                       ) for ϱ_fluid_i, ϱ_particles_i, discontinuity in zip(ϱ_fluid,
+                                                                            ϱ_particles,
                                                                             discontinuities)):
         abort('Fluid did not evolve correctly up to t = {} {}.\n'
               'See "{}" for a visualization.'

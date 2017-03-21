@@ -30,7 +30,7 @@ from snapshot import save
 # Create close to homogeneous particles
 N_lin = 128
 N = N_lin**3
-mass = ϱmbar*boxsize**3/N
+mass = ϱ_mbar*boxsize**3/N
 component = Component('test particles', 'dark matter particles', N, mass)
 posx = empty(N)
 posy = empty(N)

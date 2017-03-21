@@ -83,7 +83,6 @@ print('argparse_finished=yes')
 eval "${args}"
 # Exit if argparse exited without finishing
 if [ "${argparse_finished}" != "yes" ]; then
-    echo "exiting after argparse..."
     trap : 0
     exit 0
 fi

@@ -468,6 +468,9 @@ if not cython.compiled:
                        )
     cbrt = lambda x: x**(1/3)
     from math import erf, erfc
+    # The closest thing to a Null pointer in pure Python is the
+    # None object (not presently used inside pure Python code).
+    NULL = None
     # Dummy functions and constants
     def dummy_func(*args, **kwargs):
         ...
@@ -481,7 +484,7 @@ if not cython.compiled:
     ℝ = DummyDict()
     ℤ = DummyDict()
     # The cimport function, which in the case of pure Python should
-    # simply execute the statements parsed to it as a string,
+    # simply execute the statements passed to it as a string,
     # within the namespace of the call.
     def cimport(import_statement):
         import_statement = import_statement.strip()
@@ -500,7 +503,7 @@ if not cython.compiled:
 # Function for building "structs" (really simple namespaces).
 # In compiled mode, this function body will be copied and
 # specialised for each kind of struct created.
-# This function returns a struct and a dict over the parsed fields.
+# This function returns a struct and a dict over the passed fields.
 # Note that these are not linked, meaning that you should not alter
 # the values of a (struct, dict)-pair after creation if you are using
 # the dict at all (the dict is useful for dynamic evaluations).
@@ -608,18 +611,18 @@ from libc.math cimport (sin, cos, tan,
 #####################
 # The pyxpp script convert all Unicode source code characters into
 # ASCII using the below function.
-@cython.header(# Arguments
-               s='str',
-               # Locals
-               c='str',
-               char_list='list',
-               in_unicode_char='bint',
-               pat='str',
-               sub='str',
-               unicode_char='str',
-               unicode_name='str',
-               returns='str',
-               )
+@cython.pheader(# Arguments
+                s='str',
+                # Locals
+                c='str',
+                char_list='list',
+                in_unicode_char='bint',
+                pat='str',
+                sub='str',
+                unicode_char='str',
+                unicode_name='str',
+                returns='str',
+                )
 def asciify(s):
     char_list = []
     in_unicode_char = False
@@ -658,8 +661,8 @@ unicode_tags = {'begin': 'BEGIN_UNICODE__',
 
 # The function below grants the code access to
 # Unicode string literals by undoing the convertion of the
-# ascii function above.
-@cython.header(s='str', returns='str')
+# asciify function above.
+@cython.pheader(s='str', returns='str')
 def unicode(s):
     return re.sub('{}(.*?){}'.format(unicode_tags['begin'], unicode_tags['end']), unicode_repl, s)
 @cython.pheader(# Arguments
@@ -729,7 +732,7 @@ def eval_unit(unit_str, namespace=None, fail_on_error=True):
     of unit_str are legal, e.g. 'm☉ Mpc Gyr⁻¹'.
     You may specify some other dict than the global units_dict
     as the namespace to perform the evaluation within,
-    by parsing it as a second argument.
+    by passing it as a second argument.
     If you wish to allow for failures of evaluation, set fail_on_error
     to False. A failure will now not raise an exception,
     but merely return None.
@@ -862,12 +865,12 @@ if os.path.isfile(paths['params']):
 ###########################
 cython.declare(machine_ϵ='double',
                π='double',
-               ρ_vacuum='double',
+               ϱ_vacuum='double',
                ထ='double',
                )
 machine_ϵ = np.finfo(C2np['double']).eps
 π = np.pi
-ρ_vacuum = 1e+2*machine_ϵ
+ϱ_vacuum = 1e+2*machine_ϵ
 ထ = cast(np.inf, 'double')
 
 
@@ -1138,8 +1141,8 @@ cython.declare(# Input/output
                boxsize='double',
                ewald_gridsize='Py_ssize_t',
                φ_gridsize='ptrdiff_t',
-               P3M_scale='double',
-               P3M_cutoff='double',
+               p3m_scale='double',
+               p3m_cutoff='double',
                softeningfactors='dict',
                R_tophat='double',
                # Cosmology
@@ -1160,7 +1163,7 @@ cython.declare(# Input/output
                w_eos='dict',
                # Simlation options
                use_φ='bint',
-               use_P3M='bint',
+               use_p3m='bint',
                fftw_rigor='str',
                # Debugging options
                enable_debugging='bint',
@@ -1238,8 +1241,8 @@ if autosave < 0:
 boxsize = float(user_params.get('boxsize', 1))
 ewald_gridsize = to_int(user_params.get('ewald_gridsize', 64))
 φ_gridsize = to_int(user_params.get('φ_gridsize', 64))
-P3M_scale = float(user_params.get('P3M_scale', 1.25))
-P3M_cutoff = float(user_params.get('P3M_cutoff', 4.8))
+p3m_scale = float(user_params.get('p3m_scale', 1.25))
+p3m_cutoff = float(user_params.get('p3m_cutoff', 4.8))
 softeningfactors = dict(user_params.get('softeningfactors', {}))
 replace_ellipsis(softeningfactors)
 for kind in ('dark matter particles', ):
@@ -1301,9 +1304,9 @@ if (   'φ_gridsize' in user_params
 else:
     use_φ = bool(user_params.get('use_φ', False))
 if 'p3m' in force_methods:
-    use_P3M = bool(user_params.get('use_P3M', True))
+    use_p3m = bool(user_params.get('use_p3m', True))
 else:
-    use_P3M = bool(user_params.get('use_P3M', False))
+    use_p3m = bool(user_params.get('use_p3m', False))
 fftw_rigor = user_params.get('fftw_rigor', 'estimate').lower()
 # Graphics
 render_colors = {}
@@ -1375,12 +1378,12 @@ cython.declare(light_speed='double',
                snapshot_base='str',
                snapshot_times='dict',
                terminal_render_times='dict',
-               ρbar='double',
-               ρmbar='double',
-               PM_fac_const='double',
+               ϱ_crit='double',
+               ϱ_mbar='double',
+               pm_fac_const='double',
                longrange_exponent_fac='double',
-               P3M_cutoff_phys='double',
-               P3M_scale_phys='double',
+               p3m_cutoff_phys='double',
+               p3m_scale_phys='double',
                )
 # Extract output variables from output dicts
 snapshot_dir          = output_dirs['snapshot']
@@ -1402,10 +1405,13 @@ light_speed = 299792458*units.m/units.s
 # Newton's gravitational constant
 G_Newton = 6.6738e-11*units.m**3/(units.kg*units.s**2)
 # The average, comoing density (the critical
-# comoving density since we only study flat universes)
-ρbar = 3*H0**2/(8*π*G_Newton)
+# comoving density since we only study flat universes).
+# We allow ourselves to use the symbol ϱ in ϱ_crit even though
+# this refers to ϱ = a**(3*(1 + w))*ρ where ρ is the proper density,
+# a is the scale factor and w is the equation of state parameter.
+ϱ_crit = 3*H0**2/(8*π*G_Newton)
 # The average, comoving matter density
-ρmbar = Ωm*ρbar
+ϱ_mbar = Ωm*ϱ_crit
 # The real size of the padded (last) dimension of global slab grid
 slab_size_padding = 2*(φ_gridsize//2 + 1)
 # Half of φ_gridsize (use of the ℝ-syntax requires doubles)
@@ -1416,32 +1422,29 @@ slab_size_padding = 2*(φ_gridsize//2 + 1)
 # Name of file storing the Ewald grid
 ewald_file = '.ewald_gridsize=' + str(ewald_gridsize) + '.hdf5'
 # All constant factors across the PM scheme is gathered in the
-# PM_fac_const variable. Its contributions are:
-# For CIC interpolating particle/fluid element masses to the grid
-# points, when really it should be mass densities:
-#     1/(boxsize/φ_gridsize)**3
+# pm_fac_const variable. Its contributions are:
 # Normalization due to forwards and backwards Fourier transforms:
 #     1/φ_gridsize**3
 # Factor in the Greens function:
 #     -4*π*G_Newton/((2*π/((boxsize/φ_gridsize)*φ_gridsize))**2)   
 # The acceleration is the negative gradient of the potential:
 #     -1
-# For converting acceleration to momentum
+# For converting acceleration to momentum (for particles)
 #     particles.mass*Δt
 # Everything except the mass and the time are constant, and is condensed
-# into the PM_fac_const variable.
-PM_fac_const = G_Newton/(π*boxsize)
+# into the pm_fac_const variable.
+pm_fac_const = G_Newton*boxsize**2/(π*φ_gridsize**3) 
 # The exponential cutoff for the long-range force looks like
 # exp(-k2*rs2). In the code, the wave vector is in grid units in stead
 # of radians. The conversion is 2*π/φ_gridsize. The total factor on k2
 # in the exponential is then
-longrange_exponent_fac = -(2*π/φ_gridsize*P3M_scale)**2
+longrange_exponent_fac = -(2*π/φ_gridsize*p3m_scale)**2
 # The short-range/long-range force scale
-P3M_scale_phys = P3M_scale*boxsize/φ_gridsize
+p3m_scale_phys = p3m_scale*boxsize/φ_gridsize
 # Particles within this distance to the surface of the domain should
 # interact with particles in the neighboring domain via the shortrange
 # force, when the P3M algorithm is used.
-P3M_cutoff_phys = P3M_scale_phys*P3M_cutoff
+p3m_cutoff_phys = p3m_scale_phys*p3m_cutoff
 
 
 
@@ -1456,9 +1459,9 @@ P3M_cutoff_phys = P3M_scale_phys*P3M_cutoff
 # Add physical quantities.
 units_dict.setdefault('G_Newton'              , G_Newton              )
 units_dict.setdefault('H0'                    , H0                    )
-units_dict.setdefault('P3M_cutoff_phys'       , P3M_cutoff_phys       )
-units_dict.setdefault('P3M_scale_phys'        , P3M_scale_phys        )
-units_dict.setdefault('PM_fac_const'          , PM_fac_const          )
+units_dict.setdefault('p3m_cutoff_phys'       , p3m_cutoff_phys       )
+units_dict.setdefault('p3m_scale_phys'        , p3m_scale_phys        )
+units_dict.setdefault('pm_fac_const'          , pm_fac_const          )
 units_dict.setdefault('R_tophat'              , R_tophat              )
 units_dict.setdefault('a_begin'               , a_begin               )
 units_dict.setdefault('boxsize'               , boxsize               )
@@ -1470,15 +1473,15 @@ units_dict.setdefault(        'Ωr'            , Ωr                    )
 units_dict.setdefault(unicode('Ωr')           , Ωr                    )
 units_dict.setdefault(        'ΩΛ'            , ΩΛ                    )
 units_dict.setdefault(unicode('ΩΛ')           , ΩΛ                    )
-units_dict.setdefault(        'ρ_vacuum'      , ρ_vacuum              )
-units_dict.setdefault(unicode('ρ_vacuum')     , ρ_vacuum              )
-units_dict.setdefault(        'ρbar'          , ρbar                  )
-units_dict.setdefault(unicode('ρbar')         , ρbar                  )
-units_dict.setdefault(        'ρmbar'         , ρmbar                 )
-units_dict.setdefault(unicode('ρmbar')        , ρmbar                 )
+units_dict.setdefault(        'ϱ_vacuum'      , ϱ_vacuum              )
+units_dict.setdefault(unicode('ϱ_vacuum')     , ϱ_vacuum              )
+units_dict.setdefault(        'ϱ_crit'        , ϱ_crit                )
+units_dict.setdefault(unicode('ϱ_crit')       , ϱ_crit                )
+units_dict.setdefault(        'ϱ_mbar'        , ϱ_mbar                )
+units_dict.setdefault(unicode('ϱ_mbar')       , ϱ_mbar                )
 # Add dimensionless sizes
-units_dict.setdefault('P3M_scale'                 , P3M_scale                 )
-units_dict.setdefault('P3M_cutoff'                , P3M_cutoff                )
+units_dict.setdefault('p3m_scale'                 , p3m_scale                 )
+units_dict.setdefault('p3m_cutoff'                , p3m_cutoff                )
 units_dict.setdefault('ewald_gridsize'            , ewald_gridsize            )
 units_dict.setdefault('resolution'                , resolution                )
 units_dict.setdefault('slab_size_padding'         , slab_size_padding         )

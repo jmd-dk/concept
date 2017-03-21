@@ -59,14 +59,14 @@ masterprint('Analyzing {} data ...'.format(this_test))
 fig_file = this_dir + '/result.png'
 fig, ax = plt.subplots(N_snapshots, sharex=True, sharey=True, figsize=(8, 3*N_snapshots))
 x = [boxsize*i/gridsize for i in range(gridsize)]
-ρ = {'particles simulations': [], 'fluid simulations': []}
+ϱ = {'particles simulations': [], 'fluid simulations': []}
 for kind, markertype, options in zip(('particles', 'fluid'),
                                      ('ro', 'b*'),
                                      ({'markerfacecolor': 'none', 'markeredgecolor': 'r'}, {}),
                                      ):
     for ax_i, fluid, a_i in zip(ax, fluids[kind + ' simulations'], a):
-        ρ[kind + ' simulations'].append(fluid.ρ.grid_noghosts[:gridsize, 0, 0])
-        ax_i.plot(x, ρ[kind + ' simulations'][-1],
+        ϱ[kind + ' simulations'].append(fluid.ϱ.grid_noghosts[:gridsize, 0, 0])
+        ax_i.plot(x, ϱ[kind + ' simulations'][-1],
                   markertype,
                   label=(kind.rstrip('s').capitalize() + ' simulation'),
                   **options,
@@ -87,7 +87,7 @@ plt.xlabel(r'$x\,\mathrm{{[{}]}}$'.format(unit_length))
 plt.tight_layout()
 plt.savefig(fig_file)
 
-# Fluid elements in yz-slices should all have the same ρ and ρu
+# Fluid elements in yz-slices should all have the same ϱ and J
 tol_fac = 1e-6
 for kind in ('particles', 'fluid'):
     for fluid, a_i in zip(fluids[kind + ' simulations'], a):
@@ -104,12 +104,12 @@ for kind in ('particles', 'fluid'):
                           'See "{}" for a visualization.'
                           .format(a_i, fluidscalar, kind.rstrip('s'), fig_file))
 
-# Compare ρ's from the fluid and snapshot simulations
+# Compare ϱ's from the fluid and snapshot simulations
 tol_fac = 2e-2
-for ρ_fluid, ρ_particles, a_i in zip(ρ['fluid simulations'], ρ['particles simulations'], a):
-    if not isclose(np.mean(abs(ρ_fluid - ρ_particles)), 0,
+for ϱ_fluid, ϱ_particles, a_i in zip(ϱ['fluid simulations'], ϱ['particles simulations'], a):
+    if not isclose(np.mean(abs(ϱ_fluid - ϱ_particles)), 0,
                    rel_tol=0,
-                   abs_tol=(tol_fac*np.std(ρ_fluid) + machine_ϵ)):
+                   abs_tol=(tol_fac*np.std(ϱ_fluid) + machine_ϵ)):
         abort('Fluid did not gravitate correctly up to a = {}.\n'
               'See "{}" for a visualization.'
               .format(a_i, fig_file))
