@@ -178,7 +178,7 @@ rel = relpath(path, '${concept_dir}')
 print(path if rel.startswith('../../') else rel)"
 }
 
-# Function which prints a parsed Bash array
+# Function which prints a passed Bash array
 # in the format of a Python list.
 bash_array2python_list()
 {
@@ -337,7 +337,7 @@ sys.stdout = sys.stderr
 # including writing out the help message.
 args, unknown_args = parser.parse_known_args()
 # If a utility is to be used, arguments unknown to this script should
-# be parsed on to the utility.
+# be passed on to the utility.
 util_args = args.util[1:]
 if args.util[0] != '${util_unspecified}':
     util_args += unknown_args
@@ -577,7 +577,7 @@ if [ "${mpi_implementation}" == "openmpi" ]; then
     # with infiniband. Try adding "-mca btl ^openib" to mpiexec_args.
     # Note that --prefix should not be used,
     # as the absolute path to mpiexec is given.
-    # MPI preparations (bash code)
+    # MPI preparations (Bash code)
     mpi_preparations="# Disable aggregation of OpenMPI warnings
                       export OMPI_MCA_orte_base_help_aggregate=0
                       # Disable OpenMPI warning about forking

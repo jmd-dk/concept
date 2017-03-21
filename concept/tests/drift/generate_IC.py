@@ -29,7 +29,7 @@ from snapshot import save
 
 # Create the particles
 N = 4
-mass = ϱmbar*boxsize**3/N
+mass = ϱ_mbar*boxsize**3/N
 particles = Component('GADGET halos', 'dark matter particles', N, mass)
 particles.populate(np.array([0.1]*N)*boxsize, 'posx')
 particles.populate(np.array([0.25, 0.25, 0.75, 0.75])*boxsize, 'posy')

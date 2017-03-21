@@ -51,8 +51,8 @@ autosave = 1*hr               # How often to autosave
 boxsize          = 16*Mpc  # Linear size of the simulation box
 ewald_gridsize   = 64      # Linear gridsize of the grid of Ewald corrections
 φ_gridsize       = 64      # Linear gridsize of the potential
-P3M_scale        = 1.25	   # The long/short-range force split scale
-P3M_cutoff       = 4.8     # Maximum reach of short-range force
+p3m_scale        = 1.25	   # The long/short-range force split scale
+p3m_cutoff       = 4.8     # Maximum reach of short-range force
 softeningfactors = {       # The amount of gravitational softening for each species
     'dark matter particles': 0.03,
                     }	
@@ -67,7 +67,7 @@ a_begin = 0.02           # Scale factor at beginning of simulation
 
 # Physics
 forces = {  # The forces which act on each species
-    'dark matter particles': {'gravity': 'pp'},
+    'dark matter particles': {'gravity': 'pm'},
           }
 w_eos = {  # Equation of state parameter for each fluid species
     ...: ...,

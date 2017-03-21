@@ -26,7 +26,7 @@ from commons import *
 
 # Cython imports
 from mesh import diff_domain
-cimport('from gravity import build_φ, P3M, PM, PP')
+cimport('from gravity import build_φ, p3m, pm, pp')
 
 
 
@@ -105,12 +105,12 @@ cimport('from gravity import build_φ, P3M, PM, PP')
 #                rank_recv='int',
 #                mutual='bint',
 #                # Locals
+#                Jx_1='double[:, :, :]',
+#                Jy_1='double[:, :, :]',
+#                Jz_1='double[:, :, :]',
 #                momentum_dependent='bint',
 #                position_dependent='bint',
-#                ρ_1='double[:, :, :]',
-#                ρux_1='double[:, :, :]',
-#                ρuy_1='double[:, :, :]',
-#                ρuz_1='double[:, :, :]',
+#                ϱ_1='double[:, :, :]',
 #                )
 # def pairwise_domains(component_1, component_2, ᔑdt, dependencies, rank_send, rank_recv, mutual):
 #     """
@@ -130,10 +130,10 @@ cimport('from gravity import build_φ, P3M, PM, PP')
 #         momz_local1 = component_local1.momz
 #     elif component_1.representation == 'fluid':
 #         gridsize_local1 = component_local1.gridsize
-#         ρ_local1        = component_local1.ρ  .grid_noghosts
-#         ρux_local1      = component_local1.ρux.grid_noghosts
-#         ρuy_local1      = component_local1.ρuy.grid_noghosts
-#         ρuz_local1      = component_local1.ρuz.grid_noghosts
+#         ϱ_local1        = component_local1.ϱ .grid_noghosts
+#         Jx_local1       = component_local1.Jx.grid_noghosts
+#         Jy_local1       = component_local1.Jy.grid_noghosts
+#         Jz_local1       = component_local1.Jz.grid_noghosts
 #     # Extract local particle/fluid element data of component_2
 #     mass_local2 = component_2.mass
 #     if component_2.representation == 'particles':
@@ -146,10 +146,10 @@ cimport('from gravity import build_φ, P3M, PM, PP')
 #         momz_local2 = component_local2.momz
 #     elif component_2.representation == 'fluid':
 #         gridsize_local2 = component_local2.gridsize
-#         ρ_local2        = component_local2.ρ  .grid_noghosts
-#         ρux_local2      = component_local2.ρux.grid_noghosts
-#         ρuy_local2      = component_local2.ρuy.grid_noghosts
-#         ρuz_local2      = component_local2.ρuz.grid_noghosts
+#         ϱ_local2        = component_local2.ϱ .grid_noghosts
+#         Jx_local2       = component_local2.Jx.grid_noghosts
+#         Jy_local2       = component_local2.Jy.grid_noghosts
+#         Jz_local2       = component_local2.Jz.grid_noghosts
 #     # Communicate particle/fluid element data.
 #     # We choose to communicate component_2 (send local component_2 and
 #     # receive external component_2) and not component_1, as sometimes
@@ -169,10 +169,10 @@ cimport('from gravity import build_φ, P3M, PM, PP')
 #             momz_extnl2 = momz_local2
 #         elif component_2.representation == 'fluid':
 #             gridsize_extnl2 = gridsize_local2
-#             ρ_extnl2        = ρ_local2
-#             ρux_extnl2      = ρux_local2
-#             ρuy_extnl2      = ρuy_local2
-#             ρuz_extnl2      = ρuz_local2
+#             ϱ_extnl2        = ϱ_local2
+#             Jx_extnl2       = Jx_local2
+#             Jy_extnl2       = Jy_local2
+#             Jz_extnl2       = Jz_local2
 #     else:
 #         # Send and receive component_2
 #         if component_2.representation == 'particles':
@@ -223,13 +223,13 @@ def gravity(method, receivers, suppliers, ᔑdt):
         if component.representation != 'particles':
             abort('The PP method can only be used with particle components')
         masterprint('Gravitationally (PP) accelerating {} ...'.format(component.name))
-        PP(component, ᔑdt)
+        pp(component, ᔑdt)
         masterprint('done')
     elif method == 'pm':
         # The particle-mesh method.
         # Construct the gravitational potential from all components
         # which interacts gravitationally.
-        φ = build_φ(components)
+        φ = build_φ(components, ᔑdt)
         # For each dimension, differentiate φ and apply the force to
         # all receiver components.
         h = boxsize/φ_gridsize  # Physical grid spacing of φ
@@ -241,7 +241,7 @@ def gravity(method, receivers, suppliers, ᔑdt):
                 masterprint('Applying gravitational (PM) forces along the {}-direction to {} ...'
                             .format('xyz'[dim], component.name)
                             )
-                PM(component, ᔑdt, gradφ_dim, dim)
+                pm(component, ᔑdt, gradφ_dim, dim)
                 masterprint('done')
     elif method == 'p3m':
         # The particle-particle-mesh method.
@@ -256,7 +256,7 @@ def gravity(method, receivers, suppliers, ᔑdt):
             abort('The P³M method can only be used with particle components')
         # Construct the long-range gravitational potential from all
         # components which interacts gravitationally.
-        φ = build_φ(components, only_long_range=True)
+        φ = build_φ(components, ᔑdt, only_long_range=True)
         # For each dimension, differentiate φ and apply the force to
         # all receiver components.
         h = boxsize/φ_gridsize  # Physical grid spacing of φ
@@ -268,16 +268,14 @@ def gravity(method, receivers, suppliers, ᔑdt):
                 masterprint('Applying gravitational (P³M, long-range) forces along the {}-direction to {} ...'
                             .format('xyz'[dim], component.name)
                             )
-                PM(component, ᔑdt, gradφ_dim, dim)
+                pm(component, ᔑdt, gradφ_dim, dim)
                 masterprint('done')
         # Now apply the short-range gravitational forces
-        masterprint('Gravitationally (P³M, short range) accelerating {} ...'.format(component.name))
-        P3M(component, ᔑdt)
+        masterprint('Gravitationally (P³M, short-range) accelerating {} ...'.format(component.name))
+        p3m(component, ᔑdt)
         masterprint('done')
     elif master:
         abort('gravity was called with the "{}" method'.format(method))
-
-
 
 # Function which constructs a list of interactions from a list of
 # components. The list of interactions store information about which

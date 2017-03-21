@@ -108,7 +108,7 @@ class StandardSnapshot:
                    name='str',
                    shape='tuple',
                    start_local='Py_ssize_t',
-                   ρ_mv='double[:, :, ::1]',
+                   ϱ_mv='double[:, :, ::1]',
                    returns='str',
                    )
     def save(self, filename):
@@ -204,10 +204,10 @@ class StandardSnapshot:
                     elif component.w_type == 'expression':
                         component_h5.attrs['w'] = component.w_expression
                     # Compute local indices of fluid grids
-                    ρ_mv = component.ρ.grid_mv
-                    domain_size_i = ρ_mv.shape[0] - (1 + 2*2)
-                    domain_size_j = ρ_mv.shape[1] - (1 + 2*2)
-                    domain_size_k = ρ_mv.shape[2] - (1 + 2*2)
+                    ϱ_mv = component.ϱ.grid_mv
+                    domain_size_i = ϱ_mv.shape[0] - (1 + 2*2)
+                    domain_size_j = ϱ_mv.shape[1] - (1 + 2*2)
+                    domain_size_k = ϱ_mv.shape[2] - (1 + 2*2)
                     domain_start_i = domain_layout_local_indices[0]*domain_size_i
                     domain_start_j = domain_layout_local_indices[1]*domain_size_j
                     domain_start_k = domain_layout_local_indices[2]*domain_size_k
@@ -238,11 +238,12 @@ class StandardSnapshot:
                     # for some fluid groups and data sets.
                     for name, indices in component.fluid_names.items():
                         if isinstance(indices, int):
-                            # "name" is a fluid variable name (e.g. ρu)
+                            # "name" is a fluid variable name (e.g. J,
+                            # though not ϱ as this is a fluid scalar).
                             fluidvar_h5 = component_h5['fluidvar_{}'.format(indices)]
                             component_h5[unicode(name)] = fluidvar_h5
                         else:  # indices is a tuple
-                            # "name" is a fluid scalar name (e.g. ρ, ρux)
+                            # "name" is a fluid scalar name (e.g. ϱ, Jx)
                             index, multi_index = indices
                             fluidvar_h5 = component_h5['fluidvar_{}'.format(index)]
                             fluidscalar_h5 = fluidvar_h5['fluidscalar_{}'.format(multi_index)]  
@@ -299,6 +300,8 @@ class StandardSnapshot:
                     species='str',
                     start_local='Py_ssize_t',
                     unit='double',
+                    unit_ϱ='double',
+                    unit_J='double',
                     units_fluidvars='double[::1]',
                     w='object',  # float, str or np.ndarray
                     w_type='str',
@@ -458,9 +461,9 @@ class StandardSnapshot:
                     # If the snapshot and the current run uses different
                     # systems of units, mulitply the fluid data
                     # by the snapshot units.
-                    units_fluidvars = asarray([snapshot_unit_mass/snapshot_unit_length**3,                       # ρ
-                                               snapshot_unit_mass/(snapshot_unit_length**2*snapshot_unit_time),  # ρu
-                                               ], dtype=C2np['double'])
+                    unit_ϱ = snapshot_unit_mass/snapshot_unit_length**3
+                    unit_J = snapshot_unit_mass/(snapshot_unit_length**2*snapshot_unit_time)
+                    units_fluidvars = asarray((unit_ϱ, unit_J), dtype=C2np['double'])
                     size = np.prod(component.shape)
                     for fluidvar, unit in zip(component.fluidvars, units_fluidvars):
                         if unit == 1:
@@ -486,8 +489,8 @@ class StandardSnapshot:
     def populate(self, components, params={}):
         # Pupulate snapshot with the components
         self.components = components
-        # Populate snapshot with the parsed scalefactor
-        # and global parameters. If a params dict is parsed,
+        # Populate snapshot with the passed scalefactor
+        # and global parameters. If a params dict is passed,
         # use values from this instead.
         self.params['H0']      = params.get('H0',      H0)
         if enable_Hubble:
@@ -869,8 +872,8 @@ class Gadget2Snapshot:
         # the process with the lowest rank has the lowest ID's.
         start_local = int(np.sum(smart_mpi(component.N_local, mpifun='allgather')[:rank]))
         self.ID = arange(start_local, start_local + component.N_local, dtype=C2np['unsigned int'])
-        # Populate snapshot with the parsed scalefactor
-        # and global parameters. If a params dict is parsed,
+        # Populate snapshot with the passed scalefactor
+        # and global parameters. If a params dict is passed,
         # use values from this instead.
         self.params['H0']      = params.get('H0',      H0)
         if enable_Hubble:
@@ -1171,7 +1174,7 @@ def out_of_bounds_check(component, snapshot_boxsize=-1):
     # as these are the only ones with explicit positions.
     if component.representation != 'particles':
         return
-    # If no boxsize is parsed, use the global boxsize
+    # If no boxsize is passed, use the global boxsize
     if snapshot_boxsize == -1:
         snapshot_boxsize = boxsize
     # Extract position variables

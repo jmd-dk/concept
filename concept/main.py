@@ -48,7 +48,7 @@ cimport('from snapshot import save')
                # Locals
                a_next='double',
                index='int',
-               integrand='str',
+               integrand='object',  # str or tuple
                t_next='double',
                )
 def scalefactor_integrals(step, Δt):
@@ -205,7 +205,7 @@ autosave_filename = ''
 autosave_param_filename = '{}/autosave_{}.params'.format(paths['params_dir'], jobid)
 
 @cython.header(# Locals
-               integrand='str',
+               integrand='object',  # str or tuple
                index='int',
                )
 def nullify_ᔑdt_steps():
@@ -215,7 +215,9 @@ def nullify_ᔑdt_steps():
         for index in range(2):
             ᔑdt_steps[integrand][index] = 0
 
-# Function which kick all of the components
+# Function which kick all of the components.
+# Here a 'kick' means all interactions together with other source terms
+# for fluid components.
 @cython.header(# Arguments
                components='list',
                step='str',
@@ -227,7 +229,7 @@ def nullify_ᔑdt_steps():
                dim='int',
                meshbuf_mv='double[:, :, ::1]',
                h='double',
-               integrand='str',
+               integrand='object',  # str or tuple
                key='str',
                φ='double[:, :, ::1]',
                )
@@ -244,6 +246,10 @@ def kick(components, step):
             ᔑdt[integrand] = np.sum(ᔑdt_steps[integrand])
         elif master:
             abort('The value "{}" was given for the step'.format(step))
+    # Apply the effect of all source terms on all fluid components.
+    # For particle components, this is a no-op.
+    for component in components:
+        component.apply_sources(ᔑdt)
     # Find out which components interact with each other
     # under the different interactions.
     interactions_list = find_interactions(components)
@@ -257,6 +263,7 @@ def kick(components, step):
                step='str',
                # Locals
                ᔑdt='dict',
+               integrand='object',  # str or tuple
                component='Component',
                )
 def drift(components, step):
@@ -317,16 +324,25 @@ def timeloop():
     Δt_max_increase_fac = 5e-2
     # Give the initial time step the largest allowed value
     Δt = Δt_begin = reduce_Δt(components, ထ, ထ, timespan, worry=False)
-    # Arrays containing the factors ∫_t^(t + Δt/2) integrand(a) dt
-    # for different integrands. The two elements in each variable are
-    # the first and second half of the factor for the entire time step.
-    ᔑdt_steps = {'a⁻¹': zeros(2, dtype=C2np['double']),
+    # Arrays which will store the two values
+    # ∫_t^(t + Δt/2) integrand(a) dt
+    # ∫_(t + Δt/2)^(t + Δt) integrand(a) dt
+    ᔑdt_steps = {'1'  : zeros(2, dtype=C2np['double']),
+                 'a⁻¹': zeros(2, dtype=C2np['double']),
                  'a⁻²': zeros(2, dtype=C2np['double']),
                  }
-    # Specification of next dump and a corresponding index
+    for component in components:
+        ᔑdt_steps['a⁻³ʷ'       , component] = zeros(2, dtype=C2np['double'])
+        ᔑdt_steps['a⁻³ʷ⁻¹'     , component] = zeros(2, dtype=C2np['double'])
+        ᔑdt_steps['a³ʷ⁻²'      , component] = zeros(2, dtype=C2np['double'])
+        ᔑdt_steps['a⁻³ʷw/(1+w)', component] = zeros(2, dtype=C2np['double'])
+        ᔑdt_steps['a³ʷ⁻²(1+w)' , component] = zeros(2, dtype=C2np['double'])
+        ᔑdt_steps['ẇ/(1+w)'    , component] = zeros(2, dtype=C2np['double'])
+        ᔑdt_steps['ẇlog(a)'    , component] = zeros(2, dtype=C2np['double'])
+    # Specification of first dump and a corresponding index
     i_dump = 0
     next_dump = dumps[i_dump]
-    # Possible output at the beginning of simulation
+    # Possibly output at the beginning of simulation
     dump(components, output_filenames, final_render)
     # Record what time it is, for use with autosaving
     autosave_time = time()
@@ -428,6 +444,12 @@ def timeloop():
                timespan='double',
                worry='bint',
                # Locals
+               Jx='double[:, :, :]',
+               Jx_ijk='double',
+               Jy='double[:, :, :]',
+               Jy_ijk='double',
+               Jz='double[:, :, :]',
+               Jz_ijk='double',
                component='Component',
                dim='int',
                fac_Courant='double',
@@ -445,10 +467,7 @@ def timeloop():
                momy_i='double',
                momz='double*',
                momz_i='double',
-               u_max='double',
-               u2_i='double',
-               u2_ijk='double',
-               u2_max='double',
+               w='double',
                Δt_Courant='double',
                Δt_Courant_component='double',
                Δt_Hubble='double',
@@ -460,14 +479,12 @@ def timeloop():
                Δt_ratio_warn='double',
                Δt_suggestions='list',
                Δx='double',
-               ρ='double[:, :, :]',
-               ρ_ijk='double',
-               ρux='double[:, :, :]',
-               ρux_ijk='double',
-               ρuy='double[:, :, :]',
-               ρuy_ijk='double',
-               ρuz='double[:, :, :]',
-               ρuz_ijk='double',
+               ϱ='double[:, :, :]',
+               ϱ_ijk='double',
+               ẋ_max='double',
+               ẋ2_i='double',
+               ẋ2_ijk='double',
+               ẋ2_max='double',
                returns='double',
                )
 def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
@@ -506,7 +523,7 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
     # The maximum allowed time step size suggested by the dynamical
     # time scale.
     fac_dynamical = 1e-1
-    Δt_dynamical = fac_dynamical*universals.a**2/sqrt(G_Newton*ρbar)
+    Δt_dynamical = fac_dynamical*universals.a**2/sqrt(G_Newton*ϱ_crit)
     Δt_suggestions.append(Δt_dynamical)
     # The maximum allowed time step size
     # suggested by the Hubble parameter.
@@ -524,15 +541,20 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
     Δt_Courant = ထ
     fastest_component = None
     for component in components:
+        w = component.w()
         if component.representation == 'particles':
-            # Maximum distance a particle should be able to travel
-            # in a single time step.
+            # Maximum comoving distance a particle should be able to
+            # travel in a single time step.
             if use_φ and φ_gridsize > ℝ[cbrt(component.N)]:
                 Δx = boxsize/φ_gridsize
             else:
                 Δx = boxsize/ℝ[cbrt(component.N)]
-            # Find maximum, squared local velocity for this component
-            u2_max = 0
+            # Find maximum, squared local velocity for this component.
+            # From the equation of motion, velocity is given by.
+            # ẋ = dx/dt = mom/(a²*m).
+            # Note that this corresponds to ẋ = u/a, wher u is the
+            # peculiar velocity.
+            ẋ2_max = 0
             mass = component.mass
             momx = component.momx
             momy = component.momy
@@ -541,50 +563,60 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
                 momx_i = momx[i]
                 momy_i = momy[i]
                 momz_i = momz[i]
-                u2_i = (momx_i**2 + momy_i**2 + momz_i**2)*ℝ[1/mass**2]
-                if u2_i > u2_max:
-                    u2_max = u2_i
+                ẋ2_i = (momx_i**2 + momy_i**2 + momz_i**2)*ℝ[1/(universals.a**2*mass)**2]
+                if ẋ2_i > ẋ2_max:
+                    ẋ2_max = ẋ2_i
         elif component.representation == 'fluid':
-            # Distance between neighbouring fluid elements
+            # Comoving distance between neighbouring fluid elements
             Δx = boxsize/component.gridsize
-            # Find maximum, squared local velocity for this component
-            u2_max = 0
-            ρ   = component.ρ.grid_noghosts
-            ρux = component.ρux.grid_noghosts
-            ρuy = component.ρux.grid_noghosts
-            ρuz = component.ρux.grid_noghosts
-            for         i in range(ℤ[ρ.shape[0] - 1]):
-                for     j in range(ℤ[ρ.shape[1] - 1]):
-                    for k in range(ℤ[ρ.shape[2] - 1]):
-                        ρ_ijk   = ρ  [i, j, k]
-                        ρux_ijk = ρux[i, j, k]
-                        ρuy_ijk = ρuy[i, j, k]
-                        ρuz_ijk = ρuz[i, j, k]
-                        u2_ijk = (ρux_ijk**2 + ρuy_ijk**2 + ρuz_ijk**2)/ρ_ijk**2
-                        if u2_ijk > u2_max:
-                            u2_max = u2_ijk
+            # Find maximum, squared, local velocity for this component.
+            # Given that the stored fluid variables
+            # are ϱ = a**(3*(1 + w))*ρ and J = a**4*u*ρ, we have
+            # u = a**(3*w - 1)*J/ϱ, with u the peculiar velocity.
+            # As above, we are interested in ẋ = u/a, that is
+            # ẋ = a**(3*w - 2)*J/ϱ.
+            ẋ2_max = 0
+            ϱ  = component.ϱ .grid_noghosts
+            Jx = component.Jx.grid_noghosts
+            Jy = component.Jy.grid_noghosts
+            Jz = component.Jz.grid_noghosts
+            for         i in range(ℤ[ϱ.shape[0] - 1]):
+                for     j in range(ℤ[ϱ.shape[1] - 1]):
+                    for k in range(ℤ[ϱ.shape[2] - 1]):
+                        ϱ_ijk  = ϱ [i, j, k]
+                        Jx_ijk = Jx[i, j, k]
+                        Jy_ijk = Jy[i, j, k]
+                        Jz_ijk = Jz[i, j, k]
+                        ẋ2_ijk = (Jx_ijk**2 + Jy_ijk**2 + Jz_ijk**2
+                                  )*(ℝ[universals.a**(3*w - 2)]/ϱ_ijk)**2
+                        if ẋ2_ijk > ẋ2_max:
+                            ẋ2_max = ẋ2_ijk
         else:
             continue
         # The maximum allowed travel distance and maximal squared
-        # velocity are now found, regardless of
-        # component representation.
-        u_max = sqrt(u2_max)
+        # velocity are now found,
+        # regardless of component representation.
+        ẋ_max = sqrt(ẋ2_max)
         # Communicate maximum global velocity of this component
         # to all processes.
-        u_max = allreduce(u_max, op=MPI.MAX)
+        ẋ_max = allreduce(ẋ_max, op=MPI.MAX)
         # In the odd case of a completely static component,
-        # set u_max to be just above 0.
-        if u_max == 0:
-            u_max = machine_ϵ
+        # set ẋ_max to be just above 0.
+        if ẋ_max == 0:
+            ẋ_max = machine_ϵ
+        # The soundspeed in this component.
+        # Note that this in physical (non-expanding) units.
+        # To convert this to a "comoving sound speed" we should
+        # use cs/a.
+        cs = light_speed*sqrt(w)
         # Compute maximum allowed time step size Δt for this component.
         # To get the time step size, the size of the grid cell should be
-        # divided by the velocity. The additional factor of
-        # universals.a**2 is needed because the time step size is
-        # really ᔑ_t^{t + Δt}a⁻²dt. The additional sqrt(3) is because
-        # the simulation is in 3D. With sqrt(3) included and
-        # fac_Courant == 1, the below is the general 3-dimensional
-        # Courant condition.
-        Δt_Courant_component = universals.a**2*ℝ[fac_Courant/sqrt(3)]*Δx/u_max
+        # divided by the velocity plus the speed of sound cs, as sound
+        # waves can propagate on top of the bulk flow.
+        # The additional sqrt(3) is included because the simulation is
+        # in 3D. With sqrt(3) included and fac_Courant == 1,
+        # the below is the general 3-dimensional Courant condition.
+        Δt_Courant_component = ℝ[fac_Courant/sqrt(3)]*Δx/(ẋ_max + cs/universals.a)
         # The component with the lowest value of the maximally allowed
         # time step size determines the global maximally allowed
         # time step size.

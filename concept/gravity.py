@@ -148,7 +148,7 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
                     elif z < ℝ[-0.5*boxsize]:
                         z += boxsize
                     r = sqrt(x**2 + y**2 + z**2 + softening2)
-                    r_scaled = r*ℝ[1/P3M_scale_phys]
+                    r_scaled = r*ℝ[1/p3m_scale_phys]
                     shortrange_fac = (  r_scaled*ℝ[1/sqrt(π)]*exp(-0.25*r_scaled**2)
                                       + erfc(0.5*r_scaled))
                     force[0] = -x*ℝ[1/r**3]*shortrange_fac
@@ -245,9 +245,9 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
                 posz_local_mv='double[::1]',
                 softening2='double',
                 )
-def PP(component, ᔑdt):
+def pp(component, ᔑdt):
     """ This function updates the momenta of all particles in the
-    parsed component via the particle-particle (PP) method.
+    passed component via the particle-particle (PP) method.
     """
     global posx_extrn, posy_extrn, posz_extrn
     global Δmomx_local, Δmomy_local, Δmomz_local
@@ -377,36 +377,33 @@ def PP(component, ᔑdt):
                gradφ_dim='double[:, :, ::1]',
                dim='int',
                # Locals
-               PM_fac='double',
+               J_dim='FluidScalar',
                i='Py_ssize_t',
-               mom='double*',
+               mom_dim='double*',
+               pm_fac='double',
                posx='double*',
                posy='double*',
                posz='double*',
                x='double',
                y='double',
                z='double',
-               ρu_dim='FluidScalar',
                )
-def PM(component, ᔑdt, gradφ_dim, dim):
+def pm(component, ᔑdt, gradφ_dim, dim):
     """This function updates the momenta of all particles/fluid elements
-    via the particle-mesh (PM) method.
+    of a component via the particle-mesh (PM) method.
     """
     if component.representation == 'particles':
         # Extract variables from component
-        posx = component.posx
-        posy = component.posy
-        posz = component.posz
-        if dim == 0:
-            mom = component.momx
-        elif dim == 1:
-            mom = component.momy
-        elif dim == 2:
-            mom = component.momz
-        # The factor with which to multiply the values
-        # in gradφ_dim (the differentiated potential, [∇φ]_dim)
-        # in order to get momentum units.
-        PM_fac = PM_fac_const*component.mass*ᔑdt['a⁻¹']
+        posx    = component.posx
+        posy    = component.posy
+        posz    = component.posz
+        mom_dim = component.mom[dim]
+        # The constant factors with which to multiply the values
+        # in gradφ_dim to actually get the negative differentiated
+        # potential -[∇φ]_dim is gathered in pm_fac_const. The total
+        # factor to multiply gradφ_dim by to get momentum updates is
+        # then pm_fac*mass*Δt, where Δt = ᔑdt['1'].
+        pm_fac = pm_fac_const*component.mass*ᔑdt['1']
         # Update the dim momentum component of particle i
         for i in range(component.N_local):
             # The coordinates of the i'th particle,
@@ -417,38 +414,39 @@ def PM(component, ᔑdt, gradφ_dim, dim):
             # Look up the force via a CIC interpolation,
             # convert it to momentum units and add it to the
             # momentum of particle i.
-            mom[i] += PM_fac*CIC_scalargrid2coordinates(gradφ_dim, x, y, z)
+            mom_dim[i] += pm_fac*CIC_scalargrid2coordinates(gradφ_dim, x, y, z)
     elif component.representation == 'fluid':
         # Simply scale and extrapolate the values in gradφ_dim
-        # (the differentiated potential, [∇φ]_dim) to the grid points
-        # of the dim'th component of the fluid variable ρu.
+        # to the grid points of the dim'th component of the
+        # fluid variable J.
         # First extract this fluid scalar.
-        ρu_dim = component.ρu[dim]
-        # The factor with which to multiply the values in gradφ_dim in
-        # order to get units of acceleration is given by PM_fac_const.
-        # As the gravitational source term is -∇φ*ρ, we also need to
-        # multiply each grid point [i, j, k] by ρ[i, j, k], leaving
-        # units of momentum/(volume*time). To convert to
-        # momentum/volume, we multiply by the time step size ᔑdta⁻¹.
-        CIC_grid2grid(ρu_dim.grid_noghosts,
+        J_dim = component.J[dim]
+        # The constant factors with which to multiply the values in
+        # gradφ_dim in order to get the negative differentiated
+        # potential -[∇φ]_dim is gathered in pm_fac_const.
+        # As the gravitational source term is -a⁻³ʷ*ϱ*∇φ, we also
+        # need to multiply each grid point [i, j, k] by ϱ[i, j, k]
+        # and all grid points by the same factor a⁻³ʷ. Actually,
+        # since what we are after are the updates to the momentum
+        # density, we should also multiply by Δt. Since a⁻³ʷ is time
+        # dependent, we should then really exchange a⁻³ʷ*Δt for ᔑa⁻³ʷdt.
+        CIC_grid2grid(J_dim.grid_noghosts,
                       gradφ_dim,
-                      fac=PM_fac_const*ᔑdt['a⁻¹'],
-                      fac_grid=component.ρ.grid_noghosts,
+                      fac=pm_fac_const*ᔑdt['a⁻³ʷ', component],
+                      fac_grid=component.ϱ.grid_noghosts,
                       )
-        # Communicate the pseudo and ghost points of ρu_dim
-        communicate_domain(ρu_dim.grid_mv, mode='populate')
+        # Communicate the pseudo and ghost points of J_dim
+        communicate_domain(J_dim.grid_mv, mode='populate')
 
 # Function which constructs the total gravitational potential φ due
 # to all components.
 @cython.header(# Arguments
                components='list',
+               ᔑdt='dict',
                only_long_range='bint',
                # Locals
                Greens_deconv='double',
-               slab_jik='double*',
-               sqrt_deconv_ij='double',
-               sqrt_deconv_ijk='double',
-               sqrt_deconv_j='double',
+               factors='list',
                i='Py_ssize_t',
                j='Py_ssize_t',
                j_global='Py_ssize_t',
@@ -459,12 +457,27 @@ def PM(component, ᔑdt, gradφ_dim, dim):
                kj2='Py_ssize_t',
                kk='Py_ssize_t',
                k2='Py_ssize_t',
+               slab_jik='double*',
+               sqrt_deconv_ij='double',
+               sqrt_deconv_ijk='double',
+               sqrt_deconv_j='double',
+               Δt='double',
                returns='double[:, :, ::1]',
                )
-def build_φ(components, only_long_range=False):
+def build_φ(components, ᔑdt, only_long_range=False):
     """This function computes the gravitational potential φ due to
     all components given in the components argument.
     Pseudo points and ghost layers will be communicated.
+    The Poisson equation which is solved by this function is
+    ∇²φ = 4πG Σᵢ(1/Δt*∫_t^(t + Δt)a⁻³ʷ⁻¹dt ϱᵢ),
+    where the sum is over all species. For a single w = 0 component
+    this reduces to
+    ∇²φ = 4πG 1/Δt*∫_t^(t + Δt) a⁻¹dt ϱ,
+    where 1/Δt*∫_t^(t + Δt) a⁻¹dt is just the average value of a⁻¹ over
+    the time step where φ should be applied. All of these integrals
+    should be supplied as the ᔑdt argument.
+    The P3M long-range potential can be computed instead of the regular
+    potential by specifying only_long_range = True.
     """
     if not use_φ:
         masterwarn('The φ mesh is not initialized. '
@@ -473,9 +486,13 @@ def build_φ(components, only_long_range=False):
         masterprint('Computing the long-range gravitational potential ...')
     else:
         masterprint('Computing the gravitational potential ...')
+    # Pull out the needed integrals for each component
+    Δt = ᔑdt['1']
+    factors = [ℝ[1/Δt]*ᔑdt['a⁻³ʷ⁻¹', component] for component in components]
     # CIC interpolate the particles/fluid elements onto the slabs
-    # and do forward Fourier transformation.
-    CIC_components2slabs(components)
+    CIC_components2slabs(components, factors)
+    # Do forward Fourier transform on the slabs
+    # containing the density field.
     slabs_FFT()
     # Loop through the local j-dimension
     for j in range(slab_size_j):
@@ -546,7 +563,7 @@ def build_φ(components, only_long_range=False):
     # imported directly into other modules).
     return φ
 
-# This collection of functions simply test whether or not the parsed
+# This collection of functions simply test whether or not the passed
 # coordinates lie within a certain domain boundary.
 @cython.header(# Arguments
                posx_local_i='double',
@@ -556,7 +573,6 @@ def build_φ(components, only_long_range=False):
                )
 def in_boundary_right(posx_local_i, posy_local_i, posz_local_i):
     return posx_local_i > boundary_x_max
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -565,7 +581,6 @@ def in_boundary_right(posx_local_i, posy_local_i, posz_local_i):
                )
 def in_boundary_left(posx_local_i, posy_local_i, posz_local_i):
     return posx_local_i < boundary_x_min
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -574,7 +589,6 @@ def in_boundary_left(posx_local_i, posy_local_i, posz_local_i):
                )
 def in_boundary_forward(posx_local_i, posy_local_i, posz_local_i):
     return posy_local_i > boundary_y_max
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -583,7 +597,6 @@ def in_boundary_forward(posx_local_i, posy_local_i, posz_local_i):
                )
 def in_boundary_backward(posx_local_i, posy_local_i, posz_local_i):
     return posy_local_i < boundary_y_min
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -592,7 +605,6 @@ def in_boundary_backward(posx_local_i, posy_local_i, posz_local_i):
                )
 def in_boundary_up(posx_local_i, posy_local_i, posz_local_i):
     return posz_local_i > boundary_z_max
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -601,7 +613,6 @@ def in_boundary_up(posx_local_i, posy_local_i, posz_local_i):
                )
 def in_boundary_down(posx_local_i, posy_local_i, posz_local_i):
     return posz_local_i < boundary_z_min
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -610,7 +621,6 @@ def in_boundary_down(posx_local_i, posy_local_i, posz_local_i):
                )
 def in_boundary_rightforward(posx_local_i, posy_local_i, posz_local_i):
     return posx_local_i > boundary_x_max and posy_local_i > boundary_y_max
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -619,7 +629,6 @@ def in_boundary_rightforward(posx_local_i, posy_local_i, posz_local_i):
                )
 def in_boundary_rightbackward(posx_local_i, posy_local_i, posz_local_i):
     return posx_local_i > boundary_x_max and posy_local_i < boundary_y_min
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -628,7 +637,6 @@ def in_boundary_rightbackward(posx_local_i, posy_local_i, posz_local_i):
                )
 def in_boundary_rightup(posx_local_i, posy_local_i, posz_local_i):
     return posx_local_i > boundary_x_max and posz_local_i > boundary_z_max
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -637,7 +645,6 @@ def in_boundary_rightup(posx_local_i, posy_local_i, posz_local_i):
                )
 def in_boundary_rightdown(posx_local_i, posy_local_i, posz_local_i):
     return posx_local_i > boundary_x_max and posz_local_i < boundary_z_min
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -646,7 +653,6 @@ def in_boundary_rightdown(posx_local_i, posy_local_i, posz_local_i):
                )
 def in_boundary_leftforward(posx_local_i, posy_local_i, posz_local_i):
     return posx_local_i < boundary_x_min and posy_local_i > boundary_y_max
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -655,7 +661,6 @@ def in_boundary_leftforward(posx_local_i, posy_local_i, posz_local_i):
                )
 def in_boundary_leftbackward(posx_local_i, posy_local_i, posz_local_i):
     return posx_local_i < boundary_x_min and posy_local_i < boundary_y_min
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -664,7 +669,6 @@ def in_boundary_leftbackward(posx_local_i, posy_local_i, posz_local_i):
                )
 def in_boundary_leftup(posx_local_i, posy_local_i, posz_local_i):
     return posx_local_i < boundary_x_min and posz_local_i > boundary_z_max
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -673,7 +677,6 @@ def in_boundary_leftup(posx_local_i, posy_local_i, posz_local_i):
                )
 def in_boundary_leftdown(posx_local_i, posy_local_i, posz_local_i):
     return posx_local_i < boundary_x_min and posz_local_i < boundary_z_min
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -682,7 +685,6 @@ def in_boundary_leftdown(posx_local_i, posy_local_i, posz_local_i):
                )
 def in_boundary_forwardup(posx_local_i, posy_local_i, posz_local_i):
     return posy_local_i > boundary_y_max and posz_local_i > boundary_z_max
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -691,7 +693,6 @@ def in_boundary_forwardup(posx_local_i, posy_local_i, posz_local_i):
                )
 def in_boundary_forwarddown(posx_local_i, posy_local_i, posz_local_i):
     return posy_local_i > boundary_y_max and posz_local_i < boundary_z_min
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -700,7 +701,6 @@ def in_boundary_forwarddown(posx_local_i, posy_local_i, posz_local_i):
                )
 def in_boundary_backwardup(posx_local_i, posy_local_i, posz_local_i):
     return posy_local_i < boundary_y_min and posz_local_i > boundary_z_max
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -709,7 +709,6 @@ def in_boundary_backwardup(posx_local_i, posy_local_i, posz_local_i):
                )
 def in_boundary_backwarddown(posx_local_i, posy_local_i, posz_local_i):
     return posy_local_i < boundary_y_min and posz_local_i < boundary_z_min
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -719,7 +718,6 @@ def in_boundary_backwarddown(posx_local_i, posy_local_i, posz_local_i):
 def in_boundary_rightforwardup(posx_local_i, posy_local_i, posz_local_i):
     return (posx_local_i > boundary_x_max and posy_local_i > boundary_y_max
                                           and posz_local_i > boundary_z_max)
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -729,7 +727,6 @@ def in_boundary_rightforwardup(posx_local_i, posy_local_i, posz_local_i):
 def in_boundary_rightforwarddown(posx_local_i, posy_local_i, posz_local_i):
     return (posx_local_i > boundary_x_max and posy_local_i > boundary_y_max
                                           and posz_local_i < boundary_z_min)
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -739,7 +736,6 @@ def in_boundary_rightforwarddown(posx_local_i, posy_local_i, posz_local_i):
 def in_boundary_rightbackwardup(posx_local_i, posy_local_i, posz_local_i):
     return (posx_local_i > boundary_x_max and posy_local_i < boundary_y_min
                                           and posz_local_i > boundary_z_max)
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -749,7 +745,6 @@ def in_boundary_rightbackwardup(posx_local_i, posy_local_i, posz_local_i):
 def in_boundary_rightbackwarddown(posx_local_i, posy_local_i, posz_local_i):
     return (posx_local_i > boundary_x_max and posy_local_i < boundary_y_min
                                           and posz_local_i < boundary_z_min)
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -759,7 +754,6 @@ def in_boundary_rightbackwarddown(posx_local_i, posy_local_i, posz_local_i):
 def in_boundary_leftforwardup(posx_local_i, posy_local_i, posz_local_i):
     return (posx_local_i < boundary_x_min and posy_local_i > boundary_y_max
                                           and posz_local_i > boundary_z_max)
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -769,7 +763,6 @@ def in_boundary_leftforwardup(posx_local_i, posy_local_i, posz_local_i):
 def in_boundary_leftforwarddown(posx_local_i, posy_local_i, posz_local_i):
     return (posx_local_i < boundary_x_min and posy_local_i > boundary_y_max
                                           and posz_local_i < boundary_z_min)
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -779,7 +772,6 @@ def in_boundary_leftforwarddown(posx_local_i, posy_local_i, posz_local_i):
 def in_boundary_leftbackwardup(posx_local_i, posy_local_i, posz_local_i):
     return (posx_local_i < boundary_x_min and posy_local_i < boundary_y_min
                                           and posz_local_i > boundary_z_max)
-
 @cython.header(# Arguments
                posx_local_i='double',
                posy_local_i='double',
@@ -822,8 +814,8 @@ def in_boundary_leftbackwarddown(posx_local_i, posy_local_i, posz_local_i):
                softening2='double',
                Δmemory='Py_ssize_t',
                )
-def P3M(component, ᔑdt):
-    """The long-range part is computed via the PM function. Local
+def p3m(component, ᔑdt):
+    """The long-range part is computed via the pm function. Local
     particles also interact via short-range direct summation. Finally,
     each process send particles near its boundary to the corresponding
     processor, which computes the short-range forces via direct
@@ -885,9 +877,9 @@ def P3M(component, ᔑdt):
     # time. Here we cast to a Python int (which is then implicitly
     # casted to a Py_ssize_t) since np.float64 cannot be explicitly
     # casted to Py_ssize_t.
-    Δmemory = 2 + int(0.05*N_local*np.max([P3M_cutoff_phys/domain_size_x,
-                                           P3M_cutoff_phys/domain_size_y,
-                                           P3M_cutoff_phys/domain_size_z,
+    Δmemory = 2 + int(0.05*N_local*np.max([p3m_cutoff_phys/domain_size_x,
+                                           p3m_cutoff_phys/domain_size_y,
+                                           p3m_cutoff_phys/domain_size_z,
                                            ]))
     # Loop over all 26 neighbors (two at a time)
     for j in range(13):
@@ -1188,10 +1180,9 @@ in_boundary2_funcs[12] = in_boundary_rightbackwarddown
 # These coordinates define the boundaries of the domain. Particles
 # within the boundaries shall interact with particles in the neighbor
 # domain via the short-range interaction, in the P3M method.
-boundary_x_max = domain_start_x + domain_size_x - P3M_cutoff_phys
-boundary_x_min = domain_start_x + P3M_cutoff_phys
-boundary_y_max = domain_start_y + domain_size_y - P3M_cutoff_phys
-boundary_y_min = domain_start_y + P3M_cutoff_phys
-boundary_z_max = domain_start_z + domain_size_z - P3M_cutoff_phys
-boundary_z_min = domain_start_z + P3M_cutoff_phys
-
+boundary_x_max = domain_start_x + domain_size_x - p3m_cutoff_phys
+boundary_x_min = domain_start_x + p3m_cutoff_phys
+boundary_y_max = domain_start_y + domain_size_y - p3m_cutoff_phys
+boundary_y_min = domain_start_y + p3m_cutoff_phys
+boundary_z_max = domain_start_z + domain_size_z - p3m_cutoff_phys
+boundary_z_min = domain_start_z + p3m_cutoff_phys

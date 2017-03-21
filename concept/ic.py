@@ -185,12 +185,12 @@ def generate_Gaussian_perturbations():
                returns='Component',
                )
 def zeldovich(name, species, mass=-1, a=-1):
-    # There should be exaxtly one particle for each grid point in φ/ψ
+    # There should be exactly one particle for each grid point in φ/ψ
     N = φ_gridsize**3
-    # If no mass is parsed, assume that this component
+    # If no mass is passed, assume that this component
     # represents all matter in the universe. 
     if mass == -1:
-        mass = ρmbar*boxsize**3/N
+        mass = ϱ_mbar*boxsize**3/N
         masterprint('A particle mass of {} m☉ has been assigned '
                     'to "{}", assuming that this component alone '
                     'constitues all of Ωm = {}.'
@@ -202,7 +202,7 @@ def zeldovich(name, species, mass=-1, a=-1):
                             Ωm,
                             )
                     )
-    # If no a is parsed, use a_begin
+    # If no a is passed, use a_begin
     if a == -1:
         a = a_begin
     # For now, the power spectrum and the growth factor are hard coded

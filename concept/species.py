@@ -26,7 +26,7 @@ from commons import *
 
 # Cython imports
 cimport('from communication import communicate_domain, exchange')
-cimport('from fluid import maccormack')
+cimport('from fluid import maccormack, apply_sources')
 cimport('from integration import Spline, ȧ')
 
 
@@ -34,10 +34,10 @@ cimport('from integration import Spline, ȧ')
 # Class which serves as the data structure for a scalar fluid grid
 # (each component of a fluid variable is stored as a collection of
 # scalar grids). Each scalar fluid has its own name, e.g.
-# ρ     (varnum == 0, multi_index == 0),
-# ρu[0] (varnum == 1, multi_index == 0),
-# ρu[1] (varnum == 1, multi_index == 1),
-# ρu[2] (varnum == 1, multi_index == 2),
+# ϱ    (varnum == 0, multi_index == 0),
+# J[0] (varnum == 1, multi_index == 0),
+# J[1] (varnum == 1, multi_index == 1),
+# J[2] (varnum == 1, multi_index == 2),
 @cython.cclass
 class FluidScalar:
     # Initialization method
@@ -136,6 +136,22 @@ class FluidScalar:
         # Nullify the newly allocated Δ buffer
         self.nullify_Δ()
 
+    # Method for scaling the data grid
+    @cython.pheader(# Argument
+                    a='double',
+                    # Locals
+                    i='Py_ssize_t',
+                    grid='double*',
+                    shape='Py_ssize_t*',
+                    )
+    def scale_grid(self, a):
+        # Extract data pointer
+        grid = self.grid
+        # Scale data buffer
+        shape = self.grid_mv.shape
+        for i in range(shape[0]*shape[1]*shape[2]):
+            grid[i] *= a
+
     # Method for nullifying the data grid
     @cython.pheader(# Locals
                     i='Py_ssize_t',
@@ -145,7 +161,7 @@ class FluidScalar:
     def nullify_grid(self):
         # Extract data pointer
         grid = self.grid
-        # Nullify starred buffer
+        # Nullify data buffer
         shape = self.grid_mv.shape
         for i in range(shape[0]*shape[1]*shape[2]):
             grid[i] = 0
@@ -212,6 +228,7 @@ class Component:
                    fluidvar='object',  # np.ndarray with dtype object
                    fluidvar_shape='tuple',
                    i='Py_ssize_t',
+                   index='Py_ssize_t',
                    multi_index='tuple',
                    )
     def __init__(self, name, species, N_or_gridsize, mass,
@@ -264,11 +281,11 @@ class Component:
         Spline w_spline
         # Fluid data
         list fluidvars
-        FluidScalar ρ
-        object ρu
-        FluidScalar ρux
-        FluidScalar ρuy
-        FluidScalar ρuz
+        FluidScalar ϱ
+        object J
+        FluidScalar Jx
+        FluidScalar Jy
+        FluidScalar Jz
         object σ  
         FluidScalar σxx
         FluidScalar σxy
@@ -340,10 +357,10 @@ class Component:
         self.size_noghosts = 1
         if self.representation == 'fluid':
             self.gridsize = N_or_gridsize
-            # Initialize the equation of state parameter w
-            self.initialize_w(w)
         else:
             self.gridsize = 1
+        # Initialize the equation of state parameter w
+        self.initialize_w(w)
         # Fluid data.
         # Create the N_fluidvars fluid variables
         # and store them in the list fluidvars.
@@ -352,7 +369,7 @@ class Component:
             # The shape of the i'th fluid variable,
             # when thought of as a tensor.
             if i == 0:
-                # Special case: The density ρ is a scalar
+                # Special case: The density ϱ is a scalar
                 # (rank 0 tensor), not an empty tensor.
                 fluidvar_shape = (1, )
             else:
@@ -365,30 +382,30 @@ class Component:
                 fluidvar[multi_index] = FluidScalar(i, multi_index)
             # Add the fluid variable to the list
             self.fluidvars.append(fluidvar)
-        # Construct mapping from names of fluid variables (e.g. u)
+        # Construct mapping from names of fluid variables (e.g. J)
         # to their indices in self.fluidvars, and also from names of
-        # fluid scalars (e.g. ρ, ρux) to tuple of the form
+        # fluid scalars (e.g. ϱ, Jx) to tuple of the form
         # (index, multi_index). The fluid scalar is then given
         # by self.fluidvars[index][multi_index].
         self.fluid_names = {}
-        fluidvar_names = ('ρ', 'ρu', 'σ')
-        for i, (fluidvar, fluidvar_name) in enumerate(zip(self.fluidvars, fluidvar_names)):
+        fluidvar_names = ('ϱ', 'J', 'σ')
+        for index, (fluidvar, fluidvar_name) in enumerate(zip(self.fluidvars, fluidvar_names)):
             # The fluid variable
-            self.fluid_names[fluidvar_name] = i
+            self.fluid_names[fluidvar_name] = index
             # The fluid scalar
             for multi_index in self.iterate_fluidscalar_indices(fluidvar):
                 fluidscalar_name = fluidvar_name
-                if i > 0:
+                if index > 0:
                     fluidscalar_name += ''.join(['xyz'[mi] for mi in multi_index])
-                self.fluid_names[fluidscalar_name] = (i, multi_index)
+                self.fluid_names[fluidscalar_name] = (index, multi_index)
         # Assign the fluid variables and scalars as convenient named
         # attributes on the Component instance.
         # Use the same naming scheme as above.
-        self.ρ   = self.fluidvars[0][0]
-        self.ρu  = self.fluidvars[1]
-        self.ρux = self.fluidvars[1][0]
-        self.ρuy = self.fluidvars[1][1]
-        self.ρuz = self.fluidvars[1][2]
+        self.ϱ  = self.fluidvars[0][0]
+        self.J  = self.fluidvars[1]
+        self.Jx = self.fluidvars[1][0]
+        self.Jy = self.fluidvars[1][1]
+        self.Jz = self.fluidvars[1][2]
         if N_fluidvars > 2:
             self.σ   = self.fluidvars[2]
             self.σxx = self.fluidvars[2][0, 0]
@@ -404,10 +421,10 @@ class Component:
             ...
 
     # This method populate the Component pos/mom arrays (for a
-    # particles representation) or the fluid variable arrays (for a
+    # particles representation) or the fluid scalar grids (for a
     # fluid representation) with data. It is deliberately designed so
     # that you have to make a call for each attribute (posx, posy, ...
-    # for particle components, ρ, ρux, ρuy, ... for fluid components).
+    # for particle components, ϱ, Jx, Jy, ... for fluid components).
     # You should construct the data array within the call itself,
     # as this will minimize memory usage. This data array is 1D for
     # particle data and 3D for fluid data.
@@ -429,7 +446,7 @@ class Component:
             # Enlarge data attributes if necessary
             if self.N_allocated < self.N_local:
                 self.resize(self.N_local)
-            # Update the data corresponding to the parsed string
+            # Update the data corresponding to the passed string
             if var == 'posx':
                 self.posx_mv[...] = mv1D[...]
             elif var == 'posy':
@@ -466,15 +483,15 @@ class Component:
                           .format(self.name, var))
                 # Lookup the fluid indices corresponding to var.
                 # This can either be a tuple of the form
-                # (index, multi_index) (for a parsed fluid scalar name)
-                # or just an index (for a parsed fluid name).
+                # (index, multi_index) (for a passed fluid scalar name)
+                # or just an index (for a passed fluid name).
                 fluid_indices = self.fluid_names[var]
                 if isinstance(fluid_indices, int):
                     index = fluid_indices
                 else:  # fluid_indices is a tuple
                     if multi_index != 0:
-                        masterwarn('Overwriting parsed multi_index ({}) with {}, '
-                                   'deduced from the parsed var = {}.'
+                        masterwarn('Overwriting passed multi_index ({}) with {}, '
+                                   'deduced from the passed var = {}.'
                                    .format(multi_index, fluid_indices[1], var)
                                    )
                     index, multi_index = fluid_indices
@@ -487,7 +504,7 @@ class Component:
             # Reallocate fluid grids if necessary           
             self.resize(asarray(mv3D).shape)
             # Populate the scalar grid given by index and multi_index
-            # with the parsed data. This data should not
+            # with the passed data. This data should not
             # include pseudo or ghost points.
             fluidscalar = self.fluidvars[index][multi_index]
             fluidscalar.grid_noghosts[:mv3D.shape[0], :mv3D.shape[1], :mv3D.shape[2]] = mv3D[...]
@@ -543,7 +560,7 @@ class Component:
             if any([s < 1 for s in shape_nopseudo_noghosts]):
                 abort('Attempted to resize fluid grids of the {} component'
                       'to a shape of {}'.format(self.name, shape_nopseudo_noghosts))
-            # Recalculate and -assign meta data
+            # Recalculate and reassign meta data
             self.shape          = tuple([2 + s + 1 + 2 for s in shape_nopseudo_noghosts])
             self.shape_noghosts = tuple([    s + 1     for s in shape_nopseudo_noghosts])
             self.size           = np.prod(self.shape)
@@ -554,11 +571,10 @@ class Component:
 
     # Method for integrating particle positions/fluid values
     # forward in time.
+    # For fluid components, source terms are not included.
     @cython.header(# Arguments
                    ᔑdt='dict',
                    # Locals
-                   fac='double',
-                   fluidscalar='FluidScalar',
                    i='Py_ssize_t',
                    momx='double*',
                    momy='double*',
@@ -576,13 +592,11 @@ class Component:
             momx = self.momx
             momy = self.momy
             momz = self.momz
-            # The factor 1/mass*∫_{t}^{t + Δt}dta⁻²
-            fac = ᔑdt['a⁻²']/self.mass
             # Update positions
             for i in range(self.N_local):
-                posx[i] += momx[i]*fac
-                posy[i] += momy[i]*fac
-                posz[i] += momz[i]*fac
+                posx[i] += momx[i]*ℝ[ᔑdt['a⁻²']/self.mass]
+                posy[i] += momy[i]*ℝ[ᔑdt['a⁻²']/self.mass]
+                posz[i] += momz[i]*ℝ[ᔑdt['a⁻²']/self.mass]
                 # Toroidal boundaries
                 posx[i] = mod(posx[i], boxsize)
                 posy[i] = mod(posy[i], boxsize)
@@ -595,6 +609,26 @@ class Component:
             # Evolve the fluid using the MacCormack method
             masterprint('Evolving fluid variables of {} ...'.format(self.name))
             maccormack(self, ᔑdt)
+            masterprint('done')
+
+    # Method for integrating fluid values forward in time
+    # due to "internal" source terms, meaning source terms that do not
+    # result from interactions with other components,
+    # or even interactions between fluid elements within a component.
+    @cython.header(# Arguments
+                   ᔑdt='dict',
+                   # Locals
+                   ẇ='double',
+                   )
+    def apply_sources(self, ᔑdt):
+        if self.representation == 'particles':
+            return
+        # All internal source terms vanish in th fluid equations
+        # when ẇ = 0.
+        ẇ = self.ẇ()
+        if ẇ != 0:
+            masterprint('Evolving fluid variables (source terms) of {} ...'.format(self.name))
+            apply_sources(self, ᔑdt)
             masterprint('done')
 
     # Method for computing the equation of state parameter w
@@ -610,7 +644,7 @@ class Component:
         """This method should not be called before w has been
         initialized by the initialize_w method.
         """
-        # If no time or scale factor value is parsed,
+        # If no time or scale factor value is passed,
         # use the current time and scale factor value.
         if t == -1 == a:
             t = universals.t
@@ -647,7 +681,7 @@ class Component:
         """This method should not be called before w has been
         initialized by the initialize_w method.
         """
-        # If no time or scale factor value is parsed,
+        # If no time or scale factor value is passed,
         # use the current time and scale factor value.
         if t == -1 == a:
             t = universals.t
@@ -736,10 +770,10 @@ class Component:
                       as self.w_tabulated[1, :] and self.w_type will be
                       set to 'tabulated (t)' or 'tabulated (a)'.
         If the user parameter w_eos contains the species, whatever is
-        specified as the value there is used instead of the parsed w.
+        specified as the value there is used instead of the passed w.
         """
         # If the species has been given a w in the user
-        # parameter w_eos, this will overwrite the parsed w.
+        # parameter w_eos, this will overwrite the passed w.
         if w is not None and self.species in w_eos:
             masterprint('Overwriting w = {} for the "{}" component with w = {}.'
                         .format(w, self.name, w_eos[self.species])
@@ -753,11 +787,16 @@ class Component:
         if w is None:
             # Assign w constant value based on the species
             self.w_type = 'constant'
-            if self.species not in default_w:
+            if self.species in default_w:
+                self.w_constant = default_w[self.species]
+            elif self.representation == 'particles':
+                # The equation of state parameter w should be 0
+                # for any particle component.
+                self.w_constant = 0
+            else:
                 abort('No default w is defined for the "{}" species'.format(self.species))
-            self.w_constant = default_w[self.species]
         elif isinstance(w, float):
-            # Assign parsed constant w
+            # Assign passed constant w
             self.w_type = 'constant'
             self.w_constant = w
         elif isinstance(w, str) and os.path.isfile(w):
@@ -809,7 +848,7 @@ class Component:
                 else:
                     abort('Could not find time unit in header of "{}"'.format(w))
         elif isinstance(w, str):
-            # Save the parsed expression for w
+            # Save the passed expression for w
             self.w_type = 'expression'
             self.w_expression = w
         elif isinstance(w, dict):
@@ -902,6 +941,18 @@ class Component:
         for fluidscalar in self.iterate_fluidscalars():
             communicate_domain(fluidscalar.Δ_mv, mode=mode)
 
+    # Method which calls the scale_grid on all fluid scalars
+    @cython.header(# Arguments
+                   a='double',
+                   # Locals
+                   fluidscalar='FluidScalar',
+                   )
+    def scale_fluid_grid(self, a):
+        if self.representation != 'fluid':
+            return
+        for fluidscalar in self.iterate_fluidscalars():
+            fluidscalar.scale_grid(a)
+
     # Method which calls the nullify_grid on all fluid scalars
     @cython.header(# Locals
                    fluidscalar='FluidScalar',
@@ -936,6 +987,7 @@ class Component:
     # is garbage collected. All manually allocated memory is freed.
     def __dealloc__(self):
         # Free particle data
+        # (fluid data lives in FluidScalar instances)
         free(self.pos)
         free(self.posx)
         free(self.posy)

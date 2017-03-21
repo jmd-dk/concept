@@ -37,20 +37,11 @@ from commons import *
                max_vacuum_corrections='int[::1]',
                mc_step='int',
                steps='Py_ssize_t[::1]',
-               ρ_ptr='double*',
-               ρux_ptr='double*',
-               ρuy_ptr='double*',
-               ρuz_ptr='double*',
                )
 def maccormack(component, ᔑdt):
     # Maximum allowed number of attempts to correct for
     # negative densities, for the first and second MacCormack step.
     max_vacuum_corrections = asarray([1, component.gridsize], dtype=C2np['int'])
-    # Extract fluid grid pointers
-    ρ_ptr   = component.ρ.grid
-    ρux_ptr = component.ρux.grid
-    ρuy_ptr = component.ρuy.grid
-    ρuz_ptr = component.ρuz.grid
     # Step/flux directions for the first MacCormack step
     steps = next(maccormack_steps)
     # The two MacCormack steps
@@ -93,11 +84,7 @@ def maccormack(component, ᔑdt):
     # with double their actual values. All grid values thus need
     # to be halved. Note that no further communication is needed as we
     # also halve the pseudo and ghost points.
-    for i in range(component.size):
-        ρ_ptr  [i] *= 0.5
-        ρux_ptr[i] *= 0.5
-        ρuy_ptr[i] *= 0.5
-        ρuz_ptr[i] *= 0.5
+    component.scale_fluid_grid(0.5)
     # Nullify the starred grid buffers and the Δ buffers,
     # leaving these with no leftover junk.
     component.nullify_fluid_gridˣ()
@@ -115,13 +102,30 @@ def generate_maccormack_steps():
     yield from itertools.cycle(steps)
 maccormack_steps = generate_maccormack_steps()
 
-# Function which evolve the fluid variables of a component
+# Function which evolve the fluid variables of a component,
+# disregarding all source terms.
 @cython.header(# Arguments
                component='Component',
                ᔑdt='dict',
                steps='Py_ssize_t[::1]',
                mc_step='int',
                # Locals
+               J_ijk='double[::1]',
+               J_step='double[:, ::1]',
+               Jx='double[:, :, ::1]',
+               Jx_ijk='double',
+               Jx_step='double[::1]',
+               Jxˣ='double[:, :, ::1]',
+               Jy='double[:, :, ::1]',
+               Jy_ijk='double',
+               Jy_step='double[::1]',
+               Jyˣ='double[:, :, ::1]',
+               Jz='double[:, :, ::1]',
+               Jz_ijk='double',
+               Jz_step='double[::1]',
+               Jzˣ='double[:, :, ::1]',
+               N_fluidvars='Py_ssize_t',
+               dim='int',
                h='double',
                i='Py_ssize_t',
                indices_local_start='Py_ssize_t[::1]',
@@ -132,37 +136,45 @@ maccormack_steps = generate_maccormack_steps()
                step_i='Py_ssize_t',
                step_j='Py_ssize_t',
                step_k='Py_ssize_t',
-               ux_ijk='double',
-               ux_sjk='double',
-               uy_ijk='double',
-               uy_isk='double',
-               uz_ijk='double',
-               uz_ijs='double',
-               w='double',
-               ρ='double[:, :, ::1]',
-               ρ_ijk='double',
-               ρ_ijs='double',
-               ρ_isk='double',
-               ρ_sjk='double',
-               ρux='double[:, :, ::1]',
-               ρux_ijk='double',
-               ρux_ijs='double',
-               ρux_isk='double',
-               ρux_sjk='double',
-               ρuxˣ='double[:, :, ::1]',
-               ρuy='double[:, :, ::1]',
-               ρuy_ijk='double',
-               ρuy_ijs='double',
-               ρuy_isk='double',
-               ρuy_sjk='double',
-               ρuyˣ='double[:, :, ::1]',
-               ρuz='double[:, :, ::1]',
-               ρuz_ijk='double',
-               ρuz_ijs='double',
-               ρuz_isk='double',
-               ρuz_sjk='double',
-               ρuzˣ='double[:, :, ::1]',
-               ρˣ='double[:, :, ::1]',
+               ΔJ='double[::1]',
+               Δϱ='double',
+               Δσ='double[:, ::1]',
+               ϱ='double[:, :, ::1]',
+               ϱ_ijk='double',
+               ϱ_ijs='double',
+               ϱ_isk='double',
+               ϱ_step='double[::1]',
+               ϱ_sjk='double',
+               ϱˣ='double[:, :, ::1]',
+               σ_ijk='double[:, ::1]',
+               σ_step='double[:, :, ::1]',
+               σxx='double[:, :, ::1]',
+               σxx_step='double[::1]',
+               σxxˣ='double[:, :, ::1]',
+               σxy='double[:, :, ::1]',
+               σxy_step='double[::1]',
+               σxyˣ='double[:, :, ::1]',
+               σxz='double[:, :, ::1]',
+               σxz_step='double[::1]',
+               σxzˣ='double[:, :, ::1]',
+               σyx='double[:, :, ::1]',
+               σyx_step='double[::1]',
+               σyxˣ='double[:, :, ::1]',
+               σyy='double[:, :, ::1]',
+               σyy_step='double[::1]',
+               σyyˣ='double[:, :, ::1]',
+               σyz='double[:, :, ::1]',
+               σyz_step='double[::1]',
+               σyzˣ='double[:, :, ::1]',
+               σzx='double[:, :, ::1]',
+               σzx_step='double[::1]',
+               σzxˣ='double[:, :, ::1]',
+               σzy='double[:, :, ::1]',
+               σzy_step='double[::1]',
+               σzyˣ='double[:, :, ::1]',
+               σzz='double[:, :, ::1]',
+               σzz_step='double[::1]',
+               σzzˣ='double[:, :, ::1]',
                )
 def evolve_fluid(component, ᔑdt, steps, mc_step):
     """It is assumed that the unstarred and starred grids have
@@ -180,107 +192,134 @@ def evolve_fluid(component, ᔑdt, steps, mc_step):
     indices_local_start = asarray((2, 2, 2), dtype=C2np['Py_ssize_t'])
     indices_local_end   = asarray(shape    , dtype=C2np['Py_ssize_t']) - 2 - 1
     # Extract fluid grids
-    ρ   = component.ρ  .grid_mv
-    ρux = component.ρux.grid_mv
-    ρuy = component.ρuy.grid_mv
-    ρuz = component.ρuz.grid_mv
+    ϱ  = component.ϱ .grid_mv
+    Jx = component.Jx.grid_mv
+    Jy = component.Jy.grid_mv
+    Jz = component.Jz.grid_mv
+    N_fluidvars = len(component.fluidvars)
+    if N_fluidvars > 2:
+        σxx = component.σxx.grid_mv
+        σxy = component.σxy.grid_mv
+        σxz = component.σxz.grid_mv
+        σyx = component.σyx.grid_mv
+        σyy = component.σyy.grid_mv
+        σyz = component.σyz.grid_mv
+        σzx = component.σzx.grid_mv
+        σzy = component.σzy.grid_mv
+        σzz = component.σzz.grid_mv
     # Extract starred fluid grids
-    ρˣ   = component.ρ  .gridˣ_mv
-    ρuxˣ = component.ρux.gridˣ_mv
-    ρuyˣ = component.ρuy.gridˣ_mv
-    ρuzˣ = component.ρuz.gridˣ_mv
-    # Get the equation of state parameter w at this instance in time
-    w = component.w()
+    ϱˣ  = component.ϱ .gridˣ_mv
+    Jxˣ = component.Jx.gridˣ_mv
+    Jyˣ = component.Jy.gridˣ_mv
+    Jzˣ = component.Jz.gridˣ_mv
+    if N_fluidvars > 2:
+        σxxˣ = component.σxx.gridˣ_mv
+        σxyˣ = component.σxy.gridˣ_mv
+        σxzˣ = component.σxz.gridˣ_mv
+        σyxˣ = component.σyx.gridˣ_mv
+        σyyˣ = component.σyy.gridˣ_mv
+        σyzˣ = component.σyz.gridˣ_mv
+        σzxˣ = component.σzx.gridˣ_mv
+        σzyˣ = component.σzy.gridˣ_mv
+        σzzˣ = component.σzz.gridˣ_mv
+    # Allocate buffers
+    ϱ_step = empty(3)
+    J_ijk = empty(3)
+    J_step = empty((3, 3))
+    Jx_step = J_step[0]
+    Jy_step = J_step[1]
+    Jz_step = J_step[2]
+    ΔJ = empty(3)
+    if N_fluidvars > 2:
+        σ_ijk = empty((3, 3))
+        σ_step = empty((3, 3, 3))
+        σxx_step = σ_step[0, 0]
+        σxy_step = σ_step[0, 1]
+        σxz_step = σ_step[0, 2]
+        σyx_step = σ_step[1, 0]
+        σyy_step = σ_step[1, 1]
+        σyz_step = σ_step[1, 2]
+        σzx_step = σ_step[2, 0]
+        σzy_step = σ_step[2, 1]
+        σzz_step = σ_step[2, 2]
+        Δσ = empty((3, 3))
     # In the case of the second MacCormack step, the role of the
     # starred and the unstarred variables should be swapped.
     if mc_step == 1:
-        ρ  , ρˣ   = ρˣ  , ρ
-        ρux, ρuxˣ = ρuxˣ, ρux
-        ρuy, ρuyˣ = ρuyˣ, ρuy
-        ρuz, ρuzˣ = ρuzˣ, ρuz
-    # Loop which update the parsed starred variables
-    # from the parsed unstarred variables.
+        ϱ , ϱˣ  = ϱˣ , ϱ
+        Jx, Jxˣ = Jxˣ, Jx
+        Jy, Jyˣ = Jyˣ, Jy
+        Jz, Jzˣ = Jzˣ, Jz
+        if N_fluidvars > 2:
+            σxx, σxxˣ = σxxˣ, σxx
+            σxy, σxyˣ = σxyˣ, σxy
+            σxz, σxzˣ = σxzˣ, σxz
+            σyx, σyxˣ = σyxˣ, σyx
+            σyy, σyyˣ = σyyˣ, σyy
+            σyz, σyzˣ = σyzˣ, σyz
+            σzx, σzxˣ = σzxˣ, σzx
+            σzy, σzyˣ = σzyˣ, σzy
+            σzz, σzzˣ = σzzˣ, σzz
+    # Loop which update the starred variables
+    # from the unstarred variables.
     for         i in range(ℤ[indices_local_start[0]], ℤ[indices_local_end[0]]):
         for     j in range(ℤ[indices_local_start[1]], ℤ[indices_local_end[1]]):
             for k in range(ℤ[indices_local_start[2]], ℤ[indices_local_end[2]]):
                 # Density at this point
-                ρ_ijk = ρ[i, j, k]
+                ϱ_ijk = ϱ[i, j, k]
                 # Momentum density components at this point
-                ρux_ijk = ρux[i, j, k]
-                ρuy_ijk = ρuy[i, j, k]
-                ρuz_ijk = ρuz[i, j, k]
-                # Velocity components at this point
-                ux_ijk = ρux_ijk/ρ_ijk
-                uy_ijk = ρuy_ijk/ρ_ijk
-                uz_ijk = ρuz_ijk/ρ_ijk
+                Jx_ijk = Jx[i, j, k]
+                Jy_ijk = Jy[i, j, k]
+                Jz_ijk = Jz[i, j, k]
+                J_ijk[0] = Jx_ijk
+                J_ijk[1] = Jy_ijk
+                J_ijk[2] = Jz_ijk
                 # Density at forward (backward) points
-                ρ_sjk = ρ[i + step_i, j         , k         ]
-                ρ_isk = ρ[i         , j + step_j, k         ]
-                ρ_ijs = ρ[i         , j         , k + step_k]
+                ϱ_step[0] = ϱ[i + step_i, j         , k         ]
+                ϱ_step[1] = ϱ[i         , j + step_j, k         ]
+                ϱ_step[2] = ϱ[i         , j         , k + step_k]
                 # Momentum density components at forward (backward) points
-                ρux_sjk = ρux[i + step_i, j         , k         ]
-                ρux_isk = ρux[i         , j + step_j, k         ]
-                ρux_ijs = ρux[i         , j         , k + step_k]
-                ρuy_sjk = ρuy[i + step_i, j         , k         ]
-                ρuy_isk = ρuy[i         , j + step_j, k         ]
-                ρuy_ijs = ρuy[i         , j         , k + step_k]
-                ρuz_sjk = ρuz[i + step_i, j         , k         ]
-                ρuz_isk = ρuz[i         , j + step_j, k         ]
-                ρuz_ijs = ρuz[i         , j         , k + step_k]
-                # Velocity components at forward (backward) points
-                ux_sjk = ρux_sjk/ρ_sjk
-                uy_isk = ρuy_isk/ρ_isk
-                uz_ijs = ρuz_ijs/ρ_ijs
-                # Flux of ρ (ρ*u)
-                ρ_flux = (+ step_i*(ρux_sjk - ρux_ijk)
-                          + step_j*(ρuy_isk - ρuy_ijk)
-                          + step_k*(ρuz_ijs - ρuz_ijk)
-                          )
-                # Flux of ρux (ρux*u)
-                ρux_flux = (+ step_i*(ρux_sjk*ux_sjk - ρux_ijk*ux_ijk)
-                            + step_j*(ρux_isk*uy_isk - ρux_ijk*uy_ijk)
-                            + step_k*(ρux_ijs*uz_ijs - ρux_ijk*uz_ijk)
-                            # Pressure term
-                            + step_i*ℝ[light_speed**2*w/(1 + w)]*(ρ_sjk - ρ_ijk)
-                            )
-                # Flux of ρuy (ρuy*u)
-                ρuy_flux = (+ step_i*(ρuy_sjk*ux_sjk - ρuy_ijk*ux_ijk)
-                            + step_j*(ρuy_isk*uy_isk - ρuy_ijk*uy_ijk)
-                            + step_k*(ρuy_ijs*uz_ijs - ρuy_ijk*uz_ijk)
-                            # Pressure term
-                            + step_j*ℝ[light_speed**2*w/(1 + w)]*(ρ_isk - ρ_ijk)
-                            )
-                # Flux of ρuz (ρuz*u)
-                ρuz_flux = (+ step_i*(ρuz_sjk*ux_sjk - ρuz_ijk*ux_ijk)
-                            + step_j*(ρuz_isk*uy_isk - ρuz_ijk*uy_ijk)
-                            + step_k*(ρuz_ijs*uz_ijs - ρuz_ijk*uz_ijk)
-                            # Pressure term
-                            + step_k*ℝ[light_speed**2*w/(1 + w)]*(ρ_ijs - ρ_ijk)
-                            )
-                # Update ρ
-                ρˣ[i, j, k] += (# Initial value
-                                + ρ_ijk
-                                # Flux
-                                - ℝ[ᔑdt['a⁻²']/h]*ρ_flux
-                                )
-                # Update ρux
-                ρuxˣ[i, j, k] += (# Initial value
-                                  + ρux_ijk
-                                  # Flux
-                                  - ℝ[ᔑdt['a⁻²']/h]*ρux_flux
+                J_step[0, 0] = Jx[i + step_i, j         , k         ]
+                J_step[0, 1] = Jx[i         , j + step_j, k         ]
+                J_step[0, 2] = Jx[i         , j         , k + step_k]
+                J_step[1, 0] = Jy[i + step_i, j         , k         ]
+                J_step[1, 1] = Jy[i         , j + step_j, k         ]
+                J_step[1, 2] = Jy[i         , j         , k + step_k]    
+                J_step[2, 0] = Jz[i + step_i, j         , k         ]
+                J_step[2, 1] = Jz[i         , j + step_j, k         ]
+                J_step[2, 2] = Jz[i         , j         , k + step_k]                  
+                # Flux terms in the continuity equation
+                # Δϱ = - ᔑa³ʷ⁻²(1 + w)dt ∇·J    (energy flux)
+                #      + ⋯                      (source terms)
+                Δϱ = (# Energy flux
+                      + step_i*(Jx_step[0] - Jx_ijk)
+                      + step_j*(Jy_step[1] - Jy_ijk)
+                      + step_k*(Jz_step[2] - Jz_ijk)
+                      )*ℝ[-ᔑdt['a³ʷ⁻²(1+w)', component]/h]
+                # Flux terms in the Euler equation
+                # ΔJᵢ = - c²ᔑa⁻³ʷw/(1 + w)dt (∇ϱ)ᵢ    (pressure term)
+                #       - ᔑa³ʷ⁻²dt ∇·(Jᵢ/ϱ J)         (momentum flux)
+                #       + ⋯                           (source terms)
+                for dim in range(3):
+                    ΔJ[dim] = (# Pressure term
+                               + (steps[dim]*(ϱ_step[dim] - ϱ_ijk)
+                                  *ℝ[-light_speed**2*ᔑdt['a⁻³ʷw/(1+w)', component]/h]
                                   )
-                # Update ρuy
-                ρuyˣ[i, j, k] += (# Initial value
-                                  + ρuy_ijk
-                                  # Flux
-                                  - ℝ[ᔑdt['a⁻²']/h]*ρuy_flux
-                                  )
-                # Update ρuz
-                ρuzˣ[i, j, k] += (# Initial value
-                                  + ρuz_ijk
-                                  # Flux
-                                  - ℝ[ᔑdt['a⁻²']/h]*ρuz_flux
-                                  )
+                               # Momentum flux
+                               + (+ step_i*(  J_step[dim, 0]/ϱ_step[0]*Jx_step[0]
+                                            - J_ijk [dim   ]/ϱ_ijk    *Jx_ijk)
+                                  + step_j*(  J_step[dim, 1]/ϱ_step[1]*Jy_step[1]
+                                            - J_ijk [dim   ]/ϱ_ijk    *Jy_ijk)
+                                  + step_k*(  J_step[dim, 2]/ϱ_step[2]*Jz_step[2]
+                                            - J_ijk [dim   ]/ϱ_ijk    *Jz_ijk)
+                                  )*ℝ[-ᔑdt['a³ʷ⁻²', component]/h]
+                               )
+                # Update ϱ
+                ϱˣ[i, j, k] += ϱ_ijk + Δϱ
+                # Update J
+                Jxˣ[i, j, k] += Jx_ijk + ΔJ[0]
+                Jyˣ[i, j, k] += Jy_ijk + ΔJ[1]
+                Jzˣ[i, j, k] += Jz_ijk + ΔJ[2]
     # Populate the pseudo and ghost points with the updated values.
     # Depedendent on whether we are doing the first of second
     # MacCormack step (mc_step), the updated grids are really the
@@ -291,12 +330,52 @@ def evolve_fluid(component, ᔑdt, steps, mc_step):
     else:  # mc_step == 1
         component.communicate_fluid_grids(mode='populate')
 
+# Function which evolve the fluid variables of a component
+# due to internal source terms.
+@cython.header(# Arguments
+               component='Component',
+               ᔑdt='dict',
+               # Locals
+               N_fluidvars='Py_ssize_t',
+               J_dim='double*',
+               fluidscalar='FluidScalar',
+               i='Py_ssize_t',
+               ϱ='double*',
+               )
+def apply_sources(component, ᔑdt):
+    # Update ϱ due to its internal source term
+    ϱ  = component.ϱ .grid
+    for i in range(self.size):
+        ϱ[i] *= ℝ[1 + 3*ᔑdt['ẇlog(a)', component]]
+    # Update J due to its internal source term
+    for dim in range(3):
+        fluidscalar = component.J[dim]
+        J_dim = fluidscalar.grid
+        for i in range(self.size):
+            J_dim[i] *= ℝ[1 - ᔑdt['ẇ/(1+w)', component]]
+    # Update σ due to its internal source term
+    N_fluidvars = len(component.fluidvars)
+    if N_fluidvars > 2:
+        ...
+
 # Function which checks for imminent vacuum in a fluid component
 # and does one sweep of vacuum corrections.
 @cython.header(# Arguments
                component='Component',
                mc_step='int',
                # Locals
+               Jx='double[:, :, ::1]',
+               Jx_correction='double',
+               Jx_ptr='double*',
+               Jxˣ='double[:, :, ::1]',
+               Jy='double[:, :, ::1]',
+               Jy_correction='double',
+               Jy_ptr='double*',
+               Jyˣ='double[:, :, ::1]',
+               Jz='double[:, :, ::1]',
+               Jz_correction='double',
+               Jz_ptr='double*',
+               Jzˣ='double[:, :, ::1]',
                dist2='Py_ssize_t',
                fac_smoothing='double',
                fac_time='double',
@@ -316,48 +395,36 @@ def evolve_fluid(component, ᔑdt, steps, mc_step):
                shape='tuple',
                timespan='double',
                vacuum_imminent='bint',
-               Δρ='double[:, :, ::1]',
-               Δρ_ptr='double*',
-               Δρux='double[:, :, ::1]',
-               Δρux_ptr='double*',
-               Δρuy='double[:, :, ::1]',
-               Δρuy_ptr='double*',
-               Δρuz='double[:, :, ::1]',
-               Δρuz_ptr='double*',
-               ρ='double[:, :, ::1]',
-               ρ_correction='double',
-               ρ_ijk='double',
-               ρ_ptr='double*',
-               ρux='double[:, :, ::1]',
-               ρux_correction='double',
-               ρux_ptr='double*',
-               ρuxˣ='double[:, :, ::1]',
-               ρuy='double[:, :, ::1]',
-               ρuy_correction='double',
-               ρuy_ptr='double*',
-               ρuyˣ='double[:, :, ::1]',
-               ρuz='double[:, :, ::1]',
-               ρuz_correction='double',
-               ρuz_ptr='double*',
-               ρuzˣ='double[:, :, ::1]',
-               ρˣ='double[:, :, ::1]',
-               ρˣ_ijk='double',
+               ΔJx='double[:, :, ::1]',
+               ΔJx_ptr='double*',
+               ΔJy='double[:, :, ::1]',
+               ΔJy_ptr='double*',
+               ΔJz='double[:, :, ::1]',
+               ΔJz_ptr='double*',
+               Δϱ='double[:, :, ::1]',
+               Δϱ_ptr='double*',
+               ϱ='double[:, :, ::1]',
+               ϱ_correction='double',
+               ϱ_ijk='double',
+               ϱ_ptr='double*',
+               ϱˣ='double[:, :, ::1]',
+               ϱˣ_ijk='double',
                returns='bint',
                )
 def correct_vacuum(component, mc_step):
     """This function will detect and correct for imminent vacuum in a
     fluid component. The vacuum detection is done differently depending
-    on the MacCormack step (the parsed mc_step). For the first
+    on the MacCormack step (the passed mc_step). For the first
     MacCormack step, vacuum is considered imminent if a density below
-    the vacuum density, ρ_vacuum, will be reached within timespan
+    the vacuum density, ϱ_vacuum, will be reached within timespan
     similiar time steps. For the second MacCormack step, vacuum is
     considered imminent if the density is below the vacuum density.
     The vacuum correction is done by smoothing all fluid variables in
     the 3x3x3 neighbouring cells souronding the vacuum cell.
-    The smoothing between each pair of cells, call them (ρi, ρj),
+    The smoothing between each pair of cells, call them (i, j),
     is given by
-    ρi += fac_smoothing*(ρj - ρi)/r²,
-    ρj += fac_smoothing*(ρi - ρj)/r²,
+    ϱi += fac_smoothing*(ϱj - ϱi)/r²,
+    ϱj += fac_smoothing*(ϱi - ϱj)/r²,
     where r is the distance between the cells in grid units.
     Whether or not any vacuum corrections were made is returned
     as the return value.
@@ -386,41 +453,41 @@ def correct_vacuum(component, mc_step):
     indices_local_start = asarray([2, 2, 2], dtype=C2np['Py_ssize_t'])
     indices_local_end   = asarray(shape    , dtype=C2np['Py_ssize_t']) - 2 - 1
     # Extract memory views and pointers to the fluid variables
-    ρ        = component.ρ  .grid_mv
-    ρ_ptr    = component.ρ  .grid
-    ρˣ       = component.ρ  .gridˣ_mv
-    ρˣ_ptr   = component.ρ  .gridˣ
-    Δρ       = component.ρ  .Δ_mv
-    Δρ_ptr   = component.ρ  .Δ
-    ρux      = component.ρux.grid_mv
-    ρux_ptr  = component.ρux.grid
-    ρuxˣ     = component.ρux.gridˣ_mv
-    ρuxˣ_ptr = component.ρux.gridˣ
-    Δρux     = component.ρux.Δ_mv
-    Δρux_ptr = component.ρux.Δ
-    ρuy      = component.ρuy.grid_mv
-    ρuy_ptr  = component.ρuy.grid
-    ρuyˣ     = component.ρuy.gridˣ_mv
-    ρuyˣ_ptr = component.ρuy.gridˣ
-    Δρuy     = component.ρuy.Δ_mv
-    Δρuy_ptr = component.ρuy.Δ
-    ρuz      = component.ρuz.grid_mv
-    ρuz_ptr  = component.ρuz.grid
-    ρuzˣ     = component.ρuz.gridˣ_mv
-    ρuzˣ_ptr = component.ρuz.gridˣ
-    Δρuz     = component.ρuz.Δ_mv
-    Δρuz_ptr = component.ρuz.Δ
+    ϱ       = component.ϱ .grid_mv
+    ϱ_ptr   = component.ϱ .grid
+    ϱˣ      = component.ϱ .gridˣ_mv
+    ϱˣ_ptr  = component.ϱ .gridˣ
+    Δϱ      = component.ϱ .Δ_mv
+    Δϱ_ptr  = component.ϱ .Δ
+    Jx      = component.Jx.grid_mv
+    Jx_ptr  = component.Jx.grid
+    Jxˣ     = component.Jx.gridˣ_mv
+    Jxˣ_ptr = component.Jx.gridˣ
+    ΔJx     = component.Jx.Δ_mv
+    ΔJx_ptr = component.Jx.Δ
+    Jy      = component.Jy.grid_mv
+    Jy_ptr  = component.Jy.grid
+    Jyˣ     = component.Jy.gridˣ_mv
+    Jyˣ_ptr = component.Jy.gridˣ
+    ΔJy     = component.Jy.Δ_mv
+    ΔJy_ptr = component.Jy.Δ
+    Jz      = component.Jz.grid_mv
+    Jz_ptr  = component.Jz.grid
+    Jzˣ     = component.Jz.gridˣ_mv
+    Jzˣ_ptr = component.Jz.gridˣ
+    ΔJz     = component.Jz.Δ_mv
+    ΔJz_ptr = component.Jz.Δ
     # In the case of the second MacCormack step, the role of the
     # starred and the unstarred variables should be swapped.
     if mc_step == 1:
-        ρ      , ρˣ       = ρˣ      , ρ
-        ρ_ptr  , ρˣ_ptr   = ρˣ_ptr  , ρ_ptr
-        ρux    , ρuxˣ     = ρuxˣ    , ρux
-        ρux_ptr, ρuxˣ_ptr = ρuxˣ_ptr, ρux_ptr
-        ρuy    , ρuyˣ     = ρuyˣ    , ρuy
-        ρuy_ptr, ρuyˣ_ptr = ρuyˣ_ptr, ρuy_ptr
-        ρuz    , ρuzˣ     = ρuzˣ    , ρuz
-        ρuz_ptr, ρuzˣ_ptr = ρuzˣ_ptr, ρuz_ptr
+        ϱ     , ϱˣ      = ϱˣ     , ϱ
+        ϱ_ptr , ϱˣ_ptr  = ϱˣ_ptr , ϱ_ptr
+        Jx    , Jxˣ     = Jxˣ    , Jx
+        Jx_ptr, Jxˣ_ptr = Jxˣ_ptr, Jx_ptr
+        Jy    , Jyˣ     = Jyˣ    , Jy
+        Jy_ptr, Jyˣ_ptr = Jyˣ_ptr, Jy_ptr
+        Jz    , Jzˣ     = Jzˣ    , Jz
+        Jz_ptr, Jzˣ_ptr = Jzˣ_ptr, Jz_ptr
     # Loop over the local domain and check and compute
     # corrections for imminent vacuum.
     vacuum_imminent = False
@@ -428,28 +495,28 @@ def correct_vacuum(component, mc_step):
         for     j in range(ℤ[indices_local_start[1]], ℤ[indices_local_end[1]]):
             for k in range(ℤ[indices_local_start[2]], ℤ[indices_local_end[2]]):
                 # Unstarred and starred density at this point
-                ρ_ijk  = ρ [i, j, k]
-                ρˣ_ijk = ρˣ[i, j, k]
+                ϱ_ijk  = ϱ [i, j, k]
+                ϱˣ_ijk = ϱˣ[i, j, k]
                 # Check for imminent vacuum.
                 # After the first MacCormack step, vacuum is considered
                 # to be imminent if a density below the vacuum density,
-                # ρ_vacuum, will be reached within timespan similiar
+                # ϱ_vacuum, will be reached within timespan similiar
                 # time steps. That is, vacuum is imminent if
-                # ρ + timespan*dρ < ρ_vacuum,
-                # where dρ is the change in ρ from the first MacCormack
-                # step, given by dρ = ½(ρˣ - ρ), where the factor ½ is
-                # due to ρˣ really holding double the change,
-                # ρˣ = ρ + 2*dρ. Put together, this means that vacuum
+                # ϱ + timespan*dϱ < ϱ_vacuum,
+                # where dϱ is the change in ϱ from the first MacCormack
+                # step, given by dϱ = ½(ϱˣ - ϱ), where the factor ½ is
+                # due to ϱˣ really holding double the change,
+                # ϱˣ = ϱ + 2*dϱ. Put together, this means that vacuum
                 # is imminent if
-                # ρˣ + ρ*(2/timespan - 1) < 2/timespan*ρ_vacuum.
+                # ϱˣ + ϱ*(2/timespan - 1) < 2/timespan*ϱ_vacuum.
                 # After the second MacCormack step, vacuum is considered
                 # to be imminent only if the density is lower than the
-                # vacuum density, ρ_vacuum. Because the starred
+                # vacuum density, ϱ_vacuum. Because the starred
                 # variables hold double their actual values,
                 # this corresponds to
-                # ρˣ_ijk < 2*ρ_vacuum.
-                if (   (mc_step == 0 and ρ_ijk*ℝ[2/timespan - 1] + ρˣ_ijk < ℝ[2/timespan*ρ_vacuum])
-                    or (mc_step == 1 and                           ρˣ_ijk < ℝ[2*ρ_vacuum])
+                # ϱˣ_ijk < 2*ϱ_vacuum.
+                if (   (mc_step == 0 and ϱ_ijk*ℝ[2/timespan - 1] + ϱˣ_ijk < ℝ[2/timespan*ϱ_vacuum])
+                    or (mc_step == 1 and                           ϱˣ_ijk < ℝ[2*ϱ_vacuum])
                     ):
                     vacuum_imminent = True
                     # The amount of smoothing to apply depends upon
@@ -458,9 +525,9 @@ def correct_vacuum(component, mc_step):
                     if mc_step == 0:
                         # The number of time steps before densities
                         # lower than the vacuum density is given by
-                        # ρ + timesteps*dρ == ρ_vacuum, dρ = ½(ρˣ - ρ).
-                        # --> timesteps = 2*(ρ - ρ_vacuum)/(ρ - ρˣ).
-                        fac_time = 0.5*(ρ_ijk - ρˣ_ijk)/(ρ_ijk - ρ_vacuum)
+                        # ϱ + timesteps*dϱ == ϱ_vacuum, dϱ = ½(ϱˣ - ϱ).
+                        # --> timesteps = 2*(ϱ - ϱ_vacuum)/(ϱ - ϱˣ).
+                        fac_time = 0.5*(ϱ_ijk - ϱˣ_ijk)/(ϱ_ijk - ϱ_vacuum)
                     else:  # mc_step == 1
                         # The density is already lower
                         # than the vaccuum density.
@@ -481,19 +548,23 @@ def correct_vacuum(component, mc_step):
                             # in grid units (1 ≤ dist2 ≤ 12).
                             dist2 = (ni - mi)**2 + (nj - mj)**2 + (nk - mk)**2
                             # Compute vacuum corrections
-                            ρ_correction   = (ρ  [ni, nj, nk] - ℝ[ρ  [mi, mj, mk]])*ℝ[fac_smoothing*fac_time/dist2]
-                            ρux_correction = (ρux[ni, nj, nk] - ℝ[ρux[mi, mj, mk]])*ℝ[fac_smoothing*fac_time/dist2]
-                            ρuy_correction = (ρuy[ni, nj, nk] - ℝ[ρuy[mi, mj, mk]])*ℝ[fac_smoothing*fac_time/dist2]
-                            ρuz_correction = (ρuz[ni, nj, nk] - ℝ[ρuz[mi, mj, mk]])*ℝ[fac_smoothing*fac_time/dist2]
+                            ϱ_correction  = (ϱ [ni, nj, nk] - ℝ[ϱ [mi, mj, mk]])*ℝ[ fac_smoothing
+                                                                                   *fac_time/dist2]
+                            Jx_correction = (Jx[ni, nj, nk] - ℝ[Jx[mi, mj, mk]])*ℝ[ fac_smoothing
+                                                                                   *fac_time/dist2]
+                            Jy_correction = (Jy[ni, nj, nk] - ℝ[Jy[mi, mj, mk]])*ℝ[ fac_smoothing
+                                                                                   *fac_time/dist2]
+                            Jz_correction = (Jz[ni, nj, nk] - ℝ[Jz[mi, mj, mk]])*ℝ[ fac_smoothing
+                                                                                   *fac_time/dist2]
                             # Store vacuum corrections
-                            Δρ  [mi, mj, mk] += ρ_correction
-                            Δρux[mi, mj, mk] += ρux_correction
-                            Δρuy[mi, mj, mk] += ρuy_correction
-                            Δρuz[mi, mj, mk] += ρuz_correction
-                            Δρ  [ni, nj, nk] -= ρ_correction
-                            Δρux[ni, nj, nk] -= ρux_correction
-                            Δρuy[ni, nj, nk] -= ρuy_correction
-                            Δρuz[ni, nj, nk] -= ρuz_correction
+                            Δϱ [mi, mj, mk] += ϱ_correction
+                            ΔJx[mi, mj, mk] += Jx_correction
+                            ΔJy[mi, mj, mk] += Jy_correction
+                            ΔJz[mi, mj, mk] += Jz_correction
+                            Δϱ [ni, nj, nk] -= ϱ_correction
+                            ΔJx[ni, nj, nk] -= Jx_correction
+                            ΔJy[ni, nj, nk] -= Jy_correction
+                            ΔJz[ni, nj, nk] -= Jz_correction
     # If vacuum is imminent on any process, consider it to be
     # imminent on every process.
     vacuum_imminent = allreduce(vacuum_imminent, op=MPI.LOR)
@@ -508,10 +579,10 @@ def correct_vacuum(component, mc_step):
         # is needed as we also apply vacuum corrections to the
         # pseudo and ghost points.
         for i in range(component.size):
-            ρ_ptr  [i] += Δρ_ptr  [i]
-            ρux_ptr[i] += Δρux_ptr[i]
-            ρuy_ptr[i] += Δρuy_ptr[i]
-            ρuz_ptr[i] += Δρuz_ptr[i]
+            ϱ_ptr [i] += Δϱ_ptr [i]
+            Jx_ptr[i] += ΔJx_ptr[i]
+            Jy_ptr[i] += ΔJy_ptr[i]
+            Jz_ptr[i] += ΔJz_ptr[i]
     # The return value should indicate whether or not
     # vacuum corrections have been carried out.
     return vacuum_imminent

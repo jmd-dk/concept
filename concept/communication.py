@@ -642,7 +642,7 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1,
     than 4) and size and may be different for the two.
     If block_recv is larger than the received data, the extra elements
     in the end will be filled with junk if the dimension of block_recv
-    is larger than 1. Though for the sake of performance, always parse
+    is larger than 1. Though for the sake of performance, always pass
     a fitting block_recv.
     The MPI function to use is specified in the mpifun argument
     (e.g. mpifun='sendrecv' or mpifun='send'). Uppercase communication
@@ -652,27 +652,27 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1,
     block_recv when doing a Send. For Cython to be able to compile this,
     a cython.pheader decorator is used (corresponding to cython.ccall
     or cpdef). Also, if a call to smart_mpi results in a receive but not
-    a send, block_recv can be parsed as the first argument
+    a send, block_recv can be passed as the first argument
     instead of block_send (which is not used in this case).
-    It is allowed not to parse in a block_recv, even when a message
+    It is allowed not to pass in a block_recv, even when a message
     should be received. In that case, the recvbuf buffer will be used
     and returned.
     The received data can either be copied into block_recv (overwriting
     existing data) or it can be added to the existing data. Change
     this behaviour through the operation argument (operation='=' or
     operation='+=').
-    If the parsed blocks are contiguous, they will be used directly
+    If the passed blocks are contiguous, they will be used directly
     in the communication (though in the case of block_recv, only when
     operation='='). If not, contiguous buffers will be used. The
     buffers used are the variables sendbuf/sendbuf_mv and
     recvbuf/recvbuf_mv. These will be enlarged if necessary.
-    Since the buffers contain doubles, the parsed arrays must also
+    Since the buffers contain doubles, the passed arrays must also
     contain doubles if the buffers are to be used. If communication can
-    take place directly without the use of the buffers, the parsed
+    take place directly without the use of the buffers, the passed
     arrays may contain any type (though the type of the send and recv
     block should always be identical).
     What is returned depends on the choice of mpifun. Whenever a message
-    should be received, the parsed block_recv is returned (as block_recv
+    should be received, the passed block_recv is returned (as block_recv
     is populated with values in-place, this is rarely used). When a
     non-blocking send-only is used, the MPI request is returned. In a
     blocking send-only is used, None is returned.
@@ -729,7 +729,7 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1,
     arr_recv = asarray(block_recv)
     # If the input blocks contain different types (and one of them
     # contain doubles), convert them both to doubles.
-    # This is not done in-place, meaning that the parsed recv_block will
+    # This is not done in-place, meaning that the passed recv_block will
     # not be changed! The returned block should be used in stead.
     if sending and recving:
         if   (    arr_send.dtype == np.dtype(C2np['double'])
@@ -738,10 +738,10 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1,
         elif (    arr_send.dtype != np.dtype(C2np['double'])
               and arr_recv.dtype == np.dtype(C2np['double'])):
               arr_send = arr_send.astype(C2np['double'])
-    # Are the parsed arrays contiguous?
+    # Are the passed arrays contiguous?
     contiguous_send = arr_send.flags.c_contiguous
     contiguous_recv = arr_recv.flags.c_contiguous
-    # Get the dimensionality and sizes of the parsed arrays
+    # Get the dimensionality and sizes of the passed arrays
     dims_send = len(arr_send.shape)
     dims_recv = len(arr_recv.shape)
     size_send = arr_send.size
@@ -770,7 +770,7 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1,
         dims_recv = 1
     # Based on the contiguousity of the input arrays, assign the names
     # data_send and data_recv to the contiguous blocks of data, which
-    # are to be parsed into the MPI functions.
+    # are to be passed into the MPI functions.
     if contiguous_send:
         data_send = arr_send
     else:
@@ -789,7 +789,7 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1,
             recvbuf = realloc(recvbuf, size_recv*sizeof('double'))
             recvbuf_mv = cast(recvbuf, 'double[:size_recv]')
         data_recv = recvbuf_mv[:size_recv]
-    # When no block_recv is parsed, use the recvbuf buffer
+    # When no block_recv is passed, use the recvbuf buffer
     if arr_recv.size == 0:
         # Expand the receive bufffer if necessary
         if size_recv > recvbuf_mv.shape[0]:
@@ -833,7 +833,7 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1,
     else:
         abort('MPI function "{}" is not implemented'.format(mpifun))
     # Copy or add the received data from the buffer
-    # to the parsed block_recv (arr_recv), if needed.
+    # to the passed block_recv (arr_recv), if needed.
     if not recving:
         return
     index = 0
@@ -887,6 +887,7 @@ cython.declare(domain_subdivisions='int[::1]',
                domain_size_x='double',
                domain_size_y='double',
                domain_size_z='double',
+               domain_volume='double',
                domain_start_x='double',
                domain_start_y='double',
                domain_start_z='double',
@@ -909,6 +910,7 @@ domain_layout_local_indices = asarray(np.unravel_index(rank, domain_subdivisions
 domain_size_x = boxsize/domain_subdivisions[0]
 domain_size_y = boxsize/domain_subdivisions[1]
 domain_size_z = boxsize/domain_subdivisions[2]
+domain_volume = domain_size_x*domain_size_y*domain_size_z
 # The start and end coordinates of the local domain
 domain_start_x = domain_layout_local_indices[0]*domain_size_x
 domain_start_y = domain_layout_local_indices[1]*domain_size_y

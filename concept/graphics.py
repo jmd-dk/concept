@@ -174,46 +174,45 @@ def plot_powerspec(data_list, filename, power_dict):
                artists_text='dict',
                color='double[::1]',
                combined='double[:, :, ::1]',
+               component='Component',
                figname='str',
                filename_component='str',
                filename_component_alpha='str',
                filename_component_alpha_part='str',
                filenames_component_alpha='list',
                filenames_component_alpha_part='list',
-               label_props='list',
-               label_spacing='double',
-               part='int',
-               name='str',
-               names='tuple',
-               component='Component',
-               render_dir='str',
-               scatter_size='double',
-               size_nopseudo_noghost='Py_ssize_t',
                i='Py_ssize_t',
+               index='Py_ssize_t',
                j='Py_ssize_t',
                k='Py_ssize_t',
-               size='Py_ssize_t',
+               label_props='list',
+               label_spacing='double',
+               name='str',
+               names='tuple',
+               part='int',
+               posx_mv='double[::1]',
+               posy_mv='double[::1]',
+               posz_mv='double[::1]',
+               render_dir='str',
                rgba='double[:, ::1]',
-               ρ_noghosts='double[:, :, :]',
-               index='Py_ssize_t',
+               scatter_size='double',
+               size_nopseudo_noghost='Py_ssize_t',
+               size='Py_ssize_t',
                size_i='Py_ssize_t',
                size_j='Py_ssize_t',
                size_k='Py_ssize_t',
                t_str='str',
-               fluidscalar='FluidScalar',
                x='double*',
-               y='double*',
-               z='double*',
                x_mv='double[::1]',
-               y_mv='double[::1]',
-               z_mv='double[::1]',
                xi='double',
+               y='double*',
+               y_mv='double[::1]',
                yj='double',
+               z='double*',
+               z_mv='double[::1]',
                zk='double',
-               ρbar_component='double',
-               posx_mv='double[::1]',
-               posy_mv='double[::1]',
-               posz_mv='double[::1]',
+               ϱ_noghosts='double[:, :, :]',
+               ϱbar_component='double',
                )
 def render(components, filename, cleanup=True, tmp_dirname='.renders'):
     global render_image
@@ -421,8 +420,8 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
             artist_component.set_sizes([scatter_size])
             artist_component.set_alpha(alpha)
         elif component.representation == 'fluid':
-            # Extract the ρ grid
-            ρ_noghosts = component.ρ.grid_noghosts
+            # Extract the ϱ grid
+            ϱ_noghosts = component.ϱ.grid_noghosts
             # The particle (fluid element) size on the figure.
             # The size is chosen such that the particles stand side
             # by side in a homogeneous universe (more or less).
@@ -432,7 +431,7 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
             rgba = artist_component.get_facecolor()
             # Multiplication factor for alpha values. An alpha value of
             # 1 is assigned if the relative overdensity
-            # ρ(component)/ρbar(component) >= 1/alpha_fac.
+            # ϱ(component)/ϱbar(component) >= 1/alpha_fac.
             # The chosen alpha_fac is such that in a homogeneous
             # universe, a column of fluid elements have a collective
             # alpha of 1 (more or less).            
@@ -448,12 +447,12 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
             # Update the alpha values in rgba array. The rgb-values
             # remain the same for all renders of this component.
             Vcell = (boxsize/component.gridsize)**3
-            ρbar_component = component.mass/Vcell
+            ϱbar_component = component.mass/Vcell
             index = 0
-            for         i in range(ℤ[ρ_noghosts.shape[0] - 1]):
-                for     j in range(ℤ[ρ_noghosts.shape[1] - 1]):
-                    for k in range(ℤ[ρ_noghosts.shape[2] - 1]):
-                        alpha = ℝ[alpha_fac/ρbar_component]*ρ_noghosts[i, j, k]
+            for         i in range(ℤ[ϱ_noghosts.shape[0] - 1]):
+                for     j in range(ℤ[ϱ_noghosts.shape[1] - 1]):
+                    for k in range(ℤ[ϱ_noghosts.shape[2] - 1]):
+                        alpha = ℝ[alpha_fac/ϱbar_component]*ϱ_noghosts[i, j, k]
                         if alpha > 1:
                             alpha = 1
                         rgba[index, 3] = alpha
@@ -676,7 +675,7 @@ def add_background():
                size_y='Py_ssize_t',
                size_z='Py_ssize_t',
                total_mass='double',
-               ρ_noghosts='double[:, :, :]',
+               ϱ_noghosts='double[:, :, :]',
                )
 def terminal_render(components):
     # Project all particle positions onto the 2D projection array,
@@ -704,10 +703,10 @@ def terminal_render(components):
             gridsize = component.gridsize
             mass = component.mass
             Vcell = (boxsize/gridsize)**3
-            ρ_noghosts = component.ρ.grid_noghosts
-            size_x = ρ_noghosts.shape[0] - 1
-            size_y = ρ_noghosts.shape[1] - 1
-            size_z = ρ_noghosts.shape[2] - 1
+            ϱ_noghosts = component.ϱ.grid_noghosts
+            size_x = ϱ_noghosts.shape[0] - 1
+            size_y = ϱ_noghosts.shape[1] - 1
+            size_z = ϱ_noghosts.shape[2] - 1
             # Update the total mass
             total_mass += gridsize**3*mass
             # Do the projection.
@@ -716,7 +715,7 @@ def terminal_render(components):
                 index_x = int((domain_start_x + i*domain_size_x/size_x)*projection_scalex)
                 for j in range(size_y):
                     index_y = int((domain_start_y + j*domain_size_y/size_y)*projection_scaley)
-                    projection[index_y, index_x] += Vcell*np.sum(ρ_noghosts[i, j, :size_z])
+                    projection[index_y, index_x] += Vcell*np.sum(ϱ_noghosts[i, j, :size_z])
     # Sum up local projections into the master process
     Reduce(sendbuf=(MPI.IN_PLACE if master else projection),
            recvbuf=(projection   if master else None),

@@ -102,15 +102,12 @@ class Spline:
         self.max = x[size - 1]
         # Use NumPy in pure Python and GSL when compiled
         if not cython.compiled:
-            # Simply store the parsed arrays
+            # Simply store the passed arrays
             self.x = x
             self.y = y
         else:
             # Initialize the spline
-            gsl_spline_init(self.spline,
-                            cython.address(x[:]),
-                            cython.address(y[:]),
-                            size)
+            gsl_spline_init(self.spline, cython.address(x[:]), cython.address(y[:]), size)
 
     # Method for doing spline evaluation
     @cython.header(x='double',
@@ -267,7 +264,7 @@ def rkf45(ḟ, f_start, t_start, t_end, abs_tol, rel_tol, save_intermediate=Fals
     to t_end. That is, the returned value is f(t_end). The absolute and
     relative accuracies are given by abs_tol, rel_tol.
     If save_intermediate is True, intermediate values optained during
-    the integration will be kept in t_tab, f_tab.
+    the integration will be kept in the global variables t_tab, f_tab.
     """
     global alloc_tab, f_tab, f_tab_mv, integrand_tab, integrand_tab_mv
     global size_tab, t_tab, t_tab_mv
@@ -325,7 +322,7 @@ def rkf45(ḟ, f_start, t_start, t_end, abs_tol, rel_tol, save_intermediate=Fals
         size_tab = i
     return f
 # Allocate t_tab, f_tab and integrand_tab at import time.
-# t_tab and f_tab are used to store intermediate values of t, f,
+# t_tab and f_tab are used to store intermediate values of t and f
 # in the Runge-Kutta-Fehlberg method. integrand_tab stores the
 # associated values of the integrand in ∫_t^(t + Δt) integrand dt.
 cython.declare(alloc_tab='Py_ssize_t',
@@ -362,34 +359,73 @@ def expand(a, t, Δt):
 # Function for calculating integrals of the sort
 # ∫_t^(t + Δt) integrand(a) dt.
 @cython.header(# Arguments
-               integrand='str',
+               key='object',  # str or tuple
                # Locals
+               a='double',
+               component='Component',
                i='Py_ssize_t',
+               integrand='str',
                spline='Spline',
+               t='double',
+               w='double',
                returns='double',
                )
-def scalefactor_integral(integrand):
+def scalefactor_integral(key):
     """This function returns the factor
     ∫_t^(t + Δt) integrand(a) dt
-    used in the drift and kick operations. The integrand is parsed
-    as a string, which may only be one of these implemented values:
-    integrand ∈ {'a⁻¹', 'a⁻²', 'ȧ/a'}
+    used in the drift and kick operations. The integrand is passed
+    as the key argument, which may be a string (e.g. 'a⁻¹') or a tuple
+    in the format (string, component), where again the string is really
+    the integrand. This second form is used when the integrand is
+    component specific, e.g. 'a⁻³ʷ'.
     It is important that the expand function expand(a, t, Δt) has been
     called prior to calling this function, as expand generates the
     values needed in the integration. You can call this function
     multiple times (and with different integrands) without calling
     expand in between.
     """
-    # If expand has been called as it should, f_tab now stores
-    # tabulated values of a. Compute the integrand.
+    # Extract the integrand from the passed key
+    if isinstance(key, str):
+        integrand = key
+    else:  # tuple key
+        integrand, component = key
+    # If expand has been called as it should, t_tab stores the tabulated
+    # values of t while f_tab now stores the tabulated values of a.
+    # Compute the integrand for these tabulated values.
     for i in range(size_tab):
+        a = f_tab[i]
+        t = t_tab[i]
         with unswitch:
-            if integrand == 'a⁻¹':
-                integrand_tab[i] = 1/f_tab[i]
+            if integrand == '1' or integrand == '':
+                integrand_tab[i] = 1
+            elif integrand == 'a⁻¹':
+                integrand_tab[i] = 1/a
             elif integrand == 'a⁻²':
-                integrand_tab[i] = 1/f_tab[i]**2
+                integrand_tab[i] = 1/a**2
             elif integrand == 'ȧ/a':
                 integrand_tab[i] = hubble(f_tab[i])
+            elif integrand == 'a⁻³ʷ':
+                w = component.w(t=t, a=a)
+                integrand_tab[i] = a**(-3*w)
+            elif integrand == 'a⁻³ʷ⁻¹':
+                w = component.w(t=t, a=a)
+                integrand_tab[i] = a**(-3*w - 1)
+            elif integrand == 'a³ʷ⁻²':
+                w = component.w(t=t, a=a)
+                integrand_tab[i] = a**(3*w - 2)
+            elif integrand == 'a⁻³ʷw/(1+w)':
+                w = component.w(t=t, a=a)
+                integrand_tab[i] = a**(-3*w)*w/(1+w)
+            elif integrand == 'a³ʷ⁻²(1+w)':
+                w = component.w(t=t, a=a)
+                integrand_tab[i] = a**(3*w - 2)*(1 + w)
+            elif integrand == 'ẇ/(1+w)':
+                w = component.w(t=t, a=a)
+                ẇ = component.ẇ(t=t, a=a)
+                integrand_tab[i] = ẇ/(1 + w)
+            elif integrand == 'ẇlog(a)':
+                ẇ = component.ẇ(t=t, a=a)
+                integrand_tab[i] = ẇ*log(a)
             elif master:
                 abort('The scalefactor integral with "{}" as the integrand is not implemented'
                       .format(integrand))
@@ -424,10 +460,10 @@ def cosmic_time(a, a_lower=machine_ϵ, t_lower=machine_ϵ, t_upper=-1):
     if not enable_Hubble:
         abort('A mapping a(t) cannot be constructed when enable_Hubble == False.')
     if t_upper == -1:
-        # If no explicit t_upper is parsed, use t_max_ever
+        # If no explicit t_upper is passed, use t_max_ever
         t_upper = t_max_ever
     elif t_upper > t_max_ever:
-        # If parsed t_upper exceeds t_max_ever,
+        # If passed t_upper exceeds t_max_ever,
         # set t_max_ever to this larger value.
         t_max_ever = t_upper 
     # Tolerences

@@ -138,7 +138,7 @@ def ewald(x, y, z):
     """This function performs a look up of the Ewald correction to the
     fully periodic gravitational force (corresponding to 1/r²) on a
     particle due to some other particle at a position (x, y, z) relative
-    to the first particle. It is important that the parsed coordinates
+    to the first particle. It is important that the passed coordinates
     are of the nearest periodic image of the other particle, and not
     necessarily of the particle itself. This means that
     0 <= |x|, |y|, |z| < boxsize/2. The returned value is thus the force

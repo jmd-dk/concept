@@ -48,7 +48,7 @@
 #   package dependencies):
 #     - Blessings
 #     - Cython
-#     - Cython_GSL
+#     - CythonGSL
 #     - Nose (needed by CLASS)
 #     - Nose-parameterized (needed by CLASS)
 #     - NumPy
@@ -144,7 +144,7 @@ if [ "${install_explicit_only}" == "yes" ]; then
                     "zlib"               \
                     "blessings"          \
                     "cython"             \
-                    "cython_gsl"         \
+                    "cythongsl"          \
                     "h5py"               \
                     "matplotlib"         \
                     "mpi4py"             \
@@ -203,21 +203,21 @@ set_version "freetype"        "2.7"       "2.6.5"
 set_version "gadget"          "2.0.7"
 set_version "gsl"             "2.3"       "2.2.1"
 set_version "hdf5"            "1.8.18"    "1.8.17"  # Error using 1.10.0-patch1
-set_version "libpng"          "1.6.28"    "1.6.23"
+set_version "libpng"          "1.6.28"    "1.6.27"
 if [ "${mpi}" == "openmpi" ]; then
 set_version "mpi"             "2.0.1"
 elif [ "${mpi}" == "mpich" ]; then
 set_version "mpi"             "3.2"       "3.2"
 fi
 set_version "ncurses"         "6.0"       "6.0"
-set_version "openssl"         "1.1.0d"    "1.0.2i"  # Python seems incompatible with OpenSSL 1.1.0c
+set_version "openssl"         "1.1.0e"    "1.0.2i"  # Python seems incompatible with OpenSSL 1.1.0c
 set_version "perl"            "5.24.1"
 set_version "python"          "3.6.0"
 set_version "zlib"            "1.2.11"    "1.2.8"
 # Python packages
 set_version "blessings"          "1.6"
 set_version "cython"             "0.25.2"
-set_version "cython_gsl"         "0.2.1"
+set_version "cythongsl"          "0.2.2"
 set_version "h5py"               "2.6.0"
 set_version "matplotlib"         "2.0.0"
 set_version "mpi4py"             "2.0.0"
@@ -701,7 +701,7 @@ fi
 # Set "pypackage"_preinstalled variables
 blessings_preinstalled="no"
 cython_preinstalled="no"
-cython_gsl_preinstalled="no"
+cythongsl_preinstalled="no"
 h5py_preinstalled="no"
 matplotlib_preinstalled="no"
 mpi4py_preinstalled="no"
@@ -713,7 +713,7 @@ if [ "${python_preinstalled}" == "yes" ]; then
     python=$(ls -1 "${python_dir}/bin/python"* | head -n 1)
     for pypackage in blessings          \
                      cython             \
-                     cython_gsl         \
+                     cythongsl          \
                      h5py               \
                      matplotlib         \
                      mpi4py             \
@@ -784,7 +784,7 @@ if [ -z "${pip_install}" ]; then
 fi
 for pypackage in blessings          \
                  cython             \
-                 cython_gsl         \
+                 cythongsl          \
                  h5py               \
                  matplotlib         \
                  mpi4py             \
@@ -1581,7 +1581,7 @@ if [ -n "${python_dir}" ]; then
 fi
 blessings_installed="no"
 cython_installed="no"
-cython_gsl_installed="no"
+cythongsl_installed="no"
 h5py_installed="no"
 matplotlib_installed="no"
 mpi4py_installed="no"
@@ -1592,7 +1592,7 @@ pip_installed="no"
 if [ -n "${python}" ] && [ "${python_installed}" == "yes" ]; then
     for pypackage in blessings          \
                      cython             \
-                     cython_gsl         \
+                     cythongsl          \
                      h5py               \
                      matplotlib         \
                      mpi4py             \
@@ -1700,15 +1700,15 @@ print_table()
 #
 # The following Python packages will be installed
 # Name                Version
-# blessings           ...
-# cython              ...
-# cython_gsl          ...
-# h5py                ...
-# matplotlib          ...
-# mpi4py              ...
-# nose                ...
-# nose_parameterized  ...
-# numpy               ...
+# Blessings           ...
+# Cython              ...
+# CythonGSL           ...
+# H5Py                ...
+# Matplotlib          ...
+# MPI4Py              ...
+# Nose                ...
+# Nose-parameterized  ...
+# NumPy               ...
 if [ "${install_anything}" == "yes" ]; then
     disable_status
     heading "Installation overview"
@@ -1823,10 +1823,10 @@ if [ "${install_any_pypackages}" == "yes" ]; then
            table+=("Cython$([ "${cython_installed}" == "yes" ] && echo '*' || :)" \
                    "${cython_version}" "")
     fi
-    # Cython_GSL
-    if [ "${cython_gsl_install}" == "yes" ]; then
-           table+=("Cython_GSL$([ "${cython_gsl_installed}" == "yes" ] && echo '*' || :)" \
-                   "${cython_gsl_version}" "")
+    # CythonGSL
+    if [ "${cythongsl_install}" == "yes" ]; then
+           table+=("CythonGSL$([ "${cythongsl_installed}" == "yes" ] && echo '*' || :)" \
+                   "${cythongsl_version}" "")
     fi
     # H5Py
     if [ "${h5py_install}" == "yes" ]; then
@@ -2725,7 +2725,7 @@ fi
 # Set "pypackage"_installed variables
 blessings_installed="no"
 cython_installed="no"
-cython_gsl_installed="no"
+cythongsl_installed="no"
 h5py_installed="no"
 matplotlib_installed="no"
 mpi4py_installed="no"
@@ -2736,7 +2736,7 @@ pip_installed="no"
 if [ -n "${python}" ]; then
     for pypackage in blessings          \
                      cython             \
-                     cython_gsl         \
+                     cythongsl          \
                      h5py               \
                      matplotlib         \
                      mpi4py             \
@@ -2876,15 +2876,6 @@ pip_install_pypackage()
             command_end="==${2}"
         fi
     fi
-    # Enforce lowercase
-    pip_name="${1,,}"
-    # Special renamings for package names with special characters
-    if [ "${pip_name}" == "cython_gsl" ]; then
-        pip_name="cythongsl"
-    elif [ "${pip_name}" == "nose_parameterized" ]; then
-        pip_name="nose-parameterized"
-    fi
-    pip_name="${1//_/}"  # Remove underscores from name
     # Download Python package source
     pip_download "${1}" "${2}"
     # Install Python package from source
@@ -2898,7 +2889,7 @@ pip_install_pypackage()
                                ${upgrade_flag}                   \
                                --no-index                        \
                                --find-links="${top_dir}/tmp/pip" \
-                               "${pip_name}${command_end}" 2>&1
+                               "${1}${command_end}" 2>&1
     rm -rf "${top_dir}/tmp/pip"
 }
 
@@ -2971,10 +2962,10 @@ if [ "${cython_install}" == "yes" ] && [ "${cython_installed}" == "no" ]; then
     pip_install_pypackage "Cython" "${cython_version}"
 fi
 
-# The Cython_GSL Python package
-if [ "${cython_gsl_install}" == "yes" ] && [ "${cython_gsl_installed}" == "no" ]; then
+# The CythonGSL Python package
+if [ "${cythongsl_install}" == "yes" ] && [ "${cythongsl_installed}" == "no" ]; then
     export LD_LIBRARY_PATH="${gsl_dir}/lib:${LD_LIBRARY_PATH}"
-    pip_install_pypackage "Cython_GSL" "${cython_gsl_version}"
+    pip_install_pypackage "CythonGSL" "${cythongsl_version}"
     reset_environment
 fi
 
@@ -3456,7 +3447,7 @@ if [ "${install_anything}" == "yes" ]; then
     copyright_notice "python"             "Python"
     copyright_notice "blessings"          "$(printf ${en_quad}%.s {1..4})Blessings"
     copyright_notice "cython"             "$(printf ${en_quad}%.s {1..4})Cython"
-    copyright_notice "cython_gsl"         "$(printf ${en_quad}%.s {1..4})Cython_GSL"
+    copyright_notice "cythongsl"          "$(printf ${en_quad}%.s {1..4})CythonGSL"
     copyright_notice "h5py"               "$(printf ${en_quad}%.s {1..4})H5Py"
     copyright_notice "matplotlib"         "$(printf ${en_quad}%.s {1..4})Matplotlib"
     copyright_notice "mpi4py"             "$(printf ${en_quad}%.s {1..4})MPI4Py"
