@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The author of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -582,8 +582,17 @@ def constant_expressions(lines):
     def variable_changed(var, line):
         line_ori = line
         line = line.replace(' ', '')
-        return (  re.search('for +{} +in '.format(var), line_ori)
-                or ('=' + var + '=') in line2
+        if line.startswith('#'):
+            return False
+        def multi_assign_in_line(var, line):
+            match = re.search(r' {}( *[,=] *[_a-zA-Z][_a-zA-Z0-9]*)+'.format(var),
+                              ' {} '.format(line))
+            if not match:
+                return False
+            return ('=' in match.group())
+        return (   re.search('for +{} +in '.format(var), line_ori)
+                or multi_assign_in_line(var, line_ori)
+                or ('=' + var + '=') in line
                 or line.startswith(var + '='  )
                 or line.startswith(var + '+=' )
                 or line.startswith(var + '-=' )

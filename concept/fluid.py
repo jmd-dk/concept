@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The author of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -342,16 +342,16 @@ def evolve_fluid(component, ᔑdt, steps, mc_step):
                i='Py_ssize_t',
                ϱ='double*',
                )
-def apply_sources(component, ᔑdt):
+def apply_internal_sources(component, ᔑdt):
     # Update ϱ due to its internal source term
-    ϱ  = component.ϱ .grid
-    for i in range(self.size):
+    ϱ = component.ϱ.grid
+    for i in range(component.size):
         ϱ[i] *= ℝ[1 + 3*ᔑdt['ẇlog(a)', component]]
     # Update J due to its internal source term
     for dim in range(3):
         fluidscalar = component.J[dim]
         J_dim = fluidscalar.grid
-        for i in range(self.size):
+        for i in range(component.size):
             J_dim[i] *= ℝ[1 - ᔑdt['ẇ/(1+w)', component]]
     # Update σ due to its internal source term
     N_fluidvars = len(component.fluidvars)

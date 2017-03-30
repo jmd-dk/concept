@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The author of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -142,7 +142,7 @@ unwanted_warnings = unused-but-set-variable \
                     uninitialized
 python_cflags     = $(filter-out $(addprefix -W,$(unwanted_warnings)), \
                                  $(shell $(python_config) --cflags))
-other_cflags      = -O3                  \
+other_cflags      = -Ofast               \
                     -pthread             \
                     -std=c99             \
                     -fno-strict-aliasing \

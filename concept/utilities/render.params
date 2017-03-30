@@ -13,4 +13,4 @@ render_select = {'all': True}
 # Graphics
 bgcolor    = 'black'
 resolution = 1080
-render_colors = {'all': 'lime', 'GADGET halos': ..., 'dark matter fluid': ...}
+render_colors = {}

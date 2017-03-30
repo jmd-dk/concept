@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The author of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -66,19 +66,27 @@ masterprint('Analyzing {} data ...'.format(this_test))
 
 # Plot
 fig_file = this_dir + '/result.png'
-plt.errorbar(a, x0, yerr=x0_std, fmt='-sr', label='CO$N$CEPT (left)')
-plt.errorbar(a, x1, yerr=x1_std, fmt='-Dr', label='CO$N$CEPT (right)')
-plt.errorbar(a, x0_gadget, yerr=x0_std_gadget, fmt='--<b', label='GADGET (left)')
-plt.errorbar(a, x1_gadget, yerr=x1_std_gadget, fmt='-->b', label='GADGET (right)')
-plt.legend(loc='best').get_frame().set_alpha(0.7)
+plt.plot(np.concatenate((a, a)), np.concatenate((x0, x1)),
+         '.',
+         alpha=0.7,
+         markersize=15,
+         label='CO$N$CEPT',
+         )
+plt.plot(np.concatenate((a, a)), np.concatenate((x0_gadget, x1_gadget)),
+         '.',
+         markersize=10,
+         alpha=0.7,
+         label='GADGET',
+         )
 plt.xlabel('$a$')
 plt.ylabel(r'$x\,\mathrm{{[{}]}}$'.format(unit_length))
 plt.ylim(0, boxsize)
+plt.legend(loc='best').get_frame().set_alpha(0.7)
 plt.tight_layout()
 plt.savefig(fig_file)
 
 # There should be no variance on the x positions.
-tol = 1e+2*N_snapshots*np.finfo(C2np['float']).eps
+tol = 1e+2*N_snapshots*machine_ϵ
 if np.sum(x0_std_gadget) > tol or np.sum(x1_std_gadget) > tol:
     abort('Unequal x-positions for the 2*4 particles in the GADGET snapshots.\n'
           'It is no good to compare the CO𝘕CEPT results to these.')

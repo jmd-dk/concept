@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The author of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -40,7 +40,7 @@ render   = plt.imread(render_path)
 render_0 = plt.imread(render_0_path)
 render_1 = plt.imread(render_1_path)
 
-# The two identical renders should be exacty equal.
+# The two identical renders should be exacty equal
 if not np.all(render_0 == render_1):
     abort('The renders "{}" and "{}" are not identical!'.format(render_0, render_1))
 

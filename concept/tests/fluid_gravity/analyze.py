@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The author of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -60,16 +60,14 @@ fig_file = this_dir + '/result.png'
 fig, ax = plt.subplots(N_snapshots, sharex=True, sharey=True, figsize=(8, 3*N_snapshots))
 x = [boxsize*i/gridsize for i in range(gridsize)]
 ϱ = {'particles simulations': [], 'fluid simulations': []}
-for kind, markertype, options in zip(('particles', 'fluid'),
-                                     ('ro', 'b*'),
-                                     ({'markerfacecolor': 'none', 'markeredgecolor': 'r'}, {}),
-                                     ):
+for kind, markersize, in zip(('particles', 'fluid'), (15, 10)):
     for ax_i, fluid, a_i in zip(ax, fluids[kind + ' simulations'], a):
         ϱ[kind + ' simulations'].append(fluid.ϱ.grid_noghosts[:gridsize, 0, 0])
         ax_i.plot(x, ϱ[kind + ' simulations'][-1],
-                  markertype,
+                  '.',
+                  markersize=markersize,
+                  alpha=0.7,
                   label=(kind.rstrip('s').capitalize() + ' simulation'),
-                  **options,
                   )
         ax_i.set_ylabel(r'$\varrho$ $\mathrm{{[{}\,m_{{\odot}}\,{}^{{-3}}]}}$'
                         .format(significant_figures(1/units.m_sun,
@@ -82,8 +80,8 @@ for kind, markertype, options in zip(('particles', 'fluid'),
                         )
         ax_i.set_title(r'$a={:.3g}$'.format(a_i))
 plt.xlim(0, boxsize)
-plt.legend(loc='best').get_frame().set_alpha(0.7)
 plt.xlabel(r'$x\,\mathrm{{[{}]}}$'.format(unit_length))
+ax[0].legend(loc='best').get_frame().set_alpha(0.7)
 plt.tight_layout()
 plt.savefig(fig_file)
 

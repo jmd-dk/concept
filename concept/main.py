@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The author of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -28,7 +28,7 @@ from commons import *
 import interactions
 from mesh import diff_domain
 from snapshot import load
-cimport('from analysis import debug, powerspec')
+cimport('from analysis import debug, measure, powerspec')
 cimport('from graphics import render, terminal_render')
 cimport('from integration import cosmic_time, expand, hubble, initiate_time, scalefactor_integral')
 cimport('from interactions import find_interactions')
@@ -246,10 +246,10 @@ def kick(components, step):
             ᔑdt[integrand] = np.sum(ᔑdt_steps[integrand])
         elif master:
             abort('The value "{}" was given for the step'.format(step))
-    # Apply the effect of all source terms on all fluid components.
-    # For particle components, this is a no-op.
+    # Apply the effect of all internal source terms
+    # on all fluid components. For particle components, this is a no-op.
     for component in components:
-        component.apply_sources(ᔑdt)
+        component.apply_internal_sources(ᔑdt)
     # Find out which components interact with each other
     # under the different interactions.
     interactions_list = find_interactions(components)
@@ -286,6 +286,7 @@ def drift(components, step):
 # Function containing the main time loop of CO𝘕CEPT
 @cython.header(# Locals
                autosave_time='double',
+               bottleneck='str',
                components='list',
                do_autosave='bint',
                final_render='tuple',
@@ -321,9 +322,10 @@ def timeloop():
     Δt_period = 8
     # The maximum allowed fractional increase in Δt,
     # from one time step to the next.
-    Δt_max_increase_fac = 5e-2
+    Δt_max_increase_fac = 5e-3
     # Give the initial time step the largest allowed value
-    Δt = Δt_begin = reduce_Δt(components, ထ, ထ, timespan, worry=False)
+    Δt_begin, bottleneck = reduce_Δt(components, ထ, ထ, timespan, worry=False)
+    Δt = Δt_begin
     # Arrays which will store the two values
     # ∫_t^(t + Δt/2) integrand(a) dt
     # ∫_(t + Δt/2)^(t + Δt) integrand(a) dt
@@ -352,7 +354,7 @@ def timeloop():
     while i_dump < len(dumps):
         time_step += 1
         # Reduce time step size if it is larger than what is allowed
-        Δt = reduce_Δt(components, Δt, Δt_begin, timespan)
+        Δt, bottleneck = reduce_Δt(components, Δt, Δt_begin, timespan)
         # Print out message at beginning of each time step
         masterprint('{heading}{cosmic_time}{scale_factor}{step_size}'
                     .format(heading=terminal.bold('\nTime step {}'.format(time_step)),
@@ -372,12 +374,14 @@ def timeloop():
                                                   )
                                           if enable_Hubble else ''
                                           ),
-                            step_size=('\nStep size:    {} {}'
+                            step_size=('\nStep size:    {} {}{}'
                                        .format(significant_figures(Δt,
                                                                    4,
                                                                    fmt='Unicode',
                                                                    ),
                                                unit_time,
+                                               (' (limited by {})'.format(bottleneck)
+                                                if bottleneck else '')
                                                )
                                        ),
                             )
@@ -404,9 +408,12 @@ def timeloop():
             drift(components, 'first half')
             # New, bigger time step size, according to Δt ∝ a
             Δt_new = universals.a*ℝ[Δt_begin/a_begin]
+            if Δt_new < Δt:
+                Δt_new = Δt
             # Add small, constant contribution to the new time step size
-            Δt_new += ℝ[Δt_period*Δt_max_increase_fac]*Δt_begin
-            # Make sure that the change in time step size is not too big
+            Δt_new += ℝ[exp(Δt_period*Δt_max_increase_fac)*Δt_begin]
+            # Make sure that the relative change
+            # of the time step size is not too big.
             if  Δt_new > ℝ[exp(Δt_period*Δt_max_increase_fac)]*Δt:
                 Δt_new = ℝ[exp(Δt_period*Δt_max_increase_fac)]*Δt
             Δt = Δt_new
@@ -444,22 +451,26 @@ def timeloop():
                timespan='double',
                worry='bint',
                # Locals
+               H='double',
                Jx='double[:, :, :]',
                Jx_ijk='double',
                Jy='double[:, :, :]',
                Jy_ijk='double',
                Jz='double[:, :, :]',
                Jz_ijk='double',
+               bottleneck='str',
                component='Component',
                dim='int',
+               extreme_component='Component',
                fac_Courant='double',
                fac_Hubble='double',
                fac_dynamical='double',
                fac_timespan='double',
-               fastest_component='Component',
+               fac_ẇ='double',
                i='Py_ssize_t',
                j='Py_ssize_t',
                k='Py_ssize_t',
+               limiters='list',
                mass='double',
                momx='double*',
                momx_i='double',
@@ -472,27 +483,32 @@ def timeloop():
                Δt_Courant_component='double',
                Δt_Hubble='double',
                Δt_dynamical='double',
+               Δt_index='Py_ssize_t',
                Δt_min='double',
                Δt_max='double',
                Δt_ratio='double',
                Δt_ratio_abort='double',
                Δt_ratio_warn='double',
                Δt_suggestions='list',
+               Δt_ẇ='double',
+               Δt_ẇ_component='double',
                Δx='double',
+               Σmass='double',
+               ρ_bar='double',
                ϱ='double[:, :, :]',
                ϱ_ijk='double',
                ẋ_max='double',
                ẋ2_i='double',
                ẋ2_ijk='double',
                ẋ2_max='double',
-               returns='double',
+               returns='tuple',  # (Δt, bottleneck)
                )
 def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
     """This function computes the maximum allowed value of the
     time step size Δt. If the current value of Δt is greater than this,
     the returned value is the reduced Δt.
     The value of Δt should not be greater than the following:
-    - A small fraction of the dynamical time scale.
+    - A small fraction of the current dynamical time scale.
     - A small fraction of the current Hubble time
       (≃ present age of the universe), if Hubble expansion is enabled.
     - A small fraction of the total timespan of the simulation.
@@ -503,6 +519,8 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
       single time step is determined by the average inter-particle
       distance, or φ_gridsize if this divides the box into smaller
       distances than this.
+    - A small fraction of 1/abs(ẇ) for every fluid components,
+      so that w varies smoothly.
     The conditions above are written in the same order in the code
     below. The last condition is by far the most involved.
     The optional worry argument flag specifies whether or not a
@@ -520,26 +538,44 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
     # criteria stated above. The final maximum allowed Δt will be the
     # smallest of these.
     Δt_suggestions = []
-    # The maximum allowed time step size suggested by the dynamical
-    # time scale.
-    fac_dynamical = 1e-1
-    Δt_dynamical = fac_dynamical*universals.a**2/sqrt(G_Newton*ϱ_crit)
+    # List which will store the names of the different limiters
+    # (reasons why Δt might need to be lowered).
+    limiters = []
+    # The maximum allowed time step size
+    # suggested by the dynamical time scale.
+    fac_dynamical = 8e-3
+    if enable_Hubble:
+        # When the Hubble expansion is enabled, 
+        # use the current critical density as the mean density.
+        H = hubble(universals.a)
+        ρ_bar = Ωm*3*H**2/(8*π*G_Newton)
+    else:
+        # In static space, determine the mean density
+        # directly from the components.
+        Σmass = 0
+        for component in components:
+            Σmass += measure(component, 'mass')
+        ρ_bar = Σmass/boxsize**3
+    Δt_dynamical = fac_dynamical/sqrt(G_Newton*ρ_bar)
     Δt_suggestions.append(Δt_dynamical)
+    limiters.append('the dynamical timescale')
     # The maximum allowed time step size
     # suggested by the Hubble parameter.
     fac_Hubble = 5e-2
-    Δt_Hubble = fac_Hubble/hubble(universals.a) if enable_Hubble else ထ
+    Δt_Hubble = fac_Hubble/H if enable_Hubble else ထ
     Δt_suggestions.append(Δt_Hubble)
+    limiters.append('the Hubble expansion')
     # The maximum allowed time step size
     # suggested by the simulation timespan.
     fac_timespan = 5e-3
     Δt_timespan = fac_timespan*timespan
     Δt_suggestions.append(Δt_timespan)
+    limiters.append('the simulation timespan')
     # The maximum allowed time step size
     # suggested by the Courant condition.
     fac_Courant = 2e-1
     Δt_Courant = ထ
-    fastest_component = None
+    extreme_component = None
     for component in components:
         w = component.w()
         if component.representation == 'particles':
@@ -591,8 +627,6 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
                                   )*(ℝ[universals.a**(3*w - 2)]/ϱ_ijk)**2
                         if ẋ2_ijk > ẋ2_max:
                             ẋ2_max = ẋ2_ijk
-        else:
-            continue
         # The maximum allowed travel distance and maximal squared
         # velocity are now found,
         # regardless of component representation.
@@ -622,15 +656,30 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
         # time step size.
         if Δt_Courant_component < Δt_Courant:
             Δt_Courant = Δt_Courant_component
-            fastest_component = component
+            extreme_component = component
     Δt_suggestions.append(Δt_Courant)
-    # The maximum allowed time step satisfying all the conditions above.
-    # Only the Courant condition is sensitive to particle/fluid data,
-    # and so inter-process communication is only needed there.
-    Δt_max = np.min(Δt_suggestions)
+    limiters.append('the Courant condition for {}'.format(extreme_component.name))
+    # The maximum allowed time step size suggested by ẇ
+    fac_ẇ = 1e-3
+    Δt_ẇ = ထ
+    extreme_component = None
+    for component in components:
+        Δt_ẇ_component = fac_ẇ/(abs(component.ẇ()) + machine_ϵ)
+        if Δt_ẇ_component < Δt_ẇ:
+            Δt_ẇ = Δt_ẇ_component
+            extreme_component = component
+    Δt_suggestions.append(Δt_ẇ)
+    limiters.append('ẇ of {}'.format(extreme_component.name))
+    # The maximum allowed time step satisfying all the conditions above
+    Δt_index = np.argmin(Δt_suggestions)
+    Δt_max = Δt_suggestions[Δt_index]
+    # The name of the limiter with the smallest allowable Δt
+    # will be given by the bottleneck variable.
+    bottleneck = ''
     # Adjust the current time step size Δt if it greater than the
     # largest allowed value Δt_max.
     if Δt > Δt_max:
+        bottleneck = limiters[Δt_index]
         # If Δt should be reduced by a lot, print out a warning
         # or even abort the program.
         if worry:
@@ -641,13 +690,12 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
             # Courant condition.
             Δt_ratio = Δt_max/Δt
             if Δt_ratio < Δt_ratio_abort:
-                abort('Due to large velocities of "{}", the time step size needs to be rescaled '
+                abort('Due to {}, the time step size needs to be rescaled '
                       'by a factor {:.1g}. This extreme change is unacceptable.'
-                      .format(fastest_component.name, Δt_ratio))
+                      .format(bottleneck, Δt_ratio))
             if Δt_ratio < Δt_ratio_warn:
-                masterwarn('Rescaling time step size by a factor {:.1g} '
-                           'due to large velocities of "{}"'
-                           .format(Δt_ratio, fastest_component.name))
+                masterwarn('Rescaling time step size by a factor {:.1g} due to {}.'
+                           .format(Δt_ratio, bottleneck))
             # Abort if Δt becomes very small,
             # effectively halting further time evolution.
             if Δt_max < Δt_min:
@@ -657,7 +705,7 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
                       )
         # Apply the update 
         Δt = Δt_max
-    return Δt
+    return Δt, bottleneck
 
 # Function which checks the sanity of the user supplied output times,
 # creates output directories and defines the output filename patterns.

@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The author of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -60,13 +60,11 @@ phases = [-t/(10*units.Gyr)*2*π for t in times]
 for ax_i, fluid, t, phase in zip(ax, fluids, times, phases):
     ϱ_i = asarray([2 + np.sin(2*π*i/gridsize + phase) for i in range(gridsize)])  # Unitless
     ϱ_i /= sum(ϱ_i)                                                               # Normalize
-    ϱ_i *= ϱ_mbar*gridsize                                                         # Apply units
+    ϱ_i *= ϱ_mbar*gridsize                                                        # Apply units
     ϱ.append(ϱ_i)
     ϱ_snapshot.append(fluid.ϱ.grid_noghosts[:gridsize, 0, 0])
-    ax_i.plot(x, ϱ[-1],
-              'r', label='Analytical solution')
-    ax_i.plot(x, ϱ_snapshot[-1],
-              'b*', label='Simulation')
+    ax_i.plot(x, ϱ[-1], '-', label='Analytical solution')
+    ax_i.plot(x, ϱ_snapshot[-1], '.', markersize=10, alpha=0.7, label='Simulation')
     ax_i.set_ylabel(r'$\varrho$ $\mathrm{{[{}\,m_{{\odot}}\,{}^{{-3}}]}}$'
                     .format(significant_figures(1/units.m_sun,
                                                 3,
@@ -77,9 +75,9 @@ for ax_i, fluid, t, phase in zip(ax, fluids, times, phases):
                             unit_length)
                     )
     ax_i.set_title(r'$t={:.3g}\,\mathrm{{{}}}$'.format(t, unit_time))
-    plt.xlim(0, boxsize)
-plt.legend(loc='best').get_frame().set_alpha(0.7)
+plt.xlim(0, boxsize)
 plt.xlabel(r'$x\,\mathrm{{[{}]}}$'.format(unit_length))
+ax[0].legend(loc='best').get_frame().set_alpha(0.7)
 plt.tight_layout()
 plt.savefig(fig_file)
 
