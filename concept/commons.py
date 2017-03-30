@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The author of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -36,6 +36,7 @@ import os, re, shutil, sys, textwrap, types, unicodedata
 # For math
 # (note that numpy.array is purposely not imported directly into the
 # global namespace, as this does not play well with Cython).
+import math
 import numpy as np
 from numpy import arange, asarray, empty, linspace, ones, zeros
 # For plotting
@@ -45,6 +46,8 @@ import matplotlib.pyplot as plt
 # For I/O
 from glob import glob
 import h5py
+# CLASS
+from classy import Class
 # For fancy terminal output
 import blessings
 # For timing
@@ -135,17 +138,6 @@ matplotlib.rcParams.update({# Use a nice font that ships with matplotlib
                             'xtick.direction': 'out',
                             'ytick.direction': 'out',
                             })
-color_cycle = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
-try:
-    # Matplotlib ≥ 1.5
-    matplotlib.rcParams.update({# Default colors
-                                'axes.prop_cycle': matplotlib.cycler('color', color_cycle),
-                                })
-except:
-    # Matplotlib < 1.5
-    matplotlib.rcParams.update({# Default colors
-                                'axes.color_cycle': color_cycle,
-                                })
 
 
 
@@ -766,9 +758,10 @@ def eval_unit(unit_str, namespace=None, fail_on_error=True):
     for ASCII_char, unicode_superscript in unicode_superscripts.items():
         if unicode_superscript:
             unit_str = unit_str.replace(unicode_superscript, ASCII_char)
-    # Insert an asterisk between letters and numbers
+    # Insert an asterisk between numbers and letters
     # (though not the other way around).
-    unit_str = re.sub(r'([^_a-zA-Z0-9\.][0-9\.\(\)]+)([_a-zA-Z])', r'\g<1>*\g<2>', unit_str)
+    unit_str = re.sub(r'(([^_a-zA-Z0-9\.]|^)[0-9\.\)]+) ?([_a-zA-Z])', r'\g<1>*\g<3>', unit_str)
+    unit_str = re.sub(r'([0-9])\*e([0-9+\-])', r'\g<1>e\g<2>', unit_str)
     # Evaluate the transformed unit string
     if namespace is None:
         namespace = units_dict
@@ -995,6 +988,19 @@ units, units_dict = build_struct(# Values of basic units,
 
 
 
+######################
+# Physical constants #
+######################
+cython.declare(light_speed='double',
+               G_Newton='double',
+               )
+# The speed of light in vacuum
+light_speed = 299792458*units.m/units.s
+# Newton's gravitational constant
+G_Newton = 6.6738e-11*units.m**3/(units.kg*units.s**2)
+
+
+
 ################################################################
 # Import all user specified parameters from the parameter file #
 ################################################################
@@ -1077,6 +1083,9 @@ user_params.update({# The paths dict
                     unicode('π'): π,
                     unicode('ထ'): ထ,
                     'ထ'         : ထ,
+                    # Physical constants
+                    'light_speed': light_speed,
+                    'G_Newton'   : G_Newton,
                     })
 # At this point, user_params does not contain actual parameters.
 # Mark all items in user_params as used.
@@ -1362,9 +1371,7 @@ universals, universals_dict = build_struct(# Flag specifying whether any warning
 ############################################
 # Derived and internally defined constants #
 ############################################
-cython.declare(light_speed='double',
-               G_Newton='double',
-               φ_gridsize3='long long int',
+cython.declare(φ_gridsize3='long long int',
                φ_gridsize_half='Py_ssize_t',
                slab_size_padding='ptrdiff_t',
                ewald_file='str',
@@ -1400,10 +1407,6 @@ render_times          = {time_param: output_times[time_param]['render']
                          for time_param in ('a', 't')}
 terminal_render_times = {time_param: output_times[time_param]['terminal render'] 
                          for time_param in ('a', 't')}
-# The speed of light in vacuum
-light_speed = 299792458*units.m/units.s
-# Newton's gravitational constant
-G_Newton = 6.6738e-11*units.m**3/(units.kg*units.s**2)
 # The average, comoing density (the critical
 # comoving density since we only study flat universes).
 # We allow ourselves to use the symbol ϱ in ϱ_crit even though
@@ -1503,6 +1506,11 @@ units_dict.setdefault(unicode('ထ')        , ထ        )
 # Add everything from NumPy
 for key, val in vars(np).items():
     units_dict.setdefault(key, val)
+# Add everything from the math module
+for key, val in vars(math).items():
+    units_dict.setdefault(key, val)
+# Add special functions
+units_dict.setdefault('cbrt', lambda x: x**(1/3))
 
 
 

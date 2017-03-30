@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The author of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -28,7 +28,6 @@ IC_file       = _this_dir + '/output/snapshot.hdf5'
 snapshot_type = 'standard'
 output_dirs   = {'snapshot'       : _this_dir + '/output'}
 output_times  = {'terminal render': logspace(log(0.02), log(1), 30, base=e)}
-render_select = {'all': True}
 
 # Numerical parameters
 boxsize    = 64*Mpc
@@ -41,9 +40,6 @@ H0      = 70*km/s/Mpc
 a_begin = 0.02
 
 # Graphics
-render_colors              = {'test particles': 'DarkGreen'}
-bgcolor                    = '0'
-resolution                 = 1080
 terminal_render_colormap   = 'gnuplot2'
 terminal_render_resolution = 64
 

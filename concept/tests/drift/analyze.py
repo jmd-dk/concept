@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The author of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -58,23 +58,23 @@ masterprint('Analyzing {} data ...'.format(this_test))
 # Plot
 fig_file = this_dir + '/result.png'
 plt.text(0.5*max(a), 0.93*boxsize, r'$\uparrow$ End of simulation box $\uparrow$', ha='center')
-plt.errorbar(a, x, yerr=x_std, fmt='-sr', label='CO$N$CEPT')
-plt.errorbar(a, x_gadget, yerr=x_std_gadget, fmt='--*b', label='GADGET')
-plt.legend(loc='best').get_frame().set_alpha(0.7)
+plt.plot(a, x       , '.', markersize=15, alpha=0.7, label='CO$N$CEPT')
+plt.plot(a, x_gadget, '.', markersize=10, alpha=0.7, label='GADGET')
 plt.xlabel('$a$')
 plt.ylabel(r'$x\,\mathrm{{[{}]}}$'.format(unit_length))
 plt.ylim(0, boxsize)
+plt.legend(loc='best').get_frame().set_alpha(0.7)
 plt.tight_layout()
 plt.savefig(fig_file)
 
 # There should be no variance on the x positions.
-tol = N_snapshots*100*np.finfo(C2np['float']).eps
+tol = 1e+2*N_snapshots*machine_ϵ
 if np.sum(x_std_gadget) > tol:
     abort('Unequal x-positions for the 4 particles in the GADGET snapshots.\n'
           'It is no good to compare the CO𝘕CEPT results to these.')
 if np.sum(x_std) > tol:
     abort('Unequal x-positions for the 4 particles in the snapshots.\n'
-          'The symmetric initial conditions has produced nonsymmetrical results!')
+          'The symmetric initial conditions have produced asymmetrical results!')
 
 # Print out error message for unsuccessful test
 tol = 1e-3

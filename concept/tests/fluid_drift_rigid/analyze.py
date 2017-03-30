@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The author of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -44,6 +44,7 @@ for fname in sorted(glob(this_dir + '/output/snapshot_a=*'),
             particle_components.append(component)
     a.append(snapshot.params['a'])
 gridsize = fluid_components[0].gridsize
+N = particle_components[0].N
 N_snapshots = len(a)
 # Sort data chronologically
 order = np.argsort(a)
@@ -82,12 +83,19 @@ for fluid, particles in zip(fluid_components, particle_components):
 fig_file = this_dir + '/result.png'
 fig, ax = plt.subplots(N_snapshots, sharex=True, figsize=(8, 3*N_snapshots))
 for ax_i, particles, ϱ_i, y_i, y_interp_i, a_i in zip(ax, particle_components, ϱ, y, y_interp, a):
-    ax_i.plot(particles.posx, y_i,
-              'ro', markerfacecolor='none', markeredgecolor='r',
-              label='Particle simulation')
-    ax_i.plot(x_fluid, y_interp_i, 'r')
-    ax_i.plot(x_fluid, ϱ_i, 'b*', label='Fluid simulation')
-    ax_i.set_ylabel('scaled and shifted $y$,\n' + r'$\varrho$ $\mathrm{{[{}\,m_{{\odot}}\,{}^{{-3}}]}}$'
+    indices_sorted = np.argsort(particles.posx)
+    index_min = np.argmin(particles.posx)
+    index_max = np.argmax(particles.posx)
+    ax_i.plot(np.concatenate(([max(particles.posx) - boxsize],
+                              particles.posx[indices_sorted],
+                              [min(particles.posx) + boxsize])),
+              np.concatenate(([y_i[index_max]],
+                              y_i[indices_sorted],
+                              [y_i[index_min]])),
+              '-', label='Particle simulation')
+    ax_i.plot(x_fluid, ϱ_i, '.', markersize=10, alpha=0.7, label='Fluid simulation')
+    ax_i.set_ylabel('scaled and shifted $y$,\n'
+                    r'$\varrho$ $\mathrm{{[{}\,m_{{\odot}}\,{}^{{-3}}]}}$'
                     .format(significant_figures(1/units.m_sun,
                                                 3,
                                                 fmt='tex',
@@ -98,8 +106,8 @@ for ax_i, particles, ϱ_i, y_i, y_interp_i, a_i in zip(ax, particle_components, 
                     )
     ax_i.set_title(r'$a={:.3g}$'.format(a_i))
 plt.xlim(0, boxsize)
-plt.legend(loc='best').get_frame().set_alpha(0.7)
 plt.xlabel(r'$x\,\mathrm{{[{}]}}$'.format(unit_length))
+ax[0].legend(loc='best').get_frame().set_alpha(0.7)
 plt.tight_layout()
 plt.savefig(fig_file)
 

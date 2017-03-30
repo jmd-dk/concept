@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The author of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -69,14 +69,14 @@ cp "${this_dir}/output/snapshot.hdf5" "${this_dir}/output/subdir/snapshot_1.hdf5
 echo "
 output_bases = {'render': 'render'}
 render_select = {'all': True}
-render_colors = {'dark matter particles': 'g'}
+render_colors = {'test particles': 'g'}
 bgcolor    = '0'
 resolution = 234
 " > "${this_dir}/render.params_0"
 echo "
 output_bases = {'render': ''}
 render_select = {'all': True}
-render_colors = {'dark matter particles': (1, 0.2, 0.3)}
+render_colors = {'test particles': (1, 0.2, 0.3)}
 bgcolor    = 'LightYellow'
 resolution = 1080
 " > "${this_dir}/render.params_1"

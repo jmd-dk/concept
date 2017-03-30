@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The author of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -37,7 +37,6 @@ cs = boxsize/(10*units.Gyr)
 if cs >= light_speed:
     abort('Too large sound speed assigned: cs = {} c'.format(cs/light_speed))
 w = (cs/light_speed)**2
-Vcell = (boxsize/gridsize)**3
 speed = boxsize/(10*units.Gyr)
 N = gridsize**3
 mass = ϱ_mbar*boxsize**3/N

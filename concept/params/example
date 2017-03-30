@@ -77,7 +77,7 @@ w_eos = {  # Equation of state parameter for each fluid species
 fftw_rigor = 'measure'  # Rigor level when acquiring FFTW wisdom
 
 # Graphics
-render_colors = {                        # Render color for each type
+render_colors = {                        # Render color for each component
     'all': 'lime',
                  }
 bgcolor                    = 'black'	 # Background color of renders

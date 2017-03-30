@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The author of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -73,10 +73,8 @@ for ax_i, fluid, t in zip(ax, fluids, times):
     ax_i.plot([0, boxsize], [ϱ_mean]*2, 'k:' )
     ax_i.plot([0, boxsize], [ϱ_max ]*2, 'k--')
     ax_i.plot([0, boxsize], [ϱ_min ]*2, 'k--')
-    ax_i.plot(x, ϱ[-1],
-              'r', label='Analytical solution')
-    ax_i.plot(x, ϱ_snapshot[-1],
-              'b*', label='Simulation')
+    ax_i.plot(x, ϱ[-1]         , '-', label='Analytical solution')
+    ax_i.plot(x, ϱ_snapshot[-1], '.', markersize=10, alpha=0.7, label='Simulation')
     ax_i.set_ylabel(r'$\varrho$ $\mathrm{{[{}\,m_{{\odot}}\,{}^{{-3}}]}}$'
                     .format(significant_figures(1/units.m_sun,
                                                 3,
@@ -88,8 +86,8 @@ for ax_i, fluid, t in zip(ax, fluids, times):
                     )
     ax_i.set_title(r'$t={:.3g}\,\mathrm{{{}}}$'.format(t, unit_time))
 plt.xlim(0, boxsize)
-plt.legend(loc='best').get_frame().set_alpha(0.7)
 plt.xlabel(r'$x\,\mathrm{{[{}]}}$'.format(unit_length))
+ax[0].legend(loc='best').get_frame().set_alpha(0.7)
 plt.tight_layout()
 plt.savefig(fig_file)
 

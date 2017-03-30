@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The author of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -125,12 +125,16 @@ def plot_powerspec(data_list, filename, power_dict):
         power_σ = data_list[power_index + 1]
         powermin = min(power)
         maxpowermax = np.max(asarray(power) + asarray(power_σ))
-        # Clear the figure
-        plt.clf()
         # Plot power spectrum
+        plt.figure()
         plt.gca().set_xscale('log')
         plt.gca().set_yscale('log', nonposy='clip')
-        plt.errorbar(k, power, yerr=power_σ, fmt='b.', ms=3, ecolor='r', lw=0)
+        plt.errorbar(k, power, yerr=power_σ,
+                     fmt='.',
+                     markersize=3,
+                     ecolor='C1',
+                     capsize=2,
+                     )
         tmp = '{:.1e}'.format(kmin)
         plt.xlim(xmin=float(tmp[0] + tmp[3:]))
         tmp = '{:.1e}'.format(kmax)
@@ -155,6 +159,8 @@ def plot_powerspec(data_list, filename, power_dict):
         plt.gca().tick_params(labelsize=13)
         plt.tight_layout()
         plt.savefig(filename_component)
+        # Close the figure, leaving no trace in memory of the plot
+        plt.close()
         # Finish progress message
         masterprint('done')
 
@@ -231,16 +237,9 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
         # Make cyclic default colors as when doing multiple plots in
         # one figure. Make sure that none of the colors are identical
         # to the background color.
-        try:
-            # Matplotlib >= 1.5
-            default_colors = itertools.cycle([to_rgb(prop['color'])
-                                              for prop in matplotlib.rcParams['axes.prop_cycle']
-                                              if not all(to_rgb(prop['color']) == bgcolor)])
-        except:
-            # Matplotlib <= 1.4
-            default_colors = itertools.cycle([to_rgb(c)
-                                              for c in matplotlib.rcParams['axes.color_cycle']
-                                              if not all(to_rgb(c) == bgcolor)])
+        default_colors = itertools.cycle([to_rgb(prop['color'])
+                                          for prop in matplotlib.rcParams['axes.prop_cycle']
+                                          if not all(to_rgb(prop['color']) == bgcolor)])
         for component in components:
             # The i'th component should only be rendered if
             # {name: True} or {'all': True} exist in render_select.
@@ -257,12 +256,7 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
             fig = plt.figure(figname,
                              figsize=[resolution/dpi]*2,
                              dpi=dpi)
-            try:
-                # Matplotlib 2.x
-                ax = fig.gca(projection='3d', facecolor=bgcolor)
-            except:
-                # Matplotlib 1.x
-                ax = fig.gca(projection='3d', axisbg=bgcolor)
+            ax = fig.gca(projection='3d', facecolor=bgcolor)
             # The color of this component
             if component.name.lower() in render_colors:
                 # This component is given a specific color by the user
@@ -270,13 +264,8 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
             elif 'all' in render_colors:
                 # All components are given the same color by the user
                 color = render_colors['all']
-            elif len(components) == 1:
-                # Only a single component exists and it has no color
-                # given to it. Assign a nice color.
-                color = to_rgb('lime')
             else:
-                # No color specified for this particular component,
-                # and multiple components exist.
+                # No color specified for this particular component.
                 # Assign the next color from the default cyclic colors.
                 color = next(default_colors)
             # The artist for the component

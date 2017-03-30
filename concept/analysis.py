@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The author of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -586,6 +586,8 @@ def measure(component, quantity):
                                        :(ϱ_noghosts.shape[2] - 1)])
             # Total ϱ of all fluid elements
             Σϱ = np.sum(ϱ_arr)
+            # Add up local sums
+            Σϱ = allreduce(Σϱ,  op=MPI.SUM)
             # The total mass is
             # Σmass = (a**3*Vcell)*Σρ,
             # where a**3*Vcell is the proper volume and Σρ is the

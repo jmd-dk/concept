@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The author of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -26,7 +26,7 @@ from commons import *
 
 # Cython imports
 cimport('from communication import communicate_domain, exchange')
-cimport('from fluid import maccormack, apply_sources')
+cimport('from fluid import maccormack, apply_internal_sources')
 cimport('from integration import Spline, ȧ')
 
 
@@ -620,7 +620,7 @@ class Component:
                    # Locals
                    ẇ='double',
                    )
-    def apply_sources(self, ᔑdt):
+    def apply_internal_sources(self, ᔑdt):
         if self.representation == 'particles':
             return
         # All internal source terms vanish in th fluid equations
@@ -628,7 +628,7 @@ class Component:
         ẇ = self.ẇ()
         if ẇ != 0:
             masterprint('Evolving fluid variables (source terms) of {} ...'.format(self.name))
-            apply_sources(self, ᔑdt)
+            apply_internal_sources(self, ᔑdt)
             masterprint('done')
 
     # Method for computing the equation of state parameter w
@@ -651,19 +651,31 @@ class Component:
             a = universals.a 
         # Compute the current w dependent on its type
         if self.w_type == 'constant':
-            return self.w_constant
-        if self.w_type == 'tabulated (t)':
-            return self.w_spline.eval(t)
-        if self.w_type == 'tabulated (a)':
-            return self.w_spline.eval(a)
-        if self.w_type == 'expression':
+            value = self.w_constant
+        elif self.w_type == 'tabulated (t)':
+            value = self.w_spline.eval(t)
+        elif self.w_type == 'tabulated (a)':
+            value = self.w_spline.eval(a)
+        elif self.w_type == 'expression':
             units_dict['t'] = t
             units_dict['a'] = a            
             value = eval_unit(self.w_expression, units_dict)
             units_dict.pop('t')
             units_dict.pop('a')
-            return value
-        abort('Did not recognize w type "{}"'.format(self.w_type))
+        else:
+            abort('Did not recognize w type "{}"'.format(self.w_type))
+        # It may happen that w becomes slightly negative due to
+        # the spline (when given as tabulated data) or rounding errors
+        # (when given as an expression). Prevent this.
+        if value < 0:
+            if value > -1e+6*machine_ϵ:
+                value = 0
+            else:
+                abort('Got w(t = {}, a = {}) = {}. Negative w is not implemented.'
+                      .format(t, a, value)
+                      )
+        return value
+        
 
     # Method for computing the proper time derivative
     # of the equation of state parameter w
@@ -685,7 +697,7 @@ class Component:
         # use the current time and scale factor value.
         if t == -1 == a:
             t = universals.t
-            a = universals.a 
+            a = universals.a
         # Compute the current ẇ dependent on its type
         if self.w_type == 'constant':
             return 0

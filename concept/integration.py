@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The author of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -115,15 +115,13 @@ class Spline:
                    )
     def eval(self, x):
         # Check that the supplied x is within the interpolation interval
-        if not (self.min <= x <= self.max):
-            abort('Could not interpolate {} because it is outside the interval [{}, {}].'
-                  .format(x, self.min, self.max)
-                  )
+        x = self.in_interval(x, 'interpolate to')
         # Use NumPy in pure Python and GSL when compiled
         if not cython.compiled:
             return np.interp(x, self.x, self.y)
         else:
-            return gsl_spline_eval(self.spline, x, self.acc)
+            x = gsl_spline_eval(self.spline, x, self.acc)
+            return x
 
     # Method for doing spline derivative evaluation
     @cython.header(x='double',
@@ -131,10 +129,7 @@ class Spline:
                    )
     def eval_deriv(self, x):
         # Check that the supplied x is within the interpolation interval
-        if not (self.min <= x <= self.max):
-            abort('Could not interpolate {} because it is outside the interval [{}, {}].'
-                  .format(x, self.min, self.max)
-                  )
+        x = self.in_interval(x, 'differentiate at')
         # Use NumPy in pure Python and GSL when compiled
         if not cython.compiled:
             if x == self.min:
@@ -146,7 +141,7 @@ class Spline:
                 i1 = np.where(self.x >= x)[0][ 0]
             return (self.y[i1] - self.y[i0])/(self.x[i1] - self.x[i0])
         else:
-            return gsl_spline_eval_deriv(self.spline, x, self.acc)
+            return gsl_spline_eval_deriv(self.spline, x, self.acc)            
 
     # Method for computing the definite integral over some
     # interval [a, b] of the splined function.
@@ -161,16 +156,8 @@ class Spline:
     def integrate(self, a, b):
         # Check that the supplied limits are
         # within the interpolation interval.
-        if not (self.min <= a <= self.max):
-            abort('Error integrating spline from {} to {}: '
-                  'The first limit is outside the interval [{}, {}].'
-                  .format(a, b, self.min, self.max)
-                  )
-        if not (self.min <= b <= self.max):
-            abort('Error integrating spline from {} to {}: '
-                  'The second limit is outside the interval [{}, {}].'
-                  .format(a, b, self.min, self.max)
-                  )
+        a = self.in_interval(a, 'integrate from')
+        b = self.in_interval(b, 'integrate to')
         # The function gsl_spline_eval_integ fails for a > b.
         # Take care of this manually by switching a and b and note
         # down a sign change.
@@ -192,6 +179,36 @@ class Spline:
         # Remember the sign change for a > b
         ᔑ *= sign
         return ᔑ
+
+    # Method for checking whether a given number
+    # is within the tabulated interval.
+    @cython.header(# Arguments
+                   x='double',
+                   action='str',
+                   # Locals
+                   tolerence='double',
+                   returns='double',
+                   )
+    def in_interval(self, x, action='interpolate to'):
+        # Check that the supplied x is within the
+        # interpolation interval. If it is just barely outside of it,
+        # move it to the boundary.
+        tolerence = 1e+6*machine_ϵ
+        if x < self.min:
+            if x > self.min - tolerence:
+                x = self.min
+            else:
+                abort('Could not {} {} because it is outside the tabulated interval [{}, {}].'
+                      .format(action, x, self.min, self.max)
+                      )
+        elif x > self.max:
+            if x < self.max + tolerence:
+                x = self.max
+            else:
+                abort('Could not {} {} because it is outside the tabulated interval [{}, {}].'
+                      .format(action, x, self.min, self.max)
+                      )
+        return x
 
     # This method is automaticlly called when a Spline instance
     # is garbage collected. All manually allocated memory is freed.
@@ -431,7 +448,8 @@ def scalefactor_integral(key):
                       .format(integrand))
     # Do the integration over the entire tabulated integrand
     spline = Spline(t_tab_mv, integrand_tab_mv, size_tab)
-    return spline.integrate(t_tab[0], t_tab[size_tab - 1])
+    a = spline.integrate(t_tab[0], t_tab[size_tab - 1])
+    return a
 
 # Function for computing the cosmic time t at some given scale factor a
 @cython.header(# Arguments

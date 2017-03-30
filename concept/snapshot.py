@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The author of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -200,7 +200,13 @@ class StandardSnapshot:
                     if component.w_type == 'constant':
                         component_h5.attrs['w'] = component.w_constant
                     elif 'tabulated' in component.w_type:
-                        component_h5.attrs['w'] = component.w_tabulated
+                        # If w is tabulated it cannot be saved as
+                        # an attribute. Instead save it as a dataset.
+                        w_h5 = component_h5.create_dataset('w',
+                                                           asarray(component.w_tabulated).shape,
+                                                           dtype=C2np['double'])
+                        if master:
+                            w_h5[...] = component.w_tabulated
                     elif component.w_type == 'expression':
                         component_h5.attrs['w'] = component.w_expression
                     # Compute local indices of fluid grids
@@ -387,12 +393,16 @@ class StandardSnapshot:
                     gridsize = component_h5.attrs['gridsize']
                     N_fluidvars = component_h5.attrs['N_fluidvars']
                     w_type = component_h5.attrs['w_type']
-                    w = component_h5.attrs['w']
                     if 'tabulated' in w_type:
+                        # The equation of state parameter w is saved
+                        # as a dataset.
+                        w = component_h5['w']
                         # Transform w to a dict of the format
                         # {'t': t, 'w': w} or {'a': a, 'w': w}.
                         independent = re.search('\((.+)\)', w_type).group(1)
                         w = {independent: w[0, :], 'w': w[1, :]}
+                    else:
+                        w = component_h5.attrs['w']
                     # Construct a Component instance and append it
                     # to this snapshot's list of components.
                     component = Component(name, species, gridsize, mass,
