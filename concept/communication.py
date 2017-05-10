@@ -196,10 +196,7 @@ def exchange(component, reset_buffers=False):
     if N_send_tot_global == 0:
         return
     # Print out exchange message
-    if N_send_tot_global == 1:
-        masterprint('Exchanging 1 {} ...'.format(component.name[:(len(component.name) - 1)]))
-    elif N_send_tot_global > 1:
-        masterprint('Exchanging {} {} ...'.format(N_send_tot_global, component.name))
+    masterprint('Exchanging {} of the {} particles ...'.format(N_send_tot_global, component.name))
     # Grab a buffer for holding the data to be send
     buffer_name = 0  # Buffer to use as sendbuf
     N_send_max = max(N_send)
@@ -651,7 +648,8 @@ def sendrecv_component(component_send, variables, dest, source, component_recv=N
         # the component_buffer is needed, we grab the type of the passed
         # component_send (Component) and instantiate such an instance.
         if component_buffer is None:
-            component_buffer = type(component_send)('buffer', 'dark matter particles', 1)
+            component_buffer = type(component_send)('', 'dark matter particles', 1)
+            component_buffer.name = 'buffer'
         # Adjust important meta data on the buffer component
         component_buffer.name           = component_send.name
         component_buffer.species        = component_send.species

@@ -324,6 +324,14 @@ class Component:
         FluidScalar σzy
         FluidScalar σzz
         """
+        # Check that the name does not conflict with
+        # one of the special names used internally.
+        if name in internally_defined_names:
+            masterwarn('A species by the name of "{}" is to be created. '
+                       'As this name is used internally by the code, '
+                       'this may lead to erroneous behaviour.'
+                       .format(name)
+                       )
         # General attributes
         self.name    = name
         self.species = species
@@ -1390,6 +1398,9 @@ def get_representation(species):
         if species in key:
             return representation
     abort('Species "{}" not implemented'.format(species))
+
+
+
 # Mapping from species to their representations
 cython.declare(representation_of_species='dict')
 representation_of_species = {('dark matter particles',
@@ -1432,3 +1443,8 @@ default_species_class = {'dark matter particles': 'cdm',
                          'neutrinos'            : 'ncdm[0]',
                          'neutrino fluid'       : 'ncdm[0]',
                          }
+# Set of all component names used internally by the code,
+# and which the user should generally avoid.
+cython.declare(internally_defined_names='set')
+internally_defined_names = {'buffer', 'total'}
+

@@ -776,9 +776,9 @@ def realize(component, variable, transfer_spline, cosmoresults, a=-1):
                     # Displace the position of particle
                     # at grid point (i, j, k).
                     displacement = ψ_dim_noghosts[i, j, k]
-                    pos_dim[index] = mod(pos_gridpoint + displacement, boxsize)  # PLUS OR MINUS displacement? MUST BE THE SAME AS MOM !!!
+                    pos_dim[index] = mod(pos_gridpoint + displacement, boxsize)
                     # Assign momentum corresponding to the displacement
-                    mom_dim[index] = displacement*ℝ[f_growth*H*mass*a**2]        # PLUS OR MINUS displacement? MUST BE THE SAME AS POS !!!
+                    mom_dim[index] = displacement*ℝ[f_growth*H*mass*a**2]
                     index += 1
     # Done realizing this variable
     masterprint('done')

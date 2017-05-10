@@ -117,8 +117,12 @@ def plot_powerspec(data_list, filename, power_dict):
                 filename_component = filename.replace('.png',
                                                       '_{}.png'.format(name.replace(' ', '-')))
         # The filename should reflect the individual component names
-        masterprint('Plotting power spectrum of {} and saving to "{}" ...'
-                    .format(name, filename_component))
+        if name == 'total':
+            masterprint('Plotting total power spectrum and saving to "{}" ...'
+                        .format(filename_component))
+        else:
+            masterprint('Plotting power spectrum of {} and saving to "{}" ...'
+                        .format(name, filename_component))
         # Extract the power and its standard
         # deviation for the i'th component.
         power   = data_list[power_index]

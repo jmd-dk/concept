@@ -45,6 +45,9 @@ cimport('from mesh import CIC_components2slabs, '
                 # Locals
                 P='double',
                 component='Component',
+                component_i='Component',
+                component_total='Component',
+                components_and_total='list',
                 W2='double',
                 fmt='str',
                 header='list',
@@ -74,6 +77,7 @@ cimport('from mesh import CIC_components2slabs, '
                 symmetry_multiplicity='int',
                 totmass='double',
                 Σmass='double',
+                Σmass_cache='dict',
                 φ_Vcell='double',
                 σ_tophat='dict',
                 σ_tophat_σ='dict',
@@ -88,8 +92,28 @@ def powerspec(components, filename):
     # as values, with the component names as keys.
     σ_tophat   = {}
     σ_tophat_σ = {}
+    # If we have several components and either {'total': True} or
+    # {'all': True} exists in powerspec_select, the total power spectrum
+    # of all components should be computed. To do this, we simply create
+    # an additional, fake component named 'total'. We cannot simply
+    # import the Component type from the species module, as this would
+    # create an import loop. Instead, we grab the type off of the first
+    # component in components. We give this fake component a species of
+    # "dark matter particles", which means that CIC deconvolution
+    # will be enabled.
+    if len(components) > 1:
+        component_total = type(components[0])('', 'dark matter particles', 1)
+        component_total.name = 'total'
+        components_and_total = components + [component_total]
+    else:
+        components_and_total = components
+    # Dict storing the total mass of the components at the present time.
+    # This is used for lookup when computing the total power spectrum
+    # and the total masses of the individual components have already
+    # been computed.
+    Σmass_cache = {}
     # Compute a separate power spectrum for each component
-    for component in components:
+    for component in components_and_total:
         # If component.name are not in power_dict, it means that
         # power spectra for the i'th component should not be computed,
         # or that no power spectra have been computed yet.
@@ -108,7 +132,10 @@ def powerspec(components, filename):
             # for the i'th component.
             power_dict[component.name]    = empty(k2_max + 1, dtype=C2np['double'])
             power_σ2_dict[component.name] = empty(k2_max + 1, dtype=C2np['double'])
-        masterprint('Computing power spectrum of {} ...'.format(component.name))
+        if component.name == 'total':
+            masterprint('Computing toal power spectrum ...')
+        else:
+            masterprint('Computing power spectrum of {} ...'.format(component.name))
         # Assign short names for the arrays storing the results
         power    = power_dict[component.name]
         power_σ2 = power_σ2_dict[component.name]
@@ -121,14 +148,22 @@ def powerspec(components, filename):
         # volume of a single cell in the φ grid. For fluids, the
         # comoving density is a³ρ = a³(a⁻³⁽¹⁺ʷ⁾ϱ) = a⁻³ʷϱ.
         φ_Vcell = (boxsize/φ_gridsize)**3
-        interpolation_quantities = [# Particle components
-                                    ('particles', [component.mass/φ_Vcell]),
-                                    # Fluid components
-                                    ('ϱ', [universals.a**(-3*component.w())]),
-                                    ]
-        # CIC interpolate component to the slabs
-        # and do Fourier transformation.
-        CIC_components2slabs([component], interpolation_quantities)
+        if component.name == 'total':
+            interpolation_quantities = [# Particle components
+                                        ('particles', [component_i.mass/φ_Vcell
+                                                       for component_i in components]),
+                                        # Fluid components
+                                        ('ϱ', [universals.a**(-3*component_i.w())
+                                               for component_i in components]),
+                                        ]
+            CIC_components2slabs(components, interpolation_quantities)
+        else:
+            interpolation_quantities = [# Particle components
+                                        ('particles', [component.mass/φ_Vcell]),
+                                        # Fluid components
+                                        ('ϱ', [universals.a**(-3*component.w())]),
+                                        ]
+            CIC_components2slabs([component], interpolation_quantities)
         slabs_FFT()
         # Reset power, power multiplicity and power variance
         for k2 in range(k2_max):
@@ -209,8 +244,13 @@ def powerspec(components, filename):
         Reduce(sendbuf=(MPI.IN_PLACE if master else power_σ2),
                recvbuf=(power_σ2     if master else None),
                op=MPI.SUM)
-        # The last collective thing to do is to measure the total mass 
-        Σmass = measure(component, 'mass')
+        # The last collective thing to do is to measure the total mass
+        if component.name == 'total':
+            Σmass = np.sum([Σmass_cache.get(component_i.name, measure(component_i, 'mass'))
+                            for component_i in components])
+        else:
+            Σmass = measure(component, 'mass')
+            Σmass_cache[component.name] = Σmass
         if not master:
             continue
         # Remove the k2 == 0 elements (the background)
@@ -282,7 +322,7 @@ def powerspec(components, filename):
     row_type = [' ']
     row_σ_tophat = [' ']
     row_quantity = [unicode('k [{}⁻¹]').format(unit_length)]
-    for component in components:
+    for component in components_and_total:
         if component.name not in power_dict:
             continue
         fmt += '{:<2}'  # Space
@@ -301,7 +341,7 @@ def powerspec(components, filename):
     header.append(fmt.replace('{:^33} ', ' {:<16} {:<16}').format(*row_quantity))
     # Mask the data and pack it into a list
     data_list = [k_magnitudes_masked]
-    for component in components:
+    for component in components_and_total:
         if component.name not in power_dict:
             continue
         data_list.append(asarray(power_dict[component.name])[mask])

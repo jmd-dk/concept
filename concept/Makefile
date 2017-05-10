@@ -143,7 +143,8 @@ unwanted_warnings = unused-but-set-variable \
                     uninitialized
 python_cflags     = $(filter-out $(addprefix -W,$(unwanted_warnings)), \
                                  $(shell $(python_config) --cflags))
-other_cflags      = -Ofast               \
+other_cflags      = -O3                  \
+                    -ffast-math          \
                     -pthread             \
                     -std=c99             \
                     -fno-strict-aliasing \
@@ -167,7 +168,7 @@ python_libdir = $(shell $(python) -c "import sysconfig;                         
                                       "                                          \
                   )
 python_libs   = -L$(python_libdir) -Wl,-rpath=$(python_libdir) $(shell $(python_config) --libs)
-other_libs    = -Wl,-Ofast
+other_libs    = -Wl,-O3
 LDLIBS        = $(call uniq, $(foreach flag, $(fftw_libs)                     \
                                              $(gsl_libs)                      \
                                              $(mpi_libs)                      \
