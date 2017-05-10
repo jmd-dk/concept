@@ -3154,8 +3154,24 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
            "${class_dir}/include/parser.h"
     sed -i "s/^\( *#define \+_MAX_NUMBER_OF_K_FILES_ \+\)[^ ]*\(.*\)*$/\1${value}\2/" \
            "${class_dir}/include/perturbations.h"
-    # Build CLASS, including Python wrapper
-    PYTHON="${python}" make ${make_jobs} 2>&1
+    # When compiling with newever versions of GCC, the vector math
+    # (mvec) and math (m) libraries need to be added to the libraries
+    # listed in python/setup.py explicitly. Here we first try without,
+    # then if it does not work we add these extra libraries.
+    for classy_libs in '["class"],' '["class", "mvec", "m"],'; do
+        sed -i "s/^\( *libraries *= *\)[^ ]*\(.*\)*$/\1${classy_libs}\2/" \
+               "${class_dir}/python/setup.py"
+        # Build CLASS, including the Python wrapper classy
+        classy_success="yes"
+        PYTHON="${python}" make ${make_jobs} 2>&1 || classy_success="no"
+        # Test that Classy works correctly
+        "${python}" -c "from classy import Class" 2>&1 || classy_success="no"
+        if [ "${classy_success}" == "yes" ]; then
+            break
+        fi
+        # Cleanup after failed build attempt
+        make clean
+    done
     # Test CLASS
     if [ "${fast_install}" == "no" ]; then
         "${python}" -m nose "python/test_class.py" 2>&1 | tee "test_log"
@@ -3167,12 +3183,14 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     fi
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/class"
-    # Write out success notice
-    echo "The following has been fully installed:
+    # Write out success notice only if classy was build correctly
+    if [ "${classy_success}" == "yes" ]; then
+        echo "The following has been fully installed:
 Program: CLASS
 Version: ${class_version}
 Date:    $(date)
 " >> "${class_dir}/.installation_finished"
+    fi
 fi
 
 

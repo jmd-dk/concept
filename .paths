@@ -6,59 +6,59 @@
 # CO𝘕CEPT directories #
 #######################
 # Directory containing the source code
-concept_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept'
+concept_dir='/home/jeppe/Documents/Uni/Phd/concept/concept'
 # Directory intended for initial conditions
-ics_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/ICs'
+ics_dir='/home/jeppe/Documents/Uni/Phd/concept/concept/ICs'
 # Directory containing the log files
-logs_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/logs'
+logs_dir='/home/jeppe/Documents/Uni/Phd/concept/concept/logs'
 # Directory intended for output
-output_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/output'
+output_dir='/home/jeppe/Documents/Uni/Phd/concept/concept/output'
 # Directory intended for parameter files
-params_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/params'
+params_dir='/home/jeppe/Documents/Uni/Phd/concept/concept/params'
 # Directory containing tests
-tests_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/tests'
+tests_dir='/home/jeppe/Documents/Uni/Phd/concept/concept/tests'
 # Top level directory, containing e.g. README.md
-top_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept'
+top_dir='/home/jeppe/Documents/Uni/Phd/concept'
 # Directory containing utilities
-utilities_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/utilities'
+utilities_dir='/home/jeppe/Documents/Uni/Phd/concept/concept/utilities'
 
 ##########################
 # Dependency directories #
 ##########################
 # Directory of class
-class_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/class'
+class_dir='/home/jeppe/Documents/Uni/Phd/concept/class'
 # Directory of FFTW
-fftw_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/fftw'
+fftw_dir='/home/jeppe/Documents/Uni/Phd/concept/fftw'
 # Directory of FFTW2, used by GADGET
-fftw_for_gadget_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/gadget/fftw'
+fftw_for_gadget_dir='/home/jeppe/Documents/Uni/Phd/concept/gadget/fftw'
 # Directory of Gadget2
-gadget_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/gadget'
+gadget_dir='/home/jeppe/Documents/Uni/Phd/concept/gadget'
 # Directory containing the GADGET2 source code
-Gadget2_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/gadget/Gadget2'
+Gadget2_dir='/home/jeppe/Documents/Uni/Phd/concept/gadget/Gadget2'
 # Directory of GSL
-gsl_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/gsl'
+gsl_dir='/home/jeppe/Documents/Uni/Phd/concept/gsl'
 # Directory of HDF5
-hdf5_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/hdf5'
+hdf5_dir='/home/jeppe/Documents/Uni/Phd/concept/hdf5'
 # Directory of libpng
-libpng_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/libpng'
+libpng_dir='/home/jeppe/Documents/Uni/Phd/concept/libpng'
 # Directory of MPI
-mpi_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/mpich'
+mpi_dir='/home/jeppe/Documents/Uni/Phd/concept/mpich'
 # Directory of Python
-python_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python'
+python_dir='/home/jeppe/Documents/Uni/Phd/concept/python'
 # Directory of zlib
-zlib_dir='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/zlib'
+zlib_dir='/home/jeppe/Documents/Uni/Phd/concept/zlib'
 
 #########
 # Files #
 #########
 # The executable script of the CO𝘕CEPT code
-concept='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/concept/concept'
+concept='/home/jeppe/Documents/Uni/Phd/concept/concept/concept'
 # The installer script
-installer='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/installer'
+installer='/home/jeppe/Documents/Uni/Phd/concept/installer'
 # The MPI C compiler
-mpicc='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/mpich/bin/mpicc'
+mpicc='/home/jeppe/Documents/Uni/Phd/concept/mpich/bin/mpicc'
 # The MPI executable
-mpiexec='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/mpich/bin/mpiexec'
+mpiexec='/home/jeppe/Documents/Uni/Phd/concept/mpich/bin/mpiexec'
 # The Python interpreter
-python='/home/jeppe/Documents/Uni/Speciale/Nbody/concept/python/bin/python3.6'
+python='/home/jeppe/Documents/Uni/Phd/concept/python/bin/python3.6'
 
