@@ -30,7 +30,7 @@ from snapshot import save
 # Create the particle
 N = 1
 mass = ϱ_mbar*boxsize**3/N
-particles = Component('test particles', 'dark matter particles', N, mass)
+particles = Component('test particles', 'matter particles', N, mass=mass)
 particles.populate(np.array([0.75])*boxsize, 'posx')
 particles.populate(np.array([0.75])*boxsize, 'posy')
 particles.populate(np.array([0.75])*boxsize, 'posz')
@@ -39,5 +39,5 @@ particles.populate(ones(N)*boxsize/(10*units.Gyr)*mass, 'momy')
 particles.populate(ones(N)*boxsize/(10*units.Gyr)*mass, 'momz')
 
 # Save snapshot
-save([particles], IC_file)
+save(particles, initial_conditions)
 

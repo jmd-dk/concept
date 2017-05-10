@@ -42,7 +42,7 @@ mass_tot = ϱ_mbar*boxsize**3
 mass_fluid_tot = mass_particles_tot = 0.5*mass_tot
 mass_fluid = mass_fluid_tot/N_fluidelements  # Mass of each fluid element
 mass_particles = mass_particles_tot/N        # Mass of each particle
-component = Component('test fluid', 'dark matter fluid', gridsize, mass_fluid)
+component = Component('test fluid', 'matter fluid', gridsize)
 ϱ = empty([gridsize]*3)
 for i in range(gridsize):
     ϱ[i, :, :] = 2 + np.sin(2*π*i/gridsize)  # Unitless
@@ -60,7 +60,7 @@ components.append(component)
 # in the x-direction throughout time, each following a specific fluid element.
 # The y-positions are given by a sine (in order to match
 # these against the fluid density profile) and the z-positions are random.
-component = Component('control particles', 'dark matter particles', N, mass_particles)
+component = Component('control particles', 'matter particles', N, mass=mass_particles)
 offset = 0.5*boxsize
 A = 0.4*boxsize
 component.populate(linspace(0, boxsize, N, endpoint=False),        'posx')
@@ -72,5 +72,5 @@ component.populate(zeros(N),                                       'momz')
 components.append(component)
 
 # Save snapshot
-save(components, IC_file)
+save(components, initial_conditions)
 

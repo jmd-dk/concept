@@ -24,25 +24,25 @@
 _this_dir = os.path.dirname(paths['params'])
 
 # Input/output
-IC_file       = _this_dir + '/IC.hdf5'
-snapshot_type = 'standard'
-output_dirs   = {'snapshot': _this_dir + '/output'}
-output_bases  = {'snapshot': 'snapshot'}
-output_times  = {'snapshot': (0.1, 0.2, 0.3)}
+initial_conditions = _this_dir + '/IC.hdf5'
+snapshot_type      = 'standard'
+output_dirs        = {'snapshot': _this_dir + '/output'}
+output_bases       = {'snapshot': 'snapshot'}
+output_times       = {'snapshot': (0.1, 0.2, 0.3)}
 
 # Numerical parameters
 boxsize          = 4*Mpc
 φ_gridsize       = 24
 p3m_scale        = 1.25
 p3m_cutoff       = 4.8
-softeningfactors = {'dark matter particles': 0.03}
+softeningfactors = {'matter particles': 0.03}
 
 # Cosmological parameters
 H0      = 70*km/s/Mpc
-Ωm      = 0.3
-ΩΛ      = 0.7
+Ωcdm    = 0.25
+Ωb      = 0.05
 a_begin = 0.02
 
-# Simulation options
-forces = {'dark matter particles': {'gravity': 'p3m'}}
+# Physics
+forces = {'matter particles': {'gravity': 'p3m'}}
 

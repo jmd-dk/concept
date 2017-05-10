@@ -33,7 +33,7 @@ from snapshot import save
 # actual particle itself.
 N = 8
 mass = ϱ_mbar*boxsize**3/N
-component = Component('GADGET halos', 'dark matter particles', N, mass)
+component = Component('GADGET halos', 'matter particles', N, mass=mass)
 component.populate(np.array([0.26]*4 + [0.74]*4)*boxsize, 'posx')
 component.populate(np.array([0.25, 0.25, 0.75, 0.75]*2)*boxsize, 'posy')
 component.populate(np.array([0.25, 0.75, 0.75, 0.25]*2)*boxsize, 'posz')
@@ -42,5 +42,5 @@ component.populate(zeros(N), 'momy')
 component.populate(zeros(N), 'momz')
 
 # Save snapshot
-save([component], IC_file)
+save(component, initial_conditions)
 

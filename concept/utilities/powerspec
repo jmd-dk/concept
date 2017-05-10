@@ -115,8 +115,10 @@ done
 
 # Get filenames of snapshots and create matching (temporary) parameter files
 info="$("${concept}" -p "${params}"                                \
+                     ${interactive_flag}                           \
                      --local                                       \
                      ${pure_python_flag}                           \
+                     ${unsafe_build_flag}                          \
                      --util info                                   \
                             "$(bash_array2python_list paths[@])"   \
                             --generate-params "${this_dir}/params" \
@@ -181,9 +183,11 @@ paths['params'] = params_path_ori
                      -p "${params_filename}" \
                      -q "${queue}"           \
                      -w "${walltime}"        \
+                     ${interactive_flag}     \
                      ${local_flag}           \
                      --nowatch               \
-                     ${pure_python_flag}
+                     ${pure_python_flag}     \
+                     ${unsafe_build_flag}
     }
     # Run CO𝘕CEPT to produce the powerspecrum
     if [ "${remote}" == "True" ]; then

@@ -38,7 +38,7 @@ TimeMax	            1.0
 
 Omega0	              0.3
 OmegaLambda           0.7
-OmegaBaryon           0.01
+OmegaBaryon           0.05
 HubbleParam           0.7
 BoxSize               8000.0  # in kpc/h
 

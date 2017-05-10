@@ -30,10 +30,17 @@ from mesh import diff_domain
 from snapshot import load
 cimport('from analysis import debug, measure, powerspec')
 cimport('from graphics import render, terminal_render')
-cimport('from integration import cosmic_time, expand, hubble, initiate_time, scalefactor_integral')
+cimport('from integration import cosmic_time,          '
+        '                        expand,               '
+        '                        hubble,               '
+        '                        initiate_time,        '
+        '                        scalefactor_integral, '
+        )
 cimport('from interactions import find_interactions')
-cimport('from utilities import delegate')
 cimport('from snapshot import save')
+cimport('from species import Component, get_representation')
+cimport('from utilities import delegate')
+
 
 
 
@@ -47,31 +54,32 @@ cimport('from snapshot import save')
                Δt='double',
                # Locals
                a_next='double',
+               go2dump='bint',
                index='int',
                integrand='object',  # str or tuple
+               t_dump='double',
                t_next='double',
                )
 def scalefactor_integrals(step, Δt):
     global ᔑdt_steps
     # Update the scale factor and the cosmic time. This also
     # tabulates a(t), needed for the scalefactor integrals.
-    a_next = expand(universals.a, universals.t, 0.5*Δt)
+    # If the dump time is within reach, go directly to this time
+    go2dump = False
+    t_dump = next_dump[1]
+    if universals.t + 0.5*Δt + 1e-3*Δt > t_dump:
+        # Dump time will be rached by a time step of 0.5*Δt
+        # (or at least be so close that it is better to include the
+        # last little bit). Go exactly to this dump time.
+        go2dump = True
+        Δt = 2*(t_dump - universals.t)
+    # Find a_next = a(t_next) and tabulate a(t)
     t_next = universals.t + 0.5*Δt
-    if t_next + 1e-3*Δt > next_dump[1]:
-        # Case 1: Dump time reached and exceeded.
-        # A smaller time step than
-        # 0.5*Δt is needed to hit dump time exactly. 
-        # Case 2: Dump time very nearly reached.
-        # Go directly to dump time (otherwise the next time step wilĺ
-        # be very small).
-        t_next = next_dump[1]
-        # Find a_next = a(t_next) and tabulate a(t)
-        a_next = expand(universals.a, universals.t, t_next - universals.t)
-        if next_dump[0] == 'a':
-            # This should be the same as the result above,
-            # but this is included to ensure agreement of future
-            # floating point comparisons.
-            a_next = next_dump[2]
+    a_next = expand(universals.a, universals.t, 0.5*Δt)
+    if go2dump and next_dump[0] == 'a':
+        # This will not change a_next by much. We do it to ensure
+        # agreement with future floating point comparisons.
+        a_next = next_dump[2]
     # Update the universal scale factor and cosmic time
     universals.a, universals.t = a_next, t_next
     # Map the step string to the index integer
@@ -141,7 +149,7 @@ def dump(components, output_filenames, final_render, op=None, do_autosave=False)
                 autosave_param_file.write('\n'*2)
                 # IC snapshot
                 autosave_param_file.write('# The autosaved snapshot file was saved to\n'
-                                          'IC_file = "{}"\n'.format(autosave_filename)
+                                          'initial_conditions = "{}"\n'.format(autosave_filename)
                                           )
                 # Present time
                 autosave_param_file.write('# The autosave happened at\n')
@@ -311,9 +319,12 @@ def timeloop():
     # Get the output filename patterns, the final render time and
     # the total timespan of the simulation.
     # This also creates the global list "dumps".
-    output_filenames, final_render, timespan = prepare_output_times()    
-    # Load initial conditions
-    components = load(IC_file, only_components=True)
+    output_filenames, final_render, timespan = prepare_output_times()   
+    # Get the initial components. These may be loaded from a snapshot
+    # or generated on the fly.
+    components = get_initial_conditions()
+    if not components:
+        return
     # The number of time steps before Δt is updated.
     # Setting Δt_period = 8 prevents the formation of spurious
     # anisotropies when evolving fluids with the MacCormack method,
@@ -346,6 +357,9 @@ def timeloop():
     next_dump = dumps[i_dump]
     # Possibly output at the beginning of simulation
     dump(components, output_filenames, final_render)
+    # Return now if all dumps lie at the initial time
+    if i_dump == len(dumps):
+        return
     # Record what time it is, for use with autosaving
     autosave_time = time()
     # The main time loop
@@ -547,8 +561,8 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
     if enable_Hubble:
         # When the Hubble expansion is enabled, 
         # use the current critical density as the mean density.
-        H = hubble(universals.a)
-        ρ_bar = Ωm*3*H**2/(8*π*G_Newton)
+        H = hubble()
+        ρ_bar = H**2*ℝ[Ωm*3/(8*π*G_Newton)]
     else:
         # In static space, determine the mean density
         # directly from the components.
@@ -707,6 +721,71 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
         Δt = Δt_max
     return Δt, bottleneck
 
+# Function that either loads existing initial conditions from a snapshot
+# or produces the initial conditions itself.
+@cython.header(# Locals
+               N_or_gridsize='Py_ssize_t',
+               abort_msg='str',
+               component='Component',
+               components='list',
+               ic_isfile='bint',
+               initial_conditions_generate='list',
+               name='str',
+               representation='str',
+               speices='str',
+               returns='list',
+               )
+def get_initial_conditions():
+    # Parse the initial_conditions parameter
+    if not initial_conditions:
+        return
+    abort_msg = (f'Error parsing initial_conditions = "{initial_conditions}". '
+                  'This is neither an existing file nor a dict or container of dicts '
+                  'specifying the initial components to generate.')
+    ic_isfile = False
+    if isinstance(initial_conditions, str):
+        ic_isfile = bcast(os.path.isfile(initial_conditions) if master else None)
+        if ic_isfile:
+            # Initial condition snapshot is given. Load it.
+            return load(sensible_path(initial_conditions), only_components=True)
+    if not ic_isfile:
+        # Components to realize are given.
+        # Parse the specifications futher.
+        if isinstance(initial_conditions, (list, tuple)):
+            initial_conditions_generate = []
+            for d in initial_conditions:
+                if not isinstance(d, dict):
+                    abort(abort_msg)
+                initial_conditions_generate.append(d.copy())
+        elif isinstance(initial_conditions, dict):
+            initial_conditions_generate = [initial_conditions.copy()]
+        else:
+            abort(abort_msg)
+        # Instantiate and realize the specified components
+        components = []
+        for d in initial_conditions_generate:
+            name = d.pop('name')
+            species = d.pop('species')
+            if 'w' in d:
+                w = d.pop('w')
+            else:
+                w = 'class'
+            representation = get_representation(species)
+            if representation == 'particles':
+                N_or_gridsize = φ_gridsize**3
+            elif representation == 'fluid':
+                N_or_gridsize = φ_gridsize
+            # Show a warning if not enough information is given to
+            # construct the initial conditions.
+            if species in ('neutrinos', 'neutrino fluid') and class_params.get('N_ncdm', 0) == 0:
+                masterwarn('Component "{}" with species "{}" specified, '
+                           'but the N_ncdm CLASS parameter is 0'.format(name, species))
+            # Do the realization
+            component = Component(name, species, N_or_gridsize, w=w, **d)
+            component.realize()
+            components.append(component)
+        return components
+
 # Function which checks the sanity of the user supplied output times,
 # creates output directories and defines the output filename patterns.
 # A Python function is used because it contains a closure
@@ -830,6 +909,7 @@ else:
     # Run the time loop
     timeloop()
     # Simulation done
+    universals.any_warnings = allreduce(universals.any_warnings, op=MPI.LOR)
     if universals.any_warnings:
         masterprint('\nCO𝘕CEPT run finished')
     else:

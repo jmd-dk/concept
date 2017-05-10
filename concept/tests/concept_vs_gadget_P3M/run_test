@@ -49,13 +49,19 @@ set -e
 
 # Generate ICs
 echo "$(cat "${this_dir}/params")
+output_dirs  = {'snapshot': '${this_dir}'}
+output_bases = {'snapshot': 'IC'}
+output_times = {'snapshot': a_begin}
 φ_gridsize = 8
+initial_conditions = {'name'   : 'GADGET halos',
+                      'species': 'matter particles',
+                      }
+use_p3m = False
 " > "${this_dir}/ic.params"
-"${concept}" -n 1                                    \
-             -p "${this_dir}/ic.params"              \
-             -u ic --name    'GADGET halos'          \
-                   --species 'dark matter particles' \
+"${concept}" -n 1                       \
+             -p "${this_dir}/ic.params" \
              --local
+mv "${this_dir}/IC"* "${this_dir}/IC"
 
 # Run the CO𝘕CEPT code on the generated ICs
 rm -f "${concept_dir}/.fftw_wisdom_gridsize=$(get_param 'φ_gridsize')_nprocs=1"

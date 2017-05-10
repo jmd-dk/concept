@@ -24,9 +24,12 @@
 # In the .pyx file, Cython declared variables will also get cimported.
 from commons import *
 
+# Cython imports
+from communication import smart_mpi
 
 
-# Class used for  1D interpolation.
+
+# Class used for 1D interpolation.
 # In compiled mode, cubic spline interpolation is used.
 # In pure Python mode, linear interpolation is used.
 @cython.cclass
@@ -88,31 +91,38 @@ class Spline:
             abort('Spline object cannot change size under retabulation.')
         if size < 3:
             abort('Too few tabulated values ({}) were given for cubic spline interpolation. '
-                  'At least 3 is needed'.format(size))
+                  'At least 3 is needed.'.format(size))
         if x.shape[0] < size:
-            abort('Error in constructing spline: The input x havs a size of {} '
-                  'but a size of {} was requested.'
+            abort('Error in constructing spline: The input x has a size of {} '
+                  'but a size of {} is required.'
                   .format(x.shape[0], size))
         if y.shape[0] < size:
-            abort('Error in constructing spline: The input y havs a size of {} '
-                  'but a size of {} was required.'
+            abort('Error in constructing spline: The input y has a size of {} '
+                  'but a size of {} is required.'
                   .format(y.shape[0], size))
         # Store meta data
         self.min = x[0]
         self.max = x[size - 1]
+        if self.min > self.max:
+            abort('A tabulation of a Spline instance was attempted '
+                  'with x values that are not strictly increasing')
         # Use NumPy in pure Python and GSL when compiled
         if not cython.compiled:
-            # Simply store the passed arrays
-            self.x = x
-            self.y = y
+            # Simply store the passed data.
+            # In compiled mode the passed data is not used by the Spline
+            # object instantiation, and so it can safely be freed.
+            # To guarantee the same safety in pure Python mode, we do
+            # not store the data directly, but rather copies thereof.
+            self.x = x.copy()
+            self.y = y.copy()
         else:
             # Initialize the spline
             gsl_spline_init(self.spline, cython.address(x[:]), cython.address(y[:]), size)
 
     # Method for doing spline evaluation
-    @cython.header(x='double',
-                   returns='double',
-                   )
+    @cython.pheader(x='double',
+                    returns='double',
+                    )
     def eval(self, x):
         # Check that the supplied x is within the interpolation interval
         x = self.in_interval(x, 'interpolate to')
@@ -186,23 +196,25 @@ class Spline:
                    x='double',
                    action='str',
                    # Locals
-                   tolerence='double',
+                   abs_tol='double',
+                   rel_tol='double',
                    returns='double',
                    )
     def in_interval(self, x, action='interpolate to'):
         # Check that the supplied x is within the
         # interpolation interval. If it is just barely outside of it,
         # move it to the boundary.
-        tolerence = 1e+6*machine_ϵ
+        rel_tol = 1e-9
+        abs_tol = rel_tol*(self.max - self.min)
         if x < self.min:
-            if x > self.min - tolerence:
+            if x > self.min - abs_tol:
                 x = self.min
             else:
                 abort('Could not {} {} because it is outside the tabulated interval [{}, {}].'
                       .format(action, x, self.min, self.max)
                       )
         elif x > self.max:
-            if x < self.max + tolerence:
+            if x < self.max + abs_tol:
                 x = self.max
             else:
                 abort('Could not {} {} because it is outside the tabulated interval [{}, {}].'
@@ -217,24 +229,147 @@ class Spline:
         gsl_spline_free(self.spline)
         gsl_interp_accel_free(self.acc)
 
+# Function for updating the scale factor
+@cython.header(# Arguments
+               t='double',
+               # Locals
+               returns='double',
+               )
+def scale_factor(t=-1):
+    if not enable_Hubble:
+        return 1
+    if t == -1:
+        t = universals.t
+    # When using CLASS, simply look up a(t) in the tabulated data
+    if enable_class:
+        if spline_t_a is None:
+            abort('The function a(t) has not been tabulated. Have you called initiate_time?')
+        return spline_t_a.eval(t)
+    # Not using CLASS.
+    # Integrate the Friedmann equation from the beginning of time
+    # to the requested time.
+    return rkf45(ȧ, machine_ϵ, machine_ϵ, t, abs_tol=1e-9, rel_tol=1e-9)
 
+# Function for computing the cosmic time t at some given scale factor a
+@cython.pheader(# Arguments
+                a='double',
+                a_lower='double',
+                t_lower='double',
+                t_upper='double',
+                # Locals
+                a_test='double',
+                a_test_prev='double',
+                abs_tol='double',
+                rel_tol='double',
+                t='double',
+                t_max='double',
+                t_min='double',
+                returns='double',
+                )
+def cosmic_time(a=-1, a_lower=machine_ϵ, t_lower=machine_ϵ, t_upper=-1):
+    """Given lower and upper bounds on the cosmic time, t_lower and
+    t_upper, and the scale factor at time t_lower, a_lower,
+    this function finds the future time at which the scale
+    factor will have the value a.
+    """
+    global t_max_ever
+    # This function only works when Hubble expansion is enabled
+    if not enable_Hubble:
+        abort('The cosmic_time function was called. '
+              'A mapping from a to t is only meaningful when Hubble expansion is enabled.')
+    if a == -1:
+        a = universals.a
+    # When using CLASS, simply look up t(a) in the tabulated data
+    if enable_class:
+        if spline_a_t is None:
+            abort('The function t(a) has not been tabulated. Have you called initiate_time?')
+        return spline_a_t.eval(a)
+    # Not using CLASS
+    if t_upper == -1:
+        # If no explicit t_upper is passed, use t_max_ever
+        t_upper = t_max_ever
+    elif t_upper > t_max_ever:
+        # If passed t_upper exceeds t_max_ever,
+        # set t_max_ever to this larger value.
+        t_max_ever = t_upper 
+    # Tolerences
+    abs_tol = 1e-9
+    rel_tol = 1e-9
+    # Saves copies of extreme t values
+    t_min, t_max = t_lower, t_upper
+    # Compute the cosmic time at which the scale factor had the value a,
+    # using a binary search.
+    a_test = a_test_prev = t = -1
+    while (    not isclose(a_test,  a,       0, ℝ[2*machine_ϵ])
+           and not isclose(t_upper, t_lower, 0, ℝ[2*machine_ϵ])):
+        t = 0.5*(t_upper + t_lower)
+        a_test = rkf45(ȧ, a_lower, t_min, t, abs_tol, rel_tol)
+        if a_test == a_test_prev:
+            if not isclose(a_test, a):
+                if isclose(t, t_max):
+                    # Integration stopped at t == t_max.
+                    # Break out so that this function is called
+                    # recursively, this time with a highter t_upper.
+                    break
+                else:
+                    # Integration halted for whatever reason
+                    abort('Integration of scale factor a(t) halted')
+            break
+        a_test_prev = a_test
+        if a_test > a:
+            t_upper = t
+        else:
+            t_lower = t
+    # If the result is equal to t_max, it means that the t_upper
+    # argument was too small! Call recursively with double t_upper.
+    if isclose(t, t_max):
+        return cosmic_time(a, a_test, t_max, 2*t_max)
+    return t
+# Initialize t_max_ever, a cosmic time later than what will
+# ever be reached (if exceeded, it dynamically grows).
+cython.declare(t_max_ever='double')
+t_max_ever = 20*units.Gyr
 
-# This function implements the Hubble parameter H(a)=ȧ/a,
-# as described by the Friedmann equation.
+# Function for updating the scale factor
+@cython.header(# Arguments
+               a='double',
+               t='double',
+               Δt='double',
+               returns='double',
+               )
+def expand(a, t, Δt):
+    """Integrates the Friedmann equation from t to t + Δt,
+    where the scale factor at time t is given by a. Returns a(t + Δt).
+    """
+    return rkf45(ȧ, a, t, t + Δt, abs_tol=1e-9, rel_tol=1e-9, save_intermediate=True)
+
+# This function implements the Hubble parameter H(a)=ȧ/a
 # The Hubble parameter is only ever written here. Every time the Hubble
 # parameter is used in the code, this function should be called.
 @cython.header(# Arguments
                a='double',
                # Locals
+               ΩΛ='double',
                returns='double',
                )
-def hubble(a):
-    if enable_Hubble:
-        return H0*sqrt(+ Ωr/(a**4 + machine_ϵ)  # Radiation
-                       + Ωm/(a**3 + machine_ϵ)  # Matter
-                       + ΩΛ                     # Cosmological constant
-                       )
-    return 0
+def hubble(a=-1):
+    if not enable_Hubble:
+        return 0
+    if a == -1:
+        a = universals.a
+    # When using CLASS, simply look up H(a) in the tabulated data.
+    # The largest tabulated a is 1, but it may happen that this function
+    # gets called with an a that is sightly larger. In this case,
+    # compute H directly via the simple Friedmann equation, just as when
+    # CLASS is not being used.
+    if enable_class and a <= 1:
+        if spline_a_H is None:
+            abort('The function H(a) has not been tabulated. Have you called initiate_time?')
+        return spline_a_H.eval(a)
+    # CLASS not enabled. Assume that the universe is flat and consists
+    # purely of matter and cosmological constant
+    ΩΛ = 1 - Ωm
+    return H0*sqrt(Ωm/(a**3 + machine_ϵ) + ΩΛ)
 
 # Function returning the proper time differentiated scale factor.
 # Because this function is used by rkf45, it needs to take in both
@@ -295,7 +430,7 @@ def rkf45(ḟ, f_start, t_start, t_end, abs_tol, rel_tol, save_intermediate=Fals
     f = f_start
     t = t_start
     # Drive the method
-    while t < t_end:
+    while t < t_end - 1e+3*machine_ϵ:
         # The embedded Runge-Kutta-Fehlberg 4(5) step
         k1 = h*ḟ(t             , f)
         k2 = h*ḟ(t + ℝ[1/4  ]*h, f + ℝ[1/4      ]*k1)
@@ -359,19 +494,6 @@ integrand_tab = malloc(alloc_tab*sizeof('double'))
 t_tab_mv = cast(t_tab, 'double[:alloc_tab]')
 f_tab_mv = cast(f_tab, 'double[:alloc_tab]')
 integrand_tab_mv = cast(integrand_tab, 'double[:alloc_tab]')
-
-# Function for updating the scale factor
-@cython.header(# Arguments
-               a='double',
-               t='double',
-               Δt='double',
-               returns='double',
-               )
-def expand(a, t, Δt):
-    """Integrates the Friedmann equation from t to t + Δt,
-    where the scale factor at time t is given by a. Returns a(t + Δt).
-    """
-    return rkf45(ȧ, a, t, t + Δt, abs_tol=1e-9, rel_tol=1e-9, save_intermediate=True)
 
 # Function for calculating integrals of the sort
 # ∫_t^(t + Δt) integrand(a) dt.
@@ -451,111 +573,94 @@ def scalefactor_integral(key):
     a = spline.integrate(t_tab[0], t_tab[size_tab - 1])
     return a
 
-# Function for computing the cosmic time t at some given scale factor a
-@cython.header(# Arguments
-               a='double',
-               a_lower='double',
-               t_lower='double',
-               t_upper='double',
-               # Locals
-               a_test='double',
-               a_test_prev='double',
-               abs_tol='double',
-               rel_tol='double',
-               t='double',
-               t_max='double',
-               t_min='double',
-               returns='double',
-               )
-def cosmic_time(a, a_lower=machine_ϵ, t_lower=machine_ϵ, t_upper=-1):
-    """Given lower and upper bounds on the cosmic time, t_lower and
-    t_upper, and the scale factor at time t_lower, a_lower,
-    this function finds the future time at which the scale
-    factor will have the value a.
-    """
-    global t_max_ever
-    # This function only works when Hubble expansion is enabled
-    if not enable_Hubble:
-        abort('A mapping a(t) cannot be constructed when enable_Hubble == False.')
-    if t_upper == -1:
-        # If no explicit t_upper is passed, use t_max_ever
-        t_upper = t_max_ever
-    elif t_upper > t_max_ever:
-        # If passed t_upper exceeds t_max_ever,
-        # set t_max_ever to this larger value.
-        t_max_ever = t_upper 
-    # Tolerences
-    abs_tol = 1e-9
-    rel_tol = 1e-9
-    # Saves copies of extreme t values
-    t_min, t_max = t_lower, t_upper
-    # Compute the cosmic time at which the scale factor had the value a,
-    # using a binary search.
-    a_test = a_test_prev = t = -1
-    while (    not isclose(a_test,  a,       0, ℝ[2*machine_ϵ])
-           and not isclose(t_upper, t_lower, 0, ℝ[2*machine_ϵ])):
-        t = 0.5*(t_upper + t_lower)
-        a_test = rkf45(ȧ, a_lower, t_min, t, abs_tol, rel_tol)
-        if a_test == a_test_prev:
-            if not isclose(a_test, a):
-                if isclose(t, t_max):
-                    # Integration stopped at t == t_max.
-                    # Break out so that this function is called
-                    # recursively, this time with a highter t_upper.
-                    break
-                else:
-                    # Integration halted for whatever reason
-                    abort('Integration of scale factor a(t) halted')
-            break
-        a_test_prev = a_test
-        if a_test > a:
-            t_upper = t
-        else:
-            t_lower = t
-    # If the result is equal to t_max, it means that the t_upper
-    # argument was too small! Call recursively with double t_upper.
-    if isclose(t, t_max):
-        return cosmic_time(a, a_test, t_max, 2*t_max)
-    return t
-# Initialize t_max_ever, a cosmic time later than what will
-# ever be reached (if exceeded, it dynamically grows).
-cython.declare(t_max_ever='double')
-t_max_ever = 20*units.Gyr
-
 # Function which sets the value of universals.a and universals.t
 # based on the user parameters a_begin and t_begin together with the
-# cosmology if enable_Hubble == True.
-@cython.header
+# cosmology if enable_Hubble == True. The functions t(a), a(t) and H(a)
+# will also be tabulated and stored in the module namespace in the
+# form of spline_a_t, spline_t_a and spline_a_H.
+@cython.pheader(# Locals
+                H_values='double[::1]',
+                a_begin_correct='double',
+                a_values='double[::1]',
+                background='dict',
+                t_values='double[::1]',
+                t_begin_correct='double',
+                )
 def initiate_time():
+    global spline_a_t, spline_t_a, spline_a_H
     if enable_Hubble:
         # Hubble expansion enabled.
+        # If CLASS should be used to compute the evolution of
+        # the background throughout time, run CLASS now.
+        if enable_class:
+            # Ideally we would call CLASS via compute_cosmo from the
+            # linear module, as this would preserve all results for any
+            # future needs. However, the linear module imports functions
+            # from this module (integration), so importing from
+            # linear would create a cyclic import. Instead we do the
+            # call ourselves via the "raw" call_class function from the
+            # commons module.
+            # Note that only the master have access to the results
+            # from the CLASS computation.
+            cosmo = call_class()
+            background = cosmo.get_background()
+            # What we need to store is the cosmic time t and the Hubble
+            # parametert H, both as functions of the scale factor a.
+            # We do this by defining global Spline objects.
+            a_values = smart_mpi(1/(background['z'] + 1)                      , 0, mpifun='bcast')
+            t_values = smart_mpi(background['proper time [Gyr]']*units.Gyr    , 1, mpifun='bcast') 
+            H_values = smart_mpi(background['H [1/Mpc]']*light_speed/units.Mpc, 2, mpifun='bcast') 
+            spline_a_t = Spline(a_values, t_values)
+            spline_t_a = Spline(t_values, a_values)
+            spline_a_H = Spline(a_values, H_values)
         # A specification of initial scale factor or
         # cosmic time is needed.
         if 'a_begin' in user_params:
             # a_begin specified
             if 't_begin' in user_params:
                 # t_begin also specified
-                masterwarn('Ignoring t_begin = {}*{} becuase enable_Hubble == True\n'
+                masterwarn('Ignoring t_begin = {}*{} becuase enable_Hubble == True '
                            'and a_begin is specified'.format(t_begin, unit_time))
-            universals.a = a_begin
-            universals.t = cosmic_time(universals.a)
+            a_begin_correct = a_begin
+            t_begin_correct = cosmic_time(a_begin_correct)
         elif 't_begin' in user_params:
             # a_begin not specified, t_begin specified
-            universals.t = t_begin
-            universals.a = expand(machine_ϵ, machine_ϵ, universals.t)
+            t_begin_correct = t_begin
+            a_begin_correct = scale_factor(t_begin_correct)
         else:
             # Neither a_begin nor t_begin is specified.
             # One or the other is needed when enable_Hubble == True.
             abort('No initial scale factor (a_begin) or initial cosmic time (t_begin) specified. '
                   'A specification of one or the other is needed when enable_Hubble == True.')
     else:
-        # Hubble expansion disabled.
+        # Hubble expansion disabled
+        t_begin_correct = t_begin
         # Values of the scale factor (and therefore a_begin)
-        # are meaningless.
-        # Set universals.a to unity, effectively ignoring its existence.
-        universals.a = 1
+        # are meaningless. Set a_begin to unity,
+        # effectively ignoring its existence.
+        a_begin_correct = 1
         if 'a_begin' in user_params:
-            masterwarn('Ignoring a_begin = {} becuase enable_Hubble == False'.format(a_begin))
-        # Use universals.t = t_begin, which defaults to 0 when not
-        # supplied by the user, as specified in commons.py.
-        universals.t = t_begin
+            masterwarn('Ignoring a_begin = {} because enable_Hubble == False'.format(a_begin))
+    # Now t_begin_correct and a_begin_correct are defined and store
+    # the actual values of the initial time and scale factor.
+    # Assign these correct values to the corresponding
+    # universal variables.
+    universals.t_begin = t_begin_correct
+    universals.a_begin = a_begin_correct
+    universals.z_begin = 1/a_begin_correct - 1
+    # Initiate the current universal time and scale factor
+    universals.t = t_begin_correct
+    universals.a = a_begin_correct
+    
+    
+
+# Global Spline objects defined by initiate_time
+cython.declare(spline_a_t='Spline', spline_t_a='Spline', spline_a_H='Spline')
+spline_a_t = None
+spline_t_a = None
+spline_a_H = None
+
+# Function pointer types used in this module
+pxd = """
+ctypedef double (*func_d_dd) (double, double)
+"""

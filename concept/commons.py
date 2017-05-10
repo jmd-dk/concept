@@ -31,14 +31,14 @@
 ############################################
 from __future__ import division  # Needed for Python3 division in Cython
 # Miscellaneous modules
-import collections, contextlib, ctypes, cython, imp, inspect, itertools
+import collections, contextlib, ctypes, cython, functools, imp, inspect, itertools
 import os, re, shutil, sys, textwrap, types, unicodedata
 # For math
 # (note that numpy.array is purposely not imported directly into the
 # global namespace, as this does not play well with Cython).
 import math
 import numpy as np
-from numpy import arange, asarray, empty, linspace, ones, zeros
+from numpy import arange, asarray, empty, linspace, logspace, ones, zeros
 # For plotting
 import matplotlib
 matplotlib.use('Agg')  # Use a matplotlib backend that does not require a running X-server
@@ -61,14 +61,25 @@ from datetime import timedelta
 #############
 from mpi4py import MPI
 cython.declare(master='bint',
+               master_rank='int',
                nprocs='int',
                rank='int',
                )
-# MPI functions for communication (only ones used in the code)
+# The MPI communicator
 comm = MPI.COMM_WORLD
+# Number of processes started with mpiexec
+nprocs = comm.size
+# The unique rank of the running process
+rank = comm.rank
+# The rank of the master/root process
+# and a flag identifying this process.
+master_rank = 0
+master = (rank == master_rank)
+# MPI functions for communication
 Allgather  = comm.Allgather
 Allgatherv = comm.Allgatherv
 Barrier    = comm.Barrier
+Bcast      = lambda buf, root=master_rank: comm.Bcast(buf, root)
 Gather     = comm.Gather
 Isend      = comm.Isend
 Reduce     = comm.Reduce
@@ -76,14 +87,28 @@ Recv       = comm.Recv
 Send       = comm.Send
 Sendrecv   = comm.Sendrecv
 allreduce  = comm.allreduce
-bcast      = comm.bcast
+bcast      = lambda obj, root=master_rank: comm.bcast(obj, root)
+iprobe     = comm.iprobe
+isend      = comm.isend
+recv       = comm.recv
 sendrecv   = comm.sendrecv
-# Number of processes started with mpiexec
-nprocs = comm.size
-# The unique rank of the running process
-rank = comm.rank
-# Flag identifying the master/root process (that which have rank 0)
-master = not rank
+# Custom version of the barrier function, where all slaves wait on
+# the master. In between the pinging of the master by the slaves,
+# they sleep for the designated time, freeing up the CPUs to do other
+# work (such as helping with OpenMP tasks).
+def sleeping_barrier(sleep_time=0.1):
+    if master:
+        # Signal slaves to continue
+        for slave_rank in range(nprocs):
+            if slave_rank != rank:
+                isend(True, dest=slave_rank)
+    else:
+        # Wait for master
+        while True:
+            sleep(sleep_time)
+            if iprobe():
+                recv()  # Remember to receive the message
+                break
 
 
 
@@ -93,40 +118,21 @@ master = not rank
 # The time before the main computation begins
 if master:
     start_time = time()
-# Initialize the pseudo-random number generator and declare the
-# functions random and random_gassian, returning random numbers from
-# the uniform distibution between 0 and 1 and a gaussian distribution
-# with variable mean and spread, respectively.
-# Both the pure Python and the compiled version of the functions use the
-# Mersenne Twister algorithm to generate the random numbers.
-# Despite of this, their exact implementation differs enough to make
-# the generated sequence of random numbers completely different for
-# pure Python and compiled runs.
-# Use a seed which is different for each MPI rank. Also avoid a seed
-# of 0, as this may lead to clashes with the default seed used by GSL.
-random_seed = 1 + rank
-if not cython.compiled:
-    # In pure Python, use NumPy's random module
-    np.random.seed(random_seed)
-    random = np.random.random
-    random_gaussian = np.random.normal
-else:
-    # Use GSL in compiled mode
-    cython.declare(random_number_generator='gsl_rng*')
-    random_number_generator = gsl_rng_alloc(gsl_rng_mt19937)
-    gsl_rng_set(random_number_generator, random_seed)
-    @cython.header(returns='double')
-    def random():
-        return gsl_rng_uniform_pos(random_number_generator)
-    @cython.header(loc='double',
-                   scale='double',
-                   returns='double',
-                   )
-    def random_gaussian(loc=0, scale=1):
-        return loc + gsl_ran_gaussian(random_number_generator, scale)
 # Initialise a Blessings Terminal object,
 # capable of producing fancy terminal formatting.
 terminal = blessings.Terminal(force_styling=True)
+# Monkey patch internal NumPy functions handling encoding during I/O,
+# replacing the Latin1 encoding by UTF-8. This is needed for reading and
+# writing unicode characters in headers of text files
+# using np.loadtxt and np.savetxt.
+asbytes = lambda s: s if isinstance(s, bytes) else str(s).encode('utf-8')
+asstr = lambda s: s.decode('utf-8') if isinstance(s, bytes) else str(s)
+np.compat.py3k .asbytes   = asbytes
+np.compat.py3k .asstr     = asstr
+np.compat.py3k .asunicode = asstr
+np.lib   .npyio.asbytes   = asbytes
+np.lib   .npyio.asstr     = asstr
+np.lib   .npyio.asunicode = asstr
 # Customize matplotlib
 matplotlib.rcParams.update({# Use a nice font that ships with matplotlib
                             'text.usetex'       : False,
@@ -182,10 +188,13 @@ def time_since(initial_time):
     return str(interval)
 
 # Function for printing messages as well as timed progress messages
-def masterprint(*args, indent=0, sep=' ', end='\n', fun=None, wrap=True, **kwargs):
-    if not master:
-        return
+def fancyprint(*args, indent=0, sep=' ', end='\n', fun=None, wrap=True, **kwargs):
     terminal_resolution = 80
+    # If called without any arguments, print the empty string
+    if not args:
+        args = ('', )
+    # If a prefix of '\n' is supplied, this can get lost
+    newline_prefix = (isinstance(args[0], str) and args[0].startswith('\n'))
     if args[0] == 'done':
         # End of progress message
         text = ' done after {}'.format(time_since(progressprint['time']))
@@ -257,7 +266,7 @@ def masterprint(*args, indent=0, sep=' ', end='\n', fun=None, wrap=True, **kwarg
                 # Convert the inserted underscores back into spaces
                 lines[-1] = re.sub('(_+)\.\.\.$', lambda m: ' '*len(m.group(1)) + '...', lines[-1])
                 progressprint['length'] = len(lines[-1])
-            text = '\n'.join(lines)          
+            text = '\n'.join(lines)  
         else:
             # Do not wrap the text into multiple lines,
             # regardless of the length of the text.
@@ -276,23 +285,39 @@ def masterprint(*args, indent=0, sep=' ', end='\n', fun=None, wrap=True, **kwarg
         # Apply supplied function to text
         if fun:
             text = fun(text)
+        # If a newline prefix got lost, reinsert it
+        if newline_prefix and text[0] != '\n':
+            text = '\n{}'.format(text)
         # Print out message
         print(text, flush=True, end=end, **kwargs)
 progressprint = {'maxintervallength': len(' done after ??? ms')}
 
-# Function for printing warnings
-def masterwarn(*args, skipline=True, prefix='Warning', wrap=True, **kwargs):
-    if not master:
-        return
+# Functions for printing warnings
+def warn(*args, skipline=True, prefix='Warning', wrap=True, **kwargs):
     try:
         universals.any_warnings = True
     except:
         ...
     # Add initial newline (if skipline == True) to prefix
     # and append a colon.
-    prefix = '{}{}{}'.format('\n' if skipline else '', prefix, ':' if args else '')
+    prefix = '{}{}{}'.format('\n' if skipline else '', prefix, ':' if prefix else '')
+    args = list(args)
+    if prefix == '\n':
+        if args:
+            args[0] = '\n' + str(args[0])
+        else:
+            args = ['\n']
     # Print out message
-    masterprint(prefix, *args, fun=terminal.bold_red, wrap=wrap, file=sys.stderr, **kwargs)
+    fancyprint(prefix, *args, fun=terminal.bold_red, wrap=wrap, file=sys.stderr, **kwargs)
+
+# Versions of fancyprint and warn which may be called collectively
+# but only the master will do any printing.
+def masterprint(*args, **kwargs):
+    if master:
+        fancyprint(*args, **kwargs)
+def masterwarn(*args, **kwargs):
+    if master:
+        warn(*args, **kwargs)
 
 # Raised exceptions inside cdef functions do not generally propagte
 # out to the caller. In places where exceptions are normally raised
@@ -314,13 +339,15 @@ def abort(*args, exit_code=1, prefix='Aborting', **kwargs):
     sys.stderr.flush()
     sys.stdout.flush()
     sleep(1)
-    # Teardown the MPI environment, either gently or by force
-    if exit_code == 0:
-        MPI.Finalize()
-    else:
-        comm.Abort(exit_code)
-    # Exit Python
-    sys.exit(exit_code)
+    # Shut down the Python process unless we are running interactively
+    if not sys.flags.interactive:
+        # Teardown the MPI environment, either gently or by force
+        if exit_code == 0:
+            MPI.Finalize()
+        else:
+            comm.Abort(exit_code)
+        # Exit Python
+        sys.exit(exit_code)
 
 
 
@@ -400,7 +427,7 @@ if not cython.compiled:
         if dtype in C2np:
             dtype = C2np[dtype]
         elif dtype[-1] == '*':
-            # Allocate pointer array of pointers (eg. int**).
+            # Allocate pointer array of pointers (e.g. double**).
             # Emulate these as lists of arrays.
             return [empty(1, dtype=sizeof(dtype[:-1]).dtype)]
         elif dtype.startswith('func_'):
@@ -414,8 +441,14 @@ if not cython.compiled:
             return a
         return empty(int(a[0]), dtype=a.dtype)
     def realloc(p, a):
-        # Reallocation of pointer assumed
-        p.resize(int(a[0]), refcheck=False)
+        if isinstance(p, list):
+            # Reallocation of pointer array (e.g. double**)
+            size = len(a)
+            p = p[:size] + [None]*(size - len(p))
+        else:
+            # Reallocation pointer (e.g. double*)
+            size = int(a[0])
+            p.resize(size, refcheck=False)
         return p
     def free(a):
         # NumPy arrays cannot be manually freed.
@@ -451,7 +484,7 @@ if not cython.compiled:
     number = number2 = integer = floating = signed_number = signed_number2 = number_mv = []
     # Mathematical functions
     from numpy import (sin, cos, tan,
-                       arcsin, arccos, arctan,
+                       arcsin, arccos, arctan, arctan2,
                        sinh, cosh, tanh,
                        arcsinh, arccosh, arctanh,
                        exp, log, log2, log10,
@@ -542,12 +575,6 @@ cimport cython
 from cython_gsl cimport *
 # Functions for manual memory management
 from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
-# Function type definitions of the form func_returntype_argumenttypes
-ctypedef bint    (*func_b_ddd)    (double, double, double)
-ctypedef double  (*func_d_d)      (double)
-ctypedef double  (*func_d_dd)     (double, double)
-ctypedef double  (*func_d_ddd)    (double, double, double)
-ctypedef double* (*func_dstar_ddd)(double, double, double)
 # Create a fused number type containing all necessary numerical types
 ctypedef fused number:
     cython.int
@@ -582,9 +609,10 @@ ctypedef fused signed_number2:
     cython.double
 # Mathematical functions
 from libc.math cimport (sin, cos, tan,
-                        asin as arcsin, 
-                        acos as arccos, 
-                        atan as arctan,
+                        asin  as arcsin, 
+                        acos  as arccos, 
+                        atan  as arctan,
+                        atan2 as arctan2,
                         sinh, cosh, tanh,
                         asinh as arcsinh, 
                         acosh as arccosh, 
@@ -593,6 +621,7 @@ from libc.math cimport (sin, cos, tan,
                         sqrt, cbrt,
                         erf, erfc,
                         floor, ceil, round,
+                        fmod,
                         )
 """
 
@@ -697,12 +726,10 @@ unicode_superscripts = dict(zip('0123456789-+e',
                                                       '⁵', '⁶', '⁷', '⁸', '⁹',
                                                       '⁻', '', '×10')]))
 
-# Function which converts a string containing (possibly) units
-# to the corresponding numerical value.
+# Function which takes in a string possibly containing units formatted
+# in fancy ways and returns a unformatted version.
 @cython.pheader(# Arguments
                 unit_str='str',
-                namespace='dict',
-                fail_on_error='bint',
                 # Locals
                 ASCII_char='str',
                 after='str',
@@ -714,20 +741,12 @@ unicode_superscripts = dict(zip('0123456789-+e',
                 pat='str',
                 rep='str',
                 unicode_superscript='str',
-                unit='object',  # double or NoneType
                 unit_list='list',
-                returns='object',  # double or NoneType
+                returns='str',
                 )
-def eval_unit(unit_str, namespace=None, fail_on_error=True):
-    """This function is roughly equivalent to
-    eval(unit_str, units_dict). Here however more stylized versions
-    of unit_str are legal, e.g. 'm☉ Mpc Gyr⁻¹'.
-    You may specify some other dict than the global units_dict
-    as the namespace to perform the evaluation within,
-    by passing it as a second argument.
-    If you wish to allow for failures of evaluation, set fail_on_error
-    to False. A failure will now not raise an exception,
-    but merely return None.
+def unformat_unit(unit_str):
+    """Example of effect:
+    '10¹⁰ m☉' -> '1e+10*m_sun'
     """
     # Ensure unicode
     unit_str = unicode(unit_str)
@@ -762,6 +781,31 @@ def eval_unit(unit_str, namespace=None, fail_on_error=True):
     # (though not the other way around).
     unit_str = re.sub(r'(([^_a-zA-Z0-9\.]|^)[0-9\.\)]+) ?([_a-zA-Z])', r'\g<1>*\g<3>', unit_str)
     unit_str = re.sub(r'([0-9])\*e([0-9+\-])', r'\g<1>e\g<2>', unit_str)
+    return unit_str
+
+# Function which converts a string containing (possibly) units
+# to the corresponding numerical value.
+@cython.pheader(# Arguments
+                unit_str='str',
+                namespace='dict',
+                fail_on_error='bint',
+                # Locals
+                unit='object',  # double or NoneType
+                returns='object',  # double or NoneType
+                )
+def eval_unit(unit_str, namespace=None, fail_on_error=True):
+    """This function is roughly equivalent to
+    eval(unit_str, units_dict). Here however more stylized versions
+    of unit_str are legal, e.g. 'm☉ Mpc Gyr⁻¹'.
+    You may specify some other dict than the global units_dict
+    as the namespace to perform the evaluation within,
+    by passing it as a second argument.
+    If you wish to allow for failures of evaluation, set fail_on_error
+    to False. A failure will now not raise an exception,
+    but merely return None.
+    """
+    # Remove any formatting on the unit string
+    unit_str = unformat_unit(unit_str)
     # Evaluate the transformed unit string
     if namespace is None:
         namespace = units_dict
@@ -947,9 +991,9 @@ cython.declare(unit_length='str',
                unit_time='str',
                unit_mass='str',
                )
-unit_length = user_params.get('unit_length', 'Mpc')
-unit_time   = user_params.get('unit_time',   'Gyr')
-unit_mass   = user_params.get('unit_mass',   '1e+10*m_sun')
+unit_length = unformat_unit(user_params.get('unit_length', 'Mpc'))
+unit_time   = unformat_unit(user_params.get('unit_time',   'Gyr'))
+unit_mass   = unformat_unit(user_params.get('unit_mass',   '1e+10*m_sun'))
 # Construct a struct containing the values of all units.
 # Note that 'min' is not a good name for minutes,
 # as this name is already taken by the min function.
@@ -992,10 +1036,13 @@ units, units_dict = build_struct(# Values of basic units,
 # Physical constants #
 ######################
 cython.declare(light_speed='double',
+               ħ='double',
                G_Newton='double',
                )
 # The speed of light in vacuum
 light_speed = 299792458*units.m/units.s
+# Reduced Planck constant
+ħ = 1.054571800e-34*units.kg*units.m**2/units.s
 # Newton's gravitational constant
 G_Newton = 6.6738e-11*units.m**3/(units.kg*units.s**2)
 
@@ -1008,7 +1055,7 @@ G_Newton = 6.6738e-11*units.m**3/(units.kg*units.s**2)
 # (and cast iterables to lists).
 def any2iter(val):
     if not hasattr(val, '__iter__') or hasattr(val, '__len__'):
-        val = np.ravel(val)
+        val = np.ravel(asarray(val, dtype='object'))
     return list(val)
 # Subclass the dict to create a dict-like object which keeps track of
 # the number of lookups on each key. This is used to identify unknown
@@ -1137,7 +1184,7 @@ def replace_ellipsis(d):
         elif any(any2iter(val)):
             parameter = val
 cython.declare(# Input/output
-               IC_file='str',
+               initial_conditions='object',  # str or container of str's
                snapshot_type='str',
                output_dirs='dict',
                output_bases='dict',
@@ -1156,11 +1203,11 @@ cython.declare(# Input/output
                R_tophat='double',
                # Cosmology
                H0='double',
-               Ωm='double',
-               Ωr='double',
-               ΩΛ='double',
+               Ωcdm='double',
+               Ωb='double',
                a_begin='double',
                t_begin='double',
+               class_params='dict',
                # Graphics
                render_colors='dict',
                bgcolor='double[::1]',
@@ -1171,18 +1218,20 @@ cython.declare(# Input/output
                forces='dict',
                w_eos='dict',
                # Simlation options
+               fftw_rigor='str',
+               master_seed='unsigned long int ',
                use_φ='bint',
                use_p3m='bint',
-               fftw_rigor='str',
                # Debugging options
-               enable_debugging='bint',
                enable_Ewald='bint',
                enable_Hubble='bint',
+               enable_class='bint',
+               enable_debugging='bint',
                # Hidden parameters
                special_params='dict',
                )
 # Input/output
-IC_file = sensible_path(str(user_params.get('IC_file', '')))
+initial_conditions = user_params.get('initial_conditions', '')
 snapshot_type = (str(user_params.get('snapshot_type', 'standard'))
                  .lower().replace(' ', ''))
 if master and snapshot_type not in ('standard', 'gadget2'):
@@ -1254,16 +1303,14 @@ p3m_scale = float(user_params.get('p3m_scale', 1.25))
 p3m_cutoff = float(user_params.get('p3m_cutoff', 4.8))
 softeningfactors = dict(user_params.get('softeningfactors', {}))
 replace_ellipsis(softeningfactors)
-for kind in ('dark matter particles', ):
-    softeningfactors[kind] = float(softeningfactors.get(kind, 0.03))
 R_tophat = float(user_params.get('R_tophat', 8*units.Mpc))
 # Cosmology
 H0 = float(user_params.get('H0', 70*units.km/(units.s*units.Mpc)))
-Ωr = float(user_params.get('Ωr', 0))
-Ωm = float(user_params.get('Ωm', 0.3))
-ΩΛ = float(user_params.get('ΩΛ', 0.7))
+Ωcdm = float(user_params.get('Ωcdm', 0.25))
+Ωb = float(user_params.get('Ωb', 0.05))
 a_begin = float(user_params.get('a_begin', 1))
 t_begin = float(user_params.get('t_begin', 0))
+class_params = dict(user_params.get('class_params', {}))
 # Physics
 forces = dict(user_params.get('forces', {}))
 default_force_methods = {'gravity': 'pm',
@@ -1295,9 +1342,11 @@ for key, val in forces.items():
             forces[key] = new_val
     for i, t in enumerate(forces[key]):
         t = (t[0].lower(), t[1].lower())
-        t = (t[0].replace(' ', '_'), t[1].replace(' ', '_'))
-        t = (t[0].replace('-', '_'), t[1].replace('-', '_'))
-        t = (t[0].replace('^', '' ), t[1].replace('^', '' ))
+        t = (t[0].replace(' ', ''), t[1].replace(' ', ''))
+        t = (t[0].replace('-', ''), t[1].replace('-', ''))
+        t = (t[0].replace('^', ''), t[1].replace('^', ''))
+        t = (t[0].replace('(', ''), t[1].replace('(', ''))
+        t = (t[0].replace(')', ''), t[1].replace(')', ''))
         for n in range(10):
             t = (t[0].replace(unicode_superscript(str(n)), str(n)),
                  t[1].replace(unicode_superscript(str(n)), str(n)))
@@ -1306,6 +1355,8 @@ force_methods = {t[1] for l in forces.values() for t in l}
 w_eos = dict(user_params.get('w_eos', {}))
 replace_ellipsis(w_eos)
 # Simulation options
+fftw_rigor = user_params.get('fftw_rigor', 'estimate').lower()
+master_seed = int(user_params.get('master_seed', 1))
 if (   'φ_gridsize' in user_params
     or (set(('pm', 'p3m')) & force_methods)
     or any([output_times[time_param]['powerspec'] for time_param in ('a', 't')])):
@@ -1316,7 +1367,6 @@ if 'p3m' in force_methods:
     use_p3m = bool(user_params.get('use_p3m', True))
 else:
     use_p3m = bool(user_params.get('use_p3m', False))
-fftw_rigor = user_params.get('fftw_rigor', 'estimate').lower()
 # Graphics
 render_colors = {}
 if 'render_colors' in user_params:
@@ -1331,10 +1381,11 @@ resolution = to_int(user_params.get('resolution', 1080))
 terminal_render_colormap = str(user_params.get('terminal_render_colormap', 'gnuplot2'))
 terminal_render_resolution = to_int(user_params.get('terminal_render_resolution', 80))
 # Debugging options
-enable_debugging = bool(user_params.get('enable_debugging', False))
+enable_class = bool(user_params.get('enable_class', True))
 enable_Ewald = bool(user_params.get('enable_Ewald',
                                     True if 'pp' in force_methods else False))
 enable_Hubble = bool(user_params.get('enable_Hubble', True))
+enable_debugging = bool(user_params.get('enable_debugging', False))
 # Extra hidden parameters via the special_params variable
 special_params = dict(user_params.get('special_params', {}))
 
@@ -1364,6 +1415,10 @@ universals, universals_dict = build_struct(# Flag specifying whether any warning
                                            # Scale factor and cosmic time
                                            a=('double', a_begin),
                                            t=('double', t_begin),
+                                           # Initial time of simulation
+                                           a_begin=('double', a_begin),
+                                           t_begin=('double', t_begin),
+                                           z_begin=('double', 1/a_begin - 1),
                                            )
 
 
@@ -1371,22 +1426,20 @@ universals, universals_dict = build_struct(# Flag specifying whether any warning
 ############################################
 # Derived and internally defined constants #
 ############################################
-cython.declare(φ_gridsize3='long long int',
-               φ_gridsize_half='Py_ssize_t',
-               slab_size_padding='ptrdiff_t',
-               ewald_file='str',
+cython.declare(snapshot_dir='str',
+               snapshot_base='str',
+               snapshot_times='dict',
                powerspec_dir='str',
                powerspec_base='str',
                powerspec_times='dict',
                render_dir='str',
                render_base='str',
                render_times='dict',
-               snapshot_dir='str',
-               snapshot_base='str',
-               snapshot_times='dict',
                terminal_render_times='dict',
                ϱ_crit='double',
+               Ωm='double',
                ϱ_mbar='double',
+               slab_size_padding='ptrdiff_t',
                pm_fac_const='double',
                longrange_exponent_fac='double',
                p3m_cutoff_phys='double',
@@ -1413,17 +1466,12 @@ terminal_render_times = {time_param: output_times[time_param]['terminal render']
 # this refers to ϱ = a**(3*(1 + w))*ρ where ρ is the proper density,
 # a is the scale factor and w is the equation of state parameter.
 ϱ_crit = 3*H0**2/(8*π*G_Newton)
+# The density parameter for all matter
+Ωm = Ωcdm + Ωb
 # The average, comoving matter density
 ϱ_mbar = Ωm*ϱ_crit
 # The real size of the padded (last) dimension of global slab grid
 slab_size_padding = 2*(φ_gridsize//2 + 1)
-# Half of φ_gridsize (use of the ℝ-syntax requires doubles)
-φ_gridsize_half = φ_gridsize//2
-# The cube of φ_gridsize. This is defined here because it is a very
-# large integer (long long int) (use of the ℝ-syntax requires doubles)
-φ_gridsize3 = cast(φ_gridsize, 'long long int')**3
-# Name of file storing the Ewald grid
-ewald_file = '.ewald_gridsize=' + str(ewald_gridsize) + '.hdf5'
 # All constant factors across the PM scheme is gathered in the
 # pm_fac_const variable. Its contributions are:
 # Normalization due to forwards and backwards Fourier transforms:
@@ -1436,7 +1484,7 @@ ewald_file = '.ewald_gridsize=' + str(ewald_gridsize) + '.hdf5'
 #     particles.mass*Δt
 # Everything except the mass and the time are constant, and is condensed
 # into the pm_fac_const variable.
-pm_fac_const = G_Newton*boxsize**2/(π*φ_gridsize**3) 
+pm_fac_const = G_Newton*boxsize**2/(π*φ_gridsize**3)  # ONLY USED BY gravity_old.py !!!
 # The exponential cutoff for the long-range force looks like
 # exp(-k2*rs2). In the code, the wave vector is in grid units in stead
 # of radians. The conversion is 2*π/φ_gridsize. The total factor on k2
@@ -1470,12 +1518,12 @@ units_dict.setdefault('a_begin'               , a_begin               )
 units_dict.setdefault('boxsize'               , boxsize               )
 units_dict.setdefault('longrange_exponent_fac', longrange_exponent_fac)
 units_dict.setdefault('t_begin'               , t_begin               )
+units_dict.setdefault(        'Ωcdm'          , Ωcdm                  )
+units_dict.setdefault(unicode('Ωcdm')         , Ωcdm                  )
+units_dict.setdefault(        'Ωb'            , Ωb                    )
+units_dict.setdefault(unicode('Ωb')           , Ωb                    )
 units_dict.setdefault(        'Ωm'            , Ωm                    )
 units_dict.setdefault(unicode('Ωm')           , Ωm                    )
-units_dict.setdefault(        'Ωr'            , Ωr                    )
-units_dict.setdefault(unicode('Ωr')           , Ωr                    )
-units_dict.setdefault(        'ΩΛ'            , ΩΛ                    )
-units_dict.setdefault(unicode('ΩΛ')           , ΩΛ                    )
 units_dict.setdefault(        'ϱ_vacuum'      , ϱ_vacuum              )
 units_dict.setdefault(unicode('ϱ_vacuum')     , ϱ_vacuum              )
 units_dict.setdefault(        'ϱ_crit'        , ϱ_crit                )
@@ -1492,10 +1540,6 @@ units_dict.setdefault('softeningfactors'          , softeningfactors          )
 units_dict.setdefault('terminal_render_resolution', terminal_render_resolution)
 units_dict.setdefault(        'φ_gridsize'        , φ_gridsize                )
 units_dict.setdefault(unicode('φ_gridsize')       , φ_gridsize                )
-units_dict.setdefault(        'φ_gridsize_half'   , φ_gridsize_half           )
-units_dict.setdefault(unicode('φ_gridsize_half')  , φ_gridsize_half           )
-units_dict.setdefault(        'φ_gridsize3'       , φ_gridsize3               )
-units_dict.setdefault(unicode('φ_gridsize3')      , φ_gridsize3               )
 # Add numbers
 units_dict.setdefault(        'machine_ϵ' , machine_ϵ)
 units_dict.setdefault(unicode('machine_ϵ'), machine_ϵ)
@@ -1511,6 +1555,81 @@ for key, val in vars(math).items():
     units_dict.setdefault(key, val)
 # Add special functions
 units_dict.setdefault('cbrt', lambda x: x**(1/3))
+
+
+
+###############
+# Class setup #
+###############
+# Populate cosmology parameters
+class_params.setdefault('H0', H0/(units.km/(units.s*units.Mpc)))
+class_params.setdefault('Omega_cdm', Ωcdm)
+class_params.setdefault('Omega_b', Ωb)
+# Populate simulation options
+class_params.setdefault( # Disable fluid approximation for non-CDM species
+                        'ncdm_fluid_approximation', 3)
+# Function that can call out to CLASS,
+# correctly taking advantage of OpenMP.
+@cython.header(# Arguments
+               extra_params='dict',
+               sleep_time='double',
+               # Locals
+               params_specialized='dict',
+               )
+def call_class(extra_params={}, sleep_time=0.1):
+    # Instantiate a classy.Class instance and populate it with the
+    # global and extra parameters.
+    params_specialized = class_params.copy()
+    params_specialized.update(extra_params)
+    cosmo = Class()
+    cosmo.set(params_specialized)
+    # Call cosmo.compute in such a way as to allow
+    # for OpenMP parallelization.
+    masterprint('Calling CLASS ...')
+    call_openmp_lib(cosmo.compute, sleep_time=sleep_time)
+    masterprint('done')
+    return cosmo
+
+
+#########################
+# Pseudo-random numbers #
+#########################
+# From the master seed, generate seeds individual to each process
+cython.declare(process_seed='unsigned long int')
+process_seed = master_seed + rank
+# Initialize the pseudo-random number generator and declare the
+# functions random and random_gassian, returning random numbers from
+# the uniform distibution between 0 and 1 and a gaussian distribution
+# with variable mean and spread, respectively.
+# Both the pure Python and the compiled version of the functions use the
+# Mersenne Twister algorithm to generate the random numbers.
+# Despite of this, their exact implementation differs enough to make
+# the generated sequence of random numbers completely different for
+# pure Python and compiled runs.
+if not cython.compiled:
+    # In pure Python, use NumPy's random module
+    def seed_rng(seed=process_seed):
+        np.random.seed(seed)
+    random = np.random.random
+    random_gaussian = np.random.normal
+else:
+    # Use GSL in compiled mode
+    cython.declare(random_number_generator='gsl_rng*')
+    random_number_generator = gsl_rng_alloc(gsl_rng_mt19937)
+    @cython.header(seed='unsigned long int')
+    def seed_rng(seed=process_seed):
+        gsl_rng_set(random_number_generator, seed)
+    @cython.header(returns='double')
+    def random():
+        return gsl_rng_uniform_pos(random_number_generator)
+    @cython.header(loc='double',
+                   scale='double',
+                   returns='double',
+                   )
+    def random_gaussian(loc=0, scale=1):
+        return loc + gsl_ran_gaussian(random_number_generator, scale)
+# Seed the pseudo-random number generator
+seed_rng()
 
 
 
@@ -1548,16 +1667,6 @@ else:
         return m
     """
 
-# Max function for 2 numbers
-@cython.header(a=number,
-               b=number,
-               returns=number,
-               )
-def pairmax(a, b):
-    if a > b:
-        return a
-    return b
-
 # Min function for 1D memory views of numbers
 if not cython.compiled:
     # Use NumPy's min function in pure Python
@@ -1577,27 +1686,36 @@ else:
     """
 
 # Modulo function for numbers
-@cython.header(x=signed_number,
-               length=signed_number2,
-               returns=signed_number,
-               )
-def mod(x, length):
-    """Warning: mod(integer, floating) not possible. Note that
-    no error will occur if called with illegal types!
-    Note also that -length < x < 2*length must be true for this
-    function to compute the modulo properly. A more general
-    prescription would be x = (x % length) + (x < 0)*length.
-    """
-    if not (signed_number in integer and signed_number2 in floating):
-        if x < 0:
-            x += length
-            if x == length:
-                x = 0
-        elif x >= length:
-            x -= length
-            if x < 0:
-                x = 0
-        return x
+if not cython.compiled:
+    mod = np.mod
+else:
+    @cython.header(# Arguments
+                   x=signed_number,
+                   length=signed_number,
+                   remainder_f='double',
+                   remainder_i='Py_ssize_t',
+                   returns=signed_number,
+                   )
+    def mod(x, length):
+        """This function computes the proper modulos, which (given a
+        positive length) is always positive. Note that this is different
+        from x%length in C, which results in the signed remainder.
+        Note that mod(floating, integer) is not supported.
+        """
+        if signed_number in floating:
+            remainder_f = fmod(x, length)
+            if remainder_f == 0:
+                return 0
+            elif x < 0:
+                return remainder_f + length
+            return remainder_f
+        else:
+            remainder_i = x%length
+            if remainder_i == 0:
+                return 0
+            elif x < 0:
+                return remainder_i + length
+            return remainder_i
 
 # Summation function for 1D memory views of numbers
 if not cython.compiled:
@@ -1639,6 +1757,17 @@ else:
         for i in range(1, N):
             Π *= a[i]
         return Π
+    """
+
+# Mean function for 1D memory views of numbers
+if not cython.compiled:
+    # Use NumPy's mean function in pure Python
+    mean = np.mean
+else:
+    """
+    @cython.header(returns=number)
+    def mean(number[::1] a):
+        return sum(a)/a.shape[0]
     """
 
 # Unnormalized sinc function (faster than gsl_sf_sinc)
@@ -1770,13 +1899,31 @@ def significant_figures(numbers, nfigs, fmt='', incl_zeros=True, scientific=Fals
     else:
         return return_list
 
+# Function that can call another function that uses OpenMP.
+# The master process is the only one that actually does the call,
+# while all other processes periodically asks whether the master process
+# is done so that they may continue. This period is controlled by
+# sleep_time, given in seconds. While sleeping, the slave processes
+# can be utilized by the OpenMP task owned by the master.
+def call_openmp_lib(func, *args, sleep_time=0.1, **kwargs):
+    if master:
+        func(*args, **kwargs)
+    sleeping_barrier(sleep_time)
+
 
 
 ####################################################
 # Sanity checks and corrections to user parameters #
 ####################################################
-if master and fftw_rigor not in ('estimate', 'measure', 'patient', 'exhaustive'):
+# Abort on illegal FFTW rigor
+if fftw_rigor not in ('estimate', 'measure', 'patient', 'exhaustive'):
     abort('Does not recognize FFTW rigor "{}"'.format(user_params['fftw_rigor']))
+# Warn if master_seed is chosen to be 0, as this may lead to clashes
+# with the default seed used by GSL.
+if master_seed < 1:
+    masterwarn('A master_seed of {} was specified. '
+               'This should be > 0 to avoid clashes with the default GSL seed'
+               .format(master_seed))
 # Warn about unused but specified parameters.
 if user_params.unused:
     if len(user_params.unused) == 1:
@@ -1784,22 +1931,24 @@ if user_params.unused:
     else:
         msg = 'The following unknown parameters were specified:\n'
     masterwarn(msg + '\n'.join(user_params.unused))
-# Warn about non-flat geometry due to Ωr + Ωm + ΩΛ ≠ 1
-if not isclose(Ωr + Ωm + ΩΛ, 1, rel_tol=0, abs_tol=1e-4):
-    masterwarn('The density parameters '
-               'Ωr = {:.4g}, '
-               'Ωm = {:.4g}, '
-               'ΩΛ = {:.4g} '
-               'add up to {:.4g} ≠ 1, implying a non-flat geometry. '
-               'Only flat geometries are properly handled by the code.'
-               .format(Ωr, Ωm, ΩΛ, Ωr + Ωm + ΩΛ)
-               )
 # Output times very close to t_begin or a_begin
 # are probably meant to be exactly at t_begin or a_begin
 for time_param in ('t', 'a'):
     output_times[time_param] = {key: tuple([a_begin if isclose(float(nr), a_begin) else nr
                                             for nr in val])
                                 for key, val in output_times[time_param].items()}
+# Output times very close to a = 1
+# are probably meant to be exactly at a = 1.
+output_times['a'] = {key: tuple([1 if isclose(float(nr), 1) else nr
+                                 for nr in val])
+                     for key, val in output_times['a'].items()}
+# Warn about output times being greater than a = 1
+for output_kind, times in output_times['a'].items():
+    if any([a > 1 for a in times]):
+        masterwarn('{} output is requested at a = {}, '
+                   'but the simulation will not continue after a = 1.'
+                   .format(output_kind.capitalize(), np.max(times)))
+# Reassign output times of the individual types
 snapshot_times        = {time_param: output_times[time_param]['snapshot'] 
                          for time_param in ('a', 't')}
 powerspec_times       = {time_param: output_times[time_param]['powerspec'] 

@@ -39,45 +39,45 @@ cimport('from mesh import CIC_components2slabs, '
 
 
 # Function for calculating power spectra of components
-@cython.header(# Arguments
-               components='list',
-               filename='str',
-               # Locals
-               P='double',
-               Vcell='double',
-               slab_jik='double*',
-               W2='double',
-               fmt='str',
-               header='str',
-               i='Py_ssize_t',
-               interpolation_factor='double',
-               j='Py_ssize_t',
-               j_global='Py_ssize_t',
-               k='Py_ssize_t',
-               k2='Py_ssize_t',
-               ki='Py_ssize_t',
-               ki2_plus_kj2='Py_ssize_t',
-               kj='Py_ssize_t',
-               kj2='Py_ssize_t',
-               kk='Py_ssize_t',
-               component='Component',
-               power='double[::1]',
-               power_fac='double',
-               power_σ2='double[::1]',
-               power_σ2_k2='double',
-               recp_deconv_ijk='double',
-               row_quantity='list',
-               row_type='list',
-               row_σ_tophat='list',
-               spectrum_plural='str',
-               sqrt_deconv_ij='double',
-               sqrt_deconv_ijk='double',
-               sqrt_deconv_j='double',
-               totmass='double',
-               Σmass='double',
-               σ_tophat='dict',
-               σ_tophat_σ='dict',
-               )
+@cython.pheader(# Arguments
+                components='list',
+                filename='str',
+                # Locals
+                P='double',
+                component='Component',
+                W2='double',
+                fmt='str',
+                header='list',
+                i='Py_ssize_t',
+                interpolation_quantities='list',
+                j='Py_ssize_t',
+                j_global='Py_ssize_t',
+                k='Py_ssize_t',
+                k2='Py_ssize_t',
+                ki='Py_ssize_t',
+                kj='Py_ssize_t',
+                kj2='Py_ssize_t',
+                kk='Py_ssize_t',
+                nyquist='Py_ssize_t',
+                power='double[::1]',
+                power_fac='double',
+                power_σ2='double[::1]',
+                power_σ2_k2='double',
+                reciprocal_sqrt_deconv_ij='double',
+                reciprocal_sqrt_deconv_ijk='double',
+                reciprocal_sqrt_deconv_j='double',
+                row_quantity='list',
+                row_type='list',
+                row_σ_tophat='list',
+                slab_jik='double*',
+                spectrum_plural='str',
+                symmetry_multiplicity='int',
+                totmass='double',
+                Σmass='double',
+                φ_Vcell='double',
+                σ_tophat='dict',
+                σ_tophat_σ='dict',
+                )
 def powerspec(components, filename):
     global slab, mask, k_magnitudes_masked, power_N, power_dict, power_σ2_dict
     # Do not compute any power spectra if
@@ -116,17 +116,19 @@ def powerspec(components, filename):
         # and perform the FFT on this grid. Here the φ grid and
         # corresponding slabs are used.
         # We choose to interpolate the comoving density of the component
-        # onto the grid. For particle components, this is exactly what
-        # CIC_components2slabs does by default. For fluid components
-        # though, we need to convert ϱ = a³⁽¹⁺ʷ⁾ρ to comoving density
-        # a³ρ. This is what the interpolation_factor does.
-        if component.representation == 'particles':
-            interpolation_factor = 1
-        elif component.representation == 'fluid':
-            interpolation_factor = universals.a**(-3*component.w())
+        # onto the grid. For particles, this means that each particle
+        # contribute an amount mass/φ_Vcell, where φ_Vcell is the
+        # volume of a single cell in the φ grid. For fluids, the
+        # comoving density is a³ρ = a³(a⁻³⁽¹⁺ʷ⁾ϱ) = a⁻³ʷϱ.
+        φ_Vcell = (boxsize/φ_gridsize)**3
+        interpolation_quantities = [# Particle components
+                                    ('particles', [component.mass/φ_Vcell]),
+                                    # Fluid components
+                                    ('ϱ', [universals.a**(-3*component.w())]),
+                                    ]
         # CIC interpolate component to the slabs
         # and do Fourier transformation.
-        CIC_components2slabs([component], [interpolation_factor])
+        CIC_components2slabs([component], interpolation_quantities)
         slabs_FFT()
         # Reset power, power multiplicity and power variance
         for k2 in range(k2_max):
@@ -135,27 +137,28 @@ def powerspec(components, filename):
             power_σ2[k2] = 0
         # Begin loop over slab. As the first and second dimensions
         # are transposed due to the FFT, start with the j-dimension.
+        nyquist = φ_gridsize//2
         for j in range(slab_size_j):
             # The j-component of the wave vector
             j_global = slab_start_j + j
-            if j_global > φ_gridsize_half:
+            if j_global > ℤ[φ_gridsize//2]:
                 kj = j_global - φ_gridsize
             else:
                 kj = j_global
             kj2 = kj**2
-            # Square root of the j-component of the deconvolution
-            sqrt_deconv_j = sinc(kj*ℝ[π/φ_gridsize])
+            # Reciprocal square root of the j-component
+            # of the deconvolution.
+            reciprocal_sqrt_deconv_j = sinc(kj*ℝ[π/φ_gridsize])
             # Loop over the entire first dimension
             for i in range(φ_gridsize):
                 # The i-component of the wave vector
-                if i > φ_gridsize_half:
+                if i > ℤ[φ_gridsize//2]:
                     ki = i - φ_gridsize
                 else:
                     ki = i
-                ki2_plus_kj2 = ki**2 + kj2
-                # Square root of the product of the i-
+                # Reciprocal square root of the product of the i-
                 # and the j-component of the deconvolution.
-                sqrt_deconv_ij = sinc(ki*ℝ[π/φ_gridsize])*sqrt_deconv_j
+                reciprocal_sqrt_deconv_ij = sinc(ki*ℝ[π/φ_gridsize])*reciprocal_sqrt_deconv_j
                 # Loop over the entire last dimension in steps of two,
                 # as contiguous pairs of elements are the real and
                 # imaginary part of the same complex number.
@@ -163,30 +166,39 @@ def powerspec(components, filename):
                     # The k-component of the wave vector
                     kk = k//2
                     # The squared magnitude of the wave vector
-                    k2 = ki2_plus_kj2 + kk**2
-                    # Square root of the product of
-                    # all components of the deconvolution.
-                    sqrt_deconv_ijk = sqrt_deconv_ij*sinc(kk*ℝ[π/φ_gridsize])
-                    # The reciprocal of the product of
-                    # all components of the deconvolution.
-                    recp_deconv_ijk = 1/(sqrt_deconv_ijk**2)
+                    k2 = ℤ[ki**2 + kj2] + kk**2
                     # Pointer to the [j, i, k]'th element of the slab.
                     # The complex number is then given as
                     # Re = slab_jik[0], Im = slab_jik[1].
                     slab_jik = cython.address(slab[j, i, k:])
                     # Do the deconvolution
-                    slab_jik[0] *= recp_deconv_ijk  # Real part
-                    slab_jik[1] *= recp_deconv_ijk  # Imag part
-                    # Increase the multiplicity
-                    power_N[k2] += 1
+                    with unswitch(3):
+                        if component.representation == 'particles':
+                            reciprocal_sqrt_deconv_ijk = (reciprocal_sqrt_deconv_ij
+                                                          *sinc(kk*ℝ[π/φ_gridsize]))
+                            slab_jik[0] *= ℝ[1/(reciprocal_sqrt_deconv_ijk)**2]  # Real part
+                            slab_jik[1] *= ℝ[1/(reciprocal_sqrt_deconv_ijk)**2]  # Imag part
                     # The power is the squared magnitude
                     # of the complex number
                     P = slab_jik[0]**2 + slab_jik[1]**2
+                    # Because of the complex-conjugate symmetry,
+                    # the slabs only contain the half with positive kk
+                    # frequencies. Including this missing half does not
+                    # alter the power spectrum itself, but it does lead
+                    # to better (and truer) statistics. Below, the
+                    # symmetry_multiplicity variable counts the number
+                    # of times this grid points should be counted.
+                    if kk == 0 or kk == nyquist:  # Is it really true all but the DC and Nyquist k-planes should count double? !!!
+                        symmetry_multiplicity = 1
+                    else:
+                        symmetry_multiplicity = 2
+                    # Increase the multiplicity
+                    power_N[k2] += symmetry_multiplicity
                     # Increase the power. This is unnormalized for now.
-                    power[k2] += P
+                    power[k2] += ℝ[symmetry_multiplicity*P]
                     # Increase the variance. For now, this is only the
                     # unnormalized sum of squares.
-                    power_σ2[k2] += P**2
+                    power_σ2[k2] += ℝ[symmetry_multiplicity*P]**2
         # Sum power, power_N and power_σ2 into the master process
         Reduce(sendbuf=(MPI.IN_PLACE if master else power),
                recvbuf=(power        if master else None),
@@ -197,6 +209,8 @@ def powerspec(components, filename):
         Reduce(sendbuf=(MPI.IN_PLACE if master else power_σ2),
                recvbuf=(power_σ2     if master else None),
                op=MPI.SUM)
+        # The last collective thing to do is to measure the total mass 
+        Σmass = measure(component, 'mass')
         if not master:
             continue
         # Remove the k2 == 0 elements (the background)
@@ -215,19 +229,14 @@ def powerspec(components, filename):
         # All factors needed to transform the values of the power array
         # to physical coordinates are gathered in power_fac. First we
         # normalize to unity. Since what is interpolated to the φ grid
-        # is comoving densities, corresponding to Σᵢmassᵢ/Vcell for
-        # particles (where Vcell is the volume of a single cell of the
+        # is comoving densities, corresponding to Σᵢmassᵢ/φ_Vcell for
+        # particles (where φ_Vcell is the volume of a single cell of the
         # φ grid) and a⁻³ʷϱ = a³ρ for fluids, we can normalize to unity
         # by dividing by the squared sum of these comoving densities,
-        # given by (Σmass/Vcell)². We have to use the square because
+        # given by (Σmass/φ_Vcell)². We have to use the square because
         # the interpolated values are squared in order to get the power.
         # We then multiply by the box volume to get physical units.
-        Σmass = measure(component, 'mass')
-        Vcell = domain_volume/( (φ.shape[0] - 5)
-                               *(φ.shape[1] - 5)
-                               *(φ.shape[2] - 5)
-                               )
-        power_fac = boxsize**3/(Σmass/Vcell)**2
+        power_fac = boxsize**3/(Σmass/φ_Vcell)**2
         # We also need to transform power from being the sum 
         # to being the mean, by dividing by power_N. 
         # At the same time, transform power_σ2 from being the
@@ -260,14 +269,14 @@ def powerspec(components, filename):
     # numbers are guaranteed to be positive, as with power spectra.
     spectrum_plural = 'spectrum' if len(power_dict) == 1 else 'spectra'
     masterprint('Saving power {} to "{}" ...'.format(spectrum_plural, filename))
-    header = ('# Power {} at t = {:.6g} {}{} '
-              'computed with a grid of linear size {}\n#\n'
+    header = ['Power {} at t = {:.6g} {}{} '
+              'computed with a grid of linear size {}\n'
               .format(spectrum_plural,
                       universals.t,
                       unit_time,
                       ', a = {:.6g},'.format(universals.a) if enable_Hubble else '',
                       φ_gridsize)
-              )
+              ]
     # Header lines for component name, σ_tophat and quantity
     fmt = '{:<15}'
     row_type = [' ']
@@ -287,12 +296,9 @@ def powerspec(components, filename):
                             + ' {:.4g}'.format(σ_tophat_σ[component.name]))
         row_quantity.append(unicode('power [{}³]').format(unit_length))
         row_quantity.append(unicode('σ(power) [{}³]').format(unit_length))
-    header += '# ' + fmt.format(*row_type) + '\n'
-    header += '# ' + fmt.format(*row_σ_tophat) + '\n'
-    header += '# ' + fmt.replace('{:^33} ', ' {:<16} {:<16}').format(*row_quantity) + '\n'
-    # Write header to file
-    with open(filename, 'w', encoding='utf-8') as powerspec_file:
-        powerspec_file.write(header)
+    header.append(fmt.format(*row_type))
+    header.append(fmt.format(*row_σ_tophat))
+    header.append(fmt.replace('{:^33} ', ' {:<16} {:<16}').format(*row_quantity))
     # Mask the data and pack it into a list
     data_list = [k_magnitudes_masked]
     for component in components:
@@ -301,12 +307,12 @@ def powerspec(components, filename):
         data_list.append(asarray(power_dict[component.name])[mask])
         # Take sqrt to convert power_σ2 to power_σ
         data_list.append(np.sqrt(asarray(power_σ2_dict[component.name])[mask]))
-    # Write data to file
-    with open(filename, 'a+b') as powerspec_file:
-        np.savetxt(powerspec_file,
-                   asarray(data_list).transpose(),
-                   fmt=('%-13.6e' + len(power_dict)*(  7*' ' + '%-13.6e'
-                                                     + 4*' ' + '%-13.6e')))
+    # Write header and data to file
+    np.savetxt(filename, asarray(data_list).transpose(),
+               fmt=('%-13.6e' + len(power_dict)*(  7*' ' + '%-13.6e'
+                                                 + 4*' ' + '%-13.6e')),
+               header='\n'.join(header),
+               )
     masterprint('done')
     # Plot the power spectra
     plot_powerspec(data_list, filename, power_dict)
@@ -446,7 +452,6 @@ def σ2_integrand(power, k2):
                i='Py_ssize_t',
                j='Py_ssize_t',
                k='Py_ssize_t',
-               mass='double',
                mom='double*',
                mom_dim='double',
                mom_i='double',
@@ -486,8 +491,8 @@ def measure(component, quantity):
     # Extract variables
     N = component.N
     N_elements = component.gridsize**3
-    mass = component.mass
     Vcell = boxsize**3/N_elements
+    w = component.w()
     ϱ = component.ϱ
     ϱ_mv = ϱ.grid_mv
     ϱ_noghosts = ϱ.grid_noghosts
@@ -578,7 +583,7 @@ def measure(component, quantity):
     elif quantity == 'mass':
         if component.representation == 'particles':
             # The total mass is fixed for particle components
-            Σmass = component.N*mass
+            Σmass = component.N*component.mass
         elif component.representation == 'fluid':
             # NumPy array of local part of ϱ with no pseudo points
             ϱ_arr = asarray(ϱ_noghosts[:(ϱ_noghosts.shape[0] - 1),
@@ -590,12 +595,11 @@ def measure(component, quantity):
             Σϱ = allreduce(Σϱ,  op=MPI.SUM)
             # The total mass is
             # Σmass = (a**3*Vcell)*Σρ,
-            # where a**3*Vcell is the proper volume and Σρ is the
-            # proper density. In terms of the fluid variable
+            # where a**3*Vcell is the proper volume and Σρ is the sum of
+            # proper densities. In terms of the fluid variable
             # ϱ = a**(3*(1 + w))*ρ, the total mass is then
             # mass = a**(-3*w)*Vcell*Σϱ.
             # Note that the total mass is not constant for w ≠ 0.
-            w = component.w()
             Σmass = universals.a**(-3*w)*Vcell*Σϱ
         return Σmass
     elif quantity == 'discontinuity':
@@ -686,6 +690,7 @@ def measure(component, quantity):
                component='Component',
                dim='int',
                name='str',
+               w='double',
                Δdiff_max='double[::1]',
                Δdiff_max_normalized='double[::1]',
                Σmass='double',
@@ -706,6 +711,7 @@ def debug(components):
         return
     # Componentwise analysis
     for component in components:
+        w = component.w()
         # sum(momentum) and std(momentum) in each dimension
         Σmom, σmom = measure(component, 'momentum')
         for dim in range(3):
@@ -767,7 +773,9 @@ def debug(components):
             Σmass = measure(component, 'mass')
             debug_print('total mass', component, Σmass, 'm☉')
             # Warn if the total mass is incorrect
-            Σmass_correct = component.gridsize**3*component.mass
+            # (see the measure function for details
+            # on how the mass is defined for fluids).
+            Σmass_correct = universals.a**(-3*w)*component.Σmass_present
             if not isclose(Σmass, Σmass_correct):
                 masterwarn('Component "{}" ought to have a total mass of {} m☉'
                            .format(component.name,
@@ -839,8 +847,8 @@ cython.declare(k2_max='Py_ssize_t',
                power_σ2_dict='object',  # OrderedDict
                )
 if any(powerspec_times.values()) or special_params.get('special', '') == 'powerspec':
-    # Maximum value of k squared (grid units) 
-    k2_max = 3*φ_gridsize_half**2
+    # Maximum value of k squared (grid units)
+    k2_max = 3*(φ_gridsize//2)**2
     # Array counting the multiplicity of power data points
     power_N = empty(k2_max + 1, dtype=C2np['int'])
     # (Ordered) dictionaries with component names as keys and

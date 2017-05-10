@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
 #
-# The auther of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The author of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
@@ -192,18 +192,15 @@ set_version()
 # The rightmost column are fallbacks, which will be used if the middle
 # link to the version given by the middle column is broken.
 # In case of CO𝘕CEPT, the version "newest" should always be used.
-# In the case of CLASS, the version to use should be one which is
-# compatible with Python 3. This is available as a pull request
-# with the hash 12a913d401341884d99804b653dd4be06dbf3ced.
 set_version "concept"         "newest"
-set_version "class"           "12a913d401341884d99804b653dd4be06dbf3ced"
-set_version "fftw"            "3.3.6-pl1" "3.3.5"   # 3.3.6 removed from official site
+set_version "class"           "2.6"
+set_version "fftw"            "3.3.6-pl2" "3.3.5" # "3.3.6-pl1"   # 3.3.6 removed from official site
 set_version "fftw_for_gadget" "2.1.5"     "2.1.5"
-set_version "freetype"        "2.7"       "2.6.5"
+set_version "freetype"        "2.7.1"     "2.6.5" # "2.7"
 set_version "gadget"          "2.0.7"
 set_version "gsl"             "2.3"       "2.2.1"
 set_version "hdf5"            "1.8.18"    "1.8.17"  # Error using 1.10.0-patch1
-set_version "libpng"          "1.6.28"    "1.6.27"
+set_version "libpng"          "1.6.29"    "1.6.27"  # "1.6.28"
 if [ "${mpi}" == "openmpi" ]; then
 set_version "mpi"             "2.0.1"
 elif [ "${mpi}" == "mpich" ]; then
@@ -212,18 +209,18 @@ fi
 set_version "ncurses"         "6.0"       "6.0"
 set_version "openssl"         "1.1.0e"    "1.0.2i"  # Python seems incompatible with OpenSSL 1.1.0c
 set_version "perl"            "5.24.1"
-set_version "python"          "3.6.0"
+set_version "python"          "3.6.1"  # "3.6.0"
 set_version "zlib"            "1.2.11"    "1.2.8"
 # Python packages
 set_version "blessings"          "1.6"
 set_version "cython"             "0.25.2"
 set_version "cythongsl"          "0.2.2"
-set_version "h5py"               "2.6.0"
-set_version "matplotlib"         "2.0.0"
+set_version "h5py"               "2.7.0"  # "2.6.0"
+set_version "matplotlib"         "2.0.1"  # "2.0.0"
 set_version "mpi4py"             "2.0.0"
 set_version "nose"               "1.3.7"
-set_version "nose_parameterized" "0.5.0"
-set_version "numpy"              "1.12.0"
+set_version "nose_parameterized" "0.6.0"  # "0.5.0"
+set_version "numpy"              "1.12.1"  # "1.12.0"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
 # and specific versions of system dependencies.
@@ -3146,10 +3143,17 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     mkdir -p "${class_dir}"
     mv ./* "${class_dir}/"
     cd "${class_dir}"
-    # The Python prefix does not get set correctly in the Makefile
-    # becuase "${python_dir}/distutils/distutils.cfg" does not exist.
-    # Set the Python prefix manually.
-    sed -i "/PYTHONPREFIX=/c\PYTHONPREFIX = \"${python_dir}\"" Makefile
+    # Change the values of some macros in header files,
+    # allowing CO𝘕CEPT to feed larger amounts of input into CLASS.
+    # Specifically, the values
+    # _ARGUMENT_LENGTH_MAX_   (in include/parser.h)
+    # _MAX_NUMBER_OF_K_FILES_ (in include/perturbations.h)
+    # will be increased to 2¹⁵ - 1 = 32767.
+    value=32767
+    sed -i "s/^\( *#define \+_ARGUMENT_LENGTH_MAX_ \+\)[^ ]*\(.*\)*$/\1${value}\2/" \
+           "${class_dir}/include/parser.h"
+    sed -i "s/^\( *#define \+_MAX_NUMBER_OF_K_FILES_ \+\)[^ ]*\(.*\)*$/\1${value}\2/" \
+           "${class_dir}/include/perturbations.h"
     # Build CLASS, including Python wrapper
     PYTHON="${python}" make ${make_jobs} 2>&1
     # Test CLASS

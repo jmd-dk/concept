@@ -24,9 +24,9 @@
 _this_dir = os.path.dirname(paths['params'])
 
 # Input/output
-IC_file       = _this_dir + '/snapshot.hdf5'
-snapshot_type = 'standard'
-output_bases  = {'powerspec': 'powerspec'}
+initial_conditions    = _this_dir + '/snapshot.hdf5'
+snapshot_type         = 'standard'
+output_bases          = {'powerspec': 'powerspec'}
 powerspec_select      = {'all': True}
 powerspec_plot_select = {'all': True}
 

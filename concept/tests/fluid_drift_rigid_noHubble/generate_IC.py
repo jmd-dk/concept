@@ -34,8 +34,7 @@ gridsize = 64
 Vcell = (boxsize/gridsize)**3
 speed = boxsize/(10*units.Gyr)
 N = gridsize**3
-mass = ϱ_mbar*boxsize**3/N
-component = Component('test fluid', 'dark matter fluid', gridsize, mass)
+component = Component('test fluid', 'matter fluid', gridsize)
 ϱ = empty([gridsize]*3)
 for i in range(gridsize):
     ϱ[i, :, :] = 2 + np.sin(2*π*i/gridsize)  # Unitless
@@ -47,5 +46,5 @@ component.populate(zeros([gridsize]*3),      'J', 1)
 component.populate(ϱ*speed*(random()*2 - 1), 'J', 2)
 
 # Save snapshot
-save([component], IC_file)
+save(component, initial_conditions)
 

@@ -51,8 +51,10 @@ set -e
 
 # Create the Ewald grid using Cython
 rm -f "${concept_dir}/.ewald_gridsize=$(get_param 'ewald_gridsize').hdf5"
-grep "ewald_gridsize"  "${this_dir}/params" >  "${this_dir}/params_ewald"
-grep "forces"          "${this_dir}/params" >> "${this_dir}/params_ewald"
+ewald_gridsize="$(get_param ewald_gridsize)"
+forces="$(get_param forces)"
+echo "ewald_gridsize = ${ewald_gridsize}" >  "${this_dir}/params_ewald"
+echo "forces         = ${forces}"         >> "${this_dir}/params_ewald"
 "${concept}" -n 1 -p "${this_dir}/params_ewald" --local
 
 # Generate ICs

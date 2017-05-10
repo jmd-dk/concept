@@ -25,9 +25,13 @@
 from commons import *
 
 # Cython imports
+from communication import smart_mpi
+cimport('from analysis import measure')
 cimport('from communication import communicate_domain, exchange')
 cimport('from fluid import maccormack, apply_internal_sources')
-cimport('from integration import Spline, ȧ')
+cimport('from integration import Spline, cosmic_time, scale_factor, ȧ')
+cimport('from linear import compute_cosmo, compute_transfers, realize')
+cimport('from mesh import φ_noghosts')
 
 
 
@@ -217,21 +221,25 @@ class Component:
     """
 
     # Initialization method
-    @cython.header(# Arguments
-                   name='str',
-                   species='str',
-                   N_or_gridsize='Py_ssize_t',
-                   mass='double',
-                   N_fluidvars='Py_ssize_t',
-                   w='object',  # NoneType, float, int, str or dict
-                   # Locals
-                   fluidvar='object',  # np.ndarray with dtype object
-                   fluidvar_shape='tuple',
-                   i='Py_ssize_t',
-                   index='Py_ssize_t',
-                   multi_index='tuple',
-                   )
-    def __init__(self, name, species, N_or_gridsize, mass,
+    @cython.pheader(# Arguments
+                    name='str',
+                    species='str',
+                    N_or_gridsize='Py_ssize_t',
+                    species_class='str',
+                    mass='double',
+                    N_fluidvars='Py_ssize_t',
+                    w='object',  # NoneType, float, int, str or dict
+                    # Locals
+                    fluidvar='object',  # np.ndarray with dtype object
+                    fluidvar_shape='tuple',
+                    i='Py_ssize_t',
+                    index='Py_ssize_t',
+                    multi_index='tuple',
+                    )
+    def __init__(self, name, species, N_or_gridsize, species_class='',
+                 # Particle-specific arguments
+                 mass=-1,
+                 # Fluid-specific arguments
                  N_fluidvars=2, w=None,
                  ):
         # The triple quoted string below serves as the type declaration
@@ -241,14 +249,15 @@ class Component:
         """
         # General component attributes
         public dict forces
-        public double mass
         public str name
         public str representation
         public str species
+        public str species_class
         # Particle attributes
         public Py_ssize_t N
         Py_ssize_t N_allocated
         Py_ssize_t N_local
+        public double mass
         double softening
         # Particle data
         double* posx
@@ -259,14 +268,31 @@ class Component:
         double* momz
         double** pos
         double** mom
-        double[::1] posx_mv
-        double[::1] posy_mv
-        double[::1] posz_mv
-        double[::1] momx_mv
-        double[::1] momy_mv
-        double[::1] momz_mv
-        list pos_mv
-        list mom_mv
+        public double[::1] posx_mv
+        public double[::1] posy_mv
+        public double[::1] posz_mv
+        public double[::1] momx_mv
+        public double[::1] momy_mv
+        public double[::1] momz_mv
+        public list pos_mv
+        public list mom_mv
+        # Particle Δ buffers
+        double* Δposx
+        double* Δposy
+        double* Δposz
+        double* Δmomx
+        double* Δmomy
+        double* Δmomz
+        double** Δpos
+        double** Δmom
+        public double[::1] Δposx_mv
+        public double[::1] Δposy_mv
+        public double[::1] Δposz_mv
+        public double[::1] Δmomx_mv
+        public double[::1] Δmomy_mv
+        public double[::1] Δmomz_mv
+        public list Δpos_mv
+        public list Δmom_mv
         # Fluid attributes
         public Py_ssize_t gridsize
         public tuple shape
@@ -279,14 +305,15 @@ class Component:
         double[:, ::1] w_tabulated
         str w_expression
         Spline w_spline
+        double Σmass_present
         # Fluid data
-        list fluidvars
+        public list fluidvars
         FluidScalar ϱ
         object J
         FluidScalar Jx
         FluidScalar Jy
         FluidScalar Jz
-        object σ  
+        object σ
         FluidScalar σxx
         FluidScalar σxy
         FluidScalar σxz
@@ -300,7 +327,14 @@ class Component:
         # General attributes
         self.name    = name
         self.species = species
-        self.mass    = mass
+        if not species_class:
+            # If the CLASS species is not given, use the default name
+            # corresponding to the (CO𝘕CEPT) species. If no such default
+            # name is defined, continue on without an error and assume
+            # that this name will not be used.
+            if species in default_species_class:
+                species_class = default_species_class[self.species]
+        self.species_class = species_class
         # Attatch information about what forces (including the method
         # used to compute these forces) act on this species in this
         # particular simulation to the component instance.
@@ -313,14 +347,17 @@ class Component:
         # Determine the representation based on the species
         self.representation = get_representation(self.species)
         # Particle attributes
+        self.mass        = mass
         self.N_allocated = 1
         self.N_local     = 1
         if self.representation == 'particles':
             self.N = N_or_gridsize
             if self.species in softeningfactors:
                 self.softening = softeningfactors[self.species]*boxsize/cbrt(self.N)
+            elif self.species in default_softeningfactors:
+                self.softening = default_softeningfactors[self.species]*boxsize/cbrt(self.N)
             else:
-                abort('Species "{}" do not have an assigned softening factor!'
+                abort('Species "{}" has neither an assigned nor a default softening factor!'
                       .format(self.species))
         else:
             self.N         = 1
@@ -350,6 +387,31 @@ class Component:
         self.mom[2] = self.momz
         self.pos_mv = [self.posx_mv, self.posy_mv, self.posz_mv]
         self.mom_mv = [self.momx_mv, self.momy_mv, self.momz_mv]
+        # Particle data buffers
+        self.Δposx = malloc(self.N_allocated*sizeof('double'))
+        self.Δposy = malloc(self.N_allocated*sizeof('double'))
+        self.Δposz = malloc(self.N_allocated*sizeof('double'))
+        self.Δmomx = malloc(self.N_allocated*sizeof('double'))
+        self.Δmomy = malloc(self.N_allocated*sizeof('double'))
+        self.Δmomz = malloc(self.N_allocated*sizeof('double'))
+        self.Δposx_mv = cast(self.Δposx, 'double[:self.N_allocated]')
+        self.Δposy_mv = cast(self.Δposy, 'double[:self.N_allocated]')
+        self.Δposz_mv = cast(self.Δposz, 'double[:self.N_allocated]')
+        self.Δmomx_mv = cast(self.Δmomx, 'double[:self.N_allocated]')
+        self.Δmomy_mv = cast(self.Δmomy, 'double[:self.N_allocated]')
+        self.Δmomz_mv = cast(self.Δmomz, 'double[:self.N_allocated]')
+        # Pack particle data buffers into a pointer array of pointers
+        # and a list of memoryviews.
+        self.Δpos = malloc(3*sizeof('double*'))
+        self.Δpos[0] = self.Δposx
+        self.Δpos[1] = self.Δposy
+        self.Δpos[2] = self.Δposz
+        self.Δmom = malloc(3*sizeof('double*'))
+        self.Δmom[0] = self.Δmomx
+        self.Δmom[1] = self.Δmomy
+        self.Δmom[2] = self.Δmomz
+        self.Δpos_mv = [self.Δposx_mv, self.Δposy_mv, self.Δposz_mv]
+        self.Δmom_mv = [self.Δmomx_mv, self.Δmomy_mv, self.Δmomz_mv]
         # Fluid attributes
         self.shape = (1, 1, 1)
         self.shape_noghosts = (1, 1, 1)
@@ -364,6 +426,10 @@ class Component:
         # Fluid data.
         # Create the N_fluidvars fluid variables
         # and store them in the list fluidvars.
+        if N_fluidvars != 2 and self.representation == 'particles':
+            abort('Particle components must have N_fluidvars = 2, '
+                  'but N_fluidvars = {} was specified for "{}"'
+                  .format(N_fluidvars, self.name))
         self.fluidvars = []
         for i in range(N_fluidvars):
             # The shape of the i'th fluid variable,
@@ -387,17 +453,27 @@ class Component:
         # fluid scalars (e.g. ϱ, Jx) to tuple of the form
         # (index, multi_index). The fluid scalar is then given
         # by self.fluidvars[index][multi_index].
-        self.fluid_names = {}
+        # Also include trivial mappings from indices to themselves,
+        # and the special "reverse" mapping from indices to names
+        # given by the 'ordered' key.
         fluidvar_names = ('ϱ', 'J', 'σ')
+        self.fluid_names = {'ordered': fluidvar_names}
         for index, (fluidvar, fluidvar_name) in enumerate(zip(self.fluidvars, fluidvar_names)):
             # The fluid variable
-            self.fluid_names[fluidvar_name] = index
+            self.fluid_names[        fluidvar_name ] = index
+            self.fluid_names[unicode(fluidvar_name)] = index
+            self.fluid_names[index                 ] = index  # Trivial mapping
             # The fluid scalar
             for multi_index in self.iterate_fluidscalar_indices(fluidvar):
                 fluidscalar_name = fluidvar_name
                 if index > 0:
                     fluidscalar_name += ''.join(['xyz'[mi] for mi in multi_index])
-                self.fluid_names[fluidscalar_name] = (index, multi_index)
+                self.fluid_names[        fluidscalar_name ] = (index, multi_index)
+                self.fluid_names[unicode(fluidscalar_name)] = (index, multi_index)
+                self.fluid_names[index, multi_index       ] = (index, multi_index)  # Trivial mapping
+        # Also include particle variable names in the fluid_names dict
+        self.fluid_names['pos'] = 0
+        self.fluid_names['mom'] = 1
         # Assign the fluid variables and scalars as convenient named
         # attributes on the Component instance.
         # Use the same naming scheme as above.
@@ -407,7 +483,7 @@ class Component:
         self.Jy = self.fluidvars[1][1]
         self.Jz = self.fluidvars[1][2]
         if N_fluidvars > 2:
-            self.σ   = self.fluidvars[2]
+            self.σ   = self.fluidvars[2]            
             self.σxx = self.fluidvars[2][0, 0]
             self.σxy = self.fluidvars[2][0, 1]
             self.σxz = self.fluidvars[2][0, 2]
@@ -428,18 +504,23 @@ class Component:
     # You should construct the data array within the call itself,
     # as this will minimize memory usage. This data array is 1D for
     # particle data and 3D for fluid data.
-    @cython.header(# Arguments
-                   data='object',  # 1D/3D (particles/fluid) memoryview
-                   var='object',   # int-like or str
-                   multi_index='object',  # int-like or tuple
-                   # Locals
-                   fluid_indices='object',  # tuple or int-like
-                   fluidscalar='FluidScalar',
-                   index='Py_ssize_t',
-                   mv1D='double[::1]',
-                   mv3D='double[:, :, ::1]',
-                   )
-    def populate(self, data, var, multi_index=0):
+    @cython.pheader(# Arguments
+                    data='object',  # 1D/3D (particles/fluid) memoryview
+                    var='object',   # int-like or str
+                    multi_index='object',  # int-like or tuple
+                    buffer='bint',
+                    # Locals
+                    a='double',
+                    fluid_indices='object',  # tuple or int-like
+                    fluidscalar='FluidScalar',
+                    index='Py_ssize_t',
+                    mv1D='double[::1]',
+                    mv3D='double[:, :, ::1]',
+                    )
+    def populate(self, data, var, multi_index=0, buffer=False):
+        """If buffer is True, the Δ buffers will be populated
+        instead of the data arrays.
+        """
         if self.representation == 'particles':
             mv1D = data
             self.N_local = mv1D.shape[0]
@@ -448,17 +529,35 @@ class Component:
                 self.resize(self.N_local)
             # Update the data corresponding to the passed string
             if var == 'posx':
-                self.posx_mv[...] = mv1D[...]
+                if buffer:
+                    self.Δposx_mv[:self.N_local] = mv1D[:]
+                else:
+                    self.posx_mv [:self.N_local] = mv1D[:]
             elif var == 'posy':
-                self.posy_mv[...] = mv1D[...]
+                if buffer:
+                    self.Δposy_mv[:self.N_local] = mv1D[:]
+                else:
+                    self.posy_mv [:self.N_local] = mv1D[:]
             elif var == 'posz':
-                self.posz_mv[...] = mv1D[...]
+                if buffer:
+                    self.Δposz_mv[:self.N_local] = mv1D[:]
+                else:
+                    self.posz_mv [:self.N_local] = mv1D[:]
             elif var == 'momx':
-                self.momx_mv[...] = mv1D[...]
+                if buffer:
+                    self.Δmomx_mv[:self.N_local] = mv1D[:]
+                else:
+                    self.momx_mv [:self.N_local] = mv1D[:]
             elif var == 'momy':
-                self.momy_mv[...] = mv1D[...]
+                if buffer:
+                    self.Δmomy_mv[:self.N_local] = mv1D[:]
+                else:
+                    self.momy_mv [:self.N_local] = mv1D[:]
             elif var == 'momz':
-                self.momz_mv[...] = mv1D[...]
+                if buffer:
+                    self.Δmomz_mv[:self.N_local] = mv1D[:]
+                else:
+                    self.momz_mv [:self.N_local] = mv1D[:]
             elif master:
                 abort('Wrong component attribute name "{}"!'.format(var))
         elif self.representation == 'fluid':
@@ -507,22 +606,37 @@ class Component:
             # with the passed data. This data should not
             # include pseudo or ghost points.
             fluidscalar = self.fluidvars[index][multi_index]
-            fluidscalar.grid_noghosts[:mv3D.shape[0], :mv3D.shape[1], :mv3D.shape[2]] = mv3D[...]
+            if buffer:
+                fluidscalar.Δ_noghosts   [:mv3D.shape[0], :mv3D.shape[1], :mv3D.shape[2]] = mv3D[...]
+            else:
+                fluidscalar.grid_noghosts[:mv3D.shape[0], :mv3D.shape[1], :mv3D.shape[2]] = mv3D[...]       
             # Populate pseudo and ghost points
-            communicate_domain(fluidscalar.grid_mv, mode='populate')
+            if buffer:
+                communicate_domain(fluidscalar.Δ_mv   , mode='populate')
+            else:
+                communicate_domain(fluidscalar.grid_mv, mode='populate')
+            # If the ϱ grid has been populated, measure and store the
+            # total mass. For w ≠ 0, this mass is not constant in an
+            # expanding universe. The mass at the present time (a = 1)
+            # is the one which is measured and stored.
+            if index == 0:
+                a = universals.a
+                universals.a = 1
+                self.Σmass_present = measure(self, 'mass')
+                universals.a = a
 
     # This method will grow/shrink the data attributes.
     # Note that it will update N_allocated but not N_local.
-    @cython.header(# Arguments
-                   size_or_shape_nopseudo_noghosts='object',  # Py_ssize_t or tuple
-                   # Locals
-                   N_allocated='Py_ssize_t',
-                   fluidscalar='FluidScalar',
-                   s='Py_ssize_t',
-                   shape_nopseudo_noghosts='tuple',
-                   size='Py_ssize_t',
-                   s_old='Py_ssize_t',
-                   )
+    @cython.pheader(# Arguments
+                    size_or_shape_nopseudo_noghosts='object',  # Py_ssize_t or tuple
+                    # Locals
+                    N_allocated='Py_ssize_t',
+                    fluidscalar='FluidScalar',
+                    s='Py_ssize_t',
+                    shape_nopseudo_noghosts='tuple',
+                    size='Py_ssize_t',
+                    s_old='Py_ssize_t',
+                    )
     def resize(self, size_or_shape_nopseudo_noghosts):
         if self.representation == 'particles':
             size = size_or_shape_nopseudo_noghosts
@@ -542,12 +656,34 @@ class Component:
                 self.momx_mv = cast(self.momx, 'double[:self.N_allocated]')
                 self.momy_mv = cast(self.momy, 'double[:self.N_allocated]')
                 self.momz_mv = cast(self.momz, 'double[:self.N_allocated]')
-                # Repack particle data into a pointer array of pointers
-                # and a list of memoryviews.
+                # Repack particle data into pointer arrays of pointers
+                # and lists of memoryviews.
                 self.pos[0], self.pos[1], self.pos[2] = self.posx, self.posy, self.posz
                 self.mom[0], self.mom[1], self.mom[2] = self.momx, self.momy, self.momz
                 self.pos_mv = [self.posx_mv, self.posy_mv, self.posz_mv]
                 self.mom_mv = [self.momx_mv, self.momy_mv, self.momz_mv]
+                # Reallocate particle buffers
+                #self.Δposx = realloc(self.Δposx, self.N_allocated*sizeof('double'))
+                #self.Δposy = realloc(self.Δposy, self.N_allocated*sizeof('double'))
+                #self.Δposz = realloc(self.Δposz, self.N_allocated*sizeof('double'))
+                self.Δmomx = realloc(self.Δmomx, self.N_allocated*sizeof('double'))
+                self.Δmomy = realloc(self.Δmomy, self.N_allocated*sizeof('double'))
+                self.Δmomz = realloc(self.Δmomz, self.N_allocated*sizeof('double'))
+                # Reassign particle buffer memory views
+                #self.Δposx_mv = cast(self.Δposx, 'double[:self.N_allocated]')
+                #self.Δposy_mv = cast(self.Δposy, 'double[:self.N_allocated]')
+                #self.Δposz_mv = cast(self.Δposz, 'double[:self.N_allocated]')
+                self.Δmomx_mv = cast(self.Δmomx, 'double[:self.N_allocated]')
+                self.Δmomy_mv = cast(self.Δmomy, 'double[:self.N_allocated]')
+                self.Δmomz_mv = cast(self.Δmomz, 'double[:self.N_allocated]')
+                # Repack particle buffers into pointer arrays of
+                # pointers and lists of memoryviews.
+                self.Δpos[0], self.Δpos[1], self.Δpos[2] = self.Δposx, self.Δposy, self.Δposz
+                self.Δmom[0], self.Δmom[1], self.Δmom[2] = self.Δmomx, self.Δmomy, self.Δmomz
+                self.Δpos_mv = [self.Δposx_mv, self.Δposy_mv, self.Δposz_mv]
+                self.Δmom_mv = [self.Δmomx_mv, self.Δmomy_mv, self.Δmomz_mv]
+                # Nullify the newly allocated Δ buffer
+                self.nullify_Δ()
         elif self.representation == 'fluid':
             shape_nopseudo_noghosts = size_or_shape_nopseudo_noghosts
             # The allocated shape of the fluid grids are 5 points
@@ -568,6 +704,129 @@ class Component:
             # Reallocate fluid data
             for fluidscalar in self.iterate_fluidscalars():
                 fluidscalar.resize(shape_nopseudo_noghosts)
+
+    # Method which populate the grids of fluid variables with real-space
+    # 3D realisation of linear transfer function.
+    @cython.pheader(# Arguments
+                    variables='object',  # str or int or container of str's and ints
+                    transfer_spline='Spline',
+                    cosmoresults='object',  # CosmoResults
+                    a='double',
+                    # Locals
+                    N_local='Py_ssize_t',
+                    N_vars='Py_ssize_t',
+                    i='Py_ssize_t',
+                    k_gridsize='Py_ssize_t',
+                    k_max='double',
+                    k_min='double',
+                    transfer_splines='list',
+                    )
+    def realize(self, variables=None, transfer_spline=None, cosmoresults=None, a=-1):
+        """This method will realise a given fluid/particle variable from
+        a given transfer function. Any existing data for the variable
+        in question will be lost.
+        The variables argument specifies which variable(s) of the
+        component to realise. Valid formats of this argument can be seen
+        in varnames2indices. The transfer_spline is a Spline object of
+        the transfer function of the variable which should be realised.
+        Finally, cosmoresults is a linear.CosmoResults object containing
+        all results from the CLASS run which produced the transfer
+        function, from which further information can be obtained.
+        If only the variables argument is given, the transfer_spline and
+        cosmoresults (matching the current time) will be produced by
+        calling CLASS. You can supply multiple variables in one go,
+        but then you have to leave the other arguments unspecified
+        (as you can only pass in a single transfer_spline).
+        If no arguments are passed at all, transfer functions for each
+        variable will be computed via CLASS and all of them
+        will be realized.
+        Specify the scale factor a if you want to realize the variables
+        at a time different from the present time.
+        """
+        # Check that the size of the component agrees with that of the
+        # φ grid, which is necessary as we use this grid for all
+        # Fourier transforms and hence all realizations.
+        if self.representation == 'particles':
+            if self.N != φ_gridsize**3:
+                abort(f'Cannot perform realization of "{self.name}" with N = {self.N} '
+                      f'as it differs from φ_gridsize³ = {φ_gridsize**3}.')
+            N_local = self.N//nprocs
+            if N_local*nprocs != self.N:
+                abort(f'A φ_gridsize of {φ_gridsize} leads to {φ_gridsize}³ = {φ_gridsize**3} '
+                      f'grid points, which cannot be evenly shared among {nprocs} processes'
+                      )
+            self.resize(N_local)
+            self.N_local = N_local
+        elif self.representation == 'fluid':
+            if self.gridsize != φ_gridsize:
+                abort(f'Cannot perform realization of "{self.name}" with gridsize = {self.gridsize} '
+                      f'as it differs from φ_gridsize = {φ_gridsize}.')
+            self.resize((φ_noghosts.shape[0] - 1,
+                         φ_noghosts.shape[1] - 1,
+                         φ_noghosts.shape[2] - 1))
+        # Argument processing
+        if transfer_spline is None and cosmoresults is not None:
+            abort('The realize method was called with a transfer_spline but no cosmoresults')
+        if transfer_spline is not None and cosmoresults is None:
+            abort('The realize method was called with cosmoresults but no transfer_spline')
+        if self.representation == 'particles':
+            # Particles use the Zeldovich approximation for realization,
+            # which realizes both positions and momenta from the δ (pos)
+            # transfer function. Thus for particles, regardless of what
+            # variables are passed, a value of 'pos' should always
+            # be used.
+            variables = 'pos'
+        if variables is None:
+            # Realize all variables
+            if transfer_spline is not None:
+                masterwarn('The realize method was called without specifying a variable, '
+                           'though a transfer_spline is passed. '
+                           'This transfer_spline will be ignored.')
+            if cosmoresults is not None:
+                masterwarn('The realize method was called without specifying a variable, '
+                           'though a cosmoresults is passed. This cosmoresults will be ignored.')
+            variables = arange(len(self.fluidvars))
+            N_vars = len(variables)
+        else:
+            # Realize one or more variables
+            variables = any2iter(variables)
+            N_vars = len(variables)
+            if N_vars > 1:
+                # Realize multiple variables
+                if transfer_spline is not None:
+                    abort(f'The realize method was called with {N_vars} variables '
+                          'while a transfer_spline was supplied as well')
+                if cosmoresults is not None:
+                    abort(f'The realize method was called with {N_vars} variables '
+                          'while cosmoresults was supplied as well')
+        # Get transfer functions and cosmoresults from CLASS,
+        # if not passed as arguments.
+        if transfer_spline is None:
+            k_min = ℝ[2*π/boxsize]
+            k_max = ℝ[2*π/boxsize]*sqrt(3*(φ_gridsize//2)**2)
+            k_gridsize = 10*φ_gridsize
+            transfer_splines, cosmoresults = compute_transfers(self,
+                                                               variables,
+                                                               k_min, k_max, k_gridsize,
+                                                               )
+        else:
+            transfer_splines = [transfer_spline]
+        # Realize each of the variables in turn
+        for i in range(N_vars):
+            realize(self, variables[i], transfer_splines[i], cosmoresults, a)
+            if self.representation == 'particles':
+                # Particles use the Zeldovich approximation for
+                # realization, which realizes both positions and
+                # momenta. Thus for particles, a single realization is
+                # all that is neeed. Importantly, the passed transfer
+                # function must be that of δ, retrieved from
+                # compute_transfers using e.g. 'pos' as the passed
+                # variables argument. The value of the variable argument
+                # to the realize function does not matter in the case of
+                # a particle component.
+                break
+
+
 
     # Method for integrating particle positions/fluid values
     # forward in time.
@@ -623,8 +882,8 @@ class Component:
     def apply_internal_sources(self, ᔑdt):
         if self.representation == 'particles':
             return
-        # All internal source terms vanish in th fluid equations
-        # when ẇ = 0.
+        # All internal source terms in the fluid equations
+        # vanishes when ẇ = 0.
         ẇ = self.ẇ()
         if ẇ != 0:
             masterprint('Evolving fluid variables (source terms) of {} ...'.format(self.name))
@@ -633,13 +892,8 @@ class Component:
 
     # Method for computing the equation of state parameter w
     # at a certain time t or value of the scale factor a.
-    @cython.pheader(# Arguments
-                    t='double',
-                    a='double',
-                    # Locals
-                    value='double',
-                    returns='double',
-                    )
+    # This has to be a pure Python function, othewise it cannot
+    # be called as w(a=a).
     def w(self, t=-1, a=-1):
         """This method should not be called before w has been
         initialized by the initialize_w method.
@@ -648,15 +902,23 @@ class Component:
         # use the current time and scale factor value.
         if t == -1 == a:
             t = universals.t
-            a = universals.a 
+            a = universals.a
         # Compute the current w dependent on its type
         if self.w_type == 'constant':
             value = self.w_constant
         elif self.w_type == 'tabulated (t)':
+            if t == -1:
+                t = cosmic_time(a)
             value = self.w_spline.eval(t)
         elif self.w_type == 'tabulated (a)':
+            if a == -1:
+                a = scale_factor(t)
             value = self.w_spline.eval(a)
         elif self.w_type == 'expression':
+            if t == -1:
+                t = cosmic_time(a)
+            elif a == -1:
+                a = scale_factor(t)
             units_dict['t'] = t
             units_dict['a'] = a            
             value = eval_unit(self.w_expression, units_dict)
@@ -675,7 +937,6 @@ class Component:
                       .format(t, a, value)
                       )
         return value
-        
 
     # Method for computing the proper time derivative
     # of the equation of state parameter w
@@ -748,12 +1009,20 @@ class Component:
         - float-like: Designates a constant w.
                       The w will be stored in self.w_constant and
                       self.w_type will be set to 'constant'.
-        - str       : Designates either some analytical expression or
-                      a filename. In the case of an expression,
-                      this should include eather t or a.
-                      The w will be stored in self.w_expression and
-                      self.w_type will be set to 'expression'.
-                      In case of a filename, the file should contain
+        - str       : If w is given as a str, it can mean any of
+                      three things:
+                      - w may be the word 'CLASS'.
+                      - w may be a filename.
+                      - w may be some analytical expression.
+                      If w == 'CLASS', CLASS should be used to compute
+                      w throughout time. The value of species_class
+                      will be used to pick out w(a) for the correct
+                      species. The result from CLASS are tabulated
+                      w(a), where the a values will be stored as
+                      self.w_tabulated[0, :], while the tabulated values
+                      of w will be stored as self.w_tabulated[1, :].
+                      The self.w_type will be set to 'tabulated (a)'.
+                      If w is a filename, the file should contain
                       tabulated values of w and either t or a. The file
                       must be in a format understood by numpy.loadtxt,
                       and a header must be present stating whether w(t)
@@ -768,10 +1037,15 @@ class Component:
                       the reverse order, parentheses and brackets may be
                       replaced with any of (), [], {}, <> and the number
                       of spaces/tabs does not matter.
-                      The tabulated values for t or a wil be stored as
-                      self.w_tabulated[0, :], the tabulated values for w
-                      as self.w_tabulated[1, :] and self.w_type will be
-                      set to 'tabulated (t)' or 'tabulated (a)'.
+                      The tabulated values for t or a will be stored as
+                      self.w_tabulated as described above when using
+                      CLASS, though self.w_type will be set to
+                      'tabulated (t)' or 'tabulated (a)' depending on
+                      whether t or a is used.
+                      If w is some arbitrary expression,
+                      this should include eather t or a.
+                      The w will be stored in self.w_expression and
+                      self.w_type will be set to 'expression'.
         - dict      : The dict has to be of the form
                       {'t': iterable, 'w': iterable} or
                       {'a': iterable, 'w': iterable}, where the
@@ -811,60 +1085,84 @@ class Component:
             # Assign passed constant w
             self.w_type = 'constant'
             self.w_constant = w
-        elif isinstance(w, str) and os.path.isfile(w):
-            # Load tabulated w from file
-            self.w_type = 'tabulated (?)'
-            w_data = np.loadtxt(w)
-            # Transpose w_data so that it consists of two rows
-            w_data = w_data.T
-            # For varying w it is crucial to know whether w is a
-            # function of t or a.
-            # This should be written in the header of the file.
-            pattern = r'[a-zA-Z]*\s*(?:\(\s*[a-zA-Z0-9\.]+\s*\))?'
-            done_reading_w = False
-            with open(w, 'r', encoding='utf-8') as w_file:
-                while True:
-                    line = w_file.readline().lstrip()
-                    if line and not line.startswith('#'):
-                        break
-                    line = line.replace('#', '').replace('\t', ' ').replace('\n', ' ')
-                    for delim_left, delim_right in zip('[{<', ']}>'):
-                        line = line.replace(delim_left , '(')
-                        line = line.replace(delim_right, ')')
-                    match = re.search(r'\s*({pattern})\s+({pattern})\s*(.*)'.format(pattern=pattern),
-                                      line)                
-                    if match and not match.group(3):
-                        # Header line containing the relevant
-                        # information found.
-                        for i in range(2):
-                            var = match.group(1 + i)
-                            if var[0] == 't':
-                                self.w_type = 'tabulated (t)'
-                                unit_match = re.search('\((.*)\)', var)  # Will be applied later                               
-                            elif var[0] == 'a':
-                                self.w_type = 'tabulated (a)'
-                            elif var[0] == 'w':
-                                # Extract the two rows
-                                w_tabulated = w_data[i, :]
-                                i_tabulated = w_data[(i + 1) % 2, :]
-                                done_reading_w = True
-                    if done_reading_w and '(?)' not in self.w_type:
-                        break
-            # Multiply unit on the time
-            if '(t)' in self.w_type:
-                if unit_match and unit_match.group(1) in units_dict:
-                    unit = eval_unit(unit_match.group(1)) 
-                    i_tabulated = asarray(i_tabulated)*unit
-                elif unit_match:
-                    abort('Time unit "{}" in header of "{}" not understood'.format(unit_match.group(1), w))
+        elif isinstance(w, str) and w.lower() == 'class':
+            # Get w as P/ρ from CLASS
+            self.w_type = 'tabulated (a)'
+            cosmoresults = compute_cosmo()
+            # The CLASS results are only available to the master
+            # process. Let it alone do the final computation.
+            if master:
+                background = cosmoresults.background
+                i_tabulated = 1/(background['z'] + 1)
+                # Cold dark matter and baryons have no pressure,
+                # and CLASS does not give this as a result.
+                if self.species_class in ('cdm', 'b', 'cdm+b'):
+                    w_tabulated = zeros(i_tabulated.shape[0], dtype=C2np['double'])
                 else:
-                    abort('Could not find time unit in header of "{}"'.format(w))
+                    w_tabulated = ( background[f'(.)p_{self.species_class}']
+                                   /background[f'(.)rho_{self.species_class}'])
+        elif isinstance(w, str) and os.path.isfile(w):
+            # Load tabulated w from file.
+            self.w_type = 'tabulated (?)'
+            # Let only the master process read in the file
+            if master:
+                w_data = np.loadtxt(w)
+                # Transpose w_data so that it consists of two rows
+                w_data = w_data.T
+                # For varying w it is crucial to know whether w is a
+                # function of t or a.
+                # This should be written in the header of the file.
+                pattern = r'[a-zA-Z]*\s*(?:\(\s*[a-zA-Z0-9\.]+\s*\))?'
+                done_reading_w = False
+                with open(w, 'r', encoding='utf-8') as w_file:
+                    while True:
+                        line = w_file.readline().lstrip()
+                        if line and not line.startswith('#'):
+                            break
+                        line = line.replace('#', '').replace('\t', ' ').replace('\n', ' ')
+                        for delim_left, delim_right in zip('[{<', ']}>'):
+                            line = line.replace(delim_left , '(')
+                            line = line.replace(delim_right, ')')
+                        match = re.search(r'\s*({pattern})\s+({pattern})\s*(.*)'.format(pattern=pattern),
+                                          line)                
+                        if match and not match.group(3):
+                            # Header line containing the relevant
+                            # information found.
+                            for i in range(2):
+                                var = match.group(1 + i)
+                                if var[0] == 't':
+                                    self.w_type = 'tabulated (t)'
+                                    unit_match = re.search('\((.*)\)', var)  # Will be applied later                               
+                                elif var[0] == 'a':
+                                    self.w_type = 'tabulated (a)'
+                                elif var[0] == 'w':
+                                    # Extract the two rows
+                                    w_tabulated = w_data[i, :]
+                                    i_tabulated = w_data[(i + 1) % 2, :]
+                                    done_reading_w = True
+                        if done_reading_w and '(?)' not in self.w_type:
+                            break
+                # Multiply unit on the time
+                if '(t)' in self.w_type:
+                    if unit_match and unit_match.group(1) in units_dict:
+                        unit = eval_unit(unit_match.group(1)) 
+                        i_tabulated = asarray(i_tabulated)*unit
+                    elif unit_match:
+                        abort('Time unit "{}" in header of "{}" not understood'.format(unit_match.group(1), w))
+                    else:
+                        abort('Could not find time unit in header of "{}"'.format(w))
         elif isinstance(w, str):
             # Save the passed expression for w
             self.w_type = 'expression'
             self.w_expression = w
+            # Test that the expression is parsable
+            try:
+                self.w()
+            except:
+                abort(f'Cannot parse w = "{self.w_expression}" as an expression.\n'
+                      'No file with that name can be found either.')
         elif isinstance(w, dict):
-            # Use the tabulated w giben by the two dict key-value pairs
+            # Use the tabulated w given by the two dict key-value pairs
             self.w_type = 'tabulated (?)'
             for key, val in w.items():
                 if key.startswith('t'):
@@ -877,21 +1175,65 @@ class Component:
                     w_tabulated = asarray(val, dtype=C2np['double'])
         else:
             abort('Cannot handle w of type {}'.format(type(w)))
-        # Instantiate a spline in the case of tabulated data.
+        # In the case of a tabulated w, only the master process
+        # have the needed i_tabulated and w_tabulated. Broadcast these
+        # to the slaves and instantiate a spline on all processes.
         if 'tabulated' in self.w_type:
-            # Check that tabulated values have been found
-            if '(?)' in self.w_type:
-                abort('Could not detect the independent variable (should be \'a\' or \'t\'')
-            # Make sure that the values of i_tabulated are in increasing order
-            order = np.argsort(i_tabulated)
-            i_tabulated = asarray(i_tabulated)[order]
-            w_tabulated = asarray(w_tabulated)[order]
-            # Pack the two rows together
-            self.w_tabulated = empty((2, w_tabulated.shape[0]))
-            self.w_tabulated[0, :] = i_tabulated
-            self.w_tabulated[1, :] = w_tabulated
+            if master:
+                # Check that tabulated values have been found
+                if '(?)' in self.w_type:
+                    abort('Could not detect the independent variable (should be \'a\' or \'t\')')
+                # Make sure that the values of i_tabulated are in increasing order
+                order = np.argsort(i_tabulated)
+                i_tabulated = asarray(i_tabulated)[order]
+                w_tabulated = asarray(w_tabulated)[order]
+                # Pack the two rows together
+                self.w_tabulated = empty((2, w_tabulated.shape[0]))
+                self.w_tabulated[0, :] = i_tabulated
+                self.w_tabulated[1, :] = w_tabulated
+            # Broadcast the tabulated w
+            self.w_type = bcast(self.w_type)
+            self.w_tabulated = smart_mpi(self.w_tabulated if master else (), mpifun='bcast')
             # Construct a Spline object from the tabulated data
-            self.w_spline = Spline(i_tabulated, w_tabulated)
+            self.w_spline = Spline(self.w_tabulated[0, :], self.w_tabulated[1, :])
+
+    # Method which convert named fluid/particle variables to indices
+    @cython.header(# Arguments
+                   varnames='object',  # str, int or container of str's and ints 
+                   single='bint',
+                   # Locals
+                   N_vars='Py_ssize_t',
+                   i='Py_ssize_t',
+                   indices='Py_ssize_t[::1]',
+                   varname='object', # str or int
+                   varnames_list='list',
+                   returns='object',  # Py_ssize_t[::1] or Py_ssize_t
+                   )
+    def varnames2indices(self, varnames, single=False):
+        """This method conveniently transform any reasonable input
+        to an array of variable indices. Some examples:
+        varnames2indices('ϱ') → asarray([0])
+        varnames2indices(['J', 'ϱ']) → asarray([1, 0])
+        varnames2indices(['pos', 'mom']) → asarray([0, 1])
+        varnames2indices(2) → asarray([2])
+        varnames2indices(['σ', 1]) → asarray([2, 1])
+        """
+        if isinstance(varnames, str):
+            # Single variable name given
+            indices = asarray([self.fluid_names[varnames]], dtype=C2np['Py_ssize_t'])
+        else:
+            # One or more variable names/indices given
+            varnames_list = any2iter(varnames)
+            indices = empty(len(varnames_list), dtype=C2np['Py_ssize_t'])
+            for i, varname in enumerate(varnames_list):
+                indices[i] = self.fluid_names[varname]
+        if single:
+            N_vars = indices.shape[0]
+            if N_vars > 1:
+                abort(f'The varnames2indices method was called '
+                      'with {N_vars} variables while single == True')
+            return indices[0]
+        return indices
 
     # Generator for looping over all
     # scalar fluid grids within the component.
@@ -986,20 +1328,38 @@ class Component:
             fluidscalar.nullify_gridˣ()
 
     # Method which calls the nullify_Δ on all fluid scalars
-    @cython.header(# Locals
+    @cython.header(# Arguments
+                   specifically='object',  # str og container of str's
+                   # Locals
                    fluidscalar='FluidScalar',
                    )
-    def nullify_fluid_Δ(self):
-        if self.representation != 'fluid':
-            return
-        for fluidscalar in self.iterate_fluidscalars():
-            fluidscalar.nullify_Δ()
+    def nullify_Δ(self, specifically=None):
+        if self.representation == 'particles':
+            if specifically is None:
+                self.Δposx_mv[...] = 0
+                self.Δposy_mv[...] = 0
+                self.Δposz_mv[...] = 0
+                self.Δmomx_mv[...] = 0
+                self.Δmomy_mv[...] = 0
+                self.Δmomz_mv[...] = 0
+            else:
+                if 'pos' in specifically:
+                    self.Δposx_mv[...] = 0
+                    self.Δposy_mv[...] = 0
+                    self.Δposz_mv[...] = 0
+                if 'mom' in specifically:
+                    self.Δmomx_mv[...] = 0
+                    self.Δmomy_mv[...] = 0
+                    self.Δmomz_mv[...] = 0
+        elif self.representation == 'fluid':
+            for fluidscalar in self.iterate_fluidscalars():
+                fluidscalar.nullify_Δ()
 
     # This method is automaticlly called when a Component instance
     # is garbage collected. All manually allocated memory is freed.
     def __dealloc__(self):
         # Free particle data
-        # (fluid data lives in FluidScalar instances)
+        # (fluid data lives on FluidScalar instances).
         free(self.pos)
         free(self.posx)
         free(self.posy)
@@ -1030,18 +1390,45 @@ def get_representation(species):
         if species in key:
             return representation
     abort('Species "{}" not implemented'.format(species))
-# Mapping from valid species to their representations
+# Mapping from species to their representations
 cython.declare(representation_of_species='dict')
 representation_of_species = {('dark matter particles',
+                              'baryons',
+                              'matter particles',
                               'neutrinos',
                               ): 'particles',
                              ('dark matter fluid',
+                              'baryon fluid',
+                              'matter fluid',
                               'neutrino fluid',
                               ): 'fluid',
                              }
-
-# Mapping from valid species to default w values
+# Mapping from particle species to default softening factors
+cython.declare(default_softeningfactors='dict')
+default_softeningfactors = {'dark matter particles': 0.03,
+                            'baryons'              : 0.03,
+                            'matter particles'     : 0.03,
+                            'neutrinos'            : 0.03,
+                            }
+# Mapping from species to default w values
 cython.declare(default_w='dict')
-default_w = {'dark matter fluid':  0,
-             'neutrino fluid'   :  1/3,
+default_w = {'dark matter particles': 0,
+             'dark matter fluid'    : 0,
+             'baryons'              : 0,
+             'baryon fluid'         : 0,
+             'matter particles'     : 0,
+             'matter fluid'         : 0,
+             'neutrinos'            : 1/3,
+             'neutrino fluid'       : 1/3,
              }
+# Mapping from species to default species names in CLASS
+cython.declare(default_species_class='dict')
+default_species_class = {'dark matter particles': 'cdm',
+                         'dark matter fluid'    : 'cdm',
+                         'baryons'              : 'b',
+                         'baryon fluid'         : 'b',
+                         'matter particles'     : 'cdm+b',
+                         'matter fluid'         : 'cdm+b',
+                         'neutrinos'            : 'ncdm[0]',
+                         'neutrino fluid'       : 'ncdm[0]',
+                         }
