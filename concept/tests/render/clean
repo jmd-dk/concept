@@ -24,7 +24,8 @@
 
 # This script does cleanup after a test
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-(cd "${this_dir}" && rm -rf output          \
+(cd "${this_dir}" && rm -rf ic.params       \
+                            output          \
                             render.params_0 \
                             render.params_1 \
  )

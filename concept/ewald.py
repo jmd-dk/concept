@@ -126,7 +126,7 @@ def summation(x, y, z):
                y='double',
                z='double',
                # Locals
-               dim='Py_ssize_t',
+               dim='int',
                force='double*',
                isnegative_x='bint',
                isnegative_y='bint',
@@ -204,15 +204,12 @@ h_upper = int(+sqrt(maxh2)) + 1  # GADGET:  5 (same here for maxh2=10)
 n_lower = int(-(maxdist + 1))    # GADGET: -4 (same here for maxdist=3.6)
 n_upper = int(maxdist + 1) + 1   # GADGET:  5 (same here for maxdist=3.6) 
 
-# Initialize the wald grid at import time,
+# Initialize the Ewald grid at import time,
 # if Ewald summation is to be used.
-cython.declare(i='int',
-               p='str',
-               filepath='str',
-               grid='double[:, :, :, ::1]',
-               )
+cython.declare(grid='double[:, :, :, ::1]')
 if enable_Ewald:
-    filepath = paths['concept_dir'] + '/' + ewald_file
+    filename = '.ewald_gridsize={}.hdf5'.format(ewald_gridsize)
+    filepath = '{}/{}'.format(paths['concept_dir'], filename)
     if os.path.isfile(filepath):
         # Ewald grid already tabulated. Load it
         with h5py.File(filepath,

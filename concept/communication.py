@@ -124,6 +124,7 @@ def find_N_recv(N_send):
                N_send_owner='Py_ssize_t',
                N_send_tot='Py_ssize_t',
                N_send_tot_global='Py_ssize_t',
+               buffer_name='object',  # int or str
                holes_filled='Py_ssize_t',
                i='Py_ssize_t',
                index_recv_j='Py_ssize_t',
@@ -145,7 +146,7 @@ def find_N_recv(N_send):
                posy_mv='double[::1]',
                posz='double*',
                posz_mv='double[::1]',
-               sendbuf_size_original='Py_ssize_t',
+               sendbuf_mv='double[::1]',
                Δmemory='Py_ssize_t',
                )
 def exchange(component, reset_buffers=False):
@@ -158,15 +159,12 @@ def exchange(component, reset_buffers=False):
     reset_buffers=True to reset these variables to their most basic
     forms, freeing up memory. 
     """
-    global sendbuf, sendbuf_mv
     # No need to consider exchange of particles if running serially
     if nprocs == 1:
         return
     # Only particles are exchangeable
     if component.representation != 'particles':
         return
-    # The original size of the send buffer
-    sendbuf_size_original = sendbuf_mv.shape[0]
     # Extract some variables from component
     N_local = component.N_local
     posx = component.posx
@@ -202,11 +200,10 @@ def exchange(component, reset_buffers=False):
         masterprint('Exchanging 1 {} ...'.format(component.name[:(len(component.name) - 1)]))
     elif N_send_tot_global > 1:
         masterprint('Exchanging {} {} ...'.format(N_send_tot_global, component.name))
-    # Enlarge sendbuf, if necessary
+    # Grab a buffer for holding the data to be send
+    buffer_name = 0  # Buffer to use as sendbuf
     N_send_max = max(N_send)
-    if N_send_max > sendbuf_mv.shape[0]:
-        sendbuf = realloc(sendbuf, N_send_max*sizeof('double'))
-        sendbuf_mv = cast(sendbuf, 'double[:N_send_max]')
+    sendbuf_mv = get_buffer(N_send_max, buffer_name) 
     # Find out how many particles to receive
     N_recv = find_N_recv(N_send)
     # The maximum number of particles to
@@ -247,42 +244,42 @@ def exchange(component, reset_buffers=False):
         indices_send_j = indices_send[ID_send]
         # Send/receive posx
         for i in range(N_send_j):
-            sendbuf[i] = posx[indices_send_j[i]]
+            sendbuf_mv[i] = posx[indices_send_j[i]]
         Sendrecv(sendbuf_mv[:N_send_j],
                  dest=ID_send,
                  recvbuf=posx_mv[index_recv_j:],
                  source=ID_recv)
         # Send/receive posy
         for i in range(N_send_j):
-            sendbuf[i] = posy[indices_send_j[i]]
+            sendbuf_mv[i] = posy[indices_send_j[i]]
         Sendrecv(sendbuf_mv[:N_send_j],
                  dest=ID_send,
                  recvbuf=posy_mv[index_recv_j:],
                  source=ID_recv)
         # Send/receive posz
         for i in range(N_send_j):
-            sendbuf[i] = posz[indices_send_j[i]]
+            sendbuf_mv[i] = posz[indices_send_j[i]]
         Sendrecv(sendbuf_mv[:N_send_j],
                  dest=ID_send,
                  recvbuf=posz_mv[index_recv_j:],
                  source=ID_recv)
         # Send/receive momx
         for i in range(N_send_j):
-            sendbuf[i] = momx[indices_send_j[i]]
+            sendbuf_mv[i] = momx[indices_send_j[i]]
         Sendrecv(sendbuf_mv[:N_send_j],
                  dest=ID_send,
                  recvbuf=momx_mv[index_recv_j:],
                  source=ID_recv)
         # Send/receive momy
         for i in range(N_send_j):
-            sendbuf[i] = momy[indices_send_j[i]]
+            sendbuf_mv[i] = momy[indices_send_j[i]]
         Sendrecv(sendbuf_mv[:N_send_j],
                  dest=ID_send,
                  recvbuf=momy_mv[index_recv_j:],
                  source=ID_recv)
         # Send/receive momz
         for i in range(N_send_j):
-            sendbuf[i] = momz[indices_send_j[i]]
+            sendbuf_mv[i] = momz[indices_send_j[i]]
         Sendrecv(sendbuf_mv[:N_send_j],
                  dest=ID_send,
                  recvbuf=momz_mv[index_recv_j:],
@@ -326,8 +323,7 @@ def exchange(component, reset_buffers=False):
     # sendbuf to their basic forms. This buffer will then be rebuild in
     # future calls.
     if reset_buffers:
-        sendbuf = realloc(sendbuf, sendbuf_size_original*sizeof('double'))
-        sendbuf_mv = cast(sendbuf, 'double[:sendbuf_size_original]')
+        resize_buffer(1, buffer_name)
         for j in range(nprocs):
             indices_send[j] = realloc(indices_send[j], 1*sizeof('Py_ssize_t'))
             indices_send_sizes[j] = 1
@@ -600,18 +596,124 @@ def rank_neighboring_domain(i, j, k):
                          mod(domain_layout_local_indices[2] + k, domain_subdivisions[2]),
                          ]
 
+# Function which communicates local component data
+@cython.header(# Arguments
+               component_send='Component',
+               variables='list',  # list of str's
+               dest='int',
+               source='int',
+               component_recv='Component',
+               # Locals
+               dim='int',
+               operation='str',
+               mom_dim_recv='double[::1]',
+               mom_dim_send='double[::1]',
+               pos_dim_recv='double[::1]',
+               pos_dim_send='double[::1]',
+               returns='Component',
+               )
+def sendrecv_component(component_send, variables, dest, source, component_recv=None):
+    """This function operate in two modes:
+    - Communicate data (no component_recv supplied):
+      The data of component_send will be send and received
+      into the global component_buffer.
+      The component_buffer is then returned.
+    - Communicate and apply buffers (a component_recv is supplied):
+      The data buffers of component_send will be send and
+      received into the data buffers of component_recv. The received
+      buffer data is then used to update the corresponding data
+      in component_recv.
+      It is assumed that the data arrays of component_recv are large
+      enough to hold the data from component_send.
+      The return value is the updated component_recv.
+    The variables argument must be a list of str's designating
+    which local data variables of component_send to communicate.
+    The implemented variables are:
+    - 'pos' (posx, posy and posz for particles)
+    - 'mom' (momx, momy and momz for particles)
+    """
+    global component_buffer
+    if component_send.representation != 'particles':  # !!! Generalize to fluids also
+        abort('The sendrecv_component function is only implemented for particle components')
+    # Determine the mode of operation
+    operation = '+='
+    if component_recv is None:
+        operation = '='
+    # In communicate mode (operation == '='),
+    # the global component_buffer is used as component_recv.
+    if operation == '=':
+        # No communication is needed if the destination and source is
+        # really the local process.
+        if dest == rank == source:
+            return component_send
+        # We cannot simply import Component from the species module,
+        # as this would create an import loop. Instead, the first time
+        # the component_buffer is needed, we grab the type of the passed
+        # component_send (Component) and instantiate such an instance.
+        if component_buffer is None:
+            component_buffer = type(component_send)('buffer', 'dark matter particles', 1)
+        # Adjust important meta data on the buffer component
+        component_buffer.name           = component_send.name
+        component_buffer.species        = component_send.species
+        component_buffer.representation = component_send.representation
+        if component_send.representation == 'particles':
+            component_buffer.N         = component_send.N
+            component_buffer.mass      = component_send.mass
+            component_buffer.softening = component_send.softening
+        elif component_send.representation == 'fluid':
+            ...
+        # Enlarge the data arrays of the component_buffer if necessary
+        component_buffer.N_local = sendrecv(component_send.N_local, dest=dest, source=source)
+        if component_buffer.N_allocated < component_buffer.N_local:
+            component_buffer.resize(component_buffer.N_local)
+        # Use component_buffer as component_recv
+        component_recv = component_buffer
+    # Do the communication
+    if 'pos' in variables:
+        for dim in range(3):
+            with unswitch:
+                if operation == '=':
+                    pos_dim_send = component_send.pos_mv[dim][:component_send.N_local]
+                else:
+                    pos_dim_send = component_send.Δpos_mv[dim][:component_send.N_local]
+            pos_dim_recv = component_recv.pos_mv[dim][:component_recv.N_local]
+            smart_mpi(pos_dim_send, pos_dim_recv, dest=dest,
+                                                  source=source,
+                                                  mpifun='Sendrecv',
+                                                  operation=operation,
+                      )
+    if 'mom' in variables:
+        for dim in range(3):
+            with unswitch:
+                if operation == '=':
+                    mom_dim_send = component_send. mom_mv[dim][:component_send.N_local]
+                else:
+                    mom_dim_send = component_send.Δmom_mv[dim][:component_send.N_local]
+            mom_dim_recv = component_recv.mom_mv[dim][:component_recv.N_local]
+            smart_mpi(mom_dim_send, mom_dim_recv, dest=dest,
+                                                  source=source,
+                                                  mpifun='Sendrecv',
+                                                  operation=operation,
+                      )
+    return component_recv
+# Declare the buffer component used by sendrecv_component
+cython.declare(component_buffer='Component')
+component_buffer = None
+
 # Very general function for different MPI communications
 @cython.pheader(# Arguments
                 block_send='object',  # Memoryview of dimension 1, 2 or 3
-                block_recv='object',  # Memoryview of dimension 1, 2 or 3
+                block_recv='object',  # Memoryview of dimension 1, 2 or 3, or int
                 dest='int',
                 source='int',
+                root='int',
                 reverse='bint',
                 mpifun='str',
                 operation='str',
                 # Local
                 arr_recv='object',  # NumPy aray
                 arr_send='object',  # NumPy aray
+                block_recv_passed_as_scalar='bint',
                 contiguous_recv='bint',
                 contiguous_send='bint',
                 data_recv='object',  # NumPy aray
@@ -627,13 +729,18 @@ def rank_neighboring_domain(i, j, k):
                 mv_3D='double[:, :, :]',
                 recving='bint',
                 sending='bint',
+                shape_send='tuple',
                 size_recv='Py_ssize_t',
                 size_send='Py_ssize_t',
                 sizes_recv='Py_ssize_t[::1]',
+                recvbuf_mv='double[::1]',
+                recvbuf_name='object',  # int or str
                 reverse_mpifun_mapping='dict',
+                sendbuf_mv='double[::1]',
+                using_recvbuf='bint',
                 returns='object',  # NumPy array or mpi4py.MPI.Request
                 )
-def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1,
+def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1, root=master_rank,
               reverse=False, mpifun='', operation='='):
     """This function will do MPI communication. It will send the data in
     the array/memoryview block_send to the process of rank dest
@@ -648,6 +755,8 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1,
     (e.g. mpifun='sendrecv' or mpifun='send'). Uppercase communication
     (array communication) is always used, regardless of the case of the
     value of mpifun.
+    For some MPI communications a root process should be specified.
+    This can be set by the root argument.
     All arguments are optional, so that it is not needed to specify e.g.
     block_recv when doing a Send. For Cython to be able to compile this,
     a cython.pheader decorator is used (corresponding to cython.ccall
@@ -674,14 +783,13 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1,
     What is returned depends on the choice of mpifun. Whenever a message
     should be received, the passed block_recv is returned (as block_recv
     is populated with values in-place, this is rarely used). When a
-    non-blocking send-only is used, the MPI request is returned. In a
+    non-blocking send-only is used, the MPI request is returned. When a
     blocking send-only is used, None is returned.
     If reverse == True, the communication is reversed, meaning that
     sending block_send to dist and receiving into block_recv from source
     turns into sending block_recv to source and receiving into
     block_send from dist.
     """
-    global sendbuf, sendbuf_mv, recvbuf, recvbuf_mv
     # Sanity check on operation argument
     if operation not in ('=', '+=') and master:
         abort('Operation "{}" is not implemented'.format(operation))
@@ -701,6 +809,9 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1,
             recving = True
             if source == -1:
                 abort('Cannot receive when no source is given')
+        if 'bcast' == mpifun:
+            sending = (rank == root)
+            recving = not sending
     if not sending and not recving:
         if mpifun:
             abort('MPI function "{}" not understood'.format(mpifun))
@@ -722,8 +833,13 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1,
         mpifun = reverse_mpifun_mapping[mpifun]
     # If only receiving, block_recv should be
     # accessible as the first argument.
-    if not sending and recving and len(block_send) and not len(block_recv):
+    if not sending and recving and block_send != () and block_recv == ():
         block_send, block_recv = block_recv, block_send
+    # If block_recv is an int or str,
+    # this designates a specific buffer to use as recvbuf.
+    recvbuf_name = 0
+    if isinstance(block_recv, (int, str)):
+        recvbuf_name = block_recv
     # NumPy arrays over the data
     arr_send = asarray(block_send)
     arr_recv = asarray(block_recv)
@@ -742,12 +858,29 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1,
     contiguous_send = arr_send.flags.c_contiguous
     contiguous_recv = arr_recv.flags.c_contiguous
     # Get the dimensionality and sizes of the passed arrays
-    dims_send = len(arr_send.shape)
-    dims_recv = len(arr_recv.shape)
+    dims_send = arr_send.ndim
+    dims_recv = arr_recv.ndim
+    # The send and recv blocks cannot be scalar NumPy arrays.
+    # Do an in-place reshape to 1D-arrays of size 1.
+    if dims_send == 0:
+        arr_send.resize(1, refcheck=False)
+        dims_send = 1
+    block_recv_passed_as_scalar = False
+    if dims_recv == 0:
+        block_recv_passed_as_scalar = True
+        arr_recv.resize(1, refcheck=False)
+        dims_recv = 1
     size_send = arr_send.size
+    shape_send = arr_send.shape
     # Figure out the size of the data to be received
     size_recv = 0
-    if sending and recving:
+    if mpifun == 'bcast':
+        # Broadcast the shape of the date to be broadcasted
+        shape_recv = bcast(arr_send.shape, root=root)
+        size_recv = np.prod(shape_recv)
+        if rank == root:
+            size_recv = 0
+    elif sending and recving:
         if mpifun == 'allgather':
             # A block of size_send is to be received from each process
             size_recv = nprocs*size_send
@@ -763,65 +896,59 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1,
         # The exact size of the data to receive is not known,
         # but it cannot be larger than the size of the receiver block.
         size_recv = arr_recv.size
-    # The recv_block cannot be a scalar NumPy array.
-    # Do an in-place reshape to 1D-array of size 1.
-    if dims_recv == 0:
-        arr_recv.resize(1, refcheck=False)
-        dims_recv = 1
     # Based on the contiguousity of the input arrays, assign the names
-    # data_send and data_recv to the contiguous blocks of data, which
-    # are to be passed into the MPI functions.
+    # data_send and data_recv to the contiguous blocks of data,
+    # which are to be passed into the MPI functions.
     if contiguous_send:
         data_send = arr_send
     else:
-        # Expand the send bufffer if necessary
-        if size_send > sendbuf_mv.shape[0]:
-            sendbuf = realloc(sendbuf, size_send*sizeof('double'))
-            sendbuf_mv = cast(sendbuf, 'double[:size_send]')
-        data_send = sendbuf_mv[:size_send]
-    if contiguous_recv and operation == '=':
+        sendbuf_mv = get_buffer(size_send, 'send')
+        data_send = sendbuf_mv
+    # When no block_recv is passed, use the recvbuf buffer
+    using_recvbuf = False
+    if arr_recv.size == 0 or block_recv_passed_as_scalar:
+        using_recvbuf = True
+        recvbuf_mv = get_buffer(size_recv, recvbuf_name)
+        data_recv = recvbuf_mv
+        arr_recv = asarray(data_recv)
+    elif contiguous_recv and operation == '=':
         # Only if operation == '=' can we receive
         # directly into the input array.
         data_recv = arr_recv
     else:
-        # Expand the receive bufffer if necessary
-        if size_recv > recvbuf_mv.shape[0]:
-            recvbuf = realloc(recvbuf, size_recv*sizeof('double'))
-            recvbuf_mv = cast(recvbuf, 'double[:size_recv]')
-        data_recv = recvbuf_mv[:size_recv]
-    # When no block_recv is passed, use the recvbuf buffer
-    if arr_recv.size == 0:
-        # Expand the receive bufffer if necessary
-        if size_recv > recvbuf_mv.shape[0]:
-            recvbuf = realloc(recvbuf, size_recv*sizeof('double'))
-            recvbuf_mv = cast(recvbuf, 'double[:size_recv]')
-        data_recv = recvbuf_mv[:size_recv]
-        arr_recv = asarray(data_recv)
+        using_recvbuf = True
+        recvbuf_mv = get_buffer(size_recv, recvbuf_name)
+        data_recv = recvbuf_mv
     # Fill send buffer if this is to be used
     if sending and not contiguous_send:
         index = 0
         if dims_send == 1:
             mv_1D = arr_send
-            for i in range(mv_1D.shape[0]):
-                sendbuf[i] = mv_1D[i]
+            for i in range(ℤ[mv_1D.shape[0]]):
+                sendbuf_mv[i] = mv_1D[i]
         elif dims_send == 2:
             mv_2D = arr_send
-            for i in range(mv_2D.shape[0]):
-                for j in range(mv_2D.shape[1]):
-                    sendbuf[index] = mv_2D[i, j]
+            for     i in range(ℤ[mv_2D.shape[0]]):
+                for j in range(ℤ[mv_2D.shape[1]]):
+                    sendbuf_mv[index] = mv_2D[i, j]
                     index += 1
         elif dims_send == 3:
             mv_3D = arr_send
-            for i in range(mv_3D.shape[0]):
-                for j in range(mv_3D.shape[1]):
-                    for k in range(mv_3D.shape[2]):
-                        sendbuf[index] = mv_3D[i, j, k]
+            for         i in range(ℤ[mv_3D.shape[0]]):
+                for     j in range(ℤ[mv_3D.shape[1]]):
+                    for k in range(ℤ[mv_3D.shape[2]]):
+                        sendbuf_mv[index] = mv_3D[i, j, k]
                         index += 1
     # Do the communication
     if mpifun == 'allgather':
         Allgather(data_send, data_recv)
     elif mpifun == 'allgatherv':
         Allgatherv(data_send, (data_recv, sizes_recv))
+    elif mpifun == 'bcast':
+        if rank == root:
+            Bcast(data_send, root=root)
+        else:
+            Bcast(data_recv, root=root)
     elif mpifun == 'isend':
         return Isend(data_send, dest=dest)
     elif mpifun == 'recv':
@@ -832,28 +959,29 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1,
         Sendrecv(data_send, recvbuf=data_recv, dest=dest, source=source)
     else:
         abort('MPI function "{}" is not implemented'.format(mpifun))
+    # If only sending, return now
+    if not recving:
+        return data_send
     # Copy or add the received data from the buffer
     # to the passed block_recv (arr_recv), if needed.
-    if not recving:
-        return
     index = 0
     if operation == '=' and not contiguous_recv:
         if dims_recv == 1:
             mv_1D = arr_recv
             for i in range(size_recv):
-                mv_1D[i] = recvbuf[i]
+                mv_1D[i] = recvbuf_mv[i]
         elif dims_recv == 2:
             mv_2D = arr_recv
-            for i in range(mv_2D.shape[0]):
-                for j in range(mv_2D.shape[1]):
-                    mv_2D[i, j] = recvbuf[index]
+            for     i in range(ℤ[mv_2D.shape[0]]):
+                for j in range(ℤ[mv_2D.shape[1]]):
+                    mv_2D[i, j] = recvbuf_mv[index]
                     index += 1
         elif dims_recv == 3:
             mv_3D = arr_recv
-            for i in range(mv_3D.shape[0]):
-                for j in range(mv_3D.shape[1]):
-                    for k in range(mv_3D.shape[2]):
-                        mv_3D[i, j, k] = recvbuf[index]
+            for         i in range(ℤ[mv_3D.shape[0]]):
+                for     j in range(ℤ[mv_3D.shape[1]]):
+                    for k in range(ℤ[mv_3D.shape[2]]):
+                        mv_3D[i, j, k] = recvbuf_mv[index]
                         index += 1
         else:
             abort('Cannot handle block_recv of dimension {}'.format(dims_recv))
@@ -861,24 +989,124 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1,
         if dims_recv == 1:
             mv_1D = arr_recv
             for i in range(size_recv):
-                mv_1D[i] += recvbuf[i]
+                mv_1D[i] += recvbuf_mv[i]
         elif dims_recv == 2:
             mv_2D = arr_recv
-            for i in range(mv_2D.shape[0]):
-                for j in range(mv_2D.shape[1]):
-                    mv_2D[i, j] += recvbuf[index]
+            for     i in range(ℤ[mv_2D.shape[0]]):
+                for j in range(ℤ[mv_2D.shape[1]]):
+                    mv_2D[i, j] += recvbuf_mv[index]
                     index += 1
         elif dims_recv == 3:
             mv_3D = arr_recv
-            for i in range(mv_3D.shape[0]):
-                for j in range(mv_3D.shape[1]):
-                    for k in range(mv_3D.shape[2]):
-                        mv_3D[i, j, k] += recvbuf[index]
+            for         i in range(ℤ[mv_3D.shape[0]]):
+                for     j in range(ℤ[mv_3D.shape[1]]):
+                    for k in range(ℤ[mv_3D.shape[2]]):
+                        mv_3D[i, j, k] += recvbuf_mv[index]
                         index += 1
         else:
             abort('Cannot handle block_recv of dimension {}'.format(dims_recv))
-    # Return the now populated block_recv (arr_recv)
+    # If both sending and receiving, the two blocks of data
+    # should (probably) have the same shape. If no block_recv was
+    # supplied, arr_recv will always be 1D.
+    # In this case, do a reshaping.
+    if sending and recving and using_recvbuf and size_send == size_recv:
+        arr_recv = arr_recv.reshape(shape_send)
+    # When broadcasting, the received data should be of the same size
+    # as that which was send.
+    if mpifun == 'bcast' and using_recvbuf:
+        arr_recv = arr_recv.reshape(shape_recv)
+    # Return the now populated arr_recv
     return arr_recv
+
+# Function which manages buffers used by other functions
+@cython.pheader(# Arguments
+                size='Py_ssize_t',
+                buffer_name='object',  # Any hashable object
+                nullify='bint',
+                # Local
+                N_buffers='Py_ssize_t',
+                buffer='double*',
+                buffer_mv='double[::1]',
+                i='Py_ssize_t',
+                index='Py_ssize_t',
+                returns='double[::1]',
+                )
+def get_buffer(size=0, buffer_name=0, nullify=False):
+    """This function returns a contiguous buffer containing doubles.
+    The buffer will be exactly of size 'size'. If no size is given,
+    the buffer will be returned with whatever size it happens to have.
+    When multiple buffers are in use, a specific buffer can be
+    requested by passing a buffer_name, which can be any hashable type.
+    A buffer with the given name does not have to exist beforehand.
+    A given buffer will be reallocated (enlarged) if necessary.
+    If nullify is True, all elements of the buffer will be sat to 0. 
+    """
+    global buffers
+    if buffer_name in buffers_mv:
+        # This buffer already exists
+        index = 0
+        for key in buffers_mv:
+            if key == buffer_name:
+                break
+            index += 1
+        buffer = buffers[index]
+        buffer_mv = buffers_mv[buffer_name]
+        if size > buffer_mv.shape[0]:
+            # Enlarge this buffer
+            resize_buffer(size, buffer_name)
+            buffer = buffers[index]
+            buffer_mv = buffers_mv[buffer_name]
+        elif size == 0:
+            # No size was given. Use the entire array.
+            size = buffer_mv.shape[0]
+    else:
+        # This buffer does not exist yet. Create it.
+        if size == 0:
+            size = 1
+        buffer = malloc(size*sizeof('double'))
+        N_buffers = len(buffers_mv) + 1
+        buffers = realloc(buffers, N_buffers*sizeof('double*'))
+        buffers[N_buffers - 1] = buffer
+        buffer_mv = cast(buffer, 'double[:size]')
+        buffers_mv[buffer_name] = buffer_mv
+    if nullify:
+        for i in range(size):
+            buffer[i] = 0
+    return buffer_mv[:size]
+# Function which resizes one of the global buffers
+@cython.header(# Arguments
+               buffer_name='object',  # Any hashable object
+               size='Py_ssize_t',
+               # Local
+               buffer='double*',
+               buffer_mv='double[::1]',
+               index='Py_ssize_t',
+               )
+def resize_buffer(size, buffer_name):
+    if buffer_name not in buffers_mv:
+        abort('Cannot resize buffer "{}" as it does not exist'.format(buffer_name))
+    index = 0
+    for key in buffers_mv:
+        if key == buffer_name:
+            break
+        index += 1
+    buffer = buffers[index]    
+    buffer = realloc(buffer, size*sizeof('double'))
+    buffers[index] = buffer
+    buffer_mv = cast(buffer, 'double[:size]')
+    buffers_mv[buffer_name] = buffer_mv
+# Initialize buffers
+cython.declare(buffers='double**',
+               buffer='double*',
+               buffer_mv='double[::1]',
+               buffers_mv='object',  # OrderedDict
+               )
+buffers = malloc(1*sizeof('double*'))
+buffer = malloc(1*sizeof('double'))
+buffers[0] = buffer
+buffer_mv = cast(buffer, 'double[:1]')
+buffers_mv = collections.OrderedDict()
+buffers_mv[0] = buffer_mv
 
 # Cutout domains at import time
 cython.declare(domain_subdivisions='int[::1]',
@@ -919,16 +1147,8 @@ domain_end_x = domain_start_x + domain_size_x
 domain_end_y = domain_start_x + domain_size_x
 domain_end_z = domain_start_x + domain_size_x
 
-# Initialize the send and receive buffers
-cython.declare(recvbuf='double*',
-               recvbuf_mv='double[::1]',
-               sendbuf='double*',
-               sendbuf_mv='double[::1]',
-               )
-sendbuf = malloc(1*sizeof('double'))
-sendbuf_mv = cast(sendbuf, 'double[:1]')
-recvbuf = malloc(1*sizeof('double'))
-recvbuf_mv = cast(recvbuf, 'double[:1]')
+
+
 
 # Initialize variables used in the exchange function
 cython.declare(N_send='Py_ssize_t[::1]',

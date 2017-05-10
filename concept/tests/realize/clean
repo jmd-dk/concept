@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
 # Copyright © 2015-2017 Jeppe Mosgaard Dakin.
 #
@@ -20,32 +22,11 @@
 
 
 
-# Directory of this parameter file (non-parameter variable)
-_this_dir = os.path.dirname(paths['params'])
-
-# Input/output
-initial_conditions = _this_dir + '/IC.hdf5'
-output_dirs        = {'snapshot': _this_dir + '/output'}
-output_bases       = {'snapshot': 'snapshot'}
-output_times       = {'t': {'terminal render': linspace(0, 15*Gyr, 26),
-                            'snapshot'       : linspace(0, 15*Gyr, 3),
-                            }
-                      }
-
-# Numerical parameters
-boxsize    = 64*Mpc
-φ_gridsize = 4*8  # Must be a multiple of 4
-
-# Cosmological parameters
-t_begin = 0
-
-# Physics
-forces = {'all': {'gravity': 'pm'}}
-
-# Graphics
-terminal_render_colormap   = 'ocean'
-terminal_render_resolution = min([φ_gridsize, 80])
-
-# Debugging options
-enable_Hubble = False
+# This script does cleanup after a test
+this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+(cd "${this_dir}" && rm -rf ic.params        \
+                            output_fluid     \
+                            output_particles \
+                            result.png       \
+ )
 

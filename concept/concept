@@ -225,12 +225,14 @@ trap 'abort' EXIT
 set -e
 
 # Default values of command-line arguments
+interactive_default="False"
 local_default="False"
 main_default="${concept_dir}/main.py"
 nowatch_default="False"
 nprocs_default=1
 params_default="None"
 pure_python_default="False"
+unsafe_build_default="False"
 walltime_default=6
 
 # Initial but illegal values of some command-line arguments,
@@ -279,6 +281,11 @@ def positive_int(value):
 # Setup command-line arguments
 parser = argparse.ArgumentParser(prog='$(basename "${this_file}")',
                                  description='Run the CO𝘕CEPT code')
+parser.add_argument('-i', '--interactive',
+                    help='inspect interactively after running program',
+                    default=${interactive_default},
+                    action='store_true',
+                    )
 parser.add_argument('-m', '--main',
                     help=('entry point of the code. '
                           'Can be a Python filename or command.'),
@@ -329,6 +336,11 @@ parser.add_argument('--pure-python',
                     default=${pure_python_default},
                     action='store_true',
                     )
+parser.add_argument('--unsafe-build',
+                    help='ignore dependencies between modules when building',
+                    default=${unsafe_build_default},
+                    action='store_true',
+                    )
 # Enables Python to write directly to screen (stderr)
 # in case of help request.
 stdout_copy = sys.stdout
@@ -350,6 +362,7 @@ sys.stdout = stdout_copy
 # Print out the arguments.
 # These will be captured in the Bash 'args' variable
 print(  '  argparse_finished=yes'
+      + '; interactive={}'.format(args.interactive)
       + '; main=\"{}\"'.format(args.main)
       + '; nprocs={}'.format(args.nprocs)
       + '; params=\"{}\"'.format(args.params)
@@ -361,6 +374,7 @@ print(  '  argparse_finished=yes'
       + '; local={}'.format(args.local)
       + '; nowatch={}'.format(args.nowatch)
       + '; pure_python={}'.format(args.pure_python)
+      + '; unsafe_build={}'.format(args.unsafe_build)
       )
 " "$@" || :)
 # Evaluate the handled arguments into this scope
@@ -481,13 +495,17 @@ if [ "${test}" != "${test_unspecified}" ]; then
     if [ "${test}" == "all" ]; then
         # Find and run all tests
         tests="$(cd "${tests_dir}" && "${python}" -B -c "
-import glob
+from glob import glob
 # List tests in order of required execution.
 # Tests not included here will be run last.
 order = (# Test whether the code is able to compile and run
          'basic',
          # Test of the GADGET installation
          'gadget',
+         # Tests of the CLASS installation,
+         # the Friedmann equation and the realizations.
+         'friedmann',
+         'realize',
          # Tests of the particle implementation
          'drift_noHubble',
          'drift',
@@ -520,7 +538,7 @@ order = (# Test whether the code is able to compile and run
          )
 # Find all tests (directories in ${tests_dir}).
 # Skip test if its (directory) name has a leading underscore.
-tests = (dir[:-1] for dir in glob.glob('*/') if not dir.startswith('_'))
+tests = (dir[:-1] for dir in glob('*/') if not dir.startswith('_'))
 # Sort the tests based on the order given above
 sorted_tests = sorted(tests, key=lambda test: order.index(test) if test in order else len(order))
 for test in sorted_tests:
@@ -620,9 +638,9 @@ if [ "${prepare_files}" == "True" ]; then
         fi
         # Compile all the modules. If working locally, do it in parallel.
         if [ "${ssh}" == "True" ]; then
-            (cd "${concept_dir}" && make)
+            (cd "${concept_dir}" && make unsafe_build=${unsafe_build})
         else
-            (cd "${concept_dir}" && make -j)
+            (cd "${concept_dir}" && make unsafe_build=${unsafe_build} -j)
         fi
     fi
 fi
@@ -649,6 +667,10 @@ if [ "${util}" != "${util_unspecified}" ]; then
     if [ "${local}" == "True" ]; then
         local_flag="--local"
     fi
+    interactive_flag=""
+    if [ "${interactive}" == "True" ]; then
+        interactive_flag="--interactive"
+    fi
     nowatch_flag=""
     if [ "${nowatch}" == "True" ]; then
         nowatch_flag="--nowatch"
@@ -656,6 +678,10 @@ if [ "${util}" != "${util_unspecified}" ]; then
     pure_python_flag=""
     if [ "${pure_python}" == "True" ]; then
         pure_python_flag="--pure-python"
+    fi
+    unsafe_build_flag=""
+    if [ "${unsafe_build}" == "True" ]; then
+        unsafe_build_flag="--unsafe-build"
     fi
     # Run utility util and exit
     colorprint "Running the $(basename "${util}") utility" "yellow"
@@ -776,8 +802,9 @@ fi
 ${mpi_preparations}
 
 # Set and export path environment variables
-export PATH=\"${PATH}:\${PATH}\"
 export LD_LIBRARY_PATH=\"${LD_LIBRARY_PATH}:\${LD_LIBRARY_PATH}\"
+export PATH=\"${PATH}:\${PATH}\"
+export PYTHONPATH=\"${PYTHONPATH}:\${PYTHONPATH}\"
 
 # Source the concept script
 source \"${concept}\"
@@ -823,11 +850,15 @@ else
         fi
     fi
 fi
+i_flag=\"\"
+if [ \"${interactive}\" == \"True\" ]; then
+    i_flag=\"-i\"
+fi
 
 # Run the code. Both stdout and stderr are being logged to logs_dir/jobid,
 # while the stderr alone is also logged to logs_dir/jobid_err.
 (cd \"${concept_dir}\" && \"${mpiexec}\" ${mpiexec_args}                                  \
-                                         \"${python}\" -B                                 \
+                                         \"${python}\" -B \${i_flag}                      \
                                                        \${m_flag} \"\${main_as_library}\" \
                                                        \"params='${params}'\"             \
                                                        \"jobid='\${jobid}'\"              \
@@ -920,12 +951,16 @@ else
             fi
         fi
     fi
+    i_flag=""
+    if [ "${interactive}" == "True" ]; then
+        i_flag="-i"
+    fi
     # Run the code. Print stdout and stderr to the terminal while at the
     # same time logging them to logs_dir/jobid. The stderr alone is also
     # logged to logs_dir/jobid_err.
     (("${mpiexec}" -n "${nprocs}"                               \
                    ${mpiexec_args}                              \
-                   "${python}" -B                               \
+                   "${python}" -B ${i_flag}                     \
                                ${m_flag} "${main_as_library}"   \
                                "params='${params}'"             \
                                "jobid='${jobid}'"               \

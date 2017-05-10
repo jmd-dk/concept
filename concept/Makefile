@@ -40,9 +40,10 @@ pyfiles = analysis      \
           fluid         \
           graphics      \
           gravity       \
-          ic            \
+          gravity_old   \
           integration   \
           interactions  \
+          linear        \
           main          \
           mesh          \
           snapshot      \
@@ -166,7 +167,7 @@ python_libdir = $(shell $(python) -c "import sysconfig;                         
                                       "                                          \
                   )
 python_libs   = -L$(python_libdir) -Wl,-rpath=$(python_libdir) $(shell $(python_config) --libs)
-other_libs    = -Wl,-O3
+other_libs    = -Wl,-Ofast
 LDLIBS        = $(call uniq, $(foreach flag, $(fftw_libs)                     \
                                              $(gsl_libs)                      \
                                              $(mpi_libs)                      \
@@ -192,36 +193,22 @@ LDFLAGS        = $(call uniq, $(foreach flag, $(python_ldflags)               \
 # Primary targets #
 ###################
 # The below recipes are responsible for the
-# .py --> (.pyx --> .pxd) --> (.c + .html) --> .o --> .so build chain.
-# When building the modules in serial, a heading is printed at the
-# beginning of the build process for each module. The 'current_module'
-# variable is used as a flag, controlling these headings. When building
-# the modules in parallel, a single, collective heading is shown.
+# .py --> ((.pyx --> types) --> .pxd) --> (.c + .html) --> .o --> .so
+# build chain. A heading is printed at the beginning of the build.
 define heading
-    $(if $(findstring -j,-$(MAKEFLAGS)),
-      # Parallel build
-      $(python) -c "import blessings;                                                     \
-                    terminal = blessings.Terminal(force_styling=True);                    \
-                    print(terminal.bold_yellow('Building modules\n')                      \
-                          if '$(last_module)' != 'all' else '', end='');                  \
-                    "
-      $(eval last_module = all),
-      # Serial build
-      $(python) -c "import blessings;                                                     \
-                    terminal = blessings.Terminal(force_styling=True);                    \
-                    new_module = '$(current_module)' != '$(last_module)';                 \
-                    print('\n' if new_module and '$(last_module)' else '', end='');       \
-                    print(terminal.bold_yellow('Building the $(current_module) module\n') \
-                          if new_module else '', end='');                                 \
-                    "
-      $(eval last_module = $(current_module))
-      )
+    $(python) -c "import blessings;                                                     \
+                  import sys;                                                           \
+                  from time import sleep;                                               \
+                  sys.exit() if '$(heading_printed)' else None;                         \
+                  unsafe = ' (unsafe)' if '$(unsafe_build)' == 'True' else '';          \
+                  terminal = blessings.Terminal(force_styling=True);                    \
+                  print(terminal.bold_yellow('Building modules' + unsafe), flush=True); \
+                  sleep(0.1);                                                           \
+                  "
+    $(eval heading_printed = True)
 endef
-# Assign the name of the module being build to the 'current_module'
-# variable at the start of a module build chain.
-$(foreach pyfile,$(pyfiles),$(eval $(pyfile).so: current_module = $(pyfile)))
 
-# Make all compiled python modules.
+# Make all compiled Python modules.
 # When finished, update time stamps so that all dependencies are
 # synchronized (this is needed because .pxd files are only updated
 # when their contents actually change. That is, `make pyfile.pxd` does
@@ -254,7 +241,7 @@ $(addsuffix .c, $(pyfiles)): %.c: %.pyx %.pxd
 $(addsuffix .html, $(pyfiles)): %.html: %.pyx %.pxd
 	$(python) -m cython $(cythonflags) $<
 
-# Write .pxd files from .pyx files and the types file
+# Write .pxd files from .pyx files together with the types file
 # using the pyxpp script.
 $(addsuffix .pxd, $(pyfiles)): %.pxd: %.pyx $(pyxpp) $(commons) $(types)
 	@$(call heading)
@@ -262,6 +249,7 @@ $(addsuffix .pxd, $(pyfiles)): %.pxd: %.pyx $(pyxpp) $(commons) $(types)
 
 # Write the types file from the .pyx files using the pyxpp script
 $(types): $(addsuffix .pyx, $(pyfiles)) $(pyxpp) $(commons)
+	@$(call heading)
 	$(python) -B $(pyxpp) $@ $(commons) $(types) $(addsuffix .pyx, $(pyfiles))
 
 # Write .pyx files from .py files using the pyxpp script
@@ -274,31 +262,15 @@ $(addsuffix .pyx, $(pyfiles)): %.pyx: %.py $(pyxpp) $(commons) $(MAKEFILE_LIST)
 ###########################
 # Additional dependencies #
 ###########################
-# Add any additional target dependencies here.
-# - Every cimport statement in a .pyx leads to a dependency of the form
-#   module.c: imported_module.pxd
-# - An implicit cimport statement occur after 'from commons import *',
-#   leading to a depdendency of the form
-#   module.c: commons.pxd
-# - Every module except commons implicitly cimports extension
-#   types from the snapshot and species modules,
-#   leading to dependencies of the form
-#   module.c: snapshot.pxd species.pxd
-analysis.c:                   commons.pxd communication.pxd                           graphics.pxd             integration.pxd                  mesh.pxd snapshot.pxd species.pxd
-commons.c:
-communication.c:              commons.pxd                                                                      integration.pxd                           snapshot.pxd species.pxd
-ewald.c:                      commons.pxd                                                                      integration.pxd                  mesh.pxd snapshot.pxd species.pxd
-fluid.c:                      commons.pxd                                                                      integration.pxd                           snapshot.pxd species.pxd
-graphics.c:                   commons.pxd communication.pxd                                                    integration.pxd                           snapshot.pxd species.pxd
-gravity.c:                    commons.pxd communication.pxd ewald.pxd                                          integration.pxd                  mesh.pxd snapshot.pxd species.pxd
-ic.c:                         commons.pxd communication.pxd                                                    integration.pxd                  mesh.pxd snapshot.pxd species.pxd
-integration.c:                commons.pxd                                                                      integration.pxd                           snapshot.pxd species.pxd
-interactions.c:               commons.pxd                                                          gravity.pxd integration.pxd                           snapshot.pxd species.pxd
-main.c:          analysis.pxd commons.pxd                                             graphics.pxd             integration.pxd interactions.pxd          snapshot.pxd species.pxd utilities.pxd
-mesh.c:                       commons.pxd communication.pxd           fft.c                                    integration.pxd                           snapshot.pxd species.pxd
-snapshot.c:                   commons.pxd communication.pxd                                                    integration.pxd                                        species.pxd
-species.c:                    commons.pxd communication.pxd                 fluid.pxd                          integration.pxd                           snapshot.pxd
-utilities.c:     analysis.pxd commons.pxd communication.pxd                           graphics.pxd             integration.pxd                  mesh.pxd snapshot.pxd species.pxd
+# Because modules cimport stuff from each other, some .c (and therefore
+# also .html) files depend on the .pxd files of other modules.
+# Unless unsafe_build is explicitly set to False,
+# we let all .c and .html files depend on all .pxd files.
+ifneq ($(unsafe_build),True)
+$(foreach ext,c html,$(addsuffix .$(ext), $(pyfiles))): $(addsuffix .pxd, $(pyfiles))
+endif
+# Additional target dependencies
+$(foreach ext,c html,$(addsuffix .$(ext), mesh)): fft.c
 
 
 
@@ -308,7 +280,7 @@ utilities.c:     analysis.pxd commons.pxd communication.pxd                     
 .PHONY: clean clean_auxiliary clean_logs clean_output clean_tests clean_utilities distclean
 # Remove all compile files
 clean:
-	$(RM) -r $(foreach ext,pyc pyx pxd c o so so_ html,$(addsuffix .$(ext), $(pyfiles))) $(types) __pycache__
+	$(RM) -r $(foreach ext,pyc pyx pxd c html o so so_,$(addsuffix .$(ext), $(pyfiles))) $(types) __pycache__
 # Remove files generated via autosave
 clean_autosave:
 	$(RM) $(output_dir)/autosave_*

@@ -24,25 +24,28 @@
 _this_dir = os.path.dirname(paths['params'])
 
 # Input/output
-IC_file       = _this_dir + '/output/snapshot.hdf5'
-snapshot_type = 'standard'
-output_dirs   = {'snapshot'       : _this_dir + '/output'}
-output_times  = {'terminal render': logspace(log(0.02), log(1), 30, base=e)}
+initial_conditions = _this_dir + '/output/snapshot.hdf5'
+snapshot_type      = 'standard'
+output_dirs        = {'snapshot'       : _this_dir + '/output'}
+output_times       = {'terminal render': logspace(log(0.02), log(1), 30, base=e)}
 
 # Numerical parameters
-boxsize    = 64*Mpc
-φ_gridsize = 32
+boxsize    = 80*Mpc
+φ_gridsize = 64
 
 # Cosmological parameters
 H0      = 70*km/s/Mpc
-Ωm      = 0.3
-ΩΛ      = 0.7
+Ωcdm    = 0.25
+Ωb      = 0.05
 a_begin = 0.02
+
+# Physics
+forces = {'matter particles': {'gravity': 'pm'}}
+
+# Simulation options
+master_seed = 1
 
 # Graphics
 terminal_render_colormap   = 'gnuplot2'
 terminal_render_resolution = 64
-
-# Simulation options
-forces = {'dark matter particles': {'gravity': 'pm'}}
 

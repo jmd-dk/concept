@@ -62,7 +62,7 @@ for kind in ('particles', 'fluid'):
     for fname in sorted(glob(regex),
                         key=lambda s: s[(s.index('=') + 1):]):
         powerspec_filenames[kind].append(fname)
-        k, power, σ = np.loadtxt(fname, skiprows=5, unpack=True)
+        k, power, σ = np.loadtxt(fname, unpack=True)
         powerspecs[kind].append(power)
     # Sort data chronologically
     powerspec_filenames[kind] = [powerspec_filenames[kind][o] for o in order]

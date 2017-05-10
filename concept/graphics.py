@@ -173,7 +173,6 @@ def plot_powerspec(data_list, filename, power_dict):
                # Locals
                N='Py_ssize_t',
                N_local='Py_ssize_t',
-               Vcell='double',
                a_str='str',
                alpha='double',
                alpha_min='double',
@@ -217,6 +216,7 @@ def plot_powerspec(data_list, filename, power_dict):
                z='double*',
                z_mv='double[::1]',
                zk='double',
+               Σmass='double',
                ϱ_noghosts='double[:, :, :]',
                ϱbar_component='double',
                )
@@ -435,8 +435,8 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
                 alpha_fac = alpha_min
             # Update the alpha values in rgba array. The rgb-values
             # remain the same for all renders of this component.
-            Vcell = (boxsize/component.gridsize)**3
-            ϱbar_component = component.mass/Vcell
+            Σmass = universals.a**(-3*component.w())*component.Σmass_present
+            ϱbar_component = Σmass/boxsize**3
             index = 0
             for         i in range(ℤ[ϱ_noghosts.shape[0] - 1]):
                 for     j in range(ℤ[ϱ_noghosts.shape[1] - 1]):
@@ -664,6 +664,7 @@ def add_background():
                size_y='Py_ssize_t',
                size_z='Py_ssize_t',
                total_mass='double',
+               Σmass='double',
                ϱ_noghosts='double[:, :, :]',
                )
 def terminal_render(components):
@@ -690,7 +691,8 @@ def terminal_render(components):
         elif component.representation == 'fluid':
             # Extract relevant fluid data
             gridsize = component.gridsize
-            mass = component.mass
+            Σmass = universals.a**(-3*component.w())*component.Σmass_present
+            mass = Σmass/component.gridsize**3
             Vcell = (boxsize/gridsize)**3
             ϱ_noghosts = component.ϱ.grid_noghosts
             size_x = ϱ_noghosts.shape[0] - 1

@@ -64,7 +64,7 @@ def maccormack(component, ᔑdt):
                 evolve_fluid(component, ᔑdt, steps, mc_step)
             # Nullify the Δ buffers, so that they are ready to
             # be used by the following vacuum correction sweep.
-            component.nullify_fluid_Δ()
+            component.nullify_Δ()
             # Check and correct for density values heading dangerously
             # fast towards negative values. If every density value
             # is OK, accept this attempt at a MacCormack step as is.
@@ -88,7 +88,7 @@ def maccormack(component, ᔑdt):
     # Nullify the starred grid buffers and the Δ buffers,
     # leaving these with no leftover junk.
     component.nullify_fluid_gridˣ()
-    component.nullify_fluid_Δ()
+    component.nullify_Δ()
 
 # Infinite generator cycling through the 8 triples of
 # step/flux directions, used in the maccormack function.
@@ -313,6 +313,8 @@ def evolve_fluid(component, ᔑdt, steps, mc_step):
                                   + step_k*(  J_step[dim, 2]/ϱ_step[2]*Jz_step[2]
                                             - J_ijk [dim   ]/ϱ_ijk    *Jz_ijk)
                                   )*ℝ[-ᔑdt['a³ʷ⁻²', component]/h]
+                               # Stress term
+                               
                                )
                 # Update ϱ
                 ϱˣ[i, j, k] += ϱ_ijk + Δϱ

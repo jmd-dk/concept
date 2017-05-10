@@ -33,7 +33,6 @@ cimport('import analysis')
 cimport('from analysis import measure')
 cimport('from communication import domain_subdivisions, exchange')
 cimport('import graphics')
-cimport('from ic import zeldovich')
 cimport('from integration import initiate_time')
 cimport('from mesh import CIC_particles2fluid')
 cimport('from snapshot import get_snapshot_type, snapshot_extensions')
@@ -412,6 +411,7 @@ def render():
                 h='double',
                 heading='str',
                 index='int',
+                eos_info='str',
                 ext='str',
                 param_num='int',
                 parameter_filename='str',
@@ -440,6 +440,7 @@ def info():
                                            do_exchange=False,
                                            )
         params = snapshot.params
+        snapshot_type = get_snapshot_type(snapshot_filename)
         # If a parameter file should be generated from the snapshot,
         # print out the content which should be placed in parameter file
         # to stdout and directly to a new parameter file.
@@ -479,7 +480,7 @@ def info():
                 # Loop over stdout and the new parameter file
                 for file in (sys.stdout, pfile):
                     masterprint('# Input/output', file=file, wrap=False)
-                    masterprint("IC_file = '{}'".format(sensible_path(snapshot_filename)),
+                    masterprint("initial_conditions = '{}'".format(sensible_path(snapshot_filename)),
                                 file=file, wrap=False)
                     if hasattr(snapshot, 'units'):
                         masterprint('# System of units', file=file, wrap=False)
@@ -507,8 +508,9 @@ def info():
                                 file=file, wrap=False)
                     if enable_Hubble:
                         masterprint('a_begin = {:.12g}'.format(params['a']), file=file, wrap=False)
-                    masterprint('Ωm = {:.12g}'.format(params['Ωm']), file=file, wrap=False)
-                    masterprint('ΩΛ = {:.12g}'.format(params['ΩΛ']), file=file, wrap=False)
+                    if snapshot_type == 'standard':
+                        masterprint('Ωcdm = {:.12g}'.format(params['Ωcdm']), file=file, wrap=False)
+                        masterprint('Ωb = {:.12g}'.format(params['Ωb']), file=file, wrap=False)
             # Do not edit the printed text below,
             # as it is grepped for by several of the Bash utilities.
             masterprint('\nThe above parameters have been written to "{}"'
@@ -521,7 +523,6 @@ def info():
         heading = '\nInformation about "{}"'.format(sensible_path(snapshot_filename))
         masterprint(terminal.bold(heading))
         # Print out snapshot type
-        snapshot_type = get_snapshot_type(snapshot_filename)
         masterprint('{:<20} {}'.format('Snapshot type', snapshot_type))
         # Print out unit system for standard snapshots
         if snapshot_type == 'standard':
@@ -529,9 +530,8 @@ def info():
             masterprint('{:<20} {}'.format('unit_time',   snapshot.units['time']))
             # The mass is typically some large number written in
             # exponential notation. Print it out nicely.
-            mass_num, mass_basicunit = (snapshot.units['mass'].replace('m_sun', 'm☉')
-                                                              .replace(' ', '')
-                                                              .replace('*m', ' m').split(' '))
+            mass_num = eval_unit(snapshot.units['mass'])/units.m_sun
+            mass_basicunit = 'm☉'
             mass_num_fmt = significant_figures(float(mass_num), 6, fmt='unicode', incl_zeros=False)
             masterprint('{:<20} {}'.format('unit_mass', '{} {}'.format(mass_num_fmt,
                                                                        mass_basicunit)))
@@ -547,19 +547,18 @@ def info():
         if isint(value) and not isint(params['boxsize']):
             alt_str = ' = {:.12g}/{:.12g} {}'.format(int(round(value)), h, unit_length)
         masterprint('{:<20} {:.12g} {}{}'.format('boxsize', params['boxsize'], unit_length, alt_str))
-        masterprint('{:<20} {:.12g}'.format(unicode('Ωm'), params['Ωm']))
-        masterprint('{:<20} {:.12g}'.format(unicode('ΩΛ'), params['ΩΛ']))
+        # Print out the cosmological density parameters Ωcdm and Ωb.
+        # These are only present in the standard snapshots. In gadget2
+        # snapshots, instead we have ΩΛ and Ωm. We do not print these
+        # out here, as these will be printed as part
+        # of the GADGET header.
+        if snapshot_type == 'standard':
+            masterprint('{:<20} {:.12g}'.format(unicode('Ωcdm'), params['Ωcdm']))
+            masterprint('{:<20} {:.12g}'.format(unicode('Ωb'), params['Ωb']))
         # Print out component information
         for component in snapshot.components:
             masterprint('{}:'.format(component.name))
-            # General attributes
             masterprint('{:<16} {}'.format('species', component.species), indent=4)
-            value = component.mass/units.m_sun
-            masterprint('{:<16} {} m☉'.format('mass',
-                                              significant_figures(value, 6,
-                                                                  fmt='unicode', incl_zeros=False)
-                                              ),
-                        indent=4)
             # Representation-specific attributes
             if component.representation == 'particles':
                 if isint(ℝ[cbrt(component.N)]):
@@ -571,22 +570,42 @@ def info():
                                 indent=4)
                 else:
                     masterprint('{:<16} {}'.format('N', component.N), indent=4)
+                masterprint('{:<16} {} m☉'.format('mass',
+                                                  significant_figures(component.mass/units.m_sun, 
+                                                                      6,
+                                                                      fmt='unicode',
+                                                                      incl_zeros=False)
+                                                  ),
+                            indent=4)
             elif component.representation == 'fluid':
                 masterprint('{:<16} {}'.format('gridsize', component.gridsize), indent=4)
                 masterprint('{:<16} {}'.format('N_fluidvars', len(component.fluidvars)), indent=4)
+                if component.w_type == 'constant':
+                    eos_info = significant_figures(component.w_constant, 6,
+                                                   fmt='unicode', incl_zeros=False,
+                                                   )
+                elif component.w_type == 'tabulated (t)':
+                    eos_info = 'tabulated w(t)'
+                elif component.w_type == 'tabulated (a)':
+                    eos_info = 'tabulated w(a)'
+                elif component.w_type == 'expression':
+                    eos_info = component.w_expression
+                else:
+                    eos_info = 'not understood'
+                masterprint('{:<16} {}'.format('w', eos_info), indent=4)
             # Component statistics
             if special_params['stats']:
                 Σmom, σmom = measure(component, 'momentum')
                 masterprint('{:<16} [{}, {}, {}] {}'.format('momentum sum',
                                                             *significant_figures(asarray(Σmom)/units.m_sun,
-                                                                                 2,
+                                                                                 6,
                                                                                  fmt='unicode',
                                                                                  scientific=True),
                                                             'm☉ {} {}⁻¹'.format(unit_length, unit_time)),
                             indent=4)
                 masterprint('{:<16} [{}, {}, {}] {}'.format('momentum spread',
                                                             *significant_figures(asarray(σmom)/units.m_sun,
-                                                                                 2,
+                                                                                 6,
                                                                                  fmt='unicode',
                                                                                  scientific=True),
                                                             'm☉ {} {}⁻¹'.format(unit_length, unit_time)),
@@ -598,35 +617,3 @@ def info():
                 masterprint('{:<16} {}'.format(key, val), indent=4)
         # End of information
         masterprint('')
-
-
-# Function for generating cosmological initial conditions
-@cython.pheader(# Locals
-                component='Component',
-                ic_file_output='str',
-                ic_num='int',
-                mass='double',
-                name='str',
-                species='str',
-                )
-def ic():
-    # Extract parameters from special_params
-    name    = special_params['name']
-    species = special_params['species']
-    mass    = eval_unit(str(special_params['mass']))
-    # Generate initial conditions using the Zel'dovich approximation
-    component = zeldovich(name, species, mass, a_begin)
-    # The IC_file parameter needs to be specified,
-    # as the initial conditions will be saved to this file.
-    if not IC_file:
-        abort('No IC_file specified in the parameter file')
-    # Do not overwrite an existing IC file.
-    # Append increasing number until a non-existing file is reached.
-    ic_file_output = IC_file
-    if os.path.isfile(ic_file_output):
-        ic_num = 0
-        while os.path.isfile(ic_file_output + str(ic_num)):
-            ic_num += 1
-        ic_file_output += str(ic_num)
-    # Save the initial conditions
-    save([component], ic_file_output)

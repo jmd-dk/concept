@@ -56,11 +56,11 @@ class StandardSnapshot:
     # Static method for identifying a file to be a snapshot of this type
     @staticmethod
     def is_this_type(filename):
-        # Test for standard format by looking up the 'ΩΛ' attribute
+        # Test for standard format by looking up the 'Ωcdm' attribute
         # in the HDF5 data structure.
         try:
             with h5py.File(filename, mode='r') as f:
-                f.attrs[unicode('ΩΛ')]
+                f.attrs[unicode('Ωcdm')]
                 return True
         except:
             ...
@@ -105,7 +105,7 @@ class StandardSnapshot:
                    indices='object',  # int or tuple
                    index='Py_ssize_t',
                    multi_index='tuple',
-                   name='str',
+                   name='object',  # str or int
                    shape='tuple',
                    start_local='Py_ssize_t',
                    ϱ_mv='double[:, :, ::1]',
@@ -119,15 +119,15 @@ class StandardSnapshot:
         masterprint('Saving standard snapshot "{}":'.format(filename))
         with h5py.File(filename, mode='w', driver='mpio', comm=comm) as hdf5_file:
             # Save used base units
-            hdf5_file.attrs['unit length'] = self.units['length']
-            hdf5_file.attrs['unit time']   = self.units['time']
-            hdf5_file.attrs['unit mass']   = self.units['mass']
+            hdf5_file.attrs['unit length']   = self.units['length']
+            hdf5_file.attrs['unit time']     = self.units['time']
+            hdf5_file.attrs['unit mass']     = self.units['mass']
             # Save global attributes
-            hdf5_file.attrs['H0']          = self.params['H0']
-            hdf5_file.attrs['a']           = self.params['a']
-            hdf5_file.attrs['boxsize']     = self.params['boxsize']
-            hdf5_file.attrs[unicode('Ωm')] = self.params['Ωm']
-            hdf5_file.attrs[unicode('ΩΛ')] = self.params['ΩΛ']
+            hdf5_file.attrs['H0']            = self.params['H0']
+            hdf5_file.attrs['a']             = self.params['a']
+            hdf5_file.attrs['boxsize']       = self.params['boxsize']
+            hdf5_file.attrs[unicode('Ωcdm')] = self.params['Ωcdm']
+            hdf5_file.attrs[unicode('Ωb')]   = self.params['Ωb']
             # Store each component as a separate group
             # within /components.
             for component in self.components:
@@ -243,17 +243,19 @@ class StandardSnapshot:
                     # Create additional names (hard links)
                     # for some fluid groups and data sets.
                     for name, indices in component.fluid_names.items():
+                        if not isinstance(name, str) or name == 'ordered':
+                            continue
                         if isinstance(indices, int):
                             # "name" is a fluid variable name (e.g. J,
                             # though not ϱ as this is a fluid scalar).
                             fluidvar_h5 = component_h5['fluidvar_{}'.format(indices)]
-                            component_h5[unicode(name)] = fluidvar_h5
+                            component_h5[name] = fluidvar_h5
                         else:  # indices is a tuple
                             # "name" is a fluid scalar name (e.g. ϱ, Jx)
                             index, multi_index = indices
                             fluidvar_h5 = component_h5['fluidvar_{}'.format(index)]
                             fluidscalar_h5 = fluidvar_h5['fluidscalar_{}'.format(multi_index)]  
-                            component_h5[unicode(name)] = fluidscalar_h5
+                            component_h5[name] = fluidscalar_h5
                     # Finalize progress message
                     masterprint('done')
                 elif master:
@@ -326,19 +328,19 @@ class StandardSnapshot:
             self.params['H0']      = hdf5_file.attrs['H0']*(1/snapshot_unit_time)
             self.params['a']       = hdf5_file.attrs['a']
             self.params['boxsize'] = hdf5_file.attrs['boxsize']*snapshot_unit_length
-            self.params['Ωm']      = hdf5_file.attrs[unicode('Ωm')]
-            self.params['ΩΛ']      = hdf5_file.attrs[unicode('ΩΛ')]
+            self.params['Ωcdm']    = hdf5_file.attrs[unicode('Ωcdm')]
+            self.params['Ωb']      = hdf5_file.attrs[unicode('Ωb')]
             # Load component data
             for name, component_h5 in hdf5_file['components'].items():
                 # Load the general component attributes
                 species = component_h5.attrs['species']
                 representation = get_representation(species)
-                mass = component_h5.attrs['mass']*snapshot_unit_mass
                 if representation == 'particles':
                     # Construct a Component instance and append it
                     # to this snapshot's list of components.
                     N = component_h5.attrs['N']
-                    component = Component(name, species, N, mass)
+                    mass = component_h5.attrs['mass']*snapshot_unit_mass
+                    component = Component(name, species, N, mass=mass)
                     self.components.append(component)
                     # Done loading component attributes
                     if only_params:
@@ -405,7 +407,7 @@ class StandardSnapshot:
                         w = component_h5.attrs['w']
                     # Construct a Component instance and append it
                     # to this snapshot's list of components.
-                    component = Component(name, species, gridsize, mass,
+                    component = Component(name, species, gridsize,
                                           N_fluidvars=N_fluidvars, w=w)
                     self.components.append(component)
                     # Done loading component attributes
@@ -508,8 +510,8 @@ class StandardSnapshot:
         else:
             self.params['a']   = universals.a
         self.params['boxsize'] = params.get('boxsize', boxsize)
-        self.params['Ωm']      = params.get('Ωm',      Ωm)
-        self.params['ΩΛ']      = params.get('ΩΛ',      ΩΛ)
+        self.params['Ωcdm']    = params.get('Ωcdm'   , Ωcdm)
+        self.params['Ωb']      = params.get('Ωb'     , Ωb)
         # Populate the base units with the global base units
         self.units['length'] = unit_length
         self.units['time']   = unit_time
@@ -522,8 +524,9 @@ class StandardSnapshot:
 class Gadget2Snapshot:
     """This class represents snapshots of the "gadget2" type, meaning
     the second type of snapshot native to GADGET2. Only GADGET2 type 1
-    (halo) particles,vcorresponding to dark matter particles, are
-    supported.
+    (halo) particles, corresponding to dark matter particles, are
+    supported. It is however also possible to save a component with a
+    species of "matter" as a Gadget2Snapshot.
     As is the case for the standard snapshot class, this class contains
     a list components (the components attribute) and dict of parameters
     (the params attribute). Besides holding the cosmological parameters
@@ -598,11 +601,12 @@ class Gadget2Snapshot:
     def save(self, filename):
         """The snapshot data (positions and velocities) are stored in
         single precision. Only GADGET2 type 1 (halo) particles,
-        corresponding to dark matter particles, are supported.
+        corresponding to dark matter (or matter) particles,
+        are supported.
         """
         component = self.component
-        if master and component.species != 'dark matter particles':
-            abort('The GAGDET2 snapshot type can only store dark matter particles\n'
+        if master and component.species not in ('dark matter particles', 'matter particles'):
+            abort('The GAGDET2 snapshot type can only store dark matter or matter particles '
                   '(the species of the {} component is "{}")'
                   .format(component.name, component.species))
         masterprint('Saving GADGET2 snapshot "{}":'.format(filename))
@@ -788,7 +792,7 @@ class Gadget2Snapshot:
             N = header['Npart'][1]
             unit = 1e+10*units.m_sun/header['HubbleParam']
             mass = header['Massarr'][1]*unit
-            self.component = Component(name, species, N, mass)
+            self.component = Component(name, species, N, mass=mass)
             self.components = [self.component]
             # Done loading component attributes
             if only_params:
@@ -860,9 +864,8 @@ class Gadget2Snapshot:
                     params='dict',
                     # Locals
                     component='Component',
-                    h='double',
                     start_local='Py_ssize_t',
-                    unit='double',
+                    ΩΛ='double',
                     )
     def populate(self, components, params={}):
         """The following header fields depend on the particles:
@@ -892,6 +895,7 @@ class Gadget2Snapshot:
             self.params['a']   = universals.a
         self.params['boxsize'] = params.get('boxsize', boxsize)
         self.params['Ωm']      = params.get('Ωm',      Ωm)
+        ΩΛ = 1 - self.params['Ωm']  # Flat universe with only matter and cosmological constant
         self.params['ΩΛ']      = params.get('ΩΛ',      ΩΛ)
         # Build the GADGET header
         self.update_header()
@@ -972,20 +976,24 @@ class Gadget2Snapshot:
 # to a snapshot file. The type of snapshot to be saved is determined by
 # the snapshot_type parameter.
 @cython.pheader(# Argument
-                components='list',
+                one_or_more_components='object',  # Component or container of Components
                 filename='str',
                 params='dict',
                 # Locals
                 snapshot='object',  # Any implemented snapshot type
                 returns='str',
                 )
-def save(components, filename, params={}):
+def save(one_or_more_components, filename, params={}):
     """Note that since we want this function to be exposed to
     pure Python, a pheader is used.
     """
     # Instantiate snapshot of the appropriate type
     snapshot = eval(snapshot_type.capitalize() + 'Snapshot()')
     # Populate the snapshot with data
+    if isinstance(one_or_more_components, Component):
+        components = [one_or_more_components]
+    else:
+        components = list(one_or_more_components)
     snapshot.populate(components, params)
     # Make sure that the directory of the snapshot exists
     if master:
@@ -1007,6 +1015,7 @@ def save(components, filename, params={}):
                 as_if='str',
                 # Locals
                 component='Component',
+                i='Py_ssize_t',
                 input_type='str',
                 snapshot='object',          # Some snapshot type
                 snapshot_newtype='object',  # Some snapshot type
@@ -1059,14 +1068,12 @@ def load(filename, compare_params=True,
     # Scatter particles to the correct domain-specific process.
     # Also communicate pseudo and ghost points of fluid variables.
     if not only_params and do_exchange:
-        # Do exchanges for all but the last component,
-        # reusing the communication buffers.
-        for component in snapshot.components[:(len(snapshot.components) - 1)]:
-            exchange(component, reset_buffers=False)
-        # Do exchange of the last component and reset communication
-        # buffers, as these initial exchanges are not representable
-        # for those to come during the actual simulation.
-        exchange(snapshot.components[len(snapshot.components) - 1], reset_buffers=True)
+        # Do exchanges for all components. Reset the communication
+        # buffers after the last exchange, as these initial exchanges
+        # are not representable for those to come during the
+        # actual simulation.
+        for i, component in enumerate(snapshot.components):
+            exchange(component, reset_buffers=(i == len(snapshot.components) - 1))
         # Communicate the pseudo and ghost points
         # of all fluid variables in fluid components.
         for component in snapshot.components:
@@ -1130,8 +1137,8 @@ def compare_parameters(params, filename, indent=0):
     a (compared against a_begin)
     boxsize
     H0
-    Ωm
-    ΩΛ
+    Ωcdm
+    Ωb
     """
     # The relative tolerence by which the parameters are compared
     rel_tol = 1e-6
@@ -1151,12 +1158,18 @@ def compare_parameters(params, filename, indent=0):
         unit = units.km/(units.s*units.Mpc)
         msg += '{}H0: {} [km s⁻¹ Mpc⁻¹]'.format(indent_str,
                                                 vs.format(H0/unit, params['H0']/unit))
-    if not isclose(Ωm, float(params['Ωm']), rel_tol):
-        msg += '{}Ωm: {}'.format(indent_str,
-                                 vs.format(Ωm, params['Ωm']))
-    if not isclose(ΩΛ, float(params['ΩΛ']), rel_tol):
-        msg += '{}ΩΛ: {}'.format(indent_str,
-                                 vs.format(ΩΛ, params['ΩΛ']))
+    if 'Ωb' in params:
+        if not isclose(Ωb, float(params['Ωb']), rel_tol):
+            msg += '{}Ωb: {}'.format(indent_str,
+                                     vs.format(Ωm, params['Ωb']))
+    if 'Ωcdm' in params:
+        if not isclose(Ωcdm, float(params['Ωcdm']), rel_tol):
+            msg += '{}Ωcdm: {}'.format(indent_str,
+                                       vs.format(Ωm, params['Ωcdm']))
+    if 'Ωm' in params:
+        if not isclose(Ωm, float(params['Ωm']), rel_tol):
+            msg += '{}Ωm: {}'.format(indent_str,
+                                     vs.format(Ωm, params['Ωm']))
     if msg:
         msg = ('Mismatch between current parameters and those in the snapshot "{}":{}'
                ).format(filename, msg)

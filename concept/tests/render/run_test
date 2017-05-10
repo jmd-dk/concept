@@ -53,12 +53,19 @@ set -e
 # Cleanup from last test run
 "${this_dir}/clean"
 
-# Generate snapshot
-"${concept}" -n 1                                    \
-             -p "${this_dir}/params"                 \
-             -u ic --name    'test particles'        \
-                   --species 'dark matter particles' \
+# Generate ICs
+echo "$(cat "${this_dir}/params")
+output_dirs  = {'snapshot': '${this_dir}/output'}
+output_bases = {'snapshot': 'snapshot'}
+output_times = {'snapshot': a_begin}
+initial_conditions = {'name'   : 'test particles',
+                      'species': 'matter particles',
+                      }
+" > "${this_dir}/ic.params"
+"${concept}" -n 1                       \
+             -p "${this_dir}/ic.params" \
              --local
+mv "${this_dir}/output/snapshot"* "${this_dir}/output/snapshot.hdf5"
 
 # Make copies of the snapshot
 mkdir -p "${this_dir}/output/subdir"

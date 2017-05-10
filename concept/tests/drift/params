@@ -24,26 +24,21 @@
 _this_dir = os.path.dirname(paths['params'])
 
 # Input/output
-IC_file       = _this_dir + '/IC'
-snapshot_type = 'GADGET2'
-output_dirs   = {'snapshot': _this_dir + '/output'}
-output_bases  = {'snapshot': 'snapshot'}
-output_times  = {'snapshot': linspace(0.03, 1, 25)}
+initial_conditions = _this_dir + '/IC'
+snapshot_type      = 'GADGET2'
+output_dirs        = {'snapshot': _this_dir + '/output'}
+output_bases       = {'snapshot': 'snapshot'}
+output_times       = {'snapshot': linspace(0.03, 1, 25)}
 
 # Numerical parameters
-boxsize          = 21*Mpc/0.7  # (GADGET implicitly uses length/h)
-ewald_gridsize   = 64
-softeningfactors = {'dark matter particles': 0.03}
+boxsize = 21*Mpc/0.7  # (GADGET implicitly uses length/h)
 
 # Cosmological parameters
 H0      = 70*km/s/Mpc
-Ωm      = 0.3
-ΩΛ      = 0.7
+Ωcdm    = 0.25
+Ωb      = 0.05
 a_begin = 0.02
 
-# Simulation options
-forces = {'dark matter particles': {'gravity': 'PP'}}
-
 # Debugging options
-enable_Ewald = False
+enable_class = False  # Use the same simplified Friedmann equation as GADGET
 

@@ -406,7 +406,7 @@ def loop_unswitching(lines):
             # with unswitch(n):  # With n an integer literal or expression
             #    ...
             match = re.search('with +unswitch *(\(.*\))? *:', line.strip())
-            if match:
+            if match and not line.lstrip().startswith('#'):
                 # Loop unswitching found.
                 # Determine the number of indentation levels to do
                 # loop unswitching on. This is the n in unswitch(n).
@@ -532,8 +532,8 @@ def loop_unswitching(lines):
                                     break
                     if not empty_else:
                         indentation = '    '*(unswitch_lvl + 1)
-                        if_headers.append('{}else:\n'.format(indentation))
-                        if_bodies.append(['{}    # This i an autoinserted else block\n'
+                        if_headers.append('{}else:  # This is an autoinserted else block\n'.format(indentation))
+                        if_bodies.append(['{}    # End of autoinserted else block\n'
                                           .format(indentation)])
                 # Stitch together the recorded pieces to perform
                 # the loop unswitching.
@@ -666,15 +666,19 @@ def constant_expressions(lines):
         while True:
             no_blackboard_bold_R = True
             module_scope = True
+            function_scope_indentation_level = 0
             for i, line in enumerate(lines):
                 line = line.rstrip('\n')
-                if len(line) > 0 and line[0] not in ' #':
-                    module_scope = True
-                if len(line) > 0 and line[0] != '#' and 'def ' in line:
+                if line.lstrip().startswith('def '):
                     module_scope = False
+                    function_scope_indentation_level = 4 + len(line) - len(line.lstrip())
+                elif len(line) > 0 and line[0] not in ' #':
+                    module_scope = True
+                    function_scope_indentation_level = 0
                 search = re.search(blackboard_bold_symbol + '\[.+\]', line)
                 if not search or line.replace(' ', '').startswith('#'):
                     continue
+                # Blackboard bold symbol found on this line
                 R_statement_fullmatch = search.group(0)
                 R_statement = R_statement_fullmatch[:2]
                 for c in R_statement_fullmatch[2:]:
@@ -742,10 +746,10 @@ def constant_expressions(lines):
                                         line3 = line3.rstrip('\n')
                                         line3_ori = line3
                                         line3 = ' '*(len(line3) - len(line3.lstrip()))  + line3.replace(' ', '')
-                                        if line3_ori.startswith('def '):
+                                        if line3_ori.lstrip().startswith('def '):
                                             # Function definition reached
                                             break
-                                        if indentation_level(line3_ori) == 4:
+                                        if indentation_level(line3_ori) == function_scope_indentation_level:
                                             # Upper level of function reached.
                                             # Definitions above this point does not matter.
                                             break
@@ -834,7 +838,7 @@ def constant_expressions(lines):
             # Append original line
             new_lines.append(line)
             # Detect whether we are inside a function or not
-            if line.startswith('def '):
+            if line.lstrip().startswith('def '):
                 fname = line[4:line.index('(')].lstrip()
             elif line.strip() and line[0] not in (' ', '#'):
                 fname = None
@@ -865,11 +869,57 @@ def constant_expressions(lines):
                             # Remember that this variable has been declared in this function
                             declarations_placed[fname].append(expressions_cython[e])
                     new_lines.append(indentation + expressions_cython[e] + ' = ' + expressions[e] + '\n')
+                    #print('new_lines:', new_lines[-1], 'indentation:', len(indentation), 'declaration_placements[e]:', declaration_placements[e], 'line:', line, flush=True)
                     if declaration_placements[e] == 'above':
                         new_lines.append(line)
         # Exchange the original lines with the modified lines
         lines = new_lines
     return lines
+
+
+
+def remove_duplicate_declarations(lines):
+    new_lines = []
+    in_function = False
+    for line in lines:
+        if line.startswith('def '):
+            in_function = True
+            declarations = {}
+        elif line and line[0] not in ' #\n':
+            in_function = False
+        if not in_function:
+            new_lines.append(line)
+            continue
+        if line.lstrip().startswith('cython.declare('):
+            indentation = ' '*(len(line) - len(line.lstrip()))
+            info = re.search('cython\.declare\((.*)\)', line).group(1).split('=')
+            for i, (varname, vartype) in enumerate(zip(info[:-1], info[1:])):
+                if i > 0:
+                    index = varname.rfind(',')
+                    varname = varname[(index + 1):]
+                if i < len(info) - 2:
+                    index = vartype.rfind(',')
+                    vartype = vartype[:index]
+                varname = varname.strip(' ,')
+                vartype = vartype.strip(' ,')
+                vartype_prev = declarations.get(varname)
+                if vartype_prev:
+                    vartype_bare, vartype_prev_bare = vartype, vartype_prev
+                    for char in ' ,"\'':
+                        vartype_bare      = vartype_bare     .replace(char, '')
+                        vartype_prev_bare = vartype_prev_bare.replace(char, '')
+                    if vartype_bare != vartype_prev_bare:
+                        print('Warning: {} declared as both {} and {}'
+                              .format(varname, vartype_prev, vartype),
+                              file=sys.stderr)
+                else:
+                    new_lines.append('{}cython.declare({}={})\n'
+                                     .format(indentation, varname, vartype))
+                    declarations[varname] = vartype
+        else:
+            new_lines.append(line)
+    return new_lines
+
 
 
 def cython_decorators(lines):
@@ -1194,35 +1244,69 @@ def C_casting(lines):
     new_lines = []
     # Transform to Cython syntax
     for line in lines:
-        while re.search('(^| )cast\(', line):
-            match = re.search('(^| )cast\(', line)
-            start = match.start()
-            if line[start] == ' ':
-                start += 1
-            paren = 1
-            in_quotes = [False, False]
-            for i in range(start + 5, len(line)):
-                symbol = line[i]
-                if symbol == "'":
-                    in_quotes[0] = not in_quotes[0]
-                if symbol == '"':
-                    in_quotes[1] = not in_quotes[1]
-                if symbol == '(':
-                    paren += 1
-                elif symbol == ')':
-                    paren -= 1
-                if paren == 0:
+        while True:
+            match = re.search('[^0-9a-zA-Z_]cast\(', line)
+            if not match:
+                break
+            parens = 1
+            brackets = 0
+            curlys = 0
+            for i in range(match.end(), len(line)):
+                if line[i] == '(':
+                    parens += 1
+                elif line[i] == ')':
+                    parens -= 1
+                if line[i] == '[':
+                    brackets += 1
+                elif line[i] == ']':
+                    brackets -= 1
+                if line[i] == '{':
+                    curlys += 1
+                elif line[i] == '}':
+                    curlys -= 1
+                if line[i] == ',' and parens == 1 and brackets == 0 and curlys == 0:
+                    comma = i
+                if parens == 0:
+                    end = i
+                    expression = line[match.end():comma].strip()
+                    ctype = line[(comma + 1):end].strip(' "\'')
                     break
-                if symbol == ',' and not in_quotes[0] and not in_quotes[1]:
-                    comma_index = i
-            cast_to = ('<' + line[(comma_index + 1):i]
-                       .replace("'", '').replace('"', '').strip() + '>')
-            obj_to_cast = ('(' + line[(start + 5):comma_index]
-                           + ')')
-            line = (line[:line.find('cast(')] + '(' + cast_to + obj_to_cast + ')'
-                    + line[(i + 1):])
+            line = line[:match.end() - 5] + '(<{}>({}))'.format(ctype, expression) + line[(end + 1):]
         new_lines.append(line)
     return new_lines
+
+    # new_lines = []
+    # # Transform to Cython syntax
+    # for line in lines:
+    #     while re.search('(^| )cast\(', line):
+    #         match = re.search('(^| )cast\(', line)
+    #         start = match.start()
+    #         if line[start] == ' ':
+    #             start += 1
+    #         paren = 1
+    #         in_quotes = [False, False]
+    #         for i in range(start + 5, len(line)):
+    #             symbol = line[i]
+    #             if symbol == "'":
+    #                 in_quotes[0] = not in_quotes[0]
+    #             if symbol == '"':
+    #                 in_quotes[1] = not in_quotes[1]
+    #             if symbol == '(':
+    #                 paren += 1
+    #             elif symbol == ')':
+    #                 paren -= 1
+    #             if paren == 0:
+    #                 break
+    #             if symbol == ',' and not in_quotes[0] and not in_quotes[1]:
+    #                 comma_index = i
+    #         cast_to = ('<' + line[(comma_index + 1):i]
+    #                    .replace("'", '').replace('"', '').strip() + '>')
+    #         obj_to_cast = ('(' + line[(start + 5):comma_index]
+    #                        + ')')
+    #         line = (line[:line.find('cast(')] + '(' + cast_to + obj_to_cast + ')'
+    #                 + line[(i + 1):])
+    #     new_lines.append(line)
+    # return new_lines
 
 
 
@@ -1252,18 +1336,7 @@ def find_extension_types(lines):
 def make_types(filename):
     # Dictionary mapping custom ctypes to their definiton
     # or an import of their definition.
-    custom_types = {# Function pointers
-                    'func_b_ddd':     'ctypedef bint '
-                                      '(*func_b_ddd_pxd)(double, double, double)',
-                    'func_d_d':       'ctypedef double '
-                                      '(*func_d_d_pxd)(double)',
-                    'func_d_dd':      'ctypedef double '
-                                      '(*func_d_dd_pxd)(double, double)',
-                    'func_d_ddd':     'ctypedef double '
-                                      '(*func_d_ddd_pxd)(double, double, double)',
-                    'func_dstar_ddd': 'ctypedef double* '
-                                      '(*func_dstar_ddd_pxd)(double, double, double)',
-                    # External definitions
+    custom_types = {# External definitions
                     'fftw_plan':          'cdef extern from "fft.c":\n'
                                           '    ctypedef struct fftw_plan_struct:\n'
                                           '        pass\n'
@@ -1487,11 +1560,6 @@ def make_pxd(filename):
                                         # Add spaces back to multiword argument types
                                         for t in types_with_spaces:
                                             argtype = argtype.replace(t[0], t[1])
-                                        # Add suffix _pxd to the "func_" types
-                                        if 'func_' in argtype:
-                                            argtype += '_pxd'
-                                            argtype = (argtype.replace('*', '')
-                                                       + '*'*argtype.count('*'))
                                         function_args[j] = function_args[j].strip()
                                         function_args[j] = function_args[j].strip(',')
                                         function_args[j] = function_args[j].strip()
@@ -1750,11 +1818,12 @@ else:
         lines = cython_structs(lines)
         lines = cimport_commons(lines)
         lines = cimport_function(lines)
-        lines = loop_unswitching(lines)
         lines = constant_expressions(lines)
+        lines = unicode2ASCII(lines)
+        lines = loop_unswitching(lines)
+        lines = remove_duplicate_declarations(lines)
         lines = cython_decorators(lines)
         lines = power2product(lines)
-        lines = unicode2ASCII(lines)
         lines = __init__2__cinit__(lines)
         lines = fix_addresses(lines)
         lines = malloc_realloc(lines)

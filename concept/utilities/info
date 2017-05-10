@@ -179,16 +179,20 @@ if [ "${stats}" == "False" ]; then
     "${concept}" -m "${main}"            \
                  -n 1                    \
                  -p "${params_filename}" \
+                 ${interactive_flag}     \
                  --local                 \
-                 ${pure_python_flag}
+                 ${pure_python_flag}     \
+                 ${unsafe_build_flag}
 elif [ "${stats}" == "True" ]; then
     "${concept}" -m "${main}"            \
                  -n ${nprocs}            \
                  -p "${params_filename}" \
                  -q "${queue}"           \
                  -w "${walltime}"        \
+                 ${interactive_flag}     \
                  ${local_flag}           \
-                 ${pure_python_flag}
+                 ${pure_python_flag}     \
+                 ${unsafe_build_flag}
 fi
 
 # Cleanup

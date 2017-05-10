@@ -10,71 +10,78 @@
 
 
 # Input/output
-IC_file = 'ICs/example.hdf5'  # Initial condition snapshot
-snapshot_type = 'standard'    # Type of output snapshots
-output_dirs = {               # Directories for storing output
+initial_conditions = 'ICs/realise_test.hdf5'  #'ICs/DM_000'  # Initial condition snapshot file or container of species to be generated
+snapshot_type = 'standard'               # Type of output snapshots
+output_dirs = {                          # Directories for storing output
     'snapshot' : 'output',
     'powerspec': ...,
     'render'   : ...,
                }
-output_bases = {              # File basenames of output
+output_bases = {                         # File basenames of output
     'snapshot' : 'snapshot',
     'powerspec': 'powerspec',
     'render'   : 'render',
                 }
 output_times = {
-    'a': {                    # Scale factor values at which to dump output
-        'snapshot'       : 1,
-        'powerspec'      : '',
+    'a': {                               # Scale factor values at which to dump output
+        'snapshot'       : '',
+        'powerspec'      : 0.02,
         'render'         : '',
         'terminal render': '',
           },
-    't': {                    # Cosmic times at which to dump output
+    't': {                               # Cosmic times at which to dump output
         'snapshot'       : '',
         'powerspec'      : '',
         'render'         : '',
         'terminal render': '',
           },
                 }
-powerspec_select = {          # Toggle power spectra computation for each component
+powerspec_select = {                     # Toggle power spectra computation for each component
     'all': True,
                     }
-powerspec_plot_select = {     # Toggle power spectra plotting for each component
+powerspec_plot_select = {                # Toggle power spectra plotting for each component
     'all': True,
                          }
-render_select = {             # Toggle rendering for each component
+render_select = {                        # Toggle rendering for each component
     'all': True,
                  }
-autosave = 1*hr               # How often to autosave
+autosave = 1*hr                          # How often to autosave
 
 # Numerical parameters
-boxsize          = 16*Mpc  # Linear size of the simulation box
+boxsize          = 8*Gpc   # Linear size of the simulation box
 ewald_gridsize   = 64      # Linear gridsize of the grid of Ewald corrections
-φ_gridsize       = 64      # Linear gridsize of the potential
+φ_gridsize       = 400     # Linear gridsize of the potential
 p3m_scale        = 1.25	   # The long/short-range force split scale
 p3m_cutoff       = 4.8     # Maximum reach of short-range force
 softeningfactors = {       # The amount of gravitational softening for each species
     'dark matter particles': 0.03,
+    'matter particles'     : 0.03,
                     }	
 R_tophat         = 8*Mpc   # Radius of tophat used to compute σ
 
 # Cosmology
 H0      = 70*km/(s*Mpc)  # The Hubble constant
-Ωr      = 0              # Density parameter for radiation
-Ωm      = 0.3            # Density parameter for matter
-ΩΛ      = 0.7            # Density parameter for cosmological constant
-a_begin = 0.02           # Scale factor at beginning of simulation
+Ωcdm    = 0.25           # Density parameter for cold dark matter
+Ωb      = 0.05           # Density parameter for baryonic matter
+a_begin = 0.01              # Scale factor at beginning of simulation
+#class_params = {  # Parameters to pass to CLASS
+#                'N_ur': 2.0,      # Number of massless neutrinos
+#                'N_ncdm': 1,      # Nr. of massive neutrinos
+#                'm_ncdm': 0.05,   # Mass of massive neutrinos in eV
+#                }
 
 # Physics
 forces = {  # The forces which act on each species
     'dark matter particles': {'gravity': 'pm'},
+    'matter particles'     : {'gravity': 'pm'}
           }
-w_eos = {  # Equation of state parameter for each fluid species
+w_eos = {  # Equation of state parameter for each species
     ...: ...,
          }
 
 # Simulation options
 fftw_rigor = 'measure'  # Rigor level when acquiring FFTW wisdom
+master_seed = 3         # Seed for pseudo-random numbers
 
 # Graphics
 render_colors = {                        # Render color for each component
@@ -86,12 +93,13 @@ terminal_render_colormap   = 'gnuplot2'  # The colormap to use for the terminal 
 terminal_render_resolution = 64          # The width of the terminal render
 
 # System of units
-unit_length = 'Mpc'          # Physical length corresponding to a numerical value of 1.0
-unit_time   = 'Gyr'          # Physical time   corresponding to a numerical value of 1.0
-unit_mass   = '10¹⁰ m☉'      # Physical mass   corresponding to a numerical value of 1.0
+unit_length = 'Mpc'      # Physical length corresponding to a numerical value of 1.0
+unit_time   = 'Gyr'      # Physical time   corresponding to a numerical value of 1.0
+unit_mass   = '10¹⁰ m☉'  # Physical mass   corresponding to a numerical value of 1.0
 
 # Debugging options
 enable_Ewald     = True   # Enable Ewald corrections
 enable_Hubble    = True   # Enable Hubble expansion
+enable_class     = True   # Use CLASS to compute the evolution of the background
 enable_debugging = False  # Enable debugging mode
 

@@ -31,7 +31,7 @@ from snapshot import save
 N_lin = 128
 N = N_lin**3
 mass = ϱ_mbar*boxsize**3/N
-component = Component('test particles', 'dark matter particles', N, mass)
+component = Component('test particles', 'matter particles', N, mass=mass)
 posx = empty(N)
 posy = empty(N)
 posz = empty(N)
@@ -46,9 +46,9 @@ for i in range(N_lin):
         Y = j*boxsize_over_N_lin
         for k in range(N_lin):
             Z = k*boxsize_over_N_lin
-            posx[count] = random_gaussian(X, R_tophat) % boxsize
-            posy[count] = random_gaussian(Y, R_tophat) % boxsize
-            posz[count] = random_gaussian(Z, R_tophat) % boxsize
+            posx[count] = mod(random_gaussian(X, R_tophat), boxsize)
+            posy[count] = mod(random_gaussian(Y, R_tophat), boxsize)
+            posz[count] = mod(random_gaussian(Z, R_tophat), boxsize)
             count += 1
 component.populate(posx, 'posx')
 component.populate(posy, 'posy')
@@ -58,7 +58,7 @@ component.populate(momy, 'momy')
 component.populate(momz, 'momz')
 
 # Save snapshot
-save([component], IC_file)
+save(component, initial_conditions)
 
 # Expand particle locations by a factor of 2
 posx = component.posx
@@ -71,5 +71,7 @@ for i in range(N):
 
 # Save another snapshot, this time with an enlarged boxsize,
 # matching the expanded particle locations.
-save([component], '{}_double_boxsize{}'.format(*os.path.splitext(IC_file)), {'boxsize': 2*boxsize})
+save(component,
+     '{}_double_boxsize{}'.format(*os.path.splitext(initial_conditions)),
+     {'boxsize': 2*boxsize})
 

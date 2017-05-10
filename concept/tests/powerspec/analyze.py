@@ -31,7 +31,7 @@ this_dir  = os.path.dirname(os.path.realpath(__file__))
 this_test = os.path.basename(this_dir)
 
 # Read in the particles
-component = load(IC_file, only_components=True)[0]
+component = load(initial_conditions, only_components=True)[0]
 N = component.N
 posx = component.posx
 posy = component.posy
@@ -82,7 +82,7 @@ if abs(erf(1/sqrt(2)) - sum(abs(counts_contrast) < σ)/counts_contrast.size) > 0
 # Load in σ
 powerspec_filename = '{}/{}_{}'.format(this_dir,
                                        output_bases['powerspec'],
-                                       os.path.basename(os.path.splitext(IC_file)[0]))
+                                       os.path.basename(os.path.splitext(initial_conditions)[0]))
 with open(powerspec_filename, encoding='utf-8') as powespec_file:
     search = None
     while not search:
@@ -103,10 +103,8 @@ if abs(1 - σ_concept/σ) > tol:
 powerspec_filename_single_boxsize = powerspec_filename
 powerspec_filename_double_boxsize = '{}_double_boxsize'.format(powerspec_filename)
 k_single_boxsize, power_single_boxsize, _ = np.loadtxt(powerspec_filename_single_boxsize,
-                                                       skiprows=5,
                                                        unpack=True)
 k_double_boxsize, power_double_boxsize, _ = np.loadtxt(powerspec_filename_double_boxsize,
-                                                       skiprows=5,
                                                        unpack=True)
 tol = 1e-4
 if not all(np.abs((k_single_boxsize/2 - k_double_boxsize)/k_double_boxsize) < tol):
@@ -127,7 +125,6 @@ powerspec_filename_whole_gridsize = powerspec_filename
 powerspec_filename_half_gridsize = '{}_half_gridsize'.format(powerspec_filename)
 k_whole_gridsize, power_whole_gridsize = k_single_boxsize, power_single_boxsize
 k_half_gridsize, power_half_gridsize, σ_half_gridsize = np.loadtxt(powerspec_filename_half_gridsize,
-                                                                   skiprows=5,
                                                                    unpack=True)
 if not k_whole_gridsize[0] == k_half_gridsize[0]:
     abort('The smallest k value should not depend on the gridsize. '
