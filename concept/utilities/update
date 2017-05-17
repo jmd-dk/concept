@@ -139,18 +139,41 @@ check_system_dependency "gzip" "${gzip_package}"
 check_system_dependency "tar"  "${tar_package}"
 check_system_dependency "wget" "${wget_package}"
 
-# Make backup of the current CO𝘕CEPT source code and auxiliary files
-# (but not any installed software dependencies).
-backup_dir="${top_dir}/concept_backup"
-rm -rf "${backup_dir}"
-mkdir "${backup_dir}"
+# Clean the code so that the upcoming backup only copies
+# the actual source files.
+(cd "${concept_dir}"; make clean)
+
+# Make backup of files (not directories) in the top directory
+backup_top_dir="${top_dir}/concept_backup"
+rm -rf "${backup_top_dir}"
+mkdir "${backup_top_dir}"
 for f in "${top_dir}/"*; do
     if [ -f "${f}" ]; then
-        cp "${f}" "${backup_dir}/"
+        cp "${f}" "${backup_top_dir}/"
     fi
 done
-cp "${top_dir}.paths" "${backup_dir}/"
-cp -r "${top_dir}/concept" "${backup_dir}/"
+cp "${top_dir}/.paths" "${backup_top_dir}/"
+# Make backup of the concept source code, including tests,
+# the example parameter file and the example IC file.
+concept_dirname="concept"
+backup_concept_dir="${backup_top_dir}/${concept_dirname}"
+mkdir "${backup_concept_dir}"
+for f in "${concept_dir}/"*; do
+    if [ -f "${f}" ]; then
+        cp "${f}" "${backup_concept_dir}/"
+    fi
+done
+tests_dirname="tests"
+backup_tests_dir="${backup_concept_dir}/${tests_dirname}"
+cp -r "${tests_dir}" "${backup_tests_dir}"
+params_dirname="params"
+backup_params_dir="${backup_concept_dir}/${params_dirname}"
+mkdir "${backup_params_dir}"
+cp "${params_dir}/example" "${backup_params_dir}/"
+ics_dirname="ICs"
+backup_ics_dir="${backup_concept_dir}/${ics_dirname}"
+mkdir "${backup_ics_dir}"
+cp "${ics_dir}/example.hdf5" "${backup_ics_dir}/"
 
 # Download and extract CO𝘕CEPT
 concept_url="https://github.com/jmd-dk/concept/archive/master.tar.gz"
@@ -183,7 +206,7 @@ rm -rf "${top_dir}/tmp"
 # Write out success message
 printf "
 A backup of the existing CO𝘕CEPT source code has been placed in
-\"${backup_dir}\"
+\"${backup_top_dir}\"
 "
 colorprint "$(basename "${this_file}") utility ran successfully" "green"
 
@@ -191,7 +214,7 @@ colorprint "$(basename "${this_file}") utility ran successfully" "green"
 if [ "${installer_updated}" == "yes" ]; then
     colorprint "Warning: The installer script has undergone an update.\n\
 This could mean that your CO𝘕CEPT environment is not\n\
-up to date with your CO𝘕CEPT source code" "red"
+up to date with your CO𝘕CEPT source code." "red"
 fi
 
 # For graceful exit
