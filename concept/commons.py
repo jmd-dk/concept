@@ -430,10 +430,8 @@ if not cython.compiled:
             # Allocate pointer array of pointers (e.g. double**).
             # Emulate these as lists of arrays.
             return [empty(1, dtype=sizeof(dtype[:-1]).dtype)]
-        elif dtype.startswith('func_'):
+        else:
             dtype='object'
-        elif master:
-            abort(dtype + ' not implemented as a NumPy dtype in commons.py')
         return np.array([1], dtype=dtype)
     def malloc(a):
         if isinstance(a, list):
@@ -568,8 +566,6 @@ def build_struct(**kwargs):
 # Cython imports and declarations #
 ###################################
 pxd = """
-# Get full access to all of Cython
-cimport cython
 # Import everything from cython_gsl,
 # granting access to most of GNU Scientific Library.
 from cython_gsl cimport *
@@ -915,38 +911,53 @@ machine_ϵ = np.finfo(C2np['double']).eps
 ##################
 # Physical units #
 ##################
-# Dicts relating all implemented units to the basic
+# Dict relating all implemented units to the basic
 # three units (pc, yr, m_sun). Julian years are used.
-unit_length_relations = {'pc' : 1,
-                         'kpc': 1e+3,
-                         'Mpc': 1e+6,
-                         'Gpc': 1e+9,
-                         'AU' :                π/(60*60*180),
-                         'm'  :                π/(60*60*180)/149597870700,
-                         'mm' : 1e-3          *π/(60*60*180)/149597870700,
-                         'cm' : 1e-2          *π/(60*60*180)/149597870700,
-                         'km' : 1e+3          *π/(60*60*180)/149597870700,
-                         'ly' :      299792458*π/(60*60*180)/149597870700/(1/365.25/24/60/60),
-                         'kly': 1e+3*299792458*π/(60*60*180)/149597870700/(1/365.25/24/60/60),
-                         'Mly': 1e+6*299792458*π/(60*60*180)/149597870700/(1/365.25/24/60/60),
-                         'Gly': 1e+9*299792458*π/(60*60*180)/149597870700/(1/365.25/24/60/60),
-                         }
-unit_time_relations = {'yr' :     1,
-                       'kyr':     1e+3,
-                       'Myr':     1e+6,
-                       'Gyr':     1e+9,
-                       'day':     1/365.25,
-                       'hr' :     1/365.25/24,
-                       'minutes': 1/365.25/24/60,
-                       's':       1/365.25/24/60/60,
-                       }
-unit_mass_relations = {'m_sun' : 1,
-                       'km_sun': 1e+3,
-                       'Mm_sun': 1e+6,
-                       'Gm_sun': 1e+9,
-                       'kg'    :      1/1.989e+30,
-                       'g'     : 1e-3*1/1.989e+30,
-                       }
+# Note that 'min' is not a good name for minutes,
+# as this name is already taken by the min function.
+unit_relations = {'yr':    1,
+                  'pc':    1,
+                  'm_sun': 1,
+                  }
+# Add other time units
+unit_relations['kyr'    ] = 1e+3           *unit_relations['yr'     ]
+unit_relations['Myr'    ] = 1e+6           *unit_relations['yr'     ]
+unit_relations['Gyr'    ] = 1e+9           *unit_relations['yr'     ]
+unit_relations['day'    ] = 1/365.25       *unit_relations['yr'     ]
+unit_relations['hr'     ] = 1/24           *unit_relations['day'    ]
+unit_relations['minutes'] = 1/60           *unit_relations['hr'     ]
+unit_relations['s'      ] = 1/60           *unit_relations['minutes']
+# Add other length units
+unit_relations['kpc'    ] = 1e+3           *unit_relations['pc'     ]
+unit_relations['Mpc'    ] = 1e+6           *unit_relations['pc'     ]
+unit_relations['Gpc'    ] = 1e+9           *unit_relations['pc'     ]
+unit_relations['AU'     ] = π/(60*60*180)  *unit_relations['pc'     ]
+unit_relations['m'      ] = 1/149597870700 *unit_relations['AU'     ]
+unit_relations['mm'     ] = 1e-3           *unit_relations['m'      ]
+unit_relations['cm'     ] = 1e-2           *unit_relations['m'      ]
+unit_relations['km'     ] = 1e+3           *unit_relations['m'      ]
+unit_relations['ly'     ] = ((299792458*unit_relations['m']/unit_relations['s'])
+                                           *unit_relations['yr'     ])
+unit_relations['kly'    ] = 1e+3           *unit_relations['ly'     ]
+unit_relations['Mly'    ] = 1e+6           *unit_relations['ly'     ]
+unit_relations['Gly'    ] = 1e+9           *unit_relations['ly'     ]
+# Add other mass units
+unit_relations['km_sun' ] = 1e+3           *unit_relations['m_sun'  ]
+unit_relations['Mm_sun' ] = 1e+6           *unit_relations['m_sun'  ]
+unit_relations['Gm_sun' ] = 1e+9           *unit_relations['m_sun'  ]
+unit_relations['kg'     ] = 1/1.989e+30    *unit_relations['m_sun'  ]
+unit_relations['g'      ] = 1e-3           *unit_relations['kg'     ]
+# Add energy units
+unit_relations['J'      ] = (1             *unit_relations['kg'     ]
+                                           *unit_relations['m'      ]**2
+                                           *unit_relations['s'      ]**(-2)
+                             )
+unit_relations['eV'     ] = 1.602176565e-19*unit_relations['J'      ]
+unit_relations['keV'    ] = 1e+3           *unit_relations['eV'     ]
+unit_relations['MeV'    ] = 1e+6           *unit_relations['eV'     ]
+unit_relations['GeV'    ] = 1e+9           *unit_relations['eV'     ]
+
+
 # Attempt to read in the parameter file. This is really only
 # to get any user defined units, as the parameter file will
 # be properly read in later. First construct a namespace in which the
@@ -977,9 +988,7 @@ user_params.update({# The paths dict
 # Add units to the user_params namespace.
 # These do not represent the choice of units; the names should merely
 # exist to avoid errors when reading the parameter file.
-user_params.update(unit_length_relations)
-user_params.update(unit_time_relations)
-user_params.update(unit_mass_relations)
+user_params.update(unit_relations)
 # Execute the content of the parameter file in the namespace defined
 # by user_params in order to get the user defined units.
 with contextlib.suppress(Exception):
@@ -987,47 +996,67 @@ with contextlib.suppress(Exception):
 # The names of the three fundamental units,
 # all with a numerical value of 1. If these are not defined in the
 # parameter file, give them some reasonable values.
-cython.declare(unit_length='str',
-               unit_time='str',
+cython.declare(unit_time='str',
+               unit_length='str',
                unit_mass='str',
                )
-unit_length = unformat_unit(user_params.get('unit_length', 'Mpc'))
-unit_time   = unformat_unit(user_params.get('unit_time',   'Gyr'))
-unit_mass   = unformat_unit(user_params.get('unit_mass',   '1e+10*m_sun'))
-# Construct a struct containing the values of all units.
-# Note that 'min' is not a good name for minutes,
-# as this name is already taken by the min function.
+unit_time   = unformat_unit(user_params.get('unit_time'  , 'Gyr'        ))
+unit_length = unformat_unit(user_params.get('unit_length', 'Mpc'        ))
+unit_mass   = unformat_unit(user_params.get('unit_mass'  , '1e+10*m_sun'))
+# Construct a struct containing the values of all units
 units, units_dict = build_struct(# Values of basic units,
                                  # determined from the choice of fundamental units.
-                                 pc     = ('double', 1/eval_unit(unit_length, unit_length_relations)),
-                                 yr     = ('double', 1/eval_unit(unit_time,   unit_time_relations)),
-                                 m_sun  = ('double', 1/eval_unit(unit_mass,   unit_mass_relations)),
-                                 # Prefixes of the basic units
-                                 kpc    = ('double', 'unit_length_relations["kpc"]*pc'),
-                                 Mpc    = ('double', 'unit_length_relations["Mpc"]*pc'),
-                                 Gpc    = ('double', 'unit_length_relations["Gpc"]*pc'),
-                                 kyr    = ('double', 'unit_time_relations["kyr"]*yr'),
-                                 Myr    = ('double', 'unit_time_relations["Myr"]*yr'),
-                                 Gyr    = ('double', 'unit_time_relations["Gyr"]*yr'),
-                                 km_sun = ('double', 'unit_mass_relations["km_sun"]*m_sun'),
-                                 Mm_sun = ('double', 'unit_mass_relations["Mm_sun"]*m_sun'),
-                                 Gm_sun = ('double', 'unit_mass_relations["Gm_sun"]*m_sun'),
-                                 # Non-basic units
-                                 ly      = ('double', 'unit_length_relations["ly"]*pc'),
-                                 kly     = ('double', 'unit_length_relations["kly"]*pc'),
-                                 Mly     = ('double', 'unit_length_relations["Mly"]*pc'),
-                                 Gly     = ('double', 'unit_length_relations["Gly"]*pc'),
-                                 AU      = ('double', 'unit_length_relations["AU"]*pc'),
-                                 m       = ('double', 'unit_length_relations["m"]*pc'),
-                                 mm      = ('double', 'unit_length_relations["mm"]*pc'),
-                                 cm      = ('double', 'unit_length_relations["cm"]*pc'),
-                                 km      = ('double', 'unit_length_relations["km"]*pc'),
-                                 day     = ('double', 'unit_time_relations["day"]*yr'),
-                                 hr      = ('double', 'unit_time_relations["hr"]*yr'),
-                                 minutes = ('double', 'unit_time_relations["minutes"]*yr'),
-                                 s       = ('double', 'unit_time_relations["s"]*yr'),
-                                 kg      = ('double', 'unit_mass_relations["kg"]*m_sun'),
-                                 g       = ('double', 'unit_mass_relations["g"]*m_sun'),
+                                 yr      = ('double', 1/eval_unit(unit_time  , unit_relations)),
+                                 pc      = ('double', 1/eval_unit(unit_length, unit_relations)),
+                                 m_sun   = ('double', 1/eval_unit(unit_mass  , unit_relations)),
+                                 # Other time units
+                                 kyr     = ('double', 'unit_relations["kyr"    ]*yr'      ),
+                                 Myr     = ('double', 'unit_relations["Myr"    ]*yr'      ),
+                                 Gyr     = ('double', 'unit_relations["Gyr"    ]*yr'      ),
+                                 day     = ('double', 'unit_relations["day"    ]*yr'      ),
+                                 hr      = ('double', 'unit_relations["hr"     ]*yr'      ),
+                                 minutes = ('double', 'unit_relations["minutes"]*yr'      ),
+                                 s       = ('double', 'unit_relations["s"      ]*yr'      ),
+                                 # Other length units
+                                 kpc     = ('double', 'unit_relations["kpc"    ]*pc'      ),
+                                 Mpc     = ('double', 'unit_relations["Mpc"    ]*pc'      ),
+                                 Gpc     = ('double', 'unit_relations["Gpc"    ]*pc'      ),
+                                 AU      = ('double', 'unit_relations["AU"     ]*pc'      ),
+                                 m       = ('double', 'unit_relations["m"      ]*pc'      ),
+                                 mm      = ('double', 'unit_relations["mm"     ]*pc'      ),
+                                 cm      = ('double', 'unit_relations["cm"     ]*pc'      ),
+                                 km      = ('double', 'unit_relations["km"     ]*pc'      ),
+                                 ly      = ('double', 'unit_relations["ly"     ]*pc'      ),
+                                 kly     = ('double', 'unit_relations["kly"    ]*pc'      ),
+                                 Mly     = ('double', 'unit_relations["Mly"    ]*pc'      ),
+                                 Gly     = ('double', 'unit_relations["Gly"    ]*pc'      ),
+                                 # Other mass units
+                                 km_sun  = ('double', 'unit_relations["km_sun" ]*m_sun'   ),
+                                 Mm_sun  = ('double', 'unit_relations["Mm_sun" ]*m_sun'   ),
+                                 Gm_sun  = ('double', 'unit_relations["Gm_sun" ]*m_sun'   ),
+                                 kg      = ('double', 'unit_relations["kg"     ]*m_sun'   ),
+                                 g       = ('double', 'unit_relations["g"      ]*m_sun'   ),
+                                 # Energy units
+                                 J       = ('double', ('unit_relations["J"     ]*m_sun   '
+                                                       '                        *pc**2   '
+                                                       '                        *yr**(-2)'
+                                                       )                                  ),
+                                 eV      = ('double', ('unit_relations["eV"    ]*m_sun   '
+                                                       '                        *pc**2   '
+                                                       '                        *yr**(-2)'
+                                                       )                                  ),
+                                 keV     = ('double', ('unit_relations["keV"   ]*m_sun   '
+                                                       '                        *pc**2   '
+                                                       '                        *yr**(-2)'
+                                                       )                                  ),
+                                 MeV     = ('double', ('unit_relations["MeV"   ]*m_sun   '
+                                                       '                        *pc**2   '
+                                                       '                        *yr**(-2)'
+                                                       )                                  ),
+                                 GeV     = ('double', ('unit_relations["GeV"   ]*m_sun   '
+                                                       '                        *pc**2   '
+                                                       '                        *yr**(-2)'
+                                                       )                                  ),
                                  )
 
 
@@ -1040,7 +1069,7 @@ cython.declare(light_speed='double',
                G_Newton='double',
                )
 # The speed of light in vacuum
-light_speed = 299792458*units.m/units.s
+light_speed = units.ly/units.yr
 # Reduced Planck constant
 ħ = 1.054571800e-34*units.kg*units.m**2/units.s
 # Newton's gravitational constant
@@ -1219,9 +1248,7 @@ cython.declare(# Input/output
                w_eos='dict',
                # Simlation options
                fftw_rigor='str',
-               master_seed='unsigned long int ',
-               use_φ='bint',
-               use_p3m='bint',
+               master_seed='unsigned long int',
                # Debugging options
                enable_Ewald='bint',
                enable_Hubble='bint',
@@ -1357,16 +1384,6 @@ replace_ellipsis(w_eos)
 # Simulation options
 fftw_rigor = user_params.get('fftw_rigor', 'estimate').lower()
 master_seed = int(user_params.get('master_seed', 1))
-if (   'φ_gridsize' in user_params
-    or (set(('pm', 'p3m')) & force_methods)
-    or any([output_times[time_param]['powerspec'] for time_param in ('a', 't')])):
-    use_φ = bool(user_params.get('use_φ', True))
-else:
-    use_φ = bool(user_params.get('use_φ', False))
-if 'p3m' in force_methods:
-    use_p3m = bool(user_params.get('use_p3m', True))
-else:
-    use_p3m = bool(user_params.get('use_p3m', False))
 # Graphics
 render_colors = {}
 if 'render_colors' in user_params:

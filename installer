@@ -3254,7 +3254,7 @@ utilities_dir='${utilities_dir}'
 ##########################
 # Dependency directories #
 ##########################
-# Directory of class
+# Directory of CLASS
 class_dir='${class_dir}'
 # Directory of FFTW
 fftw_dir='${fftw_dir}'

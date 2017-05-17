@@ -25,13 +25,11 @@
 from commons import *
 
 # Cython imports
-from communication import smart_mpi
 cimport('from analysis import measure')
-cimport('from communication import communicate_domain, exchange')
+cimport('from communication import communicate_domain, domain_subdivisions, exchange, smart_mpi')
 cimport('from fluid import maccormack, apply_internal_sources')
 cimport('from integration import Spline, cosmic_time, scale_factor, ȧ')
 cimport('from linear import compute_cosmo, compute_transfers, realize')
-cimport('from mesh import φ_noghosts')
 
 
 
@@ -427,6 +425,11 @@ class Component:
         self.size_noghosts = 1
         if self.representation == 'fluid':
             self.gridsize = N_or_gridsize
+            # All gridsizes should be even
+            if self.gridsize%2 != 0:
+                masterwarn('The fluid component "{}" have an odd gridsize ({}). '
+                           'Some operations may not function correctly.'
+                           .format(self.name, self.gridsize))
         else:
             self.gridsize = 1
         # Initialize the equation of state parameter w
@@ -721,12 +724,14 @@ class Component:
                     cosmoresults='object',  # CosmoResults
                     a='double',
                     # Locals
-                    N_local='Py_ssize_t',
                     N_vars='Py_ssize_t',
+                    dim='int',
+                    gridsize='Py_ssize_t',
                     i='Py_ssize_t',
                     k_gridsize='Py_ssize_t',
                     k_max='double',
                     k_min='double',
+                    shape='tuple',
                     transfer_splines='list',
                     )
     def realize(self, variables=None, transfer_spline=None, cosmoresults=None, a=-1):
@@ -751,27 +756,41 @@ class Component:
         Specify the scale factor a if you want to realize the variables
         at a time different from the present time.
         """
-        # Check that the size of the component agrees with that of the
-        # φ grid, which is necessary as we use this grid for all
-        # Fourier transforms and hence all realizations.
+        # Define the gridsize used by the realization (gridsize for
+        # fluid components and ∛N for particle components) and resize
+        # the data attributes if needed.
+        # Also do some particles-only checks.
         if self.representation == 'particles':
-            if self.N != φ_gridsize**3:
-                abort(f'Cannot perform realization of "{self.name}" with N = {self.N} '
-                      f'as it differs from φ_gridsize³ = {φ_gridsize**3}.')
-            N_local = self.N//nprocs
-            if N_local*nprocs != self.N:
-                abort(f'A φ_gridsize of {φ_gridsize} leads to {φ_gridsize}³ = {φ_gridsize**3} '
-                      f'grid points, which cannot be evenly shared among {nprocs} processes'
+            if self.N%nprocs != 0:
+                abort(f'Cannot perform realization of particle component "{self.name}" '
+                      f'with N = {self.N}, as N is not evenly divisible by {nprocs} processes.'
                       )
-            self.resize(N_local)
-            self.N_local = N_local
+            if not isint(cbrt(self.N)):
+                abort(f'Cannot perform realization of particle component "{self.name}" '
+                      f'with N = {self.N}, as N is not a cubic number.'
+                      )
+            gridsize = int(round(cbrt(self.N)))
+            self.N_local = self.N//nprocs
+            self.resize(self.N_local)
         elif self.representation == 'fluid':
-            if self.gridsize != φ_gridsize:
-                abort(f'Cannot perform realization of "{self.name}" with gridsize = {self.gridsize} '
-                      f'as it differs from φ_gridsize = {φ_gridsize}.')
-            self.resize((φ_noghosts.shape[0] - 1,
-                         φ_noghosts.shape[1] - 1,
-                         φ_noghosts.shape[2] - 1))
+            gridsize = self.gridsize
+            shape = tuple([gridsize//domain_subdivisions[dim] for dim in range(3)])
+            self.resize(shape)
+        # Check that the gridsize fulfills the requirements for FFT
+        # and therefore for realizations.
+        if gridsize%nprocs != 0:
+            abort(f'Cannot perform realization of component "{self.name}" '
+                  f'with gridsize = {gridsize}, as gridsize is not '
+                  f'evenly divisible by {nprocs} processes.'
+                  )
+        for dim in range(3):
+            if gridsize%domain_subdivisions[dim] != 0:
+                abort(f'Cannot perform realization of component "{self.name}" '
+                      f'with gridsize = {gridsize}, as the global grid of shape '
+                      f'({gridsize}, {gridsize}, {gridsize}) cannot be divided '
+                      f'according to the domain decomposition ({domain_subdivisions[0]}, '
+                      f'{domain_subdivisions[1]}, {domain_subdivisions[2]}).'
+                      )
         # Argument processing
         if transfer_spline is None and cosmoresults is not None:
             abort('The realize method was called with a transfer_spline but no cosmoresults')
@@ -811,8 +830,8 @@ class Component:
         # if not passed as arguments.
         if transfer_spline is None:
             k_min = ℝ[2*π/boxsize]
-            k_max = ℝ[2*π/boxsize]*sqrt(3*(φ_gridsize//2)**2)
-            k_gridsize = 10*φ_gridsize
+            k_max = ℝ[2*π/boxsize]*sqrt(3*(gridsize//2)**2)
+            k_gridsize = 10*gridsize
             transfer_splines, cosmoresults = compute_transfers(self,
                                                                variables,
                                                                k_min, k_max, k_gridsize,

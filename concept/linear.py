@@ -25,12 +25,9 @@
 from commons import *
 
 # Cython imports
-from communication import smart_mpi
-cimport('from communication import exchange')
+cimport('from communication import domain_layout_local_indices, exchange, get_buffer, smart_mpi')
 cimport('from integration import Spline, hubble')
-cimport('from mesh import slab, slab_size_j, slab_start_j, slabs_IFFT, slabs2φ, '
-        '                 φ_start_i, φ_start_j, φ_start_k,                      '
-        )
+cimport('from mesh import get_fftw_slab, domain_decompose, fft')
 
 
 
@@ -469,13 +466,21 @@ def k_float2str(k):
                A_s='double',
                H='double',
                J_scalargrid='double*',
+               buffer_number='Py_ssize_t',
                dim='int',
                displacement='double',
+               domain_size_i='Py_ssize_t',
+               domain_size_j='Py_ssize_t',
+               domain_size_k='Py_ssize_t',
+               domain_start_i='Py_ssize_t',
+               domain_start_j='Py_ssize_t',
+               domain_start_k='Py_ssize_t',
                f_growth='double',
                fluid_index='Py_ssize_t',
                fluidscalar='FluidScalar',
                fluidvar='object',  # np.ndarray
                fluidvar_name='str',
+               gridsize='Py_ssize_t',
                i='Py_ssize_t',
                i_global='Py_ssize_t',
                index='Py_ssize_t',
@@ -494,20 +499,25 @@ def k_float2str(k):
                ki='Py_ssize_t',
                kj='Py_ssize_t',
                kj2='Py_ssize_t',
-               kk='Py_ssize_t',  
+               kk='Py_ssize_t',
                k2='Py_ssize_t',
+               k2_max='Py_ssize_t',
                mass='double',
                mom_dim='double*',
                multi_index='tuple',
                n_s='double',
                nyquist='Py_ssize_t',
+               plane_dc='double[:, :,::1]',
+               plane_nyquist='double[:, :,::1]',
                pos_dim='double*',
                pos_gridpoint='double',
                random_im='double',
                random_re='double',
+               slab='double[:, :, ::1]',
                slab_jik='double*',
                species_class='str',
                sqrt_power='double',
+               sqrt_power_common='double[::1]',
                transfer='double',
                w='double',
                ρ_bar_a='double',
@@ -535,6 +545,17 @@ def realize(component, variable, transfer_spline, cosmoresults, a=-1):
     """
     if a == -1:
         a = universals.a
+    # Determine the gridsize of the grid used to do the realization
+    gridsize = (component.gridsize if component.representation == 'fluid'
+                                   else int(round(cbrt(component.N))))
+    if gridsize%nprocs != 0:
+        abort(f'The realization uses a gridsize of {gridsize}, '
+              f'which is not evenly divisible by {nprocs} processes.'
+              )
+    # Fetch a slab decomposed grid
+    slab = get_fftw_slab(gridsize)
+    # Get the index of the fluid variable to be realized
+    # and print out progress message.
     if component.representation == 'particles':
         # For particles, the Zeldovich approximation is used for
         # realization. This realizes both positions and momenta.
@@ -550,15 +571,18 @@ def realize(component, variable, transfer_spline, cosmoresults, a=-1):
         fluidvar_name = component.fluid_names['ordered'][fluid_index]
         masterprint(f'Realizing fluid variable {fluidvar_name} of {component.name} ...')
     # Extract some variables
-    nyquist = φ_gridsize//2
+    nyquist = gridsize//2
     species_class = component.species_class
     w = component.w(a=a)
     H = hubble(a)
     A_s = cosmoresults.A_s
     n_s = cosmoresults.n_s
     k_pivot = cosmoresults.k_pivot
-    # Fill the sqrt_power_common array with values of the common factor
+    # Fill array with values of the common factor
     # used in all realizations, regardless of the variable.
+    k2_max = 3*(gridsize//2)**2  # Max |k|² in grid units
+    buffer_number = 0
+    sqrt_power_common = get_buffer(k2_max + 1, buffer_number)
     for k2 in range(1, k2_max + 1):
         k_magnitude = ℝ[2*π/boxsize]*sqrt(k2)
         transfer = transfer_spline.eval(k_magnitude)
@@ -576,6 +600,15 @@ def realize(component, variable, transfer_spline, cosmoresults, a=-1):
     # At |k| = 0, the power should be zero, corresponding to a
     # real-space mean value of zero of the realized variable.
     sqrt_power_common[0] = 0
+    # Make the DC and Nyquist planes of random numbers,
+    # respecting the complex-conjugate symmetry. These will be
+    # allocated in full on all processes. A seed of master_seed + nprocs
+    # (and the next, master_seed + nprocs + 1) is used, as the highest
+    # process_seed will be equal to master_seed + nprocs - 1, meaning
+    # that this new seed will not collide with any of the individual
+    # process seeds.
+    plane_dc      = create_symmetric_plane(gridsize, seed=(master_seed + nprocs + 0))
+    plane_nyquist = create_symmetric_plane(gridsize, seed=(master_seed + nprocs + 1))
     # Allocate 3-vector which will store componens
     # of the k vector (grid units).
     k_gridvec = empty(3, dtype=C2np['Py_ssize_t'])
@@ -595,26 +628,26 @@ def realize(component, variable, transfer_spline, cosmoresults, a=-1):
         # regarless of the fluid variable or scalar.
         seed_rng()
         # Loop through the local j-dimension
-        for j in range(slab_size_j):
+        for j in range(ℤ[slab.shape[0]]):
             # The j-component of the wave vector (grid units).
             # Since the slabs are distributed along the j-dimension,
             # an offset must be used.
-            j_global = slab_start_j + j
-            if j_global > ℤ[φ_gridsize//2]:
-                kj = j_global - φ_gridsize
+            j_global = ℤ[slab.shape[0]*rank] + j
+            if j_global > ℤ[gridsize//2]:
+                kj = j_global - gridsize
             else:
                 kj = j_global
             kj2 = kj**2
             # Loop through the complete i-dimension
-            for i in range(φ_gridsize):
+            for i in range(gridsize):
                 # The i-component of the wave vector (grid units)
-                if i > ℤ[φ_gridsize//2]:
-                    ki = i - φ_gridsize
+                if i > ℤ[gridsize//2]:
+                    ki = i - gridsize
                 else:
                     ki = i
                 # Loop through the complete, padded k-dimension
                 # in steps of 2 (one complex number at a time).
-                for k in range(0, slab_size_padding, 2):
+                for k in range(0, ℤ[slab.shape[2]], 2):
                     # The k-component of the wave vector (grid units)
                     kk = k//2
                     # The squared magnitude of the wave vector
@@ -655,7 +688,7 @@ def realize(component, variable, transfer_spline, cosmoresults, a=-1):
                     # Draw two random numbers from a Gaussian
                     # distribution with mean 0 and spread 1.
                     # On the lowest kk (kk = 0, (DC)) and highest kk
-                    # (kk = φ_gridsize/2 (Nyquist)) planes we need to
+                    # (kk = gridsize/2 (Nyquist)) planes we need to
                     # ensure that the complex-conjugate symmetry holds.
                     if kk == 0:
                         random_re = plane_dc[j_global, i, 0]
@@ -702,7 +735,7 @@ def realize(component, variable, transfer_spline, cosmoresults, a=-1):
                                     slab_jik[1] = sqrt_power*random_im
         # Fourier transform the slabs to coordinate space.
         # Now the slabs store the realized fluid grid.
-        slabs_IFFT()
+        fft(slab, 'backward')
         # Populate the fluid grids for fluid components,
         # and create the particles via the zeldovich approximation
         # for particles.
@@ -711,7 +744,7 @@ def realize(component, variable, transfer_spline, cosmoresults, a=-1):
             # the designated fluid scalar grid. This also populates the
             # pseudo and ghost points.
             fluidscalar = fluidvar[multi_index]
-            slabs2φ(fluidscalar.grid_mv)
+            domain_decompose(slab, fluidscalar.grid_mv)
             # Transform the realized fluid variable to the actual
             # quantity used in the fluid equations in conservation form.
             if fluid_index == 0:
@@ -733,16 +766,19 @@ def realize(component, variable, transfer_spline, cosmoresults, a=-1):
             continue
         # Below follows the Zeldovich approximation
         # for particle components.
-        # Communicate the realization of the displacement field (ψ)
-        # stored in the slabs to the φ grid. This also populates the
-        # pseudo and ghost points.
+        # Domain-decompose the realization of the displacement field
+        # stored in the slabs. The resultant domain (vector) grid is
+        # denoted ψ, wheres a single component of this vector field is
+        # denoted ψ_dim.
         # Note that we could have skipped this and used the slab grid
         # directly. However, because a single component of the ψ grid
-        # (called ψ_dim below) contains the information of both the
-        # positions and momenta in the given direction, we minimize the
-        # needed communication by communicating ψ, rather than particles
-        # after the realization.
-        ψ_dim = slabs2φ()
+        # contains the information of both the positions and momenta in
+        # the given direction, we minimize the needed communication by
+        # communicating ψ, rather than the particles after
+        # the realization.
+        # Importantly, use a buffer different from the one given by
+        # buffer_number, as this is already in use by sqrt_power_common.
+        ψ_dim = domain_decompose(slab, buffer_number + 1)
         ψ_dim_noghosts = ψ_dim[2:(ψ_dim.shape[0] - 2),
                                2:(ψ_dim.shape[1] - 2),
                                2:(ψ_dim.shape[2] - 2)]
@@ -758,6 +794,12 @@ def realize(component, variable, transfer_spline, cosmoresults, a=-1):
         dim = multi_index[0]
         pos_dim = component.pos[dim]
         mom_dim = component.mom[dim]
+        domain_size_i = ψ_dim_noghosts.shape[0] - 1
+        domain_size_j = ψ_dim_noghosts.shape[1] - 1
+        domain_size_k = ψ_dim_noghosts.shape[2] - 1
+        domain_start_i = domain_layout_local_indices[0]*domain_size_i
+        domain_start_j = domain_layout_local_indices[1]*domain_size_j
+        domain_start_k = domain_layout_local_indices[2]*domain_size_k
         index = 0
         for         i in range(ℤ[ψ_dim_noghosts.shape[0] - 1]):
             for     j in range(ℤ[ψ_dim_noghosts.shape[1] - 1]):
@@ -765,14 +807,14 @@ def realize(component, variable, transfer_spline, cosmoresults, a=-1):
                     # The global x, y or z coordinate at this grid point
                     with unswitch(3):
                         if dim == 0:
-                            i_global = φ_start_i + i
-                            pos_gridpoint = i_global*boxsize/φ_gridsize
+                            i_global = domain_start_i + i
+                            pos_gridpoint = i_global*boxsize/gridsize
                         elif dim == 1:
-                            j_global = φ_start_j + j
-                            pos_gridpoint = j_global*boxsize/φ_gridsize
+                            j_global = domain_start_j + j
+                            pos_gridpoint = j_global*boxsize/gridsize
                         elif dim == 2:
-                            k_global = φ_start_k + k
-                            pos_gridpoint = k_global*boxsize/φ_gridsize
+                            k_global = domain_start_k + k
+                            pos_gridpoint = k_global*boxsize/gridsize
                     # Displace the position of particle
                     # at grid point (i, j, k).
                     displacement = ψ_dim_noghosts[i, j, k]
@@ -788,39 +830,44 @@ def realize(component, variable, transfer_spline, cosmoresults, a=-1):
     # original domain, and so we do need to do an exchange.
     if component.representation == 'particles':
         exchange(component, reset_buffers=True)
-# Allocate global array used by the realize functon
-cython.declare(k2_max='Py_ssize_t',
-               sqrt_power_common='double[::1]',
-               )
-k2_max = 3*(φ_gridsize//2)**2  # Max |k|² in grid units
-sqrt_power_common = empty(k2_max + 1, dtype=C2np['double'])
 
 # Function for creating the lower and upper Fourier xy-planes
 # with complex-conjugate symmetry.
-@cython.header(plane='double[:, :, ::1]',
+@cython.header(# Arguments
+               gridsize='Py_ssize_t',
+               seed='unsigned long int',
+               # Locals
+               plane='double[:, :, ::1]',
                i='Py_ssize_t',
                i_conj='Py_ssize_t',
                j='Py_ssize_t',
                j_conj='Py_ssize_t',
                returns='double[:, :, ::1]',
                )
-def create_symmetric_plane():
-    """It is assumed that the random number generator is correctly
-    seeded prior to calling this function.
+def create_symmetric_plane(gridsize, seed=0):
+    """If a seed is passed, the pseudo-random number generator will
+    be seeded with this seed before the creation of the plane.
     """
+    # Fetch plane if already computed
+    plane = symmetric_planes.get((gridsize, seed))
+    if plane is not None:
+        return plane
+    # Seed the pseudo-random number generator
+    if seed != 0:
+        seed_rng(seed)
     # Create the plane and populate it with Gaussian distributed
     # random numbers with mean 0 and spread 1.
-    plane = empty((φ_gridsize, φ_gridsize, 2), dtype=C2np['double'])
-    for     j in range(φ_gridsize):
-        for i in range(φ_gridsize):
+    plane = empty((gridsize, gridsize, 2), dtype=C2np['double'])
+    for     j in range(gridsize):
+        for i in range(gridsize):
             plane[j, i, 0] = random_gaussian(0, 1)
             plane[j, i, 1] = random_gaussian(0, 1)
     # Enforce the symmetry plane[k_vec] = plane[-k_vec]*,
     # where * means complex conjugation.
-    for j in range(φ_gridsize//2 + 1):
-        j_conj = 0 if j == 0 else φ_gridsize - j
-        for i in range(φ_gridsize):
-            i_conj = 0 if i == 0 else φ_gridsize - i
+    for j in range(gridsize//2 + 1):
+        j_conj = 0 if j == 0 else gridsize - j
+        for i in range(gridsize):
+            i_conj = 0 if i == 0 else gridsize - i
             if i == i_conj and j == j_conj:
                 # At origin of xy-plane.
                 # Here the value should be purely real.
@@ -828,13 +875,13 @@ def create_symmetric_plane():
             else:
                 plane[j, i, 0] = +plane[j_conj, i_conj, 0]
                 plane[j, i, 1] = -plane[j_conj, i_conj, 1]
+    # Store and return the plane
+    if seed != 0:
+        symmetric_planes[gridsize, seed] = plane
     return plane
-# Make the DC and Nyquist planes of random numbers respecting the
-# complex-conjugate symmetry, needed by the realize functon.
-cython.declare(plane_dc='double[:, :,::1]', plane_nyquist='double[:, :,::1]')
-seed_rng(master_seed + nprocs)  # Use new, common seed on all processes
-plane_dc = create_symmetric_plane()
-plane_nyquist = create_symmetric_plane()
+# Cache for symmetry planes, the key being (gridsize, seed)
+cython.declare(symmetric_planes='dict')
+symmetric_planes = {}
 
 
 

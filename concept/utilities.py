@@ -28,7 +28,6 @@ from commons import *
 # Functions from the 'analysis' and 'graphics' modules are not dumped
 # directly into the global namespace of this module, as functions with
 # identical names are defined here.
-from snapshot import load
 cimport('import analysis')
 cimport('from analysis import measure')
 cimport('from communication import domain_subdivisions, exchange')
@@ -37,7 +36,7 @@ cimport('from integration import initiate_time')
 cimport('from mesh import CIC_particles2fluid')
 cimport('from snapshot import get_snapshot_type, snapshot_extensions')
 cimport('from species import get_representation')
-cimport('from snapshot import save')
+cimport('from snapshot import load, save')
 
 
 

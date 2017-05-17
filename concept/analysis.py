@@ -25,16 +25,10 @@
 from commons import *
 
 # Cython imports
-from mesh import diff_domain
+cimport('from mesh import diff_domain')
 cimport('from communication import communicate_domain, domain_volume')
 cimport('from graphics import plot_powerspec')
-cimport('from mesh import CIC_components2slabs, '
-        '                 slab,                 '
-        '                 slab_size_j,          '
-        '                 slab_start_j,         '
-        '                 slabs_FFT,            '
-        '                 φ,                    '
-        )
+cimport('from mesh import CIC_components2φ, fft, slab_decompose')
 
 
 
@@ -72,18 +66,20 @@ cimport('from mesh import CIC_components2slabs, '
                 row_quantity='list',
                 row_type='list',
                 row_σ_tophat='list',
+                slab='double[:, :, ::1]',
                 slab_jik='double*',
                 spectrum_plural='str',
                 symmetry_multiplicity='int',
                 totmass='double',
                 Σmass='double',
                 Σmass_cache='dict',
+                φ='double[:, :, ::1]',
                 φ_Vcell='double',
                 σ_tophat='dict',
                 σ_tophat_σ='dict',
                 )
 def powerspec(components, filename):
-    global slab, mask, k_magnitudes_masked, power_N, power_dict, power_σ2_dict
+    global mask, k_magnitudes_masked, power_N, power_dict, power_σ2_dict
     # Do not compute any power spectra if
     # powerspec_select does not contain any True values.
     if not any(powerspec_select.values()):
@@ -140,8 +136,7 @@ def powerspec(components, filename):
         power    = power_dict[component.name]
         power_σ2 = power_σ2_dict[component.name]
         # We now do the CIC interpolation of the component onto a grid
-        # and perform the FFT on this grid. Here the φ grid and
-        # corresponding slabs are used.
+        # and perform the FFT on this grid. Here the φ grid is used.
         # We choose to interpolate the comoving density of the component
         # onto the grid. For particles, this means that each particle
         # contribute an amount mass/φ_Vcell, where φ_Vcell is the
@@ -156,15 +151,17 @@ def powerspec(components, filename):
                                         ('ϱ', [universals.a**(-3*component_i.w())
                                                for component_i in components]),
                                         ]
-            CIC_components2slabs(components, interpolation_quantities)
+            φ = CIC_components2φ(components, interpolation_quantities)
         else:
             interpolation_quantities = [# Particle components
                                         ('particles', [component.mass/φ_Vcell]),
                                         # Fluid components
                                         ('ϱ', [universals.a**(-3*component.w())]),
                                         ]
-            CIC_components2slabs([component], interpolation_quantities)
-        slabs_FFT()
+            φ = CIC_components2φ(components, interpolation_quantities)
+        # Fourier transform the grid
+        slab = slab_decompose(φ, prepare_fft=True)
+        fft(slab, 'forward')
         # Reset power, power multiplicity and power variance
         for k2 in range(k2_max):
             power   [k2] = 0
@@ -173,9 +170,9 @@ def powerspec(components, filename):
         # Begin loop over slab. As the first and second dimensions
         # are transposed due to the FFT, start with the j-dimension.
         nyquist = φ_gridsize//2
-        for j in range(slab_size_j):
+        for j in range(ℤ[slab.shape[0]]):
             # The j-component of the wave vector
-            j_global = slab_start_j + j
+            j_global = ℤ[slab.shape[0]*rank] + j
             if j_global > ℤ[φ_gridsize//2]:
                 kj = j_global - φ_gridsize
             else:
@@ -197,7 +194,7 @@ def powerspec(components, filename):
                 # Loop over the entire last dimension in steps of two,
                 # as contiguous pairs of elements are the real and
                 # imaginary part of the same complex number.
-                for k in range(0, slab_size_padding, 2):
+                for k in range(0, ℤ[slab.shape[2]], 2):
                     # The k-component of the wave vector
                     kk = k//2
                     # The squared magnitude of the wave vector
@@ -223,7 +220,7 @@ def powerspec(components, filename):
                     # to better (and truer) statistics. Below, the
                     # symmetry_multiplicity variable counts the number
                     # of times this grid points should be counted.
-                    if kk == 0 or kk == nyquist:  # Is it really true all but the DC and Nyquist k-planes should count double? !!!
+                    if kk == 0 or kk == nyquist:  # Is it really true that all but the DC and Nyquist z-planes should count double? !!!
                         symmetry_multiplicity = 1
                     else:
                         symmetry_multiplicity = 2
@@ -656,10 +653,6 @@ def measure(component, quantity):
             Δdiff_max_list = []
             # The grid spacing in physical units
             h = boxsize/component.gridsize
-            # The meshbuf buffer will be used for storing the
-            # backwards differentiated grid. Another grid is needed
-            # for storing the forward differentiated grid.
-            diff_forward = empty(component.shape_noghosts, dtype=C2np['double'])
             # Find the maximum discontinuity in each fluid grid
             for fluidscalar in component.iterate_fluidscalars():
                 # Store the name of the fluid scalar
@@ -674,16 +667,9 @@ def measure(component, quantity):
                 Δdiff_max = empty(3, dtype=C2np['double'])
                 diff_max = empty(3, dtype=C2np['double'])
                 for dim in range(3):
-                    # Nullify the forward diff buffer (the backward
-                    # diff buffer is really meshbuf, which will be
-                    # nullified by the diff method).
-                    diff_forward[...] = 0
-                    # Do the differentiations.
-                    # Use diff_forward as buffer for the forwards
-                    # difference and meshbuf (here called diff_backward)
-                    # as buffer for the backwards dfifference.
-                    diff_forward  = diff_domain(fluidscalar.grid_mv, dim, h, diff_forward, order=1, direction='forward')
-                    diff_backward = diff_domain(fluidscalar.grid_mv, dim, h, None,         order=1, direction='backward')
+                    # Do the differentiations
+                    diff_forward  = diff_domain(fluidscalar.grid_mv, dim, h, 0, order=1, direction='forward')
+                    diff_backward = diff_domain(fluidscalar.grid_mv, dim, h, 1, order=1, direction='backward')
                     # Find the largest difference between the results of the
                     # forward and backward difference,
                     Δdiff_max_dim = 0
