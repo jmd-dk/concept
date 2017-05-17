@@ -25,14 +25,11 @@
 from commons import *
 
 # Cython imports
-from mesh import diff_domain
 cimport('from communication import sendrecv_component')
-cimport('from mesh import CIC_components2slabs')
-cimport('from mesh import slab_size_j, slab_start_j, slabs_FFT, slabs_IFFT, slabs2φ')
+cimport('from mesh import CIC_components2φ, diff_domain, domain_decompose, fft, slab_decompose')
 # Import interactions defined in other modules
 cimport('from gravity import *')
-
-# DELETE WHEN DONE
+# DELETE WHEN DONE with gravity_old.py !!!
 cimport('from gravity_old import build_φ, p3m, pm, pp')
 
 
@@ -263,8 +260,8 @@ def particle_mesh(receivers, suppliers, ᔑdt, potential, potential_name,
                quantities='list',
                potential='func_potential',
                # Locals
-               FFT_normalization_factor='double',
                double_deconv='double',
+               fft_normalization_factor='double',
                i='Py_ssize_t',
                j='Py_ssize_t',
                j_global='Py_ssize_t',
@@ -308,19 +305,20 @@ def construct_potential(components, quantities, potential):
     in compiled mode anyway).
     """
     # CIC interpolate the particles/fluid elements onto the slabs
-    slab = CIC_components2slabs(components, quantities)
+    φ = CIC_components2φ(components, quantities)
+    slab = slab_decompose(φ, prepare_fft=True)
     # Do forward Fourier transform on the slabs
     # containing the density field.
-    slabs_FFT()
+    fft(slab, 'forward')
     # Multiplicative factor needed after a forward and a backward
     # Fourier transformation.
-    FFT_normalization_factor = 1/float(φ_gridsize)**3
+    fft_normalization_factor = 1/float(φ_gridsize)**3
     # Loop through the local j-dimension
-    for j in range(slab_size_j):
+    for j in range(ℤ[slab.shape[0]]):
         # The j-component of the wave vector (grid units).
         # Since the slabs are distributed along the j-dimension,
         # an offset must be used.
-        j_global = slab_start_j + j
+        j_global = ℤ[slab.shape[0]*rank] + j
         if j_global > ℤ[φ_gridsize//2]:
             kj = j_global - φ_gridsize
         else:
@@ -340,7 +338,7 @@ def construct_potential(components, quantities, potential):
             reciprocal_sqrt_deconv_ij = sinc(ki*ℝ[π/φ_gridsize])*reciprocal_sqrt_deconv_j
             # Loop through the complete, padded k-dimension
             # in steps of 2 (one complex number at a time).
-            for k in range(0, slab_size_padding, 2):
+            for k in range(0, ℤ[slab.shape[2]], 2):
                 # The k-component of the wave vector (grid units)
                 kk = k//2
                 # The squared magnitude of the wave vector (grid units)
@@ -376,16 +374,16 @@ def construct_potential(components, quantities, potential):
                 # - Multiply by double_deconv, taking care of the
                 #   deconvolution needed due to the
                 #   two CIC-interpolations.
-                # - Multiply by FFT_normalization_factor, needed to
+                # - Multiply by fft_normalization_factor, needed to
                 #   normalize the grid values after a forwards and a
                 #   backwards Fourier transformation.
-                slab_jik[0] *= ℝ[potential_factor*double_deconv*FFT_normalization_factor]
-                slab_jik[1] *= ℝ[potential_factor*double_deconv*FFT_normalization_factor]
+                slab_jik[0] *= ℝ[potential_factor*double_deconv*fft_normalization_factor]
+                slab_jik[1] *= ℝ[potential_factor*double_deconv*fft_normalization_factor]
     # Fourier transform the slabs back to coordinate space.
     # Now the slabs store potential values.
-    slabs_IFFT()
+    fft(slab, 'backward')
     # Communicate the potential stored in the slabs to φ
-    φ = slabs2φ()  # This also populates pseudo and ghost points
+    domain_decompose(slab, φ)  # This also populates pseudo and ghost points
     # Return the potential grid (though this is a global and is often
     # imported directly into other modules).
     return φ

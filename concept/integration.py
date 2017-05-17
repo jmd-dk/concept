@@ -25,7 +25,7 @@
 from commons import *
 
 # Cython imports
-from communication import smart_mpi
+cimport('from communication import smart_mpi')
 
 
 

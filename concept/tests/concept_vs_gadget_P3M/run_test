@@ -52,11 +52,10 @@ echo "$(cat "${this_dir}/params")
 output_dirs  = {'snapshot': '${this_dir}'}
 output_bases = {'snapshot': 'IC'}
 output_times = {'snapshot': a_begin}
-φ_gridsize = 8
 initial_conditions = {'name'   : 'GADGET halos',
                       'species': 'matter particles',
+                      'N'      : 8**3,
                       }
-use_p3m = False
 " > "${this_dir}/ic.params"
 "${concept}" -n 1                       \
              -p "${this_dir}/ic.params" \

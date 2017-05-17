@@ -74,8 +74,6 @@ for pure_python_flag in "--pure-python" ""; do
                  --local
 done
 
-
-
 # Test ran successfully. Deactivate traps.
 trap : 0
 

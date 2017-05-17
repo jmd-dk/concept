@@ -25,100 +25,16 @@
 from commons import *
 
 # Cython imports
-from communication import smart_mpi
 cimport('from communication import communicate_domain,                             '
+        '                          domain_layout_local_indices,                    '
+        '                          domain_size_x,  domain_size_y,  domain_size_z,  '
+        '                          domain_start_x, domain_start_y, domain_start_z, '
+        '                          domain_subdivisions,                            '
+        '                          get_buffer,                                     '
         '                          partition,                                      '
         '                          rank_neighboring_domain,                        '
         '                          smart_mpi,                                      '
-        '                          domain_layout_local_indices,                    '
-        '                          domain_subdivisions,                            '
-        '                          domain_size_x,  domain_size_y,  domain_size_z,  '
-        '                          domain_start_x, domain_start_y, domain_start_z, '
-        '                          domain_volume,                                  '
         )
-
-
-
-# Separate but roughly equivalent imports in pure Python and Cython
-if not cython.compiled:
-    # Emulate FFTW's fftw_execute in pure Python
-    def fftw_execute(plan):
-        # The pure Python FFT implementation is serial.
-        # Every process computes the entire FFT of the temporary
-        # varaible φ_global_pure_python.
-        φ_global_pure_python = empty((φ_gridsize, φ_gridsize, slab_size_padding))
-        Allgatherv(slab, φ_global_pure_python)
-        if plan == plan_forward:
-            # Delete the padding on last dimension
-            for i in range(slab_size_padding - φ_gridsize):
-                φ_global_pure_python = np.delete(φ_global_pure_python, -1, axis=2)
-            # Do real transform via NumPy
-            φ_global_pure_python = np.fft.rfftn(φ_global_pure_python)
-            # FFTW transposes the first two dimensions
-            φ_global_pure_python = φ_global_pure_python.transpose([1, 0, 2])
-            # FFTW represents the complex array by doubles only
-            tmp = empty((φ_gridsize, φ_gridsize, slab_size_padding))
-            for i in range(slab_size_padding):
-                if i % 2:
-                    tmp[:, :, i] = φ_global_pure_python.imag[:, :, i//2]
-                else:
-                    tmp[:, :, i] = φ_global_pure_python.real[:, :, i//2]
-            φ_global_pure_python = tmp
-            # As in FFTW, distribute the slabs along the y-dimension
-            # (which is the first dimension now, due to transposing).
-            slab[...] = φ_global_pure_python[slab_start_j:(slab_start_j + slab_size_j), :, :] 
-        elif plan == plan_backward:
-            # FFTW represents the complex array by doubles only.
-            # Go back to using complex entries.
-            tmp = zeros((φ_gridsize, φ_gridsize, slab_size_padding//2), dtype='complex128')
-            for i in range(slab_size_padding):
-                if i % 2:
-                    tmp[:, :, i//2] += 1j*φ_global_pure_python[:, :, i]
-                else:
-                    tmp[:, :, i//2] += φ_global_pure_python[:, :, i]
-            φ_global_pure_python = tmp
-            # FFTW transposes the first
-            # two dimensions back to normal.
-            φ_global_pure_python = φ_global_pure_python.transpose([1, 0, 2])
-            # Do real inverse transform via NumPy
-            φ_global_pure_python = np.fft.irfftn(φ_global_pure_python, s=[φ_gridsize]*3)
-            # Remove the autoscaling provided by NumPy
-            φ_global_pure_python *= φ_gridsize**3
-            # Add padding on last dimension, as in FFTW
-            padding = empty((φ_gridsize,
-                             φ_gridsize,
-                             slab_size_padding - φ_gridsize,
-                             ))
-            φ_global_pure_python = np.concatenate((φ_global_pure_python, padding), axis=2)
-            # As in FFTW, distribute the slabs along the x-dimension
-            slab[...] = φ_global_pure_python[slab_start_i:(slab_start_i + slab_size_i), :, :]
-else:
-    # Lines in triple quotes will be executed in the .pyx file
-    """
-    # FFT functionality via FFTW from fft.c
-    cdef extern from "fft.c":
-        # The fftw_plan type
-        ctypedef struct fftw_plan_struct:
-            pass
-        ctypedef fftw_plan_struct *fftw_plan
-        # The returned struct of fftw_setup
-        struct fftw_return_struct:
-            ptrdiff_t gridsize_local_i
-            ptrdiff_t gridsize_local_j
-            ptrdiff_t gridstart_local_i
-            ptrdiff_t gridstart_local_j
-            double* grid
-            fftw_plan plan_forward
-            fftw_plan plan_backward
-        # Functions
-        fftw_return_struct fftw_setup(ptrdiff_t gridsize_i,
-                                      ptrdiff_t gridsize_j,
-                                      ptrdiff_t gridsize_k,
-                                      char*     rigor)
-        void fftw_execute(fftw_plan plan)
-        void fftw_clean(double* grid, fftw_plan plan_forward,
-                                      fftw_plan plan_backward)
-    """
 
 
 
@@ -558,9 +474,10 @@ def CIC_components2domain_grid(components, domain_grid, quantities):
     quantities = [('particles', [m₁/Vcell, m₂/Vcell, ..., mₙ/Vcell]),
                   ('ϱ', [a**(-3*w₁), a**(-3*w₂), ..., a**(-3*wₙ))]],
     where mᵢ are the i'th mass and Vcell is the (comoving) volume of a
-    single cell of the φ grid. The order of the elements in the lists
-    should match the order of components, and so n = len(components)
-    even though both particle and fluid components are present.
+    single cell of the domain grid. The order of the elements in the
+    lists should match the order of components,
+    and so n = len(components) even though both
+    particle and fluid components are present.
     """
     # Transform the supplied quantities so that it is a list of tuples
     # of the form (str, np.ndarray), where the array is of the same
@@ -571,7 +488,8 @@ def CIC_components2domain_grid(components, domain_grid, quantities):
             quantities[i] = (quantity_raw, ones(len(components), dtype=C2np['double']))
         elif len(quantity_raw) == 2:
             try:
-                quantities[i] = (quantity_raw[0], asarray([float(quantity_raw[1])]*len(components)))
+                quantities[i] = (quantity_raw[0],
+                                 asarray([float(quantity_raw[1])]*len(components)))
             except:
                 quantities[i] = (quantity_raw[0], asarray(quantity_raw[1]))
         else:
@@ -1007,110 +925,273 @@ def CIC_particles2fluid(component):
     # Return the number of fluid elements not interpolated to
     return N_vacuum
 
-# Function for CIC interpolating components to the slabs
-@cython.header(components='list',
+# Function for CIC interpolating components to the φ grid
+@cython.header(# Arguments
+               components='list',
                quantities='list',
+               # Locals
+               φ='double[:, :, ::1]',
                returns='double[:, :, ::1]',
                )
-def CIC_components2slabs(components, quantities):
-    """First the components are interpolated onto the φ grid and then
-    these grid values are communicated to the slabs.
-    Exactly what quantities of the components are interpolated is
-    determined by the quantities argument. For details on this argument,
+def CIC_components2φ(components, quantities):
+    """Exactly what quantities of the components are interpolated to
+    the global φ grid is determined by the quantities argument.
+    For details on this argument,
     see the CIC_components2domain_grid function.
     """
-    # Nullify the slab and φ grid
-    slab[...] = 0
-    φ[...] = 0
-    # Interpolate component coordinates weighted by their masses to φ
+    # If φ_gridsize is illegal, abort now
+    if φ_illegal:
+        abort(φ_illegal)
+    # Fetch the φ grid
+    φ = get_buffer(φ_shape, 'φ', nullify=True)
+    # Interpolate component coordinates
+    # weighted by the given quantities to φ.
     CIC_components2domain_grid(components, φ, quantities)
-    # Communicate the interpolated data in φ into the slabs
-    φ2slabs()
-    return slab
+    return φ
+# Check that φ_gridsize fulfills the requirements for FFT.
+# If not, the reason why will be stored in φ_illegal.
+cython.declare(φ_illegal='str')
+φ_illegal = ''
+if φ_gridsize%nprocs != 0:
+    φ_illegal = f'A φ_gridsize = {φ_gridsize} cannot be evenly divided by {nprocs} processes.'            
+else:
+    if (   φ_gridsize%domain_subdivisions[0] != 0
+        or φ_gridsize%domain_subdivisions[1] != 0
+        or φ_gridsize%domain_subdivisions[2] != 0
+        ):
+        φ_illegal = (f'As φ_gridsize = {φ_gridsize}, the global φ grid have a shape of'
+                     f'({φ_gridsize}, {φ_gridsize}, {φ_gridsize}), which cannot be divided '
+                     f'according to the domain decomposition ({domain_subdivisions[0]}, '
+                     f'{domain_subdivisions[1]}, {domain_subdivisions[2]}).'
+                     )
+if φ_gridsize%2 != 0:
+    masterwarn(f'As φ_gridsize = {φ_gridsize} is odd, some operations may not function correctly.')
+# The shape of the domain φ grid, including pseudo and ghost points
+cython.declare(φ_shape='tuple')
+φ_shape = tuple([φ_gridsize//domain_subdivisions[dim] + 1 + 2*2 for dim in range(3)])
 
-# Function for transfering the interpolated data in φ to the slabs
-@cython.header(# Locals
-               ℓ='int',
-               request='object',  # mpi4py.MPI.Request object
-               )
-def φ2slabs():
-    # Communicate the interpolated φ to the slabs
-    for ℓ in range(N_φ2slabs_communications):
-        # Send part of the local domain
-        # grid to the corresponding process.
-        if ℓ < slabs2φ_sendrecv_ranks.shape[0]:
-            # A non-blocking send is used, because the communication
-            # is not pairwise.
-            # Since the slabs extend throughout the entire yz-plane,
-            # we should send the entire yz-part of φ
-            # (excluding ghost and pseudo points).
-            request = smart_mpi(φ_noghosts[φ_sendrecv_i_start[ℓ]:φ_sendrecv_i_end[ℓ],
-                                           :φ_size_j,
-                                           :φ_size_k],
-                                dest=slabs2φ_sendrecv_ranks[ℓ],
-                                mpifun='Isend')
-        # The lower ranks storing the slabs receives the message.
-        # In the x-dimension, the slabs are always thinner than (or at
-        # least as thin as) the domain.
-        if ℓ < φ2slabs_recvsend_ranks.shape[0]:
-            smart_mpi(slab[:,
-                           slab_sendrecv_j_start[ℓ]:slab_sendrecv_j_end[ℓ],
-                           slab_sendrecv_k_start[ℓ]:slab_sendrecv_k_end[ℓ]],
-                      source=φ2slabs_recvsend_ranks[ℓ],
-                      mpifun='Recv')
-        # Wait for the non-blockind send to be complete before
-        # continuing. Otherwise, data in the send buffer - which is
-        # still in use by the non-blocking send - might get overwritten
-        # by the next (non-blocking) send.
-        request.wait()
-
-# Function for transfering the data in the slabs to φ
+# Function that compute a lot of information needed by the
+# slab_decompose and domain_decompose functions.
 @cython.header(# Arguments
                domain_grid='double[:, :, ::1]',
+               slab='double[:, :, ::1]',
                # Locals
+               N_domain2slabs_communications='Py_ssize_t',
+               domain_end_i='Py_ssize_t',
+               domain_end_j='Py_ssize_t',
+               domain_end_k='Py_ssize_t',
                domain_grid_noghosts='double[:, :, :]',
-               request='object',  # mpi4py.MPI.Request
-               ℓ='int',
-               returns='double[:, :, ::1]',
+               domain_grid_shape='tuple',
+               domain_sendrecv_i_end='int[::1]',
+               domain_sendrecv_i_start='int[::1]',
+               domain_size_i='Py_ssize_t',
+               domain_size_j='Py_ssize_t',
+               domain_size_k='Py_ssize_t',
+               domain_start_i='Py_ssize_t',
+               domain_start_j='Py_ssize_t',
+               domain_start_k='Py_ssize_t',
+               domain2slabs_recvsend_ranks='int[::1]',
+               index='Py_ssize_t',
+               info='tuple',
+               rank_recv='int',
+               rank_send='int',
+               recvtuple='tuple',
+               sendtuple='tuple',
+               slab_sendrecv_j_end='int[::1]',
+               slab_sendrecv_j_start='int[::1]',
+               slab_sendrecv_k_end='int[::1]',
+               slab_sendrecv_k_start='int[::1]',
+               slab_shape='tuple',
+               slab_size_i='Py_ssize_t',
+               slabs2domain_sendrecv_ranks='int[::1]',
+               ℓ='Py_ssize_t',
+               returns='tuple',
                )
-def slabs2φ(domain_grid=None):
-    # If no domain grid is passed, use the φ grid.
-    if domain_grid is None:
-        domain_grid = φ
-    elif (   domain_grid.shape[0] != φ.shape[0]
-          or domain_grid.shape[1] != φ.shape[1]
-          or domain_grid.shape[2] != φ.shape[2]
-          ):
-        abort('The slabs2φ function was called with a grid of shape '
-              '{}⨉{}⨉{}, which is different from the φ grid (shape {}⨉{}⨉{})'
-              .format(domain_grid.shape[0], domain_grid.shape[1], domain_grid.shape[2],
-                      φ          .shape[0], φ          .shape[1], φ          .shape[2])
-              )
+def prepare_decomposition(domain_grid, slab):
+    # Simply look up and return the needed information
+    # if previously computed.
+    domain_grid_shape = asarray(domain_grid).shape
+    slab_shape = asarray(slab).shape
+    info = decomposition_info.get((domain_grid_shape, slab_shape))
+    if info:
+        return info
+    # Memoryview of the domain grid without the ghost layers
+    domain_grid_noghosts = domain_grid[2:(domain_grid.shape[0] - 2),
+                                       2:(domain_grid.shape[1] - 2),
+                                       2:(domain_grid.shape[2] - 2),
+                                       ]
+    # The size (number of grid points) of the truly local part of the
+    # domain grid, excluding both ghost layers and pseudo points,
+    # for each dimension.
+    domain_size_i = domain_grid_noghosts.shape[0] - 1
+    domain_size_j = domain_grid_noghosts.shape[1] - 1
+    domain_size_k = domain_grid_noghosts.shape[2] - 1
+    # The global start and end indices of the local domain
+    # in the global grid.
+    domain_start_i = domain_layout_local_indices[0]*domain_size_i
+    domain_start_j = domain_layout_local_indices[1]*domain_size_j
+    domain_start_k = domain_layout_local_indices[2]*domain_size_k
+    domain_end_i = domain_start_i + domain_size_i
+    domain_end_j = domain_start_j + domain_size_j
+    domain_end_k = domain_start_k + domain_size_k
+    # When in real space, the slabs are distributed over the first
+    # dimension. Give the size of the slab in this dimension a name.
+    slab_size_i = slab.shape[0]
+    # Find local i-indices to send and to which process by
+    # shifting a piece of the number line in order to match
+    # the communication pattern used.
+    domain_sendrecv_i_start = np.roll(asarray([ℓ - domain_start_i
+                                               for ℓ in range(domain_start_i,
+                                                               domain_end_i,
+                                                               slab_size_i)
+                                               ], dtype=C2np['int']),
+                                      -rank)
+    domain_sendrecv_i_end = np.roll(asarray([ℓ - domain_start_i + slab_size_i
+                                             for ℓ in range(domain_start_i,
+                                                             domain_end_i,
+                                                             slab_size_i)
+                                             ], dtype=C2np['int']),
+                                    -rank)
+    slabs2domain_sendrecv_ranks = np.roll(asarray([ℓ//slab_size_i
+                                                  for ℓ in range(domain_start_i, 
+                                                                  domain_end_i,
+                                                                  slab_size_i)],
+                                                  dtype=C2np['int']),
+                                     -rank)
+    # Communicate the start and end (j, k)-indices of the slab,
+    # where parts of the local domains should be received into.
+    slab_sendrecv_j_start       = empty(nprocs, dtype=C2np['int'])
+    slab_sendrecv_k_start       = empty(nprocs, dtype=C2np['int'])
+    slab_sendrecv_j_end         = empty(nprocs, dtype=C2np['int'])
+    slab_sendrecv_k_end         = empty(nprocs, dtype=C2np['int'])
+    domain2slabs_recvsend_ranks = empty(nprocs, dtype=C2np['int'])
+    index = 0
+    for ℓ in range(nprocs):
+        # Process ranks to send/receive to/from
+        rank_send = mod(rank + ℓ, nprocs)
+        rank_recv = mod(rank - ℓ, nprocs)
+        # Send the global y and z start and end indices of the domain
+        # to be send, if anything should be send to process rank_send.
+        # Otherwise send None.
+        sendtuple = ((domain_start_j, domain_start_k, domain_end_j, domain_end_k)
+                     if rank_send in asarray(slabs2domain_sendrecv_ranks) else None)
+        recvtuple = sendrecv(sendtuple, dest=rank_send, source=rank_recv)
+        if recvtuple is not None:
+            slab_sendrecv_j_start[index]       = recvtuple[0]
+            slab_sendrecv_k_start[index]       = recvtuple[1]
+            slab_sendrecv_j_end[index]         = recvtuple[2]
+            slab_sendrecv_k_end[index]         = recvtuple[3]
+            domain2slabs_recvsend_ranks[index] = rank_recv
+            index += 1
+    # Cut off the tails
+    slab_sendrecv_j_start = slab_sendrecv_j_start[:index]
+    slab_sendrecv_k_start = slab_sendrecv_k_start[:index]
+    slab_sendrecv_j_end = slab_sendrecv_j_end[:index]
+    slab_sendrecv_k_end = slab_sendrecv_k_end[:index]
+    domain2slabs_recvsend_ranks = domain2slabs_recvsend_ranks[:index]
+    # The maximum number of communications it takes to communicate
+    # the domain grid to the slabs (or vice versa).
+    N_domain2slabs_communications = np.max([slabs2domain_sendrecv_ranks.shape[0],
+                                            domain2slabs_recvsend_ranks.shape[0]])
+    # Store and return all the resultant information,
+    # needed for communicating between the domain and the slab.
+    info = (N_domain2slabs_communications,
+            domain2slabs_recvsend_ranks,
+            slabs2domain_sendrecv_ranks,
+            domain_sendrecv_i_start,
+            domain_sendrecv_i_end,
+            slab_sendrecv_j_start,
+            slab_sendrecv_j_end,
+            slab_sendrecv_k_start,
+            slab_sendrecv_k_end,
+            )
+    decomposition_info[domain_grid_shape, slab_shape] = info
+    return info
+# Cache storing results of the prepare_decomposition function.
+# The keys have the format (domain_grid_shape, slab_shape).
+cython.declare(decomposition_info='dict')
+decomposition_info = {}
+
+# Function for transfering data from slabs to domain grids
+@cython.pheader(# Arguments
+                slab='double[:, :, ::1]',
+                domain_grid_or_buffer_name='object',  # double[:, :, ::1], int or str
+                # Locals
+                N_domain2slabs_communications='Py_ssize_t',
+                buffer_name='object',  # int or str
+                domain_grid='double[:, :, ::1]',
+                domain_grid_noghosts='double[:, :, :]',
+                domain_sendrecv_i_end='int[::1]',
+                domain_sendrecv_i_start='int[::1]',
+                domain2slabs_recvsend_ranks='int[::1]',
+                gridsize='Py_ssize_t',
+                request='object',  # mpi4py.MPI.Request
+                shape='tuple',
+                slab_sendrecv_j_end='int[::1]',
+                slab_sendrecv_j_start='int[::1]',
+                slab_sendrecv_k_end='int[::1]',
+                slab_sendrecv_k_start='int[::1]',
+                slabs2domain_sendrecv_ranks='int[::1]',
+                ℓ='Py_ssize_t',
+                returns='double[:, :, ::1]',
+                )
+def domain_decompose(slab, domain_grid_or_buffer_name=0):
+    if slab.shape[0] > slab.shape[1]:
+        masterwarn('domain_decompose was called with a slab that appears to be transposed, '
+                   'i.e. in Fourier space.')
+    # Determine the correct shape of the domain grid corresponding to
+    # the passed slab.
+    gridsize = slab.shape[1]
+    shape = tuple([gridsize//domain_subdivisions[dim] + 1 + 2*2 for dim in range(3)])
+    # If no domain grid is passed, fetch a buffer of the right shape
+    if isinstance(domain_grid_or_buffer_name, (int, str)):
+        buffer_name = domain_grid_or_buffer_name
+        domain_grid = get_buffer(shape, buffer_name)
+    else:
+        domain_grid = domain_grid_or_buffer_name
+        if asarray(domain_grid).shape != shape:
+            abort('The slab and domain grid passed to domain_decompose '
+                  'have incompatible shapes: {}, {}.'
+                  .format(asarray(slab).shape, asarray(domain_grid).shape)
+                  )
     domain_grid_noghosts = domain_grid[2:(domain_grid.shape[0] - 2),
                                        2:(domain_grid.shape[1] - 2),
                                        2:(domain_grid.shape[2] - 2)]
+    # Compute needed communication variables
+    (N_domain2slabs_communications,
+     domain2slabs_recvsend_ranks,
+     slabs2domain_sendrecv_ranks,
+     domain_sendrecv_i_start,
+     domain_sendrecv_i_end,
+     slab_sendrecv_j_start,
+     slab_sendrecv_j_end,
+     slab_sendrecv_k_start,
+     slab_sendrecv_k_end,
+     ) = prepare_decomposition(domain_grid, slab)
     # Communicate the slabs to the domain grid
-    for ℓ in range(N_φ2slabs_communications):
+    for ℓ in range(N_domain2slabs_communications):
         # The lower ranks storing the slabs sends part of their slab
-        if ℓ < φ2slabs_recvsend_ranks.shape[0]:
+        if ℓ < domain2slabs_recvsend_ranks.shape[0]:
             # A non-blocking send is used, because the communication
             # is not pairwise.
             # In the x-dimension, the slabs are always thinner than (or
             # at least as thin as) the domain.
             request = smart_mpi(slab[:,
                                      slab_sendrecv_j_start[ℓ]:slab_sendrecv_j_end[ℓ],
-                                     slab_sendrecv_k_start[ℓ]:slab_sendrecv_k_end[ℓ]],
-                                dest=φ2slabs_recvsend_ranks[ℓ],
+                                     slab_sendrecv_k_start[ℓ]:slab_sendrecv_k_end[ℓ],
+                                     ],
+                                dest=domain2slabs_recvsend_ranks[ℓ],
                                 mpifun='Isend')
         # The corresponding process receives the message.
         # Since the slabs extend throughout the entire yz-plane,
         # we receive into the entire yz-part of the domain grid
         # (excluding ghost and pseudo points).
-        if ℓ < slabs2φ_sendrecv_ranks.shape[0]:
-            smart_mpi(domain_grid_noghosts[φ_sendrecv_i_start[ℓ]:φ_sendrecv_i_end[ℓ],
-                                           :φ_size_j,
-                                           :φ_size_k],
-                      source=slabs2φ_sendrecv_ranks[ℓ],
+        if ℓ < slabs2domain_sendrecv_ranks.shape[0]:
+            smart_mpi(domain_grid_noghosts[domain_sendrecv_i_start[ℓ]:domain_sendrecv_i_end[ℓ],
+                                           :ℤ[domain_grid_noghosts.shape[1] - 1],
+                                           :ℤ[domain_grid_noghosts.shape[2] - 1],
+                                           ],
+                      source=slabs2domain_sendrecv_ranks[ℓ],
                       mpifun='Recv')
         # Wait for the non-blockind send to be complete before
         # continuing. Otherwise, data in the send buffer - which is
@@ -1124,38 +1205,400 @@ def slabs2φ(domain_grid=None):
     # Also populate the ghost layers of the domain grid.
     communicate_domain(domain_grid, mode='populate')
     return domain_grid
-    
 
-# Function performing a forward Fourier transformation of the slabs
-@cython.header()
-def slabs_FFT():
-    """Fourier transform the slabs forwards from real to Fourier space.
-    Note that this is an unnormalized transform, as defined by
-    FFTW. To do the normalization, divide all elements of the slab
-    by φ_gridsize**3. This is only needed for this forward transform,
-    not for the backward (inverse) transform.
+# Function for transfering data from domain grids to slabs
+@cython.pheader(# Arguments
+                domain_grid='double[:, :, ::1]',
+                slab_or_buffer_name='object',  # double[:, :, ::1], int or str
+                prepare_fft='bint',
+                # Locals
+                N_domain2slabs_communications='Py_ssize_t',
+                buffer_name='object',  # int or str
+                domain_grid_noghosts='double[:, :, :]',
+                domain_sendrecv_i_end='int[::1]',
+                domain_sendrecv_i_start='int[::1]',
+                domain2slabs_recvsend_ranks='int[::1]',
+                gridsize='Py_ssize_t',
+                request='object',  # mpi4py.MPI.Request object
+                shape='tuple',
+                slab='double[:, :, ::1]',
+                slab_sendrecv_j_end='int[::1]',
+                slab_sendrecv_j_start='int[::1]',
+                slab_sendrecv_k_end='int[::1]',
+                slab_sendrecv_k_start='int[::1]',
+                slabs2domain_sendrecv_ranks='int[::1]',
+                ℓ='Py_ssize_t',
+                returns='double[:, :, ::1]',
+                )
+def slab_decompose(domain_grid, slab_or_buffer_name=0, prepare_fft=False):
+    """This function communicates a global grid decomposed into domain
+    grids into slabs. If an existing slab grid should be used it can be
+    passed as the second argument. Alternatively, if a slab grid should
+    be fetched from elsewhere, its name should be specified as the
+    second argument. If FFT's are to be carried out on the slab,
+    you must give a buffer name as the second argument and specify
+    prepare_fft=True, in which case the slab will be created via FFTW.
     """
-    fftw_execute(plan_forward)
+    # Determine the correct shape of the slab grid corresponding to
+    # the passed domain grid.
+    domain_grid_noghosts = domain_grid[2:(domain_grid.shape[0] - 2),
+                                       2:(domain_grid.shape[1] - 2),
+                                       2:(domain_grid.shape[2] - 2)]
+    gridsize = (domain_grid_noghosts.shape[0] - 1)*domain_subdivisions[0]
+    if gridsize%nprocs != 0:
+        abort('A domain decomposed grid of gridsize {} was passed to the slab_decompose function. '
+              'This gridsize is not evenly divisible by {} processes.'
+              .format(gridsize, nprocs))
+    shape = (gridsize//nprocs,  # Distributed dimension
+             gridsize,
+             2*(gridsize//2 + 1), # Padded dimension
+             )
+    # If no slab grid is passed, fetch a buffer of the right shape
+    if isinstance(slab_or_buffer_name, (int, str)):
+        buffer_name = slab_or_buffer_name
+        if prepare_fft:
+            slab = get_fftw_slab(gridsize, buffer_name)
+        else:
+            slab = get_buffer(shape, buffer_name)
+    else:
+        slab = slab_or_buffer_name
+        if asarray(slab).shape != shape:
+            abort('The slab and domain grid passed to slab_decompose '
+                  'have incompatible shapes: {}, {}.'
+                  .format(asarray(slab).shape, asarray(domain_grid).shape)
+                  )
+    # Compute needed communication variables
+    (N_domain2slabs_communications,
+     domain2slabs_recvsend_ranks,
+     slabs2domain_sendrecv_ranks,
+     domain_sendrecv_i_start,
+     domain_sendrecv_i_end,
+     slab_sendrecv_j_start,
+     slab_sendrecv_j_end,
+     slab_sendrecv_k_start,
+     slab_sendrecv_k_end,
+     ) = prepare_decomposition(domain_grid, slab)
+    # Communicate the domain grid to the slabs
+    for ℓ in range(N_domain2slabs_communications):
+        # Send part of the local domain
+        # grid to the corresponding process.
+        if ℓ < slabs2domain_sendrecv_ranks.shape[0]:
+            # A non-blocking send is used, because the communication
+            # is not pairwise.
+            # Since the slabs extend throughout the entire yz-plane,
+            # we should send the entire yz-part of domain
+            # (excluding ghost and pseudo points).
+            request = smart_mpi(domain_grid_noghosts[
+                                    domain_sendrecv_i_start[ℓ]:domain_sendrecv_i_end[ℓ],
+                                    :ℤ[domain_grid_noghosts.shape[1] - 1],
+                                    :ℤ[domain_grid_noghosts.shape[2] - 1],
+                                                     ],
+                                dest=slabs2domain_sendrecv_ranks[ℓ],
+                                mpifun='Isend')
+        # The lower ranks storing the slabs receives the message.
+        # In the x-dimension, the slabs are always thinner than (or at
+        # least as thin as) the domain.
+        if ℓ < domain2slabs_recvsend_ranks.shape[0]:
+            smart_mpi(slab[:,
+                           slab_sendrecv_j_start[ℓ]:slab_sendrecv_j_end[ℓ],
+                           slab_sendrecv_k_start[ℓ]:slab_sendrecv_k_end[ℓ]],
+                      source=domain2slabs_recvsend_ranks[ℓ],
+                      mpifun='Recv')
+        # Wait for the non-blockind send to be complete before
+        # continuing. Otherwise, data in the send buffer - which is
+        # still in use by the non-blocking send - might get overwritten
+        # by the next (non-blocking) send.
+        request.wait()
+    return slab
 
-# Function performing a backward Fourier transformation of the slabs
-@cython.header()
-def slabs_IFFT():
-    """Fourier transform the slabs backwards from Fourier to real space.
-    Note that only the forward transform needs any additional
-    normalization, as defined by FFTW. That is, after a call to this
-    function, the grid is fully normalized, provided it was normalized
-    to begin with.
+# Function that returns a slab decomposed grid,
+# allocated by FFTW.
+@cython.pheader(# Arguments
+                gridsize='Py_ssize_t',
+                buffer_name='object',  # int or str
+                nullify='bint',
+                # Locals
+                as_expected='bint',
+                fftw_plans_index='Py_ssize_t',
+                fftw_struct='fftw_return_struct',
+                message='str',
+                plan_backward='fftw_plan',
+                plan_forward='fftw_plan',
+                rigor='str',
+                rigor_final='str',
+                shape='tuple',
+                slab='double[:, :, ::1]',
+                slab_address='Py_ssize_t',
+                slab_ptr='double*',
+                slab_size_i='Py_ssize_t',
+                slab_size_j='Py_ssize_t',
+                slab_start_i='Py_ssize_t',
+                slab_start_j='Py_ssize_t',
+                wisdom_filename='str',
+                returns='double[:, :, ::1]',
+                )
+def get_fftw_slab(gridsize, buffer_name=0, nullify=False):
+    global fftw_plans_size, fftw_plans_forward, fftw_plans_backward
+    # If this slab has already been constructed, fetch it
+    slab = slabs.get((gridsize, buffer_name))
+    if slab is not None:
+        if nullify:
+            slab[...] = 0
+        return slab
+    # Checks on the passed gridsize
+    if gridsize%nprocs != 0:
+        abort('A gridsize of {} was passed to the get_fftw_slab function. '
+              'This gridsize is not evenly divisible by {} processes.'
+              .format(gridsize, nprocs))
+    shape = (int(gridsize//nprocs),    # Distributed dimension
+             int(gridsize),
+             int(2*(gridsize//2 + 1)), # Padded dimension
+             )
+    # In pure Python mode we use NumPy, which really means that there
+    # is no needed preparations. In compiled mode we use FFTW,
+    # which means that the grid and its plans must be prepared.
+    if not cython.compiled:
+        slab = empty(shape, dtype=C2np['double'])
+    else:
+        # Determine what FFTW rigor to use.
+        # The rigor to use will be stored as rigor_final.
+        if master:
+            for rigor in fftw_rigors:
+                wisdom_filename = ('.fftw_wisdom_gridsize={}_nprocs={}_rigor={}'
+                                   .format(gridsize, nprocs, rigor))
+                # At least be as rigorous as defined by
+                # the fftw_rigor user parameter.
+                if rigor == fftw_rigor:
+                    break
+                # Use a better rigor if wisdom already exist
+                if os.path.isfile(wisdom_filename):
+                    break
+            rigor_final = rigor
+            # If less rigorous wisdom exists for the same problem,
+            # delete it.
+            for rigor in reversed(fftw_rigors):
+                if rigor == rigor_final:
+                    break
+                wisdom_filename = ('.fftw_wisdom_gridsize={}_nprocs={}_rigor={}'
+                                   .format(gridsize, nprocs, rigor))
+                if os.path.isfile(wisdom_filename):
+                    os.remove(wisdom_filename)
+        rigor_final = bcast(rigor_final if master else None)
+        wisdom_filename = bcast(wisdom_filename if master else None)
+        # Initialize fftw_mpi, allocate the grid, initialize the
+        # local grid sizes and start indices and do FFTW planning.
+        # All this is handled by fftw_setup from fft.c.
+        if not os.path.isfile(wisdom_filename):
+            message = ('Acquiring FFTW wisdom ({}) for grid of linear size {} on {} {} ...'
+                       ).format(rigor_final, gridsize, nprocs,
+                                'processes' if nprocs > 1 else 'process')
+            masterprint(message)
+            fftw_struct = fftw_setup(gridsize, gridsize, gridsize,
+                                     bytes(rigor_final, encoding='ascii'))
+            masterprint('done')
+        else:
+            fftw_struct = fftw_setup(gridsize, gridsize, gridsize,
+                                     bytes(rigor_final, encoding='ascii'))
+        # Unpack every variable from fftw_struct
+        # and compare to expected values.
+        slab_size_i   = int(fftw_struct.gridsize_local_i)
+        slab_size_j   = int(fftw_struct.gridsize_local_j)
+        slab_start_i  = int(fftw_struct.gridstart_local_i)
+        slab_start_j  = int(fftw_struct.gridstart_local_j)
+        plan_forward  = fftw_struct.plan_forward
+        plan_backward = fftw_struct.plan_backward
+        slab_ptr      = fftw_struct.grid
+        as_expected = True
+        if (   slab_size_i  != ℤ[shape[0]]
+            or slab_size_j  != ℤ[shape[0]]
+            or slab_start_i != ℤ[shape[0]*rank]
+            or slab_start_j != ℤ[shape[0]*rank]
+            ):
+            as_expected = False
+            warn(f'FFTW has distributed a slab of gridsize {gridsize} differently '
+                 f'from what was expected on rank {rank}:\n'
+                 f'    slab_size_i  = {slab_size_i}, expected {shape[0]},\n'
+                 f'    slab_size_j  = {slab_size_j}, expected {shape[0]},\n'
+                 f'    slab_start_i = {slab_start_i}, expected {shape[0]*rank},\n'
+                 f'    slab_start_j = {slab_start_j}, expected {shape[0]*rank},\n'
+                 )
+        as_expected = allreduce(as_expected, op=MPI.LOR)
+        if not as_expected:
+            abort('Refusing to carry on with this non-expected decomposition.')
+        # Wrap the slab pointer in a memory view. Looping over this
+        # memory view should be done as noted in fft.c, but use
+        # slab[i, j, k] when in real space and slab[j, i, k]
+        # when in Fourier space.
+        slab = cast(slab_ptr, 'double[:shape[0], :shape[1], :shape[2]]')
+        # Store the plans for this slab in the global
+        # fftw_plans_forward and fftw_plans_backward arrays.
+        fftw_plans_index = fftw_plans_size
+        fftw_plans_size += 1
+        fftw_plans_forward  = realloc(fftw_plans_forward , fftw_plans_size*sizeof('fftw_plan'))
+        fftw_plans_backward = realloc(fftw_plans_backward, fftw_plans_size*sizeof('fftw_plan'))
+        fftw_plans_forward [fftw_plans_index] = plan_forward
+        fftw_plans_backward[fftw_plans_index] = plan_backward
+        # Insert mapping from the slab to the index of its plans
+        # in the global fftw_plans_forward and fftw_plans_backward
+        # arrays, into the global fftw_plans_mapping dict.
+        slab_address = cast(cython.address(slab[0, 0, 0]), 'Py_ssize_t')
+        fftw_plans_mapping[slab_address] = fftw_plans_index
+    # Store and return this slab
+    slabs[gridsize, buffer_name] = slab
+    if nullify:
+        slab[...] = 0
+    return slab
+# Tuple of all possible FFTW rigor levels, in descending order
+cython.declare(fftw_rigors='tuple')
+fftw_rigors = ('exhaustive', 'patient', 'measure', 'estimate')
+# Cache storing slabs. The keys have the format (gridsize, buffer_name).
+cython.declare(slabs='dict')
+slabs = {}
+# Arrays of FFTW plans
+cython.declare(fftw_plans_size='Py_ssize_t',
+               fftw_plans_forward ='fftw_plan*',
+               fftw_plans_backward='fftw_plan*',
+               )
+fftw_plans_size = 0
+fftw_plans_forward  = malloc(fftw_plans_size*sizeof('fftw_plan'))
+fftw_plans_backward = malloc(fftw_plans_size*sizeof('fftw_plan'))
+# Mapping from memory addreses of slabs to indices in
+# fftw_plans_forward and fftw_plans_backward.
+cython.declare(fftw_plans_mapping='dict')
+fftw_plans_mapping = {}
+
+# Function performing Fourier transformations of slab decomposed grids
+@cython.header(# Arguments
+               slab='double[:, :, ::1]',
+               direction='str',
+               # Locals
+               fftw_plans_index='Py_ssize_t',
+               slab_address='Py_ssize_t',
+               )
+def fft(slab, direction):
+    """Fourier transform the given slab decomposed grid.
+    For a forwards transformation from real to Fourier space, supply
+    direction='forward'. Note that this is an unnormalized transform,
+    as defined by FFTW. To do the normalization, divide all elements of
+    the slab by gridsize**3, where gridsize is the linear gridsize
+    of the cubic grid.
+    For a backwards transformation from Fourier to real space, supply
+    direction='backward'. Here, no further normalization is needed,
+    as defined by FFTW.
+
+    In pure Python, NumPy is used to carry out the Fourier transforms.
+    To emulate the effects of FFTW perfectly, a lot of extra steps
+    are needed.
     """
-    fftw_execute(plan_backward)
+    if not direction in ('forward', 'backward'):
+        abort('fft was called with the direction "{}", which is neither "forward" nor "backward".'
+              .format(direction))
+    if not cython.compiled:
+        # The pure Python FFT implementation is serial.
+        # Every process computes the entire FFT of the temporary
+        # varaible grid_global_pure_python.
+        slab_size_i = slab_size_j = slab.shape[0]
+        slab_start_i = slab_size_i*rank
+        slab_start_j = slab_size_j*rank
+        gridsize = slab.shape[1]
+        gridsize_padding = slab.shape[2]
+        grid_global_pure_python = empty((gridsize, gridsize, gridsize_padding))
+        Allgatherv(slab, grid_global_pure_python)
+        if direction == 'forward':
+            # Delete the padding on last dimension
+            for i in range(gridsize_padding - gridsize):
+                grid_global_pure_python = np.delete(grid_global_pure_python, -1, axis=2)
+            # Do real transform via NumPy
+            grid_global_pure_python = np.fft.rfftn(grid_global_pure_python)
+            # FFTW transposes the first two dimensions
+            grid_global_pure_python = grid_global_pure_python.transpose([1, 0, 2])
+            # FFTW represents the complex array by doubles only
+            tmp = empty((gridsize, gridsize, gridsize_padding))
+            for i in range(gridsize_padding):
+                if i % 2:
+                    tmp[:, :, i] = grid_global_pure_python.imag[:, :, i//2]
+                else:
+                    tmp[:, :, i] = grid_global_pure_python.real[:, :, i//2]
+            grid_global_pure_python = tmp
+            # As in FFTW, distribute the slabs along the y-dimension
+            # (which is the first dimension now, due to transposing).
+            slab[...] = grid_global_pure_python[slab_start_j:(slab_start_j + slab_size_j), :, :] 
+        elif direction == 'backward':
+            # FFTW represents the complex array by doubles only.
+            # Go back to using complex entries.
+            tmp = zeros((gridsize, gridsize, gridsize_padding//2), dtype='complex128')
+            for i in range(gridsize_padding):
+                if i % 2:
+                    tmp[:, :, i//2] += 1j*grid_global_pure_python[:, :, i]
+                else:
+                    tmp[:, :, i//2] += grid_global_pure_python[:, :, i]
+            grid_global_pure_python = tmp
+            # FFTW transposes the first
+            # two dimensions back to normal.
+            grid_global_pure_python = grid_global_pure_python.transpose([1, 0, 2])
+            # Do real inverse transform via NumPy
+            grid_global_pure_python = np.fft.irfftn(grid_global_pure_python, s=[gridsize]*3)
+            # Remove the autoscaling provided by NumPy
+            grid_global_pure_python *= gridsize**3
+            # Add padding on last dimension, as in FFTW
+            padding = empty((gridsize,
+                             gridsize,
+                             gridsize_padding - gridsize,
+                             ))
+            grid_global_pure_python = np.concatenate((grid_global_pure_python, padding), axis=2)
+            # As in FFTW, distribute the slabs along the x-dimension
+            slab[...] = grid_global_pure_python[slab_start_i:(slab_start_i + slab_size_i), :, :]
+    else:  # Compiled mode
+        # Look up the index of the FFTW plans for the passed slab.
+        slab_address = cast(cython.address(slab[0, 0, 0]), 'Py_ssize_t')
+        fftw_plans_index = fftw_plans_mapping[slab_address]
+        # Look up the plan and let FFTW do the Fourier transformation
+        if direction == 'forward':
+            fftw_execute(fftw_plans_forward[fftw_plans_index])
+        elif direction == 'backward':
+            fftw_execute(fftw_plans_backward[fftw_plans_index])
+
+# Function for deallocating a slab and its plans, allocated by FFTW
+@cython.header(# Arguments
+               gridsize='Py_ssize_t',
+               buffer_name='object',  # int or str
+               # Locals
+               fftw_plans_index='Py_ssize_t',
+               plan_forward='fftw_plan',
+               plan_backward='fftw_plan',
+               slab='double[:, :, ::1]',
+               slab_ptr='double*',
+               )
+def free_fftw_slab(gridsize, buffer_name):
+    # Fetch the slab from the slab cache and remove it
+    slab = slabs.pop((gridsize, buffer_name))
+    # Grab pointer to the slab
+    slab_ptr = cython.address(slab[0, 0, 0])
+    # Look up the index of the FFTW plans for the passed slab
+    # and use this to look up the plans.
+    slab_address = cast(slab_ptr, 'Py_ssize_t')
+    fftw_plans_index = fftw_plans_mapping[slab_address]
+    plan_forward  = fftw_plans_forward[fftw_plans_index]
+    plan_backward = fftw_plans_backward[fftw_plans_index]
+    # Let FFTW do the cleanup
+    fftw_clean(slab_ptr, plan_forward, plan_backward)
+    # Note that the arrays fftw_plans_forward and fftw_plans_backward
+    # as well as the dict fftw_plans_mapping have not been altered.
+    # Thus, accessing the pointers in fftw_plans_forward or
+    # fftw_plans_backward for the newly freed plans will cause a
+    # segmentation fault. As this should not ever happen, we leave
+    # these as is.
 
 # Function for checking that the slabs satisfy the required symmetry
 # of a Fourier transformed real field.
 @cython.pheader(# Arguments
+                slab='double[:, :, ::1]',
                 rel_tol='double',
                 abs_tol='double',
                 # Locals
                 bad_pairs='set',
                 global_slab='double[:, :, ::1]',
+                gridsize='Py_ssize_t',
                 i='Py_ssize_t',
                 i_conj='Py_ssize_t',
                 im1='double',
@@ -1174,7 +1617,7 @@ def slabs_IFFT():
                 t1='tuple',
                 t2='tuple',
                 )
-def slabs_check_symmetry(rel_tol=1e-9, abs_tol=machine_ϵ):
+def slabs_check_symmetry(slab, rel_tol=1e-9, abs_tol=machine_ϵ):
     """This function will go through the slabs and check whether they
     satisfy the symmetry condition of the Fourier transform of a
     real-valued field, namely
@@ -1187,30 +1630,32 @@ def slabs_check_symmetry(rel_tol=1e-9, abs_tol=machine_ϵ):
     """
     masterprint('Checking the symmetry of the slabs ...')
     # Gather all slabs into global_slab on the master process
+    gridsize = slab.shape[1]
     if nprocs == 1:
         global_slab = slab
     else:
         if master:
-            global_slab = empty((φ_gridsize, φ_gridsize, slab_size_padding), dtype=C2np['double'])
-            global_slab[:slab_size_j, :, :] = slab[...]
+            global_slab = empty((gridsize, gridsize, slab.shape[2]), dtype=C2np['double'])
+            global_slab[:slab.shape[0], :, :] = slab[...]
             for slave in range(1, nprocs):
-                j1 = slab_size_j*slave
-                j2 = j1 + slab_size_j
+                j1 = slab.shape[0]*slave
+                j2 = j1 + slab.shape[0]
                 smart_mpi(global_slab[j1:j2, :, :], source=slave, mpifun='recv')
         else:
             smart_mpi(slab, dest=master_rank, mpifun='send')
             return
     # Loop through the complete j-dimension
     bad_pairs = set()
-    for j in range(φ_gridsize):
-        j_conj = 0 if j == 0 else φ_gridsize - j
+    for j in range(gridsize):
+        j_conj = 0 if j == 0 else gridsize - j
         # Loop through the complete i-dimension
-        for i in range(φ_gridsize):
-            i_conj = 0 if i == 0 else φ_gridsize - i
+        for i in range(gridsize):
+            i_conj = 0 if i == 0 else gridsize - i
             # Loop through the lower (kk = 0)
-            # and upper (kk = slab_size_padding//2) xy planes only.
+            # and upper (kk = slab_size_padding//2, where
+            # slab_size_padding = 2*(gridsize//2 + 1)) xy planes only.
             for plane in range(2):
-                k = 0 if plane == 0 else slab_size_padding - 2
+                k = 0 if plane == 0 else slab.shape[2] - 2
                 # Pointer to the [j, i, k]'th element and to its
                 # conjugate.
                 # The complex numbers is then given as e.g.
@@ -1254,42 +1699,20 @@ def slabs_check_symmetry(rel_tol=1e-9, abs_tol=machine_ϵ):
                                prefix='')
     masterprint('done')
 
-# This function differentiates a given grid
-# along the dim dimension once.
-# The passed grid must include psuedo and ghost points. The pseudo
-# points will be differentiated along with the actual grid points.
-# To achieve proper units, the physical grid spacing may be specified
-# as h. If not given, grid units (h == 1) are used.
-# If the buffer argument is not given, the meshbuf is used to store the
-# result. A view of this buffer will be returned.
-# If a buffer is supplied, the result of the differentiations will be
-# added to this buffer instead of being stored in meshbuf. Note that
-# this buffer has to be contiguous (this criterion could be removed
-# if needed).
-# The returned grid will include pseudo points but no ghost points.
-# Note though that the returned grid will be contiguous.
-# If the supplied buffer include ghost points, these will change.
-# Note that a grid cannot be differentiated in-place by passing the
-# grid as both the first and third argument, as the differentiation
-# of each grid point requires information from the original
-# (non-differentiated) grid.
-# The optional order argument specifies the order of accuracy of the
-# differentiation (the number of neighboring grid points used to
-# approximate the derivative).
-# For odd orders, the differentiation cannot be symmetric. Set the
-# direction argument to either 'forward' or 'backward' to choose from
-# which direction one additional grid point should be used.
+# Function for differentiating domain grids
 @cython.pheader(# Arguments
                 grid='double[:, :, ::1]',
                 dim='int',
                 h='double',
-                buffer='double[:, :, ::1]',
+                buffer_or_buffer_name='object',  # double[:, :, ::1] or int or str
                 order='int',
                 direction='str',
                 # Locals
+                buffer='double[:, :, ::1]',
                 buffer_i='Py_ssize_t',
                 buffer_j='Py_ssize_t',
                 buffer_k='Py_ssize_t',
+                buffer_name='object',  # int or str
                 grid_im1='Py_ssize_t',
                 grid_im2='Py_ssize_t',
                 grid_ip1='Py_ssize_t',
@@ -1308,7 +1731,32 @@ def slabs_check_symmetry(rel_tol=1e-9, abs_tol=machine_ϵ):
                 shape='tuple',
                 returns='double[:, :, ::1]',
                 )
-def diff_domain(grid, dim, h=1, buffer=None, order=4, direction='forward'):
+def diff_domain(grid, dim, h=1, buffer_or_buffer_name=0, order=4, direction='forward'):
+    """This function differentiates a given grid along the dim
+    dimension once. The passed grid must include psuedo and ghost points.
+    The pseudo points will be differentiated along with the actual grid
+    points. To achieve proper units, the physical grid spacing may be
+    specified as h. If not given, grid units (h == 1) are used. The
+    buffer_or_buffer_name argument can be buffer to store the results,
+    or alternatively the name of a buffer (retrieved via
+    communication.get_buffer) as an int or str.
+    If a buffer is supplied, the result of the differentiations will be
+    added to this buffer. Note that this buffer has to be contiguous
+    (this criterion could be removed if needed).
+    The returned grid will include pseudo points but no ghost points.
+    Note though that the returned grid will be contiguous.
+    If the supplied buffer include ghost points, these will change.
+    Note that a grid cannot be differentiated in-place by passing the
+    grid as both the first and third argument, as the differentiation
+    of each grid point requires information from the original
+    (non-differentiated) grid.
+    The optional order argument specifies the order of accuracy of the
+    differentiation (the number of neighboring grid points used to
+    approximate the derivative).
+    For odd orders, the differentiation cannot be symmetric. Set the
+    direction argument to either 'forward' or 'backward' to choose from
+    which direction one additional grid point should be used.
+    """
     # Sanity checks on input
     if master:
         if dim not in (0, 1, 2):
@@ -1317,11 +1765,15 @@ def diff_domain(grid, dim, h=1, buffer=None, order=4, direction='forward'):
             abort('The order argument should be ∈ {1, 2, 4}')
         if direction not in ('forward', 'backward'):
             abort('The direction argument should be ∈ {\'forward\', \'backward\'}')
-    # If no buffer is supplied, use the meshbuf
+    # The buffer should have pseudo points but no ghost points
     shape = tuple([grid.shape[dim] - 2*2 for dim in range(3)])
-    if buffer is None:
-        # The buffer should have pseudo points but no ghost points
-        buffer = get_meshbuf(shape, nullify=True)
+    # If no buffer is supplied, fetch the buffer with the name
+    # given by buffer_or_buffer_name.
+    if isinstance(buffer_or_buffer_name, (int, str)):
+        buffer_name = buffer_or_buffer_name
+        buffer = get_buffer(shape, buffer_name, nullify=True)
+    else:
+        buffer = buffer_or_buffer_name
     # Do the differentiation and add the results to the buffer
     if dim == 0:
         if order == 1:
@@ -1465,318 +1917,36 @@ def diff_domain(grid, dim, h=1, buffer=None, order=4, direction='forward'):
                                              )
     return buffer
 
-# Function which wraps the meshbuf buffer in a memory view
-@cython.header(# Arguments
-               shape='tuple',
-               nullify='bint',
-               # Locals
-               i='Py_ssize_t',
-               meshbuf_mv='double[:, :, ::1]',
-               size='Py_ssize_t',
-               returns='double[:, :, ::1]',
-               )
-def get_meshbuf(shape, nullify=False):
-    global meshbuf, meshbuf_size
-    # The buffer size needed
-    size = np.prod(shape)
-    # Enlarge meshbuf if needed
-    if size > meshbuf_size:
-        meshbuf_size = size
-        meshbuf = realloc(meshbuf, meshbuf_size*sizeof('double'))
-    # Wrap meshbuf in a memory view of the given shape
-    meshbuf_mv = cast(meshbuf, 'double[:shape[0], :shape[1], :shape[2]]')
-    # If requested, nullify the buffer
-    if nullify:
-        for i in range(size):
-            meshbuf[i] = 0
-    # Return the memory view 
-    return meshbuf_mv
 
-
-
-# Initializes φ and related stuff (e.g. the slabs) at import time,
-# if φ should be used.
-cython.declare(# The slab grid
-               fftw_struct='fftw_return_struct',
-               slab_size_i='ptrdiff_t',
-               slab_size_j='ptrdiff_t',
-               slab_start_i='ptrdiff_t',
-               slab_start_j='ptrdiff_t',
-               slab='double[:, :, ::1]',
-               plan_forward='fftw_plan',
-               plan_backward='fftw_plan',
-               # The φ grid
-               φ='double[:, :, ::1]',
-               φ_noghosts='double[:, :, :]',
-               φ_size_i='Py_ssize_t',
-               φ_size_j='Py_ssize_t',
-               φ_size_k='Py_ssize_t',
-               φ_start_i='Py_ssize_t',
-               φ_start_j='Py_ssize_t',
-               φ_start_k='Py_ssize_t',
-               # For communication between φ and the slabs
-               N_φ2slabs_communications='int',
-               φ_sendrecv_i_end='int[::1]',
-               φ_sendrecv_i_start='int[::1]',
-               slabs2φ_sendrecv_ranks='int[::1]',
-               slab_sendrecv_j_start='int[::1]',
-               slab_sendrecv_k_start='int[::1]',
-               slab_sendrecv_j_end='int[::1]',
-               slab_sendrecv_k_end='int[::1]',
-               φ2slabs_recvsend_ranks='int[::1]',
-               )
-if use_φ:
-    # Initialize the slab grid, distributed along the x-dimension
-    # when in real space and along the y dimension when in
-    # Fourier space.
-    if not cython.compiled:
-        # Initialization of the slabs in pure Python
-        slab_size_i = slab_size_j = int(φ_gridsize/nprocs)
-        if master and slab_size_i != φ_gridsize/nprocs:
-            # If φ_gridsize is not divisible by nprocs, the code cannot
-            # figure out exactly how FFTW distribute the grid among the
-            # processes. In stead of guessing, do not even try to
-            # emulate the behaviour of FFTW.
-            abort('The PM method in pure Python mode only works '
-                   'when\nφ_gridsize is divisible by the number '
-                   'of processes!'
-                   )
-        slab_start_i = slab_start_j = slab_size_i*rank
-        slab = empty((slab_size_i, φ_gridsize, slab_size_padding), dtype=C2np['double'])
-        # The output of the following function is formatted just
-        # like that of the MPI implementation of FFTW.
-        plan_backward = 'plan_backward'
-        plan_forward = 'plan_forward'
-    else:
-        # Use a better rigor if wisdom already exist
-        fftw_rigors = ('exhaustive', 'patient', 'measure', 'estimate')
-        for fftw_rigor in fftw_rigors[:(fftw_rigors.index(fftw_rigor) + 1)]:
-            wisdom_filename = ('.fftw_wisdom_gridsize={}_nprocs={}_rigor={}'
-                               .format(φ_gridsize, nprocs, fftw_rigor))
-            if os.path.isfile(wisdom_filename):
-                break
-        # Initialize fftw_mpi, allocate the grid, initialize the
-        # local grid sizes and start indices and do FFTW planning.
-        if not os.path.isfile(wisdom_filename):
-            msg = ('Acquiring FFTW wisdom ({}) for grid of linear size {} on {} {} ...'
-                   ).format(fftw_rigor,
-                            φ_gridsize,
-                            nprocs,
-                            'processes' if nprocs > 1 else 'process')
-            masterprint(msg)
-            fftw_struct = fftw_setup(φ_gridsize,
-                                     φ_gridsize,
-                                     φ_gridsize,
-                                     bytes(fftw_rigor, encoding='ascii'))
-            masterprint('done')
-        else:
-            fftw_struct = fftw_setup(φ_gridsize,
-                                     φ_gridsize,
-                                     φ_gridsize,
-                                     bytes(fftw_rigor, encoding='ascii'))
-        # If less rigouros wisdom exists for the same problem,
-        # delete it.
-        for rigor in fftw_rigors[(fftw_rigors.index(fftw_rigor) + 1):]:
-            wisdom_filename = ('.fftw_wisdom_gridsize={}_nprocs={}_rigor={}'
-                               .format(φ_gridsize, nprocs, rigor))
-            if master and os.path.isfile(wisdom_filename):
-                os.remove(wisdom_filename)
-        # Unpack every variable from fftw_struct except for the grid
-        slab_size_i = fftw_struct.gridsize_local_i
-        slab_size_j = fftw_struct.gridsize_local_j
-        slab_start_i = fftw_struct.gridstart_local_i
-        slab_start_j = fftw_struct.gridstart_local_j
-        plan_forward  = fftw_struct.plan_forward
-        plan_backward = fftw_struct.plan_backward
-        # Now unpack the grid from fftw_struct, but wrap it in a
-        # memoryview. Looping over this memoryview should be done as 
-        # noted in fft.c, but use slab[i, j, k] when in real space
-        # and slab[j, i, k] when in Fourier space.
-        if slab_size_i > 0:
-            slab = cast(fftw_struct.grid,
-                        'double[:slab_size_i, :φ_gridsize, :slab_size_padding]')
-        else:
-            # The process do not participate in the FFT computations
-            slab = empty((0, φ_gridsize, slab_size_padding))
-    # Initialize the φ grid, distributed according to the
-    # domain decomposition of the box.
-    # The φ grid stores the same data as the slab grid,
-    # but instead of being distributed in slabs, it is distributed
-    # accoring to the domain of the local process.
-    # It is given an additional layer of points of thickness 1 in
-    # the right/forward/upward ends. These are the pseudo points,
-    # having the same physical coordinates as the first points in the
-    # next domain, for the three directions.
-    # Additionally, around the whole cube, a layer of points of
-    # thickness 2 is added, called the ghost layer. The data here
-    # are simply copied over from neighboring domains.
-    φ = empty([φ_gridsize//domain_subdivisions[dim] + 1 + 2*2 for dim in range(3)],
-              dtype=C2np['double'])
-    # Memoryview of the φ grid without the ghost layers
-    φ_noghosts = φ[2:(φ.shape[0] - 2), 2:(φ.shape[1] - 2), 2:(φ.shape[2] - 2)]
-    # Test if the grid has been constructed correctly.
-    # If not it is because nprocs and φ_gridsize are incompatible.
-    if master:
-        if any(φ_gridsize != domain_subdivisions[dim]*(φ_noghosts.shape[dim] - 1)
-               for dim in range(3)):
-            abort('A φ_gridsize of {} cannot be equally shared among {} processes'
-                  .format(φ_gridsize, nprocs))
-        if any([(φ_noghosts.shape[dim] - 1) < 1 for dim in range(3)]):
-            abort('A φ_gridsize of {} is too small for {} processes'
-                  .format(φ_gridsize, nprocs))
-    # Warn the user if φ_gridsize is odd, as some operations in the
-    # code are only guaranteed to work for even φ_gridsize.
-    if not isint(0.5*φ_gridsize):
-        masterwarn('As φ_gridsize = {} is odd, some operations may not function correctly'
-                   .format(φ_gridsize))
-    # The size (number of grid points) of the truly local part of the φ,
-    # excluding both ghost layers and pseudo points, for each dimension.
-    φ_size_i = φ_noghosts.shape[0] - 1
-    φ_size_j = φ_noghosts.shape[1] - 1
-    φ_size_k = φ_noghosts.shape[2] - 1
-    # Check if the slab is large enough for P3M to work,
-    # if the P3M algorithm is to be used.
-    if master and use_p3m:
-        if (   φ_size_i < p3m_scale*p3m_cutoff
-            or φ_size_j < p3m_scale*p3m_cutoff
-            or φ_size_k < p3m_scale*p3m_cutoff):
-            abort('A φ_gridsize of {} and {} processes results in the following domain '
-                  'partitioning: {}. The smallest domain width is {} grid cells, while the '
-                  'choice of p3m_scale ({}) and p3m_cutoff ({}) means that the domains must '
-                  'be at least {} grid cells for the P3M algorithm to work.'
-                  .format(φ_gridsize,
-                          nprocs,
-                          list(domain_subdivisions),
-                          np.min([φ_size_i, φ_size_j, φ_size_k]),
-                          p3m_scale,
-                          p3m_cutoff,
-                          int(np.ceil(p3m_scale*p3m_cutoff)),
-                          )
-                   )
-        if ((   φ_size_i < 2*p3m_scale*p3m_cutoff
-             or φ_size_j < 2*p3m_scale*p3m_cutoff
-             or φ_size_k < 2*p3m_scale*p3m_cutoff) and np.min(domain_subdivisions) < 3):
-            # If the above is True, the left and the right (say) process
-            # is the same and the boundaries will be send to it twice,
-            # and these will overlap with each other in the left/right
-            # domain, eventually leading to gravity being applied twice.
-            abort('A φ_gridsize of {} and {} processes results in the following domain '
-                  'partitioning: {}.\nThe smallest domain width is {} grid cells, while the '
-                  'choice of p3m_scale ({}) and p3m_cutoff ({})\nmeans that the domains must '
-                  'be at least {} grid cells for the P3M algorithm to work.'
-                  .format(φ_gridsize,
-                          nprocs,
-                          list(domain_subdivisions),
-                          np.min([φ_size_i, φ_size_j, φ_size_k]),
-                          p3m_scale,
-                          p3m_cutoff,
-                          int(np.ceil(2*p3m_scale*p3m_cutoff)),
-                          )
-                   )
-    # Additional information about φ and the slabs,
-    # used in the φ2slabs function.
-    # The global start and end indices of the local domain in the total
-    # φ grid.
-    φ_start_i = domain_layout_local_indices[0]*φ_size_i
-    φ_start_j = domain_layout_local_indices[1]*φ_size_j
-    φ_start_k = domain_layout_local_indices[2]*φ_size_k
-    φ_end_i = φ_start_i + φ_size_i
-    φ_end_j = φ_start_j + φ_size_j
-    φ_end_k = φ_start_k + φ_size_k
-    # The value of slab_size_i is determined by FFTW. It is equal to
-    # φ_gridsize//nprocs (though not less than 1) for
-    # ranks < φ_gridsize. If nprocs > φ_gridsize so
-    # that slab_size_i == 1, the higher ranked processes cannot
-    # take part in the FFT computation, and so their local version
-    # of slab_size_i is set to 0.
-    # The global version - slab_size_i_global - defined below,
-    # is equal to the nonzero value on all processes.
-    if rank < φ_gridsize and slab_size_i == 0:
-        slab_size_i = 1 
-    slab_size_i_global = slab_size_i
-    if slab_size_i_global == 0:
-        slab_size_i_global = 1
-    # Find local i-indices to send and to which process by
-    # shifting a piece of the number line in order to match
-    # the communication pattern used.
-    φ_sendrecv_i_start = np.roll(asarray([ℓ - φ_start_i
-                                          for ℓ in range(φ_start_i,
-                                                          φ_end_i,
-                                                          slab_size_i_global)],
-                                         dtype=C2np['int']),
-                                 -rank)
-    φ_sendrecv_i_end = np.roll(asarray([ℓ - φ_start_i + slab_size_i_global
-                                        for ℓ in range(φ_start_i,
-                                                        φ_end_i,
-                                                        slab_size_i_global)],
-                                        dtype=C2np['int']),
-                               -rank)
-    slabs2φ_sendrecv_ranks = np.roll(asarray([ℓ//slab_size_i_global
-                                              for ℓ in range(φ_start_i, 
-                                                              φ_end_i,
-                                                              slab_size_i_global)],
-                                             dtype=C2np['int']),
-                                     -rank)
-    # FIXME: THIS IS NOT SUFFICIENT! IF nprocs > φ_gridsize THE PROGRAM WILL HALT AT φ2slabs and slabs2φ !!!!!
-    # Communicate the start and end (j, k)-indices of the slab,
-    # where parts of the local domains should be received into.
-    slab_sendrecv_j_start  = empty(nprocs, dtype=C2np['int'])
-    slab_sendrecv_k_start  = empty(nprocs, dtype=C2np['int'])
-    slab_sendrecv_j_end    = empty(nprocs, dtype=C2np['int'])
-    slab_sendrecv_k_end    = empty(nprocs, dtype=C2np['int'])
-    φ2slabs_recvsend_ranks = empty(nprocs, dtype=C2np['int'])
-    cython.declare(index='Py_ssize_t')  # Just to remove Cython warning
-    index = 0
-    for ℓ in range(nprocs):
-        # Process ranks to send/receive to/from
-        rank_send = np.mod(rank + ℓ, nprocs)
-        rank_recv = np.mod(rank - ℓ, nprocs)
-        # Send the global y and z start and end indices of the domain
-        # to be send, if anything should be send to process rank_send.
-        # Otherwise send None.
-        sendtuple = ((φ_start_j, φ_start_k, φ_end_j, φ_end_k)
-                     if rank_send in asarray(slabs2φ_sendrecv_ranks) else None)
-        recvtuple = sendrecv(sendtuple, dest=rank_send, source=rank_recv)
-        if recvtuple is not None:
-            slab_sendrecv_j_start[index] = recvtuple[0]
-            slab_sendrecv_k_start[index] = recvtuple[1]
-            slab_sendrecv_j_end[index]   = recvtuple[2]
-            slab_sendrecv_k_end[index]   = recvtuple[3]
-            φ2slabs_recvsend_ranks[index]    = rank_recv
-            index += 1
-    # Cut off the tails
-    slab_sendrecv_j_start = slab_sendrecv_j_start[:index]
-    slab_sendrecv_k_start = slab_sendrecv_k_start[:index]
-    slab_sendrecv_j_end = slab_sendrecv_j_end[:index]
-    slab_sendrecv_k_end = slab_sendrecv_k_end[:index]
-    φ2slabs_recvsend_ranks = φ2slabs_recvsend_ranks[:index]
-    # The maximum number of communications it takes to communicate
-    # φ to the slabs (or vice versa).
-    N_φ2slabs_communications = np.max([slabs2φ_sendrecv_ranks.shape[0],
-                                       φ2slabs_recvsend_ranks.shape[0]])
-else:
-    # As these should be importable,
-    # they need to be assigned even if not used.
-    slab = φ = φ_noghosts = empty((1, 1, 1), dtype=C2np['double'])
-    slab_start_i = slab_start_j = 0
-    slab_size_i  = slab_size_j  = 1
-    φ_start_i = φ_start_j = φ_start_k = 0
-    φ_end_i   = φ_end_j   = φ_end_k   = 1
-
-# Initialize meshbuf, a buffer used for temporary (scalar) mesh
-# data. It is e.g. used in the diff function, which is e.g. used to
-# differentiate the potential. Therefore, it should at least have
-# a size equal to φ (ghost points not needed). The exact shape of
-# meshbuf should be decided dynamically by wrapping it in a
-# memoryview as needed. For this, use the get_meshbuf function,
-# which will also enlarge meshbuf if needed.
-cython.declare(meshbuf_size='Py_ssize_t',
-               meshbuf='double*',
-               )
-meshbuf_size = φ_noghosts.shape[0]*φ_noghosts.shape[1]*φ_noghosts.shape[2]
-meshbuf = malloc(meshbuf_size*sizeof('double'))
 
 # Function pointer types used in this module
 pxd = """
 ctypedef double* (*func_dstar_ddd)(double, double, double)
+"""
+
+# Import declarations from fft.c
+pxd = """
+# FFT functionality via FFTW from fft.c
+cdef extern from "fft.c":
+    # The fftw_plan type
+    ctypedef struct fftw_plan_struct:
+        pass
+    ctypedef fftw_plan_struct *fftw_plan
+    # The returned struct of fftw_setup
+    struct fftw_return_struct:
+        ptrdiff_t gridsize_local_i
+        ptrdiff_t gridsize_local_j
+        ptrdiff_t gridstart_local_i
+        ptrdiff_t gridstart_local_j
+        double* grid
+        fftw_plan plan_forward
+        fftw_plan plan_backward
+    # Functions
+    fftw_return_struct fftw_setup(ptrdiff_t gridsize_i,
+                                  ptrdiff_t gridsize_j,
+                                  ptrdiff_t gridsize_k,
+                                  char*     rigor)
+    void fftw_execute(fftw_plan plan)
+    void fftw_clean(double* grid, fftw_plan plan_forward,
+                                  fftw_plan plan_backward)
 """

@@ -56,6 +56,7 @@ for n in ${nprocs_list[@]}; do
     echo "$(cat "${this_dir}/params")
 initial_conditions = {'name'   : 'test particles',
                       'species': 'matter particles',
+                      'N'      : φ_gridsize**3,
                       'w'      : 'class',
                       }
 output_dirs  = {'powerspec': _this_dir + '/output_particles'}
@@ -69,9 +70,10 @@ done
 # Realize matter fluid and compute its powerspectrum
 for n in ${nprocs_list[@]}; do
     echo "$(cat "${this_dir}/params")
-initial_conditions = {'name'   : 'test fluid',
-                      'species': 'matter fluid',
-                      'w'      : 'class',
+initial_conditions = {'name'    : 'test fluid',
+                      'species' : 'matter fluid',
+                      'gridsize': φ_gridsize,
+                      'w'       : 'class',
                       }
 output_dirs  = {'powerspec': _this_dir + '/output_fluid'}
 output_bases = {'powerspec': 'powerspec_nprocs=${n}'}

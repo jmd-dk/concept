@@ -26,8 +26,6 @@ from commons import *
 
 # Cython imports
 import interactions
-from mesh import diff_domain
-from snapshot import load
 cimport('from analysis import debug, measure, powerspec')
 cimport('from graphics import render, terminal_render')
 cimport('from integration import cosmic_time,          '
@@ -37,7 +35,7 @@ cimport('from integration import cosmic_time,          '
         '                        scalefactor_integral, '
         )
 cimport('from interactions import find_interactions')
-cimport('from snapshot import save')
+cimport('from snapshot import load, save')
 cimport('from species import Component, get_representation')
 cimport('from utilities import delegate')
 
@@ -230,16 +228,14 @@ def nullify_ᔑdt_steps():
                components='list',
                step='str',
                # Locals
-               ᔑdt='dict',
                component='Component',
-               component_group='list',
-               component_groups='object',  # collections.defaultdict
-               dim='int',
-               meshbuf_mv='double[:, :, ::1]',
-               h='double',
+               force='str',
                integrand='object',  # str or tuple
-               key='str',
-               φ='double[:, :, ::1]',
+               interactions_list='list',
+               method='str',
+               receivers='list',
+               suppliers='list',
+               ᔑdt='dict',
                )
 def kick(components, step):
     # Construct the local dict ᔑdt,
@@ -481,17 +477,20 @@ def timeloop():
                fac_dynamical='double',
                fac_timespan='double',
                fac_ẇ='double',
+               force='str',
                i='Py_ssize_t',
                j='Py_ssize_t',
                k='Py_ssize_t',
                limiters='list',
                mass='double',
+               method='str',
                momx='double*',
                momx_i='double',
                momy='double*',
                momy_i='double',
                momz='double*',
                momz_i='double',
+               resolutions='list',
                w='double',
                Δt_Courant='double',
                Δt_Courant_component='double',
@@ -531,8 +530,8 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
       criterion is used for particles. Within this criterion,
       the maximum distance a particle is allowed to travel within a
       single time step is determined by the average inter-particle
-      distance, or φ_gridsize if this divides the box into smaller
-      distances than this.
+      distance, or any "smallest scale" intrinsic to the forces acting
+      on the particle species.
     - A small fraction of 1/abs(ẇ) for every fluid components,
       so that w varies smoothly.
     The conditions above are written in the same order in the code
@@ -594,11 +593,19 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
         w = component.w()
         if component.representation == 'particles':
             # Maximum comoving distance a particle should be able to
-            # travel in a single time step.
-            if use_φ and φ_gridsize > ℝ[cbrt(component.N)]:
-                Δx = boxsize/φ_gridsize
-            else:
-                Δx = boxsize/ℝ[cbrt(component.N)]
+            # travel in a single time step. This is set to be the
+            # boxsize divided by the resolution, where each force
+            # on the particles each have their own resolution.
+            # The number of particles is also used
+            # as an addtional resolution.
+            resolutions = [cbrt(component.N)]
+            for force, method in forces.get(component.species, []):
+                if force == 'gravity':
+                    if method == 'pm':
+                        resolutions.append(φ_gridsize)
+                    elif method in ('pp', 'p3m'):
+                        resolutions.append(component.softening/boxsize)
+            Δx = boxsize/np.max(resolutions)
             # Find maximum, squared local velocity for this component.
             # From the equation of motion, velocity is given by.
             # ẋ = dx/dt = mom/(a²*m).
@@ -750,7 +757,7 @@ def get_initial_conditions():
             return load(sensible_path(initial_conditions), only_components=True)
     if not ic_isfile:
         # Components to realize are given.
-        # Parse the specifications futher.
+        # Parse the specifications further.
         if isinstance(initial_conditions, (list, tuple)):
             initial_conditions_generate = []
             for d in initial_conditions:
@@ -766,15 +773,42 @@ def get_initial_conditions():
         for d in initial_conditions_generate:
             name = d.pop('name')
             species = d.pop('species')
+            representation = get_representation(species)
+            if 'N_or_gridsize' in d:
+                N_or_gridsize = d.pop('N_or_gridsize')
+                if 'N' in d:
+                    masterwarn('Both N and N_or_gridsize specified '
+                               f'for component "{name}". The value of N will be ignored.'
+                               )
+                if 'gridsize' in d:
+                    masterwarn('Both gridsize and N_or_gridsize specified '
+                               f'for component "{name}". The value of gridsize will be ignored.'
+                               )
+            elif 'N' in d:
+                N_or_gridsize = d.pop('N')
+                if 'gridsize' in d:
+                    masterwarn('Both gridsize and N specified '
+                               f'for component "{name}". The value of gridsize will be ignored.'
+                               )
+                if representation == 'fluid':
+                    masterwarn(f'N = {N_or_gridsize} was specified '
+                               f'for fluid component "{name}". This will be used as the gridsize.'
+                               )
+            elif 'gridsize' in d:
+                N_or_gridsize = d.pop('gridsize')
+                if representation == 'particles':
+                    masterwarn(f'gridsize = {N_or_gridsize} was specified '
+                               f'for fluid component "{name}". This will be used as N.'
+                               )
+            else:
+                if representation == 'particles':
+                    abort(f'No N specified for "{name}"')
+                elif representation == 'fluid':
+                    abort(f'No gridsize specified for "{name}"')
             if 'w' in d:
                 w = d.pop('w')
             else:
-                w = 'class'
-            representation = get_representation(species)
-            if representation == 'particles':
-                N_or_gridsize = φ_gridsize**3
-            elif representation == 'fluid':
-                N_or_gridsize = φ_gridsize
+                w = 'class'            
             # Show a warning if not enough information is given to
             # construct the initial conditions.
             if species in ('neutrinos', 'neutrino fluid') and class_params.get('N_ncdm', 0) == 0:

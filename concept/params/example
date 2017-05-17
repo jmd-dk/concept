@@ -24,8 +24,8 @@ output_bases = {                         # File basenames of output
                 }
 output_times = {
     'a': {                               # Scale factor values at which to dump output
-        'snapshot'       : '',
-        'powerspec'      : 0.02,
+        'snapshot'       : 1,
+        'powerspec'      : '',
         'render'         : '',
         'terminal render': '',
           },
@@ -60,15 +60,12 @@ softeningfactors = {       # The amount of gravitational softening for each spec
 R_tophat         = 8*Mpc   # Radius of tophat used to compute σ
 
 # Cosmology
-H0      = 70*km/(s*Mpc)  # The Hubble constant
-Ωcdm    = 0.25           # Density parameter for cold dark matter
-Ωb      = 0.05           # Density parameter for baryonic matter
-a_begin = 0.01              # Scale factor at beginning of simulation
-#class_params = {  # Parameters to pass to CLASS
-#                'N_ur': 2.0,      # Number of massless neutrinos
-#                'N_ncdm': 1,      # Nr. of massive neutrinos
-#                'm_ncdm': 0.05,   # Mass of massive neutrinos in eV
-#                }
+H0           = 70*km/(s*Mpc)  # The Hubble constant
+Ωcdm         = 0.25           # Density parameter for cold dark matter
+Ωb           = 0.05           # Density parameter for baryonic matter
+a_begin      = 0.01           # Scale factor at beginning of simulation
+class_params = {              # Parameters to pass to CLASS
+                }
 
 # Physics
 forces = {  # The forces which act on each species

@@ -25,13 +25,14 @@
 from commons import *
 
 # Cython imports
-from communication import smart_mpi
-cimport('from species import Component, FluidScalar, get_representation')
 cimport('from communication import partition,                   '
         '                          domain_layout_local_indices, '
         '                          domain_subdivisions,         '
         '                          exchange,                    '
+        '                          smart_mpi,                   '
         )
+cimport('from mesh import slab_decompose')
+cimport('from species import Component, FluidScalar, get_representation')
 
 # Pure Python imports
 import struct
@@ -107,6 +108,9 @@ class StandardSnapshot:
                    multi_index='tuple',
                    name='object',  # str or int
                    shape='tuple',
+                   slab='double[:, :, ::1]',
+                   slab_end='Py_ssize_t',
+                   slab_start='Py_ssize_t',
                    start_local='Py_ssize_t',
                    ϱ_mv='double[:, :, ::1]',
                    returns='str',
@@ -224,7 +228,7 @@ class StandardSnapshot:
                     # "fluidvar_index", with i = 0, 1, ...
                     # The fluid scalars are then datasets within
                     # these groups, named "fluidscalar_multi_index",
-                    # where multi_index (0, ), (1, ), ..., (0, 0), ...
+                    # with multi_index (0, ), (1, ), ..., (0, 0), ...
                     shape = (component.gridsize, )*3
                     for index, fluidvar in enumerate(component.fluidvars):
                         fluidvar_h5 = component_h5.create_group('fluidvar_{}'.format(index))
@@ -234,12 +238,18 @@ class StandardSnapshot:
                                                                         .format(multi_index),
                                                                         shape,
                                                                         dtype=C2np['double'])
-                            fluidscalar_h5[domain_start_i:domain_end_i,
-                                           domain_start_j:domain_end_j,
-                                           domain_start_k:domain_end_k] = fluidscalar.grid_mv[
-                                                                            2:ℤ[2 + domain_size_i],
-                                                                            2:ℤ[2 + domain_size_j],
-                                                                            2:ℤ[2 + domain_size_k]]
+                            # The global fluid scalar grid is of course
+                            # stored contiguously on disk. Generally
+                            # though, a single process does not store a
+                            # contiguous part of this global grid,
+                            # as it is domain decomposed rather than
+                            # slab decomposed. Here we communicate the
+                            # fluid scalar to slabs before saving to
+                            # disk, improving performance enormously.
+                            slab = slab_decompose(fluidscalar.grid_mv)
+                            slab_start = slab.shape[0]*rank
+                            slab_end = slab_start + slab.shape[0]
+                            fluidscalar_h5[slab_start:slab_end, :, :] = slab[:, :, :component.gridsize]
                     # Create additional names (hard links)
                     # for some fluid groups and data sets.
                     for name, indices in component.fluid_names.items():

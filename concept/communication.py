@@ -197,8 +197,9 @@ def exchange(component, reset_buffers=False):
         return
     # Print out exchange message
     masterprint('Exchanging {} of the {} particles ...'.format(N_send_tot_global, component.name))
-    # Grab a buffer for holding the data to be send
-    buffer_name = 0  # Buffer to use as sendbuf
+    # Grab a buffer for holding the data to be send.
+    # The 'send' buffer is also used internally by smart_mpi.
+    buffer_name = 'send'
     N_send_max = max(N_send)
     sendbuf_mv = get_buffer(N_send_max, buffer_name) 
     # Find out how many particles to receive
@@ -835,7 +836,7 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1, root=master_rank
         block_send, block_recv = block_recv, block_send
     # If block_recv is an int or str,
     # this designates a specific buffer to use as recvbuf.
-    recvbuf_name = 0
+    recvbuf_name = 'recv'
     if isinstance(block_recv, (int, str)):
         recvbuf_name = block_recv
     # NumPy arrays over the data
@@ -1018,7 +1019,7 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1, root=master_rank
 
 # Function which manages buffers used by other functions
 @cython.pheader(# Arguments
-                size='Py_ssize_t',
+                size_or_shape='object',  # Py_ssize_t or tuple
                 buffer_name='object',  # Any hashable object
                 nullify='bint',
                 # Local
@@ -1027,9 +1028,12 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1, root=master_rank
                 buffer_mv='double[::1]',
                 i='Py_ssize_t',
                 index='Py_ssize_t',
-                returns='double[::1]',
+                shape='tuple',
+                size='Py_ssize_t',
+                size_given='bint',
+                returns='object',  # multi-dimensional array of doubles
                 )
-def get_buffer(size=0, buffer_name=0, nullify=False):
+def get_buffer(size_or_shape=-1, buffer_name=0, nullify=False):
     """This function returns a contiguous buffer containing doubles.
     The buffer will be exactly of size 'size'. If no size is given,
     the buffer will be returned with whatever size it happens to have.
@@ -1037,9 +1041,22 @@ def get_buffer(size=0, buffer_name=0, nullify=False):
     requested by passing a buffer_name, which can be any hashable type.
     A buffer with the given name does not have to exist beforehand.
     A given buffer will be reallocated (enlarged) if necessary.
-    If nullify is True, all elements of the buffer will be sat to 0. 
+    If nullify is True, all elements of the buffer will be set to 0. 
     """
     global buffers
+    # Get shape and size from argument
+    if size_or_shape == -1:
+        size_given = False
+        size_or_shape = 1
+    else:
+        size_given = True
+    shape = size_or_shape if isinstance(size_or_shape, tuple) else (size_or_shape, )
+    size = np.prod(shape)
+    # The smallest possible buffer size is 1
+    if size == 0:
+        size = 1
+        shape = (1, )
+    # Fetch or create the buffer
     if buffer_name in buffers_mv:
         # This buffer already exists
         index = 0
@@ -1054,23 +1071,24 @@ def get_buffer(size=0, buffer_name=0, nullify=False):
             resize_buffer(size, buffer_name)
             buffer = buffers[index]
             buffer_mv = buffers_mv[buffer_name]
-        elif size == 0:
+        elif not size_given:
             # No size was given. Use the entire array.
             size = buffer_mv.shape[0]
+            shape = (size, )
     else:
         # This buffer does not exist yet. Create it.
-        if size == 0:
-            size = 1
         buffer = malloc(size*sizeof('double'))
         N_buffers = len(buffers_mv) + 1
         buffers = realloc(buffers, N_buffers*sizeof('double*'))
         buffers[N_buffers - 1] = buffer
         buffer_mv = cast(buffer, 'double[:size]')
         buffers_mv[buffer_name] = buffer_mv
+    # Nullify the buffer, if required
     if nullify:
         for i in range(size):
             buffer[i] = 0
-    return buffer_mv[:size]
+    # Return the buffer in the requsted shape
+    return np.reshape(buffer_mv[:size], shape)
 # Function which resizes one of the global buffers
 @cython.header(# Arguments
                buffer_name='object',  # Any hashable object
@@ -1144,9 +1162,6 @@ domain_start_z = domain_layout_local_indices[2]*domain_size_z
 domain_end_x = domain_start_x + domain_size_x
 domain_end_y = domain_start_x + domain_size_x
 domain_end_z = domain_start_x + domain_size_x
-
-
-
 
 # Initialize variables used in the exchange function
 cython.declare(N_send='Py_ssize_t[::1]',

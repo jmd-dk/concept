@@ -60,6 +60,7 @@ output_bases = {'snapshot': 'snapshot'}
 output_times = {'snapshot': a_begin}
 initial_conditions = {'name'   : 'test particles',
                       'species': 'matter particles',
+                      'N'      : φ_gridsize**3,
                       }
 " > "${this_dir}/ic.params"
 "${concept}" -n 1                       \

@@ -39,14 +39,16 @@ all arguments being filenames:
 
 In the first case where a .pyx file is created from a .py file,
 the following changes happens to the source code (in the .pyx file):
+- Insert the line 'cimport cython' at the very top,
+  though below any __future__ imports.
 - Transform statements written over multiple lines into single lines.
   The exception is decorator statements, which remain multilined.
 - Removes pure Python commands between 'if not cython.compiled:' and
   'else:', including these lines themselves. Also removes the triple
   quotes around the Cython statements in the else body. The 'else'
   clause is optional.
-- Insert the lines 'cimport cython' and 'from commons cimport *' just
-  below 'from commons import *'.
+- Insert the line 'from commons cimport *'
+  just below 'from commons import *'.
 - Transform the 'cimport()' function calls into proper cimports.
 - Replace 'ℝ[expression]' with a double variable and 'ℤ[expression]'
   with a Py_ssize_t variable which is equal to 'expression' and defined
@@ -93,6 +95,18 @@ from copy import deepcopy
 import collections, imp, itertools, os, re, shutil, unicodedata
 # For math
 import numpy as np
+
+
+
+def cimport_cython(lines):
+    for i, line in enumerate(lines):
+        if (line.strip()
+            and not line.lstrip().startswith('#')
+            and not '__future__' in line
+            ):
+            lines = lines[:i] + ['cimport cython\n'] + lines[i:]
+            break
+    return lines
 
 
 
@@ -320,10 +334,11 @@ def cython_structs(lines):
             if not build_struct_code:
                 build_struct_code = get_build_struct()
             for build_struct_line in build_struct_code:
-                build_struct_line = build_struct_line.replace('build_struct(', 'build_struct_{}('.format(struct_kind))
+                build_struct_line = build_struct_line.replace('build_struct(',
+                                                            'build_struct_{}('.format(struct_kind))
                 build_struct_line = build_struct_line.replace('...',
                                                               'struct_{}({})'.format(struct_kind,
-                                                                                     ', '.join(['0']*len(struct_content))))
+                                                             ', '.join(['0']*len(struct_content))))
                 
                 new_lines.append(build_struct_line)
             # Insert declaration of struct
@@ -350,10 +365,11 @@ def cython_structs(lines):
             if struct_kind not in struct_kinds:
                 struct_kinds.append(struct_kind)
                 new_lines.append(' '*indentation + 'pxd = """\n')
-                new_lines.append('{}ctypedef struct struct_{}:\n'.format(' '*indentation, struct_kind))
+                new_lines.append('{}ctypedef struct struct_{}:\n'.format(' '*indentation,
+                                                                         struct_kind))
                 for name, ctype, val in struct_content:
                     new_lines.append('{}    {} {}\n'.format(' '*indentation,
-                                                            ctype.replace('"', '').replace("'", ''),
+                                                           ctype.replace('"', '').replace("'", ''),
                                                             name))
                 new_lines.append(' '*indentation + '"""\n')
         else:
@@ -367,7 +383,7 @@ def cimport_commons(lines):
     for i, line in enumerate(lines):
         if line.startswith('from {} import *'.format(commons_name)):
             lines = (  lines[:(i + 1)]
-                     + ['cimport cython\n', 'from {} cimport *\n'.format(commons_name)]
+                     + ['from {} cimport *\n'.format(commons_name)]
                      + lines[(i + 1):])
             break
     return lines
@@ -375,6 +391,7 @@ def cimport_commons(lines):
 
 
 def cimport_function(lines):
+    new_lines = []
     for i, line in enumerate(lines):
         if line.replace(' ', '').startswith('cimport('):
             line = re.sub('cimport.*\((.*?)\)',
@@ -382,8 +399,25 @@ def cimport_function(lines):
                           line).rstrip()
             if line.endswith(','):
                 line = line[:-1]
-            lines[i] = '{}\n'.format(line)
-    return lines
+            line = '{}\n'.format(line)
+            if line.lstrip().startswith('from ') and ' as ' not in line:
+                # Add normal imports enclosed in try/except
+                indentation = len(line) - len(line.lstrip())
+                words = line.strip(' \n').split(' ')
+                module = words[1]
+                functions = [function.strip(' ,') for function in words[3:]
+                             if function.strip(' ,')]
+                for function in functions:
+                    new_lines.append(' '*indentation + 'try:\n')
+                    new_lines.append(' '*(indentation + 4)
+                                     + 'from {} import {}\n'.format(module, function))
+                    new_lines.append(' '*indentation + 'except:\n')
+                    new_lines.append(' '*(indentation + 4) + '...\n')
+            # Add cimport import
+            new_lines.append(line)
+        else:
+            new_lines.append(line)
+    return new_lines
 
 
 
@@ -532,7 +566,8 @@ def loop_unswitching(lines):
                                     break
                     if not empty_else:
                         indentation = '    '*(unswitch_lvl + 1)
-                        if_headers.append('{}else:  # This is an autoinserted else block\n'.format(indentation))
+                        if_headers.append('{}else:  # This is an autoinserted else block\n'
+                                          .format(indentation))
                         if_bodies.append(['{}    # End of autoinserted else block\n'
                                           .format(indentation)])
                 # Stitch together the recorded pieces to perform
@@ -690,13 +725,17 @@ def constant_expressions(lines):
                 if ctype == 'double':
                     # Integer in numerator
                     expression = re.sub('[0-9]+\.?[0-9]*/[^/]',
-                                        lambda numerator: (     numerator.group() if '.' in numerator.group()
-                                                           else numerator.group()[:-2] + '.0/' + numerator.group()[-1]),
+                                        lambda numerator: (
+                                                 numerator.group() if '.' in numerator.group()
+                                                                   else (numerator.group()[:-2]
+                                                                         + '.0/'
+                                                                         + numerator.group()[-1])),
                                         expression)
                     # Integer in denominator
                     expression = re.sub('[^/]/[0-9]+\.?[0-9]*',
-                                        lambda denominator: (     denominator.group() if '.' in denominator.group()
-                                                             else denominator.group() + '.0'),
+                                        lambda denominator: (
+                                                  denominator.group() if '.' in denominator.group()
+                                                                  else denominator.group() + '.0'),
                                         expression)
                 no_blackboard_bold_R = False
                 expressions.append(expression)
@@ -706,8 +745,9 @@ def constant_expressions(lines):
                 expressions_cython.append(expression_cython)
                 lines[i] = '{}\n'.format(line.replace(R_statement, expression_cython))
                 # Find out where the declaration should be
-                variables = expression.replace(' ', '')                             # Remove spaces
-                variables = re.sub('(?P<quote>[\'"]).*?(?P=quote)', '', variables)  # Remove string literals using single and double quotes
+                variables = expression.replace(' ', '')
+                variables = re.sub('(?P<quote>[\'"]).*?(?P=quote)', # Remove string literals using
+                                   '', variables)                   # single and double quotes.
                 variables = [variables]
                 for op in operators.keys():
                     # Split variables on operators, excluding '.'
@@ -731,8 +771,10 @@ def constant_expressions(lines):
                         for j, line2 in enumerate(reversed(lines[:end])):
                             line2 = line2.rstrip('\n')
                             line2_ori = line2
-                            line2 = ' '*(len(line2) - len(line2.lstrip()))  + line2.replace(' ', '')
-                            if line2_ori.lstrip().startswith('def ') and re.search('[\(,]{}[,=\)]'.format(var), line2):
+                            line2 = (' '*(len(line2) - len(line2.lstrip()))
+                                     + line2.replace(' ', ''))
+                            if (    line2_ori.lstrip().startswith('def ')
+                                and re.search('[\(,]{}[,=\)]'.format(var), line2)):
                                 # var as function argument
                                 linenr_where_defined[v] = end - 1 - j
                                 break
@@ -851,7 +893,10 @@ def constant_expressions(lines):
                             if fname:
                                 # Remember that this variable has been declared in this function
                                 declarations_placed[fname].append(expression_cython)
-                        new_lines.append(expression_cython + ' = ' + expressions[e] + '\n')
+                        new_lines.append(expression_cython + ' = <{}>('.format(ctype)
+                                                           + expressions[e]
+                                                           + ')\n'
+                                         )
                 new_lines.append('\n')
             for e, n in enumerate(declaration_linenrs):
                 if i == n:
@@ -861,15 +906,18 @@ def constant_expressions(lines):
                     if declaration_placements[e] == 'above':
                         new_lines.pop()
                     if not expressions_cython[e] in declarations_placed[fname]:
-                        new_lines.append(indentation
-                                         + 'cython.declare('
-                                         + expressions_cython[e]
-                                         + "='{}')\n".format(ctype))
+                        new_lines.append(indentation + 'cython.declare('
+                                                     + expressions_cython[e]
+                                                     + "='{}')\n".format(ctype)
+                                         )
                         if fname:
                             # Remember that this variable has been declared in this function
                             declarations_placed[fname].append(expressions_cython[e])
-                    new_lines.append(indentation + expressions_cython[e] + ' = ' + expressions[e] + '\n')
-                    #print('new_lines:', new_lines[-1], 'indentation:', len(indentation), 'declaration_placements[e]:', declaration_placements[e], 'line:', line, flush=True)
+                    new_lines.append(indentation + expressions_cython[e]
+                                                 + ' = <{}>('.format(ctype)
+                                                 + expressions[e]
+                                                 + ')\n'
+                                     )
                     if declaration_placements[e] == 'above':
                         new_lines.append(line)
         # Exchange the original lines with the modified lines
@@ -1759,6 +1807,11 @@ def make_pxd(filename):
     if total_lines != []:
         total_lines.append('\n')
     total_lines += pxd_lines
+    # Add 'cimport cython' as the top line
+    total_lines = ['# Get full access to all of Cython\n',
+                   'cimport cython\n',
+                   '\n',
+                   ] + total_lines
     # Remove duplicates
     total_lines_unique = []
     counter = collections.Counter(total_lines)
@@ -1813,6 +1866,7 @@ else:
         with open(filename, 'r', encoding='utf-8') as pyfile:
             lines = pyfile.readlines()
         # Apply transformations on the lines
+        lines = cimport_cython(lines)
         lines = oneline(lines)
         lines = cythonstring2code(lines)
         lines = cython_structs(lines)

@@ -25,14 +25,12 @@
 from commons import *
 
 # Cython imports
-from mesh import diff_domain
 cimport('from ewald import ewald')
 cimport('from communication import communicate_domain, find_N_recv, rank_neighboring_domain')
 cimport('from communication import domain_size_x,  domain_size_y,  domain_size_z')
 cimport('from communication import domain_start_x, domain_start_y, domain_start_z')
-cimport('from mesh import CIC_components2slabs, CIC_grid2grid, CIC_scalargrid2coordinates')
-cimport('from mesh import slab, slab_size_j, slab_start_j, slabs_FFT, slabs_IFFT, slabs2φ')
-cimport('from mesh import φ, φ_noghosts')
+cimport('from mesh import CIC_components2φ, CIC_grid2grid, CIC_scalargrid2coordinates')
+cimport('from mesh import fft, domain_decompose, slab_decompose')
 
 
 
@@ -479,9 +477,6 @@ def build_φ(components, ᔑdt, only_long_range=False):
     The P3M long-range potential can be computed instead of the regular
     potential by specifying only_long_range = True.
     """
-    if not use_φ:
-        masterwarn('The φ mesh is not initialized. '
-                   'Have you specified φ_gridsize in the parameter file?')
     if only_long_range:
         masterprint('Computing the long-range gravitational potential ...')
     else:
@@ -501,17 +496,18 @@ def build_φ(components, ᔑdt, only_long_range=False):
                  ('ϱ', [ᔑdt['a⁻³ʷ⁻¹', component]*ℝ[1/Δt]
                         for component in components]),
                  ]
-    CIC_components2slabs(components, quanities)
-    
+    cython.declare(φ='double[:, :, ::1]', slab='double[:, :, ::1]')
+    φ = CIC_components2φ(components, quanities)
+    slab = slab_decompose(φ, prepare_fft=True)
 
     # Do forward Fourier transform on the slabs
     # containing the density field.
-    slabs_FFT()
+    fft(slab, 'forward')
     # Loop through the local j-dimension
-    for j in range(slab_size_j):
+    for j in range(ℤ[slab.shape[0]]):
         # The j-component of the wave vector. Since the slabs are
         # distributed along the j-dimension, an offset must be used.
-        j_global = slab_start_j + j
+        j_global = ℤ[slab.shape[0]*rank] + j
         if j_global > ℤ[φ_gridsize//2]:
             kj = j_global - φ_gridsize
         else:
@@ -532,7 +528,7 @@ def build_φ(components, ᔑdt, only_long_range=False):
             sqrt_deconv_ij = sinc(ki*ℝ[π/φ_gridsize])*sqrt_deconv_j
             # Loop through the complete, padded k-dimension
             # in steps of 2 (one complex number at a time).
-            for k in range(0, slab_size_padding, 2):
+            for k in range(0, ℤ[slab.shape[2]], 2):
                 # The k-component of the wave vector
                 kk = k//2
                 # The squared magnitude of the wave vector
@@ -574,9 +570,9 @@ def build_φ(components, ᔑdt, only_long_range=False):
     #     slab[0, 0, 1] = 0  # Imag part
     # Fourier transform the slabs back to coordinate space.
     # Now the slabs store potential values.
-    slabs_IFFT()
+    fft(slab, 'backward')
     # Communicate the potential stored in the slabs to φ
-    slabs2φ()  # This also populates pseudo and ghost points
+    domain_decompose(slab, φ)  # This also populates pseudo and ghost points
     # Finalize progress message
     masterprint('done')
     # Return the potential grid (though this is a global and is often
@@ -819,7 +815,6 @@ def in_boundary_leftbackwarddown(posx_local_i, posy_local_i, posz_local_i):
                in_boundary2='func_b_ddd',
                j='Py_ssize_t',
                mass='double',
-               meshbuf_mv='double[:, :, ::1]',
                momx_local='double*',
                momy_local='double*',
                momz_local='double*',
@@ -866,6 +861,50 @@ def p3m(component, ᔑdt):
     # NOTE: This function now only supply the short-range force
     # and should therefore be renamed !!!
     #
+
+    # The commented code below used to be in mesh.py,
+    # but is now only present here. It checks that the φ grid
+    # is large enough for the p3m method to work. These same checks
+    # should be present when you rewrite the p3m function using the
+    # new interaction framework. !!!
+    # if master and use_p3m:
+    #     if (   φ_size_i < p3m_scale*p3m_cutoff
+    #         or φ_size_j < p3m_scale*p3m_cutoff
+    #         or φ_size_k < p3m_scale*p3m_cutoff):
+    #         abort('A φ_gridsize of {} and {} processes results in the following domain '
+    #               'partitioning: {}. The smallest domain width is {} grid cells, while the '
+    #               'choice of p3m_scale ({}) and p3m_cutoff ({}) means that the domains must '
+    #               'be at least {} grid cells for the P3M algorithm to work.'
+    #               .format(φ_gridsize,
+    #                       nprocs,
+    #                       list(domain_subdivisions),
+    #                       np.min([φ_size_i, φ_size_j, φ_size_k]),
+    #                       p3m_scale,
+    #                       p3m_cutoff,
+    #                       int(np.ceil(p3m_scale*p3m_cutoff)),
+    #                       )
+    #                )
+    #     if ((   φ_size_i < 2*p3m_scale*p3m_cutoff
+    #          or φ_size_j < 2*p3m_scale*p3m_cutoff
+    #          or φ_size_k < 2*p3m_scale*p3m_cutoff) and np.min(domain_subdivisions) < 3):
+    #         # If the above is True, the left and the right (say) process
+    #         # is the same and the boundaries will be send to it twice,
+    #         # and these will overlap with each other in the left/right
+    #         # domain, eventually leading to gravity being applied twice.
+    #         abort('A φ_gridsize of {} and {} processes results in the following domain '
+    #               'partitioning: {}.\nThe smallest domain width is {} grid cells, while the '
+    #               'choice of p3m_scale ({}) and p3m_cutoff ({})\nmeans that the domains must '
+    #               'be at least {} grid cells for the P3M algorithm to work.'
+    #               .format(φ_gridsize,
+    #                       nprocs,
+    #                       list(domain_subdivisions),
+    #                       np.min([φ_size_i, φ_size_j, φ_size_k]),
+    #                       p3m_scale,
+    #                       p3m_cutoff,
+    #                       int(np.ceil(2*p3m_scale*p3m_cutoff)),
+    #                       )
+    #                )
+
 
     # Extract variables from component
     N_local    = component.N_local
