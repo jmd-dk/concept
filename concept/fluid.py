@@ -323,7 +323,7 @@ def evolve_fluid(component, ᔑdt, steps, mc_step):
                 Jyˣ[i, j, k] += Jy_ijk + ΔJ[1]
                 Jzˣ[i, j, k] += Jz_ijk + ΔJ[2]
     # Populate the pseudo and ghost points with the updated values.
-    # Depedendent on whether we are doing the first of second
+    # Depedendent on whether we are doing the first or second
     # MacCormack step (mc_step), the updated grids are really the
     # starred grids (first MacCormack step) or the
     # unstarred grids (second MacCormack step)

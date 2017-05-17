@@ -578,6 +578,14 @@ if [ -z "${SSH_CLIENT}" ] && [ -z "${SSH_TTY}" ]; then
     ssh="False"  
 fi
 
+# Determine wheter to run CO𝘕CEPT locally or remotely (via PBS).
+# Always treat tests as if they were run locally.
+remote="False"
+if [ "${local}" == "False" ] && [ "${test}" == "${test_unspecified}" ] \
+                             && [ "${ssh}" == "True" ]; then
+    remote="True"
+fi
+
 # Determine the MPI implentations used
 if [ -f "${mpi_dir}/bin/ompi_info" ]; then
     mpi_implementation="openmpi"
@@ -608,6 +616,17 @@ elif [ "${mpi_implementation}" == "mpich" ]; then
     mpi_preparations=""
 fi
 eval "${mpi_preparations}"
+
+# If run locally, set the number of OpenMP threads
+# equal to the number of MPI processes.
+if [ "${remote}" == "True" ]; then
+    openmp_preparations="# Use the same number of OpenMP threads as MPI processes
+                         export OMP_NUM_THREADS=${nprocs}
+                         "
+else
+    openmp_preparations=""
+fi
+eval "${openmp_preparations}"
 
 # Compile or do cleanup from last compilation.
 # The only time where neither should be done
@@ -643,14 +662,6 @@ if [ "${prepare_files}" == "True" ]; then
             (cd "${concept_dir}" && make unsafe_build=${unsafe_build} -j)
         fi
     fi
-fi
-
-# Determine wheter to run CO𝘕CEPT locally or remotely (via PBS).
-# Always treat tests as if they were run locally.
-remote="False"
-if [ "${local}" == "False" ] && [ "${test}" == "${test_unspecified}" ] \
-                             && [ "${ssh}" == "True" ]; then
-    remote="True"
 fi
 
 # If a utility is to be run, run it and exit
@@ -800,6 +811,9 @@ fi
 
 # Do MPI preparations, if any
 ${mpi_preparations}
+
+# Do OpenMP preparations, if any
+${openmp_preparations}
 
 # Set and export path environment variables
 export LD_LIBRARY_PATH=\"${LD_LIBRARY_PATH}:\${LD_LIBRARY_PATH}\"
