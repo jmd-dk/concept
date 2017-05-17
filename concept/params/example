@@ -10,7 +10,7 @@
 
 
 # Input/output
-initial_conditions = 'ICs/realise_test.hdf5'  #'ICs/DM_000'  # Initial condition snapshot file or container of species to be generated
+initial_conditions = 'ICs/example.hdf5'  # Initial condition snapshot file or container of species to be generated
 snapshot_type = 'standard'               # Type of output snapshots
 output_dirs = {                          # Directories for storing output
     'snapshot' : 'output',
@@ -48,9 +48,9 @@ render_select = {                        # Toggle rendering for each component
 autosave = 1*hr                          # How often to autosave
 
 # Numerical parameters
-boxsize          = 8*Gpc   # Linear size of the simulation box
+boxsize          = 16*Mpc  # Linear size of the simulation box
 ewald_gridsize   = 64      # Linear gridsize of the grid of Ewald corrections
-φ_gridsize       = 400     # Linear gridsize of the potential
+φ_gridsize       = 128     # Linear gridsize of the potential
 p3m_scale        = 1.25	   # The long/short-range force split scale
 p3m_cutoff       = 4.8     # Maximum reach of short-range force
 softeningfactors = {       # The amount of gravitational softening for each species
@@ -63,7 +63,7 @@ R_tophat         = 8*Mpc   # Radius of tophat used to compute σ
 H0           = 70*km/(s*Mpc)  # The Hubble constant
 Ωcdm         = 0.25           # Density parameter for cold dark matter
 Ωb           = 0.05           # Density parameter for baryonic matter
-a_begin      = 0.01           # Scale factor at beginning of simulation
+a_begin      = 0.02           # Scale factor at beginning of simulation
 class_params = {              # Parameters to pass to CLASS
                 }
 
@@ -78,7 +78,7 @@ w_eos = {  # Equation of state parameter for each species
 
 # Simulation options
 fftw_rigor = 'measure'  # Rigor level when acquiring FFTW wisdom
-master_seed = 3         # Seed for pseudo-random numbers
+master_seed = 1         # Seed for pseudo-random numbers
 
 # Graphics
 render_colors = {                        # Render color for each component
