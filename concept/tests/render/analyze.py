@@ -51,10 +51,10 @@ for r, path, params in zip((render, render_0),
                            (this_dir + '/render.params_0', this_dir + '/render.params_1')):
     module_dict = imp.load_source('params', params).__dict__
     shape = r.shape[:2]
-    if shape[0] != shape[1] or shape[0] != module_dict['resolution']:
+    if shape[0] != shape[1] or shape[0] != module_dict['render_resolution']:
         masterprint('done')
         abort('The render "{}" is not of size {}x{}!'
-              .format(path, module_dict['resolution'], module_dict['resolution']))
+              .format(path, module_dict['render_resolution'], module_dict['render_resolution']))
 
 # There should be some completely black pixels in the first render
 # and some completely white pixels in the second (and third) render

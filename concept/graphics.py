@@ -243,7 +243,7 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
         # to the background color.
         default_colors = itertools.cycle([to_rgb(prop['color'])
                                           for prop in matplotlib.rcParams['axes.prop_cycle']
-                                          if not all(to_rgb(prop['color']) == bgcolor)])
+                                          if not all(to_rgb(prop['color']) == render_bgcolor)])
         for component in components:
             # The i'th component should only be rendered if
             # {name: True} or {'all': True} exist in render_select.
@@ -258,9 +258,9 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
             figname = 'render_{}'.format(component.name)
             dpi = 100  # The value of dpi is irrelevant
             fig = plt.figure(figname,
-                             figsize=[resolution/dpi]*2,
+                             figsize=[render_resolution/dpi]*2,
                              dpi=dpi)
-            ax = fig.gca(projection='3d', facecolor=bgcolor)
+            ax = fig.gca(projection='3d', facecolor=render_bgcolor)
             # The color of this component
             if component.name.lower() in render_colors:
                 # This component is given a specific color by the user
@@ -474,9 +474,9 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
                 a_str = '$a = {}$'.format(significant_figures(universals.a, 4, 'TeX'))
                 artists_text['a'].set_text(a_str)
             # Make the text color black or white,
-            # dependent on the bgcolor
+            # dependent on the background color.
             for artist_text in artists_text.values():
-                if sum(bgcolor) < 1:
+                if sum(render_bgcolor) < 1:
                     artist_text.set_color('white')
                 else:
                     artist_text.set_color('black')
@@ -597,8 +597,8 @@ def blend(filenames):
     render_image[...] = 0
     for filename in filenames:
         tmp_image = plt.imread(filename)
-        for i in range(resolution):
-            for j in range(resolution):
+        for     i in range(render_resolution):
+            for j in range(render_resolution):
                 # Pixels with 0 alpha has (r, g, b) = (1, 1, 1)
                 # (this is a defect of plt.savefig).
                 # These should be disregarded completely.
@@ -615,8 +615,8 @@ def blend(filenames):
                     render_image[i, j, 3] = alpha_tot
     # Some pixel values in the combined render may have overflown.
     # Clip at saturation value.
-    for i in range(resolution):
-        for j in range(resolution):
+    for     i in range(render_resolution):
+        for j in range(render_resolution):
             for rgba in range(4):
                 if render_image[i, j, rgba] > 1:
                     render_image[i, j, rgba] = 1
@@ -631,13 +631,13 @@ def blend(filenames):
                rgb='int',
                )
 def add_background():
-    for i in range(resolution):
-        for j in range(resolution):
+    for     i in range(render_resolution):
+        for j in range(render_resolution):
             alpha = render_image[i, j, 3]
             # Add background using "A over B" alpha blending
             for rgb in range(3):
                 render_image[i, j, rgb] = (alpha*render_image[i, j, rgb]
-                                           + (1 - alpha)*bgcolor[rgb])
+                                           + (1 - alpha)*render_bgcolor[rgb])
                 render_image[i, j, 3] = 1
 
 # This function projects the particle/fluid element positions onto the
@@ -753,7 +753,7 @@ if any(render_times.values()) or special_params.get('special', '') == 'render':
     # artist and text artist for each component.
     render_dict = collections.OrderedDict()
 # The array storing the render
-render_image = empty((resolution, resolution, 4), dtype=C2np['float'])
+render_image = empty((render_resolution, render_resolution, 4), dtype=C2np['float'])
 
 # Prepare a figure for the powerspec plot
 if (any(powerspec_plot_select.values())

@@ -33,6 +33,111 @@ cimport('from linear import compute_cosmo, compute_transfers, realize')
 
 
 
+# Class which serves as the data structure for fluid variables,
+# efficiently and elegantly implementing symmetric
+# multi-dimensional arrays. The actual fluid (scalar) grids are then
+# the elements of these tensors.
+class Tensor:
+    """With respect to indexing and looping, you may threat instances of
+    this class just like NumPy arrays.
+    """
+    def __init__(self, component, varnum, shape, symmetric=False):
+        """If disguised_scalar is True, every element of the tensor
+        will always point to the same object.
+        """
+        # Empty and otherwise falsy shapes are understood as rank 0
+        # tensors (scalars). For this reason,
+        # empty tensors are not representable.
+        if not shape:
+            shape = 1
+        # Store initialization arguments as instance variables
+        self.component = component
+        self.varnum = varnum
+        self.shape = tuple(any2iter(shape))
+        self.symmetric = symmetric
+        # Store other array-like attributes
+        self.size = np.prod(self.shape)
+        self.ndim = len(self.shape)
+        self.dtype = 'object'
+        # Is this tensor really just a scalar in disguise?
+        self.disguised_scalar = (self.component.N_fluidvars == self.varnum)
+        # Should this fluid variable do realizations when iterating
+        # with the iterate method?
+        self.iterative_realizations = (self.disguised_scalar and self.component.closure == 'class')
+        # Only "square" tensors can be symmetric
+        if self.symmetric and len(set(self.shape)) != 1:
+            abort('A {} tensor cannot be made symmetric'.format('×'.join(self.shape)))
+        # Compute and store all multi_indices
+        self.multi_indices = tuple(sorted(set([self.process_multi_index(multi_index)
+                                               for multi_index
+                                               in itertools.product(*[range(size)
+                                                                      for size in self.shape])])))
+        # Initialize tensor data
+        self.data = {multi_index: None for multi_index in self.multi_indices}
+    # Method for processing multi_indices.
+    # This is where the symmetry of the indices is implemented.
+    def process_multi_index(self, multi_index):
+        if self.symmetric:
+            multi_index = tuple(sorted(any2iter(multi_index), reverse=True))
+        else:
+            multi_index = tuple(any2iter(multi_index))
+        if len(multi_index) != self.ndim:
+            abort('A {} tensor was accessed with indices {}'
+                  .format('×'.join(self.shape), multi_index))
+        return multi_index
+    # Methods for indexing
+    def __getitem__(self, multi_index):
+        multi_index = self.process_multi_index(multi_index)
+        return self.data[multi_index]  
+    def __setitem__(self, multi_index, value):
+        multi_index = self.process_multi_index(multi_index)
+        if not multi_index in self.data:
+            abort('Attempted to access multi_index {} of {} tensor'
+                  .format(multi_index, '×'.join(self.shape))
+                  )
+        self.data[multi_index] = value
+        # If only a single element should exist in memory,
+        # point every multi_index to the newly set element.
+        if self.disguised_scalar:
+            for other_multi_index in self.multi_indices:
+                self.data[other_multi_index] = value
+    # Iteration
+    def __iter__(self):
+        """By default, iteration yields all elements, except for
+        the case of disguised scalars, where only the first element
+        is yielded.
+        """
+        N_elements = 1 if self.disguised_scalar else len(self.multi_indices)
+        return (self.data[multi_index] for multi_index in self.multi_indices[:N_elements])
+    def iterate(self, attribute='fluidscalar', multi_indices=False):
+        """This generator yields all elements of the tensor.
+        For disguised scalars, all logical elements are realized
+        before yielding.
+        What attribute of the elements (fluidscalars) should be yielded
+        is controlled by the attribute argument. For a value of
+        'fluidscalar', the entire fluidscalar is returned.
+        If multi_index is True, both the multi_index and the fluidscalar
+        will be yielded, in that order.
+        """
+        for multi_index in self.multi_indices:
+            with unswitch:
+                if self.iterative_realizations:
+                    self.component.realize(self.varnum, specific_multi_index=multi_index)
+            fluidscalar = self.data[multi_index]
+            with unswitch:
+                if attribute == 'fluidscalar':
+                    value = fluidscalar
+                else:
+                    value = getattr(fluidscalar, attribute)
+            with unswitch:
+                if multi_indices:
+                    yield multi_index, value
+                else:
+                    yield              value
+
+
+
+
 # Class which serves as the data structure for a scalar fluid grid
 # (each component of a fluid variable is stored as a collection of
 # scalar grids). Each scalar fluid has its own name, e.g.
@@ -46,9 +151,6 @@ class FluidScalar:
     @cython.header(# Arguments
                    varnum='int',
                    multi_index='object',  # tuple or int-like
-                   # Locals
-                   shape='tuple',
-                   size='Py_ssize_t',
                    )
     def __init__(self, varnum, multi_index=()):
         # The triple quoted string below serves as the type declaration
@@ -59,6 +161,11 @@ class FluidScalar:
         # Fluid variable number and index of fluid scalar
         public int varnum
         public tuple multi_index
+        # Meta data
+        public tuple shape
+        public tuple shape_noghosts
+        public Py_ssize_t size
+        public Py_ssize_t size_noghosts
         # The data itself
         double* grid
         public double[:, :, ::1] grid_mv
@@ -76,30 +183,33 @@ class FluidScalar:
         self.varnum = varnum
         self.multi_index = tuple(any2iter(multi_index))
         # Minimal starting layout
-        shape = (1, 1, 1)
-        size = np.prod(shape)
+        self.shape = (1, 1, 1)
+        self.shape_noghosts = (1, 1, 1)
+        self.size = np.prod(self.shape)
+        self.size_noghosts = np.prod(self.shape_noghosts)
         # The data itself
-        self.grid = malloc(size*sizeof('double'))
-        self.grid_mv = cast(self.grid, 'double[:shape[0], :shape[1], :shape[2]]')
+        self.grid = malloc(self.size*sizeof('double'))
+        self.grid_mv = cast(self.grid, 'double[:self.shape[0], :self.shape[1], :self.shape[2]]')
         self.grid_noghosts = self.grid_mv[:, :, :]
         # The starred buffer
-        self.gridˣ = malloc(size*sizeof('double'))
-        self.gridˣ_mv = cast(self.gridˣ, 'double[:shape[0], :shape[1], :shape[2]]')
+        self.gridˣ = malloc(self.size*sizeof('double'))
+        self.gridˣ_mv = cast(self.gridˣ, 'double[:self.shape[0], :self.shape[1], :self.shape[2]]')
         self.gridˣ_noghosts = self.gridˣ_mv[:, :, :]
+        # Due to the Unicode NFKC normalization done by pure Python,
+        # attributes with a ˣ in their name need to be set in following
+        # way in order for dynamical lookup to function.
+        if not cython.compiled:
+            setattr(self, 'gridˣ'         , self.gridˣ         )
+            setattr(self, 'gridˣ_mv'      , self.gridˣ_mv      )
+            setattr(self, 'gridˣ_noghosts', self.gridˣ_noghosts)
         # The Δ buffer
-        self.Δ = malloc(size*sizeof('double'))
-        self.Δ_mv = cast(self.Δ, 'double[:shape[0], :shape[1], :shape[2]]')
+        self.Δ = malloc(self.size*sizeof('double'))
+        self.Δ_mv = cast(self.Δ, 'double[:self.shape[0], :self.shape[1], :self.shape[2]]')
         self.Δ_noghosts = self.Δ_mv[:, :, :]
 
     # Method for resizing all grids of this scalar fluid
     @cython.header(# Arguments
                    shape_nopseudo_noghost='tuple',
-                   # Locals
-                   s='Py_ssize_t',
-                   shape='tuple',
-                   shape_noghosts='tuple',
-                   size='Py_ssize_t',
-                   size_noghosts='Py_ssize_t',
                    )
     def resize(self, shape_nopseudo_noghost):
         """After resizing the fluid scalar,
@@ -107,31 +217,38 @@ class FluidScalar:
         """
         # The full shape and size of the grid,
         # with pseudo and ghost points.
-        shape = tuple([2 + s + 1 + 2 for s in shape_nopseudo_noghost])
-        size = np.prod(shape)
+        self.shape = tuple([2 + s + 1 + 2 for s in shape_nopseudo_noghost])
+        self.size = np.prod(self.shape)
         # The shape and size of the grid
         # with no ghost points but with pseudo points.
-        shape_noghosts = tuple([s + 1 for s in shape_nopseudo_noghost])
-        size_noghosts = np.prod(shape_noghosts)
+        self.shape_noghosts = tuple([s + 1 for s in shape_nopseudo_noghost])
+        self.size_noghosts = np.prod(self.shape_noghosts)
         # The data itself
-        self.grid = realloc(self.grid, size*sizeof('double'))
-        self.grid_mv = cast(self.grid, 'double[:shape[0], :shape[1], :shape[2]]')
+        self.grid = realloc(self.grid, self.size*sizeof('double'))
+        self.grid_mv = cast(self.grid, 'double[:self.shape[0], :self.shape[1], :self.shape[2]]')
         self.grid_noghosts = self.grid_mv[2:(self.grid_mv.shape[0] - 2),
                                           2:(self.grid_mv.shape[1] - 2),
                                           2:(self.grid_mv.shape[2] - 2)]
         # Nullify the newly allocated data grid
         self.nullify_grid()
         # The starred buffer
-        self.gridˣ = realloc(self.gridˣ, size*sizeof('double'))
-        self.gridˣ_mv = cast(self.gridˣ, 'double[:shape[0], :shape[1], :shape[2]]')
+        self.gridˣ = realloc(self.gridˣ, self.size*sizeof('double'))
+        self.gridˣ_mv = cast(self.gridˣ, 'double[:self.shape[0], :self.shape[1], :self.shape[2]]')
         self.gridˣ_noghosts = self.gridˣ_mv[2:(self.gridˣ_mv.shape[0] - 2),
                                             2:(self.gridˣ_mv.shape[1] - 2),
                                             2:(self.gridˣ_mv.shape[2] - 2)]
+        # Due to the Unicode NFKC normalization done by pure Python,
+        # attributes with a ˣ in their name need to be set in following
+        # way in order for dynamical lookup to function.
+        if not cython.compiled:
+            setattr(self, 'gridˣ'         , self.gridˣ         )
+            setattr(self, 'gridˣ_mv'      , self.gridˣ_mv      )
+            setattr(self, 'gridˣ_noghosts', self.gridˣ_noghosts)
         # Nullify the newly allocated starred buffer
         self.nullify_gridˣ()
         # The starred buffer
-        self.Δ = realloc(self.Δ, size*sizeof('double'))
-        self.Δ_mv = cast(self.Δ, 'double[:shape[0], :shape[1], :shape[2]]')
+        self.Δ = realloc(self.Δ, self.size*sizeof('double'))
+        self.Δ_mv = cast(self.Δ, 'double[:self.shape[0], :self.shape[1], :self.shape[2]]')
         self.Δ_noghosts = self.Δ_mv[2:(self.Δ_mv.shape[0] - 2),
                                     2:(self.Δ_mv.shape[1] - 2),
                                     2:(self.Δ_mv.shape[2] - 2)]
@@ -151,7 +268,7 @@ class FluidScalar:
         grid = self.grid
         # Scale data buffer
         shape = self.grid_mv.shape
-        for i in range(shape[0]*shape[1]*shape[2]):
+        for i in range(self.size):
             grid[i] *= a
 
     # Method for nullifying the data grid
@@ -165,7 +282,7 @@ class FluidScalar:
         grid = self.grid
         # Nullify data buffer
         shape = self.grid_mv.shape
-        for i in range(shape[0]*shape[1]*shape[2]):
+        for i in range(self.size):
             grid[i] = 0
 
     # Method for nullifying the starred grid
@@ -179,7 +296,7 @@ class FluidScalar:
         gridˣ = self.gridˣ
         # Nullify starred buffer
         shape = self.gridˣ_mv.shape
-        for i in range(shape[0]*shape[1]*shape[2]):
+        for i in range(self.size):
             gridˣ[i] = 0
 
     # Method for nullifying the Δ buffer
@@ -193,7 +310,7 @@ class FluidScalar:
         Δ = self.Δ
         # Nullify Δ buffer
         shape = self.Δ_mv.shape
-        for i in range(shape[0]*shape[1]*shape[2]):
+        for i in range(self.size):
             Δ[i] = 0
 
     # This method is automaticlly called when a FluidScalar instance
@@ -208,6 +325,7 @@ class FluidScalar:
                                              ', '.join([str(mi) for mi in self.multi_index]))
     def __str__(self):
         return self.__repr__()
+
 
 
 # The class governing any component of the universe
@@ -226,10 +344,9 @@ class Component:
                     species_class='str',
                     mass='double',
                     N_fluidvars='Py_ssize_t',
+                    closure='str',
                     w='object',  # NoneType, float, int, str or dict
                     # Locals
-                    fluidvar='object',  # np.ndarray with dtype object
-                    fluidvar_shape='tuple',
                     i='Py_ssize_t',
                     index='Py_ssize_t',
                     multi_index='tuple',
@@ -238,7 +355,9 @@ class Component:
                  # Particle-specific arguments
                  mass=-1,
                  # Fluid-specific arguments
-                 N_fluidvars=2, w=None,
+                 N_fluidvars=2,
+                 closure='truncate',
+                 w=None,
                  ):
         # The triple quoted string below serves as the type declaration
         # for the data attributes of the Component type.
@@ -253,10 +372,10 @@ class Component:
         public str species_class
         # Particle attributes
         public Py_ssize_t N
-        Py_ssize_t N_allocated
-        Py_ssize_t N_local
+        public Py_ssize_t N_allocated
+        public Py_ssize_t N_local
         public double mass
-        double softening
+        public double softening
         # Particle data
         double* posx
         double* posy
@@ -298,20 +417,22 @@ class Component:
         public Py_ssize_t size
         public Py_ssize_t size_noghosts
         public dict fluid_names
-        str w_type
-        double w_constant
-        double[:, ::1] w_tabulated
-        str w_expression
+        public Py_ssize_t N_fluidvars
+        public str closure
+        public str w_type
+        public double w_constant
+        public double[:, ::1] w_tabulated
+        public str w_expression
         Spline w_spline
-        double Σmass_present
+        public double Σmass_present
         # Fluid data
         public list fluidvars
         FluidScalar ϱ
-        object J
+        public object J  # Tensor
         FluidScalar Jx
         FluidScalar Jy
         FluidScalar Jz
-        object σ
+        public object σ  # Tensor
         FluidScalar σxx
         FluidScalar σxy
         FluidScalar σxz
@@ -365,9 +486,12 @@ class Component:
             else:
                 abort('Species "{}" has neither an assigned nor a default softening factor!'
                       .format(self.species))
-        else:
+        elif self.representation == 'fluid':
             self.N         = 1
             self.softening = 1
+            if self.mass != -1:
+                masterwarn('A mass (of {} {}) was specified for fluid component "{}"'
+                           .format(self.mass, unit_mass, self.name))
         # Particle data
         self.posx = malloc(self.N_allocated*sizeof('double'))
         self.posy = malloc(self.N_allocated*sizeof('double'))
@@ -419,10 +543,15 @@ class Component:
         self.Δpos_mv = [self.Δposx_mv, self.Δposy_mv, self.Δposz_mv]
         self.Δmom_mv = [self.Δmomx_mv, self.Δmomy_mv, self.Δmomz_mv]
         # Fluid attributes
+        self.N_fluidvars = N_fluidvars
         self.shape = (1, 1, 1)
         self.shape_noghosts = (1, 1, 1)
-        self.size = 1
-        self.size_noghosts = 1
+        self.size = np.prod(self.shape)
+        self.size_noghosts = np.prod(self.shape_noghosts)
+        self.closure = closure.lower()
+        if self.closure not in ('truncate', 'class'):
+            abort('The component "{}" was initialized with an unknown closure of "{}"'
+                  .format(self.name, closure))
         if self.representation == 'fluid':
             self.gridsize = N_or_gridsize
             # All gridsizes should be even
@@ -430,35 +559,51 @@ class Component:
                 masterwarn('The fluid component "{}" have an odd gridsize ({}). '
                            'Some operations may not function correctly.'
                            .format(self.name, self.gridsize))
-        else:
+            # Check that the number of fluid variables
+            # is within the valid range.
+            if self.N_fluidvars < 1:
+                abort('Fluid components must have at least 1 fluid variable, '
+                      'but N_fluidvars = {} was specified for "{}"'
+                      .format(self.N_fluidvars, self.name))
+            elif self.N_fluidvars > 3:
+                abort('Fluids with more than 3 fluid variables are not implemented, '
+                      'but N_fluidvars = {} was specified for "{}"'
+                      .format(self.N_fluidvars, self.name))
+        elif self.representation == 'particles':
             self.gridsize = 1
+            if self.N_fluidvars != 2:
+                abort('Particle components must have N_fluidvars = 2, '
+                      'but N_fluidvars = {} was specified for "{}"'
+                      .format(self.N_fluidvars, self.name))
         # Initialize the equation of state parameter w
         self.initialize_w(w)
         # Fluid data.
-        # Create the N_fluidvars fluid variables
-        # and store them in the list fluidvars.
-        if N_fluidvars != 2 and self.representation == 'particles':
-            abort('Particle components must have N_fluidvars = 2, '
-                  'but N_fluidvars = {} was specified for "{}"'
-                  .format(N_fluidvars, self.name))
+        # Create the N_fluidvars fluid variables and store them in the
+        # list fluidvars. This is done even for particle components,
+        # as the fluidscalars are all instantiated with a gridsize of 1.
         self.fluidvars = []
-        for i in range(N_fluidvars):
-            # The shape of the i'th fluid variable,
-            # when thought of as a tensor.
-            if i == 0:
-                # Special case: The density ϱ is a scalar
-                # (rank 0 tensor), not an empty tensor.
-                fluidvar_shape = (1, )
-            else:
-                # The general shape is 3×3×3×...×3 (i times)
-                fluidvar_shape = (3, )*i
-            # Instantiate the tensor
-            fluidvar = empty(fluidvar_shape, dtype='object')
+        for i in range(self.N_fluidvars):
+            # Instantiate the i'th fluid variable
+            # as a 3×3×...×3 (i times) symmetric tensor.
+            fluidvar = Tensor(self, i, (3, )*i, symmetric=True)
             # Populate the tensor with fluid scalar fields
-            for multi_index in self.iterate_fluidscalar_indices(fluidvar):
+            for multi_index in fluidvar.multi_indices:
                 fluidvar[multi_index] = FluidScalar(i, multi_index)
             # Add the fluid variable to the list
             self.fluidvars.append(fluidvar)
+        # If CLASS should be used to close the Boltzmann hierarchy,
+        # we need one additional fluid variable. This should act like
+        # a symmetric tensor of rank N_fluidvars, but really only a
+        # single element of this tensor need to exist in memory.
+        if self.closure == 'class':
+            # Instantiate the scalar element but disguised as a
+            # 3×3×...×3 (N_fluidvars times) symmetric tensor.
+            disguised_scalar = Tensor(self, N_fluidvars, (3, )*N_fluidvars, symmetric=True)
+            # Populate the tensor with a fluidscalar
+            multi_index = disguised_scalar.multi_indices[0]
+            disguised_scalar[multi_index] = FluidScalar(N_fluidvars, multi_index)
+            # Add this additional fluid variable to the list
+            self.fluidvars.append(disguised_scalar)
         # Construct mapping from names of fluid variables (e.g. J)
         # to their indices in self.fluidvars, and also from names of
         # fluid scalars (e.g. ϱ, Jx) to tuple of the form
@@ -467,45 +612,47 @@ class Component:
         # Also include trivial mappings from indices to themselves,
         # and the special "reverse" mapping from indices to names
         # given by the 'ordered' key.
-        fluidvar_names = ('ϱ', 'J', 'σ')
-        self.fluid_names = {'ordered': fluidvar_names}
+        self.fluid_names = {'ordered': fluidvar_names[:len(self.fluidvars)]}
         for index, (fluidvar, fluidvar_name) in enumerate(zip(self.fluidvars, fluidvar_names)):
             # The fluid variable
             self.fluid_names[        fluidvar_name ] = index
             self.fluid_names[unicode(fluidvar_name)] = index
-            self.fluid_names[index                 ] = index  # Trivial mapping
+            self.fluid_names[index                 ] = index
             # The fluid scalar
-            for multi_index in self.iterate_fluidscalar_indices(fluidvar):
+            for multi_index in fluidvar.multi_indices:
                 fluidscalar_name = fluidvar_name
                 if index > 0:
                     fluidscalar_name += ''.join(['xyz'[mi] for mi in multi_index])
                 self.fluid_names[        fluidscalar_name ] = (index, multi_index)
                 self.fluid_names[unicode(fluidscalar_name)] = (index, multi_index)
-                self.fluid_names[index, multi_index       ] = (index, multi_index)  # Trivial mapping
+                self.fluid_names[index, multi_index       ] = (index, multi_index)
         # Also include particle variable names in the fluid_names dict
         self.fluid_names['pos'] = 0
         self.fluid_names['mom'] = 1
         # Assign the fluid variables and scalars as convenient named
         # attributes on the Component instance.
         # Use the same naming scheme as above.
-        self.ϱ  = self.fluidvars[0][0]
-        self.J  = self.fluidvars[1]
-        self.Jx = self.fluidvars[1][0]
-        self.Jy = self.fluidvars[1][1]
-        self.Jz = self.fluidvars[1][2]
-        if N_fluidvars > 2:
-            self.σ   = self.fluidvars[2]            
-            self.σxx = self.fluidvars[2][0, 0]
-            self.σxy = self.fluidvars[2][0, 1]
-            self.σxz = self.fluidvars[2][0, 2]
-            self.σyx = self.fluidvars[2][1, 0]
-            self.σyy = self.fluidvars[2][1, 1]
-            self.σyz = self.fluidvars[2][1, 2]
-            self.σzx = self.fluidvars[2][2, 0]
-            self.σzy = self.fluidvars[2][2, 1]
-            self.σzz = self.fluidvars[2][2, 2]
-        if N_fluidvars > 3:
-            ...
+        self.ϱ = self.fluidvars[0][0]
+        if len(self.fluidvars) == 1:
+            return
+        self.J = self.fluidvars[1]
+        self.Jx  = self.fluidvars[1][0]
+        self.Jy  = self.fluidvars[1][1]
+        self.Jz  = self.fluidvars[1][2]
+        if len(self.fluidvars) == 2:
+            return
+        self.σ = self.fluidvars[2]      
+        self.σxx = self.fluidvars[2][0, 0]
+        self.σxy = self.fluidvars[2][0, 1]
+        self.σxz = self.fluidvars[2][0, 2]
+        self.σyx = self.fluidvars[2][1, 0]
+        self.σyy = self.fluidvars[2][1, 1]
+        self.σyz = self.fluidvars[2][1, 2]
+        self.σzx = self.fluidvars[2][2, 0]
+        self.σzy = self.fluidvars[2][2, 1]
+        self.σzz = self.fluidvars[2][2, 2]
+        if len(self.fluidvars) == 3:
+            return
 
     # This method populate the Component pos/mom arrays (for a
     # particles representation) or the fluid scalar grids (for a
@@ -518,7 +665,7 @@ class Component:
     @cython.pheader(# Arguments
                     data='object',  # 1D/3D (particles/fluid) memoryview
                     var='object',   # int-like or str
-                    multi_index='object',  # int-like or tuple
+                    multi_index='object',  # tuple or int-like
                     buffer='bint',
                     # Locals
                     a='double',
@@ -582,7 +729,7 @@ class Component:
             # For each possibility, find index and multi_index.
             if isinstance(var, int):
                 if not (0 <= var < len(self.fluidvars)):
-                    abort('The "{}" component does not have fluid variable with number {}'
+                    abort('The "{}" component does not have a fluid variable with index {}'
                           .format(self.name, var))
                 # The fluid scalar is given as
                 # self.fluidvars[index][multi_index].
@@ -717,44 +864,40 @@ class Component:
                 fluidscalar.resize(shape_nopseudo_noghosts)
 
     # Method which populate the grids of fluid variables with real-space
-    # 3D realisation of linear transfer function.
-    @cython.pheader(# Arguments
-                    variables='object',  # str or int or container of str's and ints
-                    transfer_spline='Spline',
-                    cosmoresults='object',  # CosmoResults
-                    a='double',
-                    # Locals
-                    N_vars='Py_ssize_t',
-                    dim='int',
-                    gridsize='Py_ssize_t',
-                    i='Py_ssize_t',
-                    k_gridsize='Py_ssize_t',
-                    k_max='double',
-                    k_min='double',
-                    shape='tuple',
-                    transfer_splines='list',
-                    )
-    def realize(self, variables=None, transfer_spline=None, cosmoresults=None, a=-1):
+    # 3D realisation of linear transfer function. As all arguments are
+    # optional, this has to be a pure Python method.
+    def realize(self, variables=None,
+                      transfer_spline=None,
+                      cosmoresults=None,
+                      specific_multi_index=None,
+                      a=-1,
+                      ):
         """This method will realise a given fluid/particle variable from
         a given transfer function. Any existing data for the variable
         in question will be lost.
         The variables argument specifies which variable(s) of the
         component to realise. Valid formats of this argument can be seen
-        in varnames2indices. The transfer_spline is a Spline object of
-        the transfer function of the variable which should be realised.
-        Finally, cosmoresults is a linear.CosmoResults object containing
-        all results from the CLASS run which produced the transfer
-        function, from which further information can be obtained.
-        If only the variables argument is given, the transfer_spline and
-        cosmoresults (matching the current time) will be produced by
-        calling CLASS. You can supply multiple variables in one go,
-        but then you have to leave the other arguments unspecified
-        (as you can only pass in a single transfer_spline).
-        If no arguments are passed at all, transfer functions for each
-        variable will be computed via CLASS and all of them
-        will be realized.
+        in varnames2indices. If no variables argument is passed,
+        transfer functions for each variable will be computed via CLASS
+        and all of them will be realized.
+        If a specific_multi_index is passed, only the single fluidscalar
+        of the variable(s) with the corresponding multi_index
+        will be realized. If no specific_multi_index is passed,
+        all fluidscalars of the variable(s) will be realized.
+        The transfer_spline is a Spline object of the transfer function
+        of the variable which should be realised.
+        The cosmoresults argument is a linear.CosmoResults object
+        containing all results from the CLASS run which produced the
+        transfer function, from which further information
+        can be obtained.
         Specify the scale factor a if you want to realize the variables
         at a time different from the present time.
+        If neither the transfer_spline nor the cosmoresults argument is
+        given, these will be produced by calling CLASS.
+        You can supply multiple variables in one go,
+        but then you have to leave the transfer_spline and cosmoresults
+        arguments unspecified (as you can only pass in a
+        single transfer_spline).
         """
         # Define the gridsize used by the realization (gridsize for
         # fluid components and ∛N for particle components) and resize
@@ -812,7 +955,7 @@ class Component:
             if cosmoresults is not None:
                 masterwarn('The realize method was called without specifying a variable, '
                            'though a cosmoresults is passed. This cosmoresults will be ignored.')
-            variables = arange(len(self.fluidvars))
+            variables = arange(self.N_fluidvars)
             N_vars = len(variables)
         else:
             # Realize one or more variables
@@ -829,8 +972,8 @@ class Component:
         # Get transfer functions and cosmoresults from CLASS,
         # if not passed as arguments.
         if transfer_spline is None:
-            k_min = ℝ[2*π/boxsize]
-            k_max = ℝ[2*π/boxsize]*sqrt(3*(gridsize//2)**2)
+            k_min = 2*π/boxsize
+            k_max = 2*π/boxsize*sqrt(3*(gridsize//2)**2)
             k_gridsize = 10*gridsize
             transfer_splines, cosmoresults = compute_transfers(self,
                                                                variables,
@@ -840,7 +983,7 @@ class Component:
             transfer_splines = [transfer_spline]
         # Realize each of the variables in turn
         for i in range(N_vars):
-            realize(self, variables[i], transfer_splines[i], cosmoresults, a)
+            realize(self, variables[i], transfer_splines[i], cosmoresults, specific_multi_index, a)
             if self.representation == 'particles':
                 # Particles use the Zeldovich approximation for
                 # realization, which realizes both positions and
@@ -893,29 +1036,22 @@ class Component:
             exchange(self)
         elif self.representation == 'fluid':
             # Evolve the fluid using the MacCormack method
-            masterprint('Evolving fluid variables of {} ...'.format(self.name))
+            masterprint('Evolving fluid variables (flux terms) of {} ...'.format(self.name))
             maccormack(self, ᔑdt)
             masterprint('done')
 
     # Method for integrating fluid values forward in time
     # due to "internal" source terms, meaning source terms that do not
-    # result from interactions with other components,
-    # or even interactions between fluid elements within a component.
+    # result from interactions with other components.
     @cython.header(# Arguments
                    ᔑdt='dict',
-                   # Locals
-                   ẇ='double',
                    )
     def apply_internal_sources(self, ᔑdt):
         if self.representation == 'particles':
             return
-        # All internal source terms in the fluid equations
-        # vanishes when ẇ = 0.
-        ẇ = self.ẇ()
-        if ẇ != 0:
-            masterprint('Evolving fluid variables (source terms) of {} ...'.format(self.name))
-            apply_internal_sources(self, ᔑdt)
-            masterprint('done')
+        masterprint('Evolving fluid variables (source terms) of {} ...'.format(self.name))
+        apply_internal_sources(self, ᔑdt)
+        masterprint('done')
 
     # Method for computing the equation of state parameter w
     # at a certain time t or value of the scale factor a.
@@ -1224,7 +1360,8 @@ class Component:
             # Construct a Spline object from the tabulated data
             self.w_spline = Spline(self.w_tabulated[0, :], self.w_tabulated[1, :])
 
-    # Method which convert named fluid/particle variables to indices
+    # Method which convert named fluid/particle
+    # variable names to indices.
     @cython.header(# Arguments
                    varnames='object',  # str, int or container of str's and ints 
                    single='bint',
@@ -1244,6 +1381,7 @@ class Component:
         varnames2indices(['pos', 'mom']) → asarray([0, 1])
         varnames2indices(2) → asarray([2])
         varnames2indices(['σ', 1]) → asarray([2, 1])
+        varnames2indices('ϱ', single=True) → 0
         """
         if isinstance(varnames, str):
             # Single variable name given
@@ -1262,26 +1400,25 @@ class Component:
             return indices[0]
         return indices
 
+    # Method which extracts a fluid variable or fluidscalar from its
+    # name, index or index and multi_index.
+    def varname2var(self, varname):
+        indices = self.fluid_names[varname]
+        if isinstance(indices, tuple):
+            # Return fluidscalar
+            index, multi_indices = indices
+            return self.fluidvars[index][multi_index]
+        else:
+            # Return fluid variable
+            index = indices
+            return self.fluidvars[index]
+
     # Generator for looping over all
     # scalar fluid grids within the component.
-    def iterate_fluidscalars(self):
-        for fluidvar in self.fluidvars:
-            yield from self.iterate_fluidscalar(fluidvar)
-
-    # Generator for looping over all
-    # scalar fluid grids of a fluid variable.
-    def iterate_fluidscalar(self, fluidvar):
-        for multi_index in self.iterate_fluidscalar_indices(fluidvar):
-            yield fluidvar[multi_index]
-
-    # Generator for looping over all multi-indices of a fluid variable.
-    # The yielded multi_index is always a tuple.
-    @staticmethod
-    def iterate_fluidscalar_indices(fluidvar):
-        it = np.nditer(fluidvar, flags=('refs_ok', 'multi_index'))
-        while not it.finished:
-            yield it.multi_index
-            it.iternext()
+    def iterate_fluidscalars(self, include_disguised_scalar=True):
+        for i, fluidvar in enumerate(self.fluidvars):
+            if include_disguised_scalar or i < self.N_fluidvars:
+                yield from fluidvar
 
     # Method for communicating pseudo and ghost points
     # of all fluid variables.
@@ -1466,4 +1603,6 @@ default_species_class = {'dark matter particles': 'cdm',
 # and which the user should generally avoid.
 cython.declare(internally_defined_names='set')
 internally_defined_names = {'buffer', 'total'}
-
+# Names of all implemented fluid variables in order
+cython.declare(fluidvar_names='tuple')
+fluidvar_names = ('ϱ', 'J', 'σ', 'fluidvar 3')

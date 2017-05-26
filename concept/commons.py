@@ -91,6 +91,7 @@ bcast      = lambda obj, root=master_rank: comm.bcast(obj, root)
 iprobe     = comm.iprobe
 isend      = comm.isend
 recv       = comm.recv
+reduce     = comm.reduce
 sendrecv   = comm.sendrecv
 # Custom version of the barrier function, where all slaves wait on
 # the master. In between the pinging of the master by the slaves,
@@ -189,33 +190,48 @@ def time_since(initial_time):
 
 # Function for printing messages as well as timed progress messages
 def fancyprint(*args, indent=0, sep=' ', end='\n', fun=None, wrap=True, **kwargs):
-    terminal_resolution = 80
     # If called without any arguments, print the empty string
     if not args:
         args = ('', )
-    # If a prefix of '\n' is supplied, this can get lost
+    args = tuple([str(arg) for arg in args])
+    # Handle indentation due to non-fisnished progress print
+    is_done_message = (args[0] == 'done')
+    leftover_indentation = progressprint['indentation']
+    if leftover_indentation:
+        indent += progressprint['indentation']
+        if progressprint['previous'].endswith('...'):
+            args = ('\n', ) + args
+    if len(args) > 1 and args[0] == '\n':
+        args = ('\n' + args[1], ) + args[2:]
+    # If the first character supplied is '\n', this can get lost
     newline_prefix = (isinstance(args[0], str) and args[0].startswith('\n'))
-    if args[0] == 'done':
+    if is_done_message:
         # End of progress message
-        text = ' done after {}'.format(time_since(progressprint['time']))
-        if len(args) > 1:
-            text += sep + sep.join([str(arg) for arg in args[1:]])
+        N_args_usual = 2 if leftover_indentation else 1
+        indent -= 4
+        progressprint['indentation'] -= 4
+        text = ' done after {}'.format(time_since(progressprint['time'].pop()))
+        if len(args) > N_args_usual:
+            text += sep + sep.join([str(arg) for arg in args[N_args_usual:]])
         # Convert to proper Unicode characters
         text = unicode(text)
-        # The progressprint['maxintervallength'] variable store the
+        # The progressprint['maxintervallength'] variable stores the
         # length of the longest interval-message so far.
         if len(text) > progressprint['maxintervallength']:
             progressprint['maxintervallength'] = len(text)
         # Prepend the text with whitespace so that all future
         # interval-messages lign up to the right.
-        text = ' '*(+ terminal_resolution
+        text = ' '*(+ terminal_width
                     - progressprint['length']
-                    - progressprint['maxintervallength']) + text
+                    - progressprint['maxintervallength']
+                    ) + text
         # Apply supplied function to text
         if fun:
             text = fun(text)
         # Print out timing
         print(text, flush=True, end=end, **kwargs)
+        progressprint['length'] = 0
+        progressprint['previous'] = text
     else:
         # Stitch text pieces together
         text = sep.join([str(arg) for arg in args])
@@ -228,10 +244,10 @@ def fancyprint(*args, indent=0, sep=' ', end='\n', fun=None, wrap=True, **kwargs
         indentation = ' '*indent
         is_progress_message = text.endswith('...')
         if wrap:
-            # Wrap text into lines which fit the terminal resolution.
+            # Wrap text into lines which fit the   terminal resolution.
             # Also indent all lines. Do this in a way that preserves
             # any newline characters already present in the text.
-            lines = list(itertools.chain(*[textwrap.wrap(hard_line, terminal_resolution,
+            lines = list(itertools.chain(*[textwrap.wrap(hard_line, terminal_width,
                                                          initial_indent=indentation,
                                                          subsequent_indent=indentation,
                                                          replace_whitespace=False,
@@ -246,7 +262,7 @@ def fancyprint(*args, indent=0, sep=' ', end='\n', fun=None, wrap=True, **kwargs
             # have some left over space to the right
             # for the upcomming "done in ???".
             if is_progress_message:
-                maxlength = terminal_resolution - progressprint['maxintervallength'] - 1
+                maxlength = terminal_width - progressprint['maxintervallength'] - 1
                 # Separate the last line from the rest
                 last_line = lines.pop().lstrip()
                 # The trailing ... should never stand on its own
@@ -280,17 +296,23 @@ def fancyprint(*args, indent=0, sep=' ', end='\n', fun=None, wrap=True, **kwargs
                 progressprint['length'] = len(text)
         # General progress message handling
         if is_progress_message:
-            progressprint['time'] = time()
+            progressprint['time'].append(time())
+            progressprint['indentation'] += 4
+            progressprint['previous'] = text
             end = ''
         # Apply supplied function to text
         if fun:
             text = fun(text)
         # If a newline prefix got lost, reinsert it
-        if newline_prefix and text[0] != '\n':
+        if newline_prefix and not text.startswith('\n'):
             text = '\n{}'.format(text)
         # Print out message
         print(text, flush=True, end=end, **kwargs)
-progressprint = {'maxintervallength': len(' done after ??? ms')}
+progressprint = {'maxintervallength': len(' done after ??? ms'),
+                 'time'             : [],
+                 'indentation'      : 0,
+                 'previous'         : '',
+                 }
 
 # Functions for printing warnings
 def warn(*args, skipline=True, prefix='Warning', wrap=True, **kwargs):
@@ -500,12 +522,13 @@ if not cython.compiled:
     gsl_interp_accel_alloc = dummy_func
     gsl_interp_cspline     = dummy_func
     gsl_spline_alloc       = dummy_func
-    # Dummy ℝ and ℤ dict for constant expressions
+    # Dummy ℝ, ℤ and 𝔹 dicts for constant expressions
     class DummyDict(dict):
         def __getitem__(self, key):
             return key
     ℝ = DummyDict()
     ℤ = DummyDict()
+    𝔹 = DummyDict()
     # The cimport function, which in the case of pure Python should
     # simply execute the statements passed to it as a string,
     # within the namespace of the call.
@@ -874,6 +897,7 @@ for key in globals_dict.keys():
 # If not given, give the arguments some default values.
 # The parameter file
 paths['params'] = argd.get('params', '')
+paths['params_cp'] = argd.get('params_cp', '')
 # The jobid of the current run
 jobid = int(argd.get('jobid', 0))
 
@@ -887,8 +911,8 @@ jobid = int(argd.get('jobid', 0))
 # will be done later
 cython.declare(params_file_content='str')
 params_file_content = ''
-if os.path.isfile(paths['params']):
-    with open(paths['params'], encoding='utf-8') as params_file:
+if os.path.isfile(paths['params_cp']):
+    with open(paths['params_cp'], encoding='utf-8') as params_file:
         params_file_content = params_file.read()
 
 
@@ -1238,17 +1262,19 @@ cython.declare(# Input/output
                t_begin='double',
                class_params='dict',
                # Graphics
+               terminal_width='int',
+               render_resolution='int',
                render_colors='dict',
-               bgcolor='double[::1]',
-               resolution='int',
-               terminal_render_colormap='str',
+               render_bgcolor='double[::1]',
                terminal_render_resolution='unsigned int',
+               terminal_render_colormap='str',
                # Physics
                forces='dict',
                w_eos='dict',
                # Simlation options
                fftw_rigor='str',
                master_seed='unsigned long int',
+               vacuum_corrections='dict',
                # Debugging options
                enable_Ewald='bint',
                enable_Hubble='bint',
@@ -1384,7 +1410,17 @@ replace_ellipsis(w_eos)
 # Simulation options
 fftw_rigor = user_params.get('fftw_rigor', 'estimate').lower()
 master_seed = int(user_params.get('master_seed', 1))
+vacuum_corrections = {'all': True}
+if 'vacuum_corrections' in user_params:
+    if isinstance(user_params['vacuum_corrections'], dict):
+        vacuum_corrections = user_params['vacuum_corrections']
+        replace_ellipsis(vacuum_corrections)
+    else:
+        vacuum_corrections = {'all': user_params['vacuum_corrections']}
+vacuum_corrections = {key.lower(): bool(val) for key, val in vacuum_corrections.items()}
 # Graphics
+terminal_width = int(user_params.get('terminal_width', 80))
+render_resolution = to_int(user_params.get('render_resolution', 1080))
 render_colors = {}
 if 'render_colors' in user_params:
     if isinstance(user_params['render_colors'], dict):
@@ -1393,13 +1429,12 @@ if 'render_colors' in user_params:
     else:
         render_colors = {'all': user_params['render_colors']}
 render_colors = {key.lower(): to_rgb(val) for key, val in render_colors.items()}
-bgcolor = to_rgb(user_params.get('bgcolor', 'black'))
-resolution = to_int(user_params.get('resolution', 1080))
-terminal_render_colormap = str(user_params.get('terminal_render_colormap', 'gnuplot2'))
+render_bgcolor = to_rgb(user_params.get('render_bgcolor', 'black'))
 terminal_render_resolution = to_int(user_params.get('terminal_render_resolution', 80))
+terminal_render_colormap = str(user_params.get('terminal_render_colormap', 'gnuplot2'))
 # Debugging options
 enable_class = bool(user_params.get('enable_class', True))
-enable_Ewald = bool(user_params.get('enable_Ewald',
+enable_Ewald = bool(user_params.get('enable_Ewald',  # !!! Only used by gravity_old.py
                                     True if 'pp' in force_methods else False))
 enable_Hubble = bool(user_params.get('enable_Hubble', True))
 enable_debugging = bool(user_params.get('enable_debugging', False))
@@ -1436,6 +1471,8 @@ universals, universals_dict = build_struct(# Flag specifying whether any warning
                                            a_begin=('double', a_begin),
                                            t_begin=('double', t_begin),
                                            z_begin=('double', 1/a_begin - 1),
+
+                                           Δt_vacuum=('double', np.inf),
                                            )
 
 
@@ -1551,7 +1588,7 @@ units_dict.setdefault(unicode('ϱ_mbar')       , ϱ_mbar                )
 units_dict.setdefault('p3m_scale'                 , p3m_scale                 )
 units_dict.setdefault('p3m_cutoff'                , p3m_cutoff                )
 units_dict.setdefault('ewald_gridsize'            , ewald_gridsize            )
-units_dict.setdefault('resolution'                , resolution                )
+units_dict.setdefault('render_resolution'         , render_resolution         )
 units_dict.setdefault('slab_size_padding'         , slab_size_padding         )
 units_dict.setdefault('softeningfactors'          , softeningfactors          )
 units_dict.setdefault('terminal_render_resolution', terminal_render_resolution)
@@ -1578,7 +1615,7 @@ units_dict.setdefault('cbrt', lambda x: x**(1/3))
 ###############
 # Class setup #
 ###############
-# Populate cosmology parameters
+# Populate cosmological parameters
 class_params.setdefault('H0', H0/(units.km/(units.s*units.Mpc)))
 class_params.setdefault('Omega_cdm', Ωcdm)
 class_params.setdefault('Omega_b', Ωb)
@@ -1594,10 +1631,16 @@ class_params.setdefault( # Disable fluid approximation for non-CDM species
                params_specialized='dict',
                )
 def call_class(extra_params={}, sleep_time=0.1):
-    # Instantiate a classy.Class instance and populate it with the
-    # global and extra parameters.
+    # Merge global and extra CLASS parameters
     params_specialized = class_params.copy()
     params_specialized.update(extra_params)
+    # Transform all CLASS container parameters to str's of
+    # comma-separated values. All other CLASS parameters will also
+    # be converted to their str representation.
+    params_specialized = {key: ', '.join([str(el) for el in any2iter(val)])
+                               for key, val in params_specialized.items()}
+    # Instantiate a classy.Class instance
+    # and populate it with the CLASS parameters
     cosmo = Class()
     cosmo.set(params_specialized)
     # Call cosmo.compute in such a way as to allow

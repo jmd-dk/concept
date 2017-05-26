@@ -128,6 +128,7 @@ def summation(x, y, z):
                # Locals
                dim='int',
                force='double*',
+               grid='double[:, :, :, ::1]',
                isnegative_x='bint',
                isnegative_y='bint',
                isnegative_z='bint',
@@ -145,6 +146,7 @@ def ewald(x, y, z):
     arising on the first particle due to all periodic images of the
     second particle, except for the nearest one.
     """
+    grid = get_grid()
     # Only the positive octant of the box is tabulated. Flip the sign of
     # the coordinates so that they reside inside this octant.
     if x > 0:
@@ -181,6 +183,52 @@ def ewald(x, y, z):
         force[dim] *= ℝ[1/boxsize**2]
     return force
 
+# Function for loading the Ewald grid from disk.
+# The result is stored as the global variable 'grid',
+# which will be fetched when called repeatedly.
+@cython.header(found_on_disk='bint',
+               shape='tuple',
+               returns='double[:, :, :, ::1]',
+               )
+def get_grid():
+    global grid
+    # If the Ewald grid already exist in memory, return it
+    if grid.shape[0] != 1:
+        return grid
+    # Let the master process read in the Ewald grid from disk,
+    # if it exists.
+    shape = (ewald_gridsize, )*3 + (3, )
+    found_on_disk = False
+    if master:
+        if os.path.isfile(filename):
+            # Ewald grid already tabulated. Load it from disk.
+            found_on_disk = True
+            with h5py.File(filename, mode='r') as hdf5_file:
+                grid = hdf5_file['data'][...].reshape(shape)
+    found_on_disk = bcast(found_on_disk)
+    if found_on_disk:
+        # Ewald grid loaded by the master process.
+        # Broadcast it to all slave processes.
+        if not master:
+            grid = np.empty(shape, dtype=C2np['double'])
+        Bcast(grid)
+    else:
+        # No tabulated Ewald grid found. Compute it. The factor 0.5
+        # ensures that only the first octant of the box is tabulated.
+        grid = tabulate()
+    return grid
+cython.declare(grid='double[:, :, :, ::1]', filename='str')
+grid = np.empty((1, 1, 1, 1), dtype=C2np['double'])
+filename = '{}/.ewald_gridsize={}.hdf5'.format(paths['concept_dir'], ewald_gridsize)
+
+# Function for tabulation of the Ewald grid
+@cython.pheader(returns='double[:, :, :, ::1]')
+def tabulate():
+    global grid
+    masterprint('Tabulating Ewald grid of linear size {} ...'.format(ewald_gridsize))
+    grid = tabulate_vectorfield(ewald_gridsize, summation, 0.5/(ewald_gridsize - 1), filename)
+    masterprint('done')
+    return grid
 
 
 # Set parameters for the Ewald summation at import time
@@ -199,32 +247,7 @@ rs = 0.25  # Corresponds to alpha = 2
 maxdist = 3.6
 maxh2 = 10
 # Derived constants
-h_lower = int(-sqrt(maxh2))      # GADGET: -4 (same here for maxh2=10)
-h_upper = int(+sqrt(maxh2)) + 1  # GADGET:  5 (same here for maxh2=10)
-n_lower = int(-(maxdist + 1))    # GADGET: -4 (same here for maxdist=3.6)
-n_upper = int(maxdist + 1) + 1   # GADGET:  5 (same here for maxdist=3.6) 
-
-# Initialize the Ewald grid at import time,
-# if Ewald summation is to be used.
-cython.declare(grid='double[:, :, :, ::1]')
-if enable_Ewald:
-    filename = '.ewald_gridsize={}.hdf5'.format(ewald_gridsize)
-    filepath = '{}/{}'.format(paths['concept_dir'], filename)
-    if os.path.isfile(filepath):
-        # Ewald grid already tabulated. Load it
-        with h5py.File(filepath,
-                       mode='r',
-                       driver='mpio',
-                       comm=comm) as hdf5_file:
-            grid = hdf5_file['data'][...].reshape([ewald_gridsize]*3 + [3])
-    else:
-        # No tabulated Ewald grid found. Compute it. The factor 0.5
-        # ensures that only the first octant of the box is tabulated.
-        masterprint('Tabulating Ewald grid of linear size',
-                    ewald_gridsize, '...')
-        grid = tabulate_vectorfield(ewald_gridsize,
-                                    summation,
-                                    0.5/(ewald_gridsize - 1),
-                                    filepath)
-        masterprint('done')
-
+h_lower = int(-sqrt(maxh2))      # GADGET: -4 (same here for maxh2 = 10)
+h_upper = int(+sqrt(maxh2)) + 1  # GADGET:  5 (same here for maxh2 = 10)
+n_lower = int(-(maxdist + 1))    # GADGET: -4 (same here for maxdist = 3.6)
+n_upper = int(maxdist + 1) + 1   # GADGET:  5 (same here for maxdist = 3.6) 

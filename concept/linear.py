@@ -68,7 +68,9 @@ class CosmoResults:
     @property
     def perturbations(self):
         if not hasattr(self, '_perturbations'):
+            masterprint('Extracting perturbations from CLASS ...')
             self._perturbations = self.cosmo.get_perturbations()['scalar']
+            masterprint('done')
         return self._perturbations
     @property
     def h(self, communicate=False):
@@ -192,8 +194,12 @@ def compute_cosmo(k_min=-1, k_max=-1, k_gridsize=-1, gauge='N-body'):
     else:
         # A full CLASS computation should be carried out.
         # Array of |k| values at which to tabulate the
-        # transfer functions, in both floating and str representation
-        # (the argument to CLASS must be a str).
+        # transfer functions, in both floating and str representation.
+        # This explicit stringification is needed because we have to
+        # know the exact str representation of each |k| value passed to
+        # CLASS, so we may turn it back into a numerical array,
+        # ensuring that the values of |k| are identical
+        # in both CLASS and CO𝘕CEPT.
         k_magnitudes = logspace(log10((1 - 1e-2)*k_min/units.Mpc**(-1)),
                                 log10((1 + 1e-2)*k_max/units.Mpc**(-1)),
                                 k_gridsize)
@@ -211,7 +217,7 @@ def compute_cosmo(k_min=-1, k_max=-1, k_gridsize=-1, gauge='N-body'):
                         # CLASS will be on a slightly denser |k| grid.
                         'k_output_values': k_magnitudes_str,
                         # Needed for transfer functions
-                        'z_pk': f'{2*universals.z_begin}, 0',
+                        'z_pk': (2*universals.z_begin, 0),
                         # Needed for perturbations
                         'output': 'dTk vTk',
                         # Needed for h (the metric perturbation)
@@ -384,7 +390,7 @@ def compute_transfers(component, variables, k_min, k_max, k_gridsize=-1, a=-1, g
                 # Transform the δ transfer function to N-body gauge
                 if gauge == 'nbody':
                     for k in range(k_gridsize_class):
-                        transfer_δ[k] += (ℝ[3*H/light_speed*(1 + w)]
+                        transfer_δ[k] += (ℝ[3*a*H/light_speed*(1 + w)]
                                           *transfer_θ_tot[k]/k_magnitudes_class[k]**2)
                 # Done with this transfer function
                 transfers.append(transfer_δ)
@@ -416,12 +422,12 @@ def compute_transfers(component, variables, k_min, k_max, k_gridsize=-1, a=-1, g
                 # Done with this transfer function
                 transfers.append(transfer_θ)
             elif var_index == 2:
-                # Get the σ transfer function at the current time
+                # Get the σ transfer function
                 transfer_σ = empty(k_gridsize, dtype=C2np['double'])
                 for k in range(k_gridsize):
                     perturbation = class_perturbations[k]
                     a_values = perturbation['a']
-                    transfer_σ_at_k_of_a = perturbation[f'shear_{species_class}']  # UNITS? !!!
+                    transfer_σ_at_k_of_a = light_speed**2*perturbation[f'shear_{species_class}']
                     # Interpolate transfer(a_values) to the
                     # current time. As only this single interpolation is
                     # needed for this set of {a_values, transfer},
@@ -461,6 +467,7 @@ def k_float2str(k):
                variable='object',  # str or int
                transfer_spline='Spline',
                cosmoresults='object',  # CosmoResults
+               specific_multi_index='object',  # tuple or int-like
                a='double',
                # Locals
                A_s='double',
@@ -478,7 +485,7 @@ def k_float2str(k):
                f_growth='double',
                fluid_index='Py_ssize_t',
                fluidscalar='FluidScalar',
-               fluidvar='object',  # np.ndarray
+               fluidvar='object',  # Tensor
                fluidvar_name='str',
                gridsize='Py_ssize_t',
                i='Py_ssize_t',
@@ -511,6 +518,7 @@ def k_float2str(k):
                plane_nyquist='double[:, :,::1]',
                pos_dim='double*',
                pos_gridpoint='double',
+               processed_specific_multi_index='tuple',
                random_im='double',
                random_re='double',
                slab='double[:, :, ::1]',
@@ -525,12 +533,14 @@ def k_float2str(k):
                ψ_dim_noghosts='double[:, :, :]',
                ϱ='double*',
                )
-def realize(component, variable, transfer_spline, cosmoresults, a=-1):
+def realize(component, variable, transfer_spline, cosmoresults, specific_multi_index=None, a=-1):
     """This function realizes a single variable of a component,
     given the transfer function as a Spline (using |k| in physical units
     as the independent variable) and the corresponding CosmoResults
     object, which carry additional information from the CLASS run that
-    produced the transfer function. If you want a realization at a time
+    produced the transfer function. If only a single fluidscalar of the
+    fluid variable should be realized, the multi_index of this
+    fluidscalar may be specified. If you want a realization at a time
     different from the present you may specify an a.
     If a particle component is given, the Zeldovich approximation is
     used to distribute the paricles and assign momenta. This is
@@ -545,15 +555,6 @@ def realize(component, variable, transfer_spline, cosmoresults, a=-1):
     """
     if a == -1:
         a = universals.a
-    # Determine the gridsize of the grid used to do the realization
-    gridsize = (component.gridsize if component.representation == 'fluid'
-                                   else int(round(cbrt(component.N))))
-    if gridsize%nprocs != 0:
-        abort(f'The realization uses a gridsize of {gridsize}, '
-              f'which is not evenly divisible by {nprocs} processes.'
-              )
-    # Fetch a slab decomposed grid
-    slab = get_fftw_slab(gridsize)
     # Get the index of the fluid variable to be realized
     # and print out progress message.
     if component.representation == 'particles':
@@ -565,11 +566,32 @@ def realize(component, variable, transfer_spline, cosmoresults, a=-1):
         # (corresponding to J or mom), so that multi_index takes on
         # vector values ((0, ), (1, ), (2, )).
         fluid_index = 1
+        if specific_multi_index is not None:
+            abort(f'The specific multi_index {specific_multi_index} was specified for realization '
+                  f'of "{component.name}". Particle components may only be realized completely.')
         masterprint(f'Realizing particles of {component.name} ...')
     elif component.representation == 'fluid':
         fluid_index = component.varnames2indices(variable, single=True)
         fluidvar_name = component.fluid_names['ordered'][fluid_index]
-        masterprint(f'Realizing fluid variable {fluidvar_name} of {component.name} ...')
+        if specific_multi_index is None:
+            masterprint('Realizing fluid variable {} of {} ...'
+                        .format(fluidvar_name, component.name))
+        else:
+            processed_specific_multi_index = ( component
+                                              .fluidvars[fluid_index]
+                                              .process_multi_index(specific_multi_index)
+                                              )
+            masterprint('Realizing element {} of fluid variable {} of {} ...'
+                        .format(processed_specific_multi_index, fluidvar_name, component.name))
+    # Determine the gridsize of the grid used to do the realization
+    gridsize = (component.gridsize if component.representation == 'fluid'
+                                   else int(round(cbrt(component.N))))
+    if gridsize%nprocs != 0:
+        abort(f'The realization uses a gridsize of {gridsize}, '
+              f'which is not evenly divisible by {nprocs} processes.'
+              )
+    # Fetch a slab decomposed grid
+    slab = get_fftw_slab(gridsize)
     # Extract some variables
     nyquist = gridsize//2
     species_class = component.species_class
@@ -614,7 +636,8 @@ def realize(component, variable, transfer_spline, cosmoresults, a=-1):
     k_gridvec = empty(3, dtype=C2np['Py_ssize_t'])
     # Loop over all fluid scalars of the fluid variable
     fluidvar = component.fluidvars[fluid_index]
-    for multi_index in component.iterate_fluidscalar_indices(fluidvar):
+    for multi_index in (fluidvar.multi_indices if specific_multi_index is None
+                                               else [processed_specific_multi_index]):
         # Extract individual indices from multi_index
         if ℤ[len(multi_index)] > 0:
             index0 = multi_index[0]
@@ -671,13 +694,13 @@ def realize(component, variable, transfer_spline, cosmoresults, a=-1):
                                 k_factor = (ℝ[boxsize/(2*π)]*k_dim0)/k2
                         elif ℤ[len(multi_index)] == 2:
                             # Rank 2 tensor quantity.
-                            # The needed factor is 3/2(kᵢkⱼ/k² - δᵢⱼ/3).
+                            # The needed factor is 3/2(δᵢⱼ/3 - kᵢkⱼ/k²).
                             if k2 == 0:
                                 k_factor = 0
                             else:
                                 k_dim0 = k_gridvec[index0]
                                 k_dim1 = k_gridvec[index1]
-                                k_factor = (1.5*k_dim0*k_dim1/k2) - 0.5*(index0 == index1)
+                                k_factor = 0.5*(index0 == index1) - 1.5*k_dim0*k_dim1/k2
                     # At some grid points, the complex-conjugate
                     # symmetry requires that the power vanises.
                     # We fulfill this requirement by letting

@@ -560,9 +560,9 @@ def info():
             masterprint('{:<16} {}'.format('species', component.species), indent=4)
             # Representation-specific attributes
             if component.representation == 'particles':
+                # Print the particle number N
                 if isint(ℝ[cbrt(component.N)]):
-                    # Print both the particle number N and its
-                    # cube root, if integer.
+                    # When N is cube number, print also the cube root
                     masterprint('{:<16} {} = {:.0f}³'.format('N',
                                                              component.N,
                                                              ℝ[cbrt(component.N)]),
@@ -578,7 +578,7 @@ def info():
                             indent=4)
             elif component.representation == 'fluid':
                 masterprint('{:<16} {}'.format('gridsize', component.gridsize), indent=4)
-                masterprint('{:<16} {}'.format('N_fluidvars', len(component.fluidvars)), indent=4)
+                masterprint('{:<16} {}'.format('N_fluidvars', component.N_fluidvars), indent=4)
                 if component.w_type == 'constant':
                     eos_info = significant_figures(component.w_constant, 6,
                                                    fmt='unicode', incl_zeros=False,
