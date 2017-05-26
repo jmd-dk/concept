@@ -27,29 +27,25 @@ from commons import *
 from species import Component
 from snapshot import save
 
-# Create stationary, homogeneous matter distribution.
-# Perturb this homogeneous distribution with a 
-# global, stationary sine wave along the x-direction.
-# Make the sound speed of the fluid be such that
-# a pressure wave traverses the box in 10 Gyr.
-gridsize = 64
-cs = boxsize/(10*units.Gyr)
-if cs >= light_speed:
-    abort('Too large sound speed assigned: cs = {} c'.format(cs/light_speed))
-w = (cs/light_speed)**2
-speed = boxsize/(10*units.Gyr)
+# Create stationary, homogeneous matter distribution,
+# perturbed with global, stationary sine wave along
+# the x-direction.
+w  = user_params['_w']
+ρ0 = user_params['_ρ0']
+A  = user_params['_A']
+σ  = user_params['_σ']
+gridsize = 4*16  # Should be a multiple of 4
 N = gridsize**3
-mass = ϱ_mbar*boxsize**3/N
-component = Component('test fluid', 'matter fluid', gridsize, mass=mass, w=w)
-ϱ = empty([gridsize]*3)
+component = Component('test fluid', 'matter fluid', gridsize, N_fluidvars=3, w=w)
+ρ = empty([gridsize]*3)
 for i in range(gridsize):
-    ϱ[i, :, :] = 200 + np.sin(2*π*i/gridsize)  # Unitless
-ϱ /= sum(ϱ)                                    # Normalize
-ϱ *= ϱ_mbar*gridsize**3                         # Apply units
-component.populate(ϱ,                   'ϱ'   )
-component.populate(zeros([gridsize]*3), 'J', 0)
-component.populate(zeros([gridsize]*3), 'J', 1)
-component.populate(zeros([gridsize]*3), 'J', 2)
+    x = boxsize*i/gridsize
+    ρ[i, :, :] = ρ0 + A*sin(x/boxsize*2*π)
+component.populate(ρ, 'ϱ')
+for multi_index in component.J.multi_indices:
+    component.populate(zeros([gridsize]*3), 'J', multi_index)
+for multi_index in component.σ.multi_indices:
+    component.populate(ones([gridsize]*3)*σ, 'σ', multi_index)
 
 # Save snapshot
 save(component, initial_conditions)

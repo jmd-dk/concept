@@ -96,7 +96,7 @@ for fluid, t in zip(fluids, times):
                 yz_slice = grid[i, :, :]
                 if not isclose(np.std(yz_slice), 0,
                                rel_tol=0,
-                               abs_tol=(tol_fac_ϱ*np.std(grid) + machine_ϵ)):
+                               abs_tol=max((tol_fac_ϱ*np.std(grid), 1e+1*gridsize**2*machine_ϵ))):
                     abort('Non-uniformities have emerged at a = {} '
                           'in yz-slices of fluid scalar variable {}.\n'
                           'See "{}" for a visualization.'

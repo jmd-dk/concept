@@ -127,43 +127,43 @@ def dump(components, output_filenames, final_render, op=None, do_autosave=False)
         kick(components, 'second half')
     # Do autosaving
     if not autosave_filename:
-        autosave_filename = '{}/autosave_{}'.format(paths['output_dir'], jobid)
+        autosave_filename = '{}/autosave_{}'.format(paths['ics_dir'], jobid)
     if do_autosave:
         # Save snapshot
         autosave_filename = save(components, autosave_filename)
         # Save parameter file corresponding to the snapshot
         if master:
-            with open(autosave_param_filename, 'w', encoding='utf-8') as autosave_param_file:
+            with open(autosave_params_filename, 'w', encoding='utf-8') as autosave_params_file:
                 # Header
-                autosave_param_file.write('# This parameter file is the result '
-                                          'of an autosave of job {},\n'
-                                          '# using the parameter file "{}".\n'
-                                          '# The following is a copy of this '
-                                          'original parameter file.\n\n'
-                                          .format(jobid, paths['params'])
-                                          )
+                autosave_params_file.write('# This parameter file is the result '
+                                           'of an autosave of job {},\n'
+                                           '# using the parameter file "{}".\n'
+                                           '# The following is a copy of this '
+                                           'original parameter file.\n\n'
+                                           .format(jobid, paths['params'])
+                                           )
                 # Original paramter file
-                autosave_param_file.write(params_file_content)
-                autosave_param_file.write('\n'*2)
+                autosave_params_file.write(params_file_content)
+                autosave_params_file.write('\n'*2)
                 # IC snapshot
-                autosave_param_file.write('# The autosaved snapshot file was saved to\n'
-                                          'initial_conditions = "{}"\n'.format(autosave_filename)
-                                          )
+                autosave_params_file.write('# The autosaved snapshot file was saved to\n'
+                                           'initial_conditions = "{}"\n'.format(autosave_filename)
+                                           )
                 # Present time
-                autosave_param_file.write('# The autosave happened at\n')
+                autosave_params_file.write('# The autosave happened at\n')
                 if enable_Hubble:
-                    autosave_param_file.write('a_begin = {:.12g}\n'.format(universals.a))
+                    autosave_params_file.write('a_begin = {:.12g}\n'.format(universals.a))
                 else:
-                    autosave_param_file.write('t_begin = {:.12g}*{}\n'
-                                              .format(universals.t, unit_time))
+                    autosave_params_file.write('t_begin = {:.12g}*{}\n'
+                                               .format(universals.t, unit_time))
                 # Future output times
                 future_output_times = {'a': {}, 't': {}}
                 for time_param, present in zip(('a', 't'), (universals.a, universals.t)):
                     for output_kind, output_time in output_times[time_param].items():
                         future_output_times[time_param][output_kind] = [ot for ot in output_time
                                                                         if ot >= present]
-                autosave_param_file.write('# Future output times\n')
-                autosave_param_file.write('output_times = {}\n'.format(future_output_times))
+                autosave_params_file.write('# Future output times\n')
+                autosave_params_file.write('output_times = {}\n'.format(future_output_times))
     # If no output other than autosaves should be dumped,
     # return now.
     if not do_dump:
@@ -200,15 +200,15 @@ def dump(components, output_filenames, final_render, op=None, do_autosave=False)
     else:
         # Last output have been dumped. Remove autosave files.
         if master:
-            for filename in (autosave_filename, autosave_param_filename):
+            for filename in (autosave_filename, autosave_params_filename):
                 if os.path.isfile(filename):
                     os.remove(filename)
     return True
 cython.declare(autosave_filename='str',
-               autosave_param_filename='str',
+               autosave_params_filename='str',
                )
 autosave_filename = ''
-autosave_param_filename = '{}/autosave_{}.params'.format(paths['params_dir'], jobid)
+autosave_params_filename = '{}/autosave_{}.params'.format(paths['params_dir'], jobid)
 
 @cython.header(# Locals
                integrand='object',  # str or tuple
@@ -475,6 +475,7 @@ def timeloop():
                fac_Courant='double',
                fac_Hubble='double',
                fac_dynamical='double',
+               fac_reduce='double',
                fac_timespan='double',
                fac_ẇ='double',
                force='str',
@@ -544,6 +545,9 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
     # will show a warning or abort, respectively.
     Δt_ratio_warn  = 0.5
     Δt_ratio_abort = 0.01
+    # When reducing the time step, reduce it to this factor times
+    # the maximally allowed time step size.
+    fac_reduce = 0.95
     # Minimum allowed time step size.
     # If Δt needs to be lower than this, the program will terminate.
     Δt_min = 1e-4*Δt_begin
@@ -725,7 +729,7 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
                       .format(Δt_max, Δt_begin, unit_time=unit_time)
                       )
         # Apply the update 
-        Δt = Δt_max
+        Δt = fac_reduce*Δt_max
     return Δt, bottleneck
 
 # Function that either loads existing initial conditions from a snapshot

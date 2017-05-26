@@ -120,7 +120,7 @@ class StandardSnapshot:
         if not filename.endswith('.hdf5'):
             filename += '.hdf5'
         # Print out message
-        masterprint('Saving standard snapshot "{}":'.format(filename))
+        masterprint('Saving standard snapshot "{}" ...'.format(filename))
         with h5py.File(filename, mode='w', driver='mpio', comm=comm) as hdf5_file:
             # Save used base units
             hdf5_file.attrs['unit length']   = self.units['length']
@@ -136,16 +136,14 @@ class StandardSnapshot:
             # within /components.
             for component in self.components:
                 component_h5 = hdf5_file.create_group('components/' + component.name)
-                # Save the general component attributes
                 component_h5.attrs['species'] = component.species
-                component_h5.attrs['mass'] = component.mass
                 if component.representation == 'particles':
-                    # Write out progress message
                     masterprint('Writing out {} ({} {}) ...'.format(component.name,
                                                                     component.N,
-                                                                    component.species),
-                                indent=4)
+                                                                    component.species)
+                                )
                     # Save particle attributes
+                    component_h5.attrs['mass'] = component.mass
                     component_h5.attrs['N'] = component.N
                     # Get local indices of the particle data
                     start_local = int(np.sum(smart_mpi(component.N_local,
@@ -165,7 +163,7 @@ class StandardSnapshot:
                     momx_h5[start_local:end_local] = component.momx_mv[:component.N_local]
                     momy_h5[start_local:end_local] = component.momy_mv[:component.N_local]
                     momz_h5[start_local:end_local] = component.momz_mv[:component.N_local]
-                    # Finalize progress message
+                    # Done saving this particle component
                     masterprint('done')
                 elif component.representation == 'fluid':
                     # Write out progress message
@@ -193,13 +191,13 @@ class StandardSnapshot:
                                 .format(component.name,
                                         component.species,
                                         component.gridsize,
-                                        len(component.fluidvars),
+                                        component.N_fluidvars,
                                         eos_message,
                                         ),
-                                indent=4)
+                                )
                     # Save fluid attributes
                     component_h5.attrs['gridsize'] = component.gridsize
-                    component_h5.attrs['N_fluidvars'] = len(component.fluidvars)
+                    component_h5.attrs['N_fluidvars'] = component.N_fluidvars
                     component_h5.attrs['w_type'] = component.w_type
                     if component.w_type == 'constant':
                         component_h5.attrs['w'] = component.w_constant
@@ -225,14 +223,14 @@ class StandardSnapshot:
                     domain_end_j = domain_start_j + domain_size_j
                     domain_end_k = domain_start_k + domain_size_k
                     # Save fluid grids in groups of name
-                    # "fluidvar_index", with i = 0, 1, ...
+                    # "fluidvar_index", with index = 0, 1, ...
                     # The fluid scalars are then datasets within
                     # these groups, named "fluidscalar_multi_index",
                     # with multi_index (0, ), (1, ), ..., (0, 0), ...
                     shape = (component.gridsize, )*3
-                    for index, fluidvar in enumerate(component.fluidvars):
+                    for index, fluidvar in enumerate(component.fluidvars[:component.N_fluidvars]):
                         fluidvar_h5 = component_h5.create_group('fluidvar_{}'.format(index))
-                        for multi_index in component.iterate_fluidscalar_indices(fluidvar):
+                        for multi_index in fluidvar.multi_indices:
                             fluidscalar = fluidvar[multi_index]
                             fluidscalar_h5 = fluidvar_h5.create_dataset('fluidscalar_{}'
                                                                         .format(multi_index),
@@ -249,28 +247,42 @@ class StandardSnapshot:
                             slab = slab_decompose(fluidscalar.grid_mv)
                             slab_start = slab.shape[0]*rank
                             slab_end = slab_start + slab.shape[0]
-                            fluidscalar_h5[slab_start:slab_end, :, :] = slab[:, :, :component.gridsize]
-                    # Create additional names (hard links)
-                    # for some fluid groups and data sets.
+                            fluidscalar_h5[slab_start:slab_end, :, :] = slab[:,
+                                                                             :,
+                                                                             :component.gridsize]
+                    # Create additional names (hard links) for the fluid
+                    # groups and data sets. The names from
+                    # component.fluid_names will be used, except for
+                    # the additional linear variable, if CLASS is used
+                    # to close the Boltzmann hierarchy
+                    # (hence the try/except).
                     for name, indices in component.fluid_names.items():
                         if not isinstance(name, str) or name == 'ordered':
                             continue
                         if isinstance(indices, int):
                             # "name" is a fluid variable name (e.g. J,
                             # though not ϱ as this is a fluid scalar).
-                            fluidvar_h5 = component_h5['fluidvar_{}'.format(indices)]
-                            component_h5[name] = fluidvar_h5
+                            try:
+                                fluidvar_h5 = component_h5['fluidvar_{}'.format(indices)]
+                                component_h5[name] = fluidvar_h5
+                            except:
+                                ...
                         else:  # indices is a tuple
                             # "name" is a fluid scalar name (e.g. ϱ, Jx)
                             index, multi_index = indices
-                            fluidvar_h5 = component_h5['fluidvar_{}'.format(index)]
-                            fluidscalar_h5 = fluidvar_h5['fluidscalar_{}'.format(multi_index)]  
-                            component_h5[name] = fluidscalar_h5
-                    # Finalize progress message
+                            try:
+                                fluidvar_h5 = component_h5['fluidvar_{}'.format(index)]
+                                fluidscalar_h5 = fluidvar_h5['fluidscalar_{}'.format(multi_index)]  
+                                component_h5[name] = fluidscalar_h5
+                            except:
+                                ...
+                    # Done saving this fluid component
                     masterprint('done')
                 elif master:
                     abort('Does not know how to save component "{}" with representation "{}"'
                           .format(component.name, component.representation))
+        # Done saving the snapshot
+        masterprint('done')
         # Return the filename of the saved file
         return filename
 
@@ -318,14 +330,19 @@ class StandardSnapshot:
                     species='str',
                     start_local='Py_ssize_t',
                     unit='double',
-                    unit_ϱ='double',
                     unit_J='double',
+                    unit_σ='double',
+                    unit_ϱ='double',
                     units_fluidvars='double[::1]',
                     w='object',  # float, str or np.ndarray
                     w_type='str',
                     )
     def load(self, filename, only_params=False):
-        # Load all components
+        if only_params:
+            masterprint('Loading parameters of snapshot "{}" ...'.format(filename))
+        else:
+            masterprint('Loading snapshot "{}" ...'.format(filename))
+        # Load all components    
         with h5py.File(filename, mode='r', driver='mpio', comm=comm) as hdf5_file:
             # Load used base units
             self.units['length'] = hdf5_file.attrs['unit length']
@@ -342,7 +359,6 @@ class StandardSnapshot:
             self.params['Ωb']      = hdf5_file.attrs[unicode('Ωb')]
             # Load component data
             for name, component_h5 in hdf5_file['components'].items():
-                # Load the general component attributes
                 species = component_h5.attrs['species']
                 representation = get_representation(species)
                 if representation == 'particles':
@@ -355,11 +371,7 @@ class StandardSnapshot:
                     # Done loading component attributes
                     if only_params:
                         continue
-                    # Write out progress message.
-                    # Indent the message, as this is a submessage of
-                    # the total load message.
-                    if not only_params:
-                        masterprint('Reading in {} ({} {}) ...'.format(name, N, species), indent=4)
+                    masterprint('Reading in {} ({} {}) ...'.format(name, N, species))
                     # Extract HDF5 datasets
                     posx_h5 = component_h5['posx']
                     posy_h5 = component_h5['posy']
@@ -398,7 +410,7 @@ class StandardSnapshot:
                             momx[i] *= unit
                             momy[i] *= unit
                             momz[i] *= unit
-                    # Finalize progress message
+                    # Done reading in particle component
                     masterprint('done')
                 elif representation == 'fluid':
                     # Read in fluid attributes
@@ -424,33 +436,32 @@ class StandardSnapshot:
                     if only_params:
                         continue
                     # Write out progress message
-                    if not only_params:
-                        if w_type == 'constant':
-                            eos_message = ('constant equation of state w = {}'
-                                           .format(significant_figures(w,
-                                                                       6,
-                                                                       fmt='unicode',
-                                                                       incl_zeros=False,
-                                                                       )
-                                                   )
-                                           )
-                        elif w_type == 'tabulated (t)':
-                            eos_message = 'tabulated equation of state w(t)'
-                        elif w_type == 'tabulated (a)':
-                            eos_message = 'tabulated equation of state w(a)'
-                        elif w_type == 'expression':
-                            eos_message = 'equation of state w = {}'.format(w)
-                        masterprint('Reading in {} ({} with '
-                                    'gridsize {}, '
-                                    '{} fluid variables, '
-                                    '{}) ...'
-                                    .format(name,
-                                            species,
-                                            gridsize,
-                                            N_fluidvars,
-                                            eos_message,
-                                            ),
-                                    indent=4)
+                    if w_type == 'constant':
+                        eos_message = ('constant equation of state w = {}'
+                                       .format(significant_figures(w,
+                                                                   6,
+                                                                   fmt='unicode',
+                                                                   incl_zeros=False,
+                                                                   )
+                                               )
+                                       )
+                    elif w_type == 'tabulated (t)':
+                        eos_message = 'tabulated equation of state w(t)'
+                    elif w_type == 'tabulated (a)':
+                        eos_message = 'tabulated equation of state w(a)'
+                    elif w_type == 'expression':
+                        eos_message = 'equation of state w = {}'.format(w)
+                    masterprint('Reading in {} ({} with '
+                                'gridsize {}, '
+                                '{} fluid variables, '
+                                '{}) ...'
+                                .format(name,
+                                        species,
+                                        gridsize,
+                                        N_fluidvars,
+                                        eos_message,
+                                        )
+                                )
                     # Compute local indices of fluid grids
                     domain_size_i = gridsize//domain_subdivisions[0]
                     domain_size_j = gridsize//domain_subdivisions[1]
@@ -459,7 +470,7 @@ class StandardSnapshot:
                                    or gridsize != domain_subdivisions[1]*domain_size_j
                                    or gridsize != domain_subdivisions[2]*domain_size_k):
                         abort('The gridsize of the {} component is {} '
-                              'which cannot be equally shared among {} processes,'
+                              'which cannot be equally shared among {} processes'
                               .format(name, gridsize, nprocs))
                     domain_start_i = domain_layout_local_indices[0]*domain_size_i
                     domain_start_j = domain_layout_local_indices[1]*domain_size_j
@@ -469,9 +480,9 @@ class StandardSnapshot:
                     domain_end_k = domain_start_k + domain_size_k
                     # Fluid scalars are already instantiated.
                     # Now populate them.
-                    for index, fluidvar in enumerate(component.fluidvars):
+                    for index, fluidvar in enumerate(component.fluidvars[:component.N_fluidvars]):
                         fluidvar_h5 = component_h5['fluidvar_{}'.format(index)]
-                        for multi_index in component.iterate_fluidscalar_indices(fluidvar):
+                        for multi_index in fluidvar.multi_indices:
                             fluidscalar_h5 = fluidvar_h5['fluidscalar_{}'.format(multi_index)]
                             # Note that this also performs the needed
                             # communication to populate pseudo and
@@ -485,20 +496,24 @@ class StandardSnapshot:
                     # by the snapshot units.
                     unit_ϱ = snapshot_unit_mass/snapshot_unit_length**3
                     unit_J = snapshot_unit_mass/(snapshot_unit_length**2*snapshot_unit_time)
-                    units_fluidvars = asarray((unit_ϱ, unit_J), dtype=C2np['double'])
+                    unit_σ = 1
+                    units_fluidvars = asarray((unit_ϱ, unit_J, unit_σ), dtype=C2np['double'])
                     size = np.prod(component.shape)
-                    for fluidvar, unit in zip(component.fluidvars, units_fluidvars):
+                    for fluidvar, unit in zip(component.fluidvars[:component.N_fluidvars],
+                                              units_fluidvars):
                         if unit == 1:
                             continue
-                        for fluidscalar in component.iterate_fluidscalar(fluidvar):
+                        for fluidscalar in fluidvar:
                             grid = fluidscalar.grid
                             for i in range(size):
                                 grid[i] *= unit
-                    # Finalize indented progress message
+                    # Done reading in fluid component
                     masterprint('done')
                 elif master:
                     abort('Does not know how to load component "{}" with representation "{}"'
                           .format(name, representation))
+        # Done loading the snapshot
+        masterprint('done')
 
     # This method populate the snapshot with component data
     # and additional parameters.
@@ -614,16 +629,12 @@ class Gadget2Snapshot:
         corresponding to dark matter (or matter) particles,
         are supported.
         """
+        masterprint('Saving GADGET2 snapshot "{}" ...'.format(filename))
         component = self.component
         if master and component.species not in ('dark matter particles', 'matter particles'):
             abort('The GAGDET2 snapshot type can only store dark matter or matter particles '
                   '(the species of the {} component is "{}")'
                   .format(component.name, component.species))
-        masterprint('Saving GADGET2 snapshot "{}":'.format(filename))
-        masterprint('Writing out {} ({} {}) ...'.format(component.name,
-                                                        component.N,
-                                                        component.species),
-                    indent=4)
         N = component.N
         N_local = component.N_local
         header = self.params['header']
@@ -657,6 +668,10 @@ class Gadget2Snapshot:
                 # Padding to fill out the 256 bytes
                 f.write(struct.pack('60s', b' '*60))
                 f.write(struct.pack('I', 256))
+        masterprint('Writing out {} ({} {}) ...'.format(component.name,
+                                                        component.N,
+                                                        component.species)
+                    )
         # Write the POS block in serial, one process at a time
         unit = units.kpc/header['HubbleParam']
         for i in range(nprocs):
@@ -724,7 +739,8 @@ class Gadget2Snapshot:
                     # The closing int
                     if i == nprocs - 1:
                         f.write(struct.pack('I', N*4))
-        # Finalize progress message
+        # Finalize progress messages
+        masterprint('done')
         masterprint('done')
         # Return the filename of the saved file
         return filename
@@ -755,6 +771,10 @@ class Gadget2Snapshot:
         particles, corresponding to dark matter particles,
         are supported.
         """
+        if only_params:
+            masterprint('Loading parameters of snapshot "{}" ...'.format(filename))
+        else:
+            masterprint('Loading snapshot "{}" ...'.format(filename))
         # Only type 1 (halo) particles are supported
         name = 'GADGET halos'
         species = 'dark matter particles'
@@ -806,11 +826,9 @@ class Gadget2Snapshot:
             self.components = [self.component]
             # Done loading component attributes
             if only_params:
+                masterprint('done')
                 return
-            # Write out progress message.
-            # Indent the message, as this is a submessage of
-            # the total load message.
-            masterprint('Reading in {} ({} {}) ...'.format(name, N, species), indent=4)
+            masterprint('Reading in {} ({} {}) ...'.format(name, N, species))
             # Compute a fair distribution
             # of component data to the processes.
             start_local, N_local = partition(N)
@@ -862,9 +880,11 @@ class Gadget2Snapshot:
             f.seek(4*start_local, 1)  # 4 = sizeof(unsigned int)
             file_position = f.tell()
             self.ID = np.fromfile(f, dtype=C2np['unsigned int'], count=N_local)
-            # Finalize indented progress message
+            # Done reading in particles
             masterprint('done')
             # Possible additional meta data ignored
+        # Done loading the snapshot
+        masterprint('done')
 
     # This method populate the snapshot with component data
     # as well as ID's (which are not used by this code) and
@@ -1055,21 +1075,14 @@ def load(filename, compare_params=True,
         abort('Cannot recognize "{}" as one of the implemented snapshot types ({}).'
               .format(filename,
                       ', '.join([snapshot_class.name for snapshot_class in snapshot_classes])))
-    # Begin loading message. The load methods of the snapshot classes
-    # will elaborate further with indented messages.
-    if only_params:
-        masterprint('Loading parameters of {} snapshot "{}"'.format(input_type, filename))
-    else:
-        masterprint('Loading {} snapshot "{}":'.format(input_type, filename))
     # Instantiate snapshot of the appropriate type
     snapshot = eval(input_type.capitalize() + 'Snapshot()')
     # Load the snapshot from disk
     snapshot.load(filename, only_params=only_params)
     # Check if the parameters of the snapshot matches those of the
     # current simulation run. Display a warning if they do not.
-    # This warning should be indented under the loading message.
     if compare_params:
-        compare_parameters(snapshot.params, filename, indent=4)
+        compare_parameters(snapshot.params, filename)
     # Check that all particles are positioned within the box.
     # Particles exactly on the upper boundaries will be moved to the
     # physically equivalent lower boundaries.
@@ -1134,7 +1147,6 @@ def get_snapshot_type(filename):
 @cython.header(# Arguments
                params='dict',
                filename='str',
-               indent='int',
                # Locals
                indent_str='str',
                msg='str',
@@ -1142,7 +1154,7 @@ def get_snapshot_type(filename):
                unit='double',
                vs='str',
                )
-def compare_parameters(params, filename, indent=0):
+def compare_parameters(params, filename):
     """Specifically, the following parameters are compared:
     a (compared against a_begin)
     boxsize
@@ -1183,7 +1195,7 @@ def compare_parameters(params, filename, indent=0):
     if msg:
         msg = ('Mismatch between current parameters and those in the snapshot "{}":{}'
                ).format(filename, msg)
-        masterwarn(msg, skipline=False, indent=indent)
+        masterwarn(msg, skipline=False)
 
 # Function which does a sanity check of particle components,
 # ensuring that they are within the box.

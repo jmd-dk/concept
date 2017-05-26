@@ -10,26 +10,31 @@
 
 
 # Input/output
-initial_conditions = 'ICs/example.hdf5'  # Initial condition snapshot file or container of species to be generated
-snapshot_type = 'standard'               # Type of output snapshots
-output_dirs = {                          # Directories for storing output
+initial_conditions = (          # Initial condition file or container of species to be generated
+    {'name'   : 'matter',
+     'species': 'matter particles',
+     'N'      : 64**3,
+     },
+                      )
+snapshot_type = 'standard'      # Type of output snapshots
+output_dirs = {                 # Directories for storing output
     'snapshot' : 'output',
     'powerspec': ...,
     'render'   : ...,
                }
-output_bases = {                         # File basenames of output
+output_bases = {                # File basenames of output
     'snapshot' : 'snapshot',
     'powerspec': 'powerspec',
     'render'   : 'render',
                 }
 output_times = {
-    'a': {                               # Scale factor values at which to dump output
-        'snapshot'       : 1,
+    'a': {                      # Scale factor values at which to dump output
+        'snapshot'       : (0.01, 0.02),
         'powerspec'      : '',
         'render'         : '',
         'terminal render': '',
           },
-    't': {                               # Cosmic times at which to dump output
+    't': {                      # Cosmic times at which to dump output
         'snapshot'       : '',
         'powerspec'      : '',
         'render'         : '',
@@ -48,11 +53,11 @@ render_select = {                        # Toggle rendering for each component
 autosave = 1*hr                          # How often to autosave
 
 # Numerical parameters
-boxsize          = 16*Mpc  # Linear size of the simulation box
+boxsize          = 64*Mpc  # Linear size of the simulation box
 ewald_gridsize   = 64      # Linear gridsize of the grid of Ewald corrections
 φ_gridsize       = 128     # Linear gridsize of the potential
-p3m_scale        = 1.25	   # The long/short-range force split scale
-p3m_cutoff       = 4.8     # Maximum reach of short-range force
+p3m_scale        = 1.25	   # The long/short-range force split scale (grid units)
+p3m_cutoff       = 4.8     # Maximum reach of short-range force (grid units)
 softeningfactors = {       # The amount of gravitational softening for each species
     'dark matter particles': 0.03,
     'matter particles'     : 0.03,
@@ -63,14 +68,14 @@ R_tophat         = 8*Mpc   # Radius of tophat used to compute σ
 H0           = 70*km/(s*Mpc)  # The Hubble constant
 Ωcdm         = 0.25           # Density parameter for cold dark matter
 Ωb           = 0.05           # Density parameter for baryonic matter
-a_begin      = 0.02           # Scale factor at beginning of simulation
+a_begin      = 0.01           # Scale factor at beginning of simulation
 class_params = {              # Parameters to pass to CLASS
                 }
 
 # Physics
 forces = {  # The forces which act on each species
-    'dark matter particles': {'gravity': 'pm'},
-    'matter particles'     : {'gravity': 'pm'}
+    'dark matter particles': {'gravity': 'pp'},
+    'matter particles'     : {'gravity': 'pp'}
           }
 w_eos = {  # Equation of state parameter for each species
     ...: ...,
@@ -79,15 +84,19 @@ w_eos = {  # Equation of state parameter for each species
 # Simulation options
 fftw_rigor = 'measure'  # Rigor level when acquiring FFTW wisdom
 master_seed = 1         # Seed for pseudo-random numbers
+vacuum_corrections = {  # Toogle vacuum corrections for each species
+    'all': True,
+                      }
 
 # Graphics
+terminal_width             = 80          # Width of displayed text in characters
+render_resolution          = 1080        # Height and width of renders in pixels
 render_colors = {                        # Render color for each component
     'all': 'lime',
                  }
-bgcolor                    = 'black'	 # Background color of renders
-resolution                 = 1080        # The height and width of the render
-terminal_render_colormap   = 'gnuplot2'  # The colormap to use for the terminal render
-terminal_render_resolution = 64          # The width of the terminal render
+render_bgcolor             = 'black'	 # Background color of renders
+terminal_render_resolution = 80          # Width of the terminal render in characters
+terminal_render_colormap   = 'gnuplot2'  # Colormap to use for terminal renders
 
 # System of units
 unit_length = 'Mpc'      # Physical length corresponding to a numerical value of 1.0
@@ -95,7 +104,6 @@ unit_time   = 'Gyr'      # Physical time   corresponding to a numerical value of
 unit_mass   = '10¹⁰ m☉'  # Physical mass   corresponding to a numerical value of 1.0
 
 # Debugging options
-enable_Ewald     = True   # Enable Ewald corrections
 enable_Hubble    = True   # Enable Hubble expansion
 enable_class     = True   # Use CLASS to compute the evolution of the background
 enable_debugging = False  # Enable debugging mode

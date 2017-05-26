@@ -75,18 +75,18 @@ cp "${this_dir}/output/snapshot.hdf5" "${this_dir}/output/subdir/snapshot_1.hdf5
 
 # Generate two different render parameterfiles
 echo "
-output_bases = {'render': 'render'}
-render_select = {'all': True}
-render_colors = {'test particles': 'g'}
-bgcolor    = '0'
-resolution = 234
+output_bases   = {'render': 'render'}
+render_select  = {'all': True}
+render_resolution     = 234
+render_colors  = {'test particles': 'g'}
+render_bgcolor = '0'
 " > "${this_dir}/render.params_0"
 echo "
-output_bases = {'render': ''}
-render_select = {'all': True}
-render_colors = {'test particles': (1, 0.2, 0.3)}
-bgcolor    = 'LightYellow'
-resolution = 1080
+output_bases   = {'render': ''}
+render_select  = {'all': True}
+render_resolution     = 1080
+render_colors  = {'test particles': (1, 0.2, 0.3)}
+render_bgcolor = 'LightYellow'
 " > "${this_dir}/render.params_1"
 
 # Render the single snapshot without explicitly specifying a render parameter file

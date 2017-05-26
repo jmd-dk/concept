@@ -7,10 +7,11 @@
 # see chapter 5 of guide.pdf.
 
 # Input/output
-output_bases = {'render': 'render'}
+output_bases  = {'render': 'render'}
 render_select = {'all': True}
 
 # Graphics
-bgcolor    = 'black'
-resolution = 1080
-render_colors = {}
+render_resolution = 1080
+render_colors     = {}
+render_bgcolor    = 'black'
+

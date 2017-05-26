@@ -158,7 +158,7 @@ def powerspec(components, filename):
                                         # Fluid components
                                         ('ϱ', [universals.a**(-3*component.w())]),
                                         ]
-            φ = CIC_components2φ(components, interpolation_quantities)
+            φ = CIC_components2φ(component, interpolation_quantities)
         # Fourier transform the grid
         slab = slab_decompose(φ, prepare_fft=True)
         fft(slab, 'forward')

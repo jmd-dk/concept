@@ -415,7 +415,7 @@ def CIC_grid2grid(gridA, gridB, fac=1, fac_grid=None):
 # Function for CIC-interpolating particles/fluid elements of
 # components to a domain grid.
 @cython.header(# Argument
-               components='list',
+               component_or_components='object', # Component or list of Components
                domain_grid='double[:, :, ::1]',
                quantities='list',
                # Locals
@@ -427,6 +427,7 @@ def CIC_grid2grid(gridA, gridB, fac=1, fac_grid=None):
                Wzu='double',
                amount='double',
                component='Component',
+               components='list',
                domain_grid_noghosts='double[:, :, :]',
                factor='double',
                factors='double[::1]',
@@ -452,7 +453,7 @@ def CIC_grid2grid(gridA, gridB, fac=1, fac_grid=None):
                z_lower='int',
                z_upper='int',
                )
-def CIC_components2domain_grid(components, domain_grid, quantities):
+def CIC_components2domain_grid(component_or_components, domain_grid, quantities):
     """This function CIC-interpolates particle/fluid elements
     to domain_grid storing scalar values. The physical extend of the
     passed domain_grid should match the domain exactly. The interpolated
@@ -479,6 +480,10 @@ def CIC_components2domain_grid(components, domain_grid, quantities):
     and so n = len(components) even though both
     particle and fluid components are present.
     """
+    if isinstance(component_or_components, list):
+        components = component_or_components
+    else:
+        components = [component_or_components]
     # Transform the supplied quantities so that it is a list of tuples
     # of the form (str, np.ndarray), where the array is of the same
     # length as components.
@@ -927,13 +932,13 @@ def CIC_particles2fluid(component):
 
 # Function for CIC interpolating components to the φ grid
 @cython.header(# Arguments
-               components='list',
+               component_or_components='object', # Component or list of Components
                quantities='list',
                # Locals
                φ='double[:, :, ::1]',
                returns='double[:, :, ::1]',
                )
-def CIC_components2φ(components, quantities):
+def CIC_components2φ(component_or_components, quantities):
     """Exactly what quantities of the components are interpolated to
     the global φ grid is determined by the quantities argument.
     For details on this argument,
@@ -946,7 +951,7 @@ def CIC_components2φ(components, quantities):
     φ = get_buffer(φ_shape, 'φ', nullify=True)
     # Interpolate component coordinates
     # weighted by the given quantities to φ.
-    CIC_components2domain_grid(components, φ, quantities)
+    CIC_components2domain_grid(component_or_components, φ, quantities)
     return φ
 # Check that φ_gridsize fulfills the requirements for FFT.
 # If not, the reason why will be stored in φ_illegal.
@@ -1384,7 +1389,8 @@ def get_fftw_slab(gridsize, buffer_name=0, nullify=False):
                 if os.path.isfile(wisdom_filename):
                     os.remove(wisdom_filename)
         rigor_final = bcast(rigor_final if master else None)
-        wisdom_filename = bcast(wisdom_filename if master else None)
+        wisdom_filename = ('.fftw_wisdom_gridsize={}_nprocs={}_rigor={}'
+                                   .format(gridsize, nprocs, rigor_final))
         # Initialize fftw_mpi, allocate the grid, initialize the
         # local grid sizes and start indices and do FFTW planning.
         # All this is handled by fftw_setup from fft.c.
@@ -1707,6 +1713,7 @@ def slabs_check_symmetry(slab, rel_tol=1e-9, abs_tol=machine_ϵ):
                 buffer_or_buffer_name='object',  # double[:, :, ::1] or int or str
                 order='int',
                 direction='str',
+                noghosts='bint',
                 # Locals
                 buffer='double[:, :, ::1]',
                 buffer_i='Py_ssize_t',
@@ -1729,23 +1736,28 @@ def slabs_check_symmetry(slab, rel_tol=1e-9, abs_tol=machine_ϵ):
                 j='Py_ssize_t',
                 k='Py_ssize_t',
                 shape='tuple',
+                value='double',
                 returns='double[:, :, ::1]',
                 )
-def diff_domain(grid, dim, h=1, buffer_or_buffer_name=0, order=4, direction='forward'):
+def diff_domain(grid, dim, h=1, buffer_or_buffer_name=0,
+                order=4, direction='forward', noghosts=True):
     """This function differentiates a given grid along the dim
-    dimension once. The passed grid must include psuedo and ghost points.
-    The pseudo points will be differentiated along with the actual grid
-    points. To achieve proper units, the physical grid spacing may be
-    specified as h. If not given, grid units (h == 1) are used. The
-    buffer_or_buffer_name argument can be buffer to store the results,
-    or alternatively the name of a buffer (retrieved via
-    communication.get_buffer) as an int or str.
-    If a buffer is supplied, the result of the differentiations will be
-    added to this buffer. Note that this buffer has to be contiguous
-    (this criterion could be removed if needed).
-    The returned grid will include pseudo points but no ghost points.
-    Note though that the returned grid will be contiguous.
-    If the supplied buffer include ghost points, these will change.
+    dimension once. The passed grid must include psuedo and ghost
+    points. The pseudo points will be differentiated along with the
+    actual grid points. To achieve proper units, the physical grid
+    spacing may be specified as h. If not given, grid units (h == 1)
+    are used. The buffer_or_buffer_name argument can be a buffer to
+    store the results, or alternatively the name of a buffer (retrieved
+    via communication.get_buffer) as an int or str. If a buffer is
+    supplied, the result of the differentiations will be added to this
+    buffer. If a buffer should be fetched automatically, this will be
+    nullify before the differentiation. Note that the buffer has to be
+    contiguous. If noghosts is True, the passed buffer (if any) must not
+    contain ghost points, and the returned grid will not contain ghost
+    points either, though it will be contiguous. If the supplied buffer
+    include ghost points, or if the returned grid should contain ghost
+    points, specify noghosts=True. In this case, ghost points will be
+    populated with the correct values.
     Note that a grid cannot be differentiated in-place by passing the
     grid as both the first and third argument, as the differentiation
     of each grid point requires information from the original
@@ -1765,158 +1777,104 @@ def diff_domain(grid, dim, h=1, buffer_or_buffer_name=0, order=4, direction='for
             abort('The order argument should be ∈ {1, 2, 4}')
         if direction not in ('forward', 'backward'):
             abort('The direction argument should be ∈ {\'forward\', \'backward\'}')
-    # The buffer should have pseudo points but no ghost points
-    shape = tuple([grid.shape[dim] - 2*2 for dim in range(3)])
     # If no buffer is supplied, fetch the buffer with the name
     # given by buffer_or_buffer_name.
     if isinstance(buffer_or_buffer_name, (int, str)):
+        if noghosts:
+            shape = tuple([grid.shape[dim] - 2*2 for dim in range(3)])
+        else:
+            shape = asarray(grid).shape
         buffer_name = buffer_or_buffer_name
         buffer = get_buffer(shape, buffer_name, nullify=True)
     else:
         buffer = buffer_or_buffer_name
     # Do the differentiation and add the results to the buffer
-    if dim == 0:
-        if order == 1:
-            if direction == 'forward':
-                # Differentiate along the x-direction via forward difference
-                for         i in range(2, ℤ[grid.shape[0] - 2]):
-                    for     j in range(2, ℤ[grid.shape[1] - 2]):
-                        for k in range(2, ℤ[grid.shape[2] - 2]):
-                            buffer[ℤ[i - 2],
-                                   ℤ[j - 2],
-                                     k - 2 ] += ℝ[1/h]*(+ grid[ℤ[i + 1], j, k]
-                                                        - grid[  i     , j, k]
-                                                        )
-            elif direction == 'backward':
-                # Differentiate along the x-direction via backward difference
-                for         i in range(2, ℤ[grid.shape[0] - 2]):
-                    for     j in range(2, ℤ[grid.shape[1] - 2]):
-                        for k in range(2, ℤ[grid.shape[2] - 2]):
-                            buffer[ℤ[i - 2],
-                                   ℤ[j - 2],
-                                     k - 2 ] += ℝ[1/h]*(+ grid[  i     , j, k]
-                                                        - grid[ℤ[i - 1], j, k]
-                                                        )
-        elif order == 2:
-            # Differentiate along the x-direction via the two point rule
-            for         i in range(2, ℤ[grid.shape[0] - 2]):
-                for     j in range(2, ℤ[grid.shape[1] - 2]):
-                    for k in range(2, ℤ[grid.shape[2] - 2]):
-                        buffer[ℤ[i - 2],
-                               ℤ[j - 2],
-                                 k - 2 ] += ℝ[1/(2*h)]*(+ grid[ℤ[i + 1], j, k]
-                                                        - grid[ℤ[i - 1], j, k]
-                                                        )          
-        elif order == 4:
-            # Differentiate along the x-direction via the four point rule
-            for         i in range(2, ℤ[grid.shape[0] - 2]):
-                for     j in range(2, ℤ[grid.shape[1] - 2]):
-                    for k in range(2, ℤ[grid.shape[2] - 2]):
-                        buffer[ℤ[i - 2],
-                               ℤ[j - 2],
-                                 k - 2 ] += (+ ℝ[2/(3*h)] *(+ grid[ℤ[i + 1], j, k]
-                                                            - grid[ℤ[i - 1], j, k]
-                                                            )
-                                             - ℝ[1/(12*h)]*(+ grid[ℤ[i + 2], j, k]
-                                                            - grid[ℤ[i - 2], j, k]
-                                                            )
-                                             )
-    elif dim == 1:
-        if order == 1:
-            if direction == 'forward':
-                # Differentiate along the y-direction via forward difference
-                for         i in range(2, ℤ[grid.shape[0] - 2]):
-                    for     j in range(2, ℤ[grid.shape[1] - 2]):
-                        for k in range(2, ℤ[grid.shape[2] - 2]):
-                            buffer[ℤ[i - 2],
-                                   ℤ[j - 2],
-                                     k - 2 ] += ℝ[1/h]*(+ grid[i, ℤ[j + 1], k]
-                                                        - grid[i,   j     , k]
-                                                        )
-            elif direction == 'backward':
-                # Differentiate along the y-direction via backward difference
-                for         i in range(2, ℤ[grid.shape[0] - 2]):
-                    for     j in range(2, ℤ[grid.shape[1] - 2]):
-                        for k in range(2, ℤ[grid.shape[2] - 2]):
-                            buffer[ℤ[i - 2],
-                                   ℤ[j - 2],
-                                     k - 2 ] += ℝ[1/h]*(+ grid[i,   j     , k]
-                                                        - grid[i, ℤ[j - 1], k]
-                                                        )
-        elif order == 2:
-            # Differentiate along the y-direction via the two point rule
-            for         i in range(2, ℤ[grid.shape[0] - 2]):
-                for     j in range(2, ℤ[grid.shape[1] - 2]):
-                    for k in range(2, ℤ[grid.shape[2] - 2]):
-                        buffer[ℤ[i - 2],
-                               ℤ[j - 2],
-                                 k - 2 ] += ℝ[1/(2*h)]*(+ grid[i, ℤ[j + 1], k]
-                                                        - grid[i, ℤ[j - 1], k]
-                                                        )
-                                                    
-        elif order == 4:
-            # Differentiate along the y-direction via the four point rule
-            for         i in range(2, ℤ[grid.shape[0] - 2]):
-                for     j in range(2, ℤ[grid.shape[1] - 2]):
-                    for k in range(2, ℤ[grid.shape[2] - 2]):
-                        buffer[ℤ[i - 2],
-                               ℤ[j - 2],
-                                 k - 2 ] += (+ ℝ[2/(3*h)] *(+ grid[i, ℤ[j + 1], k]
-                                                            - grid[i, ℤ[j - 1], k]
-                                                            )
-                                             - ℝ[1/(12*h)]*(+ grid[i, ℤ[j + 2], k]
-                                                            - grid[i, ℤ[j - 2], k]
-                                                            )
-                                             )
-    elif dim == 2:
-        if order == 1:
-            if direction == 'forward':
-                # Differentiate along the z-direction via forward difference
-                for         i in range(2, ℤ[grid.shape[0] - 2]):
-                    for     j in range(2, ℤ[grid.shape[1] - 2]):
-                        for k in range(2, ℤ[grid.shape[2] - 2]):
-                            buffer[ℤ[i - 2],
-                                   ℤ[j - 2],
-                                     k - 2 ] += ℝ[1/h]*(+ grid[i, j, k + 1]
-                                                        - grid[i, j, k    ]
-                                                        )
-            elif direction == 'backward':
-                # Differentiate along the z-direction via backward difference
-                for         i in range(2, ℤ[grid.shape[0] - 2]):
-                    for     j in range(2, ℤ[grid.shape[1] - 2]):
-                        for k in range(2, ℤ[grid.shape[2] - 2]):
-                            buffer[ℤ[i - 2],
-                                   ℤ[j - 2],
-                                     k - 2 ] += ℝ[1/h]*(+ grid[i, j, k    ]
-                                                        - grid[i, j, k - 1]
-                                                        )
-        elif order == 2:
-            # Differentiate along the z-direction via the two point rule
-            for         i in range(2, ℤ[grid.shape[0] - 2]):
-                for     j in range(2, ℤ[grid.shape[1] - 2]):
-                    for k in range(2, ℤ[grid.shape[2] - 2]):
-                        buffer[ℤ[i - 2],
-                               ℤ[j - 2],
-                                 k - 2 ] += ℝ[1/(2*h)]*(+ grid[i, j, k + 1]
-                                                        - grid[i, j, k - 1]
-                                                        )
-                                         
-        elif order == 4:
-            # Differentiate along the z-direction via the four point rule
-            for         i in range(2, ℤ[grid.shape[0] - 2]):
-                for     j in range(2, ℤ[grid.shape[1] - 2]):
-                    for k in range(2, ℤ[grid.shape[2] - 2]):
-                        buffer[ℤ[i - 2],
-                               ℤ[j - 2],
-                                 k - 2 ] += (+ ℝ[2/(3*h)] *(+ grid[i, j, k + 1]
-                                                            - grid[i, j, k - 1]
-                                                            )
-                                             - ℝ[1/(12*h)]*(+ grid[i, j, k + 2]
-                                                            - grid[i, j, k - 2]
-                                                            )
-                                             )
+    for         i in range(2, ℤ[grid.shape[0] - 2]):
+        for     j in range(2, ℤ[grid.shape[1] - 2]):
+            for k in range(2, ℤ[grid.shape[2] - 2]):
+                with unswitch:
+                    # Differentiate along x
+                    if dim == 0 and order == 1 and direction == 'forward':
+                        value = ℝ[1/h]*(+ grid[ℤ[i + 1], j, k]
+                                        - grid[  i     , j, k]
+                                        )
+                    elif dim == 0 and order == 1 and direction == 'backward':
+                        value = ℝ[1/h]*(+ grid[  i     , j, k]
+                                        - grid[ℤ[i - 1], j, k]
+                                        )
+                    elif dim == 0 and order == 2:
+                        value = ℝ[1/(2*h)]*(+ grid[ℤ[i + 1], j, k]
+                                            - grid[ℤ[i - 1], j, k]
+                                            )
+                    elif dim == 0 and order == 4:
+                        value = (+ ℝ[2/(3*h)] *(+ grid[ℤ[i + 1], j, k]
+                                                - grid[ℤ[i - 1], j, k]
+                                                )
+                                 - ℝ[1/(12*h)]*(+ grid[ℤ[i + 2], j, k]
+                                                - grid[ℤ[i - 2], j, k]
+                                                )
+                                 )
+                    # Differentiate along y
+                    elif dim == 1 and order == 1 and direction == 'forward':
+                        value = ℝ[1/h]*(+ grid[i, ℤ[j + 1], k]
+                                        - grid[i,   j     , k]
+                                        )
+                    elif dim == 1 and order == 1 and direction == 'backward':
+                        value = ℝ[1/h]*(+ grid[i,   j     , k]
+                                        - grid[i, ℤ[j - 1], k]
+                                        )
+                    elif dim == 1 and order == 2:
+                        value = ℝ[1/(2*h)]*(+ grid[i, ℤ[j + 1], k]
+                                            - grid[i, ℤ[j - 1], k]
+                                            )
+                    elif dim == 1 and order == 4:
+                        value = (+ ℝ[2/(3*h)] *(+ grid[i, ℤ[j + 1], k]
+                                                - grid[i, ℤ[j - 1], k]
+                                                )
+                                 - ℝ[1/(12*h)]*(+ grid[i, ℤ[j + 2], k]
+                                                - grid[i, ℤ[j - 2], k]
+                                                )
+                                 )
+                    # Differentiate along z
+                    elif dim == 2 and order == 1 and direction == 'forward':
+                        value = ℝ[1/h]*(+ grid[i, j, k + 1]
+                                        - grid[i, j, k    ]
+                                        )
+                    elif dim == 2 and order == 1 and direction == 'backward':
+                        value = ℝ[1/h]*(+ grid[i, j, k    ]
+                                        - grid[i, j, k - 1]
+                                        )
+                    elif dim == 2 and order == 2:
+                        value = ℝ[1/(2*h)]*(+ grid[i, j, k + 1]
+                                            - grid[i, j, k - 1]
+                                            )
+                    elif dim == 2 and order == 4:
+                        value = (+ ℝ[2/(3*h)] *(+ grid[i, j, k + 1]
+                                                - grid[i, j, k - 1]
+                                                )
+                                 - ℝ[1/(12*h)]*(+ grid[i, j, k + 2]
+                                                - grid[i, j, k - 2]
+                                                )
+                                 )
+                    else:
+                        abort('Domain differentiation with dim = {}, order = {} '
+                              'and direction = {} is not implemented'
+                              .format(dim, order, direction)
+                              )
+                        value = 0  # Just to please the compiler
+                # Update the buffer with the result
+                # of the differentiation.
+                with unswitch:
+                    if noghosts:
+                        buffer[ℤ[i - 2], ℤ[j - 2], k - 2] += value
+                    else:
+                        buffer[i, j, k] += value
+    # If the buffer contains ghost points, these have not themselves
+    # been replaced with differentiated valued. Now populate these
+    # ghost points with copies of their corresponding actual points.
+    if not noghosts:
+        communicate_domain(buffer, mode='populate')
     return buffer
-
 
 
 # Function pointer types used in this module

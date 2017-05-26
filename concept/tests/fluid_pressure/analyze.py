@@ -50,31 +50,26 @@ times = snapshot_times['t']
 # Begin analysis
 masterprint('Analyzing {} data ...'.format(this_test))
 
-# Extract information from the first snapshot
-w = fluids[0].w_constant
-cs = light_speed*sqrt(w)
-T = boxsize/cs
-t0 = times[0]
-ϱ0 = fluids[0].ϱ.grid_noghosts[:gridsize, 0, 0]
-ϱ_max = max(ϱ0)
-ϱ_min = min(ϱ0)
-ϱ_mean = np.mean(ϱ0)
-ϱ0_sin = ϱ0 - ϱ_mean
+# Extract hidden parameters
+w = user_params['_w']
+T = user_params['_T']
+A = user_params['_A']
+ρ0 = user_params['_ρ0']
 
 # Plot
 fig_file = this_dir + '/result.png'
 fig, ax = plt.subplots(N_snapshots, sharex=True, sharey=True, figsize=(8, 3*N_snapshots))
-x = [boxsize*i/gridsize for i in range(gridsize)]
-ϱ = []
-ϱ_snapshot = []
+x_values = [boxsize*i/gridsize for i in range(gridsize)]
+ρ = []
+ρ_snapshot = []
 for ax_i, fluid, t in zip(ax, fluids, times):
-    ϱ.append(ϱ_mean + ϱ0_sin*cos((t - t0)/T*2*π))
+    ϱ.append(asarray([ρ0 + A*sin(x/boxsize*2*π)*cos(t/T*2*π) for x in x_values]))
     ϱ_snapshot.append(fluid.ϱ.grid_noghosts[:gridsize, 0, 0])
-    ax_i.plot([0, boxsize], [ϱ_mean]*2, 'k:' )
-    ax_i.plot([0, boxsize], [ϱ_max ]*2, 'k--')
-    ax_i.plot([0, boxsize], [ϱ_min ]*2, 'k--')
-    ax_i.plot(x, ϱ[-1]         , '-', label='Analytical solution')
-    ax_i.plot(x, ϱ_snapshot[-1], '.', markersize=10, alpha=0.7, label='Simulation')
+    ax_i.plot([0, boxsize], [ρ0    ]*2, 'k:' )
+    ax_i.plot([0, boxsize], [ρ0 + A]*2, 'k--')
+    ax_i.plot([0, boxsize], [ρ0 - A]*2, 'k--')
+    ax_i.plot(x_values, ρ[-1]         , '-', label='Analytical solution')
+    ax_i.plot(x_values, ρ_snapshot[-1], '.', markersize=10, alpha=0.7, label='Simulation')
     ax_i.set_ylabel(r'$\varrho$ $\mathrm{{[{}\,m_{{\odot}}\,{}^{{-3}}]}}$'
                     .format(significant_figures(1/units.m_sun,
                                                 3,
@@ -101,14 +96,14 @@ for fluid, t in zip(fluids, times):
             yz_slice = grid[i, :, :]
             if not isclose(np.std(yz_slice), 0,
                            rel_tol=0,
-                           abs_tol=(tol_fac*np.std(grid) + machine_ϵ)):
-                abort('Non-uniformities have emerged at a = {} '
+                           abs_tol=max((tol_fac*np.std(grid), 1e+1*gridsize**2*machine_ϵ))):
+                abort('Non-uniformities have emerged at t = {} {} '
                       'in yz-slices of fluid scalar variable {}.\n'
                       'See "{}" for a visualization.'
-                      .format(t, fluidscalar, fig_file))
+                      .format(t, unit_time, fluidscalar, fig_file))
 
 # Compare ϱ from the snapshots to the analytical solution
-abs_tol = 1e-2*np.std(ϱ0)
+abs_tol = 1e-2*A
 for ϱ_i, ϱ_snapshot_i, t in zip(ϱ, ϱ_snapshot, times):
     if not isclose(np.mean(abs(ϱ_i - ϱ_snapshot_i)), 0,
                    rel_tol=0,

@@ -50,9 +50,9 @@ the following changes happens to the source code (in the .pyx file):
 - Insert the line 'from commons cimport *'
   just below 'from commons import *'.
 - Transform the 'cimport()' function calls into proper cimports.
-- Replace 'ℝ[expression]' with a double variable and 'ℤ[expression]'
-  with a Py_ssize_t variable which is equal to 'expression' and defined
-  on a suitable line.
+- Replace 'ℝ[expression]' with a double variable, 'ℤ[expression]' with a
+  Py_ssize_t variable and '𝔹[expression]' with a bint variable which is
+  equal to 'expression' and defined on a suitable line.
 - Replaces the cython.header and cython.pheader decorators with
   all of the Cython decorators which improves performance. The
   difference between the two is that cython.header turns into
@@ -608,6 +608,7 @@ def loop_unswitching(lines):
 def constant_expressions(lines):
     sets = {'ℝ': 'double',
             'ℤ': 'Py_ssize_t',
+            '𝔹': 'bint',
             }
     def indentation_level(line):
         line_lstrip = line.lstrip()
@@ -619,13 +620,22 @@ def constant_expressions(lines):
         line = line.replace(' ', '')
         if line.startswith('#'):
             return False
+        def multi_assign_in_for(var, line):
+            line = line.strip()
+            if not line or line.startswith('#'):
+                return
+            line = line.replace(',', ' ').replace('(', ' ').replace(')', ' ')
+            if not (line.startswith('for ') and ' {} '.format(var) in line and ' in ' in line):
+                return
+            if line.index(' {} '.format(var)) < line.index(' in '):
+                return True
         def multi_assign_in_line(var, line):
             match = re.search(r' {}( *[,=] *[_a-zA-Z][_a-zA-Z0-9]*)+'.format(var),
                               ' {} '.format(line))
             if not match:
                 return False
             return ('=' in match.group())
-        return (   re.search('for +{} +in '.format(var), line_ori)
+        return (   multi_assign_in_for(var, line_ori)
                 or multi_assign_in_line(var, line_ori)
                 or ('=' + var + '=') in line
                 or line.startswith(var + '='  )
@@ -666,40 +676,42 @@ def constant_expressions(lines):
         expressions_cython = []
         declaration_linenrs = []
         declaration_placements = []
-        operators = collections.OrderedDict([('.',  'DOT' ),
-                                             ('+',  'PLS' ),
-                                             ('-',  'MIN' ),
+        operators = collections.OrderedDict([('.' , 'DOT' ),
+                                             ('+' , 'PLS' ),
+                                             ('-' , 'MIN' ),
                                              ('**', 'POW' ),
-                                             ('*',  'TIM' ),
-                                             ('/',  'DIV' ),
+                                             ('*' , 'TIM' ),
+                                             ('/' , 'DIV' ),
                                              ('\\', 'BSL' ),
-                                             ('^',  'CAR' ),
-                                             ('&',  'AND' ),
-                                             ('|',  'BAR' ),
-                                             ('@',  'AT'  ),
-                                             (',',  'COM' ),
-                                             ('(',  'OPAR'),
-                                             (')',  'CPAR'),
-                                             ('[',  'OBRA'),
-                                             (']',  'CBRA'),
-                                             ('{',  'OCUR'),
-                                             ('}',  'CCUR'),
-                                             ("'",  'QTE' ),
-                                             ('"',  'DQTE'),
-                                             (':',  'COL' ),
-                                             (';',  'SCOL'),
+                                             ('^' , 'CAR' ),
+                                             ('&' , 'AND' ),
+                                             ('|' , 'BAR' ),
+                                             ('@' , 'AT'  ),
+                                             (',' , 'COM' ),
+                                             ('(' , 'OPAR'),
+                                             (')' , 'CPAR'),
+                                             ('[' , 'OBRA'),
+                                             (']' , 'CBRA'),
+                                             ('{' , 'OCUR'),
+                                             ('}' , 'CCUR'),
+                                             ("'" , 'QTE' ),
+                                             ('"' , 'DQTE'),
+                                             (':' , 'COL' ),
+                                             (';' , 'SCOL'),
+                                             ('==', 'CMP' ),
+                                             ('!=', 'NCMP'),
                                              ('!',  'BAN' ),
+                                             ('<',  'LTH' ),
+                                             ('>',  'GTH' ),
                                              ('#',  'SHA' ),
                                              ('$',  'DOL' ),
                                              ('%',  'PER' ),
                                              ('?',  'QUE' ),
-                                             ('<',  'LTH' ),
-                                             ('>',  'GTH' ),
                                              ('`',  'GRA' ),
                                              ('~',  'TIL' ),
                                              ])
         while True:
-            no_blackboard_bold_R = True
+            no_blackboard_bold_symbol = True
             module_scope = True
             function_scope_indentation_level = 0
             for i, line in enumerate(lines):
@@ -737,7 +749,7 @@ def constant_expressions(lines):
                                                   denominator.group() if '.' in denominator.group()
                                                                   else denominator.group() + '.0'),
                                         expression)
-                no_blackboard_bold_R = False
+                no_blackboard_bold_symbol = False
                 expressions.append(expression)
                 expression_cython = blackboard_bold_symbol + '_' + expression.replace(' ', '')
                 for op, op_name in operators.items():
@@ -850,7 +862,7 @@ def constant_expressions(lines):
                         declaration_linenrs.pop()
                         declaration_placements.pop()
                         break
-            if no_blackboard_bold_R:
+            if no_blackboard_bold_symbol:
                 break
         # Find out where the last import statement is. Unrecognized
         # definitions should occur below this line.
