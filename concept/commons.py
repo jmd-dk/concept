@@ -100,15 +100,20 @@ sendrecv   = comm.sendrecv
 def sleeping_barrier(sleep_time=0.1):
     if master:
         # Signal slaves to continue
+        requests = []
         for slave_rank in range(nprocs):
             if slave_rank != rank:
-                isend(True, dest=slave_rank)
+                requests.append(isend(True, dest=slave_rank))
+        # Remember to wait for the requests to finish
+        for request in requests:
+            request.wait()
     else:
         # Wait for master
         while True:
             sleep(sleep_time)
             if iprobe():
-                recv()  # Remember to receive the message
+                # Remember to receive the message
+                recv()
                 break
 
 
@@ -244,7 +249,7 @@ def fancyprint(*args, indent=0, sep=' ', end='\n', fun=None, wrap=True, **kwargs
         indentation = ' '*indent
         is_progress_message = text.endswith('...')
         if wrap:
-            # Wrap text into lines which fit the   terminal resolution.
+            # Wrap text into lines which fit the terminal resolution.
             # Also indent all lines. Do this in a way that preserves
             # any newline characters already present in the text.
             lines = list(itertools.chain(*[textwrap.wrap(hard_line, terminal_width,
@@ -313,6 +318,10 @@ progressprint = {'maxintervallength': len(' done after ??? ms'),
                  'indentation'      : 0,
                  'previous'         : '',
                  }
+# As the terminal_width user parameter is used in fancyprint,
+# it needs to be defined before it is actually read in as a parameter.
+cython.declare(terminal_width='int')
+terminal_width = 80
 
 # Functions for printing warnings
 def warn(*args, skipline=True, prefix='Warning', wrap=True, **kwargs):
@@ -911,9 +920,10 @@ jobid = int(argd.get('jobid', 0))
 # will be done later
 cython.declare(params_file_content='str')
 params_file_content = ''
-if os.path.isfile(paths['params_cp']):
+if master and os.path.isfile(paths['params_cp']):
     with open(paths['params_cp'], encoding='utf-8') as params_file:
         params_file_content = params_file.read()
+params_file_content = bcast(params_file_content)
 
 
 
@@ -1225,6 +1235,20 @@ def to_rgb(value):
         # Could not convert value to color
         return np.array([-1, -1, -1])
     return rgb
+def to_rgbα(value, default_α=1):
+    if isinstance(value, str):
+        return to_rgb(value), default_α
+    value = any2iter(value)
+    if len(value) == 1:
+        return to_rgb(value[0]), default_α
+    elif len(value) == 2:
+        return to_rgb(value[0]), value[1]
+    elif len(value) == 3:
+        return to_rgb(value), default_α
+    elif len(value) == 4:
+        return to_rgb(value[:3]), value[3]
+    # Could not convert value to color and α
+    return np.array([-1, -1, -1]), default_α
 def replace_ellipsis(d):
     parameter = ''
     for val in d.values():
@@ -1254,6 +1278,7 @@ cython.declare(# Input/output
                p3m_cutoff='double',
                softeningfactors='dict',
                R_tophat='double',
+               modes_per_decade='double',
                # Cosmology
                H0='double',
                Ωcdm='double',
@@ -1272,7 +1297,8 @@ cython.declare(# Input/output
                forces='dict',
                w_eos='dict',
                # Simlation options
-               fftw_rigor='str',
+               fftw_wisdom_rigor='str',
+               fftw_wisdom_reuse='bint',
                master_seed='unsigned long int',
                vacuum_corrections='dict',
                # Debugging options
@@ -1287,8 +1313,6 @@ cython.declare(# Input/output
 initial_conditions = user_params.get('initial_conditions', '')
 snapshot_type = (str(user_params.get('snapshot_type', 'standard'))
                  .lower().replace(' ', ''))
-if master and snapshot_type not in ('standard', 'gadget2'):
-    abort('Does not recognize snapshot type "{}"'.format(user_params['snapshot_type']))
 output_dirs = dict(user_params.get('output_dirs', {}))
 replace_ellipsis(output_dirs)
 for kind in ('snapshot', 'powerspec', 'render'):
@@ -1357,6 +1381,7 @@ p3m_cutoff = float(user_params.get('p3m_cutoff', 4.8))
 softeningfactors = dict(user_params.get('softeningfactors', {}))
 replace_ellipsis(softeningfactors)
 R_tophat = float(user_params.get('R_tophat', 8*units.Mpc))
+modes_per_decade = float(user_params.get('modes_per_decade', 100))
 # Cosmology
 H0 = float(user_params.get('H0', 70*units.km/(units.s*units.Mpc)))
 Ωcdm = float(user_params.get('Ωcdm', 0.25))
@@ -1364,6 +1389,7 @@ H0 = float(user_params.get('H0', 70*units.km/(units.s*units.Mpc)))
 a_begin = float(user_params.get('a_begin', 1))
 t_begin = float(user_params.get('t_begin', 0))
 class_params = dict(user_params.get('class_params', {}))
+replace_ellipsis(class_params)
 # Physics
 forces = dict(user_params.get('forces', {}))
 default_force_methods = {'gravity': 'pm',
@@ -1408,7 +1434,8 @@ force_methods = {t[1] for l in forces.values() for t in l}
 w_eos = dict(user_params.get('w_eos', {}))
 replace_ellipsis(w_eos)
 # Simulation options
-fftw_rigor = user_params.get('fftw_rigor', 'estimate').lower()
+fftw_wisdom_rigor = user_params.get('fftw_wisdom_rigor', 'estimate').lower()
+fftw_wisdom_reuse = bool(user_params.get('fftw_wisdom_reuse', False))
 master_seed = int(user_params.get('master_seed', 1))
 vacuum_corrections = {'all': True}
 if 'vacuum_corrections' in user_params:
@@ -1428,7 +1455,7 @@ if 'render_colors' in user_params:
         replace_ellipsis(render_colors)
     else:
         render_colors = {'all': user_params['render_colors']}
-render_colors = {key.lower(): to_rgb(val) for key, val in render_colors.items()}
+render_colors = {key.lower(): to_rgbα(val, 0.2) for key, val in render_colors.items()}
 render_bgcolor = to_rgb(user_params.get('render_bgcolor', 'black'))
 terminal_render_resolution = to_int(user_params.get('terminal_render_resolution', 80))
 terminal_render_colormap = str(user_params.get('terminal_render_colormap', 'gnuplot2'))
@@ -1975,9 +2002,12 @@ def call_openmp_lib(func, *args, sleep_time=0.1, **kwargs):
 ####################################################
 # Sanity checks and corrections to user parameters #
 ####################################################
+# Abort on unrecognized snapshot_type
+if snapshot_type not in ('standard', 'gadget2'):
+    abort('Does not recognize snapshot type "{}"'.format(user_params['snapshot_type']))
 # Abort on illegal FFTW rigor
-if fftw_rigor not in ('estimate', 'measure', 'patient', 'exhaustive'):
-    abort('Does not recognize FFTW rigor "{}"'.format(user_params['fftw_rigor']))
+if fftw_wisdom_rigor not in ('estimate', 'measure', 'patient', 'exhaustive'):
+    abort('Does not recognize FFTW rigor "{}"'.format(user_params['fftw_wisdom_rigor']))
 # Warn if master_seed is chosen to be 0, as this may lead to clashes
 # with the default seed used by GSL.
 if master_seed < 1:

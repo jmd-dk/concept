@@ -42,10 +42,6 @@ boxsize = sqrt(light_speed**2*_w + (1 + _w)*_σ)*_T
 # Simulation options
 vacuum_corrections = {'all': False}
 
-# Graphics
-terminal_render_colormap   = 'ocean'
-terminal_render_resolution = 64
-
 # Debugging options
 enable_Hubble = False
 

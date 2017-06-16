@@ -178,7 +178,6 @@ for (a_i,
                   .format(a_i, fname_fluid, fname_particles))
     # The largest halo should be in the same location in the two simulations
     if distance > abs_tol:
-        print(d, indices_particles, indices_fluid)
         abort('At a = {}, the largest halo of the particle simulation does not coincide with '
               'the largest halo of the fluid simulation.\n'
               'See "{}" and "{}" for a visualization.'

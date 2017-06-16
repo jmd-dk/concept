@@ -542,7 +542,7 @@ def scalefactor_integral(key):
             elif integrand == 'a⁻²':
                 integrand_tab[i] = 1/a**2
             elif integrand == 'ȧ/a':
-                integrand_tab[i] = hubble(f_tab[i])
+                integrand_tab[i] = hubble(a)
             elif integrand == 'a⁻³ʷ':
                 w = component.w(t=t, a=a)
                 integrand_tab[i] = a**(-3*w)
@@ -554,7 +554,7 @@ def scalefactor_integral(key):
                 integrand_tab[i] = a**(3*w - 2)
             elif integrand == 'a⁻³ʷw/(1+w)':
                 w = component.w(t=t, a=a)
-                integrand_tab[i] = a**(-3*w)*w/(1+w)
+                integrand_tab[i] = a**(-3*w)*w/(1 + w)
             elif integrand == 'a³ʷ⁻²(1+w)':
                 w = component.w(t=t, a=a)
                 integrand_tab[i] = a**(3*w - 2)*(1 + w)

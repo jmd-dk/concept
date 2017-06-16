@@ -60,17 +60,33 @@ class CosmoResults:
          ) = bcast([getattr(self, varname)
                     for varname in varnames + ['gauge', 'k_pivot']]
                     if master else None)
+        # Flag specifying whether the cosmo object
+        # has been cleaned up using cosmo.struct_cleanup.
+        self.cleaned = False
     @property
     def background(self):
         if not hasattr(self, '_background'):
             self._background = self.cosmo.get_background()
         return self._background
     @property
-    def perturbations(self):
+    def perturbations(self, cleanup=True):
         if not hasattr(self, '_perturbations'):
-            masterprint('Extracting perturbations from CLASS ...')
-            self._perturbations = self.cosmo.get_perturbations()['scalar']
+            # Of all the perturbations, only shear is ever needed
+            masterprint('Extracting shear from CLASS ...')
+            perturbations = self.cosmo.get_perturbations()['scalar']
             masterprint('done')
+            self._perturbations = []
+            for perturbation_all in perturbations:
+                perturbation_few = {}
+                for key, value in perturbation_all.items():
+                    if key == 'a' or key.startswith('shear'):
+                        perturbation_few[key] = value
+                self._perturbations.append(perturbation_few)
+            # Once the perturbations have been extracted, all we need
+            # from the cosmo object should exist in Python space.
+            # Note that this may not hold true for transfer functions.
+            if cleanup:
+                self.cleanup()
         return self._perturbations
     @property
     def h(self, communicate=False):
@@ -92,6 +108,10 @@ class CosmoResults:
             self._transfers = {}
         transfers_a = self._transfers.get(a)
         if transfers_a is None:
+            if self.cleaned:
+                masterwarn(f'Attempting to get transfer function (at a = {a}) '
+                           'from cosmo object after cleanup'
+                           )
             z = 1/a - 1
             transfers_a = self.cosmo.get_transfer(z)
             self._transfers[a] = transfers_a
@@ -127,6 +147,17 @@ class CosmoResults:
         elif not master:
             return
         return f
+    def cleanup(self):
+        if not self.cleaned:
+            # Make sure that basic results (everything except
+            # transfer functions and perturbations) are extracted
+            # to Python space before cleanup.
+            self.background
+            self.h
+            self.a_values
+            # Clean up the C-space memory of the cosmo object
+            self.cosmo.struct_cleanup()
+            self.cleaned = True
 
 
 
@@ -378,7 +409,7 @@ def compute_transfers(component, variables, k_min, k_max, k_gridsize=-1, a=-1, g
                                   + ρ_bbar_a  /ρ_mbar_a*class_transfers['t_b'  ])*units.Mpc**(-1)
             else:
                 transfer_δ = class_transfers[f'd_{species_class}'] 
-                transfer_θ = class_transfers[f't_{species_class}']*units.Mpc**(-1)
+                transfer_θ = class_transfers[f't_{species_class}']*units.Mpc**(-1)                
             transfer_θ_tot = class_transfers['t_tot']*units.Mpc**(-1)
         if 2 in var_indices:
             # For σ we use the perturbations computed by CLASS
@@ -407,6 +438,9 @@ def compute_transfers(component, variables, k_min, k_max, k_gridsize=-1, a=-1, g
                     da = 1e-6*a  # Arbitrary but small scale factor step
                     a_plus  = a + da
                     a_minus = a - da
+                    if a_plus >= 1:
+                        a_plus = 1
+                        a_minus = a_minus - 2*da
                     ȧ_plus  = a_plus *hubble(a_plus)
                     ȧ_minus = a_minus*hubble(a_minus)
                     class_transfers_plus  = cosmoresults.transfers(a_plus)
@@ -514,13 +548,13 @@ def k_float2str(k):
                multi_index='tuple',
                n_s='double',
                nyquist='Py_ssize_t',
-               plane_dc='double[:, :,::1]',
-               plane_nyquist='double[:, :,::1]',
                pos_dim='double*',
                pos_gridpoint='double',
                processed_specific_multi_index='tuple',
                random_im='double',
+               random_jik='double*',
                random_re='double',
+               random_slab='double[:, :, ::1]',
                slab='double[:, :, ::1]',
                slab_jik='double*',
                species_class='str',
@@ -584,8 +618,14 @@ def realize(component, variable, transfer_spline, cosmoresults, specific_multi_i
             masterprint('Realizing element {} of fluid variable {} of {} ...'
                         .format(processed_specific_multi_index, fluidvar_name, component.name))
     # Determine the gridsize of the grid used to do the realization
-    gridsize = (component.gridsize if component.representation == 'fluid'
-                                   else int(round(cbrt(component.N))))
+    if component.representation == 'particles':
+        if not isint(ℝ[cbrt(component.N)]):
+            abort(f'Cannot perform realization of particle component "{component.name}" '
+                  f'with N = {component.N}, as N is not a cubic number.'
+                  )
+        gridsize = int(round(ℝ[cbrt(component.N)]))
+    elif component.representation == 'fluid':
+        gridsize = component.gridsize
     if gridsize%nprocs != 0:
         abort(f'The realization uses a gridsize of {gridsize}, '
               f'which is not evenly divisible by {nprocs} processes.'
@@ -622,15 +662,8 @@ def realize(component, variable, transfer_spline, cosmoresults, specific_multi_i
     # At |k| = 0, the power should be zero, corresponding to a
     # real-space mean value of zero of the realized variable.
     sqrt_power_common[0] = 0
-    # Make the DC and Nyquist planes of random numbers,
-    # respecting the complex-conjugate symmetry. These will be
-    # allocated in full on all processes. A seed of master_seed + nprocs
-    # (and the next, master_seed + nprocs + 1) is used, as the highest
-    # process_seed will be equal to master_seed + nprocs - 1, meaning
-    # that this new seed will not collide with any of the individual
-    # process seeds.
-    plane_dc      = create_symmetric_plane(gridsize, seed=(master_seed + nprocs + 0))
-    plane_nyquist = create_symmetric_plane(gridsize, seed=(master_seed + nprocs + 1))
+    # Get array of random numbers
+    random_slab = get_random_slab(slab)
     # Allocate 3-vector which will store componens
     # of the k vector (grid units).
     k_gridvec = empty(3, dtype=C2np['Py_ssize_t'])
@@ -646,10 +679,6 @@ def realize(component, variable, transfer_spline, cosmoresults, specific_multi_i
         # Set k_dim's. Their initial values are not important,
         # but they should compare false with the nyquist variable.
         k_dim0 = k_dim1 = -1
-        # Reset the pseudo-random number generator, ensuring that
-        # a given grid point always get the same random number
-        # regarless of the fluid variable or scalar.
-        seed_rng()
         # Loop through the local j-dimension
         for j in range(ℤ[slab.shape[0]]):
             # The j-component of the wave vector (grid units).
@@ -708,24 +737,16 @@ def realize(component, variable, transfer_spline, cosmoresults, specific_multi_i
                     if (kk == 0 or kk == nyquist) and (   k_dim0 == nyquist
                                                        or k_dim1 == nyquist):
                         k_factor = 0
-                    # Draw two random numbers from a Gaussian
-                    # distribution with mean 0 and spread 1.
-                    # On the lowest kk (kk = 0, (DC)) and highest kk
-                    # (kk = gridsize/2 (Nyquist)) planes we need to
-                    # ensure that the complex-conjugate symmetry holds.
-                    if kk == 0:
-                        random_re = plane_dc[j_global, i, 0]
-                        random_im = plane_dc[j_global, i, 1]
-                    elif kk == nyquist:
-                        random_re = plane_nyquist[j_global, i, 0]
-                        random_im = plane_nyquist[j_global, i, 1]
-                    else:
-                        random_re = random_gaussian(0, 1)
-                        random_im = random_gaussian(0, 1)
-                    # Pointer to the [j, i, k]'th element of the slab.
-                    # The complex number is then given as
+                    # Pointers to the [j, i, k]'th element of the slab
+                    # and of the random slab.
+                    # The complex number (here shown for the slab) is
+                    # then given as
                     # Re = slab_jik[0], Im = slab_jik[1].
                     slab_jik = cython.address(slab[j, i, k:])
+                    random_jik = cython.address(random_slab[j, i, k:])
+                    # Pull the random numbers from the random grid
+                    random_re = random_jik[0]
+                    random_im = random_jik[1]
                     # Populate slab_jik dependent on the component
                     # representation and the fluid_index (and also
                     # multi_index through the already defined k_factor).
@@ -854,8 +875,8 @@ def realize(component, variable, transfer_spline, cosmoresults, specific_multi_i
     if component.representation == 'particles':
         exchange(component, reset_buffers=True)
 
-# Function for creating the lower and upper Fourier xy-planes
-# with complex-conjugate symmetry.
+# Function for creating the lower and upper random
+# Fourier xy-planes with complex-conjugate symmetry.
 @cython.header(# Arguments
                gridsize='Py_ssize_t',
                seed='unsigned long int',
@@ -871,10 +892,6 @@ def create_symmetric_plane(gridsize, seed=0):
     """If a seed is passed, the pseudo-random number generator will
     be seeded with this seed before the creation of the plane.
     """
-    # Fetch plane if already computed
-    plane = symmetric_planes.get((gridsize, seed))
-    if plane is not None:
-        return plane
     # Seed the pseudo-random number generator
     if seed != 0:
         seed_rng(seed)
@@ -898,13 +915,88 @@ def create_symmetric_plane(gridsize, seed=0):
             else:
                 plane[j, i, 0] = +plane[j_conj, i_conj, 0]
                 plane[j, i, 1] = -plane[j_conj, i_conj, 1]
-    # Store and return the plane
-    if seed != 0:
-        symmetric_planes[gridsize, seed] = plane
     return plane
-# Cache for symmetry planes, the key being (gridsize, seed)
-cython.declare(symmetric_planes='dict')
-symmetric_planes = {}
+
+# Function that lays out the random grid,
+# used by all realisations.
+@cython.header(# Arguments
+               slab='double[:, :, ::1]',
+               # Locals
+               existing_shape='tuple',
+               gridsize='Py_ssize_t',
+               i='Py_ssize_t',
+               j='Py_ssize_t',
+               j_global='Py_ssize_t',
+               k='Py_ssize_t',
+               kk='Py_ssize_t',
+               nyquist='Py_ssize_t',
+               plane_dc='double[:, :, ::1]',
+               plane_nyquist='double[:, :, ::1]',
+               random_im='double',
+               random_re='double',
+               shape='tuple',
+               returns='double[:, :, ::1]',
+               )
+def get_random_slab(slab):
+    global random_slab
+    # Return pre-made random grid
+    shape = asarray(slab).shape
+    existing_shape = asarray(random_slab).shape
+    if shape == existing_shape:
+        return random_slab
+    elif existing_shape != (1, 1, 1):
+        abort(f'A random grid of shape {shape} was requested, but a random grid of shape '
+              f'{existing_shape} already exists. For now, only a single random grid is possible.')
+    # The global gridsize is equal to
+    # the first (1) dimension of the slab.
+    gridsize = shape[1]
+    nyquist = gridsize//2
+    # Make the DC and Nyquist planes of random numbers,
+    # respecting the complex-conjugate symmetry. These will be
+    # allocated in full on all processes. A seed of master_seed + nprocs
+    # (and the next, master_seed + nprocs + 1) is used, as the highest
+    # process_seed will be equal to master_seed + nprocs - 1, meaning
+    # that this new seed will not collide with any of the individual
+    # process seeds.
+    plane_dc      = create_symmetric_plane(gridsize, seed=(master_seed + nprocs + 0))
+    plane_nyquist = create_symmetric_plane(gridsize, seed=(master_seed + nprocs + 1))
+    # Re-seed the pseudo-random number generator
+    # with the process specific seed.
+    seed_rng()
+    # Allocate random slab
+    random_slab = empty(shape, dtype=C2np['double'])
+    # Populate the random grid.
+    # Loop through the local j-dimension.
+    for j in range(ℤ[shape[0]]):
+        j_global = ℤ[shape[0]*rank] + j
+        # Loop through the complete i-dimension
+        for i in range(gridsize):
+            # Loop through the complete, padded k-dimension
+            # in steps of 2 (one complex number at a time).
+            for k in range(0, ℤ[shape[2]], 2):
+                # The k-component of the wave vector (grid units)
+                kk = k//2
+                # Draw two random numbers from a Gaussian
+                # distribution with mean 0 and spread 1.
+                # On the lowest kk (kk = 0, (DC)) and highest kk
+                # (kk = gridsize/2 (Nyquist)) planes we need to
+                # ensure that the complex-conjugate symmetry holds.
+                if kk == 0:
+                    random_re = plane_dc[j_global, i, 0]
+                    random_im = plane_dc[j_global, i, 1]
+                elif kk == nyquist:
+                    random_re = plane_nyquist[j_global, i, 0]
+                    random_im = plane_nyquist[j_global, i, 1]
+                else:
+                    random_re = random_gaussian(0, 1)
+                    random_im = random_gaussian(0, 1)
+                # Store the two random numbers
+                random_slab[j, i, k    ] = random_re
+                random_slab[j, i, k + 1] = random_im
+    return random_slab
+# The global random slab
+cython.declare(random_slab='double[:, :, ::1]')
+random_slab = empty((1, 1, 1), dtype=C2np['double'])
 
 
 

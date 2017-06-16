@@ -150,7 +150,7 @@ def evolve_fluid(component, ᔑdt, steps, mc_step):
     """It is assumed that the unstarred and starred grids have
     correctly populated pseudo and ghost points.
     """
-    # Physical grid spacing
+    # Comoving grid spacing
     h = boxsize/component.gridsize
     # Arrays of start and end indices for the local part of the
     # fluid grids, meaning disregarding pseudo points and ghost points.
@@ -182,10 +182,9 @@ def evolve_fluid(component, ᔑdt, steps, mc_step):
     # The continuity equation (flux terms only).
     # Δϱ = - ᔑa³ʷ⁻²(1 + w)dt ∇·J    (energy flux)
     # The energy flux
-    ϱ  = getattr(component.ϱ, view)
+    ϱ  = getattr(component.ϱ, view )
     ϱˣ = getattr(component.ϱ, viewˣ)
     for (dim_div, ), J_div in component.J.iterate(view, multi_indices=True):
-        # J_div = getattr(component.J[dim_div], view)
         step_i = steps[dim_div] if dim_div == 0 else 0
         step_j = steps[dim_div] if dim_div == 1 else 0
         step_k = steps[dim_div] if dim_div == 2 else 0

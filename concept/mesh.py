@@ -332,25 +332,24 @@ def CIC_grid2grid(gridA, gridB, fac=1, fac_grid=None):
     gridA. An additional factor of fac_grid[i, j, k] will then be
     multiplied on the [i, j, k]'th interpolated value.
     """
-    use_fac_grid = False
-    if fac_grid is not None:
-        use_fac_grid = True
+    use_fac_grid = (fac_grid is not None)
     # If the two grids have the same shape, each grid point in gridA is
     # simply updated based on the equivalent grid point in gridB
     if (    gridA.shape[0] == gridB.shape[0]
         and gridA.shape[1] == gridB.shape[1]
         and gridA.shape[2] == gridB.shape[2]):
         # The two grids have equal shapes
-        for         i in range(ℤ[gridA.shape[0]]):
-            for     j in range(ℤ[gridA.shape[1]]):
-                for k in range(ℤ[gridA.shape[2]]):
+        for         i in range(ℤ[gridA.shape[0] - 1]):
+            for     j in range(ℤ[gridA.shape[1] - 1]):
+                for k in range(ℤ[gridA.shape[2] - 1]):
                     value = fac*gridB[i, j, k]
-                    if use_fac_grid:
-                        value *= fac_grid[i, j, k]
+                    with unswitch:
+                        if use_fac_grid:
+                            value *= fac_grid[i, j, k]
                     gridA[i, j, k] += value
         return
     # The two grids have different shapes. Perform CIC-interpolation.
-    # Extract the shape of the grids (without the end points).
+    # Extract the shape of the grids (without the pseudo points).
     shapeA = tuple([gridA.shape[dim] - 1 for dim in range(3)])
     shapeB = tuple([gridB.shape[dim] - 1 for dim in range(3)])
     # Factors which scales grid indices in gridB
@@ -358,7 +357,7 @@ def CIC_grid2grid(gridA, gridB, fac=1, fac_grid=None):
     scaling_i = shapeA[0]/shapeB[0]
     scaling_j = shapeA[1]/shapeB[1]
     scaling_k = shapeA[2]/shapeB[2]
-    for iB in range(ℤ[gridB.shape[0]]):
+    for iB in range(ℤ[shapeB[0]]):
         # The i-indices in gridA around the iB-index in gridB
         iA = iB*scaling_i
         if iA >= ℝ[shapeA[0]]:
@@ -366,7 +365,7 @@ def CIC_grid2grid(gridA, gridB, fac=1, fac_grid=None):
             iA = ℝ[shapeA[0]*(1 - machine_ϵ)]
         iA_lower = int(iA)
         iA_upper = iA_lower + 1
-        for jB in range(ℤ[gridB.shape[1]]):
+        for jB in range(ℤ[shapeB[1]]):
             # The j-indices in gridA around the jB-index in gridB
             jA = jB*scaling_j
             if jA >= ℝ[shapeA[1]]:
@@ -374,7 +373,7 @@ def CIC_grid2grid(gridA, gridB, fac=1, fac_grid=None):
                 jA = ℝ[shapeA[1]*(1 - machine_ϵ)]
             jA_lower = int(jA)
             jA_upper = jA_lower + 1
-            for kB in range(ℤ[gridB.shape[2]]):
+            for kB in range(ℤ[shapeB[2]]):
                 # The k-indices in gridA around the kB-index in gridB
                 kA = kB*scaling_k
                 if kA >= ℝ[shapeA[2]]:
@@ -393,24 +392,33 @@ def CIC_grid2grid(gridA, gridB, fac=1, fac_grid=None):
                 Wju = jA - jA_lower  # = 1 - (jA_upper - jA)
                 Wku = kA - kA_lower  # = 1 - (kA_upper - kA)
                 # Assign the weights to the grid points
-                if use_fac_grid:
-                    gridA[iA_lower, jA_lower, kA_lower] += ℝ[value*Wil*Wjl]*Wkl*fac_grid[iA_lower, jA_lower, kA_lower]
-                    gridA[iA_lower, jA_lower, kA_upper] += ℝ[value*Wil*Wjl]*Wku*fac_grid[iA_lower, jA_lower, kA_upper]
-                    gridA[iA_lower, jA_upper, kA_lower] += ℝ[value*Wil*Wju]*Wkl*fac_grid[iA_lower, jA_upper, kA_lower]
-                    gridA[iA_lower, jA_upper, kA_upper] += ℝ[value*Wil*Wju]*Wku*fac_grid[iA_lower, jA_upper, kA_upper]
-                    gridA[iA_upper, jA_lower, kA_lower] += ℝ[value*Wiu*Wjl]*Wkl*fac_grid[iA_upper, jA_lower, kA_lower]
-                    gridA[iA_upper, jA_lower, kA_upper] += ℝ[value*Wiu*Wjl]*Wku*fac_grid[iA_upper, jA_lower, kA_upper]
-                    gridA[iA_upper, jA_upper, kA_lower] += ℝ[value*Wiu*Wju]*Wkl*fac_grid[iA_upper, jA_upper, kA_lower]
-                    gridA[iA_upper, jA_upper, kA_upper] += ℝ[value*Wiu*Wju]*Wku*fac_grid[iA_upper, jA_upper, kA_upper]
-                else:
-                    gridA[iA_lower, jA_lower, kA_lower] += ℝ[value*Wil*Wjl]*Wkl
-                    gridA[iA_lower, jA_lower, kA_upper] += ℝ[value*Wil*Wjl]*Wku
-                    gridA[iA_lower, jA_upper, kA_lower] += ℝ[value*Wil*Wju]*Wkl
-                    gridA[iA_lower, jA_upper, kA_upper] += ℝ[value*Wil*Wju]*Wku
-                    gridA[iA_upper, jA_lower, kA_lower] += ℝ[value*Wiu*Wjl]*Wkl
-                    gridA[iA_upper, jA_lower, kA_upper] += ℝ[value*Wiu*Wjl]*Wku
-                    gridA[iA_upper, jA_upper, kA_lower] += ℝ[value*Wiu*Wju]*Wkl
-                    gridA[iA_upper, jA_upper, kA_upper] += ℝ[value*Wiu*Wju]*Wku
+                with unswitch:
+                    if use_fac_grid:
+                        gridA[iA_lower, jA_lower, kA_lower] += (
+                            ℝ[value*Wil*Wjl]*Wkl*fac_grid[iA_lower, jA_lower, kA_lower])
+                        gridA[iA_lower, jA_lower, kA_upper] += (
+                            ℝ[value*Wil*Wjl]*Wku*fac_grid[iA_lower, jA_lower, kA_upper])
+                        gridA[iA_lower, jA_upper, kA_lower] += (
+                            ℝ[value*Wil*Wju]*Wkl*fac_grid[iA_lower, jA_upper, kA_lower])
+                        gridA[iA_lower, jA_upper, kA_upper] += (
+                            ℝ[value*Wil*Wju]*Wku*fac_grid[iA_lower, jA_upper, kA_upper])
+                        gridA[iA_upper, jA_lower, kA_lower] += (
+                            ℝ[value*Wiu*Wjl]*Wkl*fac_grid[iA_upper, jA_lower, kA_lower])
+                        gridA[iA_upper, jA_lower, kA_upper] += (
+                            ℝ[value*Wiu*Wjl]*Wku*fac_grid[iA_upper, jA_lower, kA_upper])
+                        gridA[iA_upper, jA_upper, kA_lower] += (
+                            ℝ[value*Wiu*Wju]*Wkl*fac_grid[iA_upper, jA_upper, kA_lower])
+                        gridA[iA_upper, jA_upper, kA_upper] += (
+                            ℝ[value*Wiu*Wju]*Wku*fac_grid[iA_upper, jA_upper, kA_upper])
+                    else:
+                        gridA[iA_lower, jA_lower, kA_lower] += ℝ[value*Wil*Wjl]*Wkl
+                        gridA[iA_lower, jA_lower, kA_upper] += ℝ[value*Wil*Wjl]*Wku
+                        gridA[iA_lower, jA_upper, kA_lower] += ℝ[value*Wil*Wju]*Wkl
+                        gridA[iA_lower, jA_upper, kA_upper] += ℝ[value*Wil*Wju]*Wku
+                        gridA[iA_upper, jA_lower, kA_lower] += ℝ[value*Wiu*Wjl]*Wkl
+                        gridA[iA_upper, jA_lower, kA_upper] += ℝ[value*Wiu*Wjl]*Wku
+                        gridA[iA_upper, jA_upper, kA_lower] += ℝ[value*Wiu*Wju]*Wkl
+                        gridA[iA_upper, jA_upper, kA_upper] += ℝ[value*Wiu*Wju]*Wku
 
 # Function for CIC-interpolating particles/fluid elements of
 # components to a domain grid.
@@ -625,12 +633,11 @@ def CIC_components2domain_grid(component_or_components, domain_grid, quantities)
                               fluid_quantity,
                               factor,
                               )
-    # As a result of interpolating particles, values of local pseudo
-    # mesh points contribute to the lower mesh points of domain grid on
-    # other processes.
+    # As a result of interpolating particles and/or fluid elements,
+    # values of local pseudo mesh points may contribute to the lower
+    # mesh points of the domain grid on other processes.
     # Do the needed communication.
-    if interpolated_particles:
-        communicate_domain(domain_grid, mode='add contributions')
+    communicate_domain(domain_grid, mode='add contributions')
     # Check that each quantity got interpolated
     if interpolations != len(quantities):
         quantities_implemented = (# Particle quantities
@@ -1326,7 +1333,6 @@ def slab_decompose(domain_grid, slab_or_buffer_name=0, prepare_fft=False):
                 as_expected='bint',
                 fftw_plans_index='Py_ssize_t',
                 fftw_struct='fftw_return_struct',
-                message='str',
                 plan_backward='fftw_plan',
                 plan_forward='fftw_plan',
                 rigor='str',
@@ -1368,20 +1374,23 @@ def get_fftw_slab(gridsize, buffer_name=0, nullify=False):
         # Determine what FFTW rigor to use.
         # The rigor to use will be stored as rigor_final.
         if master:
-            for rigor in fftw_rigors:
-                wisdom_filename = ('.fftw_wisdom_gridsize={}_nprocs={}_rigor={}'
-                                   .format(gridsize, nprocs, rigor))
-                # At least be as rigorous as defined by
-                # the fftw_rigor user parameter.
-                if rigor == fftw_rigor:
-                    break
-                # Use a better rigor if wisdom already exist
-                if os.path.isfile(wisdom_filename):
-                    break
-            rigor_final = rigor
+            if fftw_wisdom_reuse:
+                for rigor in fftw_wisdom_rigors:
+                    wisdom_filename = ('.fftw_wisdom_gridsize={}_nprocs={}_rigor={}'
+                                       .format(gridsize, nprocs, rigor))
+                    # At least be as rigorous as defined by
+                    # the fftw_wisdom_rigor user parameter.
+                    if rigor == fftw_wisdom_rigor:
+                        break
+                    # Use a better rigor if wisdom already exist
+                    if os.path.isfile(wisdom_filename):
+                        break
+                rigor_final = rigor
+            else:
+                rigor_final = fftw_wisdom_rigor
             # If less rigorous wisdom exists for the same problem,
             # delete it.
-            for rigor in reversed(fftw_rigors):
+            for rigor in reversed(fftw_wisdom_rigors):
                 if rigor == rigor_final:
                     break
                 wisdom_filename = ('.fftw_wisdom_gridsize={}_nprocs={}_rigor={}'
@@ -1390,21 +1399,23 @@ def get_fftw_slab(gridsize, buffer_name=0, nullify=False):
                     os.remove(wisdom_filename)
         rigor_final = bcast(rigor_final if master else None)
         wisdom_filename = ('.fftw_wisdom_gridsize={}_nprocs={}_rigor={}'
-                                   .format(gridsize, nprocs, rigor_final))
+                           .format(gridsize, nprocs, rigor_final))
         # Initialize fftw_mpi, allocate the grid, initialize the
         # local grid sizes and start indices and do FFTW planning.
         # All this is handled by fftw_setup from fft.c.
-        if not os.path.isfile(wisdom_filename):
-            message = ('Acquiring FFTW wisdom ({}) for grid of linear size {} on {} {} ...'
-                       ).format(rigor_final, gridsize, nprocs,
+        if master:
+            reuse = (fftw_wisdom_reuse and os.path.isfile(wisdom_filename))
+        reuse = bcast(reuse if master else None)
+        if not reuse:
+            masterprint('Acquiring FFTW wisdom ({}) for grid of linear size {} on {} {} ...'
+                        .format(rigor_final, gridsize, nprocs,
                                 'processes' if nprocs > 1 else 'process')
-            masterprint(message)
-            fftw_struct = fftw_setup(gridsize, gridsize, gridsize,
-                                     bytes(rigor_final, encoding='ascii'))
-            masterprint('done')
-        else:
-            fftw_struct = fftw_setup(gridsize, gridsize, gridsize,
-                                     bytes(rigor_final, encoding='ascii'))
+                        )
+        fftw_struct = fftw_setup(gridsize, gridsize, gridsize,
+                                 bytes(rigor_final, encoding='ascii'),
+                                 reuse)
+        if not reuse:
+            masterprint('done')            
         # Unpack every variable from fftw_struct
         # and compare to expected values.
         slab_size_i   = int(fftw_struct.gridsize_local_i)
@@ -1455,8 +1466,8 @@ def get_fftw_slab(gridsize, buffer_name=0, nullify=False):
         slab[...] = 0
     return slab
 # Tuple of all possible FFTW rigor levels, in descending order
-cython.declare(fftw_rigors='tuple')
-fftw_rigors = ('exhaustive', 'patient', 'measure', 'estimate')
+cython.declare(fftw_wisdom_rigors='tuple')
+fftw_wisdom_rigors = ('exhaustive', 'patient', 'measure', 'estimate')
 # Cache storing slabs. The keys have the format (gridsize, buffer_name).
 cython.declare(slabs='dict')
 slabs = {}
@@ -1903,7 +1914,8 @@ cdef extern from "fft.c":
     fftw_return_struct fftw_setup(ptrdiff_t gridsize_i,
                                   ptrdiff_t gridsize_j,
                                   ptrdiff_t gridsize_k,
-                                  char*     rigor)
+                                  char*     rigor,
+                                  bint fftw_wisdom_reuse)
     void fftw_execute(fftw_plan plan)
     void fftw_clean(double* grid, fftw_plan plan_forward,
                                   fftw_plan plan_backward)

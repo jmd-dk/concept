@@ -138,20 +138,38 @@ mpi_incl    = -I$(mpi_dir)/include
 python_incl = $(shell $(python_config) --includes)
 includes    = $(fftw_incl) $(gsl_incl) $(mpi_incl) $(python_incl)
 # Compiler options
-CC                = $(mpicc)
+CC = $(mpicc)
+CC_version = $(shell info="$$($(CC) --version | head -n 1 || :)";                    \
+                     if   echo "$${info}" | grep -i gcc >/dev/null; then echo "gcc"; \
+                     elif echo "$${info}" | grep -i icc >/dev/null; then echo "icc"; \
+                     else echo "gcc"; \
+                     fi)
+
 unwanted_warnings = unused-but-set-variable \
                     uninitialized
-python_cflags     = $(filter-out $(addprefix -W,$(unwanted_warnings)), \
-                                 $(shell $(python_config) --cflags))
-other_cflags      = -O3                  \
-                    -ffast-math          \
-                    -pthread             \
-                    -std=c99             \
-                    -fno-strict-aliasing \
-                    -fPIC                \
-                    -Wall                \
-                    -Wextra              \
-                    $(addprefix -Wno-,$(unwanted_warnings))
+python_cflags = $(filter-out $(addprefix -W,$(unwanted_warnings)), \
+                             $(shell $(python_config) --cflags))
+other_cflags = -O3                  \
+               -pthread             \
+               -std=c99             \
+               -fno-strict-aliasing \
+               -fPIC                \
+               -Wall                \
+               -Wextra              \
+               $(addprefix -Wno-,$(unwanted_warnings))
+ifeq ($(CC_version),gcc)
+	# Fast floating point operations
+	other_cflags += -ffast-math
+endif
+ifeq ($(CC_version),icc)
+	# Fast floating point operations
+	other_cflags += -fp-model fast=2
+    # Increase amount of inlining
+    other_cflags += -inline-factor=200 -wd11074 -wd11076
+    # Remove unrecognized flags
+    python_cflags_tmp := $(python_cflags)
+    python_cflags = $(filter-out -Wno-unused-result, $(python_cflags_tmp))
+endif
 CFLAGS            = $(call uniq, $(foreach flag, $(python_cflags)                \
                                                  $(other_cflags)                 \
                                                  $(includes)                     \

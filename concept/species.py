@@ -424,7 +424,7 @@ class Component:
         public double[:, ::1] w_tabulated
         public str w_expression
         Spline w_spline
-        public double Σmass_present
+        public double _Σmass_present
         # Fluid data
         public list fluidvars
         FluidScalar ϱ
@@ -492,6 +492,9 @@ class Component:
             if self.mass != -1:
                 masterwarn('A mass (of {} {}) was specified for fluid component "{}"'
                            .format(self.mass, unit_mass, self.name))
+        # Once this component has been populated with data,
+        # this attribute will store the total mass of this component.
+        self._Σmass_present = -1
         # Particle data
         self.posx = malloc(self.N_allocated*sizeof('double'))
         self.posy = malloc(self.N_allocated*sizeof('double'))
@@ -654,6 +657,20 @@ class Component:
         if len(self.fluidvars) == 3:
             return
 
+    # Store the total mass of this component at a == 1 as a property
+    @property
+    def Σmass_present(self):
+        if self._Σmass_present == -1:
+            # Measure and store the
+            # total mass. For w ≠ 0, this mass is not constant in an
+            # expanding universe. The mass at the present time (a = 1)
+            # is the one which is measured and stored.
+            a = universals.a
+            universals.a = 1
+            self._Σmass_present = measure(self, 'mass')
+            universals.a = a
+        return self._Σmass_present
+
     # This method populate the Component pos/mom arrays (for a
     # particles representation) or the fluid scalar grids (for a
     # fluid representation) with data. It is deliberately designed so
@@ -673,10 +690,12 @@ class Component:
                     fluidscalar='FluidScalar',
                     index='Py_ssize_t',
                     mv1D='double[::1]',
-                    mv3D='double[:, :, ::1]',
+                    mv3D='double[:, :, :]',
                     )
     def populate(self, data, var, multi_index=0, buffer=False):
-        """If buffer is True, the Δ buffers will be populated
+        """For fluids, the data should not include pseudo 
+        or ghost points.
+        If buffer is True, the Δ buffers will be populated
         instead of the data arrays.
         """
         if self.representation == 'particles':
@@ -773,15 +792,6 @@ class Component:
                 communicate_domain(fluidscalar.Δ_mv   , mode='populate')
             else:
                 communicate_domain(fluidscalar.grid_mv, mode='populate')
-            # If the ϱ grid has been populated, measure and store the
-            # total mass. For w ≠ 0, this mass is not constant in an
-            # expanding universe. The mass at the present time (a = 1)
-            # is the one which is measured and stored.
-            if index == 0:
-                a = universals.a
-                universals.a = 1
-                self.Σmass_present = measure(self, 'mass')
-                universals.a = a
 
     # This method will grow/shrink the data attributes.
     # Note that it will update N_allocated but not N_local.
@@ -908,11 +918,11 @@ class Component:
                 abort(f'Cannot perform realization of particle component "{self.name}" '
                       f'with N = {self.N}, as N is not evenly divisible by {nprocs} processes.'
                       )
-            if not isint(cbrt(self.N)):
+            if not isint(ℝ[cbrt(self.N)]):
                 abort(f'Cannot perform realization of particle component "{self.name}" '
                       f'with N = {self.N}, as N is not a cubic number.'
                       )
-            gridsize = int(round(cbrt(self.N)))
+            gridsize = int(round(ℝ[cbrt(self.N)]))
             self.N_local = self.N//nprocs
             self.resize(self.N_local)
         elif self.representation == 'fluid':
@@ -974,7 +984,11 @@ class Component:
         if transfer_spline is None:
             k_min = 2*π/boxsize
             k_max = 2*π/boxsize*sqrt(3*(gridsize//2)**2)
-            k_gridsize = 10*gridsize
+            # Determine the gridsize from the user-defined
+            # number of Fourier modes per decade.
+            n_decades = log10(k_max/k_min)
+            k_gridsize = int(round(modes_per_decade*n_decades))
+            # Get transfer functions
             transfer_splines, cosmoresults = compute_transfers(self,
                                                                variables,
                                                                k_min, k_max, k_gridsize,
@@ -1357,6 +1371,11 @@ class Component:
             # Broadcast the tabulated w
             self.w_type = bcast(self.w_type)
             self.w_tabulated = smart_mpi(self.w_tabulated if master else (), mpifun='bcast')
+            # If the resultant w from CLASS is constant,
+            # treat it as such.
+            if w == 'class' and len(set(self.w_tabulated[1, :])) == 1:
+                self.w_type = 'constant'
+                self.w_constant = self.w_tabulated[1, 0]
             # Construct a Spline object from the tabulated data
             self.w_spline = Spline(self.w_tabulated[0, :], self.w_tabulated[1, :])
 
