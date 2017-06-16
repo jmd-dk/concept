@@ -890,6 +890,7 @@ source \"${concept}\"
 
 # Variables
 interactive=\"${interactive}\"
+logs_dir=\"${logs_dir}\"
 logs_dir_rel=\"${logs_dir_rel}\"
 main=\"${main}\"
 main_as_command=\"${main_as_command}\"

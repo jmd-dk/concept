@@ -194,13 +194,13 @@ set_version()
 # In case of CO𝘕CEPT, the version "newest" should always be used.
 set_version "concept"         "newest"
 set_version "class"           "2.6"
-set_version "fftw"            "3.3.6-pl2" "3.3.5" # "3.3.6-pl1"   # 3.3.6 removed from official site
+set_version "fftw"            "3.3.6-pl2" "3.3.5"   # 3.3.6 removed from official site
 set_version "fftw_for_gadget" "2.1.5"     "2.1.5"
-set_version "freetype"        "2.7.1"     "2.6.5" # "2.7"
+set_version "freetype"        "2.7.1"     "2.6.5"
 set_version "gadget"          "2.0.7"
 set_version "gsl"             "2.3"       "2.2.1"
 set_version "hdf5"            "1.8.18"    "1.8.17"  # Error using 1.10.0-patch1
-set_version "libpng"          "1.6.29"    "1.6.27"  # "1.6.28"
+set_version "libpng"          "1.6.29"    "1.6.27"
 if [ "${mpi}" == "openmpi" ]; then
 set_version "mpi"             "2.0.1"
 elif [ "${mpi}" == "mpich" ]; then
@@ -209,18 +209,18 @@ fi
 set_version "ncurses"         "6.0"       "6.0"
 set_version "openssl"         "1.1.0e"    "1.0.2i"  # Python seems incompatible with OpenSSL 1.1.0c
 set_version "perl"            "5.24.1"
-set_version "python"          "3.6.1"  # "3.6.0"
+set_version "python"          "3.6.1"
 set_version "zlib"            "1.2.11"    "1.2.8"
 # Python packages
 set_version "blessings"          "1.6"
 set_version "cython"             "0.25.2"
 set_version "cythongsl"          "0.2.2"
-set_version "h5py"               "2.7.0"  # "2.6.0"
-set_version "matplotlib"         "2.0.1"  # "2.0.0"
+set_version "h5py"               "2.7.0"
+set_version "matplotlib"         "2.0.1"
 set_version "mpi4py"             "2.0.0"
 set_version "nose"               "1.3.7"
-set_version "nose_parameterized" "0.6.0"  # "0.5.0"
-set_version "numpy"              "1.12.1"  # "1.12.0"
+set_version "nose_parameterized" "0.6.0"
+set_version "numpy"              "1.12.1"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
 # and specific versions of system dependencies.
@@ -3311,14 +3311,22 @@ python='${python}'
 import os
 with open('${concept}', 'r', encoding='utf-8') as file:
     lines = file.readlines()
+# Generator for extracting environment variables
+def get_envs():
+    for var, val in os.environ.items():
+        if (# PATH, LD_LIBRARY_PATH, ...
+               (var.endswith('PATH') and val.startswith('/'))
+            # INTEL_LICENSE_FILE
+            or (var == 'INTEL_LICENSE_FILE' and val.startswith('/'))
+            ):
+            yield var, val
+# Add environment variables
 envs_inserted = False
 with open('${concept}', 'w', encoding='utf-8') as file:
     for line in lines:
         if not envs_inserted and line.strip() == ':':
-            print('# These were set at install time', file=file)
-            for var, val in os.environ.items():
-                if not var.endswith('PATH') or not val.startswith('/'):
-                    continue
+            print('# These were set at install time.', file=file)
+            for var, val in get_envs()
                 print('export {}=\"\${{{}}}:{}\"'.format(var, var, val), file=file)
             envs_inserted = True
         else:
