@@ -31,9 +31,9 @@ all arguments being filenames:
   Creates module.pyx, a version of module.py with cython-legal and
   optimized syntax.
 - .types.pyx commons.py .types.pyx module0.pyx module1.pyx ...
-  Creates .types.pyx, a file containing import for all extension classes
-  from module0.pyx, module1.pyx, ..., together with globally defined
-  types.
+  Creates .types.pyx, a file containing imports for all extension
+  classes from module0.pyx, module1.pyx, ..., together with globally
+  defined types.
 - module.pyx commons.py .types.pyx
   Created module.pxd, the cython header for module.pyx.
 
@@ -803,7 +803,11 @@ def constant_expressions(lines):
                                         if line3_ori.lstrip().startswith('def '):
                                             # Function definition reached
                                             break
-                                        if indentation_level(line3_ori) == function_scope_indentation_level:
+                                        if (indentation_level(line3_ori) == function_scope_indentation_level
+                                            and not line3_ori.lstrip().startswith('elif ')
+                                            and not line3_ori.lstrip().startswith('else:')
+                                            and not line3_ori.lstrip().startswith('except:')
+                                            ):
                                             # Upper level of function reached.
                                             # Definitions above this point does not matter.
                                             break
@@ -820,6 +824,7 @@ def constant_expressions(lines):
                                     # indentation level equal to that of the barrier with the smallest
                                     # indentation level.
                                     if linenr_where_defined_first != -1:
+                                        #print(var, flush=True)
                                         indentationlvl_where_defined = indentation_level(lines[linenr_where_defined[v]])
                                         indentationlvl_barrier = indentationlvl_where_defined
                                         for line3 in lines[(linenr_where_defined_first + 1):linenr_where_defined[v]]:
@@ -941,15 +946,14 @@ def constant_expressions(lines):
 def remove_duplicate_declarations(lines):
     new_lines = []
     in_function = False
+    declarations_outer = {}
     for line in lines:
         if line.startswith('def '):
             in_function = True
-            declarations = {}
+            declarations_inner = {}
         elif line and line[0] not in ' #\n':
             in_function = False
-        if not in_function:
-            new_lines.append(line)
-            continue
+        declarations = declarations_inner if in_function else declarations_outer
         if line.lstrip().startswith('cython.declare('):
             indentation = ' '*(len(line) - len(line.lstrip()))
             info = re.search('cython\.declare\((.*)\)', line).group(1).split('=')

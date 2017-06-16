@@ -11,11 +11,11 @@
 
 # Input/output
 initial_conditions = (          # Initial condition file or container of species to be generated
-    {'name'   : 'matter',
+    {'name'   : 'example component',
      'species': 'matter particles',
-     'N'      : 64**3,
+     'N'      : 128**3,
      },
-                      )
+    )
 snapshot_type = 'standard'      # Type of output snapshots
 output_dirs = {                 # Directories for storing output
     'snapshot' : 'output',
@@ -26,11 +26,11 @@ output_bases = {                # File basenames of output
     'snapshot' : 'snapshot',
     'powerspec': 'powerspec',
     'render'   : 'render',
-                }
+    }
 output_times = {
     'a': {                      # Scale factor values at which to dump output
-        'snapshot'       : (0.01, 0.02),
-        'powerspec'      : '',
+        'snapshot'       : '',
+        'powerspec'      : 1,
         'render'         : '',
         'terminal render': '',
           },
@@ -40,29 +40,29 @@ output_times = {
         'render'         : '',
         'terminal render': '',
           },
-                }
-powerspec_select = {                     # Toggle power spectra computation for each component
+    }
+powerspec_select = {            # Toggle power spectra computation for each component
     'all': True,
-                    }
-powerspec_plot_select = {                # Toggle power spectra plotting for each component
+    }
+powerspec_plot_select = {       # Toggle power spectra plotting for each component
     'all': True,
-                         }
-render_select = {                        # Toggle rendering for each component
+    }
+render_select = {               # Toggle rendering for each component
     'all': True,
-                 }
-autosave = 1*hr                          # How often to autosave
+    }
+autosave = 1*hr                 # How often to autosave
 
 # Numerical parameters
-boxsize          = 64*Mpc  # Linear size of the simulation box
-ewald_gridsize   = 64      # Linear gridsize of the grid of Ewald corrections
-φ_gridsize       = 128     # Linear gridsize of the potential
-p3m_scale        = 1.25	   # The long/short-range force split scale (grid units)
-p3m_cutoff       = 4.8     # Maximum reach of short-range force (grid units)
-softeningfactors = {       # The amount of gravitational softening for each species
-    'dark matter particles': 0.03,
-    'matter particles'     : 0.03,
-                    }	
-R_tophat         = 8*Mpc   # Radius of tophat used to compute σ
+boxsize          = 256*Mpc  # Linear size of the simulation box
+ewald_gridsize   = 64       # Linear gridsize of the grid of Ewald corrections
+φ_gridsize       = 128      # Linear gridsize of the potential
+p3m_scale        = 1.25	    # The long/short-range force split scale (grid units)
+p3m_cutoff       = 4.8      # Maximum reach of short-range force (grid units)
+softeningfactors = {        # The amount of gravitational softening for each species
+    'matter particles': 0.03,
+    }
+R_tophat         = 8*Mpc    # Radius of tophat used to compute σ
+modes_per_decade = 100      # Number of Fourier modes per decade used for realisations
 
 # Cosmology
 H0           = 70*km/(s*Mpc)  # The Hubble constant
@@ -70,30 +70,32 @@ H0           = 70*km/(s*Mpc)  # The Hubble constant
 Ωb           = 0.05           # Density parameter for baryonic matter
 a_begin      = 0.01           # Scale factor at beginning of simulation
 class_params = {              # Parameters to pass to CLASS
-                }
+    'A_s': 2.215e-9,
+    'n_s': 0.9619,
+    }
 
 # Physics
 forces = {  # The forces which act on each species
-    'dark matter particles': {'gravity': 'pp'},
-    'matter particles'     : {'gravity': 'pp'}
-          }
+    'matter particles': {'gravity': 'pm'},
+    }
 w_eos = {  # Equation of state parameter for each species
     ...: ...,
-         }
+    }
 
 # Simulation options
-fftw_rigor = 'measure'  # Rigor level when acquiring FFTW wisdom
-master_seed = 1         # Seed for pseudo-random numbers
-vacuum_corrections = {  # Toogle vacuum corrections for each species
+fftw_wisdom_rigor = 'measure'  # Rigor level when acquiring FFTW wisdom
+fftw_wisdom_reuse = False      # Reuse FFTW wisdom from previous runs?
+master_seed = 1                # Seed for pseudo-random numbers
+vacuum_corrections = {         # Toogle vacuum corrections for each species
     'all': True,
-                      }
+    }
 
 # Graphics
 terminal_width             = 80          # Width of displayed text in characters
 render_resolution          = 1080        # Height and width of renders in pixels
 render_colors = {                        # Render color for each component
     'all': 'lime',
-                 }
+    }
 render_bgcolor             = 'black'	 # Background color of renders
 terminal_render_resolution = 80          # Width of the terminal render in characters
 terminal_render_colormap   = 'gnuplot2'  # Colormap to use for terminal renders

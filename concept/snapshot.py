@@ -31,7 +31,7 @@ cimport('from communication import partition,                   '
         '                          exchange,                    '
         '                          smart_mpi,                   '
         )
-cimport('from mesh import slab_decompose')
+cimport('from mesh import domain_decompose, get_fftw_slab, slab_decompose')
 cimport('from species import Component, FluidScalar, get_representation')
 
 # Pure Python imports
@@ -91,15 +91,6 @@ class StandardSnapshot:
                    filename='str',
                    # Locals
                    component='Component',
-                   domain_end_i='Py_ssize_t',
-                   domain_end_j='Py_ssize_t',
-                   domain_end_k='Py_ssize_t',
-                   domain_size_i='Py_ssize_t',
-                   domain_size_j='Py_ssize_t',
-                   domain_size_k='Py_ssize_t',
-                   domain_start_i='Py_ssize_t',
-                   domain_start_j='Py_ssize_t',
-                   domain_start_k='Py_ssize_t',
                    end_local='Py_ssize_t',
                    eos_message='str',
                    fluidscalar='FluidScalar',
@@ -112,7 +103,6 @@ class StandardSnapshot:
                    slab_end='Py_ssize_t',
                    slab_start='Py_ssize_t',
                    start_local='Py_ssize_t',
-                   ϱ_mv='double[:, :, ::1]',
                    returns='str',
                    )
     def save(self, filename):
@@ -164,6 +154,8 @@ class StandardSnapshot:
                     momy_h5[start_local:end_local] = component.momy_mv[:component.N_local]
                     momz_h5[start_local:end_local] = component.momz_mv[:component.N_local]
                     # Done saving this particle component
+                    hdf5_file.flush()
+                    Barrier()
                     masterprint('done')
                 elif component.representation == 'fluid':
                     # Write out progress message
@@ -211,17 +203,6 @@ class StandardSnapshot:
                             w_h5[...] = component.w_tabulated
                     elif component.w_type == 'expression':
                         component_h5.attrs['w'] = component.w_expression
-                    # Compute local indices of fluid grids
-                    ϱ_mv = component.ϱ.grid_mv
-                    domain_size_i = ϱ_mv.shape[0] - (1 + 2*2)
-                    domain_size_j = ϱ_mv.shape[1] - (1 + 2*2)
-                    domain_size_k = ϱ_mv.shape[2] - (1 + 2*2)
-                    domain_start_i = domain_layout_local_indices[0]*domain_size_i
-                    domain_start_j = domain_layout_local_indices[1]*domain_size_j
-                    domain_start_k = domain_layout_local_indices[2]*domain_size_k
-                    domain_end_i = domain_start_i + domain_size_i
-                    domain_end_j = domain_start_j + domain_size_j
-                    domain_end_k = domain_start_k + domain_size_k
                     # Save fluid grids in groups of name
                     # "fluidvar_index", with index = 0, 1, ...
                     # The fluid scalars are then datasets within
@@ -277,6 +258,8 @@ class StandardSnapshot:
                             except:
                                 ...
                     # Done saving this fluid component
+                    hdf5_file.flush()
+                    Barrier()
                     masterprint('done')
                 elif master:
                     abort('Does not know how to save component "{}" with representation "{}"'
@@ -295,15 +278,10 @@ class StandardSnapshot:
                     N_local='Py_ssize_t',
                     N_fluidvars='Py_ssize_t',
                     component='Component',
-                    domain_end_i='Py_ssize_t',
-                    domain_end_j='Py_ssize_t',
-                    domain_end_k='Py_ssize_t',
+                    domain_grid='double[:, :, ::1]',
                     domain_size_i='Py_ssize_t',
                     domain_size_j='Py_ssize_t',
                     domain_size_k='Py_ssize_t',
-                    domain_start_i='Py_ssize_t',
-                    domain_start_j='Py_ssize_t',
-                    domain_start_k='Py_ssize_t',
                     end_local='Py_ssize_t',
                     eos_message='str',
                     fluidscalar='FluidScalar',
@@ -324,6 +302,9 @@ class StandardSnapshot:
                     representation='str',
                     shape='tuple',
                     size='Py_ssize_t',
+                    slab='double[:, :, ::1]',
+                    slab_end='Py_ssize_t',
+                    slab_start='Py_ssize_t',
                     snapshot_unit_length='double',
                     snapshot_unit_mass='double',
                     snapshot_unit_time='double',
@@ -383,19 +364,36 @@ class StandardSnapshot:
                     # particle data to the processes.
                     start_local, N_local = partition(N)
                     end_local = start_local + N_local
-                    # Populate the Component instance with data from the file
-                    component.populate(posx_h5[start_local:end_local], 'posx')
-                    component.populate(posy_h5[start_local:end_local], 'posy')
-                    component.populate(posz_h5[start_local:end_local], 'posz')
-                    component.populate(momx_h5[start_local:end_local], 'momx')
-                    component.populate(momy_h5[start_local:end_local], 'momy')
-                    component.populate(momz_h5[start_local:end_local], 'momz')
+                    # Make sure that the particle data arrays
+                    # have the correct size.
+                    component.N_local = N_local
+                    component.resize(N_local)
                     posx = component.posx
                     posy = component.posy
                     posz = component.posz
                     momx = component.momx
                     momy = component.momy
                     momz = component.momz
+                    # Read particle data directly into
+                    # the particle data arrays.
+                    posx_h5.read_direct(asarray(component.posx_mv),
+                                        source_sel=np.s_[start_local:end_local],
+                                        dest_sel=np.s_[:N_local])
+                    posy_h5.read_direct(asarray(component.posy_mv),
+                                        source_sel=np.s_[start_local:end_local],
+                                        dest_sel=np.s_[:N_local])
+                    posz_h5.read_direct(asarray(component.posz_mv),
+                                        source_sel=np.s_[start_local:end_local],
+                                        dest_sel=np.s_[:N_local])
+                    momx_h5.read_direct(asarray(component.momx_mv),
+                                        source_sel=np.s_[start_local:end_local],
+                                        dest_sel=np.s_[:N_local])
+                    momy_h5.read_direct(asarray(component.momy_mv),
+                                        source_sel=np.s_[start_local:end_local],
+                                        dest_sel=np.s_[:N_local])
+                    momz_h5.read_direct(asarray(component.momz_mv),
+                                        source_sel=np.s_[start_local:end_local],
+                                        dest_sel=np.s_[:N_local])
                     # If the snapshot and the current run uses different
                     # systems of units, mulitply the component positions
                     # and momenta by the snapshot units.
@@ -472,25 +470,25 @@ class StandardSnapshot:
                         abort('The gridsize of the {} component is {} '
                               'which cannot be equally shared among {} processes'
                               .format(name, gridsize, nprocs))
-                    domain_start_i = domain_layout_local_indices[0]*domain_size_i
-                    domain_start_j = domain_layout_local_indices[1]*domain_size_j
-                    domain_start_k = domain_layout_local_indices[2]*domain_size_k
-                    domain_end_i = domain_start_i + domain_size_i
-                    domain_end_j = domain_start_j + domain_size_j
-                    domain_end_k = domain_start_k + domain_size_k
+                    # Make sure that the fluid grids
+                    # have the correct size.
+                    component.resize((domain_size_i, domain_size_j, domain_size_k))
                     # Fluid scalars are already instantiated.
                     # Now populate them.
                     for index, fluidvar in enumerate(component.fluidvars[:component.N_fluidvars]):
                         fluidvar_h5 = component_h5['fluidvar_{}'.format(index)]
                         for multi_index in fluidvar.multi_indices:
                             fluidscalar_h5 = fluidvar_h5['fluidscalar_{}'.format(multi_index)]
-                            # Note that this also performs the needed
-                            # communication to populate pseudo and
-                            # ghost points.
-                            component.populate(fluidscalar_h5[domain_start_i:domain_end_i,
-                                                              domain_start_j:domain_end_j,
-                                                              domain_start_k:domain_end_k],
-                                               index, multi_index)
+                            # Read fluid scalar directly into slab
+                            slab = get_fftw_slab(gridsize)
+                            slab_start = slab.shape[0]*rank
+                            slab_end = slab_start + slab.shape[0]
+                            fluidscalar_h5.read_direct(asarray(slab),
+                                                       source_sel=np.s_[slab_start:slab_end, :, :],
+                                                       dest_sel=np.s_[:, :, :gridsize])
+                            # Communicate the slabs directly to the
+                            # domain decomposed fluid grids.
+                            domain_decompose(slab, component.fluidvars[index][multi_index].grid_mv)
                     # If the snapshot and the current run uses different
                     # systems of units, mulitply the fluid data
                     # by the snapshot units.

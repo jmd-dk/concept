@@ -55,9 +55,9 @@ cimport('from mesh import CIC_components2φ, fft, slab_decompose')
                 kj='Py_ssize_t',
                 kj2='Py_ssize_t',
                 kk='Py_ssize_t',
+                normalization='double',
                 nyquist='Py_ssize_t',
                 power='double[::1]',
-                power_fac='double',
                 power_σ2='double[::1]',
                 power_σ2_k2='double',
                 reciprocal_sqrt_deconv_ij='double',
@@ -72,9 +72,7 @@ cimport('from mesh import CIC_components2φ, fft, slab_decompose')
                 symmetry_multiplicity='int',
                 totmass='double',
                 Σmass='double',
-                Σmass_cache='dict',
                 φ='double[:, :, ::1]',
-                φ_Vcell='double',
                 σ_tophat='dict',
                 σ_tophat_σ='dict',
                 )
@@ -103,11 +101,6 @@ def powerspec(components, filename):
         components_and_total = components + [component_total]
     else:
         components_and_total = components
-    # Dict storing the total mass of the components at the present time.
-    # This is used for lookup when computing the total power spectrum
-    # and the total masses of the individual components have already
-    # been computed.
-    Σmass_cache = {}
     # Compute a separate power spectrum for each component
     for component in components_and_total:
         # If component.name are not in power_dict, it means that
@@ -137,36 +130,52 @@ def powerspec(components, filename):
         power_σ2 = power_σ2_dict[component.name]
         # We now do the CIC interpolation of the component onto a grid
         # and perform the FFT on this grid. Here the φ grid is used.
-        # We choose to interpolate the comoving density of the component
-        # onto the grid. For particles, this means that each particle
-        # contribute an amount mass/φ_Vcell, where φ_Vcell is the
-        # volume of a single cell in the φ grid. For fluids, the
-        # comoving density is a³ρ = a³(a⁻³⁽¹⁺ʷ⁾ϱ) = a⁻³ʷϱ.
-        φ_Vcell = (boxsize/φ_gridsize)**3
+        # We choose to interpolate the mass of the component onto the
+        # grid. For particles, this simply means that each particle
+        # contribute by their mass, which is constant in time and
+        # equal for all of them, within a given component. For fluids,
+        # the mass is given by
+        # mass = (a³*V_cell)*ρ
+        #      = (a³*V_cell)*a⁻³⁽¹⁺ʷ⁾*ϱ
+        #      = a⁻³ʷ*V_cell*ϱ,
+        # where V_cell is the comoving cell volume of a fluid element,
+        # which is constant in time and equal for all of them, within
+        # a given component: V_cell = (boxsize/gridsize)³.
         if component.name == 'total':
             interpolation_quantities = [# Particle components
-                                        ('particles', [component_i.mass/φ_Vcell
+                                        ('particles', [component_i.mass
                                                        for component_i in components]),
                                         # Fluid components
                                         ('ϱ', [universals.a**(-3*component_i.w())
+                                               *(boxsize/component_i.gridsize)**3
                                                for component_i in components]),
                                         ]
             φ = CIC_components2φ(components, interpolation_quantities)
         else:
             interpolation_quantities = [# Particle components
-                                        ('particles', [component.mass/φ_Vcell]),
+                                        ('particles', [component.mass]),
                                         # Fluid components
-                                        ('ϱ', [universals.a**(-3*component.w())]),
+                                        ('ϱ', [universals.a**(-3*component.w())
+                                               *(boxsize/component.gridsize)**3]),
                                         ]
             φ = CIC_components2φ(component, interpolation_quantities)
+        # We want to normalize the powerspectrum with respect to the box
+        # volume. Since we interpolated the mass to the grid and then
+        # square each grid value to compute the power, the
+        # normalization will be boxsize**3/Σmass**2. Here we could be
+        # clever and calculate Σmass, but instead we simply measure it.
+        Σmass = allreduce(np.sum(φ[2:(φ.shape[0] - 3),
+                                   2:(φ.shape[1] - 3),
+                                   2:(φ.shape[2] - 3)]),
+                          op=MPI.SUM)
+        normalization = boxsize**3/Σmass**2
         # Fourier transform the grid
         slab = slab_decompose(φ, prepare_fft=True)
         fft(slab, 'forward')
         # Reset power, power multiplicity and power variance
-        for k2 in range(k2_max):
-            power   [k2] = 0
-            power_N [k2] = 0
-            power_σ2[k2] = 0
+        power   [:] = 0
+        power_N [:] = 0
+        power_σ2[:] = 0
         # Begin loop over slab. As the first and second dimensions
         # are transposed due to the FFT, start with the j-dimension.
         nyquist = φ_gridsize//2
@@ -241,13 +250,7 @@ def powerspec(components, filename):
         Reduce(sendbuf=(MPI.IN_PLACE if master else power_σ2),
                recvbuf=(power_σ2     if master else None),
                op=MPI.SUM)
-        # The last collective thing to do is to measure the total mass
-        if component.name == 'total':
-            Σmass = np.sum([Σmass_cache.get(component_i.name, measure(component_i, 'mass'))
-                            for component_i in components])
-        else:
-            Σmass = measure(component, 'mass')
-            Σmass_cache[component.name] = Σmass
+        # The master process now holds all the information needed
         if not master:
             continue
         # Remove the k2 == 0 elements (the background)
@@ -263,29 +266,18 @@ def powerspec(components, filename):
         if not mask.shape[0]:
             mask = (asarray(power_N) != 0)
             k_magnitudes_masked = asarray(k_magnitudes)[mask]
-        # All factors needed to transform the values of the power array
-        # to physical coordinates are gathered in power_fac. First we
-        # normalize to unity. Since what is interpolated to the φ grid
-        # is comoving densities, corresponding to Σᵢmassᵢ/φ_Vcell for
-        # particles (where φ_Vcell is the volume of a single cell of the
-        # φ grid) and a⁻³ʷϱ = a³ρ for fluids, we can normalize to unity
-        # by dividing by the squared sum of these comoving densities,
-        # given by (Σmass/φ_Vcell)². We have to use the square because
-        # the interpolated values are squared in order to get the power.
-        # We then multiply by the box volume to get physical units.
-        power_fac = boxsize**3/(Σmass/φ_Vcell)**2
-        # We also need to transform power from being the sum 
-        # to being the mean, by dividing by power_N. 
-        # At the same time, transform power_σ2 from being the
-        # sum of squares to being the actual variance,
-        # using power_σ2 = Σₖpowerₖ²/N - (Σₖpowerₖ/N)².
+        # We need to transform power from being the sum to being the
+        # mean, by dividing by power_N. At the same time, transform
+        # power_σ2 from being the sum of squares to being the actual
+        # variance, using power_σ2 = Σₖpowerₖ²/N - (Σₖpowerₖ/N)².
         # Remember that as of now, power_σ2 holds the sums of
         # unnormalized squared powers.
         # Finally, divide by power_N to correct for the sample size.
         for k2 in range(k2_max):
             if power_N[k2] != 0:
-                power[k2] *= power_fac/power_N[k2]
-                power_σ2_k2 = (power_σ2[k2]*ℝ[power_fac**2]/power_N[k2] - power[k2]**2)/power_N[k2]
+                power[k2] *= normalization/power_N[k2]
+                power_σ2_k2 = (  power_σ2[k2]*ℝ[normalization**2]/power_N[k2]
+                               - power[k2]**2)/power_N[k2]
                 # Round-off errors can lead to slightly negative
                 # power_σ2_k2, which is not acceptable.
                 if power_σ2_k2 > 0:
@@ -629,13 +621,13 @@ def measure(component, quantity):
             # Total ϱ of all fluid elements
             Σϱ = np.sum(ϱ_arr)
             # Add up local sums
-            Σϱ = allreduce(Σϱ,  op=MPI.SUM)
+            Σϱ = allreduce(Σϱ, op=MPI.SUM)
             # The total mass is
-            # Σmass = (a**3*Vcell)*Σρ,
+            # Σmass = (a**3*Vcell)*Σρ
             # where a**3*Vcell is the proper volume and Σρ is the sum of
             # proper densities. In terms of the fluid variable
             # ϱ = a**(3*(1 + w))*ρ, the total mass is then
-            # mass = a**(-3*w)*Vcell*Σϱ.
+            # Σmass = a**(-3*w)*Vcell*Σϱ.
             # Note that the total mass is not constant for w ≠ 0.
             Σmass = universals.a**(-3*w)*Vcell*Σϱ
         return Σmass

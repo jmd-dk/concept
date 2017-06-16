@@ -30,9 +30,7 @@ cimport('from communication import domain_size_x,  domain_size_y,  domain_size_z
         )
 
 # Pure Python imports
-from mpl_toolkits.mplot3d import Axes3D  # Needed for 3D plotting
-from mpl_toolkits.mplot3d import proj3d
-from mpl_toolkits.mplot3d.art3d import juggle_axes
+from mpl_toolkits.mplot3d import proj3d  # Importing from mpl_toolkits.mplot3d enables 3D plotting
 
 
 
@@ -149,16 +147,14 @@ def plot_powerspec(data_list, filename, power_dict):
         plt.ylim(ymax=float(str(int(tmp[0]) + 1) + tmp[3:]))
         plt.xlabel('$k$ $\mathrm{{[{}^{{-1}}]}}$'.format(unit_length), fontsize=14)
         plt.ylabel('power $\mathrm{{[{}^3]}}$'.format(unit_length),    fontsize=14)
-        t_string = '$t = {}\, \mathrm{{{}}}$'.format(significant_figures(universals.t,
-                                                                         4,
-                                                                         fmt='TeX',
-                                                                         ),
-                                                     unit_time)
-        a_string = ', $a = {}$'.format(significant_figures(universals.a, 
-                                                           4,
-                                                           fmt='TeX',
-                                                           )
-                                       ) if enable_Hubble else ''
+        t_string = ('$t = {}\, \mathrm{{{}}}$'
+                    .format(significant_figures(universals.t, 4, fmt='tex'),
+                            unit_time,
+                            )
+                    )
+        a_string = (', $a = {}$'.format(significant_figures(universals.a, 4, fmt='tex'))
+                    if enable_Hubble else ''
+                    )
         plt.title('{} at {}{}'.format(name, t_string, a_string), fontsize=16)
         plt.gca().tick_params(labelsize=13)
         plt.tight_layout()
@@ -178,18 +174,18 @@ def plot_powerspec(data_list, filename, power_dict):
                N='Py_ssize_t',
                N_local='Py_ssize_t',
                a_str='str',
-               alpha='double',
-               alpha_min='double',
                artists_text='dict',
                color='double[::1]',
                combined='double[:, :, ::1]',
                component='Component',
+               component_dict='dict',
                figname='str',
                filename_component='str',
                filename_component_alpha='str',
                filename_component_alpha_part='str',
                filenames_component_alpha='list',
                filenames_component_alpha_part='list',
+               filenames_components='list',
                i='Py_ssize_t',
                index='Py_ssize_t',
                j='Py_ssize_t',
@@ -203,7 +199,7 @@ def plot_powerspec(data_list, filename, power_dict):
                posy_mv='double[::1]',
                posz_mv='double[::1]',
                render_dir='str',
-               rgba='double[:, ::1]',
+               rgbα='double[:, ::1]',
                scatter_size='double',
                size_nopseudo_noghost='Py_ssize_t',
                size='Py_ssize_t',
@@ -220,7 +216,10 @@ def plot_powerspec(data_list, filename, power_dict):
                z='double*',
                z_mv='double[::1]',
                zk='double',
-               Σmass='double',
+               α='double',
+               α_factor='double',
+               α_homogeneous='double',
+               α_min='double',
                ϱ_noghosts='double[:, :, :]',
                ϱbar_component='double',
                )
@@ -238,6 +237,7 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
     # Initialize figures by building up render_dict, if this is the
     # first time this function is called.
     if not render_dict:
+        masterprint('Initializing renders ...')
         # Make cyclic default colors as when doing multiple plots in
         # one figure. Make sure that none of the colors are identical
         # to the background color.
@@ -257,32 +257,125 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
             # Prepare a figure for the render of the i'th component.
             figname = 'render_{}'.format(component.name)
             dpi = 100  # The value of dpi is irrelevant
-            fig = plt.figure(figname,
-                             figsize=[render_resolution/dpi]*2,
-                             dpi=dpi)
+            fig = plt.figure(figname, figsize=[render_resolution/dpi]*2, dpi=dpi)
             ax = fig.gca(projection='3d', facecolor=render_bgcolor)
-            # The color of this component
+            # The color and α (of a homogeneous column through the
+            # entire box) of this component.
             if component.name.lower() in render_colors:
                 # This component is given a specific color by the user
-                color = render_colors[component.name.lower()]
+                color, α_homogeneous = render_colors[component.name.lower()]
             elif 'all' in render_colors:
                 # All components are given the same color by the user
-                color = render_colors['all']
+                color, α_homogeneous = render_colors['all']
             else:
                 # No color specified for this particular component.
                 # Assign the next color from the default cyclic colors.
                 color = next(default_colors)
+                α_homogeneous = 0.2
+            # Alpha values below this small value appear completely
+            # invisible, for whatever reason. 
+            α_min = 0.0059
             # The artist for the component
             if component.representation == 'particles':
-                artist_component = ax.scatter(0, 0, 0, c=color, depthshade=False, lw=0)
+                # The particle size on the figure.
+                # The size is chosen such that the particles stand side
+                # by side in a homogeneous universe (more or less).
+                N = component.N
+                scatter_size = 1550*np.prod(fig.get_size_inches())/N**ℝ[2/3]
+                # Determine the α value which ensures that a homogeneous
+                # column through the entire box will result in a
+                # combined α value of α_homogeneous. Alpha blending
+                # is non-linear, but via the code given in
+                # https://stackoverflow.com/questions/28946400
+                # /is-it-possible-for-matplotlibs-alpha-transparency
+                # -values-to-sum-to-1
+                # I have found that 4/∛N is a good approximation to
+                # the α value needed to make the combined α equal to 1.
+                α = α_homogeneous*4/cbrt(N)
+                # Alpha values lower than α_min are not allowed.
+                # Shrink the scatter size to make up for the larger α.
+                if α < α_min:
+                    scatter_size *= α/α_min
+                    α = α_min
+                # Apply size and alpha
+                artist_component = ax.scatter(0, 0, 0,
+                                              alpha=α,
+                                              c=color,
+                                              s=scatter_size,
+                                              depthshade=False,
+                                              lw=0,
+                                              )
             elif component.representation == 'fluid':
-                N = np.prod(-2 + asarray(component.shape) - 1 - 2)
-                rgba = np.empty((N, 4), dtype=C2np['double'])
-                for i in range(N):
+                # To render fluid elements, their explicit positions
+                # are needed. In the following, these are computed and
+                # stored in the variables posx_mv, posy_mv and posz_mv.
+                size_i = component.shape_noghosts[0] - 1
+                size_j = component.shape_noghosts[1] - 1
+                size_k = component.shape_noghosts[2] - 1
+                # Number of local fluid elements
+                size = size_i*size_j*size_k
+                # Allocate arrays for storing grid positions
+                posx_mv = empty(size, dtype='double')
+                posy_mv = empty(size, dtype='double')
+                posz_mv = empty(size, dtype='double')
+                # Fill the arrays
+                index = 0
+                for i in range(size_i):
+                    xi = domain_start_x + i*ℝ[domain_size_x/size_i]
+                    for j in range(size_j):
+                        yj = domain_start_y + j*ℝ[domain_size_y/size_j]
+                        for k in range(size_k):
+                            zk = domain_start_z + k*ℝ[domain_size_z/size_k]
+                            posx_mv[index] = xi
+                            posy_mv[index] = yj
+                            posz_mv[index] = zk
+                            index += 1
+                # 2D array with rgbα rows, one row for each
+                # fluid element. This is the only array which will be
+                # updated for each new render, and only the α column
+                # will be updated.
+                rgbα = np.empty((size, 4), dtype=C2np['double'])
+                for i in range(size):
                     for dim in range(3):
-                        rgba[i, dim] = color[dim]
-                    rgba[i, 3] = 0
-                artist_component = ax.scatter([0]*N, [0]*N, [0]*N, c=rgba, depthshade=False, lw=0)
+                        rgbα[i, dim] = color[dim]
+                    rgbα[i, 3] = 1
+                # The particle (fluid element) size on the figure.
+                # The size is chosen such that the particles stand side
+                # by side in a homogeneous universe (more or less).
+                N = component.gridsize**3
+                scatter_size = 1550*np.prod(fig.get_size_inches())/N**ℝ[2/3]
+                # Determine the α multiplication factor which ensures
+                # that a homogeneous column through the entire box will
+                # result in an α value of α_homogeneous. Alpha blending
+                # is non-linear, but via the code given in
+                # https://stackoverflow.com/questions/28946400
+                # /is-it-possible-for-matplotlibs-alpha-transparency
+                # -values-to-sum-to-1
+                # I have found that 4/∛N is a good approximation to
+                # the α value needed to make the combined α equal to 1.
+                α_factor = α_homogeneous*4/cbrt(N)
+                # An α_factor below α_min are not allowed.
+                # Shrink the scatter size to make up for the larger α.
+                if α_factor < α_min:
+                    scatter_size *= α_factor/α_min
+                    α_factor = α_min
+                # Plot the fluid elements as a 3D scatter plot
+                artist_component = ax.scatter(posx_mv, posy_mv, posz_mv,
+                                              c=rgbα,
+                                              s=scatter_size,
+                                              depthshade=False,
+                                              lw=0,
+                                              )
+                # The set_facecolors method on the artist can be used
+                # to update the α values on the plot. This function is
+                # called internally my matplotlib with wrong arguments,
+                # cancelling the α updates. For this reason, we
+                # replace this method with a dummy method, while
+                # keeping the original as _set_facecolors (though we
+                # do not use this, as we set the _facecolors attribute
+                # manually instead).
+                artist_component._set_facecolors = artist_component.set_facecolors
+                artist_component.set_facecolors = dummy_func
             # The artists for the cosmic time and scale factor text
             artists_text = {}
             label_spacing = 0.07
@@ -318,50 +411,26 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
                                            'ax': ax,
                                            'artist_component': artist_component,
                                            'artists_text': artists_text,
+                'α_factor': (α_factor if component.representation == 'fluid' else None),
+                'rgbα'    : (rgbα     if component.representation == 'fluid' else None),
                                            }
-            # Explicit arrays of positions are needed
-            # also for fluid components.
-            if component.representation == 'fluid':
-                size_i = component.shape_noghosts[0] - 1
-                size_j = component.shape_noghosts[1] - 1
-                size_k = component.shape_noghosts[2] - 1
-                # Number of local fluid elements
-                size = size_i*size_j*size_k
-                # Allocate arrays for storing grid positions
-                posx_mv = empty(size, dtype='double')
-                posy_mv = empty(size, dtype='double')
-                posz_mv = empty(size, dtype='double')
-                # Fill the arrays
-                index = 0
-                for i in range(size_i):
-                    xi = domain_start_x + i*ℝ[domain_size_x/size_i]
-                    for j in range(size_j):
-                        yj = domain_start_y + j*ℝ[domain_size_y/size_j]
-                        for k in range(size_k):
-                            zk = domain_start_z + k*ℝ[domain_size_z/size_k]
-                            posx_mv[index] = xi
-                            posy_mv[index] = yj
-                            posz_mv[index] = zk
-                            index += 1
-                # Place the grids in the render_dict
-                render_dict[component.name]['posx_mv'] = posx_mv
-                render_dict[component.name]['posy_mv'] = posy_mv
-                render_dict[component.name]['posz_mv'] = posz_mv
-        # Return if no component is to be rendered
-        if not render_dict:
-            return
         # Create the temporary render directory if necessary
         if not (nprocs == 1 == len(render_dict)):
             if master:
                 os.makedirs(render_dir, exist_ok=True)
             Barrier()
+        masterprint('done')
+        # Return if no component is to be rendered
+        if not render_dict:
+            return
     # Print out progress message
     names = tuple(render_dict.keys())
     if len(names) == 1:
         masterprint('Rendering {} and saving to "{}" ...'.format(names[0], filename))
     else:
-        masterprint('Rendering:')
+        filenames_components = []
         for name in names:
+            name = name.replace(' ', '-')
             filename_component = filename
             if '_t=' in filename:
                 filename_component = filename.replace('_t=', '_{}_t='.format(name))
@@ -369,9 +438,9 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
                 filename_component = filename.replace('_a=', '_{}_a='.format(name))
             else:
                 filename_component = filename.replace('.png', '_{}.png'.format(name))
-            masterprint('Rendering {} and saving to "{}"'.format(name, filename_component),
-                        indent=4)
-        masterprint('...', indent=4)
+            filenames_components.append('"{}"'.format(filename_component))
+        masterprint('Rendering {} and saving to {} ...'
+                    .format(', '.join(names), ', '.join(filenames_components)))
     # Render each component separately
     for component in components:
         if component.name not in render_dict:
@@ -380,98 +449,51 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
         figname = 'render_{}'.format(component.name)
         plt.figure(figname)
         # Extract figure elements
-        fig = render_dict[component.name]['fig']
-        ax = render_dict[component.name]['ax']
-        artist_component = render_dict[component.name]['artist_component']
-        artists_text = render_dict[component.name]['artists_text']
+        component_dict = render_dict[component.name]
+        fig              = component_dict['fig']
+        ax               = component_dict['ax']
+        artist_component = component_dict['artist_component']
+        artists_text     = component_dict['artists_text']
         if component.representation == 'particles':
-            # Extract particle meta data
-            N = component.N
-            N_local = component.N_local
             # Update particle positions on the figure
-            artist_component._offsets3d = juggle_axes(component.posx_mv[:N_local],
-                                                      component.posy_mv[:N_local],
-                                                      component.posz_mv[:N_local],
-                                                      zdir='z')
-            # The particle size on the figure.
-            # The size is chosen such that the particles stand side
-            # by side in a homogeneous universe (more or less).
-            scatter_size = 1000*np.prod(fig.get_size_inches())/N**ℝ[2/3]
-            # The particle alpha on the figure.
-            # The alpha is chosen such that in a homogeneous universe,
-            # a column of particles have a collective alpha
-            # of 1 (more or less).
-            alpha = 1/cbrt(N)
-            # Alpha values lower than alpha_min appear completely
-            # invisible. Allow no alpha values lower than alpha_min. 
-            # Shrink the size to make up for the larger alpha.
-            alpha_min = 0.0059
-            if alpha < alpha_min:
-                scatter_size *= alpha/alpha_min
-                alpha = alpha_min
-            # Apply size and alpha
-            artist_component.set_sizes([scatter_size])
-            artist_component.set_alpha(alpha)
+            N_local = component.N_local
+            artist_component._offsets3d = (component.posx_mv[:N_local],
+                                           component.posy_mv[:N_local],
+                                           component.posz_mv[:N_local])
         elif component.representation == 'fluid':
-            # Extract the ϱ grid
+            rgbα     = component_dict['rgbα']
+            α_factor = component_dict['α_factor']
+            # Measure the mean value of the ϱ grid
             ϱ_noghosts = component.ϱ.grid_noghosts
-            # The particle (fluid element) size on the figure.
-            # The size is chosen such that the particles stand side
-            # by side in a homogeneous universe (more or less).
-            N = component.gridsize**3  # Number of fluid elements
-            scatter_size = 1000*np.prod(fig.get_size_inches())/N**ℝ[2/3]
-            # Grab the color and alpha array from the last artist
-            rgba = artist_component.get_facecolor()
-            # Multiplication factor for alpha values. An alpha value of
-            # 1 is assigned if the relative overdensity
-            # ϱ(component)/ϱbar(component) >= 1/alpha_fac.
-            # The chosen alpha_fac is such that in a homogeneous
-            # universe, a column of fluid elements have a collective
-            # alpha of 1 (more or less).            
-            alpha_fac = 1/cbrt(N)
-            # Alpha values lower than alpha_min appear completely
-            # invisible. Do not allow alpha_fac (the mean alpha) to be
-            # lower than alpha_min.
-            # Shrink the size to make up for the larger alpha.
-            alpha_min = 0.0059
-            if alpha_fac < alpha_min:
-                scatter_size *= alpha_fac/alpha_min
-                alpha_fac = alpha_min
-            # Update the alpha values in rgba array. The rgb-values
-            # remain the same for all renders of this component.
-            Σmass = universals.a**(-3*component.w())*component.Σmass_present
-            ϱbar_component = Σmass/boxsize**3
+            ϱbar_component = allreduce(np.sum(ϱ_noghosts[:(ϱ_noghosts.shape[0] - 1),
+                                                         :(ϱ_noghosts.shape[1] - 1),
+                                                         :(ϱ_noghosts.shape[2] - 1)]),
+                                       op=MPI.SUM)/component.gridsize**3            
+            # Update the α values in rgbα array based on the values of
+            # ϱ at each grid point. The rgb-values remain the same for
+            # all renders of this component.
             index = 0
             for         i in range(ℤ[ϱ_noghosts.shape[0] - 1]):
                 for     j in range(ℤ[ϱ_noghosts.shape[1] - 1]):
                     for k in range(ℤ[ϱ_noghosts.shape[2] - 1]):
-                        alpha = ℝ[alpha_fac/ϱbar_component]*ϱ_noghosts[i, j, k]
-                        if alpha > 1:
-                            alpha = 1
-                        rgba[index, 3] = alpha
+                        α = ℝ[α_factor/ϱbar_component]*ϱ_noghosts[i, j, k]
+                        if α > 1:
+                            α = 1
+                        rgbα[index, 3] = α
                         index += 1
-            # The previous scatter artist cannot be re-used due to a bug
-            # in matplotlib (the colors/alphas cannot be updated).
-            # Get rid of the old scatter plot.
-            artist_component._offsets3d = juggle_axes([-boxsize], [-boxsize], [-boxsize], zdir='z')
-            # Create new scatter plot and stick it into the render_dict
-            artist_component = ax.scatter(render_dict[component.name]['posx_mv'],
-                                          render_dict[component.name]['posy_mv'],
-                                          render_dict[component.name]['posz_mv'],
-                                          c=rgba,
-                                          s=scatter_size,
-                                          depthshade=False,
-                                          lw=0,
-                                          )
-            render_dict[component.name]['artist_component'] = artist_component
+            # Apply the new α values to the artist.
+            # We do this by setting the attribute _facecolors,
+            # which is much faster than using the set_facecolors
+            # method.
+            artist_component._facecolors = rgbα
         # Print the current cosmic time and scale factor on the figure
         if master:
             t_str = a_str = ''
-            t_str = '$t = {}\, \mathrm{{{}}}$'.format(significant_figures(universals.t, 4, 'TeX'),
+            t_str = '$t = {}\, \mathrm{{{}}}$'.format(significant_figures(universals.t, 4, 'tex'),
                                                       unit_time)
             artists_text['t'].set_text(t_str)
             if enable_Hubble:
-                a_str = '$a = {}$'.format(significant_figures(universals.a, 4, 'TeX'))
+                a_str = '$a = {}$'.format(significant_figures(universals.a, 4, 'tex'))
                 artists_text['a'].set_text(a_str)
             # Make the text color black or white,
             # dependent on the background color.
@@ -517,10 +539,9 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
                 render_image = plt.imread(filename_component_alpha)
             else:
                 # Create list of filenames for the partial renders
-                filenames_component_alpha_part = ['{}/{}_alpha_{}.png'.format(render_dir,
-                                                                              name,
-                                                                              part)
-                                             for part in range(nprocs)]
+                filenames_component_alpha_part = ['{}/{}_alpha_{}.png'
+                                                  .format(render_dir, name, part)
+                                                  for part in range(nprocs)]
                 # Read in the partial renders and blend
                 # them together into the render_image variable.
                 blend(filenames_component_alpha_part)
@@ -576,6 +597,9 @@ def orthographic_proj(zfront, zback):
                     [0, 0,  a   , b    ],
                     [0, 0, -1e-6, zback],
                     ])
+# Dummy function used by the render function
+def dummy_func(*args, **kwargs):
+    return None
 
 # Function which takes in a list of filenames of images and blend them
 # together into the global render_image array.
@@ -588,7 +612,7 @@ def orthographic_proj(zfront, zback):
                i='int',
                j='int',
                rgb='int',
-               rgba='int',
+               rgbα='int',
                tmp_image='float[:, :, ::1]',
                transparency='float',
                )
@@ -617,9 +641,9 @@ def blend(filenames):
     # Clip at saturation value.
     for     i in range(render_resolution):
         for j in range(render_resolution):
-            for rgba in range(4):
-                if render_image[i, j, rgba] > 1:
-                    render_image[i, j, rgba] = 1
+            for rgbα in range(4):
+                if render_image[i, j, rgbα] > 1:
+                    render_image[i, j, rgbα] = 1
 
 # Add background color to render_image
 @cython.header(# Arguments

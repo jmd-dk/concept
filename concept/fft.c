@@ -82,14 +82,16 @@ struct fftw_return_struct{
 struct fftw_return_struct fftw_setup(ptrdiff_t gridsize_i,
                                      ptrdiff_t gridsize_j,
                                      ptrdiff_t gridsize_k,
-                                     char* fftw_rigor){
+                                     char* fftw_wisdom_rigor,
+                                     bool fftw_wisdom_reuse){
     // Arguments to this function:
-    // - Linear gridsize of dimension 1
-    // - Linear gridsize of dimension 2
-    // - Linear gridsize of dimension 3
-    // - FFTW planning-rigor flag, determining the optimization level of
+    // - Linear gridsize of dimension 1.
+    // - Linear gridsize of dimension 2.
+    // - Linear gridsize of dimension 3.
+    // - FFTW planning-rigor, determining the optimization level of
     //   of the wisdom. In order of patience:
     //   "estimate", "measure", "patient", "exhaustive".
+    // - Flag specifying whether or not to use pre-existing FFTW wisdom.
 
     // Size of last dimension with padding
     ptrdiff_t gridsize_padding = 2*(gridsize_k/2 + 1);
@@ -109,15 +111,16 @@ struct fftw_return_struct fftw_setup(ptrdiff_t gridsize_i,
     // also initializes gridsize_local_(i/j) and gridstart_local_(i/j).
     ptrdiff_t gridsize_local_i, gridstart_local_i,
               gridsize_local_j, gridstart_local_j;
-    double* grid = fftw_alloc_real(fftw_mpi_local_size_3d_transposed(
-                                       gridsize_i,
-                                       gridsize_j,
-                                       gridsize_padding,
-                                       MPI_COMM_WORLD,
-                                       &gridsize_local_i,
-                                       &gridstart_local_i,
-                                       &gridsize_local_j,
-                                       &gridstart_local_j));
+    double* grid = fftw_alloc_real(
+                       fftw_mpi_local_size_3d_transposed(gridsize_i,
+                                                         gridsize_j,
+                                                         gridsize_padding,
+                                                         MPI_COMM_WORLD,
+                                                         &gridsize_local_i,
+                                                         &gridstart_local_i,
+                                                         &gridsize_local_j,
+                                                         &gridstart_local_j)
+                                   );
 
     // The filename of the wisdom file
     char wisdom_filename_buffer[128];
@@ -125,28 +128,30 @@ struct fftw_return_struct fftw_setup(ptrdiff_t gridsize_i,
     sprintf(wisdom_filename_buffer, ".fftw_wisdom_gridsize=%td_nprocs=%i_rigor=%s",
             gridsize_i,
             nprocs,
-            fftw_rigor);
+            fftw_wisdom_rigor);
     wisdom_filename = &wisdom_filename_buffer[0];
 
     // The master process reads in previous wisdom and broadcasts it
     int previous_wisdom = 0;
-    if (master){
-        previous_wisdom = fftw_import_wisdom_from_filename(wisdom_filename);
+    if (fftw_wisdom_reuse){
+        if (master){
+            previous_wisdom = fftw_import_wisdom_from_filename(wisdom_filename);
+        }
+        fftw_mpi_broadcast_wisdom(MPI_COMM_WORLD);
     }
-    fftw_mpi_broadcast_wisdom(MPI_COMM_WORLD);
 
-    // Convert fftw_rigor to integer flag
+    // Convert fftw_wisdom_rigor to integer flag
     int rigor_flag = FFTW_ESTIMATE;
-    if (strcmp(fftw_rigor, "estimate") == 0){
+    if (strcmp(fftw_wisdom_rigor, "estimate") == 0){
         rigor_flag = FFTW_ESTIMATE;
     }
-    else if (strcmp(fftw_rigor, "measure") == 0){
+    else if (strcmp(fftw_wisdom_rigor, "measure") == 0){
         rigor_flag = FFTW_MEASURE;
     }
-    else if (strcmp(fftw_rigor, "patient") == 0){
+    else if (strcmp(fftw_wisdom_rigor, "patient") == 0){
         rigor_flag = FFTW_PATIENT;
     }
-    else if (strcmp(fftw_rigor, "exhaustive") == 0){
+    else if (strcmp(fftw_wisdom_rigor, "exhaustive") == 0){
         rigor_flag = FFTW_EXHAUSTIVE;
     }
 

@@ -124,7 +124,7 @@ if [ "${called_from_concept}" != "True" ]; then
 fi
 
 # Exit if this script is not run remotely via ssh
-if ([ -z "${SSH_CLIENT}" ] && [ -z "${SSH_TTY}" ]); then
+if [ "${ssh}" != "True" ]; then
     colorprint "Error: Cannot watch remote job as you are working on a local machine" "red"
     exit 1
 fi
@@ -141,10 +141,6 @@ fi
 # truncate the username to 15 characters.
 my_username="$(whoami)"
 my_username="${my_username:0:15}"
-
-# Aquire information about submitted jobs.
-# Revert the output of qstat, so that the newest jobs are in the top.
-qstat_info="$(qstat | tac)"
 
 # Function that update the state variable by running the qstat command
 update_job_info()
@@ -259,7 +255,7 @@ check_suddenly_finished()
     update_job_info
     inform_on_new_state
     # If the job is already finished, printout the entire log and exit
-    if [ "${state}" == "None" ]; then
+    if [ "${state}" == "C" ] || [ "${state}" == "None" ]; then
         if [ -f "${logs_dir}/${jobid}" ]; then
             cat "${logs_dir}/${jobid}"
         else
@@ -271,6 +267,7 @@ check_suddenly_finished()
 }
 
 # Sleep durations in seconds
+sleep_barely=5
 sleep_little=30
 sleep_much=300
 
@@ -279,18 +276,26 @@ inform_on_new_state
 
 # Wait until job is running
 if [ "${state}" != "R" ]; then
-    # Wait a small time before calling qstat again
-    sleep ${sleep_little}
     check_suddenly_finished
-    while [ "${state}" != "R" ] ; do   
-        # Wait a long time before calling qstat again
-        sleep ${sleep_much}
+    sleep ${sleep_barely}
+    check_suddenly_finished
+    if [ "${state}" != "R" ]; then
+        # Wait a small time before calling qstat again
+        sleep ${sleep_little}
         check_suddenly_finished
-    done
+        while [ "${state}" != "R" ] ; do   
+            # Wait a long time before calling qstat again
+            sleep ${sleep_much}
+            check_suddenly_finished
+        done
+    fi
 fi
 state_last="R"
 
-# Job running. Wait for logfile to be created
+# Job running. Wait for logfile to be created.
+if [ ! -f "${logs_dir}/${jobid}" ]; then
+    sleep ${sleep_barely}
+fi
 slept=0
 while [ ! -f "${logs_dir}/${jobid}" ]; do
     sleep ${sleep_little}

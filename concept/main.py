@@ -291,6 +291,7 @@ def drift(components, step):
 @cython.header(# Locals
                autosave_time='double',
                bottleneck='str',
+               component='Component',
                components='list',
                do_autosave='bint',
                final_render='tuple',
@@ -366,36 +367,7 @@ def timeloop():
         # Reduce time step size if it is larger than what is allowed
         Δt, bottleneck = reduce_Δt(components, Δt, Δt_begin, timespan)
         # Print out message at beginning of each time step
-        masterprint('{heading}{cosmic_time}{scale_factor}{step_size}'
-                    .format(heading=terminal.bold('\nTime step {}'.format(time_step)),
-                            cosmic_time=('\nCosmic time:  {} {}'
-                                         .format(significant_figures(universals.t,
-                                                                     4,
-                                                                     fmt='Unicode',
-                                                                     ),
-                                                 unit_time,
-                                                 )
-                                         ),
-                            scale_factor=('\nScale factor: {}'
-                                          .format(significant_figures(universals.a,
-                                                                      4,
-                                                                      fmt='Unicode',
-                                                                      ),
-                                                  )
-                                          if enable_Hubble else ''
-                                          ),
-                            step_size=('\nStep size:    {} {}{}'
-                                       .format(significant_figures(Δt,
-                                                                   4,
-                                                                   fmt='Unicode',
-                                                                   ),
-                                               unit_time,
-                                               (' (limited by {})'.format(bottleneck)
-                                                if bottleneck else '')
-                                               )
-                                       ),
-                            )
-                    )
+        print_timestep_heading(time_step, Δt, bottleneck, components)
         # Analyze and print out debugging information, if required
         debug(components)
         # Kick.
@@ -452,6 +424,66 @@ def timeloop():
                    if enable_Hubble else '')
                 )
 
+# Function which prints out basic information
+# about the current time step.
+@cython.header(# Arguments
+               time_step='Py_ssize_t',
+               Δt='double',
+               bottleneck='str',
+               components='list',
+               # Locals
+               component='Component',
+               i='Py_ssize_t',
+               part='str',
+               parts='list',
+               width='Py_ssize_t',
+               width_max='Py_ssize_t',
+               )
+def print_timestep_heading(time_step, Δt, bottleneck, components):
+    global heading_ljust
+    # Create list of text pieces. Left justify the first column
+    # according to the global heading_ljust.
+    parts = []
+    parts.append(terminal.bold(f'\nTime step {time_step}'))
+    parts.append('\n{}:'
+                 .format('Cosmic time' if enable_Hubble else 'Time')
+                 .ljust(heading_ljust)
+                 )
+    parts.append('{} {}'.format(significant_figures(universals.t, 4, fmt='unicode'),
+                                unit_time,
+                                ) 
+                 )
+    if enable_Hubble:
+        parts.append('\nScale factor:'.ljust(heading_ljust))
+        parts.append(significant_figures(universals.a, 4, fmt='unicode'))
+    parts.append('\nStep size:'.ljust(heading_ljust))
+    parts.append('{} {}{}'.format(significant_figures(Δt, 4, fmt='unicode'),
+                                  unit_time,
+                                  ' (limited by {})'.format(bottleneck) if bottleneck else '',
+                                  )
+                 )
+    for component in components:
+        if component.w_type != 'constant':
+            parts.append('\nEoS ({}):'.format(component.name).ljust(heading_ljust))
+            parts.append(significant_figures(component.w(), 4, fmt='unicode'))
+    # Find the maximum width of the first column and left justify
+    # the entire first colum to match this maximum width.
+    if heading_ljust == 0:
+        width_max = 0
+        for part in parts:
+            if part.endswith(':'):
+                width = len(part)
+                if width > width_max:
+                    width_max = width
+        heading_ljust = width_max + 1
+        for i, part in enumerate(parts):
+            if part.endswith(':'):
+                parts[i] = part.ljust(heading_ljust)
+    # Print out the combined heading
+    masterprint(''.join(parts))
+cython.declare(heading_ljust='Py_ssize_t')
+heading_ljust = 0
+
 # This function reduces the time step size Δt if it is too,
 # based on a number of conditions.
 @cython.header(# Arguments
@@ -462,6 +494,8 @@ def timeloop():
                worry='bint',
                # Locals
                H='double',
+               J_over_ϱ_2_i='double',
+               J_over_ϱ_2_max='double',
                Jx='double[:, :, :]',
                Jx_ijk='double',
                Jy='double[:, :, :]',
@@ -472,8 +506,8 @@ def timeloop():
                component='Component',
                dim='int',
                extreme_component='Component',
-               fac_Courant='double',
-               fac_Hubble='double',
+               fac_courant='double',
+               fac_hubble='double',
                fac_dynamical='double',
                fac_reduce='double',
                fac_timespan='double',
@@ -483,8 +517,9 @@ def timeloop():
                j='Py_ssize_t',
                k='Py_ssize_t',
                limiters='list',
-               mass='double',
                method='str',
+               mom2_i='double',
+               mom2_max='double',
                momx='double*',
                momx_i='double',
                momy='double*',
@@ -492,10 +527,11 @@ def timeloop():
                momz='double*',
                momz_i='double',
                resolutions='list',
+               v_max='double',
                w='double',
-               Δt_Courant='double',
-               Δt_Courant_component='double',
-               Δt_Hubble='double',
+               Δt_courant='double',
+               Δt_courant_component='double',
+               Δt_hubble='double',
                Δt_dynamical='double',
                Δt_index='Py_ssize_t',
                Δt_min='double',
@@ -506,15 +542,11 @@ def timeloop():
                Δt_suggestions='list',
                Δt_ẇ='double',
                Δt_ẇ_component='double',
-               Δx='double',
+               Δx_max='double',
                Σmass='double',
                ρ_bar='double',
                ϱ='double[:, :, :]',
                ϱ_ijk='double',
-               ẋ_max='double',
-               ẋ2_i='double',
-               ẋ2_ijk='double',
-               ẋ2_max='double',
                returns='tuple',  # (Δt, bottleneck)
                )
 def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
@@ -578,28 +610,42 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
     limiters.append('the dynamical timescale')
     # The maximum allowed time step size
     # suggested by the Hubble parameter.
-    fac_Hubble = 5e-2
-    Δt_Hubble = fac_Hubble/H if enable_Hubble else ထ
-    Δt_suggestions.append(Δt_Hubble)
+    fac_hubble = 5e-2
+    Δt_hubble = fac_hubble/H if enable_Hubble else ထ
+    Δt_suggestions.append(Δt_hubble)
     limiters.append('the Hubble expansion')
     # The maximum allowed time step size
     # suggested by the simulation timespan.
-    fac_timespan = 5e-3
+    fac_timespan = 1e-1
     Δt_timespan = fac_timespan*timespan
     Δt_suggestions.append(Δt_timespan)
     limiters.append('the simulation timespan')
-    # The maximum allowed time step size
-    # suggested by the Courant condition.
-    fac_Courant = 2e-1
-    Δt_Courant = ထ
+    # The maximum allowed time step size suggested by the Courant
+    # condition. The maximum propagation speed of information in
+    # comoving coordinates is
+    # v_max = c*sqrt(w)/a + ẋ, ẋ = dx/dt = u/a,
+    # where u is the peculiar velocity.
+    # For fluids we have
+    # ϱ = a**(3*(1 + w))*ρ, J = a**4*u*ρ, and so
+    # u = a**(3*w - 1)*J/ϱ and then
+    # v_max = c*sqrt(w)/a + J/(a**(2 - 3*w)*ϱ).
+    # For particles we have w = 0 and ẋ = mom/(a**2*m), and so
+    # v_max = mom/(a**2*mass).
+    # The time step should not be allowed to be such that
+    # v_max*Δt > Δx_max,
+    # where Δx_max is the maximally allowed comoving distance a fluid
+    # element or particle may travel in Δt time. This distance is set by
+    # the grid resolutions of any forces acting on the components,
+    # and also the resolution of the fluid grids for fluid components.
+    fac_courant = 4e-1
+    Δt_courant = ထ
     extreme_component = None
     for component in components:
-        w = component.w()
         if component.representation == 'particles':
             # Maximum comoving distance a particle should be able to
             # travel in a single time step. This is set to be the
             # boxsize divided by the resolution, where each force
-            # on the particles each have their own resolution.
+            # on the particles have their own resolution.
             # The number of particles is also used
             # as an addtional resolution.
             resolutions = [cbrt(component.N)]
@@ -608,15 +654,10 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
                     if method == 'pm':
                         resolutions.append(φ_gridsize)
                     elif method in ('pp', 'p3m'):
-                        resolutions.append(component.softening/boxsize)
-            Δx = boxsize/np.max(resolutions)
-            # Find maximum, squared local velocity for this component.
-            # From the equation of motion, velocity is given by.
-            # ẋ = dx/dt = mom/(a²*m).
-            # Note that this corresponds to ẋ = u/a, wher u is the
-            # peculiar velocity.
-            ẋ2_max = 0
-            mass = component.mass
+                        resolutions.append(1/component.softening)
+            Δx_max = boxsize/np.max(resolutions)
+            # Find maximum speed of particles
+            mom2_max = 0
             momx = component.momx
             momy = component.momy
             momz = component.momz
@@ -624,19 +665,26 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
                 momx_i = momx[i]
                 momy_i = momy[i]
                 momz_i = momz[i]
-                ẋ2_i = (momx_i**2 + momy_i**2 + momz_i**2)*ℝ[1/(universals.a**2*mass)**2]
-                if ẋ2_i > ẋ2_max:
-                    ẋ2_max = ẋ2_i
+                mom2_i = momx_i**2 + momy_i**2 + momz_i**2
+                if mom2_i > mom2_max:
+                    mom2_max = mom2_i
+            mom2_max = allreduce(mom2_max, op=MPI.MAX)
+            v_max = sqrt(mom2_max)/(universals.a**2*component.mass)
         elif component.representation == 'fluid':
-            # Comoving distance between neighbouring fluid elements
-            Δx = boxsize/component.gridsize
-            # Find maximum, squared, local velocity for this component.
-            # Given that the stored fluid variables
-            # are ϱ = a**(3*(1 + w))*ρ and J = a**4*u*ρ, we have
-            # u = a**(3*w - 1)*J/ϱ, with u the peculiar velocity.
-            # As above, we are interested in ẋ = u/a, that is
-            # ẋ = a**(3*w - 2)*J/ϱ.
-            ẋ2_max = 0
+            # The maximum comoving distance a fluid element should be
+            # able to communicate over in a single time step.
+            # This is set to be the boxsize divided by the resolution,
+            # where each force on the fluid have their own resolution.
+            # The resolution of the fluid grids themselves is also used
+            # as an addtional resolution.
+            resolutions = [component.gridsize]
+            for force, method in forces.get(component.species, []):
+                if force == 'gravity':
+                    if method == 'pm':
+                        resolutions.append(φ_gridsize)
+            Δx_max = boxsize/np.max(resolutions)
+            # Find maximum speed of information
+            J_over_ϱ_2_max = 0
             ϱ  = component.ϱ .grid_noghosts
             Jx = component.Jx.grid_noghosts
             Jy = component.Jy.grid_noghosts
@@ -648,41 +696,25 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
                         Jx_ijk = Jx[i, j, k]
                         Jy_ijk = Jy[i, j, k]
                         Jz_ijk = Jz[i, j, k]
-                        ẋ2_ijk = (Jx_ijk**2 + Jy_ijk**2 + Jz_ijk**2
-                                  )*(ℝ[universals.a**(3*w - 2)]/ϱ_ijk)**2
-                        if ẋ2_ijk > ẋ2_max:
-                            ẋ2_max = ẋ2_ijk
-        # The maximum allowed travel distance and maximal squared
-        # velocity are now found,
-        # regardless of component representation.
-        ẋ_max = sqrt(ẋ2_max)
-        # Communicate maximum global velocity of this component
-        # to all processes.
-        ẋ_max = allreduce(ẋ_max, op=MPI.MAX)
+                        J_over_ϱ_2_i = (Jx_ijk**2 + Jy_ijk**2 + Jz_ijk**2)/ϱ_ijk**2
+                        if J_over_ϱ_2_i > J_over_ϱ_2_max:
+                            J_over_ϱ_2_max = J_over_ϱ_2_i
+            J_over_ϱ_2_max = allreduce(J_over_ϱ_2_max, op=MPI.MAX)
+            w = component.w()
+            v_max = light_speed*sqrt(w)/universals.a + universals.a**(3*w - 2)*sqrt(J_over_ϱ_2_max)
         # In the odd case of a completely static component,
-        # set ẋ_max to be just above 0.
-        if ẋ_max == 0:
-            ẋ_max = machine_ϵ
-        # The soundspeed in this component.
-        # Note that this in physical (non-expanding) units.
-        # To convert this to a "comoving sound speed" we should
-        # use cs/a.
-        cs = light_speed*sqrt(w)
-        # Compute maximum allowed time step size Δt for this component.
-        # To get the time step size, the size of the grid cell should be
-        # divided by the velocity plus the speed of sound cs, as sound
-        # waves can propagate on top of the bulk flow.
-        # The additional sqrt(3) is included because the simulation is
-        # in 3D. With sqrt(3) included and fac_Courant == 1,
-        # the below is the general 3-dimensional Courant condition.
-        Δt_Courant_component = ℝ[fac_Courant/sqrt(3)]*Δx/(ẋ_max + cs/universals.a)
+        # set v_max to be just above 0.
+        if v_max == 0:
+            v_max = machine_ϵ
+        # The 3D Courant condition
+        Δt_courant_component = fac_courant*Δx_max/(sqrt(3)*v_max)
         # The component with the lowest value of the maximally allowed
         # time step size determines the global maximally allowed
         # time step size.
-        if Δt_Courant_component < Δt_Courant:
-            Δt_Courant = Δt_Courant_component
+        if Δt_courant_component < Δt_courant:
+            Δt_courant = Δt_courant_component
             extreme_component = component
-    Δt_suggestions.append(Δt_Courant)
+    Δt_suggestions.append(Δt_courant)
     limiters.append('the Courant condition for {}'.format(extreme_component.name))
     # The maximum allowed time step size suggested by ẇ
     fac_ẇ = 1e-3
