@@ -3326,7 +3326,7 @@ with open('${concept}', 'w', encoding='utf-8') as file:
     for line in lines:
         if not envs_inserted and line.strip() == ':':
             print('# These were set at install time.', file=file)
-            for var, val in get_envs()
+            for var, val in get_envs():
                 print('export {}=\"\${{{}}}:{}\"'.format(var, var, val), file=file)
             envs_inserted = True
         else:
