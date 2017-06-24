@@ -243,15 +243,17 @@ def particle_mesh(receivers, suppliers, ᔑdt, potential, potential_name,
     # all receiver components.
     h = boxsize/φ_gridsize  # Physical grid spacing of φ
     for dim in range(3):
+        masterprint('Differentiating the {} along the {}-direction and applying it ...'
+                    .format(potential_name, 'xyz'[dim])
+                    )
         # Do the differentiation of φ
         gradφ_dim = diff_domain(φ, dim, h, order=4)
         # Apply force to all the receivers
         for component in receivers:
-            masterprint('Applying the {}-differentiated {} to {} ...'
-                        .format('xyz'[dim], potential_name, component.name)
-                        )
+            masterprint('Applying to {} ...'.format(component.name))
             apply_potential(component, ᔑdt, gradφ_dim, dim)
             masterprint('done')
+        masterprint('done')
 
 # Generic function capable of constructing a potential grid out of
 # components and a given expression for the potential.

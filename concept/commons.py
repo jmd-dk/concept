@@ -245,7 +245,7 @@ def fancyprint(*args, indent=0, sep=' ', end='\n', fun=None, wrap=True, **kwargs
         # Convert any paths in text (recognized by surrounding quotes)
         # to sensible paths.
         text = re.sub('"(.+?)"', lambda m: '"{}"'.format(sensible_path(m.group(1))), text)
-        # Add indentation, and also wrap long message if wrap == True
+        # Add indentation, and also wrap long message if wrap is True
         indentation = ' '*indent
         is_progress_message = text.endswith('...')
         if wrap:
@@ -329,7 +329,7 @@ def warn(*args, skipline=True, prefix='Warning', wrap=True, **kwargs):
         universals.any_warnings = True
     except:
         ...
-    # Add initial newline (if skipline == True) to prefix
+    # Add initial newline (if skipline is True) to prefix
     # and append a colon.
     prefix = '{}{}{}'.format('\n' if skipline else '', prefix, ':' if prefix else '')
     args = list(args)

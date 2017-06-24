@@ -1415,7 +1415,7 @@ class Component:
             N_vars = indices.shape[0]
             if N_vars > 1:
                 abort(f'The varnames2indices method was called '
-                      'with {N_vars} variables while single == True')
+                      'with {N_vars} variables while single is True')
             return indices[0]
         return indices
 

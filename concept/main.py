@@ -637,7 +637,7 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
     # element or particle may travel in Δt time. This distance is set by
     # the grid resolutions of any forces acting on the components,
     # and also the resolution of the fluid grids for fluid components.
-    fac_courant = 4e-1
+    fac_courant = 2e-1
     Δt_courant = ထ
     extreme_component = None
     for component in components:
@@ -834,7 +834,7 @@ def get_initial_conditions():
                 N_or_gridsize = d.pop('gridsize')
                 if representation == 'particles':
                     masterwarn(f'gridsize = {N_or_gridsize} was specified '
-                               f'for fluid component "{name}". This will be used as N.'
+                               f'for particle component "{name}". This will be used as N.'
                                )
             else:
                 if representation == 'particles':

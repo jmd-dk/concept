@@ -146,6 +146,7 @@ fi
 info="$("${concept}" -p "${params}"                                \
                      ${interactive_flag}                           \
                      --local                                       \
+                     ${no_optimization_flag}                       \
                      ${pure_python_flag}                           \
                      ${unsafe_build_flag}                          \
                      --util info                                   \
@@ -215,7 +216,8 @@ paths['params'] = params_path_ori
                      -w "${walltime}"        \
                      ${interactive_flag}     \
                      ${local_flag}           \
-                     --nowatch               \
+                     ${no_optimization_flag} \
+                     --no-watch              \
                      ${pure_python_flag}     \
                      ${unsafe_build_flag}
     }
@@ -241,7 +243,7 @@ done
 trap : 0
 
 # Watch remotely submitted jobs in submission order
-if [ ${#jobids[@]} -gt 0 ] && [ "${nowatch}" == "False" ]; then
+if [ ${#jobids[@]} -gt 0 ] && [ "${no_watch}" == "False" ]; then
     if [ ${#jobids[@]} -gt 1 ]; then
         printf "\nYou can now kill (Ctrl-C) this script without cancelling the jobs\n"
         printf "\nWill now watch the submitted jobs\n\n"

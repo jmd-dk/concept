@@ -553,7 +553,10 @@ def measure(component, quantity):
                 Σmom[dim] = Σmom_dim
                 σmom[dim] = σmom_dim
         elif component.representation == 'fluid':
-            # Total momentum of all fluid elements, for each dimension
+            # Total momentum of all fluid elements, for each dimension.
+            # Here the definition of momenta is chosen as
+            # J*Vcell = (a**4*ρ*u)*Vcell = (V_phys*ρ)(a*u) = mass*a*u,
+            # in correspondance with particles.
             for dim, fluidscalar in enumerate(component.J):
                 # NumPy array of local part of J with no pseudo points
                 J_noghosts = fluidscalar.grid_noghosts

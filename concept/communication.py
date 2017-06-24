@@ -317,7 +317,7 @@ def exchange(component, reset_buffers=False):
                 break
     # Update N_local
     component.N_local = N_needed - N_send_tot
-    # If reset_buffers == True, reset the global indices_send and
+    # If reset_buffers is True, reset the global indices_send and
     # sendbuf to their basic forms. This buffer will then be rebuild in
     # future calls.
     if reset_buffers:
@@ -784,7 +784,7 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1, root=master_rank
     is populated with values in-place, this is rarely used). When a
     non-blocking send-only is used, the MPI request is returned. When a
     blocking send-only is used, None is returned.
-    If reverse == True, the communication is reversed, meaning that
+    If reverse is True, the communication is reversed, meaning that
     sending block_send to dist and receiving into block_recv from source
     turns into sending block_recv to source and receiving into
     block_send from dist.

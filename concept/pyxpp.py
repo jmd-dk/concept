@@ -26,8 +26,8 @@
 """
 This is the .pyx preprocessor script.
 It can be run with the following three sets of arguments,
-all arguments being filenames:
-- module.py commons.py
+all arguments being filenames except the optional --no-optimization:
+- module.py commons.py [--no-optimization]
   Creates module.pyx, a version of module.py with cython-legal and
   optimized syntax.
 - .types.pyx commons.py .types.pyx module0.pyx module1.pyx ...
@@ -439,9 +439,18 @@ def loop_unswitching(lines):
             #    ...
             # with unswitch(n):  # With n an integer literal or expression
             #    ...
-            match = re.search('with +unswitch *(\(.*\))? *:', line.strip())
+            pattern = r'with +unswitch *(\(.*\))? *:'
+            match = re.search(pattern, line.strip())
             if match and not line.lstrip().startswith('#'):
                 # Loop unswitching found.
+                # If optimizations are disabled, simply replace the
+                # with statement with "if True:".
+                if no_optimization:
+                    new_lines.append(' '*(len(line) - len(line.lstrip()))
+                                     + '# Unswitch context manager replaced '
+                                     + 'with trivial if statement\n')
+                    new_lines.append(re.sub(pattern, 'if True:', line))
+                    continue
                 # Determine the number of indentation levels to do
                 # loop unswitching on. This is the n in unswitch(n).
                 # If not specified, this is set to infinity.
@@ -502,8 +511,8 @@ def loop_unswitching(lines):
                             break
                 # The loop lines to copy
                 loop_lines = lines[(i - J - 1):i]
-                # Now search downwards to find the if statements indented
-                # under the unswitch context manager.
+                # Now search downwards to find the if statements
+                # indented under the unswitch context manager.
                 outer_loop_lvl = (len(loop_lines[0]) - len(loop_lines[0].lstrip()))//4
                 patterns = ['{}if .*:'  .format('    '*(unswitch_lvl + 1)),
                             '{}elif .*:'.format('    '*(unswitch_lvl + 1)),
@@ -630,13 +639,77 @@ def constant_expressions(lines):
             if line.index(' {} '.format(var)) < line.index(' in '):
                 return True
         def multi_assign_in_line(var, line):
-            match = re.search(r' {}( *[,=] *[_a-zA-Z][_a-zA-Z0-9]*)+'.format(var),
+            line_ori = line
+            line = line.replace(' ', '')
+            # Remove function calls
+            removed_args = True
+            while removed_args:
+                removed_args = False
+                in_func_call = False
+                for i, c in enumerate(line):
+                    if not in_func_call and c == '(' and i > 0 and re.search('[_a-zA-Z0-9]', line[i - 1]):
+                        in_func_call = True
+                        i_start = i
+                        parens = 1
+                        continue
+                    if in_func_call:
+                        if c == '(':
+                            parens += 1
+                        elif c == ')':
+                            parens -= 1
+                            if parens == 0:
+                                i_end = i
+                                if i_end != i_start + 1:
+                                    line = line[:(i_start + 1)] + line[i_end:]
+                                    removed_args = True
+                                in_func_call = False
+                                break
+            # Now do the searching
+            match1 = re.search(r' {}( *[,=] *[_a-zA-Z][_a-zA-Z0-9]*)+ *=?'.format(var),
                               ' {} '.format(line))
-            if not match:
-                return False
-            return ('=' in match.group())
+            match2 = re.search(r' ( *[_a-zA-Z][_a-zA-Z0-9]* *[,=])+ *{} *[,=]'.format(var),
+                              ' {} '.format(line))
+            if match1:
+                return ('=' in match1.group())
+            if match2:
+                return ('=' in match2.group())
+        def used_as_function_arg(var, line):
+            line = line.replace(' ', '')
+            in_func_call = False
+            func_args = []
+            for i, c in enumerate(line):
+                if not in_func_call and c == '(' and i > 0 and re.search('[_a-zA-Z0-9]', line[i - 1]):
+                    in_func_call = True
+                    i_start = i
+                    parens = 1
+                    continue
+                if in_func_call:
+                    if c == '(':
+                        parens += 1
+                    elif c == ')':
+                        parens -= 1
+                        if parens == 0:
+                            i_end = i
+                            args = line[(i_start + 1):i_end].split(',')
+                            for j, arg in enumerate(args):
+                                if '=' in arg:
+                                    args[j] = arg[(arg.index('=') + 1):]
+                            for j, arg in enumerate(args):
+                                if '(' in arg:
+                                    args[j] = arg[(arg.index('(') + 1):]
+                            for j, arg in enumerate(args):
+                                if ')' in arg:
+                                    args[j] = arg[:arg.index(')')]
+                            func_args += args
+                            in_func_call = False
+            return (var in func_args)
         return (   multi_assign_in_for(var, line_ori)
                 or multi_assign_in_line(var, line_ori)
+                # !!! This condition should really be turned on,
+                # but because "barriers" (or maybe just nested barriers)
+                # or not properly taken care of, this sometimes leads to
+                # errors (e.g. in diff_domain in mesh.py).
+                #or (var in attributes and used_as_function_arg(var, line_ori))
                 or ('=' + var + '=') in line
                 or line.startswith(var + '='  )
                 or line.startswith(var + '+=' )
@@ -648,7 +721,6 @@ def constant_expressions(lines):
                 or line.startswith(var + '&=' )
                 or line.startswith(var + '|=' )
                 or line.startswith(var + '@=' )
-                or (',' + var + '='  ) in line
                 or (',' + var + '+=' ) in line
                 or (',' + var + '-=' ) in line
                 or (',' + var + '*=' ) in line
@@ -669,6 +741,96 @@ def constant_expressions(lines):
                 or (';' + var + '|=' ) in line
                 or (';' + var + '@=' ) in line
                 )
+    def affectable(lines):
+        return True
+        # Unindent loops
+        for i, line in enumerate(lines):
+            if line.lstrip().startswith('for ') or line.lstrip().startswith('while '):
+                indentation_i = indentation_level(line)
+                for j, line in enumerate(lines[(i + 1):]):
+                    indentation_j = indentation_level(line)
+                    if not line.lstrip().startswith('#') and indentation_j <= indentation_i:
+                        break
+                    lines[i + 1 + j] = ' '*indentation_i + line.lstrip()
+        # Find 'else', 'elif' and 'except' barriers between
+        # first and last line.
+        if not lines:
+            return True
+        important_lines = [lines[0]]
+        for line in lines:
+            if line.lstrip().startswith('if '):
+                important_lines.append(line)
+            elif line.lstrip().startswith('else:'):
+                important_lines.append(line)
+            elif line.lstrip().startswith('elif '):
+                important_lines.append(line)
+            elif line.lstrip().startswith('try:'):
+                important_lines.append(line)
+            elif line.lstrip().startswith('except:') or line.lstrip().startswith('except '):
+                important_lines.append(line)
+            elif line.lstrip().startswith('for '):
+                important_lines.append(line)
+            elif line.lstrip().startswith('while '):
+                important_lines.append(line)
+        important_lines.append(lines[-1])
+        linenr_to_skip = set()
+        for i, line in enumerate(important_lines):
+            if line.lstrip().startswith('if '):
+                linenr_to_skip.add(i)
+                indentation_i = indentation_level(line)
+                for j, line in enumerate(important_lines[(i + 1):]):
+                    indentation_j = indentation_level(line)
+                    if (indentation_i == indentation_j
+                        and (   line.lstrip().startswith('else:')
+                             or line.lstrip().startswith('elif ')
+                             )
+                        ):
+                        linenr_to_skip.add(i + 1 + j)                        
+                    else:
+                        break
+            elif line.lstrip().startswith('try:'):
+                linenr_to_skip.add(i)
+                indentation_i = indentation_level(line)
+                for j, line in enumerate(important_lines[(i + 1):]):
+                    indentation_j = indentation_level(line)
+                    if (indentation_i == indentation_j
+                        and (   line.lstrip().startswith('except:')
+                             or line.lstrip().startswith('except ')
+                             or line.lstrip().startswith('else:')
+                             )
+                        ):
+                        linenr_to_skip.add(i + 1 + j)
+                    else:
+                        break
+            elif line.lstrip().startswith('for ') or line.lstrip().startswith('while '):
+                linenr_to_skip.add(i)
+                indentation_i = indentation_level(line)
+                for j, line in enumerate(important_lines[(i + 1):]):
+                    indentation_j = indentation_level(line)
+                    if (indentation_i == indentation_j
+                        and line.lstrip().startswith('else:')
+                        ):
+                        linenr_to_skip.add(i + 1 + j)
+                    else:
+                        break
+        filtered_lines = []
+        for i, line in enumerate(important_lines):
+            if i not in linenr_to_skip:
+                filtered_lines.append(line)
+        indentation_start = indentation_level(lines[ 0])
+        indentation_end   = indentation_level(lines[-1])
+        for line in filtered_lines[1:-1]:
+            indentation = indentation_level(line)
+            if (indentation < indentation_start and indentation < indentation_end
+                and (   line.lstrip().startswith('except:')
+                     or line.lstrip().startswith('except ')
+                     or line.lstrip().startswith('else:')
+                     or line.lstrip().startswith('elif ')
+                     )
+                ):
+                # Barrier located
+                return False
+        return True
     for blackboard_bold_symbol, ctype in sets.items():
         # Find constant expressions using the
         # ℝ[expression] or ℤ[expression] syntax.
@@ -733,7 +895,7 @@ def constant_expressions(lines):
                     if R_statement.count('[') == R_statement.count(']'):
                         break
                 expression = R_statement[2:-1].strip()
-                # Integer literals to double literals when dividing
+                # Integer literals to float literals when dividing
                 if ctype == 'double':
                     # Integer in numerator
                     expression = re.sub('[0-9]+\.?[0-9]*/[^/]',
@@ -750,6 +912,13 @@ def constant_expressions(lines):
                                                                   else denominator.group() + '.0'),
                                         expression)
                 no_blackboard_bold_symbol = False
+                # If optimizations are disabled, simply remove the
+                # blackboard bold symbol and insert the updated
+                # expression with float literals.
+                if no_optimization:
+                    lines[i] = '{}\n'.format(line.replace(R_statement, '({})'.format(expression)))
+                    continue
+                # Do the optimization
                 expressions.append(expression)
                 expression_cython = blackboard_bold_symbol + '_' + expression.replace(' ', '')
                 for op, op_name in operators.items():
@@ -766,10 +935,17 @@ def constant_expressions(lines):
                     # (attributes are handled afterwards).
                     if op != '.':
                         variables = list(itertools.chain(*[var.split(op) for var in variables]))
+                # When a variable is really an instance attribute,
+                # only the instance itself is considered a variable.
+                # The 'attributes' dict will map any such instance
+                # variable to its attributes used.
+                attributes = {}
                 for v, var in enumerate(variables):
                     # Variable attributes are not consideres variables
                     if '.' in var:
-                        variables[v] = var[:var.index('.')]
+                        dot_index = var.index('.')
+                        variables[v] = var[:dot_index]
+                        attributes[variables[v]] = var[(dot_index + 1):]
                 variables = [var for var in list(set(variables))
                              if var and var[0] not in '.0123456789']
                 linenr_where_defined = [-1]*len(variables)
@@ -780,7 +956,18 @@ def constant_expressions(lines):
                     for v, var in enumerate(variables):
                         if linenr_where_defined[v] != -1:
                             continue
+                        in_docstring = {'"""': False, "'''": False}
                         for j, line2 in enumerate(reversed(lines[:end])):
+                            # Skip doc strings
+                            for triple_quote in ('"""', "'''"):
+                                if line2.lstrip().startswith(triple_quote):
+                                    in_docstring[triple_quote] = not in_docstring[triple_quote]
+                                    if line2.rstrip().endswith(triple_quote) and len(line2.strip()) > 5:
+                                        in_docstring[triple_quote] = not in_docstring[triple_quote]
+                                elif line2.rstrip().endswith(triple_quote):
+                                    in_docstring[triple_quote] = not in_docstring[triple_quote]
+                            if in_docstring['"""'] or  in_docstring["'''"]:
+                                continue
                             line2 = line2.rstrip('\n')
                             line2_ori = line2
                             line2 = (' '*(len(line2) - len(line2.lstrip()))
@@ -791,7 +978,8 @@ def constant_expressions(lines):
                                 linenr_where_defined[v] = end - 1 - j
                                 break
                             else:
-                                if variable_changed(var, line2_ori):
+                                if (    variable_changed(var, line2_ori)
+                                    and affectable(lines[(end - j - 1):(i + 1)])):
                                     # var declaration found
                                     linenr_where_defined[v] = end - 1 - j
                                     # Continue searching for var in previous lines
@@ -807,11 +995,13 @@ def constant_expressions(lines):
                                             and not line3_ori.lstrip().startswith('elif ')
                                             and not line3_ori.lstrip().startswith('else:')
                                             and not line3_ori.lstrip().startswith('except:')
+                                            and not line3_ori.lstrip().startswith('except ')
                                             ):
                                             # Upper level of function reached.
                                             # Definitions above this point does not matter.
                                             break
-                                        if variable_changed(var, line3_ori):
+                                        if (    variable_changed(var, line3_ori)
+                                            and affectable(lines[(linenr_where_defined[v] - k - 1):(i + 1)])):
                                             # Additional var declaration found
                                             linenr_where_defined_first = linenr_where_defined[v] - 1 - k
                                     # Locate "barriers" between linenr_where_defined and linenr_where_defined_first.
@@ -824,7 +1014,6 @@ def constant_expressions(lines):
                                     # indentation level equal to that of the barrier with the smallest
                                     # indentation level.
                                     if linenr_where_defined_first != -1:
-                                        #print(var, flush=True)
                                         indentationlvl_where_defined = indentation_level(lines[linenr_where_defined[v]])
                                         indentationlvl_barrier = indentationlvl_where_defined
                                         for line3 in lines[(linenr_where_defined_first + 1):linenr_where_defined[v]]:
@@ -1036,7 +1225,7 @@ def cython_decorators(lines):
                                 if c == ',' and lonely:
                                     header[j] = header[j][:k] + ' ' + header[j][(k + 1):] 
                                 if c in (',', '('):
-                                    lonely == True
+                                    lonely = True
                                 elif c != ' ':
                                     lonely = False
                         break
@@ -1069,13 +1258,14 @@ def cython_decorators(lines):
                               (('ccall' if headertype == 'pheader' else 'cfunc')
                                if all(' ' + pyfunc + '(' not in def_line
                                       for pyfunc in pyfuncs) else '',
-                              'inline' if (all(' ' + pyfunc + '(' not in def_line
-                                              for pyfunc in pyfuncs)
+                              'inline' if (not no_optimization
+                                           and all(' ' + pyfunc + '(' not in def_line
+                                                   for pyfunc in pyfuncs)
                                            and (not inside_class or headertype != 'pheader')
                                            ) else '',
-                              'boundscheck(False)',
+                              'boundscheck({})'.format(no_optimization),
                               'cdivision(True)',
-                              'initializedcheck(False)',
+                              'initializedcheck({})'.format(no_optimization),
                               'wraparound(False)',
                                ) if decorator
                               ]
@@ -1092,6 +1282,9 @@ def cython_decorators(lines):
 
 
 def power2product(lines):
+    # Do not do anything if optimizations are disabled
+    if no_optimization:
+        return lines
     keywords = ('assert',
                 'elif',
                 'except',
@@ -1338,39 +1531,6 @@ def C_casting(lines):
             line = line[:match.end() - 5] + '(<{}>({}))'.format(ctype, expression) + line[(end + 1):]
         new_lines.append(line)
     return new_lines
-
-    # new_lines = []
-    # # Transform to Cython syntax
-    # for line in lines:
-    #     while re.search('(^| )cast\(', line):
-    #         match = re.search('(^| )cast\(', line)
-    #         start = match.start()
-    #         if line[start] == ' ':
-    #             start += 1
-    #         paren = 1
-    #         in_quotes = [False, False]
-    #         for i in range(start + 5, len(line)):
-    #             symbol = line[i]
-    #             if symbol == "'":
-    #                 in_quotes[0] = not in_quotes[0]
-    #             if symbol == '"':
-    #                 in_quotes[1] = not in_quotes[1]
-    #             if symbol == '(':
-    #                 paren += 1
-    #             elif symbol == ')':
-    #                 paren -= 1
-    #             if paren == 0:
-    #                 break
-    #             if symbol == ',' and not in_quotes[0] and not in_quotes[1]:
-    #                 comma_index = i
-    #         cast_to = ('<' + line[(comma_index + 1):i]
-    #                    .replace("'", '').replace('"', '').strip() + '>')
-    #         obj_to_cast = ('(' + line[(start + 5):comma_index]
-    #                        + ')')
-    #         line = (line[:line.find('cast(')] + '(' + cast_to + obj_to_cast + ')'
-    #                 + line[(i + 1):])
-    #     new_lines.append(line)
-    # return new_lines
 
 
 
@@ -1859,8 +2019,17 @@ def make_pxd(filename):
 # Interpret input argument
 filename = sys.argv[1]
 filename_commons = sys.argv[2]
+no_optimization = False
 if len(sys.argv) > 3:
-    filename_types = sys.argv[3]
+    if sys.argv[3] == '--no-optimization':
+        no_optimization = True
+    else:
+        filename_types = sys.argv[3]
+        if not filename_types.endswith('.pyx'):
+            raise Exception('Got "{}" as the third argument, which should be either a .pyx file '
+                            'or the "--no-optimization" flag'
+                            .format(filename_types)
+                            )
 if len(sys.argv) > 4:
     all_pyxfiles = sys.argv[4:]
 # Import the non-compiled commons module
