@@ -269,7 +269,7 @@ def apply_gravity_potential(component, ᔑdt, gradφ_dim, dim):
             # convert it to momentum units and subtract it from the
             # momentum of particle i (subtraction because the force is
             # the negative gradient of the potential).
-            # The  factor with which to multiply gradφ_dim by to get
+            # The factor with which to multiply gradφ_dim by to get
             # momentum updates is -mass*Δt, where Δt = ᔑdt['1'].
             mom_dim[i] -= ℝ[component.mass*ᔑdt['1']]*CIC_scalargrid2coordinates(gradφ_dim, x, y, z)
     elif component.representation == 'fluid':

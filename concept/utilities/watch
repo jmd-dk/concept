@@ -176,13 +176,31 @@ update_job_info()
     done <<< "${qstat_info}"
 }
 
+# Function for printing out an entire log file,
+# though with the middle part removed for large logs.
+display()
+{
+    filename="${1}"
+    nlines=$(wc -l "${filename}" | awk '{print $1}')
+    max_nlines_to_display=200
+    if [ ${nlines} -gt ${max_nlines_to_display} ]; then
+        ((nlines_to_display_half = max_nlines_to_display/2))
+        head -n ${nlines_to_display_half} "${filename}"
+        printf "\n.\n.\n.\n\n"
+        tail -n ${nlines_to_display_half} "${filename}"
+    else
+        cat "${filename}"
+    fi
+}
+
 # If the jobid was not given as an argument, find the CO𝘕CEPT job
 # which were submitted last. If an argument (the jobid) is given,
 # find information about the job.
 if [ "${jobid}" == "__none__" ]; then
     # Aquire information about all submitted jobs
     qstat_info="$(qstat)"
-    # Find all jobs submitted by the user. Keep only the latest one
+    # Find all jobs submitted by the user.
+    # Keep only the latest, running job.
     Njobs=0
     while read -r line; do
         username="$(echo "${line}" | awk '{print $3}')"
@@ -192,22 +210,28 @@ if [ "${jobid}" == "__none__" ]; then
             if [[ "${jobname}" == *"CONCEPT"* ]]; then
                 # CO𝘕CEPT job submitted by the user found
                 ((Njobs += 1))
-                jobid="$(echo "${line}" | awk '{print $1}')"
-                state="$(echo "${line}" | awk '{print $5}')"
-                queue="$(echo "${line}" | awk '{print $6}')"
+                jobid_i="$(echo "${line}" | awk '{print $1}')"
+                state_i="$(echo "${line}" | awk '{print $5}')"
+                queue_i="$(echo "${line}" | awk '{print $6}')"
+                if [ ${Njobs} == 1 ] || [ "${state_i}" == "R" ]; then
+                    jobid="${jobid_i}"
+                    state="${state_i}"
+                    queue="${queue_i}"
+                fi
             fi
         fi
     done <<< "${qstat_info}"
+    # Remove possible suffix on jobid
+    jobid="${jobid%.*}"
+    # Print out message for Njobs != 1
     if [ ${Njobs} == 0 ]; then
         colorprint "Error: You currently have no CO𝘕CEPT jobs submitted" "red"
         exit 1
     elif [ ${Njobs} -gt 1 ]; then
         printf "You currently have ${Njobs} CO𝘕CEPT jobs submitted.\n"
-        printf "The latest will be watched\n"
+        printf "The latest job that is still running (${jobid}) will be watched.\n"
         sleep 1
     fi
-    # Remove possible suffix on jobid
-    jobid="${jobid%.*}"
 else
     jobid="$1"
     # Remove possible suffix on jobid
@@ -216,7 +240,7 @@ else
     if [ "${state}" == "None" ]; then
         # Job not in progress
         if [ -f "${logs_dir}/${jobid}" ]; then
-            cat "${logs_dir}/${jobid}"
+            display "${logs_dir}/${jobid}"
             trap : 0
             exit 0
         else
@@ -237,7 +261,7 @@ inform_on_new_state()
             "H"    ) echo "Job ${jobid} is held";;
             "Q"    ) echo "Job ${jobid} is queued in ${queue}";;
             "R"    ) echo "Job ${jobid} is running in queue ${queue}";;
-            "T"    ) echo "Job ${jobid} is being moved to new location";;
+            "T"    ) echo "Job ${jobid} is being moved to a new location";;
             "W"    ) echo "Job ${jobid} is waiting for its executing time to be reached";;
             "S"    ) echo "Job ${jobid} is suspend";;
             "None" ) echo "Job ${jobid} has finished running";;
@@ -257,7 +281,7 @@ check_suddenly_finished()
     # If the job is already finished, printout the entire log and exit
     if [ "${state}" == "C" ] || [ "${state}" == "None" ]; then
         if [ -f "${logs_dir}/${jobid}" ]; then
-            cat "${logs_dir}/${jobid}"
+            display "${logs_dir}/${jobid}"
         else
             echo "Job ${jobid} has finished running, but no logfile is to be found. Curious ..."
         fi
@@ -273,6 +297,7 @@ sleep_much=300
 
 # Print initial state of job
 inform_on_new_state
+sleep 1
 
 # Wait until job is running
 if [ "${state}" != "R" ]; then
@@ -310,7 +335,7 @@ done
 
 # Logfile created. Continuously print out its tail until end of job
 echo
-cat "${logs_dir}/${jobid}"
+display "${logs_dir}/${jobid}"
 tail -n 0 --follow --sleep-interval=${sleep_little} "${logs_dir}/${jobid}" &
 tail_pid=$!
 update_job_info

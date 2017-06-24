@@ -273,7 +273,8 @@ interactive_default="False"
 local_default="False"
 main_default="${concept_dir}/main.py"
 memory_default=0
-nowatch_default="False"
+no_watch_default="False"
+no_optimization_default="False"
 nprocs_default=1
 params_default="None"
 pure_python_default="False"
@@ -409,9 +410,14 @@ parser.add_argument('--local',
                     default=${local_default},
                     action='store_true',
                     )
-parser.add_argument('--nowatch',
+parser.add_argument('--no-optimization',
+                    help='disable compiler optimizations',
+                    default=${no_optimization_default},
+                    action='store_true',
+                    )
+parser.add_argument('--no-watch',
                     help='do not follow the submitted job via the watch utility',
-                    default=${nowatch_default},
+                    default=${no_watch_default},
                     action='store_true',
                     )
 parser.add_argument('--pure-python',
@@ -456,7 +462,8 @@ print(  '  argparse_finished=yes'
       + '; util_args=({})'.format(\"'\" + \"' '\".join(util_args) + \"'\")  # Bash array
       + '; walltime={}'.format(args.walltime)
       + '; local={}'.format(args.local)
-      + '; nowatch={}'.format(args.nowatch)
+      + '; no_optimization={}'.format(args.no_optimization)
+      + '; no_watch={}'.format(args.no_watch)
       + '; pure_python={}'.format(args.pure_python)
       + '; unsafe_build={}'.format(args.unsafe_build)
       )
@@ -467,6 +474,12 @@ eval "${args}"
 if [ "${argparse_finished}" != "yes" ]; then
     trap : 0
     exit 0
+fi
+
+# Display warning if the required memory is below one megabyte
+if [ ${memory} -gt 0 ] && [ ${memory} -lt 1048576 ]; then
+    colorprint "Warning: The required memory is below 1 MB. \
+Have you forgotten to specify the unit?" "red"
 fi
 
 # Check whether the main "file" is really a string of commands
@@ -702,12 +715,16 @@ if [ "${prepare_files}" == "True" ]; then
                                     done
              )
         fi
-        # Compile all the modules. If working locally, do it in parallel.
-        if [ "${ssh}" == "True" ]; then
-            (cd "${concept_dir}" && make unsafe_build=${unsafe_build})
-        else
-            (cd "${concept_dir}" && make unsafe_build=${unsafe_build} -j)
+        # Compile all the modules.
+        # If working locally, do it in parallel.
+        make_jobs="-j"
+        if [ "${ssh}" == "True" ] || [ "${no_optimization}" == "True" ]; then
+            make_jobs=""
         fi
+        (cd "${concept_dir}" && make unsafe_build="${unsafe_build}"       \
+                                     no_optimization="${no_optimization}" \
+                                     ${make_jobs}
+                                     )
     fi
 fi
 
@@ -729,9 +746,13 @@ if [ "${util}" != "${util_unspecified}" ]; then
     if [ "${interactive}" == "True" ]; then
         interactive_flag="--interactive"
     fi
-    nowatch_flag=""
-    if [ "${nowatch}" == "True" ]; then
-        nowatch_flag="--nowatch"
+    no_optimization_flag=""
+    if [ "${no_optimization}" == "True" ]; then
+        no_optimization_flag="--no-optimization"
+    fi
+    no_watch_flag=""
+    if [ "${no_watch}" == "True" ]; then
+        no_watch_flag="--no-watch"
     fi
     pure_python_flag=""
     if [ "${pure_python}" == "True" ]; then
@@ -899,6 +920,8 @@ memory_display=\"${memory_display}\"
 mpiexec_args=\"${mpiexec_args}\"
 nnodes=${nnodes}
 nprocs=${nprocs}
+params=\"${params}\"
+params_cp=\"${params_cp}\"
 params_cp_info=\"${params_cp_info}\"
 params_rel=\"${params_rel}\"
 pure_python=\"${pure_python}\"
@@ -1022,13 +1045,12 @@ located. Is Torque installed and on the PATH?" "red"
     echo "Job ${jobid} (parameterfile \"${params_rel}\") submitted to queue ${queue}"
     # Deactivate traps before exiting
     trap : 0
-    if [ "${nowatch}" == "False" ]; then
-        echo "You can now kill (Ctrl-C) this script without cancelling the job"
-    fi
-    sleep 1
     # Invoke the watch utility on the submitted job
-    # unless --nowatch was supplied.
-    if [ "${nowatch}" == "False" ]; then
+    # unless --no-watch was supplied.
+    if [ "${no_watch}" == "False" ]; then
+        # Invoke the watch utility on the submitted job
+        echo "You can now kill (Ctrl-C) this script without cancelling the job"
+        sleep 1
         "${concept}" --util watch "${jobid}"
     fi
     exit 0

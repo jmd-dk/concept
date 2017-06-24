@@ -23,6 +23,9 @@
 # This is the makefile for the CO𝘕CEPT code. Preferebly you should not
 # interact with this file directly, but rather use the concept script to
 # build and run the code.
+# This makefile accepts the optional options
+# 'unsafe_build' and 'no_optimization', both of which may be either
+# 'True' or 'False'. If not given, a value of 'False' will be used. 
 
 # Use the bash shell
 SHELL = /usr/bin/env bash
@@ -149,23 +152,38 @@ unwanted_warnings = unused-but-set-variable \
                     uninitialized
 python_cflags = $(filter-out $(addprefix -W,$(unwanted_warnings)), \
                              $(shell $(python_config) --cflags))
-other_cflags = -O3                  \
-               -pthread             \
+other_cflags = -pthread             \
                -std=c99             \
                -fno-strict-aliasing \
                -fPIC                \
                -Wall                \
                -Wextra              \
                $(addprefix -Wno-,$(unwanted_warnings))
+# General optimization options
+ifneq ($(no_optimization),True)
+    other_cflags += -O3
+else
+    python_cflags_tmp := $(python_cflags)
+    python_cflags = $(filter-out -O3, $(python_cflags_tmp))
+endif
+# Options specific to the compiler version
 ifeq ($(CC_version),gcc)
-	# Fast floating point operations
-	other_cflags += -ffast-math
+    # Optimization options
+    ifneq ($(no_optimization),True)
+        # Fast floating point operations
+        other_cflags += -ffast-math
+    endif
 endif
 ifeq ($(CC_version),icc)
-	# Fast floating point operations
-	other_cflags += -fp-model fast=2
-    # Increase amount of inlining
-    other_cflags += -inline-factor=200 -wd11074 -wd11076
+    # Optimization options
+    ifneq ($(no_optimization),True)
+        # Fast floating point operations
+        other_cflags += -fp-model fast=2
+        # Increase amount of inlining
+        other_cflags += -inline-factor=200
+    endif
+    # Disable warning about not inlining everything
+    other_cflags += -wd11074 -wd11076
     # Remove unrecognized flags
     python_cflags_tmp := $(python_cflags)
     python_cflags = $(filter-out -Wno-unused-result, $(python_cflags_tmp))
@@ -178,24 +196,26 @@ CFLAGS            = $(call uniq, $(foreach flag, $(python_cflags)               
                                    )                                             \
                       )
 # Libraries to link
-fftw_libs     = -L$(fftw_dir)/lib -Wl,-rpath=$(fftw_dir)/lib -lfftw3_mpi -lfftw3
-gsl_libs      = -L$(gsl_dir)/lib -Wl,-rpath=$(gsl_dir)/lib -lgsl -lgslcblas -lm
-mpi_libs      = -L$(mpi_dir)/lib -Wl,-rpath=$(mpi_dir)/lib -lmpi
-python_libdir = $(shell $(python) -c "import sysconfig;                          \
-                                      print(sysconfig.get_config_var('LIBDIR')); \
-                                      "                                          \
-                  )
-python_libs   = -L$(python_libdir) -Wl,-rpath=$(python_libdir) $(shell $(python_config) --libs)
-other_libs    = -Wl,-O3
-LDLIBS        = $(call uniq, $(foreach flag, $(fftw_libs)                     \
-                                             $(gsl_libs)                      \
-                                             $(mpi_libs)                      \
-                                             $(python_libs)                   \
-                                             $(other_libs)                    \
-                                             ,                                \
-                                              $(call sensible_path,'$(flag)') \
-                               )                                              \
-                  )
+fftw_libs      = -L$(fftw_dir)/lib -Wl,-rpath=$(fftw_dir)/lib -lfftw3_mpi -lfftw3
+gsl_libs       = -L$(gsl_dir)/lib -Wl,-rpath=$(gsl_dir)/lib -lgsl -lgslcblas -lm
+mpi_libs       = -L$(mpi_dir)/lib -Wl,-rpath=$(mpi_dir)/lib -lmpi
+python_libdir  = $(shell $(python) -c "import sysconfig;                          \
+                                       print(sysconfig.get_config_var('LIBDIR')); \
+                                       "                                          \
+                   )
+python_libs    = -L$(python_libdir) -Wl,-rpath=$(python_libdir) $(shell $(python_config) --libs)
+ifneq ($(no_optimization),True)
+    other_libs = -Wl,-O3
+endif
+LDLIBS         = $(call uniq, $(foreach flag, $(fftw_libs)                     \
+                                              $(gsl_libs)                      \
+                                              $(mpi_libs)                      \
+                                              $(python_libs)                   \
+                                              $(other_libs)                    \
+                                              ,                                \
+                                               $(call sensible_path,'$(flag)') \
+                                )                                              \
+                   )
 # Linker options
 python_ldflags = $(shell $(python_config) --ldflags)
 other_ldflags  = -shared
@@ -235,8 +255,8 @@ endef
 # rule is run. This makes .c (and therefore .o and .so) files
 # dependent on such .pxd files not up-to-date). The types file is also
 # only updated when its content actually changes.
-all: $(addsuffix .so, $(pyfiles))
 ifeq ($(MAKELEVEL),0)
+all: $(addsuffix .so, $(pyfiles))
 	@$(MAKE) -s -t $@
 endif
 .PHONY: all
@@ -274,7 +294,11 @@ $(types): $(addsuffix .pyx, $(pyfiles))
 # Write .pyx files from .py files using the pyxpp script
 $(addsuffix .pyx, $(pyfiles)): %.pyx: %.py
 	@$(call heading)
+ifneq ($(no_optimization),True)
 	$(python) -B $(pyxpp) $< $(commons)
+else
+	$(python) -B $(pyxpp) $< $(commons) --no-optimization
+endif
 
 
 
@@ -284,21 +308,21 @@ $(addsuffix .pyx, $(pyfiles)): %.pyx: %.py
 # Target dependencies which strictly speaking should be
 # taken into account, but can be ignored using the --unsafe-build flag.
 ifneq ($(unsafe_build),True)
-# Because modules cimport stuff from each other, some .c (and therefore
-# also .html) files depend on the .pxd files of other modules.
-# Unless unsafe_build is explicitly set to False,
-# we let all .c and .html files depend on all .pxd files.
-$(foreach ext,c html,$(addsuffix .$(ext), $(pyfiles))): $(addsuffix .pxd, $(pyfiles))
-# Every module cimport everything from the commons module.
-# The commons module is also needed when building the types file.
-$(foreach ext,pyx pxd,$(addsuffix .$(ext), $(pyfiles))): $(commons)
-$(types): $(commons)
-# The pyxpp script is used to create .pyx files,
-# .pxd files and the types file.
-$(foreach ext,pyx pxd,$(addsuffix .$(ext), $(pyfiles))): $(pyxpp)
-$(types): $(pyxpp)
-# Let the bottom of the build chain depend on this makefile itself
-$(addsuffix .pyx, $(pyfiles)): $(MAKEFILE_LIST)
+    # Because modules cimport stuff from each other, some .c (and therefore
+    # also .html) files depend on the .pxd files of other modules.
+    # Unless unsafe_build is explicitly set to False,
+    # we let all .c and .html files depend on all .pxd files.
+    $(foreach ext,c html,$(addsuffix .$(ext), $(pyfiles))): $(addsuffix .pxd, $(pyfiles))
+    # Every module cimport everything from the commons module.
+    # The commons module is also needed when building the types file.
+    $(foreach ext,pyx pxd,$(addsuffix .$(ext), $(pyfiles))): $(commons)
+    $(types): $(commons)
+    # The pyxpp script is used to create .pyx files,
+    # .pxd files and the types file.
+    $(foreach ext,pyx pxd,$(addsuffix .$(ext), $(pyfiles))): $(pyxpp)
+    $(types): $(pyxpp)
+    # Let the bottom of the build chain depend on this makefile itself
+    $(addsuffix .pyx, $(pyfiles)): $(MAKEFILE_LIST)
 endif
 # Additional target dependencies
 $(foreach ext,c html,$(addsuffix .$(ext), mesh)): fft.c

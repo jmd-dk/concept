@@ -686,11 +686,11 @@ class Gadget2Snapshot:
                         f.write(struct.pack('I', 8))
                         f.write(struct.pack('I', 3*N*4))
                     # The data
-                    (asarray(np.vstack((component.posx_mv[:N_local],
-                                        component.posy_mv[:N_local],
-                                        component.posz_mv[:N_local])
-                                       ).T.flatten(),
-                             dtype=C2np['float'])/unit).tofile(f)
+                    (np.mod(asarray(np.vstack((component.posx_mv[:N_local],
+                                               component.posy_mv[:N_local],
+                                               component.posz_mv[:N_local])
+                                              ).T.flatten(),
+                                    dtype=C2np['float'])/unit, boxsize/unit)).tofile(f)
                     # The closing int
                     if i == nprocs - 1:
                         f.write(struct.pack('I', 3*N*4))
@@ -1054,14 +1054,14 @@ def load(filename, compare_params=True,
                    only_components=False,
                    do_exchange=True,
                    as_if=''):
-    """When only_params == False and only_components == False,
+    """When only_params is False and only_components is False,
     the return type is simply a snapshot object containing all the
     data in the snapshot on disk.
-    When only_components == True, a list of components within
+    When only_components is True, a list of components within
     the snapshot will be returned.
-    When only_params == True, a snapshot object will be returned,
+    When only_params is True, a snapshot object will be returned,
     containing both parameters (.params) and components (.components),
-    just as when only_params == False. These components will have
+    just as when only_params is False. These components will have
     correctly specified attributes, but no actual component data.
     """
     # If no snapshot should be loaded, return immediately

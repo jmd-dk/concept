@@ -181,6 +181,7 @@ if [ "${stats}" == "False" ]; then
                  -p "${params_filename}" \
                  ${interactive_flag}     \
                  --local                 \
+                 ${no_optimization_flag} \
                  ${pure_python_flag}     \
                  ${unsafe_build_flag}
 elif [ "${stats}" == "True" ]; then
@@ -191,6 +192,8 @@ elif [ "${stats}" == "True" ]; then
                  -w "${walltime}"        \
                  ${interactive_flag}     \
                  ${local_flag}           \
+                 ${no_optimization_flag} \
+                 ${no_watch_flag}        \
                  ${pure_python_flag}     \
                  ${unsafe_build_flag}
 fi

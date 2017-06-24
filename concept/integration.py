@@ -575,7 +575,7 @@ def scalefactor_integral(key):
 
 # Function which sets the value of universals.a and universals.t
 # based on the user parameters a_begin and t_begin together with the
-# cosmology if enable_Hubble == True. The functions t(a), a(t) and H(a)
+# cosmology if enable_Hubble is True. The functions t(a), a(t) and H(a)
 # will also be tabulated and stored in the module namespace in the
 # form of spline_a_t, spline_t_a and spline_a_H.
 @cython.pheader(# Locals
@@ -619,7 +619,7 @@ def initiate_time():
             # a_begin specified
             if 't_begin' in user_params:
                 # t_begin also specified
-                masterwarn('Ignoring t_begin = {}*{} becuase enable_Hubble == True '
+                masterwarn('Ignoring t_begin = {}*{} becuase enable_Hubble is True '
                            'and a_begin is specified'.format(t_begin, unit_time))
             a_begin_correct = a_begin
             t_begin_correct = cosmic_time(a_begin_correct)
@@ -629,9 +629,9 @@ def initiate_time():
             a_begin_correct = scale_factor(t_begin_correct)
         else:
             # Neither a_begin nor t_begin is specified.
-            # One or the other is needed when enable_Hubble == True.
+            # One or the other is needed when enable_Hubble is True.
             abort('No initial scale factor (a_begin) or initial cosmic time (t_begin) specified. '
-                  'A specification of one or the other is needed when enable_Hubble == True.')
+                  'A specification of one or the other is needed when enable_Hubble is True.')
     else:
         # Hubble expansion disabled
         t_begin_correct = t_begin
@@ -640,7 +640,7 @@ def initiate_time():
         # effectively ignoring its existence.
         a_begin_correct = 1
         if 'a_begin' in user_params:
-            masterwarn('Ignoring a_begin = {} because enable_Hubble == False'.format(a_begin))
+            masterwarn('Ignoring a_begin = {} because enable_Hubble is False'.format(a_begin))
     # Now t_begin_correct and a_begin_correct are defined and store
     # the actual values of the initial time and scale factor.
     # Assign these correct values to the corresponding

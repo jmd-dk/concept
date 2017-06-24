@@ -1881,7 +1881,7 @@ def diff_domain(grid, dim, h=1, buffer_or_buffer_name=0,
                     else:
                         buffer[i, j, k] += value
     # If the buffer contains ghost points, these have not themselves
-    # been replaced with differentiated valued. Now populate these
+    # been replaced with differentiated values. Now populate these
     # ghost points with copies of their corresponding actual points.
     if not noghosts:
         communicate_domain(buffer, mode='populate')

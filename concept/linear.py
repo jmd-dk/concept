@@ -387,7 +387,7 @@ def compute_transfers(component, variables, k_min, k_max, k_gridsize=-1, a=-1, g
                 if gauge in ('synchronous', 'nbody'):
                     transfer_θ = zeros(transfer_δ.shape[0], dtype=C2np['double'])
                 else:
-                    transfer_θ = class_transfers['t_cdm']*units.Mpc**(-1)
+                    transfer_θ = class_transfers['t_cdm']*(light_speed/units.Mpc)
             elif species_class == 'cdm+b':
                 # Construct total matter (combined cold dark matter
                 # and baryons) transfer functions.
@@ -403,14 +403,16 @@ def compute_transfers(component, variables, k_min, k_max, k_gridsize=-1, a=-1, g
                 # and so this affects N-body gauge as well.
                 if gauge in ('synchronous', 'nbody'):
                     transfer_θ = (  ρ_cdmbar_a/ρ_mbar_a*0
-                                  + ρ_bbar_a  /ρ_mbar_a*class_transfers['t_b'])*units.Mpc**(-1)
+                                  + ρ_bbar_a  /ρ_mbar_a*class_transfers['t_b']
+                                  )*(light_speed/units.Mpc)
                 else:
                     transfer_θ = (  ρ_cdmbar_a/ρ_mbar_a*class_transfers['t_cdm']
-                                  + ρ_bbar_a  /ρ_mbar_a*class_transfers['t_b'  ])*units.Mpc**(-1)
+                                  + ρ_bbar_a  /ρ_mbar_a*class_transfers['t_b'  ]
+                                  )*(light_speed/units.Mpc)
             else:
                 transfer_δ = class_transfers[f'd_{species_class}'] 
-                transfer_θ = class_transfers[f't_{species_class}']*units.Mpc**(-1)                
-            transfer_θ_tot = class_transfers['t_tot']*units.Mpc**(-1)
+                transfer_θ = class_transfers[f't_{species_class}']*(light_speed/units.Mpc)               
+            transfer_θ_tot = class_transfers['t_tot']*(light_speed/units.Mpc)
         if 2 in var_indices:
             # For σ we use the perturbations computed by CLASS
             class_perturbations = cosmoresults.perturbations
@@ -421,7 +423,7 @@ def compute_transfers(component, variables, k_min, k_max, k_gridsize=-1, a=-1, g
                 # Transform the δ transfer function to N-body gauge
                 if gauge == 'nbody':
                     for k in range(k_gridsize_class):
-                        transfer_δ[k] += (ℝ[3*a*H/light_speed*(1 + w)]
+                        transfer_δ[k] += (ℝ[3*a*H/light_speed**2*(1 + w)]
                                           *transfer_θ_tot[k]/k_magnitudes_class[k]**2)
                 # Done with this transfer function
                 transfers.append(transfer_δ)
@@ -431,8 +433,8 @@ def compute_transfers(component, variables, k_min, k_max, k_gridsize=-1, a=-1, g
                     # Get the conformal time derivative
                     # of the metric perturbation.
                     hʹ = class_transfers['h_prime']*(light_speed/units.Mpc)
-                    # To to this we need (a*H*T_θ) = (ȧ*T_θ)
-                    # differentiated with respect to the conformal time
+                    # To do this we need (a*H*T_θ) = (ȧ*T_θ)
+                    # differentiated with respect to conformal time
                     # (with T_θ the total θ transfer function) τ.
                     # We have ʹ = d/dτ = a*d/dt = a²H*d/da.
                     da = 1e-6*a  # Arbitrary but small scale factor step
@@ -445,14 +447,13 @@ def compute_transfers(component, variables, k_min, k_max, k_gridsize=-1, a=-1, g
                     ȧ_minus = a_minus*hubble(a_minus)
                     class_transfers_plus  = cosmoresults.transfers(a_plus)
                     class_transfers_minus = cosmoresults.transfers(a_minus)
-                    ȧ_transfer_θ_totʹ = a**2*H*0.5/da*units.Mpc**(-1)*(
+                    ȧ_transfer_θ_totʹ = a**2*H*0.5/da*(light_speed/units.Mpc)*(
                                               ȧ_plus *class_transfers_plus ['t_tot']
                                             - ȧ_minus*class_transfers_minus['t_tot'])
                     # Now do the gauge transformation
                     for k in range(k_gridsize_class):
-                        transfer_θ[k] += (0.5/light_speed*hʹ[k]
-                                          - ℝ[3/light_speed**2]*ȧ_transfer_θ_totʹ[k]
-                                            /k_magnitudes_class[k]**2)
+                        transfer_θ[k] += (0.5*hʹ[k] - ℝ[3/light_speed**2]*ȧ_transfer_θ_totʹ[k]
+                                                      /k_magnitudes_class[k]**2)
                 # Done with this transfer function
                 transfers.append(transfer_θ)
             elif var_index == 2:
@@ -461,7 +462,7 @@ def compute_transfers(component, variables, k_min, k_max, k_gridsize=-1, a=-1, g
                 for k in range(k_gridsize):
                     perturbation = class_perturbations[k]
                     a_values = perturbation['a']
-                    transfer_σ_at_k_of_a = light_speed**2*perturbation[f'shear_{species_class}']
+                    transfer_σ_at_k_of_a = ℝ[light_speed**2]*perturbation[f'shear_{species_class}']
                     # Interpolate transfer(a_values) to the
                     # current time. As only this single interpolation is
                     # needed for this set of {a_values, transfer},
@@ -592,7 +593,7 @@ def realize(component, variable, transfer_spline, cosmoresults, specific_multi_i
     # Get the index of the fluid variable to be realized
     # and print out progress message.
     if component.representation == 'particles':
-        # For particles, the Zeldovich approximation is used for
+        # For particles, the Zeldovich approximation is used for the
         # realization. This realizes both positions and momenta.
         # This means that the value of the passed variable argument
         # does not matter. To realize all three components of positions
@@ -689,6 +690,7 @@ def realize(component, variable, transfer_spline, cosmoresults, specific_multi_i
                 kj = j_global - gridsize
             else:
                 kj = j_global
+            k_gridvec[1] = kj
             kj2 = kj**2
             # Loop through the complete i-dimension
             for i in range(gridsize):
@@ -697,46 +699,43 @@ def realize(component, variable, transfer_spline, cosmoresults, specific_multi_i
                     ki = i - gridsize
                 else:
                     ki = i
+                k_gridvec[0] = ki
                 # Loop through the complete, padded k-dimension
                 # in steps of 2 (one complex number at a time).
                 for k in range(0, ℤ[slab.shape[2]], 2):
                     # The k-component of the wave vector (grid units)
                     kk = k//2
+                    k_gridvec[2] = kk
                     # The squared magnitude of the wave vector
                     # (grid units).
                     k2 = ℤ[ki**2 + kj2] + kk**2
-                    # Pack components of k vector (grid units)
-                    k_gridvec[0] = ki
-                    k_gridvec[1] = kj
-                    k_gridvec[2] = kk
-                    # Compute the factor which depend on the wave
-                    # vector. Regardless of the variable to realize,
-                    # at |k| = 0 the power should be zero.
+                    # Compute the factor which depend on the
+                    # wave vector. Regardless of the variable,
+                    # the power should be zero at |k| = 0.
                     with unswitch(3):
-                        if ℤ[len(multi_index)] == 1:
-                            # Vector quantity.
-                            # The needed factor is kᵢ/k².
+                        if fluid_index == 0:
+                            # Scalar quantity (no k_factor)
                             if k2 == 0:
                                 k_factor = 0
                             else:
-                                k_dim0 = k_gridvec[index0]
+                                k_factor = 1
+                        elif ℤ[len(multi_index)] == 1:
+                            # Vector quantity (kᵢ/k²).
+                            k_dim0 = k_gridvec[index0]
+                            if k_dim0 == nyquist or k2 == 0:
+                                k_factor = 0
+                            else:
                                 k_factor = (ℝ[boxsize/(2*π)]*k_dim0)/k2
                         elif ℤ[len(multi_index)] == 2:
-                            # Rank 2 tensor quantity.
-                            # The needed factor is 3/2(δᵢⱼ/3 - kᵢkⱼ/k²).
-                            if k2 == 0:
+                            # Rank 2 tensor quantity (3/2(δᵢⱼ/3 - kᵢkⱼ/k²))
+                            k_dim0 = k_gridvec[index0]
+                            k_dim1 = k_gridvec[index1]
+                            if (ki == nyquist or kj == nyquist or kk == nyquist) or k2 == 0:
                                 k_factor = 0
-                            else:
-                                k_dim0 = k_gridvec[index0]
-                                k_dim1 = k_gridvec[index1]
+                            else:    
                                 k_factor = 0.5*(index0 == index1) - 1.5*k_dim0*k_dim1/k2
-                    # At some grid points, the complex-conjugate
-                    # symmetry requires that the power vanises.
-                    # We fulfill this requirement by letting
-                    # k_factor vanish at these grid points.
-                    if (kk == 0 or kk == nyquist) and (   k_dim0 == nyquist
-                                                       or k_dim1 == nyquist):
-                        k_factor = 0
+                    # The square root of the power at this |k|
+                    sqrt_power = k_factor*sqrt_power_common[k2]
                     # Pointers to the [j, i, k]'th element of the slab
                     # and of the random slab.
                     # The complex number (here shown for the slab) is
@@ -753,28 +752,24 @@ def realize(component, variable, transfer_spline, cosmoresults, specific_multi_i
                     with unswitch(3):
                         if component.representation == 'particles':
                             # Realize the displacement field ψ
-                            sqrt_power = k_factor*sqrt_power_common[k2]
                             slab_jik[0] = -sqrt_power*random_im
                             slab_jik[1] =  sqrt_power*random_re
                         elif component.representation == 'fluid':
                             with unswitch(3):
                                 if fluid_index == 0:
                                     # Realize δ
-                                    sqrt_power = sqrt_power_common[k2]
                                     slab_jik[0] = sqrt_power*random_re
                                     slab_jik[1] = sqrt_power*random_im
                                 elif fluid_index == 1:
                                     # Realize the component of the 
                                     # velocity field u
                                     # given by multi_index.
-                                    sqrt_power = light_speed*k_factor*sqrt_power_common[k2]
                                     slab_jik[0] =  sqrt_power*random_im
                                     slab_jik[1] = -sqrt_power*random_re
                                 elif fluid_index == 2:
                                     # Realize the component of the
                                     # stress tensor σ
                                     # gviven by multi_index.
-                                    sqrt_power = k_factor*sqrt_power_common[k2]
                                     slab_jik[0] = sqrt_power*random_re
                                     slab_jik[1] = sqrt_power*random_im
         # Fourier transform the slabs to coordinate space.
