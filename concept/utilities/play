@@ -203,12 +203,8 @@ done <<< "${content}"
 terminal_render_resolution=$(echo "${lines[start_lines[0]]}" | grep -o " " | wc -l)
 
 # Find cosmic time and scale factor for each frame
-N_cosmic_time_displays=$(echo "${lines}"  | grep "Cosmic time:"  | wc -l)
-N_scale_factor_displays=$(echo "${lines}" | grep "Scale factor:" | wc -l)
 use_scale_factor="no"
-if [ ${N_cosmic_time_displays} == ${N_scale_factor_displays} ]; then
-    use_scale_factor="yes"
-fi
+echo "${content}" | grep "^Scale factor:" >/dev/null && use_scale_factor="yes"
 for ((i = 0; i < N_terminal_renders; i += 1)); do
     for ((j = ${end_lines[i]}; j < ${#lines[@]}; j += 1)); do
         # Find cosmic time
@@ -216,6 +212,11 @@ for ((i = 0; i < N_terminal_renders; i += 1)); do
             cosmic_time="${lines[j]/Cosmic time:/}"
             cosmic_time="${cosmic_time#"${cosmic_time%%[![:space:]]*}"}"
             cosmic_times[i]="Cosmic time: ${cosmic_time}"
+            break
+        elif [[ "${lines[j]}" == "Time:"* ]]; then
+            cosmic_time="${lines[j]/Time:/}"
+            cosmic_time="${cosmic_time#"${cosmic_time%%[![:space:]]*}"}"
+            cosmic_times[i]="Time: ${cosmic_time}"
             break
         fi
     done

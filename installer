@@ -44,14 +44,16 @@
 # - ncurses  (needed by _curses, which is needed by blessings)
 # - Perl     (needed by OpenSSL)
 # - OpenSSL  (needed by pip)
+# - OpenBLAS (needed by SciPy and also used by NumPy)
 # - Python, with the following packages (together with their own Python
 #   package dependencies):
 #     - Blessings
 #     - Cython
 #     - CythonGSL
-#     - Nose (needed by CLASS)
+#     - Nose (needed by CLASS, NumPy and SciPy)
 #     - Nose-parameterized (needed by CLASS)
 #     - NumPy
+#     - SciPy
 #     - Matplotlib
 #     - MPI4Py
 #     - H5Py
@@ -68,7 +70,7 @@
 # gsl library:
 # gsl_dir=/path/to/gsl /path/to/installer
 # The set of such environment variables correspond to the program names
-# above (though using lowercase only), except for openmpi,
+# above (though using lowercase only), except for MPI,
 # which are just mpi_dir.
 #
 # You may specify which MPI implementation to use - either MPICH or
@@ -138,6 +140,7 @@ if [ "${install_explicit_only}" == "yes" ]; then
                     "libpng"             \
                     "mpi"                \
                     "ncurses"            \
+                    "openblas"           \
                     "openssl"            \
                     "perl"               \
                     "python"             \
@@ -150,7 +153,8 @@ if [ "${install_explicit_only}" == "yes" ]; then
                     "mpi4py"             \
                     "nose"               \
                     "nose_parameterized" \
-                    "numpy"; do
+                    "numpy"              \
+                    "scipy"; do
         eval "[ -n \"\${${progname}_install}\" ] || ${progname}_install=\"no\""
     done
 fi
@@ -169,6 +173,7 @@ set_dir "mpi"             "__top_dir__/${mpi}"
 set_dir "perl"            "__top_dir__/perl"
 set_dir "python"          "__top_dir__/python"
 set_dir "ncurses"         "${python_dir}"
+set_dir "openblas"        "__top_dir__/openblas"
 set_dir "openssl"         "${python_dir}"
 set_dir "zlib"            "__top_dir__/zlib"
 log="__top_dir__/install_log"
@@ -189,38 +194,41 @@ set_version()
     fi
 }
 # Specification of software versions.
-# The rightmost column are fallbacks, which will be used if the middle
+# The rightmost column are fallbacks, which will be used if the
 # link to the version given by the middle column is broken.
-# In case of CO𝘕CEPT, the version "newest" should always be used.
-set_version "concept"         "newest"
-set_version "class"           "2.6"
-set_version "fftw"            "3.3.6-pl2" "3.3.5"   # 3.3.6 removed from official site
-set_version "fftw_for_gadget" "2.1.5"     "2.1.5"
-set_version "freetype"        "2.7.1"     "2.6.5"
-set_version "gadget"          "2.0.7"
-set_version "gsl"             "2.3"       "2.2.1"
-set_version "hdf5"            "1.8.18"    "1.8.17"  # Error using 1.10.0-patch1
-set_version "libpng"          "1.6.29"    "1.6.27"
+# In case of CO𝘕CEPT and CLASS, possible versions are the corresponding
+# GitHub branches.
+set_version "concept"            "master"
+set_version "class"              "2.6"
+set_version "fftw"               "3.3.6-pl2" "3.3.5"   # 3.3.6 removed from official site
+set_version "fftw_for_gadget"    "2.1.5"     "2.1.5"   # Do not change
+set_version "freetype"           "2.8"       "2.7.1"
+set_version "gadget"             "2.0.7"
+set_version "gsl"                "2.4"       "2.3"
+set_version "hdf5"               "1.8.19"    "1.8.18"  # Error using 1.10.0-patch1
+set_version "libpng"             "1.6.30"    "1.6.28"
 if [ "${mpi}" == "openmpi" ]; then
-set_version "mpi"             "2.0.1"
+set_version "mpi"                "2.1.1"
 elif [ "${mpi}" == "mpich" ]; then
-set_version "mpi"             "3.2"       "3.2"
+set_version "mpi"                "3.2"       "3.2"
 fi
-set_version "ncurses"         "6.0"       "6.0"
-set_version "openssl"         "1.1.0e"    "1.0.2i"  # Python seems incompatible with OpenSSL 1.1.0c
-set_version "perl"            "5.24.1"
-set_version "python"          "3.6.1"
-set_version "zlib"            "1.2.11"    "1.2.8"
+set_version "ncurses"            "6.0"       "6.0"
+set_version "openblas"           "0.2.20"    "0.2.20"
+set_version "openssl"            "1.1.0f"    "1.1.0e"
+set_version "perl"               "5.26.0"
+set_version "python"             "3.6.2"
+set_version "zlib"               "1.2.11"    "1.2.8"
 # Python packages
 set_version "blessings"          "1.6"
-set_version "cython"             "0.25.2"
+set_version "cython"             "0.26"
 set_version "cythongsl"          "0.2.2"
 set_version "h5py"               "2.7.0"
-set_version "matplotlib"         "2.0.1"
+set_version "matplotlib"         "2.0.2"
 set_version "mpi4py"             "2.0.0"
 set_version "nose"               "1.3.7"
 set_version "nose_parameterized" "0.6.0"
-set_version "numpy"              "1.12.1"
+set_version "numpy"              "1.13.1"
+set_version "scipy"              "0.19.1"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
 # and specific versions of system dependencies.
@@ -310,9 +318,11 @@ status_visible="${status_on}"
 status_finish="finish_successfully"
 
 # Backup of initial environment variables
-env_var_names=(CC               \
+env_var_names=(BLAS             \
+               CC               \
                CFLAGS           \
                CPPFLAGS         \
+               LAPACK           \
                LD_LIBRARY_PATH  \
                LDFLAGS          \
                LIBS             \
@@ -367,10 +377,13 @@ hdf5_test_success="yes"
 libpng_test_success="yes"
 mpi_test_success="yes"
 ncurses_test_success="yes"
+openblas_test_success="yes"
 openssl_test_success="yes"
 perl_test_success="yes"
 python_test_success="yes"
 zlib_test_success="yes"
+numpy_test_success="yes"
+scipy_test_success="yes"
 
 # Read in command line arguments
 if [ -z "${fast_install}" ]; then
@@ -634,6 +647,7 @@ fix_path "FreeType"
 fix_path "zlib"
 fix_path "libpng"
 fix_path "ncurses"
+fix_path "OpenBLAS"
 fix_path "OpenSSL"
 fix_path "Perl"
 fix_path "Python"
@@ -705,6 +719,7 @@ mpi4py_preinstalled="no"
 nose_preinstalled="no"
 nose_parameterized_preinstalled="no"
 numpy_preinstalled="no"
+scipy_preinstalled="no"
 pip_preinstalled="no"
 if [ "${python_preinstalled}" == "yes" ]; then
     python=$(ls -1 "${python_dir}/bin/python"* | head -n 1)
@@ -717,6 +732,7 @@ if [ "${python_preinstalled}" == "yes" ]; then
                      nose               \
                      nose_parameterized \
                      numpy              \
+                     scipy              \
                      pip; do
         pypackage_preinstalled=$("${python}" -c "
 try:
@@ -787,7 +803,8 @@ for pypackage in blessings          \
                  mpi4py             \
                  nose               \
                  nose_parameterized \
-                 numpy; do
+                 numpy              \
+                 scipy; do
     eval "pypackage_install=\"\${${pypackage}_install}\""
     if [ -z "${pypackage_install}" ]; then
         eval "${pypackage}_install=\"no\""
@@ -866,6 +883,15 @@ if [ -z "${ncurses_install}" ]; then
     if [ "${ncurses_preinstalled}" == "no" ] && [ "${python_install}"  == "yes" ] \
                                              && [ "${concept_install}" == "yes" ]; then
         ncurses_install="yes"
+        install_any_software="yes"
+    fi
+fi
+# OpenBLAS (needed by NumPy and SciPy)
+if [ -z "${openblas_install}" ]; then
+    openblas_install="no"
+    if [ "${openblas_preinstalled}" == "no" ] && (   [ "${numpy_install}" == "yes" ] \
+                                                  || [ "${scipy_install}" == "yes" ]); then
+        openblas_install="yes"
         install_any_software="yes"
     fi
 fi
@@ -1173,7 +1199,7 @@ check_progress()
             rm -rf "${gadget_dir}"
         fi
     elif [ "${progname}" == "python" ]; then
-        # Files from ncurses and OpenSSL are places all around in
+        # Files from ncurses and OpenSSL are placed all around in
         # ${python_dir}, so we cannot just delete this directory.
         :
     elif [ "${progname}" == "ncurses" ]; then
@@ -1210,28 +1236,17 @@ check_progress()
 
 # CO𝘕CEPT
 if [ "${concept_install}" == "yes" ]; then
-    concept_repo_url="https://github.com/jmd-dk/concept"
-    if [ "${concept_version}" == "newest" ]; then
-        current_step="search for latest version of ${esc_concept}"
-        set_status "Searching for latest version of ${esc_concept_double_backslashes}"
-        # The version of CO𝘕CEPT is set to the commit number
-        repo_text=$(wget -t 50 --timeout 60 -q -O- --no-check-certificate ${concept_repo_url})
-        line_nr=$(echo "${repo_text}" | grep -n "  commits" | awk '{print $1}')
-        line_nr="${line_nr:0:${#line_nr}-1}"
-        ((line_nr -= 2))
-        commit_nr=$(echo "${repo_text}" | sed -n -e "${line_nr}p" | sed -e 's/^[[:space:]]*//')
-        concept_version="commit ${commit_nr}"
-    else
-        error "Error: The installer does not know how to \
-find a specific version of ${esc_concept}!"
-        exit 1
-    fi
-    concept_url="${concept_repo_url}/archive/master.tar.gz"
+    concept_url="https://github.com/jmd-dk/concept/archive/${concept_version}.tar.gz"
     # Check if already downloaded/installed
     check_progress "CONCEPT"
     # If not yet downloaded, validate the URL
     if [ "${concept_downloaded}" != "yes" ]; then
-        validate_url "CONCEPT"
+        validate_url "CONCEPT" "false"
+        if [ "${validate_url_status}" != "success" ]; then
+            echo "Primary CO𝘕CEPT link broken: ${concept_url}"
+            error "Error: The installer does not know of a secondary CO𝘕CEPT link"
+            exit 1
+        fi
     fi
 fi
 
@@ -1375,8 +1390,9 @@ hdf5-${hdf5_version}/src/hdf5-${hdf5_version}.tar.gz"
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary HDF5 link broken: ${hdf5_url}"
             fallback "HDF5"
-            hdf5_url="https://www.hdfgroup.org/ftp/HDF5/releases/hdf5-${hdf5_version}/src/\
-hdf5-${hdf5_version}.tar.gz"
+            hdf5_version_major="$(echo "${hdf5_version}" | grep -o '[0-9]\.[0-9]*')"
+            hdf5_url="https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${hdf5_version_major}/\
+hdf5-${hdf5_version}/src/hdf5-${hdf5_version}.tar.gz"
             echo "Using secondary HDF5 link: ${hdf5_url}"
             # Check if already installed and/or downloaded
             check_progress "HDF5"
@@ -1391,11 +1407,7 @@ fi
 # libpng
 if [ "${libpng_install}" == "yes" ] ; then
     # For e.g. libpng_version 1.6.18, libpng_version_majors is 16
-    libpng_version_majors="$(echo "${libpng_version}" | grep -m 1 -o -P "[0-9]*\.[0-9]*" \
-                                                      | head -n 1)"
-    libpng_version_majors="$(echo "${libpng_version_majors//./}")"
-    libpng_url="ftp://ftp.simplesystems.org/pub/png/src/libpng${libpng_version_majors}/\
-libpng-${libpng_version}.tar.gz"
+    libpng_url="http://prdownloads.sourceforge.net/libpng/libpng-${libpng_version}.tar.gz"
     # Check if already installed and/or downloaded
     check_progress "libpng"
     # If not yet downloaded, validate the URL
@@ -1404,6 +1416,9 @@ libpng-${libpng_version}.tar.gz"
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary libpng link broken: ${libpng_url}"
             fallback "libpng"
+            libpng_version_majors="$(echo "${libpng_version}" | grep -m 1 -o -P "[0-9]*\.[0-9]*" \
+                                                              | head -n 1)"
+            libpng_version_majors="$(echo "${libpng_version_majors//./}")"
             libpng_url="http://sourceforge.net/projects/libpng/files/\
 libpng${libpng_version_majors}/older-releases/${libpng_version}/libpng-${libpng_version}.tar.gz"
             echo "Using secondary libpng link: ${libpng_url}"
@@ -1480,6 +1495,30 @@ if [ "${ncurses_install}" == "yes" ]; then
             # If not yet downloaded, validate the URL
             if [ "${ncurses_downloaded}" != "yes" ]; then
                 validate_url "ncurses"
+            fi
+        fi
+    fi
+fi
+
+# OpenBLAS
+if [ "${openblas_install}" == "yes" ]; then
+    openblas_url="https://github.com/xianyi/OpenBLAS/archive/v${openblas_version}.tar.gz"
+    # Check if already installed and/or downloaded
+    check_progress "OpenBLAS"
+    # If not yet downloaded, validate the URL
+    if [ "${openblas_downloaded}" != "yes" ]; then
+        validate_url "OpenBLAS" "false"
+        if [ "${validate_url_status}" != "success" ]; then
+            echo "Primary OpenBLAS link broken: ${openblas_url}"
+            fallback "openblas"
+            openblas_url="https://sourceforge.net/projects/openblas/files/v${openblas_version}/\
+OpenBLAS%20${openblas_version}%20version.tar.gz"
+            echo "Using secondary OpenBLAS link: ${openblas_url}"
+            # Check if already installed and/or downloaded
+            check_progress "OpenBLAS"
+            # If not yet downloaded, validate the URL
+            if [ "${openblas_downloaded}" != "yes" ]; then
+                validate_url "OpenBLAS"
             fi
         fi
     fi
@@ -1585,6 +1624,7 @@ mpi4py_installed="no"
 nose_installed="no"
 nose_parameterized_installed="no"
 numpy_installed="no"
+scipy_installed="no"
 pip_installed="no"
 if [ -n "${python}" ] && [ "${python_installed}" == "yes" ]; then
     for pypackage in blessings          \
@@ -1596,10 +1636,15 @@ if [ -n "${python}" ] && [ "${python_installed}" == "yes" ]; then
                      nose               \
                      nose_parameterized \
                      numpy              \
+                     scipy              \
                      pip; do
         pypackage_installed=$("${python}" -c "
 try:
-    import ${pypackage}
+    # CythonGSL has an extra underscore when importing
+    if '${pypackage}' == 'cythongsl':
+        import cython_gsl
+    else:
+        import ${pypackage}
     print('yes')
 except:
     print('no')
@@ -1688,6 +1733,7 @@ print_table()
 # │ │ └─Perl      ...      "/..." 
 # │ └─zlib        ...      "/..."
 # ├─GSL           ...      "/..."
+# ├─OpenBLAS      ...      "/..."
 # ├─MPICH/OpenMPI ...      "/..."
 # ├─HDF5          ...      "/..."
 # ├─FFTW          ...      "/..."
@@ -1706,6 +1752,7 @@ print_table()
 # Nose                ...
 # Nose-parameterized  ...
 # NumPy               ...
+# SciPy               ...
 if [ "${install_anything}" == "yes" ]; then
     disable_status
     heading "Installation overview"
@@ -1750,6 +1797,11 @@ if [ "${install_any_software}" == "yes" ]; then
     if [ "${gsl_install}" == "yes" ]; then
         table+=("GSL$([ "${gsl_installed}" == "yes" ] && echo '*' || :)" \
                 "${gsl_version}" "\"${gsl_dir}\"")
+    fi
+    # OpenBLAS
+    if [ "${openblas_install}" == "yes" ]; then
+        table+=("OpenBLAS$([ "${openblas_installed}" == "yes" ] && echo '*' || :)" \
+                "${openblas_version}" "\"${openblas_dir}\"")
     fi
     # HDF5
     if [ "${hdf5_install}" == "yes" ]; then
@@ -1855,6 +1907,11 @@ if [ "${install_any_pypackages}" == "yes" ]; then
     if [ "${numpy_install}" == "yes" ]; then
            table+=("NumPy$([ "${numpy_installed}" == "yes" ] && echo '*' || :)" \
                    "${numpy_version}" "")
+    fi
+    # SciPy
+    if [ "${scipy_install}" == "yes" ]; then
+           table+=("SciPy$([ "${scipy_installed}" == "yes" ] && echo '*' || :)" \
+                   "${scipy_version}" "")
     fi
     if [ "${install_any_software}" ]; then
         echo
@@ -1982,6 +2039,9 @@ if [ "${mpi_install}"             == "yes" ] && [ "${mpi_downloaded}"           
 fi
 if [ "${ncurses_install}"         == "yes" ] && [ "${ncurses_downloaded}"         == "no" ]; then
     download "ncurses"
+fi
+if [ "${openblas_install}"        == "yes" ] && [ "${openblas_downloaded}"        == "no" ]; then
+    download "OpenBLAS"
 fi
 if [ "${openssl_install}"         == "yes" ] && [ "${openssl_downloaded}"         == "no" ]; then
     download "OpenSSL"
@@ -2599,6 +2659,25 @@ Date:    $(date)
 " >> "${openssl_dir}/.installation_finished"
 fi
 
+# OpenBLAS
+if [ "${openblas_install}" == "yes" ] && [ "${openblas_installed}" == "no" ]; then
+    init_install "OpenBLAS"
+    # Due to the threading behaviour of Python,
+    # we install a non-threaded version of OpenBLAS.
+    # Note that OpenBLAS runs its test suite during this build.
+    make USE_THREAD=0 FC=gfortran || (make clean && make USE_THREAD=0)
+    make PREFIX="${openblas_dir}" install
+    cp "LICENSE" "${openblas_dir}/" || :
+    cd "${top_dir}"
+    rm -rf "${top_dir}/tmp/openblas"
+    # Write out success notice
+    echo "The following has been fully installed:
+Program: OpenBLAS
+Version: ${openblas_version}
+Date:    $(date)
+" >> "${openblas_dir}/.installation_finished"
+fi
+
 # Python
 python_version_major=${python_version:0:1}
 if [ "${python_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
@@ -2729,6 +2808,7 @@ mpi4py_installed="no"
 nose_installed="no"
 nose_parameterized_installed="no"
 numpy_installed="no"
+scipy_installed="no"
 pip_installed="no"
 if [ -n "${python}" ]; then
     for pypackage in blessings          \
@@ -2740,10 +2820,15 @@ if [ -n "${python}" ]; then
                      nose               \
                      nose_parameterized \
                      numpy              \
+                     scipy              \
                      pip; do
         pypackage_installed=$("${python}" -c "
 try:
-    import ${pypackage}
+    # CythonGSL has an extra underscore when importing
+    if '${pypackage}' == 'cythongsl':
+        import cython_gsl
+    else:
+        import ${pypackage}
     print('yes')
 except:
     print('no')
@@ -2977,9 +3062,113 @@ if (   [ "${nose_parameterized_install}"   == "yes" ] \
     pip_install_pypackage "Nose-parameterized" "${nose_parameterized_version}"
 fi
 
-# NumPy
+# NumPy (manual invocation of setup.py is needed
+# as we need to link to OpenBLAS).
 if [ "${numpy_install}" == "yes" ] && [ "${numpy_installed}" == "no" ]; then
-    pip_install_pypackage "NumPy" "${numpy_version}"
+    current_step="installation of NumPy ${numpy_version}"
+    heading "Installing NumPy ${numpy_version}"
+    set_status "Installing NumPy ${numpy_version}"
+    # Download NumPy
+    pip_download "numpy" "${numpy_version}"
+    cd "${top_dir}/tmp/pip"
+    # It can happen that an archive format different from tar.gz is
+    # downloaded, in which case the extraction will fail if the
+    # corresponding tool is not installed. In that case, try to download
+    # NumPy directly from GitBub
+    extract "numpy"* "yes" || :
+    numpy_extract_success="no"
+    for f in *; do
+        if [ -d "${f}" ] && [[ "${f,,}" == "numpy"* ]]; then
+            numpy_extract_success="yes"
+            cd "${f}"
+            break
+        fi
+    done
+    if [ "${numpy_extract_success}" == "no" ]; then
+        numpy_url="https://github.com/numpy/numpy/archive/v${numpy_version}.tar.gz"
+        download "numpy"
+        cd "${top_dir}/tmp/numpy"
+        extract * "yes"
+        for f in *; do
+            if [ -d "${f}" ] && [[ "${f,,}" == "numpy"* ]]; then
+                cd "${f}"
+                break
+            fi
+        done
+    fi
+    # Create a site.cfg file containing information about OpenBLAS
+    echo "[openblas]
+libraries = openblas
+library_dirs = ${openblas_dir}/lib
+include_dirs = ${openblas_dir}/include
+runtime_library_dirs = ${openblas_dir}/lib
+" > "site.cfg"
+    # Build and install NumPy with OpenBLAS support
+    export BLAS="${openblas_dir}/lib/libopenblas.a"
+    export LAPACK="${openblas_dir}/lib/libopenblas.a"
+    export LD_LIBRARY_PATH="${openblas_dir}/lib:${LD_LIBRARY_PATH}"
+    "${python}" setup.py build --fcompiler=gfortran || "${python}" setup.py build
+    "${python}" setup.py install
+    reset_environment
+    cd "${top_dir}"
+    rm -rf "${top_dir}/tmp/pip"
+    rm -rf "${top_dir}/tmp/numpy"
+    # Test NumPy. The tests are considered successful on the basis on
+    # the exit code only, meaning that only severe errors
+    # (e.g. segmentation faults) will count as failures.
+    if [ "${fast_install}" == "no" ]; then
+        numpy_test_log="${python_dir}/numpy_test_log"
+        "${python}" -c "import numpy; numpy.test('full', verbose=2)" 2>&1 | tee "${numpy_test_log}"
+        [ ${PIPESTATUS[0]} != 0 ] && numpy_test_success="no"
+        if [ "${numpy_test_success}" == "yes" ]; then
+            rm -f "${numpy_test_log}"
+        fi
+    fi
+fi
+
+# SciPy (manual invocation of setup.py is needed
+# as we need to link to OpenBLAS).
+if [ "${scipy_install}" == "yes" ] && [ "${scipy_installed}" == "no" ]; then
+    current_step="installation of SciPy ${scipy_version}"
+    heading "Installing SciPy ${scipy_version}"
+    set_status "Installing SciPy ${scipy_version}"
+    # Download SciPy
+    pip_download "scipy" "${scipy_version}"
+    cd "${top_dir}/tmp/pip"
+    extract "scipy"* "yes"
+    for f in *; do
+        if [ -d "${f}" ] && [[ "${f,,}" == "scipy"* ]]; then
+            cd "${f}"
+            break
+        fi
+    done
+    # Create a site.cfg file containing information about OpenBLAS
+    echo "[openblas]
+libraries = openblas
+library_dirs = ${openblas_dir}/lib
+include_dirs = ${openblas_dir}/include
+runtime_library_dirs = ${openblas_dir}/lib
+" > "site.cfg"
+    # Build and install SciPy with OpenBLAS support
+    export BLAS="${openblas_dir}/lib/libopenblas.a"
+    export LAPACK="${openblas_dir}/lib/libopenblas.a"
+    export LD_LIBRARY_PATH="${openblas_dir}/lib:${LD_LIBRARY_PATH}"
+    "${python}" setup.py build --fcompiler=gfortran || "${python}" setup.py build
+    "${python}" setup.py install
+    reset_environment
+    cd "${top_dir}"
+    rm -rf "${top_dir}/tmp/pip"
+    # Test SciPy. The tests are considered successful on the basis on
+    # the exit code only, meaning that only severe errors
+    # (e.g. segmentation faults) will count as failures.
+    if [ "${fast_install}" == "no" ]; then
+        scipy_test_log="${python_dir}/scipy_test_log"
+        "${python}" -c "import scipy; scipy.test('full', verbose=2)" 2>&1 | tee "${scipy_test_log}"
+        [ ${PIPESTATUS[0]} != 0 ] && scipy_test_success="no"
+        if [ "${scipy_test_success}" == "yes" ]; then
+            rm -f "${scipy_test_log}"
+        fi
+    fi
 fi
 
 # Matplotlib (as Matplotlib has a hard time finding FreeType,
@@ -3046,7 +3235,7 @@ if [ "${matplotlib_install}" == "yes" ] && [ "${matplotlib_installed}" == "no" ]
     cd "${top_dir}/tmp/pip"
     extract "matplotlib"* "yes"
     for f in *; do
-        if [ -d "${f}" ] && [[ "${f}" == "matplotlib"* ]]; then
+        if [ -d "${f}" ] && [[ "${f,,}" == "matplotlib"* ]]; then
             cd "${f}"
             break
         fi
@@ -3114,7 +3303,7 @@ if [ "${h5py_install}" == "yes" ] && [ "${h5py_installed}" == "no" ]; then
     cd "${top_dir}/tmp/pip"
     extract "h5py"* "yes"
     for f in *; do
-        if [ -d "${f}" ] && [[ "${f}" == "h5py"* ]]; then
+        if [ -d "${f}" ] && [[ "${f,,}" == "h5py"* ]]; then
             cd "${f}"
             break
         fi
@@ -3156,7 +3345,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
            "${class_dir}/include/perturbations.h"
     # As only the (relatively) late-time evolution is needed from CLASS,
     # we hardcode the output to only be produced here.
-    a_min=0.005
+    a_min=0.001
     pattern=" +a *= *pvecback"
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
              "${class_dir}/source/perturbations.c"  | head -n 1)
@@ -3167,7 +3356,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     return _SUCCESS_;\n\
 "
     sed -i "${linenr}i${new_lines}" "${class_dir}/source/perturbations.c"
-    # When compiling with newver versions of GCC, the vector math
+    # When compiling with newer versions of GCC, the vector math
     # (mvec) and math (m) libraries need to be added to the libraries
     # listed in python/setup.py explicitly. Here we first try without,
     # then if it does not work we add these extra libraries.
@@ -3504,6 +3693,7 @@ if [ "${install_anything}" == "yes" ]; then
         copyright_notice "mpi"            "MPICH"
     fi
     copyright_notice "ncurses"            "ncurses"
+    copyright_notice "openblas"           "OpenBLAS"
     copyright_notice "openssl"            "OpenSSL"
     copyright_notice "perl"               "Perl"
     copyright_notice "zlib"               "zlib"
@@ -3517,6 +3707,7 @@ if [ "${install_anything}" == "yes" ]; then
     copyright_notice "nose"               "$(printf ${en_quad}%.s {1..4})Nose"
     copyright_notice "nose_parameterized" "$(printf ${en_quad}%.s {1..4})Nose-parameterized"
     copyright_notice "numpy"              "$(printf ${en_quad}%.s {1..4})NumPy"
+    copyright_notice "scipy"              "$(printf ${en_quad}%.s {1..4})SciPy"
     printf "\nThese have been installed into separate directories in
 \"${top_dir}\"
 Any use of ${esc_concept} must conform to the license terms of the above
@@ -3555,6 +3746,10 @@ erroneous_test_notice()
         printf "Some tests of ${real_name} did not pass successfully.\n"
         if [ -n "${2}" ]; then
             printf "${2}\n"
+            if [ "${progname}" != "concept" ] && [ "${concept_test_success}" != "no" ]; then
+                printf "As ${esc_concept} do seem to function correctly, "
+                printf "you may choose to disregard this.\n"
+            fi
         else
             printf "As ${real_name} did seem to install correctly, "
             printf "this is usually not of any concern.\n"
@@ -3573,9 +3768,13 @@ erroneous_test_notice "HDF5"
 erroneous_test_notice "libpng"
 erroneous_test_notice "MPI"
 erroneous_test_notice "ncurses"
+erroneous_test_notice "NumPy" \
+                      "${esc_italic}This should usually be taken seriously!${esc_no_italic}"
 erroneous_test_notice "OpenSSL"
 erroneous_test_notice "Perl"
 erroneous_test_notice "Python"
+erroneous_test_notice "SciPy" \
+                      "${esc_italic}This should usually be taken seriously!${esc_no_italic}"
 erroneous_test_notice "zlib"
 erroneous_test_notice "CONCEPT" \
                       "${esc_italic}This should usually be taken seriously!${esc_no_italic}"

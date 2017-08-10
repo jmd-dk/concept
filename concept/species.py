@@ -1010,8 +1010,6 @@ class Component:
                 # a particle component.
                 break
 
-
-
     # Method for integrating particle positions/fluid values
     # forward in time.
     # For fluid components, source terms are not included.
