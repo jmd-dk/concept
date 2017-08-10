@@ -177,16 +177,19 @@ def domain_domain(receivers, suppliers, ᔑdt, interaction, interaction_name,
                     or (    synchronous and     deterministic)
                     or (    synchronous and not deterministic and rank < rank_send)
                     ):
-                    interaction(component_1, component_2_extrl, rank_recv, ᔑdt, local, mutual, extra_args)
+                    interaction(component_1, component_2_extrl,
+                                rank_recv, ᔑdt, local, mutual, extra_args)
                 if mutual:
                     # Send the populated buffers back to the process
                     # from which the external component_2 came.
                     # Add the received values in the buffers to the
                     # affected variables (e.g. mom for gravity) of
                     # the local component_2.
-                    sendrecv_component(component_2_extrl, affected, dest=rank_recv,
-                                                                    source=rank_send,
-                                                                    component_recv=component_2_local,
+                    sendrecv_component(component_2_extrl,
+                                       affected,
+                                       dest=rank_recv,
+                                       source=rank_send,
+                                       component_recv=component_2_local,
                                        )
                     # Nullify the Δ buffers of the external component_2,
                     # leaving this with no leftover junk.

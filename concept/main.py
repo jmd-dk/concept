@@ -413,16 +413,8 @@ def timeloop():
             # Reset the ᔑdt_steps, starting the leapfrog cycle anew
             nullify_ᔑdt_steps()
             continue
-    # All dumps completed; end of time loop
-    masterprint('\nEnd of main time loop'
-                + ('{:<' + ('14' if enable_Hubble else '13') + '} {} {}')
-                   .format('\nCosmic time:',
-                           significant_figures(universals.t, 4, fmt='Unicode'),
-                           unit_time)
-                + ('{:<14} {}'.format('\nScale factor:',
-                                      significant_figures(universals.a, 4, fmt='Unicode'))
-                   if enable_Hubble else '')
-                )
+    # All dumps completed; end of main time loop
+    print_timestep_heading(time_step, Δt, bottleneck, components, end=True)
 
 # Function which prints out basic information
 # about the current time step.
@@ -431,6 +423,7 @@ def timeloop():
                Δt='double',
                bottleneck='str',
                components='list',
+               end='bint',
                # Locals
                component='Component',
                i='Py_ssize_t',
@@ -439,12 +432,12 @@ def timeloop():
                width='Py_ssize_t',
                width_max='Py_ssize_t',
                )
-def print_timestep_heading(time_step, Δt, bottleneck, components):
+def print_timestep_heading(time_step, Δt, bottleneck, components, end=False):
     global heading_ljust
     # Create list of text pieces. Left justify the first column
     # according to the global heading_ljust.
     parts = []
-    parts.append(terminal.bold(f'\nTime step {time_step}'))
+    parts.append('\nEnd of main time loop' if end else terminal.bold(f'\nTime step {time_step}'))
     parts.append('\n{}:'
                  .format('Cosmic time' if enable_Hubble else 'Time')
                  .ljust(heading_ljust)
@@ -456,12 +449,13 @@ def print_timestep_heading(time_step, Δt, bottleneck, components):
     if enable_Hubble:
         parts.append('\nScale factor:'.ljust(heading_ljust))
         parts.append(significant_figures(universals.a, 4, fmt='unicode'))
-    parts.append('\nStep size:'.ljust(heading_ljust))
-    parts.append('{} {}{}'.format(significant_figures(Δt, 4, fmt='unicode'),
-                                  unit_time,
-                                  ' (limited by {})'.format(bottleneck) if bottleneck else '',
-                                  )
-                 )
+    if not end:
+        parts.append('\nStep size:'.ljust(heading_ljust))
+        parts.append('{} {}{}'.format(significant_figures(Δt, 4, fmt='unicode'),
+                                      unit_time,
+                                      ' (limited by {})'.format(bottleneck) if bottleneck else '',
+                                      )
+                     )
     for component in components:
         if component.w_type != 'constant':
             parts.append('\nEoS ({}):'.format(component.name).ljust(heading_ljust))
