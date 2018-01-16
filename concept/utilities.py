@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -35,6 +35,7 @@ cimport('import graphics')
 cimport('from integration import initiate_time')
 cimport('from mesh import CIC_particles2fluid')
 cimport('from snapshot import get_snapshot_type, snapshot_extensions')
+cimport('import species')
 cimport('from species import get_representation')
 cimport('from snapshot import load, save')
 
@@ -47,6 +48,22 @@ cimport('from snapshot import load, save')
 def delegate():
     eval(special_params['special'] + '()')
 
+# Context manager which temporaly sets the
+# allow_similarly_named_components flag in the species module to True,
+# allowing for the initialization of many component instances
+# with the same name.
+@contextlib.contextmanager
+def allow_similarly_named_components():
+    # Backup the current state of the flag
+    allowed = species.allow_similarly_named_components
+    # Make sure that it is allowed to instantiate
+    # multiple components with the same name.
+    species.allow_similarly_named_components = True
+    # Yield control back to the caller
+    yield
+    # Reset flag
+    species.allow_similarly_named_components = allowed
+
 # Function which convert all snapshots in the
 # special_params['snapshot_filenames'] parameter to the snapshot type
 # given in the snapshot_type parameter.
@@ -55,25 +72,25 @@ def delegate():
                 a='double',
                 component='Component',
                 dim='int',
-                ext='str',
+                ext=str,
                 index='int',
-                snapshot='object',
-                snapshot_filename='str',
-                converted_snapshot_filename='str',
-                params='dict',
-                attribute_str='str',
-                attributes='object',  # collections.defaultdict
-                attribute='str',
-                key='str',
-                value='object',  # double, str or NoneType
+                snapshot=object,
+                snapshot_filename=str,
+                converted_snapshot_filename=str,
+                params=dict,
+                attribute_str=str,
+                attributes=object,  # collections.defaultdict
+                attribute=str,
+                key=str,
+                value=object,  # double, str or NoneType
                 mass='double',
-                name='str',
-                names='list',
-                names_lower='list',
+                name=str,
+                names=list,
+                names_lower=list,
                 original_mass='double',
-                original_representation='str',
+                original_representation=str,
                 rel_tol='double',
-                unit_str='str',
+                unit_str=str,
                 σmom_fluid='double[::1]',
                 σmom_particles='double[::1]',
                 Σmass_fluid='double',
@@ -116,9 +133,12 @@ def convert():
     # The filename of the snapshot to read in
     snapshot_filename = special_params['snapshot_filename']
     # Read snapshot on disk into the requested type
-    snapshot = load(snapshot_filename, compare_params=True,  # Warn the user of non-matching params
-                                       do_exchange=False,    # Exchanges happen later, if needed
-                                       as_if=snapshot_type)
+    snapshot = load(
+        snapshot_filename,
+        compare_params=True,  # Warn the user of non-matching params
+        do_exchange=False,    # Exchanges happen later, if needed
+        as_if=snapshot_type,
+    )
     # Some of the functions used later use the value of universals.a.
     # Set this equal to the scale factor value in the snapshot.
     # In the end of this function, the original value of
@@ -294,12 +314,12 @@ def convert():
 
 # Function for finding all snapshots in a directory
 @cython.pheader(# Arguments
-                path='str',
+                path=str,
                 # Locals
-                filenames='list',
-                msg='str',
-                snapshot_filenames='list',
-                returns='list',
+                filenames=list,
+                msg=str,
+                snapshot_filenames=list,
+                returns=list,
                 )
 def locate_snapshots(path):
     # Get all files from the path
@@ -326,13 +346,13 @@ def locate_snapshots(path):
 # Function that produces a power spectrum of the file
 # specified by the special_params['snapshot_filename'] parameter.
 @cython.pheader(# Locals
-                basename='str',
+                basename=str,
                 index='int',
-                ext='str',
-                output_dir='str',
-                output_filename='str',
-                snapshot='object',
-                snapshot_filename='str',
+                ext=str,
+                output_dir=str,
+                output_filename=str,
+                snapshot=object,
+                snapshot_filename=str,
                 )
 def powerspec():
     # Initial cosmic time universals.t
@@ -361,18 +381,18 @@ def powerspec():
     # Produce power spectrum of the snapshot
     analysis.powerspec(snapshot.components, output_filename)
 
-# Function that produces a render of the file
+# Function which produces a 3D render of the file
 # specified by the special_params['snapshot_filename'] parameter.
 @cython.pheader(# Locals
-                basename='str',
+                basename=str,
                 index='int',
-                ext='str',
-                output_dir='str',
-                output_filename='str',
-                snapshot='object',
-                snapshot_filename='str',
+                ext=str,
+                output_dir=str,
+                output_filename=str,
+                snapshot=object,
+                snapshot_filename=str,
                 )
-def render():
+def render3D():
     # Initial cosmic time universals.t
     # and scale factor a(universals.t) = universals.a.
     initiate_time()
@@ -389,37 +409,37 @@ def render():
             basename = basename[:index]
             break
     output_filename = '{}/{}{}{}'.format(output_dir,
-                                         output_bases['render'],
-                                         '_' if output_bases['render'] else '',
+                                         output_bases['render3D'],
+                                         '_' if output_bases['render3D'] else '',
                                          basename)
     # Attach missing extension to filename
     if not output_filename.endswith('.png'):
         output_filename += '.png'
-    # Prepend 'render_' to filename if it
+    # Prepend 'render3D_' to filename if it
     # is identical to the snapshot filename.
     if output_filename == snapshot_filename:
-        output_filename = '{}/render_{}'.format(output_dir, basename)
+        output_filename = '{}/render3D_{}'.format(output_dir, basename)
     # Render the snapshot
-    graphics.render(snapshot.components, output_filename,
-                    True, '.renders_{}'.format(basename))
+    graphics.render3D(snapshot.components, output_filename,
+                    True, '.renders3D_{}'.format(basename))
 
 # Function for printing all informations within a snapshot
 @cython.pheader(# Locals
-                alt_str='str',
+                alt_str=str,
                 component='Component',
                 h='double',
-                heading='str',
+                heading=str,
                 index='int',
-                eos_info='str',
-                ext='str',
+                eos_info=str,
+                ext=str,
                 param_num='int',
-                parameter_filename='str',
-                params='dict',
-                path='str',
-                paths='list',
-                snapshot='object',
-                snapshot_filenames='list',
-                snapshot_type='str',
+                parameter_filename=str,
+                params=dict,
+                path=str,
+                paths=list,
+                snapshot=object,
+                snapshot_filenames=list,
+                snapshot_type=str,
                 unit='double',
                 value='double',
                 Σmom='double[::1]',
@@ -434,10 +454,11 @@ def info():
     # Print out information about each snapshot
     for snapshot_filename in snapshot_filenames:
         # Load parameters from the snapshot
-        snapshot = load(snapshot_filename, compare_params=False,
-                                           only_params=(not special_params['stats']),
-                                           do_exchange=False,
-                                           )
+        with allow_similarly_named_components():
+            snapshot = load(snapshot_filename, compare_params=False,
+                                               only_params=(not special_params['stats']),
+                                               do_exchange=False,
+                                               )
         params = snapshot.params
         snapshot_type = get_snapshot_type(snapshot_filename)
         # If a parameter file should be generated from the snapshot,

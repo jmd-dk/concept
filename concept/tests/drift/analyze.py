@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,12 +25,14 @@
 # Imports from the CO𝘕CEPT code
 from commons import *
 from snapshot import load
+import species
 
 # Absolute path and name of the directory of this file
 this_dir  = os.path.dirname(os.path.realpath(__file__))
 this_test = os.path.basename(this_dir)
 
 # Read in data from the CO𝘕CEPT snapshots
+species.allow_similarly_named_components = True
 a = []
 x = []
 x_std = []

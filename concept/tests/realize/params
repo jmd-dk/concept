@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,23 +24,22 @@
 _this_dir = os.path.dirname(paths['params'])
 
 # Input/output
-output_times = {'a': {'powerspec': 0.01}}
-powerspec_plot_select = None
+output_times     = {'a': {'powerspec': 0.01}}
+powerspec_select = {'all': {'data': True}}
 
 # Numerical parameters
 boxsize    = 8*Gpc
 φ_gridsize = 128
 
 # Cosmological parameters
-a_begin = 0.01
 H0      = 70*km/(s*Mpc)
 Ωcdm    = 0.25
 Ωb      = 0.05
 a_begin = 0.01
-class_params = {'gauge': 'synchronous'}
 
 # Simulation options
 master_seed = 1
+class_reuse = False
 
 # System of units
 unit_length = 'kpc'  # Use a base unit different from Mpc which is used by CLASS

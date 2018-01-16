@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -39,7 +39,7 @@ component = Component('test fluid', 'matter fluid', gridsize)
 for i in range(gridsize):
     ϱ[i, :, :] = 2 + np.sin(2*π*i/gridsize)  # Unitless
 ϱ /= sum(ϱ)                                  # Normalize
-ϱ *= ϱ_mbar*gridsize**3                       # Apply units
+ϱ *= ρ_mbar*gridsize**3                      # Apply units
 component.populate(ϱ,                        'ϱ'   )
 component.populate(ϱ*speed,                  'J', 0)
 component.populate(zeros([gridsize]*3),      'J', 1)

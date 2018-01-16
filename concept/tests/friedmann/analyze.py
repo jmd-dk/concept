@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -35,7 +35,7 @@ this_test = os.path.basename(this_dir)
 commons_flood()
 
 # Initiate the cosmic time and the scale factor,
-# and do the call to CLASS if enable_class is True.
+# and do the call to CLASS if enable_class_background is True.
 initiate_time()
 
 # Array of scale factor values at which to compute the cosmic time
@@ -47,7 +47,7 @@ cosmic_times = [cosmic_time(a) for a in scale_factors]
 
 # Dependent on the mode, save the computed cosmic times
 compiled = not user_params['_pure_python']
-mode = f'class={enable_class}_compiled={compiled}'
+mode = f'class={enable_class_background}_compiled={compiled}'
 np.savetxt(f'{this_dir}/t_{mode}.dat', cosmic_times)
 
 # If all four data files exist, plot and analyze these

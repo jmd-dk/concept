@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,16 +24,15 @@
 _this_dir = os.path.dirname(paths['params'])
 
 # Input/output
-initial_conditions    = _this_dir + '/snapshot.hdf5'
-snapshot_type         = 'standard'
-output_bases          = {'powerspec': 'powerspec'}
-powerspec_select      = {'all': True}
-powerspec_plot_select = {'all': True}
+initial_conditions = _this_dir + '/snapshot.hdf5'
+snapshot_type      = 'standard'
+output_bases       = {'powerspec': 'powerspec'}
+powerspec_select   = {'all': {'data': True, 'plot': True}}
 
 # Numerical parameters
-boxsize     = 512*Mpc
-φ_gridsize  = 256
-R_tophat    = 8*Mpc
+boxsize    = 512*Mpc
+φ_gridsize = 256
+R_tophat   = 8*Mpc
 
 # Debugging options
 enable_Hubble = False

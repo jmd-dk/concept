@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,178 +27,657 @@ from commons import *
 # Cython imports
 cimport('from communication import domain_size_x,  domain_size_y,  domain_size_z, '
                                   'domain_start_x, domain_start_y, domain_start_z,'
+                                  'get_buffer,                                    '
         )
+cimport('from mesh import CIC_components2φ_general')
 
 # Pure Python imports
 from mpl_toolkits.mplot3d import proj3d  # Importing from mpl_toolkits.mplot3d enables 3D plotting
 
 
 
-# Function for plotting the power spectrum
-# and saving the figure to filename.
+# Function for plotting power spectra
 @cython.header(# Arguments
-               data_list='list',
-               filename='str',
-               power_dict='object',  # OrderedDict
+               k_bin_centers='double[::1]',
+               power_dict=object,  # OrderedDict
+               filename=str,
+               powerspec_plot_select=dict,
                # Locals
-               a_string='str',
-               filename_component='str',
-               i='Py_ssize_t',
-               k='double[::1]',
-               kmax='double',
-               kmin='double',
-               maxpowermax='double',
+               a_string=str,
+               component_combination=tuple,
+               component_combination_str=str,
+               filename_combination=str,
+               names_str=str,
                power='double[::1]',
-               power_index='Py_ssize_t',
-               power_indices='list',
-               power_σ='double[::1]',
-               powermin='double',
-               t_string='str',
-               tmp='str',
-               name='str',
-               names='list',
+               t_string=str,
                )
-def plot_powerspec(data_list, filename, power_dict):
-    """This function will do separate power spectrum
-    plots for each component.
-    The power spectra are given in dat_list, which are a list with
-    the following content: [k, power, power_σ, power, power_σ, ...]
-    where a pair of power and power_σ is for one component.
-    The power_dict is an ordered dict and hold the component names
-    for the power spectra in data_list, in the correct order.
+def plot_powerspec(k_bin_centers, power_dict, filename, powerspec_plot_select):
+    """The power spectra are given in power_dict,
+    which is an OrderedDict mapping component combinations
+    (tuples of components) to arrays with the corresponding power.
+    The matching k values are given by k_bin_centers.
     """
     # Only the master process takes part in the power spectra plotting
     if not master:
         return
-    # Do not plot any power spectra if
-    # powerspec_plot_select does not contain any True values.
-    if not any(powerspec_plot_select.values()):
-        return
     # Attach missing extension to filename
     if not filename.endswith('.png'):
         filename += '.png'
-    # Switch to the powerspec figure
-    plt.figure('powerspec')
-    # Extract k values, common to all power spectra
-    k = data_list[0]
-    kmin = k[0]
-    kmax = k[k.shape[0] - 1]
-    # Get relevant indices and component name from power_dict
-    power_indices = []
-    names = []
-    for i, name in enumerate(power_dict.keys()):
-        # The power spectrum of the i'th component should only be
-        # plotted if {name: True} or {'all': True} exist
-        # in powerspec_plot_select. Also, if name exists,
-        # the value for 'all' is ignored.
-        if name.lower() in powerspec_plot_select:
-            if not powerspec_plot_select[name.lower()]:
-                continue
-        elif not powerspec_plot_select.get('all', False):
+    # Plot each power spectrum given in power_dict,
+    # if it has been selected for plotting in the
+    # powerspec_select parameter. A refined version of this dict is
+    # passed as powerspec_plot_select.
+    for component_combination, power in power_dict.items():
+        if not is_selected(component_combination, powerspec_plot_select):
             continue
-        # The i'th power spectrum should be plotted
-        power_indices.append(1 + 2*i)
-        names.append(name)
-    # Plot the power spectrum for each component separately
-    for power_index, name in zip(power_indices, names):
-        # The filename should reflect the individual component names,
-        # when several components are being plotted.
-        filename_component = filename
-        if len(names) > 1:
-            if '_t=' in filename:
-                filename_component = filename.replace('_t=',
-                                                      '_{}_t='.format(name.replace(' ', '-')))
-            elif '_a=' in filename:
-                filename_component = filename.replace('_a=',
-                                                      '_{}_a='.format(name.replace(' ', '-')))
+        # The filename should reflect the individual
+        # components/combinations, when several components/combinations
+        # are being plotted.
+        filename_combination = filename
+        if len(power_dict) > 1:
+            names_str = '_'.join([component.name.replace(' ', '-')
+                                  for component in component_combination])
+            if '_t=' in filename_combination:
+                filename_combination = filename_combination.replace('_t=', f'_{names_str}_t=')
+            elif '_a=' in filename_combination:
+                filename_combination = filename_combination.replace('_a=', f'_{names_str}_a=')
             else:
-                filename_component = filename.replace('.png',
-                                                      '_{}.png'.format(name.replace(' ', '-')))
-        # The filename should reflect the individual component names
-        if name == 'total':
-            masterprint('Plotting total power spectrum and saving to "{}" ...'
-                        .format(filename_component))
+                filename_combination = filename_combination.replace('.png', f'_{names_str}.png')
+        if len(component_combination) == 1:
+            component_combination_str = component_combination[0].name
         else:
-            masterprint('Plotting power spectrum of {} and saving to "{}" ...'
-                        .format(name, filename_component))
-        # Extract the power and its standard
-        # deviation for the i'th component.
-        power   = data_list[power_index]
-        power_σ = data_list[power_index + 1]
-        powermin = min(power)
-        maxpowermax = np.max(asarray(power) + asarray(power_σ))
+            component_combination_str = '{{{}}}'.format(', '.join(
+                [component.name for component in component_combination]
+                                                                  )
+                                                        )
+        masterprint('Plotting power spectrum of {} and saving to "{}" ...'
+                    .format(component_combination_str, filename_combination)
+                    )
         # Plot power spectrum
         plt.figure()
-        plt.gca().set_xscale('log')
-        plt.gca().set_yscale('log', nonposy='clip')
-        plt.errorbar(k, power, yerr=power_σ,
-                     fmt='.',
-                     markersize=3,
-                     ecolor='C1',
-                     capsize=2,
-                     )
-        tmp = '{:.1e}'.format(kmin)
-        plt.xlim(xmin=float(tmp[0] + tmp[3:]))
-        tmp = '{:.1e}'.format(kmax)
-        plt.xlim(xmax=float(str(int(tmp[0]) + 1) + tmp[3:]))
-        tmp = '{:.1e}'.format(powermin)
-        plt.ylim(ymin=float(tmp[0] + tmp[3:]))
-        tmp = '{:.1e}'.format(maxpowermax)
-        plt.ylim(ymax=float(str(int(tmp[0]) + 1) + tmp[3:]))
-        plt.xlabel('$k$ $\mathrm{{[{}^{{-1}}]}}$'.format(unit_length), fontsize=14)
-        plt.ylabel('power $\mathrm{{[{}^3]}}$'.format(unit_length),    fontsize=14)
-        t_string = ('$t = {}\, \mathrm{{{}}}$'
-                    .format(significant_figures(universals.t, 4, fmt='tex'),
-                            unit_time,
-                            )
-                    )
-        a_string = (', $a = {}$'.format(significant_figures(universals.a, 4, fmt='tex'))
-                    if enable_Hubble else ''
-                    )
-        plt.title('{} at {}{}'.format(name, t_string, a_string), fontsize=16)
-        plt.gca().tick_params(labelsize=13)
+        plt.loglog(k_bin_centers, power, '-')
+        plt.xlabel(f'$k$ $\mathrm{{[{unit_length}^{{-1}}]}}$', fontsize=14)
+        plt.ylabel(f'power $\mathrm{{[{unit_length}^3]}}$',    fontsize=14)
+        t_string = (
+            '$t = {}\, \mathrm{{{}}}$'
+            .format(significant_figures(universals.t, 4, fmt='tex'), unit_time)
+        )
+        a_string = ''
+        if enable_Hubble:
+            a_string = ', $a = {}$'.format(significant_figures(universals.a, 4, fmt='tex'))
+        component_combination_str = (
+            component_combination_str
+            .replace('{', '$\{$')
+            .replace('}', '$\}$')
+            .replace(',', ',\n')
+            )
+        plt.title(
+            f'{component_combination_str}\nat {t_string}{a_string}',
+            fontsize=16,
+            horizontalalignment='center',
+            )
+        plt.gca().tick_params(axis='both', which='major', labelsize=13)
+        plt.gca().tick_params(axis='both', which='minor', labelsize=11)
+        fix_minor_tick_labels()
         plt.tight_layout()
-        plt.savefig(filename_component)
+        plt.savefig(filename_combination)
         # Close the figure, leaving no trace in memory of the plot
         plt.close()
         # Finish progress message
         masterprint('done')
 
+# This function produces 2D renders of the density fields of single
+# and sets of components.
+@cython.header(
+    # Arguments
+    components=list,
+    filename=str,
+    # Locals
+    L='double',
+    N_bins='Py_ssize_t',
+    N_data_outputs='Py_ssize_t',
+    N_image_outputs='Py_ssize_t',
+    a='double',
+    axis=str,
+    bin_edges='double[::1]',
+    bins='Py_ssize_t[::1]',
+    color_truncation_factor_lower='double',
+    color_truncation_factor_upper='double',
+    colormap=str,
+    colornumber='int',
+    component='Component',
+    component_combination=tuple,
+    component_combination_str=str,
+    component_combinations=object,  # generator
+    data_coordinates='double[::1]',
+    domain_start_i='Py_ssize_t',
+    domain_start_j='Py_ssize_t',
+    domain_start_k='Py_ssize_t',
+    enhance='bint',
+    exponent='double',
+    exponent_lower='double',
+    exponent_max='double',
+    exponent_min='double',
+    exponent_upper='double',
+    ext=str,
+    extend=tuple,
+    filename_combination=str,
+    i='Py_ssize_t',
+    i_center='Py_ssize_t',
+    i_max='Py_ssize_t',
+    i_min='Py_ssize_t',
+    index_m='Py_ssize_t',
+    index_n='Py_ssize_t',
+    interpolation_coordinates_m='double[::1]',
+    interpolation_coordinates_n='double[::1]',
+    interpolation_quantities=list,
+    j='Py_ssize_t',
+    k='Py_ssize_t',
+    names_str=str,
+    occupation='Py_ssize_t',
+    terminal_projection='double[:, ::1]',
+    terminal_projection_ANSI=list,
+    projection='double[:, ::1]',
+    projection_enhanced='double[:, ::1]',
+    shifting_factor='double',
+    terminal_resolution='Py_ssize_t',
+    value='double',  
+    vmin='double',
+    vmax='double',
+    w='double',
+    x='double',
+    y='double',
+    z='double',
+    Σbins='Py_ssize_t',
+    φ='double[:, :, ::1]',
+)
+def render2D(components, filename):
+    """This function will produce 2D renders of the passed components.
+    A slab of the density field will be projected onto a plane.
+    The details of this projection is specified in the render2D_options
+    user parameter. Before the projection, the density field within the
+    slab will be constructed using CIC interpolation.
+    """
+    # Remove any extension on the filename
+    for ext in ('.hdf5', '.png'):
+        if filename.endswith(ext):
+            filename = filename[:len(filename) - len(ext)]
+            break
+    # Always use the current value of the scale factor
+    a = universals.a
+    # Generator yielding tuples of all possible combinations
+    # of the passed components.
+    component_combinations = itertools.chain.from_iterable(
+        [itertools.combinations(components, i) for i in range(1, len(components) + 1)]
+    )
+    # Count the number of output files
+    N_data_outputs = 0
+    N_image_outputs = 0
+    for component_combination in component_combinations:
+        if is_selected(component_combination, render2D_data_select):
+            N_data_outputs += 1
+        if is_selected(component_combination, render2D_image_select):
+            N_image_outputs += 1
+    # Rebuild the generator
+    component_combinations = itertools.chain.from_iterable(
+        [itertools.combinations(components, i) for i in range(1, len(components) + 1)]
+    )
+    # Produce 2D renders of each combination of components,
+    # if they have been selected for in the render2D_select parameter.
+    for component_combination in component_combinations:
+        if not (
+                is_selected(component_combination, render2D_data_select)
+            or  is_selected(component_combination, render2D_image_select)
+            or  is_selected(component_combination, render2D_terminal_image_select)
+            ):
+            continue
+        component_combination_str = ', '.join(
+            [component.name for component in component_combination]
+        )
+        if len(component_combination) > 1:
+            component_combination_str = f'{{{component_combination_str}}}'            
+        masterprint(f'Rendering 2D projection of {component_combination_str} ...')
+        # Extract some options for this component combination
+        # from the render2D_options user parameter.
+        axis   = is_selected(component_combination, render2D_options['axis'])
+        extend = is_selected(component_combination, render2D_options['extend'])
+        # We now do the CIC interpolation of the components onto the
+        # φ grid. We choose to interpolate the mass of each
+        # component onto the grid.
+        # Since all particles have the same mass, the mass contribution
+        # from a single particle is Σmass/component.N,
+        # which equals component.mass.
+        # For fluids, each fluid element contributes to the mass by
+        # an amount (a*L_cell)**3*ρ(x)
+        #         = (a*boxsize/component.gridsize)**3*ρ(x)
+        #         = (boxsize/component.gridsize)**3*a**(-3*w_eff)*ϱ(x).
+        # Note that for fluids the total amount of mass is not constant
+        # but depends on w_eff(a).
+        interpolation_quantities = [
+            # Particle components
+            ('particles', [component.mass for component in component_combination]),
+            # Fluid components
+            ('ϱ', [(boxsize/component.gridsize)**3*a**(-3*component.w_eff(a=a))
+                   for component in component_combination]),
+            ]
+        φ = CIC_components2φ_general(
+            list(component_combination),
+            interpolation_quantities,
+            add_particles_and_fluids=True,
+        )
+        domain = φ[2:(φ.shape[0] - 3), 2:(φ.shape[1] - 3), 2:(φ.shape[0] - 3)]
+        # The array storing the projected render. This is allocated
+        # in full on every process.
+        projection = get_buffer((φ_gridsize, )*2, 'projection', nullify=True)
+        # Fill up the local part of the projection array.
+        # When axis is 'x' the projection will be onto the yz plane
+        # with y right and z up.
+        # When axis is 'y' the projection will be onto the xz plane
+        # with x right and z up.
+        # When axis is 'z' the projection will be onto the xy plane
+        # with x right and y up.
+        # The rightward and upward directions will be referred to as
+        # m and n, respectively. Because the 2D projection array is C
+        # contiguoues it is in row-major order, and so m should be the
+        # second dimension while n should be the first dimension.
+        # Also, since rows are counted downwards, the n dimension should
+        # be indexed backwards.
+        L = boxsize/φ_gridsize
+        domain_start_i = int(round(domain_start_x/L))
+        domain_start_j = int(round(domain_start_y/L))
+        domain_start_k = int(round(domain_start_z/L))
+        for i in range(ℤ[domain.shape[0]]):
+            x = domain_start_x + i*L
+            with unswitch(1):
+                if 𝔹[axis == 'x']:
+                    if ℝ[extend[0]] <= x:
+                        weight = (ℝ[extend[1]] - x)/L
+                        if weight > 1:
+                            weight = 1
+                    else:
+                        weight = 1 - (ℝ[extend[0]] - x)/L
+                    if weight <= 0:
+                        continue
+                else:
+                    index_m = domain_start_i + i
+            for j in range(ℤ[domain.shape[1]]):
+                y = domain_start_y + j*L
+                with unswitch(2):
+                    if 𝔹[axis == 'x']:
+                        index_m = domain_start_j + j
+                    elif 𝔹[axis == 'y']:
+                        if ℝ[extend[0]] <= y:
+                            weight = (ℝ[extend[1]] - y)/L
+                            if weight > 1:
+                                weight = 1
+                        else:
+                            weight = 1 - (ℝ[extend[0]] - y)/L
+                        if weight <= 0:
+                            continue
+                    else:
+                        index_n = ℤ[φ_gridsize - 1 - domain_start_j] - j
+                for k in range(ℤ[domain.shape[2]]):
+                    z = domain_start_z + k*L
+                    with unswitch(3):
+                        if not 𝔹[axis == 'z']:
+                            index_n = ℤ[φ_gridsize - 1 - domain_start_k] - k 
+                        else:
+                            if ℝ[extend[0]] <= z:
+                                weight = (ℝ[extend[1]] - z)/L
+                                if weight > 1:
+                                    weight = 1
+                            else:
+                                weight = 1 - (ℝ[extend[0]] - z)/L
+                            if weight <= 0:
+                                continue
+                    # Include this grid cell
+                    projection[index_n, index_m] += weight*domain[i, j, k]
+        # Sum up contributions from all processes into the master,
+        # after which only the master process should carry on.
+        Reduce(sendbuf=(MPI.IN_PLACE if master else projection),
+               recvbuf=(projection   if master else None),
+               op=MPI.SUM,
+               )
+        if not master:
+            continue
+        # Store projected image as an hdf5 file
+        if is_selected(component_combination, render2D_data_select):
+            # The filename should reflect the component combination
+            filename_combination = filename + '.hdf5'
+            if N_data_outputs > 1:
+                names_str = '_'.join(
+                    [component.name.replace(' ', '-') for component in component_combination]
+                )
+                if '_t=' in filename_combination:
+                    filename_combination = filename_combination.replace('_t=', f'_{names_str}_t=')
+                elif '_a=' in filename_combination:
+                    filename_combination = filename_combination.replace('_a=', f'_{names_str}_a=')
+                else:
+                    filename_combination = filename_combination.replace('.hdf5', f'_{names_str}.hdf5')
+            masterprint(f'Saving data to "{filename_combination}" ...')
+            with h5py.File(filename_combination, mode='w') as hdf5_file:
+                # Save used base unit
+                hdf5_file.attrs['unit time'  ] = unit_time
+                hdf5_file.attrs['unit length'] = unit_length
+                hdf5_file.attrs['unit mass'  ] = unit_mass
+                # Save attributes
+                hdf5_file.attrs['boxsize'              ] = boxsize
+                hdf5_file.attrs['component combination'] = component_combination_str
+                hdf5_file.attrs['axis'                 ] = axis
+                hdf5_file.attrs['extend'               ] = extend
+                if enable_Hubble:
+                    hdf5_file.attrs['a'  ] = a
+                hdf5_file.attrs['t'      ] = universals.t            
+                # Store the 2D projection
+                dset = hdf5_file.create_dataset(
+                    'data',
+                    asarray(projection).shape,
+                    dtype=C2np['double']
+                )
+                dset[...] = projection
+            masterprint('done')
+        # If no colorized image should be produced from the projection,
+        # skip the following.
+        if not (
+               is_selected(component_combination, render2D_image_select)
+            or is_selected(component_combination, render2D_terminal_image_select)
+            ):
+            continue
+        # Extract further options for this component combination
+        # from the render2D_options user parameter.
+        colormap = is_selected(component_combination, render2D_options['colormap'])
+        enhance  = is_selected(component_combination, render2D_options['enhance'])
+        # Enhance the projected image by applying a non-linear
+        # transformation of the form
+        # projection → projection**exponent.
+        # We want to find a value for the exponent which leads to a nice
+        # distribution of the values in the projection. We take this to
+        # be the case when the histogram of these values is "centered"
+        # at the value specified by the shifting_factor variable.
+        # A shifting_factor of 0.5 implies that the histogram of the
+        # pixel values is "centered" in the middle of the axis, with the
+        # same distance to the first and last bin. For Gaussian data,
+        # this require a value of the exponent tending to 0. Thus,
+        # the shifting factor should be below 0.5. A shifting_factor
+        # between 0 and 0.5 shifts the center of the histogram to be at
+        # the location of shifting_factor, measured relative to the
+        # histogram axis. Here, the center is defined to be the point
+        # which partitions the histogram into two parts which integrate
+        # to the same value.
+        if enhance:
+            masterprint(f'Enhancing image ...')
+            shifting_factor = 0.28
+            # Ensure that all pixel values are at most unity
+            projection = asarray(projection)*(1/np.max(projection))
+            # Find a good value for the exponent using a binary search
+            exponent_min = 1e-2
+            exponent_max = 1e+2
+            exponent_lower = exponent_min
+            exponent_upper = exponent_max
+            exponent = 1
+            i_min = -4
+            i_max = -2
+            N_bins = np.max([100, φ_gridsize])
+        while enhance:
+            # Construct histogram over projection**exponent
+            projection_enhanced = asarray(projection)**exponent
+            bins, bin_edges = np.histogram(projection_enhanced, N_bins)
+            # Compute the sum of all bins. This is equal to the sum of
+            # values in the projection. However, we skip bins[0] since
+            # sometimes empty cells results in a large spike there.
+            Σbins = ℤ[φ_gridsize**2] - bins[0]
+            # Find the position of the center of the histogram,
+            # defined by the sums of bins being the same on both
+            # sides of this center. We again skip bins[0].
+            occupation = 0
+            for i in range(1, N_bins):
+                occupation += bins[i]
+                if occupation >= ℤ[Σbins//2]:
+                    i_center = i
+                    break
+            else:
+                masterwarn(
+                    'Something went wrong during image enhancement. '
+                    'The image will be generated from the raw data.'
+                    )
+                enhance = False
+                masterprint('done')
+                break
+            if i_center < ℤ[N_bins*shifting_factor]:
+                # The exponent should be decreased
+                exponent_upper = exponent
+                i_min = i_center
+            elif i_center > ℤ[N_bins*shifting_factor]:
+                # The exponent should be increased
+                exponent_lower = exponent
+                i_max = i_center
+            else:
+                # Good choice of exponent found
+                break
+            # The current value of the exponent does not place the
+            # "center" of the histogram at the desired location
+            # specified by shifting_factor.
+            # Check if the the binary seach has (almost) converged on
+            # some other value.
+            if i_max >= i_min and i_max - i_min <= 1:
+                break
+            # Check if the exponent is very close
+            # to one of the extreme values.
+            if exponent/exponent_min < 1.001:
+                exponent = exponent_min
+                break
+            elif exponent_max/exponent < 1.001:
+                exponent = exponent_max
+                break
+            # Update the exponent. As the range of the exponent is
+            # large, the binary step is done in logarithmic space.
+            exponent = sqrt(exponent_lower*exponent_upper)
+        # Set color limits
+        if enhance:
+            # Apply the image enhancement
+            projection = projection_enhanced
+            # To further enhance the image, we set the color limits
+            # so as to truncate the color space at both ends,
+            # saturating pixels with very little or very high intensity.
+            # The color limits vmin and vmax are determined based on
+            # color_truncation_factor_lower and
+            # color_truncation_factor_upper, respectively.
+            # These specify the fraction of the mean bin value at which
+            # the histogram should be truncated, for the lower and
+            # upper intensity ends. For images with a lot of structure
+            # the best results are obtained by giving the lower color
+            # truncation quite a large value (this effectively removes
+            # the background), while giving the higher color truncation
+            # a small value, so that small very overdense regions
+            # appear clearly.
+            color_truncation_factor_lower = 0.81
+            color_truncation_factor_upper = 0.012
+            occupation = 0
+            for i in range(1, N_bins):
+                if bins[i] >= ℝ[color_truncation_factor_lower*Σbins/(N_bins - 1)]:
+                    vmin = bin_edges[i - 1]
+                    break
+            for i in range(N_bins - 1, 0, -1):
+                if bins[i] >= ℝ[color_truncation_factor_upper*Σbins/(N_bins - 1)]:
+                    vmax = bin_edges[i + 1]
+                    break
+            masterprint('done')
+        else:
+            vmin = np.min(projection)
+            vmax = np.max(projection)
+        # Draw projected image in the terminal
+        if is_selected(component_combination, render2D_terminal_image_select):
+            # Construct a version of the projection with the resolution
+            # specified as the terminal resolution for this
+            # component combination. Since each character in the
+            # terminal is rectangular with about double the height
+            # compared to the width, the terminal projection will only
+            # have half as many rows as it has columns.
+            terminal_resolution = is_selected(
+                component_combination,
+                render2D_options['terminal resolution'],
+            )
+            if terminal_resolution == φ_gridsize:
+                terminal_projection = np.ascontiguousarray(projection[::2, :])
+            else:
+                data_coordinates = linspace(
+                    0,
+                    terminal_resolution - 1,
+                    φ_gridsize,
+                )
+                interpolation_coordinates_m = linspace(
+                    0,
+                    terminal_resolution - 1,
+                    terminal_resolution,
+                )
+                interpolation_coordinates_n = linspace(
+                    0,
+                    terminal_resolution - 1,
+                    (terminal_resolution + 1)//2,
+                )
+                terminal_projection = np.ascontiguousarray(
+                    scipy.interpolate.interp2d(
+                        data_coordinates,
+                        data_coordinates,
+                        projection,
+                        'cubic',
+                    )(interpolation_coordinates_m, interpolation_coordinates_n)
+                )
+            # Apply the colormap
+            # specified for this component combination.
+            set_terminal_colormap(colormap)
+            # Construct list of strings, each string being a space
+            # prepended with an ANSI/VT100 control sequences which sets
+            # the background color. When printed together, these strings
+            # produce an ANSI image of the terminal projection.
+            # We need to map the values between vmin and vmax to
+            # the 238 higher integer color numbers 18–255 (the lowest 18
+            # color numbers are already occupied).
+            terminal_projection_ANSI = []
+            for     i in range(ℤ[terminal_projection.shape[0]]):
+                for j in range(ℤ[terminal_projection.shape[1]]):
+                    value = terminal_projection[i, j]
+                    if value > vmax:
+                        value = vmax
+                    elif value < vmin:
+                        value = vmin
+                    colornumber = 18 + int(round((value - vmin)*ℝ[237/(vmax - vmin)]))
+                    # Insert a space with colored background
+                    terminal_projection_ANSI.append(f'{ANSI_ESC}[48;5;{colornumber}m ')
+                # Insert newline with no background color
+                terminal_projection_ANSI.append(f'{ANSI_ESC}[0m\n')
+            # Print the ANSI image to the terminal
+            masterprint(''.join(terminal_projection_ANSI), end='', indent=-1, wrap=False)
+        # Save colorized image to disk
+        if is_selected(component_combination, render2D_image_select):
+            # The filename should reflect the component combination
+            filename_combination = filename + '.png'
+            if N_image_outputs > 1:
+                names_str = '_'.join(
+                    [component.name.replace(' ', '-') for component in component_combination]
+                )
+                if '_t=' in filename_combination:
+                    filename_combination = filename_combination.replace('_t=', f'_{names_str}_t=')
+                elif '_a=' in filename_combination:
+                    filename_combination = filename_combination.replace('_a=', f'_{names_str}_a=')
+                else:
+                    filename_combination = filename_combination.replace('.png', f'_{names_str}.png')
+            masterprint(f'Saving image to "{filename_combination}" ...')
+            plt.imsave(
+                filename_combination,
+                projection,
+                cmap=colormap,
+                vmin=vmin,
+                vmax=vmax,
+            )
+            masterprint('done')
+        # Done with the entire rendering process
+        # for this component combination.
+        masterprint('done')            
+# Construct the render2D_data_select, render2D_image_select
+# and render2D_terminal_image_select dicts from
+# the render2D_data_select parameter.
+cython.declare(
+    render2D_data_select=dict,
+    render2D_image_select=dict,
+    render2D_terminal_image_select=dict,
+)
+render2D_data_select = {
+    key: val['data' ] for key, val in render2D_select.items()
+}
+render2D_image_select = {
+    key: val['image'] for key, val in render2D_select.items()
+}
+render2D_terminal_image_select = {
+    key: val['terminal image'] for key, val in render2D_select.items()
+}
+
+# Function for chancing the colormap of the terminal
+def set_terminal_colormap(colormap):
+    """This function constructs and apply a terminal colormap with
+    256 - 16 - 2 = 238 ANSI/VT100 control sequences, remapping the 238
+    higher color numbers. The 16 + 2 = 18 lowest are left alone in order
+    not to mess with standard terminal coloring and the colors used for
+    the CO𝘕CEPT logo at startup.
+    If the specified colormap is already in use, nothing is done.
+    """
+    global current_terminal_colormap
+    if not master:
+        return
+    if current_terminal_colormap == colormap:
+        return
+    current_terminal_colormap = colormap
+    colormap_ANSI = getattr(matplotlib.cm, colormap)(linspace(0, 1, 238))[:, :3]
+    for i, rgb in enumerate(colormap_ANSI):
+        colorhex = matplotlib.colors.rgb2hex(rgb)
+        masterprint(
+            f'{ANSI_ESC}]4;{18 + i};rgb:'
+            f'{colorhex[1:3]}/{colorhex[3:5]}/{colorhex[5:]}{ANSI_ESC}\\',
+            end='',
+            indent=-1,
+            wrap=False,
+            ensure_newline_after_ellipsis=False,
+        )
+# Global variable used to keep track of the currently applied
+# terminal colormap, used by the set_terminal_colormap function.
+cython.declare(current_terminal_colormap=str)
+current_terminal_colormap = None
+
 # Function for 3D renderings of the components
 @cython.header(# Arguments
-               components='list',
-               filename='str',
+               components=list,
+               filename=str,
                cleanup='bint',
-               tmp_dirname='str',
+               tmp_dirname=str,
                # Locals
                N='Py_ssize_t',
                N_local='Py_ssize_t',
-               a_str='str',
-               artists_text='dict',
+               a_str=str,
+               artists_text=dict,
                color='double[::1]',
                combined='double[:, :, ::1]',
                component='Component',
-               component_dict='dict',
-               figname='str',
-               filename_component='str',
-               filename_component_alpha='str',
-               filename_component_alpha_part='str',
-               filenames_component_alpha='list',
-               filenames_component_alpha_part='list',
-               filenames_components='list',
+               component_dict=dict,
+               figname=str,
+               filename_component=str,
+               filename_component_alpha=str,
+               filename_component_alpha_part=str,
+               filenames_component_alpha=list,
+               filenames_component_alpha_part=list,
+               filenames_components=list,
                i='Py_ssize_t',
                index='Py_ssize_t',
                j='Py_ssize_t',
                k='Py_ssize_t',
-               label_props='list',
+               label_props=list,
                label_spacing='double',
-               name='str',
-               names='tuple',
+               name=str,
+               names=tuple,
                part='int',
                posx_mv='double[::1]',
                posy_mv='double[::1]',
                posz_mv='double[::1]',
-               render_dir='str',
+               render3D_dir=str,
                rgbα='double[:, ::1]',
                scatter_size='double',
                size_nopseudo_noghost='Py_ssize_t',
@@ -206,7 +685,7 @@ def plot_powerspec(data_list, filename, power_dict):
                size_i='Py_ssize_t',
                size_j='Py_ssize_t',
                size_k='Py_ssize_t',
-               t_str='str',
+               t_str=str,
                x='double*',
                x_mv='double[::1]',
                xi='double',
@@ -223,50 +702,44 @@ def plot_powerspec(data_list, filename, power_dict):
                ϱ_noghosts='double[:, :, :]',
                ϱbar_component='double',
                )
-def render(components, filename, cleanup=True, tmp_dirname='.renders'):
-    global render_image
-    # Do not render anything if
-    # render_select does not contain any True values.
-    if not any(render_select.values()):
+def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
+    global render3D_image
+    # Do not 3D render anything if
+    # render3D_select does not contain any True values.
+    if not any(render3D_select.values()):
         return
     # Attach missing extension to filename
     if not filename.endswith('.png'):
         filename += '.png'
-    # The directory for storing the temporary renders
-    render_dir = '{}/{}'.format(os.path.dirname(filename), tmp_dirname)
-    # Initialize figures by building up render_dict, if this is the
+    # The directory for storing the temporary 3D renders
+    render3D_dir = '{}/{}'.format(os.path.dirname(filename), tmp_dirname)
+    # Initialize figures by building up render3D_dict, if this is the
     # first time this function is called.
-    if not render_dict:
-        masterprint('Initializing renders ...')
+    if not render3D_dict:
+        masterprint('Initializing 3D renders ...')
         # Make cyclic default colors as when doing multiple plots in
         # one figure. Make sure that none of the colors are identical
         # to the background color.
         default_colors = itertools.cycle([to_rgb(prop['color'])
                                           for prop in matplotlib.rcParams['axes.prop_cycle']
-                                          if not all(to_rgb(prop['color']) == render_bgcolor)])
+                                          if not all(to_rgb(prop['color']) == render3D_bgcolor)])
         for component in components:
-            # The i'th component should only be rendered if
-            # {name: True} or {'all': True} exist in render_select.
-            # Also, if name exists, the value for 'all' is ignored.
-            if component.name.lower() in render_select:
-                if not render_select[component.name.lower()]:
-                    continue
-            elif not render_select.get('all', False):
+            if not is_selected(component, render3D_select):
                 continue
-            # This component should be rendered.
-            # Prepare a figure for the render of the i'th component.
-            figname = 'render_{}'.format(component.name)
+            # This component should be 3D rendered.
+            # Prepare a figure for the 3D render of the i'th component.
+            figname = 'render3D_{}'.format(component.name)
             dpi = 100  # The value of dpi is irrelevant
-            fig = plt.figure(figname, figsize=[render_resolution/dpi]*2, dpi=dpi)
-            ax = fig.gca(projection='3d', facecolor=render_bgcolor)
+            fig = plt.figure(figname, figsize=[render3D_resolution/dpi]*2, dpi=dpi)
+            ax = fig.gca(projection='3d', facecolor=render3D_bgcolor)
             # The color and α (of a homogeneous column through the
             # entire box) of this component.
-            if component.name.lower() in render_colors:
+            if component.name.lower() in render3D_colors:
                 # This component is given a specific color by the user
-                color, α_homogeneous = render_colors[component.name.lower()]
-            elif 'all' in render_colors:
+                color, α_homogeneous = render3D_colors[component.name.lower()]
+            elif 'all' in render3D_colors:
                 # All components are given the same color by the user
-                color, α_homogeneous = render_colors['all']
+                color, α_homogeneous = render3D_colors['all']
             else:
                 # No color specified for this particular component.
                 # Assign the next color from the default cyclic colors.
@@ -306,7 +779,7 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
                                               lw=0,
                                               )
             elif component.representation == 'fluid':
-                # To render fluid elements, their explicit positions
+                # To 3D render fluid elements, their explicit positions
                 # are needed. In the following, these are computed and
                 # stored in the variables posx_mv, posy_mv and posz_mv.
                 size_i = component.shape_noghosts[0] - 1
@@ -332,7 +805,7 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
                             index += 1
                 # 2D array with rgbα rows, one row for each
                 # fluid element. This is the only array which will be
-                # updated for each new render, and only the α column
+                # updated for each new 3D render, and only the α column
                 # will be updated.
                 rgbα = np.empty((size, 4), dtype=C2np['double'])
                 for i in range(size):
@@ -406,27 +879,27 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
             plt.tight_layout(pad=-1)  # Extra tight layout, to prevent white frame
             proj3d.persp_transformation = orthographic_proj  # Use orthographic 3D projection
             # Store the figure, axes and the component
-            # and text artists in the render_dict.
-            render_dict[component.name] = {'fig': fig,
-                                           'ax': ax,
-                                           'artist_component': artist_component,
-                                           'artists_text': artists_text,
+            # and text artists in the render3D_dict.
+            render3D_dict[component.name] = {'fig': fig,
+                                             'ax': ax,
+                                             'artist_component': artist_component,
+                                             'artists_text': artists_text,
                 'α_factor': (α_factor if component.representation == 'fluid' else None),
                 'rgbα'    : (rgbα     if component.representation == 'fluid' else None),
                                            }
-        # Create the temporary render directory if necessary
-        if not (nprocs == 1 == len(render_dict)):
+        # Create the temporary 3D render directory if necessary
+        if not (nprocs == 1 == len(render3D_dict)):
             if master:
-                os.makedirs(render_dir, exist_ok=True)
+                os.makedirs(render3D_dir, exist_ok=True)
             Barrier()
         masterprint('done')
-        # Return if no component is to be rendered
-        if not render_dict:
+        # Return if no component is to be 3D rendered
+        if not render3D_dict:
             return
     # Print out progress message
-    names = tuple(render_dict.keys())
+    names = tuple(render3D_dict.keys())
     if len(names) == 1:
-        masterprint('Rendering {} and saving to "{}" ...'.format(names[0], filename))
+        masterprint('Rendering {} in 3D and saving to "{}" ...'.format(names[0], filename))
     else:
         filenames_components = []
         for name in names:
@@ -439,17 +912,17 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
             else:
                 filename_component = filename.replace('.png', '_{}.png'.format(name))
             filenames_components.append('"{}"'.format(filename_component))
-        masterprint('Rendering {} and saving to {} ...'
+        masterprint('3D rendering {} and saving to {} ...'
                     .format(', '.join(names), ', '.join(filenames_components)))
-    # Render each component separately
+    # 3D render each component separately
     for component in components:
-        if component.name not in render_dict:
+        if component.name not in render3D_dict:
             continue
-        # Switch to the render figure
-        figname = 'render_{}'.format(component.name)
+        # Switch to the render3D figure
+        figname = 'render3D_{}'.format(component.name)
         plt.figure(figname)
         # Extract figure elements
-        component_dict = render_dict[component.name]
+        component_dict   = render3D_dict[component.name]
         fig              = component_dict['fig']
         ax               = component_dict['ax']
         artist_component = component_dict['artist_component']
@@ -471,7 +944,7 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
                                        op=MPI.SUM)/component.gridsize**3            
             # Update the α values in rgbα array based on the values of
             # ϱ at each grid point. The rgb-values remain the same for
-            # all renders of this component.
+            # all 3D renders of this component.
             index = 0
             for         i in range(ℤ[ϱ_noghosts.shape[0] - 1]):
                 for     j in range(ℤ[ϱ_noghosts.shape[1] - 1]):
@@ -498,36 +971,36 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
             # Make the text color black or white,
             # dependent on the background color.
             for artist_text in artists_text.values():
-                if sum(render_bgcolor) < 1:
+                if sum(render3D_bgcolor) < 1:
                     artist_text.set_color('white')
                 else:
                     artist_text.set_color('black')
-        # Save the render
+        # Save the 3D render
         if nprocs == 1:
             filename_component_alpha_part = ('{}/{}_alpha.png'
-                                              .format(render_dir,
+                                              .format(render3D_dir,
                                                       component.name.replace(' ', '-')))
         else:
             filename_component_alpha_part = ('{}/{}_alpha_{}.png'
-                                             .format(render_dir,
+                                             .format(render3D_dir,
                                                      component.name.replace(' ', '-'),
                                                      rank))
-        if nprocs == 1 == len(render_dict):
-            # As this is the only render which should be done, it can
+        if nprocs == 1 == len(render3D_dict):
+            # As this is the only 3D render which should be done, it can
             # be saved directly in its final, non-transparent state.
             plt.savefig(filename, transparent=False)
             masterprint('done')
         else:
-            # Save transparent render
+            # Save transparent 3D render
             plt.savefig(filename_component_alpha_part, transparent=True)
-    # All rendering done
+    # All 3D rendering done
     Barrier()
-    # The partial renders will now be combined into full renders,
-    # stored in the 'render_image', variable. Partial renders of the
-    # j'th component will be handled by the process with rank j.
-    if not (nprocs == 1 == len(render_dict)):
+    # The partial 3D renders will now be combined into full 3D renders,
+    # stored in the 'render3D_image', variable. Partial 3D renders of
+    # the j'th component will be handled by the process with rank j.
+    if not (nprocs == 1 == len(render3D_dict)):
         # Loop over components designated to each process
-        for i in range(1 + len(render_dict)//nprocs):
+        for i in range(1 + len(render3D_dict)//nprocs):
             # Break out when there is no more work for this process
             j = rank + nprocs*i
             if j >= len(names):
@@ -535,25 +1008,25 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
             name = names[j].replace(' ', '-')
             if nprocs == 1:
                 # Simply load the already fully constructed image
-                filename_component_alpha = '{}/{}_alpha.png'.format(render_dir, name)
-                render_image = plt.imread(filename_component_alpha)
+                filename_component_alpha = '{}/{}_alpha.png'.format(render3D_dir, name)
+                render3D_image = plt.imread(filename_component_alpha)
             else:
-                # Create list of filenames for the partial renders
+                # Create list of filenames for the partial 3D renders
                 filenames_component_alpha_part = ['{}/{}_alpha_{}.png'
-                                                  .format(render_dir, name, part)
+                                                  .format(render3D_dir, name, part)
                                                   for part in range(nprocs)]
-                # Read in the partial renders and blend
-                # them together into the render_image variable.
+                # Read in the partial 3D renders and blend
+                # them together into the render3D_image variable.
                 blend(filenames_component_alpha_part)
-                # Save combined render of the j'th component
+                # Save combined 3D render of the j'th component
                 # with transparency. Theese are then later combined into
-                # a render containing all components.
+                # a 3D render containing all components.
                 if len(names) > 1:
-                    filename_component_alpha = '{}/{}_alpha.png'.format(render_dir, name)
-                    plt.imsave(filename_component_alpha, render_image)
-            # Add opaque background to render_image
+                    filename_component_alpha = '{}/{}_alpha.png'.format(render3D_dir, name)
+                    plt.imsave(filename_component_alpha, render3D_image)
+            # Add opaque background to render3D_image
             add_background()
-            # Save combined render of the j'th component
+            # Save combined 3D render of the j'th component
             # without transparency.
             filename_component = filename
             if len(names) > 1:
@@ -563,24 +1036,37 @@ def render(components, filename, cleanup=True, tmp_dirname='.renders'):
                     filename_component = filename.replace('_a=', '_{}_a='.format(name))
                 else:
                     filename_component = filename.replace('.png', '_{}.png'.format(name))
-            plt.imsave(filename_component, render_image)
+            plt.imsave(filename_component, render3D_image)
         Barrier()
         masterprint('done')
-        # Finally, combine the full renders of individual components
-        # into a total render containing all components.
+        # Finally, combine the full 3D renders of individual components
+        # into a total 3D render containing all components.
         if master and len(names) > 1:
-            masterprint('Combining component renders and saving to "{}" ...'.format(filename))
-            filenames_component_alpha = ['{}/{}_alpha.png'.format(render_dir,
+            masterprint('Combining component 3D renders and saving to "{}" ...'.format(filename))
+            filenames_component_alpha = ['{}/{}_alpha.png'.format(render3D_dir,
                                                                   name.replace(' ', '-'))
                                          for name in names]
             blend(filenames_component_alpha)
-            # Add opaque background to render_image and save it
+            # Add opaque background to render3D_image and save it
             add_background()
-            plt.imsave(filename, render_image)
+            plt.imsave(filename, render3D_image)
             masterprint('done')
     # Remove the temporary directory, if cleanup is requested
-    if master and cleanup and not (nprocs == 1 == len(render_dict)):
-        shutil.rmtree(render_dir)
+    if master and cleanup and not (nprocs == 1 == len(render3D_dict)):
+        shutil.rmtree(render3D_dir)
+# Declare global variables used in the render3D function
+cython.declare(render3D_dict=object,  # OrderedDict
+               render3D_image='float[:, :, ::1]',
+               )
+# (Ordered) dictionary containing the figure, axes, component
+# artist and text artist for each component.
+render3D_dict = collections.OrderedDict()
+# The array storing the 3D render
+render3D_image = empty((render3D_resolution, render3D_resolution, 4), dtype=C2np['float'])
+# Dummy function
+def dummy_func(*args, **kwargs):
+    return None
+
 # Transformation function for orthographic projection
 def orthographic_proj(zfront, zback):
     """This function is taken from
@@ -597,14 +1083,11 @@ def orthographic_proj(zfront, zback):
                     [0, 0,  a   , b    ],
                     [0, 0, -1e-6, zback],
                     ])
-# Dummy function used by the render function
-def dummy_func(*args, **kwargs):
-    return None
 
 # Function which takes in a list of filenames of images and blend them
-# together into the global render_image array.
+# together into the global render3D_image array.
 @cython.header(# Arguments
-               filenames='list',
+               filenames=list,
                # Locals
                alpha_A='float',
                alpha_B='float',
@@ -617,37 +1100,39 @@ def dummy_func(*args, **kwargs):
                transparency='float',
                )
 def blend(filenames):
-    # Make render_image black and transparent
-    render_image[...] = 0
+    # Make render3D_image black and transparent
+    render3D_image[...] = 0
     for filename in filenames:
         tmp_image = plt.imread(filename)
-        for     i in range(render_resolution):
-            for j in range(render_resolution):
+        for     i in range(render3D_resolution):
+            for j in range(render3D_resolution):
                 # Pixels with 0 alpha has (r, g, b) = (1, 1, 1)
                 # (this is a defect of plt.savefig).
                 # These should be disregarded completely.
                 alpha_A = tmp_image[i, j, 3]
                 if alpha_A != 0:
-                    # Combine render_image with tmp_image by
+                    # Combine render3D_image with tmp_image by
                     # adding them together, using their alpha values
                     # as weights.
-                    alpha_B = render_image[i, j, 3]
+                    alpha_B = render3D_image[i, j, 3]
                     alpha_tot = alpha_A + alpha_B - alpha_A*alpha_B
                     for rgb in range(3):
-                        render_image[i, j, rgb] = ((alpha_A*tmp_image[i, j, rgb]
-                                                    + alpha_B*render_image[i, j, rgb])/alpha_tot)
-                    render_image[i, j, 3] = alpha_tot
-    # Some pixel values in the combined render may have overflown.
+                        render3D_image[i, j, rgb] = (
+                            (alpha_A*tmp_image[i, j, rgb] + alpha_B*render3D_image[i, j, rgb])
+                            /alpha_tot
+                        )
+                    render3D_image[i, j, 3] = alpha_tot
+    # Some pixel values in the combined 3D render may have overflown.
     # Clip at saturation value.
-    for     i in range(render_resolution):
-        for j in range(render_resolution):
+    for     i in range(render3D_resolution):
+        for j in range(render3D_resolution):
             for rgbα in range(4):
-                if render_image[i, j, rgbα] > 1:
-                    render_image[i, j, rgbα] = 1
+                if render3D_image[i, j, rgbα] > 1:
+                    render3D_image[i, j, rgbα] = 1
 
-# Add background color to render_image
+# Add background color to render3D_image
 @cython.header(# Arguments
-               filenames='list',
+               filenames=list,
                # Locals
                alpha='float',
                i='int',
@@ -655,159 +1140,12 @@ def blend(filenames):
                rgb='int',
                )
 def add_background():
-    for     i in range(render_resolution):
-        for j in range(render_resolution):
-            alpha = render_image[i, j, 3]
+    for     i in range(render3D_resolution):
+        for j in range(render3D_resolution):
+            alpha = render3D_image[i, j, 3]
             # Add background using "A over B" alpha blending
             for rgb in range(3):
-                render_image[i, j, rgb] = (alpha*render_image[i, j, rgb]
-                                           + (1 - alpha)*render_bgcolor[rgb])
-                render_image[i, j, 3] = 1
-
-# This function projects the particle/fluid element positions onto the
-# xy-plane and renders this projection directly in the terminal,
-# using ANSI/VT100 control sequences.
-@cython.header(# Arguments
-               components='list',
-               # Locals
-               N='Py_ssize_t',
-               N_local='Py_ssize_t',
-               Vcell='double',
-               colornumber='int',
-               colornumber_offset='int',
-               gridsize='Py_ssize_t',
-               i='Py_ssize_t',
-               index_x='Py_ssize_t',
-               index_y='Py_ssize_t',
-               j='Py_ssize_t',
-               mass='double',
-               maxoverdensity='double',
-               maxval='double',
-               component='Component',
-               posx='double*',
-               posy='double*',
-               projection_ANSI='list',
-               scalec='double',
-               size_x='Py_ssize_t',
-               size_y='Py_ssize_t',
-               size_z='Py_ssize_t',
-               total_mass='double',
-               Σmass='double',
-               ϱ_noghosts='double[:, :, :]',
-               )
-def terminal_render(components):
-    # Project all particle positions onto the 2D projection array,
-    # counting the number of particles in each pixel.
-    # The projection is done onto the xy-plane.
-    projection[...] = 0
-    total_mass = 0
-    for component in components:
-        if component.representation == 'particles':
-            # Extract relevant particle data
-            N = component.N
-            N_local = component.N_local
-            mass = component.mass
-            posx = component.posx
-            posy = component.posy
-            # Update the total mass
-            total_mass += N*mass
-            # Do the projection. Each particle is weighted by its mass.
-            for i in range(N_local):
-                index_x = int(posx[i]*projection_scalex)
-                index_y = int(posy[i]*projection_scaley)
-                projection[index_y, index_x] += mass
-        elif component.representation == 'fluid':
-            # Extract relevant fluid data
-            gridsize = component.gridsize
-            Σmass = universals.a**(-3*component.w())*component.Σmass_present
-            mass = Σmass/component.gridsize**3
-            Vcell = (boxsize/gridsize)**3
-            ϱ_noghosts = component.ϱ.grid_noghosts
-            size_x = ϱ_noghosts.shape[0] - 1
-            size_y = ϱ_noghosts.shape[1] - 1
-            size_z = ϱ_noghosts.shape[2] - 1
-            # Update the total mass
-            total_mass += gridsize**3*mass
-            # Do the projection.
-            # Each fluid element is weighted by its mass.
-            for i in range(size_x):
-                index_x = int((domain_start_x + i*domain_size_x/size_x)*projection_scalex)
-                for j in range(size_y):
-                    index_y = int((domain_start_y + j*domain_size_y/size_y)*projection_scaley)
-                    projection[index_y, index_x] += Vcell*np.sum(ϱ_noghosts[i, j, :size_z])
-    # Sum up local projections into the master process
-    Reduce(sendbuf=(MPI.IN_PLACE if master else projection),
-           recvbuf=(projection   if master else None),
-           op=MPI.SUM)
-    if not master:
-        return
-    # Values in the projection array equal to or larger than maxval
-    # will be mapped to color nr. 255. The value of the maxoverdensity
-    # is arbitrarily chosen.
-    maxoverdensity = 10
-    maxval = maxoverdensity*total_mass/(projection.shape[0]*projection.shape[1])
-    if maxval < 5:
-        maxval = 5
-    # Construct list of strings, each string being a space prepended
-    # with an ANSI/VT100 control sequences which sets the background
-    # color. When printed together, these strings produce an ANSI image
-    # of the projection.
-    projection_ANSI = []
-    scalec = terminal_render_colormap_rgb.shape[0]/maxval
-    colornumber_offset = 256 - terminal_render_colormap_rgb.shape[0]
-    for i in range(projection.shape[0]):
-        for j in range(projection.shape[1]):
-            colornumber = int(colornumber_offset + projection[i, j]*scalec)
-            if colornumber > 255:
-                colornumber = 255
-            projection_ANSI.append('\x1b[48;5;{}m '.format(colornumber))
-        projection_ANSI.append('\x1b[0m\n')
-    # Print the ANSI image
-    masterprint(''.join(projection_ANSI), end='', wrap=False)
-
-
-
-# Declare global variables used in above functions
-cython.declare(render_dict='object',  # OrderedDict
-               render_image='float[:, :, ::1]',
-               )
-# Prepare a figure for the render
-if any(render_times.values()) or special_params.get('special', '') == 'render':
-    # (Ordered) dictionary containing the figure, axes, component
-    # artist and text artist for each component.
-    render_dict = collections.OrderedDict()
-# The array storing the render
-render_image = empty((render_resolution, render_resolution, 4), dtype=C2np['float'])
-
-# Prepare a figure for the powerspec plot
-if (any(powerspec_plot_select.values())
-    and (powerspec_times or special_params.get('special', '') == 'powerspec')):
-    fig_powerspec = plt.figure('powerspec')
-# The array storing the terminal render and the color map
-if any(terminal_render_times.values()):
-    # Allocate the 2D projection array storing the terminal render
-    cython.declare(projection='double[:, ::1]',
-                   projection_scalex='double',
-                   projection_scaley='double',
-                   terminal_render_colormap_rgb='double[:, ::1]',
-                   )
-    projection = np.empty((terminal_render_resolution//2, terminal_render_resolution),
-                          dtype=C2np['double'])
-    projection_scalex = projection.shape[1]/boxsize
-    projection_scaley = projection.shape[0]/boxsize
-    # Construct terminal colormap with 256 - 16 - 2 = 238 colors
-    # and apply it to the terminal, remapping the 238 higher color
-    # numbers. The 16 + 2 = 18 lowest are left alone in order not to
-    # mess with standard terminal coloring and the colors used for the
-    # CO𝘕CEPT logo at startup.
-    if master:
-        terminal_render_colormap_rgb = np.ascontiguousarray(getattr(matplotlib.cm,
-                                                                    terminal_render_colormap)
-                                                            (linspace(0, 1, 238))[:, :3])
-        for i, rgb in enumerate(asarray(terminal_render_colormap_rgb)):
-            colorhex = matplotlib.colors.rgb2hex(rgb)
-            masterprint('\x1b]4;{};rgb:{}/{}/{}\x1b\\'
-                         .format(256 - terminal_render_colormap_rgb.shape[0] + i, colorhex[1:3],
-                                                                                  colorhex[3:5],
-                                                                                  colorhex[5:]),
-                        end='')
+                render3D_image[i, j, rgb] = (
+                    alpha*render3D_image[i, j, rgb] + (1 - alpha)*render3D_bgcolor[rgb]
+                )
+                render3D_image[i, j, 3] = 1

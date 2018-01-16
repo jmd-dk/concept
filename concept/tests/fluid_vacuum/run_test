@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -60,8 +60,8 @@ gridsize=$(get_param "φ_gridsize")
 # Run the CO𝘕CEPT code on the particle ICs
 "${concept}" -n 1 -p "${this_dir}/params" --local
 
-# Play the terminal renders in the logfile as a movie
-"${concept}" --util play -f 4
+# Play the 2D terminal renders in the log file as an animation
+"${concept}" -u play -f 5
 
 # Move particle snapshots to a new directory
 mkdir "${this_dir}/output/particles"
@@ -70,7 +70,7 @@ mv "${this_dir}/output/snapshot"* "${this_dir}/output/particles/"
 # Function for converting particle snapshots to fluid snapshots
 particles2fluid()
 {
-    "${concept}" --local --util convert "${1}"         \
+    "${concept}" --local -u convert "${1}"             \
         "control particles.species  = matter fluid"    \
         "control particles.gridsize = ${gridsize}"     \
         "control particles.name     = converted fluid"
@@ -84,8 +84,8 @@ mv "${this_dir}/IC_converted.hdf5" "${this_dir}/IC.hdf5"
 # Run the CO𝘕CEPT code on the fluid ICs
 "${concept}" -n 1 -p "${this_dir}/params" --local
 
-# Play the terminal renders in the logfile as a movie
-"${concept}" --util play -f 4
+# Play the 2D terminal renders in the log file as an animation
+"${concept}" -u play -f 5
 
 # Move fluid snapshots to a new directory
 mkdir "${this_dir}/output/fluid"

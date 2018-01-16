@@ -1,111 +1,142 @@
-# This is an example parameterfile to the CO𝘕CEPT code,
-# containing every parameter.
-# Parameters can be specified as any valid Python 3 expression.
-# Mathematical as well as NumPy functions and constants are available.
-# Physical units may and should be used where applicable.
-# Absolute paths defined in the .paths file may be used via the paths dict.
-# For more information about the different parameters,
-# see chapter 5 of guide.pdf.
+# This is an example parameter file to the CO𝘕CEPT code.
+# When defining parameters, the following tips and tricks may be used:
+# - Parameters can be specified as any valid Python 3 expression.
+# - Mathematical as well as NumPy functions and constants are available.
+# - Physical units may and should be used where applicable.
+# - Absolute paths defined in the .paths file may be accessed
+#   via the paths dict.
+# - Repeated values in dictionaries may be succinctly declared
+#   by an ellipsis (...).
 
 
 
 # Input/output
-initial_conditions = (          # Initial condition file or container of species to be generated
-    {'name'    : 'neutrinos',
-     'species' : 'neutrino fluid',
-     'gridsize': 16,
-     'w'       : 'class',
-     'closure' : 'class',
+initial_conditions = [  # Initial condition snapshot file or container of components to be generated
+    {'name'   : 'matter component',
+     'species': 'matter particles',
+     'N'      : 32**3,
+     },
+    {'name'       : 'neutrino component',
+     'species'    : 'neutrino fluid',
+     'gridsize'   : 32,
      'N_fluidvars': 2,
      },
-    )
-snapshot_type = 'standard'      # Type of output snapshots
-output_dirs = {                 # Directories for storing output
-    'snapshot' : 'output',
+]
+snapshot_type = 'standard'  # Type of output snapshots
+output_dirs = {  # Directories for storing output
+    'snapshot' : paths['output_dir'],
     'powerspec': ...,
-    'render'   : ...,
-               }
-output_bases = {                # File basenames of output
+    'render2D' : ...,
+    'render3D' : ...,
+    'autosave' : 'output/autosaves',
+}
+output_bases = {  # File basenames of output
     'snapshot' : 'snapshot',
     'powerspec': 'powerspec',
-    'render'   : 'render',
-    }
+    'render2D' : 'render2D',
+    'render3D' : 'render3D',
+}
 output_times = {
-    'a': {                      # Scale factor values at which to dump output
-        'snapshot'       : '',
-        'powerspec'      : 1,
-        'render'         : '',
-        'terminal render': '',
-          },
-    't': {                      # Cosmic times at which to dump output
-        'snapshot'       : '',
-        'powerspec'      : '',
-        'render'         : '',
-        'terminal render': '',
-          },
-    }
-powerspec_select = {            # Toggle power spectra computation for each component
+    'a': {  # Scale factor values at which to dump output
+        'snapshot' : logspace(log10(0.02), log10(1), 5),
+        'powerspec': ...,
+        'render2D' : 1,
+        'render3D' : [0.02, 1],
+    },
+    't': {  # Cosmic times at which to dump output
+        'snapshot' : '',
+        'powerspec': '',
+        'render2D' : '',
+        'render3D' : '',
+     },
+}
+autosave_interval = 12*hr  # How often to dump autosave snapshot
+snapshot_select = {  # Select which components to save in snapshots
     'all': True,
-    }
-powerspec_plot_select = {       # Toggle power spectra plotting for each component
+}
+powerspec_select = {  # Toggle power spectra computation for individual and sets of components
+    'all': {'data': True, 'plot': True},
+    'all combinations': {'data': True, 'plot': False},
+}
+render2D_select = {  # Toogle 2D rendering for individual and sets of components
+    'matter component'  : {'data': False, 'image': True,  'terminal image': True},
+    'neutrino component': {'data': False, 'image': False, 'terminal image': False},
+}
+render3D_select = {  # Toggle rendering for each component
     'all': True,
-    }
-render_select = {               # Toggle rendering for each component
-    'all': True,
-    }
-autosave = 1*hr                 # How often to autosave
+}
 
 # Numerical parameters
-boxsize          = 256*Mpc  # Linear size of the simulation box
+boxsize          = 128*Mpc  # Linear size of the simulation box
 ewald_gridsize   = 64       # Linear gridsize of the grid of Ewald corrections
-φ_gridsize       = 128      # Linear gridsize of the potential
-p3m_scale        = 1.25	    # The long/short-range force split scale (grid units)
-p3m_cutoff       = 4.8      # Maximum reach of short-range force (grid units)
-softeningfactors = {        # The amount of gravitational softening for each species
-    'matter particles': 0.03,
-    }
+φ_gridsize       = 32       # Linear gridsize of the potential
+p3m_scale        = 1.25	    # The long/short-range force split scale
+p3m_cutoff       = 4.8      # Maximum reach of short-range force
 R_tophat         = 8*Mpc    # Radius of tophat used to compute σ
-modes_per_decade = 100      # Number of Fourier modes per decade used for realisations
+modes_per_decade = 30       # Number of linear k modes per decade computed in CLASS
 
 # Cosmology
-H0           = 70*km/(s*Mpc)  # The Hubble constant
-Ωcdm         = 0.25           # Density parameter for cold dark matter
-Ωb           = 0.05           # Density parameter for baryonic matter
-a_begin      = 0.01           # Scale factor at beginning of simulation
-class_params = {              # Parameters to pass to CLASS
-    'A_s': 2.215e-9,
-    'n_s': 0.9619,
-    'N_ur': 0.0,      # Number of massless neutrinos
-    'N_ncdm': 1,      # Nr. of massive neutrinos
-    'm_ncdm': 1.2/3,   # Mass of massive neutrinos in eV
-    'deg_ncdm': 3.0,
-    }
-
+H0      = 70*km/(s*Mpc)  # The Hubble constant
+Ωcdm    = 0.25 - Ων      # Density parameter for cold dark matter
+Ωb      = 0.05           # Density parameter for baryonic matter
+a_begin = 0.02           # Scale factor at beginning of simulation
+class_params = {         # CLASS parameters. See the CLASS documentation for details.
+    'N_ncdm'                  : 1,
+    'deg_ncdm'                : 3,
+    'm_ncdm'                  : 1.0/3,
+    'n_s'                     : 1,
+    'A_s'                     : 2.30e-09,
+    'N_ur'                    : 0.0,
+    'l_max_ncdm'              : 30,
+    'Number of momentum bins' : 30,
+    'Maximum q'               : 15,
+}
 # Physics
-forces = {  # The forces which act on each species
-    'matter particles': {'gravity': 'pm'},
-    }
-w_eos = {  # Equation of state parameter for each species
-    ...: ...,
-    }
+select_forces = {  # Forces and methods which act on each component
+    'all': {'gravity': 'pm'},
+}
+select_class_species = {  # CLASS species to use for each component
+    'all': 'automatic',
+}
+select_eos_w = {  # Equation of state parameter w for each component
+    'all': 'class',
+}
+select_closure = {  # Closure rule for the Boltzmann hierarchy for each component
+    'all': 'class',
+}
+select_approximations = {  # Toogle approximations for each component
+    'all': {'P = wρ': False},
+}
+select_softening_length = {  # Gravitational softening for each component
+    'particles': '0.03*boxsize/cbrt(N)',
+}
 
 # Simulation options
 fftw_wisdom_rigor = 'measure'  # Rigor level when acquiring FFTW wisdom
-fftw_wisdom_reuse = False      # Reuse FFTW wisdom from previous runs?
+fftw_wisdom_reuse = True       # Reuse FFTW wisdom from earlier runs?
 master_seed = 1                # Seed for pseudo-random numbers
-vacuum_corrections = {         # Toogle vacuum corrections for each species
+select_vacuum_corrections = {  # Toogle vacuum corrections for each component
     'all': True,
-    }
+}
+class_reuse = True              # Reuse CLASS results from earlier runs?
+class_extra_perturbations = ''  # Extra CLASS perturbations to dump
 
 # Graphics
-terminal_width             = 80          # Width of displayed text in characters
-render_resolution          = 1080        # Height and width of renders in pixels
-render_colors = {                        # Render color for each component
-    'all': 'lime',
-    }
-render_bgcolor             = 'black'	 # Background color of renders
-terminal_render_resolution = 80          # Width of the terminal render in characters
-terminal_render_colormap   = 'gnuplot2'  # Colormap to use for terminal renders
+render2D_options = {  # Specifications of 2D renders for each component
+    'axis': 'z',
+    'extend': 0.1*boxsize,
+    'terminal resolution': 40,
+    'colormap': {
+        'all': 'inferno',
+    },
+    'enhance': True,
+}
+render3D_colors = {  # Render color for each component
+    'matter component': 'lime',
+    'neutrino component': 'r',
+}
+render3D_bgcolor    = 'black'  # Background color of 3D renders
+render3D_resolution = 1080     # The height and width of 3D renders
 
 # System of units
 unit_length = 'Mpc'      # Physical length corresponding to a numerical value of 1.0
@@ -113,7 +144,8 @@ unit_time   = 'Gyr'      # Physical time   corresponding to a numerical value of
 unit_mass   = '10¹⁰ m☉'  # Physical mass   corresponding to a numerical value of 1.0
 
 # Debugging options
-enable_Hubble    = True   # Enable Hubble expansion
-enable_class     = True   # Use CLASS to compute the evolution of the background
-enable_debugging = False  # Enable debugging mode
+enable_Ewald            = True   # Enable Ewald corrections
+enable_Hubble           = True   # Enable Hubble expansion
+enable_class_background = True   # Use CLASS to compute the evolution of the background
+enable_debugging        = False  # Enable debugging mode
 

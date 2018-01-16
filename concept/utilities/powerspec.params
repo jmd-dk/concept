@@ -1,4 +1,4 @@
-# This is the default parameterfile used by the powerspec utility.
+# This is the default parameter file used by the powerspec utility.
 # Parameters can be specified as any valid Python 3 expression.
 # Mathematical as well as NumPy functions and constants are available.
 # Physical units may and should be used where applicable.
@@ -9,12 +9,13 @@
 # Input/output
 output_bases = {'powerspec': 'powerspec'}
 powerspec_select = {'all': True}
-powerspec_plot_select = {'all': True}
+powerspec_plot_select = {'all': False}
 
 # Numerical parameters
-φ_gridsize  = 400
-R_tophat    = 8*Mpc
+φ_gridsize = 64
+R_tophat   = 8*Mpc
 
 # Simulation options
-fftw_rigor = 'measure'
+fftw_wisdom_rigor = 'measure'
+fftw_wisdom_reuse = True
 

@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -62,7 +62,7 @@ counts = counts[:-1, :-1, :-1]
 # Normalize counts to get the contrast from homogeneity
 counts_contrast = counts.flatten()/N_in_cubes_homo - 1
 
-# The RMS (std) of the count contrast is also the RMS of the density contrast
+# The rms (std) of the count contrast is also the rms of the density contrast
 σ = np.std(counts_contrast)
 
 # Is the distribution Gaussian? If not, the snapshot has not been generated correctly
@@ -87,12 +87,16 @@ with open(powerspec_filename, encoding='utf-8') as powespec_file:
     search = None
     while not search:
         header = powespec_file.readline()
-        search = re.search('=(.*?) ±', header)
+        search = re.search(''.join(['σ',
+                                    unicode_subscript(f'{R_tophat/units.Mpc:.2g}'),
+                                    ' = ([0-9.]*)',
+                                    ]
+                                   ), header)
 σ_concept = float(search.group(1))
 
 # Do the σ from CO𝘕CEPT agree with the one computed via the cubic boxes?
-tol = 1e-2
-if abs(1 - σ_concept/σ) > tol:
+rel_tol = 1e-2
+if not isclose(σ, σ_concept, rel_tol=rel_tol):
     abort('The rms density variation σ = {:.6g} from "{}" do not agree with direct computation '
            '({:.6g}). The power spectrum from which σ is calulated is plotted in "{}"'
            .format(σ_concept, powerspec_filename, σ, powerspec_filename + '.png'))
@@ -102,10 +106,14 @@ if abs(1 - σ_concept/σ) > tol:
 # should result in k being halved and the power being multiplied by 2³.
 powerspec_filename_single_boxsize = powerspec_filename
 powerspec_filename_double_boxsize = '{}_double_boxsize'.format(powerspec_filename)
-k_single_boxsize, power_single_boxsize, _ = np.loadtxt(powerspec_filename_single_boxsize,
-                                                       unpack=True)
-k_double_boxsize, power_double_boxsize, _ = np.loadtxt(powerspec_filename_double_boxsize,
-                                                       unpack=True)
+(k_single_boxsize,
+ modes,
+ power_single_boxsize,
+ ) = np.loadtxt(powerspec_filename_single_boxsize, unpack=True)
+(k_double_boxsize,
+ modes,
+ power_double_boxsize,
+ ) = np.loadtxt(powerspec_filename_double_boxsize, unpack=True)
 tol = 1e-4
 if not all(np.abs((k_single_boxsize/2 - k_double_boxsize)/k_double_boxsize) < tol):
     abort('Bad scaling of k against the boxsize. '
@@ -124,8 +132,10 @@ if not all(np.abs((power_single_boxsize*2**3 - power_double_boxsize)/power_doubl
 powerspec_filename_whole_gridsize = powerspec_filename
 powerspec_filename_half_gridsize = '{}_half_gridsize'.format(powerspec_filename)
 k_whole_gridsize, power_whole_gridsize = k_single_boxsize, power_single_boxsize
-k_half_gridsize, power_half_gridsize, σ_half_gridsize = np.loadtxt(powerspec_filename_half_gridsize,
-                                                                   unpack=True)
+(k_half_gridsize,
+ modes,
+ power_half_gridsize,
+ ) = np.loadtxt(powerspec_filename_half_gridsize, unpack=True)
 if not k_whole_gridsize[0] == k_half_gridsize[0]:
     abort('The smallest k value should not depend on the gridsize. '
           'The compared power spectra are plotted in "{}.png" and "{}.png"'
@@ -144,21 +154,16 @@ for k in k_half_gridsize:
     power_whole_gridsize_trimmed.append(power_whole_gridsize[index])
 power_whole_gridsize_trimmed = asarray(power_whole_gridsize_trimmed)
 # Compare the powers(k) below k_max/2 = (k2_max/sqrt(3))/2,
-# where the noise should not be significant.
+# where the CIC noise should not be significant.
 k_max = k_half_gridsize[-1]/sqrt(3)
 power_half_gridsize_firstpart = power_half_gridsize[k_half_gridsize < 0.5*k_max]
-σ_half_gridsize_firstpart = σ_half_gridsize[k_half_gridsize < 0.5*k_max]
 power_whole_gridsize_trimmed_firstpart = power_whole_gridsize_trimmed[k_whole_gridsize_trimmed
                                                                       < 0.5*k_max]
-if (   not all((   power_whole_gridsize_trimmed_firstpart
-                - (power_half_gridsize_firstpart - σ_half_gridsize_firstpart)
-                )/power_whole_gridsize_trimmed_firstpart
-                > 0)
-    or not all((   power_whole_gridsize_trimmed_firstpart
-                - (power_half_gridsize_firstpart + σ_half_gridsize_firstpart)
-                )/power_whole_gridsize_trimmed_firstpart
-                < 0)
-    ):
+if not np.all(abs((  power_whole_gridsize_trimmed_firstpart
+                   - power_half_gridsize_firstpart
+                   )/power_half_gridsize_firstpart
+                  ) < rel_tol
+              ):
     abort('Bad scaling of power against the gridsize. '
           'The compared power spectra are plotted in "{}.png" and "{}.png"'
           .format(powerspec_filename_whole_gridsize, powerspec_filename_half_gridsize)

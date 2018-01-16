@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@
 # You can run this file directly as
 # utilities/powerspec paths
 # or invoke it via the concept script as
-# ./concept --util powerspec paths
+# ./concept -u powerspec paths
 # In both cases, paths are paths to snapshot files
 # or directories containing snapshot files.
 
@@ -97,12 +97,12 @@ fi
 # If not called indirectly through the concept script,
 # call the concept script now.
 if [ "${called_from_concept}" != "True" ]; then
-    "${concept}" --util "${this_file}" "$@"
+    "${concept}" -u "${this_file}" "$@"
     trap : 0
     exit 0
 fi
 
-# If no parameterfile is supplied,
+# If no parameter file is supplied,
 # use the one that goes along with this utility.
 if [ "${params}" == "None" ]; then
     params="${this_file}.params"
@@ -114,15 +114,15 @@ for i in ${!paths[@]}; do
 done
 
 # Get filenames of snapshots and create matching (temporary) parameter files
-info="$("${concept}" -p "${params}"                                \
-                     ${interactive_flag}                           \
-                     --local                                       \
-                     ${no_optimization_flag}                       \
-                     ${pure_python_flag}                           \
-                     ${unsafe_build_flag}                          \
-                     --util info                                   \
-                            "$(bash_array2python_list paths[@])"   \
-                            --generate-params "${this_dir}/params" \
+info="$("${concept}" -p "${params}"                             \
+                     ${interactive_flag}                        \
+                     --local                                    \
+                     ${no_optimization_flag}                    \
+                     ${pure_python_flag}                        \
+                     ${unsafe_build_flag}                       \
+                     -u info                                    \
+                         "$(bash_array2python_list paths[@])"   \
+                         --generate-params "${this_dir}/params" \
         )"
 snapshot_filenames="$(echo "${info}" | grep -x 'Parameters.*' | grep -o '".*"')"
 snapshot_params_filenames="$(echo "${info}"                                           \
@@ -220,7 +220,7 @@ if [ ${#jobids[@]} -gt 0 ] && [ "${no_watch}" == "False" ]; then
         printf "\nWill now watch the submitted job\n\n"
     fi
     for jobid in "${jobids[@]}"; do
-        "${concept}" --util watch ${jobid}
+        "${concept}" -u watch ${jobid}
         echo
     done
 fi

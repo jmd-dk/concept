@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@
 # You can run this file directly as
 # utilities/update
 # or invoke it via the concept script as
-# ./concept --util update
+# ./concept -u update
 
 
 
@@ -90,7 +90,7 @@ fi
 # If not called indirectly through the concept script,
 # call the concept script now.
 if [ "${called_from_concept}" != "True" ]; then
-    "${concept}" --util "${this_file}" "$@"
+    "${concept}" -u "${this_file}" "$@"
     trap : 0
     exit 0
 fi

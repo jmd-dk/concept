@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -38,9 +38,9 @@ H0      = 70*km/(s*Mpc)
 Ωb      = 0.05
 a_begin = 0.02
 
-# Graphics
-terminal_render_colormap   = 'ocean'
-terminal_render_resolution = 64
+# Physics
+select_closure        = {'matter fluid': 'truncate'}
+select_approximations = {'matter fluid': {'P=wρ': True}}
 
 # Debugging options
 enable_Hubble = True

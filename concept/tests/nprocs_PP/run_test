@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -52,7 +52,7 @@ set -e
 
 # Create the Ewald grid using Cython, if it does not already exist
 ewald_gridsize="$(get_param ewald_gridsize)"
-if [ ! -f "${concept_dir}/.ewald_gridsize=${ewald_gridsize}.hdf5" ]; then
+if [ ! -f "${reusables_dir}/ewald/ewald_gridsize=${ewald_gridsize}.hdf5" ]; then
     forces="$(get_param         forces        )"
     echo "ewald_gridsize = ${ewald_gridsize}" >  "${this_dir}/params_ewald"
     echo "forces         = ${forces}"         >> "${this_dir}/params_ewald"

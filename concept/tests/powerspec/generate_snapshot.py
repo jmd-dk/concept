@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -30,7 +30,7 @@ from snapshot import save
 # Create close to homogeneous particles
 N_lin = 128
 N = N_lin**3
-mass = ϱ_mbar*boxsize**3/N
+mass = ρ_mbar*boxsize**3/N
 component = Component('test particles', 'matter particles', N, mass=mass)
 posx = empty(N)
 posy = empty(N)

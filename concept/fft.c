@@ -1,6 +1,6 @@
 /*
 This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 
 CO𝘕CEPT is free software: You can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -83,7 +83,8 @@ struct fftw_return_struct fftw_setup(ptrdiff_t gridsize_i,
                                      ptrdiff_t gridsize_j,
                                      ptrdiff_t gridsize_k,
                                      char* fftw_wisdom_rigor,
-                                     bool fftw_wisdom_reuse){
+                                     bool fftw_wisdom_reuse,
+                                     char* wisdom_filename){
     // Arguments to this function:
     // - Linear gridsize of dimension 1.
     // - Linear gridsize of dimension 2.
@@ -98,6 +99,8 @@ struct fftw_return_struct fftw_setup(ptrdiff_t gridsize_i,
 
     // Initialize parallel fftw (note that MPI_Init should not be
     // called, as MPI is already running via MPI4Py).
+    // Note that this function may be called multiple times in one MPI
+    // session without errors; only the first call will have any effect.
     fftw_mpi_init();
 
     // Process identification
@@ -121,15 +124,6 @@ struct fftw_return_struct fftw_setup(ptrdiff_t gridsize_i,
                                                          &gridsize_local_j,
                                                          &gridstart_local_j)
                                    );
-
-    // The filename of the wisdom file
-    char wisdom_filename_buffer[128];
-    const char *wisdom_filename;
-    sprintf(wisdom_filename_buffer, ".fftw_wisdom_gridsize=%td_nprocs=%i_rigor=%s",
-            gridsize_i,
-            nprocs,
-            fftw_wisdom_rigor);
-    wisdom_filename = &wisdom_filename_buffer[0];
 
     // The master process reads in previous wisdom and broadcasts it
     int previous_wisdom = 0;

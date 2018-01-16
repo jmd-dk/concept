@@ -2,7 +2,7 @@
 # This Python file uses the following encoding: utf-8
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -91,14 +91,13 @@ if sys.version_info.major < 3:
 def non_nested_exec(s):
     exec(s)
 # General imports
-from copy import deepcopy
-import collections, imp, itertools, os, re, shutil, unicodedata
+import collections, contextlib, copy, imp, itertools, keyword, os, re, shutil, unicodedata
 # For math
 import numpy as np
 
 
 
-def cimport_cython(lines):
+def cimport_cython(lines, no_optimization):
     for i, line in enumerate(lines):
         if (line.strip()
             and not line.lstrip().startswith('#')
@@ -110,14 +109,13 @@ def cimport_cython(lines):
 
 
 
-def oneline(lines):
+def oneline(lines, no_optimization):
     in_quotes = [False, False]
     in_triple_quotes = [False, False]
     paren_counts = {'paren': 0, 'brack': 0, 'curly': 0}
     def count_parens(line):
         if line.lstrip().startswith('#'):
             return line
-        L = len(line)
         for j, ch in enumerate(line):
             # Inside quotations?
             if ch in ("'", '"'):
@@ -161,7 +159,7 @@ def oneline(lines):
     new_lines = []
     multiline_statement = []
     multiline = False
-    multiline_decorator = False
+    stay_as_multiline = False
     for i, line in enumerate(lines):
         line = count_parens(line)
         if (paren_counts['paren'] > 0 or
@@ -169,8 +167,8 @@ def oneline(lines):
             paren_counts['curly'] > 0) and not multiline:
             # Multiline statement begins
             multiline = True
-            if line.lstrip().startswith('@'):
-                multiline_decorator = True
+            if line.lstrip().startswith('@') or line.count('"""') == 1 or line.count("'''") == 1:
+                stay_as_multiline = True
                 new_lines.append(line)
                 continue
             if line.lstrip().startswith('#'):
@@ -183,7 +181,7 @@ def oneline(lines):
               paren_counts['brack'] > 0 or
               paren_counts['curly'] > 0) and multiline:
             # Multiline statement continues
-            if multiline_decorator:
+            if stay_as_multiline:
                 new_lines.append(line)
                 continue
             if line.lstrip().startswith('#'):
@@ -195,8 +193,8 @@ def oneline(lines):
         elif multiline:
             # Multiline statement ends
             multiline = False
-            if multiline_decorator:
-                multiline_decorator = False
+            if stay_as_multiline:
+                stay_as_multiline = False
                 new_lines.append(line)
                 continue
             multiline_statement.append(' ' + line.lstrip())
@@ -208,7 +206,39 @@ def oneline(lines):
 
 
 
-def cythonstring2code(lines):
+def format_pxdhints(lines, no_optimization):
+    """Change pxd(...) to pxd = ...
+    """
+    new_lines = []
+    skip = 0
+    for i, line in enumerate(lines):
+        if skip > 0:
+            skip -= 1
+            continue
+        if re.search('^pxd *\(', line):
+            if line.count('(') == line.count(')'):
+                new_lines.append(re.sub('^pxd *\((.*)\)', 'pxd = \g<1>', line))
+            else:
+                # Multiline via triple quotes
+                new_lines.append(re.sub('^pxd *\(', 'pxd = ', line))
+                quote_type = '"""' if '"""' in line else "'''"
+                quote_ended = False
+                for line in lines[i + 1:]:
+                    skip += 1
+                    if quote_type in line:
+                        quote_ended = True
+                    if quote_ended and ')' in line:
+                        new_lines.append(line.replace(')', ''))
+                        break
+                    else:
+                        new_lines.append(line)
+        else:
+            new_lines.append(line)
+    return new_lines
+
+
+
+def cythonstring2code(lines, no_optimization):
     new_lines = []
     in_purePythonsection = False
     unindent = False
@@ -247,7 +277,7 @@ def cythonstring2code(lines):
 
 
 
-def cython_structs(lines):
+def cython_structs(lines, no_optimization):
     # Function which returns a copy of the build_struct function
     # from commons.py:
     def get_build_struct():
@@ -343,11 +373,11 @@ def cython_structs(lines):
                 new_lines.append(build_struct_line)
             # Insert declaration of struct
             indentation = len(line) - len(line.lstrip())
-            new_lines.append(' '*indentation + "cython.declare({}='struct_{}')\n"
+            new_lines.append(' '*indentation + 'cython.declare({}=struct_{})\n'
                                                .format(varnames[0], struct_kind))
             # Insert declaration of dict
             if len(varnames) == 2:
-                new_lines.append(' '*indentation + "cython.declare({}='dict')\n"
+                new_lines.append(' '*indentation + "cython.declare({}=dict)\n"
                                                    .format(varnames[1]))
             # Insert modified build_struct call
             new_lines.append(line.replace('build_struct(',
@@ -379,7 +409,7 @@ def cython_structs(lines):
 
 
 
-def cimport_commons(lines):
+def cimport_commons(lines, no_optimization):
     for i, line in enumerate(lines):
         if line.startswith('from {} import *'.format(commons_name)):
             lines = (  lines[:(i + 1)]
@@ -390,7 +420,7 @@ def cimport_commons(lines):
 
 
 
-def cimport_function(lines):
+def cimport_function(lines, no_optimization):
     new_lines = []
     for i, line in enumerate(lines):
         if line.replace(' ', '').startswith('cimport('):
@@ -421,200 +451,7 @@ def cimport_function(lines):
 
 
 
-def loop_unswitching(lines):
-    # Run through the lines and replace any unswitch context manager
-    # with the unswitched loop(s).
-    new_lines = []
-    while True:
-        skip = 0
-        for i, line in enumerate(lines):
-            # Should this line be skipped?
-            if skip > 0:
-                skip -= 1
-                continue
-            # Search for the following constructs:
-            # with unswitch:
-            #    ...
-            # with unswitch():  # Same as above
-            #    ...
-            # with unswitch(n):  # With n an integer literal or expression
-            #    ...
-            pattern = r'with +unswitch *(\(.*\))? *:'
-            match = re.search(pattern, line.strip())
-            if match and not line.lstrip().startswith('#'):
-                # Loop unswitching found.
-                # If optimizations are disabled, simply replace the
-                # with statement with "if True:".
-                if no_optimization:
-                    new_lines.append(' '*(len(line) - len(line.lstrip()))
-                                     + '# Unswitch context manager replaced '
-                                     + 'with trivial if statement\n')
-                    new_lines.append(re.sub(pattern, 'if True:', line))
-                    continue
-                # Determine the number of indentation levels to do
-                # loop unswitching on. This is the n in unswitch(n).
-                # If not specified, this is set to infinity.
-                n = match.group(1)
-                if n:
-                    n = n[1:-1]
-                    if n:
-                        n = eval(n)
-                    else:
-                        n = float('inf')
-                else:
-                    n = float('inf')
-                # If n is zero or negative,
-                # no loop unswitching shold be performed.
-                if n < 1:
-                    continue
-                # Search n nested loops upwards.
-                # Allowed constructs to pass are
-                # - for loops
-                # - while loops
-                # - if/elif/else statements
-                # - with statements
-                # - try/except/finally statements
-                unswitch_lvl = (len(line) - len(line.lstrip()))//4
-                n_nested_loops = 0
-                smallest_lvl = unswitch_lvl
-                for j, line in enumerate(reversed(lines[:i])):
-                    # Skip empty lines and comment lines
-                    line_stripped = line.strip()
-                    if not line_stripped or line_stripped.startswith('#'):
-                        continue
-                    # The indentation level
-                    lvl = (len(line) - len(line.lstrip()))//4
-                    # Check for nested loop
-                    if (   re.search('for .*:'  , line_stripped)
-                        or re.search('while .*:', line_stripped)
-                        ) and lvl < smallest_lvl:
-                        J = j
-                        n_nested_loops += 1
-                        if n_nested_loops == n:
-                            break
-                    # Record smallest indentation level
-                    if lvl < smallest_lvl:
-                        smallest_lvl = lvl
-                    # Break out of the search when encountering a special
-                    # block header (such as a def statement).
-                    if line_stripped.endswith(':'):
-                        if not (   re.search('for .*:'      , line_stripped)
-                                or re.search('while .*:'    , line_stripped)
-                                or re.search('if .*:'       , line_stripped)
-                                or re.search('elif .*:'     , line_stripped)
-                                or re.search('else *:'    , line_stripped)
-                                or re.search('with .*:'     , line_stripped)
-                                or re.search('try ?.*:'     , line_stripped)
-                                or re.search('except ?.*:'  , line_stripped)
-                                or re.search('finally *:' , line_stripped)
-                                ):
-                            break
-                # The loop lines to copy
-                loop_lines = lines[(i - J - 1):i]
-                # Now search downwards to find the if statements
-                # indented under the unswitch context manager.
-                outer_loop_lvl = (len(loop_lines[0]) - len(loop_lines[0].lstrip()))//4
-                patterns = ['{}if .*:'  .format('    '*(unswitch_lvl + 1)),
-                            '{}elif .*:'.format('    '*(unswitch_lvl + 1)),
-                            '{}else *:' .format('    '*(unswitch_lvl + 1)),
-                            ]
-                if_headers = []
-                if_bodies = []
-                loop_body = []
-                under_unswitch = True
-                for j, line in enumerate(lines[(i + 1):]):
-                    # Skip empty lines and comment lines
-                    line_stripped = line.strip()
-                    if not line_stripped or line_stripped.startswith('#'):
-                        continue
-                    # The indentation level
-                    lvl = (len(line) - len(line.lstrip()))//4
-                    # Determine whether or not we are out of the
-                    # unswitch context manager.
-                    if lvl <= unswitch_lvl:
-                        under_unswitch = False
-                    # Break out when all nested loops have ended
-                    if lvl <= outer_loop_lvl:
-                        break
-                    loop_body_end_nr = i + 1 + j
-                    # Record if/elif/else
-                    if under_unswitch:
-                        line_rstripped = line.rstrip()
-                        if lvl == unswitch_lvl + 1 and any(re.search(pattern, line_rstripped)
-                                                           for pattern in patterns):
-                            if_headers.append(line)
-                            if_bodies.append([])
-                            if_body = if_bodies[-1]
-                            continue
-                    # Record code indented under if/elif/else
-                    if under_unswitch:
-                        if_body.append(line)
-                        continue
-                    # Record code also indented under the nested loops,
-                    # but not part of the unswitching.
-                    loop_body.append(line)
-                # If no else block is present, insert a dummy
-                # else block. This is needed because the unswitched loop
-                # should be run even if the if statement within it
-                # is false.
-                if not if_headers[-1].lstrip().startswith('else'):
-                    # Only insert the else block if it is going to
-                    # contain some code.
-                    empty_else = True
-                    for loop_body_line in loop_body:
-                        loop_body_line = loop_body_line.lstrip()
-                        if loop_body_line and not loop_body_line.startswith('#'):
-                            empty_else = False
-                            break
-                    else:
-                        if len(loop_lines) > 1:
-                            for loop_line in loop_lines[1:]:
-                                loop_line = loop_line.lstrip()
-                                if loop_line and not loop_line.startswith('#'):
-                                    empty_else = False
-                                    break
-                    if not empty_else:
-                        indentation = '    '*(unswitch_lvl + 1)
-                        if_headers.append('{}else:  # This is an autoinserted else block\n'
-                                          .format(indentation))
-                        if_bodies.append(['{}    # End of autoinserted else block\n'
-                                          .format(indentation)])
-                # Stitch together the recorded pieces to perform
-                # the loop unswitching.
-                lines_unswitched = []
-                for if_header, if_body in zip(if_headers, if_bodies):
-                    # Unswitched if/elif/else statement
-                    indentation = ' '*(len(loop_lines[0]) - len(loop_lines[0].lstrip()))
-                    lines_unswitched.append(indentation + if_header.lstrip())
-                    # Nested loops
-                    lines_unswitched += ['    ' + line for line in loop_lines]
-                    # Body of unswitched if/elif/else statement
-                    lines_unswitched += [line[4:] for line in if_body]
-                    # Remaining loop body
-                    lines_unswitched += ['    ' + line for line in loop_body]
-                # Pop the nested for loops from new_lines, as these should
-                # only be included as the loop unswitching.
-                new_lines = new_lines[:-len(loop_lines)]
-                # Append the unswitched loop lines
-                new_lines += lines_unswitched
-                # Flag the line loop to skip the following lines which
-                # are already included in the loop unswitching lines.
-                skip = loop_body_end_nr  - i
-            else:
-                # No loop unswitching on this line
-                new_lines.append(line)
-        # Done with all lines. Run them through again, in case of
-        # nested use of the unswitching context manager.
-        # Break out when no change has happened to any line.
-        if len(lines) == len(new_lines):
-            break
-        lines = new_lines
-        new_lines = []
-    return lines
-
-
-
-def constant_expressions(lines):
+def constant_expressions(lines, no_optimization):
     sets = {'ℝ': 'double',
             'ℤ': 'Py_ssize_t',
             '𝔹': 'bint',
@@ -707,8 +544,8 @@ def constant_expressions(lines):
                 or multi_assign_in_line(var, line_ori)
                 # !!! This condition should really be turned on,
                 # but because "barriers" (or maybe just nested barriers)
-                # or not properly taken care of, this sometimes leads to
-                # errors (e.g. in diff_domain in mesh.py).
+                # are not properly taken care of, this sometimes leads
+                # to errors (e.g. in diff_domain in mesh.py).
                 #or (var in attributes and used_as_function_arg(var, line_ori))
                 or ('=' + var + '=') in line
                 or line.startswith(var + '='  )
@@ -742,7 +579,7 @@ def constant_expressions(lines):
                 or (';' + var + '@=' ) in line
                 )
     def affectable(lines):
-        return True
+        return True  # !!! 
         # Unindent loops
         for i, line in enumerate(lines):
             if line.lstrip().startswith('for ') or line.lstrip().startswith('while '):
@@ -831,6 +668,99 @@ def constant_expressions(lines):
                 # Barrier located
                 return False
         return True
+    # The placement of the definitions of the constant expressions may
+    # be erroneous in cases where a variable in the expression is only
+    # perhaps set on a given line. For example, variables defined within
+    # if statements (under the if, the elif or the else) are dangerous
+    # becuase the constant expression should only be defined after the
+    # end of the loop, at least in the case where the constant
+    # expression is not used before the loop has ended.
+    # We can fix this issue by placing dummy definitions after the end
+    # of each if statement, defining every variable defined within the
+    # loop.
+    found_another_statement = True
+    dummy_declaration_value = '__PYXPP_DELETE__'
+    dummy_statement_comment = '  # ' + dummy_declaration_value
+    while found_another_statement:
+        found_another_statement = False
+        new_lines = []
+        statement = ''       
+        for line in lines:
+            # Empty and comment lines
+            line_lstrip = line.lstrip()
+            if not line_lstrip.rstrip() or line_lstrip.startswith('#'):
+                new_lines.append(line)
+                continue
+            # Look for beginning of statements
+            if not statement:
+                # Look for beginning of statement
+                if not line.rstrip().endswith(dummy_declaration_value):
+                    if line_lstrip.startswith('if '):
+                        statement = 'if'
+                    elif line_lstrip.startswith('while '):
+                        statement = 'while'
+                    elif line_lstrip.startswith('for '):
+                        statement = 'for'
+                    elif line_lstrip.startswith('with '):
+                        statement = 'with'
+                    elif line_lstrip.startswith('try') or line_lstrip.startswith('try:'):
+                        statement = 'try'
+                # Done with this line
+                if statement:
+                    found_another_statement = True
+                    statement_lvl = len(line) - len(line_lstrip)
+                    varnames = []
+                    # Mark the line
+                    line = line[:-1] + dummy_statement_comment + '\n'
+                new_lines.append(line)
+                continue
+            # Still inside statement?
+            still_inside = True
+            lvl = len(line) - len(line.lstrip())
+            if lvl < statement_lvl:
+                still_inside = False
+            elif lvl == statement_lvl:
+                if statement == 'if':
+                    if not (   line_lstrip.startswith('elif ')
+                            or line_lstrip.startswith('else ')
+                            or line_lstrip.startswith('else:')
+                            ):
+                        still_inside = False
+                elif statement in ('while', 'for'):
+                    if not (   line_lstrip.startswith('else ')
+                            or line_lstrip.startswith('else: ')
+                            ):
+                        still_inside = False
+                elif statement == 'with':
+                    still_inside = False
+                elif statement == 'try':
+                    if not (   line_lstrip.startswith('except ')
+                            or line_lstrip.startswith('else')
+                            or line_lstrip.startswith('else:')
+                            or line_lstrip.startswith('finally')
+                            or line_lstrip.startswith('finally:')
+                            ):
+                        still_inside = False
+            if still_inside:
+                # Inside the statement.
+                # Look for defined/updated variables.
+                candidates = [s for s in re.findall('\w+', line)
+                              if s.isidentifier() and not keyword.iskeyword(s)]
+                for candidate in candidates:
+                    if candidate not in varnames and variable_changed(candidate, line):
+                        varnames.append(candidate)
+            else:
+                # Statement has ended
+                statement = ''
+                # Add dummy declarations
+                for varname in varnames:
+                    new_lines.append('{}{} = {}\n'.format(' '*statement_lvl,
+                                                          varname,
+                                                          dummy_declaration_value))
+            # Add the line regardless of whether inside a statement or not
+            new_lines.append(line)
+        lines = new_lines
+    # Now do the actual work
     for blackboard_bold_symbol, ctype in sets.items():
         # Find constant expressions using the
         # ℝ[expression] or ℤ[expression] syntax.
@@ -862,15 +792,15 @@ def constant_expressions(lines):
                                              (';' , 'SCOL'),
                                              ('==', 'CMP' ),
                                              ('!=', 'NCMP'),
-                                             ('!',  'BAN' ),
-                                             ('<',  'LTH' ),
-                                             ('>',  'GTH' ),
-                                             ('#',  'SHA' ),
-                                             ('$',  'DOL' ),
-                                             ('%',  'PER' ),
-                                             ('?',  'QUE' ),
-                                             ('`',  'GRA' ),
-                                             ('~',  'TIL' ),
+                                             ('!' , 'BAN' ),
+                                             ('<' , 'LTH' ),
+                                             ('>' , 'GTH' ),
+                                             ('#' , 'SHA' ),
+                                             ('$' , 'DOL' ),
+                                             ('%' , 'PER' ),
+                                             ('?' , 'QUE' ),
+                                             ('`' , 'GRA' ),
+                                             ('~' , 'TIL' ),
                                              ])
         while True:
             no_blackboard_bold_symbol = True
@@ -894,7 +824,13 @@ def constant_expressions(lines):
                     R_statement += c
                     if R_statement.count('[') == R_statement.count(']'):
                         break
-                expression = R_statement[2:-1].strip()
+                expression = re.sub(' +', ' ', R_statement[2:-1].strip())
+                # Nested blackboard bold expressions are not allowed
+                for blackboard_bold_symbol_i in sets:
+                    if blackboard_bold_symbol_i in expression:
+                        commons.abort('Nested blackboard bold expressions in {}:\n{}'
+                                      .format(filename, R_statement)
+                                      )
                 # Integer literals to float literals when dividing
                 if ctype == 'double':
                     # Integer in numerator
@@ -926,13 +862,12 @@ def constant_expressions(lines):
                 expressions_cython.append(expression_cython)
                 lines[i] = '{}\n'.format(line.replace(R_statement, expression_cython))
                 # Find out where the declaration should be
-                variables = expression.replace(' ', '')
                 variables = re.sub('(?P<quote>[\'"]).*?(?P=quote)', # Remove string literals using
-                                   '', variables)                   # single and double quotes.
+                                   '', expression)                  # single and double quotes.
                 variables = [variables]
-                for op in operators.keys():
-                    # Split variables on operators, excluding '.'
-                    # (attributes are handled afterwards).
+                # Split variables on operators, including ' ' but
+                # excluding '.'. Attributes are handled afterwards.
+                for op in itertools.chain(operators.keys(), ' '):
                     if op != '.':
                         variables = list(itertools.chain(*[var.split(op) for var in variables]))
                 # When a variable is really an instance attribute,
@@ -950,9 +885,10 @@ def constant_expressions(lines):
                              if var and var[0] not in '.0123456789']
                 linenr_where_defined = [-1]*len(variables)
                 placements = ['below']*len(variables)
+                defined_in_function = [False]*len(variables)
                 for w, end in enumerate((i + 1, len(lines))):  # Second time: Check module scope
                     if w == 1 and module_scope:
-                        break
+                        break                    
                     for v, var in enumerate(variables):
                         if linenr_where_defined[v] != -1:
                             continue
@@ -976,12 +912,14 @@ def constant_expressions(lines):
                                 and re.search('[\(,]{}[,=\)]'.format(var), line2)):
                                 # var as function argument
                                 linenr_where_defined[v] = end - 1 - j
+                                defined_in_function[v] = (w == 0)
                                 break
                             else:
                                 if (    variable_changed(var, line2_ori)
                                     and affectable(lines[(end - j - 1):(i + 1)])):
                                     # var declaration found
                                     linenr_where_defined[v] = end - 1 - j
+                                    defined_in_function[v] = (w == 0)
                                     # Continue searching for var in previous lines
                                     linenr_where_defined_first = -1
                                     for k, line3 in enumerate(reversed(lines[:linenr_where_defined[v]])):
@@ -996,6 +934,8 @@ def constant_expressions(lines):
                                             and not line3_ori.lstrip().startswith('else:')
                                             and not line3_ori.lstrip().startswith('except:')
                                             and not line3_ori.lstrip().startswith('except ')
+                                            and not line3_ori.lstrip().startswith('finally:')
+                                            and not line3_ori.lstrip().startswith('finally ')
                                             ):
                                             # Upper level of function reached.
                                             # Definitions above this point does not matter.
@@ -1039,7 +979,21 @@ def constant_expressions(lines):
                                     # Break because original var declaration is found
                                     break
                 if linenr_where_defined:
-                    index_max = np.argmax(linenr_where_defined)
+                    # If the constant expression is in the module scope,
+                    # simply use the last line where the variables
+                    # are defined. If the constant expression is inside
+                    # a function, use the last line inside the function
+                    # where the variables are defined, if any. If not,
+                    # use the last line where the variables are defined
+                    # in the moduel scope.
+                    if module_scope:
+                        index_max = np.argmax(linenr_where_defined)
+                    else:
+                        for index_max in reversed(np.argsort(linenr_where_defined)):
+                            if defined_in_function[index_max]:
+                                break
+                        else:
+                            index_max = np.argmax(linenr_where_defined)
                     declaration_linenrs.append(linenr_where_defined[index_max])
                     declaration_placements.append(placements[index_max])
                 else:
@@ -1107,7 +1061,7 @@ def constant_expressions(lines):
             for e, n in enumerate(declaration_linenrs):
                 if i == n:
                     indentation = ' '*(len(line) - len(line.lstrip()))
-                    if declaration_placements[e] == 'below' and line.rstrip().endswith(':'):
+                    if declaration_placements[e] == 'below' and re.search(': *(#.*)?$', line):
                         indentation += ' '*4
                     if declaration_placements[e] == 'above':
                         new_lines.pop()
@@ -1128,11 +1082,330 @@ def constant_expressions(lines):
                         new_lines.append(line)
         # Exchange the original lines with the modified lines
         lines = new_lines
+    # Remove the inserted dummy declarations and comments
+    new_lines = []
+    for line in lines:
+        line = line.replace(dummy_statement_comment, '')
+        if dummy_declaration_value not in line:
+            new_lines.append(line)
+    return new_lines
+
+
+
+def loop_unswitching(lines, no_optimization):
+    # The following constructs will be recognized as loop unswitching:
+    # with unswitch:
+    #    ...
+    # with unswitch():
+    #    ...
+    # with unswitch(n):  # With n an integer literal or expression
+    #    ...
+    # For the algorithm in this function to work correctly,
+    # the unswitching need to be done in order of indentation level:
+    # Unswitching at lower indentation level should be carried out
+    # first. To help with this, we first run through all lines
+    # and replace 'unswitch' with 'unswitch_lvl', where 'lvl' is the
+    # indentation level.
+    pattern = r'with +unswitch *(\(.*\))? *:'
+    unswitch_lvls = set()
+    for i, line in enumerate(lines):
+        match = re.search(pattern, line.strip())
+        if match and not line.lstrip().startswith('#'):
+            unswitch_lvl = (len(line) - len(line.lstrip()))//4
+            unswitch_lvls.add(unswitch_lvl)
+            lines[i] = line.replace('unswitch', 'unswitch_{}'.format(unswitch_lvl))
+    unswitch_lvls = sorted(unswitch_lvls)
+    # Run through the lines and replace any unswitch context manager
+    # with the unswitched loop(s). Do this for each unswitch lvl
+    # separately, starting with the lower levels (least indented).
+    for current_unswitch_lvl in unswitch_lvls:
+        pattern = r'with +unswitch_{} *(\(.*\))? *:'.format(current_unswitch_lvl)
+        new_lines = []
+        while True:
+            skip = 0
+            for i, line in enumerate(lines):
+                # Should this line be skipped?
+                if skip > 0:
+                    skip -= 1
+                    continue
+                # Search for unswitch context managers with an unswitch
+                # level matching the current level.
+                match = re.search(pattern, line.strip())
+                if match and not line.lstrip().startswith('#'):
+                    # Loop unswitching found.
+                    # If optimizations are disabled, simply replace the
+                    # with statement with "if True:".
+                    if no_optimization:
+                        new_lines.append(' '*(len(line) - len(line.lstrip()))
+                                         + '# Unswitch context manager replaced '
+                                         + 'with trivial if statement\n')
+                        new_lines.append(re.sub(pattern, 'if True:', line))
+                        continue
+                    # Determine the number of indentation levels to do
+                    # loop unswitching on. This is the n in unswitch(n).
+                    # If not specified, this is set to infinity.
+                    n = match.group(1)
+                    if n:
+                        n = n[1:-1]
+                        if n:
+                            n = eval(n)
+                        else:
+                            n = float('inf')
+                    else:
+                        n = float('inf')
+                    # If n is zero or negative,
+                    # no loop unswitching shold be performed.
+                    if n < 1:
+                        continue
+                    # Search n nested loops upwards.
+                    # Allowed constructs to pass are
+                    # - for loops
+                    # - while loops
+                    # - if/elif/else statements
+                    # - with statements
+                    # - try/except/finally statements
+                    unswitch_lvl = (len(line) - len(line.lstrip()))//4
+                    n_nested_loops = 0
+                    smallest_lvl = unswitch_lvl
+                    for j, line in enumerate(reversed(lines[:i])):
+                        # Skip empty lines and comment lines
+                        line_stripped = line.strip()
+                        if not line_stripped or line_stripped.startswith('#'):
+                            continue
+                        # The indentation level
+                        lvl = (len(line) - len(line.lstrip()))//4
+                        # Check for nested loop
+                        if (   re.search('for .*:'  , line_stripped)
+                            or re.search('while .*:', line_stripped)
+                            ) and lvl < smallest_lvl:
+                            J = j
+                            n_nested_loops += 1
+                            if n_nested_loops == n:
+                                break
+                        # Record smallest indentation level
+                        if lvl < smallest_lvl:
+                            smallest_lvl = lvl
+                        # Break out of the search when
+                        # encountering a special block header
+                        # (such as a def statement).
+                        if line_stripped.endswith(':'):
+                            if not (   re.search('for .*:'    , line_stripped)
+                                    or re.search('while .*:'  , line_stripped)
+                                    or re.search('if .*:'     , line_stripped)
+                                    or re.search('elif .*:'   , line_stripped)
+                                    or re.search('else *:'    , line_stripped)
+                                    or re.search('with .*:'   , line_stripped)
+                                    or re.search('try ?.*:'   , line_stripped)
+                                    or re.search('except ?.*:', line_stripped)
+                                    or re.search('finally *:' , line_stripped)
+                                    ):
+                                break
+                    # The loop lines to copy
+                    loop_lines = lines[(i - J - 1):i]
+                    # Now search downwards to find the if statements
+                    # indented under the unswitch context manager.
+                    outer_loop_lvl = (len(loop_lines[0]) - len(loop_lines[0].lstrip()))//4
+                    patterns = ['{}if .*:'  .format('    '*(unswitch_lvl + 1)),
+                                '{}elif .*:'.format('    '*(unswitch_lvl + 1)),
+                                '{}else *:' .format('    '*(unswitch_lvl + 1)),
+                                ]
+                    if_headers = []
+                    if_bodies = []
+                    loop_body = []
+                    after_if = []
+                    under_unswitch = True
+                    for j, line in enumerate(lines[(i + 1):]):
+                        # Skip empty lines and comment lines
+                        line_stripped = line.strip()
+                        if not line_stripped or line_stripped.startswith('#'):
+                            continue
+                        # The indentation level
+                        lvl = (len(line) - len(line.lstrip()))//4
+                        # Determine whether or not we are out of the
+                        # unswitch context manager.
+                        if lvl <= unswitch_lvl:
+                            under_unswitch = False
+                        # Break out when all nested loops have ended
+                        if lvl <= outer_loop_lvl:
+                            break
+                        loop_body_end_nr = i + 1 + j
+                        # Record if/elif/else
+                        if under_unswitch:
+                            line_rstripped = line.rstrip()
+                            if after_if:
+                                after_if.append(line)
+                                continue
+                            else:
+                                if lvl == unswitch_lvl + 1:
+                                    if any(re.search(pattern, line_rstripped)
+                                           for pattern in patterns):
+                                        if_headers.append(line)
+                                        if_bodies.append([])
+                                        if_body = if_bodies[-1]
+                                    elif not after_if:
+                                        after_if.append(line)
+                                    continue
+                        # Record code indented under if/elif/else
+                        if under_unswitch:
+                            if_body.append(line)
+                            continue
+                        # Record code also indented under the
+                        # nested loops, but not part of the unswitching.
+                        loop_body.append(line)
+                    # If no else block is present, insert a dummy
+                    # else block. This is needed because the unswitched
+                    # loop should be run even if the if statement within
+                    # it is false.
+                    if not if_headers[-1].lstrip().startswith('else'):
+                        # Only insert the else block if it is going to
+                        # contain some code.
+                        empty_else = True
+                        for loop_body_line in loop_body:
+                            loop_body_line = loop_body_line.lstrip()
+                            if loop_body_line and not loop_body_line.startswith('#'):
+                                empty_else = False
+                                break
+                        else:
+                            if len(loop_lines) > 1:
+                                for loop_line in loop_lines[1:]:
+                                    loop_line = loop_line.lstrip()
+                                    if loop_line and not loop_line.startswith('#'):
+                                        empty_else = False
+                                        break
+                        if not empty_else:
+                            indentation = '    '*(unswitch_lvl + 1)
+                            if_headers.append('{}else:  # This is an autoinserted else block\n'
+                                              .format(indentation))
+                            if_bodies.append(['{}    # End of autoinserted else block\n'
+                                              .format(indentation)])
+                    # Stitch together the recorded pieces to perform
+                    # the loop unswitching.
+                    lines_unswitched = []
+                    for if_header, if_body in zip(if_headers, if_bodies):
+                        # Unswitched if/elif/else statement
+                        indentation = ' '*(len(loop_lines[0]) - len(loop_lines[0].lstrip()))
+                        lines_unswitched.append(indentation + if_header.lstrip())
+                        # Nested loops
+                        lines_unswitched += ['    ' + line for line in loop_lines]
+                        # Body of unswitched if/elif/else statement
+                        lines_unswitched += [line[4:] for line in if_body]
+                        # Additional lines under the unswitch context
+                        # manager which is not part
+                        # of the actual unswitching.
+                        lines_unswitched += after_if
+                        # Remaining loop body
+                        lines_unswitched += ['    ' + line for line in loop_body]
+                    # Pop the nested for loops from new_lines,
+                    # as these should only be included as the
+                    # loop unswitching.
+                    new_lines = new_lines[:-len(loop_lines)]
+                    # Append the unswitched loop lines
+                    new_lines += lines_unswitched
+                    # Flag the line loop to skip the following lines
+                    # which are already included in the loop
+                    # unswitching lines.
+                    skip = loop_body_end_nr - i
+                else:
+                    # No loop unswitching on this line
+                    new_lines.append(line)
+            # Done with all lines. Run them through again, in case of
+            # nested use of the unswitching context manager.
+            # Break out when no change has happened to any line.
+            if len(lines) == len(new_lines):
+                break
+            lines = new_lines
+            new_lines = []
+    # The lines are now been unswitched.
+    # However, potentially much too many if statements have been
+    # inserted, creating code with a structure like this:
+    # if condition:
+    #     if condition:  # Delete
+    #         ...        # Keep
+    #     else:          # Delete
+    #         ....       # Delete
+    # else:
+    #     ...
+    # where the condition is exactly the same in each if statement.
+    # The code is correct, but cython can take a very long time
+    # handling this code, so we reduce it here.
+    # As indicated by the comments above, when two nested and equal
+    # if statements are found, the body of the if should be kept
+    # (and unindented one level), whereas everything else about the
+    # if statement should be removed. Doing this repeatedly will remove
+    # all occurrences of these unnecessary if statements.
+    pattern = r'if +(.+):'
+    new_lines = []
+    while True:
+        skip = 0
+        for i, line in enumerate(lines):
+            if skip > 0:
+                skip -= 1
+                continue
+            new_lines.append(line)
+            match = re.search(pattern, line)
+            if match and not line.lstrip().startswith('#'):
+                # If statement found
+                condition = match.group(1).strip()
+                # Check whether the next line is an if statement
+                # with the same condition.
+                double_if = False
+                next_line = lines[i + 1]
+                match = re.search(pattern, next_line)
+                if match and not line.lstrip().startswith('#'):
+                    next_condition = match.group(1).strip()
+                    if condition == next_condition:
+                        double_if = True
+                if double_if:
+                    # Double if statement found. Locate the entirity of
+                    # the inner if block, keeping only the if body.
+                    skip += 1  # Skip the inner if statement
+                    inside_inner_if = True
+                    inner_if_lvl = (len(next_line) - len(next_line.lstrip()))//4
+                    for line in lines[(i + 2):]:
+                        lvl = (len(line) - len(line.lstrip()))//4
+                        if lvl > inner_if_lvl:
+                            if inside_inner_if:
+                                # In inner if body
+                                new_lines.append(line[4:])
+                                skip += 1
+                            else:
+                                # Inside elif or else clause
+                                skip += 1
+                        elif lvl == inner_if_lvl:
+                            inside_inner_if = False
+                            if re.search(r'elif +(.+):', line) or re.search(r'else *:', line):
+                                # Beginning of elif or else
+                                skip += 1
+                            elif line.strip() and not line.lstrip().startswith('#'):
+                                # Outside entire inner if block
+                                break
+                            else:
+                                # Comment or empty line
+                                new_lines.append(line)
+                                skip += 1
+                        elif line.strip() and not line.lstrip().startswith('#'):
+                            # Outside entire inner if block
+                            break
+                        else:
+                            # Comment or empty line
+                            new_lines.append(line)
+                            skip += 1
+        # Break out when no change has happened to any line.
+        if len(lines) == len(new_lines):
+            break
+        lines = new_lines
+        new_lines = []
     return lines
 
 
 
-def remove_duplicate_declarations(lines):
+def unicode2ASCII(lines, no_optimization):
+    new_lines = [commons.asciify(line) for line in lines]
+    return new_lines
+
+
+
+def remove_duplicate_declarations(lines, no_optimization):
     new_lines = []
     in_function = False
     declarations_outer = {}
@@ -1175,7 +1448,7 @@ def remove_duplicate_declarations(lines):
 
 
 
-def cython_decorators(lines):
+def cython_decorators(lines, no_optimization):
     inside_class = False
     for i, line in enumerate(lines):
         if (   line.startswith('class ')
@@ -1281,98 +1554,412 @@ def cython_decorators(lines):
 
 
 
-def power2product(lines):
+def power2product(lines, no_optimization):
     # Do not do anything if optimizations are disabled
     if no_optimization:
         return lines
-    keywords = ('assert',
-                'elif',
-                'except',
-                'from',
-                'if',
-                'in',
-                'is',
-                'not',
-                'or',
-                'raise',
-                'return',
-                'try',
-                'while',
-                'with',
-                'yield',
-                )
+    # Taken from
+    # https://en.wikipedia.org/wiki/Addition-chain_exponentiation
+    addition_chain_exponentiations = {
+        'a': 'base',
+        'b': 'a*a',
+        'c': 'a*a*a',
+        'd': 'b*b',
+        'e': 'b*b*a',
+        'h': 'd*d',
+        0 : '1',
+        1 : 'a',
+        2 : 'a*a',
+        3 : 'a*a*a',
+        4 : 'b*b',
+        5 : 'b*b*a',
+        6 : 'b*b*b',
+        7 : 'b*b*b*a',
+        8 : 'd*d',
+        9 : 'c*c*c',
+        10: 'd*d*b',
+        11: 'd*d*b*a',
+        12: 'd*d*d',
+        13: 'd*d*d*a',
+        14: 'd*d*d*b',
+        15: 'e*e*e',
+        16: 'h*h',
+        }
+    maxint = 16
+    def transform_power(base, exponent, varname_suffix=''):
+        """Given a str base and str exponent, this function
+        will return a list of lines (totally unindented)
+        which will compute this exponent. Helper variables
+        will have single letter names, wheres the final
+        result will be called "result". The varname_suffix
+        will be added to both the helper variables and the
+        result variable.
+        """
+        # Convert str exponent to int
+        exponent_val = int(eval(str(exponent), {}, {}))
+        # Treat negative exponents as positive, for now
+        exponent_sign = +1
+        if exponent_val < 0:
+            exponent_sign = -1
+            exponent_val *= -1
+        # If the passed exponent is not in the
+        # addition_chain_exponentiations dict,
+        # nothing should be done.
+        if exponent_val not in addition_chain_exponentiations:
+            return None
+        # Small integer exponent.
+        # Create multi-line multiplication statement.
+        varnames = []
+        statements = []
+        def lookup(varname):
+            if varname in ('base', '1'):
+                return
+            expression = addition_chain_exponentiations[varname]
+            if not statements:
+                varname = 'result'
+            varname_with_suffix = varname + varname_suffix
+            if varname_with_suffix not in varnames:
+                varnames.append(varname_with_suffix)
+            expression_with_suffix = '*'.join([fac + varname_suffix
+                                               for fac in expression.split('*')])
+            declaration = ''
+            casting = ''
+            if exponent_sign == -1:
+                # Negative exponents always implies doubles
+                declaration = "cython.declare({}='double')\n".format(varname_with_suffix)
+                if varname == 'a':
+                    casting = '<double>'
+            statement = '{} = {}{}\n'.format(varname_with_suffix,
+                                               casting,
+                                               expression_with_suffix)
+            if statement in statements:
+                return
+            statements.append(statement)
+            if declaration:
+                statements.append(declaration)
+            for varname in sorted(set(expression.split('*')), reverse=True):
+                lookup(varname)
+        lookup(exponent_val)
+        statements = list(reversed(statements))
+        # Handle negative exponents
+        if exponent_sign == -1:
+            statements.append('result{} = 1.0/result{}\n'.format(varname_suffix, varname_suffix))
+        return statements
+    operators = r' +-*/^&|@,:;=!<>#$%?~'
+    starstar_replacement = '*__POWER__*'        
+    power_counter = 0
     new_lines = []
     for line in lines:
-        while True:
-            match = re.search('([\w.]+(\[.*\])?|\(.*\))\s*\*\*\s*([0-9.]+)', line)
-            if not match:
-                break
-            match_str   = [None]*4
-            start_index = [None]*4
-            end_index   = [None]*4
-            for i in (1, 3):
-                match_str[i] = match.group(i)
-                start_index[i], end_index[i] = match.span(i)
-            # Only integer exponents should be accepted
+        if line.lstrip().startswith('#') or not '**' in line:
+            new_lines.append(line)
+            continue
+        # '**' in line
+        line_ori = line
+        while '**' in line:
+            starstar_index = line.index('**')
+            # If the exponentiation should not be replaced with
+            # a series of multiplications, replace line with this,
+            # ensuring that this instance of '**'' will not be
+            # picked up again.
+            line_replace = '{}{}{}'.format(line[:starstar_index],
+                                           starstar_replacement,
+                                           line[(starstar_index + 2):])
+            # Find exponent
+            paren = bracket = 0
+            chars = []
+            for i, c in enumerate(line[(starstar_index + 2):]):
+                chars.append(c)
+                if c == '(':
+                    paren += 1
+                elif c == ')':
+                    paren -= 1
+                    if paren < 0:
+                        break
+                if c == '[':
+                    bracket += 1
+                elif c == ']':
+                    bracket -= 1
+                    if bracket < 0:
+                        break
+                if paren == 0 and bracket == 0 and c in operators:
+                    if (set(chars) - set(' +-')):
+                        break
+            exponent_indices = (starstar_index + 2, starstar_index + 2 + i)
+            exponent = line[exponent_indices[0]:exponent_indices[1]]
+            # Test whether this exponent is an integer
+            exponent_is_int = False
             try:
-                exponent = int(match_str[3])
-                if exponent != float(match_str[3]):
-                    break
+                exponent_value = eval(exponent, {}, {})
+                if int(exponent_value) == float(exponent_value):
+                    exponent_is_int = True
+                    exponent_value = int(exponent_value)
             except:
+                ...
+            if not exponent_is_int or abs(exponent_value) > maxint:
+                # Exponent is not an integer,
+                # or it is larger than the limit.
+                line = line_replace
+                continue
+            # Ignore this exponentiation if it is inside a quote
+            inside_quote = {"'": False, '"': False}
+            for c in line[exponent_indices[1]:]:
+                if   c == "'" and not inside_quote['"']:
+                    inside_quote["'"] = (not inside_quote["'"])
+                elif c == '"' and not inside_quote["'"]:
+                    inside_quote['"'] = (not inside_quote['"'])
+            if inside_quote["'"] or inside_quote['"']:
+                # Exponentiation happens inside a string
+                line = line_replace
+                continue
+            # We cannot deploy this optimization inside list/dict/set
+            # comprehensions and generator expressions.
+            if ' for ' in line:
+                inside_comprehension = False
+                for_indices = [m.start() for m in re.finditer(' for ', line)]
+                for for_index in for_indices:
+                    # Find boundaries of this comprehension
+                    paren = bracket = curly = 0
+                    for i, c in enumerate(line[for_index:]):
+                        if c == '(':
+                            paren += 1
+                        elif c == ')':
+                            paren -= 1
+                            if paren < 0:
+                                break
+                        if c == '[':
+                            bracket += 1
+                        elif c == ']':
+                            bracket -= 1
+                            if bracket < 0:
+                                break
+                        if c == '{':
+                            curly += 1
+                        elif c == '}':
+                            curly -= 1
+                            if curly < 0:
+                                break
+                    comprehension_end = for_index + i + 1
+                    paren = bracket = curly = 0
+                    for i, c in enumerate(reversed(line[:for_index])):
+                        if c == '(':
+                            paren += 1
+                            if paren > 0:
+                                break
+                        elif c == ')':
+                            paren -= 1
+                        if c == '[':
+                            bracket += 1
+                            if bracket > 0:
+                                break
+                        elif c == ']':
+                            bracket -= 1
+                        if c == '{':
+                            curly += 1
+                            if curly > 0:
+                                break
+                        elif c == '':
+                            curly -= 1
+                    comprehension_start = for_index - i - 1
+                    if (    exponent_indices[0] > comprehension_start
+                        and exponent_indices[1] < comprehension_end
+                        ):
+                        inside_comprehension = True
+                        break
+                if inside_comprehension:
+                    # Exponentiation happens inside list/dict/set
+                    # comprehenstions or generator expressions.
+                    line = line_replace
+                    continue
+            # Locate base
+            paren = bracket = 0
+            for i, c in enumerate(reversed(line[:starstar_index])):
+                if c == '(':
+                    paren += 1
+                    if paren > 0:
+                        break
+                elif c == ')':
+                    paren -= 1
+                if c == '[':
+                    bracket += 1
+                    if bracket > 0:
+                        break
+                elif c == ']':
+                    bracket -= 1
+                if paren == 0 and bracket == 0 and c in operators:
+                    break
+            base_indices = (starstar_index - i, starstar_index)
+            base = '({})'.format(line[base_indices[0]:base_indices[1]].strip())
+            # Replace power with chain of multiplication expressions
+            varname_suffix = '{}{}'.format(addition_chain_exponentiation_varname, power_counter)
+            statements = transform_power(base, exponent, varname_suffix)
+            indentation = ' '*(len(line) - len(line.lstrip()))
+            statements = [indentation + statement for statement in statements]
+            header_line = ('{}# Begin addition chain exponentiation nr. {}\n'
+                           .format(indentation, power_counter))
+            new_lines.append(header_line)
+            header_line = ('{}# Original exponentiation: {}\n'
+                           .format(indentation, line[base_indices[0]:exponent_indices[1]]))
+            new_lines.append(header_line)
+            base_varname = 'base' + varname_suffix
+            for statement in statements:
+                statement = statement.replace(base_varname, base)
+                new_lines.append(statement)
+            footer_line = ('{}# End addition chain exponentiation nr. {}\n'
+                           .format(indentation, power_counter))
+            new_lines.append(footer_line)
+            power_counter += 1
+            line = '{} {} {}'.format(line[:base_indices[0]],
+                                     'result' + varname_suffix,
+                                     line[exponent_indices[1]:])
+        # Done replacing '**' in this line.
+        # Remove any temporarily inserted strings.
+        line = line.replace(starstar_replacement, '**')
+        new_lines.append(line)
+    return new_lines
+# Variable name of inserted variables used for the addition
+# chain exponentiations. The full variable name (in both Python and C)
+# of these variables will be some name followed by this str followed
+# by an integer.
+addition_chain_exponentiation_varname = '__addition_chain_exponentiation__'
+
+
+
+def add_types_to_addition_chain_exponentiation_variables(lines, clines, no_optimization):
+    # Do not do anything if optimizations are disabled
+    if no_optimization:
+        return lines
+    # To improve the performance, remove all comment and macro lines
+    # from the clines.
+    new_clines = []
+    for cline in clines:
+        cline_lstripped = cline.lstrip()
+        if not (   cline_lstripped.startswith('*')
+                or cline_lstripped.startswith('#')
+                or cline_lstripped.startswith('/*')
+                ):
+            new_clines.append(cline)
+    clines = new_clines
+    # This function will search the .pyx lines and find chain
+    # exponentiation variables inserted by the power2product function.
+    # These variables are not explicitly typed in the Python code,
+    # leading Cython to auto-type them as either doubles or PyObject*
+    # (or no type at all for module level variables which may be treated
+    # seperately by Cython). Whenever a PyObject* declaration is found
+    # for such a variable, it really should have the type Py_ssize_t.
+    funcsuffixes2types = {# Integers
+                          'char'      : 'char',
+                          'short'     : 'short',
+                          'int'       : 'int',
+                          'long'      : 'long int',
+                          'pylonglong': 'long long int',
+                          'ptrdifft'  : 'ptrdiff_t',
+                          # Unsgined integers
+                          'unsignedchar'      : 'unsigned char',
+                          'unsignedshort'     : 'unsigned short',
+                          'unsignedint'       : 'unsigned int',
+                          'unsignedlong'      : 'unsigned long int',
+                          'unsignedpylonglong': 'unsigned long long int', 
+                          'ssizet'            : 'Py_ssize_t',
+                          # Floating-point numbers
+                          'double': 'double',
+                          }
+    def search_backwards(tmp_varname, variable_numer, prev_clines):
+        pattern = r'{} *= *([a-zA-Z_][a-zA-Z0-9_]*) *\('
+        for prev_cline in reversed(prev_clines):
+            prev_cline_lstripped = prev_cline.lstrip()
+            if (   prev_cline_lstripped.startswith('*')
+                or prev_cline_lstripped.startswith('/*')
+                ):
+                # Some comments hit.
+                # Searching further up would be
+                # irresponsible.
                 break
-            # Nested parentheses can lead to too small start_index
-            # for the first group. Fix this issue.
-            if ')' in match_str[1]:
-                N_parens = 0
-                for i, c in enumerate(reversed(match_str[1])):
-                    if c == '(':
-                        N_parens += 1
-                        if N_parens == 0:
-                            start_index[1] = end_index[1] - i - 1
-                            break
-                    elif c == ')':
-                        N_parens -= 1
-                # If the base is a function call, do nothing.
-                # Be careful with keywords prior to the base.
-                match_before = re.search('[\w.]+\s*$', line[:start_index[1]])
-                if match_before:
-                    match_before_str = match_before.group().rstrip()
-                    if match_before_str not in keywords:
-                        break
-            elif ']' in match_str[1]:
-                # If more than one pair of [] is in the line,
-                # and the base is not in parentheses, every [] left
-                # of the base gets in the match. Fix thís issue.
-                N_brackets = 0
-                break_on_nonword = False
-                for i, c in enumerate(reversed(match_str[1])):
-                    if break_on_nonword and not re.search('[\w.]', c):
-                        start_index[1] = end_index[1] - i
-                        break
-                    if c == '[':
-                        N_brackets += 1
-                        if N_brackets == 0:
-                            # Leftmost bracket found. Keep searching
-                            # to the left until non-word-character
-                            # is found.
-                            break_on_nonword = True
-                    elif c == ']': 
-                        N_brackets -= 1
-            # Stitch together new line
-            mul = '*'.join([line[start_index[1]:end_index[1]]]*exponent)
-            line = '{}({}){}'.format(line[:start_index[1]], mul, line[end_index[3]:])
+            match = re.search(pattern.format(tmp_varname), prev_cline)
+            if match:
+                # A line like
+                # __pyx_t_7 = PyInt_FromSsize_t(...);
+                # have been reached.
+                func_name = match.group(1)
+                variable_type = func_name.replace('_', '').lower()
+                if 'from' in variable_type:
+                    variable_type = variable_type[(variable_type.index('from') + 4):]
+                    variable_type = funcsuffixes2types[variable_type]
+                    variable_types[variable_numer] = variable_type
+                break
+    # Search through the lines and find the types of the base addition
+    # chain exponentiation variables (those which names starts with
+    # an 'a'). The results will be stored in the variable_types dict.
+    variable_types = {}
+    addition_chain_exponentiation_basevarname = 'a' + addition_chain_exponentiation_varname
+    for line in lines:
+        if addition_chain_exponentiation_basevarname in line:
+            # Base addition chain exponentiation found.
+            # Get the variable name.
+            match = re.search('{}[0-9]+'
+                              .format(addition_chain_exponentiation_basevarname),
+                              line)
+            if match:
+                variable = match.group()
+                variable_numer = int(variable[(variable.rindex('_') + 1):])
+                if variable_numer not in variable_types:
+                    variable_types[variable_numer] = None
+                    # New  addition chain exponentiation variable number
+                    is_pyobject = False
+                    for i, cline in enumerate(clines):
+                        pattern = r'[a-zA-Z0-9_]*{} *= *([a-zA-Z_][a-zA-Z0-9_]*) *;'
+                        match = re.search(pattern.format(variable), cline)
+                        if match:                            
+                            if not is_pyobject and cline.lstrip().startswith('PyObject'):
+                                is_pyobject = True
+                            elif is_pyobject:
+                                # A line like 
+                                # __pyx_v_a__addition_chain_exponentiation__0 = __pyx_t_8;
+                                # has been reached.
+                                tmp_varname = match.group(1)
+                                search_backwards(tmp_varname, variable_numer, clines[:i])
+                                break
+                        elif is_pyobject:
+                            pattern = r'\( *[a-zA-Z0-9_]*{} *, *([a-zA-Z_][a-zA-Z0-9_]*) *\) *;'
+                            match = re.search(pattern.format(variable), cline)
+                            if match:
+                                # A line like
+                                # __Pyx_XDECREF_SET(__pyx_v_a__addition_chain_exponentiation__0, __pyx_t_7);
+                                # have been reached. Search upward to
+                                # find the line where the temporary
+                                # variable is defined.
+                                tmp_varname = match.group(1)
+                                search_backwards(tmp_varname, variable_numer, clines[:i])
+                                break
+    # Run through the lines and add declarations to addition chain
+    # exponentiation variables. All such variables of the same number
+    # (those belonging to the same chain) have the same type.
+    previous_variables = set()
+    new_lines = []
+    for line in lines:
+        if addition_chain_exponentiation_varname in line:
+            # Addition chain exponentiation found.
+            # Get the variable name.
+            match = re.search('[a-zA-Z_][a-zA-Z0-9_]*{}[0-9]+'
+                              .format(addition_chain_exponentiation_varname),
+                              line)
+            if match:
+                variable = match.group()
+                if variable not in previous_variables:
+                    previous_variables.add(variable)
+                    # Lookup the type of this variable
+                    variable_numer = int(variable[(variable.rindex('_') + 1):])
+                    variable_type = variable_types.get(variable_numer)
+                    if variable_type:
+                        # Insert declaration
+                        indentation = ' '*(len(line) - len(line.lstrip()))
+                        new_lines.append("{}cython.declare({}='{}')\n"
+                                         .format(indentation, variable, variable_type))
         new_lines.append(line)
     return new_lines
 
 
 
-def unicode2ASCII(lines):
-    new_lines = [commons.asciify(line) for line in lines]
-    return new_lines
-
-
-
-def __init__2__cinit__(lines):
+def __init__2__cinit__(lines, no_optimization):
     new_lines = []
     in_cclass = False
     for line in lines:
@@ -1388,7 +1975,7 @@ def __init__2__cinit__(lines):
 
 
 
-def fix_addresses(lines):
+def fix_addresses(lines, no_optimization):
     replacement_str = '__REPLACEADDRESS{}__'
     new_lines = []
     for line in lines:
@@ -1448,7 +2035,7 @@ def fix_addresses(lines):
 
 
 
-def malloc_realloc(lines):
+def malloc_realloc(lines, no_optimization):
     new_lines = []
     for line in lines:
         found_alloc = False
@@ -1497,7 +2084,7 @@ def malloc_realloc(lines):
 
 
 
-def C_casting(lines):
+def C_casting(lines, no_optimization):
     new_lines = []
     # Transform to Cython syntax
     for line in lines:
@@ -1534,7 +2121,7 @@ def C_casting(lines):
 
 
 
-def find_extension_types(lines):
+def find_extension_types(lines, no_optimization):
     # Find extension types
     class_names = []
     for i, line in enumerate(lines):
@@ -1557,7 +2144,7 @@ def find_extension_types(lines):
 
 
 
-def make_types(filename):
+def make_types(filename, no_optimization):
     # Dictionary mapping custom ctypes to their definiton
     # or an import of their definition.
     custom_types = {# External definitions
@@ -1613,7 +2200,7 @@ def make_types(filename):
 
 
 
-def make_pxd(filename):
+def make_pxd(filename, no_optimization):
     # Read in the custom types from the types file
     with open(filename_types, 'r', encoding='utf-8') as pyxfile:
         custom_types_content = pyxfile.read()
@@ -1625,15 +2212,52 @@ def make_pxd(filename):
     with open(filename, 'r', encoding='utf-8') as pyxfile:
         code_str = pyxfile.read()
     code = code_str.split('\n')
+    # Add the '# pxd hints' line
+    pxd_lines.append('# pxd hints\n')
+    # Find pxd hints of the form "pxd = '...'
+    for line in code:
+        m = re.match('^pxd *= *"(.*)"', line)
+        if m:
+            text = m.group(1).strip()
+            if text != '"':
+                pxd_lines.append(text + '\n')
+        m = re.match("^pxd *= *'(.*)'", line)
+        if m:
+            text = m.group(1).strip()
+            if text != "'":
+                pxd_lines.append(text + '\n')
+    # Find pxd hints of the form "pxd('...')"
+    for line in code:
+        m = re.match('^pxd *\( *"(.*)" *\)', line)
+        if m:
+            text = m.group(1).strip()
+            if text != '"':
+                pxd_lines.append(text + '\n')
+        m = re.match("^pxd *\( *'(.*)' *\)", line)
+        if m:
+            text = m.group(1).strip()
+            if text != "'":
+                pxd_lines.append(text + '\n')
     # Find pxd hints of the form 'pxd = """'
     #                             int var1
     #                             double var2
     #                             """'
-    pxd_lines.append('# pxd hints\n')
     for i, line in enumerate(code):
         if (   line.replace(' ', '').startswith('pxd="""')
             or line.replace(' ', '').startswith("pxd='''")):
             quote_type = '"""' if line.replace(' ', '').startswith('pxd="""') else "'''"
+            for j, line in enumerate(code[(i + 1):]):
+                if line.startswith(quote_type):
+                    break
+                pxd_lines.append(line + '\n')
+    # Find pxd hints of the form 'pxd("""'
+    #                             int var1
+    #                             double var2
+    #                             """)'
+    for i, line in enumerate(code):
+        if (   line.replace(' ', '').startswith('pxd("""')
+            or line.replace(' ', '').startswith("pxd('''")):
+            quote_type = '"""' if line.replace(' ', '').startswith('pxd("""') else "'''"
             for j, line in enumerate(code[(i + 1):]):
                 if line.startswith(quote_type):
                     break
@@ -1697,7 +2321,7 @@ def make_pxd(filename):
                 # with an asterisk.
                 function_args_bak = ''
                 while function_args_bak != function_args:
-                    function_args_bak = deepcopy(function_args)
+                    function_args_bak = copy.deepcopy(function_args)
                     inside_quote = {"'": False, '"': False}
                     for j, c in enumerate(function_args):
                         # Inside a quote?
@@ -1717,7 +2341,7 @@ def make_pxd(filename):
                 from_top = False
                 function_args_bak = ''
                 while function_args_bak != function_args:
-                    function_args_bak = deepcopy(function_args)
+                    function_args_bak = copy.deepcopy(function_args)
                     for j, c in enumerate(function_args):
                         if c == '=' and function_args[j + 1] != '*':
                             for k in range(j + 1, len(function_args)):
@@ -1736,15 +2360,23 @@ def make_pxd(filename):
                 return_vals = [None]*len(function_args)
                 for j in range(len(function_args)):
                     function_args[j] = function_args[j].strip()
-                line_before = deepcopy(code[i - 1])
+                line_before = copy.deepcopy(code[i - 1])
                 for j, arg in enumerate(function_args):
                     if '=*' in arg:
                         arg = arg[:-2]
+                    N_parens = 0
+                    inside_cython_header = False
                     for k, line in enumerate(reversed(code[:i])):
                         break_k = False
                         if len(line) > 0 and line[0] not in ('@', ' ', '#'):
-                            # Above function decorators
-                            break
+                            if not (line.lstrip().startswith(')') and not inside_cython_header):
+                                # Above function decorators
+                                break
+                        N_oparnes = line.count('(')
+                        N_cparens = line.count(')')
+                        if N_cparens > 0:
+                            inside_cython_header = True
+                        N_parens += N_oparnes - N_cparens
                         if line.startswith('@cython.returns(') and return_vals[j] is None:
                             # Return value found.
                             # Assume it is a one-liner.
@@ -1764,7 +2396,7 @@ def make_pxd(filename):
                             for l in range(len(line) - len(arg + '=')):
                                 if line[l:(l + len(arg + '='))] == (arg + '='):
                                     if l == 0 or line[l - 1] in (' ', ',', '('):
-                                        argtype = deepcopy(line[(l + len(arg + '=')):])
+                                        argtype = copy.deepcopy(line[(l + len(arg + '=')):])
                                         if ',' in argtype:
                                             commas = [m for m, c in enumerate(argtype) if c == ',']
                                             for m in commas:
@@ -1792,9 +2424,9 @@ def make_pxd(filename):
                                         break_k = True
                                         break
                             if break_k:
-                                ine_before = deepcopy(line)
+                                line_before = copy.deepcopy(line)
                                 break
-                        line_before = deepcopy(line)
+                        line_before = copy.deepcopy(line)
                 # Due to a bug in the above, the last argument can
                 # sometimes include the closing parenthesis.
                 # Remove this parenthesis.
@@ -1885,14 +2517,17 @@ def make_pxd(filename):
     pxd_lines.append('cdef:\n')
     variable_index = len(pxd_lines)
     globals_phony_funcname = '__pyxpp_phony__'
-    globals_code = deepcopy(code)
+    globals_code = copy.deepcopy(code)
     while True:
         done = True
         for i, line in enumerate(globals_code):
             if line.startswith('cython.declare('):
                 done = False
                 declaration = line[14:]
-                declaration = re.sub("'.*?'", '', declaration)
+
+                #declaration = re.sub("'.*?'", '', declaration)
+                declaration = re.sub('=.*\)', '', declaration) + ')'
+                
                 declaration = declaration.replace('=', '')
                 globals_code = (globals_code[:i] + ['@cython.cfunc',
                                                    '@cython.locals' + line[14:],
@@ -2018,7 +2653,25 @@ def make_pxd(filename):
 
 # Interpret input argument
 filename = sys.argv[1]
-filename_commons = sys.argv[2]
+c_file_passed = False
+if sys.argv[2].endswith('.c'):
+    filename_c = sys.argv[2]
+    c_file_passed = True
+else:
+    filename_commons = sys.argv[2]
+    # Import the non-compiled commons module
+    commons_name = filename_commons[:-3]
+    @contextlib.contextmanager
+    def suppress_stdout():
+        with open(os.devnull, "w") as devnull:
+            old_stdout = sys.stdout
+            sys.stdout = devnull
+            try:  
+                yield
+            finally:
+                sys.stdout = old_stdout
+    with suppress_stdout():
+        commons = imp.load_source(commons_name, filename_commons)
 no_optimization = False
 if len(sys.argv) > 3:
     if sys.argv[3] == '--no-optimization':
@@ -2032,15 +2685,12 @@ if len(sys.argv) > 3:
                             )
 if len(sys.argv) > 4:
     all_pyxfiles = sys.argv[4:]
-# Import the non-compiled commons module
-commons_name = filename_commons[:-3]
-commons = imp.load_source(commons_name, filename_commons)
 # Perform operations
 if len(sys.argv) > 4:
     # Make the types file, containing the definitions of all custom
     # types implemented in the .pyx files.
     if filename.endswith('.pyx'):
-        make_types(filename)  # filename == filename_types
+        make_types(filename,no_optimization)  # filename == filename_types
     else:
         raise Exception('Got "{}" which is not a .pyx file as the first argument, '
                         'while receiving more than three arguments'.format(filename))
@@ -2051,30 +2701,46 @@ else:
         with open(filename, 'r', encoding='utf-8') as pyfile:
             lines = pyfile.readlines()
         # Apply transformations on the lines
-        lines = cimport_cython(lines)
-        lines = oneline(lines)
-        lines = cythonstring2code(lines)
-        lines = cython_structs(lines)
-        lines = cimport_commons(lines)
-        lines = cimport_function(lines)
-        lines = constant_expressions(lines)
-        lines = unicode2ASCII(lines)
-        lines = loop_unswitching(lines)
-        lines = remove_duplicate_declarations(lines)
-        lines = cython_decorators(lines)
-        lines = power2product(lines)
-        lines = __init__2__cinit__(lines)
-        lines = fix_addresses(lines)
-        lines = malloc_realloc(lines)
-        lines = C_casting(lines)
-        lines = find_extension_types(lines)       
+        lines = cimport_cython               (lines, no_optimization)
+        lines = oneline                      (lines, no_optimization)
+        lines = format_pxdhints              (lines, no_optimization)
+        lines = cythonstring2code            (lines, no_optimization)
+        lines = cython_structs               (lines, no_optimization)
+        lines = cimport_commons              (lines, no_optimization)
+        lines = cimport_function             (lines, no_optimization)
+        lines = constant_expressions         (lines, no_optimization)
+        lines = unicode2ASCII                (lines, no_optimization)
+        lines = loop_unswitching             (lines, no_optimization)
+        lines = remove_duplicate_declarations(lines, no_optimization)
+        lines = cython_decorators            (lines, no_optimization)
+        lines = power2product                (lines, no_optimization)
+        lines = __init__2__cinit__           (lines, no_optimization)
+        lines = fix_addresses                (lines, no_optimization)
+        lines = malloc_realloc               (lines, no_optimization)
+        lines = C_casting                    (lines, no_optimization)
+        lines = find_extension_types         (lines, no_optimization)
         # Write the modified lines to the .pyx-file
         filename_pyx = filename[:-2] + 'pyx'
         with open(filename_pyx, 'w', encoding='utf-8') as pyxfile:
             pyxfile.writelines(lines)
     elif filename.endswith('.pyx'):
-        # A .pyx-file is passed.
-        # Make the .pxd.
-        make_pxd(filename)
+        # A .pyx-file is passed
+        if c_file_passed:
+            # A .pyx and its .c file passed.
+            # This .c file is a result of cythonization after
+            # stage 1. Execute stage 2, update the .pyx file.
+            with open(filename, 'r', encoding='utf-8') as pyxfile:
+                lines = pyxfile.readlines()
+            with open(filename_c, 'r', encoding='utf-8') as cfile:
+                clines = cfile.readlines()
+            lines = add_types_to_addition_chain_exponentiation_variables(lines,
+                                                                         clines,
+                                                                         no_optimization)
+            # Write the modified lines to the .pyx-file
+            with open(filename, 'w', encoding='utf-8') as pyxfile:
+                pyxfile.writelines(lines)
+        else:
+            # Make the .pxd
+            make_pxd(filename, no_optimization)
     else:
         raise Exception('Got "{}", which is neither a .py nor a .pyx file'.format(filename))

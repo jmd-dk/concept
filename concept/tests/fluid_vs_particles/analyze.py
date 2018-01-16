@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,12 +25,14 @@
 # Imports from the CO𝘕CEPT code
 from commons import *
 from snapshot import load
+import species
 
 # Absolute path and name of the directory of this file
 this_dir  = os.path.dirname(os.path.realpath(__file__))
 this_test = os.path.basename(this_dir)
 
 # Read in data from the snapshots
+species.allow_similarly_named_components = True
 fluids = {'particles': [], 'fluid': []}
 a = []
 for kind in ('particles', 'fluid'):
@@ -69,8 +71,10 @@ for kind in ('particles', 'fluid'):
     powerspecs[kind] = [powerspecs[kind][o] for o in order]
 
 # Compare the particle and fluid power spectra.
-# Due to effects of the smoothing (vacuum corrections) of the fluid,
-# only the large scale power should be comparable to the particle power.
+# Because of the smoothing effects (vacuum corrections) on the fluid,
+# and also because of the CIC deconvolutions on the particles,
+# only the large scale power should be comparable between the
+# particle and fluid power spectra.
 n_points = 5
 rel_tol = 2.5e-1
 for (a_i,
@@ -84,12 +88,9 @@ for (a_i,
               powerspec_filenames['particles'],
               powerspec_filenames['fluid'],
               ):
-    # Fit the two power spectra
-    coeffs_particles = np.polyfit(np.log10(k[:n_points]), np.log10(power_particles[:n_points]), 1)
-    coeffs_fluid     = np.polyfit(np.log10(k[:n_points]), np.log10(power_fluid    [:n_points]), 1)
-    # Compare the two power spectra
-    for coeff_particles, coeff_fluid in zip(coeffs_particles, coeffs_fluid):
-        if not isclose(coeff_particles, coeff_fluid, rel_tol=rel_tol):
+    # Compare the first n points of the two power spectra
+    for i in range(n_points):
+        if not isclose(power_particles[i], power_fluid[i], rel_tol=rel_tol):
             abort('Large-scale power of particle and fluid simulations disagree at a = {}.\n'
                   'See "{}.png" and "{}.png" for a visualization.'
                   .format(a_i, fname_particles, fname_fluid))
@@ -113,17 +114,17 @@ def find_biggest_halo(component):
                     K = mod(k + indices[2], ϱ.shape[2])
                     halo[r] += ϱ[I, J, K]
                     ϱ[I, J, K] = 0
-        halo[r] = halo[r]/(count*ϱ_mbar) - 1
+        halo[r] = halo[r]/(count*ρ_mbar) - 1
         if halo[r] < δ_halo_boundary:
             return indices, r
-render_filenames = {'particles': [], 'fluid': []}
+render3D_filenames = {'particles': [], 'fluid': []}
 for kind in ('particles', 'fluid'):
-    regex = '{}/output_{}/render_a=*'.format(this_dir, kind)
+    regex = '{}/output_{}/render3D_a=*'.format(this_dir, kind)
     for fname in sorted(glob(regex),
                         key=lambda s: s[(s.index('=') + 1):]):
-        render_filenames[kind].append(fname)
+        render3D_filenames[kind].append(fname)
     # Sort filenames chronologically
-    render_filenames[kind] = [render_filenames[kind][o] for o in order]
+    render3D_filenames[kind] = [render3D_filenames[kind][o] for o in order]
 rel_tol = 0.1
 abs_tol = 1 + 0.02*gridsize
 N_largest_halos = 5
@@ -135,8 +136,8 @@ for (a_i,
      ) in zip(a,
               fluids['particles'],
               fluids['fluid'],
-              render_filenames['particles'],
-              render_filenames['fluid'],
+              render3D_filenames['particles'],
+              render3D_filenames['fluid'],
               ):
     # Find the largest halo in the particle simulation
     indices_particles, r_particles = find_biggest_halo(particles_component)

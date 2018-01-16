@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -33,7 +33,7 @@ from commons import *
                size_local='Py_ssize_t',
                start_local='Py_ssize_t',
                rank_transition='Py_ssize_t',
-               returns='tuple',
+               returns=tuple,
                )
 def partition(size):
     """This function takes in the size (nr. of elements) of an array
@@ -121,15 +121,13 @@ def find_N_recv(N_send):
                N_recv_tot='Py_ssize_t',
                N_send_j='Py_ssize_t',
                N_send_max='Py_ssize_t',
-               N_send_owner='Py_ssize_t',
                N_send_tot='Py_ssize_t',
                N_send_tot_global='Py_ssize_t',
-               buffer_name='object',  # int or str
+               buffer_name=object,  # int or str
                holes_filled='Py_ssize_t',
                i='Py_ssize_t',
                index_recv_j='Py_ssize_t',
                indices_send_j='Py_ssize_t*',
-               indices_send_owner='Py_ssize_t*',
                j='int',
                k='Py_ssize_t',
                k_start='Py_ssize_t',
@@ -332,7 +330,7 @@ def exchange(component, reset_buffers=False):
 # domain grid between processes.
 @cython.header(# Arguments
                domain_grid='double[:, :, ::1]',
-               mode='str',
+               mode=str,
                # Locals
                i='int',
                index_recv_end_i='Py_ssize_t',
@@ -349,7 +347,7 @@ def exchange(component, reset_buffers=False):
                index_send_start_k='Py_ssize_t',
                j='int',
                k='int',
-               operation='str',
+               operation=str,
                reverse='bint',
                )
 def communicate_domain(domain_grid, mode=''):
@@ -506,7 +504,7 @@ def communicate_domain(domain_grid, mode=''):
                i='int',
                r='int',
                len_primeset='int',
-               primeset='list',
+               primeset=list,
                returns='int[::1]',
                )
 def cutout_domains(n, basecall=True):
@@ -597,13 +595,13 @@ def rank_neighboring_domain(i, j, k):
 # Function which communicates local component data
 @cython.header(# Arguments
                component_send='Component',
-               variables='list',  # list of str's
+               variables=list,  # list of str's
                dest='int',
                source='int',
                component_recv='Component',
                # Locals
                dim='int',
-               operation='str',
+               operation=str,
                mom_dim_recv='double[::1]',
                mom_dim_send='double[::1]',
                pos_dim_recv='double[::1]',
@@ -656,9 +654,9 @@ def sendrecv_component(component_send, variables, dest, source, component_recv=N
         component_buffer.species        = component_send.species
         component_buffer.representation = component_send.representation
         if component_send.representation == 'particles':
-            component_buffer.N         = component_send.N
-            component_buffer.mass      = component_send.mass
-            component_buffer.softening = component_send.softening
+            component_buffer.N                = component_send.N
+            component_buffer.mass             = component_send.mass
+            component_buffer.softening_length = component_send.softening_length
         elif component_send.representation == 'fluid':
             ...
         # Enlarge the data arrays of the component_buffer if necessary
@@ -701,22 +699,22 @@ component_buffer = None
 
 # Very general function for different MPI communications
 @cython.pheader(# Arguments
-                block_send='object',  # Memoryview of dimension 1, 2 or 3
-                block_recv='object',  # Memoryview of dimension 1, 2 or 3, or int
+                block_send=object,  # Memoryview of dimension 1, 2 or 3
+                block_recv=object,  # Memoryview of dimension 1, 2 or 3, or int
                 dest='int',
                 source='int',
                 root='int',
                 reverse='bint',
-                mpifun='str',
-                operation='str',
+                mpifun=str,
+                operation=str,
                 # Local
-                arr_recv='object',  # NumPy aray
-                arr_send='object',  # NumPy aray
+                arr_recv=object,  # NumPy aray
+                arr_send=object,  # NumPy aray
                 block_recv_passed_as_scalar='bint',
                 contiguous_recv='bint',
                 contiguous_send='bint',
-                data_recv='object',  # NumPy aray
-                data_send='object',  # NumPy aray
+                data_recv=object,  # NumPy aray
+                data_send=object,  # NumPy aray
                 dims_recv='Py_ssize_t',
                 dims_send='Py_ssize_t',
                 i='Py_ssize_t',
@@ -728,16 +726,16 @@ component_buffer = None
                 mv_3D='double[:, :, :]',
                 recving='bint',
                 sending='bint',
-                shape_send='tuple',
+                shape_send=tuple,
                 size_recv='Py_ssize_t',
                 size_send='Py_ssize_t',
                 sizes_recv='Py_ssize_t[::1]',
                 recvbuf_mv='double[::1]',
-                recvbuf_name='object',  # int or str
-                reverse_mpifun_mapping='dict',
+                recvbuf_name=object,  # int or str
+                reverse_mpifun_mapping=dict,
                 sendbuf_mv='double[::1]',
                 using_recvbuf='bint',
-                returns='object',  # NumPy array or mpi4py.MPI.Request
+                returns=object,  # NumPy array or mpi4py.MPI.Request
                 )
 def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1, root=master_rank,
               reverse=False, mpifun='', operation='='):
@@ -1019,8 +1017,8 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1, root=master_rank
 
 # Function which manages buffers used by other functions
 @cython.pheader(# Arguments
-                size_or_shape='object',  # Py_ssize_t or tuple
-                buffer_name='object',  # Any hashable object
+                size_or_shape=object,  # Py_ssize_t or tuple
+                buffer_name=object,  # Any hashable object
                 nullify='bint',
                 # Local
                 N_buffers='Py_ssize_t',
@@ -1028,15 +1026,17 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1, root=master_rank
                 buffer_mv='double[::1]',
                 i='Py_ssize_t',
                 index='Py_ssize_t',
-                shape='tuple',
+                shape=tuple,
                 size='Py_ssize_t',
                 size_given='bint',
-                returns='object',  # multi-dimensional array of doubles
+                returns=object,  # multi-dimensional array of doubles
                 )
 def get_buffer(size_or_shape=-1, buffer_name=0, nullify=False):
     """This function returns a contiguous buffer containing doubles.
-    The buffer will be exactly of size 'size'. If no size is given,
-    the buffer will be returned with whatever size it happens to have.
+    The buffer will be exactly of size 'size_or_shape' when this is an
+    integer, or exactly the shape of 'size_or_shape' when this is
+    a tuple. If no size or shape is given, the buffer will be returned
+    as a 1D array with whatever size it happens to have.
     When multiple buffers are in use, a specific buffer can be
     requested by passing a buffer_name, which can be any hashable type.
     A buffer with the given name does not have to exist beforehand.
@@ -1091,7 +1091,7 @@ def get_buffer(size_or_shape=-1, buffer_name=0, nullify=False):
     return np.reshape(buffer_mv[:size], shape)
 # Function which resizes one of the global buffers
 @cython.header(# Arguments
-               buffer_name='object',  # Any hashable object
+               buffer_name=object,  # Any hashable object
                size='Py_ssize_t',
                # Local
                buffer='double*',
@@ -1115,7 +1115,7 @@ def resize_buffer(size, buffer_name):
 cython.declare(buffers='double**',
                buffer='double*',
                buffer_mv='double[::1]',
-               buffers_mv='object',  # OrderedDict
+               buffers_mv=object,  # OrderedDict
                )
 buffers = malloc(1*sizeof('double*'))
 buffer = malloc(1*sizeof('double'))

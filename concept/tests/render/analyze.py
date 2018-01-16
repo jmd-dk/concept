@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -32,39 +32,39 @@ this_test = os.path.basename(this_dir)
 # Begin analysis
 masterprint('Analyzing {} data ...'.format(this_test))
 
-# Read in the three images
-render_path   = this_dir + '/output/render_snapshot.png'
-render_0_path = this_dir + '/output/subdir/snapshot_0.png'
-render_1_path = this_dir + '/output/subdir/snapshot_1.png'
-render   = plt.imread(render_path)
-render_0 = plt.imread(render_0_path)
-render_1 = plt.imread(render_1_path)
+# Read in the three 3D render images
+render3D_path   = this_dir + '/output/render3D_snapshot.png'
+render3D_0_path = this_dir + '/output/subdir/snapshot_0.png'
+render3D_1_path = this_dir + '/output/subdir/snapshot_1.png'
+render3D   = plt.imread(render3D_path)
+render3D_0 = plt.imread(render3D_0_path)
+render3D_1 = plt.imread(render3D_1_path)
 
-# The two identical renders should be exacty equal
-if not np.all(render_0 == render_1):
-    abort('The renders "{}" and "{}" are not identical!'.format(render_0, render_1))
+# The two identical 3D renders should be exacty equal
+if not np.all(render3D_0 == render3D_1):
+    abort('The 3D renders "{}" and "{}" are not identical!'.format(render3D_0, render3D_1))
 
 # The dimensions of the images should be as stated in
-# render.params_0 and render.params_1.
-for r, path, params in zip((render, render_0),
-                           (render_path, render_0_path),
-                           (this_dir + '/render.params_0', this_dir + '/render.params_1')):
+# render3D.params_0 and render3D.params_1.
+for r, path, params in zip((render3D, render3D_0),
+                           (render3D_path, render3D_0_path),
+                           (this_dir + '/render3D.params_0', this_dir + '/render3D.params_1')):
     module_dict = imp.load_source('params', params).__dict__
     shape = r.shape[:2]
-    if shape[0] != shape[1] or shape[0] != module_dict['render_resolution']:
+    if shape[0] != shape[1] or shape[0] != module_dict['render3D_resolution']:
         masterprint('done')
-        abort('The render "{}" is not of size {}x{}!'
-              .format(path, module_dict['render_resolution'], module_dict['render_resolution']))
+        abort('The 3D render "{}" is not of size {}x{}!'
+              .format(path, module_dict['render3D_resolution'], module_dict['render3D_resolution']))
 
-# There should be some completely black pixels in the first render
-# and some completely white pixels in the second (and third) render
+# There should be some completely black pixels in the first 3D render
+# and some completely white pixels in the second (and third) 3D render
 # due to the text.
-if not np.any(render[:, :, :3] > [0.99]*3):
+if not np.any(render3D[:, :, :3] > [0.99]*3):
     abort('The scalefactor text do not seem to '
-          'be white on render "{}".'.format(render_path))
-if not np.any(render_0[:, :, :3] < [0.01]*3):
+          'be white on 3D render "{}".'.format(render3D_path))
+if not np.any(render3D_0[:, :, :3] < [0.01]*3):
     abort('The scalefactor text do not seem to '
-          'be black on render "{}".'.format(render_0_path))
+          'be black on 3D render "{}".'.format(render3D_0_path))
 
 # Done analyzing
 masterprint('done')

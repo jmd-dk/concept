@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -38,10 +38,10 @@ cimport('from mesh import CIC_grid2grid, CIC_scalargrid2coordinates')
                component_1='Component',
                component_2='Component',
                rank_2='int',
-               ᔑdt='dict',
+               ᔑdt=dict,
                local='bint',
                mutual='bint',
-               extra_args='dict',
+               extra_args=dict,
                # Locals
                N_1='Py_ssize_t',
                N_2='Py_ssize_t',
@@ -97,7 +97,7 @@ def gravity_pairwise(component_1, component_2, rank_2, ᔑdt, local, mutual, ext
     # Extract variables from the first (the local) component
     N_1 = component_1.N_local
     mass_1 = component_1.mass
-    softening_1 = component_1.softening
+    softening_1 = component_1.softening_length
     posx_1 = component_1.posx
     posy_1 = component_1.posy
     posz_1 = component_1.posz
@@ -107,7 +107,7 @@ def gravity_pairwise(component_1, component_2, rank_2, ᔑdt, local, mutual, ext
     # Extract variables from the second (the external) component
     N_2 = component_2.N_local
     mass_2 = component_2.mass
-    softening_2 = component_2.softening
+    softening_2 = component_2.softening_length
     posx_2 = component_2.posx
     posy_2 = component_2.posy
     posz_2 = component_2.posz
@@ -195,9 +195,9 @@ def gravity_pairwise(component_1, component_2, rank_2, ᔑdt, local, mutual, ext
                     forcez_ij = -z_ji*ℝ[1/r3]
             # Convert force on particle i from particle j
             # to momentum change of partcicle i due to particle j.
-            Δmomx_ij = forcex_ij*ℝ[G_Newton*mass_1*mass_2*ᔑdt['a⁻¹']]
-            Δmomy_ij = forcey_ij*ℝ[G_Newton*mass_1*mass_2*ᔑdt['a⁻¹']]
-            Δmomz_ij = forcez_ij*ℝ[G_Newton*mass_1*mass_2*ᔑdt['a⁻¹']]
+            Δmomx_ij = forcex_ij*ℝ[G_Newton*mass_1*mass_2*ᔑdt['a**(-1)']]
+            Δmomy_ij = forcey_ij*ℝ[G_Newton*mass_1*mass_2*ᔑdt['a**(-1)']]
+            Δmomz_ij = forcez_ij*ℝ[G_Newton*mass_1*mass_2*ᔑdt['a**(-1)']]
             # Apply momentum change to particle i of component_1
             # (the local component).
             momx_1[i] += Δmomx_ij
@@ -233,11 +233,12 @@ def gravity_potential(k2):
 # to a component.
 @cython.header(# Arguments
                component='Component',
-               ᔑdt='dict',
+               ᔑdt=dict,
                gradφ_dim='double[:, :, ::1]',
                dim='int',
                # Locals
                J_dim='FluidScalar',
+               fac='double',
                i='Py_ssize_t',
                mom_dim='double*',
                posx='double*',
@@ -278,17 +279,22 @@ def apply_gravity_potential(component, ᔑdt, gradφ_dim, dim):
         # fluid variable J.
         # First extract this fluid scalar.
         J_dim = component.J[dim]
-        # As the gravitational source term is -a⁻³ʷ*ϱ*∇φ, we need to
-        # multiply each grid point in [i, j, k] in gradφ_dim
-        # by ϱ[i, j, k] and all grid points by the same factor -a⁻³ʷ.
-        # Actually, since what we are after are the updates to the
-        # momentum density, we should also multiply by Δt. Since a⁻³ʷ is
-        # time dependent, we should then really
-        # exchange -a⁻³ʷ*Δt for -ᔑa⁻³ʷdt.
+        # As the gravitational source term is
+        # -a**(-3*w_eff)*(ϱ + c⁻²𝒫)*∂ⁱφ,
+        # we need to multiply each grid point in [i, j, k] in gradφ_dim
+        # by (ϱ[i, j, k] + c⁻²𝒫[i, j, k]) and all grid points by the
+        # same factor -a**(-3*w_eff). Actually, since what we are after
+        # are the updates to the momentum density, we should also
+        # multiply by Δt. Since a**(-3*we_eff) is time dependent,
+        # we should then really swap -a**(-3*w_eff)*Δt
+        # for -ᔑa**(-3*w_eff)dt.
+        fac = -ᔑdt['a**(-3*w_eff)', component]
         CIC_grid2grid(J_dim.grid_noghosts,
                       gradφ_dim,
-                      fac=-ᔑdt['a⁻³ʷ', component],
+                      fac=fac,
                       fac_grid=component.ϱ.grid_noghosts,
+                      fac2=light_speed**(-2)*fac,
+                      fac_grid2=component.𝒫.grid_noghosts,
                       )
         # Communicate the pseudo and ghost points of J_dim
         communicate_domain(J_dim.grid_mv, mode='populate')

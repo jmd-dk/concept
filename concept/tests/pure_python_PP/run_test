@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -86,12 +86,12 @@ for n in ${nprocs_list[@]}; do
 done
 
 # Tabulate the Ewald grid using pure Python
-mv "${concept_dir}/.ewald_gridsize=${ewald_gridsize}.hdf5" "${this_dir}/ewald_cython.hdf5"
+mv "${reusables_dir}/ewald/ewald_gridsize=${ewald_gridsize}.hdf5" "${this_dir}/ewald_cython.hdf5"
 "${concept}" -n 1                                \
              -p "${this_dir}/params_ewald"       \
              -m "import ewald; ewald.tabulate()" \
              --pure-python --local
-mv "${concept_dir}/.ewald_gridsize=${ewald_gridsize}.hdf5" "${this_dir}/ewald_python.hdf5"
+mv "${reusables_dir}/ewald/ewald_gridsize=${ewald_gridsize}.hdf5" "${this_dir}/ewald_python.hdf5"
 
 # Analyze the output snapshots and Ewald grids
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local

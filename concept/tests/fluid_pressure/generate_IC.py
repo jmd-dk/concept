@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -30,13 +30,12 @@ from snapshot import save
 # Create stationary, homogeneous matter distribution,
 # perturbed with global, stationary sine wave along
 # the x-direction.
-w  = user_params['_w']
 ρ0 = user_params['_ρ0']
 A  = user_params['_A']
 σ  = user_params['_σ']
 gridsize = 4*16  # Should be a multiple of 4
 N = gridsize**3
-component = Component('test fluid', 'matter fluid', gridsize, N_fluidvars=3, w=w)
+component = Component('test fluid', 'matter fluid', gridsize, N_fluidvars=3)
 ρ = empty([gridsize]*3)
 for i in range(gridsize):
     x = boxsize*i/gridsize
