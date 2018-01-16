@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,12 +25,14 @@
 # Imports from the CO𝘕CEPT code
 from commons import *
 from snapshot import load
+import species
 
 # Absolute path and name of the directory of this file
 this_dir  = os.path.dirname(os.path.realpath(__file__))
 this_test = os.path.basename(this_dir)
 
 # Read in data from the CO𝘕CEPT snapshots
+species.allow_similarly_named_components = True
 fluids = []
 times = []
 for fname in sorted(glob(this_dir + '/output/snapshot_t=*'),
@@ -60,7 +62,7 @@ phases = [-t/(10*units.Gyr)*2*π for t in times]
 for ax_i, fluid, t, phase in zip(ax, fluids, times, phases):
     ϱ_i = asarray([2 + np.sin(2*π*i/gridsize + phase) for i in range(gridsize)])  # Unitless
     ϱ_i /= sum(ϱ_i)                                                               # Normalize
-    ϱ_i *= ϱ_mbar*gridsize                                                        # Apply units
+    ϱ_i *= ρ_mbar*gridsize                                                        # Apply units
     ϱ.append(ϱ_i)
     ϱ_snapshot.append(fluid.ϱ.grid_noghosts[:gridsize, 0, 0])
     ax_i.plot(x, ϱ[-1], '-', label='Analytical solution')

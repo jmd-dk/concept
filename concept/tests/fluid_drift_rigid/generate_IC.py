@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -38,7 +38,7 @@ speed = a_begin**2*boxsize/(0.5*units.Gyr)
 N = gridsize                   # Number of particles
 N_fluidelements = gridsize**3  # Number of fluid elements
 Vcell = (boxsize/gridsize)**3
-mass_tot = ϱ_mbar*boxsize**3
+mass_tot = ρ_mbar*boxsize**3
 mass_fluid_tot = mass_particles_tot = 0.5*mass_tot
 mass_fluid = mass_fluid_tot/N_fluidelements  # Mass of each fluid element
 mass_particles = mass_particles_tot/N        # Mass of each particle

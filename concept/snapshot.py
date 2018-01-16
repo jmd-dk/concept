@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -60,8 +60,8 @@ class StandardSnapshot:
         # Test for standard format by looking up the 'Ωcdm' attribute
         # in the HDF5 data structure.
         try:
-            with h5py.File(filename, mode='r') as f:
-                f.attrs[unicode('Ωcdm')]
+            with h5py.File(filename, mode='r') as hdf5_file:
+                hdf5_file.attrs[unicode('Ωcdm')]
                 return True
         except:
             ...
@@ -88,22 +88,21 @@ class StandardSnapshot:
 
     # Methd that saves the snapshot to an hdf5 file
     @cython.pheader(# Argument
-                   filename='str',
+                   filename=str,
                    # Locals
                    component='Component',
                    end_local='Py_ssize_t',
-                   eos_message='str',
                    fluidscalar='FluidScalar',
-                   indices='object',  # int or tuple
+                   indices=object,  # int or tuple
                    index='Py_ssize_t',
-                   multi_index='tuple',
-                   name='object',  # str or int
-                   shape='tuple',
+                   multi_index=object,  # tuple or str
+                   name=object,  # str or int
+                   shape=tuple,
                    slab='double[:, :, ::1]',
                    slab_end='Py_ssize_t',
                    slab_start='Py_ssize_t',
                    start_local='Py_ssize_t',
-                   returns='str',
+                   returns=str,
                    )
     def save(self, filename):
         # Attach missing extension to filename
@@ -113,25 +112,22 @@ class StandardSnapshot:
         masterprint('Saving standard snapshot "{}" ...'.format(filename))
         with h5py.File(filename, mode='w', driver='mpio', comm=comm) as hdf5_file:
             # Save used base units
-            hdf5_file.attrs['unit length']   = self.units['length']
-            hdf5_file.attrs['unit time']     = self.units['time']
-            hdf5_file.attrs['unit mass']     = self.units['mass']
+            hdf5_file.attrs['unit time'    ] = self.units['time']
+            hdf5_file.attrs['unit length'  ] = self.units['length']
+            hdf5_file.attrs['unit mass'    ] = self.units['mass']
             # Save global attributes
-            hdf5_file.attrs['H0']            = self.params['H0']
-            hdf5_file.attrs['a']             = self.params['a']
-            hdf5_file.attrs['boxsize']       = self.params['boxsize']
+            hdf5_file.attrs['H0'           ] = self.params['H0']
+            hdf5_file.attrs['a'            ] = self.params['a']
+            hdf5_file.attrs['boxsize'      ] = self.params['boxsize']
             hdf5_file.attrs[unicode('Ωcdm')] = self.params['Ωcdm']
-            hdf5_file.attrs[unicode('Ωb')]   = self.params['Ωb']
+            hdf5_file.attrs[unicode('Ωb')  ] = self.params['Ωb']
             # Store each component as a separate group
             # within /components.
             for component in self.components:
                 component_h5 = hdf5_file.create_group('components/' + component.name)
                 component_h5.attrs['species'] = component.species
                 if component.representation == 'particles':
-                    masterprint('Writing out {} ({} {}) ...'.format(component.name,
-                                                                    component.N,
-                                                                    component.species)
-                                )
+                    masterprint(f'Writing out {component.name} ({component.N} {component.species}) ...')
                     # Save particle attributes
                     component_h5.attrs['mass'] = component.mass
                     component_h5.attrs['N'] = component.N
@@ -159,50 +155,13 @@ class StandardSnapshot:
                     masterprint('done')
                 elif component.representation == 'fluid':
                     # Write out progress message
-                    if component.w_type == 'constant':
-                        eos_message = ('constant equation of state w = {}'
-                                       .format(significant_figures(component.w_constant,
-                                                                   6,
-                                                                   fmt='unicode',
-                                                                   incl_zeros=False,
-                                                                   )
-                                               )
-                                       )
-                    elif component.w_type == 'tabulated (t)':
-                        eos_message = 'tabulated equation of state w(t)'
-                    elif component.w_type == 'tabulated (a)':
-                        eos_message = 'tabulated equation of state w(a)'
-                    elif component.w_type == 'expression':
-                        eos_message = 'equation of state w = {}'.format(component.w_expression)
-                    else:
-                        abort('Did not recognize w type "{}"'.format(component.w_type))
-                    masterprint('Writing out {} ({} with '
-                                'gridsize {}, '
-                                '{} fluid variables, '
-                                '{}) ...'
-                                .format(component.name,
-                                        component.species,
-                                        component.gridsize,
-                                        component.N_fluidvars,
-                                        eos_message,
-                                        ),
-                                )
+                    masterprint(
+                        f'Writing out {component.name} ({component.species} with gridsize '
+                        f'{component.gridsize}, {component.N_fluidvars} fluid variables) ...'
+                    )
                     # Save fluid attributes
                     component_h5.attrs['gridsize'] = component.gridsize
                     component_h5.attrs['N_fluidvars'] = component.N_fluidvars
-                    component_h5.attrs['w_type'] = component.w_type
-                    if component.w_type == 'constant':
-                        component_h5.attrs['w'] = component.w_constant
-                    elif 'tabulated' in component.w_type:
-                        # If w is tabulated it cannot be saved as
-                        # an attribute. Instead save it as a dataset.
-                        w_h5 = component_h5.create_dataset('w',
-                                                           asarray(component.w_tabulated).shape,
-                                                           dtype=C2np['double'])
-                        if master:
-                            w_h5[...] = component.w_tabulated
-                    elif component.w_type == 'expression':
-                        component_h5.attrs['w'] = component.w_expression
                     # Save fluid grids in groups of name
                     # "fluidvar_index", with index = 0, 1, ...
                     # The fluid scalars are then datasets within
@@ -271,7 +230,7 @@ class StandardSnapshot:
 
     # Method for loading in a standard snapshot from disk
     @cython.pheader(# Argument
-                    filename='str',
+                    filename=str,
                     only_params='bint',
                     # Locals
                     N='Py_ssize_t',
@@ -283,24 +242,23 @@ class StandardSnapshot:
                     domain_size_j='Py_ssize_t',
                     domain_size_k='Py_ssize_t',
                     end_local='Py_ssize_t',
-                    eos_message='str',
                     fluidscalar='FluidScalar',
                     grid='double*',
                     gridsize='Py_ssize_t',
                     i='Py_ssize_t',
-                    independent='str',
+                    independent=str,
                     index='Py_ssize_t',
                     mass='double',
                     momx='double*',
                     momy='double*',
                     momz='double*',
-                    multi_index='tuple',
-                    name='str',
+                    multi_index=tuple,
+                    name=str,
                     posx='double*',
                     posy='double*',
                     posz='double*',
-                    representation='str',
-                    shape='tuple',
+                    representation=str,
+                    shape=tuple,
                     size='Py_ssize_t',
                     slab='double[:, :, ::1]',
                     slab_end='Py_ssize_t',
@@ -308,15 +266,12 @@ class StandardSnapshot:
                     snapshot_unit_length='double',
                     snapshot_unit_mass='double',
                     snapshot_unit_time='double',
-                    species='str',
+                    species=str,
                     start_local='Py_ssize_t',
                     unit='double',
                     unit_J='double',
-                    unit_σ='double',
                     unit_ϱ='double',
                     units_fluidvars='double[::1]',
-                    w='object',  # float, str or np.ndarray
-                    w_type='str',
                     )
     def load(self, filename, only_params=False):
         if only_params:
@@ -326,18 +281,18 @@ class StandardSnapshot:
         # Load all components    
         with h5py.File(filename, mode='r', driver='mpio', comm=comm) as hdf5_file:
             # Load used base units
+            self.units['time'  ] = hdf5_file.attrs['unit time']
             self.units['length'] = hdf5_file.attrs['unit length']
-            self.units['time']   = hdf5_file.attrs['unit time']
-            self.units['mass']   = hdf5_file.attrs['unit mass']
-            snapshot_unit_length = eval_unit(self.units['length'])
+            self.units['mass'  ] = hdf5_file.attrs['unit mass']
             snapshot_unit_time   = eval_unit(self.units['time'])
+            snapshot_unit_length = eval_unit(self.units['length'])
             snapshot_unit_mass   = eval_unit(self.units['mass'])
             # Load global attributes
-            self.params['H0']      = hdf5_file.attrs['H0']*(1/snapshot_unit_time)
-            self.params['a']       = hdf5_file.attrs['a']
+            self.params['H0'     ] = hdf5_file.attrs['H0']*(1/snapshot_unit_time)
+            self.params['a'      ] = hdf5_file.attrs['a']
             self.params['boxsize'] = hdf5_file.attrs['boxsize']*snapshot_unit_length
-            self.params['Ωcdm']    = hdf5_file.attrs[unicode('Ωcdm')]
-            self.params['Ωb']      = hdf5_file.attrs[unicode('Ωb')]
+            self.params['Ωcdm'   ] = hdf5_file.attrs[unicode('Ωcdm')]
+            self.params['Ωb'     ] = hdf5_file.attrs[unicode('Ωb')]
             # Load component data
             for name, component_h5 in hdf5_file['components'].items():
                 species = component_h5.attrs['species']
@@ -414,52 +369,18 @@ class StandardSnapshot:
                     # Read in fluid attributes
                     gridsize = component_h5.attrs['gridsize']
                     N_fluidvars = component_h5.attrs['N_fluidvars']
-                    w_type = component_h5.attrs['w_type']
-                    if 'tabulated' in w_type:
-                        # The equation of state parameter w is saved
-                        # as a dataset.
-                        w = component_h5['w']
-                        # Transform w to a dict of the format
-                        # {'t': t, 'w': w} or {'a': a, 'w': w}.
-                        independent = re.search('\((.+)\)', w_type).group(1)
-                        w = {independent: w[0, :], 'w': w[1, :]}
-                    else:
-                        w = component_h5.attrs['w']
                     # Construct a Component instance and append it
                     # to this snapshot's list of components.
-                    component = Component(name, species, gridsize,
-                                          N_fluidvars=N_fluidvars, w=w)
+                    component = Component(name, species, gridsize, N_fluidvars=N_fluidvars)
                     self.components.append(component)
                     # Done loading component attributes
                     if only_params:
                         continue
                     # Write out progress message
-                    if w_type == 'constant':
-                        eos_message = ('constant equation of state w = {}'
-                                       .format(significant_figures(w,
-                                                                   6,
-                                                                   fmt='unicode',
-                                                                   incl_zeros=False,
-                                                                   )
-                                               )
-                                       )
-                    elif w_type == 'tabulated (t)':
-                        eos_message = 'tabulated equation of state w(t)'
-                    elif w_type == 'tabulated (a)':
-                        eos_message = 'tabulated equation of state w(a)'
-                    elif w_type == 'expression':
-                        eos_message = 'equation of state w = {}'.format(w)
-                    masterprint('Reading in {} ({} with '
-                                'gridsize {}, '
-                                '{} fluid variables, '
-                                '{}) ...'
-                                .format(name,
-                                        species,
-                                        gridsize,
-                                        N_fluidvars,
-                                        eos_message,
-                                        )
-                                )
+                    masterprint(
+                        f'Reading in {name} ({species} with gridsize {gridsize}, '
+                        f'{N_fluidvars} fluid variables) ...'
+                    )
                     # Compute local indices of fluid grids
                     domain_size_i = gridsize//domain_subdivisions[0]
                     domain_size_j = gridsize//domain_subdivisions[1]
@@ -494,8 +415,7 @@ class StandardSnapshot:
                     # by the snapshot units.
                     unit_ϱ = snapshot_unit_mass/snapshot_unit_length**3
                     unit_J = snapshot_unit_mass/(snapshot_unit_length**2*snapshot_unit_time)
-                    unit_σ = 1
-                    units_fluidvars = asarray((unit_ϱ, unit_J, unit_σ), dtype=C2np['double'])
+                    units_fluidvars = asarray((unit_ϱ, unit_J), dtype=C2np['double'])
                     size = np.prod(component.shape)
                     for fluidvar, unit in zip(component.fluidvars[:component.N_fluidvars],
                                               units_fluidvars):
@@ -516,12 +436,14 @@ class StandardSnapshot:
     # This method populate the snapshot with component data
     # and additional parameters.
     @cython.pheader(# Arguments
-                    components='list',
-                    params='dict',
+                    components=list,
+                    params=dict,
                     # Locals
-                    key='str',
+                    key=str,
                     )
-    def populate(self, components, params={}):
+    def populate(self, components, params=None):
+        if params is None:
+            params = {}
         # Pupulate snapshot with the components
         self.components = components
         # Populate snapshot with the passed scalefactor
@@ -536,8 +458,8 @@ class StandardSnapshot:
         self.params['Ωcdm']    = params.get('Ωcdm'   , Ωcdm)
         self.params['Ωb']      = params.get('Ωb'     , Ωb)
         # Populate the base units with the global base units
-        self.units['length'] = unit_length
         self.units['time']   = unit_time
+        self.units['length'] = unit_length
         self.units['mass']   = unit_mass
 
 # Class storing a Gadget2 snapshot. Besides holding methods for
@@ -548,8 +470,10 @@ class Gadget2Snapshot:
     """This class represents snapshots of the "gadget2" type, meaning
     the second type of snapshot native to GADGET2. Only GADGET2 type 1
     (halo) particles, corresponding to dark matter particles, are
-    supported. It is however also possible to save a component with a
-    species of "matter" as a Gadget2Snapshot.
+    supported. It is also possible to save a component with a
+    species of "matter" as a Gadget2Snapshot. When loading however,
+    any Gadget2Snapshot will produce a component of the
+    "dark matter particles" species.
     As is the case for the standard snapshot class, this class contains
     a list components (the components attribute) and dict of parameters
     (the params attribute). Besides holding the cosmological parameters
@@ -612,14 +536,14 @@ class Gadget2Snapshot:
 
     # Method for saving a GADGET2 snapshot of type 2 to disk
     @cython.pheader(# Arguments
-                    filename='str',
+                    filename=str,
                     # Locals
                     N='Py_ssize_t',
                     N_local='Py_ssize_t',
                     i='int',
                     component='Component',
                     unit='double',
-                    returns='str',
+                    returns=str,
                     )
     def save(self, filename):
         """The snapshot data (positions and velocities) are stored in
@@ -666,10 +590,7 @@ class Gadget2Snapshot:
                 # Padding to fill out the 256 bytes
                 f.write(struct.pack('60s', b' '*60))
                 f.write(struct.pack('I', 256))
-        masterprint('Writing out {} ({} {}) ...'.format(component.name,
-                                                        component.N,
-                                                        component.species)
-                    )
+        masterprint(f'Writing out {component.name} ({component.N} {component.species}) ...')
         # Write the POS block in serial, one process at a time
         unit = units.kpc/header['HubbleParam']
         for i in range(nprocs):
@@ -745,19 +666,19 @@ class Gadget2Snapshot:
 
     # Method for loading in a GADGET2 snapshot of type 2 from disk
     @cython.pheader(# Arguments
-                    filename='str',
+                    filename=str,
                     only_params='bint',
                     # Locals
                     N='Py_ssize_t',
                     N_local='Py_ssize_t',
-                    blockname='str',
+                    blockname=str,
                     file_position='Py_ssize_t',
-                    header='object',  # collections.OrderedDict
+                    header=object,  # collections.OrderedDict
                     mass='double',
-                    name='str',
+                    name=str,
                     offset='Py_ssize_t',
                     size='unsigned int',
-                    species='str',
+                    species=str,
                     start_local='Py_ssize_t',
                     unit='double',
                     )
@@ -773,9 +694,14 @@ class Gadget2Snapshot:
             masterprint('Loading parameters of snapshot "{}" ...'.format(filename))
         else:
             masterprint('Loading snapshot "{}" ...'.format(filename))
-        # Only type 1 (halo) particles are supported
+        # Only type 1 (halo) particles are supported. Since GADGET
+        # wants Ωm = Ωcdm + Ωb (what GADGET calls Omega0) to be
+        # accounted for fully by the particles, we should make the
+        # species of the particles 'matter particles', as using
+        # 'dark matter particles' would suggest that the
+        # baryons are missing.
         name = 'GADGET halos'
-        species = 'dark matter particles'
+        species = 'matter particles'
         # Read in the snapshot
         offset = 0
         with open(filename, 'rb') as f:
@@ -888,14 +814,14 @@ class Gadget2Snapshot:
     # as well as ID's (which are not used by this code) and
     # additional header information.
     @cython.pheader(# Arguments
-                    components='list',
-                    params='dict',
+                    components=list,
+                    params=dict,
                     # Locals
                     component='Component',
                     start_local='Py_ssize_t',
                     ΩΛ='double',
                     )
-    def populate(self, components, params={}):
+    def populate(self, components, params=None):
         """The following header fields depend on the particles:
             Npart, Massarr, Nall.
         The following header fields depend on the current time:
@@ -905,6 +831,8 @@ class Gadget2Snapshot:
             BoxSize, Omega0, OmegaLambda, HubbleParam.
         All other fields get generic values.
         """
+        if params is None:
+            params = {}
         # Pupulate snapshot with the GADGTE halos
         component = components[0]
         self.component = component
@@ -933,8 +861,8 @@ class Gadget2Snapshot:
     @cython.header(# Locals
                    component='Component',
                    h='double',
-                   header='object',  # collections.OrderedDict
-                   params='dict',
+                   header=object,  # collections.OrderedDict
+                   params=dict,
                    unit='double',
                    )
     def update_header(self):
@@ -969,11 +897,11 @@ class Gadget2Snapshot:
 
     # Method used for reading series of bytes from the snapshot file
     @cython.header(# Arguments
-                   f='object',
-                   fmt='str',
+                   f=object,
+                   fmt=str,
                    # Locals
-                   t='tuple',
-                   returns='object',
+                   t=tuple,
+                   returns=object,
                    )
     def read(self, f, fmt):
         # Convert bytes to python objects and store them in a tuple
@@ -988,7 +916,7 @@ class Gadget2Snapshot:
     # Method that handles the file object's position in the snapshot
     # file during loading. Call it when the next block should be read.
     @cython.header(offset='Py_ssize_t',
-                   f='object',
+                   f=object,
                    returns='Py_ssize_t',
                    )
     def new_block(self, f, offset):
@@ -1001,28 +929,50 @@ class Gadget2Snapshot:
 
 # Function that saves the current state of the simulation
 # - consisting of global parameters as well as the list of components -
-# to a snapshot file. The type of snapshot to be saved is determined by
-# the snapshot_type parameter.
+# to a snapshot file. Note that since we want this function to be
+# exposed to pure Python, a pheader is used.
 @cython.pheader(# Argument
-                one_or_more_components='object',  # Component or container of Components
-                filename='str',
-                params='dict',
+                one_or_more_components=object,  # Component or container of Components
+                filename=str,
+                params=dict,
+                snapshot_type=str,
+                save_all_components='bint',
                 # Locals
-                snapshot='object',  # Any implemented snapshot type
-                returns='str',
+                component='Component',
+                components=list,
+                components_selected=list,
+                snapshot=object,  # Any implemented snapshot type
+                returns=str,
                 )
-def save(one_or_more_components, filename, params={}):
-    """Note that since we want this function to be exposed to
-    pure Python, a pheader is used.
+def save(one_or_more_components, filename, params=None, snapshot_type=snapshot_type,
+         save_all_components=False):
+    """The type of snapshot to be saved may be given as the
+    snapshot_type argument. If not given, it defaults to the value
+    given by the of the snapshot_type parameter.
+    Should you wish to replace the global parameters with
+    something else, you may pass new parameters as the params argument.
+    The components to include in the snapshot files are determined by
+    the snapshot_select user parameter. If you wish to overrule this
+    and force every component to be inclued,
+    set save_all_components to True.
     """
-    # Instantiate snapshot of the appropriate type
-    snapshot = eval(snapshot_type.capitalize() + 'Snapshot()')
-    # Populate the snapshot with data
+    if params is None:
+        params = {}
+    # Filter out the components which should be saved
     if isinstance(one_or_more_components, Component):
         components = [one_or_more_components]
     else:
         components = list(one_or_more_components)
-    snapshot.populate(components, params)
+    if save_all_components:
+        components_selected = components
+    else:
+        components_selected = [
+            component for component in components if is_selected(component, snapshot_select)
+        ]
+    # Instantiate snapshot of the appropriate type
+    snapshot = eval(snapshot_type.capitalize() + 'Snapshot()')
+    # Populate the snapshot with data
+    snapshot.populate(components_selected, params)
     # Make sure that the directory of the snapshot exists
     if master:
         os.makedirs(os.path.dirname(filename), exist_ok=True)
@@ -1035,19 +985,19 @@ def save(one_or_more_components, filename, params={}):
 # Function that loads a snapshot file.
 # The type of snapshot can be any of the implemented.
 @cython.pheader(# Argument
-                filename='str',
+                filename=str,
                 compare_params='bint',
                 only_params='bint',
                 only_components='bint',
                 do_exchange='bint',
-                as_if='str',
+                as_if=str,
                 # Locals
                 component='Component',
                 i='Py_ssize_t',
-                input_type='str',
-                snapshot='object',          # Some snapshot type
-                snapshot_newtype='object',  # Some snapshot type
-                returns='object',           # Snapshot or list
+                input_type=str,
+                snapshot=object,          # Some snapshot type
+                snapshot_newtype=object,  # Some snapshot type
+                returns=object,           # Snapshot or list
                 )
 def load(filename, compare_params=True,
                    only_params=False,
@@ -1114,10 +1064,10 @@ def load(filename, compare_params=True,
 
 # Function for determining the snapshot type of a file
 @cython.header(# Arguments
-               filename='str',
+               filename=str,
                # Locals
-               head='tuple',
-               returns='str',
+               head=tuple,
+               returns=str,
                )
 def get_snapshot_type(filename):
     """Call the 'is_this_type' class method of each snapshot class until
@@ -1129,7 +1079,7 @@ def get_snapshot_type(filename):
     do not throw an error but simply return None.
     """
     # Abort if the file does not exist
-    if master and not os.path.exists(filename):
+    if master and not os.path.isfile(filename):
         abort('The snapshot file "{}" does not exist'.format(filename))
     # Get the snapshot type by asking each snapshot class whether they
     # recognize the file.
@@ -1143,14 +1093,14 @@ def get_snapshot_type(filename):
 # values to those of the current run. If any disagreement is found,
 # write a warning message.
 @cython.header(# Arguments
-               params='dict',
-               filename='str',
+               params=dict,
+               filename=str,
                # Locals
-               indent_str='str',
-               msg='str',
+               indent_str=str,
+               msg=str,
                rel_tol='double',
                unit='double',
-               vs='str',
+               vs=str,
                )
 def compare_parameters(params, filename):
     """Specifically, the following parameters are compared:
@@ -1255,8 +1205,8 @@ def out_of_bounds_check(component, snapshot_boxsize=-1):
 # Construct tuple of possible filename extensions for snapshots
 # by simply grabbing the 'extension' class variable off of all
 # classes defined in this module with the name '...Snapshot'.
-cython.declare(snapshot_classes='tuple',
-               snapshot_extensions='tuple',
+cython.declare(snapshot_classes=tuple,
+               snapshot_extensions=tuple,
                )
 snapshot_classes = tuple([var for name, var in globals().items()
                           if (    hasattr(var, '__module__')

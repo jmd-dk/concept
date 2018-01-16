@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,12 +25,14 @@
 # Imports from the CO𝘕CEPT code
 from commons import *
 from snapshot import load
+import species
 
 # Absolute path and name of the directory of this file
 this_dir  = os.path.dirname(os.path.realpath(__file__))
 this_test = os.path.basename(this_dir)
 
 # Read in data from the CO𝘕CEPT snapshots
+species.allow_similarly_named_components = True
 fluids = []
 times = []
 for fname in sorted(glob(this_dir + '/output/snapshot_t=*'),
@@ -63,8 +65,8 @@ x_values = [boxsize*i/gridsize for i in range(gridsize)]
 ρ = []
 ρ_snapshot = []
 for ax_i, fluid, t in zip(ax, fluids, times):
-    ϱ.append(asarray([ρ0 + A*sin(x/boxsize*2*π)*cos(t/T*2*π) for x in x_values]))
-    ϱ_snapshot.append(fluid.ϱ.grid_noghosts[:gridsize, 0, 0])
+    ρ.append(asarray([ρ0 + A*sin(x/boxsize*2*π)*cos(t/T*2*π) for x in x_values]))
+    ρ_snapshot.append(fluid.ϱ.grid_noghosts[:gridsize, 0, 0])
     ax_i.plot([0, boxsize], [ρ0    ]*2, 'k:' )
     ax_i.plot([0, boxsize], [ρ0 + A]*2, 'k--')
     ax_i.plot([0, boxsize], [ρ0 - A]*2, 'k--')
@@ -102,10 +104,10 @@ for fluid, t in zip(fluids, times):
                       'See "{}" for a visualization.'
                       .format(t, unit_time, fluidscalar, fig_file))
 
-# Compare ϱ from the snapshots to the analytical solution
+# Compare ρ from the snapshots to the analytical solution
 abs_tol = 1e-2*A
-for ϱ_i, ϱ_snapshot_i, t in zip(ϱ, ϱ_snapshot, times):
-    if not isclose(np.mean(abs(ϱ_i - ϱ_snapshot_i)), 0,
+for ρ_i, ρ_snapshot_i, t in zip(ρ, ρ_snapshot, times):
+    if not isclose(np.mean(abs(ρ_i - ρ_snapshot_i)), 0,
                    rel_tol=0,
                    abs_tol=abs_tol):
         abort('Fluid evolution differs from the analytical solution at t = {} {}.\n'

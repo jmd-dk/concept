@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,14 +22,15 @@
 
 
 
-# This script runs a test on the render utility.
-# It generates a random snapshot and renders it first using 1 CPU and giving
-# the render script the exact path to the snapshot (with and without
-# specifying a render parameter file). Two copies of this snapshot is then
-# placed in a separate directory. Using 2 CPUs, the render script is then
-# given the path to this directory, which should produce a render for each
-# snapshot. Different render parameters are used for the two calls to the
-# render utility script.
+# This script runs a test of the render3D utility,
+# as well as the render2D functionality.
+# It generates a random snapshot and 3D renders it first using 1 CPU and giving
+# the render3D script the exact path to the snapshot (with and without
+# specifying a render3D parameter file). Two copies of this snapshot is then
+# placed in a separate directory. Using 2 CPUs, the render3D script is then
+# given the path to this directory, which should produce a 3D render for each
+# snapshot. Different 3D render parameters are used for the two calls to the
+# render3D utility script.
 
 # Absolute path and name of the directory of this file
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
@@ -73,36 +74,36 @@ mkdir -p "${this_dir}/output/subdir"
 cp "${this_dir}/output/snapshot.hdf5" "${this_dir}/output/subdir/snapshot_0.hdf5"
 cp "${this_dir}/output/snapshot.hdf5" "${this_dir}/output/subdir/snapshot_1.hdf5"
 
-# Generate two different render parameterfiles
+# Generate two different 3D render parameter files
 echo "
-output_bases   = {'render': 'render'}
-render_select  = {'all': True}
-render_resolution     = 234
-render_colors  = {'test particles': 'g'}
-render_bgcolor = '0'
-" > "${this_dir}/render.params_0"
+output_bases        = {'render3D': 'render3D'}
+render3D_select     = {'all': True}
+render3D_resolution = 234
+render3D_colors     = {'test particles': 'g'}
+render3D_bgcolor    = '0'
+" > "${this_dir}/render3D.params_0"
 echo "
-output_bases   = {'render': ''}
-render_select  = {'all': True}
-render_resolution     = 1080
-render_colors  = {'test particles': (1, 0.2, 0.3)}
-render_bgcolor = 'LightYellow'
-" > "${this_dir}/render.params_1"
+output_bases        = {'render3D': ''}
+render3D_select     = {'all': True}
+render3D_resolution = 1080
+render3D_colors     = {'test particles': (1, 0.2, 0.3)}
+render3D_bgcolor    = 'LightYellow'
+" > "${this_dir}/render3D.params_1"
 
-# Render the single snapshot without explicitly specifying a render parameter file
-"${concept}" -n 1 -u render "${this_dir}/output/snapshot.hdf5" --local
-mv "${this_dir}/output/render_snapshot.png" "${this_dir}/output/render_snapshot_default.png"
+# 3D render the single snapshot without explicitly specifying a 3D render parameter file
+"${concept}" -n 1 -u render3D "${this_dir}/output/snapshot.hdf5" --local
+mv "${this_dir}/output/render3D_snapshot.png" "${this_dir}/output/render3D_snapshot_default.png"
 
-# Render the single snapshot by specifying a render parameter file
-"${concept}" -n 1                                         \
-             -p "${this_dir}/render.params_0"             \
-             -u render "${this_dir}/output/snapshot.hdf5" \
+# 3D render the single snapshot by specifying a 3D render parameter file
+"${concept}" -n 1                                           \
+             -p "${this_dir}/render3D.params_0"             \
+             -u render3D "${this_dir}/output/snapshot.hdf5" \
              --local
 
-# Render all (both) snapshots in the subdir, using 2 processes
-"${concept}" -n 2                                  \
-             -p "${this_dir}/render.params_1"      \
-             -u render "${this_dir}/output/subdir" \
+# 3D render all (both) snapshots in the subdir, using 2 processes
+"${concept}" -n 2                                    \
+             -p "${this_dir}/render3D.params_1"      \
+             -u render3D "${this_dir}/output/subdir" \
              --local
 
 # Analyze the output snapshots
@@ -112,11 +113,12 @@ mv "${this_dir}/output/render_snapshot.png" "${this_dir}/output/render_snapshot_
              --pure-python               \
              --local
 
-# For the spectacularity of it, run a small simulation demonstrating terminal rendering
+# For the spectacularity of it, run a small simulation
+# demonstrating 2D terminal rendering.
 "${concept}" -n 1 -p "${this_dir}/params" --local
 
 # Also demonstrate the play utility
-"${concept}" -u play
+"${concept}" -u play -c "test particles"
 
 # Test ran successfully. Deactivate traps.
 trap : 0

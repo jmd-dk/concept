@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
-# CO𝘕CEPT is free software: You can redistribute it and/or modify
+# CO𝘕CEPT is free software: You can redistribute it and/or modifypath
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
@@ -29,8 +29,6 @@
 # All tests can be skipped by supplying --fast as an argument.
 # You can also download and run the newest version of this script by
 # executing the following command:
-# bash <(wget -O- --no-ch bit.ly/concept_nbody)
-# The above uses a URL shortener. If it does not work, use the full URL:
 # bash <(wget -O- --no-ch https://raw.githubusercontent.com/jmd-dk/concept/master/installer)
 #
 # The following software will be installed in order:
@@ -50,8 +48,9 @@
 #     - Blessings
 #     - Cython
 #     - CythonGSL
-#     - Nose (needed by CLASS, NumPy and SciPy)
-#     - Nose-parameterized (needed by CLASS)
+#     - Nose (needed by CLASS and NumPy)
+#     - parameterized (needed by CLASS)
+#     - pytest (needed by SciPy)
 #     - NumPy
 #     - SciPy
 #     - Matplotlib
@@ -104,8 +103,20 @@
 ##################
 # The MPI implementation to use
 if [ -z "${mpi}" ]; then
-    # Use MPICH by default
-    mpi="mpich"
+    # If mpi_dir is specified,
+    # try to determine whether OpenMPI or MPICH is used.
+    if [ -n "${mpi_dir}" ]; then
+        if [ -f "${mpi_dir}/bin/ompi_info" ]; then
+            mpi="openmpi"
+        elif [ -f "${mpi_dir}/bin/mpichversion" ]; then
+            mpi="mpich"
+        else
+            mpi="unknown"
+        fi
+    else
+        # Use MPICH by default
+        mpi="mpich"
+    fi
 elif [ "${mpi,,}" != "openmpi" ] && [ "${mpi,,}" != "mpich" ]; then
     echo "Specified MPI implementation mpi=\"${mpi}\" not recognized.
 Will use MPICH" >&2
@@ -129,31 +140,32 @@ set_dir()
 # The install_explicit_only environment variable, when set to "yes",
 # disables all implicit installations.
 if [ "${install_explicit_only}" == "yes" ]; then
-    for progname in "concept"            \
-                    "class"              \
-                    "fftw"               \
-                    "fftw_for_gadget"    \
-                    "freetype"           \
-                    "gadget"             \
-                    "gsl"                \
-                    "hdf5"               \
-                    "libpng"             \
-                    "mpi"                \
-                    "ncurses"            \
-                    "openblas"           \
-                    "openssl"            \
-                    "perl"               \
-                    "python"             \
-                    "zlib"               \
-                    "blessings"          \
-                    "cython"             \
-                    "cythongsl"          \
-                    "h5py"               \
-                    "matplotlib"         \
-                    "mpi4py"             \
-                    "nose"               \
-                    "nose_parameterized" \
-                    "numpy"              \
+    for progname in "concept"         \
+                    "class"           \
+                    "fftw"            \
+                    "fftw_for_gadget" \
+                    "freetype"        \
+                    "gadget"          \
+                    "gsl"             \
+                    "hdf5"            \
+                    "libpng"          \
+                    "mpi"             \
+                    "ncurses"         \
+                    "openblas"        \
+                    "openssl"         \
+                    "perl"            \
+                    "python"          \
+                    "zlib"            \
+                    "blessings"       \
+                    "cython"          \
+                    "cythongsl"       \
+                    "h5py"            \
+                    "matplotlib"      \
+                    "mpi4py"          \
+                    "nose"            \
+                    "numpy"           \
+                    "parameterized"   \
+                    "pytest"          \
                     "scipy"; do
         eval "[ -n \"\${${progname}_install}\" ] || ${progname}_install=\"no\""
     done
@@ -197,38 +209,39 @@ set_version()
 # The rightmost column are fallbacks, which will be used if the
 # link to the version given by the middle column is broken.
 # In case of CO𝘕CEPT and CLASS, possible versions are the corresponding
-# GitHub branches.
-set_version "concept"            "master"
-set_version "class"              "2.6"
-set_version "fftw"               "3.3.6-pl2" "3.3.5"   # 3.3.6 removed from official site
-set_version "fftw_for_gadget"    "2.1.5"     "2.1.5"   # Do not change
-set_version "freetype"           "2.8"       "2.7.1"
-set_version "gadget"             "2.0.7"
-set_version "gsl"                "2.4"       "2.3"
-set_version "hdf5"               "1.8.19"    "1.8.18"  # Error using 1.10.0-patch1
-set_version "libpng"             "1.6.30"    "1.6.28"
+# GitHub branches and releases.
+set_version "concept"         "master"
+set_version "class"           "2.6.3"
+set_version "fftw"            "3.3.7"  "3.3.5"
+set_version "fftw_for_gadget" "2.1.5"  "2.1.5"   # Do not change
+set_version "freetype"        "2.9"    "2.8.1"
+set_version "gadget"          "2.0.7"            # Do not change
+set_version "gsl"             "2.4"    "2.3"
+set_version "hdf5"            "1.10.1" "1.10.0"
+set_version "libpng"          "1.6.34" "1.6.32"
 if [ "${mpi}" == "openmpi" ]; then
-set_version "mpi"                "2.1.1"
+    set_version "mpi"         "3.0.0"
 elif [ "${mpi}" == "mpich" ]; then
-set_version "mpi"                "3.2"       "3.2"
+    set_version "mpi"         "3.2.1"  "3.2"
 fi
-set_version "ncurses"            "6.0"       "6.0"
-set_version "openblas"           "0.2.20"    "0.2.20"
-set_version "openssl"            "1.1.0f"    "1.1.0e"
-set_version "perl"               "5.26.0"
-set_version "python"             "3.6.2"
-set_version "zlib"               "1.2.11"    "1.2.8"
+set_version "ncurses"         "6.0"    "6.0"
+set_version "openblas"        "0.2.20" "0.2.20"
+set_version "openssl"         "1.1.0g" "1.1.0f"
+set_version "perl"            "5.26.1"
+set_version "python"          "3.6.4"
+set_version "zlib"            "1.2.11" "1.2.8"
 # Python packages
-set_version "blessings"          "1.6"
-set_version "cython"             "0.26"
-set_version "cythongsl"          "0.2.2"
-set_version "h5py"               "2.7.0"
-set_version "matplotlib"         "2.0.2"
-set_version "mpi4py"             "2.0.0"
-set_version "nose"               "1.3.7"
-set_version "nose_parameterized" "0.6.0"
-set_version "numpy"              "1.13.1"
-set_version "scipy"              "0.19.1"
+set_version "blessings"     "1.6.1"
+set_version "cython"        "0.27.3"
+set_version "cythongsl"     "0.2.2"
+set_version "h5py"          "2.7.1"
+set_version "matplotlib"    "2.1.1"
+set_version "mpi4py"        "3.0.0"
+set_version "nose"          "1.3.7"
+set_version "numpy"         "1.14.0"
+set_version "parameterized" "0.6.1"
+set_version "pytest"        "3.3.2"
+set_version "scipy"         "1.0.0"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
 # and specific versions of system dependencies.
@@ -322,6 +335,8 @@ env_var_names=(BLAS             \
                CC               \
                CFLAGS           \
                CPPFLAGS         \
+               HDF5_DIR         \
+               HDF5_MPI         \
                LAPACK           \
                LD_LIBRARY_PATH  \
                LDFLAGS          \
@@ -411,6 +426,30 @@ if [ "${fast_install}" == "yes" ]; then
     sleep_time=0
 fi
 
+# Function which prints the absolute path of a given command.
+# If the command is not an executable file on the PATH but instead a
+# known function, the input command is printed as is. If the command
+# cannot be found at all, nothing is printed and an exit code of 1
+# is returned.
+get_command()
+{
+    command_name="${1}"
+    # Use the type builtin to locate the command
+    path="$(type "${command_name}" 2>/dev/null | awk '{print $NF}')"
+    if [[ "${path}" == "/"* ]]; then
+        # The command is a path
+        path="$(readlink -f "${path}")"
+        echo "${path}"
+        return 0
+    elif [ -n "${path}" ]; then
+        # The command exists as a function
+        echo "${command_name}"
+        return 0
+    fi
+    # The command does not exist
+    return 1
+}
+
 # Check whether system dependencies are installed and located on PATH
 current_step="check for preinstalled system dependencies"
 # Check for package manager and set package names
@@ -429,8 +468,7 @@ set_package_manager_and_names()
     # This function takes no arguments
     package_manager=""
     for pmanager in "apt-get" "dnf" "yum" "zypper" "urpmi" "pacman" "eopkg"; do
-        path="$(which "${pmanager}" 2> /dev/null || :)"
-        if [ -n "${path}" ]; then
+        if get_command "${pmanager}" >/dev/null; then
             # Package manager found
             package_manager="${pmanager}"
             # Package names
@@ -530,8 +568,7 @@ set_package_manager_and_names
 check_system_dependency()
 {
     # Arguments: Command, package name
-    path="$(which "${1}" 2> /dev/null || :)"
-    if [ -z "${path}" ]; then
+    if ! get_command "${1}" >/dev/null; then
         # Package not installed
         if [ -n "${package_manager}" ]; then
             # Package manager found
@@ -633,12 +670,172 @@ fix_path()
           || ${progname=}_dir=\"\${${progname=}_dir/__top_dir__/${top_dir}}\""
     # Convert to absolute path
     eval "${progname=}_dir=\"\$(convert_to_abs_path \"\${${progname=}_dir}\")\""
-    # Check path to pre-installed libraries
+    # Check that the path to pre-installed dependencies exist
     if eval "[ \"\${${progname}_preinstalled}\" == \"yes\" ] \
-             && [ ! -d \"\${${progname}_dir}\" ]"; then
+             && [ ! -d \"\${${progname}_dir}\" ] \
+             && [ ! -f \"\${${progname}_dir}\" ]"; then
         error "The specified directory\n\"$(eval "echo \${${progname}_dir}")\"\n\
 for ${1/CONCEPT/$esc_concept} does not exist!"
         exit 1
+    fi
+    # Check and correct user specified dependency directories
+    eval "progname_dir=\"\${${progname=}_dir}\""
+    if [ -f "${progname_dir}" ]; then
+        progname_dir="$(dirname ${progname_dir})"
+    fi
+    if [ "${progname}" == 'class' ] && [ "${class_preinstalled}" == "yes" ]; then
+        if [ ! -f "${progname_dir}/class" ]; then
+            if [ -f "${progname_dir}/../class" ]; then
+                class_dir="$(dirname ${progname_dir})"
+            else
+                error "Could not locate CLASS at \"${class_dir}\""
+                exit 1
+            fi
+        fi
+    fi
+    if [ "${progname}" == 'concept' ] && [ "${concept_preinstalled}" == "yes" ]; then
+        if [ ! -f "${progname_dir}/concept" ]; then
+            if [ -f "${progname_dir}/../concept" ]; then
+                concept_dir="$(dirname ${progname_dir})"
+            else
+                error "Could not locate CO𝘕CEPT at \"${concept_dir}\""
+                exit 1
+            fi
+        fi
+    fi
+    if [ "${progname}" == 'fftw' ] && [ "${fftw_preinstalled}" == "yes" ]; then
+        if     [ ! -f "${progname_dir}/lib/libfftw3.so" ] \
+            && [ ! -f "${progname_dir}/lib/libfftw3f.so" ]; then
+            if     [ -f "${progname_dir}/../lib/libfftw3.so" ] \
+                || [ -f "${progname_dir}/../lib/libfftw3f.so" ]; then
+                fftw_dir="$(dirname ${progname_dir})"
+            else
+                error "Could not locate FFTW at \"${fftw_dir}\""
+                exit 1
+            fi
+        fi
+    fi
+    if [ "${progname}" == 'freetype' ] && [ "${freetype_preinstalled}" == "yes" ]; then
+        if [ ! -f "${progname_dir}/lib/libfreetype.so" ]; then
+            if [ -f "${progname_dir}/../lib/libfreetype.so" ]; then
+                freetype_dir="$(dirname ${progname_dir})"
+            else
+                error "Could not locate FreeType at \"${freetype_dir}\""
+                exit 1
+            fi
+        fi
+    fi
+    if [ "${progname}" == 'gadget' ] && [ "${gadget_preinstalled}" == "yes" ]; then
+        if [ ! -d "${progname_dir}/Gadget2" ]; then
+            if [ -d "${progname_dir}/../Gadget2" ]; then
+                gadget_dir="$(dirname ${progname_dir})"
+            else
+                error "Could not locate Gadget at \"${gadget_dir}\""
+                exit 1
+            fi
+        fi
+    fi
+    if [ "${progname}" == 'gsl' ] && [ "${gsl_preinstalled}" == "yes" ]; then
+        if [ ! -f "${progname_dir}/lib/libgsl.so" ]; then
+            if [ -f "${progname_dir}/../lib/libgsl.so" ]; then
+                gsl_dir="$(dirname ${progname_dir})"
+            else
+                error "Could not locate GSL at \"${gsl_dir}\""
+                exit 1
+            fi
+        fi
+    fi
+    if [ "${progname}" == 'hdf5' ] && [ "${hdf5_preinstalled}" == "yes" ]; then
+        if [ ! -f "${progname_dir}/lib/libhdf5.so" ]; then
+            if [ -f "${progname_dir}/../lib/libhdf5.so" ]; then
+                hdf5_dir="$(dirname ${progname_dir})"
+            else
+                error "Could not locate HDF5 at \"${hdf5_dir}\""
+                exit 1
+            fi
+        fi
+    fi
+    if [ "${progname}" == 'libpng' ] && [ "${libpng_preinstalled}" == "yes" ]; then
+        if [ ! -f "${progname_dir}/lib/libpng.so" ]; then
+            if [ -f "${progname_dir}/../lib/libpng.so" ]; then
+                libpng_dir="$(dirname ${progname_dir})"
+            else
+                error "Could not locate libpng at \"${libpng_dir}\""
+                exit 1
+            fi
+        fi
+    fi
+    if [ "${progname}" == 'mpi' ] && [ "${mpi_preinstalled}" == "yes" ]; then
+        if [ ! -f "${progname_dir}/bin/mpiexec" ]; then
+            if [ -f "${progname_dir}/../bin/mpiexec" ]; then
+                mpi_dir="$(dirname ${progname_dir})"
+            else
+                error "Could not locate MPI at \"${mpi_dir}\""
+                exit 1
+            fi
+        fi
+    fi
+    if [ "${progname}" == 'ncurses' ] && [ "${ncurses_preinstalled}" == "yes" ]; then
+        if [ ! -f "${progname_dir}/lib/libncurses.so" ]; then
+            if [ -f "${progname_dir}/../lib/libncurses.so" ]; then
+                ncurses_dir="$(dirname ${progname_dir})"
+            else
+                error "Could not locate ncurses at \"${ncurses_dir}\""
+                exit 1
+            fi
+        fi
+    fi
+    if [ "${progname}" == 'openblas' ] && [ "${openblas_preinstalled}" == "yes" ]; then
+        if [ ! -f "${progname_dir}/include/cblas.h" ]; then
+            if [ -f "${progname_dir}/../include/cblas.h" ]; then
+                openblas_dir="$(dirname ${progname_dir})"
+            else
+                error "Could not locate OpenBLAS at \"${openblas_dir}\""
+                exit 1
+            fi
+        fi
+    fi
+    if [ "${progname}" == 'openssl' ] && [ "${openssl_preinstalled}" == "yes" ]; then
+        if [ ! -f "${progname_dir}/lib/libssl.so" ]; then
+            if [ -f "${progname_dir}/../lib/libssl.so" ]; then
+                openssl_dir="$(dirname ${progname_dir})"
+            else
+                error "Could not locate OpenSSL at \"${openblas_dir}\""
+                exit 1
+            fi
+        fi
+    fi
+    if [ "${progname}" == 'perl' ] && [ "${perl_preinstalled}" == "yes" ]; then
+        if [ ! -f "${progname_dir}/bin/perl" ]; then
+            if [ -f "${progname_dir}/../bin/perl" ]; then
+                perl_dir="$(dirname ${progname_dir})"
+            else
+                error "Could not locate Perl at \"${perl_dir}\""
+                exit 1
+            fi
+        fi
+    fi
+    if [ "${progname}" == 'python' ] && [ "${python_preinstalled}" == "yes" ]; then
+        if     [ ! -f "${progname_dir}/bin/python" ] \
+            && [ ! -f "${progname_dir}/bin/python3" ]; then
+            if     [ -f "${progname_dir}/../bin/python" ] \
+                || [ -f "${progname_dir}/../bin/python3" ]; then
+                python_dir="$(dirname ${progname_dir})"
+            else
+                error "Could not locate Python at \"${python_dir}\""
+                exit 1
+            fi
+        fi
+    fi
+    if [ "${progname}" == 'zlib' ] && [ "${zlib_preinstalled}" == "yes" ]; then
+        if [ ! -f "${progname_dir}/lib/libz.so" ]; then
+            if [ -f "${progname_dir}/../lib/libz.so" ]; then
+                zlib_dir="$(dirname ${progname_dir})"
+            else
+                error "Could not locate zlib at \"${zlib_dir}\""
+                exit 1
+            fi
+        fi
     fi
 }
 fix_path "CLASS"
@@ -717,22 +914,24 @@ h5py_preinstalled="no"
 matplotlib_preinstalled="no"
 mpi4py_preinstalled="no"
 nose_preinstalled="no"
-nose_parameterized_preinstalled="no"
 numpy_preinstalled="no"
+parameterized_preinstalled="no"
+pytest_preinstalled="no"
 scipy_preinstalled="no"
 pip_preinstalled="no"
 if [ "${python_preinstalled}" == "yes" ]; then
     python=$(ls -1 "${python_dir}/bin/python"* | head -n 1)
-    for pypackage in blessings          \
-                     cython             \
-                     cythongsl          \
-                     h5py               \
-                     matplotlib         \
-                     mpi4py             \
-                     nose               \
-                     nose_parameterized \
-                     numpy              \
-                     scipy              \
+    for pypackage in blessings     \
+                     cython        \
+                     cythongsl     \
+                     h5py          \
+                     matplotlib    \
+                     mpi4py        \
+                     nose          \
+                     numpy         \
+                     parameterized \
+                     pytest        \
+                     scipy         \
                      pip; do
         pypackage_preinstalled=$("${python}" -c "
 try:
@@ -795,15 +994,16 @@ if [ -z "${pip_install}" ]; then
         pip_install="yes"
     fi
 fi
-for pypackage in blessings          \
-                 cython             \
-                 cythongsl          \
-                 h5py               \
-                 matplotlib         \
-                 mpi4py             \
-                 nose               \
-                 nose_parameterized \
-                 numpy              \
+for pypackage in blessings     \
+                 cython        \
+                 cythongsl     \
+                 h5py          \
+                 matplotlib    \
+                 mpi4py        \
+                 nose          \
+                 numpy         \
+                 parameterized \
+                 pytest        \
                  scipy; do
     eval "pypackage_install=\"\${${pypackage}_install}\""
     if [ -z "${pypackage_install}" ]; then
@@ -1236,7 +1436,13 @@ check_progress()
 
 # CO𝘕CEPT
 if [ "${concept_install}" == "yes" ]; then
-    concept_url="https://github.com/jmd-dk/concept/archive/${concept_version}.tar.gz"
+    # Either download the current state of the master branch
+    # or a specific release.
+    if [ "${concept_version}" == "master" ]; then
+        concept_url="https://github.com/jmd-dk/concept/archive/${concept_version}.tar.gz"
+    else
+        concept_url="https://github.com/jmd-dk/concept/archive/v${concept_version}.tar.gz"
+    fi
     # Check if already downloaded/installed
     check_progress "CONCEPT"
     # If not yet downloaded, validate the URL
@@ -1252,7 +1458,18 @@ fi
 
 # CLASS
 if [ "${class_install}" == "yes" ]; then
-    class_url="https://github.com/lesgourg/class_public/archive/${class_version}.tar.gz"
+    # Either download specific release or specific branch
+    current_step="processing of CLASS link"
+    dots="${class_version//[^.]}"
+    ndots="${#dots}"
+    if [ "${ndots}" == 1 ]; then
+        class_url="https://github.com/lesgourg/class_public/archive/${class_version}.tar.gz"
+    elif [ "${ndots}" == 2 ]; then
+        class_url="https://github.com/lesgourg/class_public/archive/v${class_version}.tar.gz"
+    else
+        error "No CLASS URL known for version ${class_version}"
+        exit 1
+    fi
     # Check if already installed/downloaded
     check_progress "CLASS"
     # If not yet downloaded, validate the URL
@@ -1380,7 +1597,7 @@ fi
 # HDF5
 if [ "${hdf5_install}" == "yes" ]; then
     hdf5_version_major="$(echo "${hdf5_version}" | grep -o '[0-9]\.[0-9]*')"
-    hdf5_url="ftp://ftp.hdfgroup.org/HDF5/releases/hdf5-${hdf5_version_major}/\
+    hdf5_url="https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${hdf5_version_major}/\
 hdf5-${hdf5_version}/src/hdf5-${hdf5_version}.tar.gz"
     # Check if already installed and/or downloaded
     check_progress "HDF5"
@@ -1622,21 +1839,23 @@ h5py_installed="no"
 matplotlib_installed="no"
 mpi4py_installed="no"
 nose_installed="no"
-nose_parameterized_installed="no"
 numpy_installed="no"
+parameterized_installed="no"
+pytest_installed="no"
 scipy_installed="no"
 pip_installed="no"
 if [ -n "${python}" ] && [ "${python_installed}" == "yes" ]; then
-    for pypackage in blessings          \
-                     cython             \
-                     cythongsl          \
-                     h5py               \
-                     matplotlib         \
-                     mpi4py             \
-                     nose               \
-                     nose_parameterized \
-                     numpy              \
-                     scipy              \
+    for pypackage in blessings     \
+                     cython        \
+                     cythongsl     \
+                     h5py          \
+                     matplotlib    \
+                     mpi4py        \
+                     nose          \
+                     numpy         \
+                     parameterized \
+                     pytest        \
+                     scipy         \
                      pip; do
         pypackage_installed=$("${python}" -c "
 try:
@@ -1742,17 +1961,18 @@ print_table()
 # └─CLASS         ...      "/..."
 #
 # The following Python packages will be installed
-# Name                Version
-# Blessings           ...
-# Cython              ...
-# CythonGSL           ...
-# H5Py                ...
-# Matplotlib          ...
-# MPI4Py              ...
-# Nose                ...
-# Nose-parameterized  ...
-# NumPy               ...
-# SciPy               ...
+# Name          Version
+# Blessings     ...
+# Cython        ...
+# CythonGSL     ...
+# H5Py          ...
+# Matplotlib    ...
+# MPI4Py        ...
+# Nose          ...
+# NumPy         ...
+# parameterized ...
+# pytest        ...
+# SciPy         ...
 if [ "${install_anything}" == "yes" ]; then
     disable_status
     heading "Installation overview"
@@ -1897,16 +2117,21 @@ if [ "${install_any_pypackages}" == "yes" ]; then
            table+=("Nose$([ "${nose_installed}" == "yes" ] && echo '*' || :)" \
                    "${nose_version}" "")
     fi
-    # Nose-parameterized
-    if [ "${nose_parameterized_install}" == "yes" ]; then
-           table+=("Nose-parameterized$([ "${nose_parameterized_installed}" == "yes" ] \
-                   && echo '*' || :)" \
-                   "${nose_parameterized_version}" "")
-    fi
     # NumPy
     if [ "${numpy_install}" == "yes" ]; then
            table+=("NumPy$([ "${numpy_installed}" == "yes" ] && echo '*' || :)" \
                    "${numpy_version}" "")
+    fi
+    # parameterized
+    if [ "${parameterized_install}" == "yes" ]; then
+           table+=("parameterized$([ "${parameterized_installed}" == "yes" ] \
+                   && echo '*' || :)" \
+                   "${parameterized_version}" "")
+    fi
+    # Pytest
+    if [ "${pytest_install}" == "yes" ]; then
+           table+=("pytest$([ "${pytest_installed}" == "yes" ] && echo '*' || :)" \
+                   "${pytest_version}" "")
     fi
     # SciPy
     if [ "${scipy_install}" == "yes" ]; then
@@ -2607,8 +2832,19 @@ fi
 # Perl
 if [ "${perl_install}" == "yes" ] && [ "${perl_installed}" == "no" ]; then
     init_install "Perl"
+    # For some reason, make sometimes fails to build.
+    # A fix for this is written below. First we try without the fix,
+    # then with the fix.
     ./Configure -de -Dprefix="${perl_dir}" 2>&1
-    make ${make_jobs} 2>&1
+    perl_build_failed="False"
+    make ${make_jobs} 2>&1 || perl_build_failed="True"
+    if [ "${perl_build_failed}" == "True" ]; then
+        make distclean
+        ./Configure -de -Dprefix="${perl_dir}" 2>&1
+        sed -i 's/<poll\.h>/<sys\/poll\.h>/' "dist/IO/poll.h"
+        make ${make_jobs} 2>&1
+    fi
+    perl_build_failed="False"
     if [ "${fast_install}" == "no" ]; then
         make ${make_jobs} test 2>&1 | tee "test_log"
         [ ${PIPESTATUS[0]} != 0 ] && perl_test_success="no"
@@ -2806,21 +3042,23 @@ h5py_installed="no"
 matplotlib_installed="no"
 mpi4py_installed="no"
 nose_installed="no"
-nose_parameterized_installed="no"
 numpy_installed="no"
+parameterized_installed="no"
+pytest_installed="no"
 scipy_installed="no"
 pip_installed="no"
 if [ -n "${python}" ]; then
-    for pypackage in blessings          \
-                     cython             \
-                     cythongsl          \
-                     h5py               \
-                     matplotlib         \
-                     mpi4py             \
-                     nose               \
-                     nose_parameterized \
-                     numpy              \
-                     scipy              \
+    for pypackage in blessings     \
+                     cython        \
+                     cythongsl     \
+                     h5py          \
+                     matplotlib    \
+                     mpi4py        \
+                     nose          \
+                     numpy         \
+                     parameterized \
+                     pytest        \
+                     scipy         \
                      pip; do
         pypackage_installed=$("${python}" -c "
 try:
@@ -2861,15 +3099,18 @@ pip_download()
             command_end="${2}"
         fi
     fi
-    pip_download_time=0
-    if [ -n "${3}" ]; then
-        pip_download_time=${3}
-    fi
     pip_name="${1//_/}"       # Remove underscores from name
     pip_name="${pip_name,,}"  # Ensure lowercase
     tmp_pip_dir="${top_dir}/tmp/pip"
     mkdir -p "${tmp_pip_dir}"
     tmp_pip_dir="${tmp_pip_dir// /\\ }"  # Add backslashes before spaces
+    # Maximum allowed time (in seconds) for download. After this time,
+    # the download process will be killed. This is needed because the
+    # process sometimes hang after an otherwise successful download.
+    pip_download_time=300
+    if [ -n "${3}" ]; then
+        pip_download_time=${3}
+    fi
     # Downloading the Python package
     for n in {1..50}; do
         pip_status="error"
@@ -2904,13 +3145,17 @@ pip_download()
             # but then hang indefinately. Kill the process after
             # ${pip_download_time} seconds.
             if [ ${pip_download_time} -ne 0 ]; then
-                (trap 'kill $(jobs -p)' EXIT; \
-                 sleep ${pip_download_time};  \
-                 kill -9 ${pip_download_pid} >/dev/null 2>&1) & pip_download_killer_pid=$!
+                (
+                trap 'kill $(jobs -p)' EXIT;                 \
+                sleep ${pip_download_time};                  \
+                kill -9 ${pip_download_pid} >/dev/null 2>&1; \
+                wait    ${pip_download_pid} >/dev/null 2>&1; \
+                ) & pip_download_killer_pid=$!
             fi
             wait ${pip_download_pid} || :
             if [ ${pip_download_time} -ne 0 ]; then
                 kill ${pip_download_killer_pid} >/dev/null 2>&1 || :  # No forcefull kill (no -9)
+                wait ${pip_download_killer_pid} >/dev/null 2>&1 || :
             fi
             # If the archive exists in the tmp/pip dir,
             # the download completed successfully.
@@ -2965,13 +3210,39 @@ pip_install_pypackage()
     if [ "${2}" == "upgrade" ]; then
         upgrade_flag="--upgrade"
     fi
+    # Some times the installation process will appear to hang,
+    # but it will eventually get going. This happens often for
+    # particular packages, such as h5py. When this is the case,
+    # write a soothing message. A long wait is detected by repeatedly
+    # checking the size of the log file generated
+    # by this installation script.
+    pip_install_update_time=60
     "${python}" -m pip install -v -v -v                          \
-                               -b                                \
-                               "${top_dir}/tmp/pip/build"        \
+                               -b "${top_dir}/tmp/pip/build"     \
                                ${upgrade_flag}                   \
                                --no-index                        \
                                --find-links="${top_dir}/tmp/pip" \
-                               "${1}${command_end}" 2>&1
+                               "${1}${command_end}" 2>&1         \
+                                & pip_install_pid=$!
+    (
+    log_size_last=-1;                                                                        \
+    log_size=$(du -b "${log}" | awk '{print $1}');                                           \
+    while :; do                                                                              \
+        sleep ${pip_install_update_time};                                                    \
+        log_size_new=$(du -b "${log}" | awk '{print $1}');                                   \
+        if [ ${log_size} -eq ${log_size_new} ] && [ ${log_size} -ne ${log_size_last} ]; then \
+            printf "The next step may take an unreasonable amount of time.
+Please be patient ...\n";                                                                    \
+            sleep 5;                                                                         \
+            log_size_new=$(du -b "${log}" | awk '{print $1}');                               \
+            log_size_last=${log_size_new};                                                   \
+        fi;                                                                                  \
+        log_size=${log_size_new};                                                            \
+    done                                                                                     \
+    ) & pip_install_killer_pid=$!
+    wait ${pip_install_pid} || :
+    kill ${pip_install_killer_pid} >/dev/null 2>&1 || :  # No forcefull kill (no -9)
+    wait ${pip_install_killer_pid} >/dev/null 2>&1 || :
     rm -rf "${top_dir}/tmp/pip"
 }
 
@@ -3056,10 +3327,15 @@ if [ "${nose_install}" == "yes" ] && [ "${nose_installed}" == "no" ]; then
     pip_install_pypackage "Nose" "${nose_version}"
 fi
 
-# Nose-parameterized
-if (   [ "${nose_parameterized_install}"   == "yes" ] \
-    && [ "${nose_parameterized_installed}" == "no" ]); then
-    pip_install_pypackage "Nose-parameterized" "${nose_parameterized_version}"
+# parameterized
+if (   [ "${parameterized_install}"   == "yes" ] \
+    && [ "${parameterized_installed}" == "no" ]); then
+    pip_install_pypackage "parameterized" "${parameterized_version}"
+fi
+
+# pytest
+if [ "${pytest_install}" == "yes" ] && [ "${pytest_installed}" == "no" ]; then
+    pip_install_pypackage "pytest" "${pytest_version}"
 fi
 
 # NumPy (manual invocation of setup.py is needed
@@ -3118,7 +3394,8 @@ runtime_library_dirs = ${openblas_dir}/lib
     # (e.g. segmentation faults) will count as failures.
     if [ "${fast_install}" == "no" ]; then
         numpy_test_log="${python_dir}/numpy_test_log"
-        "${python}" -c "import numpy; numpy.test('full', verbose=2)" 2>&1 | tee "${numpy_test_log}"
+        "${python}" -c "import numpy; numpy.test('full', verbose=2)" 2>&1 \
+            | tee "${numpy_test_log}"
         [ ${PIPESTATUS[0]} != 0 ] && numpy_test_success="no"
         if [ "${numpy_test_success}" == "yes" ]; then
             rm -f "${numpy_test_log}"
@@ -3163,7 +3440,8 @@ runtime_library_dirs = ${openblas_dir}/lib
     # (e.g. segmentation faults) will count as failures.
     if [ "${fast_install}" == "no" ]; then
         scipy_test_log="${python_dir}/scipy_test_log"
-        "${python}" -c "import scipy; scipy.test('full', verbose=2)" 2>&1 | tee "${scipy_test_log}"
+        "${python}" -c "import scipy; scipy.test('full', verbose=2)" 2>&1 \
+            | tee "${scipy_test_log}"
         [ ${PIPESTATUS[0]} != 0 ] && scipy_test_success="no"
         if [ "${scipy_test_success}" == "yes" ]; then
             rm -f "${scipy_test_log}"
@@ -3292,39 +3570,18 @@ fi
 # H5Py (manual invocation of setup.py is needed
 # as --mpi needs to be supplied).
 if [ "${h5py_install}" == "yes" ] && [ "${h5py_installed}" == "no" ]; then
-    # Note that the Python package dependencies NumPy, Cython and six
-    # (ships with matplotlib) are already installed.
-    current_step="installation of H5Py ${h5py_version}"
-    heading "Installing H5Py ${h5py_version}"
-    set_status "Installing H5Py ${h5py_version}"
-    # pip may hang after a successful download of h5py.
-    # Kill the process after 5 min.
-    pip_download "h5py" "${h5py_version}" 300
-    cd "${top_dir}/tmp/pip"
-    extract "h5py"* "yes"
-    for f in *; do
-        if [ -d "${f}" ] && [[ "${f,,}" == "h5py"* ]]; then
-            cd "${f}"
-            break
-        fi
-    done
-    # Running setup.py may appear to hang,
-    # but it will eventually get going.
-    echo "The next step may take an unreasonable amount of time."
-    echo "Please be patient ..."
+    export HDF5_DIR="${hdf5_dir}"
+    export HDF5_MPI="ON"
     export CC="${mpi_dir}/bin/mpicc"
-    "${python}" setup.py configure --mpi --hdf5="${hdf5_dir}" 2>&1
-    "${python}" setup.py install 2>&1
+    pip_install_pypackage "h5py" "${h5py_version}"
     reset_environment
-    cd "${top_dir}"
-    rm -rf "${top_dir}/tmp/pip"
 fi
 
 
 
-#################
-# Install CLASS #
-#################
+###########################
+# Install and patch CLASS #
+###########################
 if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     init_install "CLASS"
     # Move the content of the current directory (the files of CLASS,
@@ -3332,23 +3589,38 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     mkdir -p "${class_dir}"
     mv ./* "${class_dir}/"
     cd "${class_dir}"
-    # Change the values of some macros in header files,
-    # allowing CO𝘕CEPT to feed larger amounts of input into CLASS.
+    # Fix a double free bug
+    pattern='free *\\( *pba *-> *q_ncdm *\\[ *k *\\] *\\) *;'
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+             "${class_dir}/source/background.c" | head -n 1);
+    new_lines="\ \ \ \ \ \ if (pba->ncdm_quadrature_strategy[k] == qm_auto){"
+    sed -i "${linenr}i${new_lines}" "${class_dir}/source/background.c"
+    ((linenr += 3))
+    new_lines="\ \ \ \ \ \ }"
+    sed -i "${linenr}i${new_lines}" "${class_dir}/source/background.c"
+    # Change the values of some preprocessing directives
+    # in header files, allowing larger inputs and outputs.
     # Specifically, the values
+    # _MAXTITLESTRINGLENGTH_  (in include/common.h)
+    # _LINE_LENGTH_MAX_       (in include/parser.h)
     # _ARGUMENT_LENGTH_MAX_   (in include/parser.h)
     # _MAX_NUMBER_OF_K_FILES_ (in include/perturbations.h)
-    # will be increased to 2¹⁵ - 1 = 32767.
-    value=32767
+    # will be increased to 10⁶.
+    value=1000000
+    sed -i "s/^\( *#define \+_MAXTITLESTRINGLENGTH_ \+\)[^ ]*\(.*\)*$/\1${value}\2/" \
+           "${class_dir}/include/common.h"
+    sed -i "s/^\( *#define \+_LINE_LENGTH_MAX_ \+\)[^ ]*\(.*\)*$/\1${value}\2/" \
+           "${class_dir}/include/parser.h"
     sed -i "s/^\( *#define \+_ARGUMENT_LENGTH_MAX_ \+\)[^ ]*\(.*\)*$/\1${value}\2/" \
            "${class_dir}/include/parser.h"
     sed -i "s/^\( *#define \+_MAX_NUMBER_OF_K_FILES_ \+\)[^ ]*\(.*\)*$/\1${value}\2/" \
            "${class_dir}/include/perturbations.h"
     # As only the (relatively) late-time evolution is needed from CLASS,
-    # we hardcode the output to only be produced here.
+    # we hardcode the perturbations output to only be printed here.
     a_min=0.001
-    pattern=" +a *= *pvecback"
+    pattern=' +a *= *pvecback'
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-             "${class_dir}/source/perturbations.c"  | head -n 1)
+             "${class_dir}/source/perturbations.c" | head -n 1)
     ((linenr += 1))
     new_lines="\ \ // Only return output at late times\n\
   double a_min = ${a_min};\n\
@@ -3356,43 +3628,122 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     return _SUCCESS_;\n\
 "
     sed -i "${linenr}i${new_lines}" "${class_dir}/source/perturbations.c"
-    # When compiling with newer versions of GCC, the vector math
-    # (mvec) and math (m) libraries need to be added to the libraries
-    # listed in python/setup.py explicitly. Here we first try without,
-    # then if it does not work we add these extra libraries.
-    for classy_libs in '["class"],' '["class", "mvec", "m"],'; do
-        sed -i "s/^\( *libraries *= *\)[^ ]*\(.*\)*$/\1${classy_libs}\2/" \
-               "${class_dir}/python/setup.py"
-        # Build CLASS, including the Python wrapper classy
-        classy_success="yes"
-        PYTHON="${python}" make ${make_jobs} 2>&1 || classy_success="no"
-        # Test that Classy works correctly
-        "${python}" -c "from classy import Class" 2>&1 || classy_success="no"
-        if [ "${classy_success}" == "yes" ]; then
-            break
-        fi
-        # Cleanup after failed build attempt
-        make clean
-    done
+    # The a = 1 results are not always printed out by CLASS. Fix this.
+    pattern='\\( *verbose *> *0\\)'
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+             "${class_dir}/tools/evolver_ndf15.c" | head -n 1)
+    new_lines="\ \ // If we are printing variables, we must store the final point\n\
+  if (print_variables!=NULL){\n\
+    class_call((*print_variables)(tnew,ynew+1,f0+1,\
+parameters_and_workspace_for_derivs,error_message),\
+error_message,error_message);\n\
+  \}\n\
+"
+    sed -i "${linenr}i${new_lines}" "${class_dir}/tools/evolver_ndf15.c"
+    # Make CLASS print out more results as perturbations.
+    # Specifically, also print out theta_tot, h_prime and Psi0.
+    # Also, do not convert synchronous variables to newtonian variables.
+    pattern=' *char +tmp *\\[ *40 *\\] *;'
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+             "${class_dir}/source/perturbations.c" | head -n 1)
+    new_lines="\ \ char tmp[400];\n\
+  int index_q;\n\
+"
+    sed -i "${linenr}s/.*/${new_lines}/" "${class_dir}/source/perturbations.c"
+    pattern='sprintf *\\( *tmp *, *\"cs2_ncdm\\[%d\\]\" *, *n_ncdm *\\) *;'
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+             "${class_dir}/source/perturbations.c" | head -n 1)
+    ((linenr += 2))
+    new_lines="\ \ \ \ \ \ \ \ \ \ for (index_q=0; index_q<pba->q_size_ncdm[n_ncdm]; index_q++){\n\
+            sprintf(tmp,\"Psi0[%d](%.16f)\",n_ncdm,pba->q_ncdm[n_ncdm][index_q]);\n\
+            class_store_columntitle(ppt->scalar_titles,tmp,_TRUE_);\n\
+          }\n\
+"
+    sed -i "${linenr}i${new_lines}" "${class_dir}/source/perturbations.c"
+    pattern='ppt *-> *number_of_scalar_titles *='
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+             "${class_dir}/source/perturbations.c" | head -n 1)
+    ((linenr -= 1))
+    new_lines="\ \ \ \ \ \ // Extra stuff for gauge transformation\n\
+      class_store_columntitle(ppt->scalar_titles, \"theta_tot\", _TRUE_);\n\
+      class_store_columntitle(ppt->scalar_titles, \"h_prime\", ppt->gauge == synchronous);\n\
+"
+    sed -i "${linenr}i${new_lines}" "${class_dir}/source/perturbations.c"
+    pattern='converting *synchronous *variables *to *newtonian *ones'
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+             "${class_dir}/source/perturbations.c" | head -n 1)
+    ((linenr += 1))
+    new_lines="\ \ \ \ \/\/ No, do not convert to Newtonian gauge\n\
+    if (0==1){  \/\/(ppt->gauge == synchronous) {\n\
+"
+    sed -i "${linenr}s/.*/${new_lines}/" "${class_dir}/source/perturbations.c"
+    pattern='class_store_double *\\( *dataptr *, *delta_p_over_delta_rho_ncdm *\\[ *n_ncdm *\\] *,'
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+             "${class_dir}/source/perturbations.c" | head -n 1)
+    ((linenr += 1))
+    new_lines="\ \ \ \ \ \ \ \ if (ppw->approx[ppw->index_ap_ncdmfa] == (int)ncdmfa_on){\n\
+          for (index_q=0; index_q<pba->q_size_ncdm[n_ncdm]; index_q++){\n\
+            class_store_double(dataptr, 0.0, _TRUE_, storeidx);\n\
+          }\n\
+        }\n\
+        else{\n\
+          idx = ppw->pv->index_pt_psi0_ncdm1;\n\
+          for (index_q=0; index_q<pba->q_size_ncdm[n_ncdm]; index_q++){\n\
+            class_store_double(dataptr, y[idx], _TRUE_, storeidx);\n\
+            // Jump to next momentum bin\n\
+            idx+=(ppw->pv->l_max_ncdm[n_ncdm]+1);\n\
+          }\n\
+        }\n\
+"
+    sed -i "${linenr}i${new_lines}" "${class_dir}/source/perturbations.c"
+    pattern="class_store_double *\\\\( *dataptr *, *theta_scf *, *pba *-> *has_scf *, \
+*storeidx *\\\\)*;"
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+             "${class_dir}/source/perturbations.c" | head -n 1)
+    ((linenr += 1))
+    new_lines="\ \ \ \ \/\/ Extra stuff for gauge transformations\n\
+    double theta_tot, rho_plus_p_tot;\n\
+    rho_plus_p_tot = -2./3.*pvecback[pba->index_bg_H_prime]/a+2./3.*pba->K/a/a;\n\
+    theta_tot = ppw->rho_plus_p_theta/rho_plus_p_tot;\n\
+    class_store_double(dataptr, theta_tot, _TRUE_, storeidx);\n\
+    class_store_double(dataptr, pvecmetric[ppw->index_mt_h_prime], \
+ppt->gauge == synchronous, storeidx);\n\
+"
+    sed -i "${linenr}i${new_lines}" "${class_dir}/source/perturbations.c"
+    # Build CLASS, including the Python wrapper Classy
+    PYTHON="${python}" make ${make_jobs} 2>&1
     # Test CLASS
     if [ "${fast_install}" == "no" ]; then
-        "${python}" -m nose "python/test_class.py" 2>&1 | tee "test_log"
-        [ ${PIPESTATUS[0]} != 0 ] && class_test_success="no"
-    fi
-    class_test_log="${class_dir}/test_log"
-    if [ "${class_test_success}" == "yes" ]; then
-        rm -f "${class_test_log}"
+        # We do not use the builtin test_class.py,
+        # as this require tens of gigabytes.
+        run_class_tests="no"
+        if [ "${run_class_tests}" == "yes" ]; then
+            "${python}" -m nose "python/test_class.py" 2>&1 | tee "test_log"
+            [ ${PIPESTATUS[0]} != 0 ] && class_test_success="no"
+        fi
+        class_test_log="${class_dir}/test_log"
+        if [ "${class_test_success}" == "no" ]; then
+            cp "test_log" "${class_test_log}"
+        fi
+        # Custom test which simply compute the background
+        if ! "${python}" -c "import sys
+from classy import Class
+cosmo = Class()
+cosmo.compute()
+sys.exit(int(cosmo.get_background()['proper time [Gyr]'][-1]) != 13)
+"; then
+            class_test_success="no"
+        fi
+        
     fi
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/class"
-    # Write out success notice only if classy was build correctly
-    if [ "${classy_success}" == "yes" ]; then
-        echo "The following has been fully installed:
+    # Write out success notice
+    echo "The following has been fully installed:
 Program: CLASS
 Version: ${class_version}
 Date:    $(date)
 " >> "${class_dir}/.installation_finished"
-    fi
 fi
 
 
@@ -3406,6 +3757,7 @@ ics_dir="${concept_dir}/ICs"
 logs_dir="${concept_dir}/logs"
 output_dir="${concept_dir}/output"
 params_dir="${concept_dir}/params"
+reusables_dir="${concept_dir}/.reusables"
 tests_dir="${concept_dir}/tests"
 utilities_dir="${concept_dir}/utilities"
 Gadget2_dir="${gadget_dir}/Gadget2"
@@ -3415,8 +3767,8 @@ mpiexec="${mpi_dir}/bin/mpiexec"
 # Move source files, create empty directories and create the .paths file
 if [ "${concept_install}" == "yes" ] && [ "${concept_installed}" == "no" ]; then
     init_install "CONCEPT"
-    # Move everything (but the .paths file) from the concept-master 
-    # directory to "top_dir".
+    # Move everything (but the .paths file) from the
+    # concept-${concept_version} directory to ${top_dir}.
     mv ./* "${top_dir}/"
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/concept"
@@ -3447,6 +3799,8 @@ logs_dir='${logs_dir}'
 output_dir='${output_dir}'
 # Directory intended for parameter files
 params_dir='${params_dir}'
+# Directory containing various reusable dumps
+reusables_dir='${reusables_dir}'
 # Directory containing tests
 tests_dir='${tests_dir}'
 # Top level directory, containing e.g. README.md
@@ -3504,7 +3858,7 @@ with open('${concept}', 'r', encoding='utf-8') as file:
 def get_envs():
     for var, val in os.environ.items():
         if (# PATH, LD_LIBRARY_PATH, ...
-               (var.endswith('PATH') and val.startswith('/'))
+               ('path' in var.lower() and (val.startswith('/') or val.startswith(':')))
             # INTEL_LICENSE_FILE
             or (var == 'INTEL_LICENSE_FILE' and val.startswith('/'))
             ):
@@ -3516,7 +3870,11 @@ with open('${concept}', 'w', encoding='utf-8') as file:
         if not envs_inserted and line.strip() == ':':
             print('# These were set at install time.', file=file)
             for var, val in get_envs():
-                print('export {}=\"\${{{}}}:{}\"'.format(var, var, val), file=file)
+                print(f'if [ -z \"\${{{var}}}\" ]; then'       , file=file)
+                print(f'    export {var}=\"{val}\"'            , file=file)
+                print(f'else'                                  , file=file)
+                print(f'    export {var}=\"\${{{var}}}:{val}\"', file=file)
+                print(f'fi'                                    , file=file)
             envs_inserted = True
         else:
             print(line, end='', file=file)
@@ -3600,9 +3958,6 @@ Date:    $(date)
 " >> "${gadget_dir}/.installation_finished"
 fi
 
-# All installation done
-rm -rf "${top_dir}/tmp"
-
 
 
 ##############################
@@ -3659,9 +4014,17 @@ fi
 
 
 
-#################
-# Final notices #
-#################
+#############################
+# Final cleanup and notices #
+#############################
+# Make sure that the tmp directory is removed
+rm -rf "${top_dir}/tmp"
+# Remove the Python cache generated by all the Python invocations
+# during the install.
+rm -rf "${top_dir}/__pycache__"
+# For some reason, one of the installations leave a file called
+# _configtest.o.d in the top directory. Remove this.
+rm -f "${top_dir}/_configtest"*
 # Copyright notice
 disable_status
 copyright_notice()
@@ -3679,35 +4042,36 @@ if [ "${install_anything}" == "yes" ]; then
     else
         printf "The following software have been installed:\n"
     fi
-    copyright_notice "class"              "CLASS"
-    copyright_notice "fftw"               "FFTW 3"
-    copyright_notice "fftw_for_gadget"    "FFTW 2"
-    copyright_notice "freetype"           "FreeType"
-    copyright_notice "gadget"             "GADGET"
-    copyright_notice "gsl"                "GSL"
-    copyright_notice "hdf5"               "HDF5"
-    copyright_notice "libpng"             "libpng"
+    copyright_notice "class"           "CLASS"
+    copyright_notice "fftw"            "FFTW 3"
+    copyright_notice "fftw_for_gadget" "FFTW 2"
+    copyright_notice "freetype"        "FreeType"
+    copyright_notice "gadget"          "GADGET"
+    copyright_notice "gsl"             "GSL"
+    copyright_notice "hdf5"            "HDF5"
+    copyright_notice "libpng"          "libpng"
     if [ "${mpi}" == "openmpi" ]; then
-        copyright_notice "mpi"            "OpenMPI"
+        copyright_notice "mpi"         "OpenMPI"
     elif [ "${mpi}" == "mpich" ]; then
-        copyright_notice "mpi"            "MPICH"
+        copyright_notice "mpi"         "MPICH"
     fi
-    copyright_notice "ncurses"            "ncurses"
-    copyright_notice "openblas"           "OpenBLAS"
-    copyright_notice "openssl"            "OpenSSL"
-    copyright_notice "perl"               "Perl"
-    copyright_notice "zlib"               "zlib"
-    copyright_notice "python"             "Python"
-    copyright_notice "blessings"          "$(printf ${en_quad}%.s {1..4})Blessings"
-    copyright_notice "cython"             "$(printf ${en_quad}%.s {1..4})Cython"
-    copyright_notice "cythongsl"          "$(printf ${en_quad}%.s {1..4})CythonGSL"
-    copyright_notice "h5py"               "$(printf ${en_quad}%.s {1..4})H5Py"
-    copyright_notice "matplotlib"         "$(printf ${en_quad}%.s {1..4})Matplotlib"
-    copyright_notice "mpi4py"             "$(printf ${en_quad}%.s {1..4})MPI4Py"
-    copyright_notice "nose"               "$(printf ${en_quad}%.s {1..4})Nose"
-    copyright_notice "nose_parameterized" "$(printf ${en_quad}%.s {1..4})Nose-parameterized"
-    copyright_notice "numpy"              "$(printf ${en_quad}%.s {1..4})NumPy"
-    copyright_notice "scipy"              "$(printf ${en_quad}%.s {1..4})SciPy"
+    copyright_notice "ncurses"         "ncurses"
+    copyright_notice "openblas"        "OpenBLAS"
+    copyright_notice "openssl"         "OpenSSL"
+    copyright_notice "perl"            "Perl"
+    copyright_notice "zlib"            "zlib"
+    copyright_notice "python"          "Python"
+    copyright_notice "blessings"       "$(printf ${en_quad}%.s {1..4})Blessings"
+    copyright_notice "cython"          "$(printf ${en_quad}%.s {1..4})Cython"
+    copyright_notice "cythongsl"       "$(printf ${en_quad}%.s {1..4})CythonGSL"
+    copyright_notice "h5py"            "$(printf ${en_quad}%.s {1..4})H5Py"
+    copyright_notice "matplotlib"      "$(printf ${en_quad}%.s {1..4})Matplotlib"
+    copyright_notice "mpi4py"          "$(printf ${en_quad}%.s {1..4})MPI4Py"
+    copyright_notice "nose"            "$(printf ${en_quad}%.s {1..4})Nose"
+    copyright_notice "numpy"           "$(printf ${en_quad}%.s {1..4})NumPy"
+    copyright_notice "parameterized"   "$(printf ${en_quad}%.s {1..4})parameterized"
+    copyright_notice "pytest"          "$(printf ${en_quad}%.s {1..4})pytest"
+    copyright_notice "scipy"           "$(printf ${en_quad}%.s {1..4})SciPy"
     printf "\nThese have been installed into separate directories in
 \"${top_dir}\"
 Any use of ${esc_concept} must conform to the license terms of the above
@@ -3768,13 +4132,11 @@ erroneous_test_notice "HDF5"
 erroneous_test_notice "libpng"
 erroneous_test_notice "MPI"
 erroneous_test_notice "ncurses"
-erroneous_test_notice "NumPy" \
-                      "${esc_italic}This should usually be taken seriously!${esc_no_italic}"
+erroneous_test_notice "NumPy"
 erroneous_test_notice "OpenSSL"
 erroneous_test_notice "Perl"
 erroneous_test_notice "Python"
-erroneous_test_notice "SciPy" \
-                      "${esc_italic}This should usually be taken seriously!${esc_no_italic}"
+erroneous_test_notice "SciPy"
 erroneous_test_notice "zlib"
 erroneous_test_notice "CONCEPT" \
                       "${esc_italic}This should usually be taken seriously!${esc_no_italic}"

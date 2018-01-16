@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -53,8 +53,8 @@ set -e
 # Run the CO𝘕CEPT code on the fluid ICs
 "${concept}" -n 1 -p "${this_dir}/params" --local
 
-# Play the terminal renders in the logfile as a movie
-"${concept}" --util play -f 4
+# Play the 2D terminal renders in the log file as an animation
+"${concept}" -u play -c "test fluid"
 
 # Analyze the output snapshots
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local

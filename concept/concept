@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@
 # This script runs the CO𝘕CEPT code.
 # Run the script with the -h option to get help.
 
-# Set environment variables.
+# Set environment variables
 :
 
 # Unless this file is being sourced,
@@ -83,8 +83,14 @@ while :; do
     curr="$(dirname "${curr}")"
 done
 
-# The time before any computation begins
-start_time=$("${python}" -B -c "import time; print(time.time())")
+# The time before any computation begins.
+# This time is saved both in seconds after the Unix epoch
+# and in a human readable format.
+read -r start_time_epoch start_time_human <<<$("${python}" -B -c "
+import datetime
+t = datetime.datetime.now()
+print(t.timestamp(), str(t).replace(' ', '_'))
+")
 
 # Check whether this script is run locally or remotely via ssh
 ssh="True"
@@ -183,6 +189,30 @@ rel = relpath(path, '${concept_dir}')
 print(path if rel.startswith('../../') else rel)"
 }
 
+# Function which prints the absolute path of a given command.
+# If the command is not an executable file on the PATH but instead a
+# known function, the input command is printed as is. If the command
+# cannot be found at all, nothing is printed and an exit code of 1
+# is returned.
+get_command()
+{
+    command_name="${1}"
+    # Use the type builtin to locate the command
+    path="$(type "${command_name}" 2>/dev/null | awk '{print $NF}')"
+    if [[ "${path}" == "/"* ]]; then
+        # The command is a path
+        path="$(readlink -f "${path}")"
+        echo "${path}"
+        return 0
+    elif [ -n "${path}" ]; then
+        # The command exists as a function
+        echo "${command_name}"
+        return 0
+    fi
+    # The command does not exist
+    return 1
+}
+
 # Function which prints a passed Bash array
 # in the format of a Python list.
 bash_array2python_list()
@@ -220,31 +250,64 @@ export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
 export PATH="${mpi_dir}/bin:${PATH}"
 export LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}"
 
-# Determine the MPI implentations used
+# Determine the MPI implentation and version
 if [ -f "${mpi_dir}/bin/ompi_info" ]; then
     mpi_implementation="openmpi"
+    mpi_version="$("${mpiexec}" --version | head -n 1 | awk '{print $NF}')"   
 elif [ -f "${mpi_dir}/bin/mpichversion" ]; then
     mpi_implementation="mpich"
+    mpi_version="$("${mpi_dir}/bin/mpichversion" | head -n 1 | awk '{print $NF}')"
 else
     mpi_implementation="unknown"
+    mpi_version="unknown"
 fi
 
 # MPI implementation specifics
+mpiexec_args=""
 if [ "${mpi_implementation}" == "openmpi" ]; then
-    # Extra arguments to pass to mpiexec
-    mpiexec_args=""
-    # If OpenMPI complains about openib, it may be having problems
-    # with infiniband. Try adding "-mca btl ^openib" to mpiexec_args.
-    # Note that --prefix should not be used,
-    # as the absolute path to mpiexec is given.
+    # Extra arguments to pass to OpenMPI's mpiexec.
+    # By default, newer versions of OpenMPI binds processes to sockets
+    # (for nprocs > 2), which means that OpenMP threads are not
+    # necessarily assigned to cores in a one-to-one fashion.
+    # Fix this by simply removing this binding.
+    mpiexec_args="${mpiexec_args} --bind-to none"
+    # In OpenMPI 3, oversubscription (having more MPI processes than
+    # physical cores) is disallowed by default.
+    if [[ "${mpi_version}" == 3* ]]; then
+        mpiexec_args="${mpiexec_args} --oversubscribe"
+    fi
     # Disable aggregation of OpenMPI warnings.
     export OMPI_MCA_orte_base_help_aggregate=0
     # Disable OpenMPI warning about forking
     export OMPI_MCA_mpi_warn_on_fork=0
+    # If OpenMPI complains about openib, it may be having problems
+    # with infiniband. Try adding "-mca btl ^openib" to mpiexec_args.
+    # Note that --prefix should not be used,
+    # as the absolute path to mpiexec is given.
 elif [ "${mpi_implementation}" == "mpich" ]; then
-    # Extra arguments to pass to mpiexec
-    mpiexec_args=""
+    # Extra arguments to pass to MPICH's mpiexec
+    :
 fi
+
+# Function which prints the resource manager.
+# In order, the implemented resource managers are:
+# - Slurm
+# - TORQUE/PBS
+get_resource_manager()
+{
+    # Detect what resource manager is used
+    if get_command sbatch >/dev/null; then
+        # Slurm is installed. Use this as the resource manager.
+        resource_manager="slurm"
+    elif get_command qsub >/dev/null; then
+        # TORQUE/PBS is installed. Use this as the resource manager.
+        resource_manager="torque"
+    else
+        # No resource manager found
+        resource_manager=""
+    fi
+    echo "${resource_manager}"
+}
 
 # If this file is being sourced, return now
 if [ "${being_sourced}" == "True" ]; then
@@ -262,7 +325,11 @@ ctrl_c()
 abort()
 {
     colorprint "An error occurred!" "red"
-    exit 1
+    if [ -n "${exit_code}" ]; then
+        exit ${exit_code}
+    else
+        exit 1
+    fi
 }
 trap 'ctrl_c' SIGINT
 trap 'abort' EXIT
@@ -272,14 +339,14 @@ set -e
 interactive_default="False"
 local_default="False"
 main_default="${concept_dir}/main.py"
-memory_default=0
+memory_default=0  # 0 implies unset
 no_watch_default="False"
 no_optimization_default="False"
 nprocs_default=1
 params_default="None"
 pure_python_default="False"
 unsafe_build_default="False"
-walltime_default=6
+walltime_default="00:00:00"  # 00:00:00 implies unset
 
 # Initial but illegal values of some command-line arguments,
 # for testing whether these arguments have been supplied.
@@ -294,7 +361,7 @@ cd "${concept_dir}"
 
 # Use Python's argparse module to handle command-line arguments
 args=$("${python}" -B -c "
-import argparse, math, sys
+import argparse, math, re, sys
 # Function which checks whether input is a representation of
 # a positive integer and converts it.
 def positive_int(value):
@@ -344,19 +411,100 @@ def memory(value):
     def raise_argparse_exception():
         raise argparse.ArgumentTypeError(\"invalid memory value: '{}'\".format(value_raw))
     # Convert to (whole) bytes
-    value = value.lower().replace('b', '').replace(' ', '')
-    for prefix, factor in {'k': '2**10',
-                           'm': '2**20',
-                           'g': '2**30',
-                           't': '2**40',
-                           }.items():
-        value = value.replace('*' + prefix, prefix).replace(prefix + '*', prefix)
-        value = value.replace(prefix, '*{}*'.format(factor))
-    value = value.strip('*')
+    value = value.lower()
+    value = value.replace('b', '')
+    value = re.subn('([0-9]+)([a-z]+)', '\g<1>*\g<2>', value)[0]
+    units = {'k': 2**10,
+             'm': 2**20,
+             'g': 2**30,
+             't': 2**40,
+             'p': 2**50,
+             'e': 2**60,
+             'z': 2**70,
+             'y': 2**80,
+             }
     try:
-        value = int(math.ceil(float(eval(value))))
+        value = int(math.ceil(float(eval(value, units))))
     except:
         raise_argparse_exception()
+    return value
+# Function which converts a time value to the format hh:mm:ss
+def time(value):
+    # Convert value to integer seconds
+    units = {'s': 1}
+    units['sec'] = units['secs'] = units['seond'] = units['seonds'] = units['s'] 
+    units['m'] = 60*units['s']
+    units['min'] = units['mins'] = units['minute'] = units['minutes'] = units['m']
+    units['h'] = 60*units['m']
+    units['hr'] = units['hrs'] = units['hs'] = units['hour'] = units['hours'] = units['h']
+    units['d'] = 24*units['h']
+    units['day'] = units['days'] = units['d']
+    units['y'] = 365.25*units['d']
+    units['yr'] = units['year'] = units['years'] = units['y']
+    # If a pure number is provided, interpret this in seconds.
+    try:
+        value = int(value)*units['s']
+    except:
+        pass
+    # Attempt to interpret the time as an expression
+    # like '2hr + 30mins'.
+    if isinstance(value, str):
+        value = value.lower()
+        value = re.subn('([0-9]+)([a-z]+)', '\g<1>*\g<2>', value)[0]
+        try:
+            value = int(math.ceil(float(eval(value, units))))
+        except:
+            pass
+    # Attempt to interpret the time in the format
+    # 'm:s' or 'h:m:s' or 'd:h:m:s' or 'd+h:m:s' or 'd+h:m' or 'd+h'.
+    if isinstance(value, str):
+        plusses_in_value = value.count('+')
+        if plusses_in_value > 1:
+            raise argparse.ArgumentTypeError(\"error parsing value\")
+        for sep in '+ ,;':
+            value = value.replace(sep, ':')
+        value = value.split(':')
+        s = m = h = d = 0
+        if len(value) == 1:
+            raise argparse.ArgumentTypeError(\"error parsing value\")
+        elif len(value) == 2:
+            if plusses_in_value:
+                # Format d:h
+                d, h = value
+            else:
+                # Format m:s
+                m, s = value
+        elif len(value) == 3:
+            if plusses_in_value:
+                # Format d+h:m
+                d, h, m = value
+            else:
+                # Format h:m:s
+                h, m, s = value
+        elif len(value) == 4:
+            # Format d:h:m:s or d+h:m:s
+            d, h, m, s = value
+        else:
+            raise argparse.ArgumentTypeError(\"error parsing value\")
+        d, h, m, s = int(d), int(h), int(m), int(s)
+        value = int(math.ceil(s*units['s'] + m*units['m'] + h*units['h'] + d*units['d']))       
+    # Now value should be in integer seconds
+    if value < 0:
+        raise argparse.ArgumentTypeError(\"the walltime cannot be negative\")
+    # Convert to the format hh:mm:ss.
+    h = value//units['h']
+    value -= h*units['h']
+    m = value//units['m']
+    value -= m*units['m']
+    s = value
+    h, m, s = str(h), str(m), str(s)
+    if len(h) == 1:
+        h = '0' + h
+    if len(m) == 1:
+        m = '0' + m
+    if len(s) == 1:
+        s = '0' + s
+    value = f'{h}:{m}:{s}'
     return value
 # Setup command-line arguments
 parser = argparse.ArgumentParser(prog='$(basename "${this_file}")',
@@ -372,7 +520,7 @@ parser.add_argument('-m', '--main',
                     default='${main_default}',
                     )
 parser.add_argument('--memory',
-                     help='maximum total memory consumption',
+                     help='maximum total memory consumption for remote job',
                      type=memory,
                      default=${memory_default},
                      )
@@ -383,7 +531,7 @@ parser.add_argument('-n', '--nprocs',
                     default=${nprocs_unspecified},
                     )
 parser.add_argument('-p', '--params',
-                    help='parameterfile to use',
+                    help='parameter file to use',
                     default='${params_unspecified}',
                     )
 parser.add_argument('-q', '--queue',
@@ -401,9 +549,9 @@ parser.add_argument('-u', '--util',
                     default=['${util_unspecified}']*2,  # One for util, one for util_args
                     )
 parser.add_argument('-w', '--walltime',
-                     help='set the walltime for remote job in whole hours',
-                     type=positive_int,
-                     default=${walltime_default},
+                     help='walltime for remote job',
+                     type=time,
+                     default='${walltime_default}',
                      )
 parser.add_argument('--local',
                     help='force the run to be done locally, without submitting it as a remote job',
@@ -482,6 +630,12 @@ if [ ${memory} -gt 0 ] && [ ${memory} -lt 1048576 ]; then
 Have you forgotten to specify the unit?" "red"
 fi
 
+# Display warning if the requested walltime is below one minute
+if [ "${walltime}" != "00:00:00" ] && [[ "${walltime}" == "00:00:"* ]]; then
+    colorprint "Warning: The requested walltime is below 1 minute. \
+Have you forgotten to specify the unit?" "red"
+fi
+
 # Check whether the main "file" is really a string of commands
 main_as_command="no"
 if (   [[ "${main}" == *"print("* ]] \
@@ -550,7 +704,7 @@ if [ "${main_as_command}" == "no" ] && [ ! -f "${main}" ]; then
     exit 1
 fi
 if [ "${params}" != "${params_unspecified}" ] && [ ! -f "${params}" ]; then
-    colorprint "Error: Parameterfile \"${params}\" does not exist!" "red"
+    colorprint "Error: Parameter file \"${params}\" does not exist!" "red"
     exit 1
 fi
 if [ "${test}" != "${test_unspecified}" ] && [ "${test}" != "all" ] && [ ! -d "${test}" ]; then
@@ -652,9 +806,10 @@ for test in sorted_tests:
             "${tests_dir}/${test_name}/run_test"
             colorprint "${test_name} test ran successfully" "green"
             # Print out the execution time for this test
-            "${python}" -B -c "from commons import *; print('Total execution time: {}'.format(time_since(${start_time_test})))"
+            "${python}" -B -c "from commons import *
+print('Total execution time: {}'.format(time_since(${start_time_test})))"
         done
-        colorprint "\nAll tests ran successfully" "green"
+        colorprint "All tests ran successfully" "green"
     else
         # Run specific test
         test_name="$(basename "${test}")"
@@ -663,7 +818,8 @@ for test in sorted_tests:
         colorprint "${test_name} test ran successfully" "green"
     fi
     # Print out the total time it took to ran the test(s)
-    "${python}" -B -c "from commons import *; print('Total execution time: {}'.format(time_since(${start_time})))"
+    "${python}" -B -c "from commons import *
+print('Total execution time: {}'.format(time_since(${start_time_epoch})))"
     # Deactivate traps and exit
     trap : 0
     exit 0
@@ -678,14 +834,19 @@ if [ "${local}" == "False" ] && [ "${test}" == "${test_unspecified}" ] \
 fi
 
 # If run locally, set the number of OpenMP threads
-# equal to the number of MPI processes.
+# equal to the number of MPI processes. When running remotely,
+# leave the OMP_NUM_THREADS unset as this will utilise all available
+# CPU cores.
 if [ "${remote}" != "True" ]; then
     nprocs_per_node="${nprocs}"
     if [[ "${nprocs}" == *':'* ]]; then
-        nprocs_per_node=$("${python}" -c "print('${nprocs}'[('${nprocs}'.index(':') + 1):])")
+        nprocs_per_node=$("${python}" -B -c "print('${nprocs}'[('${nprocs}'.index(':') + 1):])")
     fi
-    # Use the same number of OpenMP threads as MPI processes/node
-    export OMP_NUM_THREADS=${nprocs_per_node}
+    # Use the same number of OpenMP threads as MPI processes/node,
+    # unless OMP_NUM_THREADS is already defined.
+    if [ -z "${OMP_NUM_THREADS}" ]; then
+        export OMP_NUM_THREADS=${nprocs_per_node}
+    fi
 fi
 
 # Compile or do cleanup from last compilation.
@@ -715,15 +876,10 @@ if [ "${prepare_files}" == "True" ]; then
                                     done
              )
         fi
-        # Compile all the modules.
-        # If working locally, do it in parallel.
-        make_jobs="-j"
-        if [ "${ssh}" == "True" ] || [ "${no_optimization}" == "True" ]; then
-            make_jobs=""
-        fi
+        # Compile all the modules in parallel
         (cd "${concept_dir}" && make unsafe_build="${unsafe_build}"       \
                                      no_optimization="${no_optimization}" \
-                                     ${make_jobs}
+                                     -j
                                      )
     fi
 fi
@@ -771,7 +927,8 @@ if [ "${util}" != "${util_unspecified}" ]; then
         called_from_concept="True" "${util}" "${util_args[@]}"
     fi
     # Print out the total execution time for this utility
-    "${python}" -B -c "from commons import *; print('Total execution time: {}'.format(time_since(${start_time})))"
+    "${python}" -B -c "from commons import *
+print('Total execution time: {}'.format(time_since(${start_time_epoch})))"
     exit 0
 fi
 
@@ -793,9 +950,9 @@ if [ "${params}" == "${params_default}" ]; then
     params_cp="${params}"
     params_cp_info=""
 else
-    params_cp="${params_dir}/.${start_time}"
+    params_cp="${params_dir}/.params_cp_${start_time_human}"
     cp "${params}" "${params_cp}"
-    params_cp_info=" (copied to $(sensible_path ${params_cp}))"
+    params_cp_info=" (copied to \"$(sensible_path ${params_cp})\")"
 fi
 
 # Create the logs dir if it does not exist
@@ -806,39 +963,25 @@ if [ "${remote}" == "True" ]; then
     # Running remotely.
     # The remote job name.
     jobname="CONCEPT:${params_rel}:CONCEPT"
-    # Detect what resource manager is used.
-    any_resource_manager="True"
-    qstat_path="$(readlink -f "$(which qstat 2> /dev/null)" || :)"
-    if [ -z "${qstat_path}" ]; then
-        # No resource manager found.
-        # Produce an almost complete Slurm jobscript anyway.
-        any_resource_manager="False"
-        resource_manager="slurm"
-    elif grep -i " slurm " "${qstat_path}" >/dev/null 2>&1; then
-        # Slurm is used
-        resource_manager="slurm"
-    elif (   grep -i "torque" "${qstat_path}" >/dev/null 2>&1 \
-          || "${qstat_path}" --version 2>&1 | grep "snap"     \
-          ); then
-        # Torque is used
-        resource_manager="torque"
-    fi
-    # Prepare jobscript header dependent on the resource manager
-    if [ "${resource_manager}" == "slurm" ]; then
+    # Detect what resource manager is used
+    resource_manager="$(get_resource_manager)"
+    # Prepare job script header dependent on the resource manager.
+    # If no resource manager is used, default to slurm.
+    if [ "${resource_manager}" == "slurm" ] || [ -z "${resource_manager}" ]; then
         # Split the 'nprocs' variable up into the number of nodes
         # and the number of processes per node, if both are given.
         if [[ "${nprocs}" == *':'* ]]; then
-            nnodes=$("${python}" -c "print('${nprocs}'[:'${nprocs}'.index(':')])")
-            nprocs_per_node=$("${python}" -c "print('${nprocs}'[('${nprocs}'.index(':') + 1):])")
+            nnodes=$("${python}" -B -c "print('${nprocs}'[:'${nprocs}'.index(':')])")
+            nprocs_per_node=$("${python}" -B -c "print('${nprocs}'[('${nprocs}'.index(':') + 1):])")
             ((nprocs = nnodes*nprocs_per_node))
         else
-            nnodes=0
+            nnodes=0  # Has to be 0, not 1
+            nprocs_per_node=${nprocs}
         fi
         # Compute dedicated memory per process in megabytes
-        mb_per_process=$("${python}" -c \
-                         "import math; print(int(math.ceil(${memory}/(2**20*${nprocs}))))")
+        mb_per_process=$("${python}" -B -c "print(int(${memory}/(2**20*${nprocs})))")
         # Construct Slurm header
-        jobscript_header="$(${python} -c "
+        jobscript_header="$(${python} -B -c "
 lines = []
 lines.append('#SBATCH --job-name=${jobname}')
 lines.append('#SBATCH --partition=${queue}')
@@ -849,7 +992,8 @@ else:
     lines.append('#SBATCH --ntasks=${nprocs}')
 if ${memory}:
     lines.append('#SBATCH --mem-per-cpu=${mb_per_process}M')
-lines.append('#SBATCH --time=${walltime}:00:00')
+if '${walltime}' != '00:00:00':
+    lines.append('#SBATCH --time=${walltime}')
 lines.append('#SBATCH --output=/dev/null')
 lines.append('#SBATCH --error=/dev/null')
 lines.append('')
@@ -861,25 +1005,25 @@ print('\n'.join(lines))
         # Split the 'nprocs' variable up into the number of nodes
         # and the number of processes per node.
         if [[ "${nprocs}" != *':'* ]]; then
-            colorprint "Error: When using Torque you need to specify the number of nodes \
+            colorprint "Error: When using TORQUE or PBS you need to specify the number of nodes \
 and the number of processes per node" "red"
             exit 1
         fi
-        nnodes=$("${python}" -c "print('${nprocs}'[:'${nprocs}'.index(':')])")
-        nprocs_per_node=$("${python}" -c "print('${nprocs}'[('${nprocs}'.index(':') + 1):])")
+        nnodes=$("${python}" -B -c "print('${nprocs}'[:'${nprocs}'.index(':')])")
+        nprocs_per_node=$("${python}" -B -c "print('${nprocs}'[('${nprocs}'.index(':') + 1):])")
         ((nprocs = nnodes*nprocs_per_node))
         # Compute dedicated memory per process in megabytes
-        mb_per_process=$("${python}" -c \
-                         "import math; print(int(math.ceil(${memory}/(2**20*${nprocs}))))")
-        # Construct Torque header
-        jobscript_header="$(${python} -c "
+        mb_per_process=$("${python}" -B -c "print(int(${memory}/(2**20*${nprocs})))")
+        # Construct TORQUE header
+        jobscript_header="$(${python} -B -c "
 lines = []
 lines.append('#PBS -N ${jobname}')
 lines.append('#PBS -q ${queue}')
 lines.append('#PBS -l nodes=${nnodes}:ppn=${nprocs_per_node}')
 if ${memory}:
     lines.append('#PBS -l pmem=${mb_per_process}mb')
-lines.append('#PBS -l walltime=${walltime}:00:00')
+if '${walltime}' != '00:00:00':
+    lines.append('#PBS -l walltime=${walltime}')
 lines.append('#PBS -o /dev/null')
 lines.append('#PBS -e /dev/null')
 lines.append('')
@@ -889,9 +1033,9 @@ print('\n'.join(lines))
         ")"
     fi
     # Prepare text with the total memory consumption
-    memory_in_tb=$("${python}" -c "import math; print(int(math.ceil(${memory}/(2**40))))")
-    memory_in_gb=$("${python}" -c "import math; print(int(math.ceil(${memory}/(2**30))))")
-    memory_in_mb=$("${python}" -c "import math; print(int(math.ceil(${memory}/(2**20))))")
+    memory_in_tb=$("${python}" -B -c "print(int(${memory}/(2**40)))")
+    memory_in_gb=$("${python}" -B -c "print(int(${memory}/(2**30)))")
+    memory_in_mb=$("${python}" -B -c "print(int(${memory}/(2**20)))")
     if [ ${memory_in_tb} -gt 1 ]; then
         memory_display="${memory_in_tb} TB"
     elif [ ${memory_in_gb} -gt 1 ]; then
@@ -901,7 +1045,7 @@ print('\n'.join(lines))
     else
         memory_display=""
     fi
-    # Write jobscript file
+    # Write job script file
     jobscript="${this_dir}/jobscript"
     printf "#!/usr/bin/env bash
 ${jobscript_header}
@@ -920,6 +1064,7 @@ memory_display=\"${memory_display}\"
 mpiexec_args=\"${mpiexec_args}\"
 nnodes=${nnodes}
 nprocs=${nprocs}
+nprocs_per_node=${nprocs_per_node}
 params=\"${params}\"
 params_cp=\"${params_cp}\"
 params_cp_info=\"${params_cp_info}\"
@@ -938,20 +1083,16 @@ else
     colorprint \"Running CO𝘕CEPT job \${jobid} remotely on \$(hostname -f)\" \
                \"yellow\" > \"\${logs_dir}/\${jobid}\"
 fi
-echo \"Entry point:   \\\\\"\${main_rel}\\\\\"\" >> \"\${logs_dir}/\${jobid}\"
+echo \"Entry point:    \\\\\"\${main_rel}\\\\\"\" >> \"\${logs_dir}/\${jobid}\"
 if [ \"\${params_rel}\" == \"None\" ]; then
-    echo \"Parameterfile: \${params_rel}\" >> \"\${logs_dir}/\${jobid}\"
+    echo \"Parameter file: \${params_rel}\" >> \"\${logs_dir}/\${jobid}\"
 else
-    echo \"Parameterfile: \\\\\"\${params_rel}\${params_cp_info}\\\\\"\" \
+    echo \"Parameter file: \\\\\"\${params_rel}\${params_cp_info}\\\\\"\" \
           >> \"\${logs_dir}/\${jobid}\"
 fi
-echo \"Logfile:       \\\\\"\${logs_dir_rel}/\${jobid}\\\\\"\" >> \"\${logs_dir}/\${jobid}\"
-echo \"Nr. of CPUs:   \${nprocs}\" >> \"\${logs_dir}/\${jobid}\"
-if [ \"\${nnodes}\" != 0 ]; then
-    echo \"Nr. of nodes:  \${nnodes}\" >> \"\${logs_dir}/\${jobid}\"
-fi
+echo \"Log file:       \\\\\"\${logs_dir_rel}/\${jobid}\\\\\"\" >> \"\${logs_dir}/\${jobid}\"
 if [ -n \"\${memory_display}\" ]; then
-    echo \"Memory:        \${memory_display}\" >> \"\${logs_dir}/\${jobid}\"
+    echo \"Memory:         \${memory_display}\" >> \"\${logs_dir}/\${jobid}\"
 fi
 
 # Prepare Python options
@@ -983,8 +1124,9 @@ if [ \"\${interactive}\" == \"True\" ]; then
     i_flag=\"-i\"
 fi
 
-# Run the code. Both stdout and stderr are being logged to logs_dir/jobid,
-# while the stderr alone is also logged to logs_dir/jobid_err.
+# Run the code. Both stdout and stderr are being logged
+# to logs_dir/jobid, while the stderr alone is also logged
+# to logs_dir/jobid_err.
 (cd \"\${concept_dir}\" && \"\${mpiexec}\" \${mpiexec_args}                                  \\
                                            \"\${python}\" -B \${i_flag}                      \\
                                                           \${m_flag} \"\${main_as_library}\" \\
@@ -1007,42 +1149,30 @@ else
 fi
 " > "${jobscript}"
     # Exit now if no resource manager was found
-    if [ "${any_resource_manager}" == "False" ]; then
+    if [ -z "${resource_manager}" ]; then
         echo "Could not find any resource manager. \
-Is Torque/Slurm installed and on the PATH?"
-        echo "An almost complete Slurm jobscript has been saved to \"${jobscript}\"."
+Is Slurm/TORQUE/PBS installed and on the PATH?"
+        echo "An almost complete Slurm job script has been saved to \"${jobscript}\"."
         trap : 0
         exit 0
     fi
     # Only submit if a queue is specified
     if [ "${queue}" == "${queue_unspecified}" ]; then
         colorprint "Error: Cannot submit job as no queue is specified. \
-An almost complete jobscript has been saved to \"${jobscript}\"." "red"
+An almost complete job script has been saved to \"${jobscript}\"." "red"
         exit 1
     fi
     # Submit the remote job from within the logs directory,
     # so that autogenerated files will be dumped there.
     colorprint "\nSubmitting job" "yellow"
     if [ "${resource_manager}" == 'slurm' ]; then
-        sbatch_path="$(readlink -f "$(which sbatch 2> /dev/null)" || :)"
-        if [ -z "${sbatch_path}" ]; then
-            colorprint "Error: Could not submit Slurm job as the \'sbatch\' command could not be \
-located. Is Slurm installed and on the PATH?" "red"
-            exit 1
-        fi
         jobid=$(cd "${logs_dir}" && sbatch "${jobscript}")
     elif [ "${resource_manager}" == 'torque' ]; then
-        qsub_path="$(readlink -f "$(which qsub 2> /dev/null)" || :)"
-        if [ -z "${qsub_path}" ]; then
-            colorprint "Error: Could not submit Torque job as the \'qsub\' command could not be \
-located. Is Torque installed and on the PATH?" "red"
-            exit 1
-        fi
         jobid=$(cd "${logs_dir}" && qsub "${jobscript}")
     fi
     jobid=$(echo "${jobid}" | awk '{print $NF}')
     jobid="${jobid%.*}"
-    echo "Job ${jobid} (parameterfile \"${params_rel}\") submitted to queue ${queue}"
+    echo "Job ${jobid} (parameter file \"${params_rel}\") submitted to queue ${queue}"
     # Deactivate traps before exiting
     trap : 0
     # Invoke the watch utility on the submitted job
@@ -1051,7 +1181,7 @@ located. Is Torque installed and on the PATH?" "red"
         # Invoke the watch utility on the submitted job
         echo "You can now kill (Ctrl-C) this script without cancelling the job"
         sleep 1
-        "${concept}" --util watch "${jobid}"
+        "${concept}" -u watch "${jobid}"
     fi
     exit 0
 else
@@ -1076,14 +1206,13 @@ else
     else
         colorprint "Running CO𝘕CEPT" "yellow"                     | tee    "${logs_dir}/${jobid}"
     fi
-    echo "Entry point:   \"${main_rel}\""                         | tee -a "${logs_dir}/${jobid}"
+    echo "Entry point:    \"${main_rel}\""                        | tee -a "${logs_dir}/${jobid}"
     if [ "${params_rel}" == "None" ]; then
-        echo "Parameterfile: ${params_rel}"                       | tee -a "${logs_dir}/${jobid}"
+        echo "Parameter file: ${params_rel}"                      | tee -a "${logs_dir}/${jobid}"
     else
-        echo "Parameterfile: \"${params_rel}\"${params_cp_info}"  | tee -a "${logs_dir}/${jobid}"
+        echo "Parameter file: \"${params_rel}\"${params_cp_info}" | tee -a "${logs_dir}/${jobid}"
     fi
-    echo "Logfile:       \"${logs_dir_rel}/${jobid}\""            | tee -a "${logs_dir}/${jobid}"
-    echo "Nr. of CPUs:   ${nprocs}"                               | tee -a "${logs_dir}/${jobid}"
+    echo "Log file:       \"${logs_dir_rel}/${jobid}\""           | tee -a "${logs_dir}/${jobid}"
     # Prepare Python options
     if [ "${main_as_command}" == "yes" ]; then
         # Run main as Python command
@@ -1115,21 +1244,41 @@ else
     # Run the code. Print stdout and stderr to the terminal while at the
     # same time logging them to logs_dir/jobid. The stderr alone is also
     # logged to logs_dir/jobid_err.
-    (("${mpiexec}" -n "${nprocs}"                               \
-                   ${mpiexec_args}                              \
-                   "${python}" -B ${i_flag}                     \
-                               ${m_flag} "${main_as_library}"   \
-                               "params='${params}'"             \
-                               "params_cp='${params_cp}'"       \
-                               "jobid='${jobid}'"               \
-     | tee -a "${logs_dir}/${jobid}";                           \
-       echo "${PIPESTATUS[0]}" > "${this_dir}/.exit_code"       \
-     ) 3>&1 1>&2 2>&3 | tee -a "${logs_dir}/${jobid}"           \
+    # We want the exit code of mpiexec, but it is not easily retrieved
+    # due to the logging. We therefore print the exit code to a
+    # temporary file which we then read and discard.
+    exit_code_filename="${this_dir}/.exit_code_${start_time_human}"
+    (("${mpiexec}" -n "${nprocs}"                             \
+                   ${mpiexec_args}                            \
+                   "${python}" -B ${i_flag}                   \
+                               ${m_flag} "${main_as_library}" \
+                               "params='${params}'"           \
+                               "params_cp='${params_cp}'"     \
+                               "jobid='${jobid}'"             \
+     | tee -a "${logs_dir}/${jobid}";                         \
+       echo "${PIPESTATUS[0]}" > "${exit_code_filename}"      \
+     ) 3>&1 1>&2 2>&3 | tee -a "${logs_dir}/${jobid}"         \
                                "${logs_dir}/${jobid}_err") 3>&1 1>&2 2>&3
-    sleep 1
-    concept_exit_code="$(cat "${this_dir}/.exit_code")"
+    # Get the exit code from the temporary file
+    sleep_time=0.01
+    sleep_max=1000
+    slept=0
+    while [ ! -f "${exit_code_filename}" ]; do
+        sleep ${sleep_time}
+        ((slept += 1))
+        if [ ${slept} -ge ${sleep_max} ]; then
+            break
+        fi
+    done
+    exit_code=1
+    if [ -f "${exit_code_filename}" ]; then
+        exit_code="$(cat "${exit_code_filename}")"
+        if [ -z "${exit_code}" ]; then
+            exit_code=1
+        fi
+    fi
     # Run complete. Do cleanup.
-    rm -f "${this_dir}/.exit_code"
+    rm -f "${exit_code_filename}"
     if [ -f "${logs_dir}/${jobid}_err" ] && [ ! -s "${logs_dir}/${jobid}_err" ]; then
         # Remove error log if empty
         rm "${logs_dir}/${jobid}_err"
@@ -1139,8 +1288,9 @@ Check the following error log for more information:\n\
 \"${logs_dir}/${jobid}_err\"" "red" 2>&1 | tee -a "${logs_dir}/${jobid}" 1>&2
     fi
     # If the CO𝘕CEPT run exited erroneously, exit now
-    if [ "${concept_exit_code}" != "0" ]; then
-        exit 1
+    if [ "${exit_code}" != "0" ]; then
+        # Note that the real exit will be handled by the abort function
+        exit ${exit_code}
     fi
     # Deactivate traps and exit
     trap : 0

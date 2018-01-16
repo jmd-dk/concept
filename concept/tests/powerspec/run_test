@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -73,7 +73,7 @@ sed -i "s/boxsize *=/boxsize = 2*/" "${this_dir}/params_double_boxsize"
 mv "${this_dir}/powerspec_snapshot"     "${this_dir}/powerspec_snapshot_original"
 mv "${this_dir}/powerspec_snapshot.png" "${this_dir}/powerspec_snapshot_original.png"
 cp "${this_dir}/params" "${this_dir}/params_half_gridsize"
-sed -i "s/_gridsize *=/_gridsize = 0.5*/" "${this_dir}/params_half_gridsize"
+sed -i "/_gridsize *=/s/$/\/\/2/" "${this_dir}/params_half_gridsize"
 "${concept}" -n 1                                     \
              -p "${this_dir}/params_half_gridsize"    \
              -u powerspec "${this_dir}/snapshot.hdf5" \

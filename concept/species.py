@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -29,7 +29,7 @@ cimport('from analysis import measure')
 cimport('from communication import communicate_domain, domain_subdivisions, exchange, smart_mpi')
 cimport('from fluid import maccormack, apply_internal_sources')
 cimport('from integration import Spline, cosmic_time, scale_factor, ȧ')
-cimport('from linear import compute_cosmo, compute_transfers, realize')
+cimport('from linear import compute_cosmo, compute_transfer, realize')
 
 
 
@@ -41,7 +41,7 @@ class Tensor:
     """With respect to indexing and looping, you may threat instances of
     this class just like NumPy arrays.
     """
-    def __init__(self, component, varnum, shape, symmetric=False):
+    def __init__(self, component, varnum, shape, symmetric=False, active=True):
         """If disguised_scalar is True, every element of the tensor
         will always point to the same object.
         """
@@ -53,8 +53,9 @@ class Tensor:
         # Store initialization arguments as instance variables
         self.component = component
         self.varnum = varnum
-        self.shape = tuple(any2iter(shape))
+        self.shape = tuple(any2list(shape))
         self.symmetric = symmetric
+        self.active = active
         # Store other array-like attributes
         self.size = np.prod(self.shape)
         self.ndim = len(self.shape)
@@ -74,13 +75,26 @@ class Tensor:
                                                                       for size in self.shape])])))
         # Initialize tensor data
         self.data = {multi_index: None for multi_index in self.multi_indices}
+        # Additional (possible) elements
+        self.additional_dofs = ('trace', )
+        for additional_dof in self.additional_dofs:
+            self.data[additional_dof] = None
+
     # Method for processing multi_indices.
     # This is where the symmetry of the indices is implemented.
     def process_multi_index(self, multi_index):
+        # The case of an extra degree of freedom
+        if isinstance(multi_index, str):
+            return multi_index.lower()
+        if (    isinstance(multi_index, tuple)
+            and len(multi_index) == 1
+            and isinstance(multi_index[0], str)):
+            return multi_index[0].lower()
+        # The normal case
         if self.symmetric:
-            multi_index = tuple(sorted(any2iter(multi_index), reverse=True))
+            multi_index = tuple(sorted(any2list(multi_index), reverse=True))
         else:
-            multi_index = tuple(any2iter(multi_index))
+            multi_index = tuple(any2list(multi_index))
         if len(multi_index) != self.ndim:
             abort('A {} tensor was accessed with indices {}'
                   .format('×'.join(self.shape), multi_index))
@@ -98,7 +112,7 @@ class Tensor:
         self.data[multi_index] = value
         # If only a single element should exist in memory,
         # point every multi_index to the newly set element.
-        if self.disguised_scalar:
+        if self.disguised_scalar and multi_index not in self.additional_dofs:
             for other_multi_index in self.multi_indices:
                 self.data[other_multi_index] = value
     # Iteration
@@ -106,13 +120,20 @@ class Tensor:
         """By default, iteration yields all elements, except for
         the case of disguised scalars, where only the first element
         is yielded.
+        Elements corresponding to additional degrees of freedom
+        are not included.
+        Inactive tensors do not yield anything.
         """
-        N_elements = 1 if self.disguised_scalar else len(self.multi_indices)
+        if self.active:
+            N_elements = 1 if self.disguised_scalar else len(self.multi_indices)
+        else:
+            N_elements = 0
         return (self.data[multi_index] for multi_index in self.multi_indices[:N_elements])
     def iterate(self, attribute='fluidscalar', multi_indices=False):
-        """This generator yields all elements of the tensor.
+        """This generator yields all normal elements of the tensor
+        (that is, the additional degrees of freedom are not included).
         For disguised scalars, all logical elements are realized
-        before yielding.
+        before they are yielded.
         What attribute of the elements (fluidscalars) should be yielded
         is controlled by the attribute argument. For a value of
         'fluidscalar', the entire fluidscalar is returned.
@@ -137,7 +158,6 @@ class Tensor:
 
 
 
-
 # Class which serves as the data structure for a scalar fluid grid
 # (each component of a fluid variable is stored as a collection of
 # scalar grids). Each scalar fluid has its own name, e.g.
@@ -150,7 +170,7 @@ class FluidScalar:
     # Initialization method
     @cython.header(# Arguments
                    varnum='int',
-                   multi_index='object',  # tuple or int-like
+                   multi_index=object,  # tuple or int-like
                    )
     def __init__(self, varnum, multi_index=()):
         # The triple quoted string below serves as the type declaration
@@ -181,7 +201,7 @@ class FluidScalar:
         """
         # Number and index of fluid variable
         self.varnum = varnum
-        self.multi_index = tuple(any2iter(multi_index))
+        self.multi_index = tuple(any2list(multi_index))
         # Minimal starting layout
         self.shape = (1, 1, 1)
         self.shape_noghosts = (1, 1, 1)
@@ -209,7 +229,7 @@ class FluidScalar:
 
     # Method for resizing all grids of this scalar fluid
     @cython.header(# Arguments
-                   shape_nopseudo_noghost='tuple',
+                   shape_nopseudo_noghost=tuple,
                    )
     def resize(self, shape_nopseudo_noghost):
         """After resizing the fluid scalar,
@@ -338,26 +358,31 @@ class Component:
 
     # Initialization method
     @cython.pheader(# Arguments
-                    name='str',
-                    species='str',
+                    name=str,
+                    species=str,
                     N_or_gridsize='Py_ssize_t',
-                    species_class='str',
                     mass='double',
                     N_fluidvars='Py_ssize_t',
-                    closure='str',
-                    w='object',  # NoneType, float, int, str or dict
-                    # Locals
-                    i='Py_ssize_t',
-                    index='Py_ssize_t',
-                    multi_index='tuple',
+                    forces=dict,
+                    class_species=str,
+                    w=object,  # NoneType, float, int, str or dict
+                    closure=str,
+                    approximations=dict,
+                    softening_length=object,  # float or str
                     )
-    def __init__(self, name, species, N_or_gridsize, species_class='',
+    def __init__(self, name, species, N_or_gridsize, *,
                  # Particle-specific arguments
                  mass=-1,
                  # Fluid-specific arguments
                  N_fluidvars=2,
-                 closure='truncate',
+                 # Parameters which should normally be set via
+                 # the physics user parameters.
+                 forces=None,
+                 class_species=None,
                  w=None,
+                 closure=None,
+                 approximations=None,
+                 softening_length=None,
                  ):
         # The triple quoted string below serves as the type declaration
         # for the data attributes of the Component type.
@@ -365,17 +390,17 @@ class Component:
         # and indluded in the .pxd file.
         """
         # General component attributes
-        public dict forces
         public str name
-        public str representation
         public str species
-        public str species_class
+        public str representation
+        public dict forces
+        public str class_species
         # Particle attributes
         public Py_ssize_t N
         public Py_ssize_t N_allocated
         public Py_ssize_t N_local
         public double mass
-        public double softening
+        public double softening_length
         # Particle data
         double* posx
         double* posy
@@ -423,8 +448,10 @@ class Component:
         public double w_constant
         public double[:, ::1] w_tabulated
         public str w_expression
+        public dict approximations
         Spline w_spline
-        public double _Σmass_present
+        Spline w_eff_spline
+        public double _ϱ_bar
         # Fluid data
         public list fluidvars
         FluidScalar ϱ
@@ -442,59 +469,136 @@ class Component:
         FluidScalar σzx
         FluidScalar σzy
         FluidScalar σzz
+        FluidScalar 𝒫
         """
         # Check that the name does not conflict with
-        # one of the special names used internally.
+        # one of the special names used internally,
+        # and that the name has not already been used.
         if name in internally_defined_names:
-            masterwarn('A species by the name of "{}" is to be created. '
-                       'As this name is used internally by the code, '
-                       'this may lead to erroneous behaviour.'
-                       .format(name)
-                       )
+            masterwarn(
+                f'A species by the name of "{name}" is to be created. '
+                f'As this name is used internally by the code, '
+                f'this may lead to erroneous behaviour.'
+            )
+        elif not allow_similarly_named_components and name in component_names:
+            masterwarn(
+                f'A component with the name of "{name}" has already '
+                f'been instantiated. Instantiating multiple components '
+                f'with the same name may lead to undesired behaviour.'
+            )
+        for char in ',{}':
+            if char in name:
+                masterwarn(
+                    f'A species by the name of "{name}" is to be created. '
+                    f'As this name contains a "{char}" character, '
+                    f'this may lead to erroneous behaviour.'
+                )
+        if name:
+            component_names.add(name)
         # General attributes
         self.name    = name
         self.species = species
-        if not species_class:
-            # If the CLASS species is not given, use the default name
-            # corresponding to the (CO𝘕CEPT) species. If no such default
-            # name is defined, continue on without an error and assume
-            # that this name will not be used.
-            if species in default_species_class:
-                species_class = default_species_class[self.species]
-        self.species_class = species_class
-        # Attatch information about what forces (including the method
-        # used to compute these forces) act on this species in this
-        # particular simulation to the component instance.
-        self.forces = {}
-        for species in (self.species, 'all'):
-            if species in forces:
-                for species_force in forces[species]:
-                    if not species_force[0] in self.forces:
-                        self.forces[species_force[0]] = species_force[1]
-        # Determine the representation based on the species
         self.representation = get_representation(self.species)
-        # Particle attributes
-        self.mass        = mass
-        self.N_allocated = 1
-        self.N_local     = 1
         if self.representation == 'particles':
             self.N = N_or_gridsize
-            if self.species in softeningfactors:
-                self.softening = softeningfactors[self.species]*boxsize/cbrt(self.N)
-            elif self.species in default_softeningfactors:
-                self.softening = default_softeningfactors[self.species]*boxsize/cbrt(self.N)
-            else:
-                abort('Species "{}" has neither an assigned nor a default softening factor!'
-                      .format(self.species))
+            self.gridsize = 1
         elif self.representation == 'fluid':
-            self.N         = 1
-            self.softening = 1
-            if self.mass != -1:
-                masterwarn('A mass (of {} {}) was specified for fluid component "{}"'
-                           .format(self.mass, unit_mass, self.name))
-        # Once this component has been populated with data,
-        # this attribute will store the total mass of this component.
-        self._Σmass_present = -1
+            self.gridsize = N_or_gridsize
+            self.N = 1
+            if self.gridsize%2 != 0:
+                masterwarn(
+                    f'The fluid component "{self.name}" has an odd gridsize ({self.gridsize}). '
+                    f'Some operations may not function correctly.'
+                )
+        # Set forces (and force methods)
+        if forces is None:
+            forces = is_selected(self, select_forces, accumulate=True)
+        if not forces:
+            forces = {}
+        self.forces = forces
+        # Set the CLASS species
+        if class_species is None:
+            class_species = is_selected(self, select_class_species)
+        if class_species == 'automatic':
+            if self.species in default_class_species:
+                class_species = default_class_species[self.species]
+            else:
+                abort(
+                    f'Automatic CLASS species assignment failed because '
+                    f'the species "{self.species}" does not map to any CLASS species'
+                )
+        self.class_species = class_species
+        # Set the equation of state parameter w
+        if w is None:
+            w = is_selected(self, select_eos_w)
+        self.initialize_w(w)
+        self.initialize_w_eff()
+        # Set closure rule for the Boltzmann hierarchy
+        if closure is None:
+            closure = is_selected(self, select_closure)
+        if not closure:
+            closure = ''
+        self.closure = closure.lower()
+        if self.representation == 'fluid' and self.closure not in ('truncate', 'class'):
+            abort(
+                f'The component "{self.name}" was initialized '
+                f'with an unknown closure of "{self.closure}"'
+            )
+        # Set approximations. Ensure that all implemented approximations
+        # get set either True or False. If an approximation is not set
+        # for this component, its value defaults to False.
+        if approximations is None:
+            approximations = is_selected(self, select_approximations, accumulate=True)
+        if not approximations:
+            approximations = {}
+        for approximation, value in approximations.copy().items():
+            if unicode(approximation) not in approximations_implemented:
+                abort(
+                    f'The component "{self.name}" was initialized '
+                    f'with the unknown approximation "{approximation}"'
+                )
+            approximations[asciify(approximation)] = value
+            approximations[unicode(approximation)] = value
+        for approximation in approximations_implemented:
+            value = approximations.get(approximation, False)
+            approximations[asciify(approximation)] = value
+            approximations[unicode(approximation)] = value
+        self.approximations = approximations
+        # Set softening length
+        if softening_length is None:
+            softening_length = is_selected(self, select_softening_length)
+        if isinstance(softening_length, str):
+            # Evaluate softening_length if it's a str.
+            # Replace 'N' with the number of particles of this component
+            # and 'gridsize' with the gridsize of this component.
+            if self.representation == 'particles':
+                softening_length = softening_length.replace('N', str(self.N))
+                softening_length = softening_length.replace('gridsize', str(cbrt(self.N)))
+            elif self.representation == 'fluid':
+                softening_length = softening_length.replace('N', str(self.gridsize**3))
+                softening_length = softening_length.replace('gridsize', str(self.gridsize))
+            softening_length = eval(softening_length, globals(), units_dict)
+        if not softening_length:
+            if self.representation == 'particles':
+                # If no name is given, this is an internally
+                # used component, in which case it is OK not to have
+                # any softening lenth set.
+                if self.name:
+                    masterwarn(f'No softening length set for particles component "{self.name}"')
+            softening_length = 0
+        self.softening_length = float(softening_length)
+        # This attribute will store the conserved mean density
+        # of this component. It is set by the ϱ_bar method.
+        self._ϱ_bar = -1
+        # Particle attributes
+        self.mass = mass
+        if self.representation == 'fluid' and self.mass != -1:
+            masterwarn(
+                f'A mass ({self.mass} {unit_mass}) was specified '
+                f'for fluid component "{self.name}"'
+                )
+        self.N_allocated = 1
+        self.N_local = 1
         # Particle data
         self.posx = malloc(self.N_allocated*sizeof('double'))
         self.posy = malloc(self.N_allocated*sizeof('double'))
@@ -547,39 +651,26 @@ class Component:
         self.Δmom_mv = [self.Δmomx_mv, self.Δmomy_mv, self.Δmomz_mv]
         # Fluid attributes
         self.N_fluidvars = N_fluidvars
-        self.shape = (1, 1, 1)
-        self.shape_noghosts = (1, 1, 1)
-        self.size = np.prod(self.shape)
-        self.size_noghosts = np.prod(self.shape_noghosts)
-        self.closure = closure.lower()
-        if self.closure not in ('truncate', 'class'):
-            abort('The component "{}" was initialized with an unknown closure of "{}"'
-                  .format(self.name, closure))
-        if self.representation == 'fluid':
-            self.gridsize = N_or_gridsize
-            # All gridsizes should be even
-            if self.gridsize%2 != 0:
-                masterwarn('The fluid component "{}" have an odd gridsize ({}). '
-                           'Some operations may not function correctly.'
-                           .format(self.name, self.gridsize))
-            # Check that the number of fluid variables
-            # is within the valid range.
-            if self.N_fluidvars < 1:
-                abort('Fluid components must have at least 1 fluid variable, '
-                      'but N_fluidvars = {} was specified for "{}"'
-                      .format(self.N_fluidvars, self.name))
-            elif self.N_fluidvars > 3:
-                abort('Fluids with more than 3 fluid variables are not implemented, '
-                      'but N_fluidvars = {} was specified for "{}"'
-                      .format(self.N_fluidvars, self.name))
-        elif self.representation == 'particles':
-            self.gridsize = 1
+        if self.representation == 'particles':
             if self.N_fluidvars != 2:
                 abort('Particle components must have N_fluidvars = 2, '
                       'but N_fluidvars = {} was specified for "{}"'
                       .format(self.N_fluidvars, self.name))
-        # Initialize the equation of state parameter w
-        self.initialize_w(w)
+        elif self.representation == 'fluid':
+            if self.N_fluidvars < 1:
+                abort(
+                    f'Fluid components must have at least 1 fluid variable, '
+                    f'but N_fluidvars = {self.N_fluidvars} was specified for "{self.name}"'
+                )
+            elif self.N_fluidvars > 3:
+                abort(
+                    f'Fluids with more than 3 fluid variables are not implemented, '
+                    f'but N_fluidvars = {self.N_fluidvars} was specified for "{self.name}"'
+                    )
+        self.shape = (1, 1, 1)
+        self.shape_noghosts = (1, 1, 1)
+        self.size = np.prod(self.shape)
+        self.size_noghosts = np.prod(self.shape_noghosts)
         # Fluid data.
         # Create the N_fluidvars fluid variables and store them in the
         # list fluidvars. This is done even for particle components,
@@ -598,15 +689,30 @@ class Component:
         # we need one additional fluid variable. This should act like
         # a symmetric tensor of rank N_fluidvars, but really only a
         # single element of this tensor need to exist in memory.
-        if self.closure == 'class':
-            # Instantiate the scalar element but disguised as a
-            # 3×3×...×3 (N_fluidvars times) symmetric tensor.
-            disguised_scalar = Tensor(self, N_fluidvars, (3, )*N_fluidvars, symmetric=True)
+        # For N_fluidvars == 2, σ is the additional fluid variable.
+        # On σ lives the pressure 𝒫, which is used regardless of the
+        # closure method. Therefore, we add this additional variable
+        # regardless of the closure method. To indicate that σ itself
+        # is not used (for anything else than storing 𝒫), we supply the
+        # 'active' keyword argument.
+        # Instantiate the scalar element but disguised as a
+        # 3×3×...×3 (N_fluidvars times) symmetric tensor.
+        if N_fluidvars == 2:
+            active = (self.closure == 'class')
+            disguised_scalar = Tensor(self, N_fluidvars, (3, )*N_fluidvars,
+                                      symmetric=True, active=active)
             # Populate the tensor with a fluidscalar
             multi_index = disguised_scalar.multi_indices[0]
             disguised_scalar[multi_index] = FluidScalar(N_fluidvars, multi_index)
             # Add this additional fluid variable to the list
             self.fluidvars.append(disguised_scalar)
+        # For both N_fluidvars == 2 and N_fluidvars == 3, self.fluidvars
+        # now contains 3 fluid variables (ϱ, J, σ). Now σ really only
+        # contain 5 degrees of because of its tracelessness. The
+        # remaining degree of freedom is captured by the pressure, 𝒫.
+        # We therefore add 𝒫, itself a single fluid scalar, to σ.
+        if N_fluidvars in (2, 3):
+            self.fluidvars[2]['trace'] = FluidScalar(0, 0)
         # Construct mapping from names of fluid variables (e.g. J)
         # to their indices in self.fluidvars, and also from names of
         # fluid scalars (e.g. ϱ, Jx) to tuple of the form
@@ -629,6 +735,12 @@ class Component:
                 self.fluid_names[        fluidscalar_name ] = (index, multi_index)
                 self.fluid_names[unicode(fluidscalar_name)] = (index, multi_index)
                 self.fluid_names[index, multi_index       ] = (index, multi_index)
+            # Aditional fluid scalars
+            # due to additional degrees of freedom.
+            if index == 2:
+                self.fluid_names['𝒫'         ] = (2, 'trace')
+                self.fluid_names[unicode('𝒫')] = (2, 'trace')
+                self.fluid_names[2, 'trace'  ] = (2, 'trace')
         # Also include particle variable names in the fluid_names dict
         self.fluid_names['pos'] = 0
         self.fluid_names['mom'] = 1
@@ -638,13 +750,13 @@ class Component:
         self.ϱ = self.fluidvars[0][0]
         if len(self.fluidvars) == 1:
             return
-        self.J = self.fluidvars[1]
+        self.J   = self.fluidvars[1]
         self.Jx  = self.fluidvars[1][0]
         self.Jy  = self.fluidvars[1][1]
         self.Jz  = self.fluidvars[1][2]
         if len(self.fluidvars) == 2:
             return
-        self.σ = self.fluidvars[2]      
+        self.σ   = self.fluidvars[2]
         self.σxx = self.fluidvars[2][0, 0]
         self.σxy = self.fluidvars[2][0, 1]
         self.σxz = self.fluidvars[2][0, 2]
@@ -654,22 +766,41 @@ class Component:
         self.σzx = self.fluidvars[2][2, 0]
         self.σzy = self.fluidvars[2][2, 1]
         self.σzz = self.fluidvars[2][2, 2]
+        self.𝒫   = self.fluidvars[2]['trace']
         if len(self.fluidvars) == 3:
             return
 
-    # Store the total mass of this component at a == 1 as a property
+    # Function which returns the constant background density
+    # ϱ_bar = a**(3*(1 + w_eff(a)))*ρ_bar(a).
     @property
-    def Σmass_present(self):
-        if self._Σmass_present == -1:
-            # Measure and store the
-            # total mass. For w ≠ 0, this mass is not constant in an
-            # expanding universe. The mass at the present time (a = 1)
-            # is the one which is measured and stored.
-            a = universals.a
-            universals.a = 1
-            self._Σmass_present = measure(self, 'mass')
-            universals.a = a
-        return self._Σmass_present
+    def ϱ_bar(self):
+        if self._ϱ_bar == -1:
+            if self.representation == 'particles':
+                # For particles, ϱ_bar = a**3*ρ_bar because w = 0,
+                # which can be easily evaluated at the present time
+                # if the mass is set.
+                # Otherwise, ask CLASS for ρ_bar at the present time.
+                if self.mass == -1:
+                    if enable_class_background:
+                        cosmoresults = compute_cosmo()
+                        self._ϱ_bar = cosmoresults.ρ_bar(1, self.class_species)
+                    else:
+                        abort(
+                            f'Cannot determine ϱ_bar for particle component "{self.name}" because '
+                            f'its mass is not (yet?) set and enable_class_background is False'
+                            )
+                else:
+                    self._ϱ_bar = self.N*self.mass/boxsize**3
+            elif self.representation == 'fluid':
+                # For fluids, ask CLASS for ρ_bar at the present time.
+                # If CLASS background computations are disabled,
+                # measure ϱ_bar directly from the component data.
+                if enable_class_background:
+                    cosmoresults = compute_cosmo()
+                    self._ϱ_bar = cosmoresults.ρ_bar(1, self.class_species)
+                else:
+                    self._ϱ_bar, σϱ, ϱ_min = measure(self, 'ϱ')
+        return self._ϱ_bar
 
     # This method populate the Component pos/mom arrays (for a
     # particles representation) or the fluid scalar grids (for a
@@ -680,13 +811,13 @@ class Component:
     # as this will minimize memory usage. This data array is 1D for
     # particle data and 3D for fluid data.
     @cython.pheader(# Arguments
-                    data='object',  # 1D/3D (particles/fluid) memoryview
-                    var='object',   # int-like or str
-                    multi_index='object',  # tuple or int-like
+                    data=object,  # 1D/3D (particles/fluid) memoryview
+                    var=object,   # int-like or str
+                    multi_index=object,  # tuple or int-like
                     buffer='bint',
                     # Locals
                     a='double',
-                    fluid_indices='object',  # tuple or int-like
+                    fluid_indices=object,  # tuple or int-like
                     fluidscalar='FluidScalar',
                     index='Py_ssize_t',
                     mv1D='double[::1]',
@@ -796,12 +927,12 @@ class Component:
     # This method will grow/shrink the data attributes.
     # Note that it will update N_allocated but not N_local.
     @cython.pheader(# Arguments
-                    size_or_shape_nopseudo_noghosts='object',  # Py_ssize_t or tuple
+                    size_or_shape_nopseudo_noghosts=object,  # Py_ssize_t or tuple
                     # Locals
                     N_allocated='Py_ssize_t',
                     fluidscalar='FluidScalar',
                     s='Py_ssize_t',
-                    shape_nopseudo_noghosts='tuple',
+                    shape_nopseudo_noghosts=tuple,
                     size='Py_ssize_t',
                     s_old='Py_ssize_t',
                     )
@@ -831,6 +962,7 @@ class Component:
                 self.pos_mv = [self.posx_mv, self.posy_mv, self.posz_mv]
                 self.mom_mv = [self.momx_mv, self.momy_mv, self.momz_mv]
                 # Reallocate particle buffers
+                # (commented as these are not currently used).
                 #self.Δposx = realloc(self.Δposx, self.N_allocated*sizeof('double'))
                 #self.Δposy = realloc(self.Δposy, self.N_allocated*sizeof('double'))
                 #self.Δposz = realloc(self.Δposz, self.N_allocated*sizeof('double'))
@@ -838,6 +970,7 @@ class Component:
                 self.Δmomy = realloc(self.Δmomy, self.N_allocated*sizeof('double'))
                 self.Δmomz = realloc(self.Δmomz, self.N_allocated*sizeof('double'))
                 # Reassign particle buffer memory views
+                # (commented as these are not currently used).
                 #self.Δposx_mv = cast(self.Δposx, 'double[:self.N_allocated]')
                 #self.Δposy_mv = cast(self.Δposy, 'double[:self.N_allocated]')
                 #self.Δposz_mv = cast(self.Δposz, 'double[:self.N_allocated]')
@@ -873,14 +1006,16 @@ class Component:
             for fluidscalar in self.iterate_fluidscalars():
                 fluidscalar.resize(shape_nopseudo_noghosts)
 
-    # Method which populate the grids of fluid variables with real-space
-    # 3D realisation of linear transfer function. As all arguments are
-    # optional, this has to be a pure Python method.
+    # Method for 3D realisation of linear transfer functions.
+    # As all arguments are optional,
+    # this has to be a pure Python method.
     def realize(self, variables=None,
                       transfer_spline=None,
                       cosmoresults=None,
                       specific_multi_index=None,
                       a=-1,
+                      gauge='N-body',
+                      transform='background',
                       ):
         """This method will realise a given fluid/particle variable from
         a given transfer function. Any existing data for the variable
@@ -908,6 +1043,9 @@ class Component:
         but then you have to leave the transfer_spline and cosmoresults
         arguments unspecified (as you can only pass in a
         single transfer_spline).
+        The gauge and transform arguments are passed on to
+        linear.compute_transfer and linear.realize, respectively.
+        See these functions for further detail.
         """
         # Define the gridsize used by the realization (gridsize for
         # fluid components and ∛N for particle components) and resize
@@ -946,8 +1084,6 @@ class Component:
                       )
         # Argument processing
         if transfer_spline is None and cosmoresults is not None:
-            abort('The realize method was called with a transfer_spline but no cosmoresults')
-        if transfer_spline is not None and cosmoresults is None:
             abort('The realize method was called with cosmoresults but no transfer_spline')
         if self.representation == 'particles':
             # Particles use the Zeldovich approximation for realization,
@@ -966,10 +1102,9 @@ class Component:
                 masterwarn('The realize method was called without specifying a variable, '
                            'though a cosmoresults is passed. This cosmoresults will be ignored.')
             variables = arange(self.N_fluidvars)
-            N_vars = len(variables)
         else:
             # Realize one or more variables
-            variables = any2iter(variables)
+            variables = any2list(variables)
             N_vars = len(variables)
             if N_vars > 1:
                 # Realize multiple variables
@@ -979,8 +1114,8 @@ class Component:
                 if cosmoresults is not None:
                     abort(f'The realize method was called with {N_vars} variables '
                           'while cosmoresults was supplied as well')
-        # Get transfer functions and cosmoresults from CLASS,
-        # if not passed as arguments.
+        # Prepare arguments to compute_transfer,
+        # if no transfer_spline is passed.
         if transfer_spline is None:
             k_min = 2*π/boxsize
             k_max = 2*π/boxsize*sqrt(3*(gridsize//2)**2)
@@ -988,33 +1123,39 @@ class Component:
             # number of Fourier modes per decade.
             n_decades = log10(k_max/k_min)
             k_gridsize = int(round(modes_per_decade*n_decades))
-            # Get transfer functions
-            transfer_splines, cosmoresults = compute_transfers(self,
-                                                               variables,
-                                                               k_min, k_max, k_gridsize,
-                                                               )
-        else:
-            transfer_splines = [transfer_spline]
         # Realize each of the variables in turn
-        for i in range(N_vars):
-            realize(self, variables[i], transfer_splines[i], cosmoresults, specific_multi_index, a)
+        for variable in variables:
+            # Get transfer function if not passed
+            if transfer_spline is None:
+                transfer_spline, cosmoresults = compute_transfer(self,
+                                                                 variable,
+                                                                 k_min, k_max, k_gridsize,
+                                                                 specific_multi_index,
+                                                                 a,
+                                                                 gauge,
+                                                                 )
+            # Do the realization
+            realize(self, variable, transfer_spline, cosmoresults,
+                    specific_multi_index, a, transform)
+            # Particles use the Zeldovich approximation for realization,
+            # which realizes both positions and momenta. Thus for
+            # particles, a single realization is all that is neeed.
+            # Importantly, the passed transfer function must be that
+            # of δ, retrieved from compute_transfer using e.g. 'pos' as
+            # the passed variables argument. The value of the variable
+            # argument to the realize function does not matter in the
+            # case of a particle component.
             if self.representation == 'particles':
-                # Particles use the Zeldovich approximation for
-                # realization, which realizes both positions and
-                # momenta. Thus for particles, a single realization is
-                # all that is neeed. Importantly, the passed transfer
-                # function must be that of δ, retrieved from
-                # compute_transfers using e.g. 'pos' as the passed
-                # variables argument. The value of the variable argument
-                # to the realize function does not matter in the case of
-                # a particle component.
                 break
+            # Reset transfer_spline to None so that a transfer function
+            # will be computed for the next variable.
+            transfer_spline = None
 
     # Method for integrating particle positions/fluid values
     # forward in time.
     # For fluid components, source terms are not included.
     @cython.header(# Arguments
-                   ᔑdt='dict',
+                   ᔑdt=dict,
                    # Locals
                    i='Py_ssize_t',
                    momx='double*',
@@ -1035,9 +1176,9 @@ class Component:
             momz = self.momz
             # Update positions
             for i in range(self.N_local):
-                posx[i] += momx[i]*ℝ[ᔑdt['a⁻²']/self.mass]
-                posy[i] += momy[i]*ℝ[ᔑdt['a⁻²']/self.mass]
-                posz[i] += momz[i]*ℝ[ᔑdt['a⁻²']/self.mass]
+                posx[i] += momx[i]*ℝ[ᔑdt['a**(-2)']/self.mass]
+                posy[i] += momy[i]*ℝ[ᔑdt['a**(-2)']/self.mass]
+                posz[i] += momz[i]*ℝ[ᔑdt['a**(-2)']/self.mass]
                 # Toroidal boundaries
                 posx[i] = mod(posx[i], boxsize)
                 posy[i] = mod(posy[i], boxsize)
@@ -1056,20 +1197,43 @@ class Component:
     # due to "internal" source terms, meaning source terms that do not
     # result from interactions with other components.
     @cython.header(# Arguments
-                   ᔑdt='dict',
+                   ᔑdt=dict,
                    )
     def apply_internal_sources(self, ᔑdt):
         if self.representation == 'particles':
             return
+        # Before the source terms may be applied,
+        # the 𝒫 variable must be updated.
+        self.realize_𝒫()
+        # Apply internal source terms
         masterprint('Evolving fluid variables (source terms) of {} ...'.format(self.name))
         apply_internal_sources(self, ᔑdt)
         masterprint('done')
 
+    # Method for realizing 𝒫
+    @cython.header(# Locals
+                   i='Py_ssize_t',
+                   ϱ_ptr='double*',
+                   𝒫_ptr='double*',
+                   )
+    def realize_𝒫(self):
+        if self.representation == 'particles':
+            return
+        if self.approximations['P=wρ']:
+            # Set 𝒫 equal to the current ϱ times the current c²w
+            ϱ_ptr = self.ϱ.grid
+            𝒫_ptr = self.𝒫.grid
+            for i in range(self.size):
+                𝒫_ptr[i] = ϱ_ptr[i]*ℝ[light_speed**2*self.w()]
+        else:
+            # Do not approximate the pressure
+            self.realize(2, None, specific_multi_index='trace')
+        
     # Method for computing the equation of state parameter w
     # at a certain time t or value of the scale factor a.
-    # This has to be a pure Python function, othewise it cannot
+    # This has to be a pure Python function, otherwise it cannot
     # be called as w(a=a).
-    def w(self, t=-1, a=-1):
+    def w(self, *, t=-1, a=-1):
         """This method should not be called before w has been
         initialized by the initialize_w method.
         """
@@ -1078,7 +1242,7 @@ class Component:
         if t == -1 == a:
             t = universals.t
             a = universals.a
-        # Compute the current w dependent on its type
+        # Compute w dependent on its type
         if self.w_type == 'constant':
             value = self.w_constant
         elif self.w_type == 'tabulated (t)':
@@ -1113,18 +1277,43 @@ class Component:
                       )
         return value
 
+    # Method for computing the effective equation of state parameter
+    # w_eff at a certain time t or value of the scale factor a.
+    # This has to be a pure Python function,
+    # otherwise it cannot be called as w(a=a).
+    def w_eff(self, *, t=-1, a=-1):
+        """This method should not be called before w_eff has been
+        initialized by the initialize_w_eff method.
+        """
+        # For constant w, w_eff = w
+        if self.w_type == 'constant':
+            return self.w(t=t, a=a)
+        # If no time or scale factor value is passed,
+        # use the current time and scale factor value.
+        if t == -1 == a:
+            t = universals.t
+            a = universals.a
+        # Compute w_eff
+        if a == -1:
+            a = scale_factor(t)
+        value = self.w_eff_spline.eval(a)
+        # It may happen that w_eff becomes slightly negative due to
+        # the spline. Prevent this.
+        if value < 0:
+            if value > -1e+6*machine_ϵ:
+                value = 0
+            else:
+                abort('Got w_eff(t = {}, a = {}) = {}. Negative w_eff is not implemented.'
+                      .format(t, a, value)
+                      )
+        return value
+
     # Method for computing the proper time derivative
     # of the equation of state parameter w
     # at a certain time t or value of the scale factor a.
-    @cython.pheader(# Arguments
-                    t='double',
-                    a='double',
-                    # Locals
-                    w_after='double',
-                    w_before='double',
-                    Δx='double',
-                    returns='double',
-                    )
+    # This has to be a pure Python function,
+    # otherwise it cannot be called as w(a=a).
+    @functools.lru_cache()
     def ẇ(self, t=-1, a=-1):
         """This method should not be called before w has been
         initialized by the initialize_w method.
@@ -1140,8 +1329,8 @@ class Component:
         if self.w_type == 'tabulated (t)':
             return self.w_spline.eval_deriv(t)
         if self.w_type == 'tabulated (a)':
-            # The chain rule: dw/dt = dw/da * da/dt
-            return self.w_spline.eval_deriv(a)*ȧ(t, a)
+            # The chain rule: dw/dt = da/dt*dw/da
+            return ȧ(a)*self.w_spline.eval_deriv(a)
         if self.w_type == 'expression':
             # Approximate the derivative via symmetric difference
             Δx = 1e+6*machine_ϵ
@@ -1157,46 +1346,45 @@ class Component:
         abort('Did not recognize w type "{}"'.format(self.w_type))
 
     # Method which initializes the equation of state parameter w.
-    # Call this before calling the w method.
+    # Call this before calling the w and ẇ methods.
     @cython.header(# Arguments
-                   w='object',  # NoneType, float-like, str or dict
+                   w=object,  # float-like, str or dict
                    # Locals
-                   delim_left='str',
-                   delim_right='str',
+                   delim_left=str,
+                   delim_right=str,
                    done_reading_w='bint',
                    i='int',
                    i_tabulated='double[:]',
-                   key='str',
-                   line='str',
-                   pattern='str',
+                   key=str,
+                   line=str,
+                   pattern=str,
                    spline='Spline',
                    unit='double',
                    w_data='double[:, :]',
                    w_tabulated='double[:]',
                    returns='Spline',
                    )
-    def initialize_w(self, w=None):
+    def initialize_w(self, w):
         """The w argument can be one of the following (Python) types:
-        - NoneType  : Assign a constant w depending on the species
-                      of the component.
-                      The w will be stored in self.w_constant and
-                      self.w_type will be set to 'constant'.
         - float-like: Designates a constant w.
                       The w will be stored in self.w_constant and
                       self.w_type will be set to 'constant'.
         - str       : If w is given as a str, it can mean any of
-                      three things:
+                      four things:
                       - w may be the word 'CLASS'.
+                      - w may be the word 'default'.
                       - w may be a filename.
                       - w may be some analytical expression.
                       If w == 'CLASS', CLASS should be used to compute
-                      w throughout time. The value of species_class
+                      w throughout time. The value of class_species
                       will be used to pick out w(a) for the correct
                       species. The result from CLASS are tabulated
                       w(a), where the a values will be stored as
                       self.w_tabulated[0, :], while the tabulated values
                       of w will be stored as self.w_tabulated[1, :].
                       The self.w_type will be set to 'tabulated (a)'.
+                      If w == 'default', a constant w will be assigned
+                      based on default_w and the species.
                       If w is a filename, the file should contain
                       tabulated values of w and either t or a. The file
                       must be in a format understood by numpy.loadtxt,
@@ -1211,7 +1399,7 @@ class Component:
                       In addition, the two columns may be specified in
                       the reverse order, parentheses and brackets may be
                       replaced with any of (), [], {}, <> and the number
-                      of spaces/tabs does not matter.
+                      of spaces/tabs do not matter.
                       The tabulated values for t or a will be stored as
                       self.w_tabulated as described above when using
                       CLASS, though self.w_type will be set to
@@ -1230,52 +1418,45 @@ class Component:
                       self.w_tabulated[0, :], the tabulated values for w
                       as self.w_tabulated[1, :] and self.w_type will be
                       set to 'tabulated (t)' or 'tabulated (a)'.
-        If the user parameter w_eos contains the species, whatever is
-        specified as the value there is used instead of the passed w.
         """
-        # If the species has been given a w in the user
-        # parameter w_eos, this will overwrite the passed w.
-        if w is not None and self.species in w_eos:
-            masterprint('Overwriting w = {} for the "{}" component with w = {}.'
-                        .format(w, self.name, w_eos[self.species])
-                        )
-        w = w_eos.get(self.species, w)
         # Initialize w dependent on its type
         try:
             w = float(w)
         except:
             ...
-        if w is None:
-            # Assign w constant value based on the species
-            self.w_type = 'constant'
-            if self.species in default_w:
-                self.w_constant = default_w[self.species]
-            elif self.representation == 'particles':
-                # The equation of state parameter w should be 0
-                # for any particle component.
-                self.w_constant = 0
-            else:
-                abort('No default w is defined for the "{}" species'.format(self.species))
-        elif isinstance(w, float):
+        if isinstance(w, float):
             # Assign passed constant w
             self.w_type = 'constant'
             self.w_constant = w
         elif isinstance(w, str) and w.lower() == 'class':
-            # Get w as P/ρ from CLASS
+            # Get w as P_bar/ρ_bar from CLASS
+            if not enable_class_background:
+                abort(
+                    f'Attempted to call CLASS to get the equation of state parameter w for the '
+                    f'"{self.name}" component of CLASS species "{self.class_species}", '
+                    f'but enable_class_background is False.'
+                )
             self.w_type = 'tabulated (a)'
             cosmoresults = compute_cosmo()
-            # The CLASS results are only available to the master
-            # process. Let it alone do the final computation.
-            if master:
-                background = cosmoresults.background
-                i_tabulated = 1/(background['z'] + 1)
-                # Cold dark matter and baryons have no pressure,
-                # and CLASS does not give this as a result.
-                if self.species_class in ('cdm', 'b', 'cdm+b'):
-                    w_tabulated = zeros(i_tabulated.shape[0], dtype=C2np['double'])
-                else:
-                    w_tabulated = ( background[f'(.)p_{self.species_class}']
-                                   /background[f'(.)rho_{self.species_class}'])
+            background = cosmoresults.background
+            i_tabulated = background['a']
+            # Cold dark matter and baryons have no pressure,
+            # and CLASS does not give this as a result.
+            if self.class_species in ('cdm', 'b', 'cdm+b'):
+                w_tabulated = zeros(i_tabulated.shape[0], dtype=C2np['double'])
+            else:
+                w_tabulated = (
+                     background[f'(.)p_{self.class_species}']
+                    /background[f'(.)rho_{self.class_species}']
+                )
+        elif isinstance(w, str) and w.lower() == 'default':
+            # Assign w a constant value based on the species
+            self.w_type = 'constant'
+            self.w_constant = is_selected(self, default_w)
+            try:
+                self.w_constant = float(self.w_constant)
+            except:
+                abort(f'No default, constant w is defined for the "{self.species}" species')
         elif isinstance(w, str) and os.path.isfile(w):
             # Load tabulated w from file.
             self.w_type = 'tabulated (?)'
@@ -1377,18 +1558,81 @@ class Component:
             # Construct a Spline object from the tabulated data
             self.w_spline = Spline(self.w_tabulated[0, :], self.w_tabulated[1, :])
 
+    # Method which initializes the effective
+    # equation of state parameter w_eff.
+    # Call this before calling the w_eff method,
+    # but after calling the initialize_w method.
+    @cython.header(# Locals
+                   a='double',
+                   a_min='double',
+                   a_tabulated='double[::1]',
+                   integrand_spline='Spline',
+                   integrand_tabulated='double[::1]',
+                   n_points='Py_ssize_t',
+                   t='double',
+                   t_tabulated='double[::1]',
+                   w='double',
+                   w_tabulated='double[::1]',
+                   w_eff_tabulated_list=list,
+                   )
+    def initialize_w_eff(self):
+        """This method initializes the effective equation of state
+        parameter w_eff by defining the w_eff_spline attribute,
+        which is used by the w_eff method to get w_eff(a).
+        Only future times compared to universals.a will be included.
+        The definition of w_eff is
+        w_eff(a) = 1/log(a)∫₁ᵃ(w/a)da.
+        """
+        # For constant w, w_eff = w and so we do not need to do anything
+        if self.w_type == 'constant':
+            return
+        masterprint(f'Tabulating effective equation of state parameter for {self.name} ...')
+        # Construct tabulated arrays of matching scale factor and w.
+        # If w is already tabulated at certain values, reuse these.
+        if self.w_type == 'tabulated (a)':
+            a_tabulated = self.w_tabulated[0, :]
+            a_min = a_tabulated[0]
+            w_tabulated = self.w_tabulated[1, :]
+        elif self.w_type == 'tabulated (t)':
+            t_tabulated = self.w_tabulated[0, :]
+            a_tabulated = asarray([scale_factor(t) for t in t_tabulated])
+            a_min = a_tabulated[0]
+            w_tabulated = self.w_tabulated[1, :]
+        else:
+            a_min = universals.a
+            n_points = 1000
+            a_tabulated = logspace(log10(a_min), log10(1), n_points)
+            w_tabulated = asarray([self.w(a=a) for a in a_tabulated])
+        # Tabulate the integrand w/a
+        integrand_tabulated = asarray([w/a for a, w in zip(a_tabulated, w_tabulated)])
+        # For each tabulated point, find w_eff by doing the integral.
+        # To do this we utilize the integrate method of the
+        # Spline class. This is somewhat wasteful as the same initial
+        # piece of the integral is computed over and over, but as this
+        # is only ever done once per component we do not need to worry.
+        # At a = 1 a division by 0 error occurs due to 1/log(a).
+        # Here, we use the analytic result w_eff(a=1) = w(1=a).
+        integrand_spline = Spline(a_tabulated, integrand_tabulated)
+        w_eff_tabulated_list = [integrand_spline.integrate(1, a)/log(a)
+                                for a in a_tabulated[:(a_tabulated.size - 1)]]
+        w_eff_tabulated_list.append(self.w(a=1))                     
+        w_eff_tabulated = asarray(w_eff_tabulated_list)
+        # Instantiate the w_eff spline object
+        self.w_eff_spline = Spline(a_tabulated, w_eff_tabulated)
+        masterprint('done')
+
     # Method which convert named fluid/particle
     # variable names to indices.
     @cython.header(# Arguments
-                   varnames='object',  # str, int or container of str's and ints 
+                   varnames=object,  # str, int or container of str's and ints 
                    single='bint',
                    # Locals
                    N_vars='Py_ssize_t',
                    i='Py_ssize_t',
                    indices='Py_ssize_t[::1]',
-                   varname='object', # str or int
-                   varnames_list='list',
-                   returns='object',  # Py_ssize_t[::1] or Py_ssize_t
+                   varname=object, # str or int
+                   varnames_list=list,
+                   returns=object,  # Py_ssize_t[::1] or Py_ssize_t
                    )
     def varnames2indices(self, varnames, single=False):
         """This method conveniently transform any reasonable input
@@ -1405,7 +1649,7 @@ class Component:
             indices = asarray([self.fluid_names[varnames]], dtype=C2np['Py_ssize_t'])
         else:
             # One or more variable names/indices given
-            varnames_list = any2iter(varnames)
+            varnames_list = any2list(varnames)
             indices = empty(len(varnames_list), dtype=C2np['Py_ssize_t'])
             for i, varname in enumerate(varnames_list):
                 indices[i] = self.fluid_names[varname]
@@ -1432,15 +1676,45 @@ class Component:
 
     # Generator for looping over all
     # scalar fluid grids within the component.
-    def iterate_fluidscalars(self, include_disguised_scalar=True):
+    def iterate_fluidscalars(self, include_disguised_scalar=True, include_additional_dofs=True):
         for i, fluidvar in enumerate(self.fluidvars):
             if include_disguised_scalar or i < self.N_fluidvars:
                 yield from fluidvar
+                if include_additional_dofs:
+                    for additional_dof in fluidvar.additional_dofs:
+                        fluidscalar = fluidvar[additional_dof]
+                        if fluidscalar is not None:
+                            yield fluidscalar
+
+    # Generator for looping over all
+    # scalar fluid grids within the component.
+    def iterate_nonlinear_fluidscalars(self):
+        for i, fluidvar in enumerate(self.fluidvars):
+            # Skip linear fluidvars
+            if i == self.N_fluidvars - 1:
+                # At last non-linear fluidvar.
+                if i == 2:
+                    # The last non-linear fluidvar is σ (and 𝒫).
+                    # Since the non-linear evolution equations for
+                    # σ (and 𝒫) have not yet been implemented,
+                    # these really count as linear variables.
+                    continue
+            elif i > self.N_fluidvars - 1:
+                # At linear fluidvars
+                continue
+            # At non-linear fluidvar
+            yield from fluidvar
+            # Also yield the additional degrees of freedom
+            # (e.g. 𝒫 for i == 2 (σ)).
+            for additional_dof in fluidvar.additional_dofs:
+                fluidscalar = fluidvar[additional_dof]
+                if fluidscalar is not None:
+                    yield fluidscalar
 
     # Method for communicating pseudo and ghost points
     # of all fluid variables.
     @cython.header(# Arguments
-                   mode='str',
+                   mode=str,
                    # Locals
                    fluidscalar='FluidScalar',
                    )
@@ -1453,7 +1727,7 @@ class Component:
     # Method for communicating pseudo and ghost points
     # of all starred fluid variables.
     @cython.header(# Arguments
-                   mode='str',
+                   mode=str,
                    # Locals
                    fluidscalar='FluidScalar',
                    )
@@ -1463,10 +1737,38 @@ class Component:
         for fluidscalar in self.iterate_fluidscalars():
             communicate_domain(fluidscalar.gridˣ_mv, mode=mode)
 
+
+
+    # Method for communicating pseudo and ghost points
+    # of all non-linear fluid variables.
+    @cython.header(# Arguments
+                   mode=str,
+                   # Locals
+                   fluidscalar='FluidScalar',
+                   )
+    def communicate_nonlinear_fluid_grids(self, mode=''):
+        if self.representation != 'fluid':
+            return
+        for fluidscalar in self.iterate_nonlinear_fluidscalars():
+            communicate_domain(fluidscalar.grid_mv, mode=mode)
+
+    # Method for communicating pseudo and ghost points
+    # of all starred non-linear fluid variables.
+    @cython.header(# Arguments
+                   mode=str,
+                   # Locals
+                   fluidscalar='FluidScalar',
+                   )
+    def communicate_nonlinear_fluid_gridsˣ(self, mode=''):
+        if self.representation != 'fluid':
+            return
+        for fluidscalar in self.iterate_nonlinear_fluidscalars():
+            communicate_domain(fluidscalar.gridˣ_mv, mode=mode)
+
     # Method for communicating pseudo and ghost points
     # of all fluid Δ buffers.
     @cython.header(# Arguments
-                   mode='str',
+                   mode=str,
                    # Locals
                    fluidscalar='FluidScalar',
                    )
@@ -1476,7 +1778,7 @@ class Component:
         for fluidscalar in self.iterate_fluidscalars():
             communicate_domain(fluidscalar.Δ_mv, mode=mode)
 
-    # Method which calls the scale_grid on all fluid scalars
+    # Method which calls scale_grid on all fluid scalars
     @cython.header(# Arguments
                    a='double',
                    # Locals
@@ -1486,6 +1788,18 @@ class Component:
         if self.representation != 'fluid':
             return
         for fluidscalar in self.iterate_fluidscalars():
+            fluidscalar.scale_grid(a)
+
+    # Method which calls scale_grid on all non-linear fluid scalars
+    @cython.header(# Arguments
+                   a='double',
+                   # Locals
+                   fluidscalar='FluidScalar',
+                   )
+    def scale_nonlinear_fluid_grid(self, a):
+        if self.representation != 'fluid':
+            return
+        for fluidscalar in self.iterate_nonlinear_fluidscalars():
             fluidscalar.scale_grid(a)
 
     # Method which calls the nullify_grid on all fluid scalars
@@ -1510,7 +1824,7 @@ class Component:
 
     # Method which calls the nullify_Δ on all fluid scalars
     @cython.header(# Arguments
-                   specifically='object',  # str og container of str's
+                   specifically=object,  # str og container of str's
                    # Locals
                    fluidscalar='FluidScalar',
                    )
@@ -1560,11 +1874,11 @@ class Component:
 
 # Function for getting the component representation based on the species
 @cython.header(# Arguments
-               species='str',
+               species=str,
                # Locals
-               key='tuple',
-               representation='str',
-               returns='str'
+               key=tuple,
+               representation=str,
+               returns=str
                )
 def get_representation(species):
     for key, representation in representation_of_species.items():
@@ -1575,51 +1889,61 @@ def get_representation(species):
 
 
 # Mapping from species to their representations
-cython.declare(representation_of_species='dict')
-representation_of_species = {('dark matter particles',
-                              'baryons',
-                              'matter particles',
-                              'neutrinos',
-                              ): 'particles',
-                             ('dark matter fluid',
-                              'baryon fluid',
-                              'matter fluid',
-                              'neutrino fluid',
-                              ): 'fluid',
-                             }
-# Mapping from particle species to default softening factors
-cython.declare(default_softeningfactors='dict')
-default_softeningfactors = {'dark matter particles': 0.03,
-                            'baryons'              : 0.03,
-                            'matter particles'     : 0.03,
-                            'neutrinos'            : 0.03,
-                            }
-# Mapping from species to default w values
-cython.declare(default_w='dict')
-default_w = {'dark matter particles': 0,
-             'dark matter fluid'    : 0,
-             'baryons'              : 0,
-             'baryon fluid'         : 0,
-             'matter particles'     : 0,
-             'matter fluid'         : 0,
-             'neutrinos'            : 1/3,
-             'neutrino fluid'       : 1/3,
-             }
+cython.declare(representation_of_species=dict)
+representation_of_species = {
+    ('dark matter particles',
+     'baryons',
+     'matter particles',
+     'neutrinos',
+     ): 'particles',
+    ('dark matter fluid',
+     'baryon fluid',
+     'matter fluid',
+     'neutrino fluid',
+     ): 'fluid',
+}
 # Mapping from species to default species names in CLASS
-cython.declare(default_species_class='dict')
-default_species_class = {'dark matter particles': 'cdm',
-                         'dark matter fluid'    : 'cdm',
-                         'baryons'              : 'b',
-                         'baryon fluid'         : 'b',
-                         'matter particles'     : 'cdm+b',
-                         'matter fluid'         : 'cdm+b',
-                         'neutrinos'            : 'ncdm[0]',
-                         'neutrino fluid'       : 'ncdm[0]',
-                         }
+cython.declare(default_class_species=dict)
+default_class_species = {
+    'dark matter particles': 'cdm',
+    'dark matter fluid'    : 'cdm',
+    'baryons'              : 'b',
+    'baryon fluid'         : 'b',
+    'matter particles'     : 'cdm+b',
+    'matter fluid'         : 'cdm+b',
+    'neutrinos'            : 'ncdm[0]',
+    'neutrino fluid'       : 'ncdm[0]',
+}
+# Mapping from species and representations to default w values
+cython.declare(default_w=dict)
+default_w = {
+    'dark matter particles': 0,
+    'dark matter fluid'    : 0,
+    'baryons'              : 0,
+    'baryon fluid'         : 0,
+    'matter particles'     : 0,
+    'matter fluid'         : 0,
+    'neutrinos'            : 1/3,
+    'neutrino fluid'       : 1/3,
+    'particles'            : 0,
+    'fluid'                : None,
+}
+# Set of all approximations implemented on Component objects
+cython.declare(approximations_implemented=set)
+approximations_implemented = {
+    unicode('P=wρ'),
+}
 # Set of all component names used internally by the code,
 # and which the user should generally avoid.
-cython.declare(internally_defined_names='set')
-internally_defined_names = {'buffer', 'total'}
+cython.declare(internally_defined_names=set)
+internally_defined_names = {'all', 'all combinations', 'buffer', 'default', 'total'}
 # Names of all implemented fluid variables in order
-cython.declare(fluidvar_names='tuple')
-fluidvar_names = ('ϱ', 'J', 'σ', 'fluidvar 3')
+cython.declare(fluidvar_names=tuple)
+fluidvar_names = ('ϱ', 'J', 'σ')
+# Flag specifying whether a warning should be given if multiple
+# components with the same name are instantiated, and a set of names of
+# all instantiated componenets.
+cython.declare(allow_similarly_named_components='bint', component_names=set)
+allow_similarly_named_components = False
+component_names = set()
+

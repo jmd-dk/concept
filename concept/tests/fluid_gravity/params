@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,14 +27,15 @@ _this_dir = os.path.dirname(paths['params'])
 initial_conditions = _this_dir + '/IC.hdf5'
 output_dirs        = {'snapshot': _this_dir + '/output'}
 output_bases       = {'snapshot': 'snapshot'}
-output_times       = {'a': {'terminal render': logspace(log(0.02), log(0.055), 26, base=e),
-                            'snapshot':        logspace(log(0.02), log(0.055),  3, base=e),
+output_times       = {'a': {'snapshot': logspace(log(0.02), log(0.055),  3, base=e),
+                            'render2D': logspace(log(0.02), log(0.055), 26, base=e),
                             },
                       }
+render2D_select    = {'all': {'terminal image': True}}
 
 # Numerical parameters
 boxsize    = 64*Mpc
-φ_gridsize = 4*8    # Must be a multiple of 4
+φ_gridsize = 4*8  # Must be a multiple of 4
 
 # Cosmological parameters
 H0      = 70*km/(s*Mpc)
@@ -43,11 +44,16 @@ H0      = 70*km/(s*Mpc)
 a_begin = 0.02
 
 # Physics
-forces = {'all': {'gravity': 'pm'}}
+select_forces         = {'all': {'gravity': 'pm'}}
+select_closure        = {'matter fluid': 'truncate'}
+select_approximations = {'matter fluid': {'P=wρ': True}}
 
 # Graphics
-terminal_render_colormap   = 'ocean'
-terminal_render_resolution = φ_gridsize
+render2D_options = {
+    'terminal resolution': φ_gridsize,
+    'colormap': 'inferno',
+    'enhance': False,
+}
 
 # Debugging options
 enable_Hubble = True

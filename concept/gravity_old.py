@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -32,6 +32,9 @@ cimport('from communication import domain_start_x, domain_start_y, domain_start_
 cimport('from mesh import CIC_components2φ, CIC_grid2grid, CIC_scalargrid2coordinates')
 cimport('from mesh import fft, domain_decompose, slab_decompose')
 
+# Function pointer types used in this module
+pxd('ctypedef bint (*func_b_ddd)(double, double, double)')
+
 
 
 # Function for direct summation of gravitational forces between
@@ -53,7 +56,7 @@ cimport('from mesh import fft, domain_decompose, slab_decompose')
                Δmomz_j='double*',
                mass_j='double',
                N_local_j='Py_ssize_t',
-               ᔑdt='dict',
+               ᔑdt=dict,
                softening2='double',
                only_short_range='bint',
                flag_input='int',
@@ -103,7 +106,7 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
     # p_i --> p_i + ∫_t^(t + Δt) F/a*dt = p_i + m_i*F*∫_t^(t + Δt) dt/a
     #       = p_i + (-G*m_i*m_j/r**2)*∫_t^(t + Δt) dt/a
     #       = p_i - 1/r**2*(G*m_i*m_j*∫_t^(t + Δt) dt/a)
-    eom_factor = G_Newton*mass_i*mass_j*ᔑdt['a⁻¹']
+    eom_factor = G_Newton*mass_i*mass_j*ᔑdt['a**(-1)']
     # Direct summation over all pairs of particles (i, j).
     # If both i and j are on the same process (flag_input == 0),
     # i should run from 0 to the second last particle index,
@@ -217,7 +220,7 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
 # (the particle-particle or PP method).
 @cython.pheader(# Arguments
                 component='Component',
-                ᔑdt='dict',
+                ᔑdt=dict,
                 # Locals
                 ID_recv='int',
                 ID_send='int',
@@ -265,7 +268,7 @@ def pp(component, ᔑdt):
     posx_local_mv = component.posx_mv
     posy_local_mv = component.posy_mv
     posz_local_mv = component.posz_mv
-    softening2    = component.softening**2
+    softening2    = component.softening_length**2
     # Update local momenta due to forces between local particles.
     # Note that "vector" is not actually used due to flag_input=0.
     direct_summation(posx_local, posy_local, posz_local,
@@ -371,7 +374,7 @@ def pp(component, ᔑdt):
 # by the particle mesh (PM) method.
 @cython.header(# Arguments
                component='Component',
-               ᔑdt='dict',
+               ᔑdt=dict,
                gradφ_dim='double[:, :, ::1]',
                dim='int',
                # Locals
@@ -430,7 +433,7 @@ def pm(component, ᔑdt, gradφ_dim, dim):
         # dependent, we should then really exchange a⁻³ʷ*Δt for ᔑa⁻³ʷdt.
         CIC_grid2grid(J_dim.grid_noghosts,
                       gradφ_dim,
-                      fac=pm_fac_const*ᔑdt['a⁻³ʷ', component],
+                      fac=pm_fac_const*ᔑdt['a**(-3*w)', component],
                       fac_grid=component.ϱ.grid_noghosts,
                       )
         # Communicate the pseudo and ghost points of J_dim
@@ -439,12 +442,12 @@ def pm(component, ᔑdt, gradφ_dim, dim):
 # Function which constructs the total gravitational potential φ due
 # to all components.
 @cython.header(# Arguments
-               components='list',
-               ᔑdt='dict',
+               components=list,
+               ᔑdt=dict,
                only_long_range='bint',
                # Locals
                Greens_deconv='double',
-               factors='list',
+               factors=list,
                i='Py_ssize_t',
                j='Py_ssize_t',
                j_global='Py_ssize_t',
@@ -467,7 +470,7 @@ def build_φ(components, ᔑdt, only_long_range=False):
     all components given in the components argument.
     Pseudo points and ghost layers will be communicated.
     The Poisson equation which is solved by this function is
-    ∇²φ = 4πG Σᵢ(1/Δt*∫_t^(t + Δt)a⁻³ʷ⁻¹dt ϱᵢ),
+    ∇²φ = 4πG Σᵢ(1/Δt*∫_t^(t + Δt)a**(-3*w_eff - 1)dt ϱᵢ),
     where the sum is over all species. For a single w = 0 component
     this reduces to
     ∇²φ = 4πG 1/Δt*∫_t^(t + Δt) a⁻¹dt ϱ,
@@ -483,22 +486,23 @@ def build_φ(components, ᔑdt, only_long_range=False):
         masterprint('Computing the gravitational potential ...')
     # Pull out the needed integrals for each component
     Δt = ᔑdt['1']
-    factors = [ℝ[1/Δt]*ᔑdt['a⁻³ʷ⁻¹', component] for component in components]
+    factors = [ℝ[1/Δt]*ᔑdt['a**(-3*w-1)', component] for component in components]
     
 
     # CIC interpolate the particles/fluid elements onto the slabs
-    cython.declare(quanities='list')
+    cython.declare(quanities=list)
     φ_Vcell = (boxsize/φ_gridsize)**3
     quanities = [# Particle components
-                 ('particles', [ℝ[ᔑdt['a⁻¹']/(Δt*φ_Vcell)]*component.mass
+                 ('particles', [ℝ[ᔑdt['a**(-1)']/(Δt*φ_Vcell)]*component.mass
                                 for component in components]),
                  # Fluid components
-                 ('ϱ', [ᔑdt['a⁻³ʷ⁻¹', component]*ℝ[1/Δt]
+                 ('ϱ', [ᔑdt['a**(-3*w-1)', component]*ℝ[1/Δt]
                         for component in components]),
                  ]
     cython.declare(φ='double[:, :, ::1]', slab='double[:, :, ::1]')
     φ = CIC_components2φ(components, quanities)
     slab = slab_decompose(φ, prepare_fft=True)
+
 
     # Do forward Fourier transform on the slabs
     # containing the density field.
@@ -802,7 +806,7 @@ def in_boundary_leftbackwarddown(posx_local_i, posy_local_i, posz_local_i):
 # by the particle-particle-particle mesh (P³M) method.
 @cython.pheader(# Arguments
                component='Component',
-               ᔑdt='dict',
+               ᔑdt=dict,
                # Locals
                N_extrn='Py_ssize_t',
                N_local='Py_ssize_t',
@@ -811,8 +815,8 @@ def in_boundary_leftbackwarddown(posx_local_i, posy_local_i, posz_local_i):
                dim='int',
                h='double',
                i='Py_ssize_t',
-               in_boundary1='func_b_ddd',
-               in_boundary2='func_b_ddd',
+               in_boundary1=func_b_ddd,
+               in_boundary2=func_b_ddd,
                j='Py_ssize_t',
                mass='double',
                momx_local='double*',
@@ -915,7 +919,7 @@ def p3m(component, ᔑdt):
     posx_local = component.posx
     posy_local = component.posy
     posz_local = component.posz
-    softening2 = component.softening**2
+    softening2 = component.softening_length**2
     # Compute the short-range interactions within the local domain.
     # Note that "vector" is not actually used due to flag_input=0.
     direct_summation(posx_local, posy_local, posz_local,
@@ -1104,7 +1108,7 @@ cython.declare(boundary_ranks_recv='int[::1]',
                indices_boundary_mv='Py_ssize_t[::1]',
                indices_send='Py_ssize_t*',
                indices_send_mv='Py_ssize_t[::1]',
-               neighbors='dict',
+               neighbors=dict,
                posx_extrn='double*',
                posx_extrn_mv='double[::1]',
                posx_local_boundary='double*',
@@ -1245,9 +1249,3 @@ boundary_y_max = domain_start_y + domain_size_y - p3m_cutoff_phys
 boundary_y_min = domain_start_y + p3m_cutoff_phys
 boundary_z_max = domain_start_z + domain_size_z - p3m_cutoff_phys
 boundary_z_min = domain_start_z + p3m_cutoff_phys
-
-# Function pointer types used in this module
-pxd = """
-ctypedef bint    (*func_b_ddd)    (double, double, double)
-ctypedef double* (*func_dstar_ddd)(double, double, double)
-"""

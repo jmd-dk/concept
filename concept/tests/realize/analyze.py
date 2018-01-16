@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -34,7 +34,7 @@ powerspecs_all = {'particles': {}, 'fluid': {}}
 for kind in ('particles', 'fluid'):
     for fname in sorted(glob('{}/output_{}/powerspec*'.format(this_dir, kind))):
         n = int(re.search('nprocs=(.*)_a=', fname).group(1))
-        k, power, _ = np.loadtxt(fname, unpack=True)
+        k, modes, power = np.loadtxt(fname, unpack=True)
         powerspecs_all[kind][n] = (k, power)
 k_values = k
 n_values = list(powerspecs_all['particles'].keys())
@@ -64,7 +64,7 @@ cosmo.compute()
 power_class = asarray([cosmo.pk(k/units.Mpc**(-1), z) for k in k_values])*units.Mpc**3
 plt.loglog(k_values, power_class, 'k', linewidth=2, label='CLASS')
 plt.xlabel(r'$k$ $\mathrm{{[{}]}}^{{-1}}$'.format(unit_length))
-plt.ylabel(r'matter power $\mathrm{{[{}]}}^3$'.format(unit_length))
+plt.ylabel(r'matter power $\mathrm{{[{}^3]}}$'.format(unit_length))
 plt.legend(loc='best').get_frame().set_alpha(0.7)
 plt.tight_layout()
 plt.savefig(fig_file)
@@ -76,9 +76,10 @@ plt.savefig(fig_file)
 # CIC deconvolution.
 k_min = min(k_values)
 k_max = max(k_values)
-masks = {'particles': np.logical_and(k_values > k_min + 0.1*(k_max  - k_min),
-                                     k_values < k_max - 0.7*(k_max  - k_min)),
-         'fluid': k_values > k_min + 0.1*(k_max  - k_min),
+masks = {'particles': np.logical_and(k_values > k_min + 0.05*(k_max  - k_min),
+                                     k_values < k_max - 0.8*(k_max  - k_min)),
+         'fluid': np.logical_and(k_values > k_min + 0.05*(k_max  - k_min),
+                                 k_values < k_max - 0.05*(k_max  - k_min)),
          }
 k_values_trimmed = {'particles': k_values[masks['particles']],
                     'fluid'    : k_values[masks['fluid'    ]],
@@ -86,19 +87,20 @@ k_values_trimmed = {'particles': k_values[masks['particles']],
 power_class_trimmed = {'particles': power_class[masks['particles']],
                        'fluid'    : power_class[masks['fluid'    ]],
                        }
-rel_tol = {'particles': 0.05, 'fluid': 0.01}
+rel_tol = {'particles': 0.04, 'fluid': 0.02}
 for kind in ('particles', 'fluid'):
     for n in n_values:
         k, power = powerspecs_all[kind][n]
-        order = 15
-        power_smoothed = np.polyval(np.polyfit(k_values, power, order),
-                                    k_values_trimmed[kind])
-        if mean(np.abs(power_smoothed - power_class_trimmed[kind])
-               /power_class_trimmed[kind]) > rel_tol[kind]:
-               abort(f'Power spectrum of realized matter {kind} with {n} processes disagree '
-                     'with that of CLASS.\n'
-                     f'See "{fig_file}" for a visualization.'
-                     )
+        power_trimmed = power[masks[kind]]
+        rel_realisation_noise = mean(
+            abs((power_trimmed - power_class_trimmed[kind])/power_class_trimmed[kind])
+        )
+        if rel_realisation_noise > rel_tol[kind]:
+            abort(
+                f'Power spectrum of realized matter {kind} with {n} processes '
+                f'disagree with that of CLASS.\n'
+                f'See "{fig_file}" for a visualization.'
+            )
 
 # Done analyzing
 masterprint('done')

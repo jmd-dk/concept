@@ -15,6 +15,8 @@ logs_dir='/home/jeppe/Documents/Uni/Phd/concept/concept/logs'
 output_dir='/home/jeppe/Documents/Uni/Phd/concept/concept/output'
 # Directory intended for parameter files
 params_dir='/home/jeppe/Documents/Uni/Phd/concept/concept/params'
+# Directory containing various reusable dumps
+reusables_dir='/home/jeppe/Documents/Uni/Phd/concept/concept/.reusables'
 # Directory containing tests
 tests_dir='/home/jeppe/Documents/Uni/Phd/concept/concept/tests'
 # Top level directory, containing e.g. README.md
@@ -25,7 +27,7 @@ utilities_dir='/home/jeppe/Documents/Uni/Phd/concept/concept/utilities'
 ##########################
 # Dependency directories #
 ##########################
-# Directory of class
+# Directory of CLASS
 class_dir='/home/jeppe/Documents/Uni/Phd/concept/class'
 # Directory of FFTW
 fftw_dir='/home/jeppe/Documents/Uni/Phd/concept/fftw'

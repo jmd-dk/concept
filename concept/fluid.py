@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -33,7 +33,7 @@ cimport('from mesh import diff_domain')
 # which does time evolution of a fluid component.
 @cython.header(# Arguments
                component='Component',
-               ᔑdt='dict',
+               ᔑdt=dict,
                # Locals
                attempt='int',
                i='Py_ssize_t',
@@ -42,10 +42,6 @@ cimport('from mesh import diff_domain')
                steps='Py_ssize_t[::1]',
                )
 def maccormack(component, ᔑdt):
-    # If only a single fluid variable (ϱ) exist,
-    # it only evolve through source terms.
-    if component.N_fluidvars == 1:
-        return
     # Maximum allowed number of attempts to correct for
     # negative densities, for the first and second MacCormack step.
     max_vacuum_corrections = asarray([1, component.gridsize], dtype=C2np['int'])
@@ -53,48 +49,73 @@ def maccormack(component, ᔑdt):
     steps = next(maccormack_steps)
     # The two MacCormack steps
     for mc_step in range(2):
-        # Evolve the fluid variables. If this leads to negative
-        # densities, attempts are made to correct this.
-        for attempt in range(max_vacuum_corrections[mc_step]):
-            # Evolve fluid variables. In the first MacCormack step,
-            # the variables are re-evolved at each attempt. In the
-            # second MacCormack step, the variables should only be
-            # evolved once (vacuum correction may still take place
-            # multiple times).
-            if attempt == 0 or mc_step == 0:
-                # Compute starred variables from unstarred variables
-                # (first MacCormack step) or vice versa
-                # (second MacCormack step).
+        # !!! NEW ATTEMPT (only ever fix negative densities after
+        # second mc_step).
+        if False:
+            if mc_step == 0:
                 evolve_fluid(component, ᔑdt, steps, mc_step)
-            # Do vacuum corrections if toogled for this species.
-            # If not, check but du not correct for vacuum.
-            if 𝔹[vacuum_corrections.get('all') or vacuum_corrections.get(component.name)]:
-                # Nullify the Δ buffers, so that they are ready to
-                # be used by the following vacuum correction sweep.
-                component.nullify_Δ()
-                # Check and correct for density values heading dangerously
-                # fast towards negative values. If every density value
-                # is OK, accept this attempt at a MacCormack step as is.
-                if not correct_vacuum(component, mc_step):
-                    break
-            else:
-                check_vacuum(component, mc_step)
-                break
+            else:  # mc_step == 1
+                evolve_fluid(component, ᔑdt, steps, mc_step)
+                for attempt in range(max_vacuum_corrections[mc_step]):
+                    if 𝔹[is_selected(component, select_vacuum_corrections)]:
+                        component.nullify_Δ()
+                        if not correct_vacuum(component, mc_step):
+                            if attempt > 0:
+                                masterprint(f'Took {attempt} vacuum sweeps to fix negative densities')
+                            break
+                    else:
+                        check_vacuum(component, mc_step)
+                        break
+                else:
+                    abort('Giving up after {} failed attempts to remove negative densities in "{}"'
+                          .format(max_vacuum_corrections[mc_step], component.name))
+            for i in range(3):
+                steps[i] *= -1
         else:
-            # None of the attempted MacCormack steps were accepted.
-            # If this is the second MacCormack step, this means that
-            # we have been unable to correct for negative densities.
-            if mc_step == 1:
-                abort('Giving up after {} failed attempts to remove negative densities in "{}"'
-                      .format(max_vacuum_corrections[mc_step], component.name))
-        # Reverse step direction for the second MacCormack step
-        for i in range(3):
-            steps[i] *= -1
+            # !!! OLD WAY
+            # Evolve the fluid variables. If this leads to negative
+            # densities, attempts are made to correct this.
+            for attempt in range(max_vacuum_corrections[mc_step]):
+               # Evolve fluid variables. In the first MacCormack step,
+               # the variables are re-evolved at each attempt. In the
+               # second MacCormack step, the variables should only be
+               # evolved once (vacuum correction may still take place
+               # multiple times).
+               if attempt == 0 or mc_step == 0:
+                   # Compute starred variables from unstarred variables
+                   # (first MacCormack step) or vice versa
+                   # (second MacCormack step).
+                   evolve_fluid(component, ᔑdt, steps, mc_step)
+               # Do vacuum corrections if toogled for this species.
+               # If not, check but du not correct for vacuum.
+               if 𝔹[is_selected(component, select_vacuum_corrections)]:
+                   # Nullify the Δ buffers, so that they are ready to
+                   # be used by the following vacuum correction sweep.
+                   component.nullify_Δ()
+                   # Check and correct for density values heading
+                   # dangerously fast towards negative values. If every
+                   # density value is OK, accept this attempt at a
+                   # MacCormack step as is.
+                   if not correct_vacuum(component, mc_step):
+                       break
+               else:
+                   check_vacuum(component, mc_step)
+                   break
+            else:
+               # None of the attempted MacCormack steps were accepted.
+               # If this is the second MacCormack step, this means that
+               # we have been unable to correct for negative densities.
+               if mc_step == 1:
+                   abort('Giving up after {} failed attempts to remove negative densities in "{}"'
+                         .format(max_vacuum_corrections[mc_step], component.name))
+            # Reverse step direction for the second MacCormack step
+            for i in range(3):
+               steps[i] *= -1
     # The two MacCormack steps leave all values of all fluid variables
     # with double their actual values. All grid values thus need
     # to be halved. Note that no further communication is needed as we
     # also halve the pseudo and ghost points.
-    component.scale_fluid_grid(0.5)
+    component.scale_nonlinear_fluid_grid(0.5)
     # Nullify the starred grid buffers and the Δ buffers,
     # leaving these with no leftover junk.
     component.nullify_fluid_gridˣ()
@@ -116,7 +137,7 @@ maccormack_steps = generate_maccormack_steps()
 # disregarding all source terms.
 @cython.header(# Arguments
                component='Component',
-               ᔑdt='dict',
+               ᔑdt=dict,
                steps='Py_ssize_t[::1]',
                mc_step='int',
                # Locals
@@ -128,13 +149,12 @@ maccormack_steps = generate_maccormack_steps()
                fluidscalar='FluidScalar',
                grid='double*',
                gridˣ='double*',
-               h='double',
                indices_local_end='Py_ssize_t[::1]',
                indices_local_start='Py_ssize_t[::1]',
-               multi_index='tuple',
-               multi_index_list='list',
-               view='str',
-               viewˣ='str',
+               multi_index=tuple,
+               multi_index_list=list,
+               view=str,
+               viewˣ=str,
                Δ='double',
                i='Py_ssize_t',
                j='Py_ssize_t',
@@ -142,16 +162,23 @@ maccormack_steps = generate_maccormack_steps()
                step_i='Py_ssize_t',
                step_j='Py_ssize_t',
                step_k='Py_ssize_t',
+               Δx='double',
                σ_multi_index='double[:, :, ::1]',
                ϱ='double[:, :, ::1]',
                ϱˣ='double[:, :, ::1]',
+               𝒫='double[:, :, ::1]',
                )
 def evolve_fluid(component, ᔑdt, steps, mc_step):
     """It is assumed that the unstarred and starred grids have
     correctly populated pseudo and ghost points.
     """
+    if (   component.N_fluidvars == 0
+        or component.N_fluidvars == 1 and component.closure == 'truncate'
+        ):
+        finalize_maccormack_step(component, mc_step)
+        return
     # Comoving grid spacing
-    h = boxsize/component.gridsize
+    Δx = boxsize/component.gridsize
     # Arrays of start and end indices for the local part of the
     # fluid grids, meaning disregarding pseudo points and ghost points.
     # We have 2 ghost points in the beginning and 1 pseudo point and
@@ -163,7 +190,7 @@ def evolve_fluid(component, ᔑdt, steps, mc_step):
     # At the beginning of the second MacCormack step, the unstarred
     # variables should be updated by adding to them the values in the
     # starred buffers.
-    for fluidscalar in component.iterate_fluidscalars(include_disguised_scalar=False):
+    for fluidscalar in component.iterate_nonlinear_fluidscalars():
         grid  = fluidscalar.grid
         gridˣ = fluidscalar.gridˣ
         for i in range(component.size):
@@ -180,8 +207,7 @@ def evolve_fluid(component, ᔑdt, steps, mc_step):
     if mc_step == 1:
         view, viewˣ = viewˣ, view
     # The continuity equation (flux terms only).
-    # Δϱ = - ᔑa³ʷ⁻²(1 + w)dt ∇·J    (energy flux)
-    # The energy flux
+    # Δϱ = - ᔑa**(3*w_eff - 2)dt ∂ᵢJⁱ  (energy flux).
     ϱ  = getattr(component.ϱ, view )
     ϱˣ = getattr(component.ϱ, viewˣ)
     for (dim_div, ), J_div in component.J.iterate(view, multi_indices=True):
@@ -191,26 +217,22 @@ def evolve_fluid(component, ᔑdt, steps, mc_step):
         for         i in range(ℤ[indices_local_start[0]], ℤ[indices_local_end[0]]):
             for     j in range(ℤ[indices_local_start[1]], ℤ[indices_local_end[1]]):
                 for k in range(ℤ[indices_local_start[2]], ℤ[indices_local_end[2]]):
-                    Δ = ℤ[steps[dim_div]]*(  J_div[i + step_i, j + step_j, k + step_k]
-                                           - J_div[i         , j         , k         ])
-                    ϱˣ[i, j, k] += Δ*ℝ[-ᔑdt['a³ʷ⁻²(1+w)', component]/h]
+                    Δ = ℤ[steps[dim_div]]*(
+                          J_div[i + step_i, j + step_j, k + step_k]
+                        - J_div[i         , j         , k         ]
+                    )
+                    ϱˣ[i, j, k] += Δ*ℝ[-ᔑdt['a**(3*w_eff-2)', component]/Δx]
+    if component.N_fluidvars == 1:
+        finalize_maccormack_step(component, mc_step)
+        return
     # The Euler equation (flux terms only).
-    # ΔJᵢ = - c²ᔑa⁻³ʷw/(1 + w)dt (∇ϱ)ᵢ    (pressure term)
-    #       - ᔑa³ʷ⁻²dt ∇·(Jᵢ/ϱ J)         (momentum flux)
-    #       - ᔑa⁻³ʷdt ∇·(ϱσᵢ)             (stress   flux)
+    # ΔJⁱ = -ᔑa**(3*w_eff - 2)dt ∂ʲ(JⁱJⱼ/(ϱ + c⁻²𝒫))  (momentum flux).
+    # As the pressure is not evolved by the MacCormack method,
+    # we use the unstarred grid in both MacCormack steps.
+    𝒫  = component.𝒫.grid_mv
     for dim_el in range(3):  # Loop over elements of J
         J_el  = getattr(component.J[dim_el], view )
         Jˣ_el = getattr(component.J[dim_el], viewˣ)
-        # The pressure term
-        step_i = steps[dim_el] if dim_el == 0 else 0
-        step_j = steps[dim_el] if dim_el == 1 else 0
-        step_k = steps[dim_el] if dim_el == 2 else 0
-        for         i in range(ℤ[indices_local_start[0]], ℤ[indices_local_end[0]]):
-            for     j in range(ℤ[indices_local_start[1]], ℤ[indices_local_end[1]]):
-                for k in range(ℤ[indices_local_start[2]], ℤ[indices_local_end[2]]):
-                    Δ = ℤ[steps[dim_el]]*(  ϱ[i + step_i, j + step_j, k + step_k]
-                                          - ϱ[i         , j         , k         ])
-                    Jˣ_el[i, j, k] += Δ*ℝ[-light_speed**2*ᔑdt['a⁻³ʷw/(1+w)', component]/h]
         # The momentum flux
         for dim_div in range(3):  # Loop over dimensions in divergence
             J_div = getattr(component.J[dim_div], view)
@@ -220,38 +242,24 @@ def evolve_fluid(component, ᔑdt, steps, mc_step):
             for         i in range(ℤ[indices_local_start[0]], ℤ[indices_local_end[0]]):
                 for     j in range(ℤ[indices_local_start[1]], ℤ[indices_local_end[1]]):
                     for k in range(ℤ[indices_local_start[2]], ℤ[indices_local_end[2]]):
-                        Δ = ℤ[steps[dim_div]]*(  J_el [i + step_i, j + step_j, k + step_k]
-                                                /ϱ    [i + step_i, j + step_j, k + step_k]
-                                                *J_div[i + step_i, j + step_j, k + step_k]
-                                               - J_el [i         , j         , k         ]
-                                                /ϱ    [i         , j         , k         ]
-                                                *J_div[i         , j         , k         ])
-                        Jˣ_el[i, j, k] += Δ*ℝ[-ᔑdt['a³ʷ⁻²', component]/h]
+                        Δ = ℤ[steps[dim_div]]*(
+                              J_el [i + step_i, j + step_j, k + step_k]
+                             *J_div[i + step_i, j + step_j, k + step_k]
+                             /(                       ϱ[i + step_i, j + step_j, k + step_k]
+                               + ℝ[light_speed**(-2)]*𝒫[i + step_i, j + step_j, k + step_k]
+                               )
+                            - J_el [i, j, k]
+                             *J_div[i, j, k]
+                             /(                       ϱ[i, j, k]
+                               + ℝ[light_speed**(-2)]*𝒫[i, j, k]
+                               )
+                        )
+                        Jˣ_el[i, j, k] += Δ*ℝ[-ᔑdt['a**(3*w_eff-2)', component]/Δx]
     if component.N_fluidvars == 2:
         finalize_maccormack_step(component, mc_step)
         return
-    # The stress flux
-    for multi_index, σ_multi_index in component.σ.iterate(view, multi_indices=True):
-        for dim_el in set(multi_index):  # Loop over elements of J affected by σ_multi_index
-            Jˣ_el = getattr(component.J[dim_el], viewˣ)
-            # The index in multi_index other than the chosen dim_el is
-            # the dimension of differentiation by the divergence.
-            multi_index_list = list(multi_index)
-            multi_index_list.remove(dim_el)
-            dim_div = multi_index_list[0]
-            step_i = steps[dim_div] if dim_div == 0 else 0
-            step_j = steps[dim_div] if dim_div == 1 else 0
-            step_k = steps[dim_div] if dim_div == 2 else 0
-            for         i in range(ℤ[indices_local_start[0]], ℤ[indices_local_end[0]]):
-                for     j in range(ℤ[indices_local_start[1]], ℤ[indices_local_end[1]]):
-                    for k in range(ℤ[indices_local_start[2]], ℤ[indices_local_end[2]]):
-                        Δ = ℤ[steps[dim_div]]*(  ϱ            [i + step_i, j + step_j, k + step_k]
-                                                *σ_multi_index[i + step_i, j + step_j, k + step_k]
-                                               - ϱ            [i         , j         , k         ]
-                                                *σ_multi_index[i         , j         , k         ])
-                        Jˣ_el[i, j, k] += Δ*ℝ[-ᔑdt['a⁻³ʷ', component]/h]
     # The equation for time evolution of stress (flux terms only).
-    # Δσᵢⱼ = ???    (??? flux)
+    # Δσᵢⱼ = ??? (??? flux).
     ...
     if component.N_fluidvars == 3:
         finalize_maccormack_step(component, mc_step)
@@ -267,36 +275,39 @@ def finalize_maccormack_step(component, mc_step):
     # grids are really the starred grids (first MacCormack step) or the
     # unstarred grids (second MacCormack step).
     if mc_step == 0:
-        component.communicate_fluid_gridsˣ(mode='populate')
+        component.communicate_nonlinear_fluid_gridsˣ(mode='populate')
     else:  # mc_step == 1
-        component.communicate_fluid_grids (mode='populate')
+        component.communicate_nonlinear_fluid_grids (mode='populate')
 
 # Function which evolve the fluid variables of a component
 # due to internal source terms.
 @cython.header(# Arguments
                component='Component',
-               ᔑdt='dict',
+               ᔑdt=dict,
                # Locals
                Jᵢ='FluidScalar',
                Jᵢ_ptr='double*',
-               h='double',
                i='Py_ssize_t',
                j='Py_ssize_t',
-               multi_index='tuple',
-               multi_index_list='list',
+               multi_index=tuple,
+               multi_index_list=list,
                potential='double[:, :, ::1]',
+               potential_ptr='double*',
                n='Py_ssize_t',
                source='double[:, :, ::1]',
                source_ptr='double*',
+               w='double',
+               Δx='double',
                σᵢⱼ='FluidScalar',
                σᵢⱼ_ptr='double*',
                ϱ_ptr='double*',
-               ẇ='double',
+               𝒫='double[:, :, ::1]',
+               𝒫_ptr='double*',
                )
 def apply_internal_sources(component, ᔑdt):
     """By "internal sources" is meant source terms which do not arise
-    due to interactions, such as the pressure term in the time evolution
-    for ϱ for a fluid with non-zero w.
+    due to interactions, such as the Hubble term in the continuity
+    equation for P ≠ w*ρ.
     A special kind of such internal source arise when
     component.closure == 'class', in which case one additional fluid
     variable should be realized using CLASS, and then affect its lower
@@ -308,33 +319,35 @@ def apply_internal_sources(component, ᔑdt):
     Because lower fluid variables appear in the source terms of higher
     fluid variables, we need to update the higher fluid variables first.
     """
+    # Extract scalar variable fluid grids
     ϱ_ptr = component.ϱ.grid
-    ẇ = component.ẇ()
+    𝒫_ptr = component.𝒫.grid
+    𝒫     = component.𝒫.grid_mv
     # Physical grid spacing
-    h = boxsize/component.gridsize
+    Δx = boxsize/component.gridsize
     # Update σ due to its internal source term
     if component.N_fluidvars >= 3:
         ...
-    # Update J due to its internal source term
-    # ΔJᵢ = -ẇ/(1+w)Jᵢ
-    if component.N_fluidvars >= 2 and ẇ != 0:
-        for Jᵢ in component.J.iterate():
-            Jᵢ_ptr = Jᵢ.grid
-            for n in range(component.size):
-                Jᵢ_ptr[n] *= ℝ[1 - ᔑdt['ẇ/(1+w)', component]]
     # If closure of the Boltzmann hierarchy is achieved by continuously
     # realizing σ, do this realization now and update J accordingly.
     # This source term looks like
-    # ΔJᵢ = -ᔑa⁻³ʷdt ∇·(ϱσᵢ)
-    if component.N_fluidvars == 2 and component.closure == 'class':
+    # ΔJᵢ = -ᔑa**(-3*w_eff)dt ∂ʲ(ϱ + c⁻²𝒫)σⁱⱼ.
+    if component.N_fluidvars > 2 or (component.N_fluidvars == 2 and component.closure == 'class'):
         # Loop over all distinct σᵢⱼ and realize them as we go
         for multi_index, σᵢⱼ in component.σ.iterate(multi_indices=True):
-            # Transform σᵢⱼ to -ᔑa⁻³ʷdt ϱσᵢⱼ,
-            # which is then the potential of the source.
+            # The potential of the source is
+            # -ᔑa**(-3*w_eff)dt (ϱ + c⁻²𝒫)σⁱⱼ.
+            # Construct this potential, using the starred 𝒫 grid
+            # as the buffer.
+            potential     = component.𝒫.gridˣ_mv
+            potential_ptr = component.𝒫.gridˣ
             σᵢⱼ_ptr = σᵢⱼ.grid
             for n in range(component.size):
-                σᵢⱼ_ptr[n] *= ℝ[-ᔑdt['a⁻³ʷ', component]]*ϱ_ptr[n]
-            potential = σᵢⱼ.grid_mv
+                potential_ptr[n] = (
+                      ℝ[-ᔑdt['a**(-3*w_eff)', component]]
+                    *(ϱ_ptr[n] + ℝ[light_speed**(-2)]*𝒫_ptr[n])
+                    *σᵢⱼ_ptr[n]
+                )
             # Loop over elements of J affected by σᵢⱼ
             for i in set(multi_index):
                 Jᵢ = component.J[i]
@@ -345,15 +358,27 @@ def apply_internal_sources(component, ᔑdt):
                 multi_index_list.remove(i)
                 j = multi_index_list[0]
                 # Differentiate the potential and apply the source term
-                source = diff_domain(potential, j, h, order=2, noghosts=False)
+                source = diff_domain(potential, j, Δx, order=2, noghosts=False)
                 source_ptr = cython.address(source[:, :, :])
                 for n in range(component.size):
-                    Jᵢ_ptr[n] += source_ptr[n]
+                      Jᵢ_ptr[n] += source_ptr[n]
+    # The pressure term in the Euler equation
+    # ΔJⁱ = -ᔑa**(-3*w_eff)dt ∂ⁱ𝒫.
+    if component.N_fluidvars > 1:
+        for i in range(3):
+            Jᵢ = component.J[i]
+            Jᵢ_ptr = Jᵢ.grid
+            source = diff_domain(𝒫, i, Δx, order=2, noghosts=False)
+            source_ptr = cython.address(source[:, :, :])
+            for n in range(component.size):
+                Jᵢ_ptr[n] += ℝ[-ᔑdt['a**(-3*w_eff)', component]]*source_ptr[n]
     # Update ϱ due to its internal source term
-    # Δϱ = 3ẇ log(a)ϱ
-    if ẇ != 0:
+    # in the continuity equation
+    # Δϱ = 3ᔑ(ȧ/a)dt (wϱ - c⁻²𝒫).
+    if component.N_fluidvars > 0 and enable_Hubble and not component.approximations['P=wρ']:
+        w = component.w()
         for n in range(component.size):
-            ϱ_ptr[n] *= ℝ[1 + 3*ᔑdt['ẇlog(a)', component]]
+            ϱ_ptr[n] += ℝ[3*ᔑdt['ȧ/a']]*(w*ϱ_ptr[n] - ℝ[light_speed**(-2)]*𝒫_ptr[n])
 
 # Function which checks and warn about vacuum in a fluid component
 @cython.header(# Arguments
@@ -378,7 +403,7 @@ def check_vacuum(component, mc_step):
     # Check for vacuum
     any_vacuum = False
     for i in range(component.size):
-        if ϱ[i] < ϱ_vacuum:
+        if ϱ[i] < ρ_vacuum:
             any_vacuum = True
             break
     # Show a warning if any vacuum elements were found
@@ -420,7 +445,7 @@ def check_vacuum(component, mc_step):
                ni='Py_ssize_t',
                nj='Py_ssize_t',
                nk='Py_ssize_t',
-               shape='tuple',
+               shape=tuple,
                timespan='double',
                vacuum_imminent='bint',
                ΔJx='double[:, :, ::1]',
@@ -444,7 +469,7 @@ def correct_vacuum(component, mc_step):
     fluid component. The vacuum detection is done differently depending
     on the MacCormack step (the passed mc_step). For the first
     MacCormack step, vacuum is considered imminent if a density below
-    the vacuum density, ϱ_vacuum, will be reached within 'timespan'
+    the vacuum density, ρ_vacuum, will be reached within 'timespan'
     similiar time steps. For the second MacCormack step, vacuum is
     considered imminent if the density is below the vacuum density.
     The vacuum correction is done by smoothing all fluid variables in
@@ -529,23 +554,23 @@ def correct_vacuum(component, mc_step):
                 # Check for imminent vacuum.
                 # After the first MacCormack step, vacuum is considered
                 # to be imminent if a density below the vacuum density,
-                # ϱ_vacuum, will be reached within timespan similiar
+                # ρ_vacuum, will be reached within timespan similiar
                 # time steps. That is, vacuum is imminent if
-                # ϱ + timespan*dϱ < ϱ_vacuum,
+                # ϱ + timespan*dϱ < ρ_vacuum,
                 # where dϱ is the change in ϱ from the first MacCormack
                 # step, given by dϱ = ½(ϱˣ - ϱ), where the factor ½ is
                 # due to ϱˣ really holding double the change,
                 # ϱˣ = ϱ + 2*dϱ. Put together, this means that vacuum
                 # is imminent if
-                # ϱˣ + ϱ*(2/timespan - 1) < 2/timespan*ϱ_vacuum.
+                # ϱˣ + ϱ*(2/timespan - 1) < 2/timespan*ρ_vacuum.
                 # After the second MacCormack step, vacuum is considered
                 # to be imminent only if the density is lower than the
-                # vacuum density, ϱ_vacuum. Because the starred
+                # vacuum density, ρ_vacuum. Because the starred
                 # variables hold double their actual values,
                 # this corresponds to
-                # ϱˣ_ijk < 2*ϱ_vacuum.
-                if (   (mc_step == 0 and ϱ_ijk*ℝ[2/timespan - 1] + ϱˣ_ijk < ℝ[2/timespan*ϱ_vacuum])
-                    or (mc_step == 1 and                           ϱˣ_ijk < ℝ[2*ϱ_vacuum])
+                # ϱˣ_ijk < 2*ρ_vacuum.
+                if (   (mc_step == 0 and ϱ_ijk*ℝ[2/timespan - 1] + ϱˣ_ijk < ℝ[2/timespan*ρ_vacuum])
+                    or (mc_step == 1 and                           ϱˣ_ijk < ℝ[2*ρ_vacuum])
                     ):
                     vacuum_imminent = True
                     # The amount of smoothing to apply depends upon
@@ -554,9 +579,9 @@ def correct_vacuum(component, mc_step):
                     if mc_step == 0:
                         # The number of time steps before densities
                         # lower than the vacuum density is given by
-                        # ϱ + timesteps*dϱ == ϱ_vacuum, dϱ = ½(ϱˣ - ϱ).
-                        # --> timesteps = 2*(ϱ - ϱ_vacuum)/(ϱ - ϱˣ).
-                        fac_time = 0.5*(ϱ_ijk - ϱˣ_ijk)/(ϱ_ijk - ϱ_vacuum)
+                        # ϱ + timesteps*dϱ == ρ_vacuum, dϱ = ½(ϱˣ - ϱ).
+                        # --> timesteps = 2*(ϱ - ρ_vacuum)/(ϱ - ϱˣ).
+                        fac_time = 0.5*(ϱ_ijk - ϱˣ_ijk)/(ϱ_ijk - ρ_vacuum)
                     else:  # mc_step == 1
                         # The density is already lower
                         # than the vaccuum density.

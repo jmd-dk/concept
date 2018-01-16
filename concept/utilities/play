@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -23,11 +23,11 @@
 
 
 # This utility can play animations from log files
-# containing terminal renders.
+# containing 2D terminal renders.
 # You can run this file directly as
 # utilities/play path
 # or invoke it via the concept script as
-# ./render --util play path
+# ./concept -u play path
 # In both cases, path is the path to a log file.
 
 
@@ -42,11 +42,13 @@ source "${this_dir}/../concept"
 # Set up error trapping
 ctrl_c()
 {
+    printf "${esc_show_cursor}"
     trap : 0
     exit 2
 }
 abort()
 {
+    printf "${esc_show_cursor}"
     colorprint "An error occurred while using the \"$(basename "${this_file}")\" utility!" "red"
     exit 1
 }
@@ -57,39 +59,42 @@ if [ "${called_from_concept}" == "True" ]; then
 fi
 
 # The frame rate to use if not specified by the user
-default_framerate=4
+default_framerate=5
 
 # Use Python's argparse module to handle command-line arguments
 args=$("${python}" -B -c "
 import argparse, sys
 # Function which checks whether input is a
 # representation of a positive integer.
-def positive_int(value):
+def positive_float(value):
     def raise_argparse_exception():
-        raise argparse.ArgumentTypeError(\"invalid positive int value: '{}'\".format(value))
+        raise argparse.ArgumentTypeError(\"invalid positive float value: '{}'\".format(value))
     try:
-        value = eval(value)
-        value = float(value)
+        final_value = eval(value)
+        if isinstance(final_value, str):
+            final_value = eval(final_value)
+        final_value = float(final_value)
     except:
         raise_argparse_exception()
-    if value != int(value):
+    if final_value < 0:
         raise_argparse_exception()
-    value = int(value)
-    if value < 1:
-        raise_argparse_exception()
-    return value
+    return final_value
 # Setup command-line arguments
 parser = argparse.ArgumentParser(prog='$(basename "${this_file}")',
                                  description='Run the CO𝘕CEPT $(basename "${this_file}") utility')
 parser.add_argument('path',
-                    help='path to log file or log file name',
+                    help='path to log file or log file name to play',
                     nargs='?',
                     default='__newest__',
                     )
 parser.add_argument('-f', '--frame-rate',
-                    help='frame rate in integer frames/second',
-                    type=positive_int,
+                    help='frame rate in frames/second',
+                    type=positive_float,
                     default=${default_framerate},
+                    )
+parser.add_argument('-c', '--component', '--component-combination',
+                    help='component (combination) to play',
+                    default='default',
                     )
 # Enables Python to write directly to screen (stderr)
 # in case of help request.
@@ -111,6 +116,7 @@ sys.stdout = stdout_copy
 print('argparse_finished=yes')
 print('path=\"{}\"'.format(args.path))
 print('framerate={}'.format(args.frame_rate))
+print('component_combination=\"{}\"'.format(args.component))
 " "$@" || :)
 # Evaluate the handled arguments into this scope
 eval "${args}"
@@ -123,7 +129,7 @@ fi
 # If not called indirectly through the concept script,
 # call the concept script now.
 if [ "${called_from_concept}" != "True" ]; then
-    "${concept}" --util "${this_file}" "$@"
+    "${concept}" -u "${this_file}" "$@"
     trap : 0
     exit 0
 fi
@@ -158,161 +164,177 @@ if [ ! -f "${path}" ]; then
     fi
 fi
 
-# The ANSI/VT100 escape character in printed format
-esc=$(printf "\x1b")
+# Use Python to extract and display the animation from the log file
+"${python}" -B -c "
+from commons import *
 
-# Get the colormap
-hex="[0-9a-f][0-9a-f]/[0-9a-f][0-9a-f]/[0-9a-f][0-9a-f]"
-colormap="$(cat "${path}" | grep -o "${esc}\]4;[0-9]*;rgb:${hex}${esc}\\\\" || :)"
-
-# Get the line numbers of the terminal renders
-terminal_renders="$(cat "${path}" | grep -n "${esc}\[48;5;[0-9]*m " | grep -o "[0-9]*:" || :)"
-N_terminal_renders=0
-start_lines=()
-end_lines=()
-old_linenr=0
-for line in ${terminal_renders}; do
-    linenr=${line%%:*}
-    ((diff = linenr - old_linenr))
-    if [ ${diff} -gt 1 ]; then
-        # First line of new terminal render found
-        if [ ${N_terminal_renders} -gt 0 ]; then
-            end_lines+=(${old_linenr})
-        fi
-        start_lines+=(${linenr})
-        ((N_terminal_renders += 1))
-    fi
-    old_linenr=${linenr}
-done
-end_lines+=(${old_linenr})
-
-# Abort if the log file does not contain any terminal renders
-if [ ${N_terminal_renders} == 0 ]; then
-    colorprint "Error: File \"${path}\" does not contain any terminal renders!" "red"
-    exit 1
-fi
-
-# Load the entire log file into an array by line
-content="$(cat "${path}")"
-lines=()
-while read -r line; do
-   lines+=("${line}")
-done <<< "${content}"
-
-# Get the terminal resolution used during the simulation
-terminal_render_resolution=$(echo "${lines[start_lines[0]]}" | grep -o " " | wc -l)
-
-# Find cosmic time and scale factor for each frame
-use_scale_factor="no"
-echo "${content}" | grep "^Scale factor:" >/dev/null && use_scale_factor="yes"
-for ((i = 0; i < N_terminal_renders; i += 1)); do
-    for ((j = ${end_lines[i]}; j < ${#lines[@]}; j += 1)); do
-        # Find cosmic time
-        if [[ "${lines[j]}" == "Cosmic time:"* ]]; then
-            cosmic_time="${lines[j]/Cosmic time:/}"
-            cosmic_time="${cosmic_time#"${cosmic_time%%[![:space:]]*}"}"
-            cosmic_times[i]="Cosmic time: ${cosmic_time}"
-            break
-        elif [[ "${lines[j]}" == "Time:"* ]]; then
-            cosmic_time="${lines[j]/Time:/}"
-            cosmic_time="${cosmic_time#"${cosmic_time%%[![:space:]]*}"}"
-            cosmic_times[i]="Time: ${cosmic_time}"
-            break
-        fi
-    done
-    if [ ${use_scale_factor} == "yes" ]; then
-        for ((j = ${end_lines[i]}; j < ${#lines[@]}; j += 1)); do
-            # Find scale factor
-            if [[ "${lines[j]}" == "Scale factor:"* ]]; then
-                scale_factor="${lines[j]/Scale factor:/}"
-                scale_factor="${scale_factor#"${scale_factor%%[![:space:]]*}"}"
-                scale_factors[i]="Scale factor: ${scale_factor}"
-                break
-            fi
-        done
-    fi
-    # Time stamp strings
-    if [ ${use_scale_factor} == "yes" ]; then
-        ((N_spaces = ${terminal_render_resolution} - ${#cosmic_times[i]} - ${#scale_factors[i]}))
-        if [ ${N_spaces} -lt 4 ]; then
-            N_spaces=4
-        fi
-        spaces="$(printf "%${N_spaces}s" | sed 's/ / /g')"
-        time_stamps[i]="${cosmic_times[i]}${spaces}${scale_factors[i]}"
-    else
-        ((N_spaces = ${terminal_render_resolution} - ${#cosmic_times[i]}))
-        if [ ${N_spaces} -lt 4 ]; then
-            N_spaces=4
-        fi
-        spaces="$(printf "%${N_spaces}s" | sed 's/ / /g')"
-        time_stamps[i]="${cosmic_times[i]}${spaces}"
-    fi
-done
-# Find longest time stamp string
-time_stamp_length=0
-for ((i = 0; i < N_terminal_renders; i += 1)); do
-    time_stamp="${time_stamps[i]}"
-    if [ ${#time_stamp} -gt ${time_stamp_length} ]; then
-        time_stamp_length=${#time_stamp}
-    fi
-done
-# Append spaces to end of time stamp strings to make them of equal length
-for ((i = 0; i < N_terminal_renders; i += 1)); do
-    time_stamp="${time_stamps[i]}"
-    ((N_spaces = ${time_stamp_length} - ${#time_stamp})) || :
-    spaces="$(printf "%${N_spaces}s" | sed 's/ / /g')"
-    time_stamps[i]="${time_stamp}${spaces}"
-done
-
-# Load all terminal renders into memory
-for ((i = 0; i < N_terminal_renders; i += 1)); do
-    terminal_render[i]="$(awk "NR >= ${start_lines[i]} && NR <= ${end_lines[i]}" "${path}")"
-done
-
-# Prepare for playing the movie
-((height = end_lines[0] - start_lines[0] + 1))
-width=${terminal_render_resolution}
-if [ ${width} -lt ${time_stamp_length} ]; then
-    width=${time_stamp_length}
-fi
-dt=$(${python} -c "print(1.0/${framerate})")  # Time between frames in seconds
-((T = N_terminal_renders/framerate)) || :
-if [ ${T} -lt 1 ]; then
-    framerate=${N_terminal_renders}
-    dt=$(${python} -c "print(1.0/${framerate})")
-fi
-dt_ms=$(${python} -c "print(int(${dt}*1000))")  # Time between frames in ms
-esc_left="${esc}[${width}D"
-new_frame="${esc_left}${esc}[${height}A"
-
-# Apply the colormap
-for color in ${colormap}; do
-    printf "${color}"
-done
-
-# Play movie
-t0=$(($(date +%s%N)/1000000))  # Time in ms
-for ((i = 0; i < N_terminal_renders - 1; i += 1)); do
-    # Display frame
-    printf "${terminal_render[i]}"
-    # Print the current cosmic time and scale factor below the frame
-    printf "\n${time_stamps[i]}"
-    # Sleep so that the frame is up for dt time
-    t1=$(($(date +%s%N)/1000000))  # Time in ms
-    ((elapsed = t1 - t0))
-    t0=$(($(date +%s%N)/1000000))  # Time in ms
-    if [ ${elapsed} -lt ${dt_ms} ]; then
-        remaining=$(${python} -c "print((${dt_ms} - ${elapsed})*0.001)")
-        sleep ${remaining}
-    fi
-    printf "${new_frame}"
-done
-# Display the last frame
-printf "${terminal_render[N_terminal_renders - 1]}"
-# Print the final cosmic time and scale factor below the frame
-printf "\n${time_stamps[N_terminal_renders - 1]}"
-# Finished displaying movie
-printf "\n"
+# Variables from Bash
+path = '${path}'
+framerate = ${framerate}
+selected_component_combination = '${component_combination}'
+# The ANSI ESC character
+ANSI_ESC = '\x1b'
+# Read in the entire log file
+with open(path) as fname:
+    text = fname.read()
+# Find all 2D terminal rendered component combinations
+component_combinations = []
+for component_combination_match in re.finditer(
+    f'Rendering 2D projection of (.+?) \.{{3}}(?:\n|{ANSI_ESC})',
+    text,
+    flags=re.DOTALL,
+):
+    component_combination = component_combination_match.group(1).replace('\n', ' ')
+    if component_combination in component_combinations:
+        break
+    else:
+        component_combinations.append(component_combination)
+if not component_combinations:
+    warn('No 2D terminal renders found', skipline=False, prefix='')
+    sys.exit(1)
+# Process the user specified component combination
+# which should be played.
+if selected_component_combination == 'default':
+    selected_component_combination = component_combinations[0]
+    if len(component_combinations) > 0:
+        fancyprint(f'No component (combination) specified - Will play the {selected_component_combination}')
+elif ',' in selected_component_combination:
+    selected_components = set(
+        [component.strip() for component in selected_component_combination.strip('{} ').split(',')]
+    )
+    for component_combination in component_combinations:
+        components = set(
+            [component.strip() for component in component_combination.strip('{}').split(',')]
+        )
+        if selected_components == components:
+            selected_component_combination = component_combination
+if selected_component_combination not in component_combinations:
+    combination_str = ''
+    if ',' in selected_component_combination:
+        selected_component_combination = '{{{}}}'.format(selected_component_combination.strip('{} '))
+        combination_str = ' combination'
+    err_msg = (
+        f'No 2D terminal renders found for specified component{combination_str} '
+        f'\"{selected_component_combination}\" in log file \"{path}\". '
+        f'The following are available:\n'
+    )
+    for component_combination in component_combinations:
+        err_msg += f'    {component_combination}\n'
+    warn(err_msg, skipline=False, prefix='')
+    sys.exit(1)
+# Find the ANSI colormaps used for each componnet combination
+colormaps_ANSI = {}
+for component_combination, colormap_ANSI_match in zip(
+        component_combinations,
+        re.finditer(
+            rf'({ANSI_ESC}\]4;[0-9]{{2,3}};rgb:'
+            rf'[0-9a-f]{{2}}/[0-9a-f]{{2}}/[0-9a-f]{{2}}'
+            rf'{ANSI_ESC}\\\\){{238}}',
+            text,
+        ),
+    ):
+    colormap_ANSI = colormap_ANSI_match.group()
+    colormaps_ANSI[component_combination] = colormap_ANSI
+# Find all 2D terminal renders for each component combination
+frames_dict = {component_combination: [] for component_combination in component_combinations}
+for frames, frame_ANSI_MATCH in zip(
+        itertools.cycle(frames_dict.values()),
+        re.finditer(
+            f'(({ANSI_ESC}\[48;5;[0-9]{{2,3}}m )+{ANSI_ESC}\[0m\n)+',
+            text,
+        ),
+    ):
+    frame_ANSI = frame_ANSI_MATCH.group()
+    frames.append(frame_ANSI)
+# Find the width (terminal resolution) and height
+# used for each component combination.
+widths, heights = {}, {}
+for component_combination, frames in frames_dict.items():
+    frame = frames[0]
+    width = frame[:frame.index('\n')].count(' ')
+    height = frame.count('\n')
+    widths [component_combination] = width
+    heights[component_combination] = height
+# The width and height used for the specified component combination
+width  = widths [selected_component_combination]
+height = heights[selected_component_combination]
+# Find cosmic time and scale factor for each frame.
+# These are shared among all component combinations.
+t_stamps = []
+a_stamps = []
+for match in re.finditer(
+    'Rendering 2D projection of'
+    '.+?'
+    '((?:Cosmic time|Time): +[^\n]+?)\n'
+    '(Scale factor: +[0-1]\.[0-9]+?\n)?',
+    text,
+    flags=re.DOTALL,
+):
+    t_stamp = re.sub(' +', ' ', match.group(1))
+    t_stamps.append(t_stamp)
+    a_stamp = match.group(2)
+    if a_stamp:
+        a_stamp = re.sub(' +', ' ', a_stamp.rstrip())
+        a_stamps.append(a_stamp)
+# Construct final time stamp strings,
+# All time stamp strings should have the same length,
+# as otherwise they may not properly overwrite each other.
+# If scale factor stamps are used, all of these should be
+# printed starting from the same column. They should have
+# a minimum distance of 2 towards the cosmic time stamp to
+# the left, and should preferebly lign up with the edge of
+# the terminal image to the right.
+if a_stamps:
+    time_stamps = []
+    for t_stamp, a_stamp in zip(t_stamps, a_stamps):
+        spacing = max(len(a_stamp) + 2, width - len(t_stamp))
+        time_stamps.append(
+            f'{{:<{len(t_stamp)}}}{{:>{spacing}}}'
+            .format(t_stamp, a_stamp)
+        )
+else:
+    time_stamps = t_stamps
+stamps_max_length = max(map(len, time_stamps))
+time_stamps = [f'{{:<{stamps_max_length}}}'.format(time_stamp) for time_stamp in time_stamps]
+# Adjust the frame rate so that
+# the animation takes at least one second.
+frames = frames_dict[selected_component_combination]
+Δt = 1/framerate
+T = Δt*len(frames)
+if T < 1:
+    framerate = len(frames)
+    Δt = 1/framerate
+# Apply colormap of the specified component combination
+print(colormaps_ANSI[selected_component_combination], end='')
+# Play all frames of the specified component combination
+# as an animation.
+ANSI_ESC_left = f'{ANSI_ESC}[{width}D'
+ANSI_clear_frame = f'{ANSI_ESC_left}{ANSI_ESC}[{height + 1}A'
+clear_frame = lambda: print(ANSI_clear_frame)
+try:
+    # Hide cursor
+    print(f'{ANSI_ESC}[?25l', end='')
+    # Print each frame
+    for i, (frame, time_stamp) in enumerate(zip(frames, time_stamps)):
+        t0 = time()
+        # Clear previous frame
+        if i > 0:
+            clear_frame()
+        # Print the frame
+        print(frame, end='')
+        # Print the time stamp
+        print(time_stamp, end='', flush=True)
+        # Sleep to keep the frame rate
+        t1 = time()
+        elapsed = t1 - t0
+        if elapsed < Δt:
+            sleep(Δt - elapsed)
+    # Print new line after the time stamp
+    print()
+finally:
+    # Show cursor
+    print(f'{ANSI_ESC}[?12l{ANSI_ESC}[?25h', end='')
+"
 
 # Exit gracefully
 colorprint "$(basename "${this_file}") utility ran successfully" "green"

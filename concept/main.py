@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@ from commons import *
 # Cython imports
 import interactions
 cimport('from analysis import debug, measure, powerspec')
-cimport('from graphics import render, terminal_render')
+cimport('from graphics import render2D, render3D')
 cimport('from integration import cosmic_time,          '
         '                        expand,               '
         '                        hubble,               '
@@ -41,22 +41,22 @@ cimport('from utilities import delegate')
 
 
 
-
 # Function that computes several time integrals with integrands having
 # to do with the scale factor (e.g. ∫dta⁻¹).
 # The result is stored in ᔑdt_steps[integrand][index],
 # where index == 0 corresponds to step == 'first half' and
 # index == 1 corresponds to step == 'second half'. 
 @cython.header(# Arguments
-               step='str',
+               step=str,
                Δt='double',
                # Locals
                a_next='double',
                go2dump='bint',
                index='int',
-               integrand='object',  # str or tuple
+               integrand=object,  # str or tuple
                t_dump='double',
                t_next='double',
+               returns=tuple,
                )
 def scalefactor_integrals(step, Δt):
     global ᔑdt_steps
@@ -78,8 +78,6 @@ def scalefactor_integrals(step, Δt):
         # This will not change a_next by much. We do it to ensure
         # agreement with future floating point comparisons.
         a_next = next_dump[2]
-    # Update the universal scale factor and cosmic time
-    universals.a, universals.t = a_next, t_next
     # Map the step string to the index integer
     if step == 'first half':
         index = 0
@@ -90,91 +88,64 @@ def scalefactor_integrals(step, Δt):
     # Do the scalefactor integrals
     for integrand in ᔑdt_steps:
         ᔑdt_steps[integrand][index] = scalefactor_integral(integrand)
+    # Return the values with which to update
+    # universals.a and universals.t.
+    return a_next, t_next
 
 # Function which dump all types of output. The return value signifies
 # whether or not something has been dumped.
 @cython.pheader(# Arguments
-                components='list',
-                output_filenames='dict',
-                final_render='tuple',
-                op='str',
+                components=list,
+                output_filenames=dict,
+                final_render3D=tuple,
+                op=str,
                 do_autosave='bint',
+                Δt='double',
+                Δt_begin='double',
                 # Locals
                 do_dump='bint',
-                filename='str',
-                future_output_times='dict',
+                dumped=set,
+                filename=str,
+                remaining_output_times=dict,
                 ot='double',
-                output_kind='str',
-                output_time='tuple',
+                output_kind=str,
+                output_time=tuple,
+                param_lines=list,
                 present='double',
-                time_param='str',
+                time_param=str,
                 time_val='double',
-                returns='bint',
+                returns=set,
                 )
-def dump(components, output_filenames, final_render, op=None, do_autosave=False):
-    global i_dump, dumps, next_dump, autosave_filename
+def dump(components, output_filenames, final_render3D, op=None,
+         do_autosave=False, Δt=-1, Δt_begin=-1):
+    global i_dump, dumps, next_dump
+    # Set keeping track of what is being dumped.
+    # This will be the return value of this function.
+    dumped = set()
     # Do nothing further if not at dump time
     # and no autosaving should be performed.
     do_dump = (   (next_dump[0] == 'a' and universals.a == next_dump[2])
                or (next_dump[0] == 't' and universals.t == next_dump[1])
                )
     if not do_dump and not do_autosave:
-        return False
+        return dumped
     # Synchronize drift and kick operations before dumping
     if op == 'drift':
         drift(components, 'first half')
     elif op == 'kick':
         kick(components, 'second half')
-    # Do autosaving
-    if not autosave_filename:
-        autosave_filename = '{}/autosave_{}'.format(paths['ics_dir'], jobid)
-    if do_autosave:
-        # Save snapshot
-        autosave_filename = save(components, autosave_filename)
-        # Save parameter file corresponding to the snapshot
-        if master:
-            with open(autosave_params_filename, 'w', encoding='utf-8') as autosave_params_file:
-                # Header
-                autosave_params_file.write('# This parameter file is the result '
-                                           'of an autosave of job {},\n'
-                                           '# using the parameter file "{}".\n'
-                                           '# The following is a copy of this '
-                                           'original parameter file.\n\n'
-                                           .format(jobid, paths['params'])
-                                           )
-                # Original paramter file
-                autosave_params_file.write(params_file_content)
-                autosave_params_file.write('\n'*2)
-                # IC snapshot
-                autosave_params_file.write('# The autosaved snapshot file was saved to\n'
-                                           'initial_conditions = "{}"\n'.format(autosave_filename)
-                                           )
-                # Present time
-                autosave_params_file.write('# The autosave happened at\n')
-                if enable_Hubble:
-                    autosave_params_file.write('a_begin = {:.12g}\n'.format(universals.a))
-                else:
-                    autosave_params_file.write('t_begin = {:.12g}*{}\n'
-                                               .format(universals.t, unit_time))
-                # Future output times
-                future_output_times = {'a': {}, 't': {}}
-                for time_param, present in zip(('a', 't'), (universals.a, universals.t)):
-                    for output_kind, output_time in output_times[time_param].items():
-                        future_output_times[time_param][output_kind] = [ot for ot in output_time
-                                                                        if ot >= present]
-                autosave_params_file.write('# Future output times\n')
-                autosave_params_file.write('output_times = {}\n'.format(future_output_times))
-    # If no output other than autosaves should be dumped,
-    # return now.
-    if not do_dump:
-        return True
-    # Dump terminal render
+    # Dump render2D
     for time_val, time_param in zip((universals.a, universals.t), ('a', 't')):
-        if time_val in terminal_render_times[time_param]:
-            terminal_render(components)
+        if time_val in render2D_times[time_param]:
+            dumped.add('render2D')
+            filename = output_filenames['render2D'].format(time_param, time_val)
+            if time_param == 't':
+                filename += unit_time
+            render2D(components, filename)
     # Dump snapshot
     for time_val, time_param in zip((universals.a, universals.t), ('a', 't')):
         if time_val in snapshot_times[time_param]:
+            dumped.add('snapshot')
             filename = output_filenames['snapshot'].format(time_param, time_val)
             if time_param == 't':
                 filename += unit_time
@@ -182,36 +153,107 @@ def dump(components, output_filenames, final_render, op=None, do_autosave=False)
     # Dump power spectrum
     for time_val, time_param in zip((universals.a, universals.t), ('a', 't')):
         if time_val in powerspec_times[time_param]:
+            dumped.add('powerspec')
             filename = output_filenames['powerspec'].format(time_param, time_val)
             if time_param == 't':
                 filename += unit_time
             powerspec(components, filename)
-    # Dump render
+    # Dump render3D
     for time_val, time_param in zip((universals.a, universals.t), ('a', 't')):
-        if time_val in render_times[time_param]:
-            filename = output_filenames['render'].format(time_param, time_val)
+        if time_val in render3D_times[time_param]:
+            dumped.add('render3D')
+            filename = output_filenames['render3D'].format(time_param, time_val)
             if time_param == 't':
                 filename += unit_time
-            render(components, filename, cleanup=((time_param, time_val) == final_render))
-    # Increment dump time
-    i_dump += 1
-    if i_dump < len(dumps):
-        next_dump = dumps[i_dump]
-    else:
-        # Last output have been dumped. Remove autosave files.
+            render3D(components, filename, cleanup=((time_param, time_val) == final_render3D))
+    # Dump autosave
+    if do_autosave:
+        dumped.add('autosave')
+        masterprint('Autosaving ...')
+        # Save parameter file corresponding to the snapshot
         if master:
-            for filename in (autosave_filename, autosave_params_filename):
-                if os.path.isfile(filename):
-                    os.remove(filename)
-    return True
-cython.declare(autosave_filename='str',
-               autosave_params_filename='str',
+            masterprint(f'Writing parameter file "{autosave_params_filename}" ...')
+            with disable_numpy_summarization():
+                param_lines = []
+                # Header
+                param_lines += [f'# This parameter file is the result '
+                                f'of an autosave of job {jobid},',
+                                f'# which uses the parameter file "{paths["params"]}".',
+                                f'# The autosave was carried out {datetime.datetime.now()}.',
+                                f'# The following is a copy of this original parameter file.',
+                                ]
+                param_lines += ['']*2
+                # Original parameter file
+                param_lines += params_file_content.split('\n')
+                param_lines += ['']*2
+                # IC snapshot
+                param_lines += [f'# The autosaved snapshot file was saved to',
+                                f'initial_conditions = "{autosave_filename}"',
+                                ]
+                # Present time
+                param_lines += [f'# The autosave happened at time',
+                                (f'a_begin = {universals.a:.16e}' if enable_Hubble else
+                                 f't_begin = {universals.t:.16e}*{unit_time}'),
+                                ]
+                # Time step, current and original time step size
+                param_lines += [f'# The time step and time step size was',
+                                f'initial_time_step = {universals.time_step + 1}',
+                                f'{unicode("Δt_autosave")} = {Δt:.16e}*{unit_time}',
+                                f'# The time step size at the beginning of the simulation was',
+                                f'{unicode("Δt_begin_autosave")} = {Δt_begin:.16e}*{unit_time}',
+                                ]
+                # All output times
+                param_lines += [f'# All output times',
+                                f'output_times_full = {output_times}',
+                                ]
+                # Remaining output times
+                remaining_output_times = {'a': {}, 't': {}}
+                for time_param, present in zip(('a', 't'), (universals.a, universals.t)):
+                    for output_kind, output_time in output_times[time_param].items():
+                        remaining_output_times[time_param][output_kind] = [ot for ot in output_time
+                                                                           if ot >= present]
+                param_lines += [f'# Remaining output times',
+                                f'output_times = {remaining_output_times}',
+                                ]
+            # Write to parameter file
+            with open(autosave_params_filename, 'w', encoding='utf-8') as autosave_params_file:
+                print('\n'.join(param_lines), file=autosave_params_file)
+            masterprint('done')
+        # Save standard snapshot. Include all components regardless
+        # of the snapshot_select user parameter.
+        save(components, autosave_filename, snapshot_type='standard', save_all_components=True)
+        # If this simulation run was started from an autosave snapshot
+        # with a different name from the one just saved, remove this
+        # now superfluous autosave snapshot.
+        if master:
+            if (    isinstance(initial_conditions, str)
+                and re.search('^autosave_\d+\.hdf5$', os.path.basename(initial_conditions))
+                and os.path.abspath(initial_conditions) != os.path.abspath(autosave_filename)
+                and os.path.isfile(initial_conditions)
+                ):
+                os.remove(initial_conditions)
+        masterprint('done')
+    # Increment dump time if anything other than
+    # an autosave has been dumped.
+    if dumped.difference({'autosave'}):
+        i_dump += 1
+        if i_dump < len(dumps):
+            next_dump = dumps[i_dump]
+        else:
+            # Last output have been dumped. Remove autosave files.
+            if master:
+                for filename in (autosave_filename, autosave_params_filename):
+                    if os.path.isfile(filename):
+                        os.remove(filename)
+    return dumped
+cython.declare(autosave_filename=str,
+               autosave_params_filename=str,
                )
-autosave_filename = ''
-autosave_params_filename = '{}/autosave_{}.params'.format(paths['params_dir'], jobid)
+autosave_filename        = f'{autosave_dir}/autosave_{jobid}.hdf5'
+autosave_params_filename = f'{paths["params_dir"]}/autosave_{jobid}.params'
 
 @cython.header(# Locals
-               integrand='object',  # str or tuple
+               integrand=object,  # str or tuple
                index='int',
                )
 def nullify_ᔑdt_steps():
@@ -225,17 +267,17 @@ def nullify_ᔑdt_steps():
 # Here a 'kick' means all interactions together with other source terms
 # for fluid components.
 @cython.header(# Arguments
-               components='list',
-               step='str',
+               components=list,
+               step=str,
                # Locals
                component='Component',
-               force='str',
-               integrand='object',  # str or tuple
-               interactions_list='list',
-               method='str',
-               receivers='list',
-               suppliers='list',
-               ᔑdt='dict',
+               force=str,
+               integrand=object,  # str or tuple
+               interactions_list=list,
+               method=str,
+               receivers=list,
+               suppliers=list,
+               ᔑdt=dict,
                )
 def kick(components, step):
     # Construct the local dict ᔑdt,
@@ -263,11 +305,11 @@ def kick(components, step):
 
 # Function which drift all of the components
 @cython.header(# Arguments
-               components='list',
-               step='str',
+               components=list,
+               step=str,
                # Locals
-               ᔑdt='dict',
-               integrand='object',  # str or tuple
+               ᔑdt=dict,
+               integrand=object,  # str or tuple
                component='Component',
                )
 def drift(components, step):
@@ -289,15 +331,19 @@ def drift(components, step):
 
 # Function containing the main time loop of CO𝘕CEPT
 @cython.header(# Locals
+               a_next='double',
                autosave_time='double',
-               bottleneck='str',
+               bottleneck=str,
                component='Component',
-               components='list',
+               components=list,
+               dumped=set,
                do_autosave='bint',
-               final_render='tuple',
-               output_filenames='dict',
+               final_render3D=tuple,
+               integrand=str,
+               key=object,  # str or tuple
+               output_filenames=dict,
+               t_next='double',
                timespan='double',
-               time_step='Py_ssize_t',
                Δt='double',
                Δt_begin='double',
                Δt_max_increase_fac='double',
@@ -313,10 +359,10 @@ def timeloop():
     # Determine and set the correct initial values for the cosmic time
     # universals.t and the scale factor a(universals.t) = universals.a.
     initiate_time()
-    # Get the output filename patterns, the final render time and
+    # Get the output filename patterns, the final 3D render time and
     # the total timespan of the simulation.
     # This also creates the global list "dumps".
-    output_filenames, final_render, timespan = prepare_output_times()   
+    output_filenames, final_render3D, timespan = prepare_output_times()
     # Get the initial components. These may be loaded from a snapshot
     # or generated on the fly.
     components = get_initial_conditions()
@@ -332,28 +378,44 @@ def timeloop():
     # from one time step to the next.
     Δt_max_increase_fac = 5e-3
     # Give the initial time step the largest allowed value
-    Δt_begin, bottleneck = reduce_Δt(components, ထ, ထ, timespan, worry=False)
-    Δt = Δt_begin
+    if Δt_begin_autosave == -1:
+        Δt_begin, bottleneck = reduce_Δt(components, ထ, ထ, timespan, worry=False)
+        Δt = Δt_begin
+    else:
+        Δt_begin = Δt_begin_autosave
+        bottleneck = ''
+        Δt = Δt_autosave
     # Arrays which will store the two values
     # ∫_t^(t + Δt/2) integrand(a) dt
     # ∫_(t + Δt/2)^(t + Δt) integrand(a) dt
-    ᔑdt_steps = {'1'  : zeros(2, dtype=C2np['double']),
-                 'a⁻¹': zeros(2, dtype=C2np['double']),
-                 'a⁻²': zeros(2, dtype=C2np['double']),
+    ᔑdt_steps = {key: zeros(2, dtype=C2np['double'])
+                 for key in ('1',
+                             'a**(-1)',
+                             'a**(-2)',
+                             'ȧ/a',
+                             *[(integrand, component) for component in components
+                               for integrand in ('a**(-3*w)',
+                                                 'a**(-3*w-1)',
+                                                 'a**(3*w-2)',
+                                                 'a**(-3*w)*w/(1+w)',
+                                                 'a**(3*w-2)*(1+w)',
+                                                 'a**(-3*w_eff)',
+                                                 'a**(-3*w_eff)*w',
+                                                 'a**(-3*w_eff-1)',
+                                                 'a**(3*w_eff-2)',
+                                                 'a**(-3*w_eff)*w_eff/(1+w_eff)',
+                                                 'a**(3*w_eff-2)*(1+w_eff)',
+                                                 'ẇ/(1+w)',
+                                                 'ẇlog(a)',
+                                                 )
+                               ]
+                             )
                  }
-    for component in components:
-        ᔑdt_steps['a⁻³ʷ'       , component] = zeros(2, dtype=C2np['double'])
-        ᔑdt_steps['a⁻³ʷ⁻¹'     , component] = zeros(2, dtype=C2np['double'])
-        ᔑdt_steps['a³ʷ⁻²'      , component] = zeros(2, dtype=C2np['double'])
-        ᔑdt_steps['a⁻³ʷw/(1+w)', component] = zeros(2, dtype=C2np['double'])
-        ᔑdt_steps['a³ʷ⁻²(1+w)' , component] = zeros(2, dtype=C2np['double'])
-        ᔑdt_steps['ẇ/(1+w)'    , component] = zeros(2, dtype=C2np['double'])
-        ᔑdt_steps['ẇlog(a)'    , component] = zeros(2, dtype=C2np['double'])
     # Specification of first dump and a corresponding index
     i_dump = 0
     next_dump = dumps[i_dump]
     # Possibly output at the beginning of simulation
-    dump(components, output_filenames, final_render)
+    dump(components, output_filenames, final_render3D)
     # Return now if all dumps lie at the initial time
     if i_dump == len(dumps):
         return
@@ -361,31 +423,43 @@ def timeloop():
     autosave_time = time()
     # The main time loop
     masterprint('Beginning of main time loop')
-    time_step = -1
+    universals.time_step = initial_time_step - 1
     while i_dump < len(dumps):
-        time_step += 1
+        universals.time_step += 1
         # Reduce time step size if it is larger than what is allowed
         Δt, bottleneck = reduce_Δt(components, Δt, Δt_begin, timespan)
         # Print out message at beginning of each time step
-        print_timestep_heading(time_step, Δt, bottleneck, components)
+        print_timestep_heading(universals.time_step, Δt, bottleneck, components)
         # Analyze and print out debugging information, if required
-        debug(components)
+        if enable_debugging:
+            debug(components)
         # Kick.
         # Even though 'whole' is used, the first kick (and the first
         # kick after a dump) is really only half a step (the first
         # half), as ᔑdt_steps[integrand][1] == 0 for every integrand.
-        scalefactor_integrals('first half', Δt)
+        a_next, t_next = scalefactor_integrals('first half', Δt)
         kick(components, 'whole')
-        do_autosave = bcast(autosave > 0 and (time() - autosave_time) > ℝ[autosave/units.s])
-        if dump(components, output_filenames, final_render, 'drift', do_autosave):
-            # Restart autosave schedule
-            if do_autosave:
+        universals.a, universals.t = a_next, t_next
+        do_autosave = bcast(autosave_interval > 0
+                            and (time() - autosave_time) > ℝ[autosave_interval/units.s])
+        dumped = dump(
+            components,
+            output_filenames,
+            final_render3D,
+            'drift',
+            do_autosave,
+            Δt,
+            Δt_begin,
+        )
+        if dumped:
+            # Restart autosave schedule if snapshot has been dumped
+            if 'autosave' in dumped or 'snapshot' in dumped:
                 autosave_time = time()
             # Reset the ᔑdt_steps, starting the leapfrog cycle anew
             nullify_ᔑdt_steps()
             continue
         # Increase the time step size after a full time step size period
-        if not (time_step % Δt_period):
+        if not ((universals.time_step + ℤ[1 - initial_time_step]) % Δt_period):
             # Let the drift operation catch up to the kick operation
             drift(components, 'first half')
             # New, bigger time step size, according to Δt ∝ a
@@ -403,32 +477,43 @@ def timeloop():
             nullify_ᔑdt_steps()
             continue
         # Drift
-        scalefactor_integrals('second half', Δt)
+        a_next, t_next = scalefactor_integrals('second half', Δt)
         drift(components, 'whole')
-        do_autosave = bcast(autosave > 0 and (time() - autosave_time) > ℝ[autosave/units.s])
-        if dump(components, output_filenames, final_render, 'kick', do_autosave):
+        universals.a, universals.t = a_next, t_next
+        do_autosave = bcast(autosave_interval > 0
+                            and (time() - autosave_time) > ℝ[autosave_interval/units.s])
+        dumped = dump(
+            components,
+            output_filenames,
+            final_render3D,
+            'kick',
+            do_autosave,
+            Δt,
+            Δt_begin,
+        )
+        if dumped:
             # Restart autosave schedule
-            if do_autosave:
+            if 'autosave' in dumped or 'snapshot' in dumped:
                 autosave_time = time()
             # Reset the ᔑdt_steps, starting the leapfrog cycle anew
             nullify_ᔑdt_steps()
             continue
     # All dumps completed; end of main time loop
-    print_timestep_heading(time_step, Δt, bottleneck, components, end=True)
+    print_timestep_heading(universals.time_step, Δt, bottleneck, components, end=True)
 
 # Function which prints out basic information
 # about the current time step.
 @cython.header(# Arguments
                time_step='Py_ssize_t',
                Δt='double',
-               bottleneck='str',
-               components='list',
+               bottleneck=str,
+               components=list,
                end='bint',
                # Locals
                component='Component',
                i='Py_ssize_t',
-               part='str',
-               parts='list',
+               part=str,
+               parts=list,
                width='Py_ssize_t',
                width_max='Py_ssize_t',
                )
@@ -458,7 +543,7 @@ def print_timestep_heading(time_step, Δt, bottleneck, components, end=False):
                      )
     for component in components:
         if component.w_type != 'constant':
-            parts.append('\nEoS ({}):'.format(component.name).ljust(heading_ljust))
+            parts.append(f'\nEoS w ({component.name}):'.ljust(heading_ljust))
             parts.append(significant_figures(component.w(), 4, fmt='unicode'))
     # Find the maximum width of the first column and left justify
     # the entire first colum to match this maximum width.
@@ -481,22 +566,22 @@ heading_ljust = 0
 # This function reduces the time step size Δt if it is too,
 # based on a number of conditions.
 @cython.header(# Arguments
-               components='list',
+               components=list,
                Δt='double',
                Δt_begin='double',
                timespan='double',
                worry='bint',
                # Locals
                H='double',
-               J_over_ϱ_2_i='double',
-               J_over_ϱ_2_max='double',
+               J_over_ϱ_plus_𝒫_2_i='double',
+               J_over_ϱ_plus_𝒫_2_max='double',
                Jx='double[:, :, :]',
                Jx_ijk='double',
                Jy='double[:, :, :]',
                Jy_ijk='double',
                Jz='double[:, :, :]',
                Jz_ijk='double',
-               bottleneck='str',
+               bottleneck=str,
                component='Component',
                dim='int',
                extreme_component='Component',
@@ -506,12 +591,12 @@ heading_ljust = 0
                fac_reduce='double',
                fac_timespan='double',
                fac_ẇ='double',
-               force='str',
+               force=str,
                i='Py_ssize_t',
                j='Py_ssize_t',
                k='Py_ssize_t',
-               limiters='list',
-               method='str',
+               limiters=list,
+               method=str,
                mom2_i='double',
                mom2_max='double',
                momx='double*',
@@ -520,9 +605,10 @@ heading_ljust = 0
                momy_i='double',
                momz='double*',
                momz_i='double',
-               resolutions='list',
+               resolutions=list,
                v_max='double',
                w='double',
+               w_eff='double',
                Δt_courant='double',
                Δt_courant_component='double',
                Δt_hubble='double',
@@ -533,7 +619,7 @@ heading_ljust = 0
                Δt_ratio='double',
                Δt_ratio_abort='double',
                Δt_ratio_warn='double',
-               Δt_suggestions='list',
+               Δt_suggestions=list,
                Δt_ẇ='double',
                Δt_ẇ_component='double',
                Δx_max='double',
@@ -541,7 +627,9 @@ heading_ljust = 0
                ρ_bar='double',
                ϱ='double[:, :, :]',
                ϱ_ijk='double',
-               returns='tuple',  # (Δt, bottleneck)
+               𝒫='double[:, :, :]',
+               𝒫_ijk='double',
+               returns=tuple,  # (Δt, bottleneck)
                )
 def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
     """This function computes the maximum allowed value of the
@@ -589,9 +677,9 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
     fac_dynamical = 8e-3
     if enable_Hubble:
         # When the Hubble expansion is enabled, 
-        # use the current critical density as the mean density.
+        # use the current matter density as the mean density.
         H = hubble()
-        ρ_bar = H**2*ℝ[Ωm*3/(8*π*G_Newton)]
+        ρ_bar = ρ_mbar*(H/H0)**2
     else:
         # In static space, determine the mean density
         # directly from the components.
@@ -620,9 +708,12 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
     # v_max = c*sqrt(w)/a + ẋ, ẋ = dx/dt = u/a,
     # where u is the peculiar velocity.
     # For fluids we have
-    # ϱ = a**(3*(1 + w))*ρ, J = a**4*u*ρ, and so
-    # u = a**(3*w - 1)*J/ϱ and then
-    # v_max = c*sqrt(w)/a + J/(a**(2 - 3*w)*ϱ).
+    # ϱ = a**(3*(1 + w_eff))ρ, J = a**4*(ρ + c⁻²P)u,
+    # and so
+    # u = a**(-4)*J/(ρ + c⁻²P)
+    #   = a**(3*w_eff - 1)*J/(ϱ + c⁻²𝒫),
+    # and then
+    # v_max = c*sqrt(w)/a + a**(3*w_eff - 2)*J/(ϱ + c⁻²𝒫).
     # For particles we have w = 0 and ẋ = mom/(a**2*m), and so
     # v_max = mom/(a**2*mass).
     # The time step should not be allowed to be such that
@@ -643,12 +734,12 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
             # The number of particles is also used
             # as an addtional resolution.
             resolutions = [cbrt(component.N)]
-            for force, method in forces.get(component.species, []):
+            for force, method in component.forces.items():
                 if force == 'gravity':
                     if method == 'pm':
                         resolutions.append(φ_gridsize)
                     elif method in ('pp', 'p3m'):
-                        resolutions.append(1/component.softening)
+                        resolutions.append(boxsize/component.softening_length)
             Δx_max = boxsize/np.max(resolutions)
             # Find maximum speed of particles
             mom2_max = 0
@@ -672,14 +763,15 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
             # The resolution of the fluid grids themselves is also used
             # as an addtional resolution.
             resolutions = [component.gridsize]
-            for force, method in forces.get(component.species, []):
+            for force, method in component.forces.items():
                 if force == 'gravity':
                     if method == 'pm':
                         resolutions.append(φ_gridsize)
             Δx_max = boxsize/np.max(resolutions)
             # Find maximum speed of information
-            J_over_ϱ_2_max = 0
+            J_over_ϱ_plus_𝒫_2_max = 0
             ϱ  = component.ϱ .grid_noghosts
+            𝒫  = component.𝒫 .grid_noghosts
             Jx = component.Jx.grid_noghosts
             Jy = component.Jy.grid_noghosts
             Jz = component.Jz.grid_noghosts
@@ -690,12 +782,16 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
                         Jx_ijk = Jx[i, j, k]
                         Jy_ijk = Jy[i, j, k]
                         Jz_ijk = Jz[i, j, k]
-                        J_over_ϱ_2_i = (Jx_ijk**2 + Jy_ijk**2 + Jz_ijk**2)/ϱ_ijk**2
-                        if J_over_ϱ_2_i > J_over_ϱ_2_max:
-                            J_over_ϱ_2_max = J_over_ϱ_2_i
-            J_over_ϱ_2_max = allreduce(J_over_ϱ_2_max, op=MPI.MAX)
-            w = component.w()
-            v_max = light_speed*sqrt(w)/universals.a + universals.a**(3*w - 2)*sqrt(J_over_ϱ_2_max)
+                        𝒫_ijk  = 𝒫[i, j, k]
+                        J_over_ϱ_plus_𝒫_2_i = (Jx_ijk**2 + Jy_ijk**2 + Jz_ijk**2)/(
+                                                   ϱ_ijk + ℝ[light_speed**(-2)]*𝒫_ijk)**2
+                        if J_over_ϱ_plus_𝒫_2_i > J_over_ϱ_plus_𝒫_2_max:
+                            J_over_ϱ_plus_𝒫_2_max = J_over_ϱ_plus_𝒫_2_i
+            J_over_ϱ_plus_𝒫_2_max = allreduce(J_over_ϱ_plus_𝒫_2_max, op=MPI.MAX)
+            w     = component.w()
+            w_eff = component.w_eff()
+            v_max = (  light_speed*sqrt(w)/universals.a
+                     + universals.a**(3*w_eff - 2)*sqrt(J_over_ϱ_plus_𝒫_2_max))
         # In the odd case of a completely static component,
         # set v_max to be just above 0.
         if v_max == 0:
@@ -715,7 +811,7 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
     Δt_ẇ = ထ
     extreme_component = None
     for component in components:
-        Δt_ẇ_component = fac_ẇ/(abs(component.ẇ()) + machine_ϵ)
+        Δt_ẇ_component = fac_ẇ/(abs(cast(component.ẇ(), 'double')) + machine_ϵ)
         if Δt_ẇ_component < Δt_ẇ:
             Δt_ẇ = Δt_ẇ_component
             extreme_component = component
@@ -762,15 +858,15 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
 # or produces the initial conditions itself.
 @cython.header(# Locals
                N_or_gridsize='Py_ssize_t',
-               abort_msg='str',
+               abort_msg=str,
                component='Component',
-               components='list',
+               components=list,
                ic_isfile='bint',
-               initial_conditions_generate='list',
-               name='str',
-               representation='str',
-               speices='str',
-               returns='list',
+               initial_conditions_generate=list,
+               name=str,
+               representation=str,
+               speices=str,
+               returns=list,
                )
 def get_initial_conditions():
     # Parse the initial_conditions parameter
@@ -834,18 +930,14 @@ def get_initial_conditions():
                 if representation == 'particles':
                     abort(f'No N specified for "{name}"')
                 elif representation == 'fluid':
-                    abort(f'No gridsize specified for "{name}"')
-            if 'w' in d:
-                w = d.pop('w')
-            else:
-                w = 'class'            
+                    abort(f'No gridsize specified for "{name}"')          
             # Show a warning if not enough information is given to
             # construct the initial conditions.
             if species in ('neutrinos', 'neutrino fluid') and class_params.get('N_ncdm', 0) == 0:
                 masterwarn('Component "{}" with species "{}" specified, '
                            'but the N_ncdm CLASS parameter is 0'.format(name, species))
             # Do the realization
-            component = Component(name, species, N_or_gridsize, w=w, **d)
+            component = Component(name, species, N_or_gridsize, **d)
             component.realize()
             components.append(component)
         return components
@@ -893,7 +985,14 @@ def prepare_output_times():
     # naming convention.
     output_filenames = {}
     for time_param, at_begin in zip(('a', 't'), (universals.a, universals.t)):
-        for output_kind, output_time in output_times[time_param].items():
+        # Here the output_times_full dict is used rather than just the
+        # output_times dict. These dicts are equal, except after
+        # starting from an autosave, where output_times will contain
+        # the remaining dump times only, whereas output_times_full
+        # will contain all the original dump times.
+        # We use output_times_full so as to stick to the original naming
+        # format used before restarting from the autosave.
+        for output_kind, output_time in output_times_full[time_param].items():
             # This kind of output does not matter if
             # it should never be dumped to the disk.
             if not output_time or not output_kind in output_dirs:
@@ -907,7 +1006,7 @@ def prepare_output_times():
                     and (fmt.format(times[0]) != fmt.format(0) or not times[0])):
                     break
                 ndigits += 1
-            fmt = '{{}}={}'.format(fmt)
+            fmt = f'{{}}={fmt}'
             # Use the format (that is, either the format from the a
             # output times or the t output times) with the largest
             # number of digits.
@@ -946,24 +1045,24 @@ def prepare_output_times():
     # The t-times for all dumps are now known. We can therefore
     # determine the total simulation time span.
     timespan = (dumps[len(dumps) - 1][1] - universals.t)
-    # Determine the final render time (scalefactor or cosmic time).
+    # Determine the final render3D time (scalefactor or cosmic time).
     # Place the result in a tuple (eg. ('a', 1) or ('t', 13.7)).
-    final_render = ()
-    if render_times['t']:
-        final_render_t = render_times['t'][len(render_times['t']) - 1]
-        final_render = ('t', final_render_t)
-    if render_times['a']:
-        final_render_a = render_times['a'][len(render_times['a']) - 1]
-        final_render_t = cosmic_time(final_render_a)
-        if not final_render or (final_render and final_render_t > final_render[1]):
-            final_render = ('a', final_render_t)
-    return output_filenames, final_render, timespan
+    final_render3D = ()
+    if render3D_times['t']:
+        final_render3D_t = render3D_times['t'][len(render3D_times['t']) - 1]
+        final_render3D = ('t', final_render3D_t)
+    if render3D_times['a']:
+        final_render3D_a = render3D_times['a'][len(render3D_times['a']) - 1]
+        final_render3D_t = cosmic_time(final_render3D_a)
+        if not final_render3D or (final_render3D and final_render3D_t > final_render3D[1]):
+            final_render3D = ('a', final_render3D_t)
+    return output_filenames, final_render3D, timespan
 
 # Declare global variables used in above functions
-cython.declare(ᔑdt_steps='dict',
+cython.declare(ᔑdt_steps=dict,
                i_dump='Py_ssize_t',
-               dumps='list',
-               next_dump='list',
+               dumps=list,
+               next_dump=list,
                )
 if special_params:
     # Instead of running a simulation, run some utility
@@ -975,8 +1074,8 @@ else:
     # Simulation done
     universals.any_warnings = allreduce(universals.any_warnings, op=MPI.LOR)
     if universals.any_warnings:
-        masterprint('\nCO𝘕CEPT run finished')
+        masterprint(f'CO𝘕CEPT run {jobid} finished')
     else:
-        masterprint('\nCO𝘕CEPT run finished successfully', fun=terminal.bold_green)
+        masterprint(f'CO𝘕CEPT run {jobid} finished successfully', fun=terminal.bold_green)
 # Shutdown CO𝘕CEPT properly
 abort(exit_code=0)

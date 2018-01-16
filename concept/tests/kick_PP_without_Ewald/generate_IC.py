@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -32,7 +32,7 @@ from snapshot import save
 # any direction, as the nearest particle image in all cases must be the
 # actual particle itself.
 N = 8
-mass = ϱ_mbar*boxsize**3/N
+mass = ρ_mbar*boxsize**3/N
 component = Component('GADGET halos', 'matter particles', N, mass=mass)
 component.populate(np.array([0.26]*4 + [0.74]*4)*boxsize, 'posx')
 component.populate(np.array([0.25, 0.25, 0.75, 0.75]*2)*boxsize, 'posy')

@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@ _this_dir = os.path.dirname(paths['params'])
 # Hidden parameters
 _w  = 0.2                 # Constant equation of state for fluid
 _ρ0 = 100*m_sun/kpc**3    # Mean fluid density
-_A  = 1e-3*_ϱ0            # Amplitude of fluid sine
+_A  = 1e-3*_ρ0            # Amplitude of fluid sine
 _T  = 1*Gyr               # Period of pressure oscillation
 _σ  = 0.1*light_speed**2  # Constant σ value for fluid
 
@@ -39,8 +39,13 @@ output_times       = {'t': {'snapshot': linspace(0, _T, 9)}}
 # Numerical parameters
 boxsize = sqrt(light_speed**2*_w + (1 + _w)*_σ)*_T
 
+# Physics
+select_eos_w          = {'matter fluid': _w}
+select_closure        = {'matter fluid': 'truncate'}
+select_approximations = {'matter fluid': {'P = wρ': True}}
+
 # Simulation options
-vacuum_corrections = {'all': False}
+select_vacuum_corrections = {'matter fluid': False}
 
 # Debugging options
 enable_Hubble = False

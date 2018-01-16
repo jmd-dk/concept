@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,10 +27,11 @@ _this_dir = os.path.dirname(paths['params'])
 initial_conditions = _this_dir + '/IC.hdf5'
 output_dirs        = {'snapshot': _this_dir + '/output'}
 output_bases       = {'snapshot': 'snapshot'}
-output_times       = {'t': {'terminal render': linspace(0, 15*Gyr, 26),
-                            'snapshot'       : linspace(0, 15*Gyr, 3),
-                            }
+output_times       = {'t': {'snapshot': linspace(0, 15*Gyr, 3),
+                            'render2D': linspace(0, 15*Gyr, 26),
+                            },
                       }
+render2D_select    = {'all': {'terminal image': True}}
 
 # Numerical parameters
 boxsize    = 64*Mpc
@@ -40,11 +41,16 @@ boxsize    = 64*Mpc
 t_begin = 0
 
 # Physics
-forces = {'all': {'gravity': 'pm'}}
+select_forces         = {'all': {'gravity': 'pm'}}
+select_closure        = {'matter fluid': 'truncate'}
+select_approximations = {'matter fluid': {'P = wρ': True}}
 
 # Graphics
-terminal_render_colormap   = 'ocean'
-terminal_render_resolution = min([φ_gridsize, 80])
+render2D_options = {
+    'terminal resolution': φ_gridsize,
+    'colormap': 'inferno',
+    'enhance': False,
+}
 
 # Debugging options
 enable_Hubble = False

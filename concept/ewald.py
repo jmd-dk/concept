@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -187,7 +187,7 @@ def ewald(x, y, z):
 # The result is stored as the global variable 'grid',
 # which will be fetched when called repeatedly.
 @cython.header(found_on_disk='bint',
-               shape='tuple',
+               shape=tuple,
                returns='double[:, :, :, ::1]',
                )
 def get_grid():
@@ -217,9 +217,9 @@ def get_grid():
         # ensures that only the first octant of the box is tabulated.
         grid = tabulate()
     return grid
-cython.declare(grid='double[:, :, :, ::1]', filename='str')
+cython.declare(grid='double[:, :, :, ::1]', filename=str)
 grid = np.empty((1, 1, 1, 1), dtype=C2np['double'])
-filename = '{}/.ewald_gridsize={}.hdf5'.format(paths['concept_dir'], ewald_gridsize)
+filename = f'{paths["reusables_dir"]}/ewald/ewald_gridsize={ewald_gridsize}.hdf5'
 
 # Function for tabulation of the Ewald grid
 @cython.pheader(returns='double[:, :, :, ::1]')

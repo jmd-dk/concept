@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -50,10 +50,10 @@ set -e
 # Cleanup from last test run
 "${this_dir}/clean"
 
-# Perform pure Python and compiled test with CLASS disabled
+# Perform pure Python and compiled test with CLASS background disabled
 for pure_python_flag in "--pure-python" ""; do
     cp "${this_dir}/params" "${this_dir}/params_specialized"
-    echo "enable_class = False" >> "${this_dir}/params_specialized"
+    echo "enable_class_background = False" >> "${this_dir}/params_specialized"
     echo "_pure_python = \"${pure_python_flag}\"" >> "${this_dir}/params_specialized"
     "${concept}" -n 1                                \
                  -p "${this_dir}/params_specialized" \
@@ -62,10 +62,10 @@ for pure_python_flag in "--pure-python" ""; do
                  --local
 done
 
-# Perform pure Python and compiled test with CLASS enabled
+# Perform pure Python and compiled test with CLASS background enabled
 for pure_python_flag in "--pure-python" ""; do
     cp "${this_dir}/params" "${this_dir}/params_specialized"
-    echo "enable_class = True" >> "${this_dir}/params_specialized"
+    echo "enable_class_background = True" >> "${this_dir}/params_specialized"
     echo "_pure_python = \"${pure_python_flag}\"" >> "${this_dir}/params_specialized"
     "${concept}" -n 1                                \
                  -p "${this_dir}/params_specialized" \

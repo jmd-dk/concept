@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015-2017 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2018 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,27 +27,39 @@ from commons import *
 # Cython imports
 cimport('from communication import sendrecv_component')
 cimport('from mesh import CIC_components2φ, diff_domain, domain_decompose, fft, slab_decompose')
+cimport('from mesh import CIC_components2φ_general')
 # Import interactions defined in other modules
 cimport('from gravity import *')
 # DELETE WHEN DONE with gravity_old.py !!!
 cimport('from gravity_old import build_φ, p3m, pm, pp')
 
+# Function pointer types used in this module
+pxd("""
+#                                       component_1, component_2, rank_2, ᔑdt , local, mutual, extra_args
+ctypedef void   (*func_interaction    )(Component  , Component  , int   , dict, bint , bint  , dict      )
+#                                       k2
+ctypedef double (*func_potential      )(double)
+#                                       component, ᔑdt , gradφ_dim        , dim
+ctypedef void   (*func_apply_potential)(Component, dict, double[:, :, ::1], int)
+""")
+
+
 
 # Generic function implementing domain-domain pairing
 @cython.header(# Arguments
-              receivers='list',
-              suppliers='list',
-              ᔑdt='dict',
-              interaction='func_interaction',
-              interaction_name='str',
-              dependent='list',  # list of str's
-              affected='list',   # list of str's
+              receivers=list,
+              suppliers=list,
+              ᔑdt=dict,
+              interaction=func_interaction,
+              interaction_name=str,
+              dependent=list,  # list of str's
+              affected=list,   # list of str's
               deterministic='bint',
-              extra_args='dict',
+              extra_args=dict,
               # Locals
               N_domain_pairs='Py_ssize_t',
               assisted='bint',
-              components='list',
+              components=list,
               component_1='Component',
               component_2_extrl='Component',
               component_2_local='Component',
@@ -198,16 +210,16 @@ def domain_domain(receivers, suppliers, ᔑdt, interaction, interaction_name,
 
 # Generic function implementing particle-mesh interactions
 @cython.header(# Arguments
-               receivers='list',
-               suppliers='list',
-               ᔑdt='dict',
-               potential='func_potential',
-               potential_name='str',
-               dependent='list',
-               apply_potential='func_apply_potential',
+               receivers=list,
+               suppliers=list,
+               ᔑdt=dict,
+               potential=func_potential,
+               potential_name=str,
+               dependent=list,
+               apply_potential=func_apply_potential,
                # Locals
                component='Component',
-               components='list',
+               components=list,
                dim='int',
                gradφ_dim='double[:, :, ::1]',
                h='double',
@@ -233,7 +245,7 @@ def particle_mesh(receivers, suppliers, ᔑdt, potential, potential_name,
 
     The grid is then Fourier transformed back to real space and
     differentiated along each dimension to get the force. This force is
-    is passed to the apply_potential function for each receiver and
+    passed to the apply_potential function for each receiver and
     each dimension.
     """
     # Build the potential due to all components
@@ -261,9 +273,9 @@ def particle_mesh(receivers, suppliers, ᔑdt, potential, potential_name,
 # Generic function capable of constructing a potential grid out of
 # components and a given expression for the potential.
 @cython.header(# Arguments
-               components='list',
-               quantities='list',
-               potential='func_potential',
+               components=list,
+               quantities=list,
+               potential=func_potential,
                # Locals
                double_deconv='double',
                fft_normalization_factor='double',
@@ -301,10 +313,10 @@ def construct_potential(components, quantities, potential):
     each grid point is multiplied by potential(k2), potential is the
     supplied function and k2 = k² is the squared magnitude of the wave
     vector at the given grid point, in physical units. For normal
-    gravity, we have φ(k) = -4πGa²ρ(k)/k² = -4πGa⁻³ʷ⁻¹ϱ(k)/k²,
+    gravity, we have φ(k) = -4πGa²ρ(k)/k² = -4πG a**(-3*w_eff - 1) ϱ(k)/k²,
     which can be signalled by passing
     quantities = [('particles', a**(-1)*mass/Vcell),
-                  ('ϱ', a**(-3*w - 1))],
+                  ('ϱ', a**(-3*w_eff - 1))],
     potential = lambda k2: -4*π*G_Newton/k2
     (note: it is not allowed to actually pass a lambda function,
     in compiled mode anyway).
@@ -393,21 +405,332 @@ def construct_potential(components, quantities, potential):
     # imported directly into other modules).
     return φ
 
+# Generic function implementing particle-mesh interactions
+# for both particle and fluid componenets.
+@cython.header(# Arguments
+               receivers=list,
+               suppliers=list,
+               ᔑdt=dict,
+               potential=func_potential,
+               potential_name=str,
+               dependent=list,
+               apply_potential=func_apply_potential,
+               # Locals
+               component='Component',
+               components=list,
+               dim='int',
+               gradφ_dim='double[:, :, ::1]',
+               h='double',
+               representation=str,
+               φ='double[:, :, ::1]',
+               φ_dict=dict,
+               )
+def particle_mesh_general(receivers, suppliers, ᔑdt, potential, potential_name,
+                          dependent, apply_potential):
+    """This function will update the affected variables of all receiver
+    components due to an interaction. This is done by constructing
+    global fields by interpolating the dependent variables of all
+    receivers and suppliers onto grids.
+    The supplied 'dependent' argument is thus a list of variables which
+    should be interpolated to the grid. For details on the structure
+    of this argument, see the CIC_components2domain_grid function
+    in the mesh module, where the corresponding argument is called
+    quantities.
+
+    Two global grids are used, φ_particles and φ_fluids, both of which
+    contain the entire density/potential field of both particle and
+    fluid components. For φ_fluids, a CIC deconvolution will take place
+    on the contribution from particles only, corresponding to the
+    interpolation from particles onto the grid. For φ_particles, this
+    same deconvolution will take place, but in addition both the
+    particle and fluid contribution will be deconvolved once more,
+    corresponding to the interpolation from the grid back to
+    the particles.
+
+    The deconvolutions take place in Fourier space. Also while in
+    Fourier space, the grids are transformed to the (Fourier
+    transformed) potential by multiplying each grid point by
+    potential(k2), where k2 = k² is the squared magnitude of the wave
+    vector at the given grid point. For further details on the potential
+    argument, see the construct_potential_general function.
+
+    The grids are then Fourier transformed back to real space and
+    differentiated along each dimension to get the force. This force is
+    passed to the apply_potential function for each receiver and
+    each dimension.
+    """
+    # Build the two potentials due to all components
+    components = receivers + suppliers
+    masterprint('Constructing the {} due to {} ...'
+                .format(potential_name, ', '.join([component.name for component in components])))
+    φ_dict = construct_potential_general(components, dependent, potential)
+    masterprint('done')
+    # For each dimension, differentiate the potentials
+    # and apply the force to all receiver components.
+    h = boxsize/φ_gridsize  # Physical grid spacing of φ
+    for representation, φ in φ_dict.items():
+        for dim in range(3):
+            masterprint(f'Differentiating the ({representation}) {potential_name} along the '
+                        f'{"xyz"[dim]}-direction and applying it ...'
+                        )
+            # Do the differentiation of φ
+            gradφ_dim = diff_domain(φ, dim, h, order=4)
+            # Apply force to all the receivers
+            for component in receivers:
+                if component.representation != representation:
+                    continue
+                masterprint(f'Applying to {component.name} ...')
+                apply_potential(component, ᔑdt, gradφ_dim, dim)
+                masterprint('done')
+            masterprint('done')
+
+# Generic function capable of constructing potential grids out of
+# components and a given expression for the potential.
+@cython.header(# Arguments
+               components=list,
+               quantities=list,
+               potential=func_potential,
+               # Locals
+               any_fluid='bint',
+               any_particles='bint',
+               deconv_factor='double',
+               deconv_ijk='double',
+               fft_normalization_factor='double',
+               i='Py_ssize_t',
+               j='Py_ssize_t',
+               j_global='Py_ssize_t',
+               kj='Py_ssize_t',
+               kj2='Py_ssize_t',
+               k='Py_ssize_t',
+               ki='Py_ssize_t',
+               kk='Py_ssize_t',
+               k2='Py_ssize_t',
+               potential_factor='double',
+               reciprocal_sqrt_deconv_ij='double',
+               reciprocal_sqrt_deconv_ijk='double',
+               reciprocal_sqrt_deconv_j='double',
+               representation=str,
+               representation_counter='int',
+               size='Py_ssize_t',
+               slab='double[:, :, ::1]',
+               slab_dict=dict,
+               slab_fluid='double[:, :, ::1]',
+               slab_fluid_jik='double*',
+               slab_jik='double*',
+               slab_ordereddict=object,  # OrderedDict
+               slab_particles='double[:, :, ::1]',
+               slab_particles_jik='double*',
+               φ='double[:, :, ::1]',
+               φ_dict=dict,
+               returns=dict,
+               )
+def construct_potential_general(components, quantities, potential):
+    """This function populate two grids (including pseudo points and
+    ghost layers) with a real-space potential corresponding to the
+    Fourier-space potential function given, due to all the components.
+    A seperate grid for particle and fluid components will be
+    constructed, the difference being only the handling of
+    deconvolutions needed for the interpolation two/from the grid.
+    Both grids will contain the potential due to all the components.
+    Which variables to extrapolate to the grid is determined by the
+    quantities argument. For details on this argument, see the
+    CIC_components2domain_grid function in the mesh module.
+
+    First the variables given in 'quantities' of the components are
+    interpolated to the grids; particle components to one grid and
+    fluid components to a seperate grid. The two grids are then Fourier
+    transformed.
+    The potential function is then used to change the value of each grid
+    point for both grids. Also while in Fourier space, deconvolutions
+    will be carried out, in a different manner for each grid.
+    The two grids are added in such a way that they both corresponds to
+    the total potential of all components, but deconvolved in the way
+    suitable for either particles or fluids. Note that if a fluid
+    component have a gridsize different from φ_gridsize, interpolation
+    will take place but no deconvolution will be made, leading to
+    errors on small scales.
+    The two grids are now Fourirer transformed back to real space.
+
+    In the case of normal gravity, we have
+    φ(k) = -4πGa²ρ(k)/k² = -4πG a**(-3*w_eff - 1) ϱ(k)/k²,
+    which can be signalled by passing
+    quantities = [('particles', a**(-1)*mass/Vcell),
+                  ('ϱ', a**(-3*w_eff - 1))],
+    potential = lambda k2: -4*π*G_Newton/k2
+    (note that it is not actally allowed to pass an untyped lambda
+    function in compiled mode).
+    """
+    # CIC interpolate the particles/fluid elements onto the grids.
+    # The φ_dict will be a dictionary mapping representations
+    # ('particles', 'fluid') to grids. If only one representation is
+    # present, only this item will exist in the dictionary.
+    φ_dict = CIC_components2φ_general(components, quantities)
+    # Flags specifying whether any fluid/particle components are present
+    any_particles = ('particles' in φ_dict)
+    any_fluid     = ('fluid'     in φ_dict)
+    # Slab decompose the grids
+    slab_dict = {representation: slab_decompose(φ, f'φ_{representation}_slab', prepare_fft=True)
+                 for representation, φ in φ_dict.items()}
+    # In the case of both particle and fluid components being present,
+    # it is important that the particle slabs are handled after the
+    # fluid slabs, as the deconvolution factor is only computed for
+    # particle components and this is needed after combining the fluid
+    # and particle slabs.
+    slab_ordereddict = collections.OrderedDict()
+    if any_fluid:
+        slab_fluid = slab_dict['fluid']
+        slab_ordereddict['fluid'] = slab_fluid
+    if any_particles:
+        slab_particles = slab_dict['particles']
+        slab_ordereddict['particles'] = slab_particles
+    # Do a forward in-place Fourier transform of the slabs
+    for slab in slab_dict.values():
+        fft(slab, 'forward')
+    # Multiplicative factor needed after a forward and a backward
+    # Fourier transformation.
+    fft_normalization_factor = φ_gridsize**(-3)
+    # For each grid, multiply by the potential and deconvolution
+    # factors. Do fluid slabs fist, then particle slabs.
+    for representation_counter, (representation, slab) in enumerate(slab_ordereddict.items()):
+        # Begin loop over slabs. As the first and second dimensions
+        # are transposed due to the FFT, start with the j-dimension.
+        for j in range(ℤ[slab.shape[0]]):
+            # The j-component of the wave vector (grid units).
+            # Since the slabs are distributed along the j-dimension,
+            # an offset must be used.
+            j_global = ℤ[slab.shape[0]*rank] + j
+            if j_global > ℤ[φ_gridsize//2]:
+                kj = j_global - φ_gridsize
+            else:
+                kj = j_global
+            kj2 = kj**2
+            # Reciprocal square root of the j-component of the deconvolution
+            with unswitch(1):
+                if 𝔹[representation == 'particles']:
+                    reciprocal_sqrt_deconv_j = sinc(kj*ℝ[π/φ_gridsize])
+            # Loop through the complete i-dimension
+            for i in range(φ_gridsize):
+                # The i-component of the wave vector (grid units)
+                if i > ℤ[φ_gridsize//2]:
+                    ki = i - φ_gridsize
+                else:
+                    ki = i
+                # Reciprocal square root of the product of the i-
+                # and the j-component of the deconvolution.
+                with unswitch(2):
+                    if 𝔹[representation == 'particles']:
+                        reciprocal_sqrt_deconv_ij = (sinc(ki*ℝ[π/φ_gridsize])
+                                                     *reciprocal_sqrt_deconv_j)
+                # Loop through the complete, padded k-dimension
+                # in steps of 2 (one complex number at a time).
+                for k in range(0, ℤ[slab.shape[2]], 2):
+                    # The k-component of the wave vector (grid units)
+                    kk = k//2
+                    # The squared magnitude of the wave vector (grid units)
+                    k2 = ℤ[ki**2 + kj2] + kk**2
+                    # Pointer to the [j, i, k]'th element of the slab.
+                    # The complex number is then given as
+                    # Re = slab_jik[0], Im = slab_jik[1].
+                    slab_jik = cython.address(slab[j, i, k:])
+                    # Enforce the vanishing of the potential at |k| = 0.
+                    # The real-space mean value of the potential will
+                    # then be zero, as it should for a
+                    # peculiar potential.
+                    if k2 == 0:
+                        slab_jik[0] = 0  # Real part
+                        slab_jik[1] = 0  # Imag part
+                        continue
+                    # Get the factor from the potential function at
+                    # this k². The physical squared length of the wave
+                    # vector is given by (2π/boxsize*|k|)².
+                    potential_factor = potential(ℝ[(2*π/boxsize)**2]*k2)
+                    # The final deconvolution factor
+                    with unswitch(3):
+                        if 𝔹[representation == 'particles']:
+                            # Reciprocal square root of the product of
+                            # all components of the deconvolution.
+                            reciprocal_sqrt_deconv_ijk = (reciprocal_sqrt_deconv_ij
+                                                          *sinc(kk*ℝ[π/φ_gridsize]))
+                            # The total factor
+                            # for a complete deconvolution.
+                            deconv_ijk = 1/reciprocal_sqrt_deconv_ijk**2
+                            # A deconvolution of the particle potential
+                            # is needed due to the interpolation from
+                            # the particle positions to the grid.
+                            deconv_factor = deconv_ijk
+                            # For particle components we will need to do
+                            # a second deconvolutions due to the
+                            # interpolation from the grid back to the
+                            # particles. We carry out this second
+                            # deconvolution now if we only have particle
+                            # components. If both particle and fluid
+                            # components are present, this second
+                            # deconvolution will take place later.
+                            with unswitch(4):
+                                if not any_fluid:
+                                    deconv_factor *= deconv_ijk
+                        elif 𝔹[representation == 'fluid']:
+                            # Do not apply any deconvolution to fluids
+                            deconv_factor = 1
+                    # Transform this complex grid point
+                    slab_jik[0] *= ℝ[potential_factor*deconv_factor  # Real part
+                                     *fft_normalization_factor]
+                    slab_jik[1] *= ℝ[potential_factor*deconv_factor  # Imag part
+                                     *fft_normalization_factor]
+                    # If only particle components or only fluid
+                    # components exist, the slabs now store the final
+                    # potential in Fourier space. However, if both
+                    # particle and fluid components exist, the two sets
+                    # of slabs should be combined to form total
+                    # potentials. We know that both representations
+                    # exist and that we are done handling both (at this
+                    # gridpoint) if representation_counter == 1.
+                    with unswitch(3):
+                        if representation_counter == 1:
+                            # Pointers to this element for both slabs.
+                            # As we are looping over the particle slab,
+                            # we may reuse the pointer above.
+                            slab_particles_jik = slab_jik
+                            slab_fluid_jik     = cython.address(slab_fluid[j, i, k:])
+                            # Add the particle potential values
+                            # to the fluid potential.
+                            slab_fluid_jik[0] += slab_particles_jik[0]  # Real part
+                            slab_fluid_jik[1] += slab_particles_jik[1]  # Imag part
+                            # Now the fluid slabs store the total
+                            # potential, with the particle part
+                            # deconvolved once due to the interpolation
+                            # of the particles to the grid. The particle
+                            # slabs should now be a copy of what is
+                            # stored in the fluid slabs, but with an
+                            # additional deconvolution, accounting for
+                            # the upcoming interpolation from the grid
+                            # back to the particles.
+                            slab_particles_jik[0] = deconv_ijk*slab_fluid_jik[0]  # Real part
+                            slab_particles_jik[1] = deconv_ijk*slab_fluid_jik[1]  # Imag part
+    # Fourier transform the slabs back to coordinate space
+    for slab in slab_dict.values():
+        fft(slab, 'backward')
+    # Domain-decompose the slabs
+    for φ, slab in zip(φ_dict.values(), slab_dict.values()):
+        domain_decompose(slab, φ)  # Also populates pseudos and ghost
+    # Return the potential grids
+    return φ_dict
+
 # Function implementing pairwise nearest neighbour search
 @cython.header(# Arguments
                component_1='Component',
                component_2='Component',
                rank_2='int',
-               ᔑdt='dict',
+               ᔑdt=dict,
                local='bint',
                mutual='bint',
-               extra_args='dict',
+               extra_args=dict,
                # Locals
                N_2='Py_ssize_t',
                i='Py_ssize_t',
                index='Py_ssize_t',
                j='Py_ssize_t',
-               neighbour_components='list',
+               neighbour_components=list,
                neighbour_distances2='double[::1]',
                neighbour_indices='Py_ssize_t[::1]',
                neighbour_ranks='int[::1]',
@@ -419,7 +742,7 @@ def construct_potential(components, quantities, potential):
                posz_2='double*',
                r2='double',
                r2_min='double',
-               selected='dict',
+               selected=dict,
                selected_indices='Py_ssize_t[::1]',
                x_ji='double',
                xi='double',
@@ -490,16 +813,16 @@ def find_nearest_neighbour_pairwise(component_1, component_2, rank_2, ᔑdt, loc
 # Function that finds the nearest neighbour particles
 # to a selected subset of particle components.
 @cython.header(# Arguments
-               components='list',
-               selected='dict',
+               components=list,
+               selected=dict,
                # Locals
                component='Component',
                indices='Py_ssize_t[::1]',
-               neighbour_components='dict',
-               neighbour_distances2='dict',
-               neighbour_indices='dict',
-               neighbour_ranks='dict',
-               returns='tuple',
+               neighbour_components=dict,
+               neighbour_distances2=dict,
+               neighbour_indices=dict,
+               neighbour_ranks=dict,
+               returns=tuple,
                )
 def find_nearest_neighbour(components, selected):
     """Here selected is a dict with Component instances as keys
@@ -528,14 +851,14 @@ def find_nearest_neighbour(components, selected):
 
 # Function that carry out the gravitational interaction
 @cython.pheader(# Arguments
-                method='str',
-                receivers='list',
-                suppliers='list',
-                ᔑdt='dict',
+                method=str,
+                receivers=list,
+                suppliers=list,
+                ᔑdt=dict,
                 # Locals
                 component='Component',
-                components='list',
-                dependent='list',
+                components=list,
+                dependent=list,
                 Δt='double',
                 φ_Vcell='double',
                 # DELETE BELOW WHEN DONE WITH gravity_old.py !!!
@@ -567,21 +890,21 @@ def gravity(method, receivers, suppliers, ᔑdt):
     elif method == 'pm':
         # The particle-mesh method.
         # The gravitational potential is given by the Poisson equation
-        # ∇²φ = 4πGa²ρ = 4πGa⁻³ʷ⁻¹ϱ.
+        # ∇²φ = 4πGa²ρ = 4πGa**(-3*w_eff - 1)ϱ.
         # The factor in front of the dependent variable ϱ is thus
         # time-varying and component-dependent. Here we use the mean
         # values over the current time step.
         φ_Vcell = ℝ[(boxsize/φ_gridsize)**3]
         Δt = ᔑdt['1']
         dependent = [# Particle components
-                     ('particles', [ℝ[ᔑdt['a⁻¹']/(Δt*φ_Vcell)]*component.mass
+                     ('particles', [ℝ[ᔑdt['a**(-1)']/(Δt*φ_Vcell)]*component.mass
                                     for component in components]),
                      # Fluid components
-                     ('ϱ', [ᔑdt['a⁻³ʷ⁻¹', component]*ℝ[1/Δt]
+                     ('ϱ', [ᔑdt['a**(-3*w_eff-1)', component]*ℝ[1/Δt]
                             for component in components]),
                      ]
-        particle_mesh(receivers, suppliers, ᔑdt, gravity_potential, 'gravitational potential (PM)',
-                      dependent, apply_gravity_potential)
+        particle_mesh_general(receivers, suppliers, ᔑdt, gravity_potential, 'gravitational potential (PM)',
+                              dependent, apply_gravity_potential)
     elif method == 'p3m':
         # List of all particles participating in this interaction
         components = receivers + suppliers
@@ -622,27 +945,34 @@ def gravity(method, receivers, suppliers, ᔑdt):
 # components. The list of interactions store information about which
 # components interact with one another, via what force and method.
 @cython.header(# Arguments
-               components='list',
+               components=list,
                # Locals
                component='Component',
-               force='str',
-               force_method='tuple',
-               forces_in_use='set',
-               interactions_list='list',
-               method='str',
-               receivers='list',
-               suppliers='list',
-               returns='list',
+               force=str,
+               force_method=tuple,
+               forces_in_use=object,  # collections.defaultdict
+               interactions_list=list,
+               method=str,
+               methods=list,
+               methods_implemented=list,
+               receivers=list,
+               suppliers=list,
+               returns=list,
                )
 def find_interactions(components):
-    # Find all unique (force, method) pairs in use
-    forces_in_use = {force_method for component in components
-                                  for force_method in component.forces.items()}
+    # Find all (force, method) pairs in use. Store these as a (default)
+    # dict mapping forces to lists of methods.
+    forces_in_use = collections.defaultdict(list)
+    for component in components:
+        for force, method in component.forces.items():
+            forces_in_use[force].append(method)
     # Check that all forces and methods assigned
     # to the components are implemented.
-    for force_method in forces_in_use:
-        if force_method not in forces_implemented:
-            abort('The force "{}" with method "{}" is not implemented'.format(*force_method))
+    for force, methods in forces_in_use.items():
+        methods_implemented = forces_implemented.get(force, [])
+        for method in methods:
+            if method not in methods_implemented:
+                abort(f'Method "{method}" for force "{force}" is not implemented')
     # Construct the interactions_list with (named) 4-tuples
     # in the format (force, method, receivers, suppliers),
     # where receivers is a list of all components which interact
@@ -659,8 +989,8 @@ def find_interactions(components):
     # same force can appear in multiple 4-tuples but with
     # different methods.
     interactions_list = []
-    for force, method in forces_implemented:
-        if (force, method) not in forces_in_use:
+    for force, method in forces_implemented_ordered:
+        if method not in forces_in_use.get(force, []):
             continue
         # Find all receiver and supplier components
         # for this (force, method) pair.
@@ -685,21 +1015,18 @@ Interaction = collections.namedtuple('Interaction', ('force',
 
 # Specification of implemented forces.
 # The order specified here will be the order in which the forces
-# are computed and applied. Each element of the list should be a
-# 2-tuple in the format (force, method).
-cython.declare(forces_implemented='list')
-forces_implemented = [('gravity', 'ppnonperiodic'),
-                      ('gravity', 'pp'           ),
-                      ('gravity', 'p3m'          ),
-                      ('gravity', 'pm'           ),
-                      ]
-
-# Function pointer types used in this module
-pxd = """
-#                                       component_1, component_2, rank_2, ᔑdt , local, mutual, extra_args
-ctypedef void   (*func_interaction    )(Component  , Component  , int   , dict, bint , bint  , dict      )
-#                                       k2
-ctypedef double (*func_potential      )(double)
-#                                       component, ᔑdt , gradφ_dim        , dim
-ctypedef void   (*func_apply_potential)(Component, dict, double[:, :, ::1], int)
-"""
+# are computed and applied.
+# Importantly, all forces and methods should be written with purely
+# alphanumeric, lowercase characters.
+cython.declare(forces_implemented_ordered=list)
+forces_implemented_ordered = [
+    ('gravity', 'ppnonperiodic'),
+    ('gravity', 'pp'           ),
+    ('gravity', 'p3m'          ),
+    ('gravity', 'pm'           ),
+]
+# Non-ordered version of forces_implemented_ordered, implemented as a
+# (default) dict mapping forces to list of methods.
+forces_implemented = collections.defaultdict(list)
+for force, method in forces_implemented_ordered:
+    forces_implemented[force].append(method)
