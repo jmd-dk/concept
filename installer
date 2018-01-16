@@ -210,7 +210,7 @@ set_version()
 # link to the version given by the middle column is broken.
 # In case of CO𝘕CEPT and CLASS, possible versions are the corresponding
 # GitHub branches and releases.
-set_version "concept"         "master"
+set_version "concept"         "0.1.0"
 set_version "class"           "2.6.3"
 set_version "fftw"            "3.3.7"  "3.3.5"
 set_version "fftw_for_gadget" "2.1.5"  "2.1.5"   # Do not change
@@ -1441,6 +1441,7 @@ if [ "${concept_install}" == "yes" ]; then
     if [ "${concept_version}" == "master" ]; then
         concept_url="https://github.com/jmd-dk/concept/archive/${concept_version}.tar.gz"
     else
+        concept_version="${concept_version/v/}"
         concept_url="https://github.com/jmd-dk/concept/archive/v${concept_version}.tar.gz"
     fi
     # Check if already downloaded/installed
@@ -1465,6 +1466,7 @@ if [ "${class_install}" == "yes" ]; then
     if [ "${ndots}" == 1 ]; then
         class_url="https://github.com/lesgourg/class_public/archive/${class_version}.tar.gz"
     elif [ "${ndots}" == 2 ]; then
+        class_version=${class_version/v/}
         class_url="https://github.com/lesgourg/class_public/archive/v${class_version}.tar.gz"
     else
         error "No CLASS URL known for version ${class_version}"
