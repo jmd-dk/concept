@@ -107,7 +107,6 @@ def scalefactor_integrals(step, Δt):
                 dumped=set,
                 filename=str,
                 remaining_output_times=dict,
-                ot='double',
                 output_kind=str,
                 output_time=tuple,
                 param_lines=list,
@@ -583,7 +582,6 @@ heading_ljust = 0
                Jz_ijk='double',
                bottleneck=str,
                component='Component',
-               dim='int',
                extreme_component='Component',
                fac_courant='double',
                fac_hubble='double',
@@ -865,7 +863,6 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
                initial_conditions_generate=list,
                name=str,
                representation=str,
-               speices=str,
                returns=list,
                )
 def get_initial_conditions():

@@ -36,6 +36,10 @@ where brackets indicate optional arguments. Note that the initial
 You may adjust the value of `concept_version` to your liking. For the
 absolute newest (and unstable!) version, use `concept_version=master`.
 
+Should the installation process end prematurely (e.g. due to network
+failure), simply rerun the installation commands and it will pick up
+from where it was.
+
 Note that the above will install *all* dependencies into
 `/path/to/concept`, regardless of whether these are already installed
 somewhere else on the system. One of these dependencies is an

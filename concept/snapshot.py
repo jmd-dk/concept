@@ -237,7 +237,6 @@ class StandardSnapshot:
                     N_local='Py_ssize_t',
                     N_fluidvars='Py_ssize_t',
                     component='Component',
-                    domain_grid='double[:, :, ::1]',
                     domain_size_i='Py_ssize_t',
                     domain_size_j='Py_ssize_t',
                     domain_size_k='Py_ssize_t',
@@ -246,7 +245,6 @@ class StandardSnapshot:
                     grid='double*',
                     gridsize='Py_ssize_t',
                     i='Py_ssize_t',
-                    independent=str,
                     index='Py_ssize_t',
                     mass='double',
                     momx='double*',
@@ -258,7 +256,6 @@ class StandardSnapshot:
                     posy='double*',
                     posz='double*',
                     representation=str,
-                    shape=tuple,
                     size='Py_ssize_t',
                     slab='double[:, :, ::1]',
                     slab_end='Py_ssize_t',
@@ -438,8 +435,6 @@ class StandardSnapshot:
     @cython.pheader(# Arguments
                     components=list,
                     params=dict,
-                    # Locals
-                    key=str,
                     )
     def populate(self, components, params=None):
         if params is None:
@@ -1063,12 +1058,7 @@ def load(filename, compare_params=True,
     return snapshot
 
 # Function for determining the snapshot type of a file
-@cython.header(# Arguments
-               filename=str,
-               # Locals
-               head=tuple,
-               returns=str,
-               )
+@cython.header(filename=str, returns=str)
 def get_snapshot_type(filename):
     """Call the 'is_this_type' class method of each snapshot class until
     the file is recognized as a specific snapshot type.

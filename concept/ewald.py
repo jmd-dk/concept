@@ -35,7 +35,6 @@ cimport('from mesh import CIC_vectorgrid2coordinates, tabulate_vectorfield')
                y='double',
                z='double',
                # Locals
-               dim='Py_ssize_t',
                dist='double',
                dist_x='double',
                dist_y='double',
@@ -132,7 +131,6 @@ def summation(x, y, z):
                isnegative_x='bint',
                isnegative_y='bint',
                isnegative_z='bint',
-               r3='double',
                returns='double*',
                )
 def ewald(x, y, z):

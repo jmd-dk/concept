@@ -266,7 +266,7 @@ class FluidScalar:
             setattr(self, 'gridˣ_noghosts', self.gridˣ_noghosts)
         # Nullify the newly allocated starred buffer
         self.nullify_gridˣ()
-        # The starred buffer
+        # The Δ buffer
         self.Δ = realloc(self.Δ, self.size*sizeof('double'))
         self.Δ_mv = cast(self.Δ, 'double[:self.shape[0], :self.shape[1], :self.shape[2]]')
         self.Δ_noghosts = self.Δ_mv[2:(self.Δ_mv.shape[0] - 2),
@@ -281,13 +281,11 @@ class FluidScalar:
                     # Locals
                     i='Py_ssize_t',
                     grid='double*',
-                    shape='Py_ssize_t*',
                     )
     def scale_grid(self, a):
         # Extract data pointer
         grid = self.grid
         # Scale data buffer
-        shape = self.grid_mv.shape
         for i in range(self.size):
             grid[i] *= a
 
@@ -295,13 +293,11 @@ class FluidScalar:
     @cython.pheader(# Locals
                     i='Py_ssize_t',
                     grid='double*',
-                    shape='Py_ssize_t*',
                     )
     def nullify_grid(self):
         # Extract data pointer
         grid = self.grid
         # Nullify data buffer
-        shape = self.grid_mv.shape
         for i in range(self.size):
             grid[i] = 0
 
@@ -309,13 +305,11 @@ class FluidScalar:
     @cython.pheader(# Locals
                     i='Py_ssize_t',
                     gridˣ='double*',
-                    shape='Py_ssize_t*',
                     )
     def nullify_gridˣ(self):
         # Extract starred buffer pointer
         gridˣ = self.gridˣ
         # Nullify starred buffer
-        shape = self.gridˣ_mv.shape
         for i in range(self.size):
             gridˣ[i] = 0
 
@@ -323,13 +317,11 @@ class FluidScalar:
     @cython.pheader(# Locals
                     i='Py_ssize_t',
                     Δ='double*',
-                    shape='Py_ssize_t*',
                     )
     def nullify_Δ(self):
         # Extract Δ buffer pointer
         Δ = self.Δ
         # Nullify Δ buffer
-        shape = self.Δ_mv.shape
         for i in range(self.size):
             Δ[i] = 0
 
@@ -816,7 +808,6 @@ class Component:
                     multi_index=object,  # tuple or int-like
                     buffer='bint',
                     # Locals
-                    a='double',
                     fluid_indices=object,  # tuple or int-like
                     fluidscalar='FluidScalar',
                     index='Py_ssize_t',
@@ -929,7 +920,6 @@ class Component:
     @cython.pheader(# Arguments
                     size_or_shape_nopseudo_noghosts=object,  # Py_ssize_t or tuple
                     # Locals
-                    N_allocated='Py_ssize_t',
                     fluidscalar='FluidScalar',
                     s='Py_ssize_t',
                     shape_nopseudo_noghosts=tuple,
@@ -1358,7 +1348,6 @@ class Component:
                    key=str,
                    line=str,
                    pattern=str,
-                   spline='Spline',
                    unit='double',
                    w_data='double[:, :]',
                    w_tabulated='double[:]',

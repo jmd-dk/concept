@@ -196,7 +196,7 @@ if not component_combinations:
 # which should be played.
 if selected_component_combination == 'default':
     selected_component_combination = component_combinations[0]
-    if len(component_combinations) > 0:
+    if len(component_combinations) > 1:
         fancyprint(f'No component (combination) specified - Will play the {selected_component_combination}')
 elif ',' in selected_component_combination:
     selected_components = set(

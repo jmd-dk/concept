@@ -790,7 +790,6 @@ def measure(component, quantity):
                w_eff='double',
                Δdiff_max='double[::1]',
                Δdiff_max_normalized='double[::1]',
-               Σmass='double',
                Σmom='double[::1]',
                Σmom_prev_dim='double',
                ϱ_bar='double',

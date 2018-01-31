@@ -502,9 +502,10 @@ def communicate_domain(domain_grid, mode=''):
                N_primes='int',
                f='int',
                i='int',
+               i_is_prime='bint',
+               len_prime_factors='Py_ssize_t',
+               prime_factors=list,
                r='int',
-               len_primeset='int',
-               primeset=list,
                returns='int[::1]',
                )
 def cutout_domains(n, basecall=True):
@@ -683,7 +684,7 @@ def sendrecv_component(component_send, variables, dest, source, component_recv=N
         for dim in range(3):
             with unswitch:
                 if operation == '=':
-                    mom_dim_send = component_send. mom_mv[dim][:component_send.N_local]
+                    mom_dim_send = component_send.mom_mv[dim][:component_send.N_local]
                 else:
                     mom_dim_send = component_send.Δmom_mv[dim][:component_send.N_local]
             mom_dim_recv = component_recv.mom_mv[dim][:component_recv.N_local]

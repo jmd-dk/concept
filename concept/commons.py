@@ -200,17 +200,18 @@ node_master_ranks = asarray(np.where(allgather(node_master))[0], dtype=C2np['int
 # they sleep for the designated time, freeing up the CPUs to do other
 # work (such as helping with OpenMP work loads).
 def sleeping_barrier(sleep_time, mode):
-    """When mode == 'global', all processes (but the global master) wait
-    for the global master process.
-    When mode == 'node', all processes (but the node masters) wait for
+    """When mode == 'single node', all processes (but the global master)
+    wait for the global master process.
+    When mode == 'MPI', all processes (but the node masters) wait for
     their respective node master.
     """
-    if (mode == 'global' and master) or (mode == 'node' and node_master):
+    mode = mode.lower()
+    if (mode == 'single node' and master) or (mode == 'mpi' and node_master):
         # Signal slaves to continue
         requests = []
-        if mode == 'global':
+        if mode == 'single node':
             slave_ranks = range(nprocs)
-        elif mode == 'node':
+        elif mode == 'mpi':
             slave_ranks = node_ranks
         for slave_rank in slave_ranks:
             if slave_rank != rank:
@@ -220,9 +221,9 @@ def sleeping_barrier(sleep_time, mode):
             request.wait()
     else:
         # Wait for global or node master
-        if mode == 'global':
+        if mode == 'single node':
             source = master_rank
-        elif mode == 'node':
+        elif mode == 'mpi':
             source = node_master_rank
         while not iprobe(source=source):
             sleep(sleep_time)
@@ -234,15 +235,16 @@ def sleeping_barrier(sleep_time, mode):
 # master is done so that they may continue. This period is controlled by
 # sleep_time, given in seconds. While sleeping, the slave processes
 # can be utilized to cary out OpenMP work by their master.
-def call_openmp_lib(func, *args, sleep_time=0.1, mode='global', **kwargs):
-    """When mode == 'global', only the master process calls
+def call_openmp_lib(func, *args, sleep_time=0.1, mode='single node', **kwargs):
+    """When mode == 'single node', only the master process calls
     the function, while all other processes sleeps. Those processes also
     on the master node will be available for OpenMP work.
-    When mode == 'node', all node masters call the function, while all
+    When mode == 'MPI', all node masters call the function, while all
     other processes sleep. All node slaves will be available for OpenMP
     work from their node master.
     """
-    if (mode == 'global' and master) or (mode == 'node' and node_master):
+    mode = mode.lower()
+    if (mode == 'single node' and master) or (mode == 'mpi' and node_master):
         func(*args, **kwargs)
     sleeping_barrier(sleep_time, mode)
 
@@ -748,26 +750,34 @@ if not cython.compiled:
 # In the current implementation, pointers are not allowed.
 def build_struct(**kwargs):
     # Regardless of the input kwargs, bring it to the form {key: val}
+    ctypes = {}
     for key, val in kwargs.items():
         if isinstance(val, tuple):
             # Type and value given
             ctype, val = val
         else:
             # Only type given. Initialize value to zero.
-            ctype = val
+            ctype, val = val, '__build_struct_undefined__'
+        try:
+            ctype = C2np[ctype]
+        except:
             try:
-                val = C2np[ctype]()
+                ctype = eval(ctype)
             except:
-                val = eval(ctype)()
+                pass
+        ctypes[key] = ctype
+        if val == '__build_struct_undefined__':
+            val = ctype()
         kwargs[key] = val
-    for key, val in kwargs.items():
+    for key, val in kwargs.copy().items():
         if isinstance(val, str):
             # Evaluate value given as string expression
             namespace = {k: v for d in (globals(), kwargs) for k, v in d.items()}
             try:
-                kwargs[key] = eval(val, namespace)
+                val = eval(val, namespace)
             except:
-                ...
+                pass
+        kwargs[key] = ctypes[key](val)
     if not cython.compiled:
         # In pure Python, emulate a struct by a simple namespace
         struct = types.SimpleNamespace(**kwargs)
@@ -913,12 +923,7 @@ def unicode_repl(match):
 
 # This function takes in a number (string) and
 # returns it written in Unicode subscript.
-@cython.header(# Arguments
-               s=str,
-               # Locals
-               c=str,
-               returns=str,
-               )
+@cython.header(s=str, returns=str)
 def unicode_subscript(s):
     return ''.join([unicode_subscripts[c] for c in s])
 cython.declare(unicode_subscripts=dict)
@@ -1568,12 +1573,6 @@ cython.declare(# Input/output
                a_begin='double',
                t_begin='double',
                class_params=dict,
-               # Graphics
-               render2D_options=dict,
-               terminal_width='int',
-               render3D_resolution='int',
-               render3D_colors=dict,
-               render3D_bgcolor='double[::1]',
                # Physics
                select_forces=dict,
                select_class_species=dict,
@@ -1588,10 +1587,16 @@ cython.declare(# Input/output
                select_vacuum_corrections=dict,
                class_reuse='bint',
                class_extra_perturbations=set,
+               # Graphics
+               render2D_options=dict,
+               render3D_colors=dict,
+               render3D_bgcolor='double[::1]',
+               render3D_resolution='int',
+               terminal_width='int',
                # Debugging options
-               enable_Ewald='bint',
                enable_Hubble='bint',
                enable_class_background='bint',
+               enable_Ewald='bint',
                enable_debugging='bint',
                # Hidden parameters
                special_params=dict,
@@ -1842,8 +1847,6 @@ render2D_options['extend']['default'] = (0, 0.05*boxsize)
 render2D_options['terminal resolution']['default'] = np.min([80, φ_gridsize])
 render2D_options['colormap']['default'] = 'inferno'
 render2D_options['enhance']['default'] = True
-terminal_width = to_int(user_params.get('terminal_width', 80))
-render3D_resolution = to_int(user_params.get('render3D_resolution', 1080))
 render3D_colors = {}
 if 'render3D_colors' in user_params:
     if isinstance(user_params['render3D_colors'], dict):
@@ -1853,11 +1856,13 @@ if 'render3D_colors' in user_params:
         render3D_colors = {'all': user_params['render3D_colors']}
 render3D_colors = {key.lower(): to_rgbα(val, 0.2) for key, val in render3D_colors.items()}
 render3D_bgcolor = to_rgb(user_params.get('render3D_bgcolor', 'black'))
+render3D_resolution = to_int(user_params.get('render3D_resolution', 1080))
+terminal_width = to_int(user_params.get('terminal_width', 80))
 # Debugging options
+enable_Hubble = bool(user_params.get('enable_Hubble', True))
 enable_class_background = bool(user_params.get('enable_class_background', True))
 enable_Ewald = bool(user_params.get('enable_Ewald',  # !!! Only used by gravity_old.py
                                     True if 'pp' in list(itertools.chain.from_iterable(d.values() for d in select_forces.values())) else False))
-enable_Hubble = bool(user_params.get('enable_Hubble', True))
 enable_debugging = bool(user_params.get('enable_debugging', False))
 # Additional, hidden parameters (parameters not supplied by the user)
 special_params = dict(user_params.get('special_params', {}))
@@ -1890,18 +1895,19 @@ vector_mv = cast(vector, 'double[:3]')
 # These are stored in the following struct.
 # Note that you should never use the universals_dict, as updates to
 # universals are not reflected in universals_dict.
-universals, universals_dict = build_struct(# Flag specifying whether any warnings have been given
-                                           any_warnings=('bint', False),
-                                           # Scale factor and cosmic time
-                                           a=('double', a_begin),
-                                           t=('double', t_begin),
-                                           # Initial time of simulation
-                                           a_begin=('double', a_begin),
-                                           t_begin=('double', t_begin),
-                                           z_begin=('double', 1/a_begin - 1),
-                                           # The current time step
-                                           time_step=('Py_ssize_t', 0),
-                                           )
+universals, universals_dict = build_struct(
+    # Flag specifying whether any warnings have been given
+    any_warnings=('bint', False),
+    # Scale factor and cosmic time
+    a=('double', a_begin),
+    t=('double', t_begin),
+    # Initial time of simulation
+    a_begin=('double', a_begin),
+    t_begin=('double', t_begin),
+    z_begin=('double', (ထ if a_begin == 0 else 1/a_begin - 1)),
+    # The current time step
+    time_step=('Py_ssize_t', 0),
+)
 
 
 
@@ -2100,6 +2106,7 @@ def stringify_dict(d):
                 sleep_time='double',
                 mode=str,
                 # Locals
+                compute_perturbations='bint',
                 k_output_value=str,
                 k_output_values=list,
                 k_output_values_node=list,
@@ -2116,24 +2123,25 @@ def stringify_dict(d):
                 params_specialized=dict,
                 returns=object,  # classy.Class or (classy.Class, Py_ssize_t[::1])
                 )
-def call_class(extra_params=None, sleep_time=0.1, mode='global'):
-    """If mode == 'node' and 'k_output_values' is present in the
+def call_class(extra_params=None, sleep_time=0.1, mode='single node'):
+    """If mode == 'MPI' and 'k_output_values' is present in the
     CLASS parameters, these k values will be divided fairly among
     the nodes. Note that this means that each node master will store
     its own chunk of the perturbations.
     """
     if extra_params is None:
         extra_params = {}
+    mode = mode.lower()
     # Merge global and extra CLASS parameters
     params_specialized = class_params.copy()
     params_specialized.update(extra_params)
     # If non-cdm perturbations should be computed, the CLASS run
-    # may take quite some time to finish. Here, enable verbose mode.
-    if (    params_specialized.get('N_ncdm')
-        and params_specialized.get('output')
-        and params_specialized.get('k_output_values')
-        ):
-        params_specialized.setdefault('perturbations_verbose', 3)
+    # may take quite some time to finish. Class has been patched to
+    # enable printout of status updates along the way. Flag whether
+    # perturbations are to be computed.
+    compute_perturbations = (
+        'k_output_values' in params_specialized and 'output' in params_specialized
+    )
     # Transform all CLASS container parameters to str's of
     # comma-separated values. All other CLASS parameters will also
     # be converted to their str representation.
@@ -2147,7 +2155,7 @@ def call_class(extra_params=None, sleep_time=0.1, mode='global'):
                 'Unsorted k_output_values passed to call_class(). '
                 'This may lead to unexpected behavior'
             )
-    if mode == 'node':
+    if mode == 'mpi':
         if 'k_output_values' not in params_specialized:
             abort('Cannot call CLASS in node mode when no k_output_values are given')
         n_modes = len(k_output_values)
@@ -2211,13 +2219,25 @@ def call_class(extra_params=None, sleep_time=0.1, mode='global'):
     else:
         if 'k_output_values' in params_specialized:
             k_output_values_node_indices = arange(len(k_output_values), dtype=C2np['Py_ssize_t'])
-    # Instantiate a classy.Class instance
-    # and populate it with the CLASS parameters
-    cosmo = Class()
+    # Write out progress message. If perturbations will be computed,
+    # the node masters will print out status updates from within the
+    # Class C code. Thus we need to skip to the line below the progress
+    # message itself in order not to mess up the first line of these
+    # status updates.
+    masterprint('Calling CLASS ...')
+    if compute_perturbations:
+        masterprint('\n', end='')
+    # Instantiate a classy.Class instance and populate it with the
+    # CLASS parameters. Feed the Class instance with information about
+    # the local node (number) and current terminal indentation due to
+    # progress printing, enabling it to write out nice status updates.
+    # No line wrapping will be performed, but usually the progress print
+    # indentation level is not deep enough at this point to make the
+    # Class output exceed the terminal width.
+    cosmo = Class(node=node, indentation=bcast(progressprint['indentation']))
     cosmo.set(params_specialized)
     # Call cosmo.compute in such a way as to allow
     # for OpenMP parallelization.
-    masterprint('Calling CLASS ...')
     Barrier()
     call_openmp_lib(cosmo.compute, sleep_time=sleep_time, mode=mode)
     Barrier()
@@ -2333,7 +2353,6 @@ else:
     @cython.header(# Arguments
                    x=signed_number,
                    length=signed_number,
-                   remainder_f='double',
                    remainder_i='Py_ssize_t',
                    returns=signed_number,
                    )
@@ -2640,6 +2659,19 @@ def is_selected(component_or_components, d, accumulate=False):
         else:
             return None
 
+# Context manager which suppresses all output to stdout
+@contextlib.contextmanager
+def suppress_stdout(f=sys.stdout):
+    with open(os.devnull, 'w') as devnull:
+        # Point sys.stdout to /dev/null
+        sys.stdout = devnull
+        try:
+            # Yield control back to the caller
+            yield
+        finally:
+            # Cleanup: Reset sys.stdout
+            sys.stdout = f
+
 # Context manager which disables summarization of NumPy arrays
 # (the ellipses appearing in str representations of large arrays).
 @contextlib.contextmanager
@@ -2650,10 +2682,12 @@ def disable_numpy_summarization():
     # of arrays wil not contain any ellipses
     # (full printout rather than summarization).
     np.set_printoptions(threshold=ထ)
-    # Yield control back to the caller
-    yield
-    # Reset print options
-    np.set_printoptions(threshold=threshold)
+    try:
+        # Yield control back to the caller
+        yield
+    finally:
+        # Cleanup: Reset print options
+        np.set_printoptions(threshold=threshold)
 
 # Function used to set the minor tick formatting in log plots
 def fix_minor_tick_labels(ax=None):
@@ -2764,6 +2798,19 @@ if autosave_interval > 1*units.yr:
                )
 if autosave_interval < 0:
     autosave_interval = 0
+# Abort on negative a_begin
+if a_begin <= 0:
+    abort(
+        f'Beginning of simulation set to a = {a_begin}, but 0 < a is required'
+    )
+# Abort on negative t_begin when running a cosmological simulation
+if enable_Hubble and t_begin < 0:
+    abort(
+        f'Cannot start the cosmological simulation at t = {t_begin} {unit_time} '
+        f'as this is prior to the Big Bang at t = 0.\n'
+        f'To run a non-cosmological simulation, set enable_Hubble to False.'
+    )
+
 
 
 ###########################################################
@@ -2775,7 +2822,11 @@ if autosave_interval < 0:
 # guaranteed to be used.
 def commons_flood():
     if cython.compiled:
-        commons_module = imp.load_source('commons_pure_python', '{}/commons.py'.format(paths['concept_dir']))
+        with suppress_stdout():
+            commons_module = imp.load_source(
+                'commons_pure_python',
+                '{}/commons.py'.format(paths['concept_dir']),
+            )
         inspect.getmodule(inspect.stack()[-1][0]).__dict__.update(commons_module.__dict__)
     else:
         # Running in pure Python mode.
