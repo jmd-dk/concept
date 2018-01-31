@@ -164,18 +164,23 @@ class CosmoResults:
         if self._cosmo is None:
             # No actual cosmo object exists.
             # Call CLASS using OpenMP.
-            # If no perturbations should be computed, only the master
-            # process will have access to the results.
+            # If no perturbations should be computed, the master
+            # process will have access to all results.
             # If perturbations should be computed, all node masters
-            # will have access to its own k modes of the perturbations.
-            # All other values will be completely available to all
-            # no masters.
+            # will have access to their own k modes of
+            # the perturbations. All other values will be available to
+            # all no masters.
             if 'k_output_values' in self.params:
-                # Compute perturbations
-                self._cosmo, self.k_node_indices = call_class(self.params, mode='node')
+                # Compute perturbations. Do this in 'MPI' mode,
+                # meaning utilizing all available nodes.
+                self._cosmo, self.k_node_indices = call_class(self.params, mode='MPI')
             else:
-                # Do not compute perturbations
-                self._cosmo = call_class(self.params, mode='global')
+                # Do not compute perturbations. This call should be
+                # very fast and so we compute it in 'single node'
+                # mode regardless of the number of nodes available.
+                # (Also, MPI Class is not implemented for anything but
+                # the perturbation computation).
+                self._cosmo = call_class(self.params, mode='single node')
         return self._cosmo
     # Methods returning scalar attributes used in the CLASS run
     @property
@@ -301,8 +306,8 @@ class CosmoResults:
                          }  for perturbation in self._perturbations
                     ]
                     if len(self.k_magnitudes) > len(self.k_node_indices):
-                        # The master process needs to know which processes
-                        # store which k modes.
+                        # The master process needs to know which
+                        # process store which k modes.
                         if master:
                             k_processes_indices = empty(len(self.k_magnitudes), dtype=C2np['int'])
                             k_processes_indices[self.k_node_indices] = rank
@@ -311,7 +316,7 @@ class CosmoResults:
                                     continue
                                 k_processes_indices[recv(source=rank_recv)] = rank_recv
                         else:
-                            send(self.k_node_indices, dest=master_rank)
+                            send(asarray(self.k_node_indices), dest=master_rank)
                         # Gather all perturbations into the
                         # master process. Communicate these as list
                         # of dicts mapping str's to arrays.
@@ -320,7 +325,10 @@ class CosmoResults:
                             all_perturbations = [{} for k in range(len(self.k_magnitudes))]
                             for k, perturbation in zip(self.k_node_indices, self._perturbations):
                                 all_perturbations[k] = perturbation
-                            for rank_recv, perturbation in zip(k_processes_indices, all_perturbations):
+                            for rank_recv, perturbation in zip(
+                                k_processes_indices,
+                                all_perturbations,
+                            ):
                                 if rank_recv == rank:
                                     continue
                                 for key in keys:
@@ -715,7 +723,6 @@ class TransferFunction:
                    a_values='double[::1]',
                    a2δPδρ_convolved='double[::1]',
                    a2δPδρ_interp='double[::1]',
-                   a2δPδρ_interp_detrended='double[::1]',
                    a2δPδρ_processed='double[::1]',
                    a2δPδρ_right_end='double[::1]',
                    a2δPδρ_spline='double[::1]',
@@ -730,8 +737,6 @@ class TransferFunction:
                    j='Py_ssize_t',
                    k='Py_ssize_t',
                    k_end='Py_ssize_t',
-                   k_min='double',
-                   k_max='double',
                    k_send='Py_ssize_t',
                    k_size='Py_ssize_t',
                    k_start='Py_ssize_t',
@@ -898,6 +903,9 @@ class TransferFunction:
                         if a_interp[i] > universals.a_begin:
                             index_start = i - 1
                             break
+                    else:
+                        if a_interp[i] == universals.a_begin:
+                            index_start = i
                     # Keep doing moving averages with a window size
                     # matching the wildest oscillation in the
                     # interval [a_begin, 1], until a monotonic function
@@ -1204,6 +1212,8 @@ class TransferFunction:
     # by computing R² values.
     @staticmethod
     def R2(y_raw, y_processed):
+        if y_raw.shape[0] == 1:
+            return 1
         y_raw, y_processed = asarray(y_raw), asarray(y_processed)
         ss_res = np.sum((y_raw - y_processed)**2)
         ss_tot = np.sum((y_raw - np.mean(y_raw))**2)
@@ -1376,9 +1386,7 @@ def k_float2str(k):
                 # Locals
                 H='double',
                 any_negative_values='bint',
-                component_total='Component',
                 cosmoresults=object,  # CosmoResults
-                h='double',
                 k='Py_ssize_t',
                 k_magnitudes='double[::1]',
                 transfer='double[::1]',
