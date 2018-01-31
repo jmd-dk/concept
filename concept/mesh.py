@@ -85,7 +85,6 @@ cdef extern from "fft.c":
                i='Py_ssize_t',
                j='Py_ssize_t',
                k='Py_ssize_t',
-               m='Py_ssize_t',
                n_vectors='Py_ssize_t',
                n_vectors_local='Py_ssize_t',
                size='Py_ssize_t',
@@ -734,14 +733,8 @@ def CIC_components2domain_grid(component_or_components, domain_grid, quantities,
 @cython.header(# Argument
                component='Component',
                # Locals
-               Jx='double*',
-               Jx_mv='double[:, :, ::1]',
                Jx_noghosts='double[:, :, :]',
-               Jy='double*',
-               Jy_mv='double[:, :, ::1]',
                Jy_noghosts='double[:, :, :]',
-               Jz='double*',
-               Jz_mv='double[:, :, ::1]',
                Jz_noghosts='double[:, :, :]',
                N_vacuum='Py_ssize_t',
                Vcell='double',
@@ -775,7 +768,6 @@ def CIC_components2domain_grid(component_or_components, domain_grid, quantities,
                posy='double*',
                posz='double*',
                shape=tuple,
-               var=str,
                x='double',
                x_lower='int',
                x_upper='int',
@@ -788,8 +780,6 @@ def CIC_components2domain_grid(component_or_components, domain_grid, quantities,
                Δϱ='double',
                Δϱ_tot='double',
                ϱ_noghosts='double[:, :, :]',
-               ϱ='double*',
-               ϱ_mv='double[:, :, ::1]',
                returns='Py_ssize_t',
                )
 def CIC_particles2fluid(component):
@@ -854,17 +844,9 @@ def CIC_particles2fluid(component):
                   .format(component.name, component.gridsize, nprocs))
     component.resize(shape)  # This also nullifies all fluid grids
     # Extract fluid data variables
-    ϱ           = component.ϱ .grid
-    ϱ_mv        = component.ϱ .grid_mv
     ϱ_noghosts  = component.ϱ .grid_noghosts
-    Jx          = component.Jx.grid
-    Jx_mv       = component.Jx.grid_mv
     Jx_noghosts = component.Jx.grid_noghosts
-    Jy          = component.Jy.grid
-    Jy_mv       = component.Jy.grid_mv
     Jy_noghosts = component.Jy.grid_noghosts
-    Jz          = component.Jz.grid
-    Jz_mv       = component.Jz.grid_mv
     Jz_noghosts = component.Jz.grid_noghosts
     # Extract particle data variables
     posx = component.posx
@@ -1120,7 +1102,7 @@ else:
 if φ_gridsize%2 != 0:
     masterwarn(f'As φ_gridsize = {φ_gridsize} is odd, some operations may not function correctly.')
 # The shape of the domain φ grid, including pseudo and ghost points
-cython.declare(dim='int', φ_shape=tuple)
+cython.declare(φ_shape=tuple, dim='int')
 φ_shape = tuple([φ_gridsize//domain_subdivisions[dim] + 1 + 2*2 for dim in range(3)])
 
 # Function that compute a lot of information needed by the
@@ -1888,22 +1870,7 @@ def slabs_check_symmetry(slab, rel_tol=1e-9, abs_tol=machine_ϵ):
                 noghosts='bint',
                 # Locals
                 buffer='double[:, :, ::1]',
-                buffer_i='Py_ssize_t',
-                buffer_j='Py_ssize_t',
-                buffer_k='Py_ssize_t',
                 buffer_name=object,  # int or str
-                grid_im1='Py_ssize_t',
-                grid_im2='Py_ssize_t',
-                grid_ip1='Py_ssize_t',
-                grid_ip2='Py_ssize_t',
-                grid_jm1='Py_ssize_t',
-                grid_jm2='Py_ssize_t',
-                grid_jp1='Py_ssize_t',
-                grid_jp2='Py_ssize_t',
-                grid_km1='Py_ssize_t',
-                grid_km2='Py_ssize_t',
-                grid_kp1='Py_ssize_t',
-                grid_kp2='Py_ssize_t',
                 i='Py_ssize_t',
                 j='Py_ssize_t',
                 k='Py_ssize_t',

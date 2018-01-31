@@ -91,6 +91,7 @@ class_params = {         # CLASS parameters. See the CLASS documentation for det
     'Number of momentum bins' : 30,
     'Maximum q'               : 15,
 }
+
 # Physics
 select_forces = {  # Forces and methods which act on each component
     'all': {'gravity': 'pm'},
@@ -125,7 +126,7 @@ class_extra_perturbations = ''  # Extra CLASS perturbations to dump
 render2D_options = {  # Specifications of 2D renders for each component
     'axis': 'z',
     'extend': 0.1*boxsize,
-    'terminal resolution': 40,
+    'terminal resolution': 64,
     'colormap': {
         'all': 'inferno',
     },
@@ -137,6 +138,7 @@ render3D_colors = {  # Render color for each component
 }
 render3D_bgcolor    = 'black'  # Background color of 3D renders
 render3D_resolution = 1080     # The height and width of 3D renders
+terminal_width      = 80       # Maximum width of terminal output, in characters
 
 # System of units
 unit_length = 'Mpc'      # Physical length corresponding to a numerical value of 1.0
@@ -144,7 +146,6 @@ unit_time   = 'Gyr'      # Physical time   corresponding to a numerical value of
 unit_mass   = '10¹⁰ m☉'  # Physical mass   corresponding to a numerical value of 1.0
 
 # Debugging options
-enable_Ewald            = True   # Enable Ewald corrections
 enable_Hubble           = True   # Enable Hubble expansion
 enable_class_background = True   # Use CLASS to compute the evolution of the background
 enable_debugging        = False  # Enable debugging mode

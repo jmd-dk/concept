@@ -721,7 +721,7 @@ def initiate_time():
         # Values of the scale factor (and therefore a_begin)
         # are meaningless. Set a_begin to unity,
         # effectively ignoring its existence.
-        a_begin_correct = 1
+        a_begin_correct = 1.0
         if 'a_begin' in user_params:
             masterwarn('Ignoring a_begin = {} because enable_Hubble is False'.format(a_begin))
     # Now t_begin_correct and a_begin_correct are defined and store

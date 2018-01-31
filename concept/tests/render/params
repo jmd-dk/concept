@@ -43,7 +43,7 @@ a_begin = 0.02
 select_forces = {'matter particles': {'gravity': 'pm'}}
 
 # Simulation options
-master_seed = 1
+master_seed = 5  # A value of 5 results in nice looking 2D renders for φ_gridsize = 64
 
 # Graphics
 render2D_options = {

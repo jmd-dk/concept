@@ -53,8 +53,10 @@ if [ -z "${workdir}" ]; then
 fi
 
 # For the terminal to be able to print Unicode characters correctly,
-# the terminal charset needs to be compatible.
-export LC_CTYPE="en_US.UTF-8"
+# the terminal character set needs to be compatible. To ensure this,
+# we set all locale settings to en_US.UTF-8.
+export LC_ALL="en_US.UTF-8"
+export LANG="en_US.UTF-8"
 # Set the terminal if unset or broken
 if [ -z "${TERM}" ] || [ "${TERM}" == "dumb" ]; then
     export TERM="linux"

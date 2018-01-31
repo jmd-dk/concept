@@ -184,7 +184,6 @@ def plot_powerspec(k_bin_centers, power_dict, filename, powerspec_plot_select):
     value='double',  
     vmin='double',
     vmax='double',
-    w='double',
     x='double',
     y='double',
     z='double',
@@ -417,7 +416,7 @@ def render2D(components, filename):
             exponent = 1
             i_min = -4
             i_max = -2
-            N_bins = np.max([100, φ_gridsize])
+            N_bins = np.max([25, φ_gridsize**2//100])
         while enhance:
             # Construct histogram over projection**exponent
             projection_enhanced = asarray(projection)**exponent
@@ -655,7 +654,6 @@ current_terminal_colormap = None
                a_str=str,
                artists_text=dict,
                color='double[::1]',
-               combined='double[:, :, ::1]',
                component='Component',
                component_dict=dict,
                figname=str,
@@ -680,20 +678,13 @@ current_terminal_colormap = None
                render3D_dir=str,
                rgbα='double[:, ::1]',
                scatter_size='double',
-               size_nopseudo_noghost='Py_ssize_t',
                size='Py_ssize_t',
                size_i='Py_ssize_t',
                size_j='Py_ssize_t',
                size_k='Py_ssize_t',
                t_str=str,
-               x='double*',
-               x_mv='double[::1]',
                xi='double',
-               y='double*',
-               y_mv='double[::1]',
                yj='double',
-               z='double*',
-               z_mv='double[::1]',
                zk='double',
                α='double',
                α_factor='double',
@@ -1097,7 +1088,6 @@ def orthographic_proj(zfront, zback):
                rgb='int',
                rgbα='int',
                tmp_image='float[:, :, ::1]',
-               transparency='float',
                )
 def blend(filenames):
     # Make render3D_image black and transparent
@@ -1131,9 +1121,7 @@ def blend(filenames):
                     render3D_image[i, j, rgbα] = 1
 
 # Add background color to render3D_image
-@cython.header(# Arguments
-               filenames=list,
-               # Locals
+@cython.header(# Locals
                alpha='float',
                i='int',
                j='int',

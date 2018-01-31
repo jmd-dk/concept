@@ -318,7 +318,10 @@ def cython_structs(lines, no_optimization):
             varnames = line[:line.index('=')].replace(' ', '').split(',')
             # Get field names, types and values. These are stored
             # as triples og strings in struct_content.
-            struct_content = line[(line.index('(') + 1):line.rindex(')')].split('=')
+            struct_content = [
+                part.replace('�', '==') for part in
+                line[(line.index('(') + 1):line.rindex(')')].replace('==', '�').split('=')
+            ]
             for i, part in enumerate(struct_content[:-1]):
                 # The field name
                 if i == 0:
@@ -2089,7 +2092,7 @@ def C_casting(lines, no_optimization):
     # Transform to Cython syntax
     for line in lines:
         while True:
-            match = re.search('[^0-9a-zA-Z_]cast\(', line)
+            match = re.search('[^0-9a-zA-Z_.]cast\(', line)
             if not match:
                 break
             parens = 1

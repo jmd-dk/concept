@@ -290,9 +290,9 @@ def particle_mesh(receivers, suppliers, ᔑdt, potential, potential_name,
                k2='Py_ssize_t',
                slab='double[:, :, ::1]',
                slab_jik='double*',
-               reciprocalsqrt_deconv_ij='double',
-               reciprocalsqrt_deconv_ijk='double',
-               reciprocalsqrt_deconv_j='double',
+               reciprocal_sqrt_deconv_ij='double',
+               reciprocal_sqrt_deconv_ijk='double',
+               reciprocal_sqrt_deconv_j='double',
                φ='double[:, :, ::1]',
                returns='double[:, :, ::1]',
                )
@@ -511,7 +511,6 @@ def particle_mesh_general(receivers, suppliers, ᔑdt, potential, potential_name
                reciprocal_sqrt_deconv_j='double',
                representation=str,
                representation_counter='int',
-               size='Py_ssize_t',
                slab='double[:, :, ::1]',
                slab_dict=dict,
                slab_fluid='double[:, :, ::1]',
@@ -949,7 +948,6 @@ def gravity(method, receivers, suppliers, ᔑdt):
                # Locals
                component='Component',
                force=str,
-               force_method=tuple,
                forces_in_use=object,  # collections.defaultdict
                interactions_list=list,
                method=str,

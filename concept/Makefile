@@ -180,7 +180,7 @@ ifeq ($(CC_version),icc)
         # Increase amount of inlining
         other_cflags += -inline-factor=200
     endif
-    # Disable warning about not inlining everything
+    # Filter out warning about not inlining everything
     other_cflags += -wd11074 -wd11076
     # Remove unrecognized flags
     python_cflags_tmp := $(python_cflags)
@@ -396,7 +396,7 @@ clean_params_cp:
 	$(RM) $(params_dir)/.[^.]*
 # Remove reusable dumps
 clean_reusables:
-	$(RM) -r $(reusables_dir)/*
+	$(RM) -r $(reusables_dir)
 # Remove files produced by running tests
 clean_tests:
 	$(foreach clean_file,$(wildcard $(tests_dir)/*/clean),$(clean_file);)
