@@ -54,11 +54,11 @@ set -e
 # Realize matter particles and compute their powerspectrum
 for n in ${nprocs_list[@]}; do
     echo "$(cat "${this_dir}/params")
-initial_conditions = {'name'   : 'test particles',
-                      'species': 'matter particles',
-                      'N'      : φ_gridsize**3,
-                      'w'      : 'class',
-                      }
+initial_conditions = {
+    'name'   : 'test particles',
+    'species': 'matter particles',
+    'N'      : φ_gridsize**3,
+}
 output_dirs  = {'powerspec': _this_dir + '/output_particles'}
 output_bases = {'powerspec': 'powerspec_nprocs=${n}'}
 " > "${this_dir}/ic.params"
@@ -70,11 +70,14 @@ done
 # Realize matter fluid and compute its powerspectrum
 for n in ${nprocs_list[@]}; do
     echo "$(cat "${this_dir}/params")
-initial_conditions = {'name'    : 'test fluid',
-                      'species' : 'matter fluid',
-                      'gridsize': φ_gridsize,
-                      'w'       : 'class',
-                      }
+initial_conditions = {
+    'name'          : 'test fluid',
+    'species'       : 'matter fluid',
+    'gridsize'      : φ_gridsize,
+    'N_fluidvars'   : 1,
+    'closure'       : 'truncate',
+    'approximations': {'P=wρ': True},
+}
 output_dirs  = {'powerspec': _this_dir + '/output_fluid'}
 output_bases = {'powerspec': 'powerspec_nprocs=${n}'}
 " > "${this_dir}/ic.params"
