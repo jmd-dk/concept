@@ -439,7 +439,7 @@ class Component:
                     mass='double',
                     N_fluidvars='Py_ssize_t',
                     forces=dict,
-                    class_species=str,
+                    class_species=object,  # str or container of str's
                     w=object,  # NoneType, float, int, str or dict
                     closure=str,
                     approximations=dict,
@@ -640,6 +640,8 @@ class Component:
         # Set the CLASS species
         if class_species is None:
             class_species = is_selected(self, select_class_species)
+        elif not isinstance(class_species, str):
+            class_species = '+'.join(class_species)
         if class_species == 'default':
             if self.species in default_class_species:
                 class_species = default_class_species[self.species]

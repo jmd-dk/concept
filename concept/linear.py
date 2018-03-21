@@ -876,6 +876,8 @@ class TransferFunction:
                    a2δPδρ_spline='double[::1]',
                    a2δPδρ_spline_k='double[::1]',
                    a2δPδρ_values='double[::1]',
+                   available='bint',
+                   class_perturbation_name=str,
                    class_species=str,
                    has_data='bint',
                    hʹ_values='double[::1]',
@@ -891,12 +893,16 @@ class TransferFunction:
                    loga_convolved='double[::1]',
                    loga_spline='double[::1]',
                    loga_spline_k='double[::1]',
+                   message=str,
+                   missing_perturbations_warning=str,
+                   missing_perturbations_warning_given='bint',
                    monotonic='bint',
                    monotonic_right_end='bint',
                    one_k_extra='bint',
                    outliers='Py_ssize_t',
                    perturbation=dict,
                    perturbations=list,
+                   perturbations_available=dict,
                    points_per_oscillation='Py_ssize_t',
                    rank_send='int',
                    rindex='Py_ssize_t',
@@ -936,9 +942,20 @@ class TransferFunction:
                         f'for {self.component.name} ...'
                         )
         # Process the given transfer function
+        missing_perturbations_warning = ''.join([
+            'The {} perturbations of CLASS species "{}" ',
+            (f'(needed for the {self.component.name} component)'
+                if self.component is not None else ''),
+            ' are not available'
+        ])
+        missing_perturbations_warning_given = False
+        perturbations_available = {
+            class_species: True for class_species in self.class_species.split('+')
+        }
+        perturbations = self.cosmoresults.perturbations
         if self.var_name == 'δ':
             # Compute and store a Spline object for each k
-            perturbations = self.cosmoresults.perturbations
+            class_perturbation_name = 'delta'
             for k in range(self.k_gridsize):
                 perturbation = perturbations[k]
                 a_values = perturbation['a']
@@ -952,16 +969,27 @@ class TransferFunction:
                 for class_species, ρ_bar_a in ρ_bar_a_species.items():
                     δ_perturbation = perturbation.get(f'delta_{class_species}')
                     if δ_perturbation is None:
-                        # Not all perturbations (δ, θ, ...) exist for
-                        # all species (they are implicitly thought of as
-                        # being equal to 0), and so generally it is
-                        # allowed for some perturbation not to exist.
-                        # As δ perturbations should exist for
-                        # all species, this is the one time where this
-                        # leads to an error.
-                        abort(f'Missing perturbations of CLASS species "{class_species}"')
+                        perturbations_available[class_species] = False
                     else:
                         δ_values_arr += ρ_bar_a*δ_perturbation
+                if (not missing_perturbations_warning_given
+                    and not all(perturbations_available.values())
+                ):
+                    missing_perturbations_warning_given = True
+                    if len(perturbations_available) == 1:
+                        abort(missing_perturbations_warning.format(
+                            class_perturbation_name, self.class_species,
+                        ))
+                    for class_species, available in perturbations_available.items():
+                        if not available:
+                            masterwarn(missing_perturbations_warning.format(
+                                class_perturbation_name, class_species,
+                            ))
+                    if not any(perturbations_available.values()):
+                        abort(
+                            f'No {class_perturbation_name} perturbations '
+                            f'for the {self.component.name} component available'
+                        )
                 δ_values_arr /= np.sum(tuple(ρ_bar_a_species.values()), axis=0)
                 δ_values = δ_values_arr
                 # Construct cubic spline of {a, δ}
@@ -969,7 +997,7 @@ class TransferFunction:
                 self.splines[k] = spline
         elif self.var_name == 'θ':
             # Compute and store a Spline object for each k
-            perturbations = self.cosmoresults.perturbations
+            class_perturbation_name = 'theta'
             for k in range(self.k_gridsize):
                 perturbation = perturbations[k]
                 a_values = perturbation['a']
@@ -982,12 +1010,31 @@ class TransferFunction:
                 }
                 θ_values_arr = 0
                 for class_species, ρ_bar_a in ρ_bar_a_species.items():
-                    θ_perturbation = perturbation.get(f'theta_{class_species}')
-                    if θ_perturbation is not None:
+                    θ_perturbation = perturbation.get(f'{class_perturbation_name}_{class_species}')
+                    if θ_perturbation is None:
+                        perturbations_available[class_species] = False
+                    else:
                         θ_values_arr += ρ_bar_a*θ_perturbation
+                if (not missing_perturbations_warning_given
+                    and not all(perturbations_available.values())
+                ):
+                    missing_perturbations_warning_given = True
+                    if len(perturbations_available) == 1:
+                        abort(missing_perturbations_warning.format(
+                            class_perturbation_name, self.class_species,
+                        ))
+                    for class_species, available in perturbations_available.items():
+                        if not available:
+                            masterwarn(missing_perturbations_warning.format(
+                                class_perturbation_name, class_species,
+                            ))
+                    if not any(perturbations_available.values()):
+                        abort(
+                            f'No {class_perturbation_name} perturbations '
+                            f'for the {self.component.name} component available'
+                        )
                 θ_values_arr /= np.sum(tuple(ρ_bar_a_species.values()), axis=0)
                 θ_values = θ_values_arr
-                
                 # Apply CLASS units of [time⁻¹]
                 θ_values = asarray(θ_values)*ℝ[light_speed/units.Mpc]
                 # Construct cubic spline of {a, θ}
@@ -995,6 +1042,7 @@ class TransferFunction:
                 self.splines[k] = spline
         elif self.var_name == 'δP/δρ':
             # Constants
+            class_perturbation_name = 'cs2'
             N_convolve_max = 10
             N_spline_max = 250
             R2_min = 0.99
@@ -1012,7 +1060,6 @@ class TransferFunction:
             # This is done in parallel. All processes are forced to
             # carry out the same number of iterations regardless of the
             # number of k values which should be processed by them.
-            perturbations = self.cosmoresults.perturbations
             for k in range(k_start, k_end + (not one_k_extra)):
                 # Only process if this is not the extra iteration
                 has_data = (k < k_end)
@@ -1055,9 +1102,31 @@ class TransferFunction:
                     }
                     δPδρ_values_arr = 0
                     for class_species, ρ_bar_a in ρ_bar_a_species.items():
-                        δPδρ_perturbation = perturbation.get(f'cs2_{class_species}')
-                        if δPδρ_perturbation is not None:
+                        δPδρ_perturbation = perturbation.get(
+                            f'{class_perturbation_name}_{class_species}'
+                        )
+                        if δPδρ_perturbation is None:
+                            perturbations_available[class_species] = False
+                        else:
                             δPδρ_values_arr += ρ_bar_a*δPδρ_perturbation
+                    if (not missing_perturbations_warning_given
+                        and not all(perturbations_available.values())
+                    ):
+                        missing_perturbations_warning_given = True
+                        if len(perturbations_available) == 1:
+                            abort(missing_perturbations_warning.format(
+                                class_perturbation_name, self.class_species,
+                            ))
+                        for class_species, available in perturbations_available.items():
+                            if not available:
+                                masterwarn(missing_perturbations_warning.format(
+                                    class_perturbation_name, class_species,
+                                ))
+                        if not any(perturbations_available.values()):
+                            abort(
+                                f'No {class_perturbation_name} perturbations '
+                                f'for the {self.component.name} component available'
+                            )
                     δPδρ_values_arr /= np.sum(tuple(ρ_bar_a_species.values()), axis=0)
                     δPδρ_values = δPδρ_values_arr
                     # Remove doppelgänger points in δPδρ,
@@ -1268,7 +1337,7 @@ class TransferFunction:
                         self.splines[k_send] = spline
         elif self.var_name == 'σ':
             # Compute and store a Spline object for each k
-            perturbations = self.cosmoresults.perturbations
+            class_perturbation_name = 'shear'
             for k in range(self.k_gridsize):
                 perturbation = perturbations[k]
                 a_values = perturbation['a']
@@ -1283,9 +1352,29 @@ class TransferFunction:
                 }
                 σ_values_arr = 0
                 for class_species, ρP_bar_a in ρP_bar_a_species.items():
-                    σ_perturbation = perturbation.get(f'shear_{class_species}')
-                    if σ_perturbation is not None:
+                    σ_perturbation = perturbation.get(f'{class_perturbation_name}_{class_species}')
+                    if σ_perturbation is None:
+                        perturbations_available[class_species] = False
+                    else:
                         σ_values_arr += ρP_bar_a*σ_perturbation
+                if (not missing_perturbations_warning_given
+                    and not all(perturbations_available.values())
+                ):
+                    missing_perturbations_warning_given = True
+                    if len(perturbations_available) == 1:
+                        abort(missing_perturbations_warning.format(
+                            class_perturbation_name, self.class_species,
+                        ))
+                    for class_species, available in perturbations_available.items():
+                        if not available:
+                            masterwarn(missing_perturbations_warning.format(
+                                class_perturbation_name, class_species,
+                            ))
+                    if not any(perturbations_available.values()):
+                        abort(
+                            f'No {class_perturbation_name} perturbations '
+                            f'for the {self.component.name} component available'
+                        )
                 σ_values_arr /= np.sum(tuple(ρP_bar_a_species.values()), axis=0)
                 σ_values = σ_values_arr
                 # Apply CLASS units of [length²time⁻²]
@@ -1295,11 +1384,11 @@ class TransferFunction:
                 self.splines[k] = spline
         elif self.var_name == 'hʹ':
             # Compute and store a Spline object for each k
-            perturbations = self.cosmoresults.perturbations
+            class_perturbation_name = 'h_prime'
             for k in range(self.k_gridsize):
                 perturbation = perturbations[k]
                 a_values = perturbation['a']
-                hʹ_values = perturbation['h_prime']
+                hʹ_values = perturbation[class_perturbation_name]
                 # Apply CLASS units of [time⁻¹]
                 hʹ_values = asarray(hʹ_values)*ℝ[light_speed/units.Mpc]
                 # Construct cubic spline of {a, hʹ}
