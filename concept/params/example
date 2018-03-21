@@ -38,7 +38,7 @@ output_dirs = {  # Directories for storing output
     'powerspec': ...,
     'render2D' : ...,
     'render3D' : ...,
-    'autosave' : 'output/autosaves',
+    'autosave' : paths['output_dir'] + '/autosaves',
 }
 output_bases = {  # File basenames of output
     'snapshot' : 'snapshot',
@@ -91,15 +91,17 @@ H0      = 70*km/(s*Mpc)  # The Hubble constant
 Ωb      = 0.05           # Density parameter for baryonic matter
 a_begin = 0.02           # Scale factor at beginning of simulation
 class_params = {         # CLASS parameters. See the CLASS documentation for details.
-    'n_s'                     : 1,
-    'A_s'                     : 2.30e-09,
-    'N_ur'                    : 0,
-    'N_ncdm'                  : 1,
-    'deg_ncdm'                : 3,
-    'm_ncdm'                  : 1/3,
-    'l_max_ncdm'              : 30,
-    'Number of momentum bins' : 30,
-    'Maximum q'               : 15,
+    # Primordial parameters
+    'n_s'                    : 1,
+    'A_s'                    : 2.30e-09,
+    # Neutrino parameters
+    'N_ur'                   : 0,
+    'N_ncdm'                 : 1,
+    'deg_ncdm'               : 3,
+    'm_ncdm'                 : 1/3,
+    'l_max_ncdm'             : 30,
+    'Number of momentum bins': 30,
+    'Maximum q'              : 15,
 }
 
 # Physics
@@ -126,7 +128,7 @@ select_softening_length = {  # Gravitational softening for each component
 fftw_wisdom_rigor = 'measure'  # Rigor level when acquiring FFTW wisdom
 fftw_wisdom_reuse = True       # Reuse FFTW wisdom from earlier runs?
 master_seed = 1                # Seed for pseudo-random numbers
-fluid_scheme_select = {        # Scheme for fluid evolution for each component
+fluid_scheme_select = {        # Fluid evolution scheme for each component
     'all': 'Kurganov-Tadmor',
 }
 fluid_options = {  # Specifications of fluid scheme parameters

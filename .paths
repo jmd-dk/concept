@@ -1,6 +1,5 @@
-# This file contains absolute paths to directories and files used by the
-# CO𝘕CEPT code. You must manually edit the paths below. All other files rely on
-# these paths, as they are not given anywhere else.
+# This file contains absolute paths to directories and files
+# used by the CO𝘕CEPT code. You may manually edit these paths.
 
 #######################
 # CO𝘕CEPT directories #
