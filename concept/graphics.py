@@ -28,7 +28,7 @@ from commons import *
 cimport('from communication import domain_size_x,  domain_size_y,  domain_size_z, '
                                   'domain_start_x, domain_start_y, domain_start_z,'
                                   'get_buffer,                                    '
-        )
+)
 cimport('from mesh import CIC_components2φ_general')
 
 # Pure Python imports
@@ -141,6 +141,7 @@ def plot_powerspec(k_bin_centers, power_dict, filename, powerspec_plot_select):
     axis=str,
     bin_edges='double[::1]',
     bins='Py_ssize_t[::1]',
+    blurrinesses=list,
     color_truncation_factor_lower='double',
     color_truncation_factor_upper='double',
     colormap=str,
@@ -149,6 +150,7 @@ def plot_powerspec(k_bin_centers, power_dict, filename, powerspec_plot_select):
     component_combination=tuple,
     component_combination_str=str,
     component_combinations=object,  # generator
+    critical_blurriness_ratio='double',
     data_coordinates='double[::1]',
     domain_start_i='Py_ssize_t',
     domain_start_j='Py_ssize_t',
@@ -177,8 +179,11 @@ def plot_powerspec(k_bin_centers, power_dict, filename, powerspec_plot_select):
     occupation='Py_ssize_t',
     terminal_projection='double[:, ::1]',
     terminal_projection_ANSI=list,
+    terminal_projection_candidates=list,
     projection='double[:, ::1]',
     projection_enhanced='double[:, ::1]',
+    projection_max='double',
+    projection_min='double',
     shifting_factor='double',
     terminal_resolution='Py_ssize_t',
     value='double',  
@@ -381,6 +386,7 @@ def render2D(components, filename):
                is_selected(component_combination, render2D_image_select)
             or is_selected(component_combination, render2D_terminal_image_select)
             ):
+            masterprint('done')
             continue
         # Extract further options for this component combination
         # from the render2D_options user parameter.
@@ -406,8 +412,13 @@ def render2D(components, filename):
         if enhance:
             masterprint(f'Enhancing image ...')
             shifting_factor = 0.28
-            # Ensure that all pixel values are at most unity
-            projection = asarray(projection)*(1/np.max(projection))
+            # Enforce all pixel values to be between 0 and 1
+            projection_min = np.min(projection)
+            projection_max = np.max(projection)
+            if projection_min != 0:
+                projection = asarray(projection) - projection_min
+            if projection_max not in (0, 1):
+                projection = asarray(projection)*(1/projection_max)
             # Find a good value for the exponent using a binary search
             exponent_min = 1e-2
             exponent_max = 1e+2
@@ -420,7 +431,10 @@ def render2D(components, filename):
         while enhance:
             # Construct histogram over projection**exponent
             projection_enhanced = asarray(projection)**exponent
-            bins, bin_edges = np.histogram(projection_enhanced, N_bins)
+            try:
+                bins, bin_edges = np.histogram(projection_enhanced, N_bins)
+            except:
+                masterwarn('exponent:', exponent, 'projection:', asarray(projection), 'projection_enhanced:', asarray(projection_enhanced))
             # Compute the sum of all bins. This is equal to the sum of
             # values in the projection. However, we skip bins[0] since
             # sometimes empty cells results in a large spike there.
@@ -517,8 +531,13 @@ def render2D(components, filename):
                 render2D_options['terminal resolution'],
             )
             if terminal_resolution == φ_gridsize:
+                # When the terminal resolution matches that of the
+                # φ grid, simply use the φ grid (projection) as is.
                 terminal_projection = np.ascontiguousarray(projection[::2, :])
             else:
+                # Coordinate mapping between the original
+                # data (projection) and the interpolated
+                # data (terminal_projection).
                 data_coordinates = linspace(
                     0,
                     terminal_resolution - 1,
@@ -534,11 +553,26 @@ def render2D(components, filename):
                     terminal_resolution - 1,
                     (terminal_resolution + 1)//2,
                 )
+                # Interpolate original data (projection) to the new
+                # image format. Sometimes (e.g. when φ_gridsize is
+                # larger than the cube root of the number of particles
+                # and particles are placed in close to perfect mesh
+                # alignment) the resulting interpolated image gets very
+                # blurry and few structural features remain. This can
+                # (perhaps surprisingly) be fixed by slightly smoothing
+                # the data before doing the interpolation. As this
+                # smothing does not noticeably alter the image in the
+                # normal case, we always perform this smoothing.
+                # In the end, this is a result of the fact that we are
+                # using the φ grid to generate the projected image,
+                # and so the image depends on φ_grid.
                 terminal_projection = np.ascontiguousarray(
                     scipy.interpolate.interp2d(
                         data_coordinates,
                         data_coordinates,
-                        projection,
+                        scipy.ndimage.filters.gaussian_filter(
+                            projection, sigma=1, truncate=3, mode='wrap',
+                        ),
                         'cubic',
                     )(interpolation_coordinates_m, interpolation_coordinates_n)
                 )

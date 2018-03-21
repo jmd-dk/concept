@@ -287,14 +287,18 @@ for match in re.finditer(
 if a_stamps:
     time_stamps = []
     for t_stamp, a_stamp in zip(t_stamps, a_stamps):
-        spacing = max(len(a_stamp) + 2, width - len(t_stamp))
+        spacing = np.max((len(a_stamp) + 2, width - len(t_stamp)))
         time_stamps.append(
             f'{{:<{len(t_stamp)}}}{{:>{spacing}}}'
             .format(t_stamp, a_stamp)
         )
 else:
     time_stamps = t_stamps
-stamps_max_length = max(map(len, time_stamps))
+stamps_max_length = 0
+for time_stamp in time_stamps:
+    stamp_length = len(time_stamp)
+    if stamp_length > stamps_max_length:
+        stamps_max_length = stamp_length
 time_stamps = [f'{{:<{stamps_max_length}}}'.format(time_stamp) for time_stamp in time_stamps]
 # Adjust the frame rate so that
 # the animation takes at least one second.

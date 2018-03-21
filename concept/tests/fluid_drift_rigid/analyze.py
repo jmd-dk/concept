@@ -144,7 +144,7 @@ for fluid, a_i in zip(fluid_components, a):
                       .format(a_i, fluidscalar))
 
 # Compare ϱ to the fluid from the snapshots
-tol_fac = 1e-2
+tol_fac = 0.02
 for ϱ_i, y_interp_i, a_i in zip(ϱ, y_interp, a):
     if not isclose(np.mean(np.abs(ϱ_i - y_interp_i)), 0,
                    rel_tol=0,

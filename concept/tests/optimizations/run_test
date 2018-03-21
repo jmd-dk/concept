@@ -22,8 +22,10 @@
 
 
 
-# This script performs a drift test of a fluid with a spatially
-# homogeneus velocity field. Gravity is disabled.
+# This script performs a test to see whether the many compiler
+# optimizations (from pyxpp.py and the C compiler) introduce
+# bugs in the code. A complex simulation is run with all and
+# with no optimizations.
 
 # Absolute path and name of the directory of this file
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
@@ -47,13 +49,17 @@ set -e
 # Cleanup from last test run
 "${this_dir}/clean"
 
-# Generate ICs
-"${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local
+# Run the CO𝘕CEPT code without optimizations
+(cd "${concept_dir}" && make clean)
+"${concept}" -n 4 -p "${this_dir}/params" --no-optimization --local
+mv "${this_dir}/output" "${this_dir}/output_without_optimizations"
 
-# Run the CO𝘕CEPT code on the fluid ICs
-"${concept}" -n 1 -p "${this_dir}/params" --local
+# Run the CO𝘕CEPT code with optimizations
+(cd "${concept_dir}" && make clean)
+"${concept}" -n 4 -p "${this_dir}/params" --local
+mv "${this_dir}/output" "${this_dir}/output_with_optimizations"
 
-# Analyze the output snapshots
+# Analyze the output power spectra and 2D renders
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
 
 # Test ran successfully. Deactivate traps.

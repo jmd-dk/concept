@@ -329,7 +329,7 @@ def construct_potential(components, quantities, potential):
     fft(slab, 'forward')
     # Multiplicative factor needed after a forward and a backward
     # Fourier transformation.
-    fft_normalization_factor = 1/float(φ_gridsize)**3
+    fft_normalization_factor = float(φ_gridsize)**(-3)
     # Loop through the local j-dimension
     for j in range(ℤ[slab.shape[0]]):
         # The j-component of the wave vector (grid units).
@@ -459,11 +459,11 @@ def particle_mesh_general(receivers, suppliers, ᔑdt, potential, potential_name
     passed to the apply_potential function for each receiver and
     each dimension.
     """
-    # Build the two potentials due to all components
+    # Build the two potentials due to all particles and fluid components
     components = receivers + suppliers
     masterprint('Constructing the {} due to {} ...'
                 .format(potential_name, ', '.join([component.name for component in components])))
-    φ_dict = construct_potential_general(components, dependent, potential)
+    φ_dict = construct_potential_general(receivers, suppliers, dependent, potential)
     masterprint('done')
     # For each dimension, differentiate the potentials
     # and apply the force to all receiver components.
@@ -487,12 +487,16 @@ def particle_mesh_general(receivers, suppliers, ᔑdt, potential, potential_name
 # Generic function capable of constructing potential grids out of
 # components and a given expression for the potential.
 @cython.header(# Arguments
-               components=list,
+               receivers=list,
+               suppliers=list, 
                quantities=list,
                potential=func_potential,
                # Locals
                any_fluid='bint',
+               any_fluid_receivers='bint',
                any_particles='bint',
+               any_particles_receivers='bint',
+               components=list,
                deconv_factor='double',
                deconv_ijk='double',
                fft_normalization_factor='double',
@@ -506,6 +510,7 @@ def particle_mesh_general(receivers, suppliers, ᔑdt, potential, potential_name
                kk='Py_ssize_t',
                k2='Py_ssize_t',
                potential_factor='double',
+               receiver_representations=list,
                reciprocal_sqrt_deconv_ij='double',
                reciprocal_sqrt_deconv_ijk='double',
                reciprocal_sqrt_deconv_j='double',
@@ -523,7 +528,7 @@ def particle_mesh_general(receivers, suppliers, ᔑdt, potential, potential_name
                φ_dict=dict,
                returns=dict,
                )
-def construct_potential_general(components, quantities, potential):
+def construct_potential_general(receivers, suppliers, quantities, potential):
     """This function populate two grids (including pseudo points and
     ghost layers) with a real-space potential corresponding to the
     Fourier-space potential function given, due to all the components.
@@ -563,6 +568,7 @@ def construct_potential_general(components, quantities, potential):
     # The φ_dict will be a dictionary mapping representations
     # ('particles', 'fluid') to grids. If only one representation is
     # present, only this item will exist in the dictionary.
+    components = receivers + suppliers
     φ_dict = CIC_components2φ_general(components, quantities)
     # Flags specifying whether any fluid/particle components are present
     any_particles = ('particles' in φ_dict)
@@ -587,7 +593,7 @@ def construct_potential_general(components, quantities, potential):
         fft(slab, 'forward')
     # Multiplicative factor needed after a forward and a backward
     # Fourier transformation.
-    fft_normalization_factor = φ_gridsize**(-3)
+    fft_normalization_factor = float(φ_gridsize)**(-3)
     # For each grid, multiply by the potential and deconvolution
     # factors. Do fluid slabs fist, then particle slabs.
     for representation_counter, (representation, slab) in enumerate(slab_ordereddict.items()):
@@ -706,6 +712,30 @@ def construct_potential_general(components, quantities, potential):
                             # back to the particles.
                             slab_particles_jik[0] = deconv_ijk*slab_fluid_jik[0]  # Real part
                             slab_particles_jik[1] = deconv_ijk*slab_fluid_jik[1]  # Imag part
+    # In the general case of both particles and fluids taking part in
+    # the creation of the potential, slab_dict now contains slab-
+    # decomposed potential grids in Fourier space, one for particles and
+    # one for fluids. Importantly, both of these are the total potential
+    # due to both particles and fluids. The difference is solely in the
+    # amount of deconvolution. Now, though both particles and fluids
+    # contribute to the potential, they may not both receive forces due
+    # to it. If this is the case, we now through away
+    # this superfluous potential.
+    receiver_representations = [receiver.representation for receiver in receivers]
+    any_particles_receivers = ('particles' in receiver_representations)
+    any_fluid_receivers     = ('fluid'     in receiver_representations)
+    if any_particles and not any_particles_receivers:
+        del slab_dict['particles']
+        del φ_dict   ['particles']
+    if any_fluid and not any_fluid_receivers:
+        del slab_dict['fluid']
+        del φ_dict   ['fluid']
+    if not slab_dict:
+        abort(
+            'Something went wrong in the construct_potential_general() function, '
+            'as it appears that neither particles nor fluids should receive the force '
+            'due to the potential'
+        )
     # Fourier transform the slabs back to coordinate space
     for slab in slab_dict.values():
         fft(slab, 'backward')
@@ -858,6 +888,7 @@ def find_nearest_neighbour(components, selected):
                 component='Component',
                 components=list,
                 dependent=list,
+                i='Py_ssize_t',
                 Δt='double',
                 φ_Vcell='double',
                 # DELETE BELOW WHEN DONE WITH gravity_old.py !!!
@@ -867,6 +898,17 @@ def find_nearest_neighbour(components, selected):
                 φ='double[:, :, ::1]',
                 )
 def gravity(method, receivers, suppliers, ᔑdt):
+    # Regardless of the method, it may happen that some fluid components
+    # classified as receivers are incapable of receiving the
+    # gravitational force due to the lack of the non-linear J
+    # fluid variable. In this case, it becomes a supplier in stead.
+    for i, component in enumerate(receivers.copy()):
+        if component.representation == 'fluid' and component.is_linear(1):
+            suppliers.append(component)
+            del receivers[i]
+    # If no receivers exist at all, no interaction should take place
+    if not receivers:
+        return
     # List of all particles participating in this interaction
     components = receivers + suppliers
     # Compute gravity via one of the following methods

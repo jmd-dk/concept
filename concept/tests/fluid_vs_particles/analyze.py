@@ -126,7 +126,7 @@ for kind in ('particles', 'fluid'):
     # Sort filenames chronologically
     render3D_filenames[kind] = [render3D_filenames[kind][o] for o in order]
 rel_tol = 0.1
-abs_tol = 1 + 0.02*gridsize
+abs_tol = 2 + 0.02*gridsize
 N_largest_halos = 5
 for (a_i,
      particles_component,

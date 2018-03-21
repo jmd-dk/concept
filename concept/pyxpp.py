@@ -109,7 +109,11 @@ def cimport_cython(lines, no_optimization):
 
 
 
-def oneline(lines, no_optimization):
+def oneline(lines, no_optimization=None):
+    # Maybe replace with
+    # def oneline(s):
+    #    return re.sub('\n+', '\n', re.sub(r'([{\[\(,\.]|(?:\\))\s+', r'\1', s, flags=re.M))
+    # The no_optimization argument is not used by this function
     in_quotes = [False, False]
     in_triple_quotes = [False, False]
     paren_counts = {'paren': 0, 'brack': 0, 'curly': 0}
@@ -349,30 +353,32 @@ def cython_structs(lines, no_optimization):
                         value = value[1:]
                     if value[-1] == ')':
                         value = value[:-1]
-                    value = value
                 else:
-                    # Only type given. Initialize to zero.
+                    # Only type given. Initialize pointer type to None,
+                    # non-pointer type to 0.
                     if decl.count('"') == 2:
                         ctype = re.search('(".*")', decl).group(1)
                     if decl.count("'") == 2:
                         ctype = re.search("('.*')", decl).group(1)
                     ctype = ctype.replace('"', '').replace("'", '').strip()
-                    value = '0'
+                    value = 'b""' if '*' in ctype else '0'
                 struct_content[i] = (name.strip(), ctype.strip(), value.strip())
             struct_content.pop()
             # The name of the struct type is eg. struct_double_double_int
-            struct_kind = '_'.join([t[1] for t in struct_content])
+            struct_kind = '_'.join([t[1] for t in struct_content]).replace('*', 'star')
             # Insert modified version of the build_struct function,
-            # initializing all values to zero.
+            # initializing all pointer values to None
+            # and non-pointer values to 0.
             if not build_struct_code:
                 build_struct_code = get_build_struct()
             for build_struct_line in build_struct_code:
                 build_struct_line = build_struct_line.replace('build_struct(',
                                                             'build_struct_{}('.format(struct_kind))
-                build_struct_line = build_struct_line.replace('...',
-                                                              'struct_{}({})'.format(struct_kind,
-                                                             ', '.join(['0']*len(struct_content))))
-                
+                build_struct_line = build_struct_line.replace('...', 'struct_{}({})'.format(
+                    struct_kind,
+                    ', '.join(['b""' if '*' in struct_content_i[1] else '0'
+                        for struct_content_i in struct_content])
+                ))
                 new_lines.append(build_struct_line)
             # Insert declaration of struct
             indentation = len(line) - len(line.lstrip())
@@ -445,7 +451,7 @@ def cimport_function(lines, no_optimization):
                     new_lines.append(' '*(indentation + 4)
                                      + 'from {} import {}\n'.format(module, function))
                     new_lines.append(' '*indentation + 'except:\n')
-                    new_lines.append(' '*(indentation + 4) + '...\n')
+                    new_lines.append(' '*(indentation + 4) + 'pass\n')
             # Add cimport import
             new_lines.append(line)
         else:
@@ -454,11 +460,105 @@ def cimport_function(lines, no_optimization):
 
 
 
-def constant_expressions(lines, no_optimization):
+def constant_expressions(lines, no_optimization, first_call=True):
     sets = {'ℝ': 'double',
             'ℤ': 'Py_ssize_t',
             '𝔹': 'bint',
             }
+    # Handle nested constant expressions.
+    # If first_call is True, this is the original call to this function.
+    # Edit all nested occurrences of constant expressions so that only
+    # the inner most expression survived, while the outer ones will
+    # be assigned a nesting number, e.g.
+    # ℝ[2 + ℝ[3*4]] -> ℝ1[2 + ℝ[3*4]].
+    new_lines = []
+    if first_call:
+        for i, line in enumerate(lines):
+            line = line.rstrip('\n')
+            search = re.search(r'[{}]\[.+\]'.format(''.join(sets.keys())), line)
+            if not search or line.replace(' ', '').startswith('#'):
+                new_lines.append(line + '\n')
+                continue
+            # Blackboard bold symbol found on this line
+            R_statement_fullmatch = search.group(0)
+            R_statement = R_statement_fullmatch[:2]
+            for c in R_statement_fullmatch[2:]:
+                R_statement += c
+                if R_statement.count('[') == R_statement.count(']'):
+                    break
+            expression = re.sub(' +', ' ', R_statement[2:-1].strip())
+            edited_line = []
+            for blackboard_bold_symbol_i in sets:
+                if blackboard_bold_symbol_i in expression:
+                    # Nested blackboard bold expression found
+                    lvl_indices = []
+                    lvl = -1
+                    bracket_types = []
+                    c_before = ''
+                    for c in line:
+                        write_lvl = False
+                        if c == '[':
+                            if c_before in sets:
+                                lvl += 1
+                                bracket_types.append('constant expression')
+                                write_lvl = True
+                            else:
+                                bracket_types.append('other')
+                        elif c == ']':
+                            bracket_type = bracket_types.pop()
+                            if bracket_type == 'constant expression':
+                                lvl -= 1
+                            elif bracket_type == 'other':
+                                pass
+                        edited_line.append(c)
+                        if write_lvl:
+                            edited_line.pop()
+                            lvl_indices.append(len(edited_line))
+                            edited_line.append(str(lvl))
+                            edited_line.append('[')
+                        c_before = c
+                    break
+            if edited_line:
+                # Invert the lvl's so that the inner expressions have
+                # the largest lvl.
+                lvls = [int(edited_line[lvl_index]) for lvl_index in lvl_indices]
+                if max(lvls) > 0:
+                    j = 0
+                    for i in range(1, len(lvls)):
+                        if lvls[i] == 0:
+                            max_lvl = max(lvls[j:i])
+                            lvls[j:i] = [max_lvl - lvls[j] for j in range(j, i)]
+                            j = i
+                for lvl, lvl_index in zip(lvls, lvl_indices):
+                    edited_line[lvl_index] = str(lvl)
+                line = ''.join(edited_line)
+            new_lines.append(line + '\n')
+        lines = new_lines
+    # Remove the nest lvl on constant expressions at lvl 0
+    # and decrease all other lvls by 1.
+    all_lvls = set()
+    def replace(m):
+        s = m.group()
+        lvl = int(s[1:-1])
+        all_lvls.add(lvl)
+        lvl -= 1
+        if lvl == -1:
+            return s[0] + '['
+        else:
+            return s[0] + str(lvl) + '['
+    new_lines = []
+    for i, line in enumerate(lines):
+        line = line.rstrip('\n')
+        search = re.search(r'[{}]([0-9]+)\[.+\]'.format(''.join(sets.keys())), line)
+        if search and not line.replace(' ', '').startswith('#'):
+            line, _ = re.subn(
+                r'[{}][0-9]+\['.format(''.join(sets.keys())),
+                replace,
+                line,
+            )
+        new_lines.append(line + '\n')
+    lines = new_lines
+    # Helper functions
     def indentation_level(line):
         line_lstrip = line.lstrip()
         if not line_lstrip or line_lstrip.startswith('#'):
@@ -487,7 +587,7 @@ def constant_expressions(lines, no_optimization):
                 removed_args = False
                 in_func_call = False
                 for i, c in enumerate(line):
-                    if not in_func_call and c == '(' and i > 0 and re.search('[_a-zA-Z0-9]', line[i - 1]):
+                    if not in_func_call and c == '(' and i > 0 and re.search(r'\w', line[i - 1]):
                         in_func_call = True
                         i_start = i
                         parens = 1
@@ -505,51 +605,37 @@ def constant_expressions(lines, no_optimization):
                                 in_func_call = False
                                 break
             # Now do the searching
-            match1 = re.search(r' {}( *[,=] *[_a-zA-Z][_a-zA-Z0-9]*)+ *=?'.format(var),
+            match1 = re.search(r' {}( *[,=] *[^\W0-9]\w*)+ *=?'.format(var),
                               ' {} '.format(line))
-            match2 = re.search(r' ( *[_a-zA-Z][_a-zA-Z0-9]* *[,=])+ *{} *[,=]'.format(var),
+            match2 = re.search(r' ( *[^\W0-9]\w* *[,=])+ *{} *[,=]'.format(var),
                               ' {} '.format(line))
             if match1:
                 return ('=' in match1.group())
             if match2:
                 return ('=' in match2.group())
         def used_as_function_arg(var, line):
-            line = line.replace(' ', '')
-            in_func_call = False
-            func_args = []
-            for i, c in enumerate(line):
-                if not in_func_call and c == '(' and i > 0 and re.search('[_a-zA-Z0-9]', line[i - 1]):
-                    in_func_call = True
-                    i_start = i
-                    parens = 1
-                    continue
-                if in_func_call:
-                    if c == '(':
-                        parens += 1
-                    elif c == ')':
-                        parens -= 1
-                        if parens == 0:
-                            i_end = i
-                            args = line[(i_start + 1):i_end].split(',')
-                            for j, arg in enumerate(args):
-                                if '=' in arg:
-                                    args[j] = arg[(arg.index('=') + 1):]
-                            for j, arg in enumerate(args):
-                                if '(' in arg:
-                                    args[j] = arg[(arg.index('(') + 1):]
-                            for j, arg in enumerate(args):
-                                if ')' in arg:
-                                    args[j] = arg[:arg.index(')')]
-                            func_args += args
-                            in_func_call = False
-            return (var in func_args)
+            # This function checks whether the variable var is used as
+            # a function argument in the line, the idea being that if
+            # the variable is mutable, we cannot guarantee that it is
+            # not altered by the function. However, most variables used
+            # in constant expressions are immutable, and so actually
+            # using this function will make the optimizations worse.
+            # We therefore ignore whether or not variables are used
+            # in a function call. It is thus up to the developer to
+            # remember the danger of using constant expressions
+            # containing mutable values.
+            return False
+            # The actual function, should we some day decide to use it
+            match = re.search(rf'\w *\(.*{var}[, )]', line)
+            if match:
+                s = match.group().rstrip(')')
+                if s.count('(') - s.count(')') == 1:
+                    print('var:', var, ',,, line:', line, flush=True)
+                    return True
+            return False
         return (   multi_assign_in_for(var, line_ori)
                 or multi_assign_in_line(var, line_ori)
-                # !!! This condition should really be turned on,
-                # but because "barriers" (or maybe just nested barriers)
-                # are not properly taken care of, this sometimes leads
-                # to errors (e.g. in diff_domain in mesh.py).
-                #or (var in attributes and used_as_function_arg(var, line_ori))
+                or used_as_function_arg(var, line_ori)
                 or ('=' + var + '=') in line
                 or line.startswith(var + '='  )
                 or line.startswith(var + '+=' )
@@ -582,7 +668,6 @@ def constant_expressions(lines, no_optimization):
                 or (';' + var + '@=' ) in line
                 )
     def affectable(lines):
-        return True  # !!! 
         # Unindent loops
         for i, line in enumerate(lines):
             if line.lstrip().startswith('for ') or line.lstrip().startswith('while '):
@@ -795,6 +880,7 @@ def constant_expressions(lines, no_optimization):
                                              (';' , 'SCOL'),
                                              ('==', 'CMP' ),
                                              ('!=', 'NCMP'),
+                                             ('=' , 'EQ'  ),
                                              ('!' , 'BAN' ),
                                              ('<' , 'LTH' ),
                                              ('>' , 'GTH' ),
@@ -828,28 +914,31 @@ def constant_expressions(lines, no_optimization):
                     if R_statement.count('[') == R_statement.count(']'):
                         break
                 expression = re.sub(' +', ' ', R_statement[2:-1].strip())
-                # Nested blackboard bold expressions are not allowed
-                for blackboard_bold_symbol_i in sets:
-                    if blackboard_bold_symbol_i in expression:
-                        commons.abort('Nested blackboard bold expressions in {}:\n{}'
-                                      .format(filename, R_statement)
-                                      )
-                # Integer literals to float literals when dividing
+                # Ensure float division within double expressions
                 if ctype == 'double':
-                    # Integer in numerator
-                    expression = re.sub('[0-9]+\.?[0-9]*/[^/]',
-                                        lambda numerator: (
-                                                 numerator.group() if '.' in numerator.group()
-                                                                   else (numerator.group()[:-2]
-                                                                         + '.0/'
-                                                                         + numerator.group()[-1])),
-                                        expression)
-                    # Integer in denominator
-                    expression = re.sub('[^/]/[0-9]+\.?[0-9]*',
-                                        lambda denominator: (
-                                                  denominator.group() if '.' in denominator.group()
-                                                                  else denominator.group() + '.0'),
-                                        expression)
+                    # Replace all slashes inside quotes
+                    quotes = {'"': False, "'": False}
+                    expression_chars = []
+                    for c in expression:
+                        if c == '"':
+                            quotes['"'] ^= True
+                        elif c == "'":
+                            quotes["'"] ^= True
+                        if c == '/' and (quotes['"'] or quotes["'"]):
+                            expression_chars.append('�')
+                        else:
+                            expression_chars.append(c)
+                    expression = ''.join(expression_chars)
+                    # Insert a cast to double at all denominators
+                    def replace(m):
+                        s = m.group()
+                        if s.count('/') == 1:
+                            return s[0] + r'/<double>' + s[2]
+                        else:
+                            return s
+                    expression = re.sub('./.', replace, expression)
+                    # Re-insert slashes inside quotes
+                    expression = expression.replace('�', '/')
                 no_blackboard_bold_symbol = False
                 # If optimizations are disabled, simply remove the
                 # blackboard bold symbol and insert the updated
@@ -1091,8 +1180,11 @@ def constant_expressions(lines, no_optimization):
         line = line.replace(dummy_statement_comment, '')
         if dummy_declaration_value not in line:
             new_lines.append(line)
-    return new_lines
-
+    # Call recursively until all nested constant expressions has been
+    # taken care off.
+    if not all_lvls or all_lvls == {0}:
+        return new_lines
+    return constant_expressions(new_lines, no_optimization, first_call=False)
 
 
 def loop_unswitching(lines, no_optimization):
@@ -1318,27 +1410,25 @@ def loop_unswitching(lines, no_optimization):
                 break
             lines = new_lines
             new_lines = []
-    # The lines are now been unswitched.
+    # The lines have now been unswitched.
     # However, potentially much too many if statements have been
     # inserted, creating code with a structure like this:
-    # if condition:
+    # if condition:      # Keep
     #     if condition:  # Delete
     #         ...        # Keep
     #     else:          # Delete
     #         ....       # Delete
-    # else:
-    #     ...
     # where the condition is exactly the same in each if statement.
-    # The code is correct, but cython can take a very long time
+    # The code is correct, but Cython can take a very long time
     # handling this code, so we reduce it here.
     # As indicated by the comments above, when two nested and equal
     # if statements are found, the body of the if should be kept
     # (and unindented one level), whereas everything else about the
     # if statement should be removed. Doing this repeatedly will remove
     # all occurrences of these unnecessary if statements.
-    pattern = r'if +(.+):'
-    new_lines = []
-    while True:
+    def remove_double_if(lines):
+        pattern = r'(^| )if +(.+):'
+        new_lines = []
         skip = 0
         for i, line in enumerate(lines):
             if skip > 0:
@@ -1348,23 +1438,28 @@ def loop_unswitching(lines, no_optimization):
             match = re.search(pattern, line)
             if match and not line.lstrip().startswith('#'):
                 # If statement found
-                condition = match.group(1).strip()
+                condition = match.group(2).strip()
                 # Check whether the next line is an if statement
                 # with the same condition.
                 double_if = False
                 next_line = lines[i + 1]
                 match = re.search(pattern, next_line)
                 if match and not line.lstrip().startswith('#'):
-                    next_condition = match.group(1).strip()
+                    next_condition = match.group(2).strip()
                     if condition == next_condition:
                         double_if = True
                 if double_if:
-                    # Double if statement found. Locate the entirity of
+                    # Double if statement found. Locate the entirety of
                     # the inner if block, keeping only the if body.
                     skip += 1  # Skip the inner if statement
                     inside_inner_if = True
                     inner_if_lvl = (len(next_line) - len(next_line.lstrip()))//4
                     for line in lines[(i + 2):]:
+                        if not line.strip() or line.lstrip().startswith('#'):
+                            # Comment or empty line
+                            new_lines.append(line)
+                            skip += 1
+                            continue
                         lvl = (len(line) - len(line.lstrip()))//4
                         if lvl > inner_if_lvl:
                             if inside_inner_if:
@@ -1390,14 +1485,85 @@ def loop_unswitching(lines, no_optimization):
                             # Outside entire inner if block
                             break
                         else:
-                            # Comment or empty line
-                            new_lines.append(line)
-                            skip += 1
-        # Break out when no change has happened to any line.
-        if len(lines) == len(new_lines):
-            break
-        lines = new_lines
+                            print('From pyxpp.py: How did I end up here?', file=sys.stderr)
+                            sys.exit(1)
+        return new_lines     
+    # It is also possible that we have the following
+    # impossible construct:
+    # if condition:     # Keep
+    #     ...           # Keep
+    # else:             # Keep
+    #    if condition:  # Delete
+    #        ...        # Delete
+    # where the condition is exactly the same in each if statement.
+    # The code is correct, but Cython can take a very long time
+    # handling this code, so we reduce it here.
+    def remove_impossible_if(lines):
+        pattern = r'(^| )if +(.+):'
+        pattern_else = r'(^| )else *:'
         new_lines = []
+        skip = 0
+        for i, line in enumerate(lines):
+            if skip > 0:
+                skip -= 1
+                continue
+            new_lines.append(line)
+            match = re.search(pattern_else, line)
+            if match and not line.lstrip().startswith('#'):
+                # Else clause found. Check whether the first line inside
+                # the else block is an if statement.
+                next_line = lines[i + 1]
+                match = re.search(pattern, next_line)
+                if not match or line.lstrip().startswith('#'):
+                    continue
+                # Else clause with if statement inside it found
+                condition = match.group(2).strip()
+                # Check whether the original if statement accompanying
+                # the else clause has the exact same condition as this
+                # inner if statement.
+                lvl = (len(line) - len(line.lstrip()))//4
+                for prev_line in reversed(lines[:i]):
+                    prev_lvl = (len(prev_line) - len(prev_line.lstrip()))//4
+                    if prev_lvl != lvl:
+                        continue
+                    match = re.search(pattern, prev_line)
+                    if match and not line.lstrip().startswith('#'):
+                        prev_condition = match.group(2).strip()
+                        break
+                if prev_condition != condition:
+                    continue
+                # Impossible if statement found within else clause.
+                # Replace all of the contents within this impossible if
+                # statement with a single pass statement, and change
+                # the condition to False. This keeps the code structure,
+                # but will be compiled away by Cython
+                # and/or the C compiler.
+                new_lines.append(
+                    '    '*(lvl + 1) + 'if False:  # Autoinserted dummy if statement\n'
+                )
+                skip += 1  # Skip the inner if statement
+                new_lines.append(
+                    '    '*(lvl + 2) + 'pass       # Autoinserted dummy if statement\n'
+                )
+                for line in lines[(i + 2):]:
+                    if not line.strip() or line.lstrip().startswith('#'):
+                        # Comment or empty line
+                        skip += 1
+                        continue
+                    next_lvl = (len(line) - len(line.lstrip()))//4
+                    if next_lvl <= lvl + 1:
+                        # Line outside of the impossible if body
+                        break
+                    # Line inside the impossible if body
+                    skip += 1
+        return new_lines
+    # Repeatedly apply the remove_* functions above until all
+    # occurrences of these unnecessary if statements are gone.
+    lines_len_ori = -1
+    while len(lines) != lines_len_ori:
+        lines_len_ori = len(lines)
+        lines = remove_double_if    (lines)
+        lines = remove_impossible_if(lines)
     return lines
 
 
@@ -1867,7 +2033,7 @@ def add_types_to_addition_chain_exponentiation_variables(lines, clines, no_optim
                           'double': 'double',
                           }
     def search_backwards(tmp_varname, variable_numer, prev_clines):
-        pattern = r'{} *= *([a-zA-Z_][a-zA-Z0-9_]*) *\('
+        pattern = r'{} *= *([^\W0-9]\w*) *\('
         for prev_cline in reversed(prev_clines):
             prev_cline_lstripped = prev_cline.lstrip()
             if (   prev_cline_lstripped.startswith('*')
@@ -1909,7 +2075,7 @@ def add_types_to_addition_chain_exponentiation_variables(lines, clines, no_optim
                     # New  addition chain exponentiation variable number
                     is_pyobject = False
                     for i, cline in enumerate(clines):
-                        pattern = r'[a-zA-Z0-9_]*{} *= *([a-zA-Z_][a-zA-Z0-9_]*) *;'
+                        pattern = r'\w*{} *= *([^\W0-9]\w*) *;'
                         match = re.search(pattern.format(variable), cline)
                         if match:                            
                             if not is_pyobject and cline.lstrip().startswith('PyObject'):
@@ -1922,7 +2088,7 @@ def add_types_to_addition_chain_exponentiation_variables(lines, clines, no_optim
                                 search_backwards(tmp_varname, variable_numer, clines[:i])
                                 break
                         elif is_pyobject:
-                            pattern = r'\( *[a-zA-Z0-9_]*{} *, *([a-zA-Z_][a-zA-Z0-9_]*) *\) *;'
+                            pattern = r'\( *\w*{} *, *([^\W0-9]\w*) *\) *;'
                             match = re.search(pattern.format(variable), cline)
                             if match:
                                 # A line like
@@ -1942,7 +2108,7 @@ def add_types_to_addition_chain_exponentiation_variables(lines, clines, no_optim
         if addition_chain_exponentiation_varname in line:
             # Addition chain exponentiation found.
             # Get the variable name.
-            match = re.search('[a-zA-Z_][a-zA-Z0-9_]*{}[0-9]+'
+            match = re.search(r'[^\W0-9]\w*{}[0-9]+'
                               .format(addition_chain_exponentiation_varname),
                               line)
             if match:
@@ -2092,12 +2258,13 @@ def C_casting(lines, no_optimization):
     # Transform to Cython syntax
     for line in lines:
         while True:
-            match = re.search('[^0-9a-zA-Z_.]cast\(', line)
+            match = re.search(r'[^\w.]cast *\(', line)
             if not match:
                 break
             parens = 1
             brackets = 0
             curlys = 0
+            comma = -1
             for i in range(match.end(), len(line)):
                 if line[i] == '(':
                     parens += 1
@@ -2111,12 +2278,17 @@ def C_casting(lines, no_optimization):
                     curlys += 1
                 elif line[i] == '}':
                     curlys -= 1
-                if line[i] == ',' and parens == 1 and brackets == 0 and curlys == 0:
+                if (    comma == -1
+                    and line[i] == ','
+                    and parens == 1
+                    and brackets == 0
+                    and curlys == 0
+                    ):
                     comma = i
                 if parens == 0:
                     end = i
                     expression = line[match.end():comma].strip()
-                    ctype = line[(comma + 1):end].strip(' "\'')
+                    ctype = line[(comma + 1):end].strip(' "\',')
                     break
             line = line[:match.end() - 5] + '(<{}>({}))'.format(ctype, expression) + line[(end + 1):]
         new_lines.append(line)
@@ -2371,7 +2543,7 @@ def make_pxd(filename, no_optimization):
                     inside_cython_header = False
                     for k, line in enumerate(reversed(code[:i])):
                         break_k = False
-                        if len(line) > 0 and line[0] not in ('@', ' ', '#'):
+                        if len(line) > 0 and line[0] not in ('@', ' ', '#', ')'):
                             if not (line.lstrip().startswith(')') and not inside_cython_header):
                                 # Above function decorators
                                 break
@@ -2586,10 +2758,10 @@ def make_pxd(filename, no_optimization):
         # vartype may contain ellipses. These should be replaced
         # with regular expressions which describe a single
         # variable name.
-        vartype = vartype.replace('...', r'[_a-zA-Z0-9]*')
+        vartype = vartype.replace('...', r'\w*')
         # Search the entire .pyx file for string of the form
         # varname = 'vartype'.
-        if re.search((  r"""(^|[,;(\s])[_a-zA-Z][_a-zA-Z0-9]*\s*="""
+        if re.search((  r"""(^|[,;(\s])[^\W0-9]\w*\s*="""
                       + r"""\s*(?P<quote>['"]){vartype}\*?(?P=quote)"""
                       ).format(vartype=vartype),
                      code_str,
@@ -2602,13 +2774,18 @@ def make_pxd(filename, no_optimization):
         # vartype varname
         # Also search after this.
         if re.search((  r"""\s*{vartype}\s*\*?\s*"""
-                      + r"""(^|[,;(\s])[_a-zA-Z][_a-zA-Z0-9]*\s*"""
+                      + r"""(^|[,;(\s])[^\W0-9]\w*\s*"""
                       ).format(vartype=vartype),
                      code_str,
                      re.MULTILINE):
             header_lines.append(vardeclaration)
-    # Combine header_lines and pxd_lines
+    # Remove duplicates
     header_lines = list(set(header_lines))
+    # The header_lines are all independent imports or declarations.
+    # To ensure deterministic content of the pxd file,
+    # the header_lines are sorted.
+    header_lines = sorted(header_lines)    
+    # Combine header_lines and pxd_lines
     while len(header_lines) > 0 and len(header_lines[0].strip()) == 0:
         header_lines = header_lines[1:]
     if header_lines:
@@ -2640,7 +2817,7 @@ def make_pxd(filename, no_optimization):
     total_lines = total_lines_unique
     # If nothing else, place a comment in the pxd file
     if not total_lines:
-        total_lines = ['# This module does not expose any c-level functions or classes '
+        total_lines = ['# This module does not expose any C-level functions or classes '
                        'to the outside world\n']
     # Do not write to pxd if it already exist in the correct state
     if os.path.isfile(pxd_filename):
@@ -2654,96 +2831,98 @@ def make_pxd(filename, no_optimization):
 
 
 
-# Interpret input argument
-filename = sys.argv[1]
-c_file_passed = False
-if sys.argv[2].endswith('.c'):
-    filename_c = sys.argv[2]
-    c_file_passed = True
-else:
-    filename_commons = sys.argv[2]
-    # Import the non-compiled commons module
-    commons_name = filename_commons[:-3]
-    @contextlib.contextmanager
-    def suppress_stdout():
-        with open(os.devnull, "w") as devnull:
-            old_stdout = sys.stdout
-            sys.stdout = devnull
-            try:  
-                yield
-            finally:
-                sys.stdout = old_stdout
-    with suppress_stdout():
-        commons = imp.load_source(commons_name, filename_commons)
-no_optimization = False
-if len(sys.argv) > 3:
-    if sys.argv[3] == '--no-optimization':
-        no_optimization = True
+# Only run this file as a script when invoked directly
+if __name__ == '__main__':
+    # Interpret input argument
+    filename = sys.argv[1]
+    c_file_passed = False
+    if sys.argv[2].endswith('.c'):
+        filename_c = sys.argv[2]
+        c_file_passed = True
     else:
-        filename_types = sys.argv[3]
-        if not filename_types.endswith('.pyx'):
-            raise Exception('Got "{}" as the third argument, which should be either a .pyx file '
-                            'or the "--no-optimization" flag'
-                            .format(filename_types)
-                            )
-if len(sys.argv) > 4:
-    all_pyxfiles = sys.argv[4:]
-# Perform operations
-if len(sys.argv) > 4:
-    # Make the types file, containing the definitions of all custom
-    # types implemented in the .pyx files.
-    if filename.endswith('.pyx'):
-        make_types(filename,no_optimization)  # filename == filename_types
-    else:
-        raise Exception('Got "{}" which is not a .pyx file as the first argument, '
-                        'while receiving more than three arguments'.format(filename))
-else:
-    if filename.endswith('.py'):
-        # A .py-file is passed.
-        # Read in the lines of the file.
-        with open(filename, 'r', encoding='utf-8') as pyfile:
-            lines = pyfile.readlines()
-        # Apply transformations on the lines
-        lines = cimport_cython               (lines, no_optimization)
-        lines = oneline                      (lines, no_optimization)
-        lines = format_pxdhints              (lines, no_optimization)
-        lines = cythonstring2code            (lines, no_optimization)
-        lines = cython_structs               (lines, no_optimization)
-        lines = cimport_commons              (lines, no_optimization)
-        lines = cimport_function             (lines, no_optimization)
-        lines = constant_expressions         (lines, no_optimization)
-        lines = unicode2ASCII                (lines, no_optimization)
-        lines = loop_unswitching             (lines, no_optimization)
-        lines = remove_duplicate_declarations(lines, no_optimization)
-        lines = cython_decorators            (lines, no_optimization)
-        lines = power2product                (lines, no_optimization)
-        lines = __init__2__cinit__           (lines, no_optimization)
-        lines = fix_addresses                (lines, no_optimization)
-        lines = malloc_realloc               (lines, no_optimization)
-        lines = C_casting                    (lines, no_optimization)
-        lines = find_extension_types         (lines, no_optimization)
-        # Write the modified lines to the .pyx-file
-        filename_pyx = filename[:-2] + 'pyx'
-        with open(filename_pyx, 'w', encoding='utf-8') as pyxfile:
-            pyxfile.writelines(lines)
-    elif filename.endswith('.pyx'):
-        # A .pyx-file is passed
-        if c_file_passed:
-            # A .pyx and its .c file passed.
-            # This .c file is a result of cythonization after
-            # stage 1. Execute stage 2, update the .pyx file.
-            with open(filename, 'r', encoding='utf-8') as pyxfile:
-                lines = pyxfile.readlines()
-            with open(filename_c, 'r', encoding='utf-8') as cfile:
-                clines = cfile.readlines()
-            lines = add_types_to_addition_chain_exponentiation_variables(lines,
-                                                                         clines,
-                                                                         no_optimization)
-            # Write the modified lines to the .pyx-file
-            with open(filename, 'w', encoding='utf-8') as pyxfile:
-                pyxfile.writelines(lines)
+        filename_commons = sys.argv[2]
+        # Import the non-compiled commons module
+        commons_name = filename_commons[:-3]
+        @contextlib.contextmanager
+        def suppress_stdout():
+            with open(os.devnull, "w") as devnull:
+                old_stdout = sys.stdout
+                sys.stdout = devnull
+                try:  
+                    yield
+                finally:
+                    sys.stdout = old_stdout
+        with suppress_stdout():
+            commons = imp.load_source(commons_name, filename_commons)
+    no_optimization = False
+    if len(sys.argv) > 3:
+        if sys.argv[3] == '--no-optimization':
+            no_optimization = True
         else:
-            # Make the .pxd
-            make_pxd(filename, no_optimization)
+            filename_types = sys.argv[3]
+            if not filename_types.endswith('.pyx'):
+                raise Exception('Got "{}" as the third argument, which should be either a .pyx file '
+                                'or the "--no-optimization" flag'
+                                .format(filename_types)
+                                )
+    if len(sys.argv) > 4:
+        all_pyxfiles = sys.argv[4:]
+    # Perform operations
+    if len(sys.argv) > 4:
+        # Make the types file, containing the definitions of all custom
+        # types implemented in the .pyx files.
+        if filename.endswith('.pyx'):
+            make_types(filename,no_optimization)  # filename == filename_types
+        else:
+            raise Exception('Got "{}" which is not a .pyx file as the first argument, '
+                            'while receiving more than three arguments'.format(filename))
     else:
-        raise Exception('Got "{}", which is neither a .py nor a .pyx file'.format(filename))
+        if filename.endswith('.py'):
+            # A .py-file is passed.
+            # Read in the lines of the file.
+            with open(filename, 'r', encoding='utf-8') as pyfile:
+                lines = pyfile.readlines()
+            # Apply transformations (stage 1) on the lines
+            lines = cimport_cython               (lines, no_optimization)
+            lines = oneline                      (lines, no_optimization)
+            lines = format_pxdhints              (lines, no_optimization)
+            lines = cythonstring2code            (lines, no_optimization)
+            lines = cython_structs               (lines, no_optimization)
+            lines = cimport_commons              (lines, no_optimization)
+            lines = cimport_function             (lines, no_optimization)
+            lines = constant_expressions         (lines, no_optimization)
+            lines = unicode2ASCII                (lines, no_optimization)
+            lines = loop_unswitching             (lines, no_optimization)
+            lines = remove_duplicate_declarations(lines, no_optimization)
+            lines = cython_decorators            (lines, no_optimization)
+            lines = power2product                (lines, no_optimization)
+            lines = __init__2__cinit__           (lines, no_optimization)
+            lines = fix_addresses                (lines, no_optimization)
+            lines = malloc_realloc               (lines, no_optimization)
+            lines = C_casting                    (lines, no_optimization)
+            lines = find_extension_types         (lines, no_optimization)
+            # Write the modified lines to the .pyx-file
+            filename_pyx = filename[:-2] + 'pyx'
+            with open(filename_pyx, 'w', encoding='utf-8') as pyxfile:
+                pyxfile.writelines(lines)
+        elif filename.endswith('.pyx'):
+            # A .pyx-file is passed
+            if c_file_passed:
+                # A .pyx and its .c file is passed.
+                # This .c file is a result of cythonization after
+                # stage 1. Execute stage 2.
+                with open(filename, 'r', encoding='utf-8') as pyxfile:
+                    lines = pyxfile.readlines()
+                with open(filename_c, 'r', encoding='utf-8') as cfile:
+                    clines = cfile.readlines()
+                lines = add_types_to_addition_chain_exponentiation_variables(lines,
+                                                                             clines,
+                                                                             no_optimization)
+                # Write the modified lines to the .pyx-file
+                with open(filename, 'w', encoding='utf-8') as pyxfile:
+                    pyxfile.writelines(lines)
+            else:
+                # Make the .pxd
+                make_pxd(filename, no_optimization)
+        else:
+            raise Exception('Got "{}", which is neither a .py nor a .pyx file'.format(filename))

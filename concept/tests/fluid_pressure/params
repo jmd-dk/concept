@@ -34,7 +34,7 @@ _σ  = 0.1*light_speed**2  # Constant σ value for fluid
 initial_conditions = _this_dir + '/IC.hdf5'
 output_dirs        = {'snapshot': _this_dir + '/output'}
 output_bases       = {'snapshot': 'snapshot'}
-output_times       = {'t': {'snapshot': linspace(0, _T, 9)}}
+output_times       = {'snapshot': linspace(0, _T, 9)}
 
 # Numerical parameters
 boxsize = sqrt(light_speed**2*_w + (1 + _w)*_σ)*_T
@@ -45,7 +45,13 @@ select_closure        = {'matter fluid': 'truncate'}
 select_approximations = {'matter fluid': {'P = wρ': True}}
 
 # Simulation options
-select_vacuum_corrections = {'matter fluid': False}
+fluid_scheme_select = {'matter fluid': 'Kurganov-Tadmor'}
+fluid_options = {
+    'Kurganov-Tadmor': {
+        'Runge-Kutta order'  : {'matter fluid': 2},
+        'flux_limiter_select': {'matter fluid': 'minmod'},
+    },
+}
 
 # Debugging options
 enable_Hubble = False

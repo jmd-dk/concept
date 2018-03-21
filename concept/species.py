@@ -27,7 +27,9 @@ from commons import *
 # Cython imports
 cimport('from analysis import measure')
 cimport('from communication import communicate_domain, domain_subdivisions, exchange, smart_mpi')
-cimport('from fluid import maccormack, apply_internal_sources')
+cimport('from fluid import maccormack, maccormack_internal_sources, '
+    'kurganov_tadmor, kurganov_tadmor_internal_sources'
+)
 cimport('from integration import Spline, cosmic_time, scale_factor, ȧ')
 cimport('from linear import compute_cosmo, compute_transfer, realize')
 
@@ -79,7 +81,6 @@ class Tensor:
         self.additional_dofs = ('trace', )
         for additional_dof in self.additional_dofs:
             self.data[additional_dof] = None
-
     # Method for processing multi_indices.
     # This is where the symmetry of the indices is implemented.
     def process_multi_index(self, multi_index):
@@ -96,10 +97,10 @@ class Tensor:
         else:
             multi_index = tuple(any2list(multi_index))
         if len(multi_index) != self.ndim:
-            abort('A {} tensor was accessed with indices {}'
-                  .format('×'.join(self.shape), multi_index))
+            # The tensor has been indexed with a non-existing index
+            raise KeyError(f'An attempt was made to index {self} using {multi_index}')
         return multi_index
-    # Methods for indexing
+    # Methods for indexing and membership testing
     def __getitem__(self, multi_index):
         multi_index = self.process_multi_index(multi_index)
         return self.data[multi_index]  
@@ -115,6 +116,12 @@ class Tensor:
         if self.disguised_scalar and multi_index not in self.additional_dofs:
             for other_multi_index in self.multi_indices:
                 self.data[other_multi_index] = value
+    def __contains__(self, multi_index):
+        try:
+           multi_index = self.process_multi_index(multi_index)
+        except (IndexError, KeyError):
+            return False
+        return multi_index in self.data
     # Iteration
     def __iter__(self):
         """By default, iteration yields all elements, except for
@@ -129,33 +136,44 @@ class Tensor:
         else:
             N_elements = 0
         return (self.data[multi_index] for multi_index in self.multi_indices[:N_elements])
-    def iterate(self, attribute='fluidscalar', multi_indices=False):
+    def iterate(self, *attributes, multi_indices=False):
         """This generator yields all normal elements of the tensor
         (that is, the additional degrees of freedom are not included).
         For disguised scalars, all logical elements are realized
         before they are yielded.
-        What attribute of the elements (fluidscalars) should be yielded
-        is controlled by the attribute argument. For a value of
-        'fluidscalar', the entire fluidscalar is returned.
+        What attribute(s) of the elements (fluidscalars) should be
+        yielded is controlled by the attributes argument. For a value of
+        'fluidscalar', the entire fluidscalar is returned. This is also
+        the default behaviour when no attributes are passed.
         If multi_index is True, both the multi_index and the fluidscalar
         will be yielded, in that order.
         """
+        if not attributes:
+            attributes = ('fluidscalar', )
         for multi_index in self.multi_indices:
             with unswitch:
                 if self.iterative_realizations:
                     self.component.realize(self.varnum, specific_multi_index=multi_index)
             fluidscalar = self.data[multi_index]
-            with unswitch:
+            values = []
+            for attribute in attributes:
                 if attribute == 'fluidscalar':
-                    value = fluidscalar
+                    values.append(fluidscalar)
                 else:
-                    value = getattr(fluidscalar, attribute)
+                    values.append(getattr(fluidscalar, attribute))
             with unswitch:
                 if multi_indices:
-                    yield multi_index, value
+                    yield (multi_index, *values)
                 else:
-                    yield              value
-
+                    if len(values) == 1:
+                        yield values[0]
+                    else:
+                        yield tuple(values)
+    # String representation
+    def __repr__(self):
+        return f'<Tensor({self.component}, {self.varnum}, {self.shape}>'
+    def __str__(self):
+        return self.__repr__()
 
 
 # Class which serves as the data structure for a scalar fluid grid
@@ -171,8 +189,9 @@ class FluidScalar:
     @cython.header(# Arguments
                    varnum='int',
                    multi_index=object,  # tuple or int-like
+                   is_linear='bint',
                    )
-    def __init__(self, varnum, multi_index=()):
+    def __init__(self, varnum, multi_index=(), is_linear=False):
         # The triple quoted string below serves as the type declaration
         # for the data attributes of the FluidScalar type.
         # It will get picked up by the pyxpp script
@@ -181,6 +200,8 @@ class FluidScalar:
         # Fluid variable number and index of fluid scalar
         public int varnum
         public tuple multi_index
+        # The is_linear flag
+        public bint is_linear
         # Meta data
         public tuple shape
         public tuple shape_noghosts
@@ -202,6 +223,10 @@ class FluidScalar:
         # Number and index of fluid variable
         self.varnum = varnum
         self.multi_index = tuple(any2list(multi_index))
+        # Flag indicating whether this FluidScalar is linear or not.
+        # For a linear FluidScalar, the starred and unstarred grids
+        # point to the same memory.
+        self.is_linear = is_linear
         # Minimal starting layout
         self.shape = (1, 1, 1)
         self.shape_noghosts = (1, 1, 1)
@@ -212,9 +237,16 @@ class FluidScalar:
         self.grid_mv = cast(self.grid, 'double[:self.shape[0], :self.shape[1], :self.shape[2]]')
         self.grid_noghosts = self.grid_mv[:, :, :]
         # The starred buffer
-        self.gridˣ = malloc(self.size*sizeof('double'))
-        self.gridˣ_mv = cast(self.gridˣ, 'double[:self.shape[0], :self.shape[1], :self.shape[2]]')
-        self.gridˣ_noghosts = self.gridˣ_mv[:, :, :]
+        if self.is_linear:
+            self.gridˣ          = self.grid
+            self.gridˣ_mv       = self.grid_mv
+            self.gridˣ_noghosts = self.grid_noghosts
+        else:
+            self.gridˣ = malloc(self.size*sizeof('double'))
+            self.gridˣ_mv = cast(
+                self.gridˣ, 'double[:self.shape[0], :self.shape[1], :self.shape[2]]',
+            )
+            self.gridˣ_noghosts = self.gridˣ_mv[:, :, :]
         # Due to the Unicode NFKC normalization done by pure Python,
         # attributes with a ˣ in their name need to be set in following
         # way in order for dynamical lookup to function.
@@ -246,17 +278,28 @@ class FluidScalar:
         # The data itself
         self.grid = realloc(self.grid, self.size*sizeof('double'))
         self.grid_mv = cast(self.grid, 'double[:self.shape[0], :self.shape[1], :self.shape[2]]')
-        self.grid_noghosts = self.grid_mv[2:(self.grid_mv.shape[0] - 2),
-                                          2:(self.grid_mv.shape[1] - 2),
-                                          2:(self.grid_mv.shape[2] - 2)]
+        self.grid_noghosts = self.grid_mv[
+            2:(self.grid_mv.shape[0] - 2),
+            2:(self.grid_mv.shape[1] - 2),
+            2:(self.grid_mv.shape[2] - 2),
+        ]
         # Nullify the newly allocated data grid
         self.nullify_grid()
         # The starred buffer
-        self.gridˣ = realloc(self.gridˣ, self.size*sizeof('double'))
-        self.gridˣ_mv = cast(self.gridˣ, 'double[:self.shape[0], :self.shape[1], :self.shape[2]]')
-        self.gridˣ_noghosts = self.gridˣ_mv[2:(self.gridˣ_mv.shape[0] - 2),
-                                            2:(self.gridˣ_mv.shape[1] - 2),
-                                            2:(self.gridˣ_mv.shape[2] - 2)]
+        if self.is_linear:
+            self.gridˣ          = self.grid
+            self.gridˣ_mv       = self.grid_mv
+            self.gridˣ_noghosts = self.grid_noghosts
+        else:
+            self.gridˣ = realloc(self.gridˣ, self.size*sizeof('double'))
+            self.gridˣ_mv = cast(
+                self.gridˣ, 'double[:self.shape[0], :self.shape[1], :self.shape[2]]',
+            )
+            self.gridˣ_noghosts = self.gridˣ_mv[
+                2:(self.gridˣ_mv.shape[0] - 2),
+                2:(self.gridˣ_mv.shape[1] - 2),
+                2:(self.gridˣ_mv.shape[2] - 2),
+            ]
         # Due to the Unicode NFKC normalization done by pure Python,
         # attributes with a ˣ in their name need to be set in following
         # way in order for dynamical lookup to function.
@@ -265,13 +308,16 @@ class FluidScalar:
             setattr(self, 'gridˣ_mv'      , self.gridˣ_mv      )
             setattr(self, 'gridˣ_noghosts', self.gridˣ_noghosts)
         # Nullify the newly allocated starred buffer
-        self.nullify_gridˣ()
+        if not self.is_linear:
+            self.nullify_gridˣ()
         # The Δ buffer
         self.Δ = realloc(self.Δ, self.size*sizeof('double'))
         self.Δ_mv = cast(self.Δ, 'double[:self.shape[0], :self.shape[1], :self.shape[2]]')
-        self.Δ_noghosts = self.Δ_mv[2:(self.Δ_mv.shape[0] - 2),
-                                    2:(self.Δ_mv.shape[1] - 2),
-                                    2:(self.Δ_mv.shape[2] - 2)]
+        self.Δ_noghosts = self.Δ_mv[
+            2:(self.Δ_mv.shape[0] - 2),
+            2:(self.Δ_mv.shape[1] - 2),
+            2:(self.Δ_mv.shape[2] - 2),
+        ]
         # Nullify the newly allocated Δ buffer
         self.nullify_Δ()
 
@@ -325,11 +371,48 @@ class FluidScalar:
         for i in range(self.size):
             Δ[i] = 0
 
+    # Method for copying the content of grid into gridˣ
+    @cython.pheader(
+        # Arguments
+        operation=str,
+        # Locals
+        i='Py_ssize_t',
+        grid='double*',
+        gridˣ='double*',
+    )
+    def copy_grid_to_gridˣ(self, operation='='):
+        grid, gridˣ = self.grid, self.gridˣ
+        for i in range(self.size):
+            with unswitch:
+                if operation == '=':
+                    gridˣ[i] = grid[i]
+                elif operation == '+=':
+                    gridˣ[i] += grid[i]
+
+    # Method for copying the content of gridˣ into grid
+    @cython.pheader(
+        # Arguments
+        operation=str,
+        # Locals
+        i='Py_ssize_t',
+        grid='double*',
+        gridˣ='double*',
+    )
+    def copy_gridˣ_to_grid(self, operation='='):
+        grid, gridˣ = self.grid, self.gridˣ
+        for i in range(self.size):
+            with unswitch:
+                if operation == '=':
+                    grid[i] = gridˣ[i]
+                elif operation == '+=':
+                    grid[i] += gridˣ[i]
+
     # This method is automaticlly called when a FluidScalar instance
     # is garbage collected. All manually allocated memory is freed.
     def __dealloc__(self):
         free(self.grid)
-        free(self.gridˣ)
+        if not self.is_linear:
+            free(self.gridˣ)
 
     # String representation
     def __repr__(self):
@@ -376,6 +459,52 @@ class Component:
                  approximations=None,
                  softening_length=None,
                  ):
+        # The keyword-only arguments are passed from dicts in the
+        # initial_conditions user parameter. If not specified there
+        # (None passed) they will be set trough other parameters.
+        # Of special interest is the fluid parameters N_fluidvars,
+        # closure and approximations. Together, these control the
+        # degree to which a fluid component will behave non-linearly.
+        # Below is listed an overview of all allowed combinations of
+        # N_fluidvars and closure, together with the accompanying
+        # fluid variable behavoir.
+        #
+        # N_fluidvars = 0, closure = 'class':
+        #     linear ϱ  (Realized continuously, affects other components gravitationally)
+        #
+        # N_fluidvars = 1, closure = 'truncate':
+        #     non-linear ϱ  (Though "non-linear", ϱ is frozen in time as no J exist.
+        #                    Also, unlike when N_fluidvars = 1 and closure = 'class', ϱ will only
+        #                    be realized at the beginning of the simulation.)
+        #
+        # N_fluidvars = 1, closure = 'class':
+        #     non-linear ϱ
+        #         linear J  (realized continuously)
+        #         linear 𝒫  (P=wρ approximation enforced)
+        #
+        # N_fluidvars: 2, closure = 'truncate':
+        #     non-linear ϱ
+        #     non-linear J
+        #         linear 𝒫  (P=wρ approximation enforced)
+        #
+        # N_fluidvars = 2, closure = 'class':
+        #     non-linear ϱ
+        #     non-linear J
+        #         linear 𝒫  (realized continuously)
+        #         linear σ  (realized continuously)
+        #
+        # N_fluidvars = 3, closure = 'truncate':
+        #     non-linear ϱ
+        #     non-linear J
+        #     non-linear 𝒫  (Though "non-linear", 𝒫 is frozen in time since the evolution equation
+        #                    for 𝒫 is not implemented.
+        #                    Also, unlike when N_fluidvars = 2 and closure = 'class', 𝒫 will only
+        #                    be realized at the beginning of the simulation.)
+        #     non-linear σ  (Though "non-linear", σ is frozen in time since the evolution equation
+        #                    for σ is not implemented.
+        #                    Also, unlike when N_fluidvars = 2 and closure = 'class', σ will only
+        #                    be realized at the beginning of the simulation.)
+        #
         # The triple quoted string below serves as the type declaration
         # for the data attributes of the Component type.
         # It will get picked up by the pyxpp script
@@ -440,9 +569,9 @@ class Component:
         public double w_constant
         public double[:, ::1] w_tabulated
         public str w_expression
-        public dict approximations
         Spline w_spline
         Spline w_eff_spline
+        public dict approximations
         public double _ϱ_bar
         # Fluid data
         public list fluidvars
@@ -511,20 +640,15 @@ class Component:
         # Set the CLASS species
         if class_species is None:
             class_species = is_selected(self, select_class_species)
-        if class_species == 'automatic':
+        if class_species == 'default':
             if self.species in default_class_species:
                 class_species = default_class_species[self.species]
             else:
                 abort(
-                    f'Automatic CLASS species assignment failed because '
+                    f'Default CLASS species assignment failed because '
                     f'the species "{self.species}" does not map to any CLASS species'
                 )
         self.class_species = class_species
-        # Set the equation of state parameter w
-        if w is None:
-            w = is_selected(self, select_eos_w)
-        self.initialize_w(w)
-        self.initialize_w_eff()
         # Set closure rule for the Boltzmann hierarchy
         if closure is None:
             closure = is_selected(self, select_closure)
@@ -645,28 +769,57 @@ class Component:
         self.N_fluidvars = N_fluidvars
         if self.representation == 'particles':
             if self.N_fluidvars != 2:
-                abort('Particle components must have N_fluidvars = 2, '
-                      'but N_fluidvars = {} was specified for "{}"'
-                      .format(self.N_fluidvars, self.name))
-        elif self.representation == 'fluid':
-            if self.N_fluidvars < 1:
                 abort(
-                    f'Fluid components must have at least 1 fluid variable, '
+                    f'Particle components must have N_fluidvars = 2, '
                     f'but N_fluidvars = {self.N_fluidvars} was specified for "{self.name}"'
                 )
-            elif self.N_fluidvars > 3:
+        elif self.representation == 'fluid':
+            if self.N_fluidvars < 0:
+                abort(
+                    f'Having less than 0 fluid variables are nonsensical, '
+                    f'but N_fluidvars = {self.N_fluidvars} was specified for "{self.name}"'
+                )
+            if self.N_fluidvars == 0 and self.closure == 'truncate':
+                abort(
+                    f'The fluid component "{self.name}" has no non-linear and no '
+                    f'linear fluid variables, and so practically it does not exist. '
+                    f'Such components are disallowed.'
+                )
+            if self.N_fluidvars == 3 and self.closure == 'class':
+                abort(
+                    f'The "{self.name}" component wants to close the Boltzmann hierarchy using '
+                    f'the linear variable after σ from class, which is not implemented'
+                )
+            if self.N_fluidvars > 3:
                 abort(
                     f'Fluids with more than 3 fluid variables are not implemented, '
                     f'but N_fluidvars = {self.N_fluidvars} was specified for "{self.name}"'
-                    )
+                )
         self.shape = (1, 1, 1)
         self.shape_noghosts = (1, 1, 1)
         self.size = np.prod(self.shape)
         self.size_noghosts = np.prod(self.shape_noghosts)
+        # Set the equation of state parameter w
+        if w is None:
+            w = is_selected(self, select_eos_w)
+        self.initialize_w(w)
+        self.initialize_w_eff()
         # Fluid data.
-        # Create the N_fluidvars fluid variables and store them in the
-        # list fluidvars. This is done even for particle components,
-        # as the fluidscalars are all instantiated with a gridsize of 1.
+        # Create the N_fluidvars non-linear fluid variables and store
+        # them in the fluidvars list. This is done even for particle
+        # components, as the fluidscalars are all instantiated with a
+        # gridsize of 1. The is_linear argument specifies whether the
+        # FluidScalar will be a linear or non-linear variable, where a
+        # non-linear variable is one that is updated non-linearly,
+        # as opposed to a linear variable which is only updated through
+        # continuous realization. Currently, only ϱ and J is implemented
+        # as non-linear variables. It is still allowed to have
+        # N_fluidvars == 3, in which case σ (and 𝒫) is also specified
+        # as being non-linear, although no non-linear evolution
+        # is implemented, meaning that these will then be constant
+        # in time. Note that the 𝒫 fuid variable is treated specially,
+        # as it really lives on the same tensor as the σ fluid scalars.
+        # Therefore, the 𝒫 fluid scalar is added later.
         self.fluidvars = []
         for i in range(self.N_fluidvars):
             # Instantiate the i'th fluid variable
@@ -674,7 +827,7 @@ class Component:
             fluidvar = Tensor(self, i, (3, )*i, symmetric=True)
             # Populate the tensor with fluid scalar fields
             for multi_index in fluidvar.multi_indices:
-                fluidvar[multi_index] = FluidScalar(i, multi_index)
+                fluidvar[multi_index] = FluidScalar(i, multi_index, is_linear=False)
             # Add the fluid variable to the list
             self.fluidvars.append(fluidvar)
         # If CLASS should be used to close the Boltzmann hierarchy,
@@ -682,29 +835,71 @@ class Component:
         # a symmetric tensor of rank N_fluidvars, but really only a
         # single element of this tensor need to exist in memory.
         # For N_fluidvars == 2, σ is the additional fluid variable.
-        # On σ lives the pressure 𝒫, which is used regardless of the
-        # closure method. Therefore, we add this additional variable
-        # regardless of the closure method. To indicate that σ itself
-        # is not used (for anything else than storing 𝒫), we supply the
-        # 'active' keyword argument.
         # Instantiate the scalar element but disguised as a
         # 3×3×...×3 (N_fluidvars times) symmetric tensor.
-        if N_fluidvars == 2:
-            active = (self.closure == 'class')
-            disguised_scalar = Tensor(self, N_fluidvars, (3, )*N_fluidvars,
-                                      symmetric=True, active=active)
+        # Importantly, this fluid variabe is always considered linear.
+        if self.closure == 'class':
+            disguised_scalar = Tensor(
+                self,
+                self.N_fluidvars,
+                (3, )*self.N_fluidvars,
+                symmetric=True,
+            )
             # Populate the tensor with a fluidscalar
             multi_index = disguised_scalar.multi_indices[0]
-            disguised_scalar[multi_index] = FluidScalar(N_fluidvars, multi_index)
+            disguised_scalar[multi_index] = FluidScalar(
+                self.N_fluidvars, multi_index, is_linear=True,
+            )
             # Add this additional fluid variable to the list
             self.fluidvars.append(disguised_scalar)
-        # For both N_fluidvars == 2 and N_fluidvars == 3, self.fluidvars
-        # now contains 3 fluid variables (ϱ, J, σ). Now σ really only
-        # contain 5 degrees of because of its tracelessness. The
-        # remaining degree of freedom is captured by the pressure, 𝒫.
-        # We therefore add 𝒫, itself a single fluid scalar, to σ.
-        if N_fluidvars in (2, 3):
-            self.fluidvars[2]['trace'] = FluidScalar(0, 0)
+        # Ensure that the approximation P=wρ is set to True
+        # for fluid components which have either a linear J
+        # fluid variable, or a non-linear J fluid variable but with the
+        # non-linear Boltzmann hierarchy truncated right after J.
+        if not self.approximations['P=wρ']:
+            if self.N_fluidvars < 1 or (self.N_fluidvars == 1 and self.closure == 'truncate'):
+                # The 𝒫 fluid scalar does not exist at all for
+                # this component, and so whether the P=wρ is True or not
+                # does not make much sense. We set it to True,
+                # reflecting the fact that 𝒫 certainly is not a
+                # non-linear variable.
+                self.approximations[asciify('P=wρ')] = True
+                self.approximations[unicode('P=wρ')] = True
+            elif self.N_fluidvars == 1 and self.closure == 'class':
+                masterwarn(
+                    f'The P=wρ approximation has been switched on for the "{self.name}" component '
+                    f'because Jⁱ = a⁴(ρ + c⁻²P)uⁱ is a linear fluid variable.'
+                )
+                self.approximations[asciify('P=wρ')] = True
+                self.approximations[unicode('P=wρ')] = True
+            elif self.N_fluidvars == 2 and self.closure == 'truncate':
+                masterwarn(
+                    f'The P=wρ approximation has been switched on for the "{self.name}" component '
+                    f'because the non-linear Boltzmann hierarchy is truncated after the second '
+                    f'non-linear fluid variable Jⁱ, while 𝒫 is part of the third fluid variable.'
+                )
+                self.approximations[asciify('P=wρ')] = True
+                self.approximations[unicode('P=wρ')] = True
+        # When the P=wρ approximation is True, the 𝒫 fluid variable is
+        # superfluous. Yet, as it is used in the definition of J,
+        # J = a⁴(ρ + P)u, P = a**(-3*(1 + w_eff))*𝒫, it is simplest to
+        # just always instantiate a complete 𝒫 fluid variable,
+        # regardless of whether 𝒫 appears in the closed
+        # Boltzmann hierarchy. We place 𝒫 on σ, since 𝒫 is the trace
+        # missing from σ. The only time we do not instantiate 𝒫 is for
+        # a fluid without any J variable, be it linear or non-linear.
+        if not (self.N_fluidvars < 1 or (self.N_fluidvars == 1 and self.closure == 'truncate')):
+            # We need a 𝒫 fluid scalar
+            if (   (self.N_fluidvars == 1 and self.closure == 'class')
+                or (self.N_fluidvars == 2 and self.closure == 'truncate')
+                ):
+                # The σ tensor on which 𝒫 lives does not yet exist.
+                # Instantiate a fake σ tensor, used only to store 𝒫.
+                self.fluidvars.append(Tensor(self, 2, (), symmetric=True, active=False))
+            # Add the 𝒫 fluid scalar to the σ tensor
+            self.fluidvars[2]['trace'] = FluidScalar(0, 0,
+                is_linear=(self.N_fluidvars < 3 or self.approximations['P=wρ']),
+            )
         # Construct mapping from names of fluid variables (e.g. J)
         # to their indices in self.fluidvars, and also from names of
         # fluid scalars (e.g. ϱ, Jx) to tuple of the form
@@ -713,13 +908,18 @@ class Component:
         # Also include trivial mappings from indices to themselves,
         # and the special "reverse" mapping from indices to names
         # given by the 'ordered' key.
-        self.fluid_names = {'ordered': fluidvar_names[:len(self.fluidvars)]}
-        for index, (fluidvar, fluidvar_name) in enumerate(zip(self.fluidvars, fluidvar_names)):
+        self.fluid_names = {'ordered': fluidvar_names[:
+                self.N_fluidvars + (0 if self.closure == 'truncate' else 1)
+            ]
+        }
+        for index, (fluidvar, fluidvar_name) in enumerate(
+            zip(self.fluidvars, self.fluid_names['ordered'])
+        ):
             # The fluid variable
             self.fluid_names[        fluidvar_name ] = index
             self.fluid_names[unicode(fluidvar_name)] = index
             self.fluid_names[index                 ] = index
-            # The fluid scalar
+            # The fluid scalars
             for multi_index in fluidvar.multi_indices:
                 fluidscalar_name = fluidvar_name
                 if index > 0:
@@ -727,40 +927,46 @@ class Component:
                 self.fluid_names[        fluidscalar_name ] = (index, multi_index)
                 self.fluid_names[unicode(fluidscalar_name)] = (index, multi_index)
                 self.fluid_names[index, multi_index       ] = (index, multi_index)
-            # Aditional fluid scalars
-            # due to additional degrees of freedom.
-            if index == 2:
-                self.fluid_names['𝒫'         ] = (2, 'trace')
-                self.fluid_names[unicode('𝒫')] = (2, 'trace')
-                self.fluid_names[2, 'trace'  ] = (2, 'trace')
+        # Aditional fluid scalars
+        # due to additional degrees of freedom.
+        if len(self.fluidvars) > 2:
+            # The 𝒫 fluid scalar. Also, if the σ fluid variable exists
+            # but is solely used to store 𝒫, mappings for it will not
+            # exist yet. Add these as well.
+            self.fluid_names['𝒫'         ] = (2, 'trace')
+            self.fluid_names[unicode('𝒫')] = (2, 'trace')
+            self.fluid_names[2, 'trace'  ] = (2, 'trace')
+            self.fluid_names[        'σ' ] = 2
+            self.fluid_names[unicode('σ')] = 2
+            self.fluid_names[2           ] = 2
         # Also include particle variable names in the fluid_names dict
         self.fluid_names['pos'] = 0
         self.fluid_names['mom'] = 1
-        # Assign the fluid variables and scalars as convenient named
-        # attributes on the Component instance.
+        # Assign the fluid variables and scalars as conveniently
+        # named attributes on the Component instance.
         # Use the same naming scheme as above.
-        self.ϱ = self.fluidvars[0][0]
-        if len(self.fluidvars) == 1:
-            return
-        self.J   = self.fluidvars[1]
-        self.Jx  = self.fluidvars[1][0]
-        self.Jy  = self.fluidvars[1][1]
-        self.Jz  = self.fluidvars[1][2]
-        if len(self.fluidvars) == 2:
-            return
-        self.σ   = self.fluidvars[2]
-        self.σxx = self.fluidvars[2][0, 0]
-        self.σxy = self.fluidvars[2][0, 1]
-        self.σxz = self.fluidvars[2][0, 2]
-        self.σyx = self.fluidvars[2][1, 0]
-        self.σyy = self.fluidvars[2][1, 1]
-        self.σyz = self.fluidvars[2][1, 2]
-        self.σzx = self.fluidvars[2][2, 0]
-        self.σzy = self.fluidvars[2][2, 1]
-        self.σzz = self.fluidvars[2][2, 2]
-        self.𝒫   = self.fluidvars[2]['trace']
-        if len(self.fluidvars) == 3:
-            return
+        try:
+            if len(self.fluidvars) > 0:
+                self.ϱ   = self.fluidvars[0][0]
+            if len(self.fluidvars) > 1:
+                self.J   = self.fluidvars[1]
+                self.Jx  = self.fluidvars[1][0]
+                self.Jy  = self.fluidvars[1][1]
+                self.Jz  = self.fluidvars[1][2]
+            if len(self.fluidvars) > 2:
+                self.σ   = self.fluidvars[2]
+                self.𝒫   = self.fluidvars[2]['trace']
+                self.σxx = self.fluidvars[2][0, 0]
+                self.σxy = self.fluidvars[2][0, 1]
+                self.σxz = self.fluidvars[2][0, 2]
+                self.σyx = self.fluidvars[2][1, 0]
+                self.σyy = self.fluidvars[2][1, 1]
+                self.σyz = self.fluidvars[2][1, 2]
+                self.σzx = self.fluidvars[2][2, 0]
+                self.σzy = self.fluidvars[2][2, 1]
+                self.σzz = self.fluidvars[2][2, 2]
+        except (IndexError, KeyError):
+            pass
 
     # Function which returns the constant background density
     # ϱ_bar = a**(3*(1 + w_eff(a)))*ρ_bar(a).
@@ -1006,6 +1212,7 @@ class Component:
                       a=-1,
                       gauge='N-body',
                       transform='background',
+                      use_gridˣ=False,
                       ):
         """This method will realise a given fluid/particle variable from
         a given transfer function. Any existing data for the variable
@@ -1036,7 +1243,12 @@ class Component:
         The gauge and transform arguments are passed on to
         linear.compute_transfer and linear.realize, respectively.
         See these functions for further detail.
+        The use_gridˣ argument is passed on to linear.relize and
+        determines whether the unstarred or starred grids should be used
+        when doing the realization.
         """
+        if a == -1:
+            a = universals.a
         # Define the gridsize used by the realization (gridsize for
         # fluid components and ∛N for particle components) and resize
         # the data attributes if needed.
@@ -1115,31 +1327,169 @@ class Component:
             k_gridsize = int(round(modes_per_decade*n_decades))
         # Realize each of the variables in turn
         for variable in variables:
-            # Get transfer function if not passed
-            if transfer_spline is None:
-                transfer_spline, cosmoresults = compute_transfer(self,
-                                                                 variable,
-                                                                 k_min, k_max, k_gridsize,
-                                                                 specific_multi_index,
-                                                                 a,
-                                                                 gauge,
-                                                                 )
-            # Do the realization
-            realize(self, variable, transfer_spline, cosmoresults,
-                    specific_multi_index, a, transform)
-            # Particles use the Zeldovich approximation for realization,
-            # which realizes both positions and momenta. Thus for
-            # particles, a single realization is all that is neeed.
-            # Importantly, the passed transfer function must be that
-            # of δ, retrieved from compute_transfer using e.g. 'pos' as
-            # the passed variables argument. The value of the variable
-            # argument to the realize function does not matter in the
-            # case of a particle component.
-            if self.representation == 'particles':
-                break
-            # Reset transfer_spline to None so that a transfer function
-            # will be computed for the next variable.
-            transfer_spline = None
+            # The special "realization" of 𝒫 when using
+            # the P=wρ approximation.
+            if (   self.representation == 'fluid'
+                and variable == 2
+                and specific_multi_index == 'trace'
+                and transfer_spline is None
+                and self.approximations['P=wρ']
+                ):
+                self.realize_𝒫(a, use_gridˣ)
+            else:
+                # Normal realization.
+                # Get transfer function if not passed.
+                if transfer_spline is None:
+                    transfer_spline, cosmoresults = compute_transfer(
+                        self,
+                        variable,
+                        k_min, k_max, k_gridsize,
+                        specific_multi_index,
+                        a,
+                        gauge,
+                    )
+                # Do the realization
+                realize(
+                    self,
+                    variable,
+                    transfer_spline,
+                    cosmoresults,
+                    specific_multi_index,
+                    a,
+                    transform,
+                    use_gridˣ,
+                )
+                # Particles use the Zeldovich approximation
+                # for realization, which realizes both positions
+                # and momenta. Thus for particles, a single realization
+                # is all that is neeed. Importantly, the passed transfer
+                # function must be that of δ, retrieved from
+                # compute_transfer using e.g. 'pos' as the passed
+                # variables argument. The value of the variable argument
+                # to the realize function does not matter in the case of
+                # a particle component.
+                if self.representation == 'particles':
+                    break
+                # Reset transfer_spline to None so that a transfer function
+                # will be computed for the next variable.
+                transfer_spline = None
+
+    # Method for realizing a linear fluid scalar
+    def realize_linear(
+        self,
+        variable,
+        specific_multi_index=None,
+        a=-1,
+        transfer_spline=None,
+        cosmoresults=None,
+        gauge='N-body',
+        transform='background',
+        use_gridˣ=False,
+        ):
+        """If the fluid scalar is not linear or does not exist at all,
+        no realization will be performed and no exception will
+        be raised.
+        """
+        if self.representation == 'particles':
+            return
+        # Check that the fluid variable exist
+        try:
+            variable = self.varnames2indices(variable, single=True)
+        except (IndexError, KeyError):
+            return
+        # For all variables other than ϱ (variable == 0),
+        # a specific_multi_index has to have been passed.
+        if specific_multi_index is None:
+            if variable == 0:
+                specific_multi_index = 0
+            else:
+                abort(
+                    f'The realize_linear function was called with variable = {variable} ≠ 0 '
+                    f'but without any specific_multi_index'
+                )
+        # Check that the fluid scalar exist
+        if specific_multi_index not in self.fluidvars[variable]:
+            return
+        # Do the realization if the passed variable really is linear
+        if self.is_linear(variable, specific_multi_index):
+            self.realize(
+                variable,
+                transfer_spline,
+                cosmoresults,
+                specific_multi_index,
+                a,
+                gauge,
+                transform,
+                use_gridˣ,
+            )
+
+    # Method for checking whether a given fluid variable
+    # or fluid scalar is linear or non-linear.
+    def is_linear(self, variable, specific_multi_index=None):
+        """When no specific_multi_index is passed, it as assumed that it
+        does not matter which fluid scalar of the variable we check
+        for linearity (this is not necessarily the case for σ which may
+        store the additional "trace" (𝒫) fluid scalar).
+        If a variable is passed that does not exist on the component at
+        all, this method will return True. Crucially then, the caller
+        must never rely on the fact that the variable is linear
+        (only that it is not non-linear), unless it is sure that the
+        variable does indeed exist.
+        """
+        if self.representation == 'particles':
+            abort(
+                f'The is_linear() method was called on the {self.name} particle component, '
+                f'for which the concept of linearity does not make sense'
+            )
+        # Lookup the variable. Return True if it does not exist.
+        try:
+            variable = self.varnames2indices(variable, single=True)
+        except (IndexError, KeyError):
+            return True
+        # If no specific_multi_index is passed, construct one
+        if specific_multi_index is None:
+            if variable == 0:
+                specific_multi_index = 0
+            else:
+                specific_multi_index = (0,)*variable
+        # Check the linearity
+        return self.fluidvars[variable][specific_multi_index].is_linear
+
+    # Method for realizing 𝒫 when the P=wρ approximation is enabled
+    @cython.header(
+        # Arguments
+        a='double',
+        use_gridˣ='bint',
+        # Locals
+        i='Py_ssize_t',
+        ϱ_ptr='double*',
+        𝒫_ptr='double*',
+    )
+    def realize_𝒫(self, a=-1, use_gridˣ=False):
+        """This method applies 𝒫 = c²wϱ if the P=wρ approximation
+        is enabled. If not, an exception will be thrown. This method
+        is called from the more general realize method. It is not the
+        intend that this method should be called from anywhere else.
+        """
+        if a == -1:
+            a = universals.a
+        if self.approximations['P=wρ']:
+            masterprint(f'Realizing σ["trace"] of {self.name} ...')
+            # Set 𝒫 equal to the current ϱ times the current c²w
+            if use_gridˣ:
+                ϱ_ptr = self.ϱ.gridˣ
+                𝒫_ptr = self.𝒫.gridˣ
+            else:
+                ϱ_ptr = self.ϱ.grid
+                𝒫_ptr = self.𝒫.grid
+            for i in range(self.size):
+                𝒫_ptr[i] = ϱ_ptr[i]*ℝ[light_speed**2*self.w(a=a)]
+            masterprint('done')
+        else:
+            abort(
+                f'The realize_𝒫 method was called on the {self.name} component wich have P ≠ wρ. '
+                f'You should call the more general realize method instead.'
+            )
 
     # Method for integrating particle positions/fluid values
     # forward in time.
@@ -1154,6 +1504,8 @@ class Component:
                    posx='double*',
                    posy='double*',
                    posz='double*',
+                   rk_order='int',
+                   scheme=str,
                    )
     def drift(self, ᔑdt):
         if self.representation == 'particles':
@@ -1178,47 +1530,97 @@ class Component:
             # Exchange particles to the correct processes.
             exchange(self)
         elif self.representation == 'fluid':
-            # Evolve the fluid using the MacCormack method
-            masterprint('Evolving fluid variables (flux terms) of {} ...'.format(self.name))
-            maccormack(self, ᔑdt)
-            masterprint('done')
+            # Evolve the fluid due to flux terms using the scheme
+            # specified in the user parameters.
+            scheme = is_selected(self, fluid_scheme_select)
+            if scheme == 'maccormack':
+                # For the MacCormack scheme to do anything,
+                # the J variable must exist.
+                if not (
+                        self.N_fluidvars == 0
+                    or (self.N_fluidvars == 1 and self.closure == 'truncate')
+                ):
+                    masterprint(
+                        f'Evolving fluid variables (flux terms, using the MacCormack scheme) '
+                        f'of {self.name} ...'
+                    )
+                    maccormack(self, ᔑdt)
+                    masterprint('done')
+            elif scheme == 'kurganovtadmor':
+                # For the Kurganov-Tadmor scheme to do anything,
+                # the J variable must exist.
+                if not (
+                        self.N_fluidvars == 0
+                    or (self.N_fluidvars == 1 and self.closure == 'truncate')
+                ):
+                    rk_order = is_selected(self, fluid_options['kurganovtadmor']['rungekuttaorder'])
+                    masterprint(
+                        f'Evolving fluid variables (flux terms, using the Kurganov-Tadmor scheme) '
+                        f'of {self.name} ...'
+                    )
+                    kurganov_tadmor(self, ᔑdt, rk_order=rk_order)
+                    masterprint('done')
+            else:
+                abort(
+                    f'It was specified that the {self.name} component should be evolved using '
+                    f'the "{scheme}" scheme, which is not implemented.'
+                )
 
     # Method for integrating fluid values forward in time
     # due to "internal" source terms, meaning source terms that do not
-    # result from interactions with other components.
+    # result from interacting with other components.
     @cython.header(# Arguments
                    ᔑdt=dict,
+                   # Locals
+                   scheme=str,
                    )
     def apply_internal_sources(self, ᔑdt):
         if self.representation == 'particles':
             return
-        # Before the source terms may be applied,
-        # the 𝒫 variable must be updated.
-        self.realize_𝒫()
-        # Apply internal source terms
-        masterprint('Evolving fluid variables (source terms) of {} ...'.format(self.name))
-        apply_internal_sources(self, ᔑdt)
-        masterprint('done')
-
-    # Method for realizing 𝒫
-    @cython.header(# Locals
-                   i='Py_ssize_t',
-                   ϱ_ptr='double*',
-                   𝒫_ptr='double*',
-                   )
-    def realize_𝒫(self):
-        if self.representation == 'particles':
-            return
-        if self.approximations['P=wρ']:
-            # Set 𝒫 equal to the current ϱ times the current c²w
-            ϱ_ptr = self.ϱ.grid
-            𝒫_ptr = self.𝒫.grid
-            for i in range(self.size):
-                𝒫_ptr[i] = ϱ_ptr[i]*ℝ[light_speed**2*self.w()]
+        scheme = is_selected(self, fluid_scheme_select)
+        if scheme == 'maccormack':
+            # For the MacCormack scheme we have three internal
+            # source terms: The Hubble term in the continuity equation
+            # and the pressure and shear term in the Euler equation.
+            if (
+                (   # The Hubble term
+                        self.N_fluidvars > 0
+                    and not self.approximations['P=wρ']
+                    and enable_Hubble
+                )
+                or
+                (   # The pressure term
+                        self.N_fluidvars > 1
+                    and not (self.w_type == 'constant' and self.w_constant == 0)
+                )
+                or
+                (
+                    # The shear term
+                        self.N_fluidvars > 2
+                    or (self.N_fluidvars == 2 and self.closure == 'class')
+                )
+            ):
+                masterprint(f'Evolving fluid variables (internal source terms) of {self.name} ...')
+                maccormack_internal_sources(self, ᔑdt)
+                masterprint('done')
+        elif scheme == 'kurganovtadmor':
+            # Only the Hubble term in the continuity equation
+            # exist as an internal source term when using
+            # the Kurganov Tadmor scheme.
+            if (
+                # The Hubble term
+                    self.N_fluidvars > 0
+                and not self.approximations['P=wρ']
+                and enable_Hubble
+            ):
+                masterprint(f'Evolving fluid variables (internal source terms) of {self.name} ...')
+                kurganov_tadmor_internal_sources(self, ᔑdt)
+                masterprint('done')
         else:
-            # Do not approximate the pressure
-            self.realize(2, None, specific_multi_index='trace')
-        
+            abort(f'It was specified that the {self.name} component should be evolved using '
+                f'the "{scheme}" scheme, which is not implemented.'
+            )
+
     # Method for computing the equation of state parameter w
     # at a certain time t or value of the scale factor a.
     # This has to be a pure Python function, otherwise it cannot
@@ -1249,28 +1651,51 @@ class Component:
             elif a == -1:
                 a = scale_factor(t)
             units_dict['t'] = t
-            units_dict['a'] = a            
+            units_dict['a'] = a
             value = eval_unit(self.w_expression, units_dict)
             units_dict.pop('t')
             units_dict.pop('a')
         else:
-            abort('Did not recognize w type "{}"'.format(self.w_type))
-        # It may happen that w becomes slightly negative due to
-        # the spline (when given as tabulated data) or rounding errors
-        # (when given as an expression). Prevent this.
+            abort(f'Did not recognize w type "{self.w_type}"')
+        # For components with a non-linear evolution of ϱ,
+        # we cannot handle w ≤ -1, as (ϱ + c⁻²𝒫) becomes non-positive.
+        # This really shoul not be a problem, but the current fluid
+        # implementation computes J/(ϱ + c⁻²𝒫) while solving the
+        # continuity equation.
+        if value <= -1:
+            if (
+                    (self.N_fluidvars > 1 or (self.N_fluidvars == 1 and self.closure == 'class'))
+                and (a > universals.a_begin or t > universals.t_begin)
+            ):
+                if t == -1:
+                    t = cosmic_time(a)
+                elif a == -1:
+                    a = scale_factor(t)
+                abort(
+                    f'The equation of state parameter w for {self.name} took on the value '
+                    f'{value} ≤ -1 at t = {t} {unit_time}, a = {a}. '
+                    f'Such phantom w is not currently allowed for components with non-linear ϱ.'
+                )
+        # For components with a non-linear evolution of J,
+        # we cannot handle w < 0, as the sound speed c*sqrt(w) becomes
+        # negative.
         if value < 0:
-            if value > -1e+6*machine_ϵ:
-                value = 0
-            else:
-                abort('Got w(t = {}, a = {}) = {}. Negative w is not implemented.'
-                      .format(t, a, value)
-                      )
+            if self.N_fluidvars > 1 and (a > universals.a_begin or t > universals.t_begin):
+                if t == -1:
+                    t = cosmic_time(a)
+                elif a == -1:
+                    a = scale_factor(t)
+                abort(
+                    f'The equation of state parameter w for {self.name} took on the value '
+                    f'{value} < 0 at t = {t} {unit_time}, a = {a}. '
+                    f'This is disallowed for components with non-linear J.'
+                )
         return value
 
     # Method for computing the effective equation of state parameter
     # w_eff at a certain time t or value of the scale factor a.
     # This has to be a pure Python function,
-    # otherwise it cannot be called as w(a=a).
+    # otherwise it cannot be called as w_eff(a=a).
     def w_eff(self, *, t=-1, a=-1):
         """This method should not be called before w_eff has been
         initialized by the initialize_w_eff method.
@@ -1287,22 +1712,13 @@ class Component:
         if a == -1:
             a = scale_factor(t)
         value = self.w_eff_spline.eval(a)
-        # It may happen that w_eff becomes slightly negative due to
-        # the spline. Prevent this.
-        if value < 0:
-            if value > -1e+6*machine_ϵ:
-                value = 0
-            else:
-                abort('Got w_eff(t = {}, a = {}) = {}. Negative w_eff is not implemented.'
-                      .format(t, a, value)
-                      )
         return value
 
     # Method for computing the proper time derivative
     # of the equation of state parameter w
     # at a certain time t or value of the scale factor a.
     # This has to be a pure Python function,
-    # otherwise it cannot be called as w(a=a).
+    # otherwise it cannot be called as ẇ(a=a).
     @functools.lru_cache()
     def ẇ(self, t=-1, a=-1):
         """This method should not be called before w has been
@@ -1340,6 +1756,9 @@ class Component:
     @cython.header(# Arguments
                    w=object,  # float-like, str or dict
                    # Locals
+                   char=str,
+                   char_last=str, 
+                   class_species=str,
                    delim_left=str,
                    delim_right=str,
                    done_reading_w='bint',
@@ -1347,10 +1766,16 @@ class Component:
                    i_tabulated='double[:]',
                    key=str,
                    line=str,
+                   p_tabulated=object,  # np.ndarray
                    pattern=str,
                    unit='double',
+                   w_constant='double',
                    w_data='double[:, :]',
+                   w_list=list,
+                   w_ori=str,
                    w_tabulated='double[:]',
+                   w_values='double[::1]',
+                   ρ_tabulated=object,  # np.ndarray
                    returns='Spline',
                    )
     def initialize_w(self, w):
@@ -1360,8 +1785,8 @@ class Component:
                       self.w_type will be set to 'constant'.
         - str       : If w is given as a str, it can mean any of
                       four things:
-                      - w may be the word 'CLASS'.
-                      - w may be the word 'default'.
+                      - w may be the string 'CLASS'.
+                      - w may be the string 'default'.
                       - w may be a filename.
                       - w may be some analytical expression.
                       If w == 'CLASS', CLASS should be used to compute
@@ -1376,7 +1801,7 @@ class Component:
                       based on default_w and the species.
                       If w is a filename, the file should contain
                       tabulated values of w and either t or a. The file
-                      must be in a format understood by numpy.loadtxt,
+                      must be in a format understood by np.loadtxt,
                       and a header must be present stating whether w(t)
                       or w(a) is tabulated. For w(t), the header should
                       also specify the units for the t column.
@@ -1388,7 +1813,7 @@ class Component:
                       In addition, the two columns may be specified in
                       the reverse order, parentheses and brackets may be
                       replaced with any of (), [], {}, <> and the number
-                      of spaces/tabs do not matter.
+                      of spaces/tabs does not matter.
                       The tabulated values for t or a will be stored as
                       self.w_tabulated as described above when using
                       CLASS, though self.w_type will be set to
@@ -1403,7 +1828,7 @@ class Component:
                       {'a': iterable, 'w': iterable}, where the
                       iterables are some iterables of matching
                       tabulated values.
-                      The tabulated values for t or a wil be stored as
+                      The tabulated values for t or a will be stored as
                       self.w_tabulated[0, :], the tabulated values for w
                       as self.w_tabulated[1, :] and self.w_type will be
                       set to 'tabulated (t)' or 'tabulated (a)'.
@@ -1412,7 +1837,7 @@ class Component:
         try:
             w = float(w)
         except:
-            ...
+            pass
         if isinstance(w, float):
             # Assign passed constant w
             self.w_type = 'constant'
@@ -1429,35 +1854,44 @@ class Component:
             cosmoresults = compute_cosmo()
             background = cosmoresults.background
             i_tabulated = background['a']
-            # Cold dark matter and baryons have no pressure,
-            # and CLASS does not give this as a result.
-            if self.class_species in ('cdm', 'b', 'cdm+b'):
-                w_tabulated = zeros(i_tabulated.shape[0], dtype=C2np['double'])
-            else:
-                w_tabulated = (
-                     background[f'(.)p_{self.class_species}']
-                    /background[f'(.)rho_{self.class_species}']
-                )
+            # For combination species it is still true that
+            # w = c⁻²P_bar/ρ_bar, with P_bar and ρ_bar the sum of
+            # individual background pressures and densities. Note that
+            # the quantities in the background dict is given in CLASS
+            # units, specifically c = 1.
+            ρ_tabulated = 0
+            p_tabulated = 0
+            for class_species in self.class_species.split('+'):
+                ρ_tabulated += background[f'(.)rho_{class_species}']
+                p_tabulated += background[f'(.)p_{class_species}']
+            w_tabulated = p_tabulated/ρ_tabulated
         elif isinstance(w, str) and w.lower() == 'default':
-            # Assign w a constant value based on the species
+            # Assign w a constant value based on the species.
+            # For combination species, the combined w is a weighted sum
+            # of the invidual w's with the individual background
+            # densities as weight, or equivalently, the ratio of the sum
+            # of the invividual background pressures and the sum of the
+            # individual background densities. To do it this proper way,
+            # w should be passed in as 'class'. For w == 'default',
+            # we simply do not handle this case.
             self.w_type = 'constant'
-            self.w_constant = is_selected(self, default_w)
+            w_constant = is_selected(self, default_w)
             try:
-                self.w_constant = float(self.w_constant)
+                self.w_constant = float(w_constant)
             except:
                 abort(f'No default, constant w is defined for the "{self.species}" species')
         elif isinstance(w, str) and os.path.isfile(w):
-            # Load tabulated w from file.
+            # Load tabulated w from file
             self.w_type = 'tabulated (?)'
             # Let only the master process read in the file
             if master:
                 w_data = np.loadtxt(w)
                 # Transpose w_data so that it consists of two rows
-                w_data = w_data.T
+                w_data = asarray(w_data).T
                 # For varying w it is crucial to know whether w is a
                 # function of t or a.
                 # This should be written in the header of the file.
-                pattern = r'[a-zA-Z]*\s*(?:\(\s*[a-zA-Z0-9\.]+\s*\))?'
+                pattern = r'[a-zA-Z_]*\s*(?:\(\s*[a-zA-Z0-9\._]+\s*\))?'
                 done_reading_w = False
                 with open(w, 'r', encoding='utf-8') as w_file:
                     while True:
@@ -1468,8 +1902,10 @@ class Component:
                         for delim_left, delim_right in zip('[{<', ']}>'):
                             line = line.replace(delim_left , '(')
                             line = line.replace(delim_right, ')')
-                        match = re.search(r'\s*({pattern})\s+({pattern})\s*(.*)'.format(pattern=pattern),
-                                          line)                
+                        match = re.search(
+                            r'\s*({pattern})\s+({pattern})\s*(.*)'.format(pattern=pattern),
+                            line,
+                        )                
                         if match and not match.group(3):
                             # Header line containing the relevant
                             # information found.
@@ -1493,10 +1929,44 @@ class Component:
                         unit = eval_unit(unit_match.group(1)) 
                         i_tabulated = asarray(i_tabulated)*unit
                     elif unit_match:
-                        abort('Time unit "{}" in header of "{}" not understood'.format(unit_match.group(1), w))
+                        abort('Time unit "{}" in header of "{}" not understood'
+                            .format(unit_match.group(1), w))
                     else:
                         abort('Could not find time unit in header of "{}"'.format(w))
         elif isinstance(w, str):
+            # Some expression for w was passed.
+            # Insert '*' between all numbers and letters as well as all
+            # bewteen numbers and opening parentheses and between
+            # closing parentheses and numbers/letters.
+            w_ori = w
+            w = w.lower().replace(' ', '').replace('_', '')
+            w_list = []
+            char_last = ''
+            for char in w:
+                if (
+                    (
+                        re.search(r'[0-9.]', char_last)
+                    and (re.search(r'\w', char) and not re.search(r'[0-9.]', char))
+                    )
+                    or
+                    (
+                        re.search(r'[0-9.]', char)
+                    and (re.search(r'\w', char_last) and not re.search(r'[0-9.]', char_last))
+                    )
+                    or
+                    (
+                        re.search(r'[0-9.]', char_last) and re.search(r'\(', char)
+                    )
+
+                    or
+                    (
+                        re.search(r'\)', char_last) and re.search(r'\w', char)
+                    )
+                ):
+                    w_list.append('*')
+                w_list.append(char)
+                char_last = char
+            w = ''.join(w_list)
             # Save the passed expression for w
             self.w_type = 'expression'
             self.w_expression = w
@@ -1504,8 +1974,10 @@ class Component:
             try:
                 self.w()
             except:
-                abort(f'Cannot parse w = "{self.w_expression}" as an expression.\n'
-                      'No file with that name can be found either.')
+                abort(
+                    f'Cannot parse w = "{w_ori}" as an expression '
+                    f'and no file with that name can be found either.'
+                )
         elif isinstance(w, dict):
             # Use the tabulated w given by the two dict key-value pairs
             self.w_type = 'tabulated (?)'
@@ -1527,8 +1999,12 @@ class Component:
             if master:
                 # Check that tabulated values have been found
                 if '(?)' in self.w_type:
-                    abort('Could not detect the independent variable (should be \'a\' or \'t\')')
-                # Make sure that the values of i_tabulated are in increasing order
+                    abort(
+                        'Could not detect the independent variable in tabulated '
+                        'w data (should be \'a\' or \'t\')'
+                    )
+                # Make sure that the values of i_tabulated
+                # are in increasing order.
                 order = np.argsort(i_tabulated)
                 i_tabulated = asarray(i_tabulated)[order]
                 w_tabulated = asarray(w_tabulated)[order]
@@ -1539,13 +2015,14 @@ class Component:
             # Broadcast the tabulated w
             self.w_type = bcast(self.w_type)
             self.w_tabulated = smart_mpi(self.w_tabulated if master else (), mpifun='bcast')
-            # If the resultant w from CLASS is constant,
-            # treat it as such.
-            if w == 'class' and len(set(self.w_tabulated[1, :])) == 1:
+            # If the tabulated w is constant, treat it as such
+            w_values = asarray(tuple(set(self.w_tabulated[1, :])))
+            if isclose(min(w_values), max(w_values)):
                 self.w_type = 'constant'
                 self.w_constant = self.w_tabulated[1, 0]
-            # Construct a Spline object from the tabulated data
-            self.w_spline = Spline(self.w_tabulated[0, :], self.w_tabulated[1, :])
+            else:
+                # Construct a Spline object from the tabulated data
+                self.w_spline = Spline(self.w_tabulated[0, :], self.w_tabulated[1, :])
 
     # Method which initializes the effective
     # equation of state parameter w_eff.
@@ -1626,6 +2103,7 @@ class Component:
     def varnames2indices(self, varnames, single=False):
         """This method conveniently transform any reasonable input
         to an array of variable indices. Some examples:
+        
         varnames2indices('ϱ') → asarray([0])
         varnames2indices(['J', 'ϱ']) → asarray([1, 0])
         varnames2indices(['pos', 'mom']) → asarray([0, 1])
@@ -1675,29 +2153,22 @@ class Component:
                         if fluidscalar is not None:
                             yield fluidscalar
 
-    # Generator for looping over all
+    # Generator for looping over all non-linear
     # scalar fluid grids within the component.
     def iterate_nonlinear_fluidscalars(self):
-        for i, fluidvar in enumerate(self.fluidvars):
-            # Skip linear fluidvars
-            if i == self.N_fluidvars - 1:
-                # At last non-linear fluidvar.
-                if i == 2:
-                    # The last non-linear fluidvar is σ (and 𝒫).
-                    # Since the non-linear evolution equations for
-                    # σ (and 𝒫) have not yet been implemented,
-                    # these really count as linear variables.
-                    continue
-            elif i > self.N_fluidvars - 1:
-                # At linear fluidvars
-                continue
-            # At non-linear fluidvar
-            yield from fluidvar
+        for fluidvar in self.fluidvars:
+            for i, fluidscalar in enumerate(fluidvar):
+                if fluidscalar is not None:
+                    if i == 0 and fluidscalar.is_linear:
+                        break
+                    yield fluidscalar
             # Also yield the additional degrees of freedom
-            # (e.g. 𝒫 for i == 2 (σ)).
+            # (e.g. 𝒫 corresponding to 'trace' on σ).
             for additional_dof in fluidvar.additional_dofs:
                 fluidscalar = fluidvar[additional_dof]
                 if fluidscalar is not None:
+                    if fluidscalar.is_linear:
+                        continue
                     yield fluidscalar
 
     # Method for communicating pseudo and ghost points
@@ -1725,8 +2196,6 @@ class Component:
             return
         for fluidscalar in self.iterate_fluidscalars():
             communicate_domain(fluidscalar.gridˣ_mv, mode=mode)
-
-
 
     # Method for communicating pseudo and ghost points
     # of all non-linear fluid variables.
@@ -1767,48 +2236,38 @@ class Component:
         for fluidscalar in self.iterate_fluidscalars():
             communicate_domain(fluidscalar.Δ_mv, mode=mode)
 
-    # Method which calls scale_grid on all fluid scalars
-    @cython.header(# Arguments
-                   a='double',
-                   # Locals
-                   fluidscalar='FluidScalar',
-                   )
-    def scale_fluid_grid(self, a):
-        if self.representation != 'fluid':
-            return
-        for fluidscalar in self.iterate_fluidscalars():
-            fluidscalar.scale_grid(a)
-
     # Method which calls scale_grid on all non-linear fluid scalars
     @cython.header(# Arguments
                    a='double',
                    # Locals
                    fluidscalar='FluidScalar',
                    )
-    def scale_nonlinear_fluid_grid(self, a):
+    def scale_nonlinear_fluid_grids(self, a):
         if self.representation != 'fluid':
             return
         for fluidscalar in self.iterate_nonlinear_fluidscalars():
             fluidscalar.scale_grid(a)
 
-    # Method which calls the nullify_grid on all fluid scalars
+    # Method which calls the nullify_grid
+    # on all non-linear fluid scalars.
     @cython.header(# Locals
                    fluidscalar='FluidScalar',
                    )
-    def nullify_fluid_grid(self):
+    def nullify_nonlinear_fluid_grids(self):
         if self.representation != 'fluid':
             return
-        for fluidscalar in self.iterate_fluidscalars():
+        for fluidscalar in self.iterate_nonlinear_fluidscalars():
             fluidscalar.nullify_grid()
 
-    # Method which calls the nullify_gridˣ on all fluid scalars
+    # Method which calls the nullify_gridˣ
+    # on all non-linear fluid scalars.
     @cython.header(# Locals
                    fluidscalar='FluidScalar',
                    )
-    def nullify_fluid_gridˣ(self):
+    def nullify_nonlinear_fluid_gridsˣ(self):
         if self.representation != 'fluid':
             return
-        for fluidscalar in self.iterate_fluidscalars():
+        for fluidscalar in self.iterate_nonlinear_fluidscalars():
             fluidscalar.nullify_gridˣ()
 
     # Method which calls the nullify_Δ on all fluid scalars
@@ -1838,6 +2297,24 @@ class Component:
         elif self.representation == 'fluid':
             for fluidscalar in self.iterate_fluidscalars():
                 fluidscalar.nullify_Δ()
+
+    # Method which copies the content of all unstarred non-linear grids
+    # into the corresponding starred grids.
+    @cython.header(fluidscalar='FluidScalar', operation=str)
+    def copy_nonlinear_fluid_grids_to_gridsˣ(self, operation='='):
+        if self.representation != 'fluid':
+            return
+        for fluidscalar in self.iterate_nonlinear_fluidscalars():
+            fluidscalar.copy_grid_to_gridˣ(operation)
+
+    # Method which copies the content of all starred non-linear grids
+    # into the corresponding unstarred grids.
+    @cython.header(fluidscalar='FluidScalar', operation=str)
+    def copy_nonlinear_fluid_gridsˣ_to_grids(self, operation='='):
+        if self.representation != 'fluid':
+            return
+        for fluidscalar in self.iterate_nonlinear_fluidscalars():
+            fluidscalar.copy_gridˣ_to_grid(operation)
 
     # This method is automaticlly called when a Component instance
     # is garbage collected. All manually allocated memory is freed.
@@ -1875,47 +2352,98 @@ def get_representation(species):
             return representation
     abort('Species "{}" not implemented'.format(species))
 
+# Function for adding species to the universals_dict,
+# recording the presence of any species in use.
+@cython.header(# Arguments
+               components=list,
+               # Locals
+               class_species_present=set,
+               class_species_present_bytes=bytes,
+               class_species_previously_present=str,
+               species_present=set,
+               species_present_bytes=bytes,
+               species_previously_present=str,
+               )
+def update_species_present(components):
+    """We cannot change the species_present and class_species_present
+    fields of the universals structure, as this would require sticking
+    in a new char*. Instead we use the universals_dict dict.
+    For consistency, we store te species as bytes objects.
+    """
+    if not components:
+        return
+    # Species present (CO𝘕CEPT convention)
+    species_present = {component.species for component in components}
+    species_previously_present = universals_dict['species_present'].decode()
+    if species_previously_present:
+        species_present |= set(species_previously_present.split('+'))
+    species_present_bytes = '+'.join(species_present).encode()
+    universals_dict['species_present'] = species_present_bytes
+    # Species present (CLASS convention)
+    class_species_present = {component.class_species for component in components}
+    class_species_previously_present = universals_dict['class_species_present'].decode()
+    if class_species_previously_present:
+        class_species_present |= set(class_species_previously_present.split('+'))
+    class_species_present_bytes = (
+        # A component.class_species may be a combination of several CLASS species
+        '+'.join(set('+'.join(class_species_present).split('+'))).encode()
+    )
+    universals_dict['class_species_present'] = class_species_present_bytes
+
 
 
 # Mapping from species to their representations
 cython.declare(representation_of_species=dict)
 representation_of_species = {
-    ('dark matter particles',
-     'baryons',
+    ('baryons',
+     'dark energy particles',
+     'dark matter particles',
      'matter particles',
      'neutrinos',
+     'photons',
      ): 'particles',
-    ('dark matter fluid',
-     'baryon fluid',
+    ('baryon fluid',
+     'dark energy fluid',
+     'dark matter fluid',
      'matter fluid',
      'neutrino fluid',
+     'photon fluid',
      ): 'fluid',
 }
-# Mapping from species to default species names in CLASS
+# Mapping from (CO𝘕CEPT) species names to default
+# CLASS species names. Note that combination species
+# (e.g. matter) is expressed as e.g. 'cdm+b'.
 cython.declare(default_class_species=dict)
 default_class_species = {
-    'dark matter particles': 'cdm',
-    'dark matter fluid'    : 'cdm',
-    'baryons'              : 'b',
     'baryon fluid'         : 'b',
-    'matter particles'     : 'cdm+b',
+    'baryons'              : 'b',
+    'dark energy fluid'    : 'fld',
+    'dark energy particles': 'fld',
+    'dark matter fluid'    : 'cdm',
+    'dark matter particles': 'cdm',
     'matter fluid'         : 'cdm+b',
-    'neutrinos'            : 'ncdm[0]',
+    'matter particles'     : 'cdm+b',
     'neutrino fluid'       : 'ncdm[0]',
+    'neutrinos'            : 'ncdm[0]',
+    'photon fluid'         : 'g',
+    'photons'              : 'g',
 }
 # Mapping from species and representations to default w values
 cython.declare(default_w=dict)
 default_w = {
-    'dark matter particles': 0,
-    'dark matter fluid'    : 0,
-    'baryons'              : 0,
     'baryon fluid'         : 0,
-    'matter particles'     : 0,
+    'baryons'              : 0,
+    'dark energy fluid'    : -1,
+    'dark energy particles': -1,
+    'dark matter fluid'    : 0,
+    'dark matter particles': 0,
     'matter fluid'         : 0,
-    'neutrinos'            : 1/3,
+    'matter particles'     : 0,
     'neutrino fluid'       : 1/3,
+    'neutrinos'            : 1/3,
     'particles'            : 0,
-    'fluid'                : None,
+    'photons'              : 1/3,
+    'photon fluid'         : 1/3,
 }
 # Set of all approximations implemented on Component objects
 cython.declare(approximations_implemented=set)
@@ -1926,7 +2454,9 @@ approximations_implemented = {
 # and which the user should generally avoid.
 cython.declare(internally_defined_names=set)
 internally_defined_names = {'all', 'all combinations', 'buffer', 'default', 'total'}
-# Names of all implemented fluid variables in order
+# Names of all implemented fluid variables in order.
+# Note that 𝒫 is not considered a seperate fluid variable,
+# but rather a fluid scalar that lives on σ.
 cython.declare(fluidvar_names=tuple)
 fluidvar_names = ('ϱ', 'J', 'σ')
 # Flag specifying whether a warning should be given if multiple

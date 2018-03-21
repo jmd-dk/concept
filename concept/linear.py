@@ -31,12 +31,11 @@ cimport('from communication import partition,                   '
         '                          get_buffer,                  '
         '                          smart_mpi,                   '
         )
-cimport('from integration import Spline, hubble, ȧ, ä')
+cimport('from integration import Spline, remove_doppelgängers, hubble, ȧ, ä')
 cimport('from mesh import get_fftw_slab,       '
         '                 domain_decompose,    '
         '                 slab_decompose,      '
         '                 fft,                 '
-        '                 slabs_check_symmetry,'
         )
 
 
@@ -45,62 +44,50 @@ cimport('from mesh import get_fftw_slab,       '
 # together with the corresponding |k| values
 # and results retrieved from the classy.Class instance.
 class CosmoResults:
-    """If no cosmo object is passed, all results should be loaded
-    from disk, if possible. The first time this fails, CLASS will be
-    called and a cosmo object will be produced.
-    All methods of the cosmo object used in the code which have
-    no arguments are here written as attritubes using the magick of the
-    property decorator. Methods with arguments should also be defined
-    in such a way that their results are cached.
-    If a filename is passed, CLASS data will be read from this file.
-    Nothing will however be saved to this file.
-    """
-
     # Only part of the computed CLASS data is needed. Below, the keys
     # corresponding to the needed fields of CLASS data is written as
-    # regular expressions, for the background and perturbations.
-    needed_keys = {# Background data as function of time
-                   'background': {# Time
-                                  '^a$',
-                                  '^z$',
-                                  '^proper time [Gyr]$',
-                                  '^H [1/Mpc]$',
-                                  # Density
-                                  '^\(\.\)rho_',
-                                  # Pressure
-                                  '^\(\.\)p_',
-                                  # Other
-                                  '^gr.fac. f$',
-                                  },
-                   # Perturbations at different k as function of time.
-                   # Note that we explicitly avoid photons (g)
-                   # and massless neutrinos (ur).
-                   'perturbations': {# Time
-                                     '^a$',
-                                     '^tau \[Mpc]$',
-                                     # Density
-                                     '^delta_(?!g$|ur$)',
-                                     # Velocity
-                                     '^theta_(?!g$|ur$)',
-                                     # Pressure and shear stress
-                                     '^cs2_(?!g$|ur$)',
-                                     '^shear_(?!g$|ur$)',
-                                     # Other
-                                     '^h_prime$',
-                                     '^theta_tot$',
-                                     },
-                   # Transfer functions at specific times as function
-                   # of k. These are no longer used by the code.
-                   'tranfers': {# Space
-                                '^k \(h/Mpc\)$',
-                                # Densities
-                                '^d_',
-                                # Velocity
-                                '^t_',
-                                # Other
-                                '^h_prime$',
-                                }
-                   }
+    # regular expressions.
+    needed_keys = {
+        # Background data as function of time
+        'background': {
+            # Time
+            r'^a$',
+            r'^z$',
+            r'^proper time \[Gyr\]$',
+            r'^H \[1/Mpc\]$',
+            # Density
+            r'^\(\.\)rho_',
+            # Pressure
+            r'^\(\.\)p_',
+            # Equation of state
+            r'^\(\.\)w_',
+            # Other
+            r'^gr.fac. f$',
+        },
+        # Perturbations at different k as function of time.
+        # Species specific perturbations
+        # will be added later.
+        'perturbations': {
+            # Time
+            r'^a$',
+            r'^tau \[Mpc\]$',
+            # Other
+            r'^h_prime$',
+            r'^theta_tot$',
+        },
+        # Transfer functions at specific times as function
+        # of k. These are no longer used by the code.
+        'tranfers': {
+            # Space
+            r'^k \(h/Mpc\)$',
+            # Densities
+            r'^d_',
+            # Velocity
+            r'^t_',
+            # Other
+            r'^h_prime$',
+        }
+    }
     # Names of all implemented transfer function variables.
     # Functions with these names will be defined, which will return
     # the corresponding transfer function as a function of k,
@@ -108,6 +95,16 @@ class CosmoResults:
     transfer_function_variable_names = ('δ', 'θ', 'δP/δρ', 'σ', 'hʹ')
     # Initialize instance
     def __init__(self, params, k_magnitudes, cosmo=None, filename=''):
+        """If no cosmo object is passed, all results should be loaded
+        from disk, if possible. The first time this fails, CLASS will be
+        called and a cosmo object will be produced.
+        All methods of the cosmo object used in the code which have
+        no arguments are here written as attritubes using the magick of
+        the property decorator. Methods with arguments should also be
+        defined in such a way that their results are cached.
+        If a filename is passed, CLASS data will be read from this file.
+        Nothing will however be saved to this file.
+        """
         # Store the supplied objects
         self.params = params
         self.k_magnitudes = k_magnitudes
@@ -153,9 +150,14 @@ class CosmoResults:
                     )
         for var_name in self.transfer_function_variable_names:
             setattr(self, var_name.replace('/', ''), construct_func(var_name))
-        # Initialize the hdf5 file on disk
-        self.save('params')
-        self.save('k_magnitudes')
+        # Initialize the hdf5 file on disk, if it does not
+        # already exist. If it exist, 'params' and 'k_magnitudes' are
+        # guarenteed to be stored there correctly already, as the
+        # filename depends on the content of 'params', which also
+        # include 'k_magnitudes'.
+        if master and not os.path.isfile(self.filename): 
+            self.save('params')
+            self.save('k_magnitudes')
     # Method returning a classy.Class instance, hooked into a CLASS
     # session with parameters corresponding to self.params.
     # If CLASS has not yet been called, do this now.
@@ -169,7 +171,7 @@ class CosmoResults:
             # If perturbations should be computed, all node masters
             # will have access to their own k modes of
             # the perturbations. All other values will be available to
-            # all no masters.
+            # all node masters.
             if 'k_output_values' in self.params:
                 # Compute perturbations. Do this in 'MPI' mode,
                 # meaning utilizing all available nodes.
@@ -272,11 +274,63 @@ class CosmoResults:
                         self._background[key] = asarray(buffer).copy()
             else:
                 self._background = {}
+            # CLASS does not give the background pressure for cold
+            # dark matter, baryons, photons, ultra relativistic species
+            # or the cosmological constant, as these are always
+            # proportional to their densities with a constant
+            # proportionality factor w. Here we add these missing
+            # pressures explicitly.
+            constant_eos_w = {
+                'cdm'   : 0,
+                'b'     : 0,
+                'g'     : 1/3,
+                'ur'    : 1/3,
+                'lambda': -1,
+                }
+            for class_species, w in constant_eos_w.items():
+                if (    f'(.)rho_{class_species}'   in self._background
+                    and f'(.)p_{class_species}' not in self._background):
+                    self._background[f'(.)p_{class_species}'] = (
+                        w*self._background[f'(.)rho_{class_species}']
+                    )
+            # For the 'fld' CLASS species, '(.)p_fld' is never given.
+            # For time varying equation of state, w is given
+            # as '(.)w_fld', from which we construct '(.)p_fld'.
+            # If neither '(.)p_fld' nor '(.)w_fld' is given, it means
+            # that w = -1 throughout time.
+            if '(.)rho_fld' in self._background:
+                if '(.)w_fld' in self._background:
+                    self._background['(.)p_fld'] = (
+                        self._background['(.)w_fld']*self._background['(.)rho_fld']
+                    )
+                else:
+                    self._background['(.)p_fld'] = (
+                        -1*ones(self._background['(.)rho_fld'].shape, dtype=C2np['double'])
+                    )
+            # We also need to store the total background density.
+            # Assuming a flat universe, we have rho_tot == rho_crit.
+            if '(.)rho_crit' in self._background:
+                self._background['(.)rho_tot'] = self._background['(.)rho_crit']
         return self._background
     # The raw perturbations
     @property
     def perturbations(self):
         if not hasattr(self, '_perturbations'):
+            # Add species specific perturbation keys to the class
+            # set self.needed_keys['perturbations'], based on the
+            # species present in the current simulation.
+            for class_species_present in (universals_dict['class_species_present']
+                .decode().replace('[', '\[').replace(']', '\]').split('+')):
+                self.needed_keys['perturbations'] |= {
+                    # Density
+                    rf'^delta_{class_species_present}$',
+                    # Velocity
+                    rf'^theta_{class_species_present}$',
+                    # # Pressure
+                    rf'^cs2_{class_species_present}$',
+                    # Shear stress
+                    rf'^shear_{class_species_present}$',
+                }
             if not self.load('perturbations'):
                 # Get perturbations from CLASS
                 masterprint('Extracting perturbations from CLASS ...')
@@ -286,24 +340,26 @@ class CosmoResults:
                 Barrier()
                 if node_master:
                     # Only scalar perturbations are used
-                    self._perturbations = self._perturbations['scalar']
-                    # Only keep the perturbations given in
-                    # self.needed_keys['perturbations'], as well as any
-                    # additional perturbations defined in the user
-                    # parameter class_extra_perturbations.
-                    # These extra perturbations are not used directly,
-                    # but will be dumped along with the rest to
-                    # the disk. Only the master process will ever store
-                    # these extra perturbations.
-                    # A copy of the data is used, making freeing
-                    # of the original CLASS data possible.
+                    self._perturbations = self._perturbations['scalar']                        
+                    # Only keep the needed perturbations given in the
+                    # self.needed_keys['perturbations'] set, as well as
+                    # any additional perturbations defined in the user
+                    # parameter class_extra_perturbations. These extra
+                    # perturbations are not used directly, but will be
+                    # dumped along with the rest to the disk. Only the
+                    # master process will ever store these
+                    # extra perturbations. A copy of the data is used,
+                    # making freeing of the original
+                    # CLASS data possible.
                     self._perturbations = [
                         {
                             key: arr.copy()
-                            for key, arr in perturbation.items() if any([re.search(pattern, key)
-                            for   pattern in self.needed_keys['perturbations']
-                                | class_extra_perturbations])
-                         }  for perturbation in self._perturbations
+                            for key, arr in perturbation.items()
+                            if any([re.search(pattern, key) for pattern in (
+                                self.needed_keys['perturbations'] | class_extra_perturbations   
+                            )])
+                         }
+                         for perturbation in self._perturbations
                     ]
                     if len(self.k_magnitudes) > len(self.k_node_indices):
                         # The master process needs to know which
@@ -351,23 +407,32 @@ class CosmoResults:
                 # As perturbations comprise the vast majority of the
                 # data volume of what is needed from CLASS, we might
                 # as well read in any remaining bits and clean up
-                # the C-space memory.
-                self.background  # Ensure that the background has been read
-                self.cleanup()
-            # Communicate perturbations as
-            # list of dicts mapping str's to arrays.
-            # Do not communicate any additional perturbations from
-            # the class_extra_perturbations parameter.
+                # the C-space memory and delete any extra class
+                # perturbations (which have now been saved to disk).
+                self.background
+                self.cosmo.struct_cleanup()
+                if node_master:
+                    for key in set(self._perturbations[0].keys()):
+                        if not any([re.search(pattern, key)
+                            for pattern in class_extra_perturbations]
+                        ):
+                            continue
+                        if any([re.search(pattern, key)
+                            for pattern in self.needed_keys['perturbations']]
+                        ):
+                            continue
+                        # This key is for an extra class perturbation that
+                        # is not used by this simulation.
+                        for perturbation in self._perturbations:
+                            del perturbation[key]
+            # Communicate perturbations as list of dicts mapping
+            # str's to arrays.
             size = bcast(len(self._perturbations) if master else None)
             if size:
-                keys = bcast(tuple(key for key in self._perturbations[0].keys()
-                                   if any([re.search(pattern, key)
-                                           for pattern in self.needed_keys['perturbations']])
-                                   ) if master else None
-                             )
+                keys = bcast(tuple(self._perturbations[0].keys()) if master else None)
                 if not master:
                     self._perturbations = [{} for _ in range(size)]
-                for k, perturbation in enumerate(self._perturbations):
+                for perturbation in self._perturbations:
                     for key in keys:
                         buffer = smart_mpi(perturbation[key] if master else (), mpifun='bcast')
                         if not master:
@@ -440,6 +505,11 @@ class CosmoResults:
             return transfer_function.as_function_of_k(a)
         elif get == 'deriv_as_function_of_k':
             return transfer_function.deriv_as_function_of_k(a)
+        else:
+            abort(
+                f'The transfer_function method was called with get = "{get}", '
+                f'which is not implemented'
+            )
     # Method for constructing splines of background variables
     # as function of a.
     def splines(self, y):
@@ -451,23 +521,45 @@ class CosmoResults:
             self._splines[y] = spline
         return spline
     # Method for looking up the background density of a given
-    # component/speices at some specific a. If no component/speices
+    # component/species at some specific a. If no component/species
     # is given, the critical density is returned.
     def ρ_bar(self, a, component_or_class_species='crit'):
         if isinstance(component_or_class_species, str):
             class_species = component_or_class_species
         else:
             class_species = component_or_class_species.class_species
-        if class_species == 'cdm+b':
-            return self.ρ_bar(a, 'cdm') + self.ρ_bar(a, 'b')
-        spline = self.splines(f'(.)rho_{class_species}')
-        # The input a may be either a scalar or an array
-        if isinstance(a, (int, float)):
-            values = spline.eval(a)
-        else:
-            values = asarray([spline.eval(a_i) for a_i in a])
-        # Apply unit and return
+        values = 0
+        for class_species in class_species.split('+'):
+            spline = self.splines(f'(.)rho_{class_species}')
+            # The input a may be either a scalar or an array
+            with unswitch:
+                if isinstance(a, (int, float)):
+                    values += spline.eval(a)
+                else:
+                    values += asarray([spline.eval(a_i) for a_i in a])
+        # Apply unit
         values *= ℝ[3/(8*π*G_Newton)*(light_speed/units.Mpc)**2]
+        return values
+    # Method for looking up the background pressure of a given
+    # component/species at some specific a. A component/species
+    # has to be given
+    def P_bar(self, a, component_or_class_species):
+        if isinstance(component_or_class_species, str):
+            class_species = component_or_class_species
+        else:
+            class_species = component_or_class_species.class_species
+        values = 0
+        for class_species in class_species.split('+'):
+            spline = self.splines(f'(.)p_{class_species}')
+            # The input a may be either a scalar or an array
+            with unswitch:
+                if isinstance(a, (int, float)):
+                    values += spline.eval(a)
+                else:
+                    values += asarray([spline.eval(a_i) for a_i in a])
+        # Apply unit. Note that we define P_bar such that
+        # w = c⁻²P_bar/ρ_bar.
+        values *= ℝ[3/(8*π*G_Newton)*(light_speed/units.Mpc)**2*light_speed**2]
         return values
     # Method for looking up f_growth = H⁻¹Ḋ/D (with D the linear
     # growth factor) at some a.
@@ -477,7 +569,17 @@ class CosmoResults:
         return spline.eval(a)
     # Method for appending a piece of raw CLASS data to the dump file
     def save(self, element, a=None):
-        """Note that we save regardless of the value of class_reuse.
+        """You should nto call this method unless you have good reason
+        to believe that 'element' is not already present in the file,
+        as this method will open the file in read/write ('a') mode
+        regardless. This can be dangeous as HDF5 build with MPI is not
+        thread-safe, and so if two running instances of CO𝘕CEPT with the
+        same params run this function simultaneously, errors are likely
+        to occur. From HDF5 1.10 / h5py 2.5.0, multiple processes can
+        read from the same file, as long as it is not opened in write
+        mode by any process. Thus, this complication is only relevent
+        for this function.
+        Note that we save regardless of the value of class_reuse.
         """
         # Do not save anything if a filename was passed,
         # in which case id is None.
@@ -536,7 +638,28 @@ class CosmoResults:
                         dset[:] = val
             elif element == 'perturbations':
                 # Save perturbations as
-                # /perturbations/index/name.
+                # /perturbations/index/key.
+                perturbations_h5 = hdf5_file.require_group('perturbations')
+                # Check whether all keys are already present in the file
+                perturbations_to_store = set(self.perturbations[0].keys())
+                if '0' in perturbations_h5:
+                    perturbations_to_store -= {
+                        key.replace('__per__', '/') for key in perturbations_h5['0'].keys()
+                    }
+                if perturbations_to_store:
+                    # Store perturbations
+                    masterprint(f'Saving CLASS perturbations to "{self.filename}" ...')
+                    for index, perturbation in enumerate(self.perturbations):
+                        perturbation_h5 = perturbations_h5.require_group(str(index))
+                        for key in perturbations_to_store:
+                            val = perturbation[key]
+                            dset = perturbation_h5.create_dataset(
+                                key.replace('/', '__per__'),
+                                (val.shape[0], ),
+                                dtype=C2np['double'],
+                            )
+                            dset[:] = val
+                    masterprint('done')
                 if not 'perturbations' in hdf5_file:
                     masterprint(f'Saving CLASS perturbations to "{self.filename}" ...')
                     perturbations_h5 = hdf5_file.create_group('perturbations')
@@ -597,7 +720,8 @@ class CosmoResults:
                     return bcast(False)
                 setattr(self, '_' + element, attribute)
             elif element == 'k_magnitudes':
-                # Load k_magnitudes. Remember to add CLASS units (Mpc⁻¹)
+                # Load k_magnitudes.
+                # Remember to add CLASS units (Mpc⁻¹).
                 k_magnitudes_h5 = hdf5_file.get('k_magnitudes')
                 if k_magnitudes_h5 is None:
                     return bcast(False)
@@ -608,13 +732,14 @@ class CosmoResults:
                 background_h5 = hdf5_file.get('background')
                 if background_h5 is None:
                     return bcast(False)
-                self._background = {key.replace('__per__', '/'): dset[...]
-                                    for key, dset in background_h5.items()
-                                    if any([re.search(pattern, key.replace('__per__', '/'))
-                                            for pattern in self.needed_keys['background']])
-                                    }
+                self._background = {
+                    key.replace('__per__', '/'): dset[...]
+                    for key, dset in background_h5.items()
+                    if any([re.search(pattern, key.replace('__per__', '/'))
+                        for pattern in self.needed_keys['background']])
+                }
             elif element == 'perturbations':
-                # Save perturbations as
+                # Load perturbations stored as
                 # /perturbations/index/name.
                 perturbations_h5 = hdf5_file.get('perturbations')
                 if perturbations_h5 is None:
@@ -622,31 +747,54 @@ class CosmoResults:
                 masterprint(f'Loading CLASS perturbations from "{self.filename}" ...')
                 self._perturbations = [None]*len(self.k_magnitudes)
                 for index, d in perturbations_h5.items():
-                    self._perturbations[int(index)] = {key.replace('__per__', '/'): dset[...]
-                                                       for key, dset in d.items()
-                                         if any([re.search(pattern, key.replace('__per__', '/'))
-                                                 for pattern in self.needed_keys['perturbations']])
-                                                       }
+                    self._perturbations[int(index)] = {
+                        key.replace('__per__', '/'): dset[...]
+                        for key, dset in d.items()
+                        if any([re.search(pattern, key.replace('__per__', '/'))
+                            for pattern in self.needed_keys['perturbations']])
+                    }
                 masterprint('done')
+                # Check that all needed perturbations were present
+                # in the file. Some of the species specific
+                # perturbations does not exist for all species
+                # (e.g. "cs2" does not exist for photons). Therefore,
+                # species specific perturbations are only considered
+                # missing if "delta" is missing.
+                perturbations_loaded = set(self.perturbations[0].keys())
+                perturbations_missing = {perturbation_missing
+                    for perturbation_missing in self.needed_keys['perturbations']
+                    if not any([re.search(perturbation_missing, key)
+                        for key in perturbations_loaded])
+                }
+                for class_species_present in (universals_dict['class_species_present']
+                    .decode().replace('[', '\[').replace(']', '\]').split('+')):
+                    perturbations_missing -= {
+                        rf'^theta_{class_species_present}$',
+                        rf'^cs2_{class_species_present}$',
+                        rf'^shear_{class_species_present}$',
+                    }
+                if perturbations_missing:
+                    masterprint(
+                        'Not all needed perturbations were present in the file. '
+                        'CLASS will be rerun.'
+                    )
+                    return bcast(False)
             elif element == 'transfers':
                 # Transfer functions at specific a
                 # as /transfers/a=.../... .
                 transfers_a_h5 = hdf5_file.get(f'transfers/a={a}')
                 if transfers_a_h5 is None:
                     return bcast(False)
-                self._transfers[a] = {key.replace('__per__', '/'): dset[...]
-                                      for key, dset in transfers_a_h5.items()
-                                      if any([re.search(pattern, key.replace('__per__', '/'))
-                                              for pattern in self.needed_keys['transfers']])
-                                      }
+                self._transfers[a] = {
+                    key.replace('__per__', '/'): dset[...]
+                    for key, dset in transfers_a_h5.items()
+                    if any([re.search(pattern, key.replace('__per__', '/'))
+                        for pattern in self.needed_keys['transfers']])
+                }
             else:
                 abort(f'CosmoResults.load was called with the unknown element of "{element}"')
         # Loading of specified element completed successfully
         return bcast(True)
-    # Method which may be called to free the C-space memory of the
-    # CLASS run associated with self.cosmo.
-    def cleanup(self):
-        self.cosmo.struct_cleanup()
 
 # Class for processing and storing transfer functions of k and a.
 # The processing consists purely of data cleanup and interpolations.
@@ -728,7 +876,7 @@ class TransferFunction:
                    a2δPδρ_spline='double[::1]',
                    a2δPδρ_spline_k='double[::1]',
                    a2δPδρ_values='double[::1]',
-                   doppelgängers='Py_ssize_t',
+                   class_species=str,
                    has_data='bint',
                    hʹ_values='double[::1]',
                    i='Py_ssize_t',
@@ -746,8 +894,8 @@ class TransferFunction:
                    monotonic='bint',
                    monotonic_right_end='bint',
                    one_k_extra='bint',
+                   outliers='Py_ssize_t',
                    perturbation=dict,
-                   perturbation_key=str,
                    perturbations=list,
                    points_per_oscillation='Py_ssize_t',
                    rank_send='int',
@@ -755,12 +903,22 @@ class TransferFunction:
                    size='Py_ssize_t',
                    spline='Spline',
                    window='double[::1]',
+                   δ_perturbation=object,  # np.ndarray
                    δ_values='double[::1]',
+                   δ_values_arr=object,  # np.ndarray
+                   δPδρ_perturbation=object,  # np.ndarray
                    δPδρ_values='double[::1]',
+                   δPδρ_values_arr=object,  # np.ndarray
+                   θ_perturbation=object,  # np.ndarray
                    θ_values='double[::1]',
-                   ρ_cdmbar_a=object,  # np.ndarray
-                   ρ_bbar_a=object,    # np.ndarray
+                   θ_values_arr=object,  # np.ndarray
+                   ρ_bar_a=object,  # np.ndarray
+                   ρ_bar_a_species=dict,
+                   ρP_bar_a=object,  # np.ndarray
+                   ρP_bar_a_species=dict,
+                   σ_perturbation=object,  # np.ndarray
                    σ_values='double[::1]',
+                   σ_values_arr=object,  # np.ndarray
                    τ_convolved='double[::1]',
                    τ_interp='double[::1]',
                    τ_prev='double',
@@ -779,48 +937,57 @@ class TransferFunction:
                         )
         # Process the given transfer function
         if self.var_name == 'δ':
-            # Constants
-            perturbation_key = f'delta_{self.class_species}'
             # Compute and store a Spline object for each k
             perturbations = self.cosmoresults.perturbations
             for k in range(self.k_gridsize):
                 perturbation = perturbations[k]
                 a_values = perturbation['a']
-                # Get/construct δ_values depending on the species
-                with unswitch:
-                    if self.class_species == 'cdm+b':
-                        # Construct total matter (combined cold dark and
-                        # baryonic matter) δ transfer function values.
-                        ρ_cdmbar_a = self.cosmoresults.ρ_bar(a_values, 'cdm')
-                        ρ_bbar_a   = self.cosmoresults.ρ_bar(a_values, 'b'  )
-                        δ_values = (  ρ_cdmbar_a*perturbation['delta_cdm']
-                                    + ρ_bbar_a  *perturbation['delta_b'  ]
-                                    )/(ρ_cdmbar_a + ρ_bbar_a)
+                # Construct δ_values as a weighted sum of δ over
+                # the individual ('+'-separated) CLASS species,
+                # using the individual ρ_bar as weights.
+                ρ_bar_a_species = {class_species: self.cosmoresults.ρ_bar(a_values, class_species)
+                    for class_species in self.class_species.split('+')
+                }
+                δ_values_arr = 0
+                for class_species, ρ_bar_a in ρ_bar_a_species.items():
+                    δ_perturbation = perturbation.get(f'delta_{class_species}')
+                    if δ_perturbation is None:
+                        # Not all perturbations (δ, θ, ...) exist for
+                        # all species (they are implicitly thought of as
+                        # being equal to 0), and so generally it is
+                        # allowed for some perturbation not to exist.
+                        # As δ perturbations should exist for
+                        # all species, this is the one time where this
+                        # leads to an error.
+                        abort(f'Missing perturbations of CLASS species "{class_species}"')
                     else:
-                        δ_values = perturbation[perturbation_key]
+                        δ_values_arr += ρ_bar_a*δ_perturbation
+                δ_values_arr /= np.sum(tuple(ρ_bar_a_species.values()), axis=0)
+                δ_values = δ_values_arr
                 # Construct cubic spline of {a, δ}
                 spline = Spline(a_values, δ_values)
                 self.splines[k] = spline
         elif self.var_name == 'θ':
-            # Constants
-            perturbation_key = f'theta_{self.class_species}'
             # Compute and store a Spline object for each k
             perturbations = self.cosmoresults.perturbations
             for k in range(self.k_gridsize):
                 perturbation = perturbations[k]
                 a_values = perturbation['a']
-                # Get/construct θ_values depending on the species
-                with unswitch:
-                    if self.class_species == 'cdm+b':
-                        # Construct total matter (combined cold dark and
-                        # baryonic matter) θ transfer function values.
-                        ρ_cdmbar_a = self.cosmoresults.ρ_bar(a_values, 'cdm')
-                        ρ_bbar_a   = self.cosmoresults.ρ_bar(a_values, 'b'  )
-                        θ_values = (  ρ_cdmbar_a*perturbation['theta_cdm']
-                                    + ρ_bbar_a  *perturbation['theta_b'  ]
-                                    )/(ρ_cdmbar_a + ρ_bbar_a)
-                    else:
-                        θ_values = perturbation[perturbation_key]
+                # Construct θ_values as a weighted sum of θ over
+                # the individual ('+'-separated) CLASS species,
+                # using the individual ρ_bar as weights.
+                # This weighting is correct to linear order.
+                ρ_bar_a_species = {class_species: self.cosmoresults.ρ_bar(a_values, class_species)
+                    for class_species in self.class_species.split('+')
+                }
+                θ_values_arr = 0
+                for class_species, ρ_bar_a in ρ_bar_a_species.items():
+                    θ_perturbation = perturbation.get(f'theta_{class_species}')
+                    if θ_perturbation is not None:
+                        θ_values_arr += ρ_bar_a*θ_perturbation
+                θ_values_arr /= np.sum(tuple(ρ_bar_a_species.values()), axis=0)
+                θ_values = θ_values_arr
+                
                 # Apply CLASS units of [time⁻¹]
                 θ_values = asarray(θ_values)*ℝ[light_speed/units.Mpc]
                 # Construct cubic spline of {a, θ}
@@ -831,7 +998,6 @@ class TransferFunction:
             N_convolve_max = 10
             N_spline_max = 250
             R2_min = 0.99
-            perturbation_key = f'cs2_{self.class_species}'
             # A spline of the form {log(a), a²δP/δρ} should be
             # constructed for each k value, of which there
             # are self.k_gridsize. Fairly distribute this work
@@ -851,43 +1017,70 @@ class TransferFunction:
                 # Only process if this is not the extra iteration
                 has_data = (k < k_end)
                 if has_data:
-                    # Extract tabulated a, τ and δP/δρ values.
-                    # While NumPy array operations ensure that τ and
-                    # δP/δρ does not point back to the original memory,
-                    # we have to explicitly call copy() on a to ensure
-                    # that this is not just a reference to the
-                    # original memory.
+                    # Extract tabulated a, τ and δP/δρ values
                     perturbation = perturbations[k]
                     a_values = perturbation['a'].copy()
                     τ_values = perturbation['tau [Mpc]']
-                    δPδρ_values = perturbation[perturbation_key]
+                    # Construct δPδρ_values as a weighted sum of δP/δρ
+                    # over the individual ('+'-separated) CLASS species,
+                    # using the individual ρ_bar as weights.
+
+                    # !!! THIS IS WRONG!
+                    # It is δP and δρ separately that should be scaled.
+                    # That is,
+                    # (δP/δρ)_combined =  (δP_1 + δP_2 + ...)/(δρ_1 + δρ_2 + ...).
+                    # This is not doable without explicit info about either δP or δρ
+                    # (here we only got the ratio δP/δρ).
+                    # RESOLUTION: Store δP, not δP/δρ. Then we need δρ.
+                    # Since CLASS gives us all
+                    # transfer functions (perturbations) at the same
+                    # {a, k}, it is nicer to compute
+                    # δP = (δP/δρ)*δρ
+                    #    = (δP/δρ)*δ*ρ_bar
+                    # directly, before doing any of the below numerical
+                    # corrections/smoothings. This also means that
+                    # you should not use the pre-processed δ, but the
+                    # raw δ from CLASS (when doing the δP = (δP/δρ)*δ*ρ_bar
+                    # computation). This will thus require a re-thinking
+                    # of all of the below processing!
+                    #
+                    # This will also make the realization of 𝒫 more
+                    # analogoues to that of σ/Σ in realize(), as these
+                    # rely on δP/δρ and σ/δρ.
+
+
+                    ρ_bar_a_species = {
+                        class_species: self.cosmoresults.ρ_bar(a_values, class_species)
+                        for class_species in self.class_species.split('+')
+                    }
+                    δPδρ_values_arr = 0
+                    for class_species, ρ_bar_a in ρ_bar_a_species.items():
+                        δPδρ_perturbation = perturbation.get(f'cs2_{class_species}')
+                        if δPδρ_perturbation is not None:
+                            δPδρ_values_arr += ρ_bar_a*δPδρ_perturbation
+                    δPδρ_values_arr /= np.sum(tuple(ρ_bar_a_species.values()), axis=0)
+                    δPδρ_values = δPδρ_values_arr
+                    # Remove doppelgänger points in δPδρ,
+                    # when viewed as a function of either a or τ.
+                    (a_values, τ_values), δPδρ_values = remove_doppelgängers(
+                        (a_values, τ_values), δPδρ_values,
+                    )
                     # Apply CLASS units of [time] and [length²time⁻²]
                     τ_values    = asarray(τ_values   )*ℝ[units.Mpc/light_speed]
                     δPδρ_values = asarray(δPδρ_values)*ℝ[light_speed**2       ]
-                    # For some reason it is possible for the two
-                    # consecutive a_values (or τ_values) to be
-                    # exactly equal. Remove such points.
-                    # While at it, we also remove outlier points which
-                    # are outside the legal range 0 ≤ δP/δρ ≤ c²/3.
-                    doppelgängers = 0
-                    a_prev, τ_prev = a_values[0], τ_values[0]
-                    for i in range(1, a_values.shape[0]):
-                        if (   ℝ[a_values[i]] == a_prev
-                            or ℝ[τ_values[i]] == τ_prev
-                            or (ℝ[δPδρ_values[i]] < 0 or ℝ[light_speed**2/3] < ℝ[δPδρ_values[i]])):
-                            # A pair of doppelgängers
-                            # (or an outlier) found.
-                            doppelgängers += 1
-                        elif doppelgängers:
-                            index = i - doppelgängers
+                    # Remove outlier points which are outside
+                    # the legal range 0 ≤ δP/δρ ≤ c²/3.
+                    outliers = 0
+                    for i in range(a_values.shape[0]):
+                        if not (0 <= ℝ[δPδρ_values[i]] <= ℝ[light_speed**2/3]):
+                            outliers += 1
+                        elif outliers:
+                            index = i - outliers
                             a_values   [index] = a_values   [i]
                             τ_values   [index] = τ_values   [i]
                             δPδρ_values[index] = δPδρ_values[i]
-                        # Remember this a and τ value
-                        a_prev = ℝ[a_values[i]]
-                        τ_prev = ℝ[τ_values[i]]
-                    if doppelgängers:
-                        size = a_values.shape[0] - doppelgängers
+                    if outliers:
+                        size = a_values.shape[0] - outliers
                         a_values    = a_values   [:size]
                         τ_values    = τ_values   [:size]
                         δPδρ_values = δPδρ_values[:size]
@@ -917,6 +1110,11 @@ class TransferFunction:
                         # Find number of data points per oscillation
                         points_per_oscillation = find_wildest_oscillation(
                                                      a2δPδρ_convolved[index_start:])
+                        # If points_per_oscillation == -1,
+                        # it means that the a2δPδρ values are
+                        # completely smooth already.
+                        if points_per_oscillation == -1:
+                            break
                         # The left end of the data will be truncated by
                         # the amount points_per_oscillation//2. If this
                         # leads to the data not being defined over the
@@ -1069,14 +1267,27 @@ class TransferFunction:
                         spline = Spline(loga_spline_k, a2δPδρ_spline_k)
                         self.splines[k_send] = spline
         elif self.var_name == 'σ':
-            # Constants
-            perturbation_key = f'shear_{self.class_species}'
             # Compute and store a Spline object for each k
             perturbations = self.cosmoresults.perturbations
             for k in range(self.k_gridsize):
                 perturbation = perturbations[k]
                 a_values = perturbation['a']
-                σ_values = perturbation[perturbation_key]
+                # Construct σ_values as a weighted sum of σ over
+                # the individual ('+'-separated) CLASS species,
+                # using the individual (ρ_bar + c⁻²P_bar) as weights.
+                # This weighting is correct to linear order.
+                ρP_bar_a_species = {class_species: 
+                                           self.cosmoresults.ρ_bar(a_values, class_species)
+                    + ℝ[light_speed**(-2)]*self.cosmoresults.P_bar(a_values, class_species)
+                    for class_species in self.class_species.split('+')
+                }
+                σ_values_arr = 0
+                for class_species, ρP_bar_a in ρP_bar_a_species.items():
+                    σ_perturbation = perturbation.get(f'shear_{class_species}')
+                    if σ_perturbation is not None:
+                        σ_values_arr += ρP_bar_a*σ_perturbation
+                σ_values_arr /= np.sum(tuple(ρP_bar_a_species.values()), axis=0)
+                σ_values = σ_values_arr
                 # Apply CLASS units of [length²time⁻²]
                 σ_values = asarray(σ_values)*ℝ[light_speed**2]
                 # Construct cubic spline of {a, σ}
@@ -1217,6 +1428,8 @@ class TransferFunction:
         y_raw, y_processed = asarray(y_raw), asarray(y_processed)
         ss_res = np.sum((y_raw - y_processed)**2)
         ss_tot = np.sum((y_raw - np.mean(y_raw))**2)
+        if ss_tot < ℝ[1e+2*machine_ϵ]:
+            return 1
         return 1 - ss_res/ss_tot
 # Helper function to the TransferFunction class, capable of finding the
 # wildest oscillation in a data set and returning the number of data
@@ -1242,6 +1455,9 @@ def find_wildest_oscillation(y):
             break
     # Find largest peak
     peak_index = np.argmax(f)
+    # If no oscillations exist, return -1
+    if peak_index == 0:
+        return -1
     # Number of data points in each oscillation
     points_per_oscillation = y.shape[0]//peak_index
     return points_per_oscillation
@@ -1381,6 +1597,7 @@ def k_float2str(k):
                 k_min='double',
                 k_max='double',
                 k_gridsize='Py_ssize_t',
+                specific_multi_index=object,  # tuple, int-like or str
                 a='double',
                 gauge=str,
                 # Locals
@@ -1472,8 +1689,8 @@ def compute_transfer(component, variable, k_min, k_max,
                 masterwarn(f'The synchronous to N-body gauge transformation of the θ transfer '
                            f'function for the {component.class_species} CLASS species at '
                            f'a = {a} appears to have been carried out inaccurately, '
-                           f'as negative values appear.\n'
-                           f'You should consider cranking up the precision of CLASS.\n'
+                           f'as negative values appear. '
+                           f'You should consider cranking up the precision of CLASS. '
                            f'For now, the simulation will carry on using this possibly '
                            f'erroneous transfer function.'
                            )
@@ -1487,7 +1704,7 @@ def compute_transfer(component, variable, k_min, k_max,
         # Get the σ transfer function
         transfer = cosmoresults.σ(a, component)
     else:
-        abort(f'Do not know how to get transfer function of multi_index {specific_multi_index} '
+        abort(f'I do not know how to get transfer function of multi_index {specific_multi_index} '
               f'of variable number {var_index}'
               )
     # Construct a spline object over the tabulated transfer function
@@ -1504,6 +1721,7 @@ def compute_transfer(component, variable, k_min, k_max,
                specific_multi_index=object,  # tuple, int-like or str
                a='double',
                transform=str,
+               use_gridˣ='bint',
                # Locals
                A_s='double',
                H='double',
@@ -1569,6 +1787,7 @@ def compute_transfer(component, variable, k_min, k_max,
                transfer='double',
                w='double',
                w_eff='double',
+               δ_min='double',
                ρ_bar_a='double',
                ψ_dim='double[:, :, ::1]',
                ψ_dim_noghosts='double[:, :, :]',
@@ -1576,7 +1795,8 @@ def compute_transfer(component, variable, k_min, k_max,
                𝒫_ptr='double*',
                )
 def realize(component, variable, transfer_spline, cosmoresults,
-            specific_multi_index=None, a=-1, transform='background'):
+            specific_multi_index=None, a=-1, transform='background',
+            use_gridˣ=False):
     """This function realizes a single variable of a component,
     given the transfer function as a Spline (using |k| in physical units
     as the independent variable) and the corresponding CosmoResults
@@ -1630,19 +1850,27 @@ def realize(component, variable, transfer_spline, cosmoresults,
         fluid_index = component.varnames2indices(variable, single=True)
         fluidvar_name = component.fluid_names['ordered'][fluid_index]
         if specific_multi_index is None:
-            masterprint('Realizing fluid variable {} of {} ...'
-                        .format(fluidvar_name, component.name))
+            masterprint(f'Realizing {fluidvar_name} of {component.name} ...')
         else:
             processed_specific_multi_index = ( component
                                               .fluidvars[fluid_index]
                                               .process_multi_index(specific_multi_index)
                                               )
-            if isinstance(processed_specific_multi_index, str):
-                masterprint('Realizing element "{}" of fluid variable {} of {} ...'
-                            .format(processed_specific_multi_index, fluidvar_name, component.name))
-            else:
-                masterprint('Realizing element {} of fluid variable {} of {} ...'
-                            .format(processed_specific_multi_index, fluidvar_name, component.name))
+            masterprint(
+                f'Realizing {fluidvar_name}{{}} of {component.name} ...'
+                .format(
+                    '' if fluid_index == 0 else (
+                        f"['{processed_specific_multi_index}']"
+                        if isinstance(processed_specific_multi_index, str) else (
+                            '[{}]'.format(
+                                str(processed_specific_multi_index).strip('()')
+                                if len(processed_specific_multi_index) > 1
+                                else processed_specific_multi_index[0]
+                            )
+                        )
+                    )
+                )
+            )
     # Determine the gridsize of the grid used to do the realization
     if component.representation == 'particles':
         if not isint(ℝ[cbrt(component.N)]):
@@ -1680,8 +1908,8 @@ def realize(component, variable, transfer_spline, cosmoresults,
             # For the realization of σ,
             # the transfer function of δ is needed.
             # !!! THIS SHOULD BE DONE IN A CLEANER WAY
-            k_min = 2*π/boxsize
-            k_max = 2*π/boxsize*sqrt(3*(component.gridsize//2)**2)
+            k_min = ℝ[2*π/boxsize]
+            k_max = ℝ[2*π/boxsize]*sqrt(3*(component.gridsize//2)**2)
             n_decades = log10(k_max/k_min)
             k_gridsize = int(round(modes_per_decade*n_decades))
             cython.declare(transfer_spline_δ='Spline')
@@ -1714,7 +1942,7 @@ def realize(component, variable, transfer_spline, cosmoresults,
             elif fluid_index == 2 and specific_multi_index == 'trace':
                 # Realization of 𝒫 from the passed transfer function
                 # of δP/δρ together with the non-linear δϱ:
-                # 𝒫 = (δP/δρ)*δϱ
+                # 𝒫 ≈ (δP/δρ)_lin * δϱ
                 sqrt_power_common[k2] = (
                     transfer
                     *ℝ[# Normalization due to FFT + IFFT
@@ -1724,7 +1952,10 @@ def realize(component, variable, transfer_spline, cosmoresults,
                 # Realization of σ from the passed transfer function
                 # of σ together with the transfer funtion of δ
                 # and the non-linear δϱ:
-                # σ = (σ/(δ*ϱ_bar))*δϱ
+                # σ ≈ (σ/δ)_lin * δ
+                #   = (σ/δ)_lin * δϱ/ϱ_bar
+                #   = (σ/(δ*ϱ_bar))_lin * δϱ
+                # !!! THIS SHOULD BE DONE IN A CLEANER WAY
                 cython.declare(transfer_δ='double')
                 transfer_δ = transfer_spline_δ.eval(k_magnitude)
                 sqrt_power_common[k2] = (
@@ -1739,6 +1970,7 @@ def realize(component, variable, transfer_spline, cosmoresults,
     sqrt_power_common[0] = 0
     # Get array of random numbers
     random_slab = get_random_slab(slab)
+    # masterwarn(random_slab)
     # Allocate 3-vectors which will store componens
     # of the k vectors (in grid units).
     k_gridvec      = empty(3, dtype=C2np['Py_ssize_t'])
@@ -1773,7 +2005,7 @@ def realize(component, variable, transfer_spline, cosmoresults,
         # initially contain the Fourier transform of δϱ.
         if not purely_linear:
             # Populate the slabs with the Fourier transform of ϱ
-            slab_decompose(component.ϱ.grid_mv, slab)
+            slab_decompose(component.ϱ.gridˣ_mv if use_gridˣ else component.ϱ.grid_mv, slab)
             fft(slab, 'forward')
             # Remove the mean, leaving the Fourier transform of δϱ
             if master:
@@ -1950,33 +2182,41 @@ def realize(component, variable, transfer_spline, cosmoresults,
             # the designated fluid scalar grid. This also populates the
             # pseudo and ghost points.
             fluidscalar = fluidvar[multi_index]
-            domain_decompose(slab, fluidscalar.grid_mv)
+            domain_decompose(slab, fluidscalar.gridˣ_mv if use_gridˣ else fluidscalar.grid_mv)
             # Transform the realized fluid variable to the actual
-            # quantity used in the fluid equations in conservation form.
+            # quantity used in the non-linear fluid equations.
             if fluid_index == 0:
                 # δ → ϱ = a**(3*(1 + w_eff))*ρ
-                #       = a**(3*(1 + w_eff))*ρ_bar*(1 + δ).
-                ϱ_ptr = fluidscalar.grid
+                #       = a**(3*(1 + w_eff))*ρ_bar*(1 + δ)
+                #       = ϱ_bar*(1 + δ).
+                # Print a warning if δ < -1 at any grid point.
+                δ_min = ထ
+                ϱ_ptr = fluidscalar.gridˣ if use_gridˣ else fluidscalar.grid
                 for i in range(component.size):
-                    ϱ_ptr[i] = ℝ[component.ϱ_bar]*(1 + ϱ_ptr[i])
+                    if ℝ[ϱ_ptr[i]] < δ_min:
+                        δ_min = ℝ[ϱ_ptr[i]]
+                    ϱ_ptr[i] = ℝ[component.ϱ_bar]*(1 + ℝ[ϱ_ptr[i]])
+                δ_min = allreduce(δ_min, op=MPI.MIN)
+                if δ_min < -1:
+                    masterwarn(f'The realized ϱ of {component.name} has min(δ) = {δ_min:.4g} < -1')
             elif fluid_index == 1:
                 # u → J = a**4*(ρ + c⁻²P)*u
                 #       = a**(1 - 3*w_eff)*(ϱ + c⁻²𝒫)*u.
-                ϱ_ptr = component.ϱ.grid
-                𝒫_ptr = component.𝒫.grid
-                Jᵢ_ptr = fluidscalar.grid
+                ϱ_ptr  = component.ϱ.gridˣ if use_gridˣ else component.ϱ.grid
+                𝒫_ptr  = component.𝒫.gridˣ if use_gridˣ else component.𝒫.grid
+                Jᵢ_ptr = fluidscalar.gridˣ if use_gridˣ else fluidscalar.grid
                 for i in range(component.size):
                     with unswitch(1):
                         if transform == 'background':
                             Jᵢ_ptr[i] *= ℝ[a**4*(1 + w)*ρ_bar_a]
                         elif transform == 'nonlinear':
-                            Jᵢ_ptr[i] *= (ℝ[a**(1 - 3*w_eff)]
-                                                *(ϱ_ptr[i] + ℝ[light_speed**(-2)]*𝒫_ptr[i])
-                                                )
+                            Jᵢ_ptr[i] *= (
+                                ℝ[a**(1 - 3*w_eff)]*(ϱ_ptr[i] + ℝ[light_speed**(-2)]*𝒫_ptr[i])
+                            )
             elif fluid_index == 2 and multi_index == 'trace':
                 # δ𝒫 → 𝒫 = 𝒫_bar + δ𝒫
                 #        = c²*w*ϱ_bar + δ𝒫
-                𝒫_ptr = fluidscalar.grid
+                𝒫_ptr = fluidscalar.gridˣ if use_gridˣ else fluidscalar.grid
                 for i in range(component.size):
                     𝒫_ptr[i] += ℝ[light_speed**2*w*component.ϱ_bar]
             elif fluid_index == 2:
