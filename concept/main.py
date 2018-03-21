@@ -36,7 +36,7 @@ cimport('from integration import cosmic_time,          '
         )
 cimport('from interactions import find_interactions')
 cimport('from snapshot import load, save')
-cimport('from species import Component, get_representation')
+cimport('from species import Component, update_species_present, get_representation')
 cimport('from utilities import delegate')
 
 
@@ -50,13 +50,10 @@ cimport('from utilities import delegate')
                step=str,
                Δt='double',
                # Locals
-               a_next='double',
                go2dump='bint',
                index='int',
                integrand=object,  # str or tuple
                t_dump='double',
-               t_next='double',
-               returns=tuple,
                )
 def scalefactor_integrals(step, Δt):
     global ᔑdt_steps
@@ -72,12 +69,12 @@ def scalefactor_integrals(step, Δt):
         go2dump = True
         Δt = 2*(t_dump - universals.t)
     # Find a_next = a(t_next) and tabulate a(t)
-    t_next = universals.t + 0.5*Δt
-    a_next = expand(universals.a, universals.t, 0.5*Δt)
+    universals.t_next = universals.t + 0.5*Δt
+    universals.a_next = expand(universals.a, universals.t, 0.5*Δt)
     if go2dump and next_dump[0] == 'a':
         # This will not change a_next by much. We do it to ensure
         # agreement with future floating point comparisons.
-        a_next = next_dump[2]
+        universals.a_next = next_dump[2]
     # Map the step string to the index integer
     if step == 'first half':
         index = 0
@@ -88,9 +85,6 @@ def scalefactor_integrals(step, Δt):
     # Do the scalefactor integrals
     for integrand in ᔑdt_steps:
         ᔑdt_steps[integrand][index] = scalefactor_integral(integrand)
-    # Return the values with which to update
-    # universals.a and universals.t.
-    return a_next, t_next
 
 # Function which dump all types of output. The return value signifies
 # whether or not something has been dumped.
@@ -291,6 +285,11 @@ def kick(components, step):
             ᔑdt[integrand] = np.sum(ᔑdt_steps[integrand])
         elif master:
             abort('The value "{}" was given for the step'.format(step))
+    # Realize all linear fluid scalars which are not components
+    # of a tensor. This comes down to ϱ and 𝒫.
+    for component in components:
+        component.realize_linear(0)           # ϱ
+        component.realize_linear(2, 'trace')  # 𝒫
     # Apply the effect of all internal source terms
     # on all fluid components. For particle components, this is a no-op.
     for component in components:
@@ -330,7 +329,6 @@ def drift(components, step):
 
 # Function containing the main time loop of CO𝘕CEPT
 @cython.header(# Locals
-               a_next='double',
                autosave_time='double',
                bottleneck=str,
                component='Component',
@@ -341,7 +339,6 @@ def drift(components, step):
                integrand=str,
                key=object,  # str or tuple
                output_filenames=dict,
-               t_next='double',
                timespan='double',
                Δt='double',
                Δt_begin='double',
@@ -367,6 +364,20 @@ def timeloop():
     components = get_initial_conditions()
     if not components:
         return
+    # Realize all linear fluid variables of all components
+    for component in components:
+        component.realize_linear(0)           # ϱ
+        component.realize_linear(1, 0)        # J
+        component.realize_linear(2, 'trace')  # 𝒫
+        component.realize_linear(2, (0, 0))   # σ
+    # Specification of first dump and a corresponding index
+    i_dump = 0
+    next_dump = dumps[i_dump]
+    # Possibly output at the beginning of simulation
+    dump(components, output_filenames, final_render3D)
+    # Return now if all dumps lie at the initial time
+    if i_dump == len(dumps):
+        return
     # The number of time steps before Δt is updated.
     # Setting Δt_period = 8 prevents the formation of spurious
     # anisotropies when evolving fluids with the MacCormack method,
@@ -377,6 +388,7 @@ def timeloop():
     # from one time step to the next.
     Δt_max_increase_fac = 5e-3
     # Give the initial time step the largest allowed value
+    universals.time_step = initial_time_step - 1
     if Δt_begin_autosave == -1:
         Δt_begin, bottleneck = reduce_Δt(components, ထ, ထ, timespan, worry=False)
         Δt = Δt_begin
@@ -387,42 +399,36 @@ def timeloop():
     # Arrays which will store the two values
     # ∫_t^(t + Δt/2) integrand(a) dt
     # ∫_(t + Δt/2)^(t + Δt) integrand(a) dt
-    ᔑdt_steps = {key: zeros(2, dtype=C2np['double'])
-                 for key in ('1',
-                             'a**(-1)',
-                             'a**(-2)',
-                             'ȧ/a',
-                             *[(integrand, component) for component in components
-                               for integrand in ('a**(-3*w)',
-                                                 'a**(-3*w-1)',
-                                                 'a**(3*w-2)',
-                                                 'a**(-3*w)*w/(1+w)',
-                                                 'a**(3*w-2)*(1+w)',
-                                                 'a**(-3*w_eff)',
-                                                 'a**(-3*w_eff)*w',
-                                                 'a**(-3*w_eff-1)',
-                                                 'a**(3*w_eff-2)',
-                                                 'a**(-3*w_eff)*w_eff/(1+w_eff)',
-                                                 'a**(3*w_eff-2)*(1+w_eff)',
-                                                 'ẇ/(1+w)',
-                                                 'ẇlog(a)',
-                                                 )
-                               ]
-                             )
-                 }
-    # Specification of first dump and a corresponding index
-    i_dump = 0
-    next_dump = dumps[i_dump]
-    # Possibly output at the beginning of simulation
-    dump(components, output_filenames, final_render3D)
-    # Return now if all dumps lie at the initial time
-    if i_dump == len(dumps):
-        return
+    ᔑdt_steps = {
+        key: zeros(2, dtype=C2np['double'])
+        for key in (
+            '1',
+            'a**(-1)',
+            'a**(-2)',
+            'ȧ/a',
+            *[(integrand, component) for component in components
+                for integrand in (
+                    'a**(-3*w)',
+                    'a**(-3*w-1)',
+                    'a**(3*w-2)',
+                    'a**(-3*w)*w/(1+w)',
+                    'a**(3*w-2)*(1+w)',
+                    'a**(-3*w_eff)',
+                    'a**(-3*w_eff)*w',
+                    'a**(-3*w_eff-1)',
+                    'a**(3*w_eff-2)',
+                    'a**(-3*w_eff)*w_eff/(1+w_eff)',
+                    'a**(3*w_eff-2)*(1+w_eff)',
+                    'ẇ/(1+w)',
+                    'ẇlog(a)',
+                )
+            ]
+        )
+    }
     # Record what time it is, for use with autosaving
     autosave_time = time()
     # The main time loop
     masterprint('Beginning of main time loop')
-    universals.time_step = initial_time_step - 1
     while i_dump < len(dumps):
         universals.time_step += 1
         # Reduce time step size if it is larger than what is allowed
@@ -436,9 +442,9 @@ def timeloop():
         # Even though 'whole' is used, the first kick (and the first
         # kick after a dump) is really only half a step (the first
         # half), as ᔑdt_steps[integrand][1] == 0 for every integrand.
-        a_next, t_next = scalefactor_integrals('first half', Δt)
+        scalefactor_integrals('first half', Δt)
         kick(components, 'whole')
-        universals.a, universals.t = a_next, t_next
+        universals.a, universals.t = universals.a_next, universals.t_next
         do_autosave = bcast(autosave_interval > 0
                             and (time() - autosave_time) > ℝ[autosave_interval/units.s])
         dumped = dump(
@@ -476,9 +482,9 @@ def timeloop():
             nullify_ᔑdt_steps()
             continue
         # Drift
-        a_next, t_next = scalefactor_integrals('second half', Δt)
+        scalefactor_integrals('second half', Δt)
         drift(components, 'whole')
-        universals.a, universals.t = a_next, t_next
+        universals.a, universals.t = universals.a_next, universals.t_next
         do_autosave = bcast(autosave_interval > 0
                             and (time() - autosave_time) > ℝ[autosave_interval/units.s])
         dumped = dump(
@@ -574,12 +580,9 @@ heading_ljust = 0
                H='double',
                J_over_ϱ_plus_𝒫_2_i='double',
                J_over_ϱ_plus_𝒫_2_max='double',
-               Jx='double[:, :, :]',
-               Jx_ijk='double',
-               Jy='double[:, :, :]',
-               Jy_ijk='double',
-               Jz='double[:, :, :]',
-               Jz_ijk='double',
+               Jx='double*',
+               Jy='double*',
+               Jz='double*',
                bottleneck=str,
                component='Component',
                extreme_component='Component',
@@ -591,18 +594,13 @@ heading_ljust = 0
                fac_ẇ='double',
                force=str,
                i='Py_ssize_t',
-               j='Py_ssize_t',
-               k='Py_ssize_t',
                limiters=list,
                method=str,
                mom2_i='double',
                mom2_max='double',
                momx='double*',
-               momx_i='double',
                momy='double*',
-               momy_i='double',
                momz='double*',
-               momz_i='double',
                resolutions=list,
                v_max='double',
                w='double',
@@ -623,10 +621,8 @@ heading_ljust = 0
                Δx_max='double',
                Σmass='double',
                ρ_bar='double',
-               ϱ='double[:, :, :]',
-               ϱ_ijk='double',
-               𝒫='double[:, :, :]',
-               𝒫_ijk='double',
+               ϱ='double*',
+               𝒫='double*',
                returns=tuple,  # (Δt, bottleneck)
                )
 def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
@@ -711,7 +707,8 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
     # u = a**(-4)*J/(ρ + c⁻²P)
     #   = a**(3*w_eff - 1)*J/(ϱ + c⁻²𝒫),
     # and then
-    # v_max = c*sqrt(w)/a + a**(3*w_eff - 2)*J/(ϱ + c⁻²𝒫).
+    # v_max = c*sqrt(w)/a + a**(3*w_eff - 2)*J/(ϱ + c⁻²𝒫),
+    # where c*sqrt(w) is an approximation for the local sound speed.
     # For particles we have w = 0 and ẋ = mom/(a**2*m), and so
     # v_max = mom/(a**2*mass).
     # The time step should not be allowed to be such that
@@ -722,12 +719,12 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
     # and also the resolution of the fluid grids for fluid components.
     fac_courant = 2e-1
     Δt_courant = ထ
-    extreme_component = None
+    extreme_component = components[0]
     for component in components:
         if component.representation == 'particles':
-            # Maximum comoving distance a particle should be able to
-            # travel in a single time step. This is set to be the
-            # boxsize divided by the resolution, where each force
+            # Determine the maximum comoving distance a particle should
+            # be able to travel in a single time step. This is set to be
+            # the boxsize divided by the resolution, where each force
             # on the particles have their own resolution.
             # The number of particles is also used
             # as an addtional resolution.
@@ -745,17 +742,14 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
             momy = component.momy
             momz = component.momz
             for i in range(component.N_local):
-                momx_i = momx[i]
-                momy_i = momy[i]
-                momz_i = momz[i]
-                mom2_i = momx_i**2 + momy_i**2 + momz_i**2
+                mom2_i = momx[i]**2 + momy[i]**2 + momz[i]**2
                 if mom2_i > mom2_max:
                     mom2_max = mom2_i
             mom2_max = allreduce(mom2_max, op=MPI.MAX)
             v_max = sqrt(mom2_max)/(universals.a**2*component.mass)
         elif component.representation == 'fluid':
-            # The maximum comoving distance a fluid element should be
-            # able to communicate over in a single time step.
+            # Determine the maximum comoving distance a fluid element
+            # should be able to communicate over in a singletime step.
             # This is set to be the boxsize divided by the resolution,
             # where each force on the fluid have their own resolution.
             # The resolution of the fluid grids themselves is also used
@@ -766,30 +760,58 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
                     if method == 'pm':
                         resolutions.append(φ_gridsize)
             Δx_max = boxsize/np.max(resolutions)
-            # Find maximum speed of information
-            J_over_ϱ_plus_𝒫_2_max = 0
-            ϱ  = component.ϱ .grid_noghosts
-            𝒫  = component.𝒫 .grid_noghosts
-            Jx = component.Jx.grid_noghosts
-            Jy = component.Jy.grid_noghosts
-            Jz = component.Jz.grid_noghosts
-            for         i in range(ℤ[ϱ.shape[0] - 1]):
-                for     j in range(ℤ[ϱ.shape[1] - 1]):
-                    for k in range(ℤ[ϱ.shape[2] - 1]):
-                        ϱ_ijk  = ϱ [i, j, k]
-                        Jx_ijk = Jx[i, j, k]
-                        Jy_ijk = Jy[i, j, k]
-                        Jz_ijk = Jz[i, j, k]
-                        𝒫_ijk  = 𝒫[i, j, k]
-                        J_over_ϱ_plus_𝒫_2_i = (Jx_ijk**2 + Jy_ijk**2 + Jz_ijk**2)/(
-                                                   ϱ_ijk + ℝ[light_speed**(-2)]*𝒫_ijk)**2
-                        if J_over_ϱ_plus_𝒫_2_i > J_over_ϱ_plus_𝒫_2_max:
-                            J_over_ϱ_plus_𝒫_2_max = J_over_ϱ_plus_𝒫_2_i
-            J_over_ϱ_plus_𝒫_2_max = allreduce(J_over_ϱ_plus_𝒫_2_max, op=MPI.MAX)
-            w     = component.w()
-            w_eff = component.w_eff()
-            v_max = (  light_speed*sqrt(w)/universals.a
-                     + universals.a**(3*w_eff - 2)*sqrt(J_over_ϱ_plus_𝒫_2_max))
+            # Find maximum propagation speed of fluid
+            if (    component.N_fluidvars == 0
+                or (component.N_fluidvars == 1 and component.closure == 'truncate')
+                ):
+                # Without J as a fluid variable, no velocity exist
+                # and so no Courant limit needs to be set. 
+                v_max = 0
+            elif component.N_fluidvars == 1 and component.closure == 'class':
+                # With J as a linear fluid variable, we only need to
+                # consider one of its components. Also, the P = wρ
+                # approximation is guaranteed to be enabled.                
+                J_over_ϱ_plus_𝒫_2_max = 0
+                ϱ  = component.ϱ .grid
+                Jx = component.Jx.grid
+                w = component.w()
+                for i in range(component.size):
+                    J_over_ϱ_plus_𝒫_2_i = 3*(Jx[i]/(ϱ[i]*(1 + w)))**2
+                    if J_over_ϱ_plus_𝒫_2_i > J_over_ϱ_plus_𝒫_2_max:
+                        J_over_ϱ_plus_𝒫_2_max = J_over_ϱ_plus_𝒫_2_i
+                J_over_ϱ_plus_𝒫_2_max = allreduce(J_over_ϱ_plus_𝒫_2_max, op=MPI.MAX)
+                v_max = universals.a**(-2)*sqrt(J_over_ϱ_plus_𝒫_2_max)
+                # Since no non-linear evolution happens for J, the Euler
+                # equation and hence the gradient of the pressure will
+                # never be computed. This means that sound waves
+                # cannot form, and so we do not need to take the sound
+                # speed into account.
+            else:
+                # J is non-linear
+                J_over_ϱ_plus_𝒫_2_max = 0
+                ϱ  = component.ϱ .grid
+                𝒫  = component.𝒫 .grid
+                Jx = component.Jx.grid
+                Jy = component.Jy.grid
+                Jz = component.Jz.grid
+                for i in range(component.size):
+                    J_over_ϱ_plus_𝒫_2_i = (
+                        (Jx[i]**2 + Jy[i]**2 + Jz[i]**2)/(ϱ[i] + ℝ[light_speed**(-2)]*𝒫[i])**2
+                    )
+                    if J_over_ϱ_plus_𝒫_2_i > J_over_ϱ_plus_𝒫_2_max:
+                        J_over_ϱ_plus_𝒫_2_max = J_over_ϱ_plus_𝒫_2_i
+                J_over_ϱ_plus_𝒫_2_max = allreduce(J_over_ϱ_plus_𝒫_2_max, op=MPI.MAX)
+                w_eff = component.w_eff()
+                v_max = universals.a**(3*w_eff - 2)*sqrt(J_over_ϱ_plus_𝒫_2_max)
+                # Add the sound speed. When the P=wρ approxiamation is
+                # False, the sound speed is non-global and given by the
+                # square root of δ𝒫/δϱ. However, constructing δ𝒫/δϱ
+                # locally from the ϱ and 𝒫 grids leads to large
+                # numerical errors. Regardless of whether the P=wρ
+                # approximation is used or not, we simply use the
+                # global sound speed.
+                w = component.w()
+                v_max += light_speed*sqrt(w)
         # In the odd case of a completely static component,
         # set v_max to be just above 0.
         if v_max == 0:
@@ -807,7 +829,7 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
     # The maximum allowed time step size suggested by ẇ
     fac_ẇ = 1e-3
     Δt_ẇ = ထ
-    extreme_component = None
+    extreme_component = components[0]
     for component in components:
         Δt_ẇ_component = fac_ẇ/(abs(cast(component.ẇ(), 'double')) + machine_ϵ)
         if Δt_ẇ_component < Δt_ẇ:
@@ -855,89 +877,137 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
 # Function that either loads existing initial conditions from a snapshot
 # or produces the initial conditions itself.
 @cython.header(# Locals
+               N_components_from_snapshot='Py_ssize_t',
                N_or_gridsize='Py_ssize_t',
-               abort_msg=str,
                component='Component',
                components=list,
-               ic_isfile='bint',
-               initial_conditions_generate=list,
+               initial_condition_specifications=list,
+               initial_conditions_list=list,
                name=str,
+               path_or_specifications=object,  # str or dict
                representation=str,
+               specifications=dict,
+               species=str,
                returns=list,
+               ϱ_bbar_components='double',
+               ϱ_cdmbar_components='double',
+               ϱ_mbar_components='double',
                )
 def get_initial_conditions():
-    # Parse the initial_conditions parameter
     if not initial_conditions:
         return
-    abort_msg = (f'Error parsing initial_conditions = "{initial_conditions}". '
-                  'This is neither an existing file nor a dict or container of dicts '
-                  'specifying the initial components to generate.')
-    ic_isfile = False
-    if isinstance(initial_conditions, str):
-        ic_isfile = bcast(os.path.isfile(initial_conditions) if master else None)
-        if ic_isfile:
+    # The initial_conditions parameter should be a list or tuple of
+    # initial conditions, each of which can be a str (path to snapshot)
+    # or a dict describing a component to be realized.
+    # If the initial_conditions parameter itself is a str or dict,
+    # wrap it in a list.
+    if isinstance(initial_conditions, (str, dict)):
+        initial_conditions_list = [initial_conditions]
+    else:
+        initial_conditions_list = list(initial_conditions)
+    # Now parse the list of initial conditions
+    components = []
+    initial_condition_specifications = []
+    for path_or_specifications in initial_conditions_list:
+        if isinstance(path_or_specifications, str):
             # Initial condition snapshot is given. Load it.
-            return load(sensible_path(initial_conditions), only_components=True)
-    if not ic_isfile:
-        # Components to realize are given.
-        # Parse the specifications further.
-        if isinstance(initial_conditions, (list, tuple)):
-            initial_conditions_generate = []
-            for d in initial_conditions:
-                if not isinstance(d, dict):
-                    abort(abort_msg)
-                initial_conditions_generate.append(d.copy())
-        elif isinstance(initial_conditions, dict):
-            initial_conditions_generate = [initial_conditions.copy()]
+            components += load(sensible_path(path_or_specifications), only_components=True)
+        elif isinstance(path_or_specifications, dict):
+            # A component to realize is given. Remember this.
+            initial_condition_specifications.append(path_or_specifications.copy())
         else:
-            abort(abort_msg)
-        # Instantiate and realize the specified components
-        components = []
-        for d in initial_conditions_generate:
-            name = d.pop('name')
-            species = d.pop('species')
-            representation = get_representation(species)
-            if 'N_or_gridsize' in d:
-                N_or_gridsize = d.pop('N_or_gridsize')
-                if 'N' in d:
-                    masterwarn('Both N and N_or_gridsize specified '
-                               f'for component "{name}". The value of N will be ignored.'
-                               )
-                if 'gridsize' in d:
-                    masterwarn('Both gridsize and N_or_gridsize specified '
-                               f'for component "{name}". The value of gridsize will be ignored.'
-                               )
-            elif 'N' in d:
-                N_or_gridsize = d.pop('N')
-                if 'gridsize' in d:
-                    masterwarn('Both gridsize and N specified '
-                               f'for component "{name}". The value of gridsize will be ignored.'
-                               )
-                if representation == 'fluid':
-                    masterwarn(f'N = {N_or_gridsize} was specified '
-                               f'for fluid component "{name}". This will be used as the gridsize.'
-                               )
-            elif 'gridsize' in d:
-                N_or_gridsize = d.pop('gridsize')
-                if representation == 'particles':
-                    masterwarn(f'gridsize = {N_or_gridsize} was specified '
-                               f'for particle component "{name}". This will be used as N.'
-                               )
-            else:
-                if representation == 'particles':
-                    abort(f'No N specified for "{name}"')
-                elif representation == 'fluid':
-                    abort(f'No gridsize specified for "{name}"')          
-            # Show a warning if not enough information is given to
-            # construct the initial conditions.
-            if species in ('neutrinos', 'neutrino fluid') and class_params.get('N_ncdm', 0) == 0:
-                masterwarn('Component "{}" with species "{}" specified, '
-                           'but the N_ncdm CLASS parameter is 0'.format(name, species))
-            # Do the realization
-            component = Component(name, species, N_or_gridsize, **d)
-            component.realize()
-            components.append(component)
-        return components
+            abort(f'Error parsing initial_conditions of type {type(path_or_dict)}')
+    N_components_from_snapshot = len(components)
+    # Instantiate the component(s) given as
+    # initial condition specifications.
+    for specifications in initial_condition_specifications:
+        name = specifications.pop('name')
+        species = specifications.pop('species')
+        representation = get_representation(species)
+        if 'N_or_gridsize' in specifications:
+            N_or_gridsize = specifications.pop('N_or_gridsize')
+            if 'N' in specifications:
+                masterwarn(
+                    f'Both N and N_or_gridsize specified '
+                    f'for component "{name}". The value of N will be ignored.'
+                )
+            if 'gridsize' in specifications:
+                masterwarn(
+                    f'Both gridsize and N_or_gridsize specified '
+                    f'for component "{name}". The value of gridsize will be ignored.'
+                )
+        elif 'N' in specifications:
+            N_or_gridsize = specifications.pop('N')
+            if 'gridsize' in specifications:
+                masterwarn(
+                    f'Both gridsize and N specified '
+                    f'for component "{name}". The value of gridsize will be ignored.'
+                )
+            if representation == 'fluid':
+                masterwarn(
+                    f'N = {N_or_gridsize} was specified '
+                    f'for fluid component "{name}". This will be used as the gridsize.'
+                )
+        elif 'gridsize' in specifications:
+            N_or_gridsize = specifications.pop('gridsize')
+            if representation == 'particles':
+                masterwarn(
+                    f'gridsize = {N_or_gridsize} was specified '
+                    f'for particle component "{name}". This will be used as N.'
+                )
+        else:
+            if representation == 'particles':
+                abort(f'No N specified for "{name}"')
+            elif representation == 'fluid':
+                abort(f'No gridsize specified for "{name}"')          
+        # Show a warning if not enough information is given to
+        # construct the initial conditions.
+        if (species in ('neutrinos', 'neutrino fluid')
+            and class_params.get('N_ncdm', 0) == 0):
+            masterwarn(
+                f'Component "{name}" with species "{species}" specified, '
+                f'but the N_ncdm CLASS parameter is 0'
+            )
+        # Instantiate
+        component = Component(name, species, N_or_gridsize, **specifications)
+        components.append(component)
+    # Populate universals_dict['species_present']
+    # and universals_dict['class_species_present'].
+    update_species_present(components)
+    # Realize all components instantiated from
+    # initial condition specifications.
+    for component in components[N_components_from_snapshot:]:
+        component.realize()
+    # Issue warnings if the combined energy density of the components
+    # exceed those of the specified Ωcdm and Ωb,
+    # assuming a flat universe.
+    ϱ_bbar_components = 0
+    ϱ_cdmbar_components = 0
+    ϱ_mbar_components = 0
+    for component in components:
+        if component.species in {'baryon fluid', 'baryons'}:
+            ϱ_bbar_components += component.ϱ_bar
+        elif component.species in {'dark matter fluid', 'dark matter particles'}:
+            ϱ_cdmbar_components += component.ϱ_bar
+        elif component.species in {'matter fluid', 'matter particles'}:
+            ϱ_mbar_components += component.ϱ_bar
+    ϱ_mbar_components += ϱ_bbar_components + ϱ_cdmbar_components
+    if ϱ_bbar_components > Ωb*ρ_crit and not isclose(ϱ_bbar_components, Ωb*ρ_crit, 1e-6):
+        masterwarn(
+            f'Though Ωb = {Ωb}, the energy density of the components '
+            f'add up to Ωb = {ϱ_bbar_components/ρ_crit}'
+        )
+    if ϱ_cdmbar_components > Ωcdm*ρ_crit and not isclose(ϱ_cdmbar_components, Ωcdm*ρ_crit, 1e-6):
+        masterwarn(
+            f'Though Ωcdm = {Ωcdm}, the energy density of the components '
+            f'add up to Ωcdm = {ϱ_cdmbar_components/ρ_crit}'
+        )
+    if ϱ_mbar_components > Ωm*ρ_crit and not isclose(ϱ_mbar_components, Ωm*ρ_crit, 1e-6):
+        masterwarn(
+            f'Though Ωm = {Ωm}, the energy density of the components '
+            f'add up to Ωm = {ϱ_mbar_components/ρ_crit}'
+        )
+    return components
 
 # Function which checks the sanity of the user supplied output times,
 # creates output directories and defines the output filename patterns.

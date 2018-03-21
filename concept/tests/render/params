@@ -26,7 +26,7 @@ _this_dir = os.path.dirname(paths['params'])
 # Input/output
 initial_conditions = _this_dir + '/output/snapshot.hdf5'
 snapshot_type      = 'standard'
-output_times       = {'render2D': logspace(log(0.02), log(1), 30, base=e)}
+output_times       = {'render2D': logspace(log(a_begin), log(1), 30, base=e)}
 render2D_select    = {'matter particles': {'terminal image': True}}
 
 # Numerical parameters

@@ -1,12 +1,22 @@
 # This is an example parameter file to the CO𝘕CEPT code.
 # When defining parameters, the following tips and tricks may be used:
 # - Parameters can be specified as any valid Python 3 expression.
+# - Parameters may be defined in terms of other parameters/variables.
+#   Unlike normal Python code, the order of definitions is not important.
 # - Mathematical as well as NumPy functions and constants are available.
 # - Physical units may and should be used where applicable.
 # - Absolute paths defined in the .paths file may be accessed
-#   via the paths dict.
+#   via the paths dict. Relative paths will be understood
+#   with respect to the concept directory.
+# - Should you wish to define non-parameter helper variables,
+#   let their name begin with an underscore in order to suppress
+#   the 'unknown parameter specified' warning.
 # - Repeated values in dictionaries may be succinctly declared
 #   by an ellipsis (...).
+# - Some parameters will be inferred from others and must not be
+#   defined explicitly. Below is the complete list of such parameters.
+#     Ων: Inferred from the values of 'N_ncdm', 'deg_ncdm' and 'm_ncdm'
+#         in the class_params dictionary.
 
 
 
@@ -38,10 +48,10 @@ output_bases = {  # File basenames of output
 }
 output_times = {
     'a': {  # Scale factor values at which to dump output
-        'snapshot' : logspace(log10(0.02), log10(1), 5),
+        'snapshot' : logspace(log10(a_begin), log10(1), 5),
         'powerspec': ...,
         'render2D' : 1,
-        'render3D' : [0.02, 1],
+        'render3D' : [a_begin, 1],
     },
     't': {  # Cosmic times at which to dump output
         'snapshot' : '',
@@ -58,7 +68,7 @@ powerspec_select = {  # Toggle power spectra computation for individual and sets
     'all': {'data': True, 'plot': True},
     'all combinations': {'data': True, 'plot': False},
 }
-render2D_select = {  # Toogle 2D rendering for individual and sets of components
+render2D_select = {  # Toggle 2D rendering for individual and sets of components
     'matter component'  : {'data': False, 'image': True,  'terminal image': True},
     'neutrino component': {'data': False, 'image': False, 'terminal image': False},
 }
@@ -81,12 +91,12 @@ H0      = 70*km/(s*Mpc)  # The Hubble constant
 Ωb      = 0.05           # Density parameter for baryonic matter
 a_begin = 0.02           # Scale factor at beginning of simulation
 class_params = {         # CLASS parameters. See the CLASS documentation for details.
-    'N_ncdm'                  : 1,
-    'deg_ncdm'                : 3,
-    'm_ncdm'                  : 1.0/3,
     'n_s'                     : 1,
     'A_s'                     : 2.30e-09,
-    'N_ur'                    : 0.0,
+    'N_ur'                    : 0,
+    'N_ncdm'                  : 1,
+    'deg_ncdm'                : 3,
+    'm_ncdm'                  : 1/3,
     'l_max_ncdm'              : 30,
     'Number of momentum bins' : 30,
     'Maximum q'               : 15,
@@ -97,7 +107,7 @@ select_forces = {  # Forces and methods which act on each component
     'all': {'gravity': 'pm'},
 }
 select_class_species = {  # CLASS species to use for each component
-    'all': 'automatic',
+    'all': 'default',
 }
 select_eos_w = {  # Equation of state parameter w for each component
     'all': 'class',
@@ -105,7 +115,7 @@ select_eos_w = {  # Equation of state parameter w for each component
 select_closure = {  # Closure rule for the Boltzmann hierarchy for each component
     'all': 'class',
 }
-select_approximations = {  # Toogle approximations for each component
+select_approximations = {  # Toggle approximations for each component
     'all': {'P = wρ': False},
 }
 select_softening_length = {  # Gravitational softening for each component
@@ -116,29 +126,71 @@ select_softening_length = {  # Gravitational softening for each component
 fftw_wisdom_rigor = 'measure'  # Rigor level when acquiring FFTW wisdom
 fftw_wisdom_reuse = True       # Reuse FFTW wisdom from earlier runs?
 master_seed = 1                # Seed for pseudo-random numbers
-select_vacuum_corrections = {  # Toogle vacuum corrections for each component
-    'all': True,
+fluid_scheme_select = {        # Scheme for fluid evolution for each component
+    'all': 'Kurganov-Tadmor',
+}
+fluid_options = {  # Specifications of fluid scheme parameters
+    'Kurganov-Tadmor': {
+        'Runge-Kutta order': {  # Order of time integration
+            'all': 2,
+        },
+        'flux_limiter_select': {  # Flux limiter function
+            'all': 'minmod',
+        },
+    },
+    'MacCormack': {
+        'vacuum_corrections_select': {  # Toggle vacuum corrections
+            'all': True,
+        },
+        'max_vacuum_corrections_select': {  # Max number of vacuum corrections in the two MacCormack steps
+            'all': (1, 'gridsize'),
+        },
+        'foresight_select': {  # Number of time steps to look ahead when doing vacuum corrections
+            'all': 30,
+        },
+        'smoothing_select': {  # Amount of smoothing to apply when doing vacuum correction
+            'all': 1,
+        },
+    },
 }
 class_reuse = True              # Reuse CLASS results from earlier runs?
 class_extra_perturbations = ''  # Extra CLASS perturbations to dump
 
 # Graphics
-render2D_options = {  # Specifications of 2D renders for each component
-    'axis': 'z',
-    'extend': 0.1*boxsize,
-    'terminal resolution': 64,
-    'colormap': {
-        'all': 'inferno',
-    },
-    'enhance': True,
+terminal_width = 80  # Maximum width of terminal output, in characters
+suppress_output = {  # Suppress terminal output matching these regexes
+    'out': (),
+    'err': (),
+    'all': (),
 }
-render3D_colors = {  # Render color for each component
+render2D_options = {  # Specifications of 2D renders for individual and sets of components
+    'axis': {  # Projection axis
+        'all': 'z',
+        'all combinations': ...,
+    },
+    'extend': {  # Length or interval to include along the projected axis
+        'all': 0.1*boxsize,
+        'all combinations': ...,
+    },
+    'terminal resolution': {  # Resolution (in characters) of terminal images
+        'all': min(φ_gridsize, terminal_width),
+        'all combinations': ...,
+    },
+    'colormap': {  # Colormap for 2D render images and terminal images
+        'all': 'inferno',
+        'all combinations': ...,
+    },
+    'enhance': {  # Toggle non-linear contrast enhancement of 2D render images and terminal images
+        'all': True,
+        'all combinations': ...,
+    },
+}
+render3D_colors = {  # Color to use in 3D renders for each component
     'matter component': 'lime',
     'neutrino component': 'r',
 }
 render3D_bgcolor    = 'black'  # Background color of 3D renders
 render3D_resolution = 1080     # The height and width of 3D renders
-terminal_width      = 80       # Maximum width of terminal output, in characters
 
 # System of units
 unit_length = 'Mpc'      # Physical length corresponding to a numerical value of 1.0

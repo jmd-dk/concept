@@ -189,7 +189,8 @@ set_dir "openblas"        "__top_dir__/openblas"
 set_dir "openssl"         "${python_dir}"
 set_dir "zlib"            "__top_dir__/zlib"
 log="__top_dir__/install_log"
-dotpaths="__top_dir__/.paths"
+env_file="__top_dir__/.env"
+paths_file="__top_dir__/.paths"
 
 # This function sets the variable "name_version" if not set already.
 # For preinstalled software, set "name_version" to "pre-installed".
@@ -224,7 +225,7 @@ if [ "${mpi}" == "openmpi" ]; then
 elif [ "${mpi}" == "mpich" ]; then
     set_version "mpi"         "3.2.1"  "3.2"
 fi
-set_version "ncurses"         "6.0"    "6.0"
+set_version "ncurses"         "6.1"    "6.0"
 set_version "openblas"        "0.2.20" "0.2.20"
 set_version "openssl"         "1.1.0g" "1.1.0f"
 set_version "perl"            "5.26.1"
@@ -235,12 +236,12 @@ set_version "blessings"     "1.6.1"
 set_version "cython"        "0.27.3"
 set_version "cythongsl"     "0.2.2"
 set_version "h5py"          "2.7.1"
-set_version "matplotlib"    "2.1.1"
+set_version "matplotlib"    "2.1.2"
 set_version "mpi4py"        "3.0.0"
 set_version "nose"          "1.3.7"
 set_version "numpy"         "1.14.0"
 set_version "parameterized" "0.6.1"
-set_version "pytest"        "3.3.2"
+set_version "pytest"        "3.4.1"
 set_version "scipy"         "1.0.0"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
@@ -857,7 +858,8 @@ fix_path "GSL"
 fix_path "HDF5"
 fix_path "MPI"
 log="${log/__top_dir__/${top_dir}}"
-dotpaths="${dotpaths/__top_dir__/${top_dir}}"
+env_file="${env_file/__top_dir__/${top_dir}}"
+paths_file="${paths_file/__top_dir__/${top_dir}}"
 
 # Check whether this script is run locally or remotely via ssh
 ssh="True"
@@ -941,7 +943,7 @@ try:
     print('yes')
 except:
     print('no')
-"
+" 2>/dev/null
         )
         eval "${pypackage}_preinstalled=\"${pypackage_preinstalled}\""
     done
@@ -1280,7 +1282,7 @@ validate_url()
     url="$(eval "echo \"\${${progname}_url}\"")"
     filename="$(basename "${url}")"
     for n in {1..3}; do
-        for ipv4 in "--inet4-only" ""; do
+        for ipv in "--inet4-only" "--inet6-only" ""; do
             wget_status="success"
             if [[ "${url}" == "ftp://"* ]]; then
                 # wget do not always return with a non-zero status on
@@ -1288,12 +1290,12 @@ validate_url()
                 mkdir -p "${top_dir}/tmp"
                 (cd "${top_dir}/tmp"
                  wget -t 1 --timeout 30 --no-check-certificate --no-dns-cache -q --spider \
-                      --no-remove-listing ${ipv4} "${url}" || :)
+                      --no-remove-listing ${ipv} "${url}" || :)
                 grep "${filename}" "${top_dir}/tmp/.listing" > /dev/null 2>&1 \
                      || wget_status="error"
                 rm -f "${top_dir}/tmp/.listing"
             else
-                wget -t 1 --timeout 30 --no-check-certificate --no-dns-cache -q --spider ${ipv4} \
+                wget -t 1 --timeout 30 --no-check-certificate --no-dns-cache -q --spider ${ipv} \
                      "${url}" || wget_status="error"
             fi
             if [ "${wget_status}" == "success" ]; then
@@ -1871,7 +1873,7 @@ try:
     print('yes')
 except:
     print('no')
-"
+" 2>/dev/null
         )
         eval "${pypackage}_installed=\"${pypackage_installed}\""
     done
@@ -2223,9 +2225,9 @@ download()
     mkdir -p "${top_dir}/tmp/${progname}"
     cd "${top_dir}/tmp/${progname}"
     for n in {1..50}; do
-        for ipv4 in "--inet4-only" ""; do
+        for ipv in "--inet4-only" "--inet6-only" ""; do
             wget_status="success"
-            wget -t 1 --timeout 60 -c --no-check-certificate --no-dns-cache ${ipv4} \
+            wget -t 1 --timeout 60 -c --no-check-certificate --no-dns-cache ${ipv} \
                  "${url}" || wget_status="error"
             if [ "${wget_status}" == "success" ]; then
                 break
@@ -3093,7 +3095,7 @@ try:
     print('yes')
 except:
     print('no')
-"
+" 2>/dev/null
         )
         eval "${pypackage}_installed=\"${pypackage_installed}\""
     done
@@ -3612,30 +3614,108 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     mkdir -p "${class_dir}"
     mv ./* "${class_dir}/"
     cd "${class_dir}"
+    # Below we will do a lot of patching on the CLASS source code.
+    # To aid us, we define the following function.
+    patch_class(){
+        filename="$1"
+        linenr="$2"
+        action="$3"
+        new_lines="$4"
+        # Add comments around inserted lines
+        extension="${filename##*.}"
+        if     [ "${extension}" == "c"   ] \
+            || [ "${extension}" == "h"   ] \
+            || [ "${extension}" == "cpp" ]; then
+            new_lines=(""                      \
+                "/************************/"   \
+                "/* For use with CONCEPT */"   \
+                "/************************/"   \
+                "${new_lines[@]}"              \
+                "/**************************/" \
+                "/* ^For use with CONCEPT^ */" \
+                "/**************************/" \
+                ""                             \
+            )
+        elif   [ "${extension}" == "py"  ] \
+            || [ "${extension}" == "pyx" ] \
+            || [ "${extension}" == "pxd" ]; then 
+            new_lines=(""                    \
+                "########################"   \
+                "# For use with CONCEPT #"   \
+                "########################"   \
+                "${new_lines[@]}"            \
+                "##########################" \
+                "# ^For use with CONCEPT^ #" \
+                "##########################" \
+                ""                           \
+            )
+        fi
+        # Find indentation at linenr
+        indentation=""
+        n_lines=$(wc -l "${filename}" | awk '{print $1}')
+        ((n_lines_down = n_lines - linenr + 1))
+        local IFS=''
+        while read -r line; do
+            if [ -n "${line// }" ]; then
+                line_unindented="$(echo "${line}" | awk '{gsub(/^ +/,"")} {print $0}')"
+                ((indentation_size = ${#line} - ${#line_unindented})) || :
+                if [ "${line_unindented:0:1}" == "}" ]; then
+                    ((indentation_size += 2))
+                fi
+                indentation="$(printf "%${indentation_size}s")"
+                break
+            fi
+        done <<< "$(tail -n ${n_lines_down} "${filename}")"
+        # Construct string of indented lines from the new_lines array
+        new_line_nr=0
+        for new_line in "${new_lines[@]}"; do
+            if [ -n "${new_line}" ]; then
+                indentation_use="${indentation}"
+            else
+                indentation_use=""
+            fi
+            if [ ${new_line_nr} -eq 0 ]; then
+                new_lines_str="\\${indentation_use}${new_line}"
+            else
+                new_lines_str="${new_lines_str}\n${indentation_use}${new_line}"
+            fi
+            ((new_line_nr += 1))
+        done
+        # Insert the new lines in the file
+        if [ "${action}" == "insert" ]; then
+            sed -i "${linenr}i${new_lines_str}" "${filename}"
+        elif [ "${action}" == "replace" ]; then
+            sed -i "${linenr}d" "${filename}"
+            sed -i "${linenr}i${new_lines_str}" "${filename}"
+        fi
+    }
     # Fix a double free bug
     pattern='free *\\( *pba *-> *q_ncdm *\\[ *k *\\] *\\) *;'
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
              "${class_dir}/source/background.c" | head -n 1);
-    new_lines="\ \ \ \ \ \ if (pba->ncdm_quadrature_strategy[k] == qm_auto){"
-    sed -i "${linenr}i${new_lines}" "${class_dir}/source/background.c"
     ((linenr += 3))
-    new_lines="\ \ \ \ \ \ }"
-    sed -i "${linenr}i${new_lines}" "${class_dir}/source/background.c"
+    new_lines=("}")
+    patch_class "${class_dir}/source/background.c" ${linenr} "insert" "${new_lines[@]}"
+    ((linenr -= 3))
+    new_lines=("if (pba->ncdm_quadrature_strategy[k] == qm_auto){")
+    patch_class "${class_dir}/source/background.c" ${linenr} "insert" "${new_lines[@]}"
     # Change the values of some preprocessing directives
     # in header files, allowing larger inputs and outputs.
-    # Specifically, the values
-    # _MAXTITLESTRINGLENGTH_  (in include/common.h)
-    # _LINE_LENGTH_MAX_       (in include/parser.h)
-    # _ARGUMENT_LENGTH_MAX_   (in include/parser.h)
-    # _MAX_NUMBER_OF_K_FILES_ (in include/perturbations.h)
-    # will be increased to 10⁶.
+    # Specifically, these are the changes:
+    # _MAXTITLESTRINGLENGTH_   = 10⁶  (in include/common.h)
+    # _LINE_LENGTH_MAX_        = 10⁴  (in include/parser.h)
+    # _ARGUMENT_LENGTH_MAX_    = 10⁴  (in include/parser.h)
+    # _MAX_NUMBER_OF_K_FILES_  = 10⁶  (in include/perturbations.h)
     value=1000000
     sed -i "s/^\( *#define \+_MAXTITLESTRINGLENGTH_ \+\)[^ ]*\(.*\)*$/\1${value}\2/" \
            "${class_dir}/include/common.h"
+    value=10000
     sed -i "s/^\( *#define \+_LINE_LENGTH_MAX_ \+\)[^ ]*\(.*\)*$/\1${value}\2/" \
            "${class_dir}/include/parser.h"
+    value=10000
     sed -i "s/^\( *#define \+_ARGUMENT_LENGTH_MAX_ \+\)[^ ]*\(.*\)*$/\1${value}\2/" \
            "${class_dir}/include/parser.h"
+    value=1000000
     sed -i "s/^\( *#define \+_MAX_NUMBER_OF_K_FILES_ \+\)[^ ]*\(.*\)*$/\1${value}\2/" \
            "${class_dir}/include/perturbations.h"
     # As only the (relatively) late-time evolution is needed from CLASS,
@@ -3645,99 +3725,148 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
              "${class_dir}/source/perturbations.c" | head -n 1)
     ((linenr += 1))
-    new_lines="\ \ // Only return output at late times\n\
-  double a_min = ${a_min};\n\
-  if (a < a_min)\n\
-    return _SUCCESS_;\n\
-"
-    sed -i "${linenr}i${new_lines}" "${class_dir}/source/perturbations.c"
+    new_lines=(                                  \
+        "/* Only return output at late times */" \
+        "double a_min = ${a_min};"               \
+        "if (a < a_min)"                         \
+        "  return _SUCCESS_;"                    \
+    )
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
     # The a = 1 results are not always printed out by CLASS. Fix this.
     pattern='\\( *verbose *> *0\\)'
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
              "${class_dir}/tools/evolver_ndf15.c" | head -n 1)
-    new_lines="\ \ // If we are printing variables, we must store the final point\n\
-  if (print_variables!=NULL){\n\
-    class_call((*print_variables)(tnew,ynew+1,f0+1,\
-parameters_and_workspace_for_derivs,error_message),\
-error_message,error_message);\n\
-  \}\n\
-"
-    sed -i "${linenr}i${new_lines}" "${class_dir}/tools/evolver_ndf15.c"
-    # Make CLASS print out more results as perturbations.
-    # Specifically, also print out theta_tot, h_prime and Psi0.
-    # Also, do not convert synchronous variables to newtonian variables.
+    new_lines=(                                                             \
+        "/* If we are printing variables, we must store the final point */" \
+        "if (print_variables!=NULL){"                                       \
+        "  class_call((*print_variables)(tnew, ynew+1, f0+1,"               \
+        "    parameters_and_workspace_for_derivs, error_message),"          \
+        "    error_message, error_message);"                                \
+        "}"                                                                 \
+    )
+    patch_class "${class_dir}/tools/evolver_ndf15.c" ${linenr} "insert" "${new_lines[@]}"
+    # Include ncdm Psi0[q] in perturbation output
     pattern=' *char +tmp *\\[ *40 *\\] *;'
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
              "${class_dir}/source/perturbations.c" | head -n 1)
-    new_lines="\ \ char tmp[400];\n\
-  int index_q;\n\
-"
-    sed -i "${linenr}s/.*/${new_lines}/" "${class_dir}/source/perturbations.c"
+    new_lines=(           \
+        "char tmp[1024];" \
+        "int index_q;"    \
+    )
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "replace" "${new_lines[@]}"
     pattern='sprintf *\\( *tmp *, *\"cs2_ncdm\\[%d\\]\" *, *n_ncdm *\\) *;'
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
              "${class_dir}/source/perturbations.c" | head -n 1)
     ((linenr += 2))
-    new_lines="\ \ \ \ \ \ \ \ \ \ for (index_q=0; index_q<pba->q_size_ncdm[n_ncdm]; index_q++){\n\
-            sprintf(tmp,\"Psi0[%d](%.16f)\",n_ncdm,pba->q_ncdm[n_ncdm][index_q]);\n\
-            class_store_columntitle(ppt->scalar_titles,tmp,_TRUE_);\n\
-          }\n\
-"
-    sed -i "${linenr}i${new_lines}" "${class_dir}/source/perturbations.c"
-    pattern='ppt *-> *number_of_scalar_titles *='
-    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-             "${class_dir}/source/perturbations.c" | head -n 1)
-    ((linenr -= 1))
-    new_lines="\ \ \ \ \ \ // Extra stuff for gauge transformation\n\
-      class_store_columntitle(ppt->scalar_titles, \"theta_tot\", _TRUE_);\n\
-      class_store_columntitle(ppt->scalar_titles, \"h_prime\", ppt->gauge == synchronous);\n\
-"
-    sed -i "${linenr}i${new_lines}" "${class_dir}/source/perturbations.c"
-    pattern='converting *synchronous *variables *to *newtonian *ones'
-    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-             "${class_dir}/source/perturbations.c" | head -n 1)
-    ((linenr += 1))
-    new_lines="\ \ \ \ \/\/ No, do not convert to Newtonian gauge\n\
-    if (0==1){  \/\/(ppt->gauge == synchronous) {\n\
-"
-    sed -i "${linenr}s/.*/${new_lines}/" "${class_dir}/source/perturbations.c"
+    new_lines=(                                                                   \
+        "/* Include ncdm Psi0[q] in perturbation output */"                       \
+        "for (index_q=0; index_q<pba->q_size_ncdm[n_ncdm]; index_q++){"           \
+        "  sprintf(tmp,\"Psi0[%d](%.16f)\",n_ncdm,pba->q_ncdm[n_ncdm][index_q]);" \
+        "  class_store_columntitle(ppt->scalar_titles,tmp,_TRUE_);"               \
+        "}"                                                                       \
+    )
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
     pattern='class_store_double *\\( *dataptr *, *delta_p_over_delta_rho_ncdm *\\[ *n_ncdm *\\] *,'
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
              "${class_dir}/source/perturbations.c" | head -n 1)
     ((linenr += 1))
-    new_lines="\ \ \ \ \ \ \ \ if (ppw->approx[ppw->index_ap_ncdmfa] == (int)ncdmfa_on){\n\
-          for (index_q=0; index_q<pba->q_size_ncdm[n_ncdm]; index_q++){\n\
-            class_store_double(dataptr, 0.0, _TRUE_, storeidx);\n\
-          }\n\
-        }\n\
-        else{\n\
-          idx = ppw->pv->index_pt_psi0_ncdm1;\n\
-          for (index_q=0; index_q<pba->q_size_ncdm[n_ncdm]; index_q++){\n\
-            class_store_double(dataptr, y[idx], _TRUE_, storeidx);\n\
-            // Jump to next momentum bin\n\
-            idx+=(ppw->pv->l_max_ncdm[n_ncdm]+1);\n\
-          }\n\
-        }\n\
-"
-    sed -i "${linenr}i${new_lines}" "${class_dir}/source/perturbations.c"
-    pattern="class_store_double *\\\\( *dataptr *, *theta_scf *, *pba *-> *has_scf *, \
+    new_lines=(                                                           \
+        "/* Include ncdm Psi0[q] in perturbation output */"               \
+        "if (ppw->approx[ppw->index_ap_ncdmfa] == (int)ncdmfa_on){"       \
+        "  for (index_q=0; index_q<pba->q_size_ncdm[n_ncdm]; index_q++){" \
+        "    class_store_double(dataptr, 0.0, _TRUE_, storeidx);"         \
+        "  }"                                                             \
+        "}"                                                               \
+        "else{"                                                           \
+        "  idx = ppw->pv->index_pt_psi0_ncdm1;"                           \
+        "  for (index_q=0; index_q<pba->q_size_ncdm[n_ncdm]; index_q++){" \
+        "    class_store_double(dataptr, y[idx], _TRUE_, storeidx);"      \
+        "    /* Jump to next momentum bin */"                             \
+        "    idx += (ppw->pv->l_max_ncdm[n_ncdm]+1);"                     \
+        "  }"                                                             \
+        "}"                                                               \
+    )
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
+    # Include dark energy fluid in perturbation output
+    new_class_perturbation_linenr(){
+        if [ "${1}" == "perturb_prepare_output" ]; then
+            pattern='ppt *-> *number_of_scalar_titles *='
+            linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+                "${class_dir}/source/perturbations.c" | head -n 1)
+            ((linenr -= 1))
+        elif [ "${1}" == "perturb_print_variables" ]; then
+            pattern="class_store_double *\\\\( *dataptr *, *theta_scf *, *pba *-> *has_scf *, \
 *storeidx *\\\\)*;"
+            linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+                "${class_dir}/source/perturbations.c" | head -n 1)
+            n_lines_total=$(wc -l "${class_dir}/source/perturbations.c" | awk '{print $1}')
+            ((n_lines_down = n_lines_total - linenr))
+            local IFS=''
+            while read -r line; do
+                ((linenr += 1))
+                if [[ "${line}" == "  }" ]]; then
+                    break
+                fi
+            done <<< "$(tail -n ${n_lines_down} "${class_dir}/source/perturbations.c")"
+        fi
+        echo ${linenr}
+    }
+    linenr=$(new_class_perturbation_linenr "perturb_prepare_output")
+    new_lines=(                                                                     \
+        "/* Include dark energy fluid in perturbation output */"                    \
+        "class_store_columntitle(ppt->scalar_titles, \"delta_fld\", pba->has_fld);" \
+        "class_store_columntitle(ppt->scalar_titles, \"theta_fld\", pba->has_fld);" \
+    )
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
+    linenr=$(new_class_perturbation_linenr "perturb_print_variables")
+    new_lines=(                                                                             \
+        "/* Include dark energy fluid in perturbation output */"                            \
+        "double w_fld, dw_over_da_fld, integral_fld;"                                       \
+        "if (pba->has_fld){"                                                                \
+        "  class_call(background_w_fld(pba, a, &w_fld, &dw_over_da_fld, &integral_fld),"    \
+        "    pba->error_message, ppt->error_message);"                                      \
+        "  class_store_double(dataptr, ppw->delta_rho_fld/pvecback[pba->index_bg_rho_fld]," \
+        "    pba->has_fld, storeidx);"                                                      \
+        "  class_store_double(dataptr, ppw->rho_plus_p_theta_fld/((1. + w_fld)"             \
+        "    *pvecback[pba->index_bg_rho_fld]), pba->has_fld, storeidx);"                   \
+        "}"                                                                                 \
+    )
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
+    # Include theta_tot and h_prime in perturbation output
+    linenr=$(new_class_perturbation_linenr "perturb_prepare_output")
+    new_lines=(                                                                                \
+        "/* Include theta_tot and h_prime in perturbation output */"                           \
+        "class_store_columntitle(ppt->scalar_titles, \"theta_tot\", _TRUE_);"                  \
+        "class_store_columntitle(ppt->scalar_titles, \"h_prime\", ppt->gauge == synchronous);" \
+    )
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
+    linenr=$(new_class_perturbation_linenr "perturb_print_variables")
+    new_lines=(                                                                       \
+        "/* Include theta_tot and h_prime in perturbation output */"                  \
+        "double theta_tot, rho_plus_p_tot;"                                           \
+        "rho_plus_p_tot = -2./3.*pvecback[pba->index_bg_H_prime]/a+2./3.*pba->K/a/a;" \
+        "theta_tot = ppw->rho_plus_p_theta/rho_plus_p_tot;"                           \
+        "class_store_double(dataptr, theta_tot, _TRUE_, storeidx);"                   \
+        "class_store_double(dataptr, pvecmetric[ppw->index_mt_h_prime],"              \
+        "  ppt->gauge == synchronous, storeidx);"                                     \
+    )
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
+    # Do not convert synchronous variables to Newtonian gauge
+    pattern='converting *synchronous *variables *to *newtonian *ones'
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
              "${class_dir}/source/perturbations.c" | head -n 1)
     ((linenr += 1))
-    new_lines="\ \ \ \ \/\/ Extra stuff for gauge transformations\n\
-    double theta_tot, rho_plus_p_tot;\n\
-    rho_plus_p_tot = -2./3.*pvecback[pba->index_bg_H_prime]/a+2./3.*pba->K/a/a;\n\
-    theta_tot = ppw->rho_plus_p_theta/rho_plus_p_tot;\n\
-    class_store_double(dataptr, theta_tot, _TRUE_, storeidx);\n\
-    class_store_double(dataptr, pvecmetric[ppw->index_mt_h_prime], \
-ppt->gauge == synchronous, storeidx);\n\
-"
-    sed -i "${linenr}i${new_lines}" "${class_dir}/source/perturbations.c"
+    new_lines=(                                           \
+        "/* Do not convert to Newtonian gauge */"         \
+        "if (0==1){  /* (ppt->gauge == synchronous) { */" \
+    )
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "replace" "${new_lines[@]}"
     # Add integers 'node' and 'indentation' and use these to make CLASS
     # print out correctly indented (with regard to CO𝘕CEPT) status
-    # updates during perturbation computations. These integers are added
-    # to the classy.Class initializer as optional arguments and then
-    # stored in the 'background' struct.
+    # updates during perturbation computations, when the
+    # perturbations_verbose parameter is negative. The 'node' and
+    # 'indentation' integers are added to the classy.Class initializer
+    # as optional arguments and then stored in the 'background' struct.
     linenr_1="$(grep -n 'struct background' "${class_dir}/include/background.h" | head -n 1)"
     linenr_1="${linenr_1%%:*}"
     i=0
@@ -3749,19 +3878,21 @@ ppt->gauge == synchronous, storeidx);\n\
             break
         fi
     done
-    sed -i "${linenr_2}i\ \ // For use with CONCEPT\n\
-  int node;\n\
-  int indentation;\n\
-" "${class_dir}/include/background.h"
+    new_lines=(                                                              \
+        "/* Used to print status updates during perturbation computation */" \
+        "int node, indentation;"                                             \
+    )
+    patch_class "${class_dir}/include/background.h" ${linenr_2} "insert" "${new_lines[@]}"
     linenr="$(grep -n "__cinit__" "${class_dir}/python/classy.pyx")"
     linenr="${linenr%%:*}"
-    sed -i "${linenr}s/.*/    def __cinit__(self, default=False, node=0, indentation=0):/" \
-        "${class_dir}/python/classy.pyx"
+    sed -i "${linenr}s/.*/    def __cinit__(self, default=False, node=0, indentation=0):  \
+    # Changed for use with CONCEPT/" "${class_dir}/python/classy.pyx"
     ((linenr += 1))
-    sed -i "${linenr}i\ \  \  \  \ # For use with CONCEPT\n\
-        self.ba.node = <int>node\n\
-        self.ba.indentation = <int>indentation\n\
-" "${class_dir}/python/classy.pyx"
+    new_lines=(                                  \
+        "self.ba.node = <int>node"               \
+        "self.ba.indentation = <int>indentation" \
+    )
+    patch_class "${class_dir}/python/classy.pyx" ${linenr} "insert" "${new_lines[@]}"
     linenr_1="$(grep -n 'cdef struct background:' "${class_dir}/python/cclassy.pxd")"
     linenr_1="${linenr_1%%:*}"
     i=0
@@ -3769,37 +3900,37 @@ ppt->gauge == synchronous, storeidx);\n\
         ((i += 1))
         linenr_2="$(grep -n 'cdef struct' "${class_dir}/python/cclassy.pxd" \
             | head -n ${i} | tail -n 1)"
-        echo "CDEF STRUCT: $linenr_2"
         linenr_2="${linenr_2%%:*}"
         if [ ${linenr_2} -eq ${linenr_1} ]; then
             ((i += 1))
             linenr_2="$(grep -n 'cdef struct' "${class_dir}/python/cclassy.pxd" \
                 | head -n ${i} | tail -n 1)"
-            echo "CDEF STRUCT ONE BELOW: $linenr_2"
             linenr_2="${linenr_2%%:*}"
             break
         fi
     done
-    sed -i "${linenr_2}i\ \  \  \  \ # For use with CONCEPT\n\
-        int node\n\
-        int indentation\n\
-" "${class_dir}/python/cclassy.pxd"
+    new_lines=(           \
+        "int node"        \
+        "int indentation" \
+    )
+    patch_class "${class_dir}/python/cclassy.pxd" ${linenr_2} "insert" "${new_lines[@]}"
     linenr="$(grep -n 'for (index_k = ppt->k_size\[index_md\]-1; index_k >=0; index_k--)' \
         "${class_dir}/source/perturbations.c")"
     linenr="${linenr%%:*}"
     ((linenr += 1))
-    sed -i "${linenr}i\ \ \ \ \ \ \ \ \ \ // For use with CONCEPT\n\
-          if (abort == _FALSE_) {\n\
-            printf(\n\
-              \"%*sNode %d: Evolving mode k = %e/Mpc (%d/%d)\\\\n\",\n\
-              pba->indentation, \"\",\n\
-              pba->node,\n\
-              ppt->k[index_md][index_k],\n\
-              index_k+1,\n\
-              ppt->k_size[index_md]\n\
-            );\n\
-          }\n\
-" "${class_dir}/source/perturbations.c"
+    new_lines=(                                                         \
+        "if ((abort == _FALSE_) && (ppt->perturbations_verbose < 0)) {" \
+        "  printf("                                                     \
+        "    \"%*sNode %d: Evolving mode k = %e/Mpc (%d/%d)\\\\n\","    \
+        "    pba->indentation, \"\","                                   \
+        "    pba->node,"                                                \
+        "    ppt->k[index_md][index_k],"                                \
+        "    index_k+1,"                                                \
+        "    ppt->k_size[index_md]"                                     \
+        "  );"                                                          \
+        "}"                                                             \
+    )
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
     # Build CLASS, including the Python wrapper classy
     PYTHON="${python}" make ${make_jobs} 2>&1
     # Test CLASS
@@ -3862,9 +3993,9 @@ mpiexec="${mpi_dir}/bin/mpiexec"
 # Move source files, create empty directories and create the .paths file
 if [ "${concept_install}" == "yes" ] && [ "${concept_installed}" == "no" ]; then
     init_install "CONCEPT"
-    # Move everything (but the .paths file) from the
-    # concept-${concept_version} directory to ${top_dir}.
-    mv ./* "${top_dir}/"
+    # Move everything from the concept-${concept_version}
+    # directory to ${top_dir}.
+    mv ./{.[!.],}* "${top_dir}/"
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/concept"
     # Create directories
@@ -3872,14 +4003,47 @@ if [ "${concept_install}" == "yes" ] && [ "${concept_installed}" == "no" ]; then
     mkdir -p "${logs_dir}"
     mkdir -p "${output_dir}"
     mkdir -p "${params_dir}"
+    # Add PATH-like environment variables present at install time (now)
+    # to the .env file.
+    current_step="addition of PATH-like environment variables to the .env file"
+    printf "\nAdding PATH-like environment variables to .env\n"
+    set_status "Adding PATH-like environment variables to .env"
+    "${python}" -c "
+import os
+with open('${env_file}', 'r', encoding='utf-8') as file:
+    lines = file.readlines()
+# Generator for extracting environment variables
+def get_envs():
+    for var, val in os.environ.items():
+        if (# PATH, LD_LIBRARY_PATH, ...
+               ('path' in var.lower() and (val.startswith('/') or val.startswith(':')))
+            # INTEL_LICENSE_FILE
+            or (var == 'INTEL_LICENSE_FILE' and val.startswith('/'))
+            ):
+            yield var, val
+# Add environment variables
+envs_inserted = False
+with open('${env_file}', 'w', encoding='utf-8') as file:
+    for line in lines:
+        if not envs_inserted and 'Update the environment' in line:
+            print('# The following has been placed by the installer script.', file=file)
+            print('# These were the PATH-like environment variables', file=file)
+            print('# set at install time.', file=file)
+            print('pathenv_name_value_pairs_installtime=( \\\\', file=file)
+            for var, val in get_envs():
+                print(f'    {var} \"{val}\" \\\\', file=file)
+            print(')', file=file)
+            print('', file=file)
+            envs_inserted = True
+        print(line, end='', file=file)
+"
     # Create the .paths file, 
-    # storing important paths used by the program.
+    # storing important paths used by CO𝘕CEPT.
     current_step="creation of the .paths file"
     printf "\nWriting paths to .paths\n"
     set_status "Writing paths to .paths"
-    echo "# This file contains absolute paths to directories and files used by the
-# CO𝘕CEPT code. You must manually edit the paths below. All other files rely on
-# these paths, as they are not given anywhere else.
+    echo "# This file contains absolute paths to directories and files
+# used by the CO𝘕CEPT code. You may manually edit these paths.
 
 #######################
 # CO𝘕CEPT directories #
@@ -3934,46 +4098,19 @@ zlib_dir='${zlib_dir}'
 #########
 # The executable script of the CO𝘕CEPT code
 concept='${concept}'
+# The file containing environment variables
+env_file='${env_file}'
 # The installer script
 installer='${installer}'
 # The MPI C compiler
 mpicc='${mpicc}'
 # The MPI executable
 mpiexec='${mpiexec}'
+# The file containing paths (this file)
+paths_file='${paths_file}'
 # The Python interpreter
 python='${python}'
-" > "${dotpaths}"
-    # Add PATH-like environment variables present at install time (now)
-    # to the concept script.
-    "${python}" -c "
-import os
-with open('${concept}', 'r', encoding='utf-8') as file:
-    lines = file.readlines()
-# Generator for extracting environment variables
-def get_envs():
-    for var, val in os.environ.items():
-        if (# PATH, LD_LIBRARY_PATH, ...
-               ('path' in var.lower() and (val.startswith('/') or val.startswith(':')))
-            # INTEL_LICENSE_FILE
-            or (var == 'INTEL_LICENSE_FILE' and val.startswith('/'))
-            ):
-            yield var, val
-# Add environment variables
-envs_inserted = False
-with open('${concept}', 'w', encoding='utf-8') as file:
-    for line in lines:
-        if not envs_inserted and line.strip() == ':':
-            print('# These were set at install time.', file=file)
-            for var, val in get_envs():
-                print(f'if [ -z \"\${{{var}}}\" ]; then'       , file=file)
-                print(f'    export {var}=\"{val}\"'            , file=file)
-                print(f'else'                                  , file=file)
-                print(f'    export {var}=\"\${{{var}}}:{val}\"', file=file)
-                print(f'fi'                                    , file=file)
-            envs_inserted = True
-        else:
-            print(line, end='', file=file)
-"
+" > "${paths_file}"
     # CO𝘕CEPT will be tested later
 fi
 

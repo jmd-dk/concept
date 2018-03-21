@@ -25,11 +25,23 @@
 # 'from commons import *' as its first statement.
 
 
+######################
+# __future__ imports #
+######################
+from __future__ import division  # Needed for Python3 division in Cython
+
+
+
+#######################
+# The CO𝘕CEPT version #
+#######################
+__version__ = 'master'
+
+
 
 ############################################
 # Imports common to pure Python and Cython #
 ############################################
-from __future__ import division  # Needed for Python3 division in Cython
 # Miscellaneous modules
 import ast, collections, contextlib, ctypes, cython, functools, hashlib, imp, inspect, itertools
 import keyword, os, re, shutil, sys, textwrap, types, unicodedata, warnings
@@ -46,6 +58,7 @@ np.warnings.filterwarnings(  # Suppress warning from NumPy 14.1 caused by H5Py
 )
 import scipy
 import scipy.interpolate
+import scipy.ndimage
 import scipy.signal
 # For plotting
 import matplotlib
@@ -62,6 +75,8 @@ import blessings
 # For timing
 from time import sleep, time
 import datetime
+# The pyxpp preprocessor module
+import pyxpp
 
 
 
@@ -334,6 +349,7 @@ def fancyprint(
     fun=None,
     wrap=True,
     ensure_newline_after_ellipsis=True,
+    is_warning=False,
     **kwargs,
     ):
     # If called without any arguments, print the empty string
@@ -498,6 +514,18 @@ def fancyprint(
         # progress print, the amount of spacing to add to the final
         # timing message needs to be altered.
         progressprint['length'] = len(text.split('\n')[-1])
+        # Compare text to what is given in suppress_output and
+        # suppress the output if any match is found.
+        if is_warning and suppress_output['err']:
+            text_linearized = re.sub(r'\s+', ' ', text)
+            for pattern in suppress_output['err']:
+                if re.search(pattern, text_linearized):
+                    return
+        elif not is_warning and suppress_output['out']:
+            text_linearized = re.sub(r'\s+', ' ', text)
+            for pattern in suppress_output['out']:
+                if re.search(pattern, text_linearized):
+                    return
         # Print out message
         print(text, flush=True, end='', **kwargs)
 progressprint = {'maxintervallength': len(' done after ??? ms'),
@@ -505,9 +533,11 @@ progressprint = {'maxintervallength': len(' done after ??? ms'),
                  'indentation'      : 0,
                  'previous'         : '',
                  }
-# As the terminal_width user parameter is used in fancyprint,
-# it needs to be defined before it is actually read in as a parameter.
-cython.declare(terminal_width='int')
+# As the suppress_output and terminal_width user parameters are used
+# in fancyprint, they need to be defined before they are actually
+# read in as parameters.
+cython.declare(suppress_output=dict, terminal_width='int')
+suppress_output = {'out': set(), 'err': set()}
 terminal_width = 80
 
 # Functions for printing warnings
@@ -528,7 +558,7 @@ def warn(*args, skipline=True, prefix='Warning', wrap=True, **kwargs):
     if prefix:
         args = [prefix] + args
     # Print out message
-    fancyprint(*args, fun=terminal.bold_red, wrap=wrap, file=sys.stderr, **kwargs)
+    fancyprint(*args, fun=terminal.bold_red, wrap=wrap, file=sys.stderr, is_warning=True, **kwargs)
 
 # Versions of fancyprint and warn which may be called collectively
 # but only the master will do any printing.
@@ -747,7 +777,9 @@ if not cython.compiled:
 # Note that these are not linked, meaning that you should not alter
 # the values of a (struct, dict)-pair after creation if you are using
 # the dict at all (the dict is useful for dynamic evaluations).
-# In the current implementation, pointers are not allowed.
+# The only pointer type implemented is char*. As other pointer types
+# have no corresponding Python type, it is not straightforward
+# to implement these.
 def build_struct(**kwargs):
     # Regardless of the input kwargs, bring it to the form {key: val}
     ctypes = {}
@@ -756,7 +788,8 @@ def build_struct(**kwargs):
             # Type and value given
             ctype, val = val
         else:
-            # Only type given. Initialize value to zero.
+            # Only type given. Initialize value to None
+            # for pointer type or 0 for non-pointer type.
             ctype, val = val, '__build_struct_undefined__'
         try:
             ctype = C2np[ctype]
@@ -767,7 +800,10 @@ def build_struct(**kwargs):
                 pass
         ctypes[key] = ctype
         if val == '__build_struct_undefined__':
-            val = ctype()
+            try:
+                val = ctype()
+            except:
+                val = b'' if '*' in ctype else 0
         kwargs[key] = val
     for key, val in kwargs.copy().items():
         if isinstance(val, str):
@@ -777,7 +813,10 @@ def build_struct(**kwargs):
                 val = eval(val, namespace)
             except:
                 pass
-        kwargs[key] = ctypes[key](val)
+        try:
+            kwargs[key] = ctypes[key](val)
+        except:
+            pass
     if not cython.compiled:
         # In pure Python, emulate a struct by a simple namespace
         struct = types.SimpleNamespace(**kwargs)
@@ -1178,8 +1217,23 @@ unit_relations['eV'     ] = 1.602176565e-19*unit_relations['J'      ]
 unit_relations['keV'    ] = 1e+3           *unit_relations['eV'     ]
 unit_relations['MeV'    ] = 1e+6           *unit_relations['eV'     ]
 unit_relations['GeV'    ] = 1e+9           *unit_relations['eV'     ]
-
-
+# Function which given a function name present both in NumPy and in the
+# Python builtins will produce a function which first calls the NumPy
+# version, and then (on failure) calls the builtin version. This is
+# useful for e.g. generating a 'min' function which works on both a
+# single multi-dimensional array as well as multiple scalar inputs.
+def produce_np_and_builtin_function(funcname):
+    np_func = getattr(np, funcname)
+    try:
+        builtin_func = getattr(__builtins__, funcname)
+    except:
+        builtin_func = __builtins__[funcname]
+    def np_and_builtin_function(*args, **kwargs):
+        try:
+            return np_func(*args, **kwargs)
+        except:
+            return builtin_func(*args, **kwargs)
+    return np_and_builtin_function
 # Attempt to read in the parameter file. This is really only
 # to get any user defined units, as the parameter file will
 # be properly read in later. First construct a namespace in which the
@@ -1187,6 +1241,10 @@ unit_relations['GeV'    ] = 1e+9           *unit_relations['eV'     ]
 def construct_user_params_namespace(params_iteration):
     return {# Include all of NumPy
             **vars(np).copy(),
+            # Overwrite the NumPy min and max function with NumPy and
+            # builtin hybrid min and max functions.
+            'min': produce_np_and_builtin_function('min'),
+            'max': produce_np_and_builtin_function('max'),
             # The paths dict
             'paths': paths,
             # Modules
@@ -1232,10 +1290,29 @@ inferred_params = {unicode(key): val for key, val in
 }
 for key, val in inferred_params.items():
     user_params.setdefault(key, val)
+# Function which repeatedly executes the str content in the
+# dictionary d, ignoring any execeptions. The executation stops when
+# no more exceptions are resolved by definitions further down
+# in the content.
+def exec_params(content, d, suppress_exceptions=True):
+    lines = pyxpp.oneline(content.split('\n'))
+    lines_executed = []
+    lines_executed_prev = [-1]
+    while lines_executed != lines_executed_prev:
+        lines_executed_prev = lines_executed
+        lines_executed = []
+        d_copy = d.copy()
+        for n, line in enumerate(lines):
+            try:
+                exec(line, d)
+                lines_executed.append(n)
+            except:
+                pass
+    if not suppress_exceptions:
+        exec(content, d)
 # Execute the content of the parameter file in the namespace defined
 # by user_params in order to get the user defined units.
-with contextlib.suppress(Exception):
-    exec(params_file_content, user_params)
+exec_params(params_file_content, user_params)
 # The names of the three fundamental units,
 # all with a numerical value of 1. If these are not defined in the
 # parameter file, give them some reasonable values.
@@ -1342,11 +1419,12 @@ def replace_ellipsis(d):
     if not isinstance(d, dict):
         return d
     truthy_val = None
-    for key, val in d.items():
-        if any(any2list(truthy_val)) and val is ...:
-            d[key] = truthy_val
-        elif any(any2list(val)):
-            truthy_val = val
+    for _ in range(2):
+        for key, val in d.items():
+            if any(any2list(truthy_val)) and val is ...:
+                d[key] = truthy_val
+            elif val is not ... and any(any2list(val)):
+                truthy_val = val
     falsy_val = truthy_val
     for key, val in d.items():
         if val is ...:
@@ -1418,7 +1496,7 @@ user_params.update({# Units from the units struct
 user_params.useall()
 # "Import" the parameter file by executing it
 # in the namespace defined by the user_params namespace.
-exec(params_file_content, user_params)
+exec_params(params_file_content, user_params, suppress_exceptions=False)
 # Also mark the unit-parameters as used
 for u in ('length', 'time', 'mass'):
     user_params.use(f'unit_{u}')
@@ -1472,14 +1550,13 @@ for key, val in inferred_params.items():
         # Assume numeric type
         user_params_changed_inferrables[key] += 1
 user_params_changed_inferrables['params_iteration'] = 'inferrables (changed)'
-exec(params_file_content, user_params_changed_inferrables)
+exec_params(params_file_content, user_params_changed_inferrables, suppress_exceptions=False)
 inferred_params_set = DictWithCounter({
     key: user_params[key] == user_params_changed_inferrables[key] for key in inferred_params
 })
-# Infer inferrable parameters which have not
-# been explicitly set by the user. To ensure that every key gets looked
-# up in their proper unicode form, we wrap the inferred_params dict
-# in a DictWithCounter.
+# Infer inferrable parameters which have not been explicitly set
+# by the user. To ensure that every key gets looked up in their proper
+# unicode form, we wrap the inferred_params dict in a DictWithCounter.
 inferred_params = DictWithCounter(inferred_params)
 inferred_params_final = DictWithCounter()
 cython.declare(
@@ -1503,7 +1580,9 @@ user_params.update(inferred_params_final)
 # in the namespace defined by the user_params namespace,
 # this time with the inferrable values in place.
 user_params['params_iteration'] = 'final'
-exec(params_file_content, user_params)
+exec_params(params_file_content, user_params, suppress_exceptions=False)
+# Backup of originally supplied user parameter names
+user_params_keys_raw = set(user_params.keys())
 # The parameters are now being processed as follows:
 # - All parameters are explicitly casted to their appropriate type.
 # - Parameters which should be integer are rounded before casted.
@@ -1584,15 +1663,17 @@ cython.declare(# Input/output
                fftw_wisdom_rigor=str,
                fftw_wisdom_reuse='bint',
                master_seed='unsigned long int',
-               select_vacuum_corrections=dict,
+               fluid_scheme_select=dict,
+               fluid_options=dict,
                class_reuse='bint',
                class_extra_perturbations=set,
                # Graphics
+               terminal_width='int',
+               suppress_output=dict,
                render2D_options=dict,
                render3D_colors=dict,
                render3D_bgcolor='double[::1]',
                render3D_resolution='int',
-               terminal_width='int',
                # Debugging options
                enable_Hubble='bint',
                enable_class_background='bint',
@@ -1607,8 +1688,11 @@ cython.declare(# Input/output
                )
 # Input/output
 initial_conditions = user_params.get('initial_conditions', '')
+user_params['initial_conditions'] = initial_conditions
 snapshot_type = (str(user_params.get('snapshot_type', 'standard'))
-                 .lower().replace(' ', ''))
+    .lower().replace(' ', '').replace('-', '')
+)
+user_params['snapshot_type'] = snapshot_type
 output_dirs = dict(user_params.get('output_dirs', {}))
 replace_ellipsis(output_dirs)
 for kind in ('snapshot', 'powerspec', 'render2D', 'render3D'):
@@ -1619,36 +1703,20 @@ output_dirs['autosave'] = str(output_dirs.get('autosave', paths['ics_dir']))
 if not output_dirs['autosave']:
     output_dirs['autosave'] = paths['ics_dir']
 output_dirs = {key: sensible_path(path) for key, path in output_dirs.items()}
+user_params['output_dirs'] = output_dirs
 output_bases = dict(user_params.get('output_bases', {}))
 replace_ellipsis(output_bases)
 for kind in ('snapshot', 'powerspec', 'render2D', 'render3D'):
     output_bases[kind] = str(output_bases.get(kind, kind))
+user_params['output_bases'] = output_bases
 output_times = dict(user_params.get('output_times', {}))
 replace_ellipsis(output_times)
-# Output times not explicitly written as either of type 'a' or 't'
-# is understood as being of type 'a'.
-for time_param in ('a', 't'):
-    output_times[time_param] = dict(output_times.get(time_param, {}))
-    replace_ellipsis(output_times[time_param])
-for key, val in output_times.items():
-    if key not in ('a', 't'):
-        output_times['a'][key] = tuple(  any2list(output_times['a'].get(key, []))
-                                       + any2list(val)
-                                       )
-for time_param in ('a', 't'):
-    output_times[time_param] = dict(output_times.get(time_param, {}))
-    for kind in ('snapshot', 'powerspec', 'render2D', 'render3D'):
-        output_times[time_param][kind] = output_times[time_param].get(kind, ())
-output_times = {time_param: {key: tuple(sorted(set([float(eval_unit(nr)
-                                                          if isinstance(nr, str) else nr)
-                                                    for nr in any2list(val)
-                                                    if nr or nr == 0])))
-                             for key, val in output_times[time_param].items()}
-                for time_param in ('a', 't')}
+user_params['output_times'] = output_times
 autosave_interval = float(
     0 if not user_params.get('autosave_interval', 0)
       else   user_params.get('autosave_interval', 0)
 )
+user_params['autosave_interval'] = autosave_interval
 snapshot_select = {'all': True}
 if user_params.get('snapshot_select'):
     if isinstance(user_params['snapshot_select'], dict):
@@ -1656,6 +1724,7 @@ if user_params.get('snapshot_select'):
         replace_ellipsis(snapshot_select)
     else:
         snapshot_select = {'all': user_params['snapshot_select']}
+user_params['snapshot_select'] = snapshot_select
 powerspec_select = {'all': True, 'all combinations': True}
 if user_params.get('powerspec_select'):
     if isinstance(user_params['powerspec_select'], dict):
@@ -1671,6 +1740,7 @@ for key, val in powerspec_select.copy().items():
         val.setdefault('plot', False)
     else:
         powerspec_select[key] = {'data': bool(val), 'plot': bool(val)}
+user_params['powerspec_select'] = powerspec_select
 render2D_select = {'all': True, 'all combinations': True}
 if user_params.get('render2D_select'):
     if isinstance(user_params['render2D_select'], dict):
@@ -1692,6 +1762,7 @@ for key, val in render2D_select.copy().items():
             'image'         : bool(val),
             'terminal image': bool(val),
         }
+user_params['render2D_select'] = render2D_select
 render3D_select = {'all': True}
 if user_params.get('render3D_select'):
     if isinstance(user_params['render3D_select'], dict):
@@ -1699,22 +1770,36 @@ if user_params.get('render3D_select'):
         replace_ellipsis(render3D_select)
     else:
         render3D_select = {'all': user_params['render3D_select']}
+user_params['render3D_select'] = render3D_select
 # Numerical parameters
 boxsize = float(user_params.get('boxsize', 1))
+user_params['boxsize'] = boxsize
 ewald_gridsize = to_int(user_params.get('ewald_gridsize', 64))
+user_params['ewald_gridsize'] = ewald_gridsize
 φ_gridsize = to_int(user_params.get('φ_gridsize', 64))
+user_params['φ_gridsize'] = φ_gridsize
 p3m_scale = float(user_params.get('p3m_scale', 1.25))
+user_params['p3m_scale'] = p3m_scale
 p3m_cutoff = float(user_params.get('p3m_cutoff', 4.8))
+user_params['p3m_cutoff'] = p3m_cutoff
 R_tophat = float(user_params.get('R_tophat', 8*units.Mpc))
+user_params['R_tophat'] = R_tophat
 modes_per_decade = float(user_params.get('modes_per_decade', 100))
+user_params['modes_per_decade'] = modes_per_decade
 # Cosmology
 H0 = float(user_params.get('H0', 70*units.km/(units.s*units.Mpc)))
+user_params['H0'] = H0
 Ωcdm = float(user_params.get('Ωcdm', 0.25))
+user_params['Ωcdm'] = Ωcdm
 Ωb = float(user_params.get('Ωb', 0.05))
+user_params['Ωb'] = Ωb
 a_begin = float(user_params.get('a_begin', 1))
+user_params['a_begin'] = a_begin
 t_begin = float(user_params.get('t_begin', 0))
+user_params['t_begin'] = t_begin
 class_params = dict(user_params.get('class_params', {}))
 replace_ellipsis(class_params)
+user_params['class_params'] = class_params
 # Physics
 default_force_method = {
     'gravity': 'pm',
@@ -1759,35 +1844,45 @@ for key, val in replace_ellipsis(dict(user_params.get('select_forces', {}))).ite
             subd_val = subd_val.replace(unicode_superscript(str(n)), str(n))
         subd[subd_key] = subd_val
     select_forces[key] = subd
-select_class_species = {'all': 'automatic'}
+user_params['select_forces'] = select_forces
+select_class_species = {}
 if user_params.get('select_class_species'):
     if isinstance(user_params['select_class_species'], dict):
         select_class_species = user_params['select_class_species']
         replace_ellipsis(select_class_species)
     else:
         select_class_species = {'all': str(user_params['select_class_species'])}
-select_eos_w = {'particles': 'default', 'fluid': 'class'}
+select_class_species['default'] = 'default'
+user_params['select_class_species'] = select_class_species
+select_eos_w = {}
 if user_params.get('select_eos_w'):
     if isinstance(user_params['select_eos_w'], dict):
         select_eos_w = user_params['select_eos_w']
         replace_ellipsis(select_eos_w)
     else:
         select_eos_w = {'all': user_params['select_eos_w']}
-select_closure = {'all': 'class'}
+select_eos_w.setdefault('particles', 'default')
+select_eos_w['default'] = 'class'
+user_params['select_eos_w'] = select_eos_w
+select_closure = {}
 if user_params.get('select_closure'):
     if isinstance(user_params['select_closure'], dict):
         select_closure = user_params['select_closure']
         replace_ellipsis(select_closure)
     else:
         select_closure = {'all': str(user_params['select_closure'])}
-select_approximations = {'all': {'P=wρ': False}}
+select_closure['default'] = 'class'
+user_params['select_closure'] = select_closure
+select_approximations = {}
 if user_params.get('select_approximations'):
-    key = list(user_params['select_approximations'])[0]
-    if isinstance(key, str) and '=' in key:
-        select_approximations = {'all': dict(user_params['select_approximations'])}
-    else:
-        select_approximations = dict(user_params['select_approximations'])
-        replace_ellipsis(select_approximations)
+    select_approximations = dict(user_params['select_approximations'])
+    replace_ellipsis(select_approximations)
+    if select_approximations:
+        key = tuple(select_approximations.keys())[0]
+        if isinstance(key, str) and '=' in key:
+            select_approximations = {'all': select_approximations}
+        for key, d in select_approximations.items():
+            replace_ellipsis(d)
 for key, val in select_approximations.items():
     subd = {}
     for subd_key, subd_val in val.items():
@@ -1801,34 +1896,144 @@ for key, val in select_approximations.items():
             subd_key = subd_key.replace(unicode_superscript(str(n)), str(n))
         subd[subd_key] = bool(subd_val)
     select_approximations[key] = subd
-select_softening_length = {'particles': '0.03*boxsize/N**(1/3)', 'fluid': 0}
+select_approximations['default'] = {'P=wρ': False}
+user_params['select_approximations'] = select_approximations
+select_softening_length = {}
 if user_params.get('select_softening_length'):
     if isinstance(user_params['select_softening_length'], dict):
         select_softening_length = user_params['select_softening_length']
         replace_ellipsis(select_softening_length)
     else:
         select_softening_length = {'all': user_params['select_softening_length']}
+select_softening_length.setdefault('particles', '0.03*boxsize/N**(1/3)')
+select_softening_length.setdefault('fluid', 0)
+user_params['select_softening_length'] = select_softening_length
 # Simulation options
 fftw_wisdom_rigor = user_params.get('fftw_wisdom_rigor', 'estimate').lower()
+user_params['fftw_wisdom_rigor'] = fftw_wisdom_rigor
 fftw_wisdom_reuse = bool(user_params.get('fftw_wisdom_reuse', True))
+user_params['fftw_wisdom_reuse'] = fftw_wisdom_reuse
 master_seed = to_int(user_params.get('master_seed', 1))
-select_vacuum_corrections = {'all': True}
-if user_params.get('select_vacuum_corrections'):
-    if isinstance(user_params['select_vacuum_corrections'], dict):
-        select_vacuum_corrections = user_params['select_vacuum_corrections']
-        replace_ellipsis(select_vacuum_corrections)
+user_params['master_seed'] = master_seed
+fluid_scheme_select = {'all': 'Kurganov-Tadmor'}
+if user_params.get('fluid_scheme_select'):
+    if isinstance(user_params['fluid_scheme_select'], dict):
+        fluid_scheme_select = user_params['fluid_scheme_select']
+        replace_ellipsis(fluid_scheme_select)
     else:
-        select_vacuum_corrections = {'all': bool(user_params['select_vacuum_corrections'])}
-select_vacuum_corrections = {key: bool(val) for key, val in select_vacuum_corrections.items()}
+        fluid_scheme_select = {'all': user_params['fluid_scheme_select']}
+fluid_scheme_select['default'] = 'Kurganov-Tadmor'
+fluid_scheme_select = {
+    key: str(val).lower().replace(' ', '').replace('-', '')
+    for key, val in fluid_scheme_select.items()
+}
+user_params['fluid_scheme_select'] = fluid_scheme_select
+fluid_options_defaults = {
+    'kurganovtadmor': {
+        'rungekuttaorder': 2,
+        'flux_limiter_select': 'minmod',
+    },
+    'maccormack': {
+        'vacuum_corrections_select'    : True,
+        'max_vacuum_corrections_select': (1, 'gridsize'),
+        'foresight_select'             : 30,
+        'smoothing_select'             : 1,
+    }
+}
+fluid_options = dict(user_params.get('fluid_options', {}))
+fluid_options = {
+    scheme.lower().replace(' ', '').replace('-', ''): {
+        key.lower().replace(' ', '').replace('-', ''): val for key, val in d.items()
+    }
+    for scheme, d in fluid_options.items()
+}
+for scheme, d in fluid_options_defaults.items():
+    fluid_options.setdefault(scheme, d.copy())
+    for key, val in d.items():
+        fluid_options[scheme].setdefault(key, val)
+for scheme, d in fluid_options.items():
+    for key, val in d.copy().items():
+        if isinstance(val, dict):
+            replace_ellipsis(fluid_options[scheme][key])
+        else:
+            fluid_options[scheme][key] = {
+                'all': val,
+            }
+for scheme, d in fluid_options_defaults.items():
+    for key, val in d.items():
+        fluid_options[scheme][key]['default'] = val
+fluid_options['kurganovtadmor']['flux_limiter_select'] = {
+    key: val.lower().replace(' ', '').replace('-', '')
+    for key, val in fluid_options['kurganovtadmor']['flux_limiter_select'].items()
+}
+fluid_options['maccormack']['vacuum_corrections_select'] = {
+    key: bool(val)
+    for key, val in fluid_options['maccormack']['vacuum_corrections_select'].items()
+}
+for key, val in fluid_options['maccormack']['max_vacuum_corrections_select'].copy().items():
+    val = any2list(val)
+    for i, el in enumerate(val):
+        if isinstance(el, str):
+            el = el.lower()
+        else:
+            el = int(np.round(el))
+        val[i] = el
+    if len(val) == 1:
+        val *= 2
+    fluid_options['maccormack']['max_vacuum_corrections_select'][key] = val
+fluid_options['maccormack']['foresight_select'] = {
+    key: int(np.round(val))
+    for key, val in fluid_options['maccormack']['foresight_select'].items()
+}
+fluid_options['maccormack']['smoothing_select'] = {
+    key: float(val)
+    for key, val in fluid_options['maccormack']['smoothing_select'].items()
+}
+user_params['fluid_options'] = fluid_options
 class_reuse = bool(user_params.get('class_reuse', True))
-class_extra_perturbations = set(any2list(user_params.get('class_extra_perturbations', [])))
+user_params['class_reuse'] = class_reuse
+class_extra_perturbations = set(
+    str(el) for el in any2list(user_params.get('class_extra_perturbations', [])) if el
+)
+user_params['class_extra_perturbations'] = class_extra_perturbations
 # Graphics
+terminal_width = to_int(user_params.get('terminal_width', 80))
+user_params['terminal_width'] = terminal_width
+suppress_output = {}
+if 'suppress_output' in user_params:
+    if isinstance(user_params['suppress_output'], str):
+        suppress_output = {'all': {user_params['suppress_output']}}
+    elif isinstance(user_params['suppress_output'], dict):
+        suppress_output = user_params['suppress_output']
+    else:
+        suppress_output = {'all': set(user_params['suppress_output'])}
+suppress_output.setdefault('out', set())
+suppress_output.setdefault('err', set())
+suppress_output.setdefault('all', set())
+for key, val in suppress_output.copy().items():
+    if isinstance(val, str):
+        suppress_output[key] = {val}
+    else:
+        suppress_output[key] = set(val)
+    s = set()
+    for pattern in suppress_output[key]:
+        pattern = str(pattern)
+        if pattern:
+            s.add(pattern)
+    suppress_output[key] = s
+suppress_output['out'] |= suppress_output['all']
+suppress_output['err'] |= suppress_output['all']
+user_params['suppress_output'] = suppress_output
+render2D_options_defaults = {
+    'axis'               : 'z',
+    'extend'             : (0, 0.1*boxsize),
+    'terminal resolution': np.min([terminal_width, φ_gridsize]),
+    'colormap'           : 'inferno',
+    'enhance'            : True,
+}
 render2D_options = dict(user_params.get('render2D_options', {}))
-render2D_options.setdefault('axis', 'z')
-render2D_options.setdefault('extend', (0, 0.05*boxsize))
-render2D_options.setdefault('terminal resolution', np.min([80, φ_gridsize]))
-render2D_options.setdefault('colormap', 'inferno')
-render2D_options.setdefault('enhance', True)
+for key, val in render2D_options_defaults.items():
+    render2D_options.setdefault(key, val)
 for key, val in render2D_options.copy().items():
     if isinstance(val, dict):
         replace_ellipsis(render2D_options[key])
@@ -1842,11 +2047,9 @@ for key, val in render2D_options['extend'].copy().items():
         render2D_options['extend'][key] = (0, val)
     else:
         render2D_options['extend'][key] = (np.min(val), np.max(val))
-render2D_options['axis']['default'] = 'z'
-render2D_options['extend']['default'] = (0, 0.05*boxsize)
-render2D_options['terminal resolution']['default'] = np.min([80, φ_gridsize])
-render2D_options['colormap']['default'] = 'inferno'
-render2D_options['enhance']['default'] = True
+for key, val in render2D_options_defaults.items():
+    render2D_options[key]['default'] = val
+user_params['render2D_options'] = render2D_options
 render3D_colors = {}
 if 'render3D_colors' in user_params:
     if isinstance(user_params['render3D_colors'], dict):
@@ -1855,21 +2058,32 @@ if 'render3D_colors' in user_params:
     else:
         render3D_colors = {'all': user_params['render3D_colors']}
 render3D_colors = {key.lower(): to_rgbα(val, 0.2) for key, val in render3D_colors.items()}
+user_params['render3D_colors'] = render3D_colors
 render3D_bgcolor = to_rgb(user_params.get('render3D_bgcolor', 'black'))
+user_params['render3D_bgcolor'] = render3D_bgcolor
 render3D_resolution = to_int(user_params.get('render3D_resolution', 1080))
-terminal_width = to_int(user_params.get('terminal_width', 80))
+user_params['render3D_resolution'] = render3D_resolution
 # Debugging options
 enable_Hubble = bool(user_params.get('enable_Hubble', True))
+user_params['enable_Hubble'] = enable_Hubble
 enable_class_background = bool(user_params.get('enable_class_background', True))
+user_params['enable_class_background'] = enable_class_background
 enable_Ewald = bool(user_params.get('enable_Ewald',  # !!! Only used by gravity_old.py
                                     True if 'pp' in list(itertools.chain.from_iterable(d.values() for d in select_forces.values())) else False))
+user_params['enable_Ewald'] = enable_Ewald
 enable_debugging = bool(user_params.get('enable_debugging', False))
+user_params['enable_debugging'] = enable_debugging
 # Additional, hidden parameters (parameters not supplied by the user)
 special_params = dict(user_params.get('special_params', {}))
+user_params['special_params'] = special_params
 output_times_full = dict(user_params.get('output_times_full', {}))
+user_params['output_times_full'] = output_times_full
 initial_time_step = to_int(user_params.get('initial_time_step', 0))
+user_params['initial_time_step'] = initial_time_step
 Δt_begin_autosave = float(user_params.get('Δt_begin_autosave', -1))
+user_params['Δt_begin_autosave'] = Δt_begin_autosave
 Δt_autosave = float(user_params.get('Δt_autosave', -1))
+user_params['Δt_autosave'] = Δt_autosave
 
 
 
@@ -1895,18 +2109,26 @@ vector_mv = cast(vector, 'double[:3]')
 # These are stored in the following struct.
 # Note that you should never use the universals_dict, as updates to
 # universals are not reflected in universals_dict.
+# For char* fields however, we will use universals_dict
+# instead of universals.
 universals, universals_dict = build_struct(
     # Flag specifying whether any warnings have been given
     any_warnings=('bint', False),
-    # Scale factor and cosmic time
+    # Current scale factor and cosmic time
     a=('double', a_begin),
     t=('double', t_begin),
     # Initial time of simulation
     a_begin=('double', a_begin),
     t_begin=('double', t_begin),
     z_begin=('double', (ထ if a_begin == 0 else 1/a_begin - 1)),
-    # The current time step
+    # Scale factor and cosmic time at next time step
+    a_next='double',
+    t_next='double',
+    # Current time step
     time_step=('Py_ssize_t', 0),
+    # '+'-separated strings of CO𝘕CEPT/CLASS species present in the simulation
+    species_present='char*',
+    class_species_present='char*',
 )
 
 
@@ -1936,6 +2158,32 @@ cython.declare(snapshot_dir=str,
                p3m_cutoff_phys='double',
                p3m_scale_phys='double',
                )
+# Output times not explicitly written as either of type 'a' or 't'
+# is understood as being of type 'a' when Hubble expansion is enabled
+# and of type 't' if it is disabled.
+for time_param in ('a', 't'):
+    output_times[time_param] = dict(output_times.get(time_param, {}))
+    replace_ellipsis(output_times[time_param])
+default_time_param = 'a' if enable_Hubble else 't'
+for key, val in output_times.items():
+    if key not in ('a', 't'):
+        output_times[default_time_param][key] = tuple(
+            any2list(output_times[default_time_param].get(key, [])) + any2list(val)
+        )
+for time_param in ('a', 't'):
+    output_times[time_param] = dict(output_times.get(time_param, {}))
+    for kind in ('snapshot', 'powerspec', 'render2D', 'render3D'):
+        output_times[time_param][kind] = output_times[time_param].get(kind, ())
+output_times = {
+    time_param: {
+        key: tuple(sorted(set([
+            float(eval_unit(nr) if isinstance(nr, str) else nr)
+            for nr in any2list(val)
+            if nr or nr == 0])))
+        for key, val in output_times[time_param].items()
+    }
+    for time_param in ('a', 't')
+}
 # Extract output variables from output dicts
 snapshot_dir = output_dirs['snapshot']
 snapshot_base = output_bases['snapshot']
@@ -2043,6 +2291,10 @@ units_dict.setdefault(unicode('ထ')        , ထ        )
 # Add everything from NumPy
 for key, val in vars(np).items():
     units_dict.setdefault(key, val)
+# Overwrite the NumPy min and max function with NumPy and
+# builtin hybrid min and max functions.
+units_dict['min'] = produce_np_and_builtin_function('min')
+units_dict['max'] = produce_np_and_builtin_function('max')
 # Add everything from the math module
 for key, val in vars(math).items():
     units_dict.setdefault(key, val)
@@ -2132,6 +2384,10 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node'):
     if extra_params is None:
         extra_params = {}
     mode = mode.lower()
+    # Set the perturbations_verbose to some negative integer,
+    # which is not a standard CLASS value but is used to signal
+    # printout for the MPI class implementation.
+    extra_params.setdefault('perturbations_verbose', -1)
     # Merge global and extra CLASS parameters
     params_specialized = class_params.copy()
     params_specialized.update(extra_params)
@@ -2345,6 +2601,20 @@ else:
                 m = a[i]
         return m
     """
+
+# Max function for pairs of numbers
+@cython.header(a=number, b=number, returns=number)
+def pairmax(a, b):
+    if a > b:
+        return a
+    return b
+
+# Min function for pairs of numbers
+@cython.header(a=number, b=number, returns=number)
+def pairmin(a, b):
+    if a < b:
+        return a
+    return b
 
 # Modulo function for numbers
 if not cython.compiled:
@@ -2803,23 +3073,31 @@ if a_begin <= 0:
     abort(
         f'Beginning of simulation set to a = {a_begin}, but 0 < a is required'
     )
-# Abort on negative t_begin when running a cosmological simulation
-if enable_Hubble and t_begin < 0:
-    abort(
-        f'Cannot start the cosmological simulation at t = {t_begin} {unit_time} '
-        f'as this is prior to the Big Bang at t = 0.\n'
-        f'To run a non-cosmological simulation, set enable_Hubble to False.'
-    )
+# Abort on negative t_begin when running a cosmological simulation.
+# Even in a non-cosmological context, negative t_begin might
+# cause trouble, so we print a warning here.
+if t_begin < 0:
+    if enable_Hubble:
+        abort(
+            f'Cannot start the cosmological simulation at t = {t_begin} {unit_time} '
+            f'as this is prior to the Big Bang at t = 0. '
+            f'To run a non-cosmological simulation, set enable_Hubble to False.'
+        )
+    else:
+        masterwarn(
+            f'The simulation start at t = {t_begin} {unit_time} < 0. '
+            f'Negative times might lead to unexpected behavior.'
+        )
 
 
 
 ###########################################################
 # Functionality for "from commons import *" when compiled #
 ###########################################################
-# Function which floods the current module namespace with variables from
-# the uncompiled version of this module. This is effectively equivalent
-# to "from commons import *", except that the uncompiled version is
-# guaranteed to be used.
+# Function which floods the module namespace of the caller with
+# variables from the uncompiled version of this module.
+# This is effectively equivalent to "from commons import *",
+# except that the uncompiled version is guaranteed to be used.
 def commons_flood():
     if cython.compiled:
         with suppress_stdout():
@@ -2827,12 +3105,24 @@ def commons_flood():
                 'commons_pure_python',
                 '{}/commons.py'.format(paths['concept_dir']),
             )
-        inspect.getmodule(inspect.stack()[-1][0]).__dict__.update(commons_module.__dict__)
+        stack = inspect.stack()
+        if len(stack) == 1:
+            frame = stack[0].frame
+        else:
+            frame = stack[1].frame
+        try:
+            inspect.getmodule(frame).__dict__.update(commons_module.__dict__)
+        except:
+            pass
+        try:
+            frame.f_locals.update(commons_module.__dict__)
+        except:
+            pass
     else:
         # Running in pure Python mode.
         # It is assumed that "from commons import *" has already
         # been run, leaving nothing to do.
-        ...
+        pass
 
 
 

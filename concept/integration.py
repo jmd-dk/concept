@@ -25,7 +25,7 @@
 from commons import *
 
 # Cython imports
-cimport('from communication import smart_mpi')
+cimport('from communication import get_buffer, smart_mpi')
 
 # Function pointer types used in this module
 pxd('ctypedef double (*func_d_dd) (double, double)')
@@ -38,18 +38,7 @@ pxd('ctypedef double (*func_d_dd) (double, double)')
 @cython.cclass
 class Spline:
     # Initialization method
-    @cython.header(# Arguments
-                   x='double[::1]',
-                   y='double[::1]',
-                   # Locals
-                   doppelgängers='Py_ssize_t',
-                   i='Py_ssize_t',
-                   index='Py_ssize_t',
-                   j='Py_ssize_t',
-                   rel_tol='double',
-                   size='Py_ssize_t',
-                   x_prev='double',
-                   )
+    @cython.header(x='double[::1]', y='double[::1]')
     def __init__(self, x, y):
         # Here x and y = y(x) are the tabulated data.
         # The values in x must be in increasing order.
@@ -61,64 +50,33 @@ class Spline:
         """
         double xmin
         double xmax
-        double abs_tol
+        double abs_tol_min
+        double abs_tol_max
         gsl_interp_accel* acc
         gsl_spline* spline
         """
-        global x_spline, x_spline_ptr, y_spline, y_spline_ptr
         # The size of the data
-        size = x.shape[0]
-        if size != y.shape[0]:
-            abort(f'A Spline object cannot be tabulated using arrays of different lengths. '
-                  f'Arrays of lengths {x.shape[0]} and {y.shape[0]} were passed.'
-                  )
-        if size < 3:
-            abort(f'Too few tabulated values ({size}) were given for '
-                  f'cubic spline interpolation. At least 3 is needed.'
-                  )
-        # Check that the passed x values are strictly increasing.
-        # Also, it may happen that two consecutive x values are
-        # exactly equal (we will refer to such pairs as doppelgängers).
-        # Such doppelgängers should be reduced to single points.
-        # As we are generally not allowed to mutate the passed arrays,
-        # dedicated global arrays will be used for this.
-        doppelgängers = 0
-        x_prev = x[0]
-        for i in range(1, size):
-            if ℝ[x[i]] < x_prev:
-                abort('Passed x values to Spline was not in increasing order.')
-            elif ℝ[x[i]] == x_prev:
-                # Pair of doppelgängers found
-                doppelgängers += 1
-                if doppelgängers == 1:
-                    # Copy the data points visited so far
-                    # into the global arrays.
-                    if x_spline.shape[0] < size:
-                        x_spline_ptr = realloc(x_spline_ptr, size*sizeof('double'))
-                        y_spline_ptr = realloc(y_spline_ptr, size*sizeof('double'))
-                        x_spline = cast(x_spline_ptr, 'double[:size]')
-                        y_spline = cast(y_spline_ptr, 'double[:size]')
-                    for j in range(i):
-                        x_spline_ptr[j] = x[j]
-                        y_spline_ptr[j] = y[j]
-            elif doppelgängers:
-                # If any doppelgängers were previously found,
-                # copy the i'th element of the passed arrays into
-                # the correct slot in the global arrays.
-                index = i - doppelgängers
-                x_spline_ptr[index] = ℝ[x[i]]
-                y_spline_ptr[index] =   y[i]
-            # Remember this x value
-            x_prev = ℝ[x[i]]
-        if doppelgängers:
-            size -= doppelgängers
-            x = x_spline[:size]
-            y = y_spline[:size]
+        if x.shape[0] != y.shape[0]:
+            abort(
+                f'A Spline object cannot be tabulated using arrays of different lengths. '
+                f'Arrays of lengths {x.shape[0]} and {y.shape[0]} were passed.'
+            )
+        if x.shape[0] < 3:
+            abort(
+                f'Too few tabulated values ({x.shape[0]}) were given for '
+                f'cubic spline interpolation. At least 3 is needed.'
+            )
+        # Check that the passed x values are strictly increasing and
+        # remove doppelgänger points. Note that this does not mutate the
+        # passed x and y arrays, and so the new x and y refer to
+        # different underlying data.
+        x, y = remove_doppelgängers(x, y)
         # Store meta data
         self.xmin = x[0]
-        self.xmax = x[size - 1]
-        rel_tol = 1e-9
-        self.abs_tol = rel_tol*(self.xmax - self.xmin)
+        self.xmax = x[x.shape[0] - 1]
+        abs_tol = 1e-9*(self.xmax - self.xmin) + machine_ϵ
+        self.abs_tol_min = abs_tol + 0.5*(x[1] - self.xmin)
+        self.abs_tol_max = abs_tol + 0.5*(self.xmax - x[x.shape[0] - 2])
         # Use SciPy in pure Python and GSL when compiled
         if not cython.compiled:
             # Initialize the spline.
@@ -134,9 +92,9 @@ class Spline:
             # Allocate an interpolation accelerator
             # and a (cubic) spline object.
             self.acc = gsl_interp_accel_alloc()
-            self.spline = gsl_spline_alloc(gsl_interp_cspline, size)
+            self.spline = gsl_spline_alloc(gsl_interp_cspline, x.shape[0])
             # Initialize the spline
-            gsl_spline_init(self.spline, cython.address(x[:]), cython.address(y[:]), size)
+            gsl_spline_init(self.spline, cython.address(x[:]), cython.address(y[:]), x.shape[0])
 
     # Method for doing spline evaluation
     @cython.pheader(x='double',
@@ -209,14 +167,14 @@ class Spline:
         # interpolation interval. If it is just barely outside of it,
         # move it to the boundary.
         if x < self.xmin:
-            if x > self.xmin - self.abs_tol:
+            if x > self.xmin - self.abs_tol_min:
                 x = self.xmin
             else:
                 abort('Could not {} {} because it is outside the tabulated interval [{}, {}].'
                       .format(action, x, self.xmin, self.xmax)
                       )
         elif x > self.xmax:
-            if x < self.xmax + self.abs_tol:
+            if x < self.xmax + self.abs_tol_max:
                 x = self.xmax
             else:
                 abort('Could not {} {} because it is outside the tabulated interval [{}, {}].'
@@ -230,16 +188,171 @@ class Spline:
         # Free the accelerator and the spline object
         gsl_spline_free(self.spline)
         gsl_interp_accel_free(self.acc)
-# Arrays used by the Spline class
-cython.declare(x_spline='double[::1]',
-               x_spline_ptr='double*',
-               y_spline='double[::1]',
-               y_spline_ptr='double*',
-               )
-x_spline_ptr = malloc(3*sizeof('double'))
-y_spline_ptr = malloc(3*sizeof('double'))
-x_spline = cast(x_spline_ptr, 'double[:3]')
-y_spline = cast(y_spline_ptr, 'double[:3]')
+
+# Function for cleaning up arrays of points possibly containing
+# duplicate points.
+@cython.header(
+    # Arguments
+    xs='object',  # double[::1] or tuple or list of double[::1]
+    y='double[::1]',
+    rel_tol='double',
+    # Locals
+    accepted_indices='Py_ssize_t[::1]',
+    i='Py_ssize_t',
+    index='Py_ssize_t',
+    j='Py_ssize_t',
+    multiple_x_passed='bint',
+    size='Py_ssize_t',
+    sizes=tuple,
+    x='double[::1]',
+    x_arrays=list,
+    x_cleaned='double[::1]',
+    x_cleaned_arrays=list,
+    x_prev='double',
+    xdiff='double',
+    xdiff_prev='double',
+    y_cleaned='double[::1]',
+    returns=tuple,
+)
+def remove_doppelgängers(xs, y, rel_tol=1e-3):
+    """Given arrays of x and y values, this function checks for
+    doppelgängers in the x values, meaning consecutive x values that are
+    exactly or very nearly equal. New arrays with with doppelgängers
+    removed to single points will be returned.
+    The relative tolerence used in determining doppelgängers is given
+    by rel_tol.
+    For this function to work, the x values must be in increasing order.
+    The passed x and y will not be modified. Note that this function
+    reuses the same buffer for all returned arrays, meaning that if you
+    call this function multiple times, the returned arrays will point to
+    the same underlying data.
+    """
+    global accepted_indices_ptr, accepted_indices_size
+    # Pack xs into a list of x arrays
+    if isinstance(xs, (tuple, list)):
+        x_arrays = list(xs)
+        multiple_x_passed = True
+    else:
+        x_arrays = [xs]
+        multiple_x_passed = False
+    # All the x arrays should have the same size,
+    # and the y array must be at least as large.
+    sizes = tuple({x.shape[0] for x in x_arrays})
+    if len(sizes) > 1:
+        abort(
+            f'The x arrays passed to remove_doppelgängers() do not all have '
+            f'the same size {sizes}'
+        )
+    size = sizes[0]
+    if y.shape[0] < size:
+        abort(
+            f'The y array passed to remove_doppelgängers() must have at least the same number '
+            f'of elements as that of the passed x array(s) ({size}), '
+            f'but it only has {y.shape[0]} elements'
+        )
+    y = y[:size]
+    # Fetch buffers for storing the cleaned up versions of the arrays
+    x_cleaned_arrays = [get_buffer(size, f'remove_doppelgängers (x_cleaned {i})')
+        for i in range(len(x_arrays))
+    ]
+    y_cleaned = get_buffer(size, 'remove_doppelgängers (y_cleaned)')
+    # No cleanup is required if a single
+    # or no points exist in the passed data.
+    if size < 2:
+        for x, x_cleaned in zip(x_arrays, x_cleaned_arrays):
+            x_cleaned[:] = x
+        y_cleaned[:] = y
+        if multiple_x_passed:
+            return [asarray(x_cleaned) for x_cleaned in x_cleaned_arrays], asarray(y_cleaned)
+        else:
+            return asarray(x_cleaned), asarray(y_cleaned)
+    # Check that the x values are in increasing order
+    for x in x_arrays:
+        x_prev = x[0]
+        for i in range(1, size):
+            if ℝ[x[i]] < x_prev:
+                abort(
+                    'The values in (one of) the x array(s) passed to remove_doppelgängers() '
+                    'are not in increasing order'
+                )
+            x_prev = ℝ[x[i]]
+    # Loop from right to left, checking for doppelgängers
+    # using the first passed x array.
+    if accepted_indices_size < size:
+        accepted_indices_ptr = realloc(accepted_indices_ptr, size*sizeof('Py_ssize_t'))
+        accepted_indices_size = size
+    accepted_indices = cast(accepted_indices_ptr, 'Py_ssize_t[:size]')
+    for index in range(size - 1, size - 3, -1):
+        accepted_indices[index] = index
+    x = x_arrays[0]
+    x_prev = x[index]
+    xdiff_prev = x[size - 1] - x_prev
+    index -= 1
+    for i in range(size - 3, -1, -1):
+        xdiff = x_prev - x[i]
+        if xdiff > rel_tol*xdiff_prev:
+            # Accept this point
+            accepted_indices[index] = i
+            index -= 1
+            x_prev = x[i]
+            xdiff_prev = xdiff
+    # Copy accepted points to the cleaned arrays
+    accepted_indices = accepted_indices[index+1 :]
+    size = accepted_indices.shape[0]
+    for j, (x, x_cleaned) in enumerate(zip(x_arrays, x_cleaned_arrays)):
+        for i in range(size):
+            x_cleaned[i] = x[accepted_indices[i]]
+        x_cleaned_arrays[j] = x_cleaned[:size]
+    for i in range(size):
+        y_cleaned[i] = y[accepted_indices[i]]
+    y_cleaned = y_cleaned[:size]
+    # Always include the first point
+    for x, x_cleaned in zip(x_arrays, x_cleaned_arrays):
+        x_cleaned[0] = x[0]
+    y_cleaned[0] = y[0]
+    # Let x and y point to the cleaned up versions of these arrays
+    for i, x_cleaned in enumerate(x_cleaned_arrays):
+        x_arrays[i] = x_cleaned
+    y = y_cleaned
+    # Loop from left to right, checking for doppelgängers
+    # using the first passed x array.
+    for index in range(2):
+        accepted_indices[index] = index
+    x = x_arrays[0]
+    x_prev = x[1]
+    xdiff_prev = x_prev - x[0]
+    index += 1
+    for i in range(2, x.shape[0]):
+        xdiff =  ℝ[x[i]] - x_prev
+        if xdiff > rel_tol*xdiff_prev:
+            # Accept this point
+            accepted_indices[index] = i
+            index += 1
+            x_prev = ℝ[x[i]]
+            xdiff_prev = xdiff
+    # Copy accepted points to the cleaned arrays
+    size = index
+    accepted_indices = accepted_indices[:size]
+    for j, x_cleaned in enumerate(x_cleaned_arrays):
+        for i in range(size):
+            x_cleaned[i] = x_cleaned[accepted_indices[i]]
+        x_cleaned_arrays[j] = x_cleaned[:size]
+    for i in range(size):
+        y_cleaned[i] = y_cleaned[accepted_indices[i]]
+    y_cleaned = y_cleaned[:size]
+    # Always include the last point
+    for x, x_cleaned in zip(x_arrays, x_cleaned_arrays):
+        x_cleaned[ℤ[size - 1]] = x[ℤ[y.shape[0] - 1]]
+    y_cleaned[ℤ[size - 1]] = y[ℤ[y.shape[0] - 1]]
+    # Return the cleaned arrays
+    if multiple_x_passed:
+        return x_cleaned_arrays, asarray(y_cleaned)
+    else:
+        return asarray(x_cleaned_arrays[0]), asarray(y_cleaned)
+# Pointer used by the remove_doppelgängers function
+cython.declare(accepted_indices_ptr='Py_ssize_t*', accepted_indices_size='Py_ssize_t')
+accepted_indices_size = 3
+accepted_indices_ptr = malloc(accepted_indices_size*sizeof('Py_ssize_t'))
 
 # This function implements the Hubble parameter H(a)=ȧ/a,
 # The Hubble parameter is only ever written here. Every time the Hubble
@@ -650,8 +763,7 @@ def scalefactor_integral(key):
                 ẇ = component.ẇ(t=t, a=a)
                 integrand_tab[i] = ẇ*log(a)
             elif master:
-                abort('The scalefactor integral with "{}" as the integrand is not implemented'
-                      .format(integrand))
+                abort(f'The scalefactor integral with "{integrand}" as the integrand is not implemented')
     # Do the integration over the entire tabulated integrand
     spline = Spline(t_tab_mv[:size_tab], integrand_tab_mv[:size_tab])
     return spline.integrate(t_tab[0], t_tab[size_tab - 1])
@@ -698,15 +810,15 @@ def initiate_time():
             spline_a_H = Spline(a_values, H_values)
         # A specification of initial scale factor or
         # cosmic time is needed.
-        if 'a_begin' in user_params:
+        if 'a_begin' in user_params_keys_raw:
             # a_begin specified
-            if 't_begin' in user_params:
+            if 't_begin' in user_params_keys_raw:
                 # t_begin also specified
                 masterwarn('Ignoring t_begin = {}*{} becuase enable_Hubble is True '
                            'and a_begin is specified'.format(t_begin, unit_time))
             a_begin_correct = a_begin
             t_begin_correct = cosmic_time(a_begin_correct)
-        elif 't_begin' in user_params:
+        elif 't_begin' in user_params_keys_raw:
             # a_begin not specified, t_begin specified
             t_begin_correct = t_begin
             a_begin_correct = scale_factor(t_begin_correct)
@@ -722,7 +834,7 @@ def initiate_time():
         # are meaningless. Set a_begin to unity,
         # effectively ignoring its existence.
         a_begin_correct = 1.0
-        if 'a_begin' in user_params:
+        if 'a_begin' in user_params_keys_raw:
             masterwarn('Ignoring a_begin = {} because enable_Hubble is False'.format(a_begin))
     # Now t_begin_correct and a_begin_correct are defined and store
     # the actual values of the initial time and scale factor.

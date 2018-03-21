@@ -334,13 +334,14 @@ endif
 ###########################
 # Additional dependencies #
 ###########################
+# Additional target dependencies
+$(foreach ext,c html,$(addsuffix .$(ext), mesh)): fft.c
 # Target dependencies which strictly speaking should be
 # taken into account, but can be ignored using the --unsafe-build flag.
 ifneq ($(unsafe_build),True)
-    # Because modules cimport stuff from each other, some .c (and therefore
-    # also .html) files depend on the .pxd files of other modules.
-    # Unless unsafe_build is explicitly set to False,
-    # we let all .c and .html files depend on all .pxd files.
+    # Because modules cimport stuff from each other, some .c
+    # (and therefore also .html) files depend on the .pxd files of
+    # other modules.
     $(foreach ext,c html,$(addsuffix .$(ext), $(pyfiles))): $(addsuffix .pxd, $(pyfiles))
     # Every module cimport everything from the commons module.
     # The commons module is also needed when building the types file.
@@ -350,15 +351,11 @@ ifneq ($(unsafe_build),True)
     # .pxd files, .c files and the types file.
     $(foreach ext,pyx pxd c,$(addsuffix .$(ext), $(pyfiles))): $(pyxpp)
     $(types): $(pyxpp)
-    # The types file potentially depend on all .pyx files.
-    # We have to put this dependency here, as we do not wish
-    # to rebuild the types file when in unsafe mode.
+    # The types file potentially depend on all .pyx files
     $(types): $(addsuffix .pyx, $(pyfiles))
     # Let the bottom of the build chain depend on this makefile itself
     $(addsuffix .pyx, $(pyfiles)): $(MAKEFILE_LIST)
 endif
-# Additional target dependencies
-$(foreach ext,c html,$(addsuffix .$(ext), mesh)): fft.c
 
 
 

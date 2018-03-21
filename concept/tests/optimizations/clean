@@ -22,40 +22,10 @@
 
 
 
-# This script performs a drift test of a fluid with a spatially
-# homogeneus velocity field. Gravity is disabled.
-
-# Absolute path and name of the directory of this file
+# This script does cleanup after a test
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-this_test="$(basename "${this_dir}")"
-
-# Set up error trapping
-ctrl_c()
-{
-    trap : 0
-    exit 2
-}
-abort()
-{
-    colorprint "An error occurred during ${this_test} test!" "red"
-    exit 1
-}
-trap 'ctrl_c' SIGINT
-trap 'abort' EXIT
-set -e
-
-# Cleanup from last test run
-"${this_dir}/clean"
-
-# Generate ICs
-"${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local
-
-# Run the CO𝘕CEPT code on the fluid ICs
-"${concept}" -n 1 -p "${this_dir}/params" --local
-
-# Analyze the output snapshots
-"${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
-
-# Test ran successfully. Deactivate traps.
-trap : 0
+(cd "${this_dir}" && rm -rf output                       \
+                            output_without_optimizations \
+                            output_with_optimizations    \
+ )
 

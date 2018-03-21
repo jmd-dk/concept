@@ -84,7 +84,7 @@ parser = argparse.ArgumentParser(prog='$(basename "${this_file}")',
                                  description='Run the CO𝘕CEPT $(basename "${this_file}") utility')
 parser.add_argument('jobid',
                     default='__none__',
-                    help='jobid of the submitted CO𝘕CEPT PBS job to watch',
+                    help='jobid of the submitted CO𝘕CEPT Slurm or TORQUE/PBS job to watch',
                     nargs='?',
                     )
 # Enables Python to write directly to screen (stderr)
@@ -135,7 +135,7 @@ if [ -z "${resource_manager}" ]; then
     colorprint "Error: No resource manager found" "red"
     exit 1
 fi
-# Check for the command which prints information about jobs
+# Resource manager dependent setup
 if [ "${resource_manager}" == "slurm" ]; then
     # Slurm is used. Check for the squeue command.
     info_command="squeue"
@@ -143,6 +143,8 @@ if [ "${resource_manager}" == "slurm" ]; then
         colorprint "Error: Could not find the slurm '${info_command}' command" "red"
         exit 1
     fi
+    # State designating a running job
+    state_running="R"
 elif [ "${resource_manager}" == "torque" ]; then
     # Torque/PBS is used. Check for the qstat command.
     info_command="qstat"
@@ -150,6 +152,7 @@ elif [ "${resource_manager}" == "torque" ]; then
         colorprint "Error: Could not find the torque/PBS '${info_command}' command" "red"
         exit 1
     fi
+    state_running="R"
 else
     colorprint "Error: Unrecognized resource manager \"${resource_manager}\"" "red"
     exit 1
@@ -164,8 +167,6 @@ my_username="${my_username:0:15}"
 # Function that update the state variable
 update_job_info()
 {
-    # Remove possible suffix on jobid
-    jobid="${jobid%.*}"
     # Aquire information about submitted jobs.
     # Revert the output so that the newest jobs are in the top.
     info="$(${info_command} | tac)"
@@ -258,10 +259,24 @@ if [ "${jobid}" == "__none__" ]; then
                     state_i="$(echo "${line}" | awk '{print $5}')"
                     queue_i="$(echo "${line}" | awk '{print $6}')"
                 fi
-                if [ ${Njobs} == 1 ] || [ "${state_i}" == "R" ]; then
+                if [ ${Njobs} -eq 1 ]; then
+                    # First CO𝘕CEPT job encountered
                     jobid="${jobid_i}"
                     state="${state_i}"
                     queue="${queue_i}"
+                else
+                    # Another CO𝘕CEPT job encountered
+                    if [ "${state}" == "${state_running}" ]; then
+                        if [ "${state_i}" == "${state_running}" ] && [ ${jobid_i} -ge ${jobid} ]; then
+                            jobid="${jobid_i}"
+                            state="${state_i}"
+                            queue="${queue_i}"
+                        fi
+                    else
+                        jobid="${jobid_i}"
+                        state="${state_i}"
+                        queue="${queue_i}"
+                    fi
                 fi
             fi
         fi
@@ -274,11 +289,17 @@ if [ "${jobid}" == "__none__" ]; then
         exit 1
     elif [ ${Njobs} -gt 1 ]; then
         printf "You currently have ${Njobs} CO𝘕CEPT jobs submitted.\n"
-        printf "The latest job that is still running (${jobid}) will be watched.\n"
+        if [ "${state}" == "${state_running}" ]; then
+            printf "The latest running job (${jobid}) will be watched.\n"
+        else
+            printf "The latest job (${jobid}) will be watched.\n"
+        fi
         sleep 1
     fi
 else
-    jobid="$1"
+    # If jobid is passed as a path to the log file,
+    # keep only the basename.
+    jobid="$(basename "${jobid}")"
     # Remove possible suffix on jobid
     jobid="${jobid%.*}"
     update_job_info
@@ -367,22 +388,22 @@ inform_on_new_state
 sleep 1
 
 # Wait until job is running
-if [ "${state}" != "R" ]; then
+if [ "${state}" != "${state_running}" ]; then
     check_suddenly_finished
     sleep ${sleep_barely}
     check_suddenly_finished
-    if [ "${state}" != "R" ]; then
+    if [ "${state}" != "${state_running}" ]; then
         # Wait a small time before calling the info command again
         sleep ${sleep_little}
         check_suddenly_finished
-        while [ "${state}" != "R" ] ; do   
+        while [ "${state}" != "${state_running}" ] ; do   
             # Wait a long time before calling the info command again
             sleep ${sleep_much}
             check_suddenly_finished
         done
     fi
 fi
-state_last="R"
+state_last="${state_running}"
 
 # Job running. Wait for log file to be created.
 if [ ! -f "${logs_dir}/${jobid}" ]; then

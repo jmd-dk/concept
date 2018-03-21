@@ -25,9 +25,6 @@
 # This script runs the CO𝘕CEPT code.
 # Run the script with the -h option to get help.
 
-# Set environment variables
-:
-
 # Unless this file is being sourced,
 # automatically export all variables when set.
 being_sourced="True"
@@ -84,6 +81,9 @@ while :; do
     fi
     curr="$(dirname "${curr}")"
 done
+
+# Load environment variables from the .env file
+source "${env_file}"
 
 # The time before any computation begins.
 # This time is saved both in seconds after the Unix epoch
@@ -786,6 +786,8 @@ order = (# Test whether the code is able to compile and run
          'fluid_vacuum',
          'fluid_vs_particles',
          'fluid_pressure',
+         # Test whether the optimizations introduces bugs
+         'optimizations',
          # Tests of other functionality
          'render',
          )
@@ -833,6 +835,12 @@ remote="False"
 if [ "${local}" == "False" ] && [ "${test}" == "${test_unspecified}" ] \
                              && [ "${ssh}" == "True" ]; then
     remote="True"
+fi
+
+# Cannot run in interactive mode when running remotely
+if [ "${remote}" == "True" ] && [ "${interactive}" == "True" ]; then
+    colorprint "Cannot run in interactive mode when run remotely" "red"
+    exit 1
 fi
 
 # If run locally, set the number of OpenMP threads
@@ -1056,7 +1064,6 @@ ${jobscript_header}
 source \"${concept}\"
 
 # Variables
-interactive=\"${interactive}\"
 logs_dir=\"${logs_dir}\"
 logs_dir_rel=\"${logs_dir_rel}\"
 main=\"${main}\"
@@ -1121,16 +1128,12 @@ else
         fi
     fi
 fi
-i_flag=\"\"
-if [ \"\${interactive}\" == \"True\" ]; then
-    i_flag=\"-i\"
-fi
 
 # Run the code. Both stdout and stderr are being logged
 # to logs_dir/jobid, while the stderr alone is also logged
 # to logs_dir/jobid_err.
 (cd \"\${concept_dir}\" && \"\${mpiexec}\" \${mpiexec_args}                                  \\
-                                           \"\${python}\" -B \${i_flag}                      \\
+                                           \"\${python}\" -B                                 \\
                                                           \${m_flag} \"\${main_as_library}\" \\
                                                           \"params='\${params}'\"            \\
                                                           \"params_cp='\${params_cp}'\"      \\
@@ -1281,13 +1284,16 @@ else
     fi
     # Run complete. Do cleanup.
     rm -f "${exit_code_filename}"
-    if [ -f "${logs_dir}/${jobid}_err" ] && [ ! -s "${logs_dir}/${jobid}_err" ]; then
-        # Remove error log if empty
-        rm "${logs_dir}/${jobid}_err"
-    else
-        colorprint "\nSome warnings/errors occured during CO𝘕CEPT run!\n\
+    if [ -f "${logs_dir}/${jobid}_err" ]; then
+        if (   [ ! -s "${logs_dir}/${jobid}_err" ] \
+            || ! grep -v '>>>' "${logs_dir}/${jobid}_err" >/dev/null 2>&1); then
+            # Remove error log if empty
+            rm "${logs_dir}/${jobid}_err"
+        else
+            colorprint "\nSome warnings/errors occured during CO𝘕CEPT run!\n\
 Check the following error log for more information:\n\
 \"${logs_dir}/${jobid}_err\"" "red" 2>&1 | tee -a "${logs_dir}/${jobid}" 1>&2
+        fi
     fi
     # If the CO𝘕CEPT run exited erroneously, exit now
     if [ "${exit_code}" != "0" ]; then
