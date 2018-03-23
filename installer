@@ -233,15 +233,15 @@ set_version "python"          "3.6.4"
 set_version "zlib"            "1.2.11" "1.2.8"
 # Python packages
 set_version "blessings"     "1.6.1"
-set_version "cython"        "0.27.3"
+set_version "cython"        "0.27.3"  # 0.28.1 prints a lot of annoying warnings. Maybe fixed in 0.28.2
 set_version "cythongsl"     "0.2.2"
 set_version "h5py"          "2.7.1"
-set_version "matplotlib"    "2.1.2"
+set_version "matplotlib"    "2.2.2"
 set_version "mpi4py"        "3.0.0"
 set_version "nose"          "1.3.7"
-set_version "numpy"         "1.14.0"
+set_version "numpy"         "1.14.2"
 set_version "parameterized" "0.6.1"
-set_version "pytest"        "3.4.1"
+set_version "pytest"        "3.4.2"
 set_version "scipy"         "1.0.0"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
@@ -2813,7 +2813,7 @@ fi
 # ncurses
 if [ "${ncurses_install}" == "yes" ] && [ "${ncurses_installed}" == "no" ]; then
     init_install "ncurses"
-    # Do to a bug in (at least) ncurses 6.0, this is needed on
+    # Due to a bug in (at least) ncurses 6.0, this is needed on
     # some systems. See https://trac.sagemath.org/ticket/19762
     export CPPFLAGS="-P"
     ./configure --with-shared --prefix="${ncurses_dir}" 2>&1
@@ -2821,20 +2821,15 @@ if [ "${ncurses_install}" == "yes" ] && [ "${ncurses_installed}" == "no" ]; then
     make ${make_jobs} install 2>&1
     if [ "${fast_install}" == "no" ]; then
         disable_status
-        set +e
-        (sleep ${sleep_time}; echo "q") | "test/worm" -number 7 > /dev/tty 2>&1
-        ncurses_test_exitcode=$?
-        set -e
+        (sleep ${sleep_time}; echo "q") | "test/worm" -n 7 > "/dev/tty" 2>&1 \
+            || ncurses_test_success="no"
         enable_status
-        if [ ${ncurses_test_exitcode} != 0 ]; then
-            ncurses_test_success="no"
-        fi
     fi
     # Additional test run needed (if the first failed), as the one 
     # above do not use tee (as it ruins the display).
     if [ "${fast_install}" == "no" ] && [ "${ncurses_test_success}" == "no" ]; then
         disable_status
-        (sleep ${sleep_time}; echo "q") | "test/worm" -number 7 > "test_log" 2>&1 || :
+        (sleep ${sleep_time}; echo "q") | "test/worm" -n 7 > "test_log" 2>&1 || :
         enable_status
     fi
     ncurses_test_log="${ncurses_dir}/include/ncurses/test_log"
@@ -3202,6 +3197,40 @@ pip_download()
     fi
 }
 
+# Function for detecting when the current process appears to hang.
+# When an apparent hang is detected, a soothing message is displaayed.
+# This should be used when installing Python packages, as pip/setuptools
+# sometimes has this bad hanging behaviour, especially for particular
+# packages, such as h5py. This function should not be called in a
+# situation where you do not believe that the hang is only apparent.
+soothe(){
+    # Argument: PID of background process on which to wait
+    soothe_pid=$1
+    # A long wait is detected by repeatedly
+    # checking the size of the log file generated
+    # by this installation script.
+    soothe_update_time=300
+    (
+    log_size_last=-1;                                                                        \
+    log_size=$(du -b "${log}" | awk '{print $1}');                                           \
+    while :; do                                                                              \
+        sleep ${soothe_update_time};                                                         \
+        log_size_new=$(du -b "${log}" | awk '{print $1}');                                   \
+        if [ ${log_size} -eq ${log_size_new} ] && [ ${log_size} -ne ${log_size_last} ]; then \
+            printf "\nThe next step may take an unreasonable amount of time.
+Please be patient ...\n";                                                                    \
+            sleep 5;                                                                         \
+            log_size_new=$(du -b "${log}" | awk '{print $1}');                               \
+            log_size_last=${log_size_new};                                                   \
+        fi;                                                                                  \
+        log_size=${log_size_new};                                                            \
+    done                                                                                     \
+    ) & soothe_killer_pid=$!
+    wait ${soothe_pid} || :
+    kill ${soothe_killer_pid} >/dev/null 2>&1 || :  # No forcefull kill (no -9)
+    wait ${soothe_killer_pid} >/dev/null 2>&1 || :
+}
+
 # Function for installing and upgrading Python packages, utilizing pip
 pip_install_pypackage()
 {
@@ -3238,10 +3267,7 @@ pip_install_pypackage()
     # Some times the installation process will appear to hang,
     # but it will eventually get going. This happens often for
     # particular packages, such as h5py. When this is the case,
-    # write a soothing message. A long wait is detected by repeatedly
-    # checking the size of the log file generated
-    # by this installation script.
-    pip_install_update_time=60
+    # write a soothing message.
     "${python}" -m pip install -v -v -v                          \
                                -b "${top_dir}/tmp/pip/build"     \
                                ${upgrade_flag}                   \
@@ -3249,25 +3275,7 @@ pip_install_pypackage()
                                --find-links="${top_dir}/tmp/pip" \
                                "${1}${command_end}" 2>&1         \
                                 & pip_install_pid=$!
-    (
-    log_size_last=-1;                                                                        \
-    log_size=$(du -b "${log}" | awk '{print $1}');                                           \
-    while :; do                                                                              \
-        sleep ${pip_install_update_time};                                                    \
-        log_size_new=$(du -b "${log}" | awk '{print $1}');                                   \
-        if [ ${log_size} -eq ${log_size_new} ] && [ ${log_size} -ne ${log_size_last} ]; then \
-            printf "The next step may take an unreasonable amount of time.
-Please be patient ...\n";                                                                    \
-            sleep 5;                                                                         \
-            log_size_new=$(du -b "${log}" | awk '{print $1}');                               \
-            log_size_last=${log_size_new};                                                   \
-        fi;                                                                                  \
-        log_size=${log_size_new};                                                            \
-    done                                                                                     \
-    ) & pip_install_killer_pid=$!
-    wait ${pip_install_pid} || :
-    kill ${pip_install_killer_pid} >/dev/null 2>&1 || :  # No forcefull kill (no -9)
-    wait ${pip_install_killer_pid} >/dev/null 2>&1 || :
+    soothe ${pip_install_pid}
     rm -rf "${top_dir}/tmp/pip"
 }
 
@@ -3408,8 +3416,11 @@ runtime_library_dirs = ${openblas_dir}/lib
     export BLAS="${openblas_dir}/lib/libopenblas.a"
     export LAPACK="${openblas_dir}/lib/libopenblas.a"
     export LD_LIBRARY_PATH="${openblas_dir}/lib:${LD_LIBRARY_PATH}"
-    "${python}" setup.py build --fcompiler=gfortran || "${python}" setup.py build
-    "${python}" setup.py install
+    ("${python}" setup.py build --fcompiler=gfortran || "${python}" setup.py build \
+        ) & setuppy_pid=$!
+    soothe ${setuppy_pid}
+    "${python}" setup.py install & setuppy_pid=$!
+    soothe ${setuppy_pid}
     reset_environment
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/pip"
@@ -3455,8 +3466,11 @@ runtime_library_dirs = ${openblas_dir}/lib
     export BLAS="${openblas_dir}/lib/libopenblas.a"
     export LAPACK="${openblas_dir}/lib/libopenblas.a"
     export LD_LIBRARY_PATH="${openblas_dir}/lib:${LD_LIBRARY_PATH}"
-    "${python}" setup.py build --fcompiler=gfortran || "${python}" setup.py build
-    "${python}" setup.py install
+    ("${python}" setup.py build --fcompiler=gfortran || "${python}" setup.py build \
+        ) & setuppy_pid=$!
+    soothe ${setuppy_pid}
+    "${python}" setup.py install & setuppy_pid=$!
+    soothe ${setuppy_pid}
     reset_environment
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/pip"
@@ -3488,35 +3502,44 @@ if [ "${matplotlib_install}" == "yes" ] && [ "${matplotlib_installed}" == "no" ]
     # previous command. In case of failure, we do it manually.
     if [ "${numpy_preinstalled}" == "yes" ] || [ "${numpy_install}" == "yes" ]; then
         # NumPy already installed
-        deps=("pyparsing"       \
-              "python-dateutil" \
-              "pytz"            \
-              "cycler"          \
-              "six"             \
-              )
+        deps=(                \
+            "pyparsing"       \
+            "python-dateutil" \
+            "pytz"            \
+            "cycler"          \
+            "six"             \
+            "kiwisolver"      \
+        )
         # From http://matplotlib.org/users/installing.html and matplotlib's setupext.py
-        dep_versions=(">=1.5.6,!=2.0.0,!=2.0.4,!=2.1.2,!=2.1.6" \
-                      ">=1.1,!=2.1"                             \
-                      ""                                        \
-                      ">=0.10.0"                                \
-                      ">=1.10"                                  \
-                      )
+        dep_versions=(
+            ">=2.0.1,!=2.0.4,!=2.1.2,!=2.1.6" \
+            ">=2.1"                           \
+            ""                                \
+            ">=0.10.0"                        \
+            ">=1.10"                          \
+            ">=1.0.0"                         \
+        )
     else
         # NumPy not installed. Add it as a matplotlib dependency
-        deps=("numpy"           \
-              "pyparsing"       \
-              "python-dateutil" \
-              "pytz"            \
-              "cycler"          \
-              )
+        deps=(                \
+            "numpy"           \
+            "pyparsing"       \
+            "python-dateutil" \
+            "pytz"            \
+            "cycler"          \
+            "six"             \
+            "kiwisolver"      \
+        )
         # From http://matplotlib.org/users/installing.html and matplotlib's setupext.py
-        dep_versions=(">=1.7.1"                                 \
-                      ">=1.5.6,!=2.0.0,!=2.0.4,!=2.1.2,!=2.1.6" \
-                      ">=1.1,!=2.1"                             \
-                      ""                                        \
-                      ">=0.10.0"                                \
-                      ">=1.10"                                  \
-                      )
+        dep_versions=(
+            ">=1.7.1"                         \
+            ">=2.0.1,!=2.0.4,!=2.1.2,!=2.1.6" \
+            ">=2.1"                           \
+            ""                                \
+            ">=0.10.0"                        \
+            ">=1.10"                          \
+            ">=1.0.0"                         \
+        )
     fi
     # An illegal version of pyparsing may be downloaded by Matplotlib!
     pyparsing_downloaded="$(ls "${top_dir}/tmp/pip" | grep -i "pyparsing" || :)"
@@ -3579,7 +3602,13 @@ ${zlib_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
                                "${top_dir}/tmp/pip/build"        \
                                --no-index                        \
                                --find-links="${top_dir}/tmp/pip" \
-                               . 2>&1
+                               . 2>&1 & pip_install_pid=$!
+    soothe ${pip_install_pid}
+    # Some versions of Matplotlib (e.g. 2.2.2) mistakenly has the
+    # _bz2 module as a hard dependency. Fix this issue.
+    sed -i "s/^import bz2/try:\n    import bz2\nexcept:\n    pass/g" \
+        "${python_dir}/lib/python${python_version_major_dot_minor}/\
+site-packages/matplotlib/cbook/__init__.py" || :
     reset_environment
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/pip"

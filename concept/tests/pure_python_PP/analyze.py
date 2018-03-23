@@ -141,7 +141,7 @@ if any(np.mean(np.array(d)/boxsize) > tol for d in dist.values()):
 # Compare the two tabulated grids
 ewald_grid = {}
 for cp in ('cython', 'python'):
-    with h5py.File('{}/ewald_{}.hdf5'.format(this_dir, cp), mode='r') as hdf5_file:
+    with open_hdf5('{}/ewald_{}.hdf5'.format(this_dir, cp), mode='r') as hdf5_file:
         ewald_grid[cp] = hdf5_file['data'][...]
 δ, ϵ = 1e-6, 1e-6
 if not all(np.isclose(ewald_grid['cython'], ewald_grid['python'], ϵ, δ)):

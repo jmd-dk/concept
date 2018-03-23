@@ -62,6 +62,7 @@ fi
 default_framerate=5
 
 # Use Python's argparse module to handle command-line arguments
+argparse_finished="no"
 args=$("${python}" -B -c "
 import argparse, sys
 # Function which checks whether input is a

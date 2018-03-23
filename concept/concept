@@ -356,12 +356,13 @@ nprocs_unspecified="-1"
 params_unspecified="__none__"
 queue_unspecified="__none__"
 test_unspecified="__none__"
-util_unspecified="__none__"
+utility_unspecified="__none__"
 
 # Change to the concept code directory
 cd "${concept_dir}"
 
 # Use Python's argparse module to handle command-line arguments
+argparse_finished="no"
 args=$("${python}" -B -c "
 import argparse, math, re, sys
 # Function which checks whether input is a representation of
@@ -509,77 +510,92 @@ def time(value):
     value = f'{h}:{m}:{s}'
     return value
 # Setup command-line arguments
-parser = argparse.ArgumentParser(prog='$(basename "${this_file}")',
-                                 description='Run the CO𝘕CEPT code')
-parser.add_argument('-i', '--interactive',
-                    help='inspect interactively after program execution',
-                    default=${interactive_default},
-                    action='store_true',
-                    )
-parser.add_argument('-m', '--main',
-                    help=('entry point of the code. '
-                          'Can be a Python filename or command.'),
-                    default='${main_default}',
-                    )
-parser.add_argument('--memory',
-                     help='maximum total memory consumption for remote job',
-                     type=memory,
-                     default=${memory_default},
-                     )
-parser.add_argument('-n', '--nprocs',
-                    help=('total number of processes '
-                          'or number of nodes and number of processes per node'),
-                    type=positive_int_or_int_pair,
-                    default=${nprocs_unspecified},
-                    )
-parser.add_argument('-p', '--params',
-                    help='parameter file to use',
-                    default='${params_unspecified}',
-                    )
-parser.add_argument('-q', '--queue',
-                    help='queue for submission of the remote job',
-                    default='${queue_unspecified}',
-                    )
-parser.add_argument('-t', '--test',
-                    help=('run test TEST. TEST can be any subdirectory of the tests directory. '
-                          'Use TEST=all to run all tests'),
-                    default='${test_unspecified}',
-                    )
-parser.add_argument('-u', '--util',
-                    nargs='+',
-                    help='run utility UTIL. UTIL can be any executable in the utilities directory',
-                    default=['${util_unspecified}']*2,  # One for util, one for util_args
-                    )
-parser.add_argument('-w', '--walltime',
-                     help='walltime for remote job',
-                     type=time,
-                     default='${walltime_default}',
-                     )
-parser.add_argument('--local',
-                    help='force the run to be done locally, without submitting it as a remote job',
-                    default=${local_default},
-                    action='store_true',
-                    )
-parser.add_argument('--no-optimization',
-                    help='disable compiler optimizations',
-                    default=${no_optimization_default},
-                    action='store_true',
-                    )
-parser.add_argument('--no-watch',
-                    help='do not follow the submitted job via the watch utility',
-                    default=${no_watch_default},
-                    action='store_true',
-                    )
-parser.add_argument('--pure-python',
-                    help='run in pure Python mode',
-                    default=${pure_python_default},
-                    action='store_true',
-                    )
-parser.add_argument('--unsafe-build',
-                    help='ignore dependencies between modules when building',
-                    default=${unsafe_build_default},
-                    action='store_true',
-                    )
+parser = argparse.ArgumentParser(
+    prog='$(basename "${this_file}")',
+    description='Run the CO𝘕CEPT code',
+)
+parser.add_argument(
+    '-i', '--interactive',
+    help='inspect interactively after program execution',
+    default=${interactive_default},
+    action='store_true',
+)
+parser.add_argument(
+    '-m', '--main',
+    help='entry point of the code. Can be a Python filename or command.',
+    default='${main_default}',
+)
+parser.add_argument(
+    '--memory',
+    help='maximum total memory consumption for remote job',
+    type=memory,
+    default=${memory_default},
+)
+parser.add_argument(
+    '-n', '--nprocs',
+    help=('total number of processes '
+          'or number of nodes and number of processes per node'),
+    type=positive_int_or_int_pair,
+    default=${nprocs_unspecified},
+)
+parser.add_argument(
+    '-p', '--params',
+    help='parameter file to use',
+    default='${params_unspecified}',
+)
+parser.add_argument(
+    '-q', '--queue',
+    help='queue for submission of the remote job',
+    default='${queue_unspecified}',
+)
+parser.add_argument(
+    '-t', '--test',
+    help=('run test TEST. TEST can be any subdirectory of the tests directory. '
+          'Use TEST=all to run all tests'),
+    default='${test_unspecified}',
+)
+parser.add_argument(
+    '-u', '--utility',
+    nargs='+',
+    help='run utility UTILITY. UTILITY can be any executable in the utilities directory',
+    default=['${utility_unspecified}']*2,  # One for utility, one for utility_args
+)
+parser.add_argument(
+    '-w', '--walltime',
+    help='walltime for remote job',
+    type=time,
+    default='${walltime_default}',
+)
+parser.add_argument(
+    '--local',
+    help='force the run to be done locally, without submitting it as a remote job',
+    default=${local_default},
+    action='store_true',
+)
+parser.add_argument(
+    '--no-optimization',
+    help='disable compiler optimizations',
+    default=${no_optimization_default},
+    action='store_true',
+)
+parser.add_argument(
+    '--no-watch',
+    help='do not follow the submitted job via the watch utility',
+    default=${no_watch_default},
+    action='store_true',
+)
+parser.add_argument(
+    '--pure-python',
+    help='run in pure Python mode',
+    default=${pure_python_default},
+    action='store_true',
+)
+parser.add_argument(
+    '--unsafe-build',
+    help='ignore dependencies between modules when building',
+    default=${unsafe_build_default},
+    action='store_true',
+)
 # Enables Python to write directly to screen (stderr)
 # in case of help request.
 stdout_copy = sys.stdout
@@ -589,9 +605,9 @@ sys.stdout = sys.stderr
 args, unknown_args = parser.parse_known_args()
 # If a utility is to be used, arguments unknown to this script should
 # be passed on to the utility.
-util_args = args.util[1:]
-if args.util[0] != '${util_unspecified}':
-    util_args += unknown_args
+utility_args = args.utility[1:]
+if args.utility[0] != '${utility_unspecified}':
+    utility_args += unknown_args
 else:
     # Do print out error if invalid arguments are given
     # and no utility should be used.
@@ -608,8 +624,8 @@ print(  '  argparse_finished=yes'
       + '; params=\"{}\"'.format(args.params)
       + '; queue={}'.format(args.queue)
       + '; test=\"{}\"'.format(args.test)
-      + '; util=\"{}\"'.format(args.util[0])
-      + '; util_args=({})'.format(\"'\" + \"' '\".join(util_args) + \"'\")  # Bash array
+      + '; utility=\"{}\"'.format(args.utility[0])
+      + '; utility_args=({})'.format(\"'\" + \"' '\".join(utility_args) + \"'\")  # Bash array
       + '; walltime={}'.format(args.walltime)
       + '; local={}'.format(args.local)
       + '; no_optimization={}'.format(args.no_optimization)
@@ -656,8 +672,8 @@ fi
 if [ "${test}" != "${test_unspecified}" ] && [ "${test}" != "all" ]; then
     test="${tests_dir}/$(basename "${test}")"
 fi
-if [ "${util}" != "${util_unspecified}" ]; then
-    util="${utilities_dir}/$(basename "${util}")"
+if [ "${utility}" != "${utility_unspecified}" ]; then
+    utility="${utilities_dir}/$(basename "${utility}")"
 fi
 
 # Function for doing fuzzy comparisons between
@@ -666,7 +682,7 @@ concept_options=("$@")
 suggest_correct_invocation()
 {
     # First argument: The illegal option
-    # Second argument: The option type ('test' or 'util')
+    # Second argument: The option type ('test' or 'utility')
     illegal_option="$(basename "$1")"
     invocation="$0"
     for arg in "${concept_options[@]}"; do
@@ -676,8 +692,10 @@ suggest_correct_invocation()
         else
             invocation="${invocation} ${arg}"
         fi
-        if    ([ "$2" == "test" ] && ([ "${arg}" == "-t" ] || [ "${arg}" == "--test" ])) \
-           || ([ "$2" == "util" ] && ([ "${arg}" == "-u" ] || [ "${arg}" == "--util" ])); then
+        if    (   [ "$2" == "test"    ] \
+               && ([ "${arg}" == "-t" ] || [ "${arg}" == "--test" ])) \
+           || (   [ "$2" == "utility" ] \
+               && ([ "${arg}" == "-u" ] || [ "${arg}" == "--utility" ])); then
             replace_next="True"
         fi
     done
@@ -686,7 +704,7 @@ import difflib, shutil, os
 if '$2' == 'test':
     files = os.listdir('${tests_dir}')
     possibilities = [file for file in files if os.path.isdir('${tests_dir}/' + file)]
-elif '$2' == 'util':
+elif '$2' == 'utility':
     files = os.listdir('${utilities_dir}')
     possibilities = [file for file in files if shutil.which('${utilities_dir}/' + file)]
 max_ratio = 0
@@ -715,10 +733,10 @@ if [ "${test}" != "${test_unspecified}" ] && [ "${test}" != "all" ] && [ ! -d "$
     suggest_correct_invocation "${test}" "test"
     exit 1
 fi
-if [ "${util}" != "${util_unspecified}" ] && [ ! -f "${util}" ]; then
-    colorprint "Error: Utility \"${util}\" does not exist!" "red"
+if [ "${utility}" != "${utility_unspecified}" ] && [ ! -f "${utility}" ]; then
+    colorprint "Error: Utility \"${utility}\" does not exist!" "red"
     # Suggest closest match
-    suggest_correct_invocation "${util}" "util"
+    suggest_correct_invocation "${utility}" "utility"
     exit 1
 fi
 
@@ -863,9 +881,9 @@ fi
 # The only time where neither should be done
 # is when running some particular utilities.
 prepare_files="True"
-if    [ "$(basename "${util}")" == "play"   ] \
-   || [ "$(basename "${util}")" == "update" ] \
-   || [ "$(basename "${util}")" == "watch"  ]; then
+if    [ "$(basename "${utility}")" == "play"   ] \
+   || [ "$(basename "${utility}")" == "update" ] \
+   || [ "$(basename "${utility}")" == "watch"  ]; then
    prepare_files="False"
 fi
 if [ "${prepare_files}" == "True" ]; then
@@ -895,11 +913,11 @@ if [ "${prepare_files}" == "True" ]; then
 fi
 
 # If a utility is to be run, run it and exit
-if [ "${util}" != "${util_unspecified}" ]; then
+if [ "${utility}" != "${utility_unspecified}" ]; then
     # If no argument was passed after the -u option,
-    # util_args should be empty.
-    if [ "${util_args}" == '""' ] || [ "${util_args}" == "''" ]; then
-        util_args=""
+    # utility_args should be empty.
+    if [ "${utility_args}" == '""' ] || [ "${utility_args}" == "''" ]; then
+        utility_args=""
     fi
     # Set flag variables for the flag command options,
     # so that a utility can call this script with the same flags enabled
@@ -928,13 +946,13 @@ if [ "${util}" != "${util_unspecified}" ]; then
     if [ "${unsafe_build}" == "True" ]; then
         unsafe_build_flag="--unsafe-build"
     fi
-    # Run utility util and exit
-    colorprint "Running the $(basename "${util}") utility" "yellow"
+    # Run utility and exit
+    colorprint "Running the $(basename "${utility}") utility" "yellow"
     trap : 0
-    if [ -z "${util_args[0]}" ] && [ ${#util_args[@]} == 1 ]; then
-        called_from_concept="True" "${util}"
+    if [ -z "${utility_args[0]}" ] && [ ${#utility_args[@]} == 1 ]; then
+        called_from_concept="True" "${utility}"
     else
-        called_from_concept="True" "${util}" "${util_args[@]}"
+        called_from_concept="True" "${utility}" "${utility_args[@]}"
     fi
     # Print out the total execution time for this utility
     "${python}" -B -c "from commons import *

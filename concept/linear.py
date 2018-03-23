@@ -569,16 +569,17 @@ class CosmoResults:
         return spline.eval(a)
     # Method for appending a piece of raw CLASS data to the dump file
     def save(self, element, a=None):
-        """You should nto call this method unless you have good reason
+        """You should not call this method unless you have good reason
         to believe that 'element' is not already present in the file,
         as this method will open the file in read/write ('a') mode
         regardless. This can be dangeous as HDF5 build with MPI is not
         thread-safe, and so if two running instances of CO𝘕CEPT with the
-        same params run this function simultaneously, errors are likely
-        to occur. From HDF5 1.10 / h5py 2.5.0, multiple processes can
+        same params run this function simultaneously, problems
+        may arise. From HDF5 1.10 / H5Py 2.5.0, multiple processes can
         read from the same file, as long as it is not opened in write
         mode by any process. Thus, this complication is only relevent
-        for this function.
+        for this function. The open_hdf5 function is ment to alleviate
+        this problem, but is has not been thoroughly tested.
         Note that we save regardless of the value of class_reuse.
         """
         # Do not save anything if a filename was passed,
@@ -592,7 +593,7 @@ class CosmoResults:
         if not master:
             return
         os.makedirs(os.path.dirname(self.filename), exist_ok=True)
-        with h5py.File(self.filename, mode='a') as hdf5_file:
+        with open_hdf5(self.filename, mode='a') as hdf5_file:
             # CLASS parameters as attributes on a group.
             # This should be the first element to be saved.
             if element == 'params':
@@ -699,7 +700,7 @@ class CosmoResults:
             return bcast(False)
         # The master process attempts to load the given element
         # from the file given by self.filename.
-        with h5py.File(self.filename, mode='r') as hdf5_file:
+        with open_hdf5(self.filename, mode='r') as hdf5_file:
             # Start by checking that the params in the file match
             # those of this CosmoResults object. If a filename was
             # passed explicitly, this check is skipped.

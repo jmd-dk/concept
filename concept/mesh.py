@@ -164,7 +164,7 @@ def tabulate_vectorfield(gridsize, func, factor, filename=''):
     # Save grid to disk using parallel HDF5
     if master:
         os.makedirs(os.path.dirname(filename), exist_ok=True)
-    with h5py.File(filename, mode='w', driver='mpio', comm=comm) as hdf5_file:
+    with open_hdf5(filename, mode='w', driver='mpio', comm=comm) as hdf5_file:
         dset = hdf5_file.create_dataset('data', (size, ), dtype=C2np['double'])
         dset[start_local:(start_local + size_local)] = grid_local
     return grid

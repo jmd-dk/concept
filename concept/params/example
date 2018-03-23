@@ -38,7 +38,7 @@ output_dirs = {  # Directories for storing output
     'powerspec': ...,
     'render2D' : ...,
     'render3D' : ...,
-    'autosave' : paths['output_dir'] + '/autosaves',
+    'autosave' : paths['ics_dir'],
 }
 output_bases = {  # File basenames of output
     'snapshot' : 'snapshot',
