@@ -60,7 +60,7 @@ class StandardSnapshot:
         # Test for standard format by looking up the 'Ωcdm' attribute
         # in the HDF5 data structure.
         try:
-            with h5py.File(filename, mode='r') as hdf5_file:
+            with open_hdf5(filename, mode='r') as hdf5_file:
                 hdf5_file.attrs[unicode('Ωcdm')]
                 return True
         except:
@@ -110,7 +110,7 @@ class StandardSnapshot:
             filename += '.hdf5'
         # Print out message
         masterprint('Saving standard snapshot "{}" ...'.format(filename))
-        with h5py.File(filename, mode='w', driver='mpio', comm=comm) as hdf5_file:
+        with open_hdf5(filename, mode='w', driver='mpio', comm=comm) as hdf5_file:
             # Save used base units
             hdf5_file.attrs['unit time'    ] = self.units['time']
             hdf5_file.attrs['unit length'  ] = self.units['length']
@@ -276,7 +276,7 @@ class StandardSnapshot:
         else:
             masterprint('Loading snapshot "{}" ...'.format(filename))
         # Load all components    
-        with h5py.File(filename, mode='r', driver='mpio', comm=comm) as hdf5_file:
+        with open_hdf5(filename, mode='r', driver='mpio', comm=comm) as hdf5_file:
             # Load used base units
             self.units['time'  ] = hdf5_file.attrs['unit time']
             self.units['length'] = hdf5_file.attrs['unit length']
@@ -1068,16 +1068,19 @@ def get_snapshot_type(filename):
     If the file is not recognized as any snapshot type at all,
     do not throw an error but simply return None.
     """
-    # Abort if the file does not exist
-    if master and not os.path.isfile(filename):
-        abort('The snapshot file "{}" does not exist'.format(filename))
-    # Get the snapshot type by asking each snapshot class whether they
-    # recognize the file.
-    for snapshot_class in snapshot_classes:
-        if snapshot_class.is_this_type(filename):
-            return snapshot_class.__name__.rstrip('Snapshot').lower()
     # Return None if the file is not a valid snapshot
-    return None
+    determined_type = None
+    # Get the snapshot type by asking each snapshot class whether they
+    # recognize the file. As this is a file operation, only the master
+    # does the check.
+    if master:
+        if not os.path.isfile(filename):
+            abort(f'The snapshot file "{filename}" does not exist')
+        for snapshot_class in snapshot_classes:
+            if snapshot_class.is_this_type(filename):
+                determined_type = snapshot_class.__name__.rstrip('Snapshot').lower()
+                break
+    return bcast(determined_type)
 
 # Function whick takes in a dict of parameters and compare their
 # values to those of the current run. If any disagreement is found,

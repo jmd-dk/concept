@@ -65,9 +65,9 @@ render2D_with_optimizations_filename = (
 render2D_without_optimizations_filename = (
     glob(this_dir + '/output_without_optimizations/render2D*')[0]
 )
-with h5py.File(render2D_with_optimizations_filename, mode='r') as hdf5_file:
+with open_hdf5(render2D_with_optimizations_filename, mode='r') as hdf5_file:
     render2D_with_optimizations = hdf5_file['data'][...]
-with h5py.File(render2D_without_optimizations_filename, mode='r') as hdf5_file:
+with open_hdf5(render2D_without_optimizations_filename, mode='r') as hdf5_file:
     render2D_without_optimizations = hdf5_file['data'][...]
 if not np.allclose(
     render2D_with_optimizations,

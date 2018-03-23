@@ -1699,7 +1699,7 @@ for kind in ('snapshot', 'powerspec', 'render2D', 'render3D'):
     output_dirs[kind] = str(output_dirs.get(kind, paths['output_dir']))
     if not output_dirs[kind]:
         output_dirs[kind] = paths['output_dir']
-output_dirs['autosave'] = str(output_dirs.get('autosave', paths['ics_dir']))
+output_dirs['autosave'] = str(output_dirs.get('autosave', ''))
 if not output_dirs['autosave']:
     output_dirs['autosave'] = paths['ics_dir']
 output_dirs = {key: sensible_path(path) for key, path in output_dirs.items()}
@@ -3002,6 +3002,67 @@ def get_integerset_strrep(integers):
             intervals.append(f'{interval[0]}–{interval[-1]}')
     str_rep = ', '.join(map(str, intervals))
     return str_rep
+
+# Function which should be used when opening hdf5 files
+def open_hdf5(filename, **kwargs):
+    """This function is equivalent to just doing
+    h5py.File(filename, *args, **kwargs)
+    except that it will not throw an exception if the file is
+    temporarily unavailable, which happens when multiple processes
+    attempts to open the same file in write mode. When this is the case,
+    this function waits (possibly indefinitely) for the file to
+    become available.
+    The function supports both collective and non-collective calls.
+    It is an error to call non-collectively from any process but the
+    master mode.
+    """
+    # Minimum and maximum time to wait between checks on the file
+    sleep_time_min = 1
+    sleep_time_max = 300
+    # Determine if this is a collective call or not
+    collective = (kwargs.get('driver') == 'mpio')
+    if not collective and not master:
+        abort(
+            f'A non-collective call to open_hdf5() was performed on process {rank}, '
+            f'which is not the master'
+        )
+    # Let the master check if the file is available for opening
+    # in the mode given by **kwargs.
+    if master:
+        # As this check is done by the master only,
+        # we must not open it using a collective driver.
+        kwargs_noncollective = kwargs.copy()
+        if collective:
+            for kwarg in ('driver', 'comm'):
+                if kwarg in kwargs_noncollective:
+                    del kwargs_noncollective[kwarg]
+        sleep_time = sleep_time_min
+        while True:
+            try:
+                h5py.File(filename, **kwargs_noncollective).close()
+                break
+            except OSError:
+                pass
+            if sleep_time == sleep_time_min:
+                masterprint(
+                    f'File "{filename}" is temporarily unavailable, '
+                    f'possibly because it is already opened in write mode. '
+                    f'Waiting for the file to become available ...'
+                )
+            sleep(sleep_time)
+            sleep_time = np.min([2*sleep_time, sleep_time_max])
+        if sleep_time > sleep_time_min:
+            masterprint('done')
+    # Let the slaves wait here for collective calls
+    if collective:
+        Barrier()
+    # The file was very recently available
+    try:
+        hdf5_file = h5py.File(filename, **kwargs)
+    except OSError:
+        # We did not make it. Try again.
+        return open_hdf5(filename, **kwargs)
+    return hdf5_file
 
 
 

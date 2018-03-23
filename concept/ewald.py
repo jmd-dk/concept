@@ -201,7 +201,7 @@ def get_grid():
         if os.path.isfile(filename):
             # Ewald grid already tabulated. Load it from disk.
             found_on_disk = True
-            with h5py.File(filename, mode='r') as hdf5_file:
+            with open_hdf5(filename, mode='r') as hdf5_file:
                 grid = hdf5_file['data'][...].reshape(shape)
     found_on_disk = bcast(found_on_disk)
     if found_on_disk:

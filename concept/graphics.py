@@ -359,7 +359,7 @@ def render2D(components, filename):
                 else:
                     filename_combination = filename_combination.replace('.hdf5', f'_{names_str}.hdf5')
             masterprint(f'Saving data to "{filename_combination}" ...')
-            with h5py.File(filename_combination, mode='w') as hdf5_file:
+            with open_hdf5(filename_combination, mode='w') as hdf5_file:
                 # Save used base unit
                 hdf5_file.attrs['unit time'  ] = unit_time
                 hdf5_file.attrs['unit length'] = unit_length
