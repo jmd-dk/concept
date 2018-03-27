@@ -1499,11 +1499,7 @@ def get_fftw_slab(gridsize, buffer_name=0, nullify=False):
         if master:
             if fftw_wisdom_reuse:
                 for rigor in fftw_wisdom_rigors:
-                    wisdom_filename = (f'{paths["reusables_dir"]}/fftw/'
-                                       f'fftw_wisdom_gridsize={gridsize}'
-                                       f'_nprocs={nprocs}'
-                                       f'_rigor={rigor}'
-                                       )
+                    wisdom_filename = get_wisdom_filename(gridsize, rigor)
                     # At least be as rigorous as defined by
                     # the fftw_wisdom_rigor user parameter.
                     if rigor == fftw_wisdom_rigor:
@@ -1519,19 +1515,11 @@ def get_fftw_slab(gridsize, buffer_name=0, nullify=False):
             for rigor in reversed(fftw_wisdom_rigors):
                 if rigor == rigor_final:
                     break
-                wisdom_filename = (f'{paths["reusables_dir"]}/fftw/'
-                                   f'fftw_wisdom_gridsize={gridsize}'
-                                   f'_nprocs={nprocs}'
-                                   f'_rigor={rigor}'
-                                   )
+                wisdom_filename = get_wisdom_filename(gridsize, rigor)
                 if os.path.isfile(wisdom_filename):
                     os.remove(wisdom_filename)
         rigor_final = bcast(rigor_final if master else None)
-        wisdom_filename = (f'{paths["reusables_dir"]}/fftw/'
-                           f'fftw_wisdom_gridsize={gridsize}'
-                           f'_nprocs={nprocs}'
-                           f'_rigor={rigor_final}'
-                           )
+        wisdom_filename = bcast(get_wisdom_filename(gridsize, rigor_final) if master else None)
         # Initialize fftw_mpi, allocate the grid, initialize the
         # local grid sizes and start indices and do FFTW planning.
         # All this is handled by fftw_setup from fft.c.
@@ -1626,6 +1614,68 @@ fftw_plans_mapping = {}
 # Dict keeping track of what FFTW wisdom has already been acquired
 cython.declare(wisdom_acquired=dict)
 wisdom_acquired = {}
+
+# Helper function for the get_fftw_slab function,
+# which construct the absolute path to the wisdome file to use.
+@cython.header(
+    # Arguments
+    gridsize='Py_ssize_t',
+    rigor=str,
+    # Locals
+    fftw_pkgconfig_filename=str,
+    mpi_layout=list,
+    wisdom_filename=str,
+    wisdom_hash=str,
+    returns=str,
+)
+def get_wisdom_filename(gridsize, rigor):
+    global fftw_version
+    if not master:
+        abort('Only the master process may call get_wisdom_filename()')
+    # Get the FFTW version
+    if not fftw_version:
+        fftw_pkgconfig_filename = '/'.join([
+            paths['fftw_dir'],
+            'lib',
+            'pkgconfig',
+            'fftw3.pc',
+        ])
+        try:
+            with open(fftw_pkgconfig_filename, 'r') as fftw_pkgconfig_file:
+                fftw_version = re.search(
+                    'Version.*?([0-9].*)',
+                    fftw_pkgconfig_file.read(),
+                ).group(1)
+        except:
+            masterwarn(f'Failed to determine FFTW version')
+            fftw_version = '?'
+    # Construct a hash based on the FFTW problem (gridsize and rigor),
+    # as well as the FFTW version and the MPI layout (the nodes and CPUs
+    # in use for the current job). It is important to include the
+    # MPI layout, as reusing FFTW wisdom across different nodes or even
+    # CPUs within the same node may not be optimal due to e.g.
+    # ethernet connection.
+    mpi_layout = []
+    for other_node in range(nnodes):
+        other_node_name = node_numbers2names[other_node]
+        other_ranks = np.where(asarray(nodes) == other_node)[0]
+        mpi_layout.append((other_node_name, get_integerset_strrep(other_ranks)))
+    wisdom_hash = hashlib.sha1(str((
+        gridsize,
+        rigor,
+        fftw_version,
+        mpi_layout,
+    )).encode()).hexdigest()
+    # The full path to the wisdom file
+    wisdom_filename = '/'.join([
+        paths['reusables_dir'],
+        'fftw',
+        wisdom_hash,
+    ]) + '.wisdom'
+    return wisdom_filename
+# The version of FFTW, used in the get_wisdom_filename function
+cython.declare(fftw_version=str)
+fftw_version=''
 
 # Function performing Fourier transformations of slab decomposed grids
 @cython.header(# Arguments
