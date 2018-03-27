@@ -43,8 +43,8 @@ from where it was.
 Note that the above will install *all* dependencies into
 `/path/to/concept`, regardless of whether these are already installed
 somewhere else on the system. One of these dependencies is an
-MPI 3 library, which when running CO*N*CEPT on a cluster can be
-preferable not to include, but instead make use an already installed
+MPI 3 library, which can be preferable not to include when running
+CO*N*CEPT on a cluster, but instead make use of an already installed
 MPI 3 library (any implementation should do). This is achieved by
 setting the `mpi_dir` variable, e.g.
 

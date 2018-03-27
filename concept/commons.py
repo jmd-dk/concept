@@ -1881,21 +1881,8 @@ if user_params.get('select_approximations'):
         key = tuple(select_approximations.keys())[0]
         if isinstance(key, str) and '=' in key:
             select_approximations = {'all': select_approximations}
-        for key, d in select_approximations.items():
+        for d in select_approximations.values():
             replace_ellipsis(d)
-for key, val in select_approximations.items():
-    subd = {}
-    for subd_key, subd_val in val.items():
-        for char in ' *':
-            subd_key = subd_key.replace(char, '')
-        for string, replace_string in [
-            *[(ρ_strings, 'ρ') for ρ_strings in (r'\rho', '\rho')],
-            ]:
-            subd_key = subd_key.replace(string, replace_string)
-        for n in range(10):
-            subd_key = subd_key.replace(unicode_superscript(str(n)), str(n))
-        subd[subd_key] = bool(subd_val)
-    select_approximations[key] = subd
 select_approximations['default'] = {'P=wρ': False}
 user_params['select_approximations'] = select_approximations
 select_softening_length = {}
@@ -1905,7 +1892,7 @@ if user_params.get('select_softening_length'):
         replace_ellipsis(select_softening_length)
     else:
         select_softening_length = {'all': user_params['select_softening_length']}
-select_softening_length.setdefault('particles', '0.03*boxsize/N**(1/3)')
+select_softening_length.setdefault('particles', '0.03*boxsize/cbrt(N)')
 select_softening_length.setdefault('fluid', 0)
 user_params['select_softening_length'] = select_softening_length
 # Simulation options
@@ -3041,12 +3028,13 @@ def open_hdf5(filename, **kwargs):
             try:
                 h5py.File(filename, **kwargs_noncollective).close()
                 break
-            except OSError:
-                pass
+            except OSError as e:
+                if 'File exists' not in str(e):
+                    raise e
             if sleep_time == sleep_time_min:
                 masterprint(
                     f'File "{filename}" is temporarily unavailable, '
-                    f'possibly because it is already opened in write mode. '
+                    f'possibly because it is already opened in write mode by another process. '
                     f'Waiting for the file to become available ...'
                 )
             sleep(sleep_time)

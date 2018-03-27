@@ -124,19 +124,16 @@ class CosmoResults:
             # Unique ID and corresponding file name of this CosmoResults
             # object based on the hash of the CLASS parameters and the
             # CLASS variables _VERSION, _ARGUMENT_LENGTH_MAX_ and a_min.
-            self.id = hashlib.sha1((str(tuple(sorted({str(key).replace(' ', '').lower():
-                                                      str(val).replace(' ', '').lower()
-                                                      for key, val in self.params.items()
-                                                      }.items()
-                                                     )
-                                              ) + (class__VERSION_,
-                                                   class__ARGUMENT_LENGTH_MAX_,
-                                                   class_a_min,
-                                                   )
-                                        )
-                                    ).encode()
-                                   ).hexdigest()
-            self.filename = f'{paths["reusables_dir"]}/class/class_{self.id}.hdf5'
+            self.id = hashlib.sha1((str(tuple(sorted({
+                str(key).replace(' ', '').lower(): str(val).replace(' ', '').lower()
+                for key, val in self.params.items()
+            }.items()
+            )) + (
+                class__VERSION_,
+                class__ARGUMENT_LENGTH_MAX_,
+                class_a_min,
+            ))).encode()).hexdigest()
+            self.filename = f'{paths["reusables_dir"]}/class/{self.id}.hdf5'
         # Add functions which returns transfer function splines
         # for a given a.
         def construct_func(var_name):
@@ -340,7 +337,7 @@ class CosmoResults:
                 Barrier()
                 if node_master:
                     # Only scalar perturbations are used
-                    self._perturbations = self._perturbations['scalar']                        
+                    self._perturbations = self._perturbations['scalar']
                     # Only keep the needed perturbations given in the
                     # self.needed_keys['perturbations'] set, as well as
                     # any additional perturbations defined in the user
@@ -378,7 +375,7 @@ class CosmoResults:
                         # of dicts mapping str's to arrays.
                         keys = sorted(list(self._perturbations[0].keys()))
                         if master:
-                            all_perturbations = [{} for k in range(len(self.k_magnitudes))]
+                            all_perturbations = [{} for k in self.k_magnitudes]
                             for k, perturbation in zip(self.k_node_indices, self._perturbations):
                                 all_perturbations[k] = perturbation
                             for rank_recv, perturbation in zip(
@@ -747,6 +744,26 @@ class CosmoResults:
                     return bcast(False)
                 masterprint(f'Loading CLASS perturbations from "{self.filename}" ...')
                 self._perturbations = [None]*len(self.k_magnitudes)
+                # Check that the file contain perturbations at all
+                # k modes. This is not the case if the process that
+                # originally wrote the file ended prematurely. In this
+                # case, no other error is necessarily detected.
+                if len(perturbations_h5) < len(self._perturbations):
+                    abort(
+                        f'The file "{self.filename}" only contains perturbations for '
+                        f'{len(perturbations_h5)} k modes, whereas it should contain '
+                        f'perturbations for {len(self._perturbations)} k modes. '
+                        f'This can happen if the creation of this file was ended prematurely. '
+                        f'You should remove this file and rerun this simulation.'
+                    )
+                if len(perturbations_h5) > len(self._perturbations):
+                    abort(
+                        f'The file "{self.filename}" contains perturbations for '
+                        f'{len(perturbations_h5)} k modes, whereas it should contain '
+                        f'perturbations for {len(self._perturbations)} k modes. '
+                        f'I cannot explain this mismatch, and I cannot use these perturbations.'
+                    )
+                # Load the perturbations
                 for index, d in perturbations_h5.items():
                     self._perturbations[int(index)] = {
                         key.replace('__per__', '/'): dset[...]

@@ -669,6 +669,26 @@ class Component:
             approximations = is_selected(self, select_approximations, accumulate=True)
         if not approximations:
             approximations = {}
+        approximations_transformed = {}
+        for approximation, value in approximations.items():
+            # General transformations
+            approximation = unicode(approximation)
+            for char in ' *':
+                approximation = approximation.replace(char, '')
+            for n in range(10):
+                approximation = approximation.replace(unicode_superscript(str(n)), str(n))
+            # The P=wρ approximation
+            for s in ('rho', r'\rho', '\rho'):
+                approximation = approximation.replace(s, unicode('ρ'))
+            if approximation in (
+                f'P=w{unicode("ρ")}',
+                f'P={unicode("ρ")}w',
+                f'w{unicode("ρ")}=P',
+                f'{unicode("ρ")}w=P',
+            ):
+                approximation = f'P=w{unicode("ρ")}'
+            approximations_transformed[approximation] = bool(value)
+        approximations = approximations_transformed
         for approximation, value in approximations.copy().items():
             if unicode(approximation) not in approximations_implemented:
                 abort(
