@@ -761,13 +761,13 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
                         resolutions.append(φ_gridsize)
             Δx_max = boxsize/np.max(resolutions)
             # Find maximum propagation speed of fluid
-            if (    component.N_fluidvars == 0
-                or (component.N_fluidvars == 1 and component.closure == 'truncate')
+            if (    component.boltzmann_order == 0
+                or (component.boltzmann_order == 1 and component.boltzmann_closure == 'truncate')
                 ):
                 # Without J as a fluid variable, no velocity exist
                 # and so no Courant limit needs to be set. 
                 v_max = 0
-            elif component.N_fluidvars == 1 and component.closure == 'class':
+            elif component.boltzmann_order == 1 and component.boltzmann_closure == 'class':
                 # With J as a linear fluid variable, we only need to
                 # consider one of its components. Also, the P = wρ
                 # approximation is guaranteed to be enabled.                

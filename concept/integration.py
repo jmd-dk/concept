@@ -153,7 +153,6 @@ class Spline:
         # Remember the sign change for a > b
         return -ᔑ if sign_flip else ᔑ
 
-
     # Method for checking whether a given number
     # is within the tabulated interval.
     @cython.header(# Arguments
@@ -170,16 +169,18 @@ class Spline:
             if x > self.xmin - self.abs_tol_min:
                 x = self.xmin
             else:
-                abort('Could not {} {} because it is outside the tabulated interval [{}, {}].'
-                      .format(action, x, self.xmin, self.xmax)
-                      )
+                abort(
+                    f'Could not {action} {x} because it is outside the tabulated interval '
+                    f'[{self.xmin}, {self.xmax}]'
+                )
         elif x > self.xmax:
             if x < self.xmax + self.abs_tol_max:
                 x = self.xmax
             else:
-                abort('Could not {} {} because it is outside the tabulated interval [{}, {}].'
-                      .format(action, x, self.xmin, self.xmax)
-                      )
+                abort(
+                    f'Could not {action} {x} because it is outside the tabulated interval '
+                    f'[{self.xmin}, {self.xmax}]'
+                )
         return x
 
     # This method is automaticlly called when a Spline instance
@@ -188,6 +189,8 @@ class Spline:
         # Free the accelerator and the spline object
         gsl_spline_free(self.spline)
         gsl_interp_accel_free(self.acc)
+
+
 
 # Function for cleaning up arrays of points possibly containing
 # duplicate points.

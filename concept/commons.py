@@ -1656,7 +1656,7 @@ cython.declare(# Input/output
                select_forces=dict,
                select_class_species=dict,
                select_eos_w=dict,
-               select_closure=dict,
+               select_boltzmann_closure=dict,
                select_approximations=dict,
                select_softening_length=dict,
                # Simlation options
@@ -1864,15 +1864,15 @@ if user_params.get('select_eos_w'):
 select_eos_w.setdefault('particles', 'default')
 select_eos_w['default'] = 'class'
 user_params['select_eos_w'] = select_eos_w
-select_closure = {}
-if user_params.get('select_closure'):
-    if isinstance(user_params['select_closure'], dict):
-        select_closure = user_params['select_closure']
-        replace_ellipsis(select_closure)
+select_boltzmann_closure = {}
+if user_params.get('select_boltzmann_closure'):
+    if isinstance(user_params['select_boltzmann_closure'], dict):
+        select_boltzmann_closure = user_params['select_boltzmann_closure']
+        replace_ellipsis(select_boltzmann_closure)
     else:
-        select_closure = {'all': str(user_params['select_closure'])}
-select_closure['default'] = 'class'
-user_params['select_closure'] = select_closure
+        select_boltzmann_closure = {'all': str(user_params['select_boltzmann_closure'])}
+select_boltzmann_closure['default'] = 'class'
+user_params['select_boltzmann_closure'] = select_boltzmann_closure
 select_approximations = {}
 if user_params.get('select_approximations'):
     select_approximations = dict(user_params['select_approximations'])

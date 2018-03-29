@@ -156,19 +156,22 @@ class StandardSnapshot:
                 elif component.representation == 'fluid':
                     # Write out progress message
                     masterprint(
-                        f'Writing out {component.name} ({component.species} with gridsize '
-                        f'{component.gridsize}, {component.N_fluidvars} fluid variables) ...'
+                        f'Writing out {component.name} ({component.species} with '
+                        f'gridsize {component.gridsize}, '
+                        f'Boltzmann order {component.boltzmann_order}) ...'
                     )
                     # Save fluid attributes
                     component_h5.attrs['gridsize'] = component.gridsize
-                    component_h5.attrs['N_fluidvars'] = component.N_fluidvars
+                    component_h5.attrs['boltzmann_order'] = component.boltzmann_order
                     # Save fluid grids in groups of name
                     # "fluidvar_index", with index = 0, 1, ...
                     # The fluid scalars are then datasets within
                     # these groups, named "fluidscalar_multi_index",
                     # with multi_index (0, ), (1, ), ..., (0, 0), ...
                     shape = (component.gridsize, )*3
-                    for index, fluidvar in enumerate(component.fluidvars[:component.N_fluidvars]):
+                    for index, fluidvar in enumerate(
+                        component.fluidvars[:component.boltzmann_order]
+                    ):
                         fluidvar_h5 = component_h5.create_group('fluidvar_{}'.format(index))
                         for multi_index in fluidvar.multi_indices:
                             fluidscalar = fluidvar[multi_index]
@@ -235,7 +238,7 @@ class StandardSnapshot:
                     # Locals
                     N='Py_ssize_t',
                     N_local='Py_ssize_t',
-                    N_fluidvars='Py_ssize_t',
+                    boltzmann_order='Py_ssize_t',
                     component='Component',
                     domain_size_i='Py_ssize_t',
                     domain_size_j='Py_ssize_t',
@@ -365,10 +368,10 @@ class StandardSnapshot:
                 elif representation == 'fluid':
                     # Read in fluid attributes
                     gridsize = component_h5.attrs['gridsize']
-                    N_fluidvars = component_h5.attrs['N_fluidvars']
+                    boltzmann_order = component_h5.attrs['boltzmann_order']
                     # Construct a Component instance and append it
                     # to this snapshot's list of components.
-                    component = Component(name, species, gridsize, N_fluidvars=N_fluidvars)
+                    component = Component(name, species, gridsize, boltzmann_order=boltzmann_order)
                     self.components.append(component)
                     # Done loading component attributes
                     if only_params:
@@ -376,7 +379,7 @@ class StandardSnapshot:
                     # Write out progress message
                     masterprint(
                         f'Reading in {name} ({species} with gridsize {gridsize}, '
-                        f'{N_fluidvars} fluid variables) ...'
+                        f'Boltzmann order {boltzmann_order}) ...'
                     )
                     # Compute local indices of fluid grids
                     domain_size_i = gridsize//domain_subdivisions[0]
@@ -393,7 +396,9 @@ class StandardSnapshot:
                     component.resize((domain_size_i, domain_size_j, domain_size_k))
                     # Fluid scalars are already instantiated.
                     # Now populate them.
-                    for index, fluidvar in enumerate(component.fluidvars[:component.N_fluidvars]):
+                    for index, fluidvar in enumerate(
+                        component.fluidvars[:component.boltzmann_order]
+                    ):
                         fluidvar_h5 = component_h5['fluidvar_{}'.format(index)]
                         for multi_index in fluidvar.multi_indices:
                             fluidscalar_h5 = fluidvar_h5['fluidscalar_{}'.format(multi_index)]
@@ -414,7 +419,7 @@ class StandardSnapshot:
                     unit_J = snapshot_unit_mass/(snapshot_unit_length**2*snapshot_unit_time)
                     units_fluidvars = asarray((unit_ϱ, unit_J), dtype=C2np['double'])
                     size = np.prod(component.shape)
-                    for fluidvar, unit in zip(component.fluidvars[:component.N_fluidvars],
+                    for fluidvar, unit in zip(component.fluidvars[:component.boltzmann_order],
                                               units_fluidvars):
                         if unit == 1:
                             continue

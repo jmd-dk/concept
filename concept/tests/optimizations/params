@@ -30,10 +30,10 @@ initial_conditions = [
      'species': 'matter particles',
      'N'      : _size**3,
      },
-    {'name'       : 'neutrino component',
-     'species'    : 'neutrino fluid',
-     'gridsize'   : _size,
-     'N_fluidvars': 2,
+    {'name'           : 'neutrino component',
+     'species'        : 'neutrino fluid',
+     'gridsize'       : _size,
+     'boltzmann_order': 2,
      },
 ]
 output_dirs  = {
@@ -71,10 +71,10 @@ class_params = {
 }
 
 # Physics
-select_forces         = {'all': {'gravity': 'pm'}}
-select_eos_w          = {'neutrino fluid': 'class'}
-select_closure        = {'neutrino fluid': 'class'}
-select_approximations = {'neutrino fluid': {'P = wρ': False}}
+select_forces            = {'all': {'gravity': 'pm'}}
+select_eos_w             = {'neutrino fluid': 'class'}
+select_boltzmann_closure = {'neutrino fluid': 'class'}
+select_approximations    = {'neutrino fluid': {'P = wρ': False}}
 
 # Simulation options
 fluid_scheme_select = {'neutrino fluid': 'Kurganov-Tadmor'}

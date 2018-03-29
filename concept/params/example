@@ -26,10 +26,10 @@ initial_conditions = [  # Initial condition snapshot file or container of compon
      'species': 'matter particles',
      'N'      : 32**3,
      },
-    {'name'       : 'neutrino component',
-     'species'    : 'neutrino fluid',
-     'gridsize'   : 32,
-     'N_fluidvars': 2,
+    {'name'             : 'neutrino component',
+     'species'          : 'neutrino fluid',
+     'gridsize'         : 32,
+     'boltzmann_closure': 2,
      },
 ]
 snapshot_type = 'standard'  # Type of output snapshots
@@ -114,7 +114,7 @@ select_class_species = {  # CLASS species to use for each component
 select_eos_w = {  # Equation of state parameter w for each component
     'all': 'class',
 }
-select_closure = {  # Closure rule for the Boltzmann hierarchy for each component
+select_boltzmann_closure = {  # Closure rule for the Boltzmann hierarchy for each component
     'all': 'class',
 }
 select_approximations = {  # Toggle approximations for each component

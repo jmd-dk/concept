@@ -411,6 +411,7 @@ if [ ! -f "${logs_dir}/${jobid}" ]; then
     sleep ${sleep_barely}
 fi
 slept=0
+message_printed="no"
 while [ ! -f "${logs_dir}/${jobid}" ]; do
     sleep ${sleep_little}
     # After having slept for a long time, check that the job
@@ -419,6 +420,10 @@ while [ ! -f "${logs_dir}/${jobid}" ]; do
     if [ ${slept} -ge ${sleep_much} ]; then
         check_suddenly_finished
         slept=0
+        if [ "${message_printed}" == "no" ]; then
+            echo "Can't find log file of job ${jobid}. Curious ..."
+            message_printed="yes"
+        fi
     fi
 done
 

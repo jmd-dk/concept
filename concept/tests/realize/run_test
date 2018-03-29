@@ -71,12 +71,12 @@ done
 for n in ${nprocs_list[@]}; do
     echo "$(cat "${this_dir}/params")
 initial_conditions = {
-    'name'          : 'test fluid',
-    'species'       : 'matter fluid',
-    'gridsize'      : φ_gridsize,
-    'N_fluidvars'   : 1,
-    'closure'       : 'truncate',
-    'approximations': {'P=wρ': True},
+    'name'             : 'test fluid',
+    'species'          : 'matter fluid',
+    'gridsize'         : φ_gridsize,
+    'boltzmann_order'  : 1,
+    'boltzmann_closure': 'truncate',
+    'approximations'   : {'P=wρ': True},
 }
 output_dirs  = {'powerspec': _this_dir + '/output_fluid'}
 output_bases = {'powerspec': 'powerspec_nprocs=${n}'}
