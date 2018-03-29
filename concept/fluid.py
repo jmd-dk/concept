@@ -132,8 +132,8 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
     """
     # There is nothing to be done by this function
     # if no J variable exist.
-    if (    component.N_fluidvars == 0
-        or (component.N_fluidvars == 1 and component.closure == 'truncate')
+    if (    component.boltzmann_order == 0
+        or (component.boltzmann_order == 1 and component.boltzmann_closure == 'truncate')
     ):
         return
     if rk_order not in (1, 2):
@@ -193,7 +193,7 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
     # The global sound speed. Unless J is non-linear, the Euler equation
     # is not going to be solved, and so no pressure gradient is
     # ever applied, meaning that the sound speed should be 0.
-    if component.N_fluidvars > 1:
+    if component.boltzmann_order > 1:
         soundspeed = light_speed*sqrt(w)
     else:
         soundspeed = 0
@@ -303,7 +303,7 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
                     ϱˣ_ptr[index_c] += Δ
     masterprint('done')
     # Stop here if ϱ is the last non-linear fluid variable
-    if component.N_fluidvars < 2:
+    if component.boltzmann_order < 2:
         finalize_rk_step(component, ᔑdt, a_passed, rk_order, rk_step)
         return
     #####################################################
@@ -316,8 +316,8 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
     Jₙ_interface = empty(2, dtype=C2np['double'])   
     use_𝒫 = (not (component.w_type == 'constant' and component.w_constant == 0)) 
     use_σ = (
-            component.N_fluidvars > 2
-        or (component.N_fluidvars == 2 and component.closure == 'class')
+            component.boltzmann_order > 2
+        or (component.boltzmann_order == 2 and component.boltzmann_closure == 'class')
     )
     if use_σ:
         σᵐₙ_interface = empty(2, dtype=C2np['double'])
@@ -460,7 +460,7 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
                                         Jₙˣ_ptr[index_c] += Δ
     masterprint('done')
     # Stop here if J is the last non-linear fluid variable
-    if component.N_fluidvars < 3:
+    if component.boltzmann_order < 3:
         finalize_rk_step(component, ᔑdt, a_passed, rk_order, rk_step)
         return
     # No further non-linear fluid equations implemented. Stop here.
@@ -692,7 +692,7 @@ def kurganov_tadmor_internal_sources(component, ᔑdt, a=-1):
     # Update ϱ due to its internal source term
     # in the continuity equation,
     # ∂ₜϱ = 3ᔑ(ȧ/a)dt (wϱ - c⁻²𝒫).
-    if component.N_fluidvars > 0 and not component.approximations['P=wρ'] and enable_Hubble:
+    if component.boltzmann_order > 0 and not component.approximations['P=wρ'] and enable_Hubble:
         masterprint('Computing the Hubble term in the continuity equation ...')
         w = component.w(a=a)
         ϱ_ptr = component.ϱ.grid
@@ -715,8 +715,8 @@ def kurganov_tadmor_internal_sources(component, ᔑdt, a=-1):
 def maccormack(component, ᔑdt):
     # There is nothing to be done by this function
     # if no J variable exist.
-    if (   component.N_fluidvars == 0
-        or component.N_fluidvars == 1 and component.closure == 'truncate'
+    if (   component.boltzmann_order == 0
+        or component.boltzmann_order == 1 and component.boltzmann_closure == 'truncate'
     ):
         return
     # Maximum allowed number of attempts to correct for
@@ -830,8 +830,8 @@ def maccormack_step(component, ᔑdt, steps, mc_step):
     """
     # There is nothing to be done by this function
     # if no J variable exist.
-    if (   component.N_fluidvars == 0
-        or component.N_fluidvars == 1 and component.closure == 'truncate'
+    if (   component.boltzmann_order == 0
+        or component.boltzmann_order == 1 and component.boltzmann_closure == 'truncate'
     ):
         return
     # Comoving grid spacing
@@ -882,7 +882,7 @@ def maccormack_step(component, ᔑdt, steps, mc_step):
                     ϱˣ[i, j, k] += Δ*ℝ[-ᔑdt['a**(3*w_eff-2)', component]/Δx]
     masterprint('done')
     # Stop here if ϱ is the last non-linear fluid variable
-    if component.N_fluidvars < 2:
+    if component.boltzmann_order < 2:
         finalize_maccormack_step(component, mc_step)
         return
     # The Euler equation (flux terms only).
@@ -920,7 +920,7 @@ def maccormack_step(component, ᔑdt, steps, mc_step):
                         Jˣ_el[i, j, k] += Δ*ℝ[-ᔑdt['a**(3*w_eff-2)', component]/Δx]
     masterprint('done')
     # Stop here if J is the last non-linear fluid variable
-    if component.N_fluidvars < 3:
+    if component.boltzmann_order < 3:
         finalize_maccormack_step(component, mc_step)
         return
     # No further non-linear fluid equations implemented. Stop here.
@@ -971,9 +971,9 @@ def maccormack_internal_sources(component, ᔑdt):
     due to interactions, such as the Hubble term in the continuity
     equation for P ≠ wρ.
     A special kind of such internal source arise when
-    component.closure == 'class', in which case one additional fluid
-    variable should be realized using CLASS, and then affect its lower
-    fluid variable (which will then be the highest dynamic fluid
+    component.boltzmann_closure == 'class', in which case one additional
+    fluid variable should be realized using CLASS, and then affect its
+    lower fluid variable (which will then be the highest dynamic fluid
     variable) through the dynamical fluid equations. The coupling
     between two such fluid variables takes the form of a flux,
     but since one of the variables is not dynamic, here it act just like
@@ -991,7 +991,8 @@ def maccormack_internal_sources(component, ᔑdt):
     # realizing σ, do this realization now and update J accordingly.
     # This source term looks like
     # ΔJᵢ = -ᔑa**(-3*w_eff)dt ∂ʲ(ϱ + c⁻²𝒫)σⁱⱼ.
-    if component.N_fluidvars > 2 or (component.N_fluidvars == 2 and component.closure == 'class'):
+    if (   component.boltzmann_order > 2
+        or (component.boltzmann_order == 2 and component.boltzmann_closure == 'class')):
         masterprint('Computing the shear term in the Euler equation ...')
         # Loop over all distinct σᵢⱼ and realize them as we go
         for multi_index, σᵢⱼ in component.σ.iterate(multi_indices=True):
@@ -1026,7 +1027,7 @@ def maccormack_internal_sources(component, ᔑdt):
     # The pressure term in the Euler equation
     # ΔJⁱ = -ᔑa**(-3*w_eff)dt ∂ⁱ𝒫.    
     if (
-            component.N_fluidvars > 1
+            component.boltzmann_order > 1
         and not (component.w_type == 'constant' and component.w_constant == 0)
     ):
         masterprint('Computing the pressure term in the Euler equation ...')
@@ -1041,7 +1042,7 @@ def maccormack_internal_sources(component, ᔑdt):
     # Update ϱ due to its internal source term
     # in the continuity equation
     # Δϱ = 3ᔑ(ȧ/a)dt (wϱ - c⁻²𝒫).
-    if component.N_fluidvars > 0 and not component.approximations['P=wρ'] and enable_Hubble:
+    if component.boltzmann_order > 0 and not component.approximations['P=wρ'] and enable_Hubble:
         masterprint('Computing the Hubble term in the continuity equation ...')
         w = component.w()
         for n in range(component.size):

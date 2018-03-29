@@ -599,7 +599,10 @@ def info():
                             indent=4)
             elif component.representation == 'fluid':
                 masterprint('{:<16} {}'.format('gridsize', component.gridsize), indent=4)
-                masterprint('{:<16} {}'.format('N_fluidvars', component.N_fluidvars), indent=4)
+                masterprint(
+                    '{:<16} {}'.format('boltzmann_order', component.boltzmann_order),
+                    indent=4,
+                )
                 if component.w_type == 'constant':
                     eos_info = significant_figures(component.w_constant, 6,
                                                    fmt='unicode', incl_zeros=False,

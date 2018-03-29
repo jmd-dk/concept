@@ -39,8 +39,8 @@ H0      = 70*km/(s*Mpc)
 a_begin = 0.02
 
 # Physics
-select_closure        = {'matter fluid': 'truncate'}
-select_approximations = {'matter fluid': {'P=wρ': True}}
+select_boltzmann_closure = {'matter fluid': 'truncate'}
+select_approximations    = {'matter fluid': {'P=wρ': True}}
 
 # Simulation options
 fluid_scheme_select = {'matter fluid': 'Kurganov-Tadmor'}

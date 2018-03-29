@@ -49,9 +49,9 @@ H0      = 70*km/(s*Mpc)
 a_begin = 0.02
 
 # Physics
-select_forces         = {'all': {'gravity': 'pm'}}
-select_closure        = {'all': 'truncate'}
-select_approximations = {'all': {'P = wρ': True}}
+select_forces            = {'all': {'gravity': 'pm'}}
+select_boltzmann_closure = {'all': 'truncate'}
+select_approximations    = {'all': {'P = wρ': True}}
 
 # Simulation options
 # Simulation options
