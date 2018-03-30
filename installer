@@ -29,7 +29,27 @@
 # All tests can be skipped by supplying --fast as an argument.
 # You can also download and run the newest version of this script by
 # executing the following command:
-# bash <(wget -O- --no-ch https://raw.githubusercontent.com/jmd-dk/concept/master/installer)
+# bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/master/installer)
+#
+# Before installing the sofware into the specified directory,
+# the installer will check for the following system dependencies:
+# - awk
+# - gcc
+# - g++
+# - gfortran
+# - gzip
+# - make
+# - sed
+# - tar
+# - wget
+# - glibc
+# - as and ld
+# - Linux headers
+# If any of these are missing, an attempt will be made to locate the
+# system's package manager. If successful, you will be asked to install
+# the missing system dependency, which will require root access.
+# If you supply the -y argument when invoking this script, all missing
+# system dependencies will be installed in this way without querying.
 #
 # The following software will be installed in order:
 # - zlib     (needed by libpng, HDF5 and Python)
@@ -125,8 +145,7 @@ fi
 mpi="${mpi,,}"
 # This function sets the variables "name_dir" (if not set already)
 # and "name_preinstalled".
-set_dir()
-{
+set_dir(){
     # Arguments: Program name, install directory.
     # Set "name_preinstalled" if "name_dir" is already set
     eval "${1}_preinstalled=yes"
@@ -196,8 +215,7 @@ paths_file="__top_dir__/.paths"
 # For preinstalled software, set "name_version" to "pre-installed".
 # If a third argument is given, this is the version to fall back to,
 # in case of unsuccessful retrievel of the link to the first version.
-set_version()
-{
+set_version(){
     # Arguments: Program name, version, [fallback version]
     eval "[ -z \"\${${1}_version}\" ] || ${1}_version_specifiedbyuser=\"true\""
     eval "[ -n \"\${${1}_version}\" ] || ${1}_version=\"${2}\""
@@ -221,15 +239,15 @@ set_version "gsl"             "2.4"    "2.3"
 set_version "hdf5"            "1.10.1" "1.10.0"
 set_version "libpng"          "1.6.34" "1.6.32"
 if [ "${mpi}" == "openmpi" ]; then
-    set_version "mpi"         "3.0.0"
+    set_version "mpi"         "3.0.1"
 elif [ "${mpi}" == "mpich" ]; then
     set_version "mpi"         "3.2.1"  "3.2"
 fi
 set_version "ncurses"         "6.1"    "6.0"
 set_version "openblas"        "0.2.20" "0.2.20"
-set_version "openssl"         "1.1.0g" "1.1.0f"
+set_version "openssl"         "1.1.0h" "1.1.0f"
 set_version "perl"            "5.26.1"
-set_version "python"          "3.6.4"
+set_version "python"          "3.6.5"
 set_version "zlib"            "1.2.11" "1.2.8"
 # Python packages
 set_version "blessings"     "1.6.1"
@@ -241,7 +259,7 @@ set_version "mpi4py"        "3.0.0"
 set_version "nose"          "1.3.7"
 set_version "numpy"         "1.14.2"
 set_version "parameterized" "0.6.1"
-set_version "pytest"        "3.4.2"
+set_version "pytest"        "3.5.0"
 set_version "scipy"         "1.0.0"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
@@ -253,15 +271,13 @@ set_version "scipy"         "1.0.0"
 # Initial setup #
 #################
 # Set up error trapping
-ctrl_c()
-{
+ctrl_c(){
     current_step="aborting"
     sleep 0.5
     kill -- -$$ > /dev/null 2>&1 || :
     exit 2
 }
-abort()
-{
+abort(){
     sleep 0.5
     kill -- -$$ > /dev/null 2>&1 || :
     exit 1
@@ -306,12 +322,10 @@ esc_erase="${esc}[K"
 # Special characters
 en_quad="\xE2\x80\x80"
 # Functions for pretty printing text
-heading()
-{
+heading(){
     printf "\n${esc_bold}${esc_yellow}${1}${esc_normal}\n"
 }
-error()
-{
+error(){
     printf "\n${esc_bold}${esc_red}${1}${esc_normal}\n" >&2
 }
 
@@ -369,8 +383,7 @@ for env_var_name in "${env_var_names[@]}"; do
 done
 # Function that resets all above environment
 # variables to their initial state.
-reset_environment()
-{
+reset_environment(){
     for env_var_name in "${env_var_names[@]}"; do
         eval "env_var_set=\"\${${env_var_name}_set}\""
         if [ "${env_var_set}" == "True" ]; then
@@ -407,12 +420,17 @@ scipy_test_success="yes"
 if [ -z "${fast_install}" ]; then
     fast_install="no"
 fi
+if [ -z "${auto_install}" ]; then
+    auto_install="no"
+fi
 if [ -z "${top_dir_specified}" ]; then
     top_dir_specified="no"
 fi
 for var in "$@"; do
     if [ "${var}" == "--fast" ]; then
         fast_install="yes"
+    elif [ "${var}" == "-y" ]; then
+        auto_install="yes"
     elif [ "${top_dir_specified}" == "no" ]; then
         top_dir="${var}"
         top_dir_specified="yes"
@@ -424,18 +442,68 @@ for var in "$@"; do
         fi
     fi    
 done
+# Set sleep_time, the amount of seconds spend sleeping at various stages
 sleep_time=10
 if [ "${fast_install}" == "yes" ]; then
     sleep_time=0
 fi
+# If auto install mode has been requested using the -y option,
+# prompt for root password if not already root.
+if [ "${auto_install}" == "yes" ] && [ ${EUID} -ne 0 ]; then
+    echo "Auto install mode has been requested with the '-y' option, but you are not root."
+    sudo -k
+    while :; do
+        read -s -p "[sudo] password for $(whoami): " sudo_password
+        echo
+        output="$(echo "${sudo_password}" | sudo -S echo hello 2>&1 | awk '{print $NF}' || :)"
+        if [ "${output}" == "hello" ]; then
+            break
+        fi
+        echo "Sorry, try again."
+    done
+    sudo_command="echo \"${sudo_password}\" | sudo -S"
+    sudo_password=""
+else
+    sudo_command="sudo"
+fi
+
+# Creating top level directory (top_dir)
+current_step="setup of top level directory"
+if [ "${top_dir_specified}" == "no" ]; then
+    printf "\nWhere should the ${esc_concept} code be installed?"
+    read -p "$(echo $'\n> ')" -e top_dir
+    if [ -z "${top_dir}" ]; then
+        # The user hit enter without writing a path.
+        # Install in current directory.
+        top_dir="."
+    fi
+fi
+initial_dir="$(pwd)"  # It is crucial that this line is before any cd
+convert_to_abs_path(){
+    # Arguments: path
+    current_dir="$(pwd)"
+    cd "${initial_dir}"
+    # Places backslashes before spaces.
+    # These are needed when expanding tilde, but they will not persist.
+    abs_path="${1//[ ]/\\ }"
+    # Expand tilde
+    eval abs_path="${abs_path}"
+    # Convert to absolute path
+    abs_path=$(readlink -m "${abs_path}")
+    cd "${current_dir}"
+    echo "${abs_path}"
+}
+top_dir="$(convert_to_abs_path "${top_dir}")"
+printf "\nThe code will be installed in \"${top_dir}\"\n"
+mkdir -p "${top_dir}"
+cd "${top_dir}"
 
 # Function which prints the absolute path of a given command.
 # If the command is not an executable file on the PATH but instead a
 # known function, the input command is printed as is. If the command
 # cannot be found at all, nothing is printed and an exit code of 1
 # is returned.
-get_command()
-{
+get_command(){
     command_name="${1}"
     # Use the type builtin to locate the command
     path="$(type "${command_name}" 2>/dev/null | awk '{print $NF}')"
@@ -456,18 +524,29 @@ get_command()
 # Check whether system dependencies are installed and located on PATH
 current_step="check for preinstalled system dependencies"
 # Check for package manager and set package names
-set_package_names()
-{
+set_package_names(){
     # Arguments: Package name for awk, gcc, g++, gfortran, gzip, make,
-    # sed, tar, wget.
+    # sed, tar, wget, glibc, as and ld, Linux headers.
     i=0
-    for package in "awk" "gcc" "gxx" "gfortran" "gzip" "make" "sed" "tar" "wget"; do
+    for package in      \
+        "awk"           \
+        "gcc"           \
+        "gxx"           \
+        "gfortran"      \
+        "gzip"          \
+        "make"          \
+        "sed"           \
+        "tar"           \
+        "wget"          \
+        "glibc"         \
+        "as_ld"         \
+        "linux_headers" \
+    ; do
         ((i += 1))
         eval "${package}_package=\${${i}}"
     done
 }
-set_package_manager_and_names()
-{
+set_package_manager_and_names(){
     # This function takes no arguments
     package_manager=""
     for pmanager in "apt-get" "dnf" "yum" "zypper" "urpmi" "pacman" "eopkg"; do
@@ -476,91 +555,153 @@ set_package_manager_and_names()
             package_manager="${pmanager}"
             # Package names
             case "${package_manager}" in
-                "apt-get" ) install_command="sudo ${package_manager} -y install"
-                            set_package_names "gawk"     \
-                                              "gcc"      \
-                                              "g++"      \
-                                              "gfortran" \
-                                              "gzip"     \
-                                              "make"     \
-                                              "sed"      \
-                                              "tar"      \
-                                              "wget"
+                "apt" ) install_command="${sudo_command} ${package_manager} -y install"
+                            set_package_names               \
+                                "gawk"                      \
+                                "gcc"                       \
+                                "g++"                       \
+                                "gfortran"                  \
+                                "gzip"                      \
+                                "make"                      \
+                                "sed"                       \
+                                "tar"                       \
+                                "wget"                      \
+                                "libc6 libc6-dev"           \
+                                "binutils"                  \
+                                "linux-headers-$(uname -r)"
                             break
                             ;;
-                "dnf"     ) install_command="sudo ${package_manager} -y install"
-                            set_package_names "gawk"         \
-                                              "gcc"          \
-                                              "gcc-c++"      \
-                                              "gcc-gfortran" \
-                                              "gzip"         \
-                                              "make"         \
-                                              "sed"          \
-                                              "tar"          \
-                                              "wget"
+                "apt-get" ) install_command="${sudo_command} ${package_manager} -y install"
+                            set_package_names               \
+                                "gawk"                      \
+                                "gcc"                       \
+                                "g++"                       \
+                                "gfortran"                  \
+                                "gzip"                      \
+                                "make"                      \
+                                "sed"                       \
+                                "tar"                       \
+                                "wget"                      \
+                                "libc6 libc6-dev"           \
+                                "binutils"                  \
+                                "linux-headers-$(uname -r)"
                             break
                             ;;
-                "yum"     ) install_command="sudo ${package_manager} -y install"
-                            set_package_names "gawk"         \
-                                              "gcc"          \
-                                              "gcc-c++"      \
-                                              "gcc-gfortran" \
-                                              "gzip"         \
-                                              "make"         \
-                                              "sed"          \
-                                              "tar"          \
-                                              "wget"
+                "aptitude" ) install_command="${sudo_command} ${package_manager} -y install"
+                            set_package_names               \
+                                "gawk"                      \
+                                "gcc"                       \
+                                "g++"                       \
+                                "gfortran"                  \
+                                "gzip"                      \
+                                "make"                      \
+                                "sed"                       \
+                                "tar"                       \
+                                "wget"                      \
+                                "libc6 libc6-dev"           \
+                                "binutils"                  \
+                                "linux-headers-$(uname -r)"
                             break
                             ;;
-                "zypper"  ) install_command="sudo ${package_manager} -n install"
-                            set_package_names "gawk"        \
-                                              "gcc"         \
-                                              "gcc-c++"     \
-                                              "gcc-fortran" \
-                                              "gzip"        \
-                                              "make"        \
-                                              "sed"         \
-                                              "tar"         \
-                                              "wget"
+                "dnf"     ) install_command="${sudo_command} ${package_manager} -y install"
+                            set_package_names       \
+                                "gawk"              \
+                                "gcc"               \
+                                "gcc-c++"           \
+                                "gcc-gfortran"      \
+                                "gzip"              \
+                                "make"              \
+                                "sed"               \
+                                "tar"               \
+                                "wget"              \
+                                "glibc glibc-devel" \
+                                "binutils"          \
+                                "kernel-headers"
                             break
                             ;;
-                "urpmi"   ) install_command="sudo ${package_manager} --auto"
-                            set_package_names "gawk"         \
-                                              "gcc"          \
-                                              "gcc-c++"      \
-                                              "gcc-gfortran" \
-                                              "gzip"         \
-                                              "make"         \
-                                              "sed"          \
-                                              "tar"          \
-                                              "wget"
+                "yum"     ) install_command="${sudo_command} ${package_manager} -y install"
+                            set_package_names       \
+                                "gawk"              \
+                                "gcc"               \
+                                "gcc-c++"           \
+                                "gcc-gfortran"      \
+                                "gzip"              \
+                                "make"              \
+                                "sed"               \
+                                "tar"               \
+                                "wget"              \
+                                "glibc glibc-devel" \
+                                "binutils"          \
+                                "kernel-headers"
                             break
                             ;;
-                "pacman"  ) install_command="sudo ${package_manager} -S --noconfirm"
-                            set_package_names "gawk"        \
-                                              "gcc"         \
-                                              "gcc"         \
-                                              "gcc-fortran" \
-                                              "gzip"        \
-                                              "make"        \
-                                              "sed"         \
-                                              "tar"         \
-                                              "wget"
+                "zypper"  ) install_command="${sudo_command} ${package_manager} -n install"
+                            set_package_names          \
+                                "gawk"                 \
+                                "gcc"                  \
+                                "gcc-c++"              \
+                                "gcc-fortran"          \
+                                "gzip"                 \
+                                "make"                 \
+                                "sed"                  \
+                                "tar"                  \
+                                "wget"                 \
+                                "glibc glibc-devel"    \
+                                "binutils"             \
+                                "linux-kernel-headers"
                             break
                             ;;
-                "eopkg"   ) install_command="sudo ${package_manager} install -y"
-                            set_package_names "gawk"     \
-                                              "gcc"      \
-                                              "g++"      \
-                                              "gfortran" \
-                                              "gzip"     \
-                                              "make"     \
-                                              "sed"      \
-                                              "tar"      \
-                                              "wget"
+                "urpmi"   ) install_command="${sudo_command} ${package_manager} --auto"
+                            set_package_names              \
+                                "gawk"                     \
+                                "gcc"                      \
+                                "gcc-c++"                  \
+                                "gcc-gfortran"             \
+                                "gzip"                     \
+                                "make"                     \
+                                "sed"                      \
+                                "tar"                      \
+                                "wget"                     \
+                                "glibc glibc-devel"        \
+                                "binutils"                 \
+                                "kernel-userspace-headers"
+                            break
+                            ;;
+                # CHECK THIS!
+                "pacman"  ) install_command="${sudo_command} ${package_manager} -S --noconfirm"
+                            set_package_names   \
+                                "gawk"          \
+                                "gcc"           \
+                                "gcc"           \
+                                "gcc-fortran"   \
+                                "gzip"          \
+                                "make"          \
+                                "sed"           \
+                                "tar"           \
+                                "wget"          \
+                                "glibc"         \
+                                "binutils"      \
+                                "linux-headers"
+                            break
+                            ;;
+                "eopkg"   ) install_command="${sudo_command} ${package_manager} install -y"
+                            set_package_names       \
+                                "gawk"              \
+                                "gcc"               \
+                                "g++"               \
+                                "gfortran"          \
+                                "gzip"              \
+                                "make"              \
+                                "sed"               \
+                                "tar"               \
+                                "wget"              \
+                                "glibc glibc-devel" \
+                                "binutils"          \
+                                "linux-headers"
                             break
                             ;;
             esac
+            break
         fi
     done
 }
@@ -568,37 +709,42 @@ set_package_manager_and_names
 # Function for testing whether system dependencies are installed and
 # located on PATH. For missing system dependencies, it will attempt to
 # figure out the command to install it.
-check_system_dependency()
-{
+check_system_dependency(){
     # Arguments: Command, package name
     if ! get_command "${1}" >/dev/null; then
         # Package not installed
         if [ -n "${package_manager}" ]; then
             # Package manager found
             echo
-            echo "Could not find '${1}'"
-            echo "You can install it by typing:"
-            echo "${install_command} ${2}"
-            while :; do
-                read -p "Run above command now? [Y/n] " yn
-                case "${yn}" in
-                    [Yy]* ) ${install_command} ${2}
-                            printf "${1} successfully installed\n\n"
-                            return
-                            ;;
-                    [Nn]* ) error "Terminated install due to missing component '${1}'"
-                            exit 1
-                            ;;
-                    ""    ) ${install_command} ${2}
-                            printf "${1} successfully installed\n\n"
-                            return
-                            ;;
-                    *     ) error "Terminated install due to missing component '${1}'"
-                            exit 1
-                            ;;
-                esac
-            done
-            exit 1
+            if [ "${auto_install}" == "yes" ]; then
+                echo "Auto installing '${1}'"
+                eval "${install_command} ${2}"
+                printf "${1} successfully installed\n\n"
+            else
+                echo "Could not find '${1}'"
+                echo "You can install it by typing:"
+                echo "${install_command} ${2}"
+                while :; do
+                    read -p "Run above command now? [Y/n] " yn
+                    case "${yn}" in
+                        [Yy]* ) eval "${install_command} ${2}"
+                                printf "${1} successfully installed\n\n"
+                                return
+                                ;;
+                        [Nn]* ) error "Terminated install due to missing component '${1}'"
+                                exit 1
+                                ;;
+                        ""    ) eval "${install_command} ${2}"
+                                printf "${1} successfully installed\n\n"
+                                return
+                                ;;
+                        *     ) error "Terminated install due to missing component '${1}'"
+                                exit 1
+                                ;;
+                    esac
+                done
+                exit 1
+            fi
         else
             # No package manager found
             error "Error: Could not find '${1}'"
@@ -616,6 +762,123 @@ check_system_dependency "sed"      "${sed_package}"
 check_system_dependency "tar"      "${tar_package}"
 check_system_dependency "wget"     "${wget_package}"
 
+# Though gcc is now guaranteed to be installed,
+# it may miss important components, which we check for here.
+current_step="check of gcc components"
+gcc_test(){
+    # Arguments:
+    #   - Name of gcc component
+    #   - C source code to test
+    #   - Expected output
+    #   - Text to write if fail
+    #   - Name of package to install if fail
+    name="$1"
+    C_source="$2"
+    expected_output="$3"
+    message="$4"
+    package_name="$5"
+    # Prepare for gcc test
+    current_dir="$(pwd)"
+    cd "${top_dir}"
+    gcc_test_dir="${top_dir}/tmp/gcc_test"
+    rm -rf "${gcc_test_dir}"
+    mkdir -p "${gcc_test_dir}"
+    # Write C source to file
+    echo "${C_source}" > main.c
+    # Test compile and run
+    for i in 0 1; do
+        gcc_test_success="yes"
+        gcc main.c -o main || gcc_test_success="no"
+        if [ "${gcc_test_success}" == "yes" ]; then
+            gcc_test_output="$(./main)"
+            if [ "${gcc_test_output}" != "${expected_output}" ]; then
+                gcc_test_success="no"
+            fi
+        fi
+        if [ "${gcc_test_success}" == "no" ]; then
+            if [ $i -eq 0 ]; then
+                # Test failed.
+                # Prompt for installation of needed package.
+                echo
+                echo "${message}"
+                if [ -z "${package_manager}" ]; then
+                    # No package manager found
+                    error "Error: Could not find any installed package manager"
+                    exit 1
+                fi
+                if [ "${auto_install}" == "yes" ]; then
+                    echo "Auto installing ${name}"
+                    eval "${install_command} ${package_name}"
+                else
+                    echo "To ensure that ${name} are installed, type:"
+                    echo "${install_command} ${package_name}"
+                    gcc_test_prompt(){
+                        while :; do
+                            read -p "Run above command now? [Y/n] " yn
+                            case "${yn}" in
+                                [Yy]* ) eval "${install_command} ${package_name}"
+                                        return
+                                        ;;
+                                [Nn]* ) error "Terminated install due to missing component: ${name}"
+                                        exit 1
+                                        ;;
+                                ""    ) eval "${install_command} ${package_name}"
+                                        return
+                                        ;;
+                                *     ) error "Terminated install due to missing component: ${name}"
+                                        exit 1
+                                        ;;
+                            esac
+                        done
+                        exit 1
+                    }
+                    gcc_test_prompt
+                fi
+                printf "${name} successfully installed\n\n"
+            else
+                # Test failed even after installing the needed package
+                error "Terminated install due to gcc failing to \
+properly compile \"${gcc_test_dir}/main.c\""
+                exit 1
+            fi
+        fi
+    done
+    # Cleanup after test
+    cd "${current_dir}"
+    rm -rf "${gcc_test_dir}"
+}
+# Basic gcc test, checking for the standard library,
+# the assembler and linker.
+gcc_test                                                \
+    "the gcc C standard library, assembler and linker"  \
+    '
+#include <stdio.h>
+int main(void){
+    printf("hello\n");
+    return 0;
+}
+'                                                       \
+    "hello"                                             \
+    "gcc could not compile even a simple C program. \
+We need to make sure that the gcc C standard library, \
+as well as the assembler and linker are all installed." \
+    "${glibc_package} ${as_ld_package}"
+# Check for the Linux headers
+gcc_test                                                \
+    "the Linux headers"  \
+    '
+#include <linux/limits.h>
+#include <stdio.h>
+int main(void){
+    printf("hello\n");
+    return 0;
+}
+'                                                       \
+    "hello"                                             \
+    "gcc could not find the Linux headers. \
+We need to make sure that these are installed."         \
+    "${linux_headers_package}"
+
 # Change default versions if they are known not to work
 # with the present versions of the system dependencies.
 if [ "${ncurses_version_specifiedbyuser}" != "true" ] \
@@ -628,43 +891,10 @@ if [ "${ncurses_version_specifiedbyuser}" != "true" ] \
     fi
 fi
 
-# Creating top level directory (top_dir)
-current_step="setup of top level directory"
-if [ "${top_dir_specified}" == "no" ]; then
-    printf "\nWhere should the ${esc_concept} code be installed?"
-    read -p "$(echo $'\n> ')" -e top_dir
-    if [ -z "${top_dir}" ]; then
-        # The user hit enter without writing a path.
-        # Install in current directory.
-        top_dir="."
-    fi
-fi
-initial_dir="$(pwd)"  # It is crucial that this line is before any cd
-convert_to_abs_path()
-{
-    # Arguments: path
-    current_dir="$(pwd)"
-    cd "${initial_dir}"
-    # Places backslashes before spaces.
-    # These are needed when expanding tilde, but they will not persist.
-    abs_path="${1//[ ]/\\ }"
-    # Expand tilde
-    eval abs_path="${abs_path}"
-    # Convert to absolute path
-    abs_path=$(readlink -m "${abs_path}")
-    cd "${current_dir}"
-    echo "${abs_path}"
-}
-top_dir="$(convert_to_abs_path "${top_dir}")"
-printf "\nThe code will be installed in \"${top_dir}\"\n"
-mkdir -p "${top_dir}"
-cd "${top_dir}"
-
 # Replace "__top_dir__" in paths with the user specified top_dir.
 # Also convert to absolute path and check that this path exist for
 # pre-installed libraries.
-fix_path()
-{
+fix_path(){
     # Arguments: Program name
     progname="${1// /_}"
     progname="${progname,,}"
@@ -889,8 +1119,7 @@ current_step="discovery of dependencies"
 install_any_pypackages="no"
 install_any_software="no"
 install_anything="no"
-assume_preinstalled()
-{
+assume_preinstalled(){
     # Arguments: Program name (lowercase)
     eval "name_preinstalled=\"\${${1}_preinstalled}\""
     if [ "${name_preinstalled}" == "no" ]; then
@@ -1166,14 +1395,12 @@ fi
 # Beginning of subprocess #
 (
 # Set up error trapping
-ctrl_c_subprocess()
-{
+ctrl_c_subprocess(){
     trap : 0
     ctrl_c
     exit 0
 }
-abort_subprocess()
-{
+abort_subprocess(){
     trap : 0
     if [ "${current_step}" != "aborting" ]; then
         error "An error occurred during ${current_step}!"
@@ -1186,20 +1413,16 @@ trap 'abort_subprocess' EXIT
 set -e
 
 # Functions for controlling the current status
-set_status()
-{
+set_status(){
     echo "${status_prefix}${1}"
 }
-disable_status()
-{
+disable_status(){
     echo "${status_prefix}${status_disable}"
 }
-enable_status()
-{
+enable_status(){
     echo "${status_prefix}${status_enable}"
 }
-successfully_finish_status()
-{
+successfully_finish_status(){
     echo "${status_prefix}${status_finish_successfully}"
 }
 # These are needed to get the spcacing right in the output
@@ -1258,8 +1481,7 @@ fi
 # to archives containing a single top-level directory.
 
 # Function for checking that a given url actually exists
-validate_url()
-{
+validate_url(){
     # Arguments: Program name, [exit on error ("true" or "false")]
     progname="${1,,}"
     progname="${progname// /_}"
@@ -1318,8 +1540,7 @@ validate_url()
 
 # Function for letting versions fall back to their secondary,
 # fallback values, in case of unsuccessful retrievel of primary version.
-fallback()
-{
+fallback(){
     # Arguments: Program name
     progname="${1,,}"
     progname="${progname// /_}"
@@ -1347,8 +1568,7 @@ fallback()
 # invocations of this script. The function is called with the program
 # name (progname) as the argument and it will set the variables
 # progname_downloaded and progname_installed to either "yes" or "no".
-check_progress()
-{
+check_progress(){
     # Arguments: Program name
     progname="${1// /_}"
     progname="${progname,,}"
@@ -1884,16 +2104,14 @@ fi
 # Functions for printing out nice tables (these are superior to the
 # "column" command on older systems, as this does not handle
 # formatted output very well).
-modify_element()
-{
+modify_element(){
     # Arguments: Character to be replaced, character to replace with
     for ((i = 0; i < nelements; i += 1)); do
         element="${table_to_print[i]}"
         table_to_print[i]="${element//$1/$2}"
     done
 }
-print_table()
-{
+print_table(){
     # Arguments: Array to be printed (passed as array[@]),
     #            number of columns.
     table_to_print=("${!1}")
@@ -2192,8 +2410,7 @@ fi
 # Download CO𝘕CEPT dependencies #
 #################################
 # Function for downloading compressed archives
-download()
-{
+download(){
     # Arguments: Program name
     progname="${1// /_}"
     progname="${progname,,}"
@@ -2313,8 +2530,7 @@ enable_status
 # Install CO𝘕CEPT dependencies #
 ################################
 # Function for extracting compressed files
-extract()
-{
+extract(){
     # Arguments: Program name, [is_file]
     # Here, the optional is_file argument can be set to "yes" if
     # the first argument is a filename rather than a program name.
@@ -2438,8 +2654,7 @@ extract()
 
 # Function which initializes installations (extracts the pre-
 # downloaded archive and change to the extracted directory).
-init_install()
-{
+init_install(){
     # Arguments: Program name
     progname="${1// /_}"
     progname="${progname,,}"
@@ -3097,8 +3312,7 @@ except:
 fi
 
 # Function for downloading Python packages, utilizing pip
-pip_download()
-{
+pip_download(){
     # Arguments: Python package name, version, pip_download_time.
     # No second argument, blank second argument or a second argument of
     # "upgrade" means newest version. The second argument can also be a
@@ -3232,8 +3446,7 @@ Please be patient ...\n";                                                       
 }
 
 # Function for installing and upgrading Python packages, utilizing pip
-pip_install_pypackage()
-{
+pip_install_pypackage(){
     # Arguments: Python package name, [version or "upgrade"]
     # (install specific version or update existing version to newest).
     # If second argument is not provided, the newest version
@@ -4288,8 +4501,7 @@ rm -rf "${top_dir}/__pycache__"
 rm -f "${top_dir}/_configtest"*
 # Copyright notice
 disable_status
-copyright_notice()
-{
+copyright_notice(){
     # Arguments: Program/package name, text if installed by this script
     if eval "[ \"\${${1}_install}\" == \"yes\" ]"; then
         printf "${2}\n"
@@ -4342,8 +4554,7 @@ fi
 # Notice about test errors
 current_step="erroneous tests notice"
 any_test_error_notices="no"
-erroneous_test_notice()
-{
+erroneous_test_notice(){
     # Arguments: Program name, [alternative message]
     progname="${1// /_}"
     progname="${progname,,}"

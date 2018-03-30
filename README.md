@@ -29,7 +29,7 @@ option which skips all tests (not recommended).
 You can download and invoke the installer in one go by
 
     concept_version=v0.1.0
-    bash <(wget -O- --no-ch https://raw.githubusercontent.com/jmd-dk/concept/${concept_version}/installer) [/path/to/concept] [--fast]
+    bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/${concept_version}/installer) [/path/to/concept] [--fast]
 
 where brackets indicate optional arguments. Note that the initial
 "`bash`" is required regardless of which shell you are using.
@@ -49,7 +49,7 @@ MPI 3 library (any implementation should do). This is achieved by
 setting the `mpi_dir` variable, e.g.
 
     concept_version=0.1.0
-    mpi_dir=/path/to/mpi bash <(wget -O- --no-ch https://raw.githubusercontent.com/jmd-dk/concept/${concept_version}/installer) [/path/to/concept] [--fast]
+    mpi_dir=/path/to/mpi bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/${concept_version}/installer) [/path/to/concept] [--fast]
 
 This trick may also be used should you wish to use
 some other pre-installed dependency.
