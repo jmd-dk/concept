@@ -37,6 +37,7 @@
 # - gcc
 # - g++
 # - gfortran
+# - grep
 # - gzip
 # - make
 # - sed
@@ -311,7 +312,8 @@ else
     esc_concept="${esc_concept//\$\{esc_italic\}/${esc_italic}}"
     esc_concept="${esc_concept//\$\{esc_no_italic\}/${esc_no_italic}}"
 fi
-esc_concept_double_backslashes="$(echo "${esc_concept}" | sed 's,\\,\\\\,g')"
+esc_concept_double_backslashes="${esc_concept//\\/\\\\}"
+
 # Text colors
 esc_red="${esc}[91m"
 esc_green="${esc}[92m"
@@ -455,7 +457,8 @@ if [ "${auto_install}" == "yes" ] && [ ${EUID} -ne 0 ]; then
     while :; do
         read -s -p "[sudo] password for $(whoami): " sudo_password
         echo
-        output="$(echo "${sudo_password}" | sudo -S echo hello 2>&1 | awk '{print $NF}' || :)"
+        output="$(echo "${sudo_password}" | sudo -S echo hello 2>&1 || :)"
+        output="${output##* }"
         if [ "${output}" == "hello" ]; then
             break
         fi
@@ -506,7 +509,8 @@ cd "${top_dir}"
 get_command(){
     command_name="${1}"
     # Use the type builtin to locate the command
-    path="$(type "${command_name}" 2>/dev/null | awk '{print $NF}')"
+    path="$(type "${command_name}" 2>/dev/null || :)"
+    path="${path##* }"
     if [[ "${path}" == "/"* ]]; then
         # The command is a path
         path="$(readlink -f "${path}")"
@@ -525,14 +529,15 @@ get_command(){
 current_step="check for preinstalled system dependencies"
 # Check for package manager and set package names
 set_package_names(){
-    # Arguments: Package name for awk, gcc, g++, gfortran, gzip, make,
-    # sed, tar, wget, glibc, as and ld, Linux headers.
+    # Arguments: Package name for awk, gcc, g++, gfortran, grep, gzip,
+    # make, sed, tar, wget, glibc, as and ld, Linux headers.
     i=0
     for package in      \
         "awk"           \
         "gcc"           \
         "gxx"           \
         "gfortran"      \
+        "grep"          \
         "gzip"          \
         "make"          \
         "sed"           \
@@ -561,6 +566,7 @@ set_package_manager_and_names(){
                                 "gcc"                       \
                                 "g++"                       \
                                 "gfortran"                  \
+                                "grep"                      \
                                 "gzip"                      \
                                 "make"                      \
                                 "sed"                       \
@@ -577,6 +583,7 @@ set_package_manager_and_names(){
                                 "gcc"                       \
                                 "g++"                       \
                                 "gfortran"                  \
+                                "grep"                      \
                                 "gzip"                      \
                                 "make"                      \
                                 "sed"                       \
@@ -593,6 +600,7 @@ set_package_manager_and_names(){
                                 "gcc"                       \
                                 "g++"                       \
                                 "gfortran"                  \
+                                "grep"                      \
                                 "gzip"                      \
                                 "make"                      \
                                 "sed"                       \
@@ -609,6 +617,7 @@ set_package_manager_and_names(){
                                 "gcc"               \
                                 "gcc-c++"           \
                                 "gcc-gfortran"      \
+                                "grep"              \
                                 "gzip"              \
                                 "make"              \
                                 "sed"               \
@@ -625,6 +634,7 @@ set_package_manager_and_names(){
                                 "gcc"               \
                                 "gcc-c++"           \
                                 "gcc-gfortran"      \
+                                "grep"              \
                                 "gzip"              \
                                 "make"              \
                                 "sed"               \
@@ -641,6 +651,7 @@ set_package_manager_and_names(){
                                 "gcc"                  \
                                 "gcc-c++"              \
                                 "gcc-fortran"          \
+                                "grep"                 \
                                 "gzip"                 \
                                 "make"                 \
                                 "sed"                  \
@@ -657,6 +668,7 @@ set_package_manager_and_names(){
                                 "gcc"                      \
                                 "gcc-c++"                  \
                                 "gcc-gfortran"             \
+                                "grep"                     \
                                 "gzip"                     \
                                 "make"                     \
                                 "sed"                      \
@@ -667,13 +679,13 @@ set_package_manager_and_names(){
                                 "kernel-userspace-headers"
                             break
                             ;;
-                # CHECK THIS!
                 "pacman"  ) install_command="${sudo_command} ${package_manager} -S --noconfirm"
                             set_package_names   \
                                 "gawk"          \
                                 "gcc"           \
                                 "gcc"           \
                                 "gcc-fortran"   \
+                                "grep"          \
                                 "gzip"          \
                                 "make"          \
                                 "sed"           \
@@ -690,6 +702,7 @@ set_package_manager_and_names(){
                                 "gcc"               \
                                 "g++"               \
                                 "gfortran"          \
+                                "grep"              \
                                 "gzip"              \
                                 "make"              \
                                 "sed"               \
@@ -756,6 +769,7 @@ check_system_dependency "awk"      "${awk_package}"
 check_system_dependency "gcc"      "${gcc_package}"
 check_system_dependency "g++"      "${gxx_package}"
 check_system_dependency "gfortran" "${gfortran_package}"
+check_system_dependency "grep"     "${grep_package}"
 check_system_dependency "gzip"     "${gzip_package}"
 check_system_dependency "make"     "${make_package}"
 check_system_dependency "sed"      "${sed_package}"
