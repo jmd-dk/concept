@@ -219,11 +219,10 @@ get_command()
 # in the format of a Python list.
 bash_array2python_list()
 {
-    # Call like this: bash_array2python_list array[@]
-    declare -a array=("${!1}")
+    # Call like this: bash_array2python_list "${array[@]}"
     local list=''
     local element
-    for element in "${array[@]}"; do
+    for element in "$@"; do
         # If element is a string, encapsulate it in quotation marks
         element=$("${python}" -B -c "
 try:

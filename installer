@@ -31,6 +31,8 @@
 # executing the following command:
 # bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/master/installer)
 #
+# This script should be compatible with bash version 3.0 or later.
+#
 # Before installing the sofware into the specified directory,
 # the installer will check for the following system dependencies:
 # - awk
@@ -123,6 +125,7 @@
 # Specifications #
 ##################
 # The MPI implementation to use
+mpi_lower="$(echo "${mpi}" | tr '[:upper:]' '[:lower:]')"
 if [ -z "${mpi}" ]; then
     # If mpi_dir is specified,
     # try to determine whether OpenMPI or MPICH is used.
@@ -138,12 +141,12 @@ if [ -z "${mpi}" ]; then
         # Use MPICH by default
         mpi="mpich"
     fi
-elif [ "${mpi,,}" != "openmpi" ] && [ "${mpi,,}" != "mpich" ]; then
+elif [ "${mpi_lower}" != "openmpi" ] && [ "${mpi_lower}" != "mpich" ]; then
     echo "Specified MPI implementation mpi=\"${mpi}\" not recognized.
 Will use MPICH" >&2
     mpi="mpich"
 fi
-mpi="${mpi,,}"
+mpi="$(echo "${mpi}" | tr '[:upper:]' '[:lower:]')"
 # This function sets the variables "name_dir" (if not set already)
 # and "name_preinstalled".
 set_dir(){
@@ -911,7 +914,7 @@ fi
 fix_path(){
     # Arguments: Program name
     progname="${1// /_}"
-    progname="${progname,,}"
+    progname="$(echo "${progname}" | tr '[:upper:]' '[:lower:]')"
     # Replace "__top_dir__"
     eval "[ \"\${${progname=}_preinstalled}\" == \"yes\" ] \
           || ${progname=}_dir=\"\${${progname=}_dir/__top_dir__/${top_dir}}\""
@@ -1497,7 +1500,7 @@ fi
 # Function for checking that a given url actually exists
 validate_url(){
     # Arguments: Program name, [exit on error ("true" or "false")]
-    progname="${1,,}"
+    progname="$(echo "${1}" | tr '[:upper:]' '[:lower:]')"
     progname="${progname// /_}"
     exit_on_error="true"
     if [ -n "$2" ]; then
@@ -1556,7 +1559,7 @@ validate_url(){
 # fallback values, in case of unsuccessful retrievel of primary version.
 fallback(){
     # Arguments: Program name
-    progname="${1,,}"
+    progname="$(echo "${1}" | tr '[:upper:]' '[:lower:]')"
     progname="${progname// /_}"
     eval "progname_version=\"\${${progname}_version}\""
     eval "progname_version_fallback=\"\${${progname}_version_fallback}\""
@@ -1585,7 +1588,7 @@ fallback(){
 check_progress(){
     # Arguments: Program name
     progname="${1// /_}"
-    progname="${progname,,}"
+    progname="$(echo "${progname}" | tr '[:upper:]' '[:lower:]')"
     # The program installation directory
     eval "progdir=\"\${${progname}_dir}\""
     # CO𝘕CEPT itself will not have a .installation_finished file in its
@@ -1608,7 +1611,7 @@ check_progress(){
                                         | sed 's/^ *//')"
             if [ -n "${prog_prev}" ]; then
                 prog_prev_real="${prog_prev// /_}"
-                prog_prev_real="${prog_prev_real,,}"
+                prog_prev_real="$(echo "${prog_prev_real}" | tr '[:upper:]' '[:lower:]')"
             fi
             version_prev="$(echo "${line}" | grep '^Version:*'      \
                                            | sed 's/^Version:\s//g' \
@@ -2222,88 +2225,88 @@ if [ "${install_any_software}" == "yes" ]; then
            "${esc_bold}Installation path${esc_normal}")
     # CO𝘕CEPT
     if [ "${concept_install}" == "yes" ]; then
-        table+=("${esc_concept}$([ "${concept_installed}" == "yes" ] && echo '†' || :)" \
+        table=("${table[@]}" "${esc_concept}$([ "${concept_installed}" == "yes" ] && echo '†' || :)" \
                 "${concept_version}" "\"${concept_dir}\"")
     fi
     # CLASS
     if [ "${class_install}" == "yes" ]; then
-        table+=("CLASS$([ "${class_installed}" == "yes" ] && echo '†' || :)"           \
+        table=("${table[@]}" "CLASS$([ "${class_installed}" == "yes" ] && echo '†' || :)"           \
                 "${class_version}$([ "${class_installed}" == "no" ] && echo '*' || :)" \
                 "\"${class_dir}\"")
     fi
     # FFTW
     if [ "${fftw_install}" == "yes" ]; then
-        table+=("FFTW$([ "${fftw_installed}" == "yes" ] && echo '†' || :)" \
+        table=("${table[@]}" "FFTW$([ "${fftw_installed}" == "yes" ] && echo '†' || :)" \
                 "${fftw_version}" "\"${fftw_dir}\"")
     fi
     # FFTW for gadget
     if [ "${fftw_for_gadget_install}" == "yes" ]; then
-        table+=("FFTW$([ "${fftw_for_gadget_installed}" == "yes" ] && echo '†' || :)" \
+        table=("${table[@]}" "FFTW$([ "${fftw_for_gadget_installed}" == "yes" ] && echo '†' || :)" \
                 "${fftw_for_gadget_version}" "\"${fftw_for_gadget_dir}\"")
     fi
     # FreeType
     if [ "${freetype_install}" == "yes" ]; then
-        table+=("FreeType$([ "${freetype_installed}" == "yes" ] && echo '†' || :)" \
+        table=("${table[@]}" "FreeType$([ "${freetype_installed}" == "yes" ] && echo '†' || :)" \
                 "${freetype_version}" "\"${freetype_dir}\"")
     fi
     # Gadget
     if [ "${gadget_install}" == "yes" ]; then
-        table+=("Gadget$([ "${gadget_installed}" == "yes" ] && echo '†' || :)" \
+        table=("${table[@]}" "Gadget$([ "${gadget_installed}" == "yes" ] && echo '†' || :)" \
                 "${gadget_version}" "\"${gadget_dir}\"")
     fi
     # GSL
     if [ "${gsl_install}" == "yes" ]; then
-        table+=("GSL$([ "${gsl_installed}" == "yes" ] && echo '†' || :)" \
+        table=("${table[@]}" "GSL$([ "${gsl_installed}" == "yes" ] && echo '†' || :)" \
                 "${gsl_version}" "\"${gsl_dir}\"")
     fi
     # OpenBLAS
     if [ "${openblas_install}" == "yes" ]; then
-        table+=("OpenBLAS$([ "${openblas_installed}" == "yes" ] && echo '†' || :)" \
+        table=("${table[@]}" "OpenBLAS$([ "${openblas_installed}" == "yes" ] && echo '†' || :)" \
                 "${openblas_version}" "\"${openblas_dir}\"")
     fi
     # HDF5
     if [ "${hdf5_install}" == "yes" ]; then
-        table+=("HDF5$([ "${hdf5_installed}" == "yes" ] && echo '†' || :)" \
+        table=("${table[@]}" "HDF5$([ "${hdf5_installed}" == "yes" ] && echo '†' || :)" \
                 "${hdf5_version}" "\"${hdf5_dir}\"")
     fi
     # libpng
     if [ "${libpng_install}" == "yes" ]; then
-        table+=("libpng$([ "${libpng_installed}" == "yes" ] && echo '†' || :)" \
+        table=("${table[@]}" "libpng$([ "${libpng_installed}" == "yes" ] && echo '†' || :)" \
                 "${libpng_version}" "\"${libpng_dir}\"")
     fi
     # MPICH/OpenMPI
     if [ "${mpi_install}" == "yes" ]; then
         if [ "${mpi}" == "mpich" ]; then
-            table+=("MPICH$([ "${mpi_installed}" == "yes" ] && echo '†' || :)" \
+            table=("${table[@]}" "MPICH$([ "${mpi_installed}" == "yes" ] && echo '†' || :)" \
                     "${mpi_version}" "\"${mpi_dir}\"")
         elif [ "${mpi}" == "openmpi" ]; then
-            table+=("OpenMPI$([ "${mpi_installed}" == "yes" ] && echo '†' || :)" \
+            table=("${table[@]}" "OpenMPI$([ "${mpi_installed}" == "yes" ] && echo '†' || :)" \
                     "${mpi_version}" "\"${mpi_dir}\"")
         fi
     fi
     # ncurses
     if [ "${ncurses_install}" == "yes" ]; then
-        table+=("ncurses$([ "${ncurses_installed}" == "yes" ] && echo '†' || :)" \
+        table=("${table[@]}" "ncurses$([ "${ncurses_installed}" == "yes" ] && echo '†' || :)" \
                 "${ncurses_version}" "\"${ncurses_dir}\"")
     fi
     # OpenSSL
     if [ "${openssl_install}" == "yes" ]; then
-        table+=("OpenSSL$([ "${openssl_installed}" == "yes" ] && echo '†' || :)" \
+        table=("${table[@]}" "OpenSSL$([ "${openssl_installed}" == "yes" ] && echo '†' || :)" \
                 "${openssl_version}" "\"${openssl_dir}\"")
     fi
     # Perl
     if [ "${perl_install}" == "yes" ]; then
-        table+=("Perl$([ "${perl_installed}" == "yes" ] && echo '†' || :)" \
+        table=("${table[@]}" "Perl$([ "${perl_installed}" == "yes" ] && echo '†' || :)" \
                 "${perl_version}" "\"${perl_dir}\"")
     fi
     # Python
     if [ "${python_install}" == "yes" ]; then
-        table+=("Python$([ "${python_installed}" == "yes" ] && echo '†' || :)" \
+        table=("${table[@]}" "Python$([ "${python_installed}" == "yes" ] && echo '†' || :)" \
                 "${python_version}" "\"${python_dir}\"")
     fi
     # zlib
     if [ "${zlib_install}" == "yes" ]; then
-        table+=("zlib$([ "${zlib_installed}" == "yes" ] && echo '†' || :)" \
+        table=("${table[@]}" "zlib$([ "${zlib_installed}" == "yes" ] && echo '†' || :)" \
                 "${zlib_version}" "\"${zlib_dir}\"")
     fi
     echo "The following software will be installed"
@@ -2328,58 +2331,58 @@ if [ "${install_any_pypackages}" == "yes" ]; then
     table=("${esc_bold}Name${esc_normal}" "${esc_bold}Version${esc_normal}" "")
     # Blessings
     if [ "${blessings_install}" == "yes" ]; then
-        table+=("Blessings$([ "${blessings_installed}" == "yes" ] && echo '†' || :)" \
+        table=("${table[@]}" "Blessings$([ "${blessings_installed}" == "yes" ] && echo '†' || :)" \
                 "${blessings_version}" "")
     fi
     # Cython
     if [ "${cython_install}" == "yes" ]; then
-           table+=("Cython$([ "${cython_installed}" == "yes" ] && echo '†' || :)" \
+           table=("${table[@]}" "Cython$([ "${cython_installed}" == "yes" ] && echo '†' || :)" \
                    "${cython_version}" "")
     fi
     # CythonGSL
     if [ "${cythongsl_install}" == "yes" ]; then
-           table+=("CythonGSL$([ "${cythongsl_installed}" == "yes" ] && echo '†' || :)" \
+           table=("${table[@]}" "CythonGSL$([ "${cythongsl_installed}" == "yes" ] && echo '†' || :)" \
                    "${cythongsl_version}" "")
     fi
     # H5Py
     if [ "${h5py_install}" == "yes" ]; then
-           table+=("H5Py$([ "${h5py_installed}" == "yes" ] && echo '†' || :)" \
+           table=("${table[@]}" "H5Py$([ "${h5py_installed}" == "yes" ] && echo '†' || :)" \
                    "${h5py_version}" "")
     fi
     # Matplotlib
     if [ "${matplotlib_install}" == "yes" ]; then
-           table+=("Matplotlib$([ "${matplotlib_installed}" == "yes" ] && echo '†' || :)" \
+           table=("${table[@]}" "Matplotlib$([ "${matplotlib_installed}" == "yes" ] && echo '†' || :)" \
                    "${matplotlib_version}" "")
     fi
     # MPI4Py
     if [ "${mpi4py_install}" == "yes" ]; then
-           table+=("MPI4Py$([ "${mpi4py_installed}" == "yes" ] && echo '†' || :)" \
+           table=("${table[@]}" "MPI4Py$([ "${mpi4py_installed}" == "yes" ] && echo '†' || :)" \
                    "${mpi4py_version}" "")
     fi
     # Nose
     if [ "${nose_install}" == "yes" ]; then
-           table+=("Nose$([ "${nose_installed}" == "yes" ] && echo '†' || :)" \
+           table=("${table[@]}" "Nose$([ "${nose_installed}" == "yes" ] && echo '†' || :)" \
                    "${nose_version}" "")
     fi
     # NumPy
     if [ "${numpy_install}" == "yes" ]; then
-           table+=("NumPy$([ "${numpy_installed}" == "yes" ] && echo '†' || :)" \
+           table=("${table[@]}" "NumPy$([ "${numpy_installed}" == "yes" ] && echo '†' || :)" \
                    "${numpy_version}" "")
     fi
     # parameterized
     if [ "${parameterized_install}" == "yes" ]; then
-           table+=("parameterized$([ "${parameterized_installed}" == "yes" ] \
+           table=("${table[@]}" "parameterized$([ "${parameterized_installed}" == "yes" ] \
                    && echo '†' || :)" \
                    "${parameterized_version}" "")
     fi
     # Pytest
     if [ "${pytest_install}" == "yes" ]; then
-           table+=("pytest$([ "${pytest_installed}" == "yes" ] && echo '†' || :)" \
+           table=("${table[@]}" "pytest$([ "${pytest_installed}" == "yes" ] && echo '†' || :)" \
                    "${pytest_version}" "")
     fi
     # SciPy
     if [ "${scipy_install}" == "yes" ]; then
-           table+=("SciPy$([ "${scipy_installed}" == "yes" ] && echo '†' || :)" \
+           table=("${table[@]}" "SciPy$([ "${scipy_installed}" == "yes" ] && echo '†' || :)" \
                    "${scipy_version}" "")
     fi
     if [ "${install_any_software}" ]; then
@@ -2427,7 +2430,7 @@ fi
 download(){
     # Arguments: Program name
     progname="${1// /_}"
-    progname="${progname,,}"
+    progname="$(echo "${progname}" | tr '[:upper:]' '[:lower:]')"
     # Do not download if already fully downloaded
     eval "prog_downloaded=\"\${${progname}_downloaded}\""
     if [ "${prog_downloaded}" == "yes" ]; then
@@ -2553,7 +2556,7 @@ extract(){
         archive="$1"
     else
         progname="${1// /_}"
-        progname="${progname,,}"
+        progname="$(echo "${progname}" | tr '[:upper:]' '[:lower:]')"
         cd "${top_dir}/tmp/${progname}"
         archive="$(ls -p -1 | grep -v /)"
         n_files=$(echo "${archive}" | wc -l)
@@ -2671,7 +2674,7 @@ extract(){
 init_install(){
     # Arguments: Program name
     progname="${1// /_}"
-    progname="${progname,,}"
+    progname="$(echo "${progname}" | tr '[:upper:]' '[:lower:]')"
     eval "progversion=\"\${${progname}_version}\""
     if [ "${progname}" == "fftw_for_gadget" ]; then
         # When installing FFTW for GADGET, the version number should
@@ -3347,8 +3350,8 @@ pip_download(){
             command_end="${2}"
         fi
     fi
-    pip_name="${1//_/}"       # Remove underscores from name
-    pip_name="${pip_name,,}"  # Ensure lowercase
+    pip_name="${1//_/}"
+    pip_name="$(echo "${pip_name}" | tr '[:upper:]' '[:lower:]')"
     tmp_pip_dir="${top_dir}/tmp/pip"
     mkdir -p "${tmp_pip_dir}"
     tmp_pip_dir="${tmp_pip_dir// /\\ }"  # Add backslashes before spaces
@@ -3614,7 +3617,8 @@ if [ "${numpy_install}" == "yes" ] && [ "${numpy_installed}" == "no" ]; then
     extract "numpy"* "yes" || :
     numpy_extract_success="no"
     for f in *; do
-        if [ -d "${f}" ] && [[ "${f,,}" == "numpy"* ]]; then
+        f_lower="$(echo "${f}" | tr '[:upper:]' '[:lower:]')"
+        if [ -d "${f}" ] && [[ "${f_lower}" == "numpy"* ]]; then
             numpy_extract_success="yes"
             cd "${f}"
             break
@@ -3626,7 +3630,8 @@ if [ "${numpy_install}" == "yes" ] && [ "${numpy_installed}" == "no" ]; then
         cd "${top_dir}/tmp/numpy"
         extract * "yes"
         for f in *; do
-            if [ -d "${f}" ] && [[ "${f,,}" == "numpy"* ]]; then
+            f_lower="$(echo "${f}" | tr '[:upper:]' '[:lower:]')"
+            if [ -d "${f}" ] && [[ "${f_lower}" == "numpy"* ]]; then
                 cd "${f}"
                 break
             fi
@@ -3677,7 +3682,8 @@ if [ "${scipy_install}" == "yes" ] && [ "${scipy_installed}" == "no" ]; then
     cd "${top_dir}/tmp/pip"
     extract "scipy"* "yes"
     for f in *; do
-        if [ -d "${f}" ] && [[ "${f,,}" == "scipy"* ]]; then
+        f_lower="$(echo "${f}" | tr '[:upper:]' '[:lower:]')"
+        if [ -d "${f}" ] && [[ "${f_lower}" == "scipy"* ]]; then
             cd "${f}"
             break
         fi
@@ -3788,7 +3794,8 @@ if [ "${matplotlib_install}" == "yes" ] && [ "${matplotlib_installed}" == "no" ]
     cd "${top_dir}/tmp/pip"
     extract "matplotlib"* "yes"
     for f in *; do
-        if [ -d "${f}" ] && [[ "${f,,}" == "matplotlib"* ]]; then
+        f_lower="$(echo "${f}" | tr '[:upper:]' '[:lower:]')"
+        if [ -d "${f}" ] && [[ "${f_lower}" == "matplotlib"* ]]; then
             cd "${f}"
             break
         fi
@@ -4571,7 +4578,7 @@ any_test_error_notices="no"
 erroneous_test_notice(){
     # Arguments: Program name, [alternative message]
     progname="${1// /_}"
-    progname="${progname,,}"
+    progname="$(echo "${progname}" | tr '[:upper:]' '[:lower:]')"
     test_success="yes"
     eval "test_success=\"\${${progname}_test_success}\""
     if [ "${test_success}" == "no" ]; then

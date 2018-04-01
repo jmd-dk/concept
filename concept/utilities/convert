@@ -130,9 +130,9 @@ for path_or_attribute in "${paths_and_attributes[@]}"; do
     # Convert to absolute path
     path="$(absolute_path "${path_or_attribute}" "${workdir}")"
     if [ -e "${path}" ]; then
-        paths+=("${path}")
+        paths=("${paths[@]}" "${path}")
     else
-        attributes+=("${path_or_attribute}")
+        attributes=("${attributes[@]}" "${path_or_attribute}")
     fi
 done
 
@@ -151,7 +151,7 @@ info="$("${concept}" -p "${params}"                             \
                      ${pure_python_flag}                        \
                      ${unsafe_build_flag}                       \
                      -u info                                    \
-                         "$(bash_array2python_list paths[@])"   \
+                         "$(bash_array2python_list "${paths[@]}")"   \
                          --generate-params "${this_dir}/params" \
         )"
 snapshot_filenames="$(echo "${info}" | grep -x 'Parameters.*' | grep -o '".*"')"
@@ -182,7 +182,7 @@ for ((i = 1; i <= N_snapshots; i += 1)); do
 # The special_params dict, specifying details of the utility run
 special_params = {
     'special': '$(basename "${this_file}")',
-    'attributes':        $(bash_array2python_list attributes[@]),
+    'attributes':        $(bash_array2python_list "${attributes[@]}"),
     'snapshot_filename': ${snapshot_filename},
                   }
 # Parameter values which should always be used when running this utility
@@ -230,7 +230,7 @@ paths['params'] = params_path_ori
         jobid="$(echo "${concept_output}" | grep "Job .* submitted to queue" 2>/dev/null || :)"
         if [ -n "${jobid}" ]; then
             jobid="$(echo "${jobid}" | awk '{print $2}')"
-            jobids+=("${jobid}")
+            jobids=("${jobids[@]}" "${jobid}")
         fi
     elif [ "${remote}" == "False" ]; then
         call_concept

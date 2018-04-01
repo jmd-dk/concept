@@ -94,13 +94,14 @@ ifeq ($(paths_filename),fail)
 endif
 # Include (absolute) paths from the .paths file
 include $(paths_filename)
-# Function which takes in a quoted argument. If this argument is
-# a path (perhaps prefixed with e.g. -I) and it is located near this
-# Makefile, the return value is the relative path. Otherwise, the
-# return value is just the untouched argument.
+# Function which takes in a quoted or unquoted argument. If this
+# argument is a path (perhaps prefixed with e.g. -I) and it is located
+# near this Makefile, the return value is the relative path. Otherwise,
+# the return value is just the untouched argument.
 # A backslash will be placed before spaces.
-sensible_path = $(shell $(python) -c "import os;                                                  \
-                                      path = $1;                                                  \
+sensible_path = $(shell $(python) -c "import os, sys;                                             \
+                                      path = ''' $1 '''.strip(' \"').strip(\"'\");                \
+                                      not path and sys.exit();                                    \
                                       prefix = ([''] + [prefix for prefix in                      \
                                                         ('-I', '-L', '-Wl,-rpath=')               \
                                                         if path.startswith(prefix)]               \
@@ -145,18 +146,23 @@ CC_version = $(shell info="$$($(CC) --version | head -n 1 || :)";               
                      elif echo "$${info}" | grep -i icc >/dev/null; then echo "icc"; \
                      else echo "gcc"; \
                      fi)
-unwanted_warnings = unused-but-set-variable \
-                    uninitialized
+unwanted_warnings =         \
+    unused-but-set-variable \
+    uninitialized           \
+    implicit-fallthrough    \
+
 python_cflags = $(filter-out $(addprefix -W,$(unwanted_warnings)), \
                              $(shell $(python_config) --cflags))
-other_cflags = -pthread             \
-               -std=c99             \
-               -fno-strict-aliasing \
-               -fPIC                \
-               -fno-var-tracking    \
-               -Wall                \
-               -Wextra              \
-               $(addprefix -Wno-,$(unwanted_warnings))
+other_cflags =                              \
+    -pthread                                \
+    -std=c99                                \
+    -fno-strict-aliasing                    \
+    -fPIC                                   \
+    -fno-var-tracking                       \
+    -Wall                                   \
+    -Wextra                                 \
+    $(addprefix -Wno-,$(unwanted_warnings)) \
+
 # General optimization options
 ifneq ($(no_optimization),True)
     other_cflags += -O3
