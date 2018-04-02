@@ -557,165 +557,211 @@ set_package_names(){
 set_package_manager_and_names(){
     # This function takes no arguments
     package_manager=""
-    for pmanager in "apt-get" "dnf" "yum" "zypper" "urpmi" "pacman" "eopkg"; do
+    for pmanager in \
+        "apt"       \
+        "apt-get"   \
+        "aptitude"  \
+        "dnf"       \
+        "yum"       \
+        "zypper"    \
+        "urpmi"     \
+        "pacman"    \
+        "eopkg"     \
+        "emerge"    \
+        "slackpkg"  \
+    ; do
         if get_command "${pmanager}" >/dev/null; then
             # Package manager found
             package_manager="${pmanager}"
             # Package names
             case "${package_manager}" in
-                "apt" ) install_command="${sudo_command} ${package_manager} -y install"
-                            set_package_names               \
-                                "gawk"                      \
-                                "gcc"                       \
-                                "g++"                       \
-                                "gfortran"                  \
-                                "grep"                      \
-                                "gzip"                      \
-                                "make"                      \
-                                "sed"                       \
-                                "tar"                       \
-                                "wget"                      \
-                                "libc6 libc6-dev"           \
-                                "binutils"                  \
-                                "linux-headers-$(uname -r)"
-                            break
-                            ;;
-                "apt-get" ) install_command="${sudo_command} ${package_manager} -y install"
-                            set_package_names               \
-                                "gawk"                      \
-                                "gcc"                       \
-                                "g++"                       \
-                                "gfortran"                  \
-                                "grep"                      \
-                                "gzip"                      \
-                                "make"                      \
-                                "sed"                       \
-                                "tar"                       \
-                                "wget"                      \
-                                "libc6 libc6-dev"           \
-                                "binutils"                  \
-                                "linux-headers-$(uname -r)"
-                            break
-                            ;;
-                "aptitude" ) install_command="${sudo_command} ${package_manager} -y install"
-                            set_package_names               \
-                                "gawk"                      \
-                                "gcc"                       \
-                                "g++"                       \
-                                "gfortran"                  \
-                                "grep"                      \
-                                "gzip"                      \
-                                "make"                      \
-                                "sed"                       \
-                                "tar"                       \
-                                "wget"                      \
-                                "libc6 libc6-dev"           \
-                                "binutils"                  \
-                                "linux-headers-$(uname -r)"
-                            break
-                            ;;
-                "dnf"     ) install_command="${sudo_command} ${package_manager} -y install"
-                            set_package_names       \
-                                "gawk"              \
-                                "gcc"               \
-                                "gcc-c++"           \
-                                "gcc-gfortran"      \
-                                "grep"              \
-                                "gzip"              \
-                                "make"              \
-                                "sed"               \
-                                "tar"               \
-                                "wget"              \
-                                "glibc glibc-devel" \
-                                "binutils"          \
-                                "kernel-headers"
-                            break
-                            ;;
-                "yum"     ) install_command="${sudo_command} ${package_manager} -y install"
-                            set_package_names       \
-                                "gawk"              \
-                                "gcc"               \
-                                "gcc-c++"           \
-                                "gcc-gfortran"      \
-                                "grep"              \
-                                "gzip"              \
-                                "make"              \
-                                "sed"               \
-                                "tar"               \
-                                "wget"              \
-                                "glibc glibc-devel" \
-                                "binutils"          \
-                                "kernel-headers"
-                            break
-                            ;;
-                "zypper"  ) install_command="${sudo_command} ${package_manager} -n install"
-                            set_package_names          \
-                                "gawk"                 \
-                                "gcc"                  \
-                                "gcc-c++"              \
-                                "gcc-fortran"          \
-                                "grep"                 \
-                                "gzip"                 \
-                                "make"                 \
-                                "sed"                  \
-                                "tar"                  \
-                                "wget"                 \
-                                "glibc glibc-devel"    \
-                                "binutils"             \
-                                "linux-kernel-headers"
-                            break
-                            ;;
-                "urpmi"   ) install_command="${sudo_command} ${package_manager} --auto"
-                            set_package_names              \
-                                "gawk"                     \
-                                "gcc"                      \
-                                "gcc-c++"                  \
-                                "gcc-gfortran"             \
-                                "grep"                     \
-                                "gzip"                     \
-                                "make"                     \
-                                "sed"                      \
-                                "tar"                      \
-                                "wget"                     \
-                                "glibc glibc-devel"        \
-                                "binutils"                 \
-                                "kernel-userspace-headers"
-                            break
-                            ;;
-                "pacman"  ) install_command="${sudo_command} ${package_manager} -S --noconfirm"
-                            set_package_names   \
-                                "gawk"          \
-                                "gcc"           \
-                                "gcc"           \
-                                "gcc-fortran"   \
-                                "grep"          \
-                                "gzip"          \
-                                "make"          \
-                                "sed"           \
-                                "tar"           \
-                                "wget"          \
-                                "glibc"         \
-                                "binutils"      \
-                                "linux-headers"
-                            break
-                            ;;
-                "eopkg"   ) install_command="${sudo_command} ${package_manager} install -y"
-                            set_package_names       \
-                                "gawk"              \
-                                "gcc"               \
-                                "g++"               \
-                                "gfortran"          \
-                                "grep"              \
-                                "gzip"              \
-                                "make"              \
-                                "sed"               \
-                                "tar"               \
-                                "wget"              \
-                                "glibc glibc-devel" \
-                                "binutils"          \
-                                "linux-headers"
-                            break
-                            ;;
+                "apt") install_command="${sudo_command} ${package_manager} -y install"
+                    set_package_names               \
+                        "gawk"                      \
+                        "gcc"                       \
+                        "g++"                       \
+                        "gfortran"                  \
+                        "grep"                      \
+                        "gzip"                      \
+                        "make"                      \
+                        "sed"                       \
+                        "tar"                       \
+                        "wget"                      \
+                        "libc6 libc6-dev"           \
+                        "binutils"                  \
+                        "linux-headers-$(uname -r)"
+                    break
+                    ;;
+                "apt-get") install_command="${sudo_command} ${package_manager} -y install"
+                    set_package_names               \
+                        "gawk"                      \
+                        "gcc"                       \
+                        "g++"                       \
+                        "gfortran"                  \
+                        "grep"                      \
+                        "gzip"                      \
+                        "make"                      \
+                        "sed"                       \
+                        "tar"                       \
+                        "wget"                      \
+                        "libc6 libc6-dev"           \
+                        "binutils"                  \
+                        "linux-headers-$(uname -r)"
+                    break
+                    ;;
+                "aptitude") install_command="${sudo_command} ${package_manager} -y install"
+                    set_package_names               \
+                        "gawk"                      \
+                        "gcc"                       \
+                        "g++"                       \
+                        "gfortran"                  \
+                        "grep"                      \
+                        "gzip"                      \
+                        "make"                      \
+                        "sed"                       \
+                        "tar"                       \
+                        "wget"                      \
+                        "libc6 libc6-dev"           \
+                        "binutils"                  \
+                        "linux-headers-$(uname -r)"
+                    break
+                    ;;
+                "dnf") install_command="${sudo_command} ${package_manager} -y install"
+                    set_package_names       \
+                        "gawk"              \
+                        "gcc"               \
+                        "gcc-c++"           \
+                        "gcc-gfortran"      \
+                        "grep"              \
+                        "gzip"              \
+                        "make"              \
+                        "sed"               \
+                        "tar"               \
+                        "wget"              \
+                        "glibc glibc-devel" \
+                        "binutils"          \
+                        "kernel-headers"
+                    break
+                    ;;
+                "yum") install_command="${sudo_command} ${package_manager} -y install"
+                    set_package_names       \
+                        "gawk"              \
+                        "gcc"               \
+                        "gcc-c++"           \
+                        "gcc-gfortran"      \
+                        "grep"              \
+                        "gzip"              \
+                        "make"              \
+                        "sed"               \
+                        "tar"               \
+                        "wget"              \
+                        "glibc glibc-devel" \
+                        "binutils"          \
+                        "kernel-headers"
+                    break
+                    ;;
+                "zypper") install_command="${sudo_command} ${package_manager} -n install"
+                    set_package_names          \
+                        "gawk"                 \
+                        "gcc"                  \
+                        "gcc-c++"              \
+                        "gcc-fortran"          \
+                        "grep"                 \
+                        "gzip"                 \
+                        "make"                 \
+                        "sed"                  \
+                        "tar"                  \
+                        "wget"                 \
+                        "glibc glibc-devel"    \
+                        "binutils"             \
+                        "linux-kernel-headers"
+                    break
+                    ;;
+                "urpmi") install_command="${sudo_command} ${package_manager} --auto"
+                    set_package_names              \
+                        "gawk"                     \
+                        "gcc"                      \
+                        "gcc-c++"                  \
+                        "gcc-gfortran"             \
+                        "grep"                     \
+                        "gzip"                     \
+                        "make"                     \
+                        "sed"                      \
+                        "tar"                      \
+                        "wget"                     \
+                        "glibc glibc-devel"        \
+                        "binutils"                 \
+                        "kernel-userspace-headers"
+                    break
+                    ;;
+                "pacman") install_command="${sudo_command} ${package_manager} -S --noconfirm"
+                    set_package_names   \
+                        "gawk"          \
+                        "gcc"           \
+                        "gcc"           \
+                        "gcc-fortran"   \
+                        "grep"          \
+                        "gzip"          \
+                        "make"          \
+                        "sed"           \
+                        "tar"           \
+                        "wget"          \
+                        "glibc"         \
+                        "binutils"      \
+                        "linux-headers"
+                    break
+                    ;;
+                "eopkg") install_command="${sudo_command} ${package_manager} install -y"
+                    set_package_names       \
+                        "gawk"              \
+                        "gcc"               \
+                        "g++"               \
+                        "gfortran"          \
+                        "grep"              \
+                        "gzip"              \
+                        "make"              \
+                        "sed"               \
+                        "tar"               \
+                        "wget"              \
+                        "glibc glibc-devel" \
+                        "binutils"          \
+                        "linux-headers"
+                    break
+                    ;;
+                "emerge") install_command="${sudo_command} ${package_manager}"
+                    set_package_names       \
+                        "gawk"              \
+                        "gcc"               \
+                        "gcc"               \
+                        "fortran"           \
+                        "grep"              \
+                        "gzip"              \
+                        "make"              \
+                        "sed"               \
+                        "tar"               \
+                        "wget"              \
+                        "glibc"             \
+                        "binutils"          \
+                        "linux-headers"
+                    break
+                    ;;
+                "slackpkg") install_command="${sudo_command} ${package_manager} install"
+                    set_package_names       \
+                        "gawk"              \
+                        "gcc"               \
+                        "gcc-g++"           \
+                        "gcc-gfortran"      \
+                        "grep"              \
+                        "gzip"              \
+                        "make"              \
+                        "sed"               \
+                        "tar"               \
+                        "wget"              \
+                        "glibc"             \
+                        "binutils"          \
+                        "kernel-headers"
+                    break
+                    ;;
             esac
             break
         fi
