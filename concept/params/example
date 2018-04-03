@@ -29,7 +29,8 @@ initial_conditions = [  # Initial condition snapshot file or container of compon
     {'name'             : 'neutrino component',
      'species'          : 'neutrino fluid',
      'gridsize'         : 32,
-     'boltzmann_closure': 2,
+     'boltzmann_order'  : 2,
+     'boltzmann_closure': 'class',
      },
 ]
 snapshot_type = 'standard'  # Type of output snapshots
