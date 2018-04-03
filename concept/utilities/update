@@ -116,7 +116,7 @@ fi
 
 # Determine the current CO𝘕CEPT version
 current_version="$("${concept}" -m "import commons; print(commons.__version__)" \
-    --pure-python | tail -n 1 || :)"
+    --local --pure-python | tail -n 1 || :)"
 
 # If the current CO𝘕CEPT version is already the requested version,
 # do nothing unless the --reinstall option was passed.
