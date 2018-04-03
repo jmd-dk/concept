@@ -203,10 +203,6 @@ Check out https://github.com/jmd-dk/concept/ for available versions." "red"
     exit 1
 fi
 
-# Clean current CO𝘕CEPT installation before the update
-cd "${concept_dir}"
-make distclean
-
 # Download and extract the specified version of CO𝘕CEPT
 rm -rf "${top_dir}/tmp"
 mkdir "${top_dir}/tmp"
@@ -250,7 +246,7 @@ fi
 
 # Copy new files into the installation directory,
 # overwriting all files. Note that we do not include
-# the .paths and .env files.
+# the hidden (.paths, .env) files.
 cp -r ./* "${top_dir}/"
 
 # Cleanup
