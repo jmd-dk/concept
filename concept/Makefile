@@ -189,12 +189,17 @@ ifeq ($(CC_version),icc)
     # Filter out warning about not inlining everything
     other_cflags += -wd11074 -wd11076
     # Remove unrecognized flags
-    python_cflags_tmp := $(python_cflags)
-    python_cflags = $(filter-out -Wno-unused-result   \
-                                 -fwrapv              \
-                                 ,                    \
-                                 $(python_cflags_tmp) \
-                      )
+    python_cflags_cp := $(python_cflags)
+    python_cflags = $(filter-out  \
+        -Wno-unused-result        \
+        -fwrapv                   \
+        , $(python_cflags_cp)     \
+    )
+    other_cflags_cp := $(other_cflags)
+    other_cflags = $(filter-out   \
+        -Wno-implicit-fallthrough \
+        , $(other_cflags_cp)      \
+    )
 endif
 CFLAGS = $(call uniq, $(foreach flag, $(python_cflags)  \
                                       $(other_cflags)   \
