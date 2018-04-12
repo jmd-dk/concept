@@ -74,7 +74,7 @@ ctypedef double (*func_flux_limiter)(double)
     shape=tuple,
     soundspeed='double',
     t_flux='double',
-    use_σ='bint',
+    use_ς='bint',
     use_𝒫='bint',
     v_interface='double[::1]',
     view=str,
@@ -84,9 +84,9 @@ ctypedef double (*func_flux_limiter)(double)
     Δ='double',
     Δx='double',
     ϕ=func_flux_limiter,
-    σᵐₙ='double[:, :, ::1]',
-    σᵐₙ_interface='double[::1]',
-    σᵐₙ_ptr='double*',
+    ςᵐₙ='double[:, :, ::1]',
+    ςᵐₙ_interface='double[::1]',
+    ςᵐₙ_ptr='double*',
     ϱ='double[:, :, ::1]',
     ϱ_interface='double[::1]',
     ϱ_ptr='double*',
@@ -238,7 +238,7 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
     ϱ_ptr  = cython.address(ϱ [:, :, :])
     ϱˣ_ptr = cython.address(ϱˣ[:, :, :])
     # Extract pressure 𝒫 grid and pointer, realizing it if 𝒫 is linear
-    component.realize_linear(2, 'trace', a, use_gridˣ=𝔹['ˣ' in view])
+    component.realize_if_linear(2, specific_multi_index='trace', a=a, use_gridˣ=𝔹['ˣ' in view])
     𝒫 = getattr(component.𝒫, view)
     𝒫_ptr = cython.address(𝒫[:, :, :])
     # Allocate needed interface arrays
@@ -249,7 +249,7 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
     f_interface  = empty(2, dtype=C2np['double'])
     # Loop over the elements of J, realizing them if J is linear
     for m in range(3):
-        component.realize_linear(1, m, a, use_gridˣ=𝔹['ˣ' in view])
+        component.realize_if_linear(1, specific_multi_index=m, a=a, use_gridˣ=𝔹['ˣ' in view])
         Jᵐ = getattr(component.J[m], view)
         Jᵐ_ptr  = cython.address(Jᵐ[:, :, :])
         # Triple loop over local interfaces [i-½, j, k] for m = 0
@@ -310,22 +310,22 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
     # The flux terms of the Euler equation,             #
     # ∂ₜJᵐ = - ᔑa**( 3*w_eff - 2)dt ∂ⁿ(JᵐJₙ/(ϱ + c⁻²𝒫)) #
     #        - ᔑa**(-3*w_eff    )dt ∂ᵐ𝒫                 #
-    #        - ᔑa**(-3*w_eff    )dt ∂ⁿ((ϱ + c⁻²𝒫)σᵐₙ)   #
+    #        - ᔑa**(-3*w_eff    )dt ∂ⁿςᵐₙ               #
     #####################################################
     # Allocate needed interface arrays
     Jₙ_interface = empty(2, dtype=C2np['double'])   
     use_𝒫 = (not (component.w_type == 'constant' and component.w_constant == 0)) 
-    use_σ = (
+    use_ς = (
             component.boltzmann_order > 2
         or (component.boltzmann_order == 2 and component.boltzmann_closure == 'class')
     )
-    if use_σ:
-        σᵐₙ_interface = empty(2, dtype=C2np['double'])
-    if use_𝒫 and use_σ:
+    if use_ς:
+        ςᵐₙ_interface = empty(2, dtype=C2np['double'])
+    if use_𝒫 and use_ς:
         masterprint('Computing momentum, pressure and shear fluxes in the Euler equation ...')
     elif use_𝒫:
         masterprint('Computing momentum and pressure fluxes in the Euler equation ...')
-    elif use_σ:
+    elif use_ς:
         masterprint('Computing momentum and shear fluxes in the Euler equation ...')
     else:
         masterprint('Computing momentum fluxes in the Euler equation ...')
@@ -344,11 +344,14 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
             Jₙ_ptr  = cython.address(Jₙ [:, :, :])
             Jₙˣ_ptr = cython.address(Jₙˣ[:, :, :])
             with unswitch(2):
-                if use_σ:
+                if use_ς:
                     if m <= n:
-                        component.realize_linear(2, (m, n), a, use_gridˣ=𝔹['ˣ' in view])
-                        σᵐₙ = getattr(component.σ[m, n], view)
-                        σᵐₙ_ptr = cython.address(σᵐₙ[:, :, :])
+                        # Realizing element of ς if ς is linear
+                        component.realize_if_linear(
+                            2, specific_multi_index=(m, n), a=a, use_gridˣ=𝔹['ˣ' in view],
+                        )
+                        ςᵐₙ = getattr(component.ς[m, n], view)
+                        ςᵐₙ_ptr = cython.address(ςᵐₙ[:, :, :])
             # Triple loop over local interfaces [i-½, j, k] for n = 0
             for         i in range(ℤ[indices_local_start[0]], ℤ[indices_local_end[0] + 1]):
                 for     j in range(ℤ[indices_local_start[1]], ℤ[indices_local_end[1] + 1]):
@@ -379,9 +382,9 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
                         at_interface(index_m2, index_m, index_c, index_p,
                             Jₙ_ptr, Jₙ_interface, ϕ)
                         with unswitch(5):
-                            if use_σ:
+                            if use_ς:
                                 at_interface(index_m2, index_m, index_c, index_p,
-                                    σᵐₙ_ptr, σᵐₙ_interface, ϕ)
+                                    ςᵐₙ_ptr, ςᵐₙ_interface, ϕ)
                         # The left and right interface value of the
                         # absolute value of the propagation speed
                         # at interface [i-½, j, k] for n = 0.
@@ -414,7 +417,7 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
                                     )
                         # The final, numerical flux of Jᵐ through
                         # interface [i-½, j, k] for n = 0,
-                        # not including the σᵐₙ term.
+                        # not including the ςᵐₙ term.
                         flux = kurganov_tadmor_flux(Jᵐ_interface, f_interface, v_interface)
                         # Update Jᵐ[i - 1, j, k] and Jᵐ[i, j, k]
                         # due to the flux through
@@ -425,27 +428,24 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
                         # The flux of Jᵐ and Jₙ through
                         # interface [i-½, j, k] for n = 0,
                         # due to the term
-                        # -ᔑa**(-3*w_eff)∂ⁿ((ϱ + c⁻²𝒫)σᵐₙ).
+                        # -ᔑa**(-3*w_eff)∂ⁿςᵐₙ.
                         # This is handled separately because we want a
-                        # single realization of σᵐₙ to be used to update
+                        # single realization of ςᵐₙ to be used to update
                         # both Jᵐ and Jₙ. Here we make use of
-                        # the symmetry σᵐₙ = σⁿₘ.
+                        # the symmetry ςᵐₙ = ςⁿₘ.
                         with unswitch(5):
-                            if use_σ:
+                            if use_ς:
                                 with unswitch(3):
                                     if m <= n:
                                         flux = 0
                                         for lr in range(2):
-                                            flux += (
-                                                (ϱ_interface[lr] + ℝ[light_speed**(-2)]
-                                                    *𝒫_interface[lr])*σᵐₙ_interface[lr]
-                                            )
+                                            flux += ςᵐₙ_interface[lr]
                                         Δ = flux*ℝ[
                                             0.5*(1 + rk_step)/rk_order
                                             *ᔑdt['a**(-3*w_eff)', component]/Δx
                                         ]
                                         # Update Jᵐ[i - 1, j, k] and
-                                        # Jᵐ[i, j, k] due to the σᵐₙ
+                                        # Jᵐ[i, j, k] due to the ςᵐₙ
                                         # flux through interface
                                         # [i-½, j, k] for m = 0.
                                         Jᵐˣ_ptr[index_m] -= Δ
@@ -453,7 +453,7 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
                                 with unswitch(3):
                                     if m < n:
                                         # Update Jₙ[i - 1, j, k] and
-                                        # Jₙ[i, j, k] due to the σᵐₙ
+                                        # Jₙ[i, j, k] due to the ςᵐₙ
                                         # flux through interface
                                         # [i-½, j, k] for m = 0.
                                         Jₙˣ_ptr[index_m] -= Δ
@@ -891,7 +891,7 @@ def maccormack_step(component, ᔑdt, steps, mc_step):
     # we use the unstarred grid in both MacCormack steps.
     masterprint('Computing momentum fluxes in the Euler equation ...')
     if mc_step == 0:
-        component.realize_linear(2, 'trace')
+        component.realize_if_linear(2, specific_multi_index='trace')
     𝒫  = component.𝒫.grid_mv
     for dim_el in range(3):  # Loop over elements of J
         J_el  = getattr(component.J[dim_el], view )
@@ -960,8 +960,8 @@ def finalize_maccormack_step(component, mc_step):
                source_ptr='double*',
                w='double',
                Δx='double',
-               σᵢⱼ='FluidScalar',
-               σᵢⱼ_ptr='double*',
+               ςᵢⱼ='FluidScalar',
+               ςᵢⱼ_ptr='double*',
                ϱ_ptr='double*',
                𝒫='double[:, :, ::1]',
                𝒫_ptr='double*',
@@ -988,28 +988,24 @@ def maccormack_internal_sources(component, ᔑdt):
     # Physical grid spacing
     Δx = boxsize/component.gridsize
     # If closure of the Boltzmann hierarchy is achieved by continuously
-    # realizing σ, do this realization now and update J accordingly.
+    # realizing ς, do this realization now and update J accordingly.
     # This source term looks like
-    # ΔJᵢ = -ᔑa**(-3*w_eff)dt ∂ʲ(ϱ + c⁻²𝒫)σⁱⱼ.
+    # ΔJᵢ = -ᔑa**(-3*w_eff)dt ∂ʲςⁱⱼ.
     if (   component.boltzmann_order > 2
         or (component.boltzmann_order == 2 and component.boltzmann_closure == 'class')):
         masterprint('Computing the shear term in the Euler equation ...')
-        # Loop over all distinct σᵢⱼ and realize them as we go
-        for multi_index, σᵢⱼ in component.σ.iterate(multi_indices=True):
+        # Loop over all distinct ςᵢⱼ and realize them as we go
+        for multi_index, ςᵢⱼ in component.ς.iterate(multi_indices=True):
             # The potential of the source is
-            # -ᔑa**(-3*w_eff)dt (ϱ + c⁻²𝒫)σⁱⱼ.
+            # -ᔑa**(-3*w_eff)dt ςⁱⱼ.
             # Construct this potential, using the starred ϱ grid
             # as the buffer.
             potential     = component.ϱ.gridˣ_mv
             potential_ptr = component.ϱ.gridˣ
-            σᵢⱼ_ptr = σᵢⱼ.grid
+            ςᵢⱼ_ptr = ςᵢⱼ.grid
             for n in range(component.size):
-                potential_ptr[n] = (
-                    ℝ[-ᔑdt['a**(-3*w_eff)', component]]
-                    *(ϱ_ptr[n] + ℝ[light_speed**(-2)]*𝒫_ptr[n])
-                    *σᵢⱼ_ptr[n]
-                )
-            # Loop over elements of J affected by σᵢⱼ
+                potential_ptr[n] = ℝ[-ᔑdt['a**(-3*w_eff)', component]]*ςᵢⱼ_ptr[n]
+            # Loop over elements of J affected by ςᵢⱼ
             for i in set(multi_index):
                 Jᵢ = component.J[i]
                 Jᵢ_ptr = Jᵢ.grid

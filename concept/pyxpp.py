@@ -2060,45 +2060,45 @@ def add_types_to_addition_chain_exponentiation_variables(lines, clines, no_optim
     # an 'a'). The results will be stored in the variable_types dict.
     variable_types = {}
     addition_chain_exponentiation_basevarname = 'a' + addition_chain_exponentiation_varname
+    addition_chain_exponentiation_pattern = addition_chain_exponentiation_basevarname + '[0-9]+'
+    pattern_fmt = r'\w*{} *= *([^\W0-9]\w*) *;'
+    pattern_pyobject_fmt = r'\( *\w*{} *, *([^\W0-9]\w*) *\) *;'
     for line in lines:
-        if addition_chain_exponentiation_basevarname in line:
+        match = re.search(addition_chain_exponentiation_pattern, line)
+        if match:
             # Base addition chain exponentiation found.
             # Get the variable name.
-            match = re.search('{}[0-9]+'
-                              .format(addition_chain_exponentiation_basevarname),
-                              line)
-            if match:
-                variable = match.group()
-                variable_numer = int(variable[(variable.rindex('_') + 1):])
-                if variable_numer not in variable_types:
-                    variable_types[variable_numer] = None
-                    # New  addition chain exponentiation variable number
-                    is_pyobject = False
-                    for i, cline in enumerate(clines):
-                        pattern = r'\w*{} *= *([^\W0-9]\w*) *;'
-                        match = re.search(pattern.format(variable), cline)
-                        if match:                            
-                            if not is_pyobject and cline.lstrip().startswith('PyObject'):
-                                is_pyobject = True
-                            elif is_pyobject:
-                                # A line like 
-                                # __pyx_v_a__addition_chain_exponentiation__0 = __pyx_t_8;
-                                # has been reached.
-                                tmp_varname = match.group(1)
-                                search_backwards(tmp_varname, variable_numer, clines[:i])
-                                break
+            variable = match.group()           
+            variable_numer = int(variable[(variable.rindex('_') + 1):])
+            pattern = pattern_fmt.format(variable)
+            pattern_pyobject = pattern_pyobject_fmt.format(variable)
+            if variable_numer not in variable_types:
+                variable_types[variable_numer] = None
+                # New  addition chain exponentiation variable number
+                is_pyobject = False
+                for i, cline in enumerate(clines):
+                    match = re.search(pattern, cline)
+                    if match:                            
+                        if not is_pyobject and cline.lstrip().startswith('PyObject'):
+                            is_pyobject = True
                         elif is_pyobject:
-                            pattern = r'\( *\w*{} *, *([^\W0-9]\w*) *\) *;'
-                            match = re.search(pattern.format(variable), cline)
-                            if match:
-                                # A line like
-                                # __Pyx_XDECREF_SET(__pyx_v_a__addition_chain_exponentiation__0, __pyx_t_7);
-                                # have been reached. Search upward to
-                                # find the line where the temporary
-                                # variable is defined.
-                                tmp_varname = match.group(1)
-                                search_backwards(tmp_varname, variable_numer, clines[:i])
-                                break
+                            # A line like 
+                            # __pyx_v_a__addition_chain_exponentiation__0 = __pyx_t_8;
+                            # has been reached.
+                            tmp_varname = match.group(1)
+                            search_backwards(tmp_varname, variable_numer, clines[:i])
+                            break
+                    elif is_pyobject:
+                        match = re.search(pattern_pyobject, cline)
+                        if match:
+                            # A line like
+                            # __Pyx_XDECREF_SET(__pyx_v_a__addition_chain_exponentiation__0, __pyx_t_7);
+                            # have been reached. Search upward to
+                            # find the line where the temporary
+                            # variable is defined.
+                            tmp_varname = match.group(1)
+                            search_backwards(tmp_varname, variable_numer, clines[:i])
+                            break
     # Run through the lines and add declarations to addition chain
     # exponentiation variables. All such variables of the same number
     # (those belonging to the same chain) have the same type.

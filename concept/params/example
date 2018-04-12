@@ -156,8 +156,9 @@ fluid_options = {  # Specifications of fluid scheme parameters
         },
     },
 }
-class_reuse = True              # Reuse CLASS results from earlier runs?
-class_extra_perturbations = ''  # Extra CLASS perturbations to dump
+class_reuse = True                # Reuse CLASS results from earlier runs?
+class_plot_perturbations = False  # Plot CLASS perturbations?
+class_extra_perturbations = ''    # Extra CLASS perturbations to dump
 
 # Graphics
 terminal_width = 80  # Maximum width of terminal output, in characters

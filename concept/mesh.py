@@ -682,24 +682,24 @@ def CIC_components2domain_grid(component_or_components, domain_grid, quantities,
                     fluid_quantity = component.Jy.grid_noghosts
                 elif quantity == 'Jz':
                     fluid_quantity = component.Jz.grid_noghosts
-                elif quantity == 'σxx':
-                    fluid_quantity = component.σxx.grid_noghosts
-                elif quantity == 'σxy':
-                    fluid_quantity = component.σxy.grid_noghosts
-                elif quantity == 'σxz':
-                    fluid_quantity = component.σxz.grid_noghosts
-                elif quantity == 'σyx':
-                    fluid_quantity = component.σyx.grid_noghosts
-                elif quantity == 'σyy':
-                    fluid_quantity = component.σyy.grid_noghosts
-                elif quantity == 'σyz':
-                    fluid_quantity = component.σyz.grid_noghosts
-                elif quantity == 'σzx':
-                    fluid_quantity = component.σzx.grid_noghosts
-                elif quantity == 'σzy':
-                    fluid_quantity = component.σzy.grid_noghosts
-                elif quantity == 'σzz':
-                    fluid_quantity = component.σzz.grid_noghosts
+                elif quantity == 'ςxx':
+                    fluid_quantity = component.ςxx.grid_noghosts
+                elif quantity == 'ςxy':
+                    fluid_quantity = component.ςxy.grid_noghosts
+                elif quantity == 'ςxz':
+                    fluid_quantity = component.ςxz.grid_noghosts
+                elif quantity == 'ςyx':
+                    fluid_quantity = component.ςyx.grid_noghosts
+                elif quantity == 'ςyy':
+                    fluid_quantity = component.ςyy.grid_noghosts
+                elif quantity == 'ςyz':
+                    fluid_quantity = component.ςyz.grid_noghosts
+                elif quantity == 'ςzx':
+                    fluid_quantity = component.ςzx.grid_noghosts
+                elif quantity == 'ςzy':
+                    fluid_quantity = component.ςzy.grid_noghosts
+                elif quantity == 'ςzz':
+                    fluid_quantity = component.ςzz.grid_noghosts
                 else:
                     continue
                 interpolations += 1
@@ -720,7 +720,7 @@ def CIC_components2domain_grid(component_or_components, domain_grid, quantities,
                                   'particles', 'posx', 'posy', 'posz', 'momx', 'momy', 'momz',
                                   # Fluid quantities
                                   'fluid elements', 'ϱ', 'Jx', 'Jy', 'Jz',
-                                  'σxx', 'σxy', 'σxz', 'σyx', 'σyy', 'σyz', 'σzx', 'σzy', 'σzz',
+                                  'ςxx', 'ςxy', 'ςxz', 'ςyx', 'ςyy', 'ςyz', 'ςzx', 'ςzy', 'ςzz',
                                   )
         for quantity, factors in quantities:
             if quantity not in quantities_implemented:
@@ -1366,13 +1366,14 @@ def domain_decompose(slab, domain_grid_or_buffer_name=0):
                 returns='double[:, :, ::1]',
                 )
 def slab_decompose(domain_grid, slab_or_buffer_name=0, prepare_fft=False):
-    """This function communicates a global grid decomposed into domain
-    grids into slabs. If an existing slab grid should be used it can be
-    passed as the second argument. Alternatively, if a slab grid should
-    be fetched from elsewhere, its name should be specified as the
-    second argument. If FFT's are to be carried out on the slab,
-    you must give a buffer name as the second argument and specify
-    prepare_fft=True, in which case the slab will be created via FFTW.
+    """This function communicates a global domain decomposed grid into
+    a global slab decomposed grid. If an existing slab grid should be
+    used it can be passed as the second argument.
+    Alternatively, if a slab grid should be fetched from elsewhere,
+    its name should be specified as the second argument.
+    If FFT's are to be carried out on a slab fetched by name,
+    you must specify prepare_fft=True, in which case the slab will be
+    created via FFTW.
     """
     # Determine the correct shape of the slab grid corresponding to
     # the passed domain grid.
@@ -1854,17 +1855,17 @@ def slabs_check_symmetry(slab, rel_tol=1e-9, abs_tol=machine_ϵ):
         else:
             smart_mpi(slab, dest=master_rank, mpifun='send')
             return
-    # Loop through the complete j-dimension
-    bad_pairs = set()
-    for j in range(gridsize):
-        j_conj = 0 if j == 0 else gridsize - j
-        # Loop through the complete i-dimension
-        for i in range(gridsize):
-            i_conj = 0 if i == 0 else gridsize - i
-            # Loop through the lower (kk = 0)
-            # and upper (kk = slab_size_padding//2, where
-            # slab_size_padding = 2*(gridsize//2 + 1)) xy planes only.
-            for plane in range(2):
+    # Loop through the lower (kk = 0)
+    # and upper (kk = slab_size_padding//2, where
+    # slab_size_padding = 2*(gridsize//2 + 1)) xy planes only.
+    for plane in range(2):
+        bad_pairs = set()
+        # Loop through the complete j-dimension
+        for j in range(gridsize):
+            j_conj = 0 if j == 0 else gridsize - j
+            # Loop through the complete i-dimension
+            for i in range(gridsize):
+                i_conj = 0 if i == 0 else gridsize - i
                 k = 0 if plane == 0 else slab.shape[2] - 2
                 # Pointer to the [j, i, k]'th element and to its
                 # conjugate.
