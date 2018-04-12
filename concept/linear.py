@@ -31,6 +31,7 @@ cimport('from communication import partition,                   '
         '                          get_buffer,                  '
         '                          smart_mpi,                   '
         )
+cimport('from graphics import plot_detrended_perturbations')
 cimport('from integration import Spline, remove_doppelgängers, hubble, ȧ, ä')
 cimport('from mesh import get_fftw_slab,       '
         '                 domain_decompose,    '
@@ -92,7 +93,7 @@ class CosmoResults:
     # Functions with these names will be defined, which will return
     # the corresponding transfer function as a function of k,
     # for a given a.
-    transfer_function_variable_names = ('δ', 'θ', 'δP/δρ', 'σ', 'hʹ')
+    transfer_function_variable_names = ('δ', 'θ', 'δP', 'σ', 'hʹ')
     # Initialize instance
     def __init__(self, params, k_magnitudes, cosmo=None, filename=''):
         """If no cosmo object is passed, all results should be loaded
@@ -137,16 +138,12 @@ class CosmoResults:
         # Add functions which returns transfer function splines
         # for a given a.
         def construct_func(var_name):
-            return (lambda a,
-                           component=None,
-                           get='as_function_of_k': self.transfer_function(a,
-                                                                          component,
-                                                                          var_name,
-                                                                          get,
-                                                                          )
-                    )
+            return (
+                lambda a, component=None, get='as_function_of_k':
+                    self.transfer_function(a, component, var_name, get)
+            )
         for var_name in self.transfer_function_variable_names:
-            setattr(self, var_name.replace('/', ''), construct_func(var_name))
+            setattr(self, var_name, construct_func(var_name))
         # Initialize the hdf5 file on disk, if it does not
         # already exist. If it exist, 'params' and 'k_magnitudes' are
         # guarenteed to be stored there correctly already, as the
@@ -422,6 +419,47 @@ class CosmoResults:
                         # is not used by this simulation.
                         for perturbation in self._perturbations:
                             del perturbation[key]
+            # As we only need perturbations defined within the
+            # simulation timespan, a > a_begin, we now cut off the
+            # lower tail of all perturbations.
+            if master:
+                universals_a_begin = universals.a_begin
+                for perturbation in self._perturbations:
+                    a_values = perturbation['a']
+                    # Find the index in a_values which corresponds to
+                    # universals.a_begin, using a binary search.
+                    index_lower = 0
+                    index_upper = a_values.shape[0] - 1
+                    a_lower = a_values[index_lower]
+                    a_upper = a_values[index_upper]
+                    if a_lower > universals_a_begin:
+                        abort(
+                            f'Not all perturbations are defined at '
+                            f'a_begin = {universals_a_begin}. Note that CLASS perturbations '
+                            f'earlier than a_min = {class_a_min} in source/perturbations.c will '
+                            f'not be used. If you really want perturbations at earlier times, '
+                            f'decrease this a_min.'
+                        )
+                    index = 0
+                    while index_upper - index_lower > 1:
+                        index = (index_lower + index_upper)//2
+                        a_value = a_values[index]
+                        if a_value > universals_a_begin:
+                            index_upper = index
+                        elif a_value < universals_a_begin:
+                            index_lower = index
+                    # Include times slightly earlier
+                    # than absolutely needed.
+                    index -= 3
+                    if index < 0:
+                        index = 0
+                    a_value = a_values[index]
+                    # Remove perturbations earlier than a_begin.
+                    # We have to copy the data, as otherwise the array
+                    # owning will not be owning the data, meaning that
+                    # it cannot be freed by Python's garbage collection.
+                    for key, val in perturbation.items():
+                        perturbation[key] = asarray(val[index:]).copy()
             # Communicate perturbations as list of dicts mapping
             # str's to arrays.
             size = bcast(len(self._perturbations) if master else None)
@@ -436,48 +474,15 @@ class CosmoResults:
                             perturbation[key] = asarray(buffer).copy()
             else:
                 self._perturbations = []
+            # As perturbations comprise the vast majority of the
+            # data volume of what is needed from CLASS, we might
+            # as well read in any remaining bits. Specifically, the
+            # background should be read, as some tasks around the
+            # perturbations require knowledge of the background,
+            # and the first read-in of the background has to be done
+            # in parallel.
+            self.background
         return self._perturbations
-    # Transfer functions at some specific scale factor value.
-    # This function utilizes get_transfer. This function is not used by
-    # the rest of the code. Instead, the transfer_function function
-    # is used, which utilizes get_perturbations.
-    def transfers(self, a):
-        if not hasattr(self, '_transfers'):
-            self._transfers = {}
-        if not a in self._transfers:
-            if not self.load('transfers', a):
-                # Get transfers at a from CLASS
-                z = 1/a - 1
-                self._transfers[a] = self.cosmo.get_transfer(z)
-                # Let the master operate on the data
-                if master:
-                    # Only keep needed items, here listed as regexes.
-                    # A copy of the data is used, making freeing
-                    # of the original CLASS data possible.
-                    self._transfers[a] = {key: arr.copy()
-                                          for key, arr in self._transfers[a].items()
-                                          if any([re.search(pattern, key)
-                                                  for pattern in self.needed_keys['transfers']])}
-                    if not self._transfers[a]:
-                        abort(f'Could not retrieve transfer functions from CLASS at a = {a}. '
-                              f'You should check your CLASS parameters:',
-                              self.params)
-                # Save to disk
-                self.save('transfers', a)
-            # Communicate transfer function as
-            # dict mapping str's to arrays.
-            size = bcast(len(self._transfers[a]) if master else None)
-            if size:
-                keys = bcast(tuple(self._transfers[a].keys()) if master else None)
-                if not master:
-                    self._transfers[a] = {}
-                for key in keys:
-                    buffer = smart_mpi(self._transfers[a][key] if master else (), mpifun='bcast')
-                    if not master:
-                        self._transfers[a][key] = asarray(buffer).copy()
-            else:
-                self._transfers[a] = {}
-        return self._transfers[a]
     # Method which constructs TransferFunction instances and use them
     # to compute and store transfer functions. Do not use this method
     # directly, but rather call e.g. cosmoresults.δ(a, component).
@@ -669,16 +674,6 @@ class CosmoResults:
                                                                   dtype=C2np['double'])
                             dset[:] = val
                     masterprint('done')
-            elif element == 'transfers':
-                # Transfer functions at specific a
-                # as /transfers/a=.../... .
-                transfers_a_h5 = hdf5_file.require_group(f'transfers/a={a}')
-                for key, val in self.transfers(a).items():
-                    key = key.replace('/', '__per__')
-                    if key not in transfers_a_h5:
-                        dset = transfers_a_h5.create_dataset(key, (val.shape[0], ),
-                                                             dtype=C2np['double'])
-                        dset[:] = val
             else:
                 abort(f'CosmoResults.save was called with the unknown element of "{element}"')
             hdf5_file.flush()
@@ -797,18 +792,6 @@ class CosmoResults:
                         'CLASS will be rerun.'
                     )
                     return bcast(False)
-            elif element == 'transfers':
-                # Transfer functions at specific a
-                # as /transfers/a=.../... .
-                transfers_a_h5 = hdf5_file.get(f'transfers/a={a}')
-                if transfers_a_h5 is None:
-                    return bcast(False)
-                self._transfers[a] = {
-                    key.replace('__per__', '/'): dset[...]
-                    for key, dset in transfers_a_h5.items()
-                    if any([re.search(pattern, key.replace('__per__', '/'))
-                        for pattern in self.needed_keys['transfers']])
-                }
             else:
                 abort(f'CosmoResults.load was called with the unknown element of "{element}"')
         # Loading of specified element completed successfully
@@ -839,8 +822,9 @@ class TransferFunction:
         Py_ssize_t k_gridsize
         double[::1] data
         double[::1] data_deriv
+        double[::1] factors
+        double[::1] exponents
         list splines
-        bint approximate_P_as_wρ
         """
         # Store instance data
         self.cosmoresults = cosmoresults
@@ -848,10 +832,6 @@ class TransferFunction:
         self.var_name = var_name
         if self.var_name not in CosmoResults.transfer_function_variable_names:
             abort(f'var_name {self.var_name} not implemented in TransferFunction')
-        if self.component is None:
-            self.approximate_P_as_wρ = True
-        else:
-            self.approximate_P_as_wρ = self.component.approximations['P=wρ']
         # The species (CLASS convention) of which to compute
         # transfer functions. If component is None, set the CLASS
         # species to 'tot', as this "species" do not correspond
@@ -864,91 +844,66 @@ class TransferFunction:
         # is tabulated by CLASS.
         self.k_magnitudes = self.cosmoresults.k_magnitudes
         self.k_gridsize = self.k_magnitudes.shape[0]
-        # These will become arrays storing transfer_function(k) and its
-        # derivative with respect to the scale factor.
+        # These will become arrays storing the transfer function and its
+        # derivative with respect to the scale factor,
+        # at a given k and as a function of a.
         self.data = self.data_deriv = None
-        # Construct splines of the transfer function for all k
-        if self.var_name == 'δP/δρ' and self.approximate_P_as_wρ:
-            # For δP/δρ', nothing should be done
-            # if the approximation P=wρ is enabled.
-            return
+        # Construct splines of the transfer function as a function of a,
+        # for all k.
+        self.factors   = empty(self.k_gridsize, dtype=C2np['double'])
+        self.exponents = empty(self.k_gridsize, dtype=C2np['double'])
         self.splines = [None]*self.k_gridsize
         self.process()
 
     # Method for processing the transfer function data from CLASS.
-    # The end result is the population self.splines.
-    @cython.header(# Locals
-                   N_convolve_max='Py_ssize_t',
-                   N_spline_max='Py_ssize_t',
-                   N_τ_uniform='Py_ssize_t',
-                   R2='double',
-                   R2_min='double',
-                   a_convolved='double[::1]',
-                   a_interp='double[::1]',
-                   a_prev='double',
-                   a_values='double[::1]',
-                   a2δPδρ_convolved='double[::1]',
-                   a2δPδρ_interp='double[::1]',
-                   a2δPδρ_processed='double[::1]',
-                   a2δPδρ_right_end='double[::1]',
-                   a2δPδρ_spline='double[::1]',
-                   a2δPδρ_spline_k='double[::1]',
-                   a2δPδρ_values='double[::1]',
-                   available='bint',
-                   class_perturbation_name=str,
-                   class_species=str,
-                   has_data='bint',
-                   hʹ_values='double[::1]',
-                   i='Py_ssize_t',
-                   index='Py_ssize_t',
-                   index_start='Py_ssize_t',
-                   j='Py_ssize_t',
-                   k='Py_ssize_t',
-                   k_end='Py_ssize_t',
-                   k_send='Py_ssize_t',
-                   k_size='Py_ssize_t',
-                   k_start='Py_ssize_t',
-                   loga_convolved='double[::1]',
-                   loga_spline='double[::1]',
-                   loga_spline_k='double[::1]',
-                   message=str,
-                   missing_perturbations_warning=str,
-                   missing_perturbations_warning_given='bint',
-                   monotonic='bint',
-                   monotonic_right_end='bint',
-                   one_k_extra='bint',
-                   outliers='Py_ssize_t',
-                   perturbation=dict,
-                   perturbations=list,
-                   perturbations_available=dict,
-                   points_per_oscillation='Py_ssize_t',
-                   rank_send='int',
-                   rindex='Py_ssize_t',
-                   size='Py_ssize_t',
-                   spline='Spline',
-                   window='double[::1]',
-                   δ_perturbation=object,  # np.ndarray
-                   δ_values='double[::1]',
-                   δ_values_arr=object,  # np.ndarray
-                   δPδρ_perturbation=object,  # np.ndarray
-                   δPδρ_values='double[::1]',
-                   δPδρ_values_arr=object,  # np.ndarray
-                   θ_perturbation=object,  # np.ndarray
-                   θ_values='double[::1]',
-                   θ_values_arr=object,  # np.ndarray
-                   ρ_bar_a=object,  # np.ndarray
-                   ρ_bar_a_species=dict,
-                   ρP_bar_a=object,  # np.ndarray
-                   ρP_bar_a_species=dict,
-                   σ_perturbation=object,  # np.ndarray
-                   σ_values='double[::1]',
-                   σ_values_arr=object,  # np.ndarray
-                   τ_convolved='double[::1]',
-                   τ_interp='double[::1]',
-                   τ_prev='double',
-                   τ_values='double[::1]',
-                   )
+    # The end result is the population self.splines, self.factors
+    # and self.exponents.
+    @cython.header(
+        # Locals
+        a_values='double[::1]',
+        approximate_P_as_wρ='bint',
+        available='bint',
+        class_perturbation_name=str,
+        class_species=str,
+        class_units='double',
+        exponent_max='double',
+        fitted_trends=list,
+        has_data='bint',
+        i='Py_ssize_t',
+        index='Py_ssize_t',
+        k='Py_ssize_t',
+        k_end='Py_ssize_t',
+        k_send='Py_ssize_t',
+        k_size='Py_ssize_t',
+        k_start='Py_ssize_t',
+        loga_values='double[::1]',
+        loga_values_k='double[::1]',
+        missing_perturbations_warning=str,
+        n_outliers='Py_ssize_t',
+        one_k_extra='bint',
+        outlier='Py_ssize_t',
+        outliers='Py_ssize_t[::1]',
+        outliers_list=list,
+        perturbation=object,  # np.ndarray or double
+        perturbation_k=dict,
+        perturbation_values='double[::1]',
+        perturbation_values_arr=object,  # np.ndarray
+        perturbations=list,
+        perturbations_available=dict,
+        perturbations_detrended='double[::1]',
+        perturbations_detrended_k='double[::1]',
+        rank_send='int',
+        size='Py_ssize_t',
+        spline='Spline',
+        weights=object,  # np.ndarray
+        weights_species=dict,
+        Σweights=object,  # np.ndarray
+    )
     def process(self):
+        """
+        """
+        # Ensure that the cosmological background has been
+        self.cosmoresults.background
         # Display progress message
         if self.component is None:
             if self.var_name == 'θ':
@@ -956,10 +911,14 @@ class TransferFunction:
             else:
                 masterprint(f'Processing {self.var_name} transfer functions ...')
         else:
-            masterprint(f'Processing {self.var_name} transfer functions '
-                        f'for {self.component.name} ...'
-                        )
-        # Process the given transfer function
+            masterprint(
+                f'Processing {self.var_name} transfer functions '
+                f'for {self.component.name} ...'
+            )
+        # Maximum (absolute) allowed exponent in the trend.
+        # If an exponent greater than this is found,
+        # the program will terminate.
+        exponent_max = 10
         missing_perturbations_warning = ''.join([
             'The {} perturbations of CLASS species "{}" ',
             (f'(needed for the {self.component.name} component)'
@@ -971,166 +930,154 @@ class TransferFunction:
             class_species: True for class_species in self.class_species.split('+')
         }
         perturbations = self.cosmoresults.perturbations
-        if self.var_name == 'δ':
-            # Compute and store a Spline object for each k
-            class_perturbation_name = 'delta'
-            for k in range(self.k_gridsize):
-                perturbation = perturbations[k]
-                a_values = perturbation['a']
-                # Construct δ_values as a weighted sum of δ over
-                # the individual ('+'-separated) CLASS species,
-                # using the individual ρ_bar as weights.
-                ρ_bar_a_species = {class_species: self.cosmoresults.ρ_bar(a_values, class_species)
-                    for class_species in self.class_species.split('+')
-                }
-                δ_values_arr = 0
-                for class_species, ρ_bar_a in ρ_bar_a_species.items():
-                    δ_perturbation = perturbation.get(f'delta_{class_species}')
-                    if δ_perturbation is None:
-                        perturbations_available[class_species] = False
+        class_perturbation_name = {
+            'δ' : 'delta_{}',
+            'θ' : 'theta_{}',
+            'δP': 'cs2_{}',  # Note that cs2 is really δP/δρ
+            'σ' : 'shear_{}',
+            'hʹ': 'h_prime',
+        }[self.var_name]
+        approximate_P_as_wρ = (self.var_name == 'δP' and self.component.approximations['P=wρ'])
+        # A spline should be constructed for each k value,
+        # of which there are self.k_gridsize. Fairly distribute this
+        # work among the processes.
+        k_start, k_size = partition(self.k_gridsize)
+        k_end = k_start + k_size
+        # When the work is not exactly divisible among
+        # the processes, some processes will have an
+        # additional k value to process.
+        one_k_extra = (k_size*nprocs > self.k_gridsize)
+        # Compute and store a Spline object for each k.
+        # This is done in parallel. All processes are forced to
+        # carry out the same number of iterations regardless of the
+        # number of k values which should be processed by them.
+        for k in range(k_start, k_end + (not one_k_extra)):
+            # Only process if this is not the extra iteration
+            has_data = (k < k_end)
+            if has_data:
+                perturbation_k = perturbations[k]
+                a_values = perturbation_k['a'].copy()
+                # The perturbation_k dict store perturbation arrays for
+                # all perturbation types and CLASS species, defined at
+                # times matching those of a_values.
+                # Because a single CO𝘕CEPT species can map to multiple
+                # CLASS species, we need to construct an array of
+                # perturbation values as a weighted sum of perturbations
+                # over the individual ('+'-separated) CLASS species,
+                # with weights dependent on the type of
+                # CLASS perturbation.
+                # We also need to apply the CLASS units, which again
+                # depend on the type of perturbation.
+                # Finally, outlier rejection may take place by adding
+                # indices to the outliers_list.
+                outliers_list = []
+                with unswitch:
+                    if self.var_name == 'δ':
+                        # For δ we have
+                        # δ_tot = (δ_1*ρ_bar_1 + δ_2*ρ_bar_2 + ...)/(ρ_bar_1 + ρ_bar_2 + ...)
+                        weights_species = {
+                            class_species: self.cosmoresults.ρ_bar(a_values, class_species)
+                            for class_species in self.class_species.split('+')
+                        }
+                        Σweights = np.sum(tuple(weights_species.values()), axis=0)
+                        for class_species in weights_species:
+                            weights_species[class_species] *= 1/Σweights
+                        # We have no CLASS units to apply
+                        class_units = 1
+                    elif self.var_name == 'θ':
+                        # For θ we have
+                        # θ_tot = (θ_1*ρ_bar_1 + θ_2*ρ_bar_2 + ...)/(ρ_bar_1 + ρ_bar_2 + ...)
+                        weights_species = {
+                            class_species: self.cosmoresults.ρ_bar(a_values, class_species)
+                            for class_species in self.class_species.split('+')
+                        }
+                        Σweights = np.sum(tuple(weights_species.values()), axis=0)
+                        for class_species in weights_species:
+                            weights_species[class_species] *= 1/Σweights
+                        # We have CLASS units of [time⁻¹]
+                        class_units = ℝ[light_speed/units.Mpc]
+                    elif self.var_name == 'δP':
+                        # CLASS does not provide the δP(k) perturbations
+                        # directly. Instead it provides δP(k)/δρ(k).
+                        # To get the total δP from multiple δP/δρ,
+                        # we then have
+                        # δP_tot = δP_1 + δP_2 + ...
+                        #        = (δP/δρ)_1*δρ_1 + (δP/δρ)_2*δρ_2 + ...
+                        #        = (δP/δρ)_1*δ_1*ρ_bar_1 + (δP/δρ)_2*δ_2*ρ_bar_2 + ...
+                        weights_species = {
+                            class_species: (
+                                perturbation_k[f'delta_{class_species}']
+                                *self.cosmoresults.ρ_bar(a_values, class_species)
+                            )
+                            for class_species in self.class_species.split('+')
+                        }
+                        # The CLASS units of δP/δρ are [length²time⁻²]
+                        class_units = ℝ[light_speed**2]
+                        # Look for oulier points which are outside the
+                        # legal range 0 ≤ δP/δρ ≤ c²/3. As the data is
+                        # directly from CLASS, c = 1.
+                        for class_species in weights_species:
+                            perturbation = perturbation_k.get(f'cs2_{class_species}')
+                            if perturbation is not None:
+                                perturbation_values = perturbation
+                                for i in range(perturbation_values.shape[0]):
+                                    if not (0 <= perturbation_values[i] <= ℝ[1/3]):
+                                        outliers_list.append(i)
+                    elif self.var_name == 'σ':
+                        # For σ we have
+                        # σ_tot = (σ_1*(ρ_bar_1 + c⁻²P_bar_1) + σ_2*(ρ_bar_2 + c⁻²P_bar_2) + ...)
+                        #          /((ρ_bar_1 + c⁻²P_bar_1) + (ρ_bar_2 + c⁻²P_bar_2) + ...)
+                        weights_species = {class_species: 
+                                                   self.cosmoresults.ρ_bar(a_values, class_species)
+                            + ℝ[light_speed**(-2)]*self.cosmoresults.P_bar(a_values, class_species)
+                            for class_species in self.class_species.split('+')
+                        }
+                        Σweights = np.sum(tuple(weights_species.values()), axis=0)
+                        for class_species in weights_species:
+                            weights_species[class_species] *= 1/Σweights
+                         # We have CLASS units of [length²time⁻²]
+                        class_units = ℝ[light_speed**2]
+                    elif self.var_name == 'hʹ':
+                        # As hʹ is a species independent quantity,
+                        # we do not have any weights.
+                        weights_species = {class_species: 1
+                            for class_species in self.class_species.split('+')
+                        }
+                        # We have CLASS units of [time⁻¹]
+                        class_units = ℝ[light_speed/units.Mpc]
                     else:
-                        δ_values_arr += ρ_bar_a*δ_perturbation
-                if (not missing_perturbations_warning_given
-                    and not all(perturbations_available.values())
-                ):
-                    missing_perturbations_warning_given = True
-                    if len(perturbations_available) == 1:
-                        abort(missing_perturbations_warning.format(
-                            class_perturbation_name, self.class_species,
-                        ))
-                    for class_species, available in perturbations_available.items():
-                        if not available:
-                            masterwarn(missing_perturbations_warning.format(
-                                class_perturbation_name, class_species,
-                            ))
-                    if not any(perturbations_available.values()):
-                        abort(
-                            f'No {class_perturbation_name} perturbations '
-                            f'for the {self.component.name} component available'
+                        abort(f'Do not know how to process transfer function "{self.var_name}"')
+                        # Just to satisfy the compiler
+                        weights_species, class_units = {}, 1
+                # Construct the perturbation_values_arr array from the
+                # CLASS perturbations matching the perturbations type
+                # and CLASS species, together with the weights.
+                perturbation_values_arr = 0
+                if approximate_P_as_wρ:
+                    # We are working on the δP transfer function and
+                    # the P=wρ approximation is enabled.
+                    # This means that δP/δρ = c²w.
+                    # The c² will be provided by class_unit.
+                    for class_species, weights in weights_species.items():
+                        perturbation = asarray(
+                            [self.component.w(a=a_value) for a_value in a_values],
+                            dtype=C2np['double'],
                         )
-                δ_values_arr /= np.sum(tuple(ρ_bar_a_species.values()), axis=0)
-                δ_values = δ_values_arr
-                # Construct cubic spline of {a, δ}
-                spline = Spline(a_values, δ_values)
-                self.splines[k] = spline
-        elif self.var_name == 'θ':
-            # Compute and store a Spline object for each k
-            class_perturbation_name = 'theta'
-            for k in range(self.k_gridsize):
-                perturbation = perturbations[k]
-                a_values = perturbation['a']
-                # Construct θ_values as a weighted sum of θ over
-                # the individual ('+'-separated) CLASS species,
-                # using the individual ρ_bar as weights.
-                # This weighting is correct to linear order.
-                ρ_bar_a_species = {class_species: self.cosmoresults.ρ_bar(a_values, class_species)
-                    for class_species in self.class_species.split('+')
-                }
-                θ_values_arr = 0
-                for class_species, ρ_bar_a in ρ_bar_a_species.items():
-                    θ_perturbation = perturbation.get(f'{class_perturbation_name}_{class_species}')
-                    if θ_perturbation is None:
-                        perturbations_available[class_species] = False
-                    else:
-                        θ_values_arr += ρ_bar_a*θ_perturbation
-                if (not missing_perturbations_warning_given
-                    and not all(perturbations_available.values())
-                ):
-                    missing_perturbations_warning_given = True
-                    if len(perturbations_available) == 1:
-                        abort(missing_perturbations_warning.format(
-                            class_perturbation_name, self.class_species,
-                        ))
-                    for class_species, available in perturbations_available.items():
-                        if not available:
-                            masterwarn(missing_perturbations_warning.format(
-                                class_perturbation_name, class_species,
-                            ))
-                    if not any(perturbations_available.values()):
-                        abort(
-                            f'No {class_perturbation_name} perturbations '
-                            f'for the {self.component.name} component available'
+                        perturbation_values_arr += weights*class_units*perturbation
+                else:
+                    # We are working on a normal transfer function
+                    for class_species, weights in weights_species.items():
+                        perturbation = perturbation_k.get(
+                            class_perturbation_name.format(class_species)
                         )
-                θ_values_arr /= np.sum(tuple(ρ_bar_a_species.values()), axis=0)
-                θ_values = θ_values_arr
-                # Apply CLASS units of [time⁻¹]
-                θ_values = asarray(θ_values)*ℝ[light_speed/units.Mpc]
-                # Construct cubic spline of {a, θ}
-                spline = Spline(a_values, θ_values)
-                self.splines[k] = spline
-        elif self.var_name == 'δP/δρ':
-            # Constants
-            class_perturbation_name = 'cs2'
-            N_convolve_max = 10
-            N_spline_max = 250
-            R2_min = 0.99
-            # A spline of the form {log(a), a²δP/δρ} should be
-            # constructed for each k value, of which there
-            # are self.k_gridsize. Fairly distribute this work
-            # among the processes.
-            k_start, k_size = partition(self.k_gridsize)
-            k_end = k_start + k_size
-            # When the work is not exactly divisible among
-            # the processed, some processes will have an
-            # additional k value to process.
-            one_k_extra = (k_size*nprocs > self.k_gridsize)
-            # Compute and store a Spline object for each k.
-            # This is done in parallel. All processes are forced to
-            # carry out the same number of iterations regardless of the
-            # number of k values which should be processed by them.
-            for k in range(k_start, k_end + (not one_k_extra)):
-                # Only process if this is not the extra iteration
-                has_data = (k < k_end)
-                if has_data:
-                    # Extract tabulated a, τ and δP/δρ values
-                    perturbation = perturbations[k]
-                    a_values = perturbation['a'].copy()
-                    τ_values = perturbation['tau [Mpc]']
-                    # Construct δPδρ_values as a weighted sum of δP/δρ
-                    # over the individual ('+'-separated) CLASS species,
-                    # using the individual ρ_bar as weights.
-
-                    # !!! THIS IS WRONG!
-                    # It is δP and δρ separately that should be scaled.
-                    # That is,
-                    # (δP/δρ)_combined =  (δP_1 + δP_2 + ...)/(δρ_1 + δρ_2 + ...).
-                    # This is not doable without explicit info about either δP or δρ
-                    # (here we only got the ratio δP/δρ).
-                    # RESOLUTION: Store δP, not δP/δρ. Then we need δρ.
-                    # Since CLASS gives us all
-                    # transfer functions (perturbations) at the same
-                    # {a, k}, it is nicer to compute
-                    # δP = (δP/δρ)*δρ
-                    #    = (δP/δρ)*δ*ρ_bar
-                    # directly, before doing any of the below numerical
-                    # corrections/smoothings. This also means that
-                    # you should not use the pre-processed δ, but the
-                    # raw δ from CLASS (when doing the δP = (δP/δρ)*δ*ρ_bar
-                    # computation). This will thus require a re-thinking
-                    # of all of the below processing!
-                    #
-                    # This will also make the realization of 𝒫 more
-                    # analogoues to that of σ/Σ in realize(), as these
-                    # rely on δP/δρ and σ/δρ.
-
-
-                    ρ_bar_a_species = {
-                        class_species: self.cosmoresults.ρ_bar(a_values, class_species)
-                        for class_species in self.class_species.split('+')
-                    }
-                    δPδρ_values_arr = 0
-                    for class_species, ρ_bar_a in ρ_bar_a_species.items():
-                        δPδρ_perturbation = perturbation.get(
-                            f'{class_perturbation_name}_{class_species}'
-                        )
-                        if δPδρ_perturbation is None:
+                        if perturbation is None:
                             perturbations_available[class_species] = False
                         else:
-                            δPδρ_values_arr += ρ_bar_a*δPδρ_perturbation
-                    if (not missing_perturbations_warning_given
-                        and not all(perturbations_available.values())
-                    ):
-                        missing_perturbations_warning_given = True
+                            perturbation_values_arr += weights*class_units*perturbation
+                    if k == 0 and not all(perturbations_available.values()):
+                        # Warn or abort on missing perturbations.
+                        # We only do this for k = 0, which is the first
+                        # perturbation encountered on the master process.
                         if len(perturbations_available) == 1:
                             abort(missing_perturbations_warning.format(
                                 class_perturbation_name, self.class_species,
@@ -1145,310 +1092,141 @@ class TransferFunction:
                                 f'No {class_perturbation_name} perturbations '
                                 f'for the {self.component.name} component available'
                             )
-                    δPδρ_values_arr /= np.sum(tuple(ρ_bar_a_species.values()), axis=0)
-                    δPδρ_values = δPδρ_values_arr
-                    # Remove doppelgänger points in δPδρ,
-                    # when viewed as a function of either a or τ.
-                    (a_values, τ_values), δPδρ_values = remove_doppelgängers(
-                        (a_values, τ_values), δPδρ_values,
+                perturbation_values = perturbation_values_arr
+                # Remove outliers
+                if outliers_list:
+                    outliers = asarray(outliers_list, dtype=C2np['Py_ssize_t'])
+                    n_outliers = 0
+                    outlier = outliers[n_outliers]
+                    for i in range(perturbation_values.shape[0]):
+                        if i == outlier:
+                            n_outliers += 1
+                            if n_outliers < outliers.shape[0]:
+                                outlier = outliers[n_outliers]
+                        elif n_outliers:
+                            index = i - n_outliers
+                            a_values           [index] = a_values           [i]
+                            perturbation_values[index] = perturbation_values[i]
+                    size = a_values.shape[0] - n_outliers
+                    a_values            = a_values           [:size]
+                    perturbation_values = perturbation_values[:size]
+                # The CLASS perturbations sometime contain neighbouring
+                # data points extremely close to each other.
+                # Such doppelgänger points can lead to bad splines
+                # later on, and so we remove them now.
+                a_values, perturbation_values = remove_doppelgängers(a_values, perturbation_values)
+                # Perform non-linear detrending. The data to be splined
+                # is in the form {log(a), perturbation_values - trend},
+                # with trend = factor*a**exponent. Here we find this
+                # trend trough curve fitting of perturbation_values.
+                fitted_trends = [
+                    scipy.optimize.curve_fit(
+                        self.power_law,
+                        a_values,
+                        perturbation_values,
+                        (1, 0),
+                        bounds=bounds,
                     )
-                    # Apply CLASS units of [time] and [length²time⁻²]
-                    τ_values    = asarray(τ_values   )*ℝ[units.Mpc/light_speed]
-                    δPδρ_values = asarray(δPδρ_values)*ℝ[light_speed**2       ]
-                    # Remove outlier points which are outside
-                    # the legal range 0 ≤ δP/δρ ≤ c²/3.
-                    outliers = 0
-                    for i in range(a_values.shape[0]):
-                        if not (0 <= ℝ[δPδρ_values[i]] <= ℝ[light_speed**2/3]):
-                            outliers += 1
-                        elif outliers:
-                            index = i - outliers
-                            a_values   [index] = a_values   [i]
-                            τ_values   [index] = τ_values   [i]
-                            δPδρ_values[index] = δPδρ_values[i]
-                    if outliers:
-                        size = a_values.shape[0] - outliers
-                        a_values    = a_values   [:size]
-                        τ_values    = τ_values   [:size]
-                        δPδρ_values = δPδρ_values[:size]
-                    # The data to be splined is actually a**2*δP/δρ
-                    a2δPδρ_values = asarray(a_values)**2*asarray(δPδρ_values)
-                    # Interpolate (linearly) to a uniform τ grid
-                    N_τ_uniform = 2*a_values.shape[0]
-                    τ_interp = linspace(τ_values[0], τ_values[τ_values.shape[0] - 1], N_τ_uniform)
-                    a_interp = np.interp(τ_interp, τ_values, a_values)
-                    a2δPδρ_interp = np.interp(τ_interp, τ_values, a2δPδρ_values)
-                    # Find the index corresponding to a_begin
-                    for i in range(a_interp.shape[0]):
-                        if a_interp[i] > universals.a_begin:
-                            index_start = i - 1
-                            break
-                    else:
-                        if a_interp[i] == universals.a_begin:
-                            index_start = i
-                    # Keep doing moving averages with a window size
-                    # matching the wildest oscillation in the
-                    # interval [a_begin, 1], until a monotonic function
-                    # is obtained. Always do at least one
-                    # moving average operation.
-                    a2δPδρ_convolved = a2δPδρ_interp
-                    monotonic_right_end = True
-                    for i in range(N_convolve_max):
-                        # Find number of data points per oscillation
-                        points_per_oscillation = find_wildest_oscillation(
-                                                     a2δPδρ_convolved[index_start:])
-                        # If points_per_oscillation == -1,
-                        # it means that the a2δPδρ values are
-                        # completely smooth already.
-                        if points_per_oscillation == -1:
-                            break
-                        # The left end of the data will be truncated by
-                        # the amount points_per_oscillation//2. If this
-                        # leads to the data not being defined over the
-                        # entire interval [a_begin, 1], break out now.
-                        if index_start - ℤ[points_per_oscillation//2] < 0:
-                            warn(f'Ending processing of δP/δρ(a) at '
-                                 f'k = {self.k_magnitudes[k]} Mpc⁻¹ prematurely, '
-                                 f'as otherwize it will not be defined all the way back to '
-                                 f'a = {universals.a_begin}, where the simulation begins.'
-                                 )
-                            break
-                        # The oscillations need to be resolved with at
-                        # least 3 points for the convolution to work.
-                        if points_per_oscillation < 3:
-                            if i == 0:
-                                # Always do at least one
-                                # moving average operation.
-                                points_per_oscillation = 3
-                            else:
-                                # These fast oscillations are often just
-                                # small jitters, making the data non-
-                                # monotonic due to peaks consisting of
-                                # single points. Run through the data
-                                # and remove such peaks.
-                                for j in range(1, a2δPδρ_convolved.shape[0] - 1):
-                                    if not (
-                                        (ℝ[a2δPδρ_convolved[j - 1]] <= ℝ[a2δPδρ_convolved[j    ]]
-                                                                    <= ℝ[a2δPδρ_convolved[j + 1]])
-                                     or (ℝ[a2δPδρ_convolved[j - 1]] >= ℝ[a2δPδρ_convolved[j    ]]
-                                                                    >= ℝ[a2δPδρ_convolved[j + 1]])
-                                            ):
-                                        a2δPδρ_convolved[j] = 0.5*(  a2δPδρ_convolved[j - 1]
-                                                                   + a2δPδρ_convolved[j + 1])
-                                break
-                        # Test the monotonicity of the a = 1 end
-                        # of the data (the part that will not be
-                        # touched by the convolutions).
-                        a2δPδρ_right_end = a2δPδρ_convolved[(  a2δPδρ_convolved.shape[0]
-                                                             - ℤ[points_per_oscillation//2]):]
-                        if monotonic_right_end:
-                            for j in range(1, a2δPδρ_right_end.shape[0] - 1):
-                                if not (   (a2δPδρ_right_end[j - 1] <= a2δPδρ_right_end[j]
-                                                                    <= a2δPδρ_right_end[j + 1])
-                                        or (a2δPδρ_right_end[j - 1] >= a2δPδρ_right_end[j]
-                                                                    >= a2δPδρ_right_end[j + 1])
-                                        ):
-                                    warn(f'The raw δP/δρ(a) data at k = {self.k_magnitudes[k]} '
-                                         f'Mpc⁻¹ is noisy even at a ≈ 1.\n'
-                                         f'You should consider cranking up the precision of CLASS.'
-                                         )
-                                    monotonic_right_end = False
-                                    break
-                        # Construct window function
-                        window = ones(points_per_oscillation)/points_per_oscillation
-                        # Do the moving average
-                        a2δPδρ_convolved = scipy.signal.convolve(a2δPδρ_convolved, window,
-                                                                 mode='same')
-                        # Use original data at the a = 1 end
-                        rindex = a2δPδρ_convolved.shape[0] - ℤ[points_per_oscillation//2]
-                        a2δPδρ_convolved[rindex:] = a2δPδρ_right_end
-                        # Cut off the lower end
-                        a2δPδρ_convolved = a2δPδρ_convolved[ℤ[points_per_oscillation//2]:]
-                        index_start -= ℤ[points_per_oscillation//2]
-                        # Check for monotonicity over the
-                        # interval [a_begin, 1].
-                        monotonic = True
-                        for j in range(index_start + 1, a2δPδρ_convolved.shape[0] - 1):
-                            if not (   (a2δPδρ_convolved[j - 1] <= a2δPδρ_convolved[j]
-                                                                <= a2δPδρ_convolved[j + 1])
-                                    or (a2δPδρ_convolved[j - 1] >= a2δPδρ_convolved[j]
-                                                                >= a2δPδρ_convolved[j + 1])
-                                    ):
-                                monotonic = False
-                                break
-                        if monotonic:
-                            break
-                    else:
-                        # Several moving averages
-                        # did not lead to monotonic a²δP/δρ.
-                        warn(f'Giving up on smoothing δP/δρ(a) at k = {self.k_magnitudes[k]} '
-                             f'Mpc⁻¹ after {N_convolve_max} attemps.\n'
-                             f'The simulation will continue with this noisy δP/δρ(a), '
-                             f'but it would be better to crank up the precision of CLASS.'
-                             )
-                    # Array of τ values matching
-                    # that of the convolved a2δPδρ.
-                    τ_convolved = τ_interp[(a2δPδρ_interp.shape[0] - a2δPδρ_convolved.shape[0]):]
-                    # Revert back to using a, rather than τ
-                    a_convolved = np.interp(τ_convolved, τ_interp, a_interp)
-                    # The final data which should be splines
-                    loga_convolved = np.log(a_convolved)
-                    if a_convolved.shape[0] > N_spline_max:
-                        # Only use some data points to construct
-                        # the spline. Select the points logarithmically
-                        # equidistant in a.
-                        loga_spline = linspace(log(a_convolved[0                       ]),
-                                               log(a_convolved[a_convolved.shape[0] - 1]),
-                                               N_spline_max)
-                        a2δPδρ_spline = empty(N_spline_max)
-                        j = -1
-                        for i in range(N_spline_max):
-                            for j in range(j + 1, loga_convolved.shape[0]):
-                                if ℝ[loga_convolved[j]] >= ℝ[loga_spline[i]]:
-                                    loga_spline[i] = ℝ[loga_convolved[j]]
-                                    a2δPδρ_spline[i] = a2δPδρ_convolved[j]
-                                    break
-                    else:
-                        # Use all data points to construct the spline
-                        loga_spline = loga_convolved
-                        a2δPδρ_spline = a2δPδρ_convolved
-                    # Construct cubic spline of {log(a), a²δP/δρ}
-                    # on the local process.
-                    spline = Spline(loga_spline, a2δPδρ_spline)
-                    self.splines[k] = spline
-                    # Test goodness of fit of entire process
-                    # by computing the R² value.
-                    for i in range(a_values.shape[0]):
-                        if (    ℝ[a_values[i]] >= ℝ[exp(loga_spline[0])]
-                            and ℝ[a_values[i]] >= universals.a):
-                            a2δPδρ_processed = asarray([spline.eval(log(a)) for a in a_values[i:]])
-                            R2 = self.R2(a2δPδρ_values[i:], a2δPδρ_processed) 
-                            if R2 < R2_min:
-                                warn(f'The raw and processed a²δP/δρ(a) at '
-                                     f'k = {self.k_magnitudes[k]} Mpc⁻¹ is badly correlated '
-                                     f'with R² = {R2}.\n'
-                                     f'You should consider cranking up the precision of CLASS.'
-                                     )  
-                            break
-                # Communicate the spline data
-                for rank_send in range(nprocs):
-                    # Broadcast the k value belonging to the data to
-                    # be communicated. If no data should
-                    # be communicated, signal this by broadcasting -1.
-                    k_send = bcast(k if has_data else -1, root=rank_send)
-                    if k_send == -1:
-                        continue
-                    # Broadcast the data
-                    loga_spline_k   = smart_mpi(loga_spline   if rank == rank_send else None,
-                                                0,  # Buffer, different from the below
-                                                root=rank_send,
-                                                mpifun='bcast')
-                    a2δPδρ_spline_k = smart_mpi(a2δPδρ_spline if rank == rank_send else None,
-                                                1,  # Buffer, different from the above
-                                                root=rank_send,
-                                                mpifun='bcast')
-                    # Construct cubic spline of {log(a), a²δP/δρ}.
-                    # Note that this has already been done
-                    # on the sending process.
-                    if rank != rank_send:
-                        spline = Spline(loga_spline_k, a2δPδρ_spline_k)
-                        self.splines[k_send] = spline
-        elif self.var_name == 'σ':
-            # Compute and store a Spline object for each k
-            class_perturbation_name = 'shear'
-            for k in range(self.k_gridsize):
-                perturbation = perturbations[k]
-                a_values = perturbation['a']
-                # Construct σ_values as a weighted sum of σ over
-                # the individual ('+'-separated) CLASS species,
-                # using the individual (ρ_bar + c⁻²P_bar) as weights.
-                # This weighting is correct to linear order.
-                ρP_bar_a_species = {class_species: 
-                                           self.cosmoresults.ρ_bar(a_values, class_species)
-                    + ℝ[light_speed**(-2)]*self.cosmoresults.P_bar(a_values, class_species)
-                    for class_species in self.class_species.split('+')
-                }
-                σ_values_arr = 0
-                for class_species, ρP_bar_a in ρP_bar_a_species.items():
-                    σ_perturbation = perturbation.get(f'{class_perturbation_name}_{class_species}')
-                    if σ_perturbation is None:
-                        perturbations_available[class_species] = False
-                    else:
-                        σ_values_arr += ρP_bar_a*σ_perturbation
-                if (not missing_perturbations_warning_given
-                    and not all(perturbations_available.values())
-                ):
-                    missing_perturbations_warning_given = True
-                    if len(perturbations_available) == 1:
-                        abort(missing_perturbations_warning.format(
-                            class_perturbation_name, self.class_species,
-                        ))
-                    for class_species, available in perturbations_available.items():
-                        if not available:
-                            masterwarn(missing_perturbations_warning.format(
-                                class_perturbation_name, class_species,
-                            ))
-                    if not any(perturbations_available.values()):
-                        abort(
-                            f'No {class_perturbation_name} perturbations '
-                            f'for the {self.component.name} component available'
-                        )
-                σ_values_arr /= np.sum(tuple(ρP_bar_a_species.values()), axis=0)
-                σ_values = σ_values_arr
-                # Apply CLASS units of [length²time⁻²]
-                σ_values = asarray(σ_values)*ℝ[light_speed**2]
-                # Construct cubic spline of {a, σ}
-                spline = Spline(a_values, σ_values)
-                self.splines[k] = spline
-        elif self.var_name == 'hʹ':
-            # Compute and store a Spline object for each k
-            class_perturbation_name = 'h_prime'
-            for k in range(self.k_gridsize):
-                perturbation = perturbations[k]
-                a_values = perturbation['a']
-                hʹ_values = perturbation[class_perturbation_name]
-                # Apply CLASS units of [time⁻¹]
-                hʹ_values = asarray(hʹ_values)*ℝ[light_speed/units.Mpc]
-                # Construct cubic spline of {a, hʹ}
-                spline = Spline(a_values, hʹ_values)
-                self.splines[k] = spline 
+                    for bounds in (
+                        (
+                            [-ထ, -exponent_max],
+                            [+ထ,  0           ],
+                        ),
+                        (
+                            [-ထ,  0           ],
+                            [+ထ, +exponent_max],
+                        ),
+                    )
+                ]
+                self.factors[k], self.exponents[k] = fitted_trends[
+                    np.argmin([fitted_trend[1][1,1] for fitted_trend in fitted_trends])
+                ][0]
+                if isclose(abs(self.exponents[k]), exponent_max):
+                    abort(
+                        f'Error processing {self.var_name} perturbations for '
+                        f'{self.component.name} at k = {self.k_magnitudes[k]} Mpc⁻¹: '
+                        f'Detrending resulted in exponent = exponent_max = {exponent_max}.'
+                    )
+                if abs(self.exponents[k]) < ℝ[1e+3*machine_ϵ]:
+                    self.exponents[k] = 0
+                perturbations_detrended = (
+                    asarray(perturbation_values)
+                    - self.factors[k]*asarray(a_values)**self.exponents[k]
+                )
+                # As the spline will be over
+                # {log(a), perturbation_values - trend},
+                # we need log(a).
+                loga_values = np.log(a_values)
+            # Communicate the spline data
+            for rank_send in range(nprocs):
+                # Broadcast the k value belonging to the data to
+                # be communicated. If no data should
+                # be communicated, signal this by broadcasting -1.
+                k_send = bcast(k if has_data else -1, root=rank_send)
+                if k_send == -1:
+                    continue
+                # Broadcast the trend
+                self.factors[k_send], self.exponents[k_send] = bcast(
+                    (self.factors[k], self.exponents[k]),
+                    root=rank_send,
+                )
+                # Broadcast the data
+                loga_values_k = smart_mpi(
+                    loga_values if rank == rank_send else None,
+                    0,  # Buffer, different from the below
+                    root=rank_send,
+                    mpifun='bcast',
+                )
+                perturbations_detrended_k = smart_mpi(
+                    perturbations_detrended if rank == rank_send else None,
+                    1,  # Buffer, different from the above
+                    root=rank_send,
+                    mpifun='bcast',
+                )
+                # Construct cubic spline of
+                # {log(a), perturbations - trend}.
+                spline = Spline(loga_values_k, perturbations_detrended_k)
+                self.splines[k_send] = spline
+                # If class_plot_perturbations is True,
+                # plot the detrended perturbation and save it to disk.
+                if master and class_plot_perturbations:
+                    plot_detrended_perturbations(
+                        loga_values_k, perturbations_detrended_k, self, k_send,
+                    )
         # Done processing transfer functions
         masterprint('done')
 
-    # Method for evaluating transfer_function(k, a)
-    @cython.header(# Arguments
-                   k='Py_ssize_t',
-                   a='double',
-                   # Locals
-                   spline='Spline',
-                   value='double',
-                   returns='double',
-                   )
-    def eval(self, k, a):
-        if self.var_name in ('δ', 'θ', 'σ', 'hʹ'):
-            # Lookup transfer(k, a) by evaluating
-            # the k'th {a, transfer} spline.
-            spline = self.splines[k]
-            value = spline.eval(a)
-        elif self.var_name == 'δP/δρ':
-            # Either use the approximation δP/δρ(k, a) = c²w(a) or look
-            # up δP/δρ(k, a) properly from the processed CLASS data.
-            if self.approximate_P_as_wρ:
-                value = ℝ[light_speed**2]*self.component.w(a=a)
-            else:
-                # Lookup δP/δρ(k, a) by evaluating the k'th
-                # {log(a), a²δP/δρ(a)} spline.
-                spline = self.splines[k]
-                value = spline.eval(log(a))/a**2
-        return value
+    # Helper function for the process method
+    @staticmethod
+    def power_law(x, factor, exponent):
+        return factor*x**exponent
 
-    # Main method for gettng transfer_function(k)
-    @cython.pheader(# Arguments
-                    a='double',
-                    # Locals
-                    k='Py_ssize_t',
-                    returns='double[::1]',
-                    )
+    # Method for evaluating the k'th transfer function
+    # at a given scale factor.
+    @cython.header(
+        # Arguments
+        k='Py_ssize_t',
+        a='double',
+        # Locals
+        spline='Spline',
+        value='double',
+        returns='double',
+    )
+    def eval(self, k, a):
+        # Lookup transfer(k, a) by evaluating
+        # the k'th {log(a), transfer - trend} spline.
+        spline = self.splines[k]
+        return spline.eval(log(a)) + self.factors[k]*a**self.exponents[k]
+
+    # Main method for getting the transfer function as function of k
+    # at a specific value of the scale factor.
+    @cython.pheader(
+        # Arguments
+        a='double',
+        # Locals
+        k='Py_ssize_t',
+        returns='double[::1]',
+    )
     def as_function_of_k(self, a):
         """The self.data array is used to store the transfer function
         as function of k for the given a. As this array is reused for
@@ -1465,51 +1243,43 @@ class TransferFunction:
             self.data[k] = self.eval(k, a)
         return self.data
 
-    # Method for evaluating the derivative of transfer_function(k, a)
-    # with respect to the scale factor.
-    @cython.header(# Arguments
-                   k='Py_ssize_t',
-                   a='double',
-                   # Locals
-                   spline='Spline',
-                   value='double',
-                   returns='double',
-                   )
+    # Method for evaluating the derivative of the k'th transfer
+    # function with respect to the scale factor, at a specific value of
+    # the scale factor.
+    @cython.header(
+        # Arguments
+        k='Py_ssize_t',
+        a='double',
+        # Locals
+        exponent='double',
+        spline='Spline',
+    )
     def eval_deriv(self, k, a):
-        if self.var_name in ('δ', 'θ', 'σ', 'hʹ'):
-            # Lookup the derivative of transfer(k, a) by evaluating
-            # the derivative of the k'th {a, transfer} spline.
-            spline = self.splines[k]
-            value = spline.eval_deriv(a)
-        elif self.var_name == 'δP/δρ':
-            # Either use the approximation δP/δρ(k, a) = c²w(a) or look
-            # up δP/δρ(k, a) properly from the processed CLASS data.
-            if self.approximate_P_as_wρ:
-                # We have ẇ = dw/dt = dw/da*da/dt = dw/da*ȧ, and so
-                # dw/da = ẇ/ȧ
-                value = ℝ[light_speed**2]*self.component.ẇ(a=a)/ȧ(a)
-            else:
-                # Lookup δP/δρ(k, a) by evaluating the derivative of
-                # the k'th {log(a), a²δP/δρ(a)} spline.
-                # With x = log(a), f(x) = a²δP/δρ(a)
-                #                       = e²ˣδP/δρ(eˣ),
-                # we have df/dx = df/da*da/dx
-                #               = df/da*a
-                #               = (2*a*δP/δρ(a) + a²*d[δP/δρ(a)]/da)*a,
-                # and so d[δP/δρ(a)]/da = a⁻³*df/dx - 2a⁻¹*δP/δρ(a).
-                spline = self.splines[k]
-                value = spline.eval(log(a))/a**3 - 2*self.eval(k, a)/a
-        return value
+        # The transfer function is splined using {x, f(x)} with
+        #     x = log(a),
+        #     f(x) = transfer(a) - trend(a)
+        #          = transfer(a) - factor*a**exponent,
+        # and so we have
+        #    df/dx = df/da*da/dx
+        #          = df/da*a
+        #          = a*(dtransfer/da - factor*exponent*a**(exponent - 1))
+        #          = a*dtransfer/da - factor*exponent*a**exponent
+        # and then
+        #     dtransfer/da = (df/dx)/a + factor*exponent*a**(exponent - 1).
+        spline = self.splines[k]
+        exponent = self.exponents[k]
+        return spline.eval_deriv(log(a))/a + self.factors[k]*exponent*a**(exponent - 1)
 
-    # Method for gettng the derivative of the transfer_function
+    # Method for getting the derivative of the transfer function
     # with respect to the scale factor, evaluated at a,
     # as a function of k.
-    @cython.pheader(# Arguments
-                    a='double',
-                    # Locals
-                    k='Py_ssize_t',
-                    returns='double[::1]',
-                    )
+    @cython.pheader(
+        # Arguments
+        a='double',
+        # Locals
+        k='Py_ssize_t',
+        returns='double[::1]',
+    )
     def deriv_as_function_of_k(self, a):
         """The self.data_deriv array is used to store the transfer
         function derivatives as function of k for the given a. As this
@@ -1525,49 +1295,6 @@ class TransferFunction:
         for k in range(self.k_gridsize):
             self.data_deriv[k] = self.eval_deriv(k, a)
         return self.data_deriv
-
-    # Static method for estimating goodness of fit
-    # by computing R² values.
-    @staticmethod
-    def R2(y_raw, y_processed):
-        if y_raw.shape[0] == 1:
-            return 1
-        y_raw, y_processed = asarray(y_raw), asarray(y_processed)
-        ss_res = np.sum((y_raw - y_processed)**2)
-        ss_tot = np.sum((y_raw - np.mean(y_raw))**2)
-        if ss_tot < ℝ[1e+2*machine_ϵ]:
-            return 1
-        return 1 - ss_res/ss_tot
-# Helper function to the TransferFunction class, capable of finding the
-# wildest oscillation in a data set and returning the number of data
-# points in this oscillation.
-@cython.header(# Arguments
-               y='double[::1]',
-               # Locals
-               f='double[::1]',
-               i='Py_ssize_t',
-               peak_index='Py_ssize_t',
-               points_per_oscillation='Py_ssize_t',
-               returns='Py_ssize_t',
-               )
-def find_wildest_oscillation(y):
-    # Compute Fourier modes
-    f = np.abs(np.fft.rfft(y))
-    # Remove background modes
-    f[0] = ထ
-    for i in range(f.shape[0] - 1):
-        if f[i] > f[i + 1]:
-            f[i] = 0
-        else:
-            break
-    # Find largest peak
-    peak_index = np.argmax(f)
-    # If no oscillations exist, return -1
-    if peak_index == 0:
-        return -1
-    # Number of data points in each oscillation
-    points_per_oscillation = y.shape[0]//peak_index
-    return points_per_oscillation
 
 # Function which solves the linear cosmology using CLASS,
 # from before the initial simulation time and until the present.
@@ -1614,7 +1341,14 @@ def compute_cosmo(k_min=-1, k_max=-1, k_gridsize=-1, gauge='synchronous', filena
     # Also use the largest allowed value as the default value,
     # when no k_gridsize is given.
     k_gridsize_max = (class__ARGUMENT_LENGTH_MAX_ - 1)//(len(k_float2str(0)) + 1)
-    if k_gridsize > k_gridsize_max or k_gridsize == -1:
+    if k_gridsize > k_gridsize_max:
+        masterwarn(
+            f'Reducing number of k modes from {k_gridsize} to {k_gridsize_max}. '
+            f'If you really want more k modes, you need to increase the CLASS macro '
+            f'_ARGUMENT_LENGTH_MAX_ in include/parser.h.'
+        )
+        k_gridsize = k_gridsize_max
+    elif k_gridsize == -1:
         k_gridsize = k_gridsize_max
     # If this exact CLASS computation has already been carried out,
     # return the stored results.
@@ -1802,8 +1536,8 @@ def compute_transfer(component, variable, k_min, k_max,
                            f'erroneous transfer function.'
                            )
     elif var_index == 2 and specific_multi_index == 'trace':
-        # Get th δP/δρ transfer function
-        transfer = cosmoresults.δPδρ(a, component)
+        # Get th δP transfer function
+        transfer = cosmoresults.δP(a, component)
     elif (    var_index == 2
           and isinstance(specific_multi_index, tuple)
           and len(specific_multi_index) == 2
@@ -1818,91 +1552,120 @@ def compute_transfer(component, variable, k_min, k_max,
     transfer_spline = Spline(k_magnitudes, transfer)
     return transfer_spline, cosmoresults
 
+# Function which given a gridsize computes k_min, k_max and k_gridsize
+# which can be supplied to e.g. compute_transfer().
+@cython.header(
+    # Arguments
+    gridsize='Py_ssize_t',
+    # Locals
+    k_gridsize='Py_ssize_t',
+    k_max='double',
+    k_min='double',
+    n_decades='double',
+    returns=tuple,
+)
+def get_default_k_parameters(gridsize):
+    k_min = ℝ[2*π/boxsize]
+    k_max = ℝ[2*π/boxsize]*sqrt(3*(gridsize//2)**2)
+    n_decades = log10(k_max/k_min)
+    k_gridsize = int(round(modes_per_decade*n_decades))
+    return k_min, k_max, k_gridsize
+
 # Function which realises a given variable on a component
 # from a supplied transfer function.
-@cython.pheader(# Arguments
-               component='Component',
-               variable=object,  # str or int
-               transfer_spline='Spline',
-               cosmoresults=object,  # CosmoResults
-               specific_multi_index=object,  # tuple, int-like or str
-               a='double',
-               transform=str,
-               use_gridˣ='bint',
-               # Locals
-               A_s='double',
-               H='double',
-               Jᵢ_ptr='double*',
-               buffer_number='Py_ssize_t',
-               dim='int',
-               displacement='double',
-               domain_size_i='Py_ssize_t',
-               domain_size_j='Py_ssize_t',
-               domain_size_k='Py_ssize_t',
-               domain_start_i='Py_ssize_t',
-               domain_start_j='Py_ssize_t',
-               domain_start_k='Py_ssize_t',
-               f_growth='double',
-               fluid_index='Py_ssize_t',
-               fluidscalar='FluidScalar',
-               fluidvar=object,  # Tensor
-               fluidvar_name=str,
-               gridsize='Py_ssize_t',
-               i='Py_ssize_t',
-               i_conj='Py_ssize_t',
-               i_global='Py_ssize_t',
-               in_lower_i_half='bint',
-               in_lower_j_half='bint',
-               index='Py_ssize_t',
-               index0='Py_ssize_t',
-               index1='Py_ssize_t',
-               j='Py_ssize_t',
-               j_conj='Py_ssize_t',
-               j_global='Py_ssize_t',
-               k='Py_ssize_t',
-               k_factor='double[::1]',
-               k_factor_conj='double[::1]',
-               k_global='Py_ssize_t',
-               k_gridvec='Py_ssize_t[::1]',
-               k_gridvec_conj='Py_ssize_t[::1]',
-               k_magnitude='double',
-               k_pivot='double',
-               k2='Py_ssize_t',
-               k2_max='Py_ssize_t',
-               ki='Py_ssize_t',
-               ki_conj='Py_ssize_t',
-               kj='Py_ssize_t',
-               kj_conj='Py_ssize_t',
-               kj2='Py_ssize_t',
-               kk='Py_ssize_t',
-               mass='double',
-               mom_dim='double*',
-               multi_index=object,  # tuple or str
-               n_s='double',
-               nyquist='Py_ssize_t',
-               pos_dim='double*',
-               pos_gridpoint='double',
-               processed_specific_multi_index=object,  # tuple or str
-               purely_linear='bint',
-               random_jik='double*',
-               random_slab='double[:, :, ::1]',
-               slab='double[:, :, ::1]',
-               slab_jik='double*',
-               sqrt_power='double',
-               sqrt_power_common='double[::1]',
-               tensor_rank='int',
-               transfer='double',
-               w='double',
-               w_eff='double',
-               δ_min='double',
-               ρ_bar_a='double',
-               ψ_dim='double[:, :, ::1]',
-               ψ_dim_noghosts='double[:, :, :]',
-               ϱ_ptr='double*',
-               𝒫_ptr='double*',
-               )
+@cython.pheader(
+    # Arguments
+    component='Component',
+    variable=object,  # str or int
+    transfer_spline='Spline',
+    cosmoresults=object,  # CosmoResults
+    specific_multi_index=object,  # tuple, int-like or str
+    a='double',
+    scheme=dict,
+    use_gridˣ='bint',
+    # Locals
+    A_s='double',
+    H='double',
+    compound_variable='bint',
+    cosmoresults_δ=object,  # CosmoResults
+    dim='int',
+    displacement='double',
+    domain_size_i='Py_ssize_t',
+    domain_size_j='Py_ssize_t',
+    domain_size_k='Py_ssize_t',
+    domain_start_i='Py_ssize_t',
+    domain_start_j='Py_ssize_t',
+    domain_start_k='Py_ssize_t',
+    f_growth='double',
+    fluid_index='Py_ssize_t',
+    fluidscalar='FluidScalar',
+    fluidvar=object,  # Tensor
+    fluidvar_name=str,
+    gridsize='Py_ssize_t',
+    i='Py_ssize_t',
+    i_conj='Py_ssize_t',
+    i_global='Py_ssize_t',
+    in_lower_i_half='bint',
+    in_lower_j_half='bint',
+    index='Py_ssize_t',
+    index0='Py_ssize_t',
+    index1='Py_ssize_t',
+    j='Py_ssize_t',
+    j_conj='Py_ssize_t',
+    j_global='Py_ssize_t',
+    k='Py_ssize_t',
+    k_global='Py_ssize_t',
+    ki='Py_ssize_t',
+    ki_conj='Py_ssize_t',
+    kj='Py_ssize_t',
+    kj_conj='Py_ssize_t',
+    kj2='Py_ssize_t',
+    kk='Py_ssize_t',
+    k_factor='double[::1]',
+    k_factor_conj='double[::1]',
+    k_gridsize='Py_ssize_t',
+    k_gridvec='Py_ssize_t[::1]',
+    k_gridvec_conj='Py_ssize_t[::1]',
+    k_magnitude='double',
+    k_max='double',
+    k_min='double',
+    k_pivot='double',
+    k2='Py_ssize_t',
+    k2_max='Py_ssize_t',
+    mass='double',
+    mom_dim='double*',
+    multi_index=object,  # tuple or str
+    n_s='double',
+    nyquist='Py_ssize_t',
+    phases_jik='double*',
+    pos_dim='double*',
+    pos_gridpoint='double',
+    processed_specific_multi_index=object,  # tuple or str
+    scheme_key=str,
+    scheme_linear=dict,
+    scheme_val=str,
+    slab='double[:, :, ::1]',
+    slab_jik='double*',
+    slab_phases='double[:, :, ::1]',
+    slab_phases_info=dict,
+    sqrt_power='double',
+    sqrt_power_common='double[::1]',
+    tensor_rank='int',
+    transfer='double',
+    transfer_spline_δ='Spline',
+    w='double',
+    w_eff='double',
+    Jⁱ_ptr='double*',
+    δ_min='double',
+    ρ_bar_a='double',
+    ψ_dim='double[:, :, ::1]',
+    ψ_dim_noghosts='double[:, :, :]',
+    ςⁱⱼ_ptr='double*',
+    ϱ_ptr='double*',
+    𝒫_ptr='double*',   
+)
 def realize(component, variable, transfer_spline, cosmoresults,
-            specific_multi_index=None, a=-1, transform='background',
+            specific_multi_index=None, a=-1, scheme=None,
             use_gridˣ=False):
     """This function realizes a single variable of a component,
     given the transfer function as a Spline (using |k| in physical units
@@ -1919,24 +1682,46 @@ def realize(component, variable, transfer_spline, cosmoresults,
     work correctly, you must pass the δ transfer function as
     transfer_spline. For particle components, the variable argument
     is not used.
-    The transform argument can take on values of 'background' and
-    'nonlinear' and determines whether background or fully evolved
-    non-linear variables should be used when transforming the raw
-    transfer function to the actual used variable. As an example,
-    consider J = a⁴(ρ + c⁻²P)u, which is realized by first realizing u
-    and then multiplying by a⁴(ρ + c⁻²P). Here, (ρ + c⁻²P) can either be
-    taken from the homogeneous background or the non-linear fluid
-    variables themselves. In the latter case, it is up to the caller to
-    ensure that these exist before calling this function.
+
+    The realization can be carried out using several different schemes,
+    controlled by the scheme argument. This is a dictionary with the
+    keys 'phases', 'compound-order' and  'compound-space', all of which
+    can take two values. The default is
+    scheme = {
+        'phases': 'primordial',
+        'compound-order': 'linear',
+        'compound-space': 'real',
+    }
+    which corresponds to linear realization. Taking Jⁱ as an example
+    this linear realization looks like
+        Jⁱ(x⃗) = a**(1 - 3w_eff)ϱ_bar(1 + w)ℱₓ⁻¹[T_θ(k)ζ(k)K(k⃗)ℛ(k⃗)],
+    where ζ(k) = π*sqrt(2*A_s)*k**(-3/2)*(k/k_pivot)**((n_s - 1)/2)
+    is the primordial curvature perturbation, T_θ(k) is the passed
+    transfer function for θ, ℛ(k⃗) is a field of primordial phases,
+    and K(k⃗) is the tensor structure (often referred to as k factor)
+    needed to convet from θ to uⁱ. For uⁱ, K(k⃗) = -ikⁱ/k². The factors
+    outside the Fourier transform then converts from uⁱ to Jⁱ.
+    We can instead choose to use the evolved non-linear phases of ϱ,
+    by using scheme['phases'] == 'non-linear'. Then the realization
+    looks like
+        Jⁱ(x⃗) = a**(1 - 3w_eff)ϱ_bar(1 + w)ℱₓ⁻¹[T_θ(k)/T_δϱ(k)K(k⃗)δϱ(k⃗)],
+    where δϱ(k⃗) = ℱₓ[δϱ(x⃗)] is computed from the present ϱ(x⃗) grid,
+    and T_δϱ(k) is the (not passed) transfer function of δϱ.
+    An orthogonal option is 'compound-order'. Setting this to
+    'non-linear' signals that the multiplication which takes uⁱ to Jⁱ
+    should be done using non-linear variables rather than background
+    quantities. That is,
+        Jⁱ(x⃗) = a**(1 - 3w_eff)(ϱ(x⃗) + c⁻²𝒫(x⃗))ℱₓ⁻¹[...]
+    Finally, we can move the non-linear multiplication inside of the
+    Fourier transform using scheme['compound-space'] == 'fourier':
+        Jⁱ(x⃗) = a**(1 - 3w_eff)ℱₓ⁻¹[(ϱ(k⃗) + c⁻²𝒫(k⃗))...]
+
     For both particle and fluid components it is assumed that the
     passed component is of the correct size beforehand. No resizing
     will take place in this function.
     """
     if a == -1:
         a = universals.a
-    transform = transform.replace('-', '').lower()
-    if transform not in ('background', 'nonlinear'):
-        abort(f'The realize function got unrecognized transform value of "{transform}"')
     # Get the index of the fluid variable to be realized
     # and print out progress message.
     processed_specific_multi_index = ()
@@ -1991,9 +1776,64 @@ def realize(component, variable, transfer_spline, cosmoresults,
         abort(f'The realization uses a gridsize of {gridsize}, '
               f'which is not evenly divisible by {nprocs} processes.'
               )
-    # Fetch a slab decomposed grid
-    slab = get_fftw_slab(gridsize)
-    # Extract some variables
+    # Handle the scheme argument
+    if scheme is None:
+        scheme = {}
+    scheme = {key.lower().replace(' ', '').replace('-', ''):
+        val.lower().replace(' ', '').replace('-', '')
+        for key, val in scheme.items()
+    }
+    # Use the linear realization scheme by default
+    scheme_linear = {
+        'phases': 'primordial',
+        'compoundorder': 'linear',
+        'compoundspace': 'real',
+    }
+    for scheme_key, scheme_val in scheme_linear.items():
+        if scheme_key not in scheme:
+            scheme[scheme_key] = scheme_val
+    if len(scheme) != 3:
+        abort('Error interpreting realization scheme')
+    if scheme['phases'] not in ('primordial', 'nonlinear'):
+        abort('Unreqonized value "{}" for scheme["phases"]'
+            .format(scheme['phases']))
+    if scheme['compoundorder'] not in ('linear', 'nonlinear'):
+        abort('Unreqonized value "{}" for scheme["compound-order"]'
+            .format(scheme['compoundorder']))
+    if scheme['compoundspace'] not in ('real', 'fourier'):
+        abort('Unreqonized value "{}" for scheme["compound-space"]'
+            .format(scheme['compoundspace']))
+    # When the compound order is 'linear', it does not matter whether
+    # we use real or Fourier space for the compound space. We choose to
+    # always use real space.
+    if scheme['compoundorder'] == 'linear':
+        scheme['compoundspace'] = 'real'
+    # A compound order of 'nonlinear' and a compound space of 'fourier'
+    # only makes a difference for compound variables;
+    # that is, Jⁱ and ςⁱⱼ. If what we are realizing is another variable,
+    # switch these back to 'linear' and 'real', respectively.
+    if fluid_index == 1:
+        # We are realizing Jⁱ
+        compound_variable = True
+    elif fluid_index == 2 and processed_specific_multi_index != 'trace':
+        # We are realizing ςⁱⱼ
+        compound_variable = True
+    else:
+        compound_variable = False
+    if not compound_variable:
+        if scheme['compoundorder'] == 'nonlinear':
+            scheme['compoundorder'] = 'linear'
+        if scheme['compoundspace'] == 'fourier':
+            scheme['compoundspace'] = 'real'
+    # Abort if a scheme was passed for a particle component, as there is
+    # only one way of realizing these (linear realization).
+    if component.representation == 'particles' and scheme != scheme_linear:
+        abort('Can only do linear realization for particle components')
+    # When realizing δ, it makes no sense to realize it using
+    # non-linear phases.
+    if fluid_index == 0 and scheme != scheme_linear:
+        abort('Can only do linear realization of δ')
+    # Extract various variables
     nyquist = gridsize//2
     H = hubble(a)
     w = component.w(a=a)
@@ -2003,81 +1843,125 @@ def realize(component, variable, transfer_spline, cosmoresults,
         A_s = cosmoresults.A_s
         n_s = cosmoresults.n_s
         k_pivot = cosmoresults.k_pivot
-    # Flag specifying whether the realization is purely linear or not,
-    # meaning that it is not partly based on current
-    # non-linear grid values.
-    purely_linear = True
-    if fluid_index == 2:
-        # Realizations of the variables 𝒫 and σ
-        # rely on the non-linear δϱ.
-        purely_linear = False
-        if specific_multi_index != 'trace':
-            # For the realization of σ,
-            # the transfer function of δ is needed.
-            # !!! THIS SHOULD BE DONE IN A CLEANER WAY
-            k_min = ℝ[2*π/boxsize]
-            k_max = ℝ[2*π/boxsize]*sqrt(3*(component.gridsize//2)**2)
-            n_decades = log10(k_max/k_min)
-            k_gridsize = int(round(modes_per_decade*n_decades))
-            cython.declare(transfer_spline_δ='Spline')
-            transfer_spline_δ, cosmoresults_δ = compute_transfer(component, 0, k_min, k_max, k_gridsize, a=a, gauge='N-body')
-    # Fill array with values of the common factor
-    # used for all realizations.
-    # This factor comes in two different forms, depending on whether
-    # the realization is purely linear.
-    k2_max = 3*(gridsize//2)**2  # Max |k|² in grid units
-    buffer_number = 0
-    sqrt_power_common = get_buffer(k2_max + 1, buffer_number)
+    # Fill 1D array with values used for the realization.
+    # These values are the k (but not k⃗) dependent values inside the
+    # inverse Fourier transform, not including any additional tenstor
+    # structure (the k factors K(k⃗) or non-linear grids U(k⃗).
+    k2_max = 3*(gridsize//2)**2  # Max |k⃗|² in grid units
+    sqrt_power_common = get_buffer(k2_max + 1,
+        # Must use some buffer different from the one used to do the
+        # domain decomposition of ψ below.
+        0,
+    )
+    if scheme['phases'] == 'nonlinear':
+        # When using the non-linear phases of δϱ to do the realizations,
+        # we need the transfer function of δρ, which is just
+        # ρ_bar_a times the transfer function of δ.
+        k_min, k_max, k_gridsize = get_default_k_parameters(gridsize)
+        transfer_spline_δ, cosmoresults_δ = compute_transfer(
+            component, 0, k_min, k_max, k_gridsize, a=a,
+        )
     for k2 in range(1, k2_max + 1):
         k_magnitude = ℝ[2*π/boxsize]*sqrt(k2)
         transfer = transfer_spline.eval(k_magnitude)
         with unswitch:
-            if purely_linear:
-                # Realizations depending solely
-                # on the passed transfer function.
+            if scheme['phases'] == 'primordial':
+                # Realize using ℱₓ⁻¹[T(k) ζ(k) K(k⃗) U(k⃗) ℛ(k⃗)],
+                # with K(k⃗) and U(k⃗) capturing any tensor structure and
+                # other non-linear variables to be multiplied on in
+                # Fourier space, respectively. The k⃗-independent part
+                # needed here is T(k)ζ(k), with T(k) the supplied
+                # transfer function and
+                # ζ(k) = π*sqrt(2*A_s)*k**(-3/2)*(k/k_pivot)**((n_s - 1)/2)
+                # the primordial curvature perturbations. The remaining
+                # ℛ(k⃗) is the primordial phases
                 sqrt_power_common[k2] = (
-                    # Factors from the actual realization
-                    k_magnitude**ℝ[0.5*n_s - 2]*transfer
-                    *ℝ[sqrt(2*A_s)*π*k_pivot**(0.5 - 0.5*n_s)
-                       # Fourier normalization
-                       *boxsize**(-1.5)
-                       # Normalization of the generated random numbers:
-                       # <rg(0, 1)²> = 1 → <|rg(0, 1)/√2 + i*rg(0, 1)/√2|²> = 1,
-                       # where rg(0, 1) = random_gaussian(0, 1).
-                       *1/sqrt(2)
-                       ])
-            elif fluid_index == 2 and specific_multi_index == 'trace':
-                # Realization of 𝒫 from the passed transfer function
-                # of δP/δρ together with the non-linear δϱ:
-                # 𝒫 ≈ (δP/δρ)_lin * δϱ
-                sqrt_power_common[k2] = (
+                    # T(k)
                     transfer
-                    *ℝ[# Normalization due to FFT + IFFT
-                       1/gridsize**3
-                       ])
-            elif fluid_index == 2 and specific_multi_index != 'trace':
-                # Realization of σ from the passed transfer function
-                # of σ together with the transfer funtion of δ
-                # and the non-linear δϱ:
-                # σ ≈ (σ/δ)_lin * δ
-                #   = (σ/δ)_lin * δϱ/ϱ_bar
-                #   = (σ/(δ*ϱ_bar))_lin * δϱ
-                # !!! THIS SHOULD BE DONE IN A CLEANER WAY
-                cython.declare(transfer_δ='double')
-                transfer_δ = transfer_spline_δ.eval(k_magnitude)
+                    # ζ(k)
+                    *k_magnitude**ℝ[0.5*n_s - 2]*ℝ[π*sqrt(2*A_s)*k_pivot**(0.5 - 0.5*n_s)
+                        # Fourier normalization
+                        *boxsize**(-1.5)
+                    ]
+                )
+            elif scheme['phases'] == 'nonlinear':
+                # Realize using ℱₓ⁻¹[T(k)/T_δϱ(k) K(k⃗) U(k⃗) ℱₓ[δϱ(x⃗)]],
+                # with K(k⃗) and U(k⃗) capturing any tensor structure and
+                # other non-linear variables to be multiplied on in
+                # Fourier space, respectively. The k⃗-independent part
+                # needed here is T(k)/T_δϱ(k), with T(k) the supplied
+                # transfer function and T_δϱ(k) the transfer function
+                # of δϱ.
                 sqrt_power_common[k2] = (
-                    transfer/(transfer_δ*ℝ[component.ϱ_bar])
-                    *ℝ[# Normalization due to FFT + IFFT
-                       1/gridsize**3
-                       ])
-            else:
-                abort('Did not recognize realization type')
+                    # T(k)
+                    transfer
+                    # 1/T_δϱ(k)
+                    /transfer_spline_δ.eval(k_magnitude)*ℝ[1/component.ϱ_bar
+                        # Normalization due to FFT + IFFT
+                        *float(gridsize)**(-3)
+                    ]
+                )
     # At |k| = 0, the power should be zero, corresponding to a
     # real-space mean value of zero of the realized variable.
     sqrt_power_common[0] = 0
-    # Get array of random numbers
-    random_slab = get_random_slab(slab)
-    # masterwarn(random_slab)
+    # Fetch a slab decomposed grid for storing the phases,
+    # possibly multiplied by other non-linear grids if the compound
+    # space is set to Fourier. If this is the first time, the grid will
+    # be allocated, otherwise the previous grid will be returned,
+    # still containing the previous data.
+    slab_phases = get_fftw_slab(gridsize, 'slab_phases')
+    # Information about the data from the previous call
+    # is stored in the module level slab_phases_previous_info dict.
+    # To see if we can reuse the slab_phases as is, we compare this
+    # information with that of the current realization.
+    slab_phases_info = {
+        'phases': scheme['phases'],
+        'compoundspace': scheme['compoundspace'],
+        'a': a,
+        'use_gridˣ': use_gridˣ,
+        'gridsize': gridsize,
+    }
+    if slab_phases_info['phases'] == 'primordial' and slab_phases_info['compoundspace'] == 'real':
+        # The slab_phases contain no non-linear information,
+        # and so it is of nu importance at what time the slab_phases
+        # were made, or whether using the starred or unstarred grids.
+        slab_phases_info['a'] = None
+        slab_phases_info['use_gridˣ'] = None
+    if slab_phases_info != slab_phases_previous_info:
+        # Populate slab_phases with either ℛ(k⃗) or ℱₓ[ϱ(x⃗)]
+        if scheme['phases'] == 'primordial':
+            # Populate slab_phases with ℛ(k⃗)
+            get_primordial_phases(slab_phases)
+        elif scheme['phases'] == 'nonlinear':
+            # Populate slab_phases with ℱₓ[ϱ(x⃗)]
+            slab_decompose(component.ϱ.gridˣ_mv if use_gridˣ else component.ϱ.grid_mv, slab_phases)
+            fft(slab_phases, 'forward')
+            # Remove the k⃗ = 0⃗ mode, leaving ℱₓ[δϱ(x⃗)]
+            if master:
+                slab_phases[0, 0, 0] = 0  # Real part
+                slab_phases[0, 0, 1] = 0  # Imag part
+        # Multiply by Fourier-transformed non-linear grids U(k⃗)
+        if scheme['compoundspace'] == 'fourier':
+            if (   (fluid_index == 1)
+                or (fluid_index == 2 and processed_specific_multi_index != 'trace')
+            ):
+                # We are realizing Jⁱ or ςⁱⱼ
+                # !!! IMPLEMENT THIS
+                ...
+                abort(
+                    'Realizations using scheme["compoundspace"] == "fourier" not yet implemented!'
+                )
+            else:
+                # It should not be possible to ever reach this line
+                abort(
+                    f'Cannot realize variable {fluid_index}[{processed_specific_multi_index}] '
+                    f'using scheme["compoundspace"] == "fourier"'
+                )
+    slab_phases_previous_info.update(slab_phases_info)
+    # Fetch a slab decomposed grid for storing the entirety of what is
+    # to be inverse Fourier transformed. As we cannot reuse data from
+    # previous calls, we do not pass in a specific buffer name.
+    slab = get_fftw_slab(gridsize)
     # Allocate 3-vectors which will store componens
     # of the k vectors (in grid units).
     k_gridvec      = empty(3, dtype=C2np['Py_ssize_t'])
@@ -2086,16 +1970,18 @@ def realize(component, variable, transfer_spline, cosmoresults,
     # of the k factor.
     k_factor      = empty(2, dtype=C2np['double'])
     k_factor_conj = empty(2, dtype=C2np['double'])
-    # Initialize index0 and index01.
+    # Initialize index0 and index1.
     # The actual values are not important.
     index0 = index1 = 0
     # Loop over all fluid scalars of the fluid variable
     fluidvar = component.fluidvars[fluid_index]
-    for multi_index in (fluidvar.multi_indices if specific_multi_index is None
-                                               else [processed_specific_multi_index]):
+    for multi_index in (
+        fluidvar.multi_indices if specific_multi_index is None
+        else [processed_specific_multi_index]
+    ):
         # Determine rank of the tensor being realized (0 for scalar
         # (i.e. ϱ), 1 for vector (i.e. J), 2 for tensor (i.e. σ)).
-        if isinstance(multi_index, str) or fluid_index == 0:
+        if fluid_index == 0 or isinstance(multi_index, str):
             # If multi_index is a str it is 'trace', which means that
             # 𝒫 is being realized. 
             # If fluid_index is 0, ϱ is being realized.
@@ -2108,16 +1994,6 @@ def realize(component, variable, transfer_spline, cosmoresults,
             index0 = multi_index[0]
         if tensor_rank > 1:
             index1 = multi_index[1]
-        # For realizations that are not purely linear, the slabs should
-        # initially contain the Fourier transform of δϱ.
-        if not purely_linear:
-            # Populate the slabs with the Fourier transform of ϱ
-            slab_decompose(component.ϱ.gridˣ_mv if use_gridˣ else component.ϱ.grid_mv, slab)
-            fft(slab, 'forward')
-            # Remove the mean, leaving the Fourier transform of δϱ
-            if master:
-                slab[0, 0, 0] = 0  # Real part
-                slab[0, 0, 1] = 0  # Imag part
         # Loop through the local j-dimension
         for j in range(ℤ[slab.shape[0]]):
             # The j-component of the wave vector (grid units).
@@ -2152,7 +2028,7 @@ def realize(component, variable, transfer_spline, cosmoresults,
                     # Regardless of what is being realized,
                     # the |k| = 0 mode should vanish, leading to a field
                     # with zero mean.
-                    if k2 == 0:  # Note: Only ever true for master
+                    if k2 == 0:  # Only ever True for master
                         slab[0, 0, 0] = 0
                         slab[0, 0, 1] = 0
                         continue
@@ -2161,128 +2037,133 @@ def realize(component, variable, transfer_spline, cosmoresults,
                     # Re = slab_jik[0], Im = slab_jik[1].
                     slab_jik = cython.address(slab[j, i, k:])
                     # Pointer to the [j, i, k]'th element
-                    # of the random slab.
-                    random_jik = cython.address(random_slab[j, i, k:])
-                    # Compute k factor and grab the two random numbers,
-                    # depending on the rank of the tensor
-                    # being realized.
+                    # of the phases.
+                    phases_jik = cython.address(slab_phases[j, i, k:])
+                    # Compute k factor K(k⃗) depending on the rank
+                    # of the tensor being realized.
+                    # For scalars we do not have any k factor.
                     with unswitch(3):
-                        if tensor_rank == 0:
-                            # Scalar
-                            compute_k_factor_scalar(index0, index1, k_gridvec, k2, k_factor)
-                        elif tensor_rank == 1:
+                        if tensor_rank == 1:
                             # Vector
                             compute_k_factor_vector(index0, index1, k_gridvec, k2, k_factor)
                         elif tensor_rank == 2:
                             # Rank 2 tensor
                             compute_k_factor_tensor(index0, index1, k_gridvec, k2, k_factor)
-                    # On the DC and Nyquist planes, the complex
-                    # conjugate symmetry has to be inforced by hand.
-                    # We do this by changing the k factor for the
-                    # elements in the lower j half of these planes to
-                    # that of their "conjugated" element, situated at
-                    # the negative k vector.
-                    # For realizations that are not purely linear,
-                    # the slabs already contain the correct conjugate
-                    # symmetry for a scalar variable.
+                    # The phases (including the possible multiplication
+                    # by the non-linear grids) are guarenteed to satisfy
+                    # the complex conjugate symmetry condition.
+                    # On the contrary, the k factor K(k⃗) will break the
+                    # symmetry. On the DC and Nyquist planes,
+                    # the complex conjugate symmetry then has to be
+                    # inforced by hand. We do this by changing the
+                    # k factor for the elements in the lower j half of
+                    # these planes to that of their "conjugated"
+                    # element, situated at the negative k vector.
+                    # This is of course only needed for
+                    # non-scalar variables.
                     with unswitch(3):
-                        if purely_linear or tensor_rank != 0:
-                            if (kk == 0 or kk == nyquist) and in_lower_j_half:
-                                # Indicies of the conjugated element.
-                                # Note that k_conj = k.
-                                j_conj = 0 if j_global == 0 else gridsize - j_global
-                                i_conj = 0 if i        == 0 else gridsize - i
-                                # Enforce complex conjugate symmetry
-                                # if necessary. For j_global == j_conj,
-                                # the conjucation is purely along i, and
-                                # so we may only edit half of the points
-                                # along this line.
-                                if i == i_conj and j_global == j_conj:
-                                    # The complex number is its
-                                    # own conjugate, so it has to
-                                    # be real.
-                                    k_factor[1] = 0
-                                elif j_global != j_conj or in_lower_i_half:
-                                    # Fill the k_gridvec_conj vector
-                                    if i_conj > ℤ[gridsize//2]:
-                                        ki_conj = i_conj - gridsize
-                                    else:
-                                        ki_conj = i_conj
-                                    if j_conj > ℤ[gridsize//2]:
-                                        kj_conj = j_conj - gridsize
-                                    else:
-                                        kj_conj = j_conj
-                                    k_gridvec_conj[0] = ki_conj
-                                    k_gridvec_conj[1] = kj_conj
-                                    k_gridvec_conj[2] = kk  # kk == kk_conj
-                                    # Compute k_factor for the conjugate element
-                                    with unswitch(3):
-                                        if fluid_index == 0:
-                                            # Scalar
-                                            compute_k_factor_scalar(index0, index1, k_gridvec_conj,
-                                                                    k2, k_factor_conj)
-                                        elif ℤ[len(multi_index)] == 1:
-                                            # Vector
-                                            compute_k_factor_vector(index0, index1, k_gridvec_conj,
-                                                                    k2, k_factor_conj)
-                                        elif ℤ[len(multi_index)] == 2:
-                                            # Rank 2 tensor
-                                            compute_k_factor_tensor(index0, index1, k_gridvec_conj,
-                                                                    k2, k_factor_conj)
-                                    # Enforce conjugacy
-                                    with unswitch(3):
-                                        if purely_linear:
-                                            # Standard case
-                                            k_factor[0] = +k_factor_conj[0]
-                                            k_factor[1] = -k_factor_conj[1]
-                                        else:
-                                            # Because the slabs initially contain the non-linear
-                                            # F[δϱ], they are already symmetrized and so no
-                                            # minus sign appears below.
-                                            k_factor[0] = +k_factor_conj[0]
-                                            k_factor[1] = +k_factor_conj[1]
-                    # The square root of the power at this |k|,
-                    # disregarding the possible k factor.
+                        if tensor_rank > 0:
+                            with unswitch(2):
+                                if in_lower_j_half:
+                                    if kk == 0 or kk == nyquist:
+                                        # Indicies of the conjugated element.
+                                        # Note that k_conj = k.
+                                        j_conj = 0 if j_global == 0 else gridsize - j_global
+                                        i_conj = 0 if i        == 0 else gridsize - i
+                                        # Enforce complex conjugate symmetry.
+                                        # For j_global == j_conj, the
+                                        # conjucation is purely along i, and
+                                        # so we may only edit half of the points
+                                        # along this line.
+                                        if i == i_conj and j_global == j_conj:
+                                            # The complex number is its
+                                            # own conjugate, so it has to
+                                            # be purely real.
+                                            k_factor[1] = 0
+                                        elif j_global != j_conj or in_lower_i_half:
+                                            # Fill the k_gridvec_conj vector
+                                            if i_conj > ℤ[gridsize//2]:
+                                                ki_conj = i_conj - gridsize
+                                            else:
+                                                ki_conj = i_conj
+                                            if j_conj > ℤ[gridsize//2]:
+                                                kj_conj = j_conj - gridsize
+                                            else:
+                                                kj_conj = j_conj
+                                            k_gridvec_conj[0] = ki_conj
+                                            k_gridvec_conj[1] = kj_conj
+                                            k_gridvec_conj[2] = kk  # kk == kk_conj
+                                            # Compute k_factor for the conjugate element
+                                            with unswitch(3):
+                                                if tensor_rank == 1:
+                                                    # Vector
+                                                    compute_k_factor_vector(
+                                                        index0, index1, k_gridvec_conj, k2, k_factor_conj,
+                                                    )
+                                                elif tensor_rank == 2:
+                                                    # Rank 2 tensor
+                                                    compute_k_factor_tensor(
+                                                        index0, index1, k_gridvec_conj, k2, k_factor_conj,
+                                                    )
+                                            
+                                            # !!!
+                                            # I do not get why the code below works, but it passes
+                                            # slabs_check_symmetry. It feels wrong manipulating k_factor,
+                                            # as we have to choose which of a conjugate pair to alter.
+                                            # Perhaps we should just eliminate those data points where
+                                            # the k_factor screws with the symmetry (equivalent to
+                                            # k_factor = 0 over the entire DC and Nyquist planes).
+
+                                            # Enforce conjugacy
+                                            if tensor_rank == 1:
+                                                k_factor[0] = -k_factor_conj[0]
+                                                k_factor[1] = -k_factor_conj[1]
+                                            elif tensor_rank == 2:
+                                                k_factor[0] = +k_factor_conj[0]
+                                                k_factor[1] = +k_factor_conj[1]
+                    # The square root of the power at this |k⃗|,
+                    # disregarding all possible k⃗-dependent quantities
+                    # such as the k factor K(k⃗).
                     sqrt_power = sqrt_power_common[k2]
                     # Populate slab_jik dependent on the component
-                    # representation and the fluid_index (and also
-                    # multi_index through the already defined k_factor).
+                    # representation and tensor_rank.
                     with unswitch(3):
                         if component.representation == 'particles':
                             # Realize the displacement field ψ.
-                            # Here we swap the real and imag
-                            # part of the complex random number
-                            # due to the k factor being +ikᵢ/k².
-                            # An additional minus sign is used because
-                            # k_factor is computed with the
-                            # compute_k_factor_vector function which
-                            # uses the convention of -ikᵢ/k².
-                            slab_jik[0] = sqrt_power*(-k_factor[0])*random_jik[1]
-                            slab_jik[1] = sqrt_power*(-k_factor[1])*random_jik[0]
+                            # Because the k factor (+ikⁱ/k²) contains an
+                            # i which we have not taken care of,
+                            # we should perform the transformation
+                            # (Re, Im) → (-Im, +Re). An additional
+                            # minus sign is used because k_factor is
+                            # computed with the compute_k_factor_vector
+                            # function which uses the
+                            # convention -ikⁱ/k².
+                            slab_jik[0] = sqrt_power*k_factor[0]*(+phases_jik[1])
+                            slab_jik[1] = sqrt_power*k_factor[1]*(-phases_jik[0])
                         elif component.representation == 'fluid':
                             with unswitch(3):
-                                if fluid_index == 0:
-                                    # Realize δ
-                                    slab_jik[0] = sqrt_power*k_factor[0]*random_jik[0]
-                                    slab_jik[1] = sqrt_power*k_factor[1]*random_jik[1]
-                                elif fluid_index == 1:
-                                    # Realize component of
-                                    # velocity field u.
-                                    # Here we swap the real and imag
-                                    # part of the complex random number
-                                    # due to the k factor being -ikᵢ/k².
-                                    slab_jik[0] = sqrt_power*k_factor[0]*random_jik[1]
-                                    slab_jik[1] = sqrt_power*k_factor[1]*random_jik[0]
-                                elif fluid_index == 2:
-                                    # Realize δ𝒫 = δϱ*(δP/δρ)
-                                    # or σ = δϱ*(σ/(δ*ϱ_var).
-                                    slab_jik[0] *= sqrt_power*k_factor[0]
-                                    slab_jik[1] *= sqrt_power*k_factor[1]
+                                if tensor_rank == 0:
+                                    # Realize δ or δ𝒫
+                                    slab_jik[0] = sqrt_power*phases_jik[0]
+                                    slab_jik[1] = sqrt_power*phases_jik[1]
+                                elif tensor_rank == 1:
+                                    # Realize uⁱ.
+                                    # Because the k factor (-ikⁱ/k²)
+                                    # contains an i which we have not
+                                    # taken care of, we perform the
+                                    # transformation
+                                    # (Re, Im) → (-Im, +Re).
+                                    slab_jik[0] = sqrt_power*k_factor[0]*(-phases_jik[1])
+                                    slab_jik[1] = sqrt_power*k_factor[1]*(+phases_jik[0])
+                                elif tensor_rank == 2:
+                                    # Realize ςⁱⱼ
+                                    slab_jik[0] = sqrt_power*k_factor[0]*phases_jik[0]
+                                    slab_jik[1] = sqrt_power*k_factor[1]*phases_jik[1]
         # Fourier transform the slabs to coordinate space.
-        # Now the slabs store the realized fluid grid.
+        # Now the slabs store the realized grid.
         fft(slab, 'backward')
         # Populate the fluid grids for fluid components,
-        # and create the particles via the zeldovich approximation
+        # or create the particles via the Zeldovich approximation
         # for particles.
         if component.representation == 'fluid':
             # Communicate the fluid realization stored in the slabs to
@@ -2293,10 +2174,8 @@ def realize(component, variable, transfer_spline, cosmoresults,
             # Transform the realized fluid variable to the actual
             # quantity used in the non-linear fluid equations.
             if fluid_index == 0:
-                # δ → ϱ = a**(3*(1 + w_eff))*ρ
-                #       = a**(3*(1 + w_eff))*ρ_bar*(1 + δ)
-                #       = ϱ_bar*(1 + δ).
-                # Print a warning if δ < -1 at any grid point.
+                # δ → ϱ = ϱ_bar(1 + δ).
+                # Print a warning if min(δ) < -1.
                 δ_min = ထ
                 ϱ_ptr = fluidscalar.gridˣ if use_gridˣ else fluidscalar.grid
                 for i in range(component.size):
@@ -2307,28 +2186,47 @@ def realize(component, variable, transfer_spline, cosmoresults,
                 if δ_min < -1:
                     masterwarn(f'The realized ϱ of {component.name} has min(δ) = {δ_min:.4g} < -1')
             elif fluid_index == 1:
-                # u → J = a**4*(ρ + c⁻²P)*u
-                #       = a**(1 - 3*w_eff)*(ϱ + c⁻²𝒫)*u.
-                ϱ_ptr  = component.ϱ.gridˣ if use_gridˣ else component.ϱ.grid
-                𝒫_ptr  = component.𝒫.gridˣ if use_gridˣ else component.𝒫.grid
-                Jᵢ_ptr = fluidscalar.gridˣ if use_gridˣ else fluidscalar.grid
-                for i in range(component.size):
-                    with unswitch(1):
-                        if transform == 'background':
-                            Jᵢ_ptr[i] *= ℝ[a**4*(1 + w)*ρ_bar_a]
-                        elif transform == 'nonlinear':
-                            Jᵢ_ptr[i] *= (
-                                ℝ[a**(1 - 3*w_eff)]*(ϱ_ptr[i] + ℝ[light_speed**(-2)]*𝒫_ptr[i])
-                            )
+                Jⁱ_ptr = fluidscalar.gridˣ if use_gridˣ else fluidscalar.grid
+                if scheme['compoundspace'] == 'fourier':
+                    # (ϱ + c⁻²𝒫)uⁱ → Jⁱ = a**4(ρ + c⁻²P)uⁱ
+                    #                   = a**(1 - 3w_eff) * (ϱ + c⁻²𝒫)uⁱ
+                    for i in range(component.size):
+                        Jⁱ_ptr[i] *= ℝ[a**(1 - 3*w_eff)]
+                elif scheme['compoundorder'] == 'nonlinear':
+                    # uⁱ → Jⁱ = a**4(ρ + c⁻²P)uⁱ
+                    #         = a**(1 - 3w_eff)(ϱ + c⁻²𝒫) * uⁱ
+                    ϱ_ptr  = component.ϱ.gridˣ if use_gridˣ else component.ϱ.grid
+                    𝒫_ptr  = component.𝒫.gridˣ if use_gridˣ else component.𝒫.grid
+                    for i in range(component.size):
+                        Jⁱ_ptr[i] *= ℝ[a**(1 - 3*w_eff)]*(ϱ_ptr[i] + ℝ[light_speed**(-2)]*𝒫_ptr[i])
+                else:
+                    # uⁱ → Jⁱ = a**4(ρ + c⁻²P)uⁱ
+                    #         = a**(1 - 3w_eff)(ϱ + c⁻²𝒫) * uⁱ
+                    #         ≈ a**(1 - 3w_eff)ϱ_bar(1 + w) * uⁱ
+                    for i in range(component.size):
+                        Jⁱ_ptr[i] *= ℝ[a**(1 - 3*w_eff)*component.ϱ_bar*(1 + w)]
             elif fluid_index == 2 and multi_index == 'trace':
-                # δ𝒫 → 𝒫 = 𝒫_bar + δ𝒫
-                #        = c²*w*ϱ_bar + δ𝒫
+                # δP → 𝒫 = 𝒫_bar + a**(3*(1 + w_eff)) * δP
+                #        = c²*w*ϱ_bar + a**(3*(1 + w_eff)) * δP
                 𝒫_ptr = fluidscalar.gridˣ if use_gridˣ else fluidscalar.grid
                 for i in range(component.size):
-                    𝒫_ptr[i] += ℝ[light_speed**2*w*component.ϱ_bar]
+                    𝒫_ptr[i] = ℝ[light_speed**2*w*component.ϱ_bar] + ℝ[a**(3*(1 + w_eff))]*𝒫_ptr[i]
             elif fluid_index == 2:
-                # No transformation needed for σ
-                ...
+                ςⁱⱼ_ptr = fluidscalar.gridˣ if use_gridˣ else fluidscalar.grid
+                if scheme['compoundspace'] == 'fourier':
+                    # What is realized is already ςⁱⱼ
+                    pass
+                elif scheme['compoundorder'] == 'nonlinear':
+                    # σⁱⱼ → ςⁱⱼ = (ϱ + c⁻²𝒫) * σⁱⱼ
+                    ϱ_ptr  = component.ϱ.gridˣ if use_gridˣ else component.ϱ.grid
+                    𝒫_ptr  = component.𝒫.gridˣ if use_gridˣ else component.𝒫.grid
+                    for i in range(component.size):
+                       ςⁱⱼ_ptr[i] *= ϱ_ptr[i] + ℝ[light_speed**(-2)]*𝒫_ptr[i]
+                else:
+                    # σⁱⱼ → ςⁱⱼ = (ϱ + c⁻²𝒫) * σⁱⱼ
+                    #           ≈ ϱ_bar(1 + w) * σⁱⱼ
+                    for i in range(component.size):
+                        ςⁱⱼ_ptr[i] *= ℝ[component.ϱ_bar*(1 + w)]
             # Continue with the next fluidscalar
             continue
         # Below follows the Zeldovich approximation
@@ -2343,9 +2241,9 @@ def realize(component, variable, transfer_spline, cosmoresults,
         # the given direction, we minimize the needed communication by
         # communicating ψ, rather than the particles after
         # the realization.
-        # Importantly, use a buffer different from the one given by
-        # buffer_number, as this is already in use by sqrt_power_common.
-        ψ_dim = domain_decompose(slab, buffer_number + 1)
+        # Importantly, use a buffer different from the one already in
+        # use by sqrt_power_common.
+        ψ_dim = domain_decompose(slab, 1)
         ψ_dim_noghosts = ψ_dim[2:(ψ_dim.shape[0] - 2),
                                2:(ψ_dim.shape[1] - 2),
                                2:(ψ_dim.shape[2] - 2)]
@@ -2396,57 +2294,50 @@ def realize(component, variable, transfer_spline, cosmoresults,
     # original domain, and so we do need to do an exchange.
     if component.representation == 'particles':
         exchange(component, reset_buffers=True)
+# Module level variable used by the realize function
+cython.declare(slab_phases_previous_info=dict)
+slab_phases_previous_info = {}
 
 # Functions for computing the k factors for scalars, vectors, etc.
 # The passed k_factor is an array of lenght 2, representing the complex
 # k factor. The functions should not return anything but just populate
 # passed k_factor.
-# Scalar (no k factor)
-@cython.header(# Arguments
-               index0='Py_ssize_t',
-               index1='Py_ssize_t',
-               k_gridvec='Py_ssize_t[::1]',
-               k2='Py_ssize_t',
-               k_factor='double[::1]',
-               # Locals
-               factor='double',
-               returns='void',
-               )
-def compute_k_factor_scalar(index0, index1, k_gridvec, k2, k_factor):
-    factor = 1
+@cython.header(
+    # Arguments
+    index0='Py_ssize_t',
+    index1='Py_ssize_t',
+    k_gridvec='Py_ssize_t[::1]',
+    k2='Py_ssize_t',
+    k_factor='double[::1]',
+    # Locals
+    factor='double',
+    k_dim0='Py_ssize_t',
+    returns='void',
+)
+def compute_k_factor_vector(index0, index1, k_gridvec, k2, k_factor):
+    # Vector (-ikⁱ/k²).
+    # Note that we do not apply the i.
+    # Thus, the following transformation is missing:
+    # (Re, Im) → (-Im, +Re).
+    k_dim0 = k_gridvec[index0]
+    factor = -(ℝ[boxsize/(2*π)]*k_dim0)/k2
     k_factor[0] = factor  # Real
     k_factor[1] = factor  # Imag
-# Vector (-ikᵢ/k²)
-@cython.header(# Arguments
-               index0='Py_ssize_t',
-               index1='Py_ssize_t',
-               k_gridvec='Py_ssize_t[::1]',
-               k2='Py_ssize_t',
-               k_factor='double[::1]',
-               # Locals
-               factor='double',
-               k_dim0='Py_ssize_t',
-               returns='void',
-               )
-def compute_k_factor_vector(index0, index1, k_gridvec, k2, k_factor):
-    k_dim0 = k_gridvec[index0]
-    factor = (ℝ[boxsize/(2*π)]*k_dim0)/k2
-    k_factor[0] = +factor  # Real
-    k_factor[1] = -factor  # Imag
-# Rank 2 tensor (3/2(δᵢⱼ/3 - kᵢkⱼ/k²))
-@cython.header(# Arguments
-               index0='Py_ssize_t',
-               index1='Py_ssize_t',
-               k_gridvec='Py_ssize_t[::1]',
-               k2='Py_ssize_t',
-               k_factor='double[::1]',
-               # Locals
-               factor='double',
-               k_dim0='Py_ssize_t',
-               k_dim1='Py_ssize_t',
-               returns='void',
-               )
+@cython.header(
+    # Arguments
+    index0='Py_ssize_t',
+    index1='Py_ssize_t',
+    k_gridvec='Py_ssize_t[::1]',
+    k2='Py_ssize_t',
+    k_factor='double[::1]',
+    # Locals
+    factor='double',
+    k_dim0='Py_ssize_t',
+    k_dim1='Py_ssize_t',
+    returns='void',
+)
 def compute_k_factor_tensor(index0, index1, k_gridvec, k2, k_factor):
+    # Rank 2 tensor (3/2(δⁱⱼ/3 - kⁱkⱼ/k²))
     k_dim0 = k_gridvec[index0]
     k_dim1 = k_gridvec[index1]
     factor = 0.5*(index0 == index1) - (1.5*k_dim0*k_dim1)/k2
@@ -2455,17 +2346,18 @@ def compute_k_factor_tensor(index0, index1, k_gridvec, k2, k_factor):
 
 # Function for creating the lower and upper random
 # Fourier xy-planes with complex-conjugate symmetry.
-@cython.header(# Arguments
-               gridsize='Py_ssize_t',
-               seed='unsigned long int',
-               # Locals
-               plane='double[:, :, ::1]',
-               i='Py_ssize_t',
-               i_conj='Py_ssize_t',
-               j='Py_ssize_t',
-               j_conj='Py_ssize_t',
-               returns='double[:, :, ::1]',
-               )
+@cython.header(
+    # Arguments
+    gridsize='Py_ssize_t',
+    seed='unsigned long int',
+    # Locals
+    plane='double[:, :, ::1]',
+    i='Py_ssize_t',
+    i_conj='Py_ssize_t',
+    j='Py_ssize_t',
+    j_conj='Py_ssize_t',
+    returns='double[:, :, ::1]',
+)
 def create_symmetric_plane(gridsize, seed=0):
     """If a seed is passed, the pseudo-random number generator will
     be seeded with this seed before the creation of the plane.
@@ -2474,12 +2366,14 @@ def create_symmetric_plane(gridsize, seed=0):
     if seed != 0:
         seed_rng(seed)
     # Create the plane and populate it with Gaussian distributed
-    # random numbers with mean 0 and spread 1.
+    # complex random numbers with mean 0 and variance 1.
     plane = empty((gridsize, gridsize, 2), dtype=C2np['double'])
     for     j in range(gridsize):
         for i in range(gridsize):
-            plane[j, i, 0] = random_gaussian(0, 1)
-            plane[j, i, 1] = random_gaussian(0, 1)
+            # The real and imaginary part individually
+            # have mean 0 and variance 1/√2.
+            plane[j, i, 0] = random_gaussian(0, ℝ[1/sqrt(2)])
+            plane[j, i, 1] = random_gaussian(0, ℝ[1/sqrt(2)])
     # Enforce the symmetry plane[k_vec] = plane[-k_vec]*,
     # where * means complex conjugation.
     # We do this by replacing the random numbers for the elements in the
@@ -2487,55 +2381,46 @@ def create_symmetric_plane(gridsize, seed=0):
     # situated at the negative k vector.
     # For j == j_conj, the conjucation is purely along i, and so we may
     # only edit half of the points along this line.
-    for j in range(gridsize):
+    for j in range(gridsize//2 + 1):
         j_conj = 0 if j == 0 else gridsize - j
         for i in range(gridsize):
-            # Note that the below condition is not really needed.
-            # Removing it corresponds to edit not just half but all
-            # points along the j = j_conj line. However, the second
-            # half of the edits will not change anything, as they
-            # simply set elements of plane equal to other elements
-            # which already have the same value.
-            if j != j_conj or i < ℤ[gridsize//2]: 
-                # Enforce conjugate symmetry.
-                # That some values has to be purely real is not
-                # implemented here and must be taken care of by the
-                # k factor.
-                i_conj = 0 if i == 0 else gridsize - i
+            i_conj = 0 if i == 0 else gridsize - i
+            # Enforce complex conjugate symmetry
+            # if necessary. For j == j_conj,
+            # the conjucation is purely along i, and
+            # so we may only edit half of the points
+            # along this line.
+            if 𝔹[j == j_conj] and i == i_conj:
+                # The complex number is its own conjugate,
+                # so it has to be purely real.
+                plane[j, i, 1] = 0
+            elif 𝔹[j != j_conj] or i < ℤ[gridsize//2]:
+                # Enforce conjugacy
                 plane[j, i, 0] = +plane[j_conj, i_conj, 0]
-                plane[j, i, 1] = +plane[j_conj, i_conj, 1]
+                plane[j, i, 1] = -plane[j_conj, i_conj, 1]
     return plane
 
-# Function that lays out the random grid,
-# used by all realisations.
-@cython.header(# Arguments
-               slab='double[:, :, ::1]',
-               # Locals
-               existing_shape=tuple,
-               gridsize='Py_ssize_t',
-               i='Py_ssize_t',
-               j='Py_ssize_t',
-               j_global='Py_ssize_t',
-               k='Py_ssize_t',
-               kk='Py_ssize_t',
-               nyquist='Py_ssize_t',
-               plane_dc='double[:, :, ::1]',
-               plane_nyquist='double[:, :, ::1]',
-               random_im='double',
-               random_re='double',
-               shape=tuple,
-               returns='double[:, :, ::1]',
-               )
-def get_random_slab(slab):
-    global random_slab
-    # Return pre-made random grid
+# Function that populates the passed slab decomposed grid with
+# primordial phases ℛ(k⃗).
+@cython.header(
+    # Arguments
+    slab='double[:, :, ::1]',
+    # Locals
+    gridsize='Py_ssize_t',
+    i='Py_ssize_t',
+    j='Py_ssize_t',
+    j_global='Py_ssize_t',
+    k='Py_ssize_t',
+    kk='Py_ssize_t',
+    nyquist='Py_ssize_t',
+    plane_dc='double[:, :, ::1]',
+    plane_nyquist='double[:, :, ::1]',
+    random_im='double',
+    random_re='double',
+    shape=tuple,
+)
+def get_primordial_phases(slab):
     shape = asarray(slab).shape
-    existing_shape = asarray(random_slab).shape
-    if shape == existing_shape:
-        return random_slab
-    elif existing_shape != (1, 1, 1):
-        abort(f'A random grid of shape {shape} was requested, but a random grid of shape '
-              f'{existing_shape} already exists. For now, only a single random grid is possible.')
     # The global gridsize is equal to
     # the first (1) dimension of the slab.
     gridsize = shape[1]
@@ -2552,8 +2437,6 @@ def get_random_slab(slab):
     # Re-seed the pseudo-random number generator
     # with the process specific seed.
     seed_rng()
-    # Allocate random slab
-    random_slab = empty(shape, dtype=C2np['double'])
     # Populate the random grid.
     # Loop through the local j-dimension.
     for j in range(ℤ[shape[0]]):
@@ -2565,7 +2448,7 @@ def get_random_slab(slab):
             for k in range(0, ℤ[shape[2]], 2):
                 # The k-component of the wave vector (grid units)
                 kk = k//2
-                # Draw two random numbers from a Gaussian
+                # Draw a complex random number from a Gaussian
                 # distribution with mean 0 and spread 1.
                 # On the lowest kk (kk = 0, (DC)) and highest kk
                 # (kk = gridsize/2 (Nyquist)) planes we need to
@@ -2577,15 +2460,13 @@ def get_random_slab(slab):
                     random_re = plane_nyquist[j_global, i, 0]
                     random_im = plane_nyquist[j_global, i, 1]
                 else:
-                    random_re = random_gaussian(0, 1)
-                    random_im = random_gaussian(0, 1)
+                    # The real and imaginary part individually
+                    # have mean 0 and variance 1/√2.
+                    random_re = random_gaussian(0, ℝ[1/sqrt(2)])
+                    random_im = random_gaussian(0, ℝ[1/sqrt(2)])
                 # Store the two random numbers
-                random_slab[j, i, k    ] = random_re
-                random_slab[j, i, k + 1] = random_im
-    return random_slab
-# The global random slab
-cython.declare(random_slab='double[:, :, ::1]')
-random_slab = empty((1, 1, 1), dtype=C2np['double'])
+                slab[j, i, k    ] = random_re
+                slab[j, i, k + 1] = random_im
 
 
 

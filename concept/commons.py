@@ -62,7 +62,7 @@ import scipy.ndimage
 import scipy.signal
 # For plotting
 import matplotlib
-matplotlib.use('Agg')  # Use a matplotlib backend that does not require a running X-server
+matplotlib.use('agg')  # Use a matplotlib backend that does not require a running X-server
 import matplotlib.mathtext
 import matplotlib.pyplot as plt
 # For I/O
@@ -275,9 +275,9 @@ if master:
 # capable of producing fancy terminal formatting.
 terminal = blessings.Terminal(force_styling=True)
 # Monkey patch internal NumPy functions handling encoding during I/O,
-# replacing the Latin1 encoding by UTF-8. This is needed for reading and
-# writing unicode characters in headers of text files
-# using np.loadtxt and np.savetxt.
+# replacing the Latin1 encoding by UTF-8. On some systems, this is
+# needed for reading and writing unicode characters in headers of text
+# files using np.loadtxt and np.savetxt.
 asbytes = lambda s: s if isinstance(s, bytes) else str(s).encode('utf-8')
 asstr = lambda s: s.decode('utf-8') if isinstance(s, bytes) else str(s)
 np.compat.py3k .asbytes   = asbytes
@@ -1666,6 +1666,7 @@ cython.declare(# Input/output
                fluid_scheme_select=dict,
                fluid_options=dict,
                class_reuse='bint',
+               class_plot_perturbations='bint',
                class_extra_perturbations=set,
                # Graphics
                terminal_width='int',
@@ -1979,6 +1980,8 @@ fluid_options['maccormack']['smoothing_select'] = {
 user_params['fluid_options'] = fluid_options
 class_reuse = bool(user_params.get('class_reuse', True))
 user_params['class_reuse'] = class_reuse
+class_plot_perturbations = bool(user_params.get('class_plot_perturbations', False))
+user_params['class_plot_perturbations'] = class_plot_perturbations
 class_extra_perturbations = set(
     str(el) for el in any2list(user_params.get('class_extra_perturbations', [])) if el
 )

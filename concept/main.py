@@ -288,8 +288,8 @@ def kick(components, step):
     # Realize all linear fluid scalars which are not components
     # of a tensor. This comes down to ϱ and 𝒫.
     for component in components:
-        component.realize_linear(0)           # ϱ
-        component.realize_linear(2, 'trace')  # 𝒫
+        component.realize_if_linear(0, specific_multi_index=0)        # ϱ
+        component.realize_if_linear(2, specific_multi_index='trace')  # 𝒫
     # Apply the effect of all internal source terms
     # on all fluid components. For particle components, this is a no-op.
     for component in components:
@@ -366,10 +366,10 @@ def timeloop():
         return
     # Realize all linear fluid variables of all components
     for component in components:
-        component.realize_linear(0)           # ϱ
-        component.realize_linear(1, 0)        # J
-        component.realize_linear(2, 'trace')  # 𝒫
-        component.realize_linear(2, (0, 0))   # σ
+        component.realize_if_linear(0, specific_multi_index=0)        # ϱ
+        component.realize_if_linear(1, specific_multi_index=0)        # J
+        component.realize_if_linear(2, specific_multi_index='trace')  # 𝒫
+        component.realize_if_linear(2, specific_multi_index=(0, 0))   # ς
     # Specification of first dump and a corresponding index
     i_dump = 0
     next_dump = dumps[i_dump]

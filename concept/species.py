@@ -31,7 +31,7 @@ cimport('from fluid import maccormack, maccormack_internal_sources, '
     'kurganov_tadmor, kurganov_tadmor_internal_sources'
 )
 cimport('from integration import Spline, cosmic_time, scale_factor, ȧ')
-cimport('from linear import compute_cosmo, compute_transfer, realize')
+cimport('from linear import compute_cosmo, compute_transfer, get_default_k_parameters, realize')
 
 
 
@@ -155,7 +155,7 @@ class Tensor:
         for multi_index in self.multi_indices:
             with unswitch:
                 if self.iterative_realizations:
-                    self.component.realize(self.varnum, specific_multi_index=multi_index)
+                    self.component.realize_if_linear(self.varnum, specific_multi_index=multi_index)
             fluidscalar = self.data[multi_index]
             values = []
             for attribute in attributes:
@@ -493,7 +493,7 @@ class Component:
         #     non-linear ϱ
         #     non-linear J
         #         linear 𝒫  (realized continuously)
-        #         linear σ  (realized continuously)
+        #         linear ς  (realized continuously)
         #
         # boltzmann_order = 3, boltzmann_closure = 'truncate':
         #     non-linear ϱ
@@ -502,10 +502,10 @@ class Component:
         #                    for 𝒫 is not implemented.
         #                    Also, unlike when boltzmann_order = 2 and boltzmann_closure = 'class',
         #                    𝒫 will only be realized at the beginning of the simulation.)
-        #     non-linear σ  (Though "non-linear", σ is frozen in time since the evolution equation
-        #                    for σ is not implemented.
+        #     non-linear ς  (Though "non-linear", ς is frozen in time since the evolution equation
+        #                    for ς is not implemented.
         #                    Also, unlike when boltzmann_order = 2 and boltzmann_closure = 'class',
-        #                    σ will only be realized at the beginning of the simulation.)
+        #                    ς will only be realized at the beginning of the simulation.)
         #
         # The triple quoted string below serves as the type declaration
         # for the data attributes of the Component type.
@@ -582,16 +582,16 @@ class Component:
         FluidScalar Jx
         FluidScalar Jy
         FluidScalar Jz
-        public object σ  # Tensor
-        FluidScalar σxx
-        FluidScalar σxy
-        FluidScalar σxz
-        FluidScalar σyx
-        FluidScalar σyy
-        FluidScalar σyz
-        FluidScalar σzx
-        FluidScalar σzy
-        FluidScalar σzz
+        public object ς  # Tensor
+        FluidScalar ςxx
+        FluidScalar ςxy
+        FluidScalar ςxz
+        FluidScalar ςyx
+        FluidScalar ςyy
+        FluidScalar ςyz
+        FluidScalar ςzx
+        FluidScalar ςzy
+        FluidScalar ςzz
         FluidScalar 𝒫
         """
         # Check that the name does not conflict with
@@ -812,7 +812,7 @@ class Component:
             if self.boltzmann_order == 3 and self.boltzmann_closure == 'class':
                 abort(
                     f'The "{self.name}" component wants to close the Boltzmann hierarchy using '
-                    f'the linear variable after σ from class, which is not implemented'
+                    f'the linear variable after ς from class, which is not implemented'
                 )
             if self.boltzmann_order > 3:
                 abort(
@@ -838,12 +838,12 @@ class Component:
         # linearly, as opposed to a linear variable which is only
         # updated through continuous realization. Currently, only ϱ and
         # J is implemented as non-linear variables. It is still allowed
-        # to have boltzmann_order == 3, in which case σ (and 𝒫) is also
+        # to have boltzmann_order == 3, in which case ς (and 𝒫) is also
         # specified as being non-linear, although no non-linear
         # evolution is implemented, meaning that these will then be
         # constant in time. Note that the 𝒫 fuid variable is
         # treated specially, as it really lives on the same tensor as
-        # the σ fluid scalars. Therefore, the 𝒫 fluid scalar is added later.
+        # the ς fluid scalars. Therefore, the 𝒫 fluid scalar is added later.
         self.fluidvars = []
         for i in range(self.boltzmann_order):
             # Instantiate the i'th fluid variable
@@ -858,7 +858,7 @@ class Component:
         # we need one additional fluid variable. This should act like
         # a symmetric tensor of rank boltzmann_order, but really only a
         # single element of this tensor need to exist in memory.
-        # For boltzmann_order == 2, σ is the additional fluid variable.
+        # For boltzmann_order == 2, ς is the additional fluid variable.
         # Instantiate the scalar element but disguised as a
         # 3×3×...×3 (boltzmann_order times) symmetric tensor.
         # Importantly, this fluid variabe is always considered linear.
@@ -910,8 +910,8 @@ class Component:
         # J = a⁴(ρ + P)u, P = a**(-3*(1 + w_eff))*𝒫, it is simplest to
         # just always instantiate a complete 𝒫 fluid variable,
         # regardless of whether 𝒫 appears in the closed
-        # Boltzmann hierarchy. We place 𝒫 on σ, since 𝒫 is the trace
-        # missing from σ. The only time we do not instantiate 𝒫 is for
+        # Boltzmann hierarchy. We place 𝒫 on ς, since 𝒫 is the trace
+        # missing from ς. The only time we do not instantiate 𝒫 is for
         # a fluid without any J variable, be it linear or non-linear.
         if not (   self.boltzmann_order < 1
                 or (self.boltzmann_order == 1 and self.boltzmann_closure == 'truncate')):
@@ -919,10 +919,10 @@ class Component:
             if (   (self.boltzmann_order == 1 and self.boltzmann_closure == 'class')
                 or (self.boltzmann_order == 2 and self.boltzmann_closure == 'truncate')
                 ):
-                # The σ tensor on which 𝒫 lives does not yet exist.
-                # Instantiate a fake σ tensor, used only to store 𝒫.
+                # The ς tensor on which 𝒫 lives does not yet exist.
+                # Instantiate a fake ς tensor, used only to store 𝒫.
                 self.fluidvars.append(Tensor(self, 2, (), symmetric=True, active=False))
-            # Add the 𝒫 fluid scalar to the σ tensor
+            # Add the 𝒫 fluid scalar to the ς tensor
             self.fluidvars[2]['trace'] = FluidScalar(0, 0,
                 is_linear=(self.boltzmann_order < 3 or self.approximations['P=wρ']),
             )
@@ -956,14 +956,14 @@ class Component:
         # Aditional fluid scalars
         # due to additional degrees of freedom.
         if len(self.fluidvars) > 2:
-            # The 𝒫 fluid scalar. Also, if the σ fluid variable exists
+            # The 𝒫 fluid scalar. Also, if the ς fluid variable exists
             # but is solely used to store 𝒫, mappings for it will not
             # exist yet. Add these as well.
             self.fluid_names['𝒫'         ] = (2, 'trace')
             self.fluid_names[unicode('𝒫')] = (2, 'trace')
             self.fluid_names[2, 'trace'  ] = (2, 'trace')
-            self.fluid_names[        'σ' ] = 2
-            self.fluid_names[unicode('σ')] = 2
+            self.fluid_names[        'ς' ] = 2
+            self.fluid_names[unicode('ς')] = 2
             self.fluid_names[2           ] = 2
         # Also include particle variable names in the fluid_names dict
         self.fluid_names['pos'] = 0
@@ -980,17 +980,17 @@ class Component:
                 self.Jy  = self.fluidvars[1][1]
                 self.Jz  = self.fluidvars[1][2]
             if len(self.fluidvars) > 2:
-                self.σ   = self.fluidvars[2]
+                self.ς   = self.fluidvars[2]
                 self.𝒫   = self.fluidvars[2]['trace']
-                self.σxx = self.fluidvars[2][0, 0]
-                self.σxy = self.fluidvars[2][0, 1]
-                self.σxz = self.fluidvars[2][0, 2]
-                self.σyx = self.fluidvars[2][1, 0]
-                self.σyy = self.fluidvars[2][1, 1]
-                self.σyz = self.fluidvars[2][1, 2]
-                self.σzx = self.fluidvars[2][2, 0]
-                self.σzy = self.fluidvars[2][2, 1]
-                self.σzz = self.fluidvars[2][2, 2]
+                self.ςxx = self.fluidvars[2][0, 0]
+                self.ςxy = self.fluidvars[2][0, 1]
+                self.ςxz = self.fluidvars[2][0, 2]
+                self.ςyx = self.fluidvars[2][1, 0]
+                self.ςyy = self.fluidvars[2][1, 1]
+                self.ςyz = self.fluidvars[2][1, 2]
+                self.ςzx = self.fluidvars[2][2, 0]
+                self.ςzy = self.fluidvars[2][2, 1]
+                self.ςzz = self.fluidvars[2][2, 2]
         except (IndexError, KeyError):
             pass
 
@@ -1237,7 +1237,7 @@ class Component:
                       specific_multi_index=None,
                       a=-1,
                       gauge='N-body',
-                      transform='background',
+                      scheme=None,
                       use_gridˣ=False,
                       ):
         """This method will realise a given fluid/particle variable from
@@ -1266,7 +1266,7 @@ class Component:
         but then you have to leave the transfer_spline and cosmoresults
         arguments unspecified (as you can only pass in a
         single transfer_spline).
-        The gauge and transform arguments are passed on to
+        The gauge and scheme arguments are passed on to
         linear.compute_transfer and linear.realize, respectively.
         See these functions for further detail.
         The use_gridˣ argument is passed on to linear.relize and
@@ -1345,12 +1345,7 @@ class Component:
         # Prepare arguments to compute_transfer,
         # if no transfer_spline is passed.
         if transfer_spline is None:
-            k_min = 2*π/boxsize
-            k_max = 2*π/boxsize*sqrt(3*(gridsize//2)**2)
-            # Determine the gridsize from the user-defined
-            # number of Fourier modes per decade.
-            n_decades = log10(k_max/k_min)
-            k_gridsize = int(round(modes_per_decade*n_decades))
+            k_min, k_max, k_gridsize = get_default_k_parameters(gridsize)
         # Realize each of the variables in turn
         for variable in variables:
             # The special "realization" of 𝒫 when using
@@ -1382,7 +1377,7 @@ class Component:
                     cosmoresults,
                     specific_multi_index,
                     a,
-                    transform,
+                    scheme,
                     use_gridˣ,
                 )
                 # Particles use the Zeldovich approximation
@@ -1401,17 +1396,17 @@ class Component:
                 transfer_spline = None
 
     # Method for realizing a linear fluid scalar
-    def realize_linear(
+    def realize_if_linear(
         self,
         variable,
-        specific_multi_index=None,
-        a=-1,
         transfer_spline=None,
         cosmoresults=None,
+        specific_multi_index=None,
+        a=-1,
         gauge='N-body',
-        transform='background',
+        scheme=None,
         use_gridˣ=False,
-        ):
+    ):
         """If the fluid scalar is not linear or does not exist at all,
         no realization will be performed and no exception will
         be raised.
@@ -1430,12 +1425,17 @@ class Component:
                 specific_multi_index = 0
             else:
                 abort(
-                    f'The realize_linear function was called with variable = {variable} ≠ 0 '
+                    f'The realize_if_linear function was called with variable = {variable} ≠ 0 '
                     f'but without any specific_multi_index'
                 )
         # Check that the fluid scalar exist
         if specific_multi_index not in self.fluidvars[variable]:
             return
+        
+        # !!!
+        # This should be handled by some user parameter
+        scheme = {'phases': 'non-linear', 'compound-order': 'non-linear'}
+
         # Do the realization if the passed variable really is linear
         if self.is_linear(variable, specific_multi_index):
             self.realize(
@@ -1445,7 +1445,7 @@ class Component:
                 specific_multi_index,
                 a,
                 gauge,
-                transform,
+                scheme,
                 use_gridˣ,
             )
 
@@ -1454,7 +1454,7 @@ class Component:
     def is_linear(self, variable, specific_multi_index=None):
         """When no specific_multi_index is passed, it as assumed that it
         does not matter which fluid scalar of the variable we check
-        for linearity (this is not necessarily the case for σ which may
+        for linearity (this is not necessarily the case for ς which may
         store the additional "trace" (𝒫) fluid scalar).
         If a variable is passed that does not exist on the component at
         all, this method will return True. Crucially then, the caller
@@ -1500,7 +1500,7 @@ class Component:
         if a == -1:
             a = universals.a
         if self.approximations['P=wρ']:
-            masterprint(f'Realizing σ["trace"] of {self.name} ...')
+            masterprint(f'Realizing ς["trace"] of {self.name} ...')
             # Set 𝒫 equal to the current ϱ times the current c²w
             if use_gridˣ:
                 ϱ_ptr = self.ϱ.gridˣ
@@ -2135,7 +2135,7 @@ class Component:
         varnames2indices(['J', 'ϱ']) → asarray([1, 0])
         varnames2indices(['pos', 'mom']) → asarray([0, 1])
         varnames2indices(2) → asarray([2])
-        varnames2indices(['σ', 1]) → asarray([2, 1])
+        varnames2indices(['ς', 1]) → asarray([2, 1])
         varnames2indices('ϱ', single=True) → 0
         """
         if isinstance(varnames, str):
@@ -2190,7 +2190,7 @@ class Component:
                         break
                     yield fluidscalar
             # Also yield the additional degrees of freedom
-            # (e.g. 𝒫 corresponding to 'trace' on σ).
+            # (e.g. 𝒫 corresponding to 'trace' on ς).
             for additional_dof in fluidvar.additional_dofs:
                 fluidscalar = fluidvar[additional_dof]
                 if fluidscalar is not None:
@@ -2483,9 +2483,9 @@ cython.declare(internally_defined_names=set)
 internally_defined_names = {'all', 'all combinations', 'buffer', 'default', 'total'}
 # Names of all implemented fluid variables in order.
 # Note that 𝒫 is not considered a seperate fluid variable,
-# but rather a fluid scalar that lives on σ.
+# but rather a fluid scalar that lives on ς.
 cython.declare(fluidvar_names=tuple)
-fluidvar_names = ('ϱ', 'J', 'σ')
+fluidvar_names = ('ϱ', 'J', 'ς')
 # Flag specifying whether a warning should be given if multiple
 # components with the same name are instantiated, and a set of names of
 # all instantiated componenets.
