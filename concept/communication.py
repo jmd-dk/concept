@@ -960,6 +960,9 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1, root=master_rank
     # If only sending, return now
     if not recving:
         return data_send
+    # If nothing was received, return an empty slice of arr_recv
+    if size_recv == 0:
+        return arr_recv[:0]
     # Copy or add the received data from the buffer
     # to the passed block_recv (arr_recv), if needed.
     index = 0
