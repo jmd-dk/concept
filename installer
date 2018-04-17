@@ -4128,36 +4128,115 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
     linenr=$(new_class_perturbation_linenr "perturb_print_variables")
-    new_lines=(                                                                             \
-        "/* Include dark energy fluid in perturbation output */"                            \
-        "double w_fld, dw_over_da_fld, integral_fld;"                                       \
-        "if (pba->has_fld){"                                                                \
-        "  class_call(background_w_fld(pba, a, &w_fld, &dw_over_da_fld, &integral_fld),"    \
-        "    pba->error_message, ppt->error_message);"                                      \
-        "  class_store_double(dataptr, ppw->delta_rho_fld/pvecback[pba->index_bg_rho_fld]," \
-        "    pba->has_fld, storeidx);"                                                      \
-        "  class_store_double(dataptr, ppw->rho_plus_p_theta_fld/((1. + w_fld)"             \
-        "    *pvecback[pba->index_bg_rho_fld]), pba->has_fld, storeidx);"                   \
-        "}"                                                                                 \
+    new_lines=(                                                                                   \
+        "/* Include dark energy fluid in perturbation output */"                                  \
+        "double w_fld, dw_over_da_fld, integral_fld, theta_fld;"                                  \
+        "if (pba->has_fld){"                                                                      \
+        "  class_call(background_w_fld(pba, a, &w_fld, &dw_over_da_fld, &integral_fld),"          \
+        "    pba->error_message, ppt->error_message);"                                            \
+        "  class_store_double(dataptr, ppw->delta_rho_fld/pvecback[pba->index_bg_rho_fld],"       \
+        "    pba->has_fld, storeidx);"                                                            \
+        "  theta_fld = ppw->rho_plus_p_theta_fld/((1. + w_fld)*pvecback[pba->index_bg_rho_fld]);" \
+        "  class_store_double(dataptr, theta_fld, pba->has_fld, storeidx);"                       \
+        "}"                                                                                       \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
-    # Include theta_tot and h_prime in perturbation output
+    # Include theta_tot in perturbation output
+    linenr=$(new_class_perturbation_linenr "perturb_prepare_output")
+    new_lines=(                                                               \
+        "/* Include theta_tot in perturbation output */"                      \
+        "class_store_columntitle(ppt->scalar_titles, \"theta_tot\", _TRUE_);" \
+    )
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
+    linenr=$(new_class_perturbation_linenr "perturb_print_variables")
+    new_lines=(                                                                                \
+        "/**"                                                                                  \
+        " * Include theta_tot in perturbation output."                                         \
+        " * We compute this as theta_tot = rho_plus_p_theta/rho_plus_p_tot."                   \
+        " * We can reliably get rho_plus_p_tot using"                                          \
+        " *   rho_plus_p_tot = -2./3.*pvecback[pba->index_bg_H_prime]/a+2./3.*pba->K/a/a"      \
+        " * and we should be able to get rho_plus_p_theta from"                                \
+        " *   ppw->rho_plus_p_theta"                                                           \
+        " * However, when using evolver = 0, something goes wrong and ppw->rho_plus_p_theta"   \
+        " * end up with slightly erroneous values."                                            \
+        " * Here we simply compute both rho_plus_p_theta and rho_plus_p_tot"                   \
+        " * by adding up the contribution from each species."                                  \
+        " *"                                                                                   \
+        " */"                                                                                  \
+        "double theta_tot, rho_plus_p_tot, rho_plus_p_theta, rho_plus_p;"                      \
+        "rho_plus_p_tot = 0.;"                                                                 \
+        "rho_plus_p_theta = 0.;"                                                               \
+        "/* Photons */"                                                                        \
+        "rho_plus_p = (1. + 1./3.)*pvecback[pba->index_bg_rho_g];"                             \
+        "rho_plus_p_tot += rho_plus_p;"                                                        \
+        "rho_plus_p_theta += rho_plus_p*theta_g;"                                              \
+        "/* Baryons */"                                                                        \
+        "rho_plus_p = (1. + 0.)*pvecback[pba->index_bg_rho_b];"                                \
+        "rho_plus_p_tot += rho_plus_p;"                                                        \
+        "rho_plus_p_theta += rho_plus_p*theta_b;"                                              \
+        "/* Ultra relativistic species */"                                                     \
+        "if (pba->has_ur){"                                                                    \
+        "  rho_plus_p = (1. + 1./3.)*pvecback[pba->index_bg_rho_ur];"                          \
+        "  rho_plus_p_tot += rho_plus_p;"                                                      \
+        "  rho_plus_p_theta += rho_plus_p*theta_ur;"                                           \
+        "}"                                                                                    \
+        "/* Cold dark matter */"                                                               \
+        "if (pba->has_cdm){"                                                                   \
+        "  rho_plus_p= (1. + 0.)*pvecback[pba->index_bg_rho_cdm];"                             \
+        "  rho_plus_p_tot += rho_plus_p;"                                                      \
+        "  rho_plus_p_theta += rho_plus_p*theta_cdm;"                                          \
+        "}"                                                                                    \
+        "/* Non-cold Dark Matter */"                                                           \
+        "if ((pba->has_ncdm == _TRUE_) && ((ppt->has_density_transfers == _TRUE_)"             \
+        "  || (ppt->has_velocity_transfers == _TRUE_) || (ppt->has_source_delta_m == _TRUE_))" \
+        "){"                                                                                   \
+        "  for (n_ncdm=0; n_ncdm < pba->N_ncdm; n_ncdm++){"                                    \
+        "    rho_plus_p = (pvecback[pba->index_bg_rho_ncdm1+n_ncdm] "                          \
+        "      + pvecback[pba->index_bg_p_ncdm1+n_ncdm]);"                                     \
+        "    rho_plus_p_tot += rho_plus_p;"                                                    \
+        "    rho_plus_p_theta += rho_plus_p*theta_ncdm[n_ncdm];"                               \
+        "  }"                                                                                  \
+        "}"                                                                                    \
+        "/* Decaying cold dark matter */"                                                      \
+        "if (pba->has_dcdm){"                                                                  \
+        "  rho_plus_p = (1. + 0.)*pvecback[pba->index_bg_rho_dcdm];"                           \
+        "  rho_plus_p_tot += rho_plus_p;"                                                      \
+        "  rho_plus_p_theta += rho_plus_p*theta_dcdm;"                                         \
+        "}"                                                                                    \
+        "/* Decay radiation */"                                                                \
+        "if (pba->has_dr){"                                                                    \
+        "  rho_plus_p = (1. + 1./3.)*pvecback[pba->index_bg_rho_dr];"                          \
+        "  rho_plus_p_tot += rho_plus_p;"                                                      \
+        "  rho_plus_p_theta += rho_plus_p*theta_dr;"                                           \
+        "}"                                                                                    \
+        "/* Scalar field */"                                                                   \
+        "if (pba->has_scf){"                                                                   \
+        "  rho_plus_p = pvecback[pba->index_bg_rho_scf] + pvecback[pba->index_bg_p_scf];"      \
+        "  rho_plus_p_tot += rho_plus_p;"                                                      \
+        "  rho_plus_p_theta += rho_plus_p*theta_scf;"                                          \
+        "}"                                                                                    \
+        "/* Dark energy fluid */"                                                              \
+        "if (pba->has_fld){"                                                                   \
+        "  rho_plus_p_theta += ppw->rho_plus_p_theta_fld;"                                     \
+        "  rho_plus_p_tot += (ppw->rho_plus_p_theta_fld)/theta_fld;"                           \
+        "}"                                                                                    \
+        "/* Compute and store theta_tot */"                                                    \
+        "theta_tot = rho_plus_p_theta/rho_plus_p_tot;"                                         \
+        "class_store_double(dataptr, theta_tot, _TRUE_, storeidx);"                            \
+    )
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
+    # Include h_prime in perturbation output
     linenr=$(new_class_perturbation_linenr "perturb_prepare_output")
     new_lines=(                                                                                \
-        "/* Include theta_tot and h_prime in perturbation output */"                           \
-        "class_store_columntitle(ppt->scalar_titles, \"theta_tot\", _TRUE_);"                  \
+        "/* Include h_prime in perturbation output */"                                         \
         "class_store_columntitle(ppt->scalar_titles, \"h_prime\", ppt->gauge == synchronous);" \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
     linenr=$(new_class_perturbation_linenr "perturb_print_variables")
-    new_lines=(                                                                       \
-        "/* Include theta_tot and h_prime in perturbation output */"                  \
-        "double theta_tot, rho_plus_p_tot;"                                           \
-        "rho_plus_p_tot = -2./3.*pvecback[pba->index_bg_H_prime]/a+2./3.*pba->K/a/a;" \
-        "theta_tot = ppw->rho_plus_p_theta/rho_plus_p_tot;"                           \
-        "class_store_double(dataptr, theta_tot, _TRUE_, storeidx);"                   \
-        "class_store_double(dataptr, pvecmetric[ppw->index_mt_h_prime],"              \
-        "  ppt->gauge == synchronous, storeidx);"                                     \
+    new_lines=(                                                          \
+        "/* Include h_prime in perturbation output */"                   \
+        "class_store_double(dataptr, pvecmetric[ppw->index_mt_h_prime]," \
+        "  ppt->gauge == synchronous, storeidx);"                        \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
     # Do not convert synchronous variables to Newtonian gauge
