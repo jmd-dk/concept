@@ -1828,7 +1828,7 @@ def power2product(lines, no_optimization):
             starstar_index = line.index('**')
             # If the exponentiation should not be replaced with
             # a series of multiplications, replace line with this,
-            # ensuring that this instance of '**'' will not be
+            # ensuring that this instance of '**' will not be
             # picked up again.
             line_replace = '{}{}{}'.format(line[:starstar_index],
                                            starstar_replacement,
@@ -1968,11 +1968,11 @@ def power2product(lines, no_optimization):
             new_lines.append(header_line)
             header_line = ('{}# Original exponentiation: {}\n'
                            .format(indentation, line[base_indices[0]:exponent_indices[1]]))
-            new_lines.append(header_line)
+            new_lines.append(header_line.replace(starstar_replacement, '**'))
             base_varname = 'base' + varname_suffix
             for statement in statements:
                 statement = statement.replace(base_varname, base)
-                new_lines.append(statement)
+                new_lines.append(statement.replace(starstar_replacement, '**'))
             footer_line = ('{}# End addition chain exponentiation nr. {}\n'
                            .format(indentation, power_counter))
             new_lines.append(footer_line)
