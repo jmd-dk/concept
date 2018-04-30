@@ -89,16 +89,19 @@ plt.tight_layout()
 plt.savefig(fig_file)
 
 # Fluid elements in yz-slices should all have the same values
-tol_fac = 1e-6
 for fluid, t in zip(fluids, times):
     for fluidscalar in fluid.iterate_fluidscalars():
         varnum = fluidscalar.varnum
         grid = fluidscalar.grid_noghosts[:gridsize, :gridsize, :gridsize]
         for i in range(gridsize):
             yz_slice = grid[i, :, :]
-            if not isclose(np.std(yz_slice), 0,
-                           rel_tol=0,
-                           abs_tol=max((tol_fac*np.std(grid), 1e+1*gridsize**2*machine_ϵ))):
+            yz_mean = np.mean(yz_slice)
+            if not isclose(
+                np.std(yz_slice) if yz_mean == 0 else np.std(yz_slice)/yz_mean,
+                0,
+                rel_tol=0,
+                abs_tol=1e+1*machine_ϵ,
+            ):
                 abort('Non-uniformities have emerged at t = {} {} '
                       'in yz-slices of fluid scalar variable {}.\n'
                       'See "{}" for a visualization.'

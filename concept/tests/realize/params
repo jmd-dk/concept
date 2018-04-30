@@ -38,7 +38,7 @@ H0      = 70*km/(s*Mpc)
 a_begin = 0.01
 
 # Simulation options
-master_seed = 1
+random_seed = 1
 class_reuse = False
 
 # System of units

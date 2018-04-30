@@ -59,6 +59,7 @@ np.warnings.filterwarnings(  # Suppress warning from NumPy 14.1 caused by H5Py
 import scipy
 import scipy.interpolate
 import scipy.ndimage
+import scipy.optimize
 import scipy.signal
 # For plotting
 import matplotlib
@@ -578,7 +579,7 @@ def masterwarn(*args, **kwargs):
 def abort(*args, exit_code=1, prefix='Aborting', **kwargs):
     # Print out final messages
     if exit_code != 0:
-        masterwarn(*args, prefix=prefix, **kwargs)
+        warn(*args, prefix=prefix, **kwargs)
         sleep(0.1)
     if master:
         masterprint('Total execution time: {}'.format(time_since(start_time)), **kwargs)
@@ -591,7 +592,7 @@ def abort(*args, exit_code=1, prefix='Aborting', **kwargs):
         Barrier()
     # Shut down the Python process unless we are running interactively
     if not sys.flags.interactive:
-        # Teardown the MPI environment, either gently forcefully
+        # Tear down the MPI environment, either gently or forcefully
         if exit_code == 0:
             MPI.Finalize()
         else:
@@ -1657,14 +1658,16 @@ cython.declare(# Input/output
                select_class_species=dict,
                select_eos_w=dict,
                select_boltzmann_closure=dict,
+               select_nonlinear_realization_schemes=dict,
                select_approximations=dict,
                select_softening_length=dict,
                # Simlation options
                fftw_wisdom_rigor=str,
                fftw_wisdom_reuse='bint',
-               master_seed='unsigned long int',
+               random_seed='unsigned long int',
                fluid_scheme_select=dict,
                fluid_options=dict,
+               class_k_max=dict,
                class_reuse='bint',
                class_plot_perturbations='bint',
                class_extra_perturbations=set,
@@ -1874,6 +1877,16 @@ if user_params.get('select_boltzmann_closure'):
         select_boltzmann_closure = {'all': str(user_params['select_boltzmann_closure'])}
 select_boltzmann_closure['default'] = 'class'
 user_params['select_boltzmann_closure'] = select_boltzmann_closure
+select_nonlinear_realization_schemes = {}
+if user_params.get('select_nonlinear_realization_schemes'):
+    select_nonlinear_realization_schemes = dict(
+        user_params['select_nonlinear_realization_schemes']
+    )
+    replace_ellipsis(select_nonlinear_realization_schemes)
+    if select_nonlinear_realization_schemes:
+        for d in select_nonlinear_realization_schemes.values():
+            replace_ellipsis(d)
+user_params['select_nonlinear_realization_schemes'] = select_nonlinear_realization_schemes
 select_approximations = {}
 if user_params.get('select_approximations'):
     select_approximations = dict(user_params['select_approximations'])
@@ -1901,8 +1914,8 @@ fftw_wisdom_rigor = user_params.get('fftw_wisdom_rigor', 'estimate').lower()
 user_params['fftw_wisdom_rigor'] = fftw_wisdom_rigor
 fftw_wisdom_reuse = bool(user_params.get('fftw_wisdom_reuse', True))
 user_params['fftw_wisdom_reuse'] = fftw_wisdom_reuse
-master_seed = to_int(user_params.get('master_seed', 1))
-user_params['master_seed'] = master_seed
+random_seed = to_int(user_params.get('random_seed', 1))
+user_params['random_seed'] = random_seed
 fluid_scheme_select = {'all': 'Kurganov-Tadmor'}
 if user_params.get('fluid_scheme_select'):
     if isinstance(user_params['fluid_scheme_select'], dict):
@@ -1978,6 +1991,14 @@ fluid_options['maccormack']['smoothing_select'] = {
     for key, val in fluid_options['maccormack']['smoothing_select'].items()
 }
 user_params['fluid_options'] = fluid_options
+if 'class_k_max' in user_params:
+    if isinstance(user_params['class_k_max'], dict):
+        class_k_max = replace_ellipsis(user_params['class_k_max'])
+    else:
+        class_k_max = {'all': user_params['class_k_max']}
+else:
+    class_k_max = {}
+user_params['class_k_max'] = class_k_max
 class_reuse = bool(user_params.get('class_reuse', True))
 user_params['class_reuse'] = class_reuse
 class_plot_perturbations = bool(user_params.get('class_plot_perturbations', False))
@@ -2501,16 +2522,19 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node'):
 #########################
 # Pseudo-random numbers #
 #########################
-# From the master seed, generate seeds individual to each process
+# From the random_seed, generate seeds individual to each process.
+# The pseudo-random number generators on each proces will be seeded
+# using these unique seeds. The master process will have a seed
+# equal to the user parameer random_seed.
 cython.declare(process_seed='unsigned long int')
-process_seed = master_seed + rank
+process_seed = random_seed + rank
 # Initialize the pseudo-random number generator and declare the
-# functions random and random_gassian, returning random numbers from
+# functions random and random_gaussian, returning random numbers from
 # the uniform distibution between 0 and 1 and a gaussian distribution
 # with variable mean and spread, respectively.
 # Both the pure Python and the compiled version of the functions use the
 # Mersenne Twister algorithm to generate the random numbers.
-# Despite of this, their exact implementation differs enough to make
+# Despite of this, their exact implementations differ enough to make
 # the generated sequence of random numbers completely different for
 # pure Python and compiled runs.
 if not cython.compiled:
@@ -3066,12 +3090,19 @@ if snapshot_type not in ('standard', 'gadget2'):
 # Abort on illegal FFTW rigor
 if fftw_wisdom_rigor not in ('estimate', 'measure', 'patient', 'exhaustive'):
     abort('Does not recognize FFTW rigor "{}"'.format(user_params['fftw_wisdom_rigor']))
-# Warn if master_seed is chosen to be 0, as this may lead to clashes
+# Warn if random_seed is chosen to be 0, as this may lead to clashes
 # with the default seed used by GSL.
-if master_seed < 1:
-    masterwarn('A master_seed of {} was specified. '
-               'This should be > 0 to avoid clashes with the default GSL seed'
-               .format(master_seed))
+if random_seed < 1:
+    masterwarn(
+        f'A random_seed of {random_seed} was specified. '
+        f'This should be > 0 to avoid clashes with the default GSL seed.'
+    )
+# Warn on very large seeds, as these should be reserved for internal use
+if random_seed > 1e+9:
+    masterwarn(
+        f'A random_seed of {random_seed} > 10⁹ was specified. You should keep the seed between 1 '
+        f'and 10⁹, as larger values might clash with other seeds used internally by the code.'
+    )
 # Warn about unused but specified parameters.
 if user_params.unused:
     if len(user_params.unused) == 1:

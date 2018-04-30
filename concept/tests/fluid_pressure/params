@@ -28,7 +28,7 @@ _w  = 0.2                 # Constant equation of state for fluid
 _ρ0 = 100*m_sun/kpc**3    # Mean fluid density
 _A  = 1e-3*_ρ0            # Amplitude of fluid sine
 _T  = 1*Gyr               # Period of pressure oscillation
-_σ  = 0.1*light_speed**2  # Constant σ value for fluid
+_σ  = 0.0*light_speed**2  # Constant σ value for fluid
 
 # Input/output
 initial_conditions = _this_dir + '/IC.hdf5'

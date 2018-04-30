@@ -194,11 +194,12 @@ class Spline:
 
 # Function for cleaning up arrays of points possibly containing
 # duplicate points.
-@cython.header(
+@cython.pheader(
     # Arguments
     xs='object',  # double[::1] or tuple or list of double[::1]
     y='double[::1]',
     rel_tol='double',
+    copy='bint',
     # Locals
     accepted_indices='Py_ssize_t[::1]',
     i='Py_ssize_t',
@@ -217,7 +218,7 @@ class Spline:
     y_cleaned='double[::1]',
     returns=tuple,
 )
-def remove_doppelgängers(xs, y, rel_tol=1e-3):
+def remove_doppelgängers(xs, y, rel_tol=1e-1, copy=False):
     """Given arrays of x and y values, this function checks for
     doppelgängers in the x values, meaning consecutive x values that are
     exactly or very nearly equal. New arrays with with doppelgängers
@@ -228,7 +229,8 @@ def remove_doppelgängers(xs, y, rel_tol=1e-3):
     The passed x and y will not be modified. Note that this function
     reuses the same buffer for all returned arrays, meaning that if you
     call this function multiple times, the returned arrays will point to
-    the same underlying data.
+    the same underlying data. If you want the returned arrays to be
+    freshly allocated, use copy=True.
     """
     global accepted_indices_ptr, accepted_indices_size
     # Pack xs into a list of x arrays
@@ -266,9 +268,16 @@ def remove_doppelgängers(xs, y, rel_tol=1e-3):
             x_cleaned[:] = x
         y_cleaned[:] = y
         if multiple_x_passed:
-            return [asarray(x_cleaned) for x_cleaned in x_cleaned_arrays], asarray(y_cleaned)
+            if copy:
+                return ([asarray(x_cleaned).copy() for x_cleaned in x_cleaned_arrays],
+                    asarray(y_cleaned).copy())
+            else:
+                return [asarray(x_cleaned) for x_cleaned in x_cleaned_arrays], asarray(y_cleaned)
         else:
-            return asarray(x_cleaned), asarray(y_cleaned)
+            if copy:
+                return asarray(x_cleaned).copy(), asarray(y_cleaned).copy()
+            else:
+                return asarray(x_cleaned), asarray(y_cleaned)
     # Check that the x values are in increasing order
     for x in x_arrays:
         x_prev = x[0]
@@ -349,9 +358,16 @@ def remove_doppelgängers(xs, y, rel_tol=1e-3):
     y_cleaned[ℤ[size - 1]] = y[ℤ[y.shape[0] - 1]]
     # Return the cleaned arrays
     if multiple_x_passed:
-        return x_cleaned_arrays, asarray(y_cleaned)
+        if copy:
+            return ([asarray(x_cleaned).copy() for x_cleaned in x_cleaned_arrays],
+                asarray(y_cleaned).copy())
+        else:
+            return [asarray(x_cleaned) for x_cleaned in x_cleaned_arrays], asarray(y_cleaned)
     else:
-        return asarray(x_cleaned_arrays[0]), asarray(y_cleaned)
+        if copy:
+            return asarray(x_cleaned_arrays[0]).copy(), asarray(y_cleaned).copy()
+        else:
+            return asarray(x_cleaned_arrays[0]), asarray(y_cleaned)
 # Pointer used by the remove_doppelgängers function
 cython.declare(accepted_indices_ptr='Py_ssize_t*', accepted_indices_size='Py_ssize_t')
 accepted_indices_size = 3

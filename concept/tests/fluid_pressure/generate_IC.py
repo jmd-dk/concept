@@ -30,6 +30,7 @@ from snapshot import save
 # Create stationary, homogeneous matter distribution,
 # perturbed with global, stationary sine wave along
 # the x-direction.
+w  = user_params['_w']
 ρ0 = user_params['_ρ0']
 A  = user_params['_A']
 σ  = user_params['_σ']
@@ -43,8 +44,8 @@ for i in range(gridsize):
 component.populate(ρ, 'ϱ')
 for multi_index in component.J.multi_indices:
     component.populate(zeros([gridsize]*3), 'J', multi_index)
-for multi_index in component.σ.multi_indices:
-    component.populate(ones([gridsize]*3)*σ, 'σ', multi_index)
+for multi_index in component.ς.multi_indices:
+    component.populate(ones([gridsize]*3)*ρ*(1 + w)*σ, 'ς', multi_index)
 
 # Save snapshot
 save(component, initial_conditions)
