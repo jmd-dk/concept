@@ -434,33 +434,32 @@ class Component:
     """
 
     # Initialization method
-    @cython.pheader(# Arguments
-                    name=str,
-                    species=str,
-                    N_or_gridsize='Py_ssize_t',
-                    mass='double',
-                    boltzmann_order='Py_ssize_t',
-                    forces=dict,
-                    class_species=object,  # str or container of str's
-                    w=object,  # NoneType, float, int, str or dict
-                    boltzmann_closure=str,
-                    approximations=dict,
-                    softening_length=object,  # float or str
-                    )
+    @cython.pheader(
+        # Arguments
+        name=str,
+        species=str,
+        N_or_gridsize='Py_ssize_t',
+        mass='double',
+        boltzmann_order='Py_ssize_t',
+        forces=dict,
+        class_species=object,  # str or container of str's
+        w=object,  # NoneType, float, int, str or dict
+        boltzmann_closure=str,
+        approximations=dict,
+        softening_length=object,  # float or str
+        nonlinear_realization_schemes=dict,
+    )
     def __init__(self, name, species, N_or_gridsize, *,
-                 # Particle-specific arguments
-                 mass=-1,
-                 # Fluid-specific arguments
-                 boltzmann_order=2,
-                 # Parameters which should normally be set via
-                 # the physics user parameters.
-                 forces=None,
-                 class_species=None,
-                 w=None,
-                 boltzmann_closure=None,
-                 approximations=None,
-                 softening_length=None,
-                 ):
+        mass=-1,
+        boltzmann_order=2,
+        forces=None,
+        class_species=None,
+        nonlinear_realization_schemes=None,
+        w=None,
+        boltzmann_closure=None,
+        approximations=None,
+        softening_length=None,
+    ):
         # The keyword-only arguments are passed from dicts in the
         # initial_conditions user parameter. If not specified there
         # (None passed) they will be set trough other parameters.
@@ -567,6 +566,7 @@ class Component:
         public dict fluid_names
         public Py_ssize_t boltzmann_order
         public str boltzmann_closure
+        public dict nonlinear_realization_schemes
         public str w_type
         public double w_constant
         public double[:, ::1] w_tabulated
@@ -664,6 +664,49 @@ class Component:
                 f'The component "{self.name}" was initialized '
                 f'with an unknown Boltzmann closure of "{self.boltzmann_closure}"'
             )
+        # Set non-linear realization schemes
+        if nonlinear_realization_schemes is None:
+            nonlinear_realization_schemes = is_selected(
+                self, select_nonlinear_realization_schemes, accumulate=True)
+        if not nonlinear_realization_schemes:
+            nonlinear_realization_schemes = {}
+        varnames = ('J', '𝒫', 'ς')
+        wrong_varname_sets = (
+            {'j'}, {'P', 'δP', 'δ𝒫', 'p', 'δp'}, {'s', 'sigma', 'Sigma', 'σ', 'Σ'},
+        )
+        for varname, wrong_varnames in zip(varnames, wrong_varname_sets):
+            for wrong_varname in wrong_varnames:
+                scheme = (
+                       nonlinear_realization_schemes.get(unicode(wrong_varname))
+                    or nonlinear_realization_schemes.get(asciify(wrong_varname))
+                )
+                if scheme:
+                    nonlinear_realization_schemes[varname] = scheme
+                    break
+        for varname in ('J', '𝒫', 'ς'):
+            if (   unicode(varname) in nonlinear_realization_schemes
+                or asciify(varname) in nonlinear_realization_schemes
+            ):
+                continue
+            # Default values
+            nonlinear_realization_schemes[varname] = {
+                'phases'        : 'non-linear',
+                'compound-order': 'linear',
+            }
+        for varname, scheme in nonlinear_realization_schemes.copy().items():
+            nonlinear_realization_schemes[unicode(varname)] = scheme
+            nonlinear_realization_schemes[asciify(varname)] = scheme
+        nonlinear_realization_schemes = {
+            varname: {
+                key.lower().replace(' ', '').replace('-', '').replace('_', ''):
+                    val.lower().replace(' ', '').replace('-', '').replace('_', '')
+                for key, val in nonlinear_realization_schemes[varname].items()}
+            for varname in ('J', '𝒫', 'ς')
+        }
+        for varname, scheme in nonlinear_realization_schemes.copy().items():
+            nonlinear_realization_schemes[unicode(varname)] = scheme
+            nonlinear_realization_schemes[asciify(varname)] = scheme
+        self.nonlinear_realization_schemes = nonlinear_realization_schemes
         # Set approximations. Ensure that all implemented approximations
         # get set either True or False. If an approximation is not set
         # for this component, its value defaults to False.
@@ -1034,18 +1077,19 @@ class Component:
     # You should construct the data array within the call itself,
     # as this will minimize memory usage. This data array is 1D for
     # particle data and 3D for fluid data.
-    @cython.pheader(# Arguments
-                    data=object,  # 1D/3D (particles/fluid) memoryview
-                    var=object,   # int-like or str
-                    multi_index=object,  # tuple or int-like
-                    buffer='bint',
-                    # Locals
-                    fluid_indices=object,  # tuple or int-like
-                    fluidscalar='FluidScalar',
-                    index='Py_ssize_t',
-                    mv1D='double[::1]',
-                    mv3D='double[:, :, :]',
-                    )
+    @cython.pheader(
+        # Arguments
+        data=object,  # 1D/3D (particles/fluid) memoryview
+        var=object,   # int-like or str
+        multi_index=object,  # tuple, int-like or str
+        buffer='bint',
+        # Locals
+        fluid_indices=object,  # tuple or int-like
+        fluidscalar='FluidScalar',
+        index='Py_ssize_t',
+        mv1D='double[::1]',
+        mv3D='double[:, :, :]',
+    )
     def populate(self, data, var, multi_index=0, buffer=False):
         """For fluids, the data should not include pseudo 
         or ghost points.
@@ -1126,11 +1170,11 @@ class Component:
                                    )
                     index, multi_index = fluid_indices
             # Type check on the multi_index
-            if not isinstance(multi_index, (int, tuple)):
-                abort('A multi_index of type "{}" was supplied. '
-                      'This should be either an int or a tuple.'
-                      .format(type(multi_index))
-                      )
+            if not isinstance(multi_index, (int, tuple, str)):
+                abort(
+                    f'A multi_index of type "{type(multi_index)}" was supplied. '
+                    f'This should be either an int, a tuple or a str.'
+                )
             # Reallocate fluid grids if necessary           
             self.resize(asarray(mv3D).shape)
             # Populate the scalar grid given by index and multi_index
@@ -1431,11 +1475,21 @@ class Component:
         # Check that the fluid scalar exist
         if specific_multi_index not in self.fluidvars[variable]:
             return
-        
-        # !!!
-        # This should be handled by some user parameter
-        scheme = {'phases': 'non-linear', 'compound-order': 'non-linear'}
-
+        # Get the non-linear realization scheme
+        if scheme is None:
+            if variable == 0:
+                scheme = {}
+            elif variable == 1:
+                scheme = self.nonlinear_realization_schemes['J']
+            elif variable == 2 and specific_multi_index == 'trace':
+                scheme = self.nonlinear_realization_schemes['𝒫']
+            elif variable == 2:
+                scheme = self.nonlinear_realization_schemes['ς']
+            else:
+                abort(
+                    f'Do not know how to extract realization scheme '
+                    f'for fluid variable {variable}[{specific_multi_index}]'
+                )
         # Do the realization if the passed variable really is linear
         if self.is_linear(variable, specific_multi_index):
             self.realize(
@@ -1448,7 +1502,6 @@ class Component:
                 scheme,
                 use_gridˣ,
             )
-
     # Method for checking whether a given fluid variable
     # or fluid scalar is linear or non-linear.
     def is_linear(self, variable, specific_multi_index=None):
@@ -1500,7 +1553,6 @@ class Component:
         if a == -1:
             a = universals.a
         if self.approximations['P=wρ']:
-            masterprint(f'Realizing ς["trace"] of {self.name} ...')
             # Set 𝒫 equal to the current ϱ times the current c²w
             if use_gridˣ:
                 ϱ_ptr = self.ϱ.gridˣ
@@ -1510,7 +1562,6 @@ class Component:
                 𝒫_ptr = self.𝒫.grid
             for i in range(self.size):
                 𝒫_ptr[i] = ϱ_ptr[i]*ℝ[light_speed**2*self.w(a=a)]
-            masterprint('done')
         else:
             abort(
                 f'The realize_𝒫 method was called on the {self.name} component wich have P ≠ wρ. '

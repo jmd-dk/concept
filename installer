@@ -79,7 +79,7 @@
 #     - Matplotlib
 #     - MPI4Py
 #     - H5Py
-#     - pip (if any of the above)
+#     - pip & setuptools (if any of the above)
 # - CLASS
 # - CO𝘕CEPT
 # - FFTW 2 (needed by GADGET)
@@ -263,8 +263,10 @@ set_version "mpi4py"        "3.0.0"
 set_version "nose"          "1.3.7"
 set_version "numpy"         "1.14.2"
 set_version "parameterized" "0.6.1"
+set_version "pip"           "9.0.3"
 set_version "pytest"        "3.5.0"
 set_version "scipy"         "1.0.0"
+set_version "setuptools"    "39.0.1"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
 # and specific versions of system dependencies.
@@ -575,7 +577,7 @@ set_package_manager_and_names(){
             package_manager="${pmanager}"
             # Package names
             case "${package_manager}" in
-                "apt") install_command="${sudo_command} ${package_manager} -y install"
+                "apt") install_command="${sudo_command} ${package_manager} install -y"
                     set_package_names               \
                         "gawk"                      \
                         "gcc"                       \
@@ -3256,7 +3258,8 @@ if [ "${python_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
             export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
         fi
         # Configure
-        ./configure --enable-shared ${optimize_flag} --prefix="${python_dir}" ${with_ensurepip_install} 2>&1 || pybuild_success="no"
+        ./configure --enable-shared ${optimize_flag} --prefix="${python_dir}" \
+            ${with_ensurepip_install} 2>&1 || pybuild_success="no"
         if [ "${pybuild_success}" == "no" ]; then
             if [ -z "${optimize_flag}" ]; then
                 echo "Error: Failed to install Python without optimizations"
@@ -3344,7 +3347,6 @@ numpy_installed="no"
 parameterized_installed="no"
 pytest_installed="no"
 scipy_installed="no"
-pip_installed="no"
 if [ -n "${python}" ]; then
     for pypackage in blessings     \
                      cython        \
@@ -3569,6 +3571,7 @@ if [ "${pip_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
         current_step="upgrade of ${package}"
         heading "Upgrading ${package}"
         set_status "Upgrading ${package}"
+        eval "package_version=\${package}_version"
         # Dependent on the version of pip,
         # the --no-cache-dir option may be available or not.
         pip_success="yes"
@@ -3579,7 +3582,7 @@ if [ "${pip_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
                                        -b                     \
                                        "${tmp_pip_dir}/build" \
                                        --upgrade              \
-                                       "${package}" 2>&1 || pip_success="no"
+                                       "${package}==${package_version}" 2>&1 || pip_success="no"
             rm -rf "${tmp_pip_dir}"
             if [ "${pip_success}" == "yes" ]; then
                 break
@@ -3591,10 +3594,28 @@ fi
 # Upgrade all packages pre-installed
 # with the newly installed Python distribution.
 if [ "${python_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
-    installed_packages="$("${python}" -c "
+    installed_packages_success="true"
+    installed_packages="$("${python}" -m pip list --format=colu2mns 2>/dev/null)" \
+        || installed_packages_success="false"
+    if [ "${installed_packages_success}" == "false" ]; then
+        installed_packages_success="true"
+        installed_packages="$("${python}" -m pip list 2>/dev/null)" \
+            || installed_packages_success="false"
+    fi
+    if [ "${installed_packages_success}" == "false" ]; then
+        installed_packages="$("${python}" -c "
 import pip
 print('\n'.join([i.key for i in pip.get_installed_distributions()]))
 ")"
+    fi
+    installed_packages="$("${python}" -c "
+packages = '''${installed_packages}'''.split('\n')
+for i, package in enumerate(packages):
+    if not package.strip().replace(' ', '').replace('-', ''):
+        packages = packages[i+1:]
+        break
+print('\n'.join(packages))
+" | awk '{print $1}')"
     while read package; do
         # No need to attempt updates of pip and setuptools,
         # as these have just been updated.
@@ -4186,7 +4207,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "  rho_plus_p_tot += rho_plus_p;"                                                      \
         "  rho_plus_p_theta += rho_plus_p*theta_cdm;"                                          \
         "}"                                                                                    \
-        "/* Non-cold Dark Matter */"                                                           \
+        "/* Non-cold dark matter */"                                                           \
         "if ((pba->has_ncdm == _TRUE_) && ((ppt->has_density_transfers == _TRUE_)"             \
         "  || (ppt->has_velocity_transfers == _TRUE_) || (ppt->has_source_delta_m == _TRUE_))" \
         "){"                                                                                   \
@@ -4203,7 +4224,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "  rho_plus_p_tot += rho_plus_p;"                                                      \
         "  rho_plus_p_theta += rho_plus_p*theta_dcdm;"                                         \
         "}"                                                                                    \
-        "/* Decay radiation */"                                                                \
+        "/* Decaying radiation */"                                                             \
         "if (pba->has_dr){"                                                                    \
         "  rho_plus_p = (1. + 1./3.)*pvecback[pba->index_bg_rho_dr];"                          \
         "  rho_plus_p_tot += rho_plus_p;"                                                      \

@@ -22,16 +22,18 @@
 
 # Input/output
 initial_conditions = [  # Initial condition snapshot file or container of components to be generated
-    {'name'   : 'matter component',
-     'species': 'matter particles',
-     'N'      : 32**3,
-     },
-    {'name'             : 'neutrino component',
-     'species'          : 'neutrino fluid',
-     'gridsize'         : 32,
-     'boltzmann_order'  : 2,
-     'boltzmann_closure': 'class',
-     },
+    {
+        'name'   : 'matter component',
+        'species': 'matter particles',
+        'N'      : 32**3,
+    },
+    {
+        'name'             : 'neutrino component',
+        'species'          : 'neutrino fluid',
+        'gridsize'         : 32,
+        'boltzmann_order'  : 2,
+        'boltzmann_closure': 'class',
+    },
 ]
 snapshot_type = 'standard'  # Type of output snapshots
 output_dirs = {  # Directories for storing output
@@ -118,6 +120,16 @@ select_eos_w = {  # Equation of state parameter w for each component
 select_boltzmann_closure = {  # Closure rule for the Boltzmann hierarchy for each component
     'all': 'class',
 }
+select_nonlinear_realization_schemes = {  # Non-linear realization scheme for each component and variable
+    'all': {
+        'J': {
+            'phases'        : 'non-linear',
+            'compound-order': 'non-linear',
+        },
+        '𝒫': ...,
+        'ς': ...,
+    },
+}
 select_approximations = {  # Toggle approximations for each component
     'all': {'P = wρ': False},
 }
@@ -128,7 +140,7 @@ select_softening_length = {  # Gravitational softening for each component
 # Simulation options
 fftw_wisdom_rigor = 'measure'  # Rigor level when acquiring FFTW wisdom
 fftw_wisdom_reuse = True       # Reuse FFTW wisdom from earlier runs?
-master_seed = 1                # Seed for pseudo-random numbers
+random_seed = 1                # Seed for pseudo-random numbers
 fluid_scheme_select = {        # Fluid evolution scheme for each component
     'all': 'Kurganov-Tadmor',
 }

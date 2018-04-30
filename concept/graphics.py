@@ -127,41 +127,54 @@ def plot_powerspec(k_bin_centers, power_dict, filename, powerspec_plot_select):
         masterprint('done')
 
 # Function for plotting detrended CLASS perturbations
-@cython.header(
+@cython.pheader(
     # Arguments
-    loga_values='double[::1]',
+    a_values='double[::1]',
     perturbations_detrended='double[::1]',
     transferfunction='TransferFunction',
     k='Py_ssize_t',
     # Locals
-    a_values='double[::1]',
+    a_values_raw=object,  # np.ndarray
     exponent=str,
     factor=str,
     filename=str,
     i='Py_ssize_t',
     key=str,
     loga_value='double',
+    loga_values='double[::1]',
     loga_values_spline='double[::1]',
     perturbations_detrended_spline='double[::1]',
+    perturbations_raw=object,  # np.ndarray
+    skip='Py_ssize_t',
+    specific_species='bint',
     spline='Spline',
     unit_latex=str,
     val=str,
     var_name_latex=str,
 )
-def plot_detrended_perturbations(loga_values, perturbations_detrended, transferfunction, k):
-    a_values = np.exp(loga_values)
+def plot_detrended_perturbations(a_values, perturbations_detrended, transferfunction, k):
+    # All processes could carry out this work, but as it involved I/O,
+    # we only allow the master process to do so.
+    if not master:
+        abort(f'rank {rank} called plot_detrended_perturbations()')
+    loga_values = np.log(a_values)
     # Plot the detrended CLASS data
     plt.figure()    
-    plt.semilogx(a_values, perturbations_detrended, '.',
-        markersize=3)
+    plt.semilogx(a_values, perturbations_detrended, '.', markersize=3)
     # Plot the spline at values midway between the data points
     loga_values_spline             = empty(loga_values.shape[0] - 1, dtype=C2np['double'])
     perturbations_detrended_spline = empty(loga_values.shape[0] - 1, dtype=C2np['double'])
     spline = transferfunction.splines[k]
+    skip = 0
     for i in range(loga_values_spline.shape[0]):
         loga_value = 0.5*(loga_values[i] + loga_values[i+1])
-        loga_values_spline[i] = loga_value
-        perturbations_detrended_spline[i] = spline.eval(loga_value)
+        if not (ℝ[spline.xmin] <= loga_value <= ℝ[spline.xmax]):
+            skip += 1
+            continue
+        loga_values_spline[ℤ[i - skip]] = loga_value
+        perturbations_detrended_spline[ℤ[i - skip]] = spline.eval(loga_value)
+    loga_values_spline = loga_values_spline[:ℤ[i - skip + 1]]
+    perturbations_detrended_spline = perturbations_detrended_spline[:ℤ[i - skip + 1]]
     plt.semilogx(np.exp(asarray(loga_values_spline)), perturbations_detrended_spline, '-',
         linewidth=1)
     # Decorate and save plot
@@ -196,9 +209,10 @@ def plot_detrended_perturbations(loga_values, perturbations_detrended, transferf
         .replace('m_sun', r'm_{\odot}')
     )
     plt.ylabel(rf'$({var_name_latex} - \mathrm{{trend}})\, {unit_latex}$', fontsize=14)
+    specific_species = transferfunction.var_name not in ('hʹ',)
     plt.title(
-        rf'{transferfunction.class_species}, '
-        rf'$k = {transferfunction.k_magnitudes[k]}\, \mathrm{{{unit_length}}}^{{-1}}$',
+        (rf'{transferfunction.class_species}, ' if specific_species else '')
+        + rf'$k = {transferfunction.k_magnitudes[k]}\, \mathrm{{{unit_length}}}^{{-1}}$',
         fontsize=16,
         horizontalalignment='center',
     )
@@ -214,16 +228,19 @@ def plot_detrended_perturbations(loga_values, perturbations_detrended, transferf
     )
     plt.tight_layout()
     filename = output_dirs['powerspec'] + '/class_perturbations'
-    os.makedirs(filename, exist_ok=True)
-    filename += f'/{transferfunction.class_species}'
-    filename += (f'_{var_name_latex}'
+    filename += '/' + (var_name_latex
         .replace('\\', '')
         .replace('{', '')
         .replace('}', '')
         .replace('^', '')
         .replace('/', '_')
+        .replace('sigma', 'shear')
+        .replace('prime', '_prime')
     )
-    filename += f'_k={k}.png'
+    if specific_species:
+        filename += f'_{transferfunction.class_species}'
+    os.makedirs(filename, exist_ok=True)
+    filename += f'/{k}.png'
     plt.savefig(filename)
     plt.close()
 
