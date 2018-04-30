@@ -844,10 +844,10 @@ gcc_test(){
     package_name="$5"
     # Prepare for gcc test
     current_dir="$(pwd)"
-    cd "${top_dir}"
     gcc_test_dir="${top_dir}/tmp/gcc_test"
     rm -rf "${gcc_test_dir}"
     mkdir -p "${gcc_test_dir}"
+    cd "${gcc_test_dir}"
     # Write C source to file
     echo "${C_source}" > main.c
     # Test compile and run
@@ -946,15 +946,7 @@ We need to make sure that these are installed."         \
 
 # Change default versions if they are known not to work
 # with the present versions of the system dependencies.
-if [ "${ncurses_version_specifiedbyuser}" != "true" ] \
-   && [ "${ncurses_version}" != "pre-installed" ]; then
-    # ncurses 6.0, 5.9, and 5.8 does not compile under gcc 5,
-    # but ncurses 5.7 does.
-    gcc_version="$(gcc -v 2>&1 | tail -n 1 | awk '{print $3}')"
-    if [[ "${gcc_version}" == 5* ]]; then
-        ncurses_version="5.7"
-    fi
-fi
+:
 
 # Replace "__top_dir__" in paths with the user specified top_dir.
 # Also convert to absolute path and check that this path exist for
