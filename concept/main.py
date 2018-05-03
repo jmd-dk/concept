@@ -811,7 +811,7 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
                 # approximation is used or not, we simply use the
                 # global sound speed.
                 w = component.w()
-                v_max += light_speed*sqrt(w)
+                v_max += light_speed*sqrt(w)/universals.a
         # In the odd case of a completely static component,
         # set v_max to be just above 0.
         if v_max == 0:
