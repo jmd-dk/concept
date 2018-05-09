@@ -119,7 +119,7 @@ for ϱ_fluid, ϱ_particles, t in zip(ϱ['fluid simulations'], ϱ['particles simu
     discontinuities = [max(d) for d in zip(*[np.roll(discontinuities, r) for r in range(-3, 4)])]
     if not all(isclose(ϱ_fluid_i, ϱ_particles_i,
                        rel_tol=0,
-                       abs_tol=(discontinuity_tol*discontinuity + abs_tol), 
+                       abs_tol=(discontinuity_tol*discontinuity + abs_tol),
                        ) for ϱ_fluid_i, ϱ_particles_i, discontinuity in zip(ϱ_fluid,
                                                                             ϱ_particles,
                                                                             discontinuities)):
@@ -129,4 +129,3 @@ for ϱ_fluid, ϱ_particles, t in zip(ϱ['fluid simulations'], ϱ['particles simu
 
 # Done analyzing
 masterprint('done')
-

@@ -50,4 +50,3 @@ render2D_options = {
     'terminal resolution': 64,
     'colormap': 'inferno',
 }
-

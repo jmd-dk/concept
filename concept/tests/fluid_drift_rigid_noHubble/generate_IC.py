@@ -47,4 +47,3 @@ component.populate(ϱ*speed*(random()*2 - 1), 'J', 2)
 
 # Save snapshot
 save(component, initial_conditions)
-

@@ -62,7 +62,7 @@ momy =  ones(N)*mass*boxsize/(60*units.Gyr)*(2*random() - 1)
 momz =  ones(N)*mass*boxsize/(60*units.Gyr)*(2*random() - 1)
 x = 0
 count = 0
-for i in range(Nx):          
+for i in range(Nx):
     for j in range(Ny):
         y = j/Ny*boxsize
         for k in range(Nz):
@@ -94,4 +94,3 @@ particles.populate(momz, 'momz')
 
 # Save snapshot
 save(particles, initial_conditions)
-

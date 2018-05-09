@@ -40,4 +40,3 @@ particles.populate(zeros(N), 'momz')
 
 # Save snapshot
 save(particles, initial_conditions)
-

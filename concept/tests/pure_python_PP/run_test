@@ -98,4 +98,3 @@ mv "${reusables_dir}/ewald/ewald_gridsize=${ewald_gridsize}.hdf5" "${this_dir}/e
 
 # Test ran successfully. Deactivate traps.
 trap : 0
-

@@ -57,4 +57,3 @@ set -e
 
 # Test ran successfully. Deactivate traps.
 trap : 0
-

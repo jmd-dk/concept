@@ -25,7 +25,7 @@
 # build and run the code.
 # This makefile accepts the optional options
 # 'unsafe_build' and 'no_optimization', both of which may be either
-# 'True' or 'False'. If not given, a value of 'False' will be used. 
+# 'True' or 'False'. If not given, a value of 'False' will be used.
 
 # Use the bash shell
 SHELL = /usr/bin/env bash

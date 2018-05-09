@@ -118,4 +118,3 @@ for ϱ_fluid, ϱ_particles, t in zip(ϱ['fluid simulations'], ϱ['particles simu
 
 # Done analyzing
 masterprint('done')
-

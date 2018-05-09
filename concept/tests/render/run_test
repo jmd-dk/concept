@@ -122,4 +122,3 @@ mv "${this_dir}/output/render3D_snapshot.png" "${this_dir}/output/render3D_snaps
 
 # Test ran successfully. Deactivate traps.
 trap : 0
-

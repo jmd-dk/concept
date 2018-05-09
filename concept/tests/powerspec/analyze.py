@@ -171,4 +171,3 @@ if not np.all(abs((  power_whole_gridsize_trimmed_firstpart
 
 # Done analyzing
 masterprint('done')
-

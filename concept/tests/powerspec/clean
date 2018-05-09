@@ -38,4 +38,3 @@ this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
                            snapshot.hdf5                         \
                            snapshot_double_boxsize.hdf5          \
  )
-

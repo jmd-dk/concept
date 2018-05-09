@@ -28,4 +28,3 @@ this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
                             output     \
                             result.png \
  )
-

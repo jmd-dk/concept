@@ -155,7 +155,7 @@ def exchange(component, reset_buffers=False):
     processes, while particle data is copied to sendbuf before it is
     send. These two variables will grow in size if needed. Call with
     reset_buffers=True to reset these variables to their most basic
-    forms, freeing up memory. 
+    forms, freeing up memory.
     """
     # No need to consider exchange of particles if running serially
     if nprocs == 1:
@@ -181,7 +181,7 @@ def exchange(component, reset_buffers=False):
             # Particle owned by nonlocal process owner.
             # Append the owner's index buffer with the particle index.
             indices_send[owner][N_send[owner]] = i
-            # Increase the number of particle to send to this process.            
+            # Increase the number of particle to send to this process.
             N_send[owner] += 1
             # Enlarge the index buffer indices_send[owner] if needed
             if N_send[owner] == indices_send_sizes[owner]:
@@ -199,7 +199,7 @@ def exchange(component, reset_buffers=False):
     # The 'send' buffer is also used internally by smart_mpi.
     buffer_name = 'send'
     N_send_max = max(N_send)
-    sendbuf_mv = get_buffer(N_send_max, buffer_name) 
+    sendbuf_mv = get_buffer(N_send_max, buffer_name)
     # Find out how many particles to receive
     N_recv = find_N_recv(N_send)
     # The maximum number of particles to
@@ -360,13 +360,13 @@ def communicate_domain(domain_grid, mode=''):
     The pseudo and ghost elements get send to the corresponding
     neighbouring process, where these values are added to the existing
     local values.
-    
+
     Mode 'populate':
     This corresponds to local pseudos and ghosts = nonlocal boundaries.
     The values of the local boundary elements get send to the
     corresponding neighbouring process, where these values replace the
     existing values of the pseudo and ghost elements.
-    
+
     A domain_grid consists of 27 parts; the local bulk,
     6 faces (2 kinds), 12 edges (4 kinds) and 8 corners (8 kinds),
     each with the following dimensions:
@@ -1064,7 +1064,7 @@ def get_buffer(size_or_shape=-1, buffer_name=0, nullify=False):
     requested by passing a buffer_name, which can be any hashable type.
     A buffer with the given name does not have to exist beforehand.
     A given buffer will be reallocated (enlarged) if necessary.
-    If nullify is True, all elements of the buffer will be set to 0. 
+    If nullify is True, all elements of the buffer will be set to 0.
     """
     global buffers
     # Get shape and size from argument
@@ -1129,7 +1129,7 @@ def resize_buffer(size, buffer_name):
         if key == buffer_name:
             break
         index += 1
-    buffer = buffers[index]    
+    buffer = buffers[index]
     buffer = realloc(buffer, size*sizeof('double'))
     buffers[index] = buffer
     buffer_mv = cast(buffer, 'double[:size]')
@@ -1201,4 +1201,3 @@ for j in range(nprocs):
     indices_send[j] = malloc(1*sizeof('Py_ssize_t'))
 # The size of the allocated indices_send[:] memory
 indices_send_sizes = ones(nprocs, dtype=C2np['Py_ssize_t'])
-

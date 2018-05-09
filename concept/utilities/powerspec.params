@@ -12,4 +12,3 @@ R_tophat   = 8*Mpc
 # Simulation options
 fftw_wisdom_rigor = 'measure'
 fftw_wisdom_reuse = True
-

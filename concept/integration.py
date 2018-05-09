@@ -120,7 +120,7 @@ class Spline:
         if not cython.compiled:
             return self.spline(x, 1)
         else:
-            return gsl_spline_eval_deriv(self.spline, x, self.acc)            
+            return gsl_spline_eval_deriv(self.spline, x, self.acc)
 
     # Method for computing the definite integral over some
     # interval [a, b] of the splined function.
@@ -528,7 +528,7 @@ def cosmic_time(a=-1, a_lower=machine_ϵ, t_lower=machine_ϵ, t_upper=-1):
     elif t_upper > t_max_ever:
         # If passed t_upper exceeds t_max_ever,
         # set t_max_ever to this larger value.
-        t_max_ever = t_upper 
+        t_max_ever = t_upper
     # Tolerences
     abs_tol = 1e-9
     rel_tol = 1e-9
@@ -829,8 +829,8 @@ def initiate_time(reinitialize=False):
             # parametert H, both as functions of the scale factor a.
             # We do this by defining global Spline objects.
             a_values = smart_mpi(1/(background['z'] + 1)                      , 0, mpifun='bcast')
-            t_values = smart_mpi(background['proper time [Gyr]']*units.Gyr    , 1, mpifun='bcast') 
-            H_values = smart_mpi(background['H [1/Mpc]']*light_speed/units.Mpc, 2, mpifun='bcast') 
+            t_values = smart_mpi(background['proper time [Gyr]']*units.Gyr    , 1, mpifun='bcast')
+            H_values = smart_mpi(background['H [1/Mpc]']*light_speed/units.Mpc, 2, mpifun='bcast')
             spline_a_t = Spline(a_values, t_values)
             spline_t_a = Spline(t_values, a_values)
             spline_a_H = Spline(a_values, H_values)

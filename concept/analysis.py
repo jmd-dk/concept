@@ -84,7 +84,7 @@ cimport('from mesh import CIC_components2φ_general, fft, slab_decompose')
                 row_headings=list,
                 row_σ=list,
                 save_powerspecs='bint',
-                size_i='Py_ssize_t', 
+                size_i='Py_ssize_t',
                 size_j='Py_ssize_t',
                 size_k='Py_ssize_t',
                 slab='double[:, :, ::1]',
@@ -102,7 +102,7 @@ cimport('from mesh import CIC_components2φ_general, fft, slab_decompose')
                 φ='double[:, :, ::1]',
                 φ_dict=dict,
                 )
-def powerspec(components, filename):  
+def powerspec(components, filename):
     # Always produce the powerspectrum at the current time
     a = universals.a
     # Ordered dicts storing the power and rms density variation,
@@ -128,7 +128,7 @@ def powerspec(components, filename):
             [component.name for component in component_combination]
             )
         if len(component_combination) > 1:
-            component_combination_str = f'{{{component_combination_str}}}'            
+            component_combination_str = f'{{{component_combination_str}}}'
         masterprint(f'Computing power spectrum of {component_combination_str} ...')
         # Grab a designated buffer for the power spectrum
         # of this component, and store it in the power dict.
@@ -333,7 +333,7 @@ def powerspec(components, filename):
         for i in range(ℤ[index_largest_mode + 1]):
             power[i] *= ℝ[boxsize**3/Σmass**2]/n_modes[i]
         # Compute the rms density variation σ_R_tophat (usually σ₈).
-        # This is given by        
+        # This is given by
         # σ² = ∫d³k/(2π)³ W² power
         #    = 1/(2π)³∫_0^∞ dk 4πk² W² power
         #    = 1/(2π²)∫_0^∞ dk k² W² power,
@@ -610,7 +610,7 @@ def measure(component, quantity):
                     mom_i = mom[i]
                     Σmom_dim  += mom_i
                     Σmom2_dim += mom_i**2
-                # Add up local particle momenta sums 
+                # Add up local particle momenta sums
                 Σmom_dim  = allreduce(Σmom_dim,  op=MPI.SUM)
                 Σmom2_dim = allreduce(Σmom2_dim, op=MPI.SUM)
                 # Compute global standard deviation

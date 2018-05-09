@@ -31,4 +31,3 @@ this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
                             t_class=True_compiled=False.dat  \
                             t_class=True_compiled=True.dat   \
  )
-

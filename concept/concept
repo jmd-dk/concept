@@ -97,7 +97,7 @@ print(t.timestamp(), str(t).replace(' ', '_'))
 # Check whether this script is run locally or remotely via ssh
 ssh="True"
 if [ -z "${SSH_CLIENT}" ] && [ -z "${SSH_TTY}" ]; then
-    ssh="False"  
+    ssh="False"
 fi
 
 # Function for printing colored messages
@@ -115,12 +115,12 @@ print(terminal.bold_${2}('${1}'), file=(sys.stderr if '${2}' == 'red' else sys.s
 print_logo()
 {
     logo='
-   ____     ____             __  ____    _____   ____   _____  
-  / __ \   / __ \     /\    / / / __ \  |  ___| |  _ \ |_   _| 
- | /  \_| | /  \ |   /  \  / / | /  \_| | |__   | |_) |  | |   
- ||    _  ||    ||  / /\ \/ /  ||    _  |  __|  |  __/   | |   
- | \__/ | | \__/ | / /  \  /   | \__/ | | |___  | |      | |   
-  \____/   \____/ /_/    \/     \____/  |_____| |_|      |_|   
+   ____     ____             __  ____    _____   ____   _____
+  / __ \   / __ \     /\    / / / __ \  |  ___| |  _ \ |_   _|
+ | /  \_| | /  \ |   /  \  / / | /  \_| | |__   | |_) |  | |
+ ||    _  ||    ||  / /\ \/ /  ||    _  |  __|  |  __/   | |
+ | \__/ | | \__/ | / /  \  /   | \__/ | | |___  | |      | |
+  \____/   \____/ /_/    \/     \____/  |_____| |_|      |_|
 ═══════════════════════════════════════════════════════════════
 '
     # Plot the logo via Python's matplotlib.
@@ -254,7 +254,7 @@ export LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}"
 # Determine the MPI implentation and version
 if [ -f "${mpi_dir}/bin/ompi_info" ]; then
     mpi_implementation="openmpi"
-    mpi_version="$("${mpiexec}" --version | head -n 1 | awk '{print $NF}')"   
+    mpi_version="$("${mpiexec}" --version | head -n 1 | awk '{print $NF}')"
 elif [ -f "${mpi_dir}/bin/mpichversion" ]; then
     mpi_implementation="mpich"
     mpi_version="$("${mpi_dir}/bin/mpichversion" | head -n 1 | awk '{print $NF}')"
@@ -434,7 +434,7 @@ def memory(value):
 def time(value):
     # Convert value to integer seconds
     units = {'s': 1}
-    units['sec'] = units['secs'] = units['seond'] = units['seonds'] = units['s'] 
+    units['sec'] = units['secs'] = units['seond'] = units['seonds'] = units['s']
     units['m'] = 60*units['s']
     units['min'] = units['mins'] = units['minute'] = units['minutes'] = units['m']
     units['h'] = 60*units['m']
@@ -489,7 +489,7 @@ def time(value):
         else:
             raise argparse.ArgumentTypeError(\"error parsing value\")
         d, h, m, s = int(d), int(h), int(m), int(s)
-        value = int(math.ceil(s*units['s'] + m*units['m'] + h*units['h'] + d*units['d']))       
+        value = int(math.ceil(s*units['s'] + m*units['m'] + h*units['h'] + d*units['d']))
     # Now value should be in integer seconds
     if value < 0:
         raise argparse.ArgumentTypeError(\"the walltime cannot be negative\")

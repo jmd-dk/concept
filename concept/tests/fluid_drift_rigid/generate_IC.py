@@ -73,4 +73,3 @@ components.append(component)
 
 # Save snapshot
 save(components, initial_conditions)
-

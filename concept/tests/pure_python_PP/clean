@@ -38,4 +38,3 @@ this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
                             params_ewald      \
                             result.png        \
  )
-

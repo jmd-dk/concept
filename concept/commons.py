@@ -198,7 +198,7 @@ if master:
     node_numbers2names = {val: key for key, val in node_names2numbers.items()}
 nodes = bcast(asarray(nodes) if master else None)
 node = nodes[rank]
-# The number of nodes 
+# The number of nodes
 nnodes = len(set(nodes))
 # The number of processes in all nodes and in this node
 nprocs_nodes = asarray([np.sum(asarray(nodes) == n) for n in range(nnodes)], dtype=C2np['int'])
@@ -329,7 +329,7 @@ def time_since(initial_time):
     # More than a second; use whole deciseconds
     if interval.total_seconds() >= 1e+0:
         seconds = 1e-1*round(1e-2*milliseconds)
-        interval = datetime.timedelta(seconds=seconds)    
+        interval = datetime.timedelta(seconds=seconds)
     # More than 10 seconds; use whole seconds
     if interval.total_seconds() >= 1e+1:
         seconds = round(1e-3*milliseconds)
@@ -490,7 +490,7 @@ def fancyprint(
                 # Convert the inserted underscores back into spaces
                 lines[-1] = re.sub('(_+)\.\.\.$', lambda m: ' '*len(m.group(1)) + '...', lines[-1])
                 progressprint['length'] = len(lines[-1])
-            text = '\n'.join(lines)  
+            text = '\n'.join(lines)
         else:
             # Do not wrap the text into multiple lines,
             # regardless of the length of the text.
@@ -958,7 +958,7 @@ def unicode(s):
                 match=object,  # re.match object
                 # Locals
                 pat=str,
-                s=str, 
+                s=str,
                 sub=str,
                 returns=str,
                 )
@@ -1535,7 +1535,7 @@ if 'class_params' in user_params:
     if 'N_ncdm' in user_params['class_params']:
         class_params_default.update({# Disable fluid approximation for non-CDM species
                                      'ncdm_fluid_approximation': 3,
-                                     # Neutrino options needed for accurate δP/δρ                               
+                                     # Neutrino options needed for accurate δP/δρ
                                      'Quadrature strategy': 3,
                                      'evolver': 0,
                                      'Number of momentum bins': 25,
@@ -1581,7 +1581,7 @@ cython.declare(
 )
 Ων = float(inferred_params['Ων'])
 if inferred_params_set['Ων']:
-    Ων = float(user_params['Ων'])   
+    Ων = float(user_params['Ων'])
 else:
     cosmo = Class()
     cosmo.set(user_params.get('class_params', {}))
@@ -2252,7 +2252,7 @@ slab_size_padding = 2*(φ_gridsize//2 + 1)
 # Normalization due to forwards and backwards Fourier transforms:
 #     1/φ_gridsize**3
 # Factor in the Greens function:
-#     -4*π*G_Newton/((2*π/((boxsize/φ_gridsize)*φ_gridsize))**2)   
+#     -4*π*G_Newton/((2*π/((boxsize/φ_gridsize)*φ_gridsize))**2)
 # The acceleration is the negative gradient of the potential:
 #     -1
 # For converting acceleration to momentum (for particles)
@@ -2350,7 +2350,7 @@ class_params_default = {'H0'       : H0/(units.km/(units.s*units.Mpc)),
 if 'N_ncdm' in class_params:
     class_params_default.update({# Disable fluid approximation for non-CDM species
                                  'ncdm_fluid_approximation': 3,
-                                 # Neutrino options needed for accurate δP/δρ                               
+                                 # Neutrino options needed for accurate δP/δρ
                                  'Quadrature strategy': 3,
                                  'evolver': 0,
                                  'Number of momentum bins': 25,
@@ -2472,7 +2472,7 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node'):
                                                         reversed(k_output_values_procs),
                                                         ):
             k_output_values_proc.append(k_output_value)
-        # Collect the process distributed k modes into node distributed 
+        # Collect the process distributed k modes into node distributed
         # k modes, based on the number of processes in each node.
         # The processes with the larger assigned k modes will be
         # designated the nodes with the most processes.
@@ -2906,7 +2906,7 @@ def is_selected(component_or_components, d, accumulate=False):
     """
     # Determine whether a single or multiple components are passed
     component_or_components = any2list(component_or_components)
-    if len(component_or_components) == 1:    
+    if len(component_or_components) == 1:
         component = component_or_components[0]
         keys = (
             'default',
@@ -2940,7 +2940,7 @@ def is_selected(component_or_components, d, accumulate=False):
             else:
                 key = frozenset(key)
         d_transformed[key] = val
-    d = d_transformed    
+    d = d_transformed
     # Do the lookup
     selected = []
     for key in keys:

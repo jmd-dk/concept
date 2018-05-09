@@ -74,4 +74,3 @@ for i in range(N):
 save(component,
      '{}_double_boxsize{}'.format(*os.path.splitext(initial_conditions)),
      {'boxsize': 2*boxsize})
-

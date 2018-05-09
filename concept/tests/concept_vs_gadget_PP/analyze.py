@@ -131,4 +131,3 @@ if any(np.mean(d/boxsize) > tol for d in dist):
 
 # Done analyzing
 masterprint('done')
-

@@ -54,4 +54,3 @@ if (   not isclose(x, 0.25*boxsize)
 
 # Done analyzing
 masterprint('done')
-

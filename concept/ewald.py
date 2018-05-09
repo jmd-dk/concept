@@ -248,4 +248,4 @@ maxh2 = 10
 h_lower = int(-sqrt(maxh2))      # GADGET: -4 (same here for maxh2 = 10)
 h_upper = int(+sqrt(maxh2)) + 1  # GADGET:  5 (same here for maxh2 = 10)
 n_lower = int(-(maxdist + 1))    # GADGET: -4 (same here for maxdist = 3.6)
-n_upper = int(maxdist + 1) + 1   # GADGET:  5 (same here for maxdist = 3.6) 
+n_upper = int(maxdist + 1) + 1   # GADGET:  5 (same here for maxdist = 3.6)

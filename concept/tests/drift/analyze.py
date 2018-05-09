@@ -86,4 +86,3 @@ if max(np.abs(asarray(x)/asarray(x_gadget) - 1)) > tol:
 
 # Done analyzing
 masterprint('done')
-

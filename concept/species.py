@@ -105,7 +105,7 @@ class Tensor:
     # Methods for indexing and membership testing
     def __getitem__(self, multi_index):
         multi_index = self.process_multi_index(multi_index)
-        return self.data[multi_index]  
+        return self.data[multi_index]
     def __setitem__(self, multi_index, value):
         multi_index = self.process_multi_index(multi_index)
         if not multi_index in self.data:
@@ -1091,7 +1091,7 @@ class Component:
         mv3D='double[:, :, :]',
     )
     def populate(self, data, var, multi_index=0, buffer=False):
-        """For fluids, the data should not include pseudo 
+        """For fluids, the data should not include pseudo
         or ghost points.
         If buffer is True, the Δ buffers will be populated
         instead of the data arrays.
@@ -1175,16 +1175,18 @@ class Component:
                     f'A multi_index of type "{type(multi_index)}" was supplied. '
                     f'This should be either an int, a tuple or a str.'
                 )
-            # Reallocate fluid grids if necessary           
+            # Reallocate fluid grids if necessary
             self.resize(asarray(mv3D).shape)
             # Populate the scalar grid given by index and multi_index
             # with the passed data. This data should not
             # include pseudo or ghost points.
             fluidscalar = self.fluidvars[index][multi_index]
             if buffer:
-                fluidscalar.Δ_noghosts   [:mv3D.shape[0], :mv3D.shape[1], :mv3D.shape[2]] = mv3D[...]
+                fluidscalar.Δ_noghosts[
+                    :mv3D.shape[0], :mv3D.shape[1], :mv3D.shape[2]] = mv3D[...]
             else:
-                fluidscalar.grid_noghosts[:mv3D.shape[0], :mv3D.shape[1], :mv3D.shape[2]] = mv3D[...]       
+                fluidscalar.grid_noghosts[
+                    :mv3D.shape[0], :mv3D.shape[1], :mv3D.shape[2]] = mv3D[...]
             # Populate pseudo and ghost points
             if buffer:
                 communicate_domain(fluidscalar.Δ_mv   , mode='populate')
@@ -1630,7 +1632,8 @@ class Component:
                         self.boltzmann_order == 0
                     or (self.boltzmann_order == 1 and self.boltzmann_closure == 'truncate')
                 ):
-                    rk_order = is_selected(self, fluid_options['kurganovtadmor']['rungekuttaorder'])
+                    rk_order = is_selected(
+                        self, fluid_options['kurganovtadmor']['rungekuttaorder'])
                     masterprint(
                         f'Evolving fluid variables (flux terms, using the Kurganov-Tadmor scheme) '
                         f'of {self.name} ...'
@@ -1819,10 +1822,10 @@ class Component:
             # Approximate the derivative via symmetric difference
             Δx = 1e+6*machine_ϵ
             units_dict['t'] = t - Δx
-            units_dict['a'] = a - Δx           
+            units_dict['a'] = a - Δx
             w_before = eval_unit(self.w_expression, units_dict)
             units_dict['t'] = t + Δx
-            units_dict['a'] = a + Δx           
+            units_dict['a'] = a + Δx
             w_after = eval_unit(self.w_expression, units_dict)
             units_dict.pop('t')
             units_dict.pop('a')
@@ -1835,7 +1838,7 @@ class Component:
                    w=object,  # float-like, str or dict
                    # Locals
                    char=str,
-                   char_last=str, 
+                   char_last=str,
                    class_species=str,
                    delim_left=str,
                    delim_right=str,
@@ -1983,7 +1986,7 @@ class Component:
                         match = re.search(
                             r'\s*({pattern})\s+({pattern})\s*(.*)'.format(pattern=pattern),
                             line,
-                        )                
+                        )
                         if match and not match.group(3):
                             # Header line containing the relevant
                             # information found.
@@ -1991,7 +1994,7 @@ class Component:
                                 var = match.group(1 + i)
                                 if var[0] == 't':
                                     self.w_type = 'tabulated (t)'
-                                    unit_match = re.search('\((.*)\)', var)  # Will be applied later                               
+                                    unit_match = re.search('\((.*)\)', var)  # Applied later
                                 elif var[0] == 'a':
                                     self.w_type = 'tabulated (a)'
                                 elif var[0] == 'w':
@@ -2004,7 +2007,7 @@ class Component:
                 # Multiply unit on the time
                 if '(t)' in self.w_type:
                     if unit_match and unit_match.group(1) in units_dict:
-                        unit = eval_unit(unit_match.group(1)) 
+                        unit = eval_unit(unit_match.group(1))
                         i_tabulated = asarray(i_tabulated)*unit
                     elif unit_match:
                         abort('Time unit "{}" in header of "{}" not understood'
@@ -2159,7 +2162,7 @@ class Component:
         integrand_spline = Spline(a_tabulated, integrand_tabulated)
         w_eff_tabulated_list = [integrand_spline.integrate(1, a)/log(a)
                                 for a in a_tabulated[:(a_tabulated.size - 1)]]
-        w_eff_tabulated_list.append(self.w(a=1))                     
+        w_eff_tabulated_list.append(self.w(a=1))
         w_eff_tabulated = asarray(w_eff_tabulated_list)
         # Instantiate the w_eff spline object
         self.w_eff_spline = Spline(a_tabulated, w_eff_tabulated)
@@ -2168,7 +2171,7 @@ class Component:
     # Method which convert named fluid/particle
     # variable names to indices.
     @cython.header(# Arguments
-                   varnames=object,  # str, int or container of str's and ints 
+                   varnames=object,  # str, int or container of str's and ints
                    single='bint',
                    # Locals
                    N_vars='Py_ssize_t',
@@ -2181,7 +2184,7 @@ class Component:
     def varnames2indices(self, varnames, single=False):
         """This method conveniently transform any reasonable input
         to an array of variable indices. Some examples:
-        
+
         varnames2indices('ϱ') → asarray([0])
         varnames2indices(['J', 'ϱ']) → asarray([1, 0])
         varnames2indices(['pos', 'mom']) → asarray([0, 1])

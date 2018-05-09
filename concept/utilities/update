@@ -276,4 +276,3 @@ trap : 0
 if [ -f "${new_update_utility_moved}" ]; then
     mv "${new_update_utility_moved}" "${this_file}"
 fi
-

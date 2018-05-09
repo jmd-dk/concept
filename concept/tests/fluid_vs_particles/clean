@@ -32,4 +32,3 @@ this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
                             output_fluid      \
                             output_particles  \
  )
-

@@ -539,7 +539,7 @@ def CIC_components2domain_grid(component_or_components, domain_grid, quantities,
     to domain_grid storing scalar values. The physical extend of the
     passed domain_grid should match the domain exactly. The interpolated
     values will be added to the grid. Therefore, if the grid should
-    contain the interpolated vales only, the grid must be nullified 
+    contain the interpolated vales only, the grid must be nullified
     beforehand.
     The quantities argument is a list, but its elements can be
     structured in different ways. If quantities = [], a particle and a
@@ -823,7 +823,7 @@ def CIC_particles2fluid(component):
     and its momentum momᵢ is
     momᵢ = a*mass*uᵢ
     The final expression for J is then
-    J = 1/Vcell*(ΣᵢWᵢ*momᵢ).  
+    J = 1/Vcell*(ΣᵢWᵢ*momᵢ).
     Importantly, the mass attribute of the passed component should be
     the particle mass, not the average fluid element mass. The value of
     the representation attribute does not matter and will not
@@ -1088,7 +1088,7 @@ def CIC_components2φ_general(component_or_components, quantities, add_particles
 cython.declare(φ_illegal=str)
 φ_illegal = ''
 if φ_gridsize%nprocs != 0:
-    φ_illegal = f'A φ_gridsize = {φ_gridsize} cannot be evenly divided by {nprocs} processes.'            
+    φ_illegal = f'A φ_gridsize = {φ_gridsize} cannot be evenly divided by {nprocs} processes.'
 else:
     if (   φ_gridsize%domain_subdivisions[0] != 0
         or φ_gridsize%domain_subdivisions[1] != 0
@@ -1188,7 +1188,7 @@ def prepare_decomposition(domain_grid, slab):
                                              ], dtype=C2np['int']),
                                     -rank)
     slabs2domain_sendrecv_ranks = np.roll(asarray([ℓ//slab_size_i
-                                                  for ℓ in range(domain_start_i, 
+                                                  for ℓ in range(domain_start_i,
                                                                   domain_end_i,
                                                                   slab_size_i)],
                                                   dtype=C2np['int']),
@@ -1733,7 +1733,7 @@ def fft(slab, direction):
             grid_global_pure_python = tmp
             # As in FFTW, distribute the slabs along the y-dimension
             # (which is the first dimension now, due to transposing).
-            slab[...] = grid_global_pure_python[slab_start_j:(slab_start_j + slab_size_j), :, :] 
+            slab[...] = grid_global_pure_python[slab_start_j:(slab_start_j + slab_size_j), :, :]
         elif direction == 'backward':
             # FFTW represents the complex array by doubles only.
             # Go back to using complex entries.

@@ -159,7 +159,7 @@ def plot_detrended_perturbations(a_values, perturbations_detrended, transferfunc
         abort(f'rank {rank} called plot_detrended_perturbations()')
     loga_values = np.log(a_values)
     # Plot the detrended CLASS data
-    plt.figure()    
+    plt.figure()
     plt.semilogx(a_values, perturbations_detrended, '.', markersize=3)
     # Plot the spline at values midway between the data points
     loga_values_spline             = empty(loga_values.shape[0] - 1, dtype=C2np['double'])
@@ -299,7 +299,7 @@ def plot_processed_perturbations(a_values, k_magnitudes, transfer, var_name, cla
     dirname = '/'.join([
         output_dirs['powerspec'],
         'class_perturbations_processed',
-        f'{var_name_ascii}_{class_species}'  
+        f'{var_name_ascii}_{class_species}'
     ])
     os.makedirs(dirname, exist_ok=True)
     unit_latex = {
@@ -402,7 +402,7 @@ def plot_processed_perturbations(a_values, k_magnitudes, transfer, var_name, cla
     projection_min='double',
     shifting_factor='double',
     terminal_resolution='Py_ssize_t',
-    value='double',  
+    value='double',
     vmin='double',
     vmax='double',
     x='double',
@@ -455,7 +455,7 @@ def render2D(components, filename):
             [component.name for component in component_combination]
         )
         if len(component_combination) > 1:
-            component_combination_str = f'{{{component_combination_str}}}'            
+            component_combination_str = f'{{{component_combination_str}}}'
         masterprint(f'Rendering 2D projection of {component_combination_str} ...')
         # Extract some options for this component combination
         # from the render2D_options user parameter.
@@ -540,7 +540,7 @@ def render2D(components, filename):
                     z = domain_start_z + k*L
                     with unswitch(3):
                         if not 𝔹[axis == 'z']:
-                            index_n = ℤ[φ_gridsize - 1 - domain_start_k] - k 
+                            index_n = ℤ[φ_gridsize - 1 - domain_start_k] - k
                         else:
                             if ℝ[extend[0]] <= z:
                                 weight = (ℝ[extend[1]] - z)/L
@@ -592,8 +592,8 @@ def render2D(components, filename):
                 hdf5_file.attrs['axis'                 ] = axis
                 hdf5_file.attrs['extend'               ] = extend
                 if enable_Hubble:
-                    hdf5_file.attrs['a'  ] = a
-                hdf5_file.attrs['t'      ] = universals.t            
+                    hdf5_file.attrs['a'] = a
+                hdf5_file.attrs['t'    ] = universals.t
                 # Store the 2D projection
                 dset = hdf5_file.create_dataset(
                     'data',
@@ -653,10 +653,7 @@ def render2D(components, filename):
         while enhance:
             # Construct histogram over projection**exponent
             projection_enhanced = asarray(projection)**exponent
-            try:
-                bins, bin_edges = np.histogram(projection_enhanced, N_bins)
-            except:
-                masterwarn('exponent:', exponent, 'projection:', asarray(projection), 'projection_enhanced:', asarray(projection_enhanced))
+            bins, bin_edges = np.histogram(projection_enhanced, N_bins)
             # Compute the sum of all bins. This is equal to the sum of
             # values in the projection. However, we skip bins[0] since
             # sometimes empty cells results in a large spike there.
@@ -848,7 +845,7 @@ def render2D(components, filename):
             masterprint('done')
         # Done with the entire rendering process
         # for this component combination.
-        masterprint('done')            
+        masterprint('done')
 # Construct the render2D_data_select, render2D_image_select
 # and render2D_terminal_image_select dicts from
 # the render2D_data_select parameter.
@@ -993,7 +990,7 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
                 color = next(default_colors)
                 α_homogeneous = 0.2
             # Alpha values below this small value appear completely
-            # invisible, for whatever reason. 
+            # invisible, for whatever reason.
             α_min = 0.0059
             # The artist for the component
             if component.representation == 'particles':
@@ -1188,7 +1185,7 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
             ϱbar_component = allreduce(np.sum(ϱ_noghosts[:(ϱ_noghosts.shape[0] - 1),
                                                          :(ϱ_noghosts.shape[1] - 1),
                                                          :(ϱ_noghosts.shape[2] - 1)]),
-                                       op=MPI.SUM)/component.gridsize**3            
+                                       op=MPI.SUM)/component.gridsize**3
             # Update the α values in rgbα array based on the values of
             # ϱ at each grid point. The rgb-values remain the same for
             # all 3D renders of this component.

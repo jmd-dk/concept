@@ -36,4 +36,3 @@ R_tophat   = 8*Mpc
 
 # Debugging options
 enable_Hubble = False
-

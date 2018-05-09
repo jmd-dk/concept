@@ -49,4 +49,3 @@ for multi_index in component.ς.multi_indices:
 
 # Save snapshot
 save(component, initial_conditions)
-
