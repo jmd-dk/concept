@@ -171,7 +171,7 @@ def direct_summation(posx_i, posy_i, posz_i, momx_i, momy_i, momz_i,
                         z -= boxsize
                     elif z < ℝ[-0.5*boxsize]:
                         z += boxsize
-                    # The Ewald correction force for all 
+                    # The Ewald correction force for all
                     # images except the nearest one,
                     # which may not be the actual particle.
                     force = ewald(x, y, z)
@@ -485,7 +485,7 @@ def build_φ(components, ᔑdt, only_long_range=False):
     # Pull out the needed integrals for each component
     Δt = ᔑdt['1']
     factors = [ℝ[1/Δt]*ᔑdt['a**(-3*w-1)', component] for component in components]
-    
+
 
     # CIC interpolate the particles/fluid elements onto the slabs
     cython.declare(quanities=list)
@@ -857,7 +857,7 @@ def p3m(component, ᔑdt):
     global Δmomx_local_mv, Δmomy_local_mv, Δmomz_local_mv
     global indices_send, indices_send_mv
     global indices_boundary, indices_boundary_mv
-    
+
     # NOTE: This function now only supply the short-range force
     # and should therefore be renamed !!!
     #
@@ -1091,13 +1091,13 @@ def p3m(component, ᔑdt):
 
 # Initialize stuff for the PP and P3M algorithms at import time
 cython.declare(boundary_ranks_recv='int[::1]',
-               boundary_ranks_send='int[::1]',  
+               boundary_ranks_send='int[::1]',
                boundary_x_max='double',
                boundary_x_min='double',
                boundary_y_max='double',
                boundary_y_min='double',
                boundary_z_max='double',
-               boundary_z_min='double',  
+               boundary_z_min='double',
                in_boundary1_funcs='func_b_ddd*',
                in_boundary2_funcs='func_b_ddd*',
                indices_boundary='Py_ssize_t*',
@@ -1113,7 +1113,7 @@ cython.declare(boundary_ranks_recv='int[::1]',
                posy_extrn_mv='double[::1]',
                posy_local_boundary='double*',
                posy_local_boundary_mv='double[::1]',
-               posz_extrn='double*',              
+               posz_extrn='double*',
                posz_extrn_mv='double[::1]',
                posz_local_boundary='double*',
                posz_local_boundary_mv='double[::1]',
@@ -1130,7 +1130,7 @@ cython.declare(boundary_ranks_recv='int[::1]',
                Δmomy_local_boundary_mv='double[::1]',
                Δmomy_local_mv='double[::1]',
                Δmomz_extrn='double*',
-               Δmomz_extrn_mv='double[::1]',               
+               Δmomz_extrn_mv='double[::1]',
                Δmomz_local='double*',
                Δmomz_local_boundary='double*',
                Δmomz_local_boundary_mv='double[::1]',

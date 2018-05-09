@@ -41,4 +41,3 @@ components.populate(zeros(N), 'momz')
 
 # Save snapshot
 save(components, initial_conditions)
-

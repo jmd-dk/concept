@@ -8,4 +8,3 @@ render3D_select = {'all': True}
 render3D_resolution = 1080
 render3D_colors     = {}
 render3D_bgcolor    = 'black'
-

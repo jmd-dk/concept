@@ -42,4 +42,3 @@ a_begin = 0.02
 
 # Physics
 select_forces = {'matter particles': {'gravity': 'pm'}}
-

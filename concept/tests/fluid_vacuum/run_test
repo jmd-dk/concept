@@ -24,10 +24,11 @@
 
 # This script performs a vacuum correction test on a fluid,
 # meaning testing if the fluid ever gets negative density values.
-# The fluid density is initially homogeneous in the y- and z-directions
-# but forms a slightly offset sine curve (one period) in the x-direction.
-# The velocity is initially zero, except around the bottom of the
-# sine curve, where it diverges, producing a region of very low density. 
+# The fluid density is initially homogeneous in the y- and
+# z-directions but forms a slightly offset sine curve (one period) in
+# the x-direction. The velocity is initially zero, except around the
+# bottom of the sine curve, where it diverges, producing a region of
+# very low density.
 
 # Absolute path and name of the directory of this file
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
@@ -99,4 +100,3 @@ particles2fluid "${this_dir}/output/particles"
 
 # Test ran successfully. Deactivate traps.
 trap : 0
-

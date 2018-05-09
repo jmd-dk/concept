@@ -43,4 +43,3 @@ a_begin = 0.02
 # Physics
 select_forces           = {'matter particles': {'gravity': 'pp'}}
 select_softening_length = {'matter particles': '0.03*boxsize/cbrt(N)'}
-

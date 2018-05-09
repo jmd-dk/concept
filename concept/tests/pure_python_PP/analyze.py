@@ -150,4 +150,3 @@ if not all(np.isclose(ewald_grid['cython'], ewald_grid['python'], ϵ, δ)):
 
 # Done analyzing
 masterprint('done')
-

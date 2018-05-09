@@ -171,6 +171,7 @@ fluid_options = {  # Specifications of fluid scheme parameters
 class_k_max = {}                  # Maximum trusted k for individual perturbations
 class_reuse = True                # Reuse CLASS results from earlier runs?
 class_plot_perturbations = False  # Plot CLASS perturbations?
+class_extra_background = ''       # Extra CLASS background variables to dump
 class_extra_perturbations = ''    # Extra CLASS perturbations to dump
 
 # Graphics
@@ -218,4 +219,3 @@ unit_mass   = '10¹⁰ m☉'  # Physical mass   corresponding to a numerical val
 enable_Hubble           = True   # Enable Hubble expansion
 enable_class_background = True   # Use CLASS to compute the evolution of the background
 enable_debugging        = False  # Enable debugging mode
-

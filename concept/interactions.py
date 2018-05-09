@@ -87,7 +87,7 @@ def domain_domain(receivers, suppliers, ᔑdt, interaction, interaction_name,
     be sent to other processes (domains) and also recieved back from
     other processes. Thus both local and external versions of
     component_2 exist, called component_2_local and component_2_extrl.
-    
+
     If affected is an empty list, this is not really an interaction.
     In this case, every domain will both send and receive from every
     other domain.
@@ -488,7 +488,7 @@ def particle_mesh_general(receivers, suppliers, ᔑdt, potential, potential_name
 # components and a given expression for the potential.
 @cython.header(# Arguments
                receivers=list,
-               suppliers=list, 
+               suppliers=list,
                quantities=list,
                potential=func_potential,
                # Locals

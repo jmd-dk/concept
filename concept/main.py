@@ -45,7 +45,7 @@ cimport('from utilities import delegate')
 # to do with the scale factor (e.g. ∫dta⁻¹).
 # The result is stored in ᔑdt_steps[integrand][index],
 # where index == 0 corresponds to step == 'first half' and
-# index == 1 corresponds to step == 'second half'. 
+# index == 1 corresponds to step == 'second half'.
 @cython.header(# Arguments
                step=str,
                Δt='double',
@@ -534,7 +534,7 @@ def print_timestep_heading(time_step, Δt, bottleneck, components, end=False):
                  )
     parts.append('{} {}'.format(significant_figures(universals.t, 4, fmt='unicode'),
                                 unit_time,
-                                ) 
+                                )
                  )
     if enable_Hubble:
         parts.append('\nScale factor:'.ljust(heading_ljust))
@@ -670,7 +670,7 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
     # suggested by the dynamical time scale.
     fac_dynamical = 8e-3
     if enable_Hubble:
-        # When the Hubble expansion is enabled, 
+        # When the Hubble expansion is enabled,
         # use the current matter density as the mean density.
         H = hubble()
         ρ_bar = ρ_mbar*(H/H0)**2
@@ -765,12 +765,12 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
                 or (component.boltzmann_order == 1 and component.boltzmann_closure == 'truncate')
                 ):
                 # Without J as a fluid variable, no velocity exist
-                # and so no Courant limit needs to be set. 
+                # and so no Courant limit needs to be set.
                 v_max = 0
             elif component.boltzmann_order == 1 and component.boltzmann_closure == 'class':
                 # With J as a linear fluid variable, we only need to
                 # consider one of its components. Also, the P = wρ
-                # approximation is guaranteed to be enabled.                
+                # approximation is guaranteed to be enabled.
                 J_over_ϱ_plus_𝒫_2_max = 0
                 ϱ  = component.ϱ .grid
                 Jx = component.Jx.grid
@@ -870,7 +870,7 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
                       '(originally the time step size was {} {unit_time})'
                       .format(Δt_max, Δt_begin, unit_time=unit_time)
                       )
-        # Apply the update 
+        # Apply the update
         Δt = fac_reduce*Δt_max
     return Δt, bottleneck
 

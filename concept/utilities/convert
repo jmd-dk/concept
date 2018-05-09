@@ -260,4 +260,3 @@ fi
 
 # Exit gracefully
 colorprint "$(basename "${this_file}") utility ran successfully" "green"
-

@@ -1,21 +1,21 @@
 
 #----------------------------------------------------------------------
-# From the list below, please activate/deactivate the options that     
-# apply to your run. If you modify any of these options, make sure     
-# that you recompile the whole code by typing "make clean; make".      
-#                                                                      
-# Look at end of file for a brief guide to the compile-time options.   
+# From the list below, please activate/deactivate the options that
+# apply to your run. If you modify any of these options, make sure
+# that you recompile the whole code by typing "make clean; make".
+#
+# Look at end of file for a brief guide to the compile-time options.
 #----------------------------------------------------------------------
 
 
 #--------------------------------------- Basic operation mode of code
-OPT   +=  -DPERIODIC 
+OPT   +=  -DPERIODIC
 #OPT   +=  -DUNEQUALSOFTENINGS
 
 
 #--------------------------------------- Things that are always recommended
 OPT   +=  -DPEANOHILBERT
-OPT   +=  -DWALLCLOCK   
+OPT   +=  -DWALLCLOCK
 
 
 #--------------------------------------- TreePM Options
@@ -27,8 +27,8 @@ OPT   +=  -DPMGRID=128
 
 
 #--------------------------------------- Single/Double Precision
-#OPT   +=  -DDOUBLEPRECISION      
-#OPT   +=  -DDOUBLEPRECISION_FFTW      
+#OPT   +=  -DDOUBLEPRECISION
+#OPT   +=  -DDOUBLEPRECISION_FFTW
 
 
 #--------------------------------------- Time integration options
@@ -40,7 +40,7 @@ OPT   +=  -DSYNCHRONIZATION
 
 
 #--------------------------------------- Output options
-#OPT   +=  -DHAVE_HDF5  
+#OPT   +=  -DHAVE_HDF5
 #OPT   +=  -DOUTPUTPOTENTIAL
 #OPT   +=  -DOUTPUTACCELERATION
 #OPT   +=  -DOUTPUTCHANGEOFENTROPY
@@ -48,9 +48,9 @@ OPT   +=  -DSYNCHRONIZATION
 
 
 #--------------------------------------- Things for special behaviour
-#OPT   +=  -DNOGRAVITY     
-#OPT   +=  -DNOTREERND 
-#OPT   +=  -DNOTYPEPREFIX_FFTW        
+#OPT   +=  -DNOGRAVITY
+#OPT   +=  -DNOTREERND
+#OPT   +=  -DNOTYPEPREFIX_FFTW
 #OPT   +=  -DLONG_X=60
 #OPT   +=  -DLONG_Y=5
 #OPT   +=  -DLONG_Z=0.2
@@ -71,7 +71,7 @@ OPT   +=  -DSYNCHRONIZATION
 
 
 #----------------------------------------------------------------------
-# Here, select compile environment for the target machine. This may need 
+# Here, select compile environment for the target machine. This may need
 # adjustment, depending on your local system. Follow the examples to add
 # additional target platforms, and to get things properly compiled.
 #----------------------------------------------------------------------
@@ -102,12 +102,12 @@ GSL_INCL=  ?
 GSL_LIBS=  ?
 FFTW_INCL= ?
 FFTW_LIBS= ?
-HDF5INCL=  
-HDF5LIB= 
+HDF5INCL=
+HDF5LIB=
 MPICHLIB= # -lmpich
 
 
-ifneq (HAVE_HDF5,$(findstring HAVE_HDF5,$(OPT))) 
+ifneq (HAVE_HDF5,$(findstring HAVE_HDF5,$(OPT)))
 HDF5INCL =
 HDF5LIB  =
 endif
@@ -124,7 +124,7 @@ OBJS   = main.o  run.o  predict.o begrun.o endrun.o global.o  \
 	 gravtree.o hydra.o  driftfac.o  \
 	 domain.o  allvars.o potential.o  \
          forcetree.o   peano.o gravtree_forcetest.o \
-	 pm_periodic.o pm_nonperiodic.o longrange.o 
+	 pm_periodic.o pm_nonperiodic.o longrange.o
 
 INCL   = allvars.h  proto.h  tags.h  Makefile
 
@@ -143,14 +143,13 @@ endif
 endif
 
 
-LIBS   =   $(HDF5LIB) -g  $(MPICHLIB)  $(GSL_LIBS) -lgsl -lgslcblas -lm $(FFTW_LIB) 
+LIBS   =   $(HDF5LIB) -g  $(MPICHLIB)  $(GSL_LIBS) -lgsl -lgslcblas -lm $(FFTW_LIB)
 
-$(EXEC): $(OBJS) 
-	$(CC) $(OBJS) $(LIBS)   -o  $(EXEC)  
+$(EXEC): $(OBJS)
+	$(CC) $(OBJS) $(LIBS)   -o  $(EXEC)
 
-$(OBJS): $(INCL) 
+$(OBJS): $(INCL)
 
 
 clean:
 	rm -f $(OBJS) $(EXEC)
-

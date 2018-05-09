@@ -88,4 +88,3 @@ mv "${this_dir}/powerspec_snapshot_original.png" "${this_dir}/powerspec_snapshot
 
 # Test ran successfully. Deactivate traps.
 trap : 0
-

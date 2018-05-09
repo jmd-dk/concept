@@ -28,4 +28,3 @@ this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
                             output_without_optimizations \
                             output_with_optimizations    \
  )
-

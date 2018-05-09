@@ -43,4 +43,3 @@ class_reuse = False
 
 # System of units
 unit_length = 'kpc'  # Use a base unit different from Mpc which is used by CLASS
-

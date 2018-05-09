@@ -98,7 +98,7 @@
 # You may specify which MPI implementation to use - either MPICH or
 # OpenMPI - by setting the "mpi" environment variable to "mpich" or
 # "openmpi", respectively. The default is MPICH.
-# 
+#
 # Should you choose to use a pre-installed Python distribution
 # (by setting the python_dir variable), any missing Python packages
 # will be installed in this distribution. Pre-installed Python packages
@@ -447,7 +447,7 @@ for var in "$@"; do
 "but the installation path is already set to \"${top_dir}\""
             exit 1
         fi
-    fi    
+    fi
 done
 # Set sleep_time, the amount of seconds spend sleeping at various stages
 sleep_time=10
@@ -1151,7 +1151,7 @@ paths_file="${paths_file/__top_dir__/${top_dir}}"
 # Check whether this script is run locally or remotely via ssh
 ssh="True"
 if [ -z "${SSH_CLIENT}" ] && [ -z "${SSH_TTY}" ]; then
-    ssh="False"   
+    ssh="False"
 fi
 
 # Set the "make_jobs" variable, holding the -j option for future
@@ -1183,7 +1183,7 @@ assume_preinstalled(){
         eval "${1}_preinstalled=\"yes\""
         eval "${1}_dir=\"\""
         eval "${1}_version=\"pre-installed\""
-    fi    
+    fi
 }
 # If Python is pre-installed, assume that OpenSSL
 # and ncurses are also pre-installed.
@@ -1520,7 +1520,7 @@ if [ "${setup_passwordless_ssh}" == "True" ]; then
     # (there should be none as ~/.ssh is newly created).
     rm -f "known_hosts"*
     # Only the user may have write permissions to her home directory,
-    # in order for ssh to allow password-less login. 
+    # in order for ssh to allow password-less login.
     chmod go-w ~
     # Ensure that only the user has any acces to the private key
     chmod go-rwx ~/".ssh/id_${key_type}"
@@ -1632,7 +1632,7 @@ check_progress(){
     # The program installation directory
     eval "progdir=\"\${${progname}_dir}\""
     # CO𝘕CEPT itself will not have a .installation_finished file in its
-    # directory. Instead it uses the .installation_finished in the 
+    # directory. Instead it uses the .installation_finished in the
     # GADGET directory.
     if [ "${progname}" == "concept" ]; then
         progdir="${gadget_dir}"
@@ -2871,7 +2871,7 @@ Date:    $(date)
         # OpenMPI
         init_install "MPI"
         # Temporary OpenMPI session files can cause OpenMPI to crash.
-        # Remove any temporary directory of the form 
+        # Remove any temporary directory of the form
         # /tmp/openmpi-sessions-*
         # which belongs to the user.
         my_username="$(whoami)"
@@ -2887,7 +2887,7 @@ Date:    $(date)
         fi
         # Install OpenMPI
         ./configure --prefix="${mpi_dir}" 2>&1
-        make ${make_jobs} all 2>&1        
+        make ${make_jobs} all 2>&1
         make ${make_jobs} install 2>&1
         # OpenMPI does not come with a test suite
         cp "AUTHORS" "LICENSE" "${mpi_dir}/" || :
@@ -3021,7 +3021,7 @@ if [ "${fftw_install}" == "yes" ] && [ "${fftw_installed}" == "no" ]; then
         export MPILIBS="-lmpi ${MPILIBS}"
         export PATH="${mpi_dir}/bin:${PATH}"
         enable_mpi="--enable-mpi"
-    fi    
+    fi
     # Double-precision
     ./configure --enable-shared  \
                 ${enable_mpi}    \
@@ -3097,7 +3097,7 @@ if [ "${ncurses_install}" == "yes" ] && [ "${ncurses_installed}" == "no" ]; then
             || ncurses_test_success="no"
         enable_status
     fi
-    # Additional test run needed (if the first failed), as the one 
+    # Additional test run needed (if the first failed), as the one
     # above do not use tee (as it ruins the display).
     if [ "${fast_install}" == "no" ] && [ "${ncurses_test_success}" == "no" ]; then
         disable_status
@@ -3960,7 +3960,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
             )
         elif   [ "${extension}" == "py"  ] \
             || [ "${extension}" == "pyx" ] \
-            || [ "${extension}" == "pxd" ]; then 
+            || [ "${extension}" == "pxd" ]; then
             new_lines=(""                    \
                 "########################"   \
                 "# For use with CONCEPT #"   \
@@ -4438,7 +4438,7 @@ with open('${env_file}', 'w', encoding='utf-8') as file:
             envs_inserted = True
         print(line, end='', file=file)
 "
-    # Create the .paths file, 
+    # Create the .paths file,
     # storing important paths used by CO𝘕CEPT.
     current_step="creation of the .paths file"
     printf "\nWriting paths to .paths\n"

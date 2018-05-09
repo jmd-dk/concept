@@ -98,11 +98,10 @@ if np.sum(x0_std) > tol or np.sum(x1_std) > tol:
 
 # Printout error message for unsuccessful test
 tol = 1e-2
-if (   max(np.abs(np.array(x0)/np.array(x0_gadget) - 1)) > tol 
+if (   max(np.abs(np.array(x0)/np.array(x0_gadget) - 1)) > tol
     or max(np.abs(np.array(x1)/np.array(x1_gadget) - 1)) > tol):
     abort('The results from CO𝘕CEPT disagree with those from GADGET.\n'
           'See "{}" for a visualization.'.format(fig_file))
 
 # Done analyzing
 masterprint('done')
-

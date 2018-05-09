@@ -145,7 +145,7 @@ for (a_i,
     # This should be the largest halo as well,
     # but due to smoothing erros it might not be quite the largest one.
     # Search the N_largest_halos largest halos and use the one closest
-    # to the one in the particle simulation. 
+    # to the one in the particle simulation.
     indices_fluid = []
     r_fluid = []
     for _ in range(N_largest_halos):
@@ -186,4 +186,3 @@ for (a_i,
 
 # Done analyzing
 masterprint('done')
-

@@ -121,7 +121,7 @@ for n, d, ax_i in zip(dist.keys(), dist.values(), ax):
                       zorder=-i,
                       )
     ax_i.set_ylabel('$|\mathbf{{x}}_{{\mathrm{{pp}}{n}}} - \mathbf{{x}}_{{\mathrm{{c}}{n}}}|'
-                    '/\mathrm{{boxsize}}$'.format(n=n))   
+                    '/\mathrm{{boxsize}}$'.format(n=n))
 ax[-1].set_xlabel('Particle number')
 plt.xlim(0, N - 1)
 fig.subplots_adjust(hspace=0)
@@ -140,4 +140,3 @@ if any(np.mean(np.array(d)/boxsize) > tol for d in dist.values()):
 
 # Done analyzing
 masterprint('done')
-

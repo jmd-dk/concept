@@ -41,4 +41,3 @@ a_begin = 0.02
 
 # Debugging options
 enable_class_background = False  # Use the same simplified Friedmann equation as GADGET
-

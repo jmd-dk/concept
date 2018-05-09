@@ -397,7 +397,7 @@ if [ "${state}" != "${state_running}" ]; then
         # Wait a small time before calling the info command again
         sleep ${sleep_little}
         check_suddenly_finished
-        while [ "${state}" != "${state_running}" ] ; do   
+        while [ "${state}" != "${state_running}" ] ; do
             # Wait a long time before calling the info command again
             sleep ${sleep_much}
             check_suddenly_finished
@@ -460,4 +460,3 @@ fi
 
 # Exit gracefully
 trap : 0
-

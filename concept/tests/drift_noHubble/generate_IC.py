@@ -40,4 +40,3 @@ particles.populate(ones(N)*boxsize/(10*units.Gyr)*mass, 'momz')
 
 # Save snapshot
 save(particles, initial_conditions)
-

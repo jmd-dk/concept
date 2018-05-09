@@ -112,4 +112,3 @@ cp "${this_dir}/Makefile_gadget_edited" "${Gadget2_local_dir}/Makefile"
 
 # Test ran successfully. Deactivate traps.
 trap : 0
-

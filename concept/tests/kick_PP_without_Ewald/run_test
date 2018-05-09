@@ -109,4 +109,3 @@ sed -i "/fcorrz\[i\]\[j\]\[k\] = force\[2\];/c\fcorrz\[i\]\[j\]\[k\] = 0.0;" \
 
 # Test ran successfully. Deactivate traps.
 trap : 0
-

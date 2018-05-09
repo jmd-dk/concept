@@ -215,7 +215,7 @@ class StandardSnapshot:
                             index, multi_index = indices
                             try:
                                 fluidvar_h5 = component_h5['fluidvar_{}'.format(index)]
-                                fluidscalar_h5 = fluidvar_h5['fluidscalar_{}'.format(multi_index)]  
+                                fluidscalar_h5 = fluidvar_h5['fluidscalar_{}'.format(multi_index)]
                                 component_h5[name] = fluidscalar_h5
                             except:
                                 ...
@@ -278,7 +278,7 @@ class StandardSnapshot:
             masterprint('Loading parameters of snapshot "{}" ...'.format(filename))
         else:
             masterprint('Loading snapshot "{}" ...'.format(filename))
-        # Load all components    
+        # Load all components
         with open_hdf5(filename, mode='r', driver='mpio', comm=comm) as hdf5_file:
             # Load used base units
             self.units['time'  ] = hdf5_file.attrs['unit time']
@@ -315,7 +315,7 @@ class StandardSnapshot:
                     momx_h5 = component_h5['momx']
                     momy_h5 = component_h5['momy']
                     momz_h5 = component_h5['momz']
-                    # Compute a fair distribution of 
+                    # Compute a fair distribution of
                     # particle data to the processes.
                     start_local, N_local = partition(N)
                     end_local = start_local + N_local
@@ -1189,7 +1189,7 @@ def out_of_bounds_check(component, snapshot_boxsize=-1):
             abort('Particle number {} of component "{}" has position '
                   '({:.9g}, {:.9g}, {:.9g}) {}, which is outside of the cubic box '
                   'of side length {:.9g} {}'.format(i,
-                                                    component.name, 
+                                                    component.name,
                                                     posx[i],
                                                     posy[i],
                                                     posz[i],

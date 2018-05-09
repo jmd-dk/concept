@@ -100,7 +100,7 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
     """This function will update the non-linear fluid variables of the
     given component by advecting the flux terms in the fluid equations.
     Source terms (e.g. gravity) will not be applied.
-    
+
     The rk_order determines the order of the Runge-Kutta time
     integration (can be 1 or 2), while rk_step specifies the current
     Runge kutta step (should not be explicitly passed). This function is
@@ -313,8 +313,8 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
     #        - ᔑa**(-3*w_eff    )dt ∂ⁿςᵐₙ               #
     #####################################################
     # Allocate needed interface arrays
-    Jₙ_interface = empty(2, dtype=C2np['double'])   
-    use_𝒫 = (not (component.w_type == 'constant' and component.w_constant == 0)) 
+    Jₙ_interface = empty(2, dtype=C2np['double'])
+    use_𝒫 = (not (component.w_type == 'constant' and component.w_constant == 0))
     use_ς = (
             component.boltzmann_order > 2
         or (component.boltzmann_order == 2 and component.boltzmann_closure == 'class')
@@ -1021,7 +1021,7 @@ def maccormack_internal_sources(component, ᔑdt):
                     Jᵢ_ptr[n] += source_ptr[n]
         masterprint('done')
     # The pressure term in the Euler equation
-    # ΔJⁱ = -ᔑa**(-3*w_eff)dt ∂ⁱ𝒫.    
+    # ΔJⁱ = -ᔑa**(-3*w_eff)dt ∂ⁱ𝒫.
     if (
             component.boltzmann_order > 1
         and not (component.w_type == 'constant' and component.w_constant == 0)

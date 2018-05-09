@@ -175,7 +175,7 @@ def gravity_pairwise(component_1, component_2, rank_2, ᔑdt, local, mutual, ext
                         z_ji -= boxsize
                     elif z_ji < ℝ[-0.5*boxsize]:
                         z_ji += boxsize
-                    # The Ewald correction force for all 
+                    # The Ewald correction force for all
                     # images except the nearest one,
                     # which might not be the actual particle.
                     force_ij = ewald(x_ji, y_ji, z_ji)

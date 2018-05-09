@@ -17,7 +17,7 @@ OutputListFilename ../outputlist
 
 TimeLimitCPU      36000  % = 10 hours
 ResubmitOn        0
-ResubmitCommand   my-scriptfile  
+ResubmitCommand   my-scriptfile
 
 
 % Code options
@@ -57,11 +57,11 @@ NumFilesWrittenInParallel 1
 
 % Accuracy of time integration
 
-ErrTolIntAccuracy      0.025 
+ErrTolIntAccuracy      0.025
 
 MaxRMSDisplacementFac  0.2
 
-CourantFac             0.15     
+CourantFac             0.15
 
 MaxSizeTimestep       0.03
 MinSizeTimestep       0.0
@@ -71,7 +71,7 @@ MinSizeTimestep       0.0
 
 % Tree algorithm, force accuracy, domain update frequency
 
-ErrTolTheta            0.5  % 0.5            
+ErrTolTheta            0.5  % 0.5
 TypeOfOpeningCriterion 1
 ErrTolForceAcc         0.005  % 0.005
 
@@ -84,8 +84,8 @@ TreeDomainUpdateFrequency    0.1
 DesNumNgb              33
 MaxNumNgbDeviation     2
 ArtBulkViscConst       0.8
-InitGasTemp            1000.0        % always ignored if set to 0 
-MinGasTemp             50.0    
+InitGasTemp            1000.0        % always ignored if set to 0
+MinGasTemp             50.0
 
 
 % Memory allocation
@@ -97,11 +97,11 @@ BufferSize            30          % in MByte
 
 % System of units
 
-UnitLength_in_cm         3.085678e21        ;  1.0 kpc 
-UnitMass_in_g            1.989e43           ;  1.0e10 solar masses 
-UnitVelocity_in_cm_per_s 1e5                ;  1 km/sec 
+UnitLength_in_cm         3.085678e21        ;  1.0 kpc
+UnitMass_in_g            1.989e43           ;  1.0e10 solar masses
+UnitVelocity_in_cm_per_s 1e5                ;  1 km/sec
 GravityConstantInternal  0
- 
+
 
 % Softening lengths
 
@@ -110,14 +110,13 @@ MinGasHsmlFractional 0.25
 SofteningGas       240.0
 SofteningHalo      240.0
 SofteningDisk      0
-SofteningBulge     0           
+SofteningBulge     0
 SofteningStars     0
 SofteningBndry     0
 
 SofteningGasMaxPhys       30.0
 SofteningHaloMaxPhys      30.0
 SofteningDiskMaxPhys      0
-SofteningBulgeMaxPhys     0           
+SofteningBulgeMaxPhys     0
 SofteningStarsMaxPhys     0
 SofteningBndryMaxPhys     0
-

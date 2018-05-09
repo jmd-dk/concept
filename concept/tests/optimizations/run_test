@@ -64,4 +64,3 @@ mv "${this_dir}/output" "${this_dir}/output_with_optimizations"
 
 # Test ran successfully. Deactivate traps.
 trap : 0
-

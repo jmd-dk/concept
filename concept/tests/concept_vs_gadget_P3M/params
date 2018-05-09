@@ -51,4 +51,3 @@ class_reuse = False
 
 # Debugging options
 enable_class_background = False  # Use the same simplified Friedmann equation as GADGET
-

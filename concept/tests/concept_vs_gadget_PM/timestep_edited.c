@@ -6,7 +6,7 @@
 #include "allvars.h"
 #include "proto.h"
 
-/*! \file timestep.c 
+/*! \file timestep.c
  *  \brief routines for 'kicking' particles in momentum space and assigning new timesteps
  */
 

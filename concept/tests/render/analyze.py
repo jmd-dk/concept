@@ -68,4 +68,3 @@ if not np.any(render3D_0[:, :, :3] < [0.01]*3):
 
 # Done analyzing
 masterprint('done')
-

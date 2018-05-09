@@ -121,7 +121,7 @@ if sum(bool(re.search(f'^{this_dir}/t_class=(True|False)_compiled=(True|False)\.
     if not all(isclose(t1, t2, rel_tol=rel_tol)
                for t1, t2 in zip(all_times['CLASS, compiled'],
                                  all_times['CLASS, not compiled'])
-               ):        
+               ):
         abort('The cosmic times computed via interpolation of CLASS data '
               'are different between compiled and pure Python mode.\n'
               f'See "{fig_file}" for a visualization.'
@@ -130,10 +130,9 @@ if sum(bool(re.search(f'^{this_dir}/t_class=(True|False)_compiled=(True|False)\.
     if not all(isclose(t1, t2, rel_tol=rel_tol)
                for t1, t2 in zip(all_times['no CLASS, compiled'],
                                  all_times['no CLASS, not compiled'])
-               ):        
+               ):
         abort('The cosmic times computed via the simple Friedmann equation '
               'are different between compiled and pure Python mode.\n'
               f'See "{fig_file}" for a visualization.'
-              )   
+              )
     masterprint('done')
-

@@ -344,4 +344,3 @@ finally:
 # Exit gracefully
 colorprint "$(basename "${this_file}") utility ran successfully" "green"
 trap : 0
-

@@ -72,7 +72,7 @@ for fluid, particles in zip(fluid_components, particle_components):
     offset_fluid     = 0.5*(max(ϱ[0]) + min(ϱ[0]))
     A_particles      = 0.5*(max(y_i)  - min(y_i))
     offset_particles = 0.5*(max(y_i)  + min(y_i))
-    y_i -= offset_particles 
+    y_i -= offset_particles
     y_i *= A_fluid/A_particles
     y_i += offset_fluid
     y.append(y_i)
@@ -155,4 +155,3 @@ for ϱ_i, y_interp_i, a_i in zip(ϱ, y_interp, a):
 
 # Done analyzing
 masterprint('done')
-

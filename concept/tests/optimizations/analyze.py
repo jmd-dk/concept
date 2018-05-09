@@ -81,4 +81,3 @@ if not np.allclose(
         f'See "{render2D_with_optimizations_filename}" and '
         f'"{render2D_without_optimizations_filename}".'
     )
-

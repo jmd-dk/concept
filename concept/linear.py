@@ -138,7 +138,7 @@ class CosmoResults:
         # guarenteed to be stored there correctly already, as the
         # filename depends on the content of 'params', which also
         # include 'k_magnitudes'.
-        if master and not os.path.isfile(self.filename): 
+        if master and not os.path.isfile(self.filename):
             self.save('params')
             self.save('k_magnitudes')
     # Method returning a classy.Class instance, hooked into a CLASS
@@ -1071,7 +1071,7 @@ class TransferFunction:
                         # For σ we have
                         # σ_tot = (σ_1*(ρ_bar_1 + c⁻²P_bar_1) + σ_2*(ρ_bar_2 + c⁻²P_bar_2) + ...)
                         #          /((ρ_bar_1 + c⁻²P_bar_1) + (ρ_bar_2 + c⁻²P_bar_2) + ...)
-                        weights_species = {class_species: 
+                        weights_species = {class_species:
                                                    self.cosmoresults.ρ_bar(a_values, class_species)
                             + ℝ[light_speed**(-2)]*self.cosmoresults.P_bar(a_values, class_species)
                             for class_species in self.class_species.split('+')
@@ -2131,7 +2131,7 @@ def realize(component, variable, transfer_spline, cosmoresults,
         # (i.e. ϱ), 1 for vector (i.e. J), 2 for tensor (i.e. ς)).
         if fluid_index == 0 or isinstance(multi_index, str):
             # If multi_index is a str it is 'trace', which means that
-            # 𝒫 is being realized. 
+            # 𝒫 is being realized.
             # If fluid_index is 0, ϱ is being realized.
             tensor_rank = 0
         else:
@@ -2330,7 +2330,7 @@ def realize(component, variable, transfer_spline, cosmoresults,
         mass = component.mass
         # Get f_growth = H⁻¹Ḋ/D, where D is the linear growth factor
         f_growth = cosmoresults.growth_fac_f(a)
-        # Apply the Zeldovich approximation 
+        # Apply the Zeldovich approximation
         dim = multi_index[0]
         pos_dim = component.pos[dim]
         mom_dim = component.mom[dim]

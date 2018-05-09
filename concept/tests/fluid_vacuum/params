@@ -63,4 +63,3 @@ render2D_options = {
 
 # Debugging options
 enable_Hubble = False
-

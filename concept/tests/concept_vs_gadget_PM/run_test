@@ -116,4 +116,3 @@ cp "${this_dir}/timestep_edited.c" "${Gadget2_local_dir}/timestep.c"
 
 # Test ran successfully. Deactivate traps.
 trap : 0
-

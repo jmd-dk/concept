@@ -96,4 +96,3 @@ particles2fluid "${this_dir}/output/particles"
 
 # Test ran successfully. Deactivate traps.
 trap : 0
-

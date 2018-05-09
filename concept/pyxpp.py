@@ -69,7 +69,7 @@ the following changes happens to the source code (in the .pyx file):
 - Replace alloc, realloc and free with the corresponding PyMem_
   functions and take care of the casting from the void* to the
   appropriate pointer type.
-- Replaced the cast() function with actual Cython syntax, e.g. 
+- Replaced the cast() function with actual Cython syntax, e.g.
   <double[::1]>.
 - Loop unswitching is performed on if statements under an unswitch
   context manager, which are indented under one or more loops.
@@ -260,7 +260,7 @@ def cythonstring2code(lines, no_optimization):
         if not in_purePythonsection:
             if unindent:
                 line_without_triple_quotes = line
-                if (   line.startswith(' '*(indentation + 4) + '"""') 
+                if (   line.startswith(' '*(indentation + 4) + '"""')
                     or line.startswith(' '*(indentation + 4) + "'''")):
                     line_without_triple_quotes = line.replace('"""', '').replace("'''", '')
                 if len(line_without_triple_quotes) > 4:
@@ -395,7 +395,7 @@ def cython_structs(lines, no_optimization):
             for name, ctype, value in struct_content:
                 if value != '0':
                     new_lines.append("{}{}.{} = {}['{}']\n".format(' '*indentation,
-                                                                   varnames[0], 
+                                                                   varnames[0],
                                                                    name,
                                                                    varnames[1],
                                                                    name)
@@ -710,7 +710,7 @@ def constant_expressions(lines, no_optimization, first_call=True):
                              or line.lstrip().startswith('elif ')
                              )
                         ):
-                        linenr_to_skip.add(i + 1 + j)                        
+                        linenr_to_skip.add(i + 1 + j)
                     else:
                         break
             elif line.lstrip().startswith('try:'):
@@ -772,7 +772,7 @@ def constant_expressions(lines, no_optimization, first_call=True):
     while found_another_statement:
         found_another_statement = False
         new_lines = []
-        statement = ''       
+        statement = ''
         for line in lines:
             # Empty and comment lines
             line_lstrip = line.lstrip()
@@ -980,7 +980,7 @@ def constant_expressions(lines, no_optimization, first_call=True):
                 defined_in_function = [False]*len(variables)
                 for w, end in enumerate((i + 1, len(lines))):  # Second time: Check module scope
                     if w == 1 and module_scope:
-                        break                    
+                        break
                     for v, var in enumerate(variables):
                         if linenr_where_defined[v] != -1:
                             continue
@@ -1487,7 +1487,7 @@ def loop_unswitching(lines, no_optimization):
                         else:
                             print('From pyxpp.py: How did I end up here?', file=sys.stderr)
                             sys.exit(1)
-        return new_lines     
+        return new_lines
     # It is also possible that we have the following
     # impossible construct:
     # if condition:     # Keep
@@ -1665,7 +1665,7 @@ def cython_decorators(lines, no_optimization):
                             lonely = True
                             for k, c in enumerate(header[j]):
                                 if c == ',' and lonely:
-                                    header[j] = header[j][:k] + ' ' + header[j][(k + 1):] 
+                                    header[j] = header[j][:k] + ' ' + header[j][(k + 1):]
                                 if c in (',', '('):
                                     lonely = True
                                 elif c != ' ':
@@ -1815,7 +1815,7 @@ def power2product(lines, no_optimization):
             statements.append('result{} = 1.0/result{}\n'.format(varname_suffix, varname_suffix))
         return statements
     operators = r' +-*/^&|@,:;=!<>#$%?~'
-    starstar_replacement = '*__POWER__*'        
+    starstar_replacement = '*__POWER__*'
     power_counter = 0
     new_lines = []
     for line in lines:
@@ -2027,7 +2027,7 @@ def add_types_to_addition_chain_exponentiation_variables(lines, clines, no_optim
                           'unsignedshort'     : 'unsigned short',
                           'unsignedint'       : 'unsigned int',
                           'unsignedlong'      : 'unsigned long int',
-                          'unsignedpylonglong': 'unsigned long long int', 
+                          'unsignedpylonglong': 'unsigned long long int',
                           'ssizet'            : 'Py_ssize_t',
                           # Floating-point numbers
                           'double': 'double',
@@ -2068,7 +2068,7 @@ def add_types_to_addition_chain_exponentiation_variables(lines, clines, no_optim
         if match:
             # Base addition chain exponentiation found.
             # Get the variable name.
-            variable = match.group()           
+            variable = match.group()
             variable_numer = int(variable[(variable.rindex('_') + 1):])
             pattern = pattern_fmt.format(variable)
             pattern_pyobject = pattern_pyobject_fmt.format(variable)
@@ -2078,11 +2078,11 @@ def add_types_to_addition_chain_exponentiation_variables(lines, clines, no_optim
                 is_pyobject = False
                 for i, cline in enumerate(clines):
                     match = re.search(pattern, cline)
-                    if match:                            
+                    if match:
                         if not is_pyobject and cline.lstrip().startswith('PyObject'):
                             is_pyobject = True
                         elif is_pyobject:
-                            # A line like 
+                            # A line like
                             # __pyx_v_a__addition_chain_exponentiation__0 = __pyx_t_8;
                             # has been reached.
                             tmp_varname = match.group(1)
@@ -2181,7 +2181,7 @@ def fix_addresses(lines, no_optimization):
                         else:
                             # The case cython.address(a[7, 9:, 1])
                             addressof = addressof[:j] + ' ' + addressof[(j + 1):]
-                colons_or_ellipsis = ':' in addressof or '...' in addressof               
+                colons_or_ellipsis = ':' in addressof or '...' in addressof
                 line = line[:(address_index + 1)] + addressof + line[(address_index + i):]
             # One address corrected
             if line == line_ori:
@@ -2702,7 +2702,7 @@ def make_pxd(filename, no_optimization):
 
                 #declaration = re.sub("'.*?'", '', declaration)
                 declaration = re.sub('=.*\)', '', declaration) + ')'
-                
+
                 declaration = declaration.replace('=', '')
                 globals_code = (globals_code[:i] + ['@cython.cfunc',
                                                    '@cython.locals' + line[14:],
@@ -2784,7 +2784,7 @@ def make_pxd(filename, no_optimization):
     # The header_lines are all independent imports or declarations.
     # To ensure deterministic content of the pxd file,
     # the header_lines are sorted.
-    header_lines = sorted(header_lines)    
+    header_lines = sorted(header_lines)
     # Combine header_lines and pxd_lines
     while len(header_lines) > 0 and len(header_lines[0].strip()) == 0:
         header_lines = header_lines[1:]
@@ -2848,7 +2848,7 @@ if __name__ == '__main__':
             with open(os.devnull, "w") as devnull:
                 old_stdout = sys.stdout
                 sys.stdout = devnull
-                try:  
+                try:
                     yield
                 finally:
                     sys.stdout = old_stdout

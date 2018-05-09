@@ -84,4 +84,3 @@ particles.populate(momz, 'momz')
 
 # Save snapshot
 save(particles, initial_conditions)
-

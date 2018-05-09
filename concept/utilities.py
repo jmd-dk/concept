@@ -592,7 +592,7 @@ def info():
                 else:
                     masterprint('{:<16} {}'.format('N', component.N), indent=4)
                 masterprint('{:<16} {} m☉'.format('mass',
-                                                  significant_figures(component.mass/units.m_sun, 
+                                                  significant_figures(component.mass/units.m_sun,
                                                                       6,
                                                                       fmt='unicode',
                                                                       incl_zeros=False)
