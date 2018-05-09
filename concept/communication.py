@@ -807,9 +807,12 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1, root=master_rank
             recving = True
             if source == -1:
                 abort('Cannot receive when no source is given')
-        if 'bcast' == mpifun:
+        if 'bcast' in mpifun:
             sending = (rank == root)
             recving = not sending
+        if 'gather' in mpifun:
+            sending = True
+            recving = (rank == root)
     if not sending and not recving:
         if mpifun:
             abort('MPI function "{}" not understood'.format(mpifun))
@@ -878,6 +881,18 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1, root=master_rank
         size_recv = np.prod(shape_recv)
         if rank == root:
             size_recv = 0
+    elif mpifun == 'gather':
+        # The root process will receive a block of size_send
+        # from all processes.
+        if rank == root:
+            size_recv = nprocs*size_send
+    elif mpifun == 'gatherv':
+        # The root process will receive blocks of possibly different
+        # sizes from all processes. Communicate these sizes.
+        if rank == root:
+            sizes_recv = empty(nprocs, dtype=C2np['Py_ssize_t'])
+        Gather(asarray(size_send, dtype=C2np['Py_ssize_t']),
+            sizes_recv if rank == root else None)
     elif sending and recving:
         if mpifun == 'allgather':
             # A block of size_send is to be received from each process
@@ -947,6 +962,10 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1, root=master_rank
             Bcast(data_send, root=root)
         else:
             Bcast(data_recv, root=root)
+    elif mpifun == 'gather':
+        Gather(data_send, data_recv, root=root)
+    elif mpifun == 'gatherv':
+        Gatherv(data_send, (data_recv, sizes_recv) if rank == root else None, root=root)
     elif mpifun == 'isend':
         return Isend(data_send, dest=dest)
     elif mpifun == 'recv':

@@ -160,9 +160,11 @@ Allgather  = comm.Allgather
 Allgatherv = comm.Allgatherv
 Barrier    = comm.Barrier
 Bcast      = lambda buf, root=master_rank: comm.Bcast(buf, root)
-Gather     = comm.Gather
+Gather     = lambda sendbuf, recvbuf, root=master_rank: comm.Gather(sendbuf, recvbuf, root)
+Gatherv    = lambda sendbuf, recvbuf, root=master_rank: comm.Gatherv(sendbuf, recvbuf, root)
 Isend      = comm.Isend
-Reduce     = comm.Reduce
+Reduce     = lambda sendbuf, recvbuf, op=MPI.SUM, root=master_rank: comm.Reduce(
+    sendbuf, recvbuf, op, root)
 Recv       = comm.Recv
 Send       = comm.Send
 Sendrecv   = comm.Sendrecv
@@ -173,7 +175,7 @@ gather     = lambda obj, root=master_rank: comm.gather(obj, root)
 iprobe     = comm.iprobe
 isend      = comm.isend
 recv       = comm.recv
-reduce     = comm.reduce
+reduce     = lambda obj, op=MPI.SUM, root=master_rank: comm.reduce(obj, op, root)
 send       = comm.send
 sendrecv   = comm.sendrecv
 # Find out on which node the processes are running.
@@ -222,6 +224,11 @@ def sleeping_barrier(sleep_time, mode):
     their respective node master.
     """
     mode = mode.lower()
+    if mode not in ('single node', 'mpi'):
+        abort(
+            f'sleeping_barrier called with mode = "{mode}", '
+            f'but only "single node" and "MPI" are allowed'
+        )
     if (mode == 'single node' and master) or (mode == 'mpi' and node_master):
         # Signal slaves to continue
         requests = []
@@ -984,25 +991,26 @@ unicode_superscripts = dict(zip('0123456789-+e',
 
 # Function which takes in a string possibly containing units formatted
 # in fancy ways and returns a unformatted version.
-@cython.pheader(# Arguments
-                unit_str=str,
-                # Locals
-                ASCII_char=str,
-                after=str,
-                before=str,
-                c=str,
-                i='Py_ssize_t',
-                mapping=dict,
-                operators=str,
-                pat=str,
-                rep=str,
-                unicode_superscript=str,
-                unit_list=list,
-                returns=str,
-                )
+@cython.pheader(
+    # Arguments
+    unit_str=str,
+    # Locals
+    ASCII_char=str,
+    after=str,
+    before=str,
+    c=str,
+    i='Py_ssize_t',
+    mapping=dict,
+    operators=str,
+    pat=str,
+    rep=str,
+    unicode_superscript=str,
+    unit_list=list,
+    returns=str,
+)
 def unformat_unit(unit_str):
     """Example of effect:
-    '10¹⁰ m☉' -> '1e+10*m_sun'
+    '10¹⁰ m☉' -> '10**(10)*m_sun'
     """
     # Ensure unicode
     unit_str = unicode(unit_str)
@@ -1021,9 +1029,10 @@ def unformat_unit(unit_str):
             unit_list[i] = '*'
     unit_str = ''.join(unit_list)
     # Various replacements
-    mapping = {'×'          : '*',
-               '^'          : '**',
-               unicode('m☉'): 'm_sun',
+    mapping = {'×'           : '*',
+               '^'           : '**',
+               unicode('m☉') : 'm_sun',
+               unicode('m_☉'): 'm_sun',
                }
     for pat, rep in mapping.items():
         unit_str = unit_str.replace(pat, rep)
@@ -1173,14 +1182,18 @@ machine_ϵ = np.finfo(C2np['double']).eps
 ##################
 # Physical units #
 ##################
-# Dict relating all implemented units to the basic
-# three units (pc, yr, m_sun). Julian years are used.
-# Note that 'min' is not a good name for minutes,
-# as this name is already taken by the min function.
-unit_relations = {'yr':    1,
-                  'pc':    1,
-                  'm_sun': 1,
-                  }
+# Dict relating all implemented units to the basic three units
+# (pc, yr, m_sun). Julian years are used. Note that 'min' is not a good
+# name for minutes, as this name is already taken by the min function.
+# You may specify units here which shall not be part of the units
+# actually available in the code (this will come later).
+# The specifications here ar purely for the purpose of defining a unit
+# system based on the user input.
+unit_relations = {
+    'yr':    1,
+    'pc':    1,
+    'm_sun': 1,
+}
 # Add other time units
 unit_relations['kyr'    ] = 1e+3           *unit_relations['yr'     ]
 unit_relations['Myr'    ] = 1e+6           *unit_relations['yr'     ]
@@ -1209,6 +1222,9 @@ unit_relations['Mm_sun' ] = 1e+6           *unit_relations['m_sun'  ]
 unit_relations['Gm_sun' ] = 1e+9           *unit_relations['m_sun'  ]
 unit_relations['kg'     ] = 1/1.989e+30    *unit_relations['m_sun'  ]
 unit_relations['g'      ] = 1e-3           *unit_relations['kg'     ]
+# Add velocity units
+unit_relations['light_speed'] = unit_relations['ly']/unit_relations['yr']
+unit_relations['c'] = unit_relations['light_speed']
 # Add energy units
 unit_relations['J'      ] = (1             *unit_relations['kg'     ]
                                            *unit_relations['m'      ]**2
@@ -1670,6 +1686,7 @@ cython.declare(# Input/output
                class_k_max=dict,
                class_reuse='bint',
                class_plot_perturbations='bint',
+               class_extra_background=set,
                class_extra_perturbations=set,
                # Graphics
                terminal_width='int',
@@ -2003,6 +2020,10 @@ class_reuse = bool(user_params.get('class_reuse', True))
 user_params['class_reuse'] = class_reuse
 class_plot_perturbations = bool(user_params.get('class_plot_perturbations', False))
 user_params['class_plot_perturbations'] = class_plot_perturbations
+class_extra_background = set(
+    str(el) for el in any2list(user_params.get('class_extra_background', [])) if el
+)
+user_params['class_extra_background'] = class_extra_background
 class_extra_perturbations = set(
     str(el) for el in any2list(user_params.get('class_extra_perturbations', [])) if el
 )
@@ -2395,6 +2416,11 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node'):
     if extra_params is None:
         extra_params = {}
     mode = mode.lower()
+    if mode not in ('single node', 'mpi'):
+        abort(
+            f'call_class called with mode = "{mode}", '
+            f'but only "single node" and "mpi" are allowed'
+        )
     # Set the perturbations_verbose to some negative integer,
     # which is not a standard CLASS value but is used to signal
     # printout for the MPI class implementation.

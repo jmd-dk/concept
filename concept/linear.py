@@ -45,38 +45,6 @@ cimport('from mesh import get_fftw_slab,       '
 # together with the corresponding |k| values
 # and results retrieved from the classy.Class instance.
 class CosmoResults:
-    # Only part of the computed CLASS data is needed. Below, the keys
-    # corresponding to the needed fields of CLASS data is written as
-    # regular expressions.
-    needed_keys = {
-        # Background data as function of time
-        'background': {
-            # Time
-            r'^a$',
-            r'^z$',
-            r'^proper time \[Gyr\]$',
-            r'^H \[1/Mpc\]$',
-            # Density
-            r'^\(\.\)rho_',
-            # Pressure
-            r'^\(\.\)p_',
-            # Equation of state
-            r'^\(\.\)w_',
-            # Other
-            r'^gr.fac. f$',
-        },
-        # Perturbations at different k as function of time.
-        # Species specific perturbations
-        # will be added later.
-        'perturbations': {
-            # Time
-            r'^a$',
-            r'^tau \[Mpc\]$',
-            # Other
-            r'^h_prime$',
-            r'^theta_tot$',
-        },
-    }
     # Names of all implemented transfer function variables.
     # Functions with these names will be defined, which will return
     # the corresponding transfer function as a function of k,
@@ -96,6 +64,39 @@ class CosmoResults:
         If a filename is passed, CLASS data will be read from this file.
         Nothing will however be saved to this file.
         """
+        # Only part of the computed CLASS data is needed.
+        # Below, the keys corresponding to the needed fields of CLASS
+        # data is written as regular expressions.
+        # This dict need to be an instance variable, as it may be
+        # mutated by the methods.
+        self.needed_keys = {
+            # Background data as function of time
+            'background': {
+                # Time
+                r'^a$',
+                r'^z$',
+                r'^proper time \[Gyr\]$',
+                r'^H \[1/Mpc\]$',
+                # Density
+                r'^\(\.\)rho_',
+                # Pressure
+                r'^\(\.\)p_',
+                # Equation of state
+                r'^\(\.\)w_',
+                # Other
+                r'^gr.fac. f$',
+            },
+            # Perturbations at different k as function of time.
+            # Species specific perturbations will be added later.
+            'perturbations': {
+                # Time
+                r'^a$',
+                r'^tau \[Mpc\]$',
+                # Other
+                r'^h_prime$',
+                r'^theta_tot$',
+            },
+        }
         # Store the supplied objects
         self.params = params
         self.k_magnitudes = k_magnitudes
@@ -196,7 +197,7 @@ class CosmoResults:
                 # Retrieve k_pivot from the CLASS params.
                 # If not defined there, default to the standard CLASS
                 # value of 0.05 Mpc⁻¹. We store this in CLASS units.
-                self._k_pivot = self.params.get('k_pivot', 0.05)
+                self._k_pivot = float(self.params.get('k_pivot', 0.05))
                 # Save to disk
                 self.save('k_pivot')
             # Communicate
@@ -226,9 +227,12 @@ class CosmoResults:
                     # Add scale factor array
                     self._background['a'] = 1/(1 + self._background['z'])
                     # Only keep the needed background variables
-                    self._background = {key: arr for key, arr in self._background.items()
-                                        if any([re.search(pattern, key)
-                                                for pattern in self.needed_keys['background']])}
+                    self._background = {
+                        key: arr for key, arr in self._background.items()
+                        if any([re.search(pattern, key)
+                            for pattern in self.needed_keys['background'] | class_extra_background
+                        ])
+                    }
                     # Remove data points prior to class_a_min.
                     # A copy of the truncated data is used,
                     # making freeing the original CLASS data possible.
@@ -239,10 +243,25 @@ class CosmoResults:
                             else:
                                 index = i - 1
                             break
-                    self._background = {key: arr[index:].copy()
-                                        for key, arr in self._background.items()}
+                    self._background = {
+                        key: arr[index:].copy()
+                        for key, arr in self._background.items()
+                    }
                 # Save to disk
                 self.save('background')
+                # Now remove the extra CLASS background variables
+                # not used by this simulation.
+                if master and not special_params.get('keep_class_extra_background', False):
+                    for key in set(self._background.keys()):
+                        if not any([re.search(pattern, key)
+                            for pattern in class_extra_background]
+                        ):
+                            continue
+                        if any([re.search(pattern, key)
+                            for pattern in self.needed_keys['background']]
+                        ):
+                            continue
+                        del self._background[key]
             # Communicate background as
             # dict mapping str's to arrays.
             size = bcast(len(self._background) if master else None)
@@ -293,16 +312,23 @@ class CosmoResults:
             # Assuming a flat universe, we have rho_tot == rho_crit.
             if '(.)rho_crit' in self._background:
                 self._background['(.)rho_tot'] = self._background['(.)rho_crit']
+            # Remove doppelgänger values in all background variables,
+            # using the scale factor array as x values.
+            for key, val in self._background.items():
+                _, self._background[key] = remove_doppelgängers(
+                    self._background['a'], val, copy=True)
         return self._background
     # The raw perturbations
     @property
     def perturbations(self):
         if not hasattr(self, '_perturbations'):
-            # Add species specific perturbation keys to the class
-            # set self.needed_keys['perturbations'], based on the
+            # Add species specific perturbation keys to the set
+            # self.needed_keys['perturbations'], based on the
             # species present in the current simulation.
             for class_species_present in (universals_dict['class_species_present']
                 .decode().replace('[', '\[').replace(']', '\]').split('+')):
+                if not class_species_present:
+                    continue
                 self.needed_keys['perturbations'] |= {
                     # Density
                     rf'^delta_{class_species_present}$',
@@ -338,7 +364,7 @@ class CosmoResults:
                             key: arr.copy()
                             for key, arr in perturbation.items()
                             if any([re.search(pattern, key) for pattern in (
-                                self.needed_keys['perturbations'] | class_extra_perturbations   
+                                self.needed_keys['perturbations'] | class_extra_perturbations
                             )])
                          }
                          for perturbation in self._perturbations
@@ -389,11 +415,13 @@ class CosmoResults:
                 # As perturbations comprise the vast majority of the
                 # data volume of what is needed from CLASS, we might
                 # as well read in any remaining bits and clean up
-                # the C-space memory and delete any extra class
+                # the C-space memory and delete any extra CLASS
                 # perturbations (which have now been saved to disk).
                 self.load_everything('perturbations')
                 self.cosmo.struct_cleanup()
-                if node_master:
+                # Now remove the extra CLASS perturbations
+                # not used by this simulation.
+                if node_master and not special_params.get('keep_class_extra_perturbations', False):
                     for key in set(self._perturbations[0].keys()):
                         if not any([re.search(pattern, key)
                             for pattern in class_extra_perturbations]
@@ -403,8 +431,6 @@ class CosmoResults:
                             for pattern in self.needed_keys['perturbations']]
                         ):
                             continue
-                        # This key is for an extra class perturbation
-                        # that is not used by this simulation.
                         for perturbation in self._perturbations:
                             del perturbation[key]
             # As we only need perturbations defined within the
@@ -530,7 +556,7 @@ class CosmoResults:
     # Method for looking up the background density of a given
     # component/species at some specific a. If no component/species
     # is given, the critical density is returned.
-    def ρ_bar(self, a, component_or_class_species='crit'):
+    def ρ_bar(self, a, component_or_class_species='crit', apply_unit=True):
         if isinstance(component_or_class_species, str):
             class_species = component_or_class_species
         else:
@@ -545,12 +571,13 @@ class CosmoResults:
                 else:
                     values += asarray([spline.eval(a_i) for a_i in a])
         # Apply unit
-        values *= ℝ[3/(8*π*G_Newton)*(light_speed/units.Mpc)**2]
+        if apply_unit:
+            values *= ℝ[3/(8*π*G_Newton)*(light_speed/units.Mpc)**2]
         return values
     # Method for looking up the background pressure of a given
     # component/species at some specific a. A component/species
-    # has to be given
-    def P_bar(self, a, component_or_class_species):
+    # has to be given.
+    def P_bar(self, a, component_or_class_species, apply_unit=True):
         if isinstance(component_or_class_species, str):
             class_species = component_or_class_species
         else:
@@ -566,7 +593,8 @@ class CosmoResults:
                     values += asarray([spline.eval(a_i) for a_i in a])
         # Apply unit. Note that we define P_bar such that
         # w = c⁻²P_bar/ρ_bar.
-        values *= ℝ[3/(8*π*G_Newton)*(light_speed/units.Mpc)**2*light_speed**2]
+        if apply_unit:
+            values *= ℝ[3/(8*π*G_Newton)*(light_speed/units.Mpc)**2*light_speed**2]
         return values
     # Method for looking up f_growth = H⁻¹Ḋ/D (with D the linear
     # growth factor) at some a.
@@ -723,7 +751,12 @@ class CosmoResults:
                     key.replace('__per__', '/'): dset[...]
                     for key, dset in background_h5.items()
                     if any([re.search(pattern, key.replace('__per__', '/'))
-                        for pattern in self.needed_keys['background']])
+                        for pattern in self.needed_keys['background']
+                            | (class_extra_background
+                                if special_params.get('keep_class_extra_background', False)
+                                else set()
+                            )
+                    ])
                 }
             elif element == 'perturbations':
                 # Load perturbations stored as
@@ -758,7 +791,12 @@ class CosmoResults:
                         key.replace('__per__', '/'): dset[...]
                         for key, dset in d.items()
                         if any([re.search(pattern, key.replace('__per__', '/'))
-                            for pattern in self.needed_keys['perturbations']])
+                            for pattern in self.needed_keys['perturbations']
+                                | (class_extra_perturbations
+                                    if special_params.get('keep_class_extra_perturbations', False)
+                                    else set()
+                                )
+                        ])
                     }
                 masterprint('done')
                 # Check that all needed perturbations were present
@@ -1093,9 +1131,10 @@ class TransferFunction:
                             )
                         for class_species, available in perturbations_available.items():
                             if not available:
-                                masterwarn(missing_perturbations_warning.format(
-                                    class_perturbation_name, class_species,
-                                ))
+                                masterwarn(missing_perturbations_warning
+                                    .format(class_perturbation_name)
+                                    .format(class_species)
+                                )
                         if not any(perturbations_available.values()):
                             abort(
                                 f'No {class_perturbation_name} perturbations '
@@ -1473,7 +1512,12 @@ def compute_cosmo(k_min=-1, k_max=-1, k_gridsize=-1, gauge='synchronous', filena
     # If a gauge is given explicitly as a CLASS parameter in the
     # parameter file, this gauge should overwrite what ever is passed
     # to this function.
-    gauge = class_params.get('gauge', gauge).lower()
+    gauge = class_params.get('gauge', gauge).replace('-', '').lower()
+    if gauge not in ('synchronous', 'newtonian', 'nbody'):
+        abort(
+            f'Gauge was set to "{gauge}" but must be one of '
+            f'"N-body", "synchronous", "Newtonian"'
+        )
     # Shrink down k_gridsize if it is too large to be handled by CLASS.
     # Also use the largest allowed value as the default value,
     # when no k_gridsize is given.
@@ -1569,13 +1613,14 @@ def k_float2str(k):
 # Function for computing transfer functions as function of k
 @cython.pheader(# Arguments
                 component='Component',
-                variable=object,  # str, int or container of str's and ints
+                variable=object,  # str or int
                 k_min='double',
                 k_max='double',
                 k_gridsize='Py_ssize_t',
                 specific_multi_index=object,  # tuple, int-like or str
                 a='double',
                 gauge=str,
+                get=str,
                 # Locals
                 H='double',
                 any_negative_values='bint',
@@ -1591,19 +1636,36 @@ def k_float2str(k):
                 ȧ_transfer_θ_totʹ='double[::1]',
                 returns=tuple,  # (Spline, CosmoResults)
                 )
-def compute_transfer(component, variable, k_min, k_max,
-                     k_gridsize=-1, specific_multi_index=None, a=-1, gauge='N-body'):
+def compute_transfer(
+    component, variable, k_min, k_max,
+    k_gridsize=-1, specific_multi_index=None, a=-1, gauge='N-body',
+    get='spline',
+):
     """This function calls compute_cosmo which produces a CosmoResults
     instance which can talk to CLASS. Using the δ, θ, etc. methods on
     the CosmoResults object, TransferFunction instances are
     automatically created. All this function really implements
     are then the optional gauge transformations.
+    The return value is either (spline, cosmoresults) (get == 'spline')
+    or (array, cosmoresults) (get == 'array'), where spline is a Spline
+    object of the array.
     """
     # Argument processing
     var_index = component.varnames2indices(variable, single=True)
     if a == -1:
         a = universals.a
     gauge = gauge.replace('-', '').lower()
+    if gauge not in ('synchronous', 'newtonian', 'nbody'):
+        abort(
+            f'Gauge was set to "{gauge}" but must be one of '
+            f'"N-body", "synchronous", "Newtonian"'
+        )
+    get = get.lower()
+    if get not in ('spline', 'array'):
+        abort(
+            f'The get argument of compute_transfer was "{get}", '
+            f'but must be one of "spline" or "array"'
+        )
     # Compute the cosmology via CLASS. As the N-body gauge is not
     # implemented in CLASS, the synchronous gauge is used in its place.
     # We do the transformation from synchronous to N-body gauge later.
@@ -1684,8 +1746,11 @@ def compute_transfer(component, variable, k_min, k_max,
               f'of variable number {var_index}'
               )
     # Construct a spline object over the tabulated transfer function
-    transfer_spline = Spline(k_magnitudes, transfer)
-    return transfer_spline, cosmoresults
+    if get == 'spline':
+        transfer_spline = Spline(k_magnitudes, transfer)
+        return transfer_spline, cosmoresults
+    elif get == 'array':
+        return transfer, cosmoresults
 
 # Function which given a gridsize computes k_min, k_max and k_gridsize
 # which can be supplied to e.g. compute_transfer().

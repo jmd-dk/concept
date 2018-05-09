@@ -985,7 +985,7 @@ class Component:
             zip(self.fluidvars, self.fluid_names['ordered'])
         ):
             # The fluid variable
-            self.fluid_names[        fluidvar_name ] = index
+            self.fluid_names[asciify(fluidvar_name)] = index
             self.fluid_names[unicode(fluidvar_name)] = index
             self.fluid_names[index                 ] = index
             # The fluid scalars
@@ -993,7 +993,7 @@ class Component:
                 fluidscalar_name = fluidvar_name
                 if index > 0:
                     fluidscalar_name += ''.join(['xyz'[mi] for mi in multi_index])
-                self.fluid_names[        fluidscalar_name ] = (index, multi_index)
+                self.fluid_names[asciify(fluidscalar_name)] = (index, multi_index)
                 self.fluid_names[unicode(fluidscalar_name)] = (index, multi_index)
                 self.fluid_names[index, multi_index       ] = (index, multi_index)
         # Aditional fluid scalars
@@ -1002,10 +1002,10 @@ class Component:
             # The 𝒫 fluid scalar. Also, if the ς fluid variable exists
             # but is solely used to store 𝒫, mappings for it will not
             # exist yet. Add these as well.
-            self.fluid_names['𝒫'         ] = (2, 'trace')
+            self.fluid_names[asciify('𝒫')] = (2, 'trace')
             self.fluid_names[unicode('𝒫')] = (2, 'trace')
             self.fluid_names[2, 'trace'  ] = (2, 'trace')
-            self.fluid_names[        'ς' ] = 2
+            self.fluid_names[asciify('ς')] = 2
             self.fluid_names[unicode('ς')] = 2
             self.fluid_names[2           ] = 2
         # Also include particle variable names in the fluid_names dict
@@ -2446,7 +2446,7 @@ def update_species_present(components):
     """We cannot change the species_present and class_species_present
     fields of the universals structure, as this would require sticking
     in a new char*. Instead we use the universals_dict dict.
-    For consistency, we store te species as bytes objects.
+    For consistency, we store the species as bytes objects.
     """
     if not components:
         return
