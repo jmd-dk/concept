@@ -244,6 +244,104 @@ def plot_detrended_perturbations(a_values, perturbations_detrended, transferfunc
     plt.savefig(filename)
     plt.close()
 
+# Function for plotting processed CLASS perturbations
+@cython.pheader(
+    # Arguments
+    a_values='double[::1]',
+    k_magnitudes='double[::1]',
+    transfer='double[:, ::1]',
+    var_name=str,
+    class_species=str,
+    n_plots_in_figure='Py_ssize_t',
+    # Locals
+    a='double',
+    dirname=str,
+    i='Py_ssize_t',
+    i_figure='Py_ssize_t',
+    key=str,
+    nfigs='Py_ssize_t',
+    unit_latex=str,
+    val=str,
+    var_name_ascii=str,
+    var_name_latex=str,
+)
+def plot_processed_perturbations(a_values, k_magnitudes, transfer, var_name, class_species,
+    n_plots_in_figure=10):
+    """The 2D transfer array is the tabulated transfer function values,
+    indexed as transfer[a, k], with the values of a and k given by
+    a_values and k_magnitudes.
+    """
+    # All processes could carry out this work, but as it involved I/O,
+    # we only allow the master process to do so.
+    if not master:
+        abort(f'rank {rank} called plot_processed_perturbations()')
+    masterprint(
+        f'Plotting {var_name} {class_species} transfer functions ...'
+    )
+    var_name_latex = var_name
+    for key, val in {
+        'δ': r'{\delta}',
+        'θ': r'{\theta}',
+        'ρ': r'{\rho}',
+        'σ': r'{\sigma}',
+        'ʹ': r'^{\prime}',
+    }.items():
+        var_name_latex = var_name_latex.replace(key, val)
+    var_name_ascii = (var_name_latex
+        .replace('\\', '')
+        .replace('{', '')
+        .replace('}', '')
+        .replace('^', '')
+        .replace('/', '_')
+        .replace('sigma', 'shear')
+        .replace('prime', '_prime')
+    )
+    dirname = '/'.join([
+        output_dirs['powerspec'],
+        'class_perturbations_processed',
+        f'{var_name_ascii}_{class_species}'  
+    ])
+    os.makedirs(dirname, exist_ok=True)
+    unit_latex = {
+        'δ'    : rf'',
+        'θ'    : rf'[\mathrm{{{unit_time}}}^{{-1}}]',
+        'δP': (
+            rf'['
+            rf'\mathrm{{{unit_mass}}}'
+            rf'\mathrm{{{unit_length}}}^{{-1}}'
+            rf'\mathrm{{{unit_time}}}^{{-2}}'
+            rf']'
+        ),
+        'σ': rf'[\mathrm{{{unit_length}}}^2\mathrm{{{unit_time}}}^{{-2}}]',
+        'hʹ': rf'[\mathrm{{{unit_time}}}^{{-1}}]',
+    }[var_name]
+    unit_latex = (unit_latex
+        .replace('(', '{')
+        .replace(')', '}')
+        .replace('**', '^')
+        .replace('*', '')
+        .replace('m_sun', r'm_{\odot}')
+    )
+    nfigs = int(log10(a_values.shape[0])) + 1
+    i_figure = 0
+    plt.figure()
+    for i in range(a_values.shape[0]):
+        a = a_values[i]
+        plt.semilogx(k_magnitudes, transfer[i, :],
+            label='$a={}$'.format(significant_figures(a, nfigs, fmt='tex')))
+        if ((i + 1)%n_plots_in_figure == 0) or i == ℤ[a_values.shape[0] - 1]:
+            plt.legend()
+            plt.xlabel(rf'$k\,[\mathrm{{{unit_length}}}^{{-1}}]$', fontsize=14)
+            plt.ylabel(rf'${var_name_latex}\, {unit_latex}$', fontsize=14)
+            plt.gca().tick_params(axis='x', which='major', labelsize=13)
+            fix_minor_tick_labels()
+            plt.tight_layout()
+            plt.savefig(f'{dirname}/{i_figure}.png')
+            i_figure += 1
+            plt.cla()
+    plt.close()
+    masterprint('done')
+
 # This function produces 2D renders of the density fields of single
 # and sets of components.
 @cython.header(

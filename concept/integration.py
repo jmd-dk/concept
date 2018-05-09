@@ -221,8 +221,9 @@ class Spline:
 def remove_doppelgängers(xs, y, rel_tol=1e-1, copy=False):
     """Given arrays of x and y values, this function checks for
     doppelgängers in the x values, meaning consecutive x values that are
-    exactly or very nearly equal. New arrays with with doppelgängers
+    exactly or very nearly equal. New arrays with doppelgängers
     removed to single points will be returned.
+    You may have as many x arrays as you like.
     The relative tolerence used in determining doppelgängers is given
     by rel_tol.
     For this function to work, the x values must be in increasing order.
@@ -792,16 +793,22 @@ def scalefactor_integral(key):
 # cosmology if enable_Hubble is True. The functions t(a), a(t) and H(a)
 # will also be tabulated and stored in the module namespace in the
 # form of spline_a_t, spline_t_a and spline_a_H.
-@cython.pheader(# Locals
-                H_values='double[::1]',
-                a_begin_correct='double',
-                a_values='double[::1]',
-                background=dict,
-                t_values='double[::1]',
-                t_begin_correct='double',
-                )
-def initiate_time():
-    global spline_a_t, spline_t_a, spline_a_H
+@cython.pheader(
+    # Arguments
+    reinitialize='bint',
+    # Locals
+    H_values='double[::1]',
+    a_begin_correct='double',
+    a_values='double[::1]',
+    background=dict,
+    t_values='double[::1]',
+    t_begin_correct='double',
+)
+def initiate_time(reinitialize=False):
+    global time_initialized, spline_a_t, spline_t_a, spline_a_H
+    if time_initialized and not reinitialize:
+        return
+    time_initialized = True
     if enable_Hubble:
         # Hubble expansion enabled.
         # If CLASS should be used to compute the evolution of
@@ -865,8 +872,10 @@ def initiate_time():
     # Initiate the current universal time and scale factor
     universals.t = t_begin_correct
     universals.a = a_begin_correct
-    
-    
+cython.declare(time_initialized='bint')
+time_initialized = False
+
+
 
 # Global Spline objects defined by initiate_time
 cython.declare(spline_a_t='Spline', spline_t_a='Spline', spline_a_H='Spline')

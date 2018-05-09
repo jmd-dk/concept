@@ -1,0 +1,58 @@
+# This is the default parameter file used by the CLASS utility
+
+# Input/output
+initial_conditions = [
+    {
+        'name'             : 'matter component',
+        'species'          : 'matter fluid',
+        'gridsize'         : 2,
+        'boltzmann_order'  : 1,
+        'boltzmann_closure': 'truncate',
+    },
+    {
+        'name'             : 'neutrino component',
+        'species'          : 'neutrino fluid',
+        'gridsize'         : 2,
+        'boltzmann_order'  : 1,
+        'boltzmann_closure': 'truncate',
+    },
+]
+output_dirs = {'powerspec': paths['output_dir']}
+
+# Numerical parameters
+boxsize = 4*Gpc
+φ_gridsize = 1000
+modes_per_decade = 30
+
+# Cosmology
+H0      = 70*km/(s*Mpc)
+Ωcdm    = 0.25 - Ων
+Ωb      = 0.05
+a_begin = 0.02
+class_params = {
+    # Primordial parameters
+    'n_s'                    : 1,
+    'A_s'                    : 2.30e-09,
+    'k_pivot'                : 0.05,
+    # Neutrino parameters
+    'N_ur'                   : 0,
+    'N_ncdm'                 : 1,
+    'deg_ncdm'               : 3,
+    'm_ncdm'                 : 1/3,
+    'l_max_ncdm'             : 30,
+    'Number of momentum bins': 30,
+    'Maximum q'              : 15,
+}
+
+# Simulation options
+class_k_max = {}
+class_reuse = True
+class_plot_perturbations = False
+class_extra_background = ['conf. time']
+class_extra_perturbations = []
+
+# System of units
+unit_length = 'Mpc'
+unit_time   = 'Gyr'
+unit_mass   = '10¹⁰ m☉'
+

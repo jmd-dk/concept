@@ -32,7 +32,7 @@ cimport('from communication import partition,                   '
         '                          smart_mpi,                   '
         )
 cimport('from mesh import domain_decompose, get_fftw_slab, slab_decompose')
-cimport('from species import Component, FluidScalar, get_representation')
+cimport('from species import Component, FluidScalar, get_representation, update_species_present')
 
 # Pure Python imports
 import struct
@@ -1197,6 +1197,145 @@ def out_of_bounds_check(component, snapshot_boxsize=-1):
                                                     snapshot_boxsize,
                                                     unit_length),
                   )
+
+# Function that either loads existing initial conditions from a snapshot
+# or produces the initial conditions itself.
+@cython.header(
+    # Arguments
+    do_realization='bint',
+    # Locals
+    N_components_from_snapshot='Py_ssize_t',
+    N_or_gridsize='Py_ssize_t',
+    component='Component',
+    components=list,
+    initial_condition_specifications=list,
+    initial_conditions_list=list,
+    name=str,
+    path_or_specifications=object,  # str or dict
+    representation=str,
+    specifications=dict,
+    species=str,
+    ϱ_bbar_components='double',
+    ϱ_cdmbar_components='double',
+    ϱ_mbar_components='double',
+    returns=list,
+)
+def get_initial_conditions(do_realization=True):
+    if not initial_conditions:
+        return []
+    # The initial_conditions parameter should be a list or tuple of
+    # initial conditions, each of which can be a str (path to snapshot)
+    # or a dict describing a component to be realized.
+    # If the initial_conditions parameter itself is a str or dict,
+    # wrap it in a list.
+    if isinstance(initial_conditions, (str, dict)):
+        initial_conditions_list = [initial_conditions]
+    else:
+        initial_conditions_list = list(initial_conditions)
+    # Now parse the list of initial conditions
+    components = []
+    initial_condition_specifications = []
+    for path_or_specifications in initial_conditions_list:
+        if isinstance(path_or_specifications, str):
+            # Initial condition snapshot is given. Load it.
+            components += load(sensible_path(path_or_specifications), only_components=True)
+        elif isinstance(path_or_specifications, dict):
+            # A component to realize is given. Remember this.
+            initial_condition_specifications.append(path_or_specifications.copy())
+        else:
+            abort(f'Error parsing initial_conditions of type {type(path_or_dict)}')
+    N_components_from_snapshot = len(components)
+    # Instantiate the component(s) given as
+    # initial condition specifications.
+    for specifications in initial_condition_specifications:
+        name = specifications.pop('name')
+        species = specifications.pop('species')
+        representation = get_representation(species)
+        if 'N_or_gridsize' in specifications:
+            N_or_gridsize = specifications.pop('N_or_gridsize')
+            if 'N' in specifications:
+                masterwarn(
+                    f'Both N and N_or_gridsize specified '
+                    f'for component "{name}". The value of N will be ignored.'
+                )
+            if 'gridsize' in specifications:
+                masterwarn(
+                    f'Both gridsize and N_or_gridsize specified '
+                    f'for component "{name}". The value of gridsize will be ignored.'
+                )
+        elif 'N' in specifications:
+            N_or_gridsize = specifications.pop('N')
+            if 'gridsize' in specifications:
+                masterwarn(
+                    f'Both gridsize and N specified '
+                    f'for component "{name}". The value of gridsize will be ignored.'
+                )
+            if representation == 'fluid':
+                masterwarn(
+                    f'N = {N_or_gridsize} was specified '
+                    f'for fluid component "{name}". This will be used as the gridsize.'
+                )
+        elif 'gridsize' in specifications:
+            N_or_gridsize = specifications.pop('gridsize')
+            if representation == 'particles':
+                masterwarn(
+                    f'gridsize = {N_or_gridsize} was specified '
+                    f'for particle component "{name}". This will be used as N.'
+                )
+        else:
+            if representation == 'particles':
+                abort(f'No N specified for "{name}"')
+            elif representation == 'fluid':
+                abort(f'No gridsize specified for "{name}"')
+        # Show a warning if not enough information is given to
+        # construct the initial conditions.
+        if (species in ('neutrinos', 'neutrino fluid')
+            and class_params.get('N_ncdm', 0) == 0):
+            masterwarn(
+                f'Component "{name}" with species "{species}" specified, '
+                f'but the N_ncdm CLASS parameter is 0'
+            )
+        # Instantiate
+        component = Component(name, species, N_or_gridsize, **specifications)
+        components.append(component)
+    # Populate universals_dict['species_present']
+    # and universals_dict['class_species_present'].
+    update_species_present(components)
+    # Realize all components instantiated from
+    # initial condition specifications.
+    if do_realization:
+        for component in components[N_components_from_snapshot:]:
+            component.realize()
+    # Issue warnings if the combined energy density of the components
+    # exceed those of the specified Ωcdm and Ωb,
+    # assuming a flat universe.
+    ϱ_bbar_components = 0
+    ϱ_cdmbar_components = 0
+    ϱ_mbar_components = 0
+    for component in components:
+        if component.species in {'baryon fluid', 'baryons'}:
+            ϱ_bbar_components += component.ϱ_bar
+        elif component.species in {'dark matter fluid', 'dark matter particles'}:
+            ϱ_cdmbar_components += component.ϱ_bar
+        elif component.species in {'matter fluid', 'matter particles'}:
+            ϱ_mbar_components += component.ϱ_bar
+    ϱ_mbar_components += ϱ_bbar_components + ϱ_cdmbar_components
+    if ϱ_bbar_components > Ωb*ρ_crit and not isclose(ϱ_bbar_components, Ωb*ρ_crit, 1e-6):
+        masterwarn(
+            f'Though Ωb = {Ωb}, the energy density of the components '
+            f'add up to Ωb = {ϱ_bbar_components/ρ_crit}'
+        )
+    if ϱ_cdmbar_components > Ωcdm*ρ_crit and not isclose(ϱ_cdmbar_components, Ωcdm*ρ_crit, 1e-6):
+        masterwarn(
+            f'Though Ωcdm = {Ωcdm}, the energy density of the components '
+            f'add up to Ωcdm = {ϱ_cdmbar_components/ρ_crit}'
+        )
+    if ϱ_mbar_components > Ωm*ρ_crit and not isclose(ϱ_mbar_components, Ωm*ρ_crit, 1e-6):
+        masterwarn(
+            f'Though Ωm = {Ωm}, the energy density of the components '
+            f'add up to Ωm = {ϱ_mbar_components/ρ_crit}'
+        )
+    return components
 
 
 

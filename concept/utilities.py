@@ -30,14 +30,15 @@ from commons import *
 # identical names are defined here.
 cimport('import analysis')
 cimport('from analysis import measure')
-cimport('from communication import domain_subdivisions, exchange')
+cimport('from communication import domain_subdivisions, exchange, partition, smart_mpi')
 cimport('import graphics')
-cimport('from integration import initiate_time')
+cimport('from integration import initiate_time, remove_doppelgängers')
+cimport('from linear import compute_cosmo, compute_transfer, get_default_k_parameters')
 cimport('from mesh import CIC_particles2fluid')
 cimport('from snapshot import get_snapshot_type, snapshot_extensions')
 cimport('import species')
 cimport('from species import get_representation')
-cimport('from snapshot import load, save')
+cimport('from snapshot import get_initial_conditions, load, save')
 
 
 
@@ -640,3 +641,266 @@ def info():
                 masterprint('{:<16} {}'.format(key, val), indent=4)
         # End of information
         masterprint('')
+
+# Function that saves the processed CLASS background
+# and perturbations to an hdf5 file.
+@cython.pheader(
+    # Locals
+    a='double',
+    a_first='double',
+    a_min='double',
+    a_size='Py_ssize_t',
+    a_start='Py_ssize_t',
+    a_values='double[::1]',
+    all_a_values='double[::1]',
+    arr='double[::1]',
+    class_species=str,
+    complete_transfer='double[:, ::1]',
+    component='Component',
+    component_variables=dict,
+    components=list,
+    filename=str,
+    i='Py_ssize_t',
+    index='Py_ssize_t',
+    k_gridsize='Py_ssize_t',
+    k_magnitudes='double[::1]',
+    k_max='double',
+    k_min='double',
+    max_a_values='double',
+    max_a_values_str=str,
+    perturbations=dict,
+    size='Py_ssize_t',
+    transfer='double[:, ::1]',
+    transfer_of_k='double[::1]',
+    var_name=str,
+    var_name_ascii=str,
+    variable_specifications=list,
+)
+def CLASS():
+    # Suppress warning about the total energy density of the components
+    # being too high, as the components are not used to perform a
+    # simulation anyway.
+    suppress_output['err'].add('the energy density of the components add up to')
+    # Initialize components, but do not realize them
+    initiate_time()
+    components = get_initial_conditions(do_realization=False)
+    # Do CLASS computation
+    k_min, k_max, k_gridsize = get_default_k_parameters(φ_gridsize)
+    cosmoresults = compute_cosmo(k_min, k_max, k_gridsize)
+    cosmoresults.load_everything()
+    k_magnitudes = cosmoresults.k_magnitudes
+    # Store all CLASS parameters, the unit system in use
+    # and the processed background in a new hdf5 file.
+    if master:
+        filename = output_dirs['powerspec'] + '/class_processed.hdf5'
+        os.makedirs(output_dirs['powerspec'], exist_ok=True)
+        with open_hdf5(filename, mode='w') as hdf5_file:
+            # Store CLASS parameters as attributes on the
+            # "params" group. This is the only place CLASS parameters
+            # will be stored. If you need to know further parameters
+            # used by CLASS (i.e. default values), you should specify
+            # these explicitly in the class_params user parameter.
+            # No unit convertion will take place.
+            params_h5 = hdf5_file.require_group('params')
+            for key, val in cosmoresults.params.items():
+                key = key.replace('/', '__per__')
+                params_h5.attrs[key] = val
+            # Store the unit system in use. This is important as the
+            # background variables below (and later the perturbations)
+            # will be stored in these units.
+            units_h5 = hdf5_file.require_group('units')
+            units_h5.attrs['unit time'  ] = unit_time
+            units_h5.attrs['unit length'] = unit_length
+            units_h5.attrs['unit mass'  ] = unit_mass
+            # Store background variables present in the
+            # cosmoresults.background dict. Here we convert to the
+            # current unit system in use.
+            background_h5 = hdf5_file.require_group('background')
+            for key, arr in cosmoresults.background.items():
+                key = key.replace('/', '__per__')
+                if key.startswith('(.)rho_'):
+                    # The "(.)" notation is CLASS syntax reminding us
+                    # that we need to multiply by 3/(8πG).
+                    # We do this and convert to the proper units
+                    # using the ρ_bar method.
+                    class_species = key.split('(.)rho_')[1]
+                    arr = cosmoresults.ρ_bar(cosmoresults.background['a'], class_species)
+                    # Now, the "(.)" prefix should be dropped
+                    key = key.split('(.)')[1]
+                elif key.startswith('(.)p'):
+                    # The "(.)" notation is CLASS syntax reminding us
+                    # that we need to multiply by 3/(8πG).
+                    # We do this and convert to the proper units
+                    # using the P_bar method.
+                    class_species = key.split('(.)p_')[1]
+                    arr = cosmoresults.P_bar(cosmoresults.background['a'], class_species)
+                    # Now, the "(.)" prefix should be dropped
+                    key = key.split('(.)')[1]
+                elif key in {'a', 'z'}:
+                    # Unitless
+                    pass
+                elif key == 'proper time [Gyr]':
+                    arr = asarray(arr)*units.Gyr
+                    key = 't'
+                elif key == 'conf. time [Mpc]':
+                    arr = asarray(arr)*(units.Mpc/light_speed)
+                    key = 'tau'
+                elif key in {'H [1/Mpc]', 'H [1__per__Mpc]'}:
+                    arr = asarray(arr)*(light_speed/units.Mpc)
+                    key = 'H'
+                elif key == 'gr.fac. f':
+                    # Unitless as this is H⁻¹Ḋ/D
+                    pass
+                else:
+                    masterwarn(
+                        f'Unrecognized CLASS background variable "{key}". '
+                        f'Unit convertion could not be carried out.'
+                    )
+                dset = background_h5.create_dataset(key, (arr.shape[0],), dtype=C2np['double'])
+                dset[:] = arr
+            # Also store ρ_bar and P_bar for the class species of the
+            # components, if these are combination species.
+            for component in components:
+                if '+' not in component.class_species:
+                    continue
+                key = f'rho_{component.class_species}'
+                arr = cosmoresults.ρ_bar(cosmoresults.background['a'], component)
+                dset = background_h5.create_dataset(key, (arr.shape[0],), dtype=C2np['double'])
+                dset[:] = arr
+                key = f'p_{component.class_species}'
+                arr = cosmoresults.P_bar(cosmoresults.background['a'], component)
+                dset = background_h5.create_dataset(key, (arr.shape[0],), dtype=C2np['double'])
+                dset[:] = arr
+    # Create dict mapping components to lists
+    # of (variable, specific_multi_index).
+    component_variables = {}
+    for component in components:
+        # Create list of (variable, specific_multi_index, var_name)
+        variable_specifications = [(0, None, 'δ')]
+        if component.representation == 'fluid':
+            if component.boltzmann_order > 1 or (
+                component.boltzmann_order == 1 and component.boltzmann_closure == 'class'):
+                variable_specifications.append((1, None, 'θ'))
+            if component.boltzmann_order > 2 or (
+                component.boltzmann_order == 2 and component.boltzmann_closure == 'class'):
+                variable_specifications.append((2, (0, 0), 'σ'))
+            if not component.approximations['P=wρ']:
+                variable_specifications.append((2, 'trace', 'δP'))
+        component_variables[component] = variable_specifications
+    # Construct array of a values at which to tabulate the
+    # transfer functions. This is done by merging all of the a arrays
+    # for the individual k modes, ensuring that all perturbations will
+    # be smooth on this common grid of a values.
+    a_min = 0
+    size = 0
+    for perturbations in cosmoresults.perturbations:
+        a_values = perturbations['a']
+        a_first = a_values[0]
+        if a_first > a_min:
+            a_min = a_first
+        size += a_values.shape[0]
+    all_a_values = np.empty(size, dtype=C2np['double'])
+    index = 0
+    for perturbations in cosmoresults.perturbations:
+        a_values = perturbations['a']
+        size = a_values.shape[0]
+        all_a_values[index:index+size] = a_values
+        index += size
+    asarray(all_a_values).sort()
+    for index in range(all_a_values.shape[0]):
+        if all_a_values[index] == a_min:
+            all_a_values = all_a_values[index:]
+            break
+    all_a_values, _ = remove_doppelgängers(all_a_values, all_a_values, rel_tol=0.5)
+    all_a_values = asarray(all_a_values).copy()
+    # If too many a values are given, evenly select the amount given by
+    # the "max_a_values" utility argument.
+    max_a_values_str = str(special_params['max_a_values'])
+    if max_a_values_str in {'inf', 'np.inf', 'numpy.inf'}:
+        max_a_values = ထ
+    else:
+        try:
+            max_a_values = float(max_a_values_str)
+        except:
+            try:
+                max_a_values = float(eval(max_a_values_str))
+            except:
+                abort(f'Could not interpret max_a_values = {max_a_values_str}')
+    if all_a_values.shape[0] > max_a_values:
+        step = float(all_a_values.shape[0])/(max_a_values - 1)
+        all_a_values_selected = np.empty(int(max_a_values), dtype=C2np['double'])
+        for i in range(int(max_a_values) - 1):
+            all_a_values_selected[i] = all_a_values[cast(int(i*step), 'Py_ssize_t')]
+        all_a_values_selected[int(max_a_values) - 1] = all_a_values[all_a_values.shape[0] - 1]
+        all_a_values = all_a_values_selected
+    # Store the a and k values at which the perturbations are tabulated
+    if master:
+        with open_hdf5(filename, mode='a') as hdf5_file:
+            perturbations_h5 = hdf5_file.require_group('perturbations')
+            dset = perturbations_h5.create_dataset(
+                'a', (all_a_values.shape[0], ), dtype=C2np['double'],
+            )
+            dset[:] = all_a_values
+            dset = perturbations_h5.create_dataset(
+                'k', (k_magnitudes.shape[0], ), dtype=C2np['double'],
+            )
+            dset[:] = k_magnitudes
+    # Get transfer functions of k for each a.
+    # Partition the work across the a values.
+    # Collect the results into the 2D transfer array.
+    # Once a complete transfer function (given at all a and k values)
+    # has been constructed, it is saved to disk and possibly plotted.
+    # For the next transfer function, we reuse the same 2D arrays,
+    # as all transfer functions are tabulated at the same a and k.
+    a_start, a_size = partition(all_a_values.shape[0])
+    transfer = np.empty((a_size, k_gridsize), dtype=C2np['double'])
+    if master:
+        complete_transfer = np.empty((all_a_values.shape[0], k_gridsize), dtype=C2np['double'])
+    gauge = special_params['gauge']
+    for component, variable_specifications in component_variables.items():
+        for variable, specific_multi_index, var_name in variable_specifications:
+            for i in range(a_size):
+                a = all_a_values[a_start + i]
+                transfer_of_k, _ = compute_transfer(
+                    component, variable, k_min, k_max,
+                    k_gridsize, specific_multi_index, a, gauge,
+                    get='array',
+                )
+                transfer[i, :] = transfer_of_k
+            # Gather transfer function data into the master
+            smart_mpi(transfer, complete_transfer if master else None, mpifun='gatherv')
+            if not master:
+                continue
+            # Save transfer function to disk
+            masterprint(
+                f'Saving processed {var_name} {component.class_species} '
+                f'transfer functions ...'
+            )
+            var_name_ascii = var_name
+            for key, val in {
+                'δ': 'delta',
+                'θ': 'theta',
+                'σ': 'shear',
+            }.items():
+                var_name_ascii = var_name_ascii.replace(key, val)
+            with open_hdf5(filename, mode='a') as hdf5_file:
+                perturbations_h5 = hdf5_file.require_group('perturbations')
+                dset = perturbations_h5.create_dataset(
+                    f'{var_name_ascii}_{component.class_species}',
+                    asarray(complete_transfer).shape,
+                    dtype=C2np['double'],
+                )
+                dset[...] = complete_transfer
+            masterprint('done')
+            # Plot transfer functions
+            if class_plot_perturbations:
+                graphics.plot_processed_perturbations(
+                    all_a_values,
+                    k_magnitudes,
+                    complete_transfer,
+                    var_name,
+                    component.class_species,
+                )
+    # Done writing processed CLASS output
+    if master:
+        masterprint(f'All processed CLASS output has been saved to "{filename}"')
