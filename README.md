@@ -48,7 +48,7 @@ CO*N*CEPT on a cluster, but instead make use of an already installed
 MPI 3 library (any implementation should do). This is achieved by
 setting the `mpi_dir` variable, e.g.
 
-    concept_version=0.1.0
+    concept_version=v0.1.0
     mpi_dir=/path/to/mpi bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/${concept_version}/installer) [/path/to/concept] [--fast]
 
 This trick may also be used should you wish to use

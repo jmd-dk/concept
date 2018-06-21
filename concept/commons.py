@@ -155,19 +155,37 @@ rank = comm.rank
 # and a flag identifying this process.
 master_rank = 0
 master = (rank == master_rank)
-# MPI functions for communication
-Allgather  = comm.Allgather
-Allgatherv = comm.Allgatherv
-Barrier    = comm.Barrier
-Bcast      = lambda buf, root=master_rank: comm.Bcast(buf, root)
-Gather     = lambda sendbuf, recvbuf, root=master_rank: comm.Gather(sendbuf, recvbuf, root)
-Gatherv    = lambda sendbuf, recvbuf, root=master_rank: comm.Gatherv(sendbuf, recvbuf, root)
-Isend      = comm.Isend
-Reduce     = lambda sendbuf, recvbuf, op=MPI.SUM, root=master_rank: comm.Reduce(
-    sendbuf, recvbuf, op, root)
-Recv       = comm.Recv
-Send       = comm.Send
-Sendrecv   = comm.Sendrecv
+# MPI functions for communication.
+# For never versions of NumPy, we have to pass the dtype of the arrays
+# explicitly when using uppercase communication methods.
+def buf_and_dtype(buf):
+    try:
+        arr = asarray(buf)
+        if arr.shape:
+            return (buf, arr.dtype.char)
+    except:
+        pass
+    return buf
+Allgather = lambda sendbuf, recvbuf: comm.Allgather(
+    buf_and_dtype(sendbuf), recvbuf)
+Allgatherv = lambda sendbuf, recvbuf: comm.Allgatherv(
+    buf_and_dtype(sendbuf), recvbuf)
+Barrier = comm.Barrier
+Bcast = lambda buf, root=master_rank: comm.Bcast(buf_and_dtype(buf), root)
+Gather = lambda sendbuf, recvbuf, root=master_rank: comm.Gather(
+    buf_and_dtype(sendbuf), recvbuf, root)
+Gatherv = lambda sendbuf, recvbuf, root=master_rank: comm.Gatherv(
+    buf_and_dtype(sendbuf), recvbuf, root)
+Isend = lambda buf, dest, tag=0: comm.Isend(buf_and_dtype(buf), dest, tag)
+Reduce = lambda sendbuf, recvbuf, op=MPI.SUM, root=master_rank: comm.Reduce(
+    buf_and_dtype(sendbuf), recvbuf, op, root)
+Recv = lambda buf, source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG: comm.Recv(
+    buf_and_dtype(buf), source, tag)
+Send = lambda buf, dest, tag=0: comm.Send(buf_and_dtype(buf), dest, tag)
+Sendrecv = (lambda sendbuf, dest, sendtag=0, recvbuf=None, source=MPI.ANY_SOURCE,
+    recvtag=MPI.ANY_TAG, status=None: comm.Sendrecv(buf_and_dtype(sendbuf), dest, sendtag,
+        recvbuf, source, recvtag, status)
+)
 allgather  = comm.allgather
 allreduce  = comm.allreduce
 bcast      = lambda obj, root=master_rank: comm.bcast (obj, root)
@@ -1074,6 +1092,12 @@ def eval_unit(unit_str, namespace=None, fail_on_error=True):
     # Evaluate the transformed unit string
     if namespace is None:
         namespace = units_dict
+    namespace = {
+        **vars(np),
+        **namespace,
+        unicode('π'): π,
+        asciify('π'): π,
+    }
     if fail_on_error:
         unit = eval(unit_str, namespace)
     else:
@@ -1152,15 +1176,22 @@ jobid = int(argd.get('jobid', -1))
 #######################
 # Read parameter file #
 #######################
-# Read in the content of the parameter file.
-# All handling of parameters defined in the parameter file
-# will be done later
+# Read in the content of the parameter file
 cython.declare(params_file_content=str)
 params_file_content = ''
 if master and os.path.isfile(paths['params_cp']):
     with open(paths['params_cp'], encoding='utf-8') as params_file:
         params_file_content = params_file.read()
 params_file_content = bcast(params_file_content)
+# Often, h ≡ H0/(100*km/(s*Mpc)) is used in unit specifications.
+# To allow for this, we add lines defining h from H0.
+params_file_content += '\n'.join([
+    '\n# Added by commons.py',
+    'h = (H0 if "H0" in globals() else 0)/(100*km/(s*Mpc))',
+    'h = float(f"{h:g}")',
+])
+# All further handling of parameters defined in the parameter file
+# will be done later.
 
 
 
@@ -1183,7 +1214,7 @@ machine_ϵ = np.finfo(C2np['double']).eps
 # Physical units #
 ##################
 # Dict relating all implemented units to the basic three units
-# (pc, yr, m_sun). Julian years are used. Note that 'min' is not a good
+# (pc, yr, m_sun). Note that 'min' is not a good
 # name for minutes, as this name is already taken by the min function.
 # You may specify units here which shall not be part of the units
 # actually available in the code (this will come later).
@@ -1195,45 +1226,54 @@ unit_relations = {
     'm_sun': 1,
 }
 # Add other time units
-unit_relations['kyr'    ] = 1e+3           *unit_relations['yr'     ]
-unit_relations['Myr'    ] = 1e+6           *unit_relations['yr'     ]
-unit_relations['Gyr'    ] = 1e+9           *unit_relations['yr'     ]
-unit_relations['day'    ] = 1/365.25       *unit_relations['yr'     ]
-unit_relations['hr'     ] = 1/24           *unit_relations['day'    ]
-unit_relations['minutes'] = 1/60           *unit_relations['hr'     ]
-unit_relations['s'      ] = 1/60           *unit_relations['minutes']
+unit_relations['kyr'    ] = 1e+3            *unit_relations['yr'     ]
+unit_relations['Myr'    ] = 1e+6            *unit_relations['yr'     ]
+unit_relations['Gyr'    ] = 1e+9            *unit_relations['yr'     ]
+unit_relations['day'    ] = 1/365.25        *unit_relations['yr'     ]  # Exact Julian year
+unit_relations['hr'     ] = 1/24            *unit_relations['day'    ]
+unit_relations['minutes'] = 1/60            *unit_relations['hr'     ]
+unit_relations['s'      ] = 1/60            *unit_relations['minutes']
 # Add other length units
-unit_relations['kpc'    ] = 1e+3           *unit_relations['pc'     ]
-unit_relations['Mpc'    ] = 1e+6           *unit_relations['pc'     ]
-unit_relations['Gpc'    ] = 1e+9           *unit_relations['pc'     ]
-unit_relations['AU'     ] = π/(60*60*180)  *unit_relations['pc'     ]
-unit_relations['m'      ] = 1/149597870700 *unit_relations['AU'     ]
-unit_relations['mm'     ] = 1e-3           *unit_relations['m'      ]
-unit_relations['cm'     ] = 1e-2           *unit_relations['m'      ]
-unit_relations['km'     ] = 1e+3           *unit_relations['m'      ]
-unit_relations['ly'     ] = ((299792458*unit_relations['m']/unit_relations['s'])
-                                           *unit_relations['yr'     ])
-unit_relations['kly'    ] = 1e+3           *unit_relations['ly'     ]
-unit_relations['Mly'    ] = 1e+6           *unit_relations['ly'     ]
-unit_relations['Gly'    ] = 1e+9           *unit_relations['ly'     ]
+unit_relations['kpc'    ] = 1e+3            *unit_relations['pc'     ]
+unit_relations['Mpc'    ] = 1e+6            *unit_relations['pc'     ]
+unit_relations['Gpc'    ] = 1e+9            *unit_relations['pc'     ]
+unit_relations['AU'     ] = π/(60*60*180)   *unit_relations['pc'     ]  # IAU exact definition, 2015
+unit_relations['m'      ] = 1/149597870700  *unit_relations['AU'     ]  # IAU exact definition, 2012
+unit_relations['mm'     ] = 1e-3            *unit_relations['m'      ]
+unit_relations['cm'     ] = 1e-2            *unit_relations['m'      ]
+unit_relations['km'     ] = 1e+3            *unit_relations['m'      ]
+unit_relations['ly'     ] = (                                           # CGPM exact definition, 1983
+    (299792458*unit_relations['m']/unit_relations['s'])*unit_relations['yr']
+)
+unit_relations['kly'    ] = 1e+3            *unit_relations['ly'     ]
+unit_relations['Mly'    ] = 1e+6            *unit_relations['ly'     ]
+unit_relations['Gly'    ] = 1e+9            *unit_relations['ly'     ]
 # Add other mass units
-unit_relations['km_sun' ] = 1e+3           *unit_relations['m_sun'  ]
-unit_relations['Mm_sun' ] = 1e+6           *unit_relations['m_sun'  ]
-unit_relations['Gm_sun' ] = 1e+9           *unit_relations['m_sun'  ]
-unit_relations['kg'     ] = 1/1.989e+30    *unit_relations['m_sun'  ]
-unit_relations['g'      ] = 1e-3           *unit_relations['kg'     ]
-# Add velocity units
-unit_relations['light_speed'] = unit_relations['ly']/unit_relations['yr']
-unit_relations['c'] = unit_relations['light_speed']
+unit_relations['km_sun' ] = 1e+3            *unit_relations['m_sun'  ]
+unit_relations['Mm_sun' ] = 1e+6            *unit_relations['m_sun'  ]
+unit_relations['Gm_sun' ] = 1e+9            *unit_relations['m_sun'  ]
+unit_relations['kg'     ] = 1/1.98848e+30   *unit_relations['m_sun'  ]  # Particle data group, 2017
+unit_relations['g'      ] = 1e-3            *unit_relations['kg'     ]
 # Add energy units
-unit_relations['J'      ] = (1             *unit_relations['kg'     ]
-                                           *unit_relations['m'      ]**2
-                                           *unit_relations['s'      ]**(-2)
-                             )
-unit_relations['eV'     ] = 1.602176565e-19*unit_relations['J'      ]
-unit_relations['keV'    ] = 1e+3           *unit_relations['eV'     ]
-unit_relations['MeV'    ] = 1e+6           *unit_relations['eV'     ]
-unit_relations['GeV'    ] = 1e+9           *unit_relations['eV'     ]
+unit_relations['J'      ] = (
+    unit_relations['kg']*unit_relations['m']**2*unit_relations['s']**(-2)
+)
+unit_relations['eV'     ] = 1.6021766208e-19*unit_relations['J'      ]  # Particle data group, 2017
+unit_relations['keV'    ] = 1e+3            *unit_relations['eV'     ]
+unit_relations['MeV'    ] = 1e+6            *unit_relations['eV'     ]
+unit_relations['GeV'    ] = 1e+9            *unit_relations['eV'     ]
+# Add additional units
+unit_relations['light_speed'] = unit_relations['c'] = unit_relations['ly']/unit_relations['yr']
+unit_relations['h_bar'] = unit_relations['hbar'] = unit_relations[unicode('ħ')] = unit_relations[asciify('ħ')] = (
+    1.054571800e-34                                                     # Particle data group, 2017
+    *unit_relations['kg']*unit_relations['m']**2/unit_relations['s']
+)
+unit_relations['G_Newton'] = unit_relations['G'] = (                     # Particle data group, 2017
+    6.67408e-11*unit_relations['m']**3/(unit_relations['kg']*unit_relations['s']**2)
+)
+
+
+
 # Function which given a function name present both in NumPy and in the
 # Python builtins will produce a function which first calls the NumPy
 # version, and then (on failure) calls the builtin version. This is
@@ -1408,9 +1448,17 @@ cython.declare(light_speed='double',
 # The speed of light in vacuum
 light_speed = units.ly/units.yr
 # Reduced Planck constant
-ħ = 1.054571800e-34*units.kg*units.m**2/units.s
+ħ = (
+    unit_relations['ħ']
+    /(unit_relations['kg']*unit_relations['m']**2/unit_relations['s'])
+    *units.kg*units.m**2/units.s
+)
 # Newton's gravitational constant
-G_Newton = 6.6738e-11*units.m**3/(units.kg*units.s**2)
+G_Newton = (
+    unit_relations['G_Newton']
+    /(unit_relations['m']**3/(unit_relations['kg']*unit_relations['s']**2))
+    *units.m**3/(units.kg*units.s**2)
+)
 
 
 
@@ -1532,7 +1580,7 @@ if 'class_params' in user_params:
     if 'Ωb' in user_params:
         class_params_default['Omega_b'] = user_params['Ωb']
     # Add in neutrino CLASS parameters, if neutrinos are present
-    if 'N_ncdm' in user_params['class_params']:
+    if int(user_params['class_params'].get('N_ncdm', 0)) != 0:
         class_params_default.update({# Disable fluid approximation for non-CDM species
                                      'ncdm_fluid_approximation': 3,
                                      # Neutrino options needed for accurate δP/δρ
@@ -1583,13 +1631,16 @@ cython.declare(
 if inferred_params_set['Ων']:
     Ων = float(user_params['Ων'])
 else:
-    cosmo = Class()
-    cosmo.set(user_params.get('class_params', {}))
-    call_openmp_lib(cosmo.compute)
-    background = cosmo.get_background()
-    if bcast('(.)rho_ncdm[0]' in background):
-        Ων = bcast(background['(.)rho_ncdm[0]'][-1]/background['(.)rho_crit'][-1]
-                   if master else None)
+    if int(user_params.get('class_params', {}).get('N_ncdm', 0)) != 0:
+        cosmo = Class()
+        cosmo.set(user_params.get('class_params', {}))
+        masterprint('Calling CLASS in order to determine Ων ...')
+        call_openmp_lib(cosmo.compute)
+        masterprint('done')
+        background = cosmo.get_background()
+        if bcast('(.)rho_ncdm[0]' in background):
+            Ων = bcast(background['(.)rho_ncdm[0]'][-1]/background['(.)rho_crit'][-1]
+                if master else None)
 inferred_params_final['Ων'] = Ων
 # Update user_params with the correct values for the inferred params
 user_params.update(inferred_params_final)
@@ -2347,7 +2398,7 @@ class_params_default = {'H0'       : H0/(units.km/(units.s*units.Mpc)),
                         'Omega_b'  : Ωb,
                         }
 # Add in neutrino CLASS parameters, if neutrinos are present
-if 'N_ncdm' in class_params:
+if int(class_params.get('N_ncdm', 0)) != 0:
     class_params_default.update({# Disable fluid approximation for non-CDM species
                                  'ncdm_fluid_approximation': 3,
                                  # Neutrino options needed for accurate δP/δρ
@@ -3107,9 +3158,9 @@ def open_hdf5(filename, **kwargs):
 
 
 
-####################################################
-# Sanity checks and corrections to user parameters #
-####################################################
+##############################################################
+# Sanity checks and corrections/additions to user parameters #
+##############################################################
 # Abort on unrecognized snapshot_type
 if snapshot_type not in ('standard', 'gadget2'):
     abort('Does not recognize snapshot type "{}"'.format(user_params['snapshot_type']))
@@ -3197,8 +3248,13 @@ if t_begin < 0:
             f'The simulation start at t = {t_begin} {unit_time} < 0. '
             f'Negative times might lead to unexpected behavior.'
         )
-
-
+# Allow for easier names in class_extra_background
+if any(D1_name in class_extra_background for D1_name in {'D', 'D1'}):
+    class_extra_background.add('gr.fac. D')
+if any(f1_name in class_extra_background for f1_name in {'f', 'f1'}):
+    class_extra_background.add('gr.fac. f')
+if any(τ_name in class_extra_background for τ_name in {unicode('τ'), asciify('τ'), 'tau'}):
+    class_extra_background.add('conf. time')
 
 ###########################################################
 # Functionality for "from commons import *" when compiled #

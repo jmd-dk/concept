@@ -696,22 +696,26 @@ def CLASS():
         os.makedirs(output_dirs['powerspec'], exist_ok=True)
         with open_hdf5(filename, mode='w') as hdf5_file:
             # Store CLASS parameters as attributes on the
-            # "params" group. This is the only place CLASS parameters
-            # will be stored. If you need to know further parameters
-            # used by CLASS (i.e. default values), you should specify
-            # these explicitly in the class_params user parameter.
-            # No unit convertion will take place.
-            params_h5 = hdf5_file.require_group('params')
+            # "class_params" group. If you need to know furthe
+            # parameters used by CLASS (i.e. default values),
+            # you should specify these explicitly in the class_params
+            # user parameter. No unit convertion will take place.
+            params_h5 = hdf5_file.require_group('class_params')
             for key, val in cosmoresults.params.items():
                 key = key.replace('/', '__per__')
-                params_h5.attrs[key] = val
-            # Store the unit system in use. This is important as the
-            # background variables below (and later the perturbations)
-            # will be stored in these units.
+                params_h5.attrs[key] = bytes(str(val), encoding='ascii')
+            # Store the unit system in use. This is important as all
+            # variables stored below will be stored in these units.
             units_h5 = hdf5_file.require_group('units')
-            units_h5.attrs['unit time'  ] = unit_time
-            units_h5.attrs['unit length'] = unit_length
-            units_h5.attrs['unit mass'  ] = unit_mass
+            for unit_name, unit_val in {
+                'unit time': unit_time,
+                'unit length': unit_length,
+                'unit mass': unit_mass,
+                }.items():
+                try:
+                    units_h5.attrs[unit_name] = bytes(unit_val, encoding='ascii')
+                except UnicodeEncodeError:
+                    units_h5.attrs[unit_name] = unit_val
             # Store background variables present in the
             # cosmoresults.background dict. Here we convert to the
             # current unit system in use.
@@ -726,7 +730,7 @@ def CLASS():
                     class_species = key.split('(.)rho_')[1]
                     arr = cosmoresults.ρ_bar(cosmoresults.background['a'], class_species)
                     # Now, the "(.)" prefix should be dropped
-                    key = key.split('(.)')[1]
+                    key = key.lstrip('(.)')
                 elif key.startswith('(.)p'):
                     # The "(.)" notation is CLASS syntax reminding us
                     # that we need to multiply by 3/(8πG).
@@ -735,7 +739,7 @@ def CLASS():
                     class_species = key.split('(.)p_')[1]
                     arr = cosmoresults.P_bar(cosmoresults.background['a'], class_species)
                     # Now, the "(.)" prefix should be dropped
-                    key = key.split('(.)')[1]
+                    key = key.lstrip('(.)')
                 elif key in {'a', 'z'}:
                     # Unitless
                     pass
@@ -748,9 +752,12 @@ def CLASS():
                 elif key in {'H [1/Mpc]', 'H [1__per__Mpc]'}:
                     arr = asarray(arr)*(light_speed/units.Mpc)
                     key = 'H'
+                elif key == 'gr.fac. D':
+                    # Unitless
+                    key = 'D1'
                 elif key == 'gr.fac. f':
-                    # Unitless as this is H⁻¹Ḋ/D
-                    pass
+                    # Unitless
+                    key = 'f1'
                 else:
                     masterwarn(
                         f'Unrecognized CLASS background variable "{key}". '
@@ -833,7 +840,10 @@ def CLASS():
             all_a_values_selected[i] = all_a_values[cast(int(i*step), 'Py_ssize_t')]
         all_a_values_selected[int(max_a_values) - 1] = all_a_values[all_a_values.shape[0] - 1]
         all_a_values = all_a_values_selected
-    # Store the a and k values at which the perturbations are tabulated
+    # Store the a and k values at which the perturbations are tabulated,
+    # as well as the primordial parameters needed to convert transfer
+    # functions into power spectra and the gauge.
+    gauge = special_params['gauge']
     if master:
         with open_hdf5(filename, mode='a') as hdf5_file:
             perturbations_h5 = hdf5_file.require_group('perturbations')
@@ -845,6 +855,10 @@ def CLASS():
                 'k', (k_magnitudes.shape[0], ), dtype=C2np['double'],
             )
             dset[:] = k_magnitudes
+            for primordial_key in {'A_s', 'n_s', 'k_pivot'}:
+                perturbations_h5.attrs[primordial_key] = getattr(cosmoresults, primordial_key)
+            perturbations_h5.attrs['gauge'] = bytes(
+                gauge.replace('-', '').lower(), encoding='ascii')
     # Get transfer functions of k for each a.
     # Partition the work across the a values.
     # Collect the results into the 2D transfer array.
@@ -856,7 +870,6 @@ def CLASS():
     transfer = np.empty((a_size, k_gridsize), dtype=C2np['double'])
     if master:
         complete_transfer = np.empty((all_a_values.shape[0], k_gridsize), dtype=C2np['double'])
-    gauge = special_params['gauge']
     for component, variable_specifications in component_variables.items():
         for variable, specific_multi_index, var_name in variable_specifications:
             for i in range(a_size):
