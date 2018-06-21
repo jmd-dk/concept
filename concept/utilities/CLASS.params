@@ -1,4 +1,12 @@
-# This is the default parameter file used by the CLASS utility
+# This is the default parameter file used by the CLASS utility.
+# It matches the parameter file examples/cosmology.par of the
+# PKDGRAV code as closely as possible. The only diffence should
+# come from CLASS having radiation.
+# Massive neutrinos can be added by setting the
+# _with_neutrinos flag to True.
+_with_neutrinos = False
+
+
 
 # Input/output
 initial_conditions = [
@@ -9,49 +17,74 @@ initial_conditions = [
         'boltzmann_order'  : 1,
         'boltzmann_closure': 'truncate',
     },
-    {
-        'name'             : 'neutrino component',
-        'species'          : 'neutrino fluid',
-        'gridsize'         : 2,
-        'boltzmann_order'  : 1,
-        'boltzmann_closure': 'truncate',
-    },
 ]
-output_dirs = {'powerspec': paths['output_dir']}
+if _with_neutrinos:
+    initial_conditions.append(
+        {
+             'name'             : 'neutrino component',
+             'species'          : 'neutrino fluid',
+             'gridsize'         : 2,
+             'boltzmann_order'  : 1,
+             'boltzmann_closure': 'truncate',
+        },
+    )
+output_dirs = {'powerspec': paths['output_dir'] + '/class'}
 
 # Numerical parameters
-boxsize = 4*Gpc
-φ_gridsize = 1000
+boxsize = 1600000*Mpc/h
+φ_gridsize = 10000000
 modes_per_decade = 30
 
 # Cosmology
-H0      = 70*km/(s*Mpc)
-Ωcdm    = 0.25 - Ων
-Ωb      = 0.05
-a_begin = 0.02
+_nu_mass = 0.1  # ∑mν [eV]
+H0      = 67*km/(s*Mpc)
+Ωcdm    = 0.27 - Ων
+Ωb      = 0.049
+a_begin = 1/(1 + 99)
 class_params = {
     # Primordial parameters
-    'n_s'                    : 1,
-    'A_s'                    : 2.30e-09,
-    'k_pivot'                : 0.05,
-    # Neutrino parameters
-    'N_ur'                   : 0,
-    'N_ncdm'                 : 1,
-    'deg_ncdm'               : 3,
-    'm_ncdm'                 : 1/3,
-    'l_max_ncdm'             : 30,
-    'Number of momentum bins': 30,
-    'Maximum q'              : 15,
+    'k_pivot': 0.05,
+    'n_s'    : 0.96,
+    # We CAN in fact freely switch beween A_s and sigma8.
+    # Given A_s = 2.142e-09, CAMB gives sigma8 = 0.8348 for "all matter", whatever that means.
+    'sigma8' : 0.8348,
+    # Massless neutrinos
+    'N_ur': 3.046,
+    # Recombination
+    'T_cmb': 2.7255,
+    'YHe': 0.2453,
+    'reio_parametrization': 'reio_camb',
+    'z_reio': 11.153,
 }
+if _with_neutrinos:
+    class_params.update({
+        # Remove massless neutrinos
+        'N_ur': 0,
+        # Massive neutrino parameters
+        'N_ncdm'                 : 1,
+        'deg_ncdm'               : 3,
+        'm_ncdm'                 : _nu_mass/3,
+        'l_max_ncdm'             : 100,
+        'Number of momentum bins': 100,
+        'Maximum q'              : 18,
+    })
+    # Use A_s, not sigma8. Here we use the A_s that corresponds
+    # to the sigma8 above in the massless neutrino case. Note that
+    # For sigma8 = 0.8348, CLASS yields A_s = 2.134672e-09,
+    # while the sigma8 = 0.8348 is the result of running CAMB
+    # with A_s = 2.142e-09.
+    del class_params['sigma8']
+    class_params['A_s'] = 2.134672e-09
 
 # Simulation options
 class_k_max = {}
 class_reuse = True
-class_plot_perturbations = False
-class_extra_background = ['conf. time']
+class_plot_perturbations = True
+class_extra_background = ['tau', 'D1']
 class_extra_perturbations = []
 
 # System of units
 unit_length = 'Mpc'
 unit_time   = 'Gyr'
 unit_mass   = '10¹⁰ m☉'
+

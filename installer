@@ -235,38 +235,38 @@ set_version(){
 # GitHub branches and releases.
 set_version "concept"         "master"
 set_version "class"           "2.6.3"
-set_version "fftw"            "3.3.7"  "3.3.5"
+set_version "fftw"            "3.3.8"  "3.3.5"
 set_version "fftw_for_gadget" "2.1.5"  "2.1.5"   # Do not change
-set_version "freetype"        "2.9"    "2.8.1"
+set_version "freetype"        "2.9.1"  "2.8.1"
 set_version "gadget"          "2.0.7"            # Do not change
-set_version "gsl"             "2.4"    "2.3"
-set_version "hdf5"            "1.10.1" "1.10.0"
+set_version "gsl"             "2.5"    "2.3"
+set_version "hdf5"            "1.10.2" "1.10.0"
 set_version "libpng"          "1.6.34" "1.6.32"
 if [ "${mpi}" == "openmpi" ]; then
-    set_version "mpi"         "3.0.1"
+    set_version "mpi"         "3.1.0"
 elif [ "${mpi}" == "mpich" ]; then
     set_version "mpi"         "3.2.1"  "3.2"
 fi
 set_version "ncurses"         "6.1"    "6.0"
 set_version "openblas"        "0.2.20" "0.2.20"
 set_version "openssl"         "1.1.0h" "1.1.0f"
-set_version "perl"            "5.26.1"
+set_version "perl"            "5.26.2"
 set_version "python"          "3.6.5"
 set_version "zlib"            "1.2.11" "1.2.8"
 # Python packages
 set_version "blessings"     "1.6.1"
-set_version "cython"        "0.27.3"  # 0.28.1 prints a lot of annoying warnings. Maybe fixed in 0.28.2
+set_version "cython"        "0.28.3"  # 0.28.1 prints a lot of annoying warnings. Maybe fixed in 0.28.2
 set_version "cythongsl"     "0.2.2"
-set_version "h5py"          "2.7.1"
+set_version "h5py"          "2.8.0"
 set_version "matplotlib"    "2.2.2"
 set_version "mpi4py"        "3.0.0"
 set_version "nose"          "1.3.7"
-set_version "numpy"         "1.14.2"
+set_version "numpy"         "1.14.5"
 set_version "parameterized" "0.6.1"
 set_version "pip"           "9.0.3"
-set_version "pytest"        "3.5.0"
-set_version "scipy"         "1.0.0"
-set_version "setuptools"    "39.0.1"
+set_version "pytest"        "3.6.2"
+set_version "scipy"         "1.1.0"
+set_version "setuptools"    "39.2.0"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
 # and specific versions of system dependencies.
@@ -2752,6 +2752,40 @@ init_install(){
     done
 }
 
+# Function for detecting when the current process appears to hang.
+# When an apparent hang is detected, a soothing message is displaayed.
+# This should be used when installing Python packages, as pip/setuptools
+# sometimes has this bad hanging behaviour, especially for particular
+# packages, such as h5py. This function should not be called in a
+# situation where you do not believe that the hang is only apparent.
+soothe(){
+    # Argument: PID of background process on which to wait
+    soothe_pid=$1
+    # A long wait is detected by repeatedly
+    # checking the size of the log file generated
+    # by this installation script.
+    soothe_update_time=300
+    (
+    log_size_last=-1;                                                                        \
+    log_size=$(du -b "${log}" | awk '{print $1}');                                           \
+    while :; do                                                                              \
+        sleep ${soothe_update_time};                                                         \
+        log_size_new=$(du -b "${log}" | awk '{print $1}');                                   \
+        if [ ${log_size} -eq ${log_size_new} ] && [ ${log_size} -ne ${log_size_last} ]; then \
+            printf "\nThe next step may take an unreasonable amount of time.
+Please be patient ...\n";                                                                    \
+            sleep 5;                                                                         \
+            log_size_new=$(du -b "${log}" | awk '{print $1}');                               \
+            log_size_last=${log_size_new};                                                   \
+        fi;                                                                                  \
+        log_size=${log_size_new};                                                            \
+    done                                                                                     \
+    ) & soothe_killer_pid=$!
+    wait ${soothe_pid} || :
+    kill ${soothe_killer_pid} >/dev/null 2>&1 || :  # No forcefull kill (no -9)
+    wait ${soothe_killer_pid} >/dev/null 2>&1 || :
+}
+
 # zlib
 if [ "${zlib_install}" == "yes" ] && [ "${zlib_installed}" == "no" ]; then
     init_install "zlib"
@@ -3124,19 +3158,40 @@ fi
 # Perl
 if [ "${perl_install}" == "yes" ] && [ "${perl_installed}" == "no" ]; then
     init_install "Perl"
-    # For some reason, make sometimes fails to build.
-    # A fix for this is written below. First we try without the fix,
-    # then with the fix.
-    ./Configure -de -Dprefix="${perl_dir}" 2>&1
-    perl_build_failed="False"
-    make ${make_jobs} 2>&1 || perl_build_failed="True"
+    # Sometimes make fails to build due to #include of poll.h from a
+    # wrong location. A fix for this is implemented below. First we try
+    # without the fix, then with the fix.
+    # Furthermore, if no C compiler is explicitly set, the Configure
+    # script will find one by itself. Using some C compilers
+    # (e.g. craycc) may lead to failure, while gcc should be a safe
+    # choice. Below we first specify gcc as the C compiler, and if this
+    # does not work for whatever reason, we try again without specifying
+    # the C compiler.
+    for perl_poll_fix in "False" "True"; do
+        for perl_c_compiler in "gcc" ""; do
+            if [ -n "${perl_c_compiler}" ]; then
+                ./Configure -de -Dprefix="${perl_dir}" -Dcc="${perl_c_compiler}" 2>&1 || :
+            else
+                ./Configure -de -Dprefix="${perl_dir}"                           2>&1 || :
+            fi
+            if [ "${perl_poll_fix}" == "True" ]; then
+                sed -i 's/<poll\.h>/<sys\/poll\.h>/' "dist/IO/poll.h"
+            fi
+            perl_build_failed="False"
+            make ${make_jobs} 2>&1 || perl_build_failed="True"
+            if [ "${perl_build_failed}" == "False" ]; then
+                break
+            fi
+            make distclean || :
+        done
+        if [ "${perl_build_failed}" == "False" ]; then
+            break
+        fi
+    done
     if [ "${perl_build_failed}" == "True" ]; then
-        make distclean
-        ./Configure -de -Dprefix="${perl_dir}" 2>&1
-        sed -i 's/<poll\.h>/<sys\/poll\.h>/' "dist/IO/poll.h"
-        make ${make_jobs} 2>&1
+        error "Error installing Perl"
+        exit 1
     fi
-    perl_build_failed="False"
     if [ "${fast_install}" == "no" ]; then
         make ${make_jobs} test 2>&1 | tee "test_log"
         [ ${PIPESTATUS[0]} != 0 ] && perl_test_success="no"
@@ -3249,9 +3304,17 @@ if [ "${python_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
             export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
             export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
         fi
-        # Configure
+        # Configure.
+        # When optimizations are enabled, some of the tests which are
+        # performed may hang. It appears that the configure script
+        # allows each test to take up to an hour before they are
+        # forcefully killed. We thus do not need to kill any such
+        # hanging process manually. We do however write out a soothing
+        # message in the case of such hangs, letting the user know that
+        # everything is all right.
         ./configure --enable-shared ${optimize_flag} --prefix="${python_dir}" \
-            ${with_ensurepip_install} 2>&1 || pybuild_success="no"
+            ${with_ensurepip_install} 2>&1 || pybuild_success="no" & python_configure_pid=$!
+        soothe ${python_configure_pid}
         if [ "${pybuild_success}" == "no" ]; then
             if [ -z "${optimize_flag}" ]; then
                 echo "Error: Failed to install Python without optimizations"
@@ -3466,40 +3529,6 @@ pip_download(){
         error "Error downloading ${1}"
         exit 1
     fi
-}
-
-# Function for detecting when the current process appears to hang.
-# When an apparent hang is detected, a soothing message is displaayed.
-# This should be used when installing Python packages, as pip/setuptools
-# sometimes has this bad hanging behaviour, especially for particular
-# packages, such as h5py. This function should not be called in a
-# situation where you do not believe that the hang is only apparent.
-soothe(){
-    # Argument: PID of background process on which to wait
-    soothe_pid=$1
-    # A long wait is detected by repeatedly
-    # checking the size of the log file generated
-    # by this installation script.
-    soothe_update_time=300
-    (
-    log_size_last=-1;                                                                        \
-    log_size=$(du -b "${log}" | awk '{print $1}');                                           \
-    while :; do                                                                              \
-        sleep ${soothe_update_time};                                                         \
-        log_size_new=$(du -b "${log}" | awk '{print $1}');                                   \
-        if [ ${log_size} -eq ${log_size_new} ] && [ ${log_size} -ne ${log_size_last} ]; then \
-            printf "\nThe next step may take an unreasonable amount of time.
-Please be patient ...\n";                                                                    \
-            sleep 5;                                                                         \
-            log_size_new=$(du -b "${log}" | awk '{print $1}');                               \
-            log_size_last=${log_size_new};                                                   \
-        fi;                                                                                  \
-        log_size=${log_size_new};                                                            \
-    done                                                                                     \
-    ) & soothe_killer_pid=$!
-    wait ${soothe_pid} || :
-    kill ${soothe_killer_pid} >/dev/null 2>&1 || :  # No forcefull kill (no -9)
-    wait ${soothe_killer_pid} >/dev/null 2>&1 || :
 }
 
 # Function for installing and upgrading Python packages, utilizing pip
@@ -4027,7 +4056,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     # _MAXTITLESTRINGLENGTH_   = 10⁶  (in include/common.h)
     # _LINE_LENGTH_MAX_        = 10⁴  (in include/parser.h)
     # _ARGUMENT_LENGTH_MAX_    = 10⁴  (in include/parser.h)
-    # _MAX_NUMBER_OF_K_FILES_  = 10⁶  (in include/perturbations.h)
+    # _MAX_NUMBER_OF_K_FILES_  = 10⁵  (in include/perturbations.h)
     value=1000000
     sed -i "s/^\( *#define \+_MAXTITLESTRINGLENGTH_ \+\)[^ ]*\(.*\)*$/\1${value}\2/" \
            "${class_dir}/include/common.h"
@@ -4037,7 +4066,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     value=10000
     sed -i "s/^\( *#define \+_ARGUMENT_LENGTH_MAX_ \+\)[^ ]*\(.*\)*$/\1${value}\2/" \
            "${class_dir}/include/parser.h"
-    value=1000000
+    value=100000
     sed -i "s/^\( *#define \+_MAX_NUMBER_OF_K_FILES_ \+\)[^ ]*\(.*\)*$/\1${value}\2/" \
            "${class_dir}/include/perturbations.h"
     # As only the (relatively) late-time evolution is needed from CLASS,

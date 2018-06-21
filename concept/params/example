@@ -15,6 +15,7 @@
 #   by an ellipsis (...).
 # - Some parameters will be inferred from others and must not be
 #   defined explicitly. Below is the complete list of such parameters.
+#     h : Inferred from H0, defined to be H0/(100*km/(s*Mpc)).
 #     Ων: Inferred from the values of 'N_ncdm', 'deg_ncdm' and 'm_ncdm'
 #         in the class_params dictionary.
 
@@ -25,15 +26,15 @@ initial_conditions = [  # Initial condition snapshot file or container of compon
     {
         'name'   : 'matter component',
         'species': 'matter particles',
-        'N'      : 32**3,
+        'N'      : 8**3,
     },
-    {
-        'name'             : 'neutrino component',
-        'species'          : 'neutrino fluid',
-        'gridsize'         : 32,
-        'boltzmann_order'  : 2,
-        'boltzmann_closure': 'class',
-    },
+#    {
+#        'name'             : 'neutrino component',
+#        'species'          : 'neutrino fluid',
+#        'gridsize'         : 8,
+#        'boltzmann_order'  : 2,
+#        'boltzmann_closure': 'class',
+#    },
 ]
 snapshot_type = 'standard'  # Type of output snapshots
 output_dirs = {  # Directories for storing output
@@ -82,7 +83,7 @@ render3D_select = {  # Toggle rendering for each component
 # Numerical parameters
 boxsize          = 128*Mpc  # Linear size of the simulation box
 ewald_gridsize   = 64       # Linear gridsize of the grid of Ewald corrections
-φ_gridsize       = 32       # Linear gridsize of the potential
+φ_gridsize       = 8       # Linear gridsize of the potential
 p3m_scale        = 1.25	    # The long/short-range force split scale
 p3m_cutoff       = 4.8      # Maximum reach of short-range force
 R_tophat         = 8*Mpc    # Radius of tophat used to compute σ
@@ -171,8 +172,8 @@ fluid_options = {  # Specifications of fluid scheme parameters
 class_k_max = {}                  # Maximum trusted k for individual perturbations
 class_reuse = True                # Reuse CLASS results from earlier runs?
 class_plot_perturbations = False  # Plot CLASS perturbations?
-class_extra_background = ''       # Extra CLASS background variables to dump
-class_extra_perturbations = ''    # Extra CLASS perturbations to dump
+class_extra_background = {}       # Extra CLASS background variables to dump
+class_extra_perturbations = {}    # Extra CLASS perturbations to dump
 
 # Graphics
 terminal_width = 80  # Maximum width of terminal output, in characters
@@ -219,3 +220,4 @@ unit_mass   = '10¹⁰ m☉'  # Physical mass   corresponding to a numerical val
 enable_Hubble           = True   # Enable Hubble expansion
 enable_class_background = True   # Use CLASS to compute the evolution of the background
 enable_debugging        = False  # Enable debugging mode
+

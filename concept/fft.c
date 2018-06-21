@@ -152,7 +152,7 @@ struct fftw_return_struct fftw_setup(ptrdiff_t gridsize_i,
     // Create the two plans
     fftw_plan plan_forward  = fftw_mpi_plan_dft_r2c_3d(gridsize_i,
                                                        gridsize_j,
-                                                       gridsize_k,  
+                                                       gridsize_k,
                                                        grid,
                                                        (fftw_complex*) grid,
                                                        MPI_COMM_WORLD,

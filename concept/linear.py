@@ -1691,7 +1691,7 @@ def compute_transfer(
             w = component.w(a=a)
             for k in range(k_gridsize):
                 transfer[k] += (ℝ[3*a*H/light_speed**2*(1 + w)]
-                                *transfer_θ_tot[k]/k_magnitudes[k]**2)
+                                 *transfer_θ_tot[k]/k_magnitudes[k]**2)
     elif var_index == 1:
         # Get the θ transfer function
         transfer = cosmoresults.θ(a, component)
@@ -2546,4 +2546,4 @@ for (varname,
     elif varname == '_ARGUMENT_LENGTH_MAX_':
         class__ARGUMENT_LENGTH_MAX_ = value
     elif varname == 'a_min':
-        class_a_min = value
+        class_a_min = -1 if special_params.get('keep_class_extra_background', False) else value
