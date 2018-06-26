@@ -596,8 +596,8 @@ class CosmoResults:
         if apply_unit:
             values *= ℝ[3/(8*π*G_Newton)*(light_speed/units.Mpc)**2*light_speed**2]
         return values
-    # Method for looking up f_growth = H⁻¹Ḋ/D (with D the linear
-    # growth factor) at some a.
+    # Method for looking up the linear growth rate f_growth = H⁻¹Ḋ/D
+    # (with D the linear growth factor) at some a.
     @functools.lru_cache()
     def growth_fac_f(self, a):
         spline = self.splines('gr.fac. f')
@@ -1781,7 +1781,7 @@ def get_default_k_parameters(gridsize):
     cosmoresults=object,  # CosmoResults
     specific_multi_index=object,  # tuple, int-like or str
     a='double',
-    scheme=dict,
+    options=dict,
     use_gridˣ='bint',
     # Locals
     A_s='double',
@@ -1825,17 +1825,18 @@ def get_default_k_parameters(gridsize):
     k2='Py_ssize_t',
     k2_max='Py_ssize_t',
     mass='double',
-    mom_dim='double*',
+    momⁱ='double*',
     multi_index=object,  # tuple or str
     n_s='double',
     nyquist='Py_ssize_t',
+    option_key=str,
+    options_linear=dict,
+    option_val=object,  # str or bool
+    pariclevar_name=str,
     phases_jik='double*',
-    pos_dim='double*',
+    posⁱ='double*',
     pos_gridpoint='double',
     processed_specific_multi_index=object,  # tuple or str
-    scheme_key=str,
-    scheme_linear=dict,
-    scheme_val=str,
     slab='double[:, :, ::1]',
     slab_jik='double*',
     slab_phases='double[:, :, ::1]',
@@ -1845,19 +1846,20 @@ def get_default_k_parameters(gridsize):
     tensor_rank='int',
     transfer='double',
     transfer_spline_δ='Spline',
+    uⁱ_noghosts='double[:, :, :]',
     w='double',
     w_eff='double',
     Jⁱ_ptr='double*',
     δ_min='double',
-    ψ_dim='double[:, :, ::1]',
-    ψ_dim_noghosts='double[:, :, :]',
+    ψⁱ='double[:, :, ::1]',
+    ψⁱ_noghosts='double[:, :, :]',
     ςⁱⱼ_ptr='double*',
     ϱ_bar='double',
     ϱ_ptr='double*',
     𝒫_ptr='double*',
 )
 def realize(component, variable, transfer_spline, cosmoresults,
-            specific_multi_index=None, a=-1, scheme=None,
+            specific_multi_index=None, a=-1, options=None,
             use_gridˣ=False):
     """This function realizes a single variable of a component,
     given the transfer function as a Spline (using |k⃗| in physical units
@@ -1867,7 +1869,7 @@ def realize(component, variable, transfer_spline, cosmoresults,
     fluid variable should be realized, the multi_index of this
     fluidscalar may be specified. If you want a realization at a time
     different from the present you may specify an a.
-    If a particle component is given, the Zeldovich approximation is
+    If a particle component is given, the Zel'dovich approximation is
     used to distribute the paricles and assign momenta. This is
     done simultaneously, meaning that you cannot realize only the
     positions or only the momenta. For the particle realization to
@@ -1875,25 +1877,38 @@ def realize(component, variable, transfer_spline, cosmoresults,
     transfer_spline. For particle components, the variable argument
     is not used.
 
-    The realization can be carried out using several different schemes,
-    controlled by the scheme argument. This is a dictionary with the
-    keys 'phases' and 'compound-order', both of which
-    can take two values. The default is
-    scheme = {
+    Several options has to be specified to define how the realization is
+    to be carried out. These options are contained in the "options"
+    argumen. By default, the options are
+    options = {
+        # Linear realization options
+        'velocities from displacements': False,
+        # Non-linear realization options
         'phases'        : 'primordial',
         'compound-order': 'linear',
     }
-    which corresponds to linear realization. Taking Jⁱ as an example
-    this linear realization looks like
+    which corresponds to linear realization. For particle components
+    (which can not be realized continually) only linear realization is
+    possible, and thus only the linear option matters. When
+    'velocities from displacements' is True, the particle momenta will
+    be set from the same displacement field ψⁱ as is used for the
+    positions, using the linear growth rate f to convert between
+    displacement and velocity. Otherwise, momenta will be constructed
+    from their own velocity field uⁱ, using their own transfer function
+    but the same (primordial) phases.
+    Another linear option 'back-scaling' might be specified, but it is
+    not used by this function.
+    Taking Jⁱ as an example of a fluid variable realization,
+    linear realization looks like
         Jⁱ(x⃗) = a**(1 - 3w_eff)ϱ_bar(1 + w)ℱₓ⁻¹[T_θ(k)ζ(k)K(k⃗)ℛ(k⃗)],
     where ζ(k) = π*sqrt(2*A_s)*k**(-3/2)*(k/k_pivot)**((n_s - 1)/2)
     is the primordial curvature perturbation, T_θ(k) is the passed
     transfer function for θ, ℛ(k⃗) is a field of primordial phases,
-    and K(k⃗) is the tensor structure (often referred to as k factor)
-    needed to convet from θ to uⁱ. For uⁱ, K(k⃗) = -ikⁱ/k². The factors
+    and K(k⃗) is the tensor structure (often referred to as the k factor)
+    needed to convert from θ to uⁱ. For uⁱ, K(k⃗) = -ikⁱ/k². The factors
     outside the Fourier transform then converts from uⁱ to Jⁱ.
     We can instead choose to use the evolved non-linear phases of ϱ,
-    by using scheme['phases'] == 'non-linear'. Then the realization
+    by using options['phases'] == 'non-linear'. Then the realization
     looks like
         Jⁱ(x⃗) = a**(1 - 3w_eff)ϱ_bar(1 + w)ℱₓ⁻¹[T_θ(k)/T_δϱ(k)K(k⃗)δϱ(k⃗)],
     where δϱ(k⃗) = ℱₓ[δϱ(x⃗)] is computed from the present ϱ(x⃗) grid,
@@ -1910,26 +1925,96 @@ def realize(component, variable, transfer_spline, cosmoresults,
     """
     if a == -1:
         a = universals.a
+    if options is None:
+        options = {}
+    options = {key.lower().replace(' ', '').replace('-', ''):
+        (val.lower().replace(' ', '').replace('-', '') if isinstance(val, str) else val)
+        for key, val in options.items()
+    }
+    # By default, use linear realization options and do not construct
+    # the velocities directly from the displacements.
+    options_linear = {
+        # Linear options
+        'velocitiesfromdisplacements': False,
+        # Non-linear options
+        'phases'       : 'primordial',
+        'compoundorder': 'linear',
+    }
+    for option_key, option_val in options_linear.items():
+        if option_key not in options:
+            options[option_key] = option_val
+    for option_key in options:
+        if option_key not in {
+            'velocitiesfromdisplacements',
+            'backscaling',
+            'phases',
+            'compoundorder',
+        }:
+            abort(f'Did not understand realization option "{option_key}"')
+    if options['phases'] not in ('primordial', 'nonlinear'):
+        abort('Unrecognized value "{}" for options["phases"]'
+            .format(options['phases']))
+    if options['compoundorder'] not in ('linear', 'nonlinear'):
+        abort('Unrecognized value "{}" for options["compound-order"]'
+            .format(options['compoundorder']))
+    options['velocitiesfromdisplacements'] = bool(options['velocitiesfromdisplacements'])
     # Get the index of the fluid variable to be realized
     # and print out progress message.
     processed_specific_multi_index = ()
+    pariclevar_name = 'pos'
+    fluid_index = component.varnames2indices(variable, single=True)
     if component.representation == 'particles':
-        # For particles, the Zeldovich approximation is used for the
-        # realization. This realizes both positions and momenta.
-        # This means that the value of the passed variable argument
-        # does not matter. To realize all three components of positions
-        # and momenta, we need the fluid_index to have a value of 1
-        # (corresponding to J or mom), so that multi_index takes on
-        # vector values ((0, ), (1, ), (2, )).
-        fluid_index = 1
-        if specific_multi_index is not None:
-            abort(
-                f'The specific multi_index {specific_multi_index} was specified for realization '
-                f'of "{component.name}". Particle components may only be realized completely.'
+        if use_gridˣ:
+            masterwarn(
+                f'realize() was called with use_gridˣ=True '
+                f'for the particle component {component.name}. '
+                f'This will be ignored.'
             )
-        masterprint(f'Realizing particles of {component.name} ...')
+        # For particles, the only variables that exist are the positions
+        # and the momenta, corresponding to a fluid_index of 0 and 1,
+        # respectively.
+        pariclevar_name = {0: 'pos', 1: 'mom'}[fluid_index]
+        # When the 'velocities from displacements' option is enabled,
+        # both the positions and the momenta are constructed from the
+        # displacement field ψⁱ. It is then illegal to request a momenta
+        # realization directly.
+        if pariclevar_name == 'mom' and options['velocitiesfromdisplacements']:
+            abort(
+                f'A realization of particle momenta for component "{component.name}" '
+                f'was requested, but this component is supposed to get its velocities '
+                f'from the displacements.'
+            )
+        if specific_multi_index is None:
+            masterprint(
+                'Realizing particle',
+                'positions and momenta' if options['velocitiesfromdisplacements']
+                    else {'pos': 'positions', 'mom': 'momenta'}[pariclevar_name],
+                f'of {component.name} ...'
+            )
+        else:
+            processed_specific_multi_index = (
+                component.fluidvars[fluid_index].process_multi_index(specific_multi_index)
+            )
+            if options['velocitiesfromdisplacements']:
+                masterprint(
+                    f'Realizing particle positions[{processed_specific_multi_index[0]}] '
+                    f'and momenta[{processed_specific_multi_index[0]}] of {component.name} ...'
+                )
+            else:
+                masterprint(
+                    f'Realizing particle',
+                    {'pos': 'positions', 'mom': 'momenta'}[pariclevar_name]
+                        + f'[{processed_specific_multi_index[0]}] '
+                    f'of {component.name} ...'
+                )
+        # For particles, the Zel'dovich approximation is used for the
+        # realization. For the positions, the displacement field ψⁱ is
+        # really what is realized, while for the momenta, the velocity
+        # field uⁱ is what is really realized. Both of these are vector
+        # fields, and so we have to set fluid_index to 1 so that
+        # multi_index takes on vector values ((0, ), (1, ), (2, )).
+        fluid_index = 1
     elif component.representation == 'fluid':
-        fluid_index = component.varnames2indices(variable, single=True)
         fluidvar_name = component.fluid_names['ordered'][fluid_index]
         if specific_multi_index is None:
             masterprint(f'Realizing {fluidvar_name} of {component.name} ...')
@@ -1965,29 +2050,6 @@ def realize(component, variable, transfer_spline, cosmoresults,
         abort(f'The realization uses a gridsize of {gridsize}, '
               f'which is not evenly divisible by {nprocs} processes.'
               )
-    # Handle the scheme argument
-    if scheme is None:
-        scheme = {}
-    scheme = {key.lower().replace(' ', '').replace('-', ''):
-        val.lower().replace(' ', '').replace('-', '')
-        for key, val in scheme.items()
-    }
-    # Use the linear realization scheme by default
-    scheme_linear = {
-        'phases'       : 'primordial',
-        'compoundorder': 'linear',
-    }
-    for scheme_key, scheme_val in scheme_linear.items():
-        if scheme_key not in scheme:
-            scheme[scheme_key] = scheme_val
-    if len(scheme) != 2:
-        abort('Error interpreting realization scheme')
-    if scheme['phases'] not in ('primordial', 'nonlinear'):
-        abort('Unrecognized value "{}" for scheme["phases"]'
-            .format(scheme['phases']))
-    if scheme['compoundorder'] not in ('linear', 'nonlinear'):
-        abort('Unrecognized value "{}" for scheme["compound-order"]'
-            .format(scheme['compoundorder']))
     # A compound order of 'nonlinear' only makes a difference for
     # compound variables; that is, Jⁱ and ςⁱⱼ. If what we are realizing
     # is another variable, switch this back to 'linear'.
@@ -2000,14 +2062,14 @@ def realize(component, variable, transfer_spline, cosmoresults,
     else:
         compound_variable = False
     if not compound_variable:
-        if scheme['compoundorder'] == 'nonlinear':
-            scheme['compoundorder'] = 'linear'
-    # Abort if a scheme was passed for a particle component, as there is
-    # only one way of realizing these (linear realization).
-    if component.representation == 'particles' and scheme != scheme_linear:
-        abort('Can only do linear realization for particle components')
+        if options['compoundorder'] == 'nonlinear':
+            options['compoundorder'] = 'linear'
+    # Abort if non-linear phases was passed for a particle component,
+    # as these can only be realized from the primordial phases.
+    if component.representation == 'particles' and options['phases'] != options_linear['phases']:
+        abort('Can only do particle realization using primordial phases')
     # When realizing δ, it only makes sense to realize it linearly
-    if fluid_index == 0 and scheme != scheme_linear:
+    if fluid_index == 0 and options['phases'] != options_linear['phases']:
         abort('Can only do linear realization of δ')
     # Extract various variables
     nyquist = gridsize//2
@@ -2026,10 +2088,10 @@ def realize(component, variable, transfer_spline, cosmoresults,
     k2_max = 3*(gridsize//2)**2  # Max |k⃗|² in grid units
     sqrt_power_common = get_buffer(k2_max + 1,
         # Must use some buffer different from the one used to do the
-        # domain decomposition of ψ below.
+        # domain decomposition of ψⁱ below.
         0,
     )
-    if scheme['phases'] == 'nonlinear':
+    if options['phases'] == 'nonlinear':
         # When using the non-linear phases of δϱ to do the realizations,
         # we need the transfer function of δϱ, which is just
         # ϱ_bar times the transfer function of δ.
@@ -2041,7 +2103,7 @@ def realize(component, variable, transfer_spline, cosmoresults,
         k_magnitude = ℝ[2*π/boxsize]*sqrt(k2)
         transfer = transfer_spline.eval(k_magnitude)
         with unswitch:
-            if scheme['phases'] == 'primordial':
+            if options['phases'] == 'primordial':
                 # Realize using ℱₓ⁻¹[T(k) ζ(k) K(k⃗) ℛ(k⃗)],
                 # with K(k⃗) capturing any tensor structure.
                 # The k⃗-independent part needed here is T(k)ζ(k),
@@ -2058,7 +2120,7 @@ def realize(component, variable, transfer_spline, cosmoresults,
                         *boxsize**(-1.5)
                     ]
                 )
-            elif scheme['phases'] == 'nonlinear':
+            elif options['phases'] == 'nonlinear':
                 # Realize using ℱₓ⁻¹[T(k)/T_δϱ(k) K(k⃗) ℱₓ[δϱ(x⃗)]],
                 # with K(k⃗) capturing any tensor structure.
                 # The k⃗-independent part needed here is T(k)/T_δϱ(k),
@@ -2090,7 +2152,7 @@ def realize(component, variable, transfer_spline, cosmoresults,
     # To see if we can reuse the slab_phases as is, we compare this
     # information with that of the current realization.
     slab_phases_info = {
-        'phases': scheme['phases'],
+        'phases': options['phases'],
         'a': a,
         'use_gridˣ': use_gridˣ,
         'gridsize': gridsize,
@@ -2103,10 +2165,10 @@ def realize(component, variable, transfer_spline, cosmoresults,
         slab_phases_info['use_gridˣ'] = None
     if slab_phases_info != slab_phases_previous_info:
         # Populate slab_phases with either ℛ(k⃗) or ℱₓ[ϱ(x⃗)]
-        if scheme['phases'] == 'primordial':
+        if options['phases'] == 'primordial':
             # Populate slab_phases with ℛ(k⃗)
             get_primordial_phases(slab_phases)
-        elif scheme['phases'] == 'nonlinear':
+        elif options['phases'] == 'nonlinear':
             # Populate slab_phases with ℱₓ[ϱ(x⃗)]
             slab_decompose(component.ϱ.gridˣ_mv if use_gridˣ else component.ϱ.grid_mv, slab_phases)
             fft(slab_phases, 'forward')
@@ -2211,11 +2273,28 @@ def realize(component, variable, transfer_spline, cosmoresults,
                     # representation and tensor_rank.
                     with unswitch(3):
                         if component.representation == 'particles':
-                            # Realize the displacement field ψⁱ.
-                            # For this vector quantity
-                            # we have a k factor of
-                            # K(k⃗) = +ikⁱ/k².
-                            k_factor = (ℝ[boxsize/(2*π)]*k_gridvec[index0])/k2
+                            # We are realizing either the displacement
+                            # field ψⁱ (for the positions) or the
+                            # velocity field uⁱ (for the momenta).
+                            # These are constructed from the δ and θ
+                            # fields, respectively, with the vector
+                            # k factor
+                            # K(k⃗) = ±ikⁱ/k².
+                            # For fluids, fluid_index distinguishes
+                            # between the different variables. For
+                            # particle positions and momenta, the
+                            # corresponding ψⁱ and uⁱ fields are both
+                            # vector variables, and so we had to set
+                            # fluid_index = 1 in both cases. To
+                            # distinguish between particles and momenta
+                            # (and hence get the sign in the k factor
+                            # correct) we instead make use of
+                            # the pariclevar_name variable.
+                            k_factor = ℝ[{
+                                'pos': +1,
+                                'mom': -1,
+                                }[pariclevar_name]
+                                *boxsize/(2*π)]*k_gridvec[index0]/k2
                             slab_jik[0] = sqrt_power*k_factor*(-phases_jik[1])
                             slab_jik[1] = sqrt_power*k_factor*(+phases_jik[0])
                         elif component.representation == 'fluid':
@@ -2245,7 +2324,7 @@ def realize(component, variable, transfer_spline, cosmoresults,
         # Now the slabs store the realized grid.
         fft(slab, 'backward')
         # Populate the fluid grids for fluid components,
-        # or create the particles via the Zeldovich approximation
+        # or create the particles via the Zel'dovich approximation
         # for particles.
         if component.representation == 'fluid':
             # Communicate the fluid realization stored in the slabs to
@@ -2269,7 +2348,7 @@ def realize(component, variable, transfer_spline, cosmoresults,
                     masterwarn(f'The realized ϱ of {component.name} has min(δ) = {δ_min:.4g} < -1')
             elif fluid_index == 1:
                 Jⁱ_ptr = fluidscalar.gridˣ if use_gridˣ else fluidscalar.grid
-                if scheme['compoundorder'] == 'nonlinear':
+                if options['compoundorder'] == 'nonlinear':
                     # uⁱ → Jⁱ = a**4(ρ + c⁻²P)uⁱ
                     #         = a**(1 - 3w_eff)(ϱ + c⁻²𝒫) * uⁱ
                     ϱ_ptr  = component.ϱ.gridˣ if use_gridˣ else component.ϱ.grid
@@ -2290,7 +2369,7 @@ def realize(component, variable, transfer_spline, cosmoresults,
                     𝒫_ptr[i] = ℝ[light_speed**2*w*ϱ_bar] + ℝ[a**(3*(1 + w_eff))]*𝒫_ptr[i]
             elif fluid_index == 2:
                 ςⁱⱼ_ptr = fluidscalar.gridˣ if use_gridˣ else fluidscalar.grid
-                if scheme['compoundorder'] == 'nonlinear':
+                if options['compoundorder'] == 'nonlinear':
                     # σⁱⱼ → ςⁱⱼ = (ϱ + c⁻²𝒫) * σⁱⱼ
                     ϱ_ptr  = component.ϱ.gridˣ if use_gridˣ else component.ϱ.grid
                     𝒫_ptr  = component.𝒫.gridˣ if use_gridˣ else component.𝒫.grid
@@ -2303,72 +2382,82 @@ def realize(component, variable, transfer_spline, cosmoresults,
                         ςⁱⱼ_ptr[i] *= ℝ[ϱ_bar*(1 + w)]
             # Continue with the next fluidscalar
             continue
-        # Below follows the Zeldovich approximation
-        # for particle components.
-        # Domain-decompose the realization of the displacement field
-        # stored in the slabs. The resultant domain (vector) grid is
-        # denoted ψ, wheres a single component of this vector field is
-        # denoted ψ_dim.
-        # Note that we could have skipped this and used the slab grid
-        # directly. However, because a single component of the ψ grid
-        # contains the information of both the positions and momenta in
-        # the given direction, we minimize the needed communication by
-        # communicating ψ, rather than the particles after
-        # the realization.
-        # Importantly, use a buffer different from the one already in
-        # use by sqrt_power_common.
-        ψ_dim = domain_decompose(slab, 1)
-        ψ_dim_noghosts = ψ_dim[
-            2:(ψ_dim.shape[0] - 2),
-            2:(ψ_dim.shape[1] - 2),
-            2:(ψ_dim.shape[2] - 2),
+        # Below follows the Zel'dovich approximation for
+        # particle components. When constructing particle positions
+        # (momenta), what has just been realized is the displacement
+        # (velocity) field ψⁱ (uⁱ), from which we can get the positions
+        # (momenta) directly. When using the approximation of also
+        # getting the velocities from ψⁱ, the linear growth rate f is
+        # used to convert from displacement to velocity. We first
+        # domain-decompose the realized field stored in the slabs.
+        # Importantly, here we have to use a different buffer from the
+        # one already in use# by sqrt_power_common.
+        ψⁱ = domain_decompose(slab, 1)
+        ψⁱ_noghosts = uⁱ_noghosts = ψⁱ[
+            2:(ψⁱ.shape[0] - 2),
+            2:(ψⁱ.shape[1] - 2),
+            2:(ψⁱ.shape[2] - 2),
         ]
         # Determine and set the mass of the particles
         # if this is still unset.
         if component.mass == -1:
             component.mass = ϱ_bar*boxsize**3/component.N
         mass = component.mass
-        # Get f_growth = H⁻¹Ḋ/D, where D is the linear growth factor
-        f_growth = cosmoresults.growth_fac_f(a)
-        # Apply the Zeldovich approximation
+        # If we are realizing momenta directly from the displacement
+        # fiel ψⁱ, get the linear growth rate f_growth = H⁻¹Ḋ/D,
+        # with D the linear growth factor.
+        if options['velocitiesfromdisplacements']:
+            f_growth = cosmoresults.growth_fac_f(a)
+        # Apply the Zel'dovich approximation
         dim = multi_index[0]
-        pos_dim = component.pos[dim]
-        mom_dim = component.mom[dim]
-        domain_size_i = ψ_dim_noghosts.shape[0] - 1
-        domain_size_j = ψ_dim_noghosts.shape[1] - 1
-        domain_size_k = ψ_dim_noghosts.shape[2] - 1
+        posⁱ = component.pos[dim]
+        momⁱ = component.mom[dim]
+        domain_size_i = ψⁱ_noghosts.shape[0] - 1
+        domain_size_j = ψⁱ_noghosts.shape[1] - 1
+        domain_size_k = ψⁱ_noghosts.shape[2] - 1
         domain_start_i = domain_layout_local_indices[0]*domain_size_i
         domain_start_j = domain_layout_local_indices[1]*domain_size_j
         domain_start_k = domain_layout_local_indices[2]*domain_size_k
         index = 0
-        for         i in range(ℤ[ψ_dim_noghosts.shape[0] - 1]):
-            for     j in range(ℤ[ψ_dim_noghosts.shape[1] - 1]):
-                for k in range(ℤ[ψ_dim_noghosts.shape[2] - 1]):
-                    # The global x, y or z coordinate at this grid point
+        for         i in range(ℤ[ψⁱ_noghosts.shape[0] - 1]):
+            for     j in range(ℤ[ψⁱ_noghosts.shape[1] - 1]):
+                for k in range(ℤ[ψⁱ_noghosts.shape[2] - 1]):
                     with unswitch(3):
-                        if dim == 0:
-                            i_global = domain_start_i + i
-                            pos_gridpoint = i_global*boxsize/gridsize
-                        elif dim == 1:
-                            j_global = domain_start_j + j
-                            pos_gridpoint = j_global*boxsize/gridsize
-                        elif dim == 2:
-                            k_global = domain_start_k + k
-                            pos_gridpoint = k_global*boxsize/gridsize
-                    # Displace the position of particle
-                    # at grid point (i, j, k).
-                    displacement = ψ_dim_noghosts[i, j, k]
-                    pos_dim[index] = mod(pos_gridpoint + displacement, boxsize)
-                    # Assign momentum corresponding to the displacement
-                    mom_dim[index] = displacement*ℝ[f_growth*H*mass*a**2]
+                        if pariclevar_name == 'pos':
+                            # The global x, y or z coordinate at this grid point
+                            with unswitch(3):
+                                if dim == 0:
+                                    i_global = domain_start_i + i
+                                    pos_gridpoint = i_global*ℝ[boxsize/gridsize]
+                                elif dim == 1:
+                                    j_global = domain_start_j + j
+                                    pos_gridpoint = j_global*ℝ[boxsize/gridsize]
+                                elif dim == 2:
+                                    k_global = domain_start_k + k
+                                    pos_gridpoint = k_global*ℝ[boxsize/gridsize]
+                                # Displace the position of particle
+                                # at grid point (i, j, k).
+                                displacement = ψⁱ_noghosts[i, j, k]
+                                posⁱ[index] = mod(pos_gridpoint + displacement, boxsize)
+                            with unswitch(3):
+                                if options['velocitiesfromdisplacements']:
+                                    # Assign momentum corresponding to the displacement
+                                    momⁱ[index] = displacement*ℝ[f_growth*H*mass*a**2]
+                        elif pariclevar_name == 'mom':
+                            momⁱ[index] = uⁱ_noghosts[i, j, k]*ℝ[mass*a]
                     index += 1
     # Done realizing this variable
     masterprint('done')
     # After realizing particles, most of them will be on the correct
     # process in charge of the domain in which they are located. Those
-    # near the domain boundaries might get displaced outside of its
-    # original domain, and so we do need to do an exchange.
-    if component.representation == 'particles':
+    # near the domain boundaries might however get displaced outside of
+    # their original domain, and so we do need to do an exchange.
+    # We can only do this exchange once both the positions and the
+    # momenta has been assigned.
+    if component.representation == 'particles' and (
+        (pariclevar_name == 'pos' and options['velocitiesfromdisplacements'])
+        or pariclevar_name == 'mom'
+    ):
         exchange(component, reset_buffers=True)
 # Module level variable used by the realize function
 cython.declare(slab_phases_previous_info=dict)

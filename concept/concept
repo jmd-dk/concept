@@ -903,10 +903,13 @@ if [ "${prepare_files}" == "True" ]; then
                                     done
              )
         fi
-        # Compile all the modules in parallel
-        (cd "${concept_dir}" && make unsafe_build="${unsafe_build}"       \
-                                     no_optimization="${no_optimization}" \
-                                     -j
+        # Compile all the modules in parallel.
+        # Cython might warn about redeclarations in CythonGSL,
+        # which we filter out as we do not want to worry about them.
+        (cd "${concept_dir}" && make unsafe_build="${unsafe_build}"         \
+                                     no_optimization="${no_optimization}"   \
+                                     -j                                     \
+                                     2> >(grep -v 'GSL_.* redeclared' 1>&2)
                                      )
     fi
 fi

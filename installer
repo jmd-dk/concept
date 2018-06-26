@@ -255,7 +255,7 @@ set_version "python"          "3.6.5"
 set_version "zlib"            "1.2.11" "1.2.8"
 # Python packages
 set_version "blessings"     "1.6.1"
-set_version "cython"        "0.28.3"  # 0.28.1 prints a lot of annoying warnings. Maybe fixed in 0.28.2
+set_version "cython"        "0.28.3"
 set_version "cythongsl"     "0.2.2"
 set_version "h5py"          "2.8.0"
 set_version "matplotlib"    "2.2.2"

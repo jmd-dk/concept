@@ -26,15 +26,15 @@ initial_conditions = [  # Initial condition snapshot file or container of compon
     {
         'name'   : 'matter component',
         'species': 'matter particles',
-        'N'      : 8**3,
+        'N'      : 32**3,
     },
-#    {
-#        'name'             : 'neutrino component',
-#        'species'          : 'neutrino fluid',
-#        'gridsize'         : 8,
-#        'boltzmann_order'  : 2,
-#        'boltzmann_closure': 'class',
-#    },
+    {
+        'name'             : 'neutrino component',
+        'species'          : 'neutrino fluid',
+        'gridsize'         : 32,
+        'boltzmann_order'  : 2,
+        'boltzmann_closure': 'class',
+    },
 ]
 snapshot_type = 'standard'  # Type of output snapshots
 output_dirs = {  # Directories for storing output
@@ -83,7 +83,7 @@ render3D_select = {  # Toggle rendering for each component
 # Numerical parameters
 boxsize          = 128*Mpc  # Linear size of the simulation box
 ewald_gridsize   = 64       # Linear gridsize of the grid of Ewald corrections
-φ_gridsize       = 8       # Linear gridsize of the potential
+φ_gridsize       = 32        # Linear gridsize of the potential
 p3m_scale        = 1.25	    # The long/short-range force split scale
 p3m_cutoff       = 4.8      # Maximum reach of short-range force
 R_tophat         = 8*Mpc    # Radius of tophat used to compute σ
@@ -97,7 +97,7 @@ a_begin = 0.02           # Scale factor at beginning of simulation
 class_params = {         # CLASS parameters. See the CLASS documentation for details.
     # Primordial parameters
     'n_s'                    : 1,
-    'A_s'                    : 2.30e-09,
+    'A_s'                    : 2.30e-9,
     # Neutrino parameters
     'N_ur'                   : 0,
     'N_ncdm'                 : 1,
@@ -121,18 +121,35 @@ select_eos_w = {  # Equation of state parameter w for each component
 select_boltzmann_closure = {  # Closure rule for the Boltzmann hierarchy for each component
     'all': 'class',
 }
-select_nonlinear_realization_schemes = {  # Non-linear realization scheme for each component and variable
+select_realization_options = {  # Realization options for each component and variable
     'all': {
+        # Particle variables
+        'pos': {
+            'back-scaling': False,
+        },
+        'mom': {
+            'back-scaling': False,
+            'velocities from displacements': False,
+        },
+        # Fluid variables
+        'ϱ': {
+            'back-scaling': False,
+        },
         'J': {
-            'phases'        : 'non-linear',
-            'compound-order': 'non-linear',
+            # Linear realization options
+            'back-scaling': False,
+            # Non-linear realization options
+            'phases'        : 'primordial',
+            'compound-order': 'linear',
         },
         '𝒫': ...,
         'ς': ...,
     },
 }
 select_approximations = {  # Toggle approximations for each component
-    'all': {'P = wρ': False},
+    'all': {
+        'P = wρ': False,
+    },
 }
 select_softening_length = {  # Gravitational softening for each component
     'particles': '0.03*boxsize/cbrt(N)',

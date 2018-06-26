@@ -2320,29 +2320,8 @@ def find_extension_types(lines, no_optimization):
 
 
 def make_types(filename, no_optimization):
-    # Dictionary mapping custom ctypes to their definiton
-    # or an import of their definition.
-    custom_types = {# External definitions
-                    'fftw_plan':          'cdef extern from "fft.c":\n'
-                                          '    ctypedef struct fftw_plan_struct:\n'
-                                          '        pass\n'
-                                          '    ctypedef fftw_plan_struct *fftw_plan',
-                    'fftw_return_struct': 'cdef extern from "fft.c":\n'
-                                          '    ctypedef struct fftw_plan_struct:\n'
-                                          '        pass\n'
-                                          '    ctypedef fftw_plan_struct *fftw_plan\n'
-                                          '    struct fftw_return_struct:\n'
-                                          '        ptrdiff_t gridsize_local_i\n'
-                                          '        ptrdiff_t gridsize_local_j\n'
-                                          '        ptrdiff_t gridstart_local_i\n'
-                                          '        ptrdiff_t gridstart_local_j\n'
-                                          '        double* grid\n'
-                                          '        fftw_plan plan_forward\n'
-                                          '        fftw_plan plan_backward',
-                    # GSL functions (... understood by make_pxd)
-                    'gsl_...': 'from cython_gsl cimport *',
-                    }
-    # Add Cython classes (extension types) to custom_types
+    # Find Cython classes (extension types) in all .pyx files
+    extension_types = {}
     for other_pyxfile in all_pyxfiles:
         module = other_pyxfile[:-4]
         with open(other_pyxfile, 'r', encoding='utf-8') as pyxfile:
@@ -2353,33 +2332,37 @@ def make_types(filename, no_optimization):
                 break
         for i, line in enumerate(code):
             if line == '# Extension types implemented by this module:':
-                line = code[i + 1].lstrip('#').lstrip(' ')
+                line = code[i + 1].lstrip('#')
                 for extension_type in line.split(','):
-                    extension_type = extension_type.replace(' ', '')
-                    custom_types[extension_type] = 'from {} cimport {}'.format(module, extension_type)
-                break
+                    if ':' in extension_type:
+                        extension_type, import_str = extension_type.split(':')
+                        extension_types[extension_type.strip()] = import_str.strip()
+                    else:
+                        extension_type = extension_type.strip()
+                        extension_types[extension_type] = 'from {} cimport {}'.format(
+                            module, extension_type)
     # Do not write to the types file
     # if it already has the correct content.
     if os.path.isfile(filename):
         with open(filename, 'r', encoding='utf-8') as types_file:
-            existing_custom_types_content = types_file.read()
+            existing_extension_types_content = types_file.read()
         try:
-            existing_custom_types = eval(existing_custom_types_content)
-            if existing_custom_types == custom_types:
+            existing_extension_types = eval(existing_extension_types_content)
+            if existing_extension_types == extension_types:
                 return
         except:
-            print('Warning: Could not interpret the content of "{}".'.format(filename))
+            print(f'Warning: Could not interpret the content of "{filename}".', file=sys.stderr)
     # Write the dictionary to the types file:
     with open(filename, 'w', encoding='utf-8') as types_file:
-        types_file.write(str(custom_types))
+        types_file.write(str(extension_types))
 
 
 
 def make_pxd(filename, no_optimization):
-    # Read in the custom types from the types file
+    # Read in the extension types from the types file
     with open(filename_types, 'r', encoding='utf-8') as pyxfile:
-        custom_types_content = pyxfile.read()
-    custom_types = eval(custom_types_content)
+        extension_types_content = pyxfile.read()
+    extension_types = eval(extension_types_content)
     # Begin constructing pxd
     header_lines = []
     pxd_filename = filename[:-3] + 'pxd'
@@ -2751,7 +2734,7 @@ def make_pxd(filename, no_optimization):
     else:
         pxd_lines.append('\n')
     # Find declarations of non-builtin types (extension types)
-    for vartype, vardeclaration in custom_types.items():
+    for vartype, vardeclaration in extension_types.items():
         # Skip declaration if vartype is defined in this module
         if vardeclaration.startswith('from {} cimport '.format(filename[:-4])):
             continue

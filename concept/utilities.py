@@ -778,13 +778,17 @@ def CLASS():
                 arr = cosmoresults.P_bar(cosmoresults.background['a'], component)
                 dset = background_h5.create_dataset(key, (arr.shape[0],), dtype=C2np['double'])
                 dset[:] = arr
-    # Create dict mapping components to lists
-    # of (variable, specific_multi_index).
+    # Create dict mapping components to lists of
+    # (variable, specific_multi_index, var_name), specifying which
+    # transfer functions to store in the hdf5 file.
     component_variables = {}
     for component in components:
         # Create list of (variable, specific_multi_index, var_name)
         variable_specifications = [(0, None, 'δ')]
-        if component.representation == 'fluid':
+        if component.representation == 'particles':
+            if not component.realization_options['mom'].get('velocitiesfromdisplacements', False):
+                variable_specifications.append((1, None, 'θ'))
+        elif component.representation == 'fluid':
             if component.boltzmann_order > 1 or (
                 component.boltzmann_order == 1 and component.boltzmann_closure == 'class'):
                 variable_specifications.append((1, None, 'θ'))
