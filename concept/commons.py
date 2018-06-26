@@ -910,6 +910,14 @@ from libc.math cimport (sin, cos, tan,
                         fmod,
                         )
 """)
+# Custom extension types using @cython.cclass will be found by the
+# pyxpp preprocessor. A comment containing such types will be placed in
+# the .pyx version of the given .py file. These are then collected
+# together into the .types.pyx file. The content of the cython_gsl
+# module cimported above also contains some extension types however.
+# Here we add this comment manually, directly in the .py file.
+# Extension types implemented by this module:
+#     gsl_...: from cython_gsl cimport *
 
 
 
@@ -1725,7 +1733,7 @@ cython.declare(# Input/output
                select_class_species=dict,
                select_eos_w=dict,
                select_boltzmann_closure=dict,
-               select_nonlinear_realization_schemes=dict,
+               select_realization_options=dict,
                select_approximations=dict,
                select_softening_length=dict,
                # Simlation options
@@ -1945,16 +1953,16 @@ if user_params.get('select_boltzmann_closure'):
         select_boltzmann_closure = {'all': str(user_params['select_boltzmann_closure'])}
 select_boltzmann_closure['default'] = 'class'
 user_params['select_boltzmann_closure'] = select_boltzmann_closure
-select_nonlinear_realization_schemes = {}
-if user_params.get('select_nonlinear_realization_schemes'):
-    select_nonlinear_realization_schemes = dict(
-        user_params['select_nonlinear_realization_schemes']
+select_realization_options = {}
+if user_params.get('select_realization_options'):
+    select_realization_options = dict(
+        user_params['select_realization_options']
     )
-    replace_ellipsis(select_nonlinear_realization_schemes)
-    if select_nonlinear_realization_schemes:
-        for d in select_nonlinear_realization_schemes.values():
+    replace_ellipsis(select_realization_options)
+    if select_realization_options:
+        for d in select_realization_options.values():
             replace_ellipsis(d)
-user_params['select_nonlinear_realization_schemes'] = select_nonlinear_realization_schemes
+user_params['select_realization_options'] = select_realization_options
 select_approximations = {}
 if user_params.get('select_approximations'):
     select_approximations = dict(user_params['select_approximations'])

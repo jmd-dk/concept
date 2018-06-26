@@ -447,14 +447,14 @@ class Component:
         boltzmann_closure=str,
         approximations=dict,
         softening_length=object,  # float or str
-        nonlinear_realization_schemes=dict,
+        realization_options=dict,
     )
     def __init__(self, name, species, N_or_gridsize, *,
         mass=-1,
         boltzmann_order=2,
         forces=None,
         class_species=None,
-        nonlinear_realization_schemes=None,
+        realization_options=None,
         w=None,
         boltzmann_closure=None,
         approximations=None,
@@ -469,6 +469,8 @@ class Component:
         # linearly. Below is listed an overview of all allowed
         # combinations of boltzmann_order and boltzmann_closure,
         # together with the accompanying fluid variable behavoir.
+        # Note that for particle components, only boltzmann_order = 2
+        # is allowed.
         #
         # boltzmann_order = 0, boltzmann_closure = 'class':
         #     linear ϱ  (Realized continuously, affects other components gravitationally)
@@ -566,7 +568,7 @@ class Component:
         public dict fluid_names
         public Py_ssize_t boltzmann_order
         public str boltzmann_closure
-        public dict nonlinear_realization_schemes
+        public dict realization_options
         public str w_type
         public double w_constant
         public double[:, ::1] w_tabulated
@@ -664,49 +666,71 @@ class Component:
                 f'The component "{self.name}" was initialized '
                 f'with an unknown Boltzmann closure of "{self.boltzmann_closure}"'
             )
-        # Set non-linear realization schemes
-        if nonlinear_realization_schemes is None:
-            nonlinear_realization_schemes = is_selected(
-                self, select_nonlinear_realization_schemes, accumulate=True)
-        if not nonlinear_realization_schemes:
-            nonlinear_realization_schemes = {}
-        varnames = ('J', '𝒫', 'ς')
+        # Set realization options
+        if realization_options is None:
+            realization_options = {}
+        realization_options_selected = is_selected(
+            self, select_realization_options, accumulate=True)
+        realization_options_selected.update(realization_options)
+        realization_options = realization_options_selected
+        realization_options_all = realization_options.get('all', {})
+        for key, val in realization_options.copy().items():
+            if not isinstance(val, dict):
+                realization_options_all[key] = val
+                del realization_options[key]
+        realization_options_all = {
+            key.lower().replace(' ', '').replace('-', '').replace('_', ''):
+                (val.lower().replace(' ', '').replace('-', '').replace('_', '') if
+                isinstance(val, str) else val)
+            for key, val in realization_options_all.items()}
+        varnames = ('pos', 'mom', 'ϱ', 'J', '𝒫', 'ς')
         wrong_varname_sets = (
-            {'j'}, {'P', 'δP', 'δ𝒫', 'p', 'δp'}, {'s', 'sigma', 'Sigma', 'σ', 'Σ'},
+            {'x', 'position', 'positions', 'Position', 'Positions'},
+            {'momentum', 'momenta', 'Momentum', 'Momenta'},
+            {'r', 'rho', 'ρ'},
+            {'j'},
+            {'P', 'δP', 'δ𝒫', 'p', 'δp'},
+            {'s', 'sigma', 'Sigma', 'σ', 'Σ'},
         )
         for varname, wrong_varnames in zip(varnames, wrong_varname_sets):
             for wrong_varname in wrong_varnames:
-                scheme = (
-                       nonlinear_realization_schemes.get(unicode(wrong_varname))
-                    or nonlinear_realization_schemes.get(asciify(wrong_varname))
+                realization_options_varname = (
+                       realization_options.get(unicode(wrong_varname))
+                    or realization_options.get(asciify(wrong_varname))
                 )
-                if scheme:
-                    nonlinear_realization_schemes[varname] = scheme
+                if realization_options_varname:
+                    realization_options[varname] = realization_options_varname
                     break
-        for varname in ('J', '𝒫', 'ς'):
-            if (   unicode(varname) in nonlinear_realization_schemes
-                or asciify(varname) in nonlinear_realization_schemes
-            ):
-                continue
-            # Default values
-            nonlinear_realization_schemes[varname] = {
-                'phases'        : 'non-linear',
-                'compound-order': 'linear',
-            }
-        for varname, scheme in nonlinear_realization_schemes.copy().items():
-            nonlinear_realization_schemes[unicode(varname)] = scheme
-            nonlinear_realization_schemes[asciify(varname)] = scheme
-        nonlinear_realization_schemes = {
+        realization_options_default = {
+            # Linear realization options
+            'velocitiesfromdisplacements': realization_options_all.get(
+                'velocitiesfromdisplacements', False),
+            'backscaling': realization_options_all.get('backscaling', False),
+            # Non-linear realization options
+            'phases': realization_options_all.get('phases', 'primordial'),
+            'compoundorder': realization_options_all.get('compoundorder', 'linear'),
+        }
+        for varname in ('pos', 'mom', 'ϱ', 'J', '𝒫', 'ς'):
+            realization_options_default_copy = realization_options_default.copy()
+            for varname_encoding in (unicode(varname), asciify(varname)):
+                if varname_encoding in realization_options:
+                    realization_options_default_copy.update(realization_options[varname_encoding])
+            realization_options[varname] = realization_options_default_copy
+        for varname, realization_options_varname in realization_options.copy().items():
+            realization_options[unicode(varname)] = realization_options_varname
+            realization_options[asciify(varname)] = realization_options_varname
+        realization_options = {
             varname: {
                 key.lower().replace(' ', '').replace('-', '').replace('_', ''):
-                    val.lower().replace(' ', '').replace('-', '').replace('_', '')
-                for key, val in nonlinear_realization_schemes[varname].items()}
-            for varname in ('J', '𝒫', 'ς')
+                    (val.lower().replace(' ', '').replace('-', '').replace('_', '') if
+                    isinstance(val, str) else val)
+                for key, val in realization_options[varname].items()}
+            for varname in ('pos', 'mom', 'ϱ', 'J', '𝒫', 'ς')
         }
-        for varname, scheme in nonlinear_realization_schemes.copy().items():
-            nonlinear_realization_schemes[unicode(varname)] = scheme
-            nonlinear_realization_schemes[asciify(varname)] = scheme
-        self.nonlinear_realization_schemes = nonlinear_realization_schemes
+        for varname, realization_options_varname in realization_options.copy().items():
+            realization_options[unicode(varname)] = realization_options_varname
+            realization_options[asciify(varname)] = realization_options_varname
+        self.realization_options = realization_options
         # Set approximations. Ensure that all implemented approximations
         # get set either True or False. If an approximation is not set
         # for this component, its value defaults to False.
@@ -718,21 +742,22 @@ class Component:
         for approximation, value in approximations.items():
             # General transformations
             approximation = unicode(approximation)
-            for char in ' *':
+            for char in unicode(' *×^'):
                 approximation = approximation.replace(char, '')
             for n in range(10):
                 approximation = approximation.replace(unicode_superscript(str(n)), str(n))
             # The P=wρ approximation
+            approximation_transformed = approximation
             for s in ('rho', r'\rho', '\rho'):
-                approximation = approximation.replace(s, unicode('ρ'))
-            if approximation in (
-                f'P=w{unicode("ρ")}',
-                f'P={unicode("ρ")}w',
-                f'w{unicode("ρ")}=P',
-                f'{unicode("ρ")}w=P',
-            ):
-                approximation = f'P=w{unicode("ρ")}'
-            approximations_transformed[approximation] = bool(value)
+                approximation_transformed = approximation_transformed.replace(s, unicode('ρ'))
+            if approximation_transformed in {
+                    unicode('P=wρ'),
+                    unicode('P=ρw'),
+                    unicode('wρ=P'),
+                    unicode('ρw=P'),
+            }:
+                approximation_transformed = unicode('P=wρ')
+            approximations_transformed[approximation_transformed] = bool(value)
         approximations = approximations_transformed
         for approximation, value in approximations.copy().items():
             if unicode(approximation) not in approximations_implemented:
@@ -1283,7 +1308,7 @@ class Component:
                       specific_multi_index=None,
                       a=-1,
                       gauge='N-body',
-                      scheme=None,
+                      options=None,
                       use_gridˣ=False,
                       ):
         """This method will realise a given fluid/particle variable from
@@ -1312,7 +1337,7 @@ class Component:
         but then you have to leave the transfer_spline and cosmoresults
         arguments unspecified (as you can only pass in a
         single transfer_spline).
-        The gauge and scheme arguments are passed on to
+        The gauge and options arguments are passed on to
         linear.compute_transfer and linear.realize, respectively.
         See these functions for further detail.
         The use_gridˣ argument is passed on to linear.relize and
@@ -1321,6 +1346,12 @@ class Component:
         """
         if a == -1:
             a = universals.a
+        if options is None:
+            options = {}
+        options = {key.lower().replace(' ', '').replace('-', ''):
+            (val.lower().replace(' ', '').replace('-', '') if isinstance(val, str) else val)
+            for key, val in options.items()
+        }
         # Define the gridsize used by the realization (gridsize for
         # fluid components and ∛N for particle components) and resize
         # the data attributes if needed.
@@ -1359,15 +1390,7 @@ class Component:
         # Argument processing
         if transfer_spline is None and cosmoresults is not None:
             abort('The realize method was called with cosmoresults but no transfer_spline')
-        if self.representation == 'particles':
-            # Particles use the Zeldovich approximation for realization,
-            # which realizes both positions and momenta from the δ (pos)
-            # transfer function. Thus for particles, regardless of what
-            # variables are passed, a value of 'pos' should always
-            # be used.
-            variables = 'pos'
         if variables is None:
-            # Realize all variables
             if transfer_spline is not None:
                 masterwarn('The realize method was called without specifying a variable, '
                            'though a transfer_spline is passed. '
@@ -1375,6 +1398,7 @@ class Component:
             if cosmoresults is not None:
                 masterwarn('The realize method was called without specifying a variable, '
                            'though a cosmoresults is passed. This cosmoresults will be ignored.')
+            # Realize all variables
             variables = arange(self.boltzmann_order)
         else:
             # Realize one or more variables
@@ -1388,12 +1412,15 @@ class Component:
                 if cosmoresults is not None:
                     abort(f'The realize method was called with {N_vars} variables '
                           'while cosmoresults was supplied as well')
+        variables = any2list(variables)
         # Prepare arguments to compute_transfer,
         # if no transfer_spline is passed.
         if transfer_spline is None:
             k_min, k_max, k_gridsize = get_default_k_parameters(gridsize)
         # Realize each of the variables in turn
+        options_passed = options.copy()
         for variable in variables:
+            options = options_passed.copy()
             # The special "realization" of 𝒫 when using
             # the P=wρ approximation.
             if (   self.representation == 'fluid'
@@ -1405,6 +1432,44 @@ class Component:
                 self.realize_𝒫(a, use_gridˣ)
             else:
                 # Normal realization.
+                # If a linear realization option is not passed, use the
+                # one specified for this component and variable.
+                if (self.representation == 'particles'
+                    and 'velocitiesfromdisplacements' not in options
+                ):
+                    # The special 'velocities from displacements'
+                    # option.
+                    options['velocitiesfromdisplacements'] = self.realization_options['mom'][
+                        'velocitiesfromdisplacements']
+                    # For particles, the Boltzmann order is always 2,
+                    # corresponding to positions and momenta. However,
+                    # when velocities are set to be realized from
+                    # displacements, the momenta (proportional to the
+                    # velocity field uⁱ) are constructed from the
+                    # displacement field ψⁱ (using the linear growth
+                    # rate f) during the Zel'dovich approximation. Thus,
+                    # from a single realization of ψⁱ, both the
+                    # positions and the momenta are constructed. We
+                    # should then pass only the positions as the
+                    # variable to be realized (the realize function will
+                    # realize both positions and momenta when velocities
+                    # are to be realized from displacements).
+                    if options['velocitiesfromdisplacements'] and variable == 1:
+                        break
+                # The back-scaling option
+                if 'backscaling' not in options:
+                    if variable == 0:
+                        options['backscaling'] = self.realization_options[
+                            {'particles': 'pos', 'fluid': 'ϱ'}[self.representation]
+                        ]['backscaling']
+                    elif variable == 1:
+                        options['backscaling'] = self.realization_options[
+                            {'particles': 'mom', 'fluid': 'J'}[self.representation]
+                        ]['backscaling']
+                    elif variable == 2 and specific_multi_index == 'trace':
+                        options = self.realization_options['𝒫']['backscaling']
+                    elif variable == 2:
+                        options = self.realization_options['ς']['backscaling']
                 # Get transfer function if not passed.
                 if transfer_spline is None:
                     transfer_spline, cosmoresults = compute_transfer(
@@ -1423,22 +1488,11 @@ class Component:
                     cosmoresults,
                     specific_multi_index,
                     a,
-                    scheme,
+                    options,
                     use_gridˣ,
                 )
-                # Particles use the Zeldovich approximation
-                # for realization, which realizes both positions
-                # and momenta. Thus for particles, a single realization
-                # is all that is neeed. Importantly, the passed transfer
-                # function must be that of δ, retrieved from
-                # compute_transfer using e.g. 'pos' as the passed
-                # variables argument. The value of the variable argument
-                # to the realize function does not matter in the case of
-                # a particle component.
-                if self.representation == 'particles':
-                    break
-                # Reset transfer_spline to None so that a transfer function
-                # will be computed for the next variable.
+                # Reset transfer_spline to None so that a transfer
+                # function will be computed for the next variable.
                 transfer_spline = None
 
     # Method for realizing a linear fluid scalar
@@ -1450,7 +1504,7 @@ class Component:
         specific_multi_index=None,
         a=-1,
         gauge='N-body',
-        scheme=None,
+        options=None,
         use_gridˣ=False,
     ):
         """If the fluid scalar is not linear or does not exist at all,
@@ -1477,19 +1531,19 @@ class Component:
         # Check that the fluid scalar exist
         if specific_multi_index not in self.fluidvars[variable]:
             return
-        # Get the non-linear realization scheme
-        if scheme is None:
+        # Get the non-linear realization options
+        if options is None:
             if variable == 0:
-                scheme = {}
+                options = self.realization_options['ϱ']
             elif variable == 1:
-                scheme = self.nonlinear_realization_schemes['J']
+                options = self.realization_options['J']
             elif variable == 2 and specific_multi_index == 'trace':
-                scheme = self.nonlinear_realization_schemes['𝒫']
+                options = self.realization_options['𝒫']
             elif variable == 2:
-                scheme = self.nonlinear_realization_schemes['ς']
+                options = self.realization_options['ς']
             else:
                 abort(
-                    f'Do not know how to extract realization scheme '
+                    f'Do not know how to extract realization options '
                     f'for fluid variable {variable}[{specific_multi_index}]'
                 )
         # Do the realization if the passed variable really is linear
@@ -1501,7 +1555,7 @@ class Component:
                 specific_multi_index,
                 a,
                 gauge,
-                scheme,
+                options,
                 use_gridˣ,
             )
     # Method for checking whether a given fluid variable

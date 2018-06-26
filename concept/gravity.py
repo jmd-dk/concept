@@ -223,9 +223,10 @@ def gravity_pairwise(component_1, component_2, rank_2, ᔑdt, local, mutual, ext
 # Function implementing the gravitational potential (in Fouier space).
 # Here k2 = k² is the squared magnitude of the wave vector,
 # in physical units.
-@cython.header(k2='double',
-               returns='double',
-               )
+@cython.header(
+    k2='double',
+    returns='double',
+)
 def gravity_potential(k2):
     return ℝ[-4*π*G_Newton]/k2
 

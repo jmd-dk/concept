@@ -616,7 +616,7 @@ def construct_potential_general(receivers, suppliers, quantities, potential):
             # Loop through the complete i-dimension
             for i in range(φ_gridsize):
                 # The i-component of the wave vector (grid units)
-                if i > φ_gridsize/2:
+                if i > ℤ[φ_gridsize//2]:
                     ki = i - φ_gridsize
                 else:
                     ki = i

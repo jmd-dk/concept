@@ -4,18 +4,16 @@
 # come from CLASS having radiation.
 # Massive neutrinos can be added by setting the
 # _with_neutrinos flag to True.
-_with_neutrinos = False
+_with_neutrinos = True
 
 
 
 # Input/output
 initial_conditions = [
     {
-        'name'             : 'matter component',
-        'species'          : 'matter fluid',
-        'gridsize'         : 2,
-        'boltzmann_order'  : 1,
-        'boltzmann_closure': 'truncate',
+        'name'   : 'matter component',
+        'species': 'matter particles',
+        'N'      : 1,
     },
 ]
 if _with_neutrinos:
