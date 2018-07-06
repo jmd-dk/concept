@@ -4,7 +4,7 @@
 # come from CLASS having radiation.
 # Massive neutrinos can be added by setting the
 # _with_neutrinos flag to True.
-_with_neutrinos = True
+_with_neutrinos = False
 
 
 
@@ -41,11 +41,10 @@ H0      = 67*km/(s*Mpc)
 a_begin = 1/(1 + 99)
 class_params = {
     # Primordial parameters
-    'k_pivot': 0.05,
+    'A_s'    : 2.13-09,
     'n_s'    : 0.96,
-    # We CAN in fact freely switch beween A_s and sigma8.
-    # Given A_s = 2.142e-09, CAMB gives sigma8 = 0.8348 for "all matter", whatever that means.
-    'sigma8' : 0.8348,
+    'alpha_s': 0.0,
+    'k_pivot': 0.05,
     # Massless neutrinos
     'N_ur': 3.046,
     # Recombination
@@ -66,19 +65,12 @@ if _with_neutrinos:
         'Number of momentum bins': 100,
         'Maximum q'              : 18,
     })
-    # Use A_s, not sigma8. Here we use the A_s that corresponds
-    # to the sigma8 above in the massless neutrino case. Note that
-    # For sigma8 = 0.8348, CLASS yields A_s = 2.134672e-09,
-    # while the sigma8 = 0.8348 is the result of running CAMB
-    # with A_s = 2.142e-09.
-    del class_params['sigma8']
-    class_params['A_s'] = 2.134672e-09
 
 # Simulation options
 class_k_max = {}
 class_reuse = True
 class_plot_perturbations = True
-class_extra_background = ['tau', 'D1']
+class_extra_background = ['D1', ]
 class_extra_perturbations = []
 
 # System of units

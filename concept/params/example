@@ -139,7 +139,7 @@ select_realization_options = {  # Realization options for each component and var
             # Linear realization options
             'back-scaling': False,
             # Non-linear realization options
-            'phases'        : 'primordial',
+            'structure'     : 'primordial',
             'compound-order': 'linear',
         },
         '𝒫': ...,

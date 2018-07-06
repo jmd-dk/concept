@@ -612,7 +612,7 @@ def constant_expressions(lines, no_optimization, first_call=True):
             if match1:
                 return ('=' in match1.group())
             if match2:
-                return ('=' in match2.group())
+                return ('=' in match2.group()) and ('=' in line[match2.end() - 2:])
         def used_as_function_arg(var, line):
             # This function checks whether the variable var is used as
             # a function argument in the line, the idea being that if

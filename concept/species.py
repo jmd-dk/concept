@@ -707,7 +707,7 @@ class Component:
                 'velocitiesfromdisplacements', False),
             'backscaling': realization_options_all.get('backscaling', False),
             # Non-linear realization options
-            'phases': realization_options_all.get('phases', 'primordial'),
+            'structure'    : realization_options_all.get('structure', 'primordial'),
             'compoundorder': realization_options_all.get('compoundorder', 'linear'),
         }
         for varname in ('pos', 'mom', 'ϱ', 'J', '𝒫', 'ς'):
@@ -730,6 +730,19 @@ class Component:
         for varname, realization_options_varname in realization_options.copy().items():
             realization_options[unicode(varname)] = realization_options_varname
             realization_options[asciify(varname)] = realization_options_varname
+            for realization_option_varname in realization_options_varname:
+                if realization_option_varname not in {
+                    # Linear realization options
+                    'velocitiesfromdisplacements',
+                    'backscaling',
+                    # Non-linear realization options
+                    'structure',
+                    'compoundorder',
+                }:
+                    abort(
+                        f'Realization option "{realization_option_varname}" (specified for '
+                        f'component "{self.name}" not recognized.'
+                    )
         self.realization_options = realization_options
         # Set approximations. Ensure that all implemented approximations
         # get set either True or False. If an approximation is not set
