@@ -3182,12 +3182,6 @@ if random_seed < 1:
         f'A random_seed of {random_seed} was specified. '
         f'This should be > 0 to avoid clashes with the default GSL seed.'
     )
-# Warn on very large seeds, as these should be reserved for internal use
-if random_seed > 1e+9:
-    masterwarn(
-        f'A random_seed of {random_seed} > 10⁹ was specified. You should keep the seed between 1 '
-        f'and 10⁹, as larger values might clash with other seeds used internally by the code.'
-    )
 # Warn about unused but specified parameters.
 if user_params.unused:
     if len(user_params.unused) == 1:

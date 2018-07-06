@@ -859,7 +859,7 @@ def CLASS():
                 'k', (k_magnitudes.shape[0], ), dtype=C2np['double'],
             )
             dset[:] = k_magnitudes
-            for primordial_key in {'A_s', 'n_s', 'k_pivot'}:
+            for primordial_key in {'A_s', 'n_s', 'alpha_s', 'k_pivot'}:
                 perturbations_h5.attrs[primordial_key] = getattr(cosmoresults, primordial_key)
             perturbations_h5.attrs['gauge'] = bytes(
                 gauge.replace('-', '').lower(), encoding='ascii')

@@ -51,7 +51,7 @@ class CosmoResults:
     # for a given a.
     transfer_function_variable_names = ('δ', 'θ', 'δP', 'σ', 'hʹ')
     # Names of scalar attributes
-    attribute_names = ('A_s', 'n_s', 'k_pivot', 'h')
+    attribute_names = ('A_s', 'n_s', 'alpha_s', 'k_pivot', 'h')
     # Initialize instance
     def __init__(self, params, k_magnitudes, cosmo=None, filename=''):
         """If no cosmo object is passed, all results should be loaded
@@ -190,6 +190,17 @@ class CosmoResults:
             # Communicate
             self._n_s = bcast(self._n_s if master else None)
         return self._n_s
+    @property
+    def alpha_s(self):
+        if not hasattr(self, '_alpha_s'):
+            if not self.load('alpha_s'):
+                # Get alpha_s from CLASS
+                self._alpha_s = self.cosmo.get_current_derived_parameters(['alpha_s'])['alpha_s']
+                # Save to disk
+                self.save('alpha_s')
+            # Communicate
+            self._alpha_s = bcast(self._alpha_s if master else None)
+        return self._alpha_s
     @property
     def k_pivot(self):
         if not hasattr(self, '_k_pivot'):
@@ -1786,6 +1797,7 @@ def get_default_k_parameters(gridsize):
     # Locals
     A_s='double',
     H='double',
+    Jⁱ_ptr='double*',
     compound_variable='bint',
     cosmoresults_δ=object,  # CosmoResults
     dim='int',
@@ -1833,23 +1845,23 @@ def get_default_k_parameters(gridsize):
     options_linear=dict,
     option_val=object,  # str or bool
     pariclevar_name=str,
-    phases_jik='double*',
     posⁱ='double*',
     pos_gridpoint='double',
     processed_specific_multi_index=object,  # tuple or str
     slab='double[:, :, ::1]',
     slab_jik='double*',
-    slab_phases='double[:, :, ::1]',
-    slab_phases_info=dict,
     sqrt_power='double',
     sqrt_power_common='double[::1]',
+    slab_structure='double[:, :, ::1]',
+    slab_structure_info=dict,
+    structure_jik='double*',
     tensor_rank='int',
     transfer='double',
     transfer_spline_δ='Spline',
     uⁱ_noghosts='double[:, :, :]',
     w='double',
     w_eff='double',
-    Jⁱ_ptr='double*',
+    α_s='double',
     δ_min='double',
     ψⁱ='double[:, :, ::1]',
     ψⁱ_noghosts='double[:, :, :]',
@@ -1884,7 +1896,7 @@ def realize(component, variable, transfer_spline, cosmoresults,
         # Linear realization options
         'velocities from displacements': False,
         # Non-linear realization options
-        'phases'        : 'primordial',
+        'structure'     : 'primordial',
         'compound-order': 'linear',
     }
     which corresponds to linear realization. For particle components
@@ -1895,21 +1907,25 @@ def realize(component, variable, transfer_spline, cosmoresults,
     positions, using the linear growth rate f to convert between
     displacement and velocity. Otherwise, momenta will be constructed
     from their own velocity field uⁱ, using their own transfer function
-    but the same (primordial) phases.
+    but the same (primordial) noise.
     Another linear option 'back-scaling' might be specified, but it is
     not used by this function.
     Taking Jⁱ as an example of a fluid variable realization,
     linear realization looks like
         Jⁱ(x⃗) = a**(1 - 3w_eff)ϱ_bar(1 + w)ℱₓ⁻¹[T_θ(k)ζ(k)K(k⃗)ℛ(k⃗)],
-    where ζ(k) = π*sqrt(2*A_s)*k**(-3/2)*(k/k_pivot)**((n_s - 1)/2)
-    is the primordial curvature perturbation, T_θ(k) is the passed
-    transfer function for θ, ℛ(k⃗) is a field of primordial phases,
+    where
+        ζ(k) = π*sqrt(2*A_s)*k**(-3/2)*(k/k_pivot)**((n_s - 1)/2)
+                *exp(α_s/4*log(k/k_pivot)**2)
+    is the primordial curvature perturbation
+    (see the primordial_analytic_spectrum() function in the CLASS
+    primordial.c file for a reference), T_θ(k) is the passed
+    transfer function for θ, ℛ(k⃗) is a field of primordial noise,
     and K(k⃗) is the tensor structure (often referred to as the k factor)
     needed to convert from θ to uⁱ. For uⁱ, K(k⃗) = -ikⁱ/k². The factors
     outside the Fourier transform then converts from uⁱ to Jⁱ.
-    We can instead choose to use the evolved non-linear phases of ϱ,
-    by using options['phases'] == 'non-linear'. Then the realization
-    looks like
+    We can instead choose to use the non-linearly evolved structure
+    of ϱ, by using options['structure'] == 'non-linear'. Then the
+    realization looks like
         Jⁱ(x⃗) = a**(1 - 3w_eff)ϱ_bar(1 + w)ℱₓ⁻¹[T_θ(k)/T_δϱ(k)K(k⃗)δϱ(k⃗)],
     where δϱ(k⃗) = ℱₓ[δϱ(x⃗)] is computed from the present ϱ(x⃗) grid,
     and T_δϱ(k) is the (not passed) transfer function of δϱ.
@@ -1937,7 +1953,7 @@ def realize(component, variable, transfer_spline, cosmoresults,
         # Linear options
         'velocitiesfromdisplacements': False,
         # Non-linear options
-        'phases'       : 'primordial',
+        'structure'    : 'primordial',
         'compoundorder': 'linear',
     }
     for option_key, option_val in options_linear.items():
@@ -1947,13 +1963,13 @@ def realize(component, variable, transfer_spline, cosmoresults,
         if option_key not in {
             'velocitiesfromdisplacements',
             'backscaling',
-            'phases',
+            'structure',
             'compoundorder',
         }:
             abort(f'Did not understand realization option "{option_key}"')
-    if options['phases'] not in ('primordial', 'nonlinear'):
-        abort('Unrecognized value "{}" for options["phases"]'
-            .format(options['phases']))
+    if options['structure'] not in ('primordial', 'nonlinear'):
+        abort('Unrecognized value "{}" for options["structure"]'
+            .format(options['structure']))
     if options['compoundorder'] not in ('linear', 'nonlinear'):
         abort('Unrecognized value "{}" for options["compound-order"]'
             .format(options['compoundorder']))
@@ -2064,12 +2080,15 @@ def realize(component, variable, transfer_spline, cosmoresults,
     if not compound_variable:
         if options['compoundorder'] == 'nonlinear':
             options['compoundorder'] = 'linear'
-    # Abort if non-linear phases was passed for a particle component,
-    # as these can only be realized from the primordial phases.
-    if component.representation == 'particles' and options['phases'] != options_linear['phases']:
-        abort('Can only do particle realization using primordial phases')
+    # Abort if the non-linear structure option was passed
+    # for a particle component, as these can only be realized
+    # from primordial noise.
+    if (component.representation == 'particles'
+        and options['structure'] != options_linear['structure']
+    ):
+        abort('Can only do particle realization using primordial noise/structure')
     # When realizing δ, it only makes sense to realize it linearly
-    if fluid_index == 0 and options['phases'] != options_linear['phases']:
+    if fluid_index == 0 and options['structure'] != options_linear['structure']:
         abort('Can only do linear realization of δ')
     # Extract various variables
     nyquist = gridsize//2
@@ -2080,6 +2099,7 @@ def realize(component, variable, transfer_spline, cosmoresults,
     if cosmoresults is not None:
         A_s = cosmoresults.A_s
         n_s = cosmoresults.n_s
+        α_s = cosmoresults.alpha_s
         k_pivot = cosmoresults.k_pivot
     # Fill 1D array with values used for the realization.
     # These values are the k (but not k⃗) dependent values inside the
@@ -2091,10 +2111,10 @@ def realize(component, variable, transfer_spline, cosmoresults,
         # domain decomposition of ψⁱ below.
         0,
     )
-    if options['phases'] == 'nonlinear':
-        # When using the non-linear phases of δϱ to do the realizations,
-        # we need the transfer function of δϱ, which is just
-        # ϱ_bar times the transfer function of δ.
+    if options['structure'] == 'nonlinear':
+        # When using the non-linear structure of δϱ to do
+        # the realizations, we need the transfer function of δϱ,
+        # which is just ϱ_bar times the transfer function of δ.
         k_min, k_max, k_gridsize = get_default_k_parameters(gridsize)
         transfer_spline_δ, cosmoresults_δ = compute_transfer(
             component, 0, k_min, k_max, k_gridsize, a=a,
@@ -2103,24 +2123,26 @@ def realize(component, variable, transfer_spline, cosmoresults,
         k_magnitude = ℝ[2*π/boxsize]*sqrt(k2)
         transfer = transfer_spline.eval(k_magnitude)
         with unswitch:
-            if options['phases'] == 'primordial':
+            if options['structure'] == 'primordial':
                 # Realize using ℱₓ⁻¹[T(k) ζ(k) K(k⃗) ℛ(k⃗)],
                 # with K(k⃗) capturing any tensor structure.
                 # The k⃗-independent part needed here is T(k)ζ(k),
                 # with T(k) the supplied transfer function and
                 # ζ(k) = π*sqrt(2*A_s)*k**(-3/2)*(k/k_pivot)**((n_s - 1)/2)
-                # the primordial curvature perturbations. The remaining
-                # ℛ(k⃗) is the primordial phases.
+                #          *exp(α_s/4*log(k/k_pivot)**2)
+                # the primordial curvature perturbations.
+                # The remaining# ℛ(k⃗) is the primordial noise.
                 sqrt_power_common[k2] = (
                     # T(k)
                     transfer
                     # ζ(k)
-                    *k_magnitude**ℝ[0.5*n_s - 2]*ℝ[π*sqrt(2*A_s)*k_pivot**(0.5 - 0.5*n_s)
+                    *ℝ[π*sqrt(2*A_s)*k_pivot**(0.5 - 0.5*n_s)
                         # Fourier normalization
                         *boxsize**(-1.5)
-                    ]
+                    ]*k_magnitude**ℝ[0.5*n_s - 2]
+                    *exp(ℝ[0.25*α_s]*log(k_magnitude*ℝ[1/k_pivot])**2)
                 )
-            elif options['phases'] == 'nonlinear':
+            elif options['structure'] == 'nonlinear':
                 # Realize using ℱₓ⁻¹[T(k)/T_δϱ(k) K(k⃗) ℱₓ[δϱ(x⃗)]],
                 # with K(k⃗) capturing any tensor structure.
                 # The k⃗-independent part needed here is T(k)/T_δϱ(k),
@@ -2142,41 +2164,42 @@ def realize(component, variable, transfer_spline, cosmoresults,
     # to be inverse Fourier transformed. As we cannot reuse data from
     # previous calls, we do not pass in a specific buffer name.
     slab = get_fftw_slab(gridsize)
-    # Fetch a slab decomposed grid for storing the phases. If this is
+    # Fetch a slab decomposed grid for storing the structure. If this is
     # the first time we perform a realization of this size, the grid
     # will be allocated, otherwise the previous grid will be returned,
     # still containing the previous data.
-    slab_phases = get_fftw_slab(gridsize, 'slab_phases')
+    slab_structure = get_fftw_slab(gridsize, 'slab_structure')
     # Information about the data from the previous call
-    # is stored in the module level slab_phases_previous_info dict.
-    # To see if we can reuse the slab_phases as is, we compare this
+    # is stored in the module level slab_structure_previous_info dict.
+    # To see if we can reuse the slab_structure as is, we compare this
     # information with that of the current realization.
-    slab_phases_info = {
-        'phases': options['phases'],
+    slab_structure_info = {
+        'structure': options['structure'],
         'a': a,
         'use_gridˣ': use_gridˣ,
         'gridsize': gridsize,
     }
-    if slab_phases_info['phases'] == 'primordial':
-        # The slab_phases contain no non-linear information,
-        # and so it is of no importance at what time the slab_phases
-        # were made, or whether using the starred or unstarred grids.
-        slab_phases_info['a'] = None
-        slab_phases_info['use_gridˣ'] = None
-    if slab_phases_info != slab_phases_previous_info:
-        # Populate slab_phases with either ℛ(k⃗) or ℱₓ[ϱ(x⃗)]
-        if options['phases'] == 'primordial':
-            # Populate slab_phases with ℛ(k⃗)
-            get_primordial_phases(slab_phases)
-        elif options['phases'] == 'nonlinear':
-            # Populate slab_phases with ℱₓ[ϱ(x⃗)]
-            slab_decompose(component.ϱ.gridˣ_mv if use_gridˣ else component.ϱ.grid_mv, slab_phases)
-            fft(slab_phases, 'forward')
+    if slab_structure_info['structure'] == 'primordial':
+        # The slab_structure contain no non-linear information,
+        # and so it is of no importance at what time slab_structure
+        # was made, or whether using the starred or unstarred grids.
+        slab_structure_info['a'] = None
+        slab_structure_info['use_gridˣ'] = None
+    if slab_structure_info != slab_structure_previous_info:
+        # Populate slab_structure with either ℛ(k⃗) or ℱₓ[ϱ(x⃗)]
+        if options['structure'] == 'primordial':
+            # Populate slab_structure with primordial noise ℛ(k⃗)
+            generate_primordial_noise(slab_structure)
+        elif options['structure'] == 'nonlinear':
+            # Populate slab_structure with ℱₓ[ϱ(x⃗)]
+            slab_decompose(component.ϱ.gridˣ_mv if use_gridˣ else component.ϱ.grid_mv,
+                slab_structure)
+            fft(slab_structure, 'forward')
         # Remove the k⃗ = 0⃗ mode, leaving ℱₓ[δϱ(x⃗)]
         if master:
-            slab_phases[0, 0, 0] = 0  # Real part
-            slab_phases[0, 0, 1] = 0  # Imag part
-    slab_phases_previous_info.update(slab_phases_info)
+            slab_structure[0, 0, 0] = 0  # Real part
+            slab_structure[0, 0, 1] = 0  # Imag part
+    slab_structure_previous_info.update(slab_structure_info)
     # Allocate 3-vectors which will store componens
     # of the k vector (in grid units).
     k_gridvec = empty(3, dtype=C2np['Py_ssize_t'])
@@ -2263,11 +2286,11 @@ def realize(component, variable, transfer_spline, cosmoresults,
                                 slab_jik[1] = 0
                                 continue
                     # Pointer to the [j, i, k]'th element
-                    # of the phases.
-                    phases_jik = cython.address(slab_phases[j, i, k:])
+                    # of the structure grid.
+                    structure_jik = cython.address(slab_structure[j, i, k:])
                     # The square root of the power at this |k⃗|,
                     # disregarding all k⃗-dependent contributions
-                    # (from the k factor and the non-linear phases).
+                    # (from the k factor and the non-linear structure).
                     sqrt_power = sqrt_power_common[k2]
                     # Populate slab_jik dependent on the component
                     # representation and tensor_rank.
@@ -2295,21 +2318,21 @@ def realize(component, variable, transfer_spline, cosmoresults,
                                 'mom': -1,
                                 }[pariclevar_name]
                                 *boxsize/(2*π)]*k_gridvec[index0]/k2
-                            slab_jik[0] = sqrt_power*k_factor*(-phases_jik[1])
-                            slab_jik[1] = sqrt_power*k_factor*(+phases_jik[0])
+                            slab_jik[0] = sqrt_power*k_factor*(-structure_jik[1])
+                            slab_jik[1] = sqrt_power*k_factor*(+structure_jik[0])
                         elif component.representation == 'fluid':
                             with unswitch(3):
                                 if tensor_rank == 0:
                                     # Realize δ or δ𝒫
-                                    slab_jik[0] = sqrt_power*phases_jik[0]
-                                    slab_jik[1] = sqrt_power*phases_jik[1]
+                                    slab_jik[0] = sqrt_power*structure_jik[0]
+                                    slab_jik[1] = sqrt_power*structure_jik[1]
                                 elif tensor_rank == 1:
                                     # Realize uⁱ.
                                     # For vectors we have a k factor of
                                     # K(k⃗) = -ikⁱ/k².
                                     k_factor = -(ℝ[boxsize/(2*π)]*k_gridvec[index0])/k2
-                                    slab_jik[0] = sqrt_power*k_factor*(-phases_jik[1])
-                                    slab_jik[1] = sqrt_power*k_factor*(+phases_jik[0])
+                                    slab_jik[0] = sqrt_power*k_factor*(-structure_jik[1])
+                                    slab_jik[1] = sqrt_power*k_factor*(+structure_jik[0])
                                 elif tensor_rank == 2:
                                     # Realize ςⁱⱼ.
                                     # For rank 2 tensors we
@@ -2318,8 +2341,8 @@ def realize(component, variable, transfer_spline, cosmoresults,
                                     k_factor = (ℝ[0.5*(index0 == index1)]
                                         - (1.5*k_gridvec[index0]*k_gridvec[index1])/k2
                                     )
-                                    slab_jik[0] = sqrt_power*k_factor*phases_jik[0]
-                                    slab_jik[1] = sqrt_power*k_factor*phases_jik[1]
+                                    slab_jik[0] = sqrt_power*k_factor*structure_jik[0]
+                                    slab_jik[1] = sqrt_power*k_factor*structure_jik[1]
         # Fourier transform the slabs to coordinate space.
         # Now the slabs store the realized grid.
         fft(slab, 'backward')
@@ -2460,147 +2483,181 @@ def realize(component, variable, transfer_spline, cosmoresults,
     ):
         exchange(component, reset_buffers=True)
 # Module level variable used by the realize function
-cython.declare(slab_phases_previous_info=dict)
-slab_phases_previous_info = {}
+cython.declare(slab_structure_previous_info=dict)
+slab_structure_previous_info = {}
 
-# Function that populates the passed slab decomposed grid with
-# primordial phases ℛ(k⃗).
+
+
+
+
+
+
+
+
+# Function that populates the passed slab decomposed grid
+# with primordial noise ℛ(k⃗).
 @cython.header(
     # Arguments
     slab='double[:, :, ::1]',
     # Locals
+    face='int',
     gridsize='Py_ssize_t',
-    i='Py_ssize_t',
-    j='Py_ssize_t',
-    j_global='Py_ssize_t',
-    k='Py_ssize_t',
-    kk='Py_ssize_t',
-    nyquist='Py_ssize_t',
-    phase_im='double',
-    phase_re='double',
-    phase_seed='unsigned long int',
-    plane_dc='double[:, :, ::1]',
-    plane_nyquist='double[:, :, ::1]',
-    shape=tuple,
-)
-def get_primordial_phases(slab):
-    shape = asarray(slab).shape
-    # The global gridsize is equal to
-    # the first (1) dimension of the slab.
-    gridsize = shape[1]
-    nyquist = gridsize//2
-    # Make the DC and Nyquist planes of primordial phases,
-    # respecting the complex-conjugate symmetry. These will be
-    # allocated in full on all processes. For each plane, the pseudo-
-    # random number generator will be re-seeded. We wish to use a seeds
-    # which depend only on random_seed, not on the number of processes.
-    # The only other seeds in use are the process seeds, with values
-    # between random_seed and random_seed + nprocs - 1. It is then safe
-    # to choose the new seed as random_seed plus some big number,
-    # larger than nprocs will ever be. Note however that the seed should
-    # not be greater than 2**32 - 1.
-    phase_seed = random_seed + 1_000_000_000
-    seed_rng(phase_seed - 1)
-    plane_dc = create_symmetric_plane(gridsize)
-    seed_rng(phase_seed - 2)
-    plane_nyquist = create_symmetric_plane(gridsize)
-    # Populate the passed slab.
-    # Loop through the local j-dimension.
-    for j in range(ℤ[shape[0]]):
-        j_global = ℤ[shape[0]*rank] + j
-        # As we want the phases ℛ(k⃗) to be independent on the number of
-        # processes used for the simulation, we cannot rely on the
-        # process specific random seeds. Instead, we make use of
-        # phase_seed defined above. As the grid is distributed among the
-        # process using a slab-decomposition along the j- dimension
-        # (in Fourier space; more generally it is simply the
-        # first dimension), the largest chunk that can be populated
-        # by a single seeding is the entire local slab. However, these
-        # slabs vary in size (thickness) dependent on nprocs, and so
-        # we can populate only the thinnest possible slab using a single
-        # seeding. This thinnest possible slab is a slab of thickness 1,
-        # meaning that we have to re-seed at every iteration of j.
-        # We use the seeds in order, starting from where we left off
-        # from the DC and Nyquist planes.
-        seed_rng(phase_seed + j_global)
-        # Loop through the complete i-dimension
-        for i in range(gridsize):
-            # Loop through the complete, padded k-dimension
-            # in steps of 2 (one complex number at a time).
-            for k in range(0, ℤ[shape[2]], 2):
-                # The k-component of the wave vector (grid units)
-                kk = k//2
-                # Draw a complex random number from a Gaussian
-                # distribution with mean 0 and variance 1.
-                # On the lowest kk (kk = 0, (DC)) and highest kk
-                # (kk = gridsize/2 (Nyquist)) planes we need to
-                # ensure that the complex-conjugate symmetry holds.
-                if kk == 0:
-                    phase_re = plane_dc[j_global, i, 0]
-                    phase_im = plane_dc[j_global, i, 1]
-                elif kk == nyquist:
-                    phase_re = plane_nyquist[j_global, i, 0]
-                    phase_im = plane_nyquist[j_global, i, 1]
-                else:
-                    # The real and imaginary part individually
-                    # have mean 0 and variance 1/√2.
-                    phase_re = random_gaussian(0, ℝ[1/sqrt(2)])
-                    phase_im = random_gaussian(0, ℝ[1/sqrt(2)])
-                # Store the two random numbers
-                slab[j, i, k    ] = phase_re
-                slab[j, i, k + 1] = phase_im
-
-# Function for creating the DC and Nyquist planes of primordial phases,
-# respecting hte complex-conjugate symmetry.
-@cython.header(
-    # Arguments
-    gridsize='Py_ssize_t',
-    # Locals
-    plane='double[:, :, ::1]',
     i='Py_ssize_t',
     i_conj='Py_ssize_t',
     j='Py_ssize_t',
-    j_conj='Py_ssize_t',
-    returns='double[:, :, ::1]',
+    j_global='Py_ssize_t',
+    j_global_conj='Py_ssize_t',
+    k='Py_ssize_t',
+    ki_start='Py_ssize_t',
+    ki_step='Py_ssize_t',
+    ki_stop='Py_ssize_t',
+    kj_start='Py_ssize_t',
+    kj_step='Py_ssize_t',
+    kj_stop='Py_ssize_t',
+    kk_start='Py_ssize_t',
+    kk_step='Py_ssize_t',
+    kk_stop='Py_ssize_t',
+    noise_im='double',
+    noise_re='double',
+    nyquist='Py_ssize_t',
+    plane='double[:, :, ::1]',
+    plane_dc='double[:, :, ::1]',
+    plane_ji='double*',
+    plane_ji_conj='double*',
+    plane_nyquist='double[:, :, ::1]',
+    shell='Py_ssize_t',
+    slab_jik='double*',
 )
-def create_symmetric_plane(gridsize):
-    """Note that this function will not take care of any re-seeding of
-    the random number generator.
+def generate_primordial_noise(slab):
+    """Given the already allocated slab, this function will populate
+    it with Gaussian (pseudo) random numbers, the stream of which is
+    controlled by the random_seed parameter. The slab grid is thought of
+    as being in Fourier space, and so these are complex numbers. We wish
+    the variance of these complex numbers to equal unity, and so their
+    real and imaginary parts are drawn from a distribution
+    with variance 1/√2.
+    The 3D sequence of random numbers should be independent on the size
+    of the grid, in the sense that increasing the grid size should
+    amount to just populating the additional "shell" with new random
+    numbers, but keeping the random numbers inside of the inner cuboid
+    the same. This has the effect that enlarging the grid leaves the
+    large-scale structure invariant; one merely add information at
+    smaller scales. Additionally, the sequence of random numbers should
+    be independent on the number of processes. To achieve all of this,
+    we draw the random numbers using the following scheme:
+    All processes loop over the entire 3D grid in shells, starting from
+    the inner most shell (labelled shell 1) containing (amongst others)
+    the (0, 0, 0) point. Since the kk-dimension is cut in half, each
+    shell is only tabulated at the kk ≥ 0 half. Thus, each shell
+    consists of a kk = constant face, two kj = constant faces and two
+    ki = constant faces. Denoting the shell number simply by 'shell',
+    the faces are defined by:
+        The kk = constant face : kk = shell              , -shell + 1 ≤ ki ≤ shell, -shell < kj ≤ shell,
+        The kj = constant faces: kj ∈ {-shell + 1, shell}, -shell + 1 ≤ ki ≤ shell,      0 ≤ kk < shell,
+        The ki = constant faces: ki ∈ {-shell + 1, shell}, -shell + 1 < kj ≤ shell,      0 ≤ kk < shell.
+    With 0 < shell ≤ nyquist, we hit all points in the 3D grid. The
+    (0, 0, 0) point will be part of the kj = 0 face in shell 1. At each
+    point, all processes draw the same two random numbers, but only the
+    process which owns the given point (determined by the j index that
+    goes with kj) assign the random numbers to its local slab.
+    The DC and Nyquist planes, defined by kk = 0 and kk = nyquist,
+    respectively, need to satisfy the complex conjugacy symmetry of a
+    Fourier transformed real field, namely
+        plane[k_vec] = plane[-k_vec]*,
+    where * means complex conjugation and k_vec is a 2D vector in the
+    plane. We enfore this symmetry by letting all processes tabulate
+    both planes with random numbers in their entirety. After the whole
+    3D grid and the two planes are filled with random numbers, we can
+    enforce the symmetry by simply looping over half of the two planes
+    and setting each point equal to the conjucate of the corresponding
+    symmetric point.
     """
-    # Create the plane and populate it with Gaussian distributed
-    # complex random numbers with mean 0 and variance 1.
-    plane = empty((gridsize, gridsize, 2), dtype=C2np['double'])
-    for     j in range(gridsize):
-        for i in range(gridsize):
-            # The real and imaginary part individually
-            # have mean 0 and variance 1/√2.
-            plane[j, i, 0] = random_gaussian(0, ℝ[1/sqrt(2)])
-            plane[j, i, 1] = random_gaussian(0, ℝ[1/sqrt(2)])
-    # Enforce the symmetry plane[k_vec] = plane[-k_vec]*,
-    # where * means complex conjugation.
-    # We do this by replacing the random numbers for the elements in the
-    # lower j half of the plane with those of the "conjugated" element,
-    # situated at the negative k vector.
-    # For j == j_conj, the conjucation is purely along i, and so we may
-    # only edit half of the points along this line.
-    for j in range(gridsize//2 + 1):
-        j_conj = 0 if j == 0 else gridsize - j
-        for i in range(gridsize):
-            i_conj = 0 if i == 0 else gridsize - i
-            # Enforce complex conjugate symmetry
-            # if necessary. For j == j_conj,
-            # the conjucation is purely along i, and
-            # so we may only edit half of the points
-            # along this line.
-            if 𝔹[j == j_conj] and i == i_conj:
-                # The complex number is its own conjugate,
-                # so it has to be purely real.
-                plane[j, i, 1] = 0
-            elif 𝔹[j != j_conj] or i < ℤ[gridsize//2]:
-                # Enforce conjugacy
-                plane[j, i, 0] = +plane[j_conj, i_conj, 0]
-                plane[j, i, 1] = -plane[j_conj, i_conj, 1]
-    return plane
+    masterprint('Generating primordial noise ...')
+    # The global gridsize is equal to
+    # the first (1) dimension of the slab.
+    gridsize = slab.shape[1]
+    nyquist = gridsize//2
+    # Allocate the entire DC and Nyquist plane on all processes
+    plane_dc      = empty((gridsize, gridsize, 2), dtype=C2np['double'])
+    plane_nyquist = empty((gridsize, gridsize, 2), dtype=C2np['double'])
+    # Seed the pseudo random number generator
+    # using the same seed on all processes.
+    seed_rng(random_seed)
+    # Loop through all shells
+    for shell in range(1, nyquist + 1):
+        # Loop over the three types of faces
+        for face in range(3):
+            if face == 0:
+                # The kk = constant face
+                kj_start, kj_stop, kj_step = ℤ[-shell + 1], ℤ[shell + 1], 1
+                ki_start, ki_stop, ki_step = ℤ[-shell + 1], ℤ[shell + 1], 1
+                kk_start, kk_stop, kk_step =   +shell     , ℤ[shell + 1], 1
+            elif face == 1:
+                # The two kj = constant faces
+                kj_start, kj_stop, kj_step = ℤ[-shell + 1], ℤ[shell + 1], ℤ[2*shell - 1]
+                ki_start, ki_stop, ki_step = ℤ[-shell + 1], ℤ[shell + 1],             1
+                kk_start, kk_stop, kk_step =            0 ,   shell     ,             1
+            elif face == 2:
+                # The two ki = constant faces
+                kj_start, kj_stop, kj_step = ℤ[-shell + 2],   shell     ,             1
+                ki_start, ki_stop, ki_step = ℤ[-shell + 1], ℤ[shell + 1], ℤ[2*shell - 1]
+                kk_start, kk_stop, kk_step =            0 ,   shell     ,             1
+            # Loop over the face
+            for kj in range(kj_start, kj_stop, kj_step):
+                j_global = kj + gridsize if kj < 0 else kj
+                j = j_global - ℤ[slab.shape[0]*rank]
+                for ki in range(ki_start, ki_stop, ki_step):
+                    i = ki + gridsize if ki < 0 else ki
+                    for kk in range(kk_start, kk_stop, kk_step):
+                        # Draw the random numbers
+                        noise_re = random_gaussian(0, ℝ[1/sqrt(2)])
+                        noise_im = random_gaussian(0, ℝ[1/sqrt(2)])
+                        # Populate the local slab
+                        with unswitch(2):
+                            if 0 <= j < ℤ[slab.shape[0]]:
+                                k = 2*kk
+                                slab_jik = cython.address(slab[j, i, k:])
+                                slab_jik[0] = noise_re
+                                slab_jik[1] = noise_im
+                        # Populate the DC and Nyquist planes
+                        if kk == 0:
+                            plane_ji = cython.address(plane_dc[j_global, i, :])
+                            plane_ji[0] = noise_re
+                            plane_ji[1] = noise_im
+                        elif kk == nyquist:
+                            plane_ji = cython.address(plane_nyquist[j_global, i, :])
+                            plane_ji[0] = noise_re
+                            plane_ji[1] = noise_im
+    # Enforce the complex conjugacy symmetry on the DC and Nyquist
+    # planes. We do this by replacing the random numbers for the
+    # elements in the lower j half of each plane with those of the
+    # "conjugated" element, situated at the negative k vector.
+    # For j_global == j_global_conj, the conjucation is purely along i,
+    # and so we may only edit half of the points along this line.
+    for k, plane in zip((0, 2*nyquist), (plane_dc, plane_nyquist)):
+        for j_global in range(gridsize//2 + 1):
+            j = j_global - ℤ[slab.shape[0]*rank]
+            # Each process can only change their local slab
+            if not (0 <= j < ℤ[slab.shape[0]]):
+                continue
+            j_global_conj = 0 if j_global == 0 else gridsize - j_global
+            for i in range(gridsize):
+                i_conj = 0 if i == 0 else gridsize - i
+                # Enforce complex conjugate symmetry if necessary.
+                # For j_global == j_global_conj, the conjucation is
+                # purely along i, and so we may only edit half of the
+                # points along this line.
+                if 𝔹[j_global == j_global_conj] and i == i_conj:
+                    # The complex number is its own conjugate,
+                    # so it has to be purely real.
+                    slab[j, i, k + 1] = 0
+                elif 𝔹[j_global != j_global_conj] or i < ℤ[gridsize//2]:
+                    # Enforce conjugacy
+                    slab_jik      = cython.address(slab [j            , i     , k:])
+                    plane_ji_conj = cython.address(plane[j_global_conj, i_conj,  :])
+                    slab_jik[0] = +plane_ji_conj[0]
+                    slab_jik[1] = -plane_ji_conj[1]
+    masterprint('done')
 
 
 
@@ -2613,7 +2670,7 @@ for (varname,
      filename,
      declaration_type,
      default_value) in [('_VERSION_'            , 'include/common.h'      , 'macro'   , ''   ),
-                        ('_ARGUMENT_LENGTH_MAX_', 'include/parser.h'      , 'macro'   , 1024 ),
+                        ('_ARGUMENT_LENGTH_MAX_', 'include/parser.h'      , 'macro'   , 10000),
                         ('a_min'                , 'source/perturbations.c', 'variable', 0.001),
                         ]:
     if master:
