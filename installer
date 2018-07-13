@@ -65,6 +65,7 @@
 # - ncurses  (needed by _curses, which is needed by blessings)
 # - Perl     (needed by OpenSSL)
 # - OpenSSL  (needed by pip)
+# - libffi   (needed by pip)
 # - OpenBLAS (needed by SciPy and also used by NumPy)
 # - Python, with the following packages (together with their own Python
 #   package dependencies):
@@ -171,6 +172,7 @@ if [ "${install_explicit_only}" == "yes" ]; then
                     "gadget"          \
                     "gsl"             \
                     "hdf5"            \
+                    "libffi"          \
                     "libpng"          \
                     "mpi"             \
                     "ncurses"         \
@@ -205,11 +207,12 @@ set_dir "gsl"             "__top_dir__/gsl"
 set_dir "hdf5"            "__top_dir__/hdf5"
 set_dir "libpng"          "__top_dir__/libpng"
 set_dir "mpi"             "__top_dir__/${mpi}"
+set_dir "openblas"        "__top_dir__/openblas"
 set_dir "perl"            "__top_dir__/perl"
 set_dir "python"          "__top_dir__/python"
 set_dir "ncurses"         "${python_dir}"
-set_dir "openblas"        "__top_dir__/openblas"
 set_dir "openssl"         "${python_dir}"
+set_dir "libffi"          "${python_dir}"
 set_dir "zlib"            "__top_dir__/zlib"
 log="__top_dir__/install_log"
 env_file="__top_dir__/.env"
@@ -235,27 +238,28 @@ set_version(){
 # GitHub branches and releases.
 set_version "concept"         "master"
 set_version "class"           "2.6.3"
-set_version "fftw"            "3.3.8"  "3.3.5"
+set_version "fftw"            "3.3.8"  "3.3.8"
 set_version "fftw_for_gadget" "2.1.5"  "2.1.5"   # Do not change
-set_version "freetype"        "2.9.1"  "2.8.1"
+set_version "freetype"        "2.9.1"  "2.9.1"
 set_version "gadget"          "2.0.7"            # Do not change
-set_version "gsl"             "2.5"    "2.3"
-set_version "hdf5"            "1.10.2" "1.10.0"
-set_version "libpng"          "1.6.34" "1.6.32"
+set_version "gsl"             "2.5"    "2.5"
+set_version "hdf5"            "1.10.2" "1.10.2"
+set_version "libffi"          "3.2.1"  "3.2.1"
+set_version "libpng"          "1.6.34" "1.6.33"
 if [ "${mpi}" == "openmpi" ]; then
-    set_version "mpi"         "3.1.0"
+    set_version "mpi"         "3.1.1"
 elif [ "${mpi}" == "mpich" ]; then
-    set_version "mpi"         "3.2.1"  "3.2"
+    set_version "mpi"         "3.2.1"  "3.2.1"
 fi
-set_version "ncurses"         "6.1"    "6.0"
+set_version "ncurses"         "6.1"    "6.1"
 set_version "openblas"        "0.2.20" "0.2.20"
-set_version "openssl"         "1.1.0h" "1.1.0f"
-set_version "perl"            "5.26.2"
-set_version "python"          "3.6.5"
-set_version "zlib"            "1.2.11" "1.2.8"
+set_version "openssl"         "1.1.0h" "1.1.0h"
+set_version "perl"            "5.28.0"
+set_version "python"          "3.7.0"
+set_version "zlib"            "1.2.11" "1.2.11"
 # Python packages
-set_version "blessings"     "1.6.1"
-set_version "cython"        "0.28.3"
+set_version "blessings"     "1.7"
+set_version "cython"        "0.28.4"
 set_version "cythongsl"     "0.2.2"
 set_version "h5py"          "2.8.0"
 set_version "matplotlib"    "2.2.2"
@@ -263,10 +267,10 @@ set_version "mpi4py"        "3.0.0"
 set_version "nose"          "1.3.7"
 set_version "numpy"         "1.14.5"
 set_version "parameterized" "0.6.1"
-set_version "pip"           "9.0.3"
-set_version "pytest"        "3.6.2"
+set_version "pip"           "10.0.1"
+set_version "pytest"        "3.6.3"
 set_version "scipy"         "1.1.0"
-set_version "setuptools"    "39.2.0"
+set_version "setuptools"    "40.0.0"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
 # and specific versions of system dependencies.
@@ -359,6 +363,8 @@ env_var_names=(BLAS             \
                CC               \
                CFLAGS           \
                CPPFLAGS         \
+               CXX              \
+               F9X              \
                HDF5_DIR         \
                HDF5_MPI         \
                LAPACK           \
@@ -412,6 +418,7 @@ freetype_test_success="yes"
 gadget_test_success="yes"
 gsl_test_success="yes"
 hdf5_test_success="yes"
+libffi_test_success="yes"
 libpng_test_success="yes"
 mpi_test_success="yes"
 ncurses_test_success="yes"
@@ -1045,6 +1052,16 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             fi
         fi
     fi
+    if [ "${progname}" == 'libffi' ] && [ "${libffi_preinstalled}" == "yes" ]; then
+        if [ ! -f "${progname_dir}/lib/libffi.so" ]; then
+            if [ -f "${progname_dir}/../lib/libffi.so" ]; then
+                libffi_dir="$(dirname ${progname_dir})"
+            else
+                error "Could not locate libffi at \"${libffi_dir}\""
+                exit 1
+            fi
+        fi
+    fi
     if [ "${progname}" == 'libpng' ] && [ "${libpng_preinstalled}" == "yes" ]; then
         if [ ! -f "${progname_dir}/lib/libpng.so" ]; then
             if [ -f "${progname_dir}/../lib/libpng.so" ]; then
@@ -1136,6 +1153,7 @@ fix_path "libpng"
 fix_path "ncurses"
 fix_path "OpenBLAS"
 fix_path "OpenSSL"
+fix_path "libffi"
 fix_path "Perl"
 fix_path "Python"
 fix_path "FFTW"
@@ -1185,10 +1203,11 @@ assume_preinstalled(){
         eval "${1}_version=\"pre-installed\""
     fi
 }
-# If Python is pre-installed, assume that OpenSSL
-# and ncurses are also pre-installed.
+# If Python is pre-installed, assume that OpenSSL,
+# libffi and ncurses are also pre-installed.
 if [ "${python_preinstalled}" == "yes" ]; then
     assume_preinstalled "openssl"
+    assume_preinstalled "libffi"
     assume_preinstalled "ncurses"
 fi
 # If OpenSSL is pre-installed, assume that Perl is also pre-installed
@@ -1375,6 +1394,13 @@ if [ -z "${openssl_install}" ]; then
         openssl_install="yes"
     fi
 fi
+# libffi (needed by pip)
+if [ -z "${libffi_install}" ]; then
+    libffi_install="no"
+    if [ "${libffi_preinstalled}" == "no" ] && [ "${pip_install}" == "yes" ]; then
+        libffi_install="yes"
+    fi
+fi
 # Perl (needed by OpenSSL)
 if [ -z "${perl_install}" ]; then
     perl_install="no"
@@ -1399,6 +1425,7 @@ if     [ "${concept_install}"         == "yes" ] \
     || [ "${ncurses_install}"         == "yes" ] \
     || [ "${openblas_install}"        == "yes" ] \
     || [ "${openssl_install}"         == "yes" ] \
+    || [ "${libffi_install}"          == "yes" ] \
     || [ "${perl_install}"            == "yes" ]; then
         install_any_software="yes"
 fi
@@ -1693,13 +1720,15 @@ check_progress(){
             rm -rf "${gadget_dir}"
         fi
     elif [ "${progname}" == "python" ]; then
-        # Files from ncurses and OpenSSL are placed all around in
-        # ${python_dir}, so we cannot just delete this directory.
+        # Files from ncurses, OpenSSL and libffi are placed all around
+        # in ${python_dir}, so we cannot just delete this directory.
         :
     elif [ "${progname}" == "ncurses" ]; then
         rm -rf "${python_dir}/include/ncurses"
     elif [ "${progname}" == "openssl" ]; then
         rm -rf "${python_dir}/include/openssl"
+    elif [ "${progname}" == "libffi" ]; then
+        rm -rf "${python_dir}/lib/libffi"*
     elif [ "${progname}" == "concept" ]; then
         # In the case of CO𝘕CEPT, ${progdir} is set to
         # the GADGET directory.
@@ -1992,7 +2021,7 @@ fi
 
 # ncurses
 if [ "${ncurses_install}" == "yes" ]; then
-    ncurses_url="http://ftp.gnu.org/pub/gnu/ncurses/ncurses-${ncurses_version}.tar.gz"
+    ncurses_url="http://ftp.gnu.org/gnu/ncurses/ncurses-${ncurses_version}.tar.gz"
     # Check if already installed and/or downloaded
     check_progress "ncurses"
     # If not yet downloaded, validate the URL
@@ -2001,7 +2030,7 @@ if [ "${ncurses_install}" == "yes" ]; then
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary ncurses link broken: ${ncurses_url}"
             fallback "ncurses"
-            ncurses_url="ftp://invisible-island.net/ncurses/ncurses-${ncurses_version}.tar.gz"
+            ncurses_url="http://ftpmirror.gnu.org/ncurses/ncurses-${ncurses_version}.tar.gz"
             echo "Using secondary ncurses link: ${ncurses_url}"
             # Check if already installed and/or downloaded
             check_progress "ncurses"
@@ -2048,15 +2077,38 @@ if [ "${openssl_install}" == "yes" ]; then
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary OpenSSL link broken: ${openssl_url}"
             fallback "openssl"
-            openssl_version_without_letter="$(echo ${openssl_version} | grep -o "[[:digit:].]*")"
-            openssl_url="http://openssl.skazkaforyou.com/source/old/\
-${openssl_version_without_letter}/openssl-${openssl_version}.tar.gz"
+            openssl_version_underscores="$(echo "${openssl_version}" | tr '.' '_')"
+            openssl_url=https://github.com/openssl/openssl/archive/\
+OpenSSL_${openssl_version_underscores}.tar.gz
             echo "Using secondary OpenSSL link: ${openssl_url}"
             # Check if already installed and/or downloaded
             check_progress "OpenSSL"
             # If not yet downloaded, validate the URL
             if [ "${openssl_downloaded}" != "yes" ]; then
                 validate_url "OpenSSL"
+            fi
+        fi
+    fi
+fi
+
+# libffi
+if [ "${libffi_install}" == "yes" ]; then
+    libffi_url="ftp://sourceware.org/pub/libffi/libffi-${libffi_version}.tar.gz"
+    # Check if already installed and/or downloaded
+    check_progress "libffi"
+    # If not yet downloaded, validate the URL
+    if [ "${libffi_downloaded}" != "yes" ]; then
+        validate_url "libffi" "false"
+        if [ "${validate_url_status}" != "success" ]; then
+            echo "Primary libffi link broken: ${libffi_url}"
+            fallback "libffi"
+            libffi_url="https://github.com/libffi/libffi/archive/v${libffi_version}.tar.gz"
+            echo "Using secondary libffi link: ${libffi_url}"
+            # Check if already installed and/or downloaded
+            check_progress "libffi"
+            # If not yet downloaded, validate the URL
+            if [ "${libffi_downloaded}" != "yes" ]; then
+                validate_url "libffi"
             fi
         fi
     fi
@@ -2131,6 +2183,17 @@ parameterized_installed="no"
 pytest_installed="no"
 scipy_installed="no"
 pip_installed="no"
+if [ -n "${python_dir}" ]; then
+    for python_version_major in 3 2; do
+        if [ -f "${python_dir}/bin/python${python_version_major}" ]; then
+            python_version_major_dot_minor=$("${python_dir}/bin/python${python_version_major}" -c \
+                                 "from sys import version_info as v; \
+                                 print(str(v.major) + '.' + str(v.minor))")
+            python="${python_dir}/bin/python${python_version_major_dot_minor}"
+            break
+        fi
+    done
+fi
 if [ -n "${python}" ] && [ "${python_installed}" == "yes" ]; then
     for pypackage in blessings     \
                      cython        \
@@ -2159,8 +2222,6 @@ except:
         eval "${pypackage}_installed=\"${pypackage_installed}\""
     done
 fi
-
-
 
 # Functions for printing out nice tables (these are superior to the
 # "column" command on older systems, as this does not handle
@@ -2225,6 +2286,8 @@ print_table(){
 # Write out installation overview.
 # This overview take the form of the following tables.
 # Programs which should not be installed will not be shown.
+# Programs already installed and programs to be modified by thus
+# installer will be noted.
 #
 # The following software will be installed
 # Name      Version  Installation path
@@ -2240,6 +2303,7 @@ print_table(){
 # libpng    ...      "/..."
 # ncurses   ...      "/..."
 # OpenSSL   ...      "/..."
+# libffi    ...      "/..."
 # Perl      ...      "/..."
 # Python    ...      "/..."
 # zlib      ...      "/..."
@@ -2337,6 +2401,11 @@ if [ "${install_any_software}" == "yes" ]; then
     if [ "${openssl_install}" == "yes" ]; then
         table=("${table[@]}" "OpenSSL$([ "${openssl_installed}" == "yes" ] && echo '†' || :)" \
                 "${openssl_version}" "\"${openssl_dir}\"")
+    fi
+    # libffi
+    if [ "${libffi_install}" == "yes" ]; then
+        table=("${table[@]}" "libffi$([ "${libffi_installed}" == "yes" ] && echo '†' || :)" \
+                "${libffi_version}" "\"${libffi_dir}\"")
     fi
     # Perl
     if [ "${perl_install}" == "yes" ]; then
@@ -2573,6 +2642,9 @@ if [ "${openblas_install}"        == "yes" ] && [ "${openblas_downloaded}"      
 fi
 if [ "${openssl_install}"         == "yes" ] && [ "${openssl_downloaded}"         == "no" ]; then
     download "OpenSSL"
+fi
+if [ "${libffi_install}"          == "yes" ] && [ "${libffi_downloaded}"          == "no" ]; then
+    download "libffi"
 fi
 if [ "${perl_install}"            == "yes" ] && [ "${perl_downloaded}"            == "no" ]; then
     download "Perl"
@@ -2948,18 +3020,35 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
     enable_parallel=""
     if [ -n "${mpi_dir}" ]; then
         export CC="${mpi_dir}/bin/mpicc"
+        for f in "mpic++" "mpicxx"; do
+            if [ -f "${mpi_dir}/bin/${f}" ]; then
+                export CXX="${mpi_dir}/bin/${f}"
+                break
+            fi
+        done
+        for f in "mpif90" "mpifort"; do
+            if [ -f "${mpi_dir}/bin/${f}" ]; then
+                export F9X="${mpi_dir}/bin/${f}"
+                break
+            fi
+        done
         export LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}"
         export PATH="${mpi_dir}/bin:${PATH}"
         enable_parallel="--enable-parallel"
     fi
+    with_zlib=""
     if [ -n "${zlib_dir}" ]; then
-        ./configure --enable-shared                                     \
-                    ${enable_parallel}                                  \
-                    --with-zlib="${zlib_dir}/include","${zlib_dir}/lib" \
-                    --prefix="${hdf5_dir}" 2>&1
-    else
-        ./configure --enable-shared ${enable_parallel} --prefix="${hdf5_dir}" 2>&1
+        export LDFLAGS="-L${zlib_dir}/lib ${LDFLAGS}"
+        export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
+        export CFLAGS="-I${zlib_dir}/include ${CFLAGS}"
+        with_zlib=--with-zlib="${zlib_dir}/include","${zlib_dir}/lib"
     fi
+    ./configure                \
+        --enable-shared        \
+        ${enable_parallel}     \
+        ${with_zlib}           \
+        --prefix="${hdf5_dir}" \
+        2>&1
     make ${make_jobs} 2>&1
     # On some systems, the HDF5 test (make check) hangs indefinitely.
     # To counteract this, kill the process if it still runs after an
@@ -3246,6 +3335,32 @@ Date:    $(date)
 " >> "${openssl_dir}/.installation_finished"
 fi
 
+# libffi
+if [ "${libffi_install}" == "yes" ] && [ "${libffi_installed}" == "no" ]; then
+    init_install "libffi"
+    ./configure --prefix="${libffi_dir}" 2>&1
+    make ${make_jobs} 2>&1
+    if [ "${fast_install}" == "no" ]; then
+        make check 2>&1 | tee "test_log"
+        [ ${PIPESTATUS[0]} != 0 ] && libffi_test_success="no"
+    fi
+    libffi_test_log="${libffi_dir}/lib/libffi-${libffi_version}/test_log"
+    if [ "${libffi_test_success}" == "no" ]; then
+        mkdir -p "${libffi_dir}/lib/libffi-${libffi_version}"
+        cp "test_log" "${libffi_test_log}"
+    fi
+    make ${make_jobs} install 2>&1
+    cp "LICENSE" "README" "${libffi_dir}/lib/libffi-${libffi_version}/" || :
+    cd "${top_dir}"
+    rm -rf "${top_dir}/tmp/libffi"
+    # Write out success notice
+    echo "The following has been fully installed:
+Program: libffi
+Version: ${libffi_version}
+Date:    $(date)
+" >> "${libffi_dir}/.installation_finished"
+fi
+
 # OpenBLAS
 if [ "${openblas_install}" == "yes" ] && [ "${openblas_installed}" == "no" ]; then
     init_install "OpenBLAS"
@@ -3268,8 +3383,9 @@ fi
 # Python
 if [ "${python_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
     init_install "Python"
-    # Set environment variables and configure options used
-    # when building againts other libraries.
+    # Build with pip if both openssl and zlib are installed.
+    # For Python >=3.7, a standalone libffi is also required,
+    # though we do not check explicitly for this.
     with_ensurepip_install=""
     if [ -n "${openssl_dir}" ] && [ -n "${zlib_dir}" ]; then
         with_ensurepip_install="--with-ensurepip=install"
@@ -3283,17 +3399,19 @@ if [ "${python_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
             echo "Attempting to install Python with optimizations"
         fi
         pybuild_success="yes"
-        # Set up environment variables
+        # Set up environment variables and configure options
         reset_environment
         if [ -n "${ncurses_dir}" ]; then
-            export CPPFLAGS="-I${ncurses_dir}/include/ncurses ${CPPFLAGS}"
+            export CPPFLAGS="-I${ncurses_dir}/include -I${ncurses_dir}/include/ncurses ${CPPFLAGS}"
             export LD_LIBRARY_PATH="${ncurses_dir}/lib:${LD_LIBRARY_PATH}"
             export LDFLAGS="-L${ncurses_dir}/lib -Wl,-rpath=${ncurses_dir}/lib ${LDFLAGS}"
         fi
+        with_openssl=""
         if [ -n "${openssl_dir}" ]; then
             export CPPFLAGS="-I${openssl_dir}/include/openssl ${CPPFLAGS}"
             export LD_LIBRARY_PATH="${openssl_dir}/lib:${LD_LIBRARY_PATH}"
             export LDFLAGS="-L${openssl_dir}/lib -Wl,-rpath=${openssl_dir}/lib ${LDFLAGS}"
+            with_openssl="--with-openssl=${openssl_dir}"
             # Modify Modules/Setup.dist in order for Python to use the
             # custom SSL library.
             first_line="$(grep -n 'SSL=' 'Modules/Setup.dist')"
@@ -3307,6 +3425,20 @@ if [ "${python_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
             export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
             export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
         fi
+        with_system_ffi=""
+        if [ -n "${libffi_dir}" ]; then
+            current_dir="$(pwd)"
+            cd "${libffi_dir}/lib"
+            for f in *; do
+                if [ -d "${f}" ] && [[ "${f}" == "libffi"* ]]; then
+                    export CPPFLAGS="-I${libffi_dir}/lib/${f}/include ${CPPFLAGS}"
+                    break
+                fi
+            done
+            cd "${current_dir}"
+            export LDFLAGS="-L${libffi_dir}/lib -Wl,-rpath=${libffi_dir}/lib ${LDFLAGS}"
+            with_system_ffi="--with-system-ffi"
+        fi
         # Configure.
         # When optimizations are enabled, some of the tests which are
         # performed may hang. It appears that the configure script
@@ -3316,7 +3448,10 @@ if [ "${python_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
         # message in the case of such hangs, letting the user know that
         # everything is all right.
         ./configure --enable-shared ${optimize_flag} --prefix="${python_dir}" \
-            ${with_ensurepip_install} 2>&1 || pybuild_success="no" & python_configure_pid=$!
+            ${with_ensurepip_install}                                         \
+            ${with_openssl}                                                   \
+            ${with_system_ffi}                                                \
+            2>&1 || pybuild_success="no" & python_configure_pid=$!
         soothe ${python_configure_pid}
         if [ "${pybuild_success}" == "no" ]; then
             if [ -z "${optimize_flag}" ]; then
@@ -3366,7 +3501,7 @@ if [ "${python_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
         exit 1
     fi
     reset_environment
-    cp "LICENSE" "README" "${python_dir}/" || :
+    cp "LICENSE" "README.rst" "${python_dir}/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/python"
     # Write out success notice
@@ -3376,9 +3511,13 @@ Version: ${python_version}
 Date:    $(date)
 " >> "${python_dir}/.installation_finished"
 fi
-# Create a python variable, storing the path to
-# the newly installed Python interpreter.
+# Create a python variable, storing the path to the Python interpreter
 if [ -n "${python_dir}" ]; then
+    for python_version_major in 3 2; do
+        if [ -f "${python_dir}/bin/python${python_version_major}" ]; then
+            break
+        fi
+    done
     python_version_major_dot_minor=$("${python_dir}/bin/python${python_version_major}" -c \
                                      "from sys import version_info as v; \
                                      print(str(v.major) + '.' + str(v.minor))")
@@ -3390,6 +3529,22 @@ fi
 ###########################
 # Install Python packages #
 ###########################
+# Function that checks whether a given Python package
+# is installed or not.
+check_pypackage_installed(){
+    # Arguments: Python package name
+    "${python}" -c "
+try:
+    # CythonGSL has an extra underscore when importing
+    if '${1}' == 'cythongsl':
+        import cython_gsl
+    else:
+        import ${1}
+    print('yes')
+except:
+    print('no')
+" 2>/dev/null
+}
 # Set "pypackage"_installed variables
 blessings_installed="no"
 cython_installed="no"
@@ -3415,18 +3570,7 @@ if [ -n "${python}" ]; then
                      pytest        \
                      scipy         \
                      pip; do
-        pypackage_installed=$("${python}" -c "
-try:
-    # CythonGSL has an extra underscore when importing
-    if '${pypackage}' == 'cythongsl':
-        import cython_gsl
-    else:
-        import ${pypackage}
-    print('yes')
-except:
-    print('no')
-" 2>/dev/null
-        )
+        pypackage_installed=$(check_pypackage_installed ${pypackage})
         eval "${pypackage}_installed=\"${pypackage_installed}\""
     done
 fi
@@ -3557,25 +3701,44 @@ pip_install_pypackage(){
         fi
     fi
     # Download Python package source
-    pip_download "${1}" "${2}"
+    pypackage="$(echo "${1}" | tr '[:upper:]' '[:lower:]')"
+    pip_download "${pypackage}" "${2}"
     # Install Python package from source
     upgrade_flag=""
     if [ "${2}" == "upgrade" ]; then
         upgrade_flag="--upgrade"
     fi
+    # After the adoption of PEP 518 (pip 10), some packages require
+    # wheels (not bare source) when building. This can be disabled by
+    # supplying --no-build-isolation. We try both.
     # Some times the installation process will appear to hang,
     # but it will eventually get going. This happens often for
     # particular packages, such as h5py. When this is the case,
     # write a soothing message.
-    "${python}" -m pip install -v -v -v                          \
-                               -b "${top_dir}/tmp/pip/build"     \
-                               ${upgrade_flag}                   \
-                               --no-index                        \
-                               --find-links="${top_dir}/tmp/pip" \
-                               "${1}${command_end}" 2>&1         \
-                                & pip_install_pid=$!
-    soothe ${pip_install_pid}
+    for extra_pip_arg in "" "--no-build-isolation"; do
+        "${python}" -m pip install -v -v -v                          \
+                                   ${extra_pip_arg}                  \
+                                   -b "${top_dir}/tmp/pip/build"     \
+                                   ${upgrade_flag}                   \
+                                   --no-index                        \
+                                   --find-links="${top_dir}/tmp/pip" \
+                                   "${pypackage}${command_end}" 2>&1 \
+                                    & pip_install_pid=$!
+        soothe ${pip_install_pid}
+        pypackage_installed=$(check_pypackage_installed ${pypackage})
+        if [ "${pypackage_installed}" == "yes" ]; then
+            break
+        fi
+        if [ -z "${extra_pip_arg}" ]; then
+            printf "\npip failed to install ${1}. Now trying with --no-build-isolation \n\n"
+        fi
+    done
     rm -rf "${top_dir}/tmp/pip"
+    # Exit on failure
+    if [ "${pypackage_installed}" == "no" ]; then
+        error "pip could not install/upgrade ${1}, neither with or without --no-build-isolation"
+        exit 1
+    fi
 }
 
 # Upgrade pip and setuptools.
@@ -3588,27 +3751,32 @@ pip_install_pypackage(){
 # bootstrapping packages are installed/upgraded as well.
 if [ "${pip_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
     tmp_pip_dir="${top_dir}/tmp/pip"
+    rm -rf "${tmp_pip_dir}"
     for package in "pip" "setuptools"; do
         current_step="upgrade of ${package}"
         heading "Upgrading ${package}"
         set_status "Upgrading ${package}"
-        eval "package_version=\${package}_version"
+        eval "package_version=\${${package}_version}"
         # Dependent on the version of pip,
         # the --no-cache-dir option may be available or not.
         pip_success="yes"
-        for extra_pip_args in "--no-cache-dir" ""; do
+        for extra_pip_arg in "--no-cache-dir" ""; do
             mkdir -p "${tmp_pip_dir}"
-            "${python}" -m pip install -v -v -v               \
-                                       ${extra_pip_args}      \
-                                       -b                     \
-                                       "${tmp_pip_dir}/build" \
-                                       --upgrade              \
+            "${python}" -m pip install -v -v -v                  \
+                                       ${extra_pip_arg}          \
+                                       -b "${tmp_pip_dir}/build" \
+                                       --upgrade                 \
                                        "${package}==${package_version}" 2>&1 || pip_success="no"
             rm -rf "${tmp_pip_dir}"
             if [ "${pip_success}" == "yes" ]; then
                 break
             fi
         done
+        # Exit on failure
+        if [ "${pip_success}" == "no" ]; then
+            error "Could not upgrade ${package}"
+            exit 1
+        fi
     done
 fi
 
@@ -3696,6 +3864,7 @@ if [ "${numpy_install}" == "yes" ] && [ "${numpy_installed}" == "no" ]; then
     heading "Installing NumPy ${numpy_version}"
     set_status "Installing NumPy ${numpy_version}"
     # Download NumPy
+    rm -rf "${top_dir}/tmp/pip"
     pip_download "numpy" "${numpy_version}"
     cd "${top_dir}/tmp/pip"
     # It can happen that an archive format different from tar.gz is
@@ -3766,6 +3935,7 @@ if [ "${scipy_install}" == "yes" ] && [ "${scipy_installed}" == "no" ]; then
     heading "Installing SciPy ${scipy_version}"
     set_status "Installing SciPy ${scipy_version}"
     # Download SciPy
+    rm -rf "${top_dir}/tmp/pip"
     pip_download "scipy" "${scipy_version}"
     cd "${top_dir}/tmp/pip"
     extract "scipy"* "yes"
@@ -3816,6 +3986,7 @@ if [ "${matplotlib_install}" == "yes" ] && [ "${matplotlib_installed}" == "no" ]
     heading "Installing Matplotlib ${matplotlib_version}"
     set_status "Installing Matplotlib ${matplotlib_version}"
     # Download matplotlib itself
+    rm -rf "${top_dir}/tmp/pip"
     pip_download "matplotlib" "${matplotlib_version}"
     # Matplot is the only Python package needed by CO𝘕CEPT, which
     # depends on other Python packages not directly used by CO𝘕CEPT.
@@ -3889,7 +4060,10 @@ if [ "${matplotlib_install}" == "yes" ] && [ "${matplotlib_installed}" == "no" ]
         fi
     done
     cp "setup.cfg.template" "setup.cfg"
-    freetype_include2="$(echo "${freetype_dir}/include/freetype"*)"
+    freetype_include2="$(echo "${freetype_dir}/include/freetype"* | awk '{print $NF}')"
+    libpng_version_majors="$(echo "${libpng_version}" | grep -m 1 -o -P "[0-9]*\.[0-9]*" \
+                                                              | head -n 1)"
+    libpng_version_majors="$(echo "${libpng_version_majors//./}")"
     basedirlist="${freetype_dir},\
 ${freetype_dir}/include,\
 ${freetype_include2},\
@@ -3919,18 +4093,39 @@ ${zlib_dir}/lib\
     export LD_LIBRARY_PATH="${libpng_dir}/lib:${zlib_dir}/lib:${LD_LIBRARY_PATH}"
     export PKG_CONFIG_PATH="${libpng_dir}/lib/pkgconfig:\
 ${zlib_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
-    "${python}" -m pip install -v -v -v                          \
-                               -b                                \
-                               "${top_dir}/tmp/pip/build"        \
-                               --no-index                        \
-                               --find-links="${top_dir}/tmp/pip" \
-                               . 2>&1 & pip_install_pid=$!
-    soothe ${pip_install_pid}
-    # Some versions of Matplotlib (e.g. 2.2.2) mistakenly has the
-    # _bz2 module as a hard dependency. Fix this issue.
-    sed -i "s/^import bz2/try:\n    import bz2\nexcept:\n    pass/g" \
-        "${python_dir}/lib/python${python_version_major_dot_minor}/\
+    # After the adoption of PEP 518 (pip 10), some packages require
+    # wheels (not bare source) when building. This can be disabled by
+    # supplying --no-build-isolation. We try both.
+    # Some times the installation process will appear to hang,
+    # but it will eventually get going. This happens often for
+    # particular packages, such as h5py. When this is the case,
+    # write a soothing message.
+    for extra_pip_arg in "" "--no-build-isolation"; do
+        "${python}" -m pip install -v -v -v                          \
+                                   ${extra_pip_arg}                  \
+                                   -b "${top_dir}/tmp/pip/build"     \
+                                   --no-index                        \
+                                   --find-links="${top_dir}/tmp/pip" \
+                                   . 2>&1 & pip_install_pid=$!
+        soothe ${pip_install_pid}
+        # Some versions of Matplotlib (e.g. 2.2.2) mistakenly has the
+        # _bz2 module as a hard dependency. Fix this issue.
+        sed -i "s/^import bz2/try:\n    import bz2\nexcept:\n    pass/g" \
+            "${python_dir}/lib/python${python_version_major_dot_minor}/\
 site-packages/matplotlib/cbook/__init__.py" || :
+        pypackage_installed=$(check_pypackage_installed matplotlib)
+        if [ "${pypackage_installed}" == "yes" ]; then
+            break
+        fi
+        if [ -z "${extra_pip_arg}" ]; then
+            printf "\nFailed to install matplotlib. Now trying with --no-build-isolation \n\n"
+        fi
+    done
+    # Exit on failure
+    if [ "${pypackage_installed}" == "no" ]; then
+        error "Could not install matplotlib, neither with or without --no-build-isolation"
+        exit 1
+    fi
     reset_environment
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/pip"
@@ -4927,7 +5122,7 @@ tail -f "${log}" --pid ${log_pid} | while read line; do
     fi
 done
 
-# Remove the log file if no errors occured
+# Remove the log file if no errors occurred
 if [ "$(tail -n 1 "${log}")" == "${status_prefix}${status_finish_successfully}" ]; then
     rm -f "${log}"
 fi
