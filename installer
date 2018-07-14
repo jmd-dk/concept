@@ -122,6 +122,12 @@
 
 
 
+# If invoked directly from the web (e.g. via wget), a small pause
+# ensures that the print outs will not corrupt the loading bar.
+sleep 2
+
+
+
 ##################
 # Specifications #
 ##################
@@ -341,7 +347,6 @@ error(){
 }
 
 # Print out welcome message
-sleep 2  # Needed if invoked directly from the web via wget
 if [ "${say_welcome}" != "no" ]; then
     heading "${esc_bold}${esc_yellow}This is the installation script for ${esc_concept},
 the cosmological ${esc_italic}N${esc_no_italic}-body code in Python${esc_normal}"
@@ -2674,8 +2679,18 @@ extract(){
         progname="${1// /_}"
         progname="$(echo "${progname}" | tr '[:upper:]' '[:lower:]')"
         cd "${top_dir}/tmp/${progname}"
-        archive="$(ls -p -1 | grep -v /)"
-        n_files=$(echo "${archive}" | wc -l)
+        # We assume that any directories placed here is from a similar
+        # previous call which went wrong. Delete any of these
+        # directories before extracting.
+        n_files=0
+        for f in *; do
+            if [ -d "${f}" ]; then
+                rm -rf "${f}"
+            else
+                archive="${f}"
+                ((n_files += 1))
+            fi
+        done
         if [ -z "${archive}" ]; then
             error "Did not find any files in \"${top_dir}/tmp/${progname}\""
             exit 1
@@ -3428,15 +3443,24 @@ if [ "${python_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
         with_system_ffi=""
         if [ -n "${libffi_dir}" ]; then
             current_dir="$(pwd)"
-            cd "${libffi_dir}/lib"
-            for f in *; do
-                if [ -d "${f}" ] && [[ "${f}" == "libffi"* ]]; then
-                    export CPPFLAGS="-I${libffi_dir}/lib/${f}/include ${CPPFLAGS}"
-                    break
+            for lib_dir in "lib" "lib64"; do
+                if [ ! -d "${libffi_dir}/${lib_dir}" ]; then
+                    continue
                 fi
+                cd "${libffi_dir}/${lib_dir}"
+                for f in *; do
+                    if     [ -d "${f}" ] \
+                        && [[ "${f}" == "libffi"* ]] \
+                        && [ -d "${libffi_dir}/${lib_dir}/${f}/include" ]; then
+                        export CPPFLAGS="-I${libffi_dir}/${lib_dir}/${f}/include ${CPPFLAGS}"
+                        break
+                    fi
+                done
+                export LD_LIBRARY_PATH="${libffi_dir}/${lib_dir}:${LD_LIBRARY_PATH}"
+                export LDFLAGS="-L${libffi_dir}/${lib_dir} \
+-Wl,-rpath=${libffi_dir}/${lib_dir} ${LDFLAGS}"
             done
             cd "${current_dir}"
-            export LDFLAGS="-L${libffi_dir}/lib -Wl,-rpath=${libffi_dir}/lib ${LDFLAGS}"
             with_system_ffi="--with-system-ffi"
         fi
         # Configure.

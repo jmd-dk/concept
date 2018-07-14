@@ -747,7 +747,9 @@ if not cython.compiled:
         import_statement = import_statement.strip()
         if import_statement.endswith(','):
             import_statement = import_statement[:-1]
-        exec(import_statement, inspect.getmodule(inspect.stack()[1][0]).__dict__)
+        module = inspect.getmodule(inspect.stack()[1][0])
+        d = globals() if module is None else module.__dict__
+        exec(import_statement, d)
     # A dummy context manager for use with loop unswitching
     class DummyContextManager:
         def __call__(self, *args):
@@ -790,7 +792,8 @@ if not cython.compiled:
             ):
             words.discard(word)
         # Declare variables in the name space of the caller
-        d = inspect.getmodule(inspect.stack()[1][0]).__dict__
+        module = inspect.getmodule(inspect.stack()[1][0])
+        d = globals() if module is None else module.__dict__
         for varname in words:
             try:
                 d.setdefault(varname, dummypxd)

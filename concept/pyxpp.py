@@ -91,7 +91,7 @@ if sys.version_info.major < 3:
 def non_nested_exec(s):
     exec(s)
 # General imports
-import collections, contextlib, copy, imp, itertools, keyword, os, re, shutil, unicodedata
+import collections, contextlib, copy, importlib, itertools, keyword, os, re, shutil, unicodedata
 # For math
 import numpy as np
 
@@ -2836,7 +2836,9 @@ if __name__ == '__main__':
                 finally:
                     sys.stdout = old_stdout
         with suppress_stdout():
-            commons = imp.load_source(commons_name, filename_commons)
+            commons_spec = importlib.util.spec_from_file_location(commons_name, filename_commons)
+            commons = importlib.util.module_from_spec(commons_spec)
+            commons_spec.loader.exec_module(commons)
     no_optimization = False
     if len(sys.argv) > 3:
         if sys.argv[3] == '--no-optimization':
