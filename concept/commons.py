@@ -43,7 +43,7 @@ __version__ = 'master'
 # Imports common to pure Python and Cython #
 ############################################
 # Miscellaneous modules
-import ast, collections, contextlib, ctypes, cython, functools, hashlib, imp, inspect, itertools
+import ast, collections, contextlib, ctypes, cython, functools, hashlib, inspect, itertools
 import keyword, os, re, shutil, sys, textwrap, types, unicodedata, warnings
 # For math
 # (note that numpy.array is purposely not imported directly into the
@@ -1132,9 +1132,9 @@ while True:
     elif master and top_dir == '/':
         abort('Cannot find the .paths file!')
     top_dir = os.path.dirname(top_dir)
-paths_module = imp.load_source('paths', top_dir + '/.paths')
+paths_module = pyxpp.load_source('paths', top_dir + '/.paths')
 paths = {key: value for key, value in paths_module.__dict__.items()
-         if isinstance(key, str) and not key.startswith('__')}
+    if isinstance(key, str) and not key.startswith('__')}
 # Function for converting an absolute path to its "sensible" form.
 # That is, this function returns the relative path with respect to the
 # concept directory, if it is no more than one directory above the
@@ -3271,7 +3271,7 @@ if any(τ_name in class_extra_background for τ_name in {unicode('τ'), asciify(
 def commons_flood():
     if cython.compiled:
         with suppress_stdout():
-            commons_module = imp.load_source(
+            commons_module = pyxpp.load_source(
                 'commons_pure_python',
                 '{}/commons.py'.format(paths['concept_dir']),
             )
