@@ -52,8 +52,8 @@ np.savetxt(f'{this_dir}/t_{mode}.dat', cosmic_times)
 
 # If all four data files exist, plot and analyze these
 data_filenames = glob(f'{this_dir}/*.dat')
-if sum(bool(re.search(f'^{this_dir}/t_class=(True|False)_compiled=(True|False)\.dat$' , fname))
-       for fname in data_filenames) == 4:
+if sum([bool(re.search(f'^{this_dir}/t_class=(True|False)_compiled=(True|False)\.dat$' , fname))
+       for fname in data_filenames]) == 4:
     masterprint('Analyzing {} data ...'.format(this_test))
     # Load in the data
     all_times = {}
