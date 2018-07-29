@@ -65,7 +65,7 @@
 # - ncurses  (needed by _curses, which is needed by blessings)
 # - Perl     (needed by OpenSSL)
 # - OpenSSL  (needed by pip)
-# - libffi   (needed by pip)
+# - libffi   (needed by _ctypes, which is needed by pip)
 # - OpenBLAS (needed by SciPy and also used by NumPy)
 # - Python, with the following packages (together with their own Python
 #   package dependencies):
@@ -125,6 +125,19 @@
 # If invoked directly from the web (e.g. via wget), a small pause
 # ensures that the print outs will not corrupt the loading bar.
 sleep 2
+# Newer versions of wget saves a copy of the printout when using the
+# -O- option to a file called wget-log[.x], x ∈ ℕ. Remove any such log
+# produced from invoking this script via wget.
+wget_log_maxage=300
+for filename in *; do
+    if [ ! -f "${filename}" ] || [[ "${filename}" != "wget-log"* ]]; then
+        continue
+    fi
+    fileage=$(($(date +%s) - $(stat -c '%Y' "${filename}")))
+    if [ ${fileage} -lt ${wget_log_maxage} ]; then
+        rm -f "${filename}"
+    fi
+done
 
 
 
@@ -251,11 +264,11 @@ set_version "gadget"          "2.0.7"            # Do not change
 set_version "gsl"             "2.5"    "2.5"
 set_version "hdf5"            "1.10.2" "1.10.2"
 set_version "libffi"          "3.2.1"  "3.2.1"
-set_version "libpng"          "1.6.34" "1.6.33"
-if [ "${mpi}" == "openmpi" ]; then
-    set_version "mpi"         "3.1.1"
-elif [ "${mpi}" == "mpich" ]; then
+set_version "libpng"          "1.6.35" "1.6.33"
+if [ "${mpi}" == "mpich" ]; then
     set_version "mpi"         "3.2.1"  "3.2.1"
+elif [ "${mpi}" == "openmpi" ]; then
+    set_version "mpi"         "3.1.1"
 fi
 set_version "ncurses"         "6.1"    "6.1"
 set_version "openblas"        "0.2.20" "0.2.20"
@@ -271,10 +284,10 @@ set_version "h5py"          "2.8.0"
 set_version "matplotlib"    "2.2.2"
 set_version "mpi4py"        "3.0.0"
 set_version "nose"          "1.3.7"
-set_version "numpy"         "1.14.5"
+set_version "numpy"         "1.15.0"
 set_version "parameterized" "0.6.1"
-set_version "pip"           "10.0.1"
-set_version "pytest"        "3.6.3"
+set_version "pip"           "18.0"
+set_version "pytest"        "3.6.4"
 set_version "scipy"         "1.1.0"
 set_version "setuptools"    "40.0.0"
 # Note that the versions may be changed further down due to known
@@ -370,6 +383,7 @@ env_var_names=(BLAS             \
                CPPFLAGS         \
                CXX              \
                F9X              \
+               FC               \
                HDF5_DIR         \
                HDF5_MPI         \
                LAPACK           \
@@ -384,6 +398,7 @@ env_var_names=(BLAS             \
                PNG_CFLAGS       \
                PNG_LIBS         \
                RUNTESTS_VERBOSE \
+               TMPDIR           \
                ZLIB_CFLAGS      \
                ZLIB_LIBS        \
                ZLIBLIB          \
@@ -1592,12 +1607,12 @@ validate_url(){
         exit_on_error="$2"
     fi
     if [ "${progname}" == "mpi" ]; then
-        if [ "${mpi}" == "openmpi" ]; then
-            current_step="validation of OpenMPI link"
-            set_status "Validating OpenMPI link"
-        elif [ "${mpi}" == "mpich" ]; then
+        if [ "${mpi}" == "mpich" ]; then
             current_step="validation of MPICH link"
             set_status "Validating MPICH link"
+        elif [ "${mpi}" == "openmpi" ]; then
+            current_step="validation of OpenMPI link"
+            set_status "Validating OpenMPI link"
         fi
     else
         current_step="validation of ${1/CONCEPT/$esc_concept} link"
@@ -1649,10 +1664,10 @@ fallback(){
     eval "progname_version=\"\${${progname}_version}\""
     eval "progname_version_fallback=\"\${${progname}_version_fallback}\""
     if [ "${progname}" == "mpi" ]; then
-        if [ "${mpi}" == "openmpi" ]; then
-            realname="OpenMPI"
-        elif [ "${mpi}" == "mpich" ]; then
+        if [ "${mpi}" == "mpich" ]; then
             realname="MPICH"
+        elif [ "${mpi}" == "openmpi" ]; then
+            realname="OpenMPI"
         fi
     else
         realname="${1}"
@@ -2107,7 +2122,7 @@ if [ "${libffi_install}" == "yes" ]; then
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary libffi link broken: ${libffi_url}"
             fallback "libffi"
-            libffi_url="https://github.com/libffi/libffi/archive/v${libffi_version}.tar.gz"
+            libffi_url="https://sourceware.org/ftp/libffi/libffi-${libffi_version}.tar.gz"
             echo "Using secondary libffi link: ${libffi_url}"
             # Check if already installed and/or downloaded
             check_progress "libffi"
@@ -2561,12 +2576,12 @@ download(){
         current_step="the downloading of FFTW ${progversion} for GADGET"
         heading "Downloading FFTW ${progversion} for GADGET"
     elif [ "${progname}" == "mpi" ]; then
-        if [ "${mpi}" == "openmpi" ]; then
-            current_step="the downloading of OpenMPI ${progversion}"
-            heading "Downloading OpenMPI ${progversion}"
-        elif [ "${mpi}" == "mpich" ]; then
+        if [ "${mpi}" == "mpich" ]; then
             current_step="the downloading of MPICH ${progversion}"
             heading "Downloading MPICH ${progversion}"
+        elif [ "${mpi}" == "openmpi" ]; then
+            current_step="the downloading of OpenMPI ${progversion}"
+            heading "Downloading OpenMPI ${progversion}"
         fi
     else
         current_step="the downloading of ${1/CONCEPT/$esc_concept} ${progversion}"
@@ -2814,14 +2829,14 @@ init_install(){
         heading "Installing FFTW ${progversion} for GADGET"
         set_status "Installing FFTW ${progversion} for GADGET"
     elif [ "${progname}" == "mpi" ]; then
-        if [ "${mpi}" == "openmpi" ]; then
-            current_step="the installation of OpenMPI ${progversion}"
-            heading "Installing OpenMPI ${progversion}"
-            set_status "Installing OpenMPI ${progversion}"
-        elif [ "${mpi}" == "mpich" ]; then
+        if [ "${mpi}" == "mpich" ]; then
             current_step="the installation of MPICH ${progversion}"
             heading "Installing MPICH ${progversion}"
             set_status "Installing MPICH ${progversion}"
+        elif [ "${mpi}" == "openmpi" ]; then
+            current_step="the installation of OpenMPI ${progversion}"
+            heading "Installing OpenMPI ${progversion}"
+            set_status "Installing OpenMPI ${progversion}"
         fi
     else
         current_step="the installation of ${1/CONCEPT/$esc_concept} ${progversion}"
@@ -2850,29 +2865,41 @@ init_install(){
 # packages, such as h5py. This function should not be called in a
 # situation where you do not believe that the hang is only apparent.
 soothe(){
-    # Argument: PID of background process on which to wait
+    # Argument: PID of background process on which to wait,
+    # [time in seconds after which PID is killed].
     soothe_pid=$1
+    kill_time=$2
     # A long wait is detected by repeatedly
     # checking the size of the log file generated
     # by this installation script.
-    soothe_update_time=300
+    soothe_update_time=60
     (
-    log_size_last=-1;                                                                        \
-    log_size=$(du -b "${log}" | awk '{print $1}');                                           \
-    while :; do                                                                              \
-        sleep ${soothe_update_time};                                                         \
-        log_size_new=$(du -b "${log}" | awk '{print $1}');                                   \
-        if [ ${log_size} -eq ${log_size_new} ] && [ ${log_size} -ne ${log_size_last} ]; then \
-            printf "\nThe next step may take an unreasonable amount of time.
-Please be patient ...\n";                                                                    \
-            sleep 5;                                                                         \
-            log_size_new=$(du -b "${log}" | awk '{print $1}');                               \
-            log_size_last=${log_size_new};                                                   \
-        fi;                                                                                  \
-        log_size=${log_size_new};                                                            \
-    done                                                                                     \
+    log_size_last=-1;                                                              \
+    log_size=$(du -b "${log}" | awk '{print $1}');                                 \
+    time_slept=0;                                                                  \
+    while :; do                                                                    \
+        sleep ${soothe_update_time};                                               \
+        log_size_new=$(du -b "${log}" | awk '{print $1}');                         \
+        if [ ${log_size} -eq ${log_size_new} ]; then                               \
+            ((time_slept += ${soothe_update_time}));                               \
+            if [ ${log_size} -ne ${log_size_last} ]; then                          \
+                printf "\nThe next step may take an unreasonable amount of time.
+Please be patient ...\n";                                                          \
+                sleep 5;                                                           \
+                log_size_new=$(du -b "${log}" | awk '{print $1}');                 \
+                log_size_last=${log_size_new};                                     \
+            elif [ -n "${kill_time}" ] && [ ${time_slept} -gt ${kill_time} ]; then \
+                echo "Process assumed to be haning. Killing it";                   \
+                kill -9 ${soothe_pid} >/dev/null 2>&1;                             \
+                wait    ${soothe_pid} >/dev/null 2>&1;                             \
+            fi;                                                                    \
+        else                                                                       \
+            time_slept=0;                                                          \
+        fi;                                                                        \
+        log_size=${log_size_new};                                                  \
+    done                                                                           \
     ) & soothe_killer_pid=$!
-    wait ${soothe_pid} || :
+    wait ${soothe_pid} >/dev/null 2>&1 || :
     kill ${soothe_killer_pid} >/dev/null 2>&1 || :  # No forcefull kill (no -9)
     wait ${soothe_killer_pid} >/dev/null 2>&1 || :
 }
@@ -2893,7 +2920,7 @@ if [ "${zlib_install}" == "yes" ] && [ "${zlib_installed}" == "no" ]; then
     make ${make_jobs} install 2>&1
     cp "README" "${zlib_dir}/"
     cd "${top_dir}"
-    rm -rf "${top_dir}/tmp/zlib"
+    rm -rf "${top_dir}/tmp/zlib" || :
     # Write out success notice
     echo "The following has been fully installed:
 Program: zlib
@@ -2924,7 +2951,7 @@ if [ "${libpng_install}" == "yes" ] && [ "${libpng_installed}" == "no" ]; then
     reset_environment
     cp "LICENSE" "${libpng_dir}/" || :
     cd "${top_dir}"
-    rm -rf "${top_dir}/tmp/libpng"
+    rm -rf "${top_dir}/tmp/libpng" || :
     # Write out success notice
     echo "The following has been fully installed:
 Program: libpng
@@ -2950,7 +2977,7 @@ if [ "${gsl_install}" == "yes" ] && [ "${gsl_installed}" == "no" ]; then
     make ${make_jobs} install 2>&1
     cp "COPYING" "README" "${gsl_dir}/" || :
     cd "${top_dir}"
-    rm -rf "${top_dir}/tmp/gsl"
+    rm -rf "${top_dir}/tmp/gsl" || :
     # Write out success notice
     echo "The following has been fully installed:
 Program: GSL
@@ -2985,7 +3012,7 @@ if [ "${mpi_install}" == "yes" ] && [ "${mpi_installed}" == "no" ]; then
         fi
         cp "COPYRIGHT" "${mpi_dir}/" || :
         cd "${top_dir}"
-        rm -rf "${top_dir}/tmp/mpi"
+        rm -rf "${top_dir}/tmp/mpi" || :
         # Write out success notice
         echo "The following has been fully installed:
 Program: MPI
@@ -3017,7 +3044,7 @@ Date:    $(date)
         # OpenMPI does not come with a test suite
         cp "AUTHORS" "LICENSE" "${mpi_dir}/" || :
         cd "${top_dir}"
-        rm -rf "${top_dir}/tmp/mpi"
+        rm -rf "${top_dir}/tmp/mpi" || :
         # Write out success notice
         echo "The following has been fully installed:
 Program: MPI
@@ -3043,7 +3070,8 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
         done
         for f in "mpif90" "mpifort"; do
             if [ -f "${mpi_dir}/bin/${f}" ]; then
-                export F9X="${mpi_dir}/bin/${f}"
+                export FC="${mpi_dir}/bin/${f}"
+                export F9X="${FC}"
                 break
             fi
         done
@@ -3066,25 +3094,24 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
         2>&1
     make ${make_jobs} 2>&1
     # On some systems, the HDF5 test (make check) hangs indefinitely.
-    # To counteract this, kill the process if it still runs after an
-    # hour. Count the test as failed if the last line in test_log is not
-    # "make[1]: Leaving directory".
+    # To counteract this, kill the process if it still runs after
+    # ${hdf5_test_max_time} seconds. Count the test as failed if the
+    # last line in test_log is not "make[1]: Leaving directory".
     if [ "${fast_install}" == "no" ]; then
+        hdf5_test_max_time=3600
         # Perform serial + parallel tests if build against MPI
         # or normal tests otherwise.
         if [ -n "${mpi_dir}" ]; then
             # Serial tests
             (make ${make_jobs} check-s 2>&1 & echo $! >&3) 3> "hdf5_test_pid" \
-                                                              | tee "test_log" & tee_pid=$!
+                | tee "test_log" & tee_pid=$!
             sleep 1
             hdf5_test_pid="$(cat 'hdf5_test_pid')"
             rm -f "hdf5_test_pid"
-            (trap 'kill $(jobs -p)' EXIT; \
-             sleep 3600;                  \
-             kill -9 ${hdf5_test_pid};    \
-             kill -9 ${tee_pid}) & hdf5_test_killer_pid=$!
-            wait ${tee_pid} || :
-            kill ${hdf5_test_killer_pid} || :  # No forcefull kill (no -9)
+            soothe ${hdf5_test_pid} ${hdf5_test_max_time}
+            sleep 1
+            kill -9 ${tee_pid} >/dev/null 2>&1 || :
+            wait    ${tee_pid} >/dev/null 2>&1 || :
             # Measure success based on the last line of "test_log"
             if [ -z "$(  tail -n 1 test_log \
                        | grep 'make\[1\]: Leaving directory' 2> /dev/null)" ]; then
@@ -3092,16 +3119,14 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
             fi
             # Parallel tests
             (make ${make_jobs} check-p 2>&1 & echo $! >&3) 3> "hdf5_test_pid" \
-                                                              | tee -a "test_log" & tee_pid=$!
+                | tee -a "test_log" & tee_pid=$!
             sleep 1
             hdf5_test_pid="$(cat 'hdf5_test_pid')"
             rm -f "hdf5_test_pid"
-            (trap 'kill $(jobs -p)' EXIT; \
-             sleep 3600;                  \
-             kill -9 ${hdf5_test_pid};    \
-             kill -9 ${tee_pid}) & hdf5_test_killer_pid=$!
-            wait ${tee_pid} || :
-            kill ${hdf5_test_killer_pid} || :  # No forcefull kill (no -9)
+            soothe ${hdf5_test_pid} ${hdf5_test_max_time}
+            sleep 1
+            kill -9 ${tee_pid} >/dev/null 2>&1 || :
+            wait    ${tee_pid} >/dev/null 2>&1 || :
             # Measure success based on the last line of "test_log"
             if [ -z "$(  tail -n 1 test_log \
                        | grep 'make\[1\]: Leaving directory' 2> /dev/null)" ]; then
@@ -3109,16 +3134,14 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
             fi
         else
             (make ${make_jobs} check 2>&1 & echo $! >&3) 3> "hdf5_test_pid" \
-                                                            | tee "test_log" & tee_pid=$!
+                | tee "test_log" & tee_pid=$!
             sleep 1
             hdf5_test_pid="$(cat 'hdf5_test_pid')"
             rm -f "hdf5_test_pid"
-            (trap 'kill $(jobs -p)' EXIT; \
-             sleep 3600;                  \
-             kill -9 ${hdf5_test_pid};    \
-             kill -9 ${tee_pid}) & hdf5_test_killer_pid=$!
-            wait ${tee_pid} || :
-            kill ${hdf5_test_killer_pid} || :  # No forcefull kill (no -9)
+            soothe ${hdf5_test_pid} ${hdf5_test_max_time}
+            sleep 1
+            kill -9 ${tee_pid} >/dev/null 2>&1 || :
+            wait    ${tee_pid} >/dev/null 2>&1 || :
             # Measure success based on the last line of "test_log"
             if [ -z "$(tail -n 1 test_log \
                        | grep 'make\[1\]: ' 2> /dev/null)" ]; then
@@ -3139,7 +3162,7 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
     reset_environment
     cp "COPYING" "README.txt" "${hdf5_dir}/" || :
     cd "${top_dir}"
-    rm -rf "${top_dir}/tmp/hdf5"
+    rm -rf "${top_dir}/tmp/hdf5" || :
     # Write out success notice
     echo "The following has been fully installed:
 Program: HDF5
@@ -3157,7 +3180,7 @@ if [ "${fftw_install}" == "yes" ] && [ "${fftw_installed}" == "no" ]; then
     if [ -n "${mpi_dir}" ]; then
         export CC="${mpi_dir}/bin/mpicc"
         export CFLAGS="-O3 -fPIC ${CFLAGS}"
-        export CPPFLAGS="-I/${mpi_dir}/include ${CPPFLAGS}"
+        export CPPFLAGS="-I${mpi_dir}/include ${CPPFLAGS}"
         export LDFLAGS="-L${mpi_dir}/lib ${LDFLAGS}"
         export MPICC="${mpi_dir}/bin/mpicc"
         export MPILIBS="-lmpi ${MPILIBS}"
@@ -3193,7 +3216,7 @@ if [ "${fftw_install}" == "yes" ] && [ "${fftw_installed}" == "no" ]; then
     reset_environment
     cp "COPYING" "README" "${fftw_dir}/" || :
     cd "${top_dir}"
-    rm -rf "${top_dir}/tmp/fftw"
+    rm -rf "${top_dir}/tmp/fftw" || :
     # Write out success notice
     echo "The following has been fully installed:
 Program: FFTW
@@ -3215,7 +3238,7 @@ if [ "${freetype_install}" == "yes" ] && [ "${freetype_installed}" == "no" ]; th
     make ${make_jobs} install 2>&1
     (cd docs; cp "FTL.TXT" "GPLv2.TXT" "LICENSE.TXT" "${freetype_dir}/" || :)
     cd "${top_dir}"
-    rm -rf "${top_dir}/tmp/freetype"
+    rm -rf "${top_dir}/tmp/freetype" || :
     # Write out success notice
     echo "The following has been fully installed:
 Program: FreeType
@@ -3254,7 +3277,7 @@ if [ "${ncurses_install}" == "yes" ] && [ "${ncurses_installed}" == "no" ]; then
     reset_environment
     cp "AUTHORS" "COPYING" "${ncurses_dir}/include/ncurses/" || :
     cd "${top_dir}"
-    rm -rf "${top_dir}/tmp/ncurses"
+    rm -rf "${top_dir}/tmp/ncurses" || :
     # Write out success notice
     echo "The following has been fully installed:
 Program: ncurses
@@ -3312,7 +3335,7 @@ if [ "${perl_install}" == "yes" ] && [ "${perl_installed}" == "no" ]; then
     make ${make_jobs} install 2>&1
     cp "AUTHORS" "Copying" "README" "${perl_dir}/" || :
     cd "${top_dir}"
-    rm -rf "${top_dir}/tmp/perl"
+    rm -rf "${top_dir}/tmp/perl" || :
     # Write out success notice
     echo "The following has been fully installed:
 Program: Perl
@@ -3341,7 +3364,7 @@ if [ "${openssl_install}" == "yes" ] && [ "${openssl_installed}" == "no" ]; then
     reset_environment
     cp "LICENSE" "README" "${openssl_dir}/include/openssl/" || :
     cd "${top_dir}"
-    rm -rf "${top_dir}/tmp/openssl"
+    rm -rf "${top_dir}/tmp/openssl" || :
     # Write out success notice
     echo "The following has been fully installed:
 Program: OpenSSL
@@ -3367,7 +3390,7 @@ if [ "${libffi_install}" == "yes" ] && [ "${libffi_installed}" == "no" ]; then
     make ${make_jobs} install 2>&1
     cp "LICENSE" "README" "${libffi_dir}/lib/libffi-${libffi_version}/" || :
     cd "${top_dir}"
-    rm -rf "${top_dir}/tmp/libffi"
+    rm -rf "${top_dir}/tmp/libffi" || :
     # Write out success notice
     echo "The following has been fully installed:
 Program: libffi
@@ -3386,7 +3409,7 @@ if [ "${openblas_install}" == "yes" ] && [ "${openblas_installed}" == "no" ]; th
     make PREFIX="${openblas_dir}" install
     cp "LICENSE" "${openblas_dir}/" || :
     cd "${top_dir}"
-    rm -rf "${top_dir}/tmp/openblas"
+    rm -rf "${top_dir}/tmp/openblas" || :
     # Write out success notice
     echo "The following has been fully installed:
 Program: OpenBLAS
@@ -3527,7 +3550,7 @@ if [ "${python_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
     reset_environment
     cp "LICENSE" "README.rst" "${python_dir}/" || :
     cd "${top_dir}"
-    rm -rf "${top_dir}/tmp/python"
+    rm -rf "${top_dir}/tmp/python" || :
     # Write out success notice
     echo "The following has been fully installed:
 Program: Python
@@ -3629,11 +3652,11 @@ pip_download(){
     # Maximum allowed time (in seconds) for download. After this time,
     # the download process will be killed. This is needed because the
     # process sometimes hang after an otherwise successful download.
-    pip_download_time=300
+    pip_download_time=3600
     if [ -n "${3}" ]; then
         pip_download_time=${3}
     fi
-    # Downloading the Python package
+    # Download the Python package
     for n in {1..50}; do
         pip_status="error"
         # Dependent on the version of pip, different calling conventions
@@ -3666,19 +3689,7 @@ pip_download(){
             # The above command may succeed in retrieving the package,
             # but then hang indefinately. Kill the process after
             # ${pip_download_time} seconds.
-            if [ ${pip_download_time} -ne 0 ]; then
-                (
-                trap 'kill $(jobs -p)' EXIT;                 \
-                sleep ${pip_download_time};                  \
-                kill -9 ${pip_download_pid} >/dev/null 2>&1; \
-                wait    ${pip_download_pid} >/dev/null 2>&1; \
-                ) & pip_download_killer_pid=$!
-            fi
-            wait ${pip_download_pid} || :
-            if [ ${pip_download_time} -ne 0 ]; then
-                kill ${pip_download_killer_pid} >/dev/null 2>&1 || :  # No forcefull kill (no -9)
-                wait ${pip_download_killer_pid} >/dev/null 2>&1 || :
-            fi
+            soothe ${pip_download_pid} ${pip_download_time}
             # If the archive exists in the tmp/pip dir,
             # the download completed successfully.
             if ls "${top_dir}/tmp/pip" | grep -i "${pip_name}" > /dev/null 2>&1; then
@@ -3725,8 +3736,14 @@ pip_install_pypackage(){
         fi
     fi
     # Download Python package source
+    tmp_pip_dir="${top_dir}/tmp/pip"
+    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
+    mkdir -p "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
+    export TMPDIR="${tmp_pip_dir}_tmp"
     pypackage="$(echo "${1}" | tr '[:upper:]' '[:lower:]')"
     pip_download "${pypackage}" "${2}"
+    rm -rf "${tmp_pip_dir}_cp"
+    cp -r "${tmp_pip_dir}" "${tmp_pip_dir}_cp"
     # Install Python package from source
     upgrade_flag=""
     if [ "${2}" == "upgrade" ]; then
@@ -3742,10 +3759,10 @@ pip_install_pypackage(){
     for extra_pip_arg in "" "--no-build-isolation"; do
         "${python}" -m pip install -v -v -v                          \
                                    ${extra_pip_arg}                  \
-                                   -b "${top_dir}/tmp/pip/build"     \
+                                   -b "${tmp_pip_dir}/build"         \
                                    ${upgrade_flag}                   \
                                    --no-index                        \
-                                   --find-links="${top_dir}/tmp/pip" \
+                                   --find-links="${tmp_pip_dir}"     \
                                    "${pypackage}${command_end}" 2>&1 \
                                     & pip_install_pid=$!
         soothe ${pip_install_pid}
@@ -3754,15 +3771,28 @@ pip_install_pypackage(){
             break
         fi
         if [ -z "${extra_pip_arg}" ]; then
-            printf "\npip failed to install ${1}. Now trying with --no-build-isolation \n\n"
+            printf "\npip failed to install ${1}. Now trying with --no-build-isolation\n\n"
+            rm -rf "${tmp_pip_dir}"
+            cp -r "${tmp_pip_dir}_cp" "${tmp_pip_dir}"
         fi
     done
-    rm -rf "${top_dir}/tmp/pip"
+    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_cp"
+    # If we failed to install the Python package, try installing it
+    # via pip without using any additional arguments.
+    if [ "${pypackage_installed}" == "no" ]; then
+        printf "\npip could not install/upgrade ${1}, neither with or without \
+--no-build-isolation\nNow trying without specifying any extra arguments to pip\n\n"
+        "${python}" -m pip install "${pypackage}${command_end}" 2>&1 & pip_install_pid=$!
+        soothe ${pip_install_pid}
+        pypackage_installed=$(check_pypackage_installed ${pypackage})
+    fi
+    reset_environment
     # Exit on failure
     if [ "${pypackage_installed}" == "no" ]; then
-        error "pip could not install/upgrade ${1}, neither with or without --no-build-isolation"
+        error "pip could not install/upgrade ${1}"
         exit 1
     fi
+    rm -rf "${tmp_pip_dir}_tmp"
 }
 
 # Upgrade pip and setuptools.
@@ -3775,7 +3805,7 @@ pip_install_pypackage(){
 # bootstrapping packages are installed/upgraded as well.
 if [ "${pip_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
     tmp_pip_dir="${top_dir}/tmp/pip"
-    rm -rf "${tmp_pip_dir}"
+    export TMPDIR="${tmp_pip_dir}_tmp"
     for package in "pip" "setuptools"; do
         current_step="upgrade of ${package}"
         heading "Upgrading ${package}"
@@ -3785,13 +3815,13 @@ if [ "${pip_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
         # the --no-cache-dir option may be available or not.
         pip_success="yes"
         for extra_pip_arg in "--no-cache-dir" ""; do
-            mkdir -p "${tmp_pip_dir}"
+            rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
+            mkdir -p "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
             "${python}" -m pip install -v -v -v                  \
                                        ${extra_pip_arg}          \
                                        -b "${tmp_pip_dir}/build" \
                                        --upgrade                 \
                                        "${package}==${package_version}" 2>&1 || pip_success="no"
-            rm -rf "${tmp_pip_dir}"
             if [ "${pip_success}" == "yes" ]; then
                 break
             fi
@@ -3802,6 +3832,8 @@ if [ "${pip_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
             exit 1
         fi
     done
+    reset_environment
+    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
 fi
 
 # Upgrade all packages pre-installed
@@ -3858,7 +3890,7 @@ if [ "${cython_install}" == "yes" ] && [ "${cython_installed}" == "no" ]; then
     pip_install_pypackage "Cython" "${cython_version}"
 fi
 
-# The CythonGSL Python package
+# CythonGSL
 if [ "${cythongsl_install}" == "yes" ] && [ "${cythongsl_installed}" == "no" ]; then
     export LD_LIBRARY_PATH="${gsl_dir}/lib:${LD_LIBRARY_PATH}"
     pip_install_pypackage "CythonGSL" "${cythongsl_version}"
@@ -3888,9 +3920,12 @@ if [ "${numpy_install}" == "yes" ] && [ "${numpy_installed}" == "no" ]; then
     heading "Installing NumPy ${numpy_version}"
     set_status "Installing NumPy ${numpy_version}"
     # Download NumPy
-    rm -rf "${top_dir}/tmp/pip"
+    tmp_pip_dir="${top_dir}/tmp/pip"
+    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
+    mkdir -p "${tmp_pip_dir}_tmp"
+    export TMPDIR="${tmp_pip_dir}_tmp"
     pip_download "numpy" "${numpy_version}"
-    cd "${top_dir}/tmp/pip"
+    cd "${tmp_pip_dir}"
     # It can happen that an archive format different from tar.gz is
     # downloaded, in which case the extraction will fail if the
     # corresponding tool is not installed. In that case, try to download
@@ -3919,7 +3954,19 @@ if [ "${numpy_install}" == "yes" ] && [ "${numpy_installed}" == "no" ]; then
         done
     fi
     # Create a site.cfg file containing information about OpenBLAS
-    echo "[openblas]
+    echo "[DEFAULT]
+library_dirs = ${openblas_dir}/lib
+include_dirs = ${openblas_dir}/include
+
+[ALL]
+library_dirs = ${openblas_dir}/lib
+include_dirs = ${openblas_dir}/include
+
+[atlas]
+atlas_libs = openblas
+libraries = openblas
+
+[openblas]
 libraries = openblas
 library_dirs = ${openblas_dir}/lib
 include_dirs = ${openblas_dir}/include
@@ -3929,15 +3976,19 @@ runtime_library_dirs = ${openblas_dir}/lib
     export BLAS="${openblas_dir}/lib/libopenblas.a"
     export LAPACK="${openblas_dir}/lib/libopenblas.a"
     export LD_LIBRARY_PATH="${openblas_dir}/lib:${LD_LIBRARY_PATH}"
-    ("${python}" setup.py build --fcompiler=gfortran || "${python}" setup.py build \
-        ) & setuppy_pid=$!
+    export FC=gfortran
+    ("${python}" setup.py build --fcompiler=gnu95 || "${python}" setup.py build) & setuppy_pid=$!
     soothe ${setuppy_pid}
     "${python}" setup.py install & setuppy_pid=$!
     soothe ${setuppy_pid}
     reset_environment
     cd "${top_dir}"
-    rm -rf "${top_dir}/tmp/pip"
-    rm -rf "${top_dir}/tmp/numpy"
+    # Exit if installation failed
+    if [ "$(check_pypackage_installed numpy)" == "no" ]; then
+        error "Failed to install NumPy"
+        exit 1
+    fi
+    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${top_dir}/tmp/numpy"
     # Test NumPy. The tests are considered successful on the basis on
     # the exit code only, meaning that only severe errors
     # (e.g. segmentation faults) will count as failures.
@@ -3959,9 +4010,12 @@ if [ "${scipy_install}" == "yes" ] && [ "${scipy_installed}" == "no" ]; then
     heading "Installing SciPy ${scipy_version}"
     set_status "Installing SciPy ${scipy_version}"
     # Download SciPy
-    rm -rf "${top_dir}/tmp/pip"
+    tmp_pip_dir="${top_dir}/tmp/pip"
+    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
+    mkdir -p "${tmp_pip_dir}_tmp"
+    export TMPDIR="${tmp_pip_dir}_tmp"
     pip_download "scipy" "${scipy_version}"
-    cd "${top_dir}/tmp/pip"
+    cd "${tmp_pip_dir}"
     extract "scipy"* "yes"
     for f in *; do
         f_lower="$(echo "${f}" | tr '[:upper:]' '[:lower:]')"
@@ -3971,7 +4025,19 @@ if [ "${scipy_install}" == "yes" ] && [ "${scipy_installed}" == "no" ]; then
         fi
     done
     # Create a site.cfg file containing information about OpenBLAS
-    echo "[openblas]
+    echo "[DEFAULT]
+library_dirs = ${openblas_dir}/lib
+include_dirs = ${openblas_dir}/include
+
+[ALL]
+library_dirs = ${openblas_dir}/lib
+include_dirs = ${openblas_dir}/include
+
+[atlas]
+atlas_libs = openblas
+libraries = openblas
+
+[openblas]
 libraries = openblas
 library_dirs = ${openblas_dir}/lib
 include_dirs = ${openblas_dir}/include
@@ -3981,14 +4047,19 @@ runtime_library_dirs = ${openblas_dir}/lib
     export BLAS="${openblas_dir}/lib/libopenblas.a"
     export LAPACK="${openblas_dir}/lib/libopenblas.a"
     export LD_LIBRARY_PATH="${openblas_dir}/lib:${LD_LIBRARY_PATH}"
-    ("${python}" setup.py build --fcompiler=gfortran || "${python}" setup.py build \
-        ) & setuppy_pid=$!
+    export FC=gfortran
+    ("${python}" setup.py build --fcompiler=gnu95 || "${python}" setup.py build) & setuppy_pid=$!
     soothe ${setuppy_pid}
     "${python}" setup.py install & setuppy_pid=$!
     soothe ${setuppy_pid}
     reset_environment
     cd "${top_dir}"
-    rm -rf "${top_dir}/tmp/pip"
+    # Exit if installation failed
+    if [ "$(check_pypackage_installed scipy)" == "no" ]; then
+        error "Failed to install SciPy"
+        exit 1
+    fi
+    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
     # Test SciPy. The tests are considered successful on the basis on
     # the exit code only, meaning that only severe errors
     # (e.g. segmentation faults) will count as failures.
@@ -4010,12 +4081,15 @@ if [ "${matplotlib_install}" == "yes" ] && [ "${matplotlib_installed}" == "no" ]
     heading "Installing Matplotlib ${matplotlib_version}"
     set_status "Installing Matplotlib ${matplotlib_version}"
     # Download matplotlib itself
-    rm -rf "${top_dir}/tmp/pip"
+    tmp_pip_dir="${top_dir}/tmp/pip"
+    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
+    mkdir -p "${tmp_pip_dir}_tmp"
+    export TMPDIR="${tmp_pip_dir}_tmp"
     pip_download "matplotlib" "${matplotlib_version}"
-    # Matplot is the only Python package needed by CO𝘕CEPT, which
-    # depends on other Python packages not directly used by CO𝘕CEPT.
-    # Most often these dependencies are downloaded automatically by the
-    # previous command. In case of failure, we do it manually.
+    # Matplotlib depends on other Python packages not directly used
+    # by CO𝘕CEPT. Most often these dependencies are downloaded
+    # automatically by the previous command. In case of failure,
+    # we do it manually.
     if [ "${numpy_preinstalled}" == "yes" ] || [ "${numpy_install}" == "yes" ]; then
         # NumPy already installed
         deps=(                \
@@ -4033,7 +4107,7 @@ if [ "${matplotlib_install}" == "yes" ] && [ "${matplotlib_installed}" == "no" ]
             ""                                \
             ">=0.10.0"                        \
             ">=1.10"                          \
-            ">=1.0.0"                         \
+            ">=1.0.1"                         \
         )
     else
         # NumPy not installed. Add it as a matplotlib dependency
@@ -4054,14 +4128,13 @@ if [ "${matplotlib_install}" == "yes" ] && [ "${matplotlib_installed}" == "no" ]
             ""                                \
             ">=0.10.0"                        \
             ">=1.10"                          \
-            ">=1.0.0"                         \
+            ">=1.0.1"                         \
         )
     fi
     # An illegal version of pyparsing may be downloaded by Matplotlib!
     pyparsing_downloaded="$(ls "${top_dir}/tmp/pip" | grep -i "pyparsing" || :)"
     illegal_pyparsings=("2.0.0" "2.0.4" "2.1.2" "2.1.6")
     for ((i=0; i<${#illegal_pyparsings[@]}; i+=1)); do
-        ((j = i + 1))
         if [[ "${pyparsing_downloaded}" == "pyparsing-${illegal_pyparsings[i]}"* ]]; then
             # Illegal pyparsing downloaded!
             rm -rf "${top_dir}/tmp/pip/pyparsing"*
@@ -4074,7 +4147,7 @@ if [ "${matplotlib_install}" == "yes" ] && [ "${matplotlib_installed}" == "no" ]
         fi
     done
     # Install matplotlib
-    cd "${top_dir}/tmp/pip"
+    cd "${tmp_pip_dir}"
     extract "matplotlib"* "yes"
     for f in *; do
         f_lower="$(echo "${f}" | tr '[:upper:]' '[:lower:]')"
@@ -4145,14 +4218,14 @@ site-packages/matplotlib/cbook/__init__.py" || :
             printf "\nFailed to install matplotlib. Now trying with --no-build-isolation \n\n"
         fi
     done
-    # Exit on failure
-    if [ "${pypackage_installed}" == "no" ]; then
-        error "Could not install matplotlib, neither with or without --no-build-isolation"
-        exit 1
-    fi
     reset_environment
     cd "${top_dir}"
-    rm -rf "${top_dir}/tmp/pip"
+    # Exit if installation failed
+    if [ "${pypackage_installed}" == "no" ]; then
+        error "Could not install matplotlib"
+        exit 1
+    fi
+    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
 fi
 
 # MPI4Py
@@ -4663,7 +4736,7 @@ sys.exit(int(cosmo.get_background()['proper time [Gyr]'][-1]) != 13)
         fi
     fi
     cd "${top_dir}"
-    rm -rf "${top_dir}/tmp/class"
+    rm -rf "${top_dir}/tmp/class" || :
     # Write out success notice
     echo "The following has been fully installed:
 Program: CLASS
@@ -4697,7 +4770,7 @@ if [ "${concept_install}" == "yes" ] && [ "${concept_installed}" == "no" ]; then
     # directory to ${top_dir}.
     mv ./{.[!.],}* "${top_dir}/"
     cd "${top_dir}"
-    rm -rf "${top_dir}/tmp/concept"
+    rm -rf "${top_dir}/tmp/concept" || :
     # Create directories
     mkdir -p "${ics_dir}"
     mkdir -p "${logs_dir}"
@@ -4865,7 +4938,7 @@ if [ "${fftw_for_gadget_install}" == "yes" ] && [ "${fftw_for_gadget_installed}"
     reset_environment
     cp "COPYING" "README" "${fftw_for_gadget_dir}/" || :
     cd "${top_dir}"
-    rm -rf "${top_dir}/tmp/fftw_for_gadget"
+    rm -rf "${top_dir}/tmp/fftw_for_gadget" || :
     # Write out success notice
     echo "The following has been fully installed:
 Program: FFTW for GADGET
@@ -4880,7 +4953,7 @@ if [ "${gadget_install}" == "yes" ] && [ "${gadget_installed}" == "no" ]; then
     mkdir -p "${gadget_dir}"
     mv ./* "${gadget_dir}/"
     cd "${top_dir}"
-    rm -rf "${top_dir}/tmp/gadget"
+    rm -rf "${top_dir}/tmp/gadget" || :
     # GADGET will be tested as part of the CO𝘕CEPT test suite.
     # Write out success notice.
     echo "The following has been fully installed:
@@ -4949,8 +5022,10 @@ fi
 #############################
 # Final cleanup and notices #
 #############################
-# Make sure that the tmp directory is removed
-rm -rf "${top_dir}/tmp"
+# Make sure that the tmp directory is removed. This may fail on clusters
+# with the nfs file system ("Device or resource busy") due to still
+# running background processes holding .nfs... files open.
+rm -rf "${top_dir}/tmp" || :
 # Remove the Python cache generated by all the Python invocations
 # during the install.
 rm -rf "${top_dir}/__pycache__"
@@ -4981,10 +5056,10 @@ if [ "${install_anything}" == "yes" ]; then
     copyright_notice "gsl"             "GSL"
     copyright_notice "hdf5"            "HDF5"
     copyright_notice "libpng"          "libpng"
-    if [ "${mpi}" == "openmpi" ]; then
-        copyright_notice "mpi"         "OpenMPI"
-    elif [ "${mpi}" == "mpich" ]; then
+    if [ "${mpi}" == "mpich" ]; then
         copyright_notice "mpi"         "MPICH"
+    elif [ "${mpi}" == "openmpi" ]; then
+        copyright_notice "mpi"         "OpenMPI"
     fi
     copyright_notice "ncurses"         "ncurses"
     copyright_notice "openblas"        "OpenBLAS"
@@ -5031,10 +5106,10 @@ erroneous_test_notice(){
         printf "${esc_bold}${esc_red}Warning: ${esc_normal}"
         real_name="${1/CONCEPT/$esc_concept}"
         if [ "${real_name}" == "MPI" ]; then
-            if [ "${mpi}" == "openmpi" ]; then
-                real_name="OpenMPI"
-            elif [ "${mpi}" == "mpich" ]; then
+            if [ "${mpi}" == "mpich" ]; then
                 real_name="MPICH"
+            elif [ "${mpi}" == "openmpi" ]; then
+                real_name="OpenMPI"
             fi
         fi
         printf "Some tests of ${real_name} did not pass successfully.\n"
@@ -5147,7 +5222,8 @@ tail -f "${log}" --pid ${log_pid} | while read line; do
 done
 
 # Remove the log file if no errors occurred
-if [ "$(tail -n 1 "${log}")" == "${status_prefix}${status_finish_successfully}" ]; then
+if [ "${fast_install}" == "no" ] && \
+    [ "$(tail -n 1 "${log}")" == "${status_prefix}${status_finish_successfully}" ]; then
     rm -f "${log}"
 fi
 
