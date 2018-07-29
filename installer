@@ -384,6 +384,7 @@ env_var_names=(BLAS             \
                CXX              \
                F9X              \
                FC               \
+               FFLAGS           \
                HDF5_DIR         \
                HDF5_MPI         \
                LAPACK           \
@@ -3092,7 +3093,43 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
         ${with_zlib}           \
         --prefix="${hdf5_dir}" \
         2>&1
-    make ${make_jobs} 2>&1
+    # Never versions of gcc (e.g. 8.1.0) do not allow attributes to be
+    # specified after the declarator in function definitions. At least
+    # in some versions of HDF5 (e.g. 1.10.2), this rule is broken by
+    # src/H5detect.c. If the original build fail, we edit src/H5detect.c
+    # to be compliant with this rule and try again.
+    hdf5_make_success="yes"
+    make ${make_jobs} 2>&1 || hdf5_make_success="no"
+    if [ "${hdf5_make_success}" == "no" ]; then
+        mv "src/H5detect.c" "src/H5detect.c_cp"
+        if [ -z "${IFS+x}" ]; then
+            IFS_ori="__unset__"
+        else
+            IFS_ori="${IFS}"
+        fi
+        IFS=''
+        while read -r line; do
+            if [ "${line}" == "static void" ] || [ "${line}" == "int" ] ; then
+                printf "${line} " >> "src/H5detect.c"
+            else
+                echo "${line}" >> "src/H5detect.c"
+            fi
+        done <<< "$(cat "src/H5detect.c_cp")"
+        if [ "${IFS_ori}" == "__unset__" ]; then
+            unset IFS
+        else
+            IFS="${IFS_ori}"
+        fi
+        rm -f "src/H5detect.c_cp"
+        sed -i 's/^static void \(.*\) HDF_NO_UBSAN/static void HDF_NO_UBSAN \1/' "src/H5detect.c"
+        sed -i 's/^int \(.*\) HDF_NO_UBSAN/int HDF_NO_UBSAN \1/' "src/H5detect.c"
+        hdf5_make_success="yes"
+        make ${make_jobs} 2>&1 || hdf5_make_success="no"
+    fi
+    if [ "${hdf5_make_success}" == "no" ]; then
+        error "Failed to make HDF5"
+        exit 1
+    fi
     # On some systems, the HDF5 test (make check) hangs indefinitely.
     # To counteract this, kill the process if it still runs after
     # ${hdf5_test_max_time} seconds. Count the test as failed if the
@@ -3929,14 +3966,14 @@ if [ "${numpy_install}" == "yes" ] && [ "${numpy_installed}" == "no" ]; then
     # It can happen that an archive format different from tar.gz is
     # downloaded, in which case the extraction will fail if the
     # corresponding tool is not installed. In that case, try to download
-    # NumPy directly from GitBub
+    # NumPy directly from GitHub
     extract "numpy"* "yes" || :
     numpy_extract_success="no"
     for f in *; do
         f_lower="$(echo "${f}" | tr '[:upper:]' '[:lower:]')"
         if [ -d "${f}" ] && [[ "${f_lower}" == "numpy"* ]]; then
             numpy_extract_success="yes"
-            cd "${f}"
+            numpy_build_dir="${tmp_pip_dir}/${f}"
             break
         fi
     done
@@ -3948,7 +3985,7 @@ if [ "${numpy_install}" == "yes" ] && [ "${numpy_installed}" == "no" ]; then
         for f in *; do
             f_lower="$(echo "${f}" | tr '[:upper:]' '[:lower:]')"
             if [ -d "${f}" ] && [[ "${f_lower}" == "numpy"* ]]; then
-                cd "${f}"
+                numpy_build_dir="${top_dir}/tmp/numpy/${f}"
                 break
             fi
         done
@@ -3971,14 +4008,63 @@ libraries = openblas
 library_dirs = ${openblas_dir}/lib
 include_dirs = ${openblas_dir}/include
 runtime_library_dirs = ${openblas_dir}/lib
-" > "site.cfg"
-    # Build and install NumPy with OpenBLAS support
+" > "${numpy_build_dir}/site.cfg"
+    # Build and install NumPy with OpenBLAS support.
+    # We always use gfortran as the Fortran compiler.
     export BLAS="${openblas_dir}/lib/libopenblas.a"
     export LAPACK="${openblas_dir}/lib/libopenblas.a"
     export LD_LIBRARY_PATH="${openblas_dir}/lib:${LD_LIBRARY_PATH}"
     export FC=gfortran
-    ("${python}" setup.py build --fcompiler=gnu95 || "${python}" setup.py build) & setuppy_pid=$!
-    soothe ${setuppy_pid}
+    # On some systems, the Fortran compiler type and several additional
+    # environment variables need to be modified. Here we try all
+    # combinations until we hit a working combination.
+    cp -r "${numpy_build_dir}" "${numpy_build_dir}_cp"
+    LDFLAGS_ori="${LDFLAGS}"
+    FFLAGS_ori="${FFLAGS}"
+    for fcompiler in "gnu95" ""; do
+        for extra_FFLAGS in "" "-fPIC"; do
+            export FFLAGS="${extra_FFLAGS} ${FFLAGS_ori}"
+            for extra_LDFLAGS in "" "-shared"; do
+                export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS_ori}"
+                printf "\nAttempting to build NumPy with fcompiler=${fcompiler}, \
+extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n"
+                cd "${top_dir}"
+                rm -rf "${numpy_build_dir}"
+                cp -r "${numpy_build_dir}_cp" "${numpy_build_dir}"
+                cd "${numpy_build_dir}"
+                echo "yes" > ".setuppy_success"
+                if [ -n "${fcompiler}" ]; then
+                    ("${python}" setup.py build --fcompiler="${fcompiler}" \
+                        || echo "no" > ".setuppy_success") & setuppy_pid=$!
+                else
+                    ("${python}" setup.py build \
+                        || echo "no" > ".setuppy_success") & setuppy_pid=$!
+                fi
+                soothe ${setuppy_pid}
+                sleep 1
+                setuppy_success="$(cat '.setuppy_success')"
+                if [ "${setuppy_success}" == "yes" ]; then
+                    break
+                else
+                    printf "\nFailed to build NumPy with fcompiler=${fcompiler}, \
+extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n"
+                fi
+            done
+            if [ "${setuppy_success}" == "yes" ]; then
+                break
+            fi
+        done
+        if [ "${setuppy_success}" == "yes" ]; then
+            break
+        fi
+    done
+    if [ "${setuppy_success}" == "yes" ]; then
+        printf "\nSuccessfully build NumPy with fcompiler=${fcompiler}, \
+extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n\n"
+    else
+        error "NumPy build failed under all combinations of fcompiler, FFLAGS and LDFLAGS"
+        exit 1
+    fi
     "${python}" setup.py install & setuppy_pid=$!
     soothe ${setuppy_pid}
     reset_environment
@@ -4020,7 +4106,7 @@ if [ "${scipy_install}" == "yes" ] && [ "${scipy_installed}" == "no" ]; then
     for f in *; do
         f_lower="$(echo "${f}" | tr '[:upper:]' '[:lower:]')"
         if [ -d "${f}" ] && [[ "${f_lower}" == "scipy"* ]]; then
-            cd "${f}"
+            scipy_build_dir="${tmp_pip_dir}/${f}"
             break
         fi
     done
@@ -4042,14 +4128,63 @@ libraries = openblas
 library_dirs = ${openblas_dir}/lib
 include_dirs = ${openblas_dir}/include
 runtime_library_dirs = ${openblas_dir}/lib
-" > "site.cfg"
-    # Build and install SciPy with OpenBLAS support
+" > "${scipy_build_dir}/site.cfg"
+    # Build and install SciPy with OpenBLAS support.
+    # We always use gfortran as the Fortran compiler.
     export BLAS="${openblas_dir}/lib/libopenblas.a"
     export LAPACK="${openblas_dir}/lib/libopenblas.a"
     export LD_LIBRARY_PATH="${openblas_dir}/lib:${LD_LIBRARY_PATH}"
     export FC=gfortran
-    ("${python}" setup.py build --fcompiler=gnu95 || "${python}" setup.py build) & setuppy_pid=$!
-    soothe ${setuppy_pid}
+    # On some systems, the Fortran compiler type and several additional
+    # environment variables need to be modified. Here we try all
+    # combinations until we hit a working combination.
+    cp -r "${scipy_build_dir}" "${scipy_build_dir}_cp"
+    LDFLAGS_ori="${LDFLAGS}"
+    FFLAGS_ori="${FFLAGS}"
+    for fcompiler in "gnu95" ""; do
+        for extra_FFLAGS in "" "-fPIC"; do
+            export FFLAGS="${extra_FFLAGS} ${FFLAGS_ori}"
+            for extra_LDFLAGS in "" "-shared"; do
+                export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS_ori}"
+                printf "\nAttempting to build SciPy with fcompiler=${fcompiler}, \
+extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n"
+                cd "${top_dir}"
+                rm -rf "${scipy_build_dir}"
+                cp -r "${scipy_build_dir}_cp" "${scipy_build_dir}"
+                cd "${scipy_build_dir}"
+                echo "yes" > ".setuppy_success"
+                if [ -n "${fcompiler}" ]; then
+                    ("${python}" setup.py build --fcompiler="${fcompiler}" \
+                        || echo "no" > ".setuppy_success") & setuppy_pid=$!
+                else
+                    ("${python}" setup.py build \
+                        || echo "no" > ".setuppy_success") & setuppy_pid=$!
+                fi
+                soothe ${setuppy_pid}
+                sleep 1
+                setuppy_success="$(cat '.setuppy_success')"
+                if [ "${setuppy_success}" == "yes" ]; then
+                    break
+                else
+                    printf "\nFailed to build SciPy with fcompiler=${fcompiler}, \
+extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n"
+                fi
+            done
+            if [ "${setuppy_success}" == "yes" ]; then
+                break
+            fi
+        done
+        if [ "${setuppy_success}" == "yes" ]; then
+            break
+        fi
+    done
+    if [ "${setuppy_success}" == "yes" ]; then
+        printf "\nSuccessfully build SciPy with fcompiler=${fcompiler}, \
+extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n\n"
+    else
+        error "SciPy build failed under all combinations of fcompiler, FFLAGS and LDFLAGS"
+        exit 1
+    fi
     "${python}" setup.py install & setuppy_pid=$!
     soothe ${setuppy_pid}
     reset_environment
