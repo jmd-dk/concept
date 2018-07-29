@@ -49,7 +49,7 @@ if not np.all(render3D_0 == render3D_1):
 for r, path, params in zip((render3D, render3D_0),
                            (render3D_path, render3D_0_path),
                            (this_dir + '/render3D.params_0', this_dir + '/render3D.params_1')):
-    module_dict = imp.load_source('params', params).__dict__
+    module_dict = pyxpp.load_source('params', params).__dict__
     shape = r.shape[:2]
     if shape[0] != shape[1] or shape[0] != module_dict['render3D_resolution']:
         masterprint('done')
