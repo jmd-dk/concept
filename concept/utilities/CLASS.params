@@ -4,7 +4,7 @@
 # come from CLASS having radiation.
 # Massive neutrinos can be added by setting the
 # _with_neutrinos flag to True.
-_with_neutrinos = False
+_with_neutrinos = True
 
 
 
@@ -41,7 +41,7 @@ H0      = 67*km/(s*Mpc)
 a_begin = 1/(1 + 99)
 class_params = {
     # Primordial parameters
-    'A_s'    : 2.13-09,
+    'A_s'    : 2.13e-09,
     'n_s'    : 0.96,
     'alpha_s': 0.0,
     'k_pivot': 0.05,
