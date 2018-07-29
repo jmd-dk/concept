@@ -88,10 +88,19 @@ from __future__ import absolute_import, with_statement, print_function, unicode_
 import sys
 if sys.version_info.major < 3:
     from codecs import open
-def non_nested_exec(s):
-    exec(s)
+if (sys.version_info.major, sys.version_info.minor) < (3, 7):
+    import imp
+    load_source = imp.load_source
+else:
+    import importlib.machinery, importlib.util
+    def load_source(module_name, filename):
+        loader = importlib.machinery.SourceFileLoader(module_name, filename)
+        spec = importlib.util.spec_from_loader(loader.name, loader)
+        module = importlib.util.module_from_spec(spec)
+        loader.exec_module(module)
+        return module
 # General imports
-import collections, contextlib, copy, importlib, itertools, keyword, os, re, shutil, unicodedata
+import collections, contextlib, copy, itertools, keyword, os, re, shutil, unicodedata
 # For math
 import numpy as np
 
@@ -2836,9 +2845,7 @@ if __name__ == '__main__':
                 finally:
                     sys.stdout = old_stdout
         with suppress_stdout():
-            commons_spec = importlib.util.spec_from_file_location(commons_name, filename_commons)
-            commons = importlib.util.module_from_spec(commons_spec)
-            commons_spec.loader.exec_module(commons)
+            commons = load_source(commons_name, filename_commons)
     no_optimization = False
     if len(sys.argv) > 3:
         if sys.argv[3] == '--no-optimization':
