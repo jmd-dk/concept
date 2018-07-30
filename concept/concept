@@ -708,7 +708,10 @@ elif '$2' == 'utility':
     possibilities = [file for file in files if shutil.which('${utilities_dir}/' + file)]
 max_ratio = 0
 for possibility in possibilities:
-    ratio = difflib.SequenceMatcher(a='${illegal_option}', b=possibility).ratio()
+    ratio = max([
+        difflib.SequenceMatcher(a='${illegal_option}', b=possibility).ratio(),
+        difflib.SequenceMatcher(a='${illegal_option}'.lower(), b=possibility.lower()).ratio(),
+    ])
     if ratio > max_ratio:
         max_ratio = ratio
         closest_match = possibility
