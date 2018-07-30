@@ -3441,8 +3441,44 @@ if [ "${openblas_install}" == "yes" ] && [ "${openblas_installed}" == "no" ]; th
     init_install "OpenBLAS"
     # Due to the threading behaviour of Python,
     # we install a non-threaded version of OpenBLAS.
+    # We wish to use the gfortran Fortran compiler. If it fails,
+    # we retry without explicitly specifying any Fortran compiler.
+    # On 32 bit systems, we need to set BINARY=32. First we try without,
+    # then with this option.
     # Note that OpenBLAS runs its test suite during this build.
-    make USE_THREAD=0 FC=gfortran || (make clean && make USE_THREAD=0)
+    for FC in "gfortran" ""; do
+        for BINARY in "" "32"; do
+            printf "\nAttempting to build OpenBLAS with FC=${FC}, BINARY=${BINARY}\n"
+            openblas_make_success="yes"
+            if [ -n "${FC}" ]; then
+                if [ -n "${BINARY}" ]; then
+                    make USE_THREAD=0 FC="${FC}" BINARY="${BINARY}" || openblas_make_success="no"
+                else
+                    make USE_THREAD=0 FC="${FC}" || openblas_make_success="no"
+                fi
+            else
+                if [ -n "${BINARY}" ]; then
+                    make USE_THREAD=0 BINARY="${BINARY}" || openblas_make_success="no"
+                else
+                    make USE_THREAD=0 || openblas_make_success="no"
+                fi
+            fi
+            if [ "${openblas_make_success}" == "yes" ]; then
+                break
+            fi
+            printf "\nFailed to build OpenBLAS with FC=${FC}, BINARY=${BINARY}\n"
+            make clean
+        done
+        if [ "${openblas_make_success}" == "yes" ]; then
+            break
+        fi
+    done
+    if [ "${openblas_make_success}" == "yes" ]; then
+        printf "\nSuccessfully build OpenBLAS with FC=${FC}, BINARY=${BINARY}\n\n"
+    else
+        error "OpenBLAS build failed under all combinations of FC, BINARY"
+        exit 1
+    fi
     make PREFIX="${openblas_dir}" install
     cp "LICENSE" "${openblas_dir}/" || :
     cd "${top_dir}"
@@ -4010,7 +4046,8 @@ include_dirs = ${openblas_dir}/include
 runtime_library_dirs = ${openblas_dir}/lib
 " > "${numpy_build_dir}/site.cfg"
     # Build and install NumPy with OpenBLAS support.
-    # We always use gfortran as the Fortran compiler.
+    # We always use gfortran as the Fortran compiler,
+    # which ought to be the one used when compiling OpenBLAS.
     export BLAS="${openblas_dir}/lib/libopenblas.a"
     export LAPACK="${openblas_dir}/lib/libopenblas.a"
     export LD_LIBRARY_PATH="${openblas_dir}/lib:${LD_LIBRARY_PATH}"
@@ -4045,10 +4082,9 @@ extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n"
                 setuppy_success="$(cat '.setuppy_success')"
                 if [ "${setuppy_success}" == "yes" ]; then
                     break
-                else
-                    printf "\nFailed to build NumPy with fcompiler=${fcompiler}, \
-extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n"
                 fi
+                printf "\nFailed to build NumPy with fcompiler=${fcompiler}, \
+extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n"
             done
             if [ "${setuppy_success}" == "yes" ]; then
                 break
@@ -4130,7 +4166,8 @@ include_dirs = ${openblas_dir}/include
 runtime_library_dirs = ${openblas_dir}/lib
 " > "${scipy_build_dir}/site.cfg"
     # Build and install SciPy with OpenBLAS support.
-    # We always use gfortran as the Fortran compiler.
+    # We always use gfortran as the Fortran compiler,
+    # which ought to be the one used when compiling OpenBLAS.
     export BLAS="${openblas_dir}/lib/libopenblas.a"
     export LAPACK="${openblas_dir}/lib/libopenblas.a"
     export LD_LIBRARY_PATH="${openblas_dir}/lib:${LD_LIBRARY_PATH}"
@@ -4165,10 +4202,9 @@ extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n"
                 setuppy_success="$(cat '.setuppy_success')"
                 if [ "${setuppy_success}" == "yes" ]; then
                     break
-                else
-                    printf "\nFailed to build SciPy with fcompiler=${fcompiler}, \
-extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n"
                 fi
+                printf "\nFailed to build SciPy with fcompiler=${fcompiler}, \
+extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n"
             done
             if [ "${setuppy_success}" == "yes" ]; then
                 break
