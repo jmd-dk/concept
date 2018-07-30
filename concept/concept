@@ -1218,15 +1218,32 @@ else
         colorprint "You may not specify a number of nodes when running locally" "red"
         exit 1
     fi
-    # Construct a jobid that does not conflict
-    # with the content of the logs dir.
+    # Construct a jobid that does not conflict with the content
+    # of the logs dir, using binary search.
     jobid=0
-    while :; do
-        if [ ! -f "${logs_dir}/${jobid}" ]; then
-            break
-        fi
+    if [ -f "${logs_dir}/${jobid}" ]; then
         ((jobid += 1))
-    done
+    fi
+    if [ -f "${logs_dir}/${jobid}" ]; then
+        while [ -f "${logs_dir}/${jobid}" ]; do
+            ((jobid *= 2))
+        done
+        jobid=$("${python}" -B -c "
+import os
+jobid_upper = ${jobid}
+jobid_lower = ${jobid}//2
+jobid = (jobid_upper + jobid_lower)//2
+while jobid_upper - jobid_lower > 1:
+    jobid = round(0.5*(jobid_upper + jobid_lower))
+    if os.path.isfile(f'${logs_dir}/{jobid:.0f}'):
+        jobid_lower = jobid
+    else:
+        jobid_upper = jobid
+if os.path.isfile(f'${logs_dir}/{jobid:.0f}'):
+    jobid += 1
+print(f'{jobid:.0f}')
+")
+    fi
     # Print start message
     echo
     if [ "${pure_python}" == "True" ]; then
@@ -1248,7 +1265,7 @@ else
         m_flag="-c"
     else
         if [ "${pure_python}" == "True" ]; then
-            # Run mail as normal Python script
+            # Run main as normal Python script
             main_as_library="${main}"
             m_flag=""
         else
