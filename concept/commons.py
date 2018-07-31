@@ -1001,22 +1001,18 @@ def unicode_repl(match):
 # returns it written in Unicode subscript.
 @cython.header(s=str, returns=str)
 def unicode_subscript(s):
-    return ''.join([unicode_subscripts[c] for c in s])
+    return ''.join([unicode_subscripts.get(c, c) for c in s])
 cython.declare(unicode_subscripts=dict)
-unicode_subscripts = dict(zip('0123456789-+e',
-                              [unicode(c) for c in ('₀', '₁', '₂', '₃', '₄',
-                                                    '₅', '₆', '₇', '₈', '₉',
-                                                    '₋', '₊', 'ₑ')]))
+unicode_subscripts = dict(zip('0123456789-+e.', [unicode(c) for c in
+    ('₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉', '₋', '₊', 'ₑ', '.')]))
 
 # This function takes in a number (string) and
 # returns it written in Unicode superscript.
 def unicode_superscript(s):
-    return ''.join([unicode_superscripts[c] for c in s])
+    return ''.join([unicode_superscripts.get(c, c) for c in s])
 cython.declare(unicode_supercripts=dict)
-unicode_superscripts = dict(zip('0123456789-+e',
-                                [unicode(c) for c in ('⁰', '¹', '²', '³', '⁴',
-                                                      '⁵', '⁶', '⁷', '⁸', '⁹',
-                                                      '⁻', '', '×10')]))
+unicode_superscripts = dict(zip('0123456789-+e.', [unicode(c) for c in (
+    '⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹', '⁻', '', '×10', '⋅')]))
 
 # Function which takes in a string possibly containing units formatted
 # in fancy ways and returns a unformatted version.
@@ -1198,7 +1194,7 @@ params_file_content = bcast(params_file_content)
 # To allow for this, we add lines defining h from H0.
 params_file_content += '\n'.join([
     '\n# Added by commons.py',
-    'h = (H0 if "H0" in globals() else 0)/(100*km/(s*Mpc))',
+    'h = (H0 if "H0" in globals() else 1)/(100*km/(s*Mpc))',
     'h = float(f"{h:g}")',
 ])
 # All further handling of parameters defined in the parameter file
