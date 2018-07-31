@@ -2,12 +2,14 @@
 
 # Input/output
 output_bases = {'powerspec': 'powerspec'}
-powerspec_select = {'all': True}
-powerspec_plot_select = {'all': False}
+powerspec_select = {
+    'all'             : {'data': True, 'plot': True},
+    'all combinations': {'data': True, 'plot': True},
+}
 
 # Numerical parameters
 φ_gridsize = 64
-R_tophat   = 8*Mpc
+R_tophat   = 8*Mpc/h
 
 # Simulation options
 fftw_wisdom_rigor = 'measure'

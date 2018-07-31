@@ -413,9 +413,10 @@ def powerspec(components, filename):
             else:
                 row_components.append(f'components {{{component_indices_str}}}')
         # A row of σ (rms density variation) values
+        σ_unit = units.Mpc/(H0/(100*units.km/(units.s*units.Mpc))) if enable_Hubble else units.Mpc
         σ_str = ''.join([
             unicode('σ'),
-            unicode_subscript(f'{R_tophat/units.Mpc:.3g}'),
+            unicode_subscript(f'{R_tophat/σ_unit:.3g}'),
             ' = {:.6g}',
         ])
         row_σ = ['', '', *[σ_str.format(σ) for σ in σ_dict.values()]]

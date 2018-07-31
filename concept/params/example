@@ -86,7 +86,7 @@ ewald_gridsize   = 64       # Linear gridsize of the grid of Ewald corrections
 φ_gridsize       = 32       # Linear gridsize of the potential
 p3m_scale        = 1.25     # The long/short-range force split scale
 p3m_cutoff       = 4.8      # Maximum reach of short-range force
-R_tophat         = 8*Mpc    # Radius of tophat used to compute σ
+R_tophat         = 8*Mpc/h  # Radius of tophat used to compute σ
 modes_per_decade = 30       # Number of linear k modes per decade computed in CLASS
 
 # Cosmology
