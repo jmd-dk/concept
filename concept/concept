@@ -101,10 +101,9 @@ if [ -z "${SSH_CLIENT}" ] && [ -z "${SSH_TTY}" ]; then
 fi
 
 # Function for printing colored messages
-colorprint()
-{
-# Arguments: Message, color
-"${python}" -B -c "
+colorprint(){
+    # Arguments: Message, color
+    "${python}" -B -c "
 import sys
 from blessings import Terminal
 terminal = Terminal(force_styling=True)
@@ -112,8 +111,7 @@ print(terminal.bold_${2}('${1}'), file=(sys.stderr if '${2}' == 'red' else sys.s
 }
 
 # Function for printing out a nice CO𝘕CEPT logo
-print_logo()
-{
+print_logo(){
     logo='
    ____     ____             __  ____    _____   ____   _____
   / __ \   / __ \     /\    / / / __ \  |  ___| |  _ \ |_   _|
@@ -154,8 +152,7 @@ if [ "${logo_printed}" != "True" ] && [ "${being_sourced}" == "False" ]; then
 fi
 
 # Function for converting paths to absolute paths
-absolute_path()
-{
+absolute_path(){
     # Arguments: Path, [working directory]
     local path="${1}"
     currdir="$(pwd)"
@@ -182,9 +179,8 @@ absolute_path()
 # That is, this function returns the relative path with respect to the
 # concept directory, if it is no more than one directory above the
 # concept directory. Otherwise, return the absolute path back again.
-sensible_path()
-{
-"${python}" -B -c "
+sensible_path(){
+    "${python}" -B -c "
 path = '${1}'
 from os.path import relpath
 rel = relpath(path, '${concept_dir}')
@@ -196,8 +192,7 @@ print(path if rel.startswith('../../') else rel)"
 # known function, the input command is printed as is. If the command
 # cannot be found at all, nothing is printed and an exit code of 1
 # is returned.
-get_command()
-{
+get_command(){
     command_name="${1}"
     # Use the type builtin to locate the command
     path="$(type "${command_name}" 2>/dev/null | awk '{print $NF}')"
@@ -217,8 +212,7 @@ get_command()
 
 # Function which prints a passed Bash array
 # in the format of a Python list.
-bash_array2python_list()
-{
+bash_array2python_list(){
     # Call like this: bash_array2python_list "${array[@]}"
     local list=''
     local element
@@ -294,8 +288,7 @@ fi
 # In order, the implemented resource managers are:
 # - Slurm
 # - TORQUE/PBS
-get_resource_manager()
-{
+get_resource_manager(){
     # Detect what resource manager is used
     if get_command sbatch >/dev/null; then
         # Slurm is installed. Use this as the resource manager.
@@ -318,16 +311,17 @@ if [ "${being_sourced}" == "True" ]; then
 fi
 
 # Set up error trapping
-ctrl_c()
-{
+ctrl_c(){
     trap : 0
     exit 2
 }
-abort()
-{
+abort(){
+    exit_code_newest=$?
     colorprint "An error occurred!" "red"
     if [ -n "${exit_code}" ]; then
         exit ${exit_code}
+    elif [ ${exit_code_newest} -ne 0 ]; then
+        exit ${exit_code_newest}
     else
         exit 1
     fi
@@ -414,7 +408,7 @@ def memory(value):
         raise argparse.ArgumentTypeError(\"invalid memory value: '{}'\".format(value_raw))
     # Convert to (whole) bytes
     value = value.lower()
-    value = value.replace('b', '')
+    value = value.replace(' ', '').replace('b', '')
     value = re.subn('([0-9]+)([a-z]+)', '\g<1>*\g<2>', value)[0]
     units = {'k': 2**10,
              'm': 2**20,
@@ -678,8 +672,7 @@ fi
 # Function for doing fuzzy comparisons between
 # illegal concept options and possible correct ones.
 concept_options=("$@")
-suggest_correct_invocation()
-{
+suggest_correct_invocation(){
     # First argument: The illegal option
     # Second argument: The option type ('test' or 'utility')
     illegal_option="$(basename "$1")"
@@ -754,8 +747,7 @@ fi
 if [ "${test}" != "${test_unspecified}" ]; then
     # Function which can extract parameters from the parameter file
     # given by "${this_dir}/params". This is used by some tests.
-    get_param()
-    {
+    get_param(){
         "${concept}" -n 1                                                    \
                      -p "${this_dir}/params"                                 \
                      -m "from commons import *; print('param_var =', ${1})"  \
@@ -833,6 +825,7 @@ for test in sorted_tests:
             "${python}" -B -c "from commons import *
 print('Total execution time: {}'.format(time_since(${start_time_test})))"
         done
+        echo
         colorprint "All tests ran successfully" "green"
     else
         # Run specific test

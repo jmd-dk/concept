@@ -32,7 +32,7 @@ powerspec_select   = {'all': {'data': True, 'plot': True}}
 # Numerical parameters
 boxsize    = 512*Mpc
 φ_gridsize = 256
-R_tophat   = 8*Mpc
+R_tophat   = 8*Mpc  # Not Mpc/h as Hubble expansion is disabled
 
 # Debugging options
 enable_Hubble = False

@@ -31,18 +31,15 @@ this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 this_test="$(basename "${this_dir}")"
 
 # Set up error trapping
-ctrl_c()
-{
+ctrl_c(){
     trap : 0
     exit 2
 }
-abort()
-{
+abort(){
+    exit_code=$?
     colorprint "An error occurred during ${this_test} test!" "red"
-    exit 1
+    exit ${exit_code}
 }
-trap 'ctrl_c' SIGINT
-trap 'abort' EXIT
 set -e
 
 # Cleanup from last test run
@@ -65,8 +62,7 @@ mkdir "${this_dir}/output/particles"
 mv "${this_dir}/output/snapshot"* "${this_dir}/output/particles/"
 
 # Function for converting particle snapshots to fluid snapshots
-particles2fluid()
-{
+particles2fluid(){
     "${concept}" --local -u convert "${1}"             \
         "control particles.species  = matter fluid"    \
         "control particles.gridsize = ${gridsize}"     \

@@ -37,15 +37,14 @@ this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 this_test="$(basename "${this_dir}")"
 
 # Set up error trapping
-ctrl_c()
-{
+ctrl_c(){
     trap : 0
     exit 2
 }
-abort()
-{
+abort(){
+    exit_code=$?
     colorprint "An error occurred during ${this_test} test!" "red"
-    exit 1
+    exit ${exit_code}
 }
 trap 'ctrl_c' SIGINT
 trap 'abort' EXIT
