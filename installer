@@ -5179,15 +5179,14 @@ if [ "${fast_install}" == "no" ] && [ "${concept_install}" == "yes" ] \
         fi
     fi
     cd "${top_dir}"
-    # Write out success notice. Place it in the GADGET directory
-    # in order to minimize the number of files in the CO𝘕CEPT directory.
-    echo "The following has been fully installed:
+fi
+# Write out success notice. Place it in the GADGET directory
+# in order to minimize the number of files in the CO𝘕CEPT directory.
+echo "The following has been fully installed:
 Program: CONCEPT
 Version: ${concept_version}
 Date:    $(date)
 " >> "${gadget_dir}/.installation_finished"
-fi
-
 
 
 #############################
