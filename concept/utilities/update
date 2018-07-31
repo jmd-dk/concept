@@ -38,15 +38,14 @@ this_dir="$(dirname "${this_file}")"
 source "${this_dir}/../concept"
 
 # Set up error trapping
-ctrl_c()
-{
+ctrl_c(){
     trap : 0
     exit 2
 }
-abort()
-{
+abort(){
+    exit_code=$?
     colorprint "An error occurred while using the \"$(basename "${this_file}")\" utility!" "red"
-    exit 1
+    exit ${exit_code}
 }
 if [ "${called_from_concept}" == "True" ]; then
     trap 'ctrl_c' SIGINT
@@ -177,8 +176,7 @@ dummy_functions=(    \
 )
 for dummy_function in "${dummy_functions[@]}"; do
 eval "
-${dummy_function}()
-{
+${dummy_function}(){
     :
 }"
 done
@@ -266,7 +264,7 @@ printf "
 A backup of the existing CO𝘕CEPT source code has been placed in
 \"${backup_dir}\"
 "
-colorprint "$(basename "${this_file}") utility ran successfully" "green"
+colorprint "$(basename "${this_file}") utility finished successfully" "green"
 
 # For graceful exit
 trap : 0
