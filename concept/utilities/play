@@ -40,17 +40,16 @@ this_dir="$(dirname "${this_file}")"
 source "${this_dir}/../concept"
 
 # Set up error trapping
-ctrl_c()
-{
+ctrl_c(){
     printf "${esc_show_cursor}"
     trap : 0
     exit 2
 }
-abort()
-{
+abort(){
+    exit_code=$?
     printf "${esc_show_cursor}"
     colorprint "An error occurred while using the \"$(basename "${this_file}")\" utility!" "red"
-    exit 1
+    exit ${exit_code}
 }
 if [ "${called_from_concept}" == "True" ]; then
     trap 'ctrl_c' SIGINT
@@ -342,5 +341,6 @@ finally:
 "
 
 # Exit gracefully
-colorprint "$(basename "${this_file}") utility ran successfully" "green"
+echo
+colorprint "$(basename "${this_file}") utility finished successfully" "green"
 trap : 0

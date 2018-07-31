@@ -42,8 +42,7 @@ this_dir="$(dirname "${this_file}")"
 source "${this_dir}/../concept"
 
 # Set up error trapping
-ctrl_c()
-{
+ctrl_c(){
     # Kill the tail command silently before exiting
     if [ -n "${tail_pid}" ]; then
         exec 3>&2
@@ -56,8 +55,8 @@ ctrl_c()
     trap : 0
     exit 2
 }
-abort()
-{
+abort(){
+    exit_code=$?
     # Kill the tail command silently before exiting
     if [ -n "${tail_pid}" ]; then
         exec 3>&2
@@ -68,7 +67,7 @@ abort()
         exec 3>&-
     fi
     colorprint "An error occurred while using the \"$(basename "${this_file}")\" utility!" "red"
-    exit 1
+    exit ${exit_code}
 }
 if [ "${called_from_concept}" == "True" ]; then
     trap 'ctrl_c' SIGINT
@@ -166,8 +165,7 @@ my_username="$(whoami)"
 my_username="${my_username:0:15}"
 
 # Function that update the state variable
-update_job_info()
-{
+update_job_info(){
     # Aquire information about submitted jobs.
     # Revert the output so that the newest jobs are in the top.
     info="$(${info_command} | tac)"
@@ -211,8 +209,7 @@ update_job_info()
 
 # Function for printing out an entire log file,
 # though with the middle part removed for large logs.
-display()
-{
+display(){
     filename="${1}"
     nlines=$(wc -l "${filename}" | awk '{print $1}')
     max_nlines_to_display=200
@@ -319,8 +316,7 @@ fi
 
 # Functin for printing changes to the job state
 state_last=""
-inform_on_new_state()
-{
+inform_on_new_state(){
     if [ "${state}" != "${state_last}" ]; then
         if [ "${resource_manager}" == "slurm" ]; then
             case "${state}" in
@@ -363,8 +359,7 @@ inform_on_new_state()
 
 # Function for checking if the job suddenly finished.
 # Do not call this function after beginning reading the log file.
-check_suddenly_finished()
-{
+check_suddenly_finished(){
     update_job_info
     inform_on_new_state
     # If the job is already finished, printout the entire log and exit
@@ -434,6 +429,7 @@ tail -n 0 --follow --sleep-interval=${sleep_little} "${logs_dir}/${jobid}" &
 tail_pid=$!
 update_job_info
 inform_on_new_state
+slept=0
 if [ "${state}" != "None" ]; then
     # Wait a small time before calling the info command again
     sleep ${sleep_little}
@@ -441,7 +437,13 @@ if [ "${state}" != "None" ]; then
     inform_on_new_state
     while [ "${state}" != "None" ]; do
         # Wait a long time before calling the info command again
-        sleep ${sleep_much}
+        if [ ${slept} -gt ${sleep_much} ]; then
+            sleep ${sleep_much}
+            ((slept += ${sleep_much}))
+        else
+            sleep ${sleep_little}
+            ((slept += ${sleep_little}))
+        fi
         update_job_info
         inform_on_new_state
     done

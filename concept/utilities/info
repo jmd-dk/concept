@@ -47,15 +47,14 @@ this_dir="$(dirname "${this_file}")"
 source "${this_dir}/../concept"
 
 # Set up error trapping
-ctrl_c()
-{
+ctrl_c(){
     trap : 0
     exit 2
 }
-abort()
-{
+abort(){
+    exit_code=$?
     colorprint "An error occurred while using the \"$(basename "${this_file}")\" utility!" "red"
-    exit 1
+    exit ${exit_code}
 }
 if [ "${called_from_concept}" == "True" ]; then
     trap 'ctrl_c' SIGINT
@@ -176,32 +175,63 @@ paths['params'] = params_path_ori
 
 # Run CO𝘕CEPT to printout the snapshot information.
 # Always run locally using 1 process, unless ${stats} is True.
+# Capture the jobid and exit code.
 if [ "${stats}" == "False" ]; then
-    "${concept}" -m "${main}"            \
-                 -n 1                    \
-                 -p "${params_filename}" \
-                 ${interactive_flag}     \
-                 --local                 \
-                 ${no_optimization_flag} \
-                 ${pure_python_flag}     \
-                 ${unsafe_build_flag}
-elif [ "${stats}" == "True" ]; then
-    "${concept}" -m "${main}"            \
-                 -n ${nprocs}            \
-                 -p "${params_filename}" \
-                 -q "${queue}"           \
-                 -w "${walltime}"        \
-                 ${interactive_flag}     \
-                 ${local_flag}           \
-                 ${no_optimization_flag} \
-                 ${no_watch_flag}        \
-                 ${pure_python_flag}     \
-                 ${unsafe_build_flag}
+    nprocs=1
+    local_flag="--local"
+    remote="False"
 fi
+exec 4>&1
+jobid_and_exit_code="$(                \
+    "${concept}"                       \
+        -m "${main}"                   \
+        -n ${nprocs}                   \
+        -p "${params_filename}"        \
+        -q "${queue}"                  \
+        -w "${walltime}"               \
+        --memory ${memory}             \
+        ${interactive_flag}            \
+        ${local_flag}                  \
+        ${no_optimization_flag}        \
+        ${no_watch_flag}               \
+        ${pure_python_flag}            \
+        ${unsafe_build_flag}           \
+    | tee >(cat  >&4)                  \
+    | grep "^Log file: \|^Job "        \
+    | head -n 1                        \
+    ; echo "exit_code${PIPESTATUS[0]}" \
+)"
+exec 4>&-
+exit_code="$("${python}" -B -c                                                              \
+    "import re; print(re.search(r'exit_code(\d+)', '''${jobid_and_exit_code}''').group(1))" \
+    2>/dev/null)" || :
+if [ -z "${exit_code}" ]; then
+    colorprint "Error capturing exit code" "red"
+    exit 1
+elif [ ${exit_code} != 0 ]; then
+    exit ${exit_code}
+fi
+jobid="$("${python}" -B -c                                                                  \
+    "import re; print(re.search(r'(/|^Job )(\d+)', '''${jobid_and_exit_code}''').group(2))" \
+    2>/dev/null)" || :
 
 # Cleanup
 rm -f "${params_filename}"
 
 # Exit gracefully
-colorprint "$(basename "${this_file}") utility ran successfully" "green"
+echo
+if [ "${remote}" == "False" ] || [ "${no_watch}" == "False" ]; then
+    if [ -z "${jobid}" ]; then
+        colorprint "Error capturing jobid from output" "red"
+        exit 1
+    fi
+    if [ -f "${logs_dir}/${jobid}_err" ]; then
+        echo "$(basename "${this_file}") utility finished"
+    else
+        colorprint "$(basename "${this_file}") utility finished successfully" "green"
+    fi
+else
+    echo "$(basename "${this_file}") utility finished. \
+Check the submitted job for results."
+fi
 trap : 0
