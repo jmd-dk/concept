@@ -1,10 +1,8 @@
 # This is the default parameter file used by the CLASS utility.
-# It matches the parameter file examples/cosmology.par of the
-# PKDGRAV code as closely as possible. The only diffence should
-# come from CLASS having radiation.
-# Massive neutrinos can be added by setting the
-# _with_neutrinos flag to True.
-_with_neutrinos = True
+# It is set up to yield cosmologies with massive neutrinos,
+# the mass of which is set by the _Σmν parameter below.
+# To get a massless neutrino cosmology, simply set _Σmν = 0.
+_Σmν = 0.1  # Sum of the three neutrino massed in eV
 
 
 
@@ -15,26 +13,22 @@ initial_conditions = [
         'species': 'matter particles',
         'N'      : 1,
     },
+    {
+         'name'             : 'neutrino component',
+         'species'          : 'neutrino fluid',
+         'gridsize'         : 2,
+         'boltzmann_order'  : 1,
+         'boltzmann_closure': 'truncate',
+    },
 ]
-if _with_neutrinos:
-    initial_conditions.append(
-        {
-             'name'             : 'neutrino component',
-             'species'          : 'neutrino fluid',
-             'gridsize'         : 2,
-             'boltzmann_order'  : 1,
-             'boltzmann_closure': 'truncate',
-        },
-    )
 output_dirs = {'powerspec': paths['output_dir'] + '/class'}
 
 # Numerical parameters
-boxsize = 1600000*Mpc/h
-φ_gridsize = 10000000
+boxsize = 1000*Gpc/h
+φ_gridsize = 1_000_000
 modes_per_decade = 30
 
 # Cosmology
-_nu_mass = 0.1  # ∑mν [eV]
 H0      = 67*km/(s*Mpc)
 Ωcdm    = 0.27 - Ων
 Ωb      = 0.049
@@ -45,26 +39,15 @@ class_params = {
     'n_s'    : 0.96,
     'alpha_s': 0.0,
     'k_pivot': 0.05,
-    # Massless neutrinos
-    'N_ur': 3.046,
-    # Recombination
-    'T_cmb': 2.7255,
-    'YHe': 0.2453,
-    'reio_parametrization': 'reio_camb',
-    'z_reio': 11.153,
+    # Neutrinos
+    'N_ur'                   : 0,
+    'N_ncdm'                 : 1,
+    'deg_ncdm'               : 3,
+    'm_ncdm'                 : _Σmν/3 if _Σmν else 1e-100,
+    'l_max_ncdm'             : 100,
+    'Number of momentum bins': 100,
+    'Maximum q'              : 20 if _Σmν else 40,
 }
-if _with_neutrinos:
-    class_params.update({
-        # Remove massless neutrinos
-        'N_ur': 0,
-        # Massive neutrino parameters
-        'N_ncdm'                 : 1,
-        'deg_ncdm'               : 3,
-        'm_ncdm'                 : _nu_mass/3,
-        'l_max_ncdm'             : 100,
-        'Number of momentum bins': 100,
-        'Maximum q'              : 18,
-    })
 
 # Simulation options
 class_k_max = {}

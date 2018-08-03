@@ -1179,7 +1179,7 @@ Is Slurm/TORQUE/PBS installed and on the PATH?"
     fi
     # Only submit if a queue is specified
     if [ "${queue}" == "${queue_unspecified}" ]; then
-        colorprint "Error: Cannot submit job as no queue is specified. \
+        colorprint "Error: Cannot submit job as no queue is specified.\n\
 An almost complete job script has been saved to \"${jobscript}\"." "red"
         exit 1
     fi
