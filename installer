@@ -72,9 +72,7 @@
 #     - Blessings
 #     - Cython
 #     - CythonGSL
-#     - Nose (needed by CLASS and NumPy)
-#     - parameterized (needed by CLASS)
-#     - pytest (needed by SciPy)
+#     - pytest (needed by NumPy and SciPy)
 #     - NumPy
 #     - SciPy
 #     - Matplotlib
@@ -206,9 +204,7 @@ if [ "${install_explicit_only}" == "yes" ]; then
                     "h5py"            \
                     "matplotlib"      \
                     "mpi4py"          \
-                    "nose"            \
                     "numpy"           \
-                    "parameterized"   \
                     "pytest"          \
                     "scipy"; do
         eval "[ -n \"\${${progname}_install}\" ] || ${progname}_install=\"no\""
@@ -271,7 +267,7 @@ elif [ "${mpi}" == "openmpi" ]; then
     set_version "mpi"         "3.1.1"
 fi
 set_version "ncurses"         "6.1"    "6.1"
-set_version "openblas"        "0.2.20" "0.2.20"
+set_version "openblas"        "0.3.2" "0.3.2"
 set_version "openssl"         "1.1.0h" "1.1.0h"
 set_version "perl"            "5.28.0"
 set_version "python"          "3.7.0"
@@ -283,11 +279,9 @@ set_version "cythongsl"     "0.2.2"
 set_version "h5py"          "2.8.0"
 set_version "matplotlib"    "2.2.2"
 set_version "mpi4py"        "3.0.0"
-set_version "nose"          "1.3.7"
 set_version "numpy"         "1.15.0"
-set_version "parameterized" "0.6.1"
 set_version "pip"           "18.0"
-set_version "pytest"        "3.6.4"
+set_version "pytest"        "3.7.0"
 set_version "scipy"         "1.1.0"
 set_version "setuptools"    "40.0.0"
 # Note that the versions may be changed further down due to known
@@ -303,12 +297,12 @@ set_version "setuptools"    "40.0.0"
 ctrl_c(){
     current_step="aborting"
     sleep 0.5
-    kill -- -$$ > /dev/null 2>&1 || :
+    kill -9 -- -$$ > /dev/null 2>&1 || :
     exit 2
 }
 abort(){
     sleep 0.5
-    kill -- -$$ > /dev/null 2>&1 || :
+    kill -9 -- -$$ > /dev/null 2>&1 || :
     exit 1
 }
 trap 'ctrl_c' SIGINT
@@ -346,6 +340,7 @@ esc_concept_double_backslashes="${esc_concept//\\/\\\\}"
 esc_red="${esc}[91m"
 esc_green="${esc}[92m"
 esc_yellow="${esc}[93m"
+esc_blue="${esc}[94m"
 # Cursor movement
 esc_up="${esc}[1A"
 esc_erase="${esc}[K"
@@ -1197,10 +1192,12 @@ fi
 # make commands, enabling parallel compilations when running locally.
 # Also set OMP_NUM_THREADS to 1 when running remotely,
 # so that OpenMP runs serially.
-make_jobs="-j"
-if [ "${ssh}" == "True" ]; then
-    make_jobs=""
-    export OMP_NUM_THREADS=1
+if [ -z "${make_jobs}" ]; then
+    make_jobs="-j"
+    if [ "${ssh}" == "True" ]; then
+        make_jobs=""
+        export OMP_NUM_THREADS=1
+    fi
 fi
 
 
@@ -1243,9 +1240,7 @@ cythongsl_preinstalled="no"
 h5py_preinstalled="no"
 matplotlib_preinstalled="no"
 mpi4py_preinstalled="no"
-nose_preinstalled="no"
 numpy_preinstalled="no"
-parameterized_preinstalled="no"
 pytest_preinstalled="no"
 scipy_preinstalled="no"
 pip_preinstalled="no"
@@ -1257,9 +1252,7 @@ if [ "${python_preinstalled}" == "yes" ]; then
                      h5py          \
                      matplotlib    \
                      mpi4py        \
-                     nose          \
                      numpy         \
-                     parameterized \
                      pytest        \
                      scipy         \
                      pip; do
@@ -1326,9 +1319,7 @@ for pypackage in blessings     \
                  h5py          \
                  matplotlib    \
                  mpi4py        \
-                 nose          \
                  numpy         \
-                 parameterized \
                  pytest        \
                  scipy; do
     eval "pypackage_install=\"\${${pypackage}_install}\""
@@ -1456,9 +1447,7 @@ if     [ "${blessings_install}"       == "yes" ] \
     || [ "${h5py_install}"            == "yes" ] \
     || [ "${matplotlib_install}"      == "yes" ] \
     || [ "${mpi4py_install}"          == "yes" ] \
-    || [ "${nose_install}"            == "yes" ] \
     || [ "${numpy_install}"           == "yes" ] \
-    || [ "${parameterized_install}"   == "yes" ] \
     || [ "${pytest_install}"          == "yes" ] \
     || [ "${scipy_install}"           == "yes" ]; then
         install_any_pypackages="yes"
@@ -1511,7 +1500,17 @@ fi
 
 ###########################
 # Beginning of subprocess #
-(
+log_file_lines_before_install=0
+if [ -f "${log}" ]; then
+    log_file_lines_before_install=$(wc -l "${log}" | awk '{print $1}')
+fi
+# The stdout of the (background) subprocess below will be redirected
+# into ${log}, which in read back in and echoed to the TTY. The system
+# will keep track of the current installation step and always display
+# this at the bottom, which is the whole reason for not just tee'ing
+# stdout directly to ${log}.
+# To also log stderr, we tee this into ${log}_err.
+( ( (
 # Set up error trapping
 ctrl_c_subprocess(){
     trap : 0
@@ -1529,6 +1528,9 @@ abort_subprocess(){
 trap 'ctrl_c_subprocess' SIGINT
 trap 'abort_subprocess' EXIT
 set -e
+
+# Ensure new line in log after possible previous failed attempt
+echo
 
 # Functions for controlling the current status
 set_status(){
@@ -2198,9 +2200,7 @@ cythongsl_installed="no"
 h5py_installed="no"
 matplotlib_installed="no"
 mpi4py_installed="no"
-nose_installed="no"
 numpy_installed="no"
-parameterized_installed="no"
 pytest_installed="no"
 scipy_installed="no"
 pip_installed="no"
@@ -2222,9 +2222,7 @@ if [ -n "${python}" ] && [ "${python_installed}" == "yes" ]; then
                      h5py          \
                      matplotlib    \
                      mpi4py        \
-                     nose          \
                      numpy         \
-                     parameterized \
                      pytest        \
                      scipy         \
                      pip; do
@@ -2265,14 +2263,10 @@ print_table(){
     # Backup of table
     table_with_esc=("${table_to_print[@]}")
     # Remove escape sequences in table
-    esc_normal_double_backslashes=$(echo "${esc_normal}" | sed 's,\\,\\\\,g')
-    esc_bold_double_backslashes=$(echo "${esc_bold}" | sed 's,\\,\\\\,g')
-    esc_italic_double_backslashes=$(echo "${esc_italic}" | sed 's,\\,\\\\,g')
-    esc_no_italic_double_backslashes=$(echo "${esc_no_italic}" | sed 's,\\,\\\\,g')
-    modify_element "${esc_normal_double_backslashes}" ""
-    modify_element "${esc_bold_double_backslashes}" ""
-    modify_element "${esc_italic_double_backslashes}" ""
-    modify_element "${esc_no_italic_double_backslashes}" ""
+    for format in "normal" "bold" "italic" "no_italic" "green" "blue"; do
+        eval "esc_format=\${esc_${format}}"
+        modify_element "$(echo "${esc_format}" | sed 's,\\,\\\\,g')" ""
+    done
     # Determine largest length of each column
     maxlengths=($(for i in $(eval "echo {1..${nc}}"); do echo 0; done))
     c=0
@@ -2307,27 +2301,28 @@ print_table(){
 # Write out installation overview.
 # This overview take the form of the following tables.
 # Programs which should not be installed will not be shown.
-# Programs already installed and programs to be modified by thus
+# Programs already installed and programs to be patched by this
 # installer will be noted.
 #
 # The following software will be installed
-# Name      Version  Installation path
-# CO𝘕CEPT   ...      "/..."
-# CLASS     ...      "/..."
-# FFTW      ...      "/..."
-# FFTW      ...      "/..."
-# FreeType  ...      "/..."
-# Gadget    ...      "/..."
-# GSL       ...      "/..."
-# OpenBLAS  ...      "/..."
-# HDF5      ...      "/..."
-# libpng    ...      "/..."
-# ncurses   ...      "/..."
-# OpenSSL   ...      "/..."
-# libffi    ...      "/..."
-# Perl      ...      "/..."
-# Python    ...      "/..."
-# zlib      ...      "/..."
+# Name           Version  Installation path
+# CO𝘕CEPT        ...      "/..."
+# CLASS          ...      "/..."
+# FFTW           ...      "/..."
+# FFTW           ...      "/..."
+# FreeType       ...      "/..."
+# Gadget         ...      "/..."
+# GSL            ...      "/..."
+# HDF5           ...      "/..."
+# libffi         ...      "/..."
+# libpng         ...      "/..."
+# MPICH/OpenMPI  ...      "/..."
+# ncurses        ...      "/..."
+# OpenBLAS       ...      "/..."
+# OpenSSL        ...      "/..."
+# Perl           ...      "/..."
+# Python         ...      "/..."
+# zlib           ...      "/..."
 #
 # The following Python packages will be installed
 # Name          Version
@@ -2337,11 +2332,57 @@ print_table(){
 # H5Py          ...
 # Matplotlib    ...
 # MPI4Py        ...
-# Nose          ...
 # NumPy         ...
-# parameterized ...
 # pytest        ...
 # SciPy         ...
+concept_patch="no"
+class_patch="yes"
+fftw_patch="no"
+fftw_for_gadget_patch="no"
+freetype_patch="no"
+gadget_patch="no"
+gsl_patch="no"
+hdf5_patch="no"
+libffi_patch="no"
+libpng_patch="no"
+if [ "${mpi}" == "mpich" ]; then
+    mpi_patch="no"
+elif [ "${mpi}" == "openmpi" ]; then
+    mpi_patch="no"
+fi
+openmpi_patch="no"
+ncurses_patch="no"
+openblas_patch="no"
+openssl_patch="no"
+perl_patch="no"
+python_patch="no"
+zlib_patch="no"
+blessings_patch="no"
+cython_patch="no"
+cythongsl_patch="no"
+h5py_patch="no"
+matplotlib_patch="no"
+mpi4py_patch="no"
+numpy_patch="no"
+pytest_patch="no"
+scipy_patch="no"
+footnote_patch="${esc_blue}*${esc_normal}"
+footnote_installed="${esc_green}†${esc_normal}"
+insert_footnote_patch(){
+    # Argument: Program/Python package name
+    eval "program_installed=\"\${${1}_installed}\""
+    eval "program_patch=\"\${${1}_patch}\""
+    if [ "${program_installed}" == "no" ] && [ "${program_patch}" == "yes" ]; then
+        echo "${footnote_patch}"
+    fi
+}
+insert_footnote_installed(){
+    # Argument: Program/Python package name
+    eval "program_installed=\"\${${1}_installed}\""
+    if [ "${program_installed}" == "yes" ]; then
+        echo "${footnote_installed}"
+    fi
+}
 if [ "${install_anything}" == "yes" ]; then
     disable_status
     heading "Installation overview"
@@ -2354,106 +2395,141 @@ if [ "${install_any_software}" == "yes" ]; then
            "${esc_bold}Installation path${esc_normal}")
     # CO𝘕CEPT
     if [ "${concept_install}" == "yes" ]; then
-        table=("${table[@]}" "${esc_concept}$([ "${concept_installed}" == "yes" ] && echo '†' || :)" \
-                "${concept_version}" "\"${concept_dir}\"")
+        table=("${table[@]}"                                       \
+            "${esc_concept}$(insert_footnote_installed 'concept')" \
+            "${concept_version}$(insert_footnote_patch 'concept')" \
+            "\"${concept_dir}\"")
     fi
-    # CLASS
+    # CLASS (which will be patched)
     if [ "${class_install}" == "yes" ]; then
-        table=("${table[@]}" "CLASS$([ "${class_installed}" == "yes" ] && echo '†' || :)"           \
-                "${class_version}$([ "${class_installed}" == "no" ] && echo '*' || :)" \
-                "\"${class_dir}\"")
+        table=("${table[@]}"                                   \
+            "CLASS$(insert_footnote_installed 'class')"        \
+            "${class_version}$(insert_footnote_patch 'class')" \
+            "\"${class_dir}\"")
     fi
     # FFTW
     if [ "${fftw_install}" == "yes" ]; then
-        table=("${table[@]}" "FFTW$([ "${fftw_installed}" == "yes" ] && echo '†' || :)" \
-                "${fftw_version}" "\"${fftw_dir}\"")
+        table=("${table[@]}"                                 \
+            "FFTW$(insert_footnote_installed 'fftw')"        \
+            "${fftw_version}$(insert_footnote_patch 'fftw')" \
+            "\"${fftw_dir}\"")
     fi
     # FFTW for gadget
     if [ "${fftw_for_gadget_install}" == "yes" ]; then
-        table=("${table[@]}" "FFTW$([ "${fftw_for_gadget_installed}" == "yes" ] && echo '†' || :)" \
-                "${fftw_for_gadget_version}" "\"${fftw_for_gadget_dir}\"")
+        table=("${table[@]}"                                                       \
+            "FFTW$(insert_footnote_installed 'fftw_for_gadget')"                   \
+            "${fftw_for_gadget_version}$(insert_footnote_patch 'fftw_for_gadget')" \
+            "\"${fftw_for_gadget_dir}\"")
     fi
     # FreeType
     if [ "${freetype_install}" == "yes" ]; then
-        table=("${table[@]}" "FreeType$([ "${freetype_installed}" == "yes" ] && echo '†' || :)" \
-                "${freetype_version}" "\"${freetype_dir}\"")
+        table=("${table[@]}"                                         \
+            "FreeType$(insert_footnote_installed 'freetype')"        \
+            "${freetype_version}$(insert_footnote_patch 'freetype')" \
+            "\"${freetype_dir}\"")
     fi
     # Gadget
     if [ "${gadget_install}" == "yes" ]; then
-        table=("${table[@]}" "Gadget$([ "${gadget_installed}" == "yes" ] && echo '†' || :)" \
-                "${gadget_version}" "\"${gadget_dir}\"")
+        table=("${table[@]}"                                     \
+            "Gadget$(insert_footnote_installed 'gadget')"        \
+            "${gadget_version}$(insert_footnote_patch 'gadget')" \
+            "\"${gadget_dir}\"")
     fi
     # GSL
     if [ "${gsl_install}" == "yes" ]; then
-        table=("${table[@]}" "GSL$([ "${gsl_installed}" == "yes" ] && echo '†' || :)" \
-                "${gsl_version}" "\"${gsl_dir}\"")
-    fi
-    # OpenBLAS
-    if [ "${openblas_install}" == "yes" ]; then
-        table=("${table[@]}" "OpenBLAS$([ "${openblas_installed}" == "yes" ] && echo '†' || :)" \
-                "${openblas_version}" "\"${openblas_dir}\"")
+        table=("${table[@]}"                               \
+            "GSL$(insert_footnote_installed 'gsl')"        \
+            "${gsl_version}$(insert_footnote_patch 'gsl')" \
+            "\"${gsl_dir}\"")
     fi
     # HDF5
     if [ "${hdf5_install}" == "yes" ]; then
-        table=("${table[@]}" "HDF5$([ "${hdf5_installed}" == "yes" ] && echo '†' || :)" \
-                "${hdf5_version}" "\"${hdf5_dir}\"")
+        table=("${table[@]}"                                 \
+            "HDF5$(insert_footnote_installed 'hdf5')"        \
+            "${hdf5_version}$(insert_footnote_patch 'hdf5')" \
+            "\"${hdf5_dir}\"")
+    fi
+    # libffi
+    if [ "${libffi_install}" == "yes" ]; then
+        table=("${table[@]}"                                     \
+            "libffi$(insert_footnote_installed 'libffi')"        \
+            "${libffi_version}$(insert_footnote_patch 'libffi')" \
+            "\"${libffi_dir}\"")
     fi
     # libpng
     if [ "${libpng_install}" == "yes" ]; then
-        table=("${table[@]}" "libpng$([ "${libpng_installed}" == "yes" ] && echo '†' || :)" \
-                "${libpng_version}" "\"${libpng_dir}\"")
+        table=("${table[@]}"                                     \
+            "libpng$(insert_footnote_installed 'libpng')"        \
+            "${libpng_version}$(insert_footnote_patch 'libpng')" \
+            "\"${libpng_dir}\"")
     fi
     # MPICH/OpenMPI
     if [ "${mpi_install}" == "yes" ]; then
         if [ "${mpi}" == "mpich" ]; then
-            table=("${table[@]}" "MPICH$([ "${mpi_installed}" == "yes" ] && echo '†' || :)" \
-                    "${mpi_version}" "\"${mpi_dir}\"")
+            table=("${table[@]}"                               \
+                "MPICH$(insert_footnote_installed 'mpi')"      \
+                "${mpi_version}$(insert_footnote_patch 'mpi')" \
+                "\"${mpi_dir}\"")
         elif [ "${mpi}" == "openmpi" ]; then
-            table=("${table[@]}" "OpenMPI$([ "${mpi_installed}" == "yes" ] && echo '†' || :)" \
-                    "${mpi_version}" "\"${mpi_dir}\"")
+            table=("${table[@]}"                               \
+                "OpenMPI$(insert_footnote_installed 'mpi')"    \
+                "${mpi_version}$(insert_footnote_patch 'mpi')" \
+                "\"${mpi_dir}\"")
         fi
     fi
     # ncurses
     if [ "${ncurses_install}" == "yes" ]; then
-        table=("${table[@]}" "ncurses$([ "${ncurses_installed}" == "yes" ] && echo '†' || :)" \
-                "${ncurses_version}" "\"${ncurses_dir}\"")
+        table=("${table[@]}"                                       \
+            "ncurses$(insert_footnote_installed 'ncurses')"        \
+            "${ncurses_version}$(insert_footnote_patch 'ncurses')" \
+            "\"${ncurses_dir}\"")
+    fi
+    # OpenBLAS
+    if [ "${openblas_install}" == "yes" ]; then
+        table=("${table[@]}"                                         \
+            "OpenBLAS$(insert_footnote_installed 'openblas')"        \
+            "${openblas_version}$(insert_footnote_patch 'openblas')" \
+            "\"${openblas_dir}\"")
     fi
     # OpenSSL
     if [ "${openssl_install}" == "yes" ]; then
-        table=("${table[@]}" "OpenSSL$([ "${openssl_installed}" == "yes" ] && echo '†' || :)" \
-                "${openssl_version}" "\"${openssl_dir}\"")
-    fi
-    # libffi
-    if [ "${libffi_install}" == "yes" ]; then
-        table=("${table[@]}" "libffi$([ "${libffi_installed}" == "yes" ] && echo '†' || :)" \
-                "${libffi_version}" "\"${libffi_dir}\"")
+        table=("${table[@]}"                                       \
+            "OpenSSL$(insert_footnote_installed 'openssl')"        \
+            "${openssl_version}$(insert_footnote_patch 'openssl')" \
+            "\"${openssl_dir}\"")
     fi
     # Perl
     if [ "${perl_install}" == "yes" ]; then
-        table=("${table[@]}" "Perl$([ "${perl_installed}" == "yes" ] && echo '†' || :)" \
-                "${perl_version}" "\"${perl_dir}\"")
+        table=("${table[@]}"                                 \
+            "Perl$(insert_footnote_installed 'perl')"        \
+            "${perl_version}$(insert_footnote_patch 'perl')" \
+            "\"${perl_dir}\"")
     fi
     # Python
     if [ "${python_install}" == "yes" ]; then
-        table=("${table[@]}" "Python$([ "${python_installed}" == "yes" ] && echo '†' || :)" \
-                "${python_version}" "\"${python_dir}\"")
+        table=("${table[@]}"                                     \
+            "Python$(insert_footnote_installed 'python')"        \
+            "${python_version}$(insert_footnote_patch 'python')" \
+            "\"${python_dir}\"")
     fi
     # zlib
     if [ "${zlib_install}" == "yes" ]; then
-        table=("${table[@]}" "zlib$([ "${zlib_installed}" == "yes" ] && echo '†' || :)" \
-                "${zlib_version}" "\"${zlib_dir}\"")
+        table=("${table[@]}"                                 \
+            "zlib$(insert_footnote_installed 'zlib')"        \
+            "${zlib_version}$(insert_footnote_patch 'zlib')" \
+            "\"${zlib_dir}\"")
     fi
     echo "The following software will be installed"
     print_table table[@] 3
     N_to_be_patched=0
     for (( i=4; i<${#table[@]}; i+=3 )); do
-        if [[ "${table[i]}" == *'*' ]]; then
+        if [[ "${table[i]}" == *"${footnote_patch}" ]]; then
             ((N_to_be_patched += 1))
         fi
     done
     N_installed=0
     for (( i=3; i<${#table[@]}; i+=3 )); do
-        if [[ "${table[i]}" == *'†' ]]; then
+        if [[ "${table[i]}" == *"${footnote_installed}" ]]; then
             ((N_installed += 1))
         fi
     done
@@ -2465,59 +2541,66 @@ if [ "${install_any_pypackages}" == "yes" ]; then
     table=("${esc_bold}Name${esc_normal}" "${esc_bold}Version${esc_normal}" "")
     # Blessings
     if [ "${blessings_install}" == "yes" ]; then
-        table=("${table[@]}" "Blessings$([ "${blessings_installed}" == "yes" ] && echo '†' || :)" \
-                "${blessings_version}" "")
+        table=("${table[@]}"                                           \
+            "Blessings$(insert_footnote_installed 'blessings')"        \
+            "${blessings_version}$(insert_footnote_patch 'blessings')" \
+            "")
     fi
     # Cython
     if [ "${cython_install}" == "yes" ]; then
-           table=("${table[@]}" "Cython$([ "${cython_installed}" == "yes" ] && echo '†' || :)" \
-                   "${cython_version}" "")
+        table=("${table[@]}"                                     \
+            "Cython$(insert_footnote_installed 'cython')"        \
+            "${cython_version}$(insert_footnote_patch 'cython')" \
+            "")
     fi
     # CythonGSL
     if [ "${cythongsl_install}" == "yes" ]; then
-           table=("${table[@]}" "CythonGSL$([ "${cythongsl_installed}" == "yes" ] && echo '†' || :)" \
-                   "${cythongsl_version}" "")
+           table=("${table[@]}"                                        \
+            "CythonGSL$(insert_footnote_installed 'cythongsl')"        \
+            "${cythongsl_version}$(insert_footnote_patch 'cythongsl')" \
+            "")
     fi
     # H5Py
     if [ "${h5py_install}" == "yes" ]; then
-           table=("${table[@]}" "H5Py$([ "${h5py_installed}" == "yes" ] && echo '†' || :)" \
-                   "${h5py_version}" "")
+        table=("${table[@]}"                                 \
+            "H5Py$(insert_footnote_installed 'h5py')"        \
+            "${h5py_version}$(insert_footnote_patch 'h5py')" \
+            "")
     fi
     # Matplotlib
     if [ "${matplotlib_install}" == "yes" ]; then
-           table=("${table[@]}" "Matplotlib$([ "${matplotlib_installed}" == "yes" ] && echo '†' || :)" \
-                   "${matplotlib_version}" "")
+        table=("${table[@]}"                                             \
+            "Matplotlib$(insert_footnote_installed 'matplotlib')"        \
+            "${matplotlib_version}$(insert_footnote_patch 'matplotlib')" \
+            "")
     fi
     # MPI4Py
     if [ "${mpi4py_install}" == "yes" ]; then
-           table=("${table[@]}" "MPI4Py$([ "${mpi4py_installed}" == "yes" ] && echo '†' || :)" \
-                   "${mpi4py_version}" "")
-    fi
-    # Nose
-    if [ "${nose_install}" == "yes" ]; then
-           table=("${table[@]}" "Nose$([ "${nose_installed}" == "yes" ] && echo '†' || :)" \
-                   "${nose_version}" "")
+        table=("${table[@]}"                                     \
+            "MPI4Py$(insert_footnote_installed 'mpi4py')"        \
+            "${mpi4py_version}$(insert_footnote_patch 'mpi4py')" \
+            "")
     fi
     # NumPy
     if [ "${numpy_install}" == "yes" ]; then
-           table=("${table[@]}" "NumPy$([ "${numpy_installed}" == "yes" ] && echo '†' || :)" \
-                   "${numpy_version}" "")
-    fi
-    # parameterized
-    if [ "${parameterized_install}" == "yes" ]; then
-           table=("${table[@]}" "parameterized$([ "${parameterized_installed}" == "yes" ] \
-                   && echo '†' || :)" \
-                   "${parameterized_version}" "")
+        table=("${table[@]}"                                   \
+            "NumPy$(insert_footnote_installed 'numpy')"        \
+            "${numpy_version}$(insert_footnote_patch 'numpy')" \
+            "")
     fi
     # Pytest
     if [ "${pytest_install}" == "yes" ]; then
-           table=("${table[@]}" "pytest$([ "${pytest_installed}" == "yes" ] && echo '†' || :)" \
-                   "${pytest_version}" "")
+        table=("${table[@]}"                                     \
+            "pytest$(insert_footnote_installed 'pytest')"        \
+            "${pytest_version}$(insert_footnote_patch 'pytest')" \
+            "")
     fi
     # SciPy
     if [ "${scipy_install}" == "yes" ]; then
-           table=("${table[@]}" "SciPy$([ "${scipy_installed}" == "yes" ] && echo '†' || :)" \
-                   "${scipy_version}" "")
+        table=("${table[@]}"                                   \
+            "SciPy$(insert_footnote_installed 'scipy')"        \
+            "${scipy_version}$(insert_footnote_patch 'scipy')" \
+            "")
     fi
     if [ "${install_any_software}" ]; then
         echo
@@ -2525,12 +2608,12 @@ if [ "${install_any_pypackages}" == "yes" ]; then
     echo "The following Python packages will be installed"
     print_table table[@] 3
     for (( i=3; i<${#table[@]}; i+=3 )); do
-        if [[ "${table[i]}" == *'†' ]]; then
+        if [[ "${table[i]}" == *"${footnote_patch}" ]]; then
             ((N_installed += 1))
         fi
     done
     for (( i=4; i<${#table[@]}; i+=3 )); do
-        if [[ "${table[i]}" == *'*' ]]; then
+        if [[ "${table[i]}" == *"${footnote_installed}" ]]; then
             ((N_to_be_patched += 1))
         fi
     done
@@ -2538,16 +2621,16 @@ fi
 echo
 if [ -n "${N_to_be_patched}" ]; then
     if [ ${N_to_be_patched} -eq 1 ]; then
-        echo "* This will be patched by the installer"
+        printf "${footnote_patch} This will be patched by the installer\n"
     elif [ ${N_to_be_patched} -gt 1 ]; then
-        echo "* These will be patched by the installer"
+        printf "${footnote_patch} These will be patched by the installer\n"
     fi
 fi
 if [ -n "${N_installed}" ]; then
     if [ ${N_installed} -eq 1 ]; then
-        echo "† This is already installed and will not be reinstalled"
+        printf "${footnote_installed} This is already installed and will not be reinstalled\n"
     elif [ ${N_installed} -gt 1 ]; then
-        echo "† These are already installed and will not be reinstalled"
+        printf "${footnote_installed} These are already installed and will not be reinstalled\n"
     fi
 fi
 if [ "${install_anything}" == "yes" ]; then
@@ -2595,7 +2678,7 @@ download(){
     for n in {1..50}; do
         for ipv in "--inet4-only" "--inet6-only" ""; do
             wget_status="success"
-            wget -t 1 --timeout 60 -c --no-check-certificate --no-dns-cache ${ipv} \
+            wget --progress=bar:force -t 1 --timeout 60 -c --no-check-certificate --no-dns-cache ${ipv} \
                  "${url}" || wget_status="error"
             if [ "${wget_status}" == "success" ]; then
                 break
@@ -2911,7 +2994,7 @@ if [ "${zlib_install}" == "yes" ] && [ "${zlib_installed}" == "no" ]; then
     ./configure --shared --prefix="${zlib_dir}" 2>&1
     if [ "${fast_install}" == "no" ]; then
         make ${make_jobs} test 2>&1 | tee "test_log"
-        [ ${PIPESTATUS[0]} != 0 ] && zlib_test_success="no"
+        [ ${PIPESTATUS[0]} -eq 0 ] || zlib_test_success="no"
     fi
     zlib_test_log="${zlib_dir}/test_log"
     if [ "${zlib_test_success}" == "no" ]; then
@@ -2941,7 +3024,7 @@ if [ "${libpng_install}" == "yes" ] && [ "${libpng_installed}" == "no" ]; then
     ./configure --prefix="${libpng_dir}" 2>&1
     if [ "${fast_install}" == "no" ]; then
         make ZLIBLIB="${ZLIBLIB}" ZLIBINC="${ZLIBINC}" ${make_jobs} check 2>&1 | tee "test_log"
-        [ ${PIPESTATUS[0]} != 0 ] && libpng_test_success="no"
+        [ ${PIPESTATUS[0]} -eq 0 ] || libpng_test_success="no"
     fi
     libpng_test_log="${libpng_dir}/test_log"
     if [ "${libpng_test_success}" == "no" ]; then
@@ -2968,7 +3051,7 @@ if [ "${gsl_install}" == "yes" ] && [ "${gsl_installed}" == "no" ]; then
     make ${make_jobs} 2>&1
     if [ "${fast_install}" == "no" ]; then
         make ${make_jobs} check 2>&1 | tee "test_log"
-        [ ${PIPESTATUS[0]} != 0 ] && gsl_test_success="no"
+        [ ${PIPESTATUS[0]} -eq 0 ] || gsl_test_success="no"
     fi
     gsl_test_log="${gsl_dir}/test_log"
     if [ "${gsl_test_success}" == "no" ]; then
@@ -3003,7 +3086,7 @@ if [ "${mpi_install}" == "yes" ] && [ "${mpi_installed}" == "no" ]; then
             if [ "${fast_install}" == "no" ]; then
                 export RUNTESTS_VERBOSE=1
                 make ${make_jobs} testing 2>&1 | tee "test_log"
-                [ ${PIPESTATUS[0]} != 0 ] && mpi_test_success="no"
+                [ ${PIPESTATUS[0]} -eq 0 ] || mpi_test_success="no"
             fi
             mpi_test_log="${mpi_dir}/test_log"
             if [ "${mpi_test_success}" == "no" ]; then
@@ -3189,7 +3272,7 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
     make ${make_jobs} install 2>&1
     if [ "${fast_install}" == "no" ]; then
         make ${make_jobs} check-install 2>&1 | tee -a "test_log"
-        [ ${PIPESTATUS[0]} != 0 ] && hdf5_test_success="no"
+        [ ${PIPESTATUS[0]} -eq 0 ] || hdf5_test_success="no"
     fi
     hdf5_test_log="${hdf5_dir}/test_log"
     if [ "${hdf5_test_success}" == "no" ]; then
@@ -3233,7 +3316,7 @@ if [ "${fftw_install}" == "yes" ] && [ "${fftw_installed}" == "no" ]; then
     make ${make_jobs} 2>&1
     if [ "${fast_install}" == "no" ]; then
         make ${make_jobs} check 2>&1 | tee "test_log"
-        [ ${PIPESTATUS[0]} != 0 ] && fftw_test_success="no"
+        [ ${PIPESTATUS[0]} -eq 0 ] || fftw_test_success="no"
     fi
     fftw_test_log="${fftw_dir}/test_log"
     if [ "${fftw_test_success}" == "no" ]; then
@@ -3362,7 +3445,7 @@ if [ "${perl_install}" == "yes" ] && [ "${perl_installed}" == "no" ]; then
     fi
     if [ "${fast_install}" == "no" ]; then
         make ${make_jobs} test 2>&1 | tee "test_log"
-        [ ${PIPESTATUS[0]} != 0 ] && perl_test_success="no"
+        [ ${PIPESTATUS[0]} -eq 0 ] || perl_test_success="no"
     fi
     perl_test_log="${perl_dir}/test_log"
     if [ "${perl_test_success}" == "no" ]; then
@@ -3390,7 +3473,7 @@ if [ "${openssl_install}" == "yes" ] && [ "${openssl_installed}" == "no" ]; then
     make 2>&1  # Should not be run in parallel!
     if [ "${fast_install}" == "no" ]; then
         make test 2>&1 | tee "test_log"  # Should not be run in parallel!
-        [ ${PIPESTATUS[0]} != 0 ] && openssl_test_success="no"
+        [ ${PIPESTATUS[0]} -eq 0 ] || openssl_test_success="no"
     fi
     openssl_test_log="${openssl_dir}/include/openssl/test_log"
     if [ "${openssl_test_success}" == "no" ]; then
@@ -3417,7 +3500,7 @@ if [ "${libffi_install}" == "yes" ] && [ "${libffi_installed}" == "no" ]; then
     make ${make_jobs} 2>&1
     if [ "${fast_install}" == "no" ]; then
         make check 2>&1 | tee "test_log"
-        [ ${PIPESTATUS[0]} != 0 ] && libffi_test_success="no"
+        [ ${PIPESTATUS[0]} -eq 0 ] || libffi_test_success="no"
     fi
     libffi_test_log="${libffi_dir}/lib/libffi-${libffi_version}/test_log"
     if [ "${libffi_test_success}" == "no" ]; then
@@ -3594,7 +3677,7 @@ if [ "${python_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
         # Test
         if [ "${fast_install}" == "no" ]; then
             make ${make_jobs} test 2>&1 | tee "test_log"
-            [ ${PIPESTATUS[0]} != 0 ] && python_test_success="no"
+            [ ${PIPESTATUS[0]} -eq 0 ] || python_test_success="no"
         fi
         python_test_log="${python_dir}/test_log"
         if [ "${python_test_success}" == "no" ]; then
@@ -3672,9 +3755,7 @@ cythongsl_installed="no"
 h5py_installed="no"
 matplotlib_installed="no"
 mpi4py_installed="no"
-nose_installed="no"
 numpy_installed="no"
-parameterized_installed="no"
 pytest_installed="no"
 scipy_installed="no"
 if [ -n "${python}" ]; then
@@ -3684,9 +3765,7 @@ if [ -n "${python}" ]; then
                      h5py          \
                      matplotlib    \
                      mpi4py        \
-                     nose          \
                      numpy         \
-                     parameterized \
                      pytest        \
                      scipy         \
                      pip; do
@@ -3970,17 +4049,6 @@ if [ "${cythongsl_install}" == "yes" ] && [ "${cythongsl_installed}" == "no" ]; 
     reset_environment
 fi
 
-# Nose
-if [ "${nose_install}" == "yes" ] && [ "${nose_installed}" == "no" ]; then
-    pip_install_pypackage "Nose" "${nose_version}"
-fi
-
-# parameterized
-if (   [ "${parameterized_install}"   == "yes" ] \
-    && [ "${parameterized_installed}" == "no" ]); then
-    pip_install_pypackage "parameterized" "${parameterized_version}"
-fi
-
 # pytest
 if [ "${pytest_install}" == "yes" ] && [ "${pytest_installed}" == "no" ]; then
     pip_install_pypackage "pytest" "${pytest_version}"
@@ -4111,14 +4179,17 @@ extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n\n"
         exit 1
     fi
     rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${top_dir}/tmp/numpy"
-    # Test NumPy. The tests are considered successful on the basis on
-    # the exit code only, meaning that only severe errors
-    # (e.g. segmentation faults) will count as failures.
+    # Test NumPy
     if [ "${fast_install}" == "no" ]; then
         numpy_test_log="${python_dir}/numpy_test_log"
         "${python}" -c "import numpy; numpy.test('full', verbose=2)" 2>&1 \
             | tee "${numpy_test_log}"
-        [ ${PIPESTATUS[0]} != 0 ] && numpy_test_success="no"
+        [ ${PIPESTATUS[0]} -eq 0 ] || numpy_test_success="no"
+        if [ "${numpy_test_success}" == "yes" ]; then
+            if tail -n 1 "${numpy_test_log}" | grep " failed" >/dev/null 2>&1; then
+                numpy_test_success="no"
+            fi
+        fi
         if [ "${numpy_test_success}" == "yes" ]; then
             rm -f "${numpy_test_log}"
         fi
@@ -4231,14 +4302,17 @@ extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n\n"
         exit 1
     fi
     rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
-    # Test SciPy. The tests are considered successful on the basis on
-    # the exit code only, meaning that only severe errors
-    # (e.g. segmentation faults) will count as failures.
+    # Test SciPy
     if [ "${fast_install}" == "no" ]; then
         scipy_test_log="${python_dir}/scipy_test_log"
         "${python}" -c "import scipy; scipy.test('full', verbose=2)" 2>&1 \
             | tee "${scipy_test_log}"
-        [ ${PIPESTATUS[0]} != 0 ] && scipy_test_success="no"
+        [ ${PIPESTATUS[0]} -eq 0 ] || scipy_test_success="no"
+        if [ "${scipy_test_success}" == "yes" ]; then
+            if tail -n 1 "${scipy_test_log}" | grep " failed" >/dev/null 2>&1; then
+                scipy_test_success="no"
+            fi
+        fi
         if [ "${scipy_test_success}" == "yes" ]; then
             rm -f "${scipy_test_log}"
         fi
@@ -4879,31 +4953,22 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     PYTHON="${python}" make ${make_jobs} 2>&1
     # Test CLASS
     if [ "${fast_install}" == "no" ]; then
-        # We do not use the builtin test_class.py,
-        # as this require tens of gigabytes.
-        run_class_tests="no"
-        if [ "${run_class_tests}" == "yes" ]; then
-            "${python}" -m nose "python/test_class.py" 2>&1 | tee "test_log"
-            [ ${PIPESTATUS[0]} != 0 ] && class_test_success="no"
-            class_test_log="${class_dir}/test_log"
-            if [ "${class_test_success}" == "no" ]; then
-                cp "test_log" "${class_test_log}"
-            fi
-        else
-            # Custom test which simply compute the background
-            if ! "${python}" -c "import sys
+        # We do not use the builtin test_class.py, as this require tens
+        # of gigabytes and uses the Nose and parameterized Python
+        # packages. Instead we perform a simply test of our own,
+        # which only does a background computation.
+        if ! "${python}" -c "import sys
 from classy import Class
 cosmo = Class()
 cosmo.compute()
 sys.exit(int(cosmo.get_background()['proper time [Gyr]'][-1]) != 13)
 "; then
-                class_test_success="no"
-            fi
-            class_test_log="${class_dir}/test_log"
-            if [ "${class_test_success}" == "no" ]; then
-                echo "CLASS did not pass a simple background computation test" \
-                   > "${class_test_log}"
-            fi
+            class_test_success="no"
+        fi
+        class_test_log="${class_dir}/test_log"
+        if [ "${class_test_success}" == "no" ]; then
+            echo "CLASS did not pass a simple background computation test" \
+               > "${class_test_log}"
         fi
     fi
     cd "${top_dir}"
@@ -5083,7 +5148,7 @@ if [ "${fftw_for_gadget_install}" == "yes" ] && [ "${fftw_for_gadget_installed}"
     make ${make_jobs} 2>&1
     if [ "${fast_install}" == "no" ]; then
         make ${make_jobs} check 2>&1 | tee "test_log"
-        [ ${PIPESTATUS[0]} != 0 ] && fftw_for_gadget_test_success="no"
+        [ ${PIPESTATUS[0]} -eq 0 ] || fftw_for_gadget_test_success="no"
     fi
     make ${make_jobs} install 2>&1
     # Single-precision
@@ -5098,7 +5163,7 @@ if [ "${fftw_for_gadget_install}" == "yes" ] && [ "${fftw_for_gadget_installed}"
     make ${make_jobs} 2>&1
     if [ "${fast_install}" == "no" ]; then
         make ${make_jobs} check 2>&1 | tee -a "test_log"
-        [ ${PIPESTATUS[0]} != 0 ] && fftw_for_gadget_test_success="no"
+        [ ${PIPESTATUS[0]} -eq 0 ] || fftw_for_gadget_test_success="no"
     fi
     fftw_for_gadget_test_log="${fftw_for_gadget_dir}/test_log"
     if [ "${fftw_for_gadget_test_success}" == "no" ]; then
@@ -5148,7 +5213,7 @@ if [ "${fast_install}" == "no" ] && [ "${concept_install}" == "yes" ] \
     cd "${concept_dir}"
     concept_test_log="${concept_dir}/test_log"
     "${concept}" -t "basic" 2>&1 | tee "${concept_test_log}"
-    [ ${PIPESTATUS[0]} != 0 ] && concept_test_success="no"
+    [ ${PIPESTATUS[0]} -eq 0 ] || concept_test_success="no"
     if  [ "${gadget_install}" == "yes" ]; then
         # Run GADGET test if basic CO𝘕CEPT test finished successfully
         if [ "${concept_test_success}" == "yes" ]; then
@@ -5157,7 +5222,7 @@ if [ "${fast_install}" == "no" ] && [ "${concept_install}" == "yes" ] \
             set_status "Testing GADGET"
             gadget_test_log="${gadget_dir}/test_log"
             "${concept}" -t "gadget" 2>&1 | tee "${gadget_test_log}"
-            [ ${PIPESTATUS[0]} != 0 ] && gadget_test_success="no"
+            [ ${PIPESTATUS[0]} -eq 0 ] || gadget_test_success="no"
             # Clean test_log if test is successfull
             if [ "${gadget_test_success}" == "yes" ]; then
                 rm -f "${gadget_test_log}"
@@ -5170,7 +5235,7 @@ if [ "${fast_install}" == "no" ] && [ "${concept_install}" == "yes" ] \
             heading "Testing ${esc_concept}"
             set_status "Testing ${esc_concept_double_backslashes}"
             "${concept}" -t "all" 2>&1 | tee "${concept_test_log}"
-            [ ${PIPESTATUS[0]} != 0 ] && concept_test_success="no"
+            [ ${PIPESTATUS[0]} -eq 0 ] || concept_test_success="no"
             # Clean test_log if test is successfull
             if [ "${concept_test_success}" == "yes" ]; then
                 rm -f "${concept_test_log}"
@@ -5243,9 +5308,7 @@ if [ "${install_anything}" == "yes" ]; then
     copyright_notice "h5py"            "$(printf ${en_quad}%.s {1..4})H5Py"
     copyright_notice "matplotlib"      "$(printf ${en_quad}%.s {1..4})Matplotlib"
     copyright_notice "mpi4py"          "$(printf ${en_quad}%.s {1..4})MPI4Py"
-    copyright_notice "nose"            "$(printf ${en_quad}%.s {1..4})Nose"
     copyright_notice "numpy"           "$(printf ${en_quad}%.s {1..4})NumPy"
-    copyright_notice "parameterized"   "$(printf ${en_quad}%.s {1..4})parameterized"
     copyright_notice "pytest"          "$(printf ${en_quad}%.s {1..4})pytest"
     copyright_notice "scipy"           "$(printf ${en_quad}%.s {1..4})SciPy"
     printf "\nThese have been installed into separate directories in
@@ -5316,8 +5379,10 @@ erroneous_test_notice "zlib"
 erroneous_test_notice "CONCEPT" \
                       "${esc_italic}This should usually be taken seriously!${esc_no_italic}"
 if [ "${any_test_error_notices}" == "yes" ]; then
-    printf "The logged output of the entire installation process can be found in\n"
+    printf "\nThe logged output of the entire installation process can be found in\n"
     printf "\"${log}\"\n"
+    printf "while the logged warnings and errors can be found in\n"
+    printf "\"${log}_err\"\n"
 fi
 
 # Subprocess complete
@@ -5328,8 +5393,11 @@ if [ "${any_test_error_notices}" == "no" ]; then
 fi
 # Deactivate traps before exiting subprocess
 trap : 0
-) > "${log}" &
-log_pid=$!
+) >> "${log}") 3>&1 1>&2 2>&3 & echo $! > "${top_dir}/.log_pid") \
+    | tee -a "${log}_err" 3>&1 1>&2 2>&3 &
+sleep 1
+log_pid=$(cat "${top_dir}/.log_pid")
+rm -f "${top_dir}/.log_pid"
 # End of subprocess #
 #####################
 
@@ -5345,7 +5413,7 @@ while [ ! -f "${log}" ]; do
     # After having slept for a long time, check that the job
     # has not just finished without producing a log file.
     ((slept += 1))
-    if [ ${slept} == 30 ]; then
+    if [ ${slept} -eq 30 ]; then
         error "Could not create the log file \"${log}\""
         exit 1
     fi
@@ -5353,7 +5421,9 @@ done
 
 # Continuously print the tail of the install log
 printf "\n\n"
-tail -f "${log}" --pid ${log_pid} | while read line; do
+((n_lines_to_skip = log_file_lines_before_install + 2))
+tail -n +${n_lines_to_skip} -f "${log}" --pid ${log_pid} | while read line; do
+    # Print out the lines, formatted nicely
     if [[ "${line}" == "${status_prefix}"* ]]; then
         status_backup_="${status}"
         status=${line:${status_prefix_length}}
@@ -5391,14 +5461,28 @@ tail -f "${log}" --pid ${log_pid} | while read line; do
     fi
 done
 
-# Remove the log file if no errors occurred
+# Remove the log files if no errors occurred
+installation_guaranteed_successful="no"
 if [ "${fast_install}" == "no" ] && \
     [ "$(tail -n 1 "${log}")" == "${status_prefix}${status_finish_successfully}" ]; then
+    installation_guaranteed_successful="yes"
+fi
+if [ "${installation_guaranteed_successful}" == "yes" ]; then
+    rm -f "${log}" "${log}_err"
+fi
+if [ ! -s "${log}" ]; then
     rm -f "${log}"
+fi
+if [ ! -s "${log}_err" ]; then
+    rm -f "${log}_err"
 fi
 
 # Installation complete. Deactivate traps before exiting.
 if [ "${say_goodbye}" != "no" ]; then
-    printf "${esc_bold}${esc_green}${esc_concept} installation finished${esc_normal}\n"
+    if [ "${installation_guaranteed_successful}" == "yes" ]; then
+        printf "${esc_bold}${esc_green}${esc_concept} installation finished${esc_normal}\n"
+    else
+        printf "${esc_concept} installation finished${esc_normal}\n"
+    fi
 fi
 trap : 0
