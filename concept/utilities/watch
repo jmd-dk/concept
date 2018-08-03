@@ -425,7 +425,7 @@ done
 # Log file created. Continuously print out its tail until end of job
 echo
 display "${logs_dir}/${jobid}"
-tail -n 0 --follow --sleep-interval=${sleep_little} "${logs_dir}/${jobid}" &
+tail -n 0 -f -s ${sleep_little} "${logs_dir}/${jobid}" &
 tail_pid=$!
 update_job_info
 inform_on_new_state
