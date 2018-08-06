@@ -2618,6 +2618,23 @@ def make_pxd(filename, no_optimization):
                     s = s[:-2]
                 s += ')\n'
                 pxd_lines.append(' '*indent + s)
+    # Remove all triple quotes with no indentation
+    code_notriplequotes = []
+    inside_quotes = {"'": False, '"': False}
+    for line in code:
+        for quote in ("'", '"'):
+            if inside_quotes[quote]:
+                if line.count(quote*3)%2:
+                    inside_quotes[quote] = False
+                break
+        else:
+            for quote in ("'", '"'):
+                if line.count(quote*3)%2 and line[0] not in ' #':
+                    inside_quotes[quote] = True
+                    break
+            else:
+                code_notriplequotes.append(line)
+    code = code_notriplequotes
     # Find classes
     pxd_lines.append('# Classes\n')
     for i, line in enumerate(code):
