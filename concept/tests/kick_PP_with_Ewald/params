@@ -31,10 +31,10 @@ output_bases       = {'snapshot': 'snapshot'}
 output_times       = {'snapshot': linspace(0.03, 0.5, 10)}
 
 # Numerical parameters
-boxsize          = 21*Mpc/0.7	# GADGET implicitly uses length/h
+boxsize          = 21*Mpc/0.7  # GADGET implicitly uses length/h
 ewald_gridsize   = 64
 
-# Cosmological parameters
+# Cosmology
 H0      = 70*km/s/Mpc
 Ωcdm    = 0.25
 Ωb      = 0.05

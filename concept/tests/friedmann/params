@@ -20,7 +20,7 @@
 
 
 
-# Cosmological parameters
+# Cosmology
 H0      = 70*km/s/Mpc
 Ωcdm    = 0.25
 Ωb      = 0.05

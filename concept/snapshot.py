@@ -1108,7 +1108,7 @@ def compare_parameters(params, filename):
     Ωcdm
     Ωb
     """
-    # The relative tolerence by which the parameters are compared
+    # The relative tolerance by which the parameters are compared
     rel_tol = 1e-6
     # Format strings
     vs = '{{:.{num}g}} vs {{:.{num}g}}'.format(num=int(1 - log10(rel_tol)))

@@ -1861,7 +1861,7 @@ p3m_scale = float(user_params.get('p3m_scale', 1.25))
 user_params['p3m_scale'] = p3m_scale
 p3m_cutoff = float(user_params.get('p3m_cutoff', 4.8))
 user_params['p3m_cutoff'] = p3m_cutoff
-R_tophat = float(user_params.get('R_tophat', 8*units.Mpc))
+R_tophat = float(user_params.get('R_tophat', -1))  # Defautl value will be set later
 user_params['R_tophat'] = R_tophat
 modes_per_decade = float(user_params.get('modes_per_decade', 100))
 user_params['modes_per_decade'] = modes_per_decade
@@ -2447,6 +2447,7 @@ def stringify_dict(d):
                 extra_params=dict,
                 sleep_time='double',
                 mode=str,
+                class_call_reason=str,
                 # Locals
                 compute_perturbations='bint',
                 k_output_value=str,
@@ -2465,7 +2466,7 @@ def stringify_dict(d):
                 params_specialized=dict,
                 returns=object,  # classy.Class or (classy.Class, Py_ssize_t[::1])
                 )
-def call_class(extra_params=None, sleep_time=0.1, mode='single node'):
+def call_class(extra_params=None, sleep_time=0.1, mode='single node', class_call_reason=''):
     """If mode == 'MPI' and 'k_output_values' is present in the
     CLASS parameters, these k values will be divided fairly among
     the nodes. Note that this means that each node master will store
@@ -2575,7 +2576,7 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node'):
     # Class C code. Thus we need to skip to the line below the progress
     # message itself in order not to mess up the first line of these
     # status updates.
-    masterprint('Calling CLASS ...')
+    masterprint(f'Calling CLASS {class_call_reason}...')
     if compute_perturbations:
         masterprint('\n', end='')
     # Instantiate a classy.Class instance and populate it with the
@@ -3104,7 +3105,7 @@ def get_integerset_strrep(integers):
 # Function which should be used when opening hdf5 files
 def open_hdf5(filename, **kwargs):
     """This function is equivalent to just doing
-    h5py.File(filename, *args, **kwargs)
+    h5py.File(filename, **kwargs)
     except that it will not throw an exception if the file is
     temporarily unavailable, which happens when multiple processes
     attempts to open the same file in write mode. When this is the case,
@@ -3181,7 +3182,7 @@ if random_seed < 1:
         f'A random_seed of {random_seed} was specified. '
         f'This should be > 0 to avoid clashes with the default GSL seed.'
     )
-# Warn about unused but specified parameters.
+# Warn about unused but specified parameters
 if user_params.unused:
     if len(user_params.unused) == 1:
         msg = 'The following unknown parameter was specified:\n'
@@ -3222,6 +3223,7 @@ render3D_times = {
 # set this equal to output_times.
 if not output_times_full:
     output_times_full = output_times
+    user_params['output_times_full'] = output_times_full
 # Warn about cosmological autosave interval
 if autosave_interval > 1*units.yr:
     masterwarn(f'Autosaving will take place every {autosave_interval} {unit_time}. '
@@ -3229,11 +3231,19 @@ if autosave_interval > 1*units.yr:
                )
 if autosave_interval < 0:
     autosave_interval = 0
+    user_params['autosave_interval'] = autosave_interval
 # Abort on negative a_begin
 if a_begin <= 0:
     abort(
         f'Beginning of simulation set to a = {a_begin}, but 0 < a is required'
     )
+# Now that we know the value of H0 we can set R_tophat to the usual
+# 8 Mpc/h (if it has not been set by the user).
+if R_tophat == -1:
+    R_tophat = 8*units.Mpc
+    if enable_Hubble:
+        R_tophat /= H0/(100*units.km/(units.s*units.Mpc))
+    user_params['R_tophat'] = R_tophat
 # Abort on negative t_begin when running a cosmological simulation.
 # Even in a non-cosmological context, negative t_begin might
 # cause trouble, so we print a warning here.

@@ -31,7 +31,7 @@ import species
 this_dir  = os.path.dirname(os.path.realpath(__file__))
 this_test = os.path.basename(this_dir)
 
-# Absolute and relative tolerence to be used in the
+# Absolute and relative tolerance to be used in the
 # comparisons between power spectra and 2D renders.
 abs_tol = 0
 rel_tol = 1e-9

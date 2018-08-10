@@ -36,7 +36,7 @@ boxsize          = 8*Mpc/0.7  # (GADGET implicitly uses length/h)
 p3m_scale        = 1.25
 p3m_cutoff       = 4.5
 
-# Cosmological parameters
+# Cosmology
 H0      = 70*km/s/Mpc
 Ωcdm    = 0.25
 Ωb      = 0.05

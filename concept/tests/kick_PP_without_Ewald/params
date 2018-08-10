@@ -33,7 +33,7 @@ output_times       = {'snapshot': linspace(0.03, 0.11, 10)}
 # Numerical parameters
 boxsize = 21*Mpc/0.7  # Gadget implicitly uses length/h
 
-# Cosmological parameters
+# Cosmology
 H0      = 70*km/s/Mpc
 Ωcdm    = 0.25
 Ωb      = 0.05

@@ -36,7 +36,7 @@ boxsize    = 8*Mpc
 p3m_scale  = 1.25
 p3m_cutoff = 4.8
 
-# Cosmological parameters
+# Cosmology
 H0      = 70*km/s/Mpc
 Ωcdm    = 0.25
 Ωb      = 0.05

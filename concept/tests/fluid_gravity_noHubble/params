@@ -37,7 +37,7 @@ render2D_select    = {'all': {'terminal image': True}}
 boxsize    = 64*Mpc
 φ_gridsize = 4*8  # Must be a multiple of 4
 
-# Cosmological parameters
+# Cosmology
 t_begin = 0
 
 # Physics

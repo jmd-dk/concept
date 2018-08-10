@@ -33,7 +33,7 @@ render2D_select    = {'matter particles': {'terminal image': True}}
 boxsize    = 80*Mpc
 φ_gridsize = 64
 
-# Cosmological parameters
+# Cosmology
 H0      = 70*km/s/Mpc
 Ωcdm    = 0.25
 Ωb      = 0.05

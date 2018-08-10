@@ -35,7 +35,7 @@ H0      = 67*km/(s*Mpc)
 a_begin = 1/(1 + 99)
 class_params = {
     # Primordial parameters
-    'A_s'    : 2.13e-09,
+    'A_s'    : 2.13e-9,
     'n_s'    : 0.96,
     'alpha_s': 0.0,
     'k_pivot': 0.05,
@@ -46,7 +46,7 @@ class_params = {
     'm_ncdm'                 : _Σmν/3 if _Σmν else 1e-100,
     'l_max_ncdm'             : 100,
     'Number of momentum bins': 100,
-    'Maximum q'              : 20 if _Σmν else 40,
+    'Maximum q'              : 20,
 }
 
 # Simulation options

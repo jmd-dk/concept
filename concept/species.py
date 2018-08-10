@@ -683,16 +683,20 @@ class Component:
                 (val.lower().replace(' ', '').replace('-', '').replace('_', '') if
                 isinstance(val, str) else val)
             for key, val in realization_options_all.items()}
-        varnames = ('pos', 'mom', 'ϱ', 'J', '𝒫', 'ς')
-        wrong_varname_sets = (
-            {'x', 'position', 'positions', 'Position', 'Positions'},
-            {'momentum', 'momenta', 'Momentum', 'Momenta'},
-            {'r', 'rho', 'ρ'},
-            {'j'},
-            {'P', 'δP', 'δ𝒫', 'p', 'δp'},
-            {'s', 'sigma', 'Sigma', 'σ', 'Σ'},
-        )
-        for varname, wrong_varnames in zip(varnames, wrong_varname_sets):
+        varnames = {
+            'particles': ('pos', 'mom'),
+            'fluid': ('ϱ', 'J', '𝒫', 'ς'),
+        }[self.representation]
+        wrong_varname_sets = {
+            'pos': {'x', 'position', 'positions', 'Position', 'Positions'},
+            'mom': {'momentum', 'momenta', 'Momentum', 'Momenta'},
+            'ϱ': {'r', 'rho', 'ρ'},
+            'J': {'j'},
+            '𝒫': {'P', 'δP', 'δ𝒫', 'p', 'δp'},
+            'ς': {'s', 'sigma', 'Sigma', 'σ', 'Σ'},
+        }
+        for varname in varnames:
+            wrong_varnames = wrong_varname_sets[varname]
             for wrong_varname in wrong_varnames:
                 realization_options_varname = (
                        realization_options.get(unicode(wrong_varname))
@@ -707,29 +711,29 @@ class Component:
                 'velocitiesfromdisplacements', False),
             'backscaling': realization_options_all.get('backscaling', False),
             # Non-linear realization options
-            'structure'    : realization_options_all.get('structure', 'primordial'),
+            'structure'    : realization_options_all.get('structure', 'nonlinear'),
             'compoundorder': realization_options_all.get('compoundorder', 'linear'),
         }
-        for varname in ('pos', 'mom', 'ϱ', 'J', '𝒫', 'ς'):
+        for varname in varnames:
             realization_options_default_copy = realization_options_default.copy()
             for varname_encoding in (unicode(varname), asciify(varname)):
                 if varname_encoding in realization_options:
                     realization_options_default_copy.update(realization_options[varname_encoding])
             realization_options[varname] = realization_options_default_copy
         for varname, realization_options_varname in realization_options.copy().items():
-            realization_options[unicode(varname)] = realization_options_varname
-            realization_options[asciify(varname)] = realization_options_varname
+            realization_options[unicode(varname)] = realization_options_varname.copy()
+            realization_options[asciify(varname)] = realization_options_varname.copy()
         realization_options = {
             varname: {
                 key.lower().replace(' ', '').replace('-', '').replace('_', ''):
                     (val.lower().replace(' ', '').replace('-', '').replace('_', '') if
                     isinstance(val, str) else val)
                 for key, val in realization_options[varname].items()}
-            for varname in ('pos', 'mom', 'ϱ', 'J', '𝒫', 'ς')
+            for varname in varnames
         }
         for varname, realization_options_varname in realization_options.copy().items():
-            realization_options[unicode(varname)] = realization_options_varname
-            realization_options[asciify(varname)] = realization_options_varname
+            realization_options[unicode(varname)] = realization_options_varname.copy()
+            realization_options[asciify(varname)] = realization_options_varname.copy()
             for realization_option_varname in realization_options_varname:
                 if realization_option_varname not in {
                     # Linear realization options
@@ -743,10 +747,38 @@ class Component:
                         f'Realization option "{realization_option_varname}" (specified for '
                         f'component "{self.name}" not recognized.'
                     )
+        if self.representation == 'particles':
+            # None of the non-linear relization options
+            # makes sense for particle components.
+            for realization_options_varname in realization_options.values():
+                del realization_options_varname['structure']
+                del realization_options_varname['compoundorder']
+        elif self.representation == 'fluid':
+            # None of the non-linear relization options
+            # makes sense for ϱ.
+            for realization_options_varname in (
+                realization_options[unicode('ϱ')],
+                realization_options[asciify('ϱ')],
+            ):
+                del realization_options_varname['structure']
+                del realization_options_varname['compoundorder']
+        for varname, realization_options_varname in realization_options.items():
+            if varname != 'mom':
+                if realization_options_varname['velocitiesfromdisplacements']:
+                    masterwarn(
+                        f'The "velocities from displacements" realization option was set to True '
+                        f'for the "{varname}" variable of the "{self.name}" component, but in only '
+                        f'makes sense for the "mom" variable'
+                        + ('' if self.representation == 'particles' else
+                            ' (and only for particle components)')
+                    )
+                del realization_options_varname['velocitiesfromdisplacements']
         self.realization_options = realization_options
         # Set approximations. Ensure that all implemented approximations
-        # get set either True or False. If an approximation is not set
-        # for this component, its value defaults to False.
+        # get set to either True or False. If an approximation is not
+        # set for this component, its value defaults to False.
+        # Also, specific circumstances may force some approximations to
+        # have a specific value.
         if approximations is None:
             approximations = is_selected(self, select_approximations, accumulate=True)
         if not approximations:
@@ -784,6 +816,9 @@ class Component:
             value = approximations.get(approximation, False)
             approximations[asciify(approximation)] = value
             approximations[unicode(approximation)] = value
+        if self.representation == 'particles':
+            approximations[unicode('P=wρ')] = True
+            approximations[asciify('P=wρ')] = True
         self.approximations = approximations
         # Set softening length
         if softening_length is None:
@@ -986,6 +1021,18 @@ class Component:
                 )
                 self.approximations[asciify('P=wρ')] = True
                 self.approximations[unicode('P=wρ')] = True
+        # When the P=wρ approximation is False, the fluid variable 𝒫
+        # has to follow the structure of ϱ closely. Otherwise, spurious
+        # features will develop in ϱ. Display a warning if the
+        # realization option for 𝒫 is set so that its structure does not
+        # match that of ϱ.
+        if not self.approximations['P=wρ']:
+            if self.realization_options['𝒫']['structure'] == 'primordial':
+                masterwarn(
+                    f'It is specified that the 𝒫 fluid variable of the "{self.name}" component '
+                    f'should be realized using the primordial structure throughout time. '
+                    f'It is known that this generates spurious features.'
+                )
         # When the P=wρ approximation is True, the 𝒫 fluid variable is
         # superfluous. Yet, as it is used in the definition of J,
         # J = a⁴(ρ + P)u, P = a**(-3*(1 + w_eff))*𝒫, it is simplest to
@@ -1087,7 +1134,9 @@ class Component:
                 # Otherwise, ask CLASS for ρ_bar at the present time.
                 if self.mass == -1:
                     if enable_class_background:
-                        cosmoresults = compute_cosmo()
+                        cosmoresults = compute_cosmo(
+                            class_call_reason=f'in order to determine ̅ϱ of {self.name} ',
+                        )
                         self._ϱ_bar = cosmoresults.ρ_bar(1, self.class_species)
                     else:
                         abort(
@@ -1101,7 +1150,9 @@ class Component:
                 # If CLASS background computations are disabled,
                 # measure ϱ_bar directly from the component data.
                 if enable_class_background:
-                    cosmoresults = compute_cosmo()
+                    cosmoresults = compute_cosmo(
+                        class_call_reason=f'in order to determine ̅ϱ of {self.name} ',
+                    )
                     self._ϱ_bar = cosmoresults.ρ_bar(1, self.class_species)
                 else:
                     self._ϱ_bar, σϱ, ϱ_min = measure(self, 'ϱ')
@@ -1444,14 +1495,11 @@ class Component:
                 ):
                 self.realize_𝒫(a, use_gridˣ)
             else:
-                # Normal realization.
-                # If a linear realization option is not passed, use the
-                # one specified for this component and variable.
+                # Normal realization
                 if (self.representation == 'particles'
                     and 'velocitiesfromdisplacements' not in options
                 ):
-                    # The special 'velocities from displacements'
-                    # option.
+                    # The 'velocities from displacements' option
                     options['velocitiesfromdisplacements'] = self.realization_options['mom'][
                         'velocitiesfromdisplacements']
                     # For particles, the Boltzmann order is always 2,
@@ -1483,7 +1531,7 @@ class Component:
                         options = self.realization_options['𝒫']['backscaling']
                     elif variable == 2:
                         options = self.realization_options['ς']['backscaling']
-                # Get transfer function if not passed.
+                # Get transfer function if not passed
                 if transfer_spline is None:
                     transfer_spline, cosmoresults = compute_transfer(
                         self,
@@ -1999,7 +2047,9 @@ class Component:
                     f'but enable_class_background is False.'
                 )
             self.w_type = 'tabulated (a)'
-            cosmoresults = compute_cosmo()
+            cosmoresults = compute_cosmo(
+                class_call_reason=f'in order to determine w(a) of {self.name} ',
+            )
             background = cosmoresults.background
             i_tabulated = background['a']
             # For combination species it is still true that
