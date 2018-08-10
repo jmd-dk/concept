@@ -34,7 +34,7 @@ output_times       = {'snapshot': (0.1, 0.5, 1)}
 boxsize    = 8*Mpc
 φ_gridsize = 64
 
-# Cosmological parameters
+# Cosmology
 H0      = 70*km/s/Mpc
 Ωcdm    = 0.25
 Ωb      = 0.05

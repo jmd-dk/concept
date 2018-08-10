@@ -686,7 +686,12 @@ def CLASS():
     components = get_initial_conditions(do_realization=False)
     # Do CLASS computation
     k_min, k_max, k_gridsize = get_default_k_parameters(φ_gridsize)
-    cosmoresults = compute_cosmo(k_min, k_max, k_gridsize)
+    cosmoresults = compute_cosmo(
+        k_min,
+        k_max,
+        k_gridsize,
+        class_call_reason='in order to get perturbations ',
+    )
     cosmoresults.load_everything()
     k_magnitudes = cosmoresults.k_magnitudes
     # Store all CLASS parameters, the unit system in use

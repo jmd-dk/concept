@@ -224,7 +224,7 @@ def remove_doppelgängers(xs, y, rel_tol=1e-1, copy=False):
     exactly or very nearly equal. New arrays with doppelgängers
     removed to single points will be returned.
     You may have as many x arrays as you like.
-    The relative tolerence used in determining doppelgängers is given
+    The relative tolerance used in determining doppelgängers is given
     by rel_tol.
     For this function to work, the x values must be in increasing order.
     The passed x and y will not be modified. Note that this function
@@ -529,7 +529,7 @@ def cosmic_time(a=-1, a_lower=machine_ϵ, t_lower=machine_ϵ, t_upper=-1):
         # If passed t_upper exceeds t_max_ever,
         # set t_max_ever to this larger value.
         t_max_ever = t_upper
-    # Tolerences
+    # Tolerances
     abs_tol = 1e-9
     rel_tol = 1e-9
     # Saves copies of extreme t values
@@ -603,7 +603,7 @@ def expand(a, t, Δt):
                k4='double',
                k5='double',
                k6='double',
-               tolerence='double',
+               tolerance='double',
                Δt='double',
                returns='double',
                )
@@ -639,9 +639,9 @@ def rkf45(ḟ, f_start, t_start, t_end, abs_tol, rel_tol, save_intermediate=Fals
         f4 =                     f + ℝ[25/216   ]*k1                    + ℝ[1408/2565 ]*k3 + ℝ[2197/4104  ]*k4 + ℝ[-1/5  ]*k5
         # The error estimate
         error = abs(f5 - f4) + machine_ϵ
-        # The local tolerence
-        tolerence = (rel_tol*abs(f5) + abs_tol)*sqrt(h/Δt)
-        if error < tolerence:
+        # The local tolerance
+        tolerance = (rel_tol*abs(f5) + abs_tol)*sqrt(h/Δt)
+        if error < tolerance:
             # Step accepted
             t += h
             f = f5
@@ -660,7 +660,7 @@ def rkf45(ḟ, f_start, t_start, t_end, abs_tol, rel_tol, save_intermediate=Fals
                     f_tab_mv = cast(f_tab, 'double[:alloc_tab]')
                     integrand_tab_mv = cast(integrand_tab, 'double[:alloc_tab]')
         # Updating step size
-        h *= 0.95*(tolerence/error)**0.25
+        h *= 0.95*(tolerance/error)**0.25
         if h > h_max:
             h = h_max
         elif h < h_min:
@@ -823,7 +823,7 @@ def initiate_time(reinitialize=False):
             # commons module.
             # Note that only the master have access to the results
             # from the CLASS computation.
-            cosmo = call_class()
+            cosmo = call_class(class_call_reason='in order to set the cosmic clock ')
             background = cosmo.get_background()
             # What we need to store is the cosmic time t and the Hubble
             # parametert H, both as functions of the scale factor a.

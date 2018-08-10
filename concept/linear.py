@@ -53,7 +53,7 @@ class CosmoResults:
     # Names of scalar attributes
     attribute_names = ('A_s', 'n_s', 'alpha_s', 'k_pivot', 'h')
     # Initialize instance
-    def __init__(self, params, k_magnitudes, cosmo=None, filename=''):
+    def __init__(self, params, k_magnitudes, cosmo=None, filename='', class_call_reason=''):
         """If no cosmo object is passed, all results should be loaded
         from disk, if possible. The first time this fails, CLASS will be
         called and a cosmo object will be produced.
@@ -124,6 +124,8 @@ class CosmoResults:
                 class_a_min,
             ))).encode()).hexdigest()
             self.filename = f'{paths["reusables_dir"]}/class/{self.id}.hdf5'
+        # Message that gets printed if and when CLASS is called
+        self.class_call_reason = class_call_reason
         # Add functions which returns transfer function splines
         # for a given a.
         def construct_func(var_name):
@@ -158,14 +160,22 @@ class CosmoResults:
             if 'k_output_values' in self.params:
                 # Compute perturbations. Do this in 'MPI' mode,
                 # meaning utilizing all available nodes.
-                self._cosmo, self.k_node_indices = call_class(self.params, mode='MPI')
+                self._cosmo, self.k_node_indices = call_class(
+                    self.params,
+                    mode='MPI',
+                    class_call_reason=self.class_call_reason,
+                )
             else:
                 # Do not compute perturbations. This call should be
                 # very fast and so we compute it in 'single node'
                 # mode regardless of the number of nodes available.
                 # (Also, MPI Class is not implemented for anything but
                 # the perturbation computation).
-                self._cosmo = call_class(self.params, mode='single node')
+                self._cosmo = call_class(
+                    self.params,
+                    mode='single node',
+                    class_call_reason=self.class_call_reason,
+                )
         return self._cosmo
     # Methods returning scalar attributes used in the CLASS run
     @property
@@ -1128,7 +1138,10 @@ class TransferFunction:
                             perturbations_available[class_species] = False
                         else:
                             perturbation_values_arr += weights*class_units*perturbation
-                perturbation_values = perturbation_values_arr
+                if isinstance(perturbation_values_arr, int):
+                    perturbation_values = np.array((), dtype=C2np['double'])
+                else:
+                    perturbation_values = perturbation_values_arr
                 # Warn or abort on missing perturbations.
                 # We only do this for k = 0, which is the first
                 # perturbation encountered on the master process.
@@ -1491,6 +1504,7 @@ class TransferFunction:
                 k_gridsize='Py_ssize_t',
                 gauge=str,
                 filename=str,
+                class_call_reason=str,
                 # Locals
                 cosmoresults=object, # CosmoResults
                 extra_params=dict,
@@ -1500,7 +1514,8 @@ class TransferFunction:
                 params_specialized=dict,
                 returns=object,  # CosmoResults
                )
-def compute_cosmo(k_min=-1, k_max=-1, k_gridsize=-1, gauge='synchronous', filename=''):
+def compute_cosmo(k_min=-1, k_max=-1, k_gridsize=-1,
+    gauge='synchronous', filename='', class_call_reason=''):
     """All calls to CLASS should be done through this function.
     If no arguments are supplied, CLASS will be run with the parameters
     stored in class_params. The return type is CosmoResults, which
@@ -1608,7 +1623,12 @@ def compute_cosmo(k_min=-1, k_max=-1, k_gridsize=-1, gauge='synchronous', filena
     # Instantiate a CosmoResults object before calling CLASS,
     # in the hope that this exact CLASS call have already been
     # carried out.
-    cosmoresults = CosmoResults(params_specialized, k_magnitudes, filename=filename)
+    cosmoresults = CosmoResults(
+        params_specialized,
+        k_magnitudes,
+        filename=filename,
+        class_call_reason=class_call_reason,
+    )
     # Add the CosmoResults object to the global dict
     cosmoresults_archive[k_min, k_max, k_gridsize, gauge] = cosmoresults
     return cosmoresults
@@ -1619,7 +1639,7 @@ cython.declare(cosmoresults_archive=dict)
 cosmoresults_archive = {}
 # Helper function used in compute_cosmo
 def k_float2str(k):
-    return f'{k:.3e}'
+    return f'{k:.3e}'.replace('+0', '+').replace('-0', '-').replace('e+0', '')
 
 # Function for computing transfer functions as function of k
 @cython.pheader(# Arguments
@@ -1680,8 +1700,13 @@ def compute_transfer(
     # Compute the cosmology via CLASS. As the N-body gauge is not
     # implemented in CLASS, the synchronous gauge is used in its place.
     # We do the transformation from synchronous to N-body gauge later.
-    cosmoresults = compute_cosmo(k_min, k_max, k_gridsize,
-                                 'synchronous' if gauge == 'nbody' else gauge)
+    cosmoresults = compute_cosmo(
+        k_min,
+        k_max,
+        k_gridsize,
+        'synchronous' if gauge == 'nbody' else gauge,
+        class_call_reason=f'in order to get "{component.name}" perturbations ',
+    )
     k_magnitudes = cosmoresults.k_magnitudes
     # Update k_gridsize to be what ever value was settled on
     # by the compute_cosmo function.
@@ -2131,7 +2156,7 @@ def realize(component, variable, transfer_spline, cosmoresults,
                 # ζ(k) = π*sqrt(2*A_s)*k**(-3/2)*(k/k_pivot)**((n_s - 1)/2)
                 #          *exp(α_s/4*log(k/k_pivot)**2)
                 # the primordial curvature perturbations.
-                # The remaining# ℛ(k⃗) is the primordial noise.
+                # The remaining ℛ(k⃗) is the primordial noise.
                 sqrt_power_common[k2] = (
                     # T(k)
                     transfer
@@ -2192,6 +2217,7 @@ def realize(component, variable, transfer_spline, cosmoresults,
             generate_primordial_noise(slab_structure)
         elif options['structure'] == 'nonlinear':
             # Populate slab_structure with ℱₓ[ϱ(x⃗)]
+            masterprint(f'Extracting structure from ϱ of {component.name}')
             slab_decompose(component.ϱ.gridˣ_mv if use_gridˣ else component.ϱ.grid_mv,
                 slab_structure)
             fft(slab_structure, 'forward')
@@ -2485,14 +2511,6 @@ def realize(component, variable, transfer_spline, cosmoresults,
 # Module level variable used by the realize function
 cython.declare(slab_structure_previous_info=dict)
 slab_structure_previous_info = {}
-
-
-
-
-
-
-
-
 
 # Function that populates the passed slab decomposed grid
 # with primordial noise ℛ(k⃗).

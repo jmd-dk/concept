@@ -798,6 +798,9 @@ order = (# Test whether the code is able to compile and run
          'fluid_vacuum',
          'fluid_vs_particles',
          'fluid_pressure',
+         # To test the fluid implementation on a real life scenario,
+         # we test linear and non-linear neutrino simulations.
+         'neutrino',
          # Test whether the optimizations introduces bugs
          'optimizations',
          # Tests of other functionality
