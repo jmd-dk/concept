@@ -905,7 +905,8 @@ def gravity(method, receivers, suppliers, ᔑdt):
     for i, component in enumerate(receivers.copy()):
         if component.representation == 'fluid' and component.is_linear(1):
             suppliers.append(component)
-            del receivers[i]
+            receivers[i] = None
+    receivers = [receiver for receiver in receivers if receiver is not None]
     # If no receivers exist at all, no interaction should take place
     if not receivers:
         return
