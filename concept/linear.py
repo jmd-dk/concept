@@ -46,7 +46,7 @@ cimport('from mesh import get_fftw_slab,       '
 # and results retrieved from the classy.Class instance.
 class CosmoResults:
     # Names of all implemented transfer function variables.
-    # Functions with these names will be defined, which will return
+    # Methods with these names will be defined, which will return
     # the corresponding transfer function as a function of k,
     # for a given a.
     transfer_function_variable_names = ('δ', 'θ', 'δP', 'σ', 'hʹ')
@@ -91,7 +91,6 @@ class CosmoResults:
             'perturbations': {
                 # Time
                 r'^a$',
-                r'^tau \[Mpc\]$',
                 # Other
                 r'^h_prime$',
                 r'^theta_tot$',
@@ -126,7 +125,7 @@ class CosmoResults:
             self.filename = f'{paths["reusables_dir"]}/class/{self.id}.hdf5'
         # Message that gets printed if and when CLASS is called
         self.class_call_reason = class_call_reason
-        # Add functions which returns transfer function splines
+        # Add methods which returns transfer function splines
         # for a given a.
         def construct_func(var_name):
             return (
@@ -333,6 +332,13 @@ class CosmoResults:
             # Assuming a flat universe, we have rho_tot == rho_crit.
             if '(.)rho_crit' in self._background:
                 self._background['(.)rho_tot'] = self._background['(.)rho_crit']
+            # We define the special "metric" CLASS species to have a
+            # background density equal to the critical density,
+            # and zero pressure.
+            if '(.)rho_crit' in self._background:
+                self._background['(.)rho_metric'] = self._background['(.)rho_crit']
+                self._background['(.)p_metric'] = np.zeros(
+                    self._background['(.)rho_metric'].size, dtype=C2np['double'])
             # Remove doppelgänger values in all background variables,
             # using the scale factor array as x values.
             for key, val in self._background.items():
@@ -346,20 +352,27 @@ class CosmoResults:
             # Add species specific perturbation keys to the set
             # self.needed_keys['perturbations'], based on the
             # species present in the current simulation.
-            for class_species_present in (universals_dict['class_species_present']
-                .decode().replace('[', '\[').replace(']', '\]').split('+')):
+            class_species_present_list = (universals_dict['class_species_present']
+                .decode().replace('[', '\[').replace(']', '\]').split('+'))
+            for class_species_present in class_species_present_list:
                 if not class_species_present:
                     continue
-                self.needed_keys['perturbations'] |= {
-                    # Density
-                    rf'^delta_{class_species_present}$',
-                    # Velocity
-                    rf'^theta_{class_species_present}$',
-                    # # Pressure
-                    rf'^cs2_{class_species_present}$',
-                    # Shear stress
-                    rf'^shear_{class_species_present}$',
-                }
+                if class_species_present == 'metric':
+                    # For the special "metric" species, what we need is
+                    # the metric potentials ϕ and ψ along with the
+                    # conformal time derivative of H_T in N-body gauge.
+                    self.needed_keys['perturbations'] |= {r'^phi$', r'^psi$', r'^H_T_Nb_prime$'}
+                else:
+                    self.needed_keys['perturbations'] |= {
+                        # Density
+                        rf'^delta_{class_species_present}$',
+                        # Velocity
+                        rf'^theta_{class_species_present}$',
+                        # # Pressure
+                        rf'^cs2_{class_species_present}$',
+                        # Shear stress
+                        rf'^shear_{class_species_present}$',
+                    }
             if not self.load('perturbations'):
                 # Get perturbations from CLASS
                 masterprint('Extracting perturbations from CLASS ...')
@@ -517,12 +530,17 @@ class CosmoResults:
             # and the first read-in of the background has to be done
             # in parallel.
             self.load_everything('perturbations')
+            # If the CLASS perturbations for the special "metric"
+            # species has been computed/loaded, we need to manually
+            # convert these into the corresponding δ perturbations.
+            if 'metric' in class_species_present_list:
+                self.add_delta_metric()
         return self._perturbations
-    # Function which makes sure that everything is loaded
+    # Method which makes sure that everything is loaded
     def load_everything(self, already_loaded=None):
         """If some attribute is already loaded, it can be specified
         as the already_loaded argument. This is crucial to specify when
-        called from within one of the functions matching an attribute.
+        called from within one of the methods matching an attribute.
         """
         attributes = {
             *self.attribute_names,
@@ -535,6 +553,60 @@ class CosmoResults:
         # definite order, ensuring synchronization between processes.
         for attribute in sorted(attributes):
             getattr(self, attribute)
+    # Method which computes and adds "delta_metric" to the perturbations
+    def add_delta_metric(self):
+        """This method adds the "delta_metric" perturbation
+        to self._perturbations, assuming that the ϕ and ψ potentials and
+        H_T' in N-body gauge already exist as perturbations.
+        The strategy is as follows: For each k, we can compute the GR
+        correction potential γ(a) using
+        γ(a) = -(H_Tʹʹ(a) + a*H(a)*H_Tʹ(a))/k² + (ϕ(a) - ψ(a)),
+        where ʹ denotes differentiation with respect to
+        conformal time τ. The units of the perturbations
+        from CLASS are as follows:
+        H_Tʹ: [time⁻¹]        = [c/Mpc],
+        ϕ   : [length²time⁻²] = [c²],
+        ψ   : [length²time⁻²] = [c²],
+        and so γ also gets units of [length²time⁻²].
+        We choose to compute k²γ, not γ by itself.
+        Using ʹ = d/dτ = a*d/dt = a²H(a)*d/da, we have
+        k²γ(a) = -a*H(a)(a*dH_Tʹ(a)/da + H_Tʹ(a)) + k²(ϕ(a) - ψ(a)).
+        The δρ(a) perturbation is now given by
+        δρ(a) = 2/3*γ(a)k²/a² * 3/(8πG)
+              = k²γ(a)/(4πGa²)
+        where the factor 3/(8πG) = 1 in CLASS units.
+        Side-note: In this form (k²γ = 4πGa²δρ) it is clear that γ
+        indead is a potential.
+        Finally, since we want δ(a), we divide by the arbitrary but
+        pre-defined background density ρ_metric:
+        δ(a) = k²γ(a)/(4πGa²ρ_metric).
+        """
+        # Check that the delta_metric perturbations
+        # has not already been added.
+        if 'delta_metric' in self._perturbations[0]:
+            return
+        masterprint('Constructing metric δ perturbations ...')
+        for k, perturbation in zip(self.k_magnitudes, self._perturbations):
+            # Extract needed perturbations along with
+            # the scalefactor at which they are tabulated.
+            a    = perturbation['a'           ]
+            ϕ    = perturbation['phi'         ]*ℝ[light_speed**2]
+            ψ    = perturbation['psi'         ]*ℝ[light_speed**2]
+            H_Tʹ = perturbation['H_T_Nb_prime']*ℝ[light_speed/units.Mpc]
+            # Compute the derivative of H_Tʹ with respect to a
+            H_Tʹ_spline = Spline(a, H_Tʹ)
+            Ḣ_Tʹ = asarray([H_Tʹ_spline.eval_deriv(a_i) for a_i in a])
+            # Lastly, we need the Hubble parameter and the mean density
+            # of the "metric" species at the times given by a.
+            H = asarray([hubble(a_i) for a_i in a])
+            ρ_metric = self.ρ_bar(a, 'metric')
+            # Construct the γ potential
+            k2γ = -a*H*(a*Ḣ_Tʹ + H_Tʹ) + k**2*(ϕ - ψ)
+            # Construct the δ perturbation
+            δ = k2γ/(ℝ[4*π*G_Newton]*a**2*ρ_metric)
+            perturbation['delta_metric'] = δ
+        masterprint('done')
+
     # Method which constructs TransferFunction instances and use them
     # to compute and store transfer functions. Do not use this method
     # directly, but rather call e.g. cosmoresults.δ(a, component).
@@ -630,11 +702,11 @@ class CosmoResults:
         as this method will open the file in read/write ('a') mode
         regardless. This can be dangeous as HDF5 build with MPI is not
         thread-safe, and so if two running instances of CO𝘕CEPT with the
-        same params run this function simultaneously, problems
+        same params run this method simultaneously, problems
         may arise. From HDF5 1.10 / H5Py 2.5.0, multiple processes can
         read from the same file, as long as it is not opened in write
         mode by any process. Thus, this complication is only relevent
-        for this function. The open_hdf5 function is ment to alleviate
+        for this method. The open_hdf5 function is ment to alleviate
         this problem, but is has not been thoroughly tested.
         Note that we save regardless of the value of class_reuse.
         """
@@ -1717,8 +1789,10 @@ def compute_transfer(
         # Get the δ transfer function
         transfer = cosmoresults.δ(a, component)
         # Transform the δ transfer function from synchronous
-        # to N-body gauge, if requested.
-        if gauge == 'nbody':
+        # to N-body gauge, if requested. Note that the special "metric"
+        # CLASS species is constructed directly in N-body gauge
+        # and so does not need any transformation.
+        if gauge == 'nbody' and component.class_species != 'metric':
             # To do the gauge transformation,
             # we need the total θ transfer function.
             transfer_θ_tot = cosmoresults.θ(a)
@@ -2710,4 +2784,4 @@ for (varname,
     elif varname == '_ARGUMENT_LENGTH_MAX_':
         class__ARGUMENT_LENGTH_MAX_ = value
     elif varname == 'a_min':
-        class_a_min = -1 if special_params.get('keep_class_extra_background', False) else value
+        class_a_min = -1.0 if special_params.get('keep_class_extra_background', False) else value

@@ -675,6 +675,7 @@ def info():
     var_name=str,
     var_name_ascii=str,
     variable_specifications=list,
+    ρ_bars=dict,
 )
 def CLASS():
     # Suppress warning about the total energy density of the components
@@ -694,8 +695,9 @@ def CLASS():
     )
     cosmoresults.load_everything()
     k_magnitudes = cosmoresults.k_magnitudes
-    # Store all CLASS parameters, the unit system in use
-    # and the processed background in a new hdf5 file.
+    # Store all CLASS parameters, the unit system in use,
+    # the processed background and a few convenience attributes
+    # in a new hdf5 file.
     if master:
         filename = output_dirs['powerspec'] + '/class_processed.hdf5'
         os.makedirs(output_dirs['powerspec'], exist_ok=True)
@@ -716,14 +718,16 @@ def CLASS():
                 'unit time': unit_time,
                 'unit length': unit_length,
                 'unit mass': unit_mass,
-                }.items():
+            }.items():
                 try:
                     units_h5.attrs[unit_name] = bytes(unit_val, encoding='ascii')
                 except UnicodeEncodeError:
                     units_h5.attrs[unit_name] = unit_val
             # Store background variables present in the
             # cosmoresults.background dict. Here we convert to the
-            # current unit system in use.
+            # current unit system in use. We also add any (present)
+            # background densities we come across to the ρ_bars dict.
+            ρ_bars = {}
             background_h5 = hdf5_file.require_group('background')
             for key, arr in cosmoresults.background.items():
                 key = key.replace('/', '__per__')
@@ -736,6 +740,8 @@ def CLASS():
                     arr = cosmoresults.ρ_bar(cosmoresults.background['a'], class_species)
                     # Now, the "(.)" prefix should be dropped
                     key = key.lstrip('(.)')
+                    # Add the present background density to ρ_bars
+                    ρ_bars[class_species] = arr[arr.shape[0] - 1]
                 elif key.startswith('(.)p'):
                     # The "(.)" notation is CLASS syntax reminding us
                     # that we need to multiply by 3/(8πG).
@@ -775,14 +781,30 @@ def CLASS():
             for component in components:
                 if '+' not in component.class_species:
                     continue
+                # Store the background density
                 key = f'rho_{component.class_species}'
                 arr = cosmoresults.ρ_bar(cosmoresults.background['a'], component)
                 dset = background_h5.create_dataset(key, (arr.shape[0],), dtype=C2np['double'])
                 dset[:] = arr
+                # Add the present background density to ρ_bars
+                ρ_bars[component.class_species] = arr[arr.shape[0] - 1]
+                # Store the background pressure
                 key = f'p_{component.class_species}'
                 arr = cosmoresults.P_bar(cosmoresults.background['a'], component)
                 dset = background_h5.create_dataset(key, (arr.shape[0],), dtype=C2np['double'])
                 dset[:] = arr
+            # Store a few convenience attributes on the background
+            # group, specifying the cosmology. These convenience
+            # attributes include h ≡ H0/(100 km s⁻¹ Mpc⁻¹) and density
+            # parameters (Ω) for all the CLASS species present,
+            # including combination species. Note that these convenience
+            # attributes do not add information; they could be derived
+            # from the data already present in the HDF5 file.
+            convenience_attributes = {'h': H0/(100*units.km/(units.s*units.Mpc))}
+            for class_species, ρ_bar in ρ_bars.items():
+                convenience_attributes[f'Omega_{class_species}'] = ρ_bar/ρ_bars['crit']
+            for convenience_name, convenience_val in convenience_attributes.items():
+                background_h5.attrs[convenience_name] = convenience_val
     # Create dict mapping components to lists of
     # (variable, specific_multi_index, var_name), specifying which
     # transfer functions to store in the hdf5 file.

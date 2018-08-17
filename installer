@@ -5204,54 +5204,56 @@ fi
 ##############################
 # Testing GADGET and CO𝘕CEPT #
 ##############################
-if [ "${fast_install}" == "no" ] && [ "${concept_install}" == "yes" ] \
-                                 && [ "${concept_installed}" == "no" ]; then
-    # Run basic CO𝘕CEPT test to test the environment
-    current_step="basic test of ${esc_concept}"
-    heading "Basic test of ${esc_concept}"
-    set_status "Basic test of ${esc_concept_double_backslashes}"
-    cd "${concept_dir}"
-    concept_test_log="${concept_dir}/test_log"
-    "${concept}" -t "basic" 2>&1 | tee "${concept_test_log}"
-    [ ${PIPESTATUS[0]} -eq 0 ] || concept_test_success="no"
-    if  [ "${gadget_install}" == "yes" ]; then
-        # Run GADGET test if basic CO𝘕CEPT test finished successfully
-        if [ "${concept_test_success}" == "yes" ]; then
-            current_step="testing GADGET"
-            heading "Testing GADGET"
-            set_status "Testing GADGET"
-            gadget_test_log="${gadget_dir}/test_log"
-            "${concept}" -t "gadget" 2>&1 | tee "${gadget_test_log}"
-            [ ${PIPESTATUS[0]} -eq 0 ] || gadget_test_success="no"
-            # Clean test_log if test is successfull
-            if [ "${gadget_test_success}" == "yes" ]; then
-                rm -f "${gadget_test_log}"
-            fi
-        fi
-        # Run complete CO𝘕CEPT test suite if basic CO𝘕CEPT test
-        # finished successfully.
-        if [ "${concept_test_success}" == "yes" ]; then
-            current_step="testing ${esc_concept}"
-            heading "Testing ${esc_concept}"
-            set_status "Testing ${esc_concept_double_backslashes}"
-            "${concept}" -t "all" 2>&1 | tee "${concept_test_log}"
-            [ ${PIPESTATUS[0]} -eq 0 ] || concept_test_success="no"
-            # Clean test_log if test is successfull
+if [ "${concept_install}" == "yes" ] && [ "${concept_installed}" == "no" ]; then
+    if [ "${fast_install}" == "no" ]; then
+        # Run basic CO𝘕CEPT test to test the environment
+        current_step="basic test of ${esc_concept}"
+        heading "Basic test of ${esc_concept}"
+        set_status "Basic test of ${esc_concept_double_backslashes}"
+        cd "${concept_dir}"
+        concept_test_log="${concept_dir}/test_log"
+        "${concept}" -t "basic" 2>&1 | tee "${concept_test_log}"
+        [ ${PIPESTATUS[0]} -eq 0 ] || concept_test_success="no"
+        if  [ "${gadget_install}" == "yes" ]; then
+            # Run GADGET test if basic CO𝘕CEPT test finished successfully
             if [ "${concept_test_success}" == "yes" ]; then
-                rm -f "${concept_test_log}"
-                make distclean
+                current_step="testing GADGET"
+                heading "Testing GADGET"
+                set_status "Testing GADGET"
+                gadget_test_log="${gadget_dir}/test_log"
+                "${concept}" -t "gadget" 2>&1 | tee "${gadget_test_log}"
+                [ ${PIPESTATUS[0]} -eq 0 ] || gadget_test_success="no"
+                # Clean test_log if test is successfull
+                if [ "${gadget_test_success}" == "yes" ]; then
+                    rm -f "${gadget_test_log}"
+                fi
+            fi
+            # Run complete CO𝘕CEPT test suite if basic CO𝘕CEPT test
+            # finished successfully.
+            if [ "${concept_test_success}" == "yes" ]; then
+                current_step="testing ${esc_concept}"
+                heading "Testing ${esc_concept}"
+                set_status "Testing ${esc_concept_double_backslashes}"
+                "${concept}" -t "all" 2>&1 | tee "${concept_test_log}"
+                [ ${PIPESTATUS[0]} -eq 0 ] || concept_test_success="no"
+                # Clean test_log if test is successfull
+                if [ "${concept_test_success}" == "yes" ]; then
+                    rm -f "${concept_test_log}"
+                    make distclean
+                fi
             fi
         fi
+        cd "${top_dir}"
     fi
-    cd "${top_dir}"
-fi
-# Write out success notice. Place it in the GADGET directory
-# in order to minimize the number of files in the CO𝘕CEPT directory.
-echo "The following has been fully installed:
+    # Write out success notice. Place it in the GADGET directory
+    # in order to minimize the number of files in the CO𝘕CEPT directory.
+    echo "The following has been fully installed:
 Program: CONCEPT
 Version: ${concept_version}
 Date:    $(date)
 " >> "${gadget_dir}/.installation_finished"
+fi
+
 
 
 #############################
