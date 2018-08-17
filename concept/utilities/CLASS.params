@@ -7,20 +7,6 @@ _Σmν = 0.1  # Sum of the three neutrino massed in eV
 
 
 # Input/output
-initial_conditions = [
-    {
-        'name'   : 'matter component',
-        'species': 'matter particles',
-        'N'      : 1,
-    },
-    {
-         'name'             : 'neutrino component',
-         'species'          : 'neutrino fluid',
-         'gridsize'         : 2,
-         'boltzmann_order'  : 1,
-         'boltzmann_closure': 'truncate',
-    },
-]
 output_dirs = {'powerspec': paths['output_dir'] + '/class'}
 
 # Numerical parameters
@@ -32,7 +18,7 @@ modes_per_decade = 30
 H0      = 67*km/(s*Mpc)
 Ωcdm    = 0.27 - Ων
 Ωb      = 0.049
-a_begin = 1/(1 + 99)
+a_begin = 1/(1 + 199)
 class_params = {
     # Primordial parameters
     'A_s'    : 2.13e-9,
@@ -53,7 +39,7 @@ class_params = {
 class_k_max = {}
 class_reuse = True
 class_plot_perturbations = True
-class_extra_background = ['D1', ]
+class_extra_background = []
 class_extra_perturbations = []
 
 # System of units

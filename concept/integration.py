@@ -828,9 +828,10 @@ def initiate_time(reinitialize=False):
             # What we need to store is the cosmic time t and the Hubble
             # parametert H, both as functions of the scale factor a.
             # We do this by defining global Spline objects.
-            a_values = smart_mpi(1/(background['z'] + 1)                      , 0, mpifun='bcast')
-            t_values = smart_mpi(background['proper time [Gyr]']*units.Gyr    , 1, mpifun='bcast')
-            H_values = smart_mpi(background['H [1/Mpc]']*light_speed/units.Mpc, 2, mpifun='bcast')
+            a_values = smart_mpi(1/(background['z'] + 1), 0, mpifun='bcast')
+            t_values = smart_mpi(background['proper time [Gyr]']*units.Gyr, 1, mpifun='bcast')
+            H_values = smart_mpi(
+                background['H [1/Mpc]']*(light_speed/units.Mpc), 2, mpifun='bcast')
             spline_a_t = Spline(a_values, t_values)
             spline_t_a = Spline(t_values, a_values)
             spline_a_H = Spline(a_values, H_values)

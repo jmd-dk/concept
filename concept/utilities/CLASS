@@ -59,11 +59,27 @@ fi
 
 # Use Python's argparse module to handle command-line arguments
 argparse_finished="no"
+argparse_exit_code=""
 args=$("${python}" -B -c "
 import argparse, sys
 # Setup command-line arguments
 parser = argparse.ArgumentParser(prog='$(basename "${this_file}")',
                                  description='Run the CO𝘕CEPT $(basename "${this_file}") utility')
+parser.add_argument(
+    'perturbations',
+    help=(
+        'comma separated string of CLASS species to produce perturbations/transfer '
+        'functions for, e.g. \"b,cdm\" for baryons and cold dark matter. '
+        'By default, only the δ transfer functions will be produced, corresponding '
+        'to a Boltzmann order of 1. To also get transfer functions for variables '
+        'further down the Boltzmann hierarchy, you may specify the Boltzmann order '
+        'using a colon. For example, \"b:2,cdm:2\" will produce both δ and θ transfer '
+        'functions for both baryons and cold dark matter. '
+        'Finally, CLASS species can be combined using a plus symbol, so that e.g. '
+        '\"cdm+b:2,g:1\" will result in \"total matter\" δ and θ transfer functions, '
+        'along with δ transfer functions for photons.'
+    ),
+)
 parser.add_argument(
     '--max_a_values',
     default='np.inf',
@@ -92,15 +108,21 @@ sys.stdout = stdout_copy
 # Print out the arguments.
 # These will be captured in the Bash 'args' variable.
 print('argparse_finished=yes')
+print(f'perturbations=\"{args.perturbations}\"')
 print(f'max_a_values={args.max_a_values}')
 print(f'gauge={args.gauge}')
-" "$@" || :)
+" "$@" || echo "argparse_exit_code=$?")
 # Evaluate the handled arguments into this scope
 eval "${args}"
 # Exit if argparse exited without finishing
 if [ "${argparse_finished}" != "yes" ]; then
-    trap : 0
-    exit 0
+    if [ -z "${argparse_exit_code}" ]; then
+        argparse_exit_code=0
+    fi
+    if [ ${argparse_exit_code} -eq 0 ]; then
+        trap : 0
+    fi
+    exit ${argparse_exit_code}
 fi
 
 # If not called indirectly through the concept script,
@@ -121,6 +143,30 @@ fi
 mkdir -p "${this_dir}/params"
 params_filename="${this_dir}/params/$(basename "${this_file}").params"
 printf "
+# Specifications of fake components corresponding to the
+# perturbations argument of the CLASS utility.
+_initial_conditions = [
+    {
+         'name'             : class_species,
+         'species'          : 'neutrino fluid',  # No neutrino specific behaviour will come of this
+         'gridsize'         : 2,
+         'boltzmann_order'  : int(boltzmann_order),
+         'boltzmann_closure': 'truncate',
+         'class_species'    : class_species,
+         'approximations'   : {'P=wρ': int(boltzmann_order) < 3},
+    }
+    for class_species, boltzmann_order in (
+        perturbation.split(':') for perturbation in (
+            perturbation + ('' if ':' in perturbation else ':1')
+            for perturbation in (\"\"\"'${perturbations}'\"\"\"
+                .replace('\"', '')
+                .replace(\"'\", '')
+                .replace(' ', '')
+                .split(',')
+            )
+        )
+    )
+]
 # The special_params dict, specifying details of the utility run
 special_params = {
     'special'     : '$(basename "${this_file}")',
@@ -141,6 +187,9 @@ $(cat "${params}")
 ##########################
 # End of user parameters #
 ##########################
+# Use the fake initial conditions corresponding to the
+# perturbations argument of the CLASS utility.
+initial_conditions = _initial_conditions
 # Reinsert original path to the parameter file
 paths['params'] = params_path_ori
 " > "${params_filename}"

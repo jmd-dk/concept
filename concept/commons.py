@@ -1504,6 +1504,47 @@ def replace_ellipsis(d):
         else:
             falsy_val = val
     return d
+# Function that updates given CLASS parameters with default values
+# matching the CO𝘕CEPT parameters.
+def update_class_params(class_params, namespace=None):
+    """This function mutates the passed class_params dict by adding
+    (never replacing existing) default parameters. If a namespace is
+    supplied, these default parameters are taken from here.
+    Otherwise, they are taken from the global variables.
+    """
+    replace_ellipsis(class_params)
+    # Specification of the cosmology,
+    # inherited from the CO𝘕CEPT parameters.
+    if namespace is None:
+        class_params_default = {
+            'H0'       : H0/(units.km/(units.s*units.Mpc)),
+            'Omega_cdm': Ωcdm,
+            'Omega_b'  : Ωb,
+        }
+    else:
+        class_params_default = {}
+        if 'H0' in namespace:
+            class_params_default['H0'] = namespace['H0']/(units.km/(units.s*units.Mpc))
+        if 'Ωcdm' in namespace:
+            class_params_default['Omega_cdm'] = namespace['Ωcdm']
+        if 'Ωb' in namespace:
+            class_params_default['Omega_b'] = namespace['Ωb']
+    # Add in neutrino CLASS parameters, if neutrinos are present
+    N_ncdm = int(class_params.get('N_ncdm', 0))
+    if N_ncdm != 0:
+        class_params_default.update({
+            # Disable fluid approximation for non-CDM species
+            'ncdm_fluid_approximation': 3,
+            # Neutrino options needed for accurate δP/δρ
+            'evolver': 0,
+            'l_max_ncdm': 50,
+            'Number of momentum bins': ','.join(['25']*N_ncdm),
+            'Maximum q': ','.join(['15']*N_ncdm),
+            'Quadrature strategy': ','.join(['3']*N_ncdm),
+        })
+    # Apply updates to the CLASS parameters
+    for param_name, param_value in class_params_default.items():
+        class_params.setdefault(param_name, param_value)
 # Subclass the dict to create a dict-like object which keeps track of
 # the number of lookups on each key. This is used to identify unknown
 # (and therefore unused) parameters defined by the user.
@@ -1577,29 +1618,7 @@ for u in ('length', 'time', 'mass'):
 # (module level) class_params, this has to be done again (see the
 # CLASS setup section).
 if 'class_params' in user_params:
-    replace_ellipsis(user_params['class_params'])
-    # Specification of general, default CLASS parameters.
-    class_params_default = {}
-    if 'H0' in user_params:
-        class_params_default['H0'] = user_params['H0']/(units.km/(units.s*units.Mpc))
-    if 'Ωcdm' in user_params:
-        class_params_default['Omega_cdm'] = user_params['Ωcdm']
-    if 'Ωb' in user_params:
-        class_params_default['Omega_b'] = user_params['Ωb']
-    # Add in neutrino CLASS parameters, if neutrinos are present
-    if int(user_params['class_params'].get('N_ncdm', 0)) != 0:
-        class_params_default.update({# Disable fluid approximation for non-CDM species
-                                     'ncdm_fluid_approximation': 3,
-                                     # Neutrino options needed for accurate δP/δρ
-                                     'Quadrature strategy': 3,
-                                     'evolver': 0,
-                                     'Number of momentum bins': 25,
-                                     'Maximum q': 15.0,
-                                     'l_max_ncdm': 50,
-                                     })
-    # Apply updates to the CLASS parameters
-    for param_name, param_value in class_params_default.items():
-        user_params['class_params'].setdefault(param_name, param_value)
+    update_class_params(user_params['class_params'], user_params)
 # Find out which of the inferrable parameters are not explicitly set,
 # and so should be inferred.
 user_params_changed_inferrables = user_params.copy()
@@ -1638,16 +1657,24 @@ cython.declare(
 if inferred_params_set['Ων']:
     Ων = float(user_params['Ων'])
 else:
-    if int(user_params.get('class_params', {}).get('N_ncdm', 0)) != 0:
+    N_ncdm = int(user_params.get('class_params', {}).get('N_ncdm', 0))
+    if N_ncdm != 0:
         cosmo = Class()
         cosmo.set(user_params.get('class_params', {}))
-        masterprint('Calling CLASS in order to determine Ων ...')
+        masterprint(
+            'Calling CLASS in order to determine Ων =',
+            ' + '.join(['Ων' + unicode_subscript(str(i)) for i in range(N_ncdm)]),
+            '...'
+        )
         call_openmp_lib(cosmo.compute)
         masterprint('done')
         background = cosmo.get_background()
-        if bcast('(.)rho_ncdm[0]' in background):
-            Ων = bcast(background['(.)rho_ncdm[0]'][-1]/background['(.)rho_crit'][-1]
-                if master else None)
+        if master:
+            Ων = 0
+            for i in range(N_ncdm):
+                Ων += background[f'(.)rho_ncdm[{i}]'][-1]
+            Ων /= background['(.)rho_crit'][-1]
+        Ων = bcast(Ων)
 inferred_params_final['Ων'] = Ων
 # Update user_params with the correct values for the inferred params
 user_params.update(inferred_params_final)
@@ -2398,26 +2425,7 @@ units_dict.setdefault('cbrt', lambda x: x**(1/3))
 ###############
 # Update class_params with default values. This has already been done
 # before for the version of class_params inside of user_params.
-# Make sure that the same variables are updated here as there.
-# Specification of general, default CLASS parameters
-class_params_default = {'H0'       : H0/(units.km/(units.s*units.Mpc)),
-                        'Omega_cdm': Ωcdm,
-                        'Omega_b'  : Ωb,
-                        }
-# Add in neutrino CLASS parameters, if neutrinos are present
-if int(class_params.get('N_ncdm', 0)) != 0:
-    class_params_default.update({# Disable fluid approximation for non-CDM species
-                                 'ncdm_fluid_approximation': 3,
-                                 # Neutrino options needed for accurate δP/δρ
-                                 'Quadrature strategy': 3,
-                                 'evolver': 0,
-                                 'Number of momentum bins': 25,
-                                 'Maximum q': 15.0,
-                                 'l_max_ncdm': 50,
-                                 })
-# Apply updates to the CLASS parameters
-for param_name, param_value in class_params_default.items():
-    class_params.setdefault(param_name, param_value)
+update_class_params(class_params)
 # Function which turns a dict of items into a dict of str's
 def stringify_dict(d):
     # Convert keys and values to str's

@@ -55,6 +55,7 @@ fi
 
 # Use Python's argparse module to handle command-line arguments
 argparse_finished="no"
+argparse_exit_code=""
 args=$("${python}" -B -c "
 import argparse, sys
 # Setup command-line arguments
@@ -96,13 +97,18 @@ sys.stdout = stdout_copy
 print('argparse_finished=yes')
 print('version=\"{}\"'.format(args.version))
 print('reinstall=\"{}\"'.format(args.reinstall))
-" "$@" || :)
+" "$@" || echo "argparse_exit_code=$?")
 # Evaluate the handled arguments into this scope
 eval "${args}"
 # Exit if argparse exited without finishing
 if [ "${argparse_finished}" != "yes" ]; then
-    trap : 0
-    exit 0
+    if [ -z "${argparse_exit_code}" ]; then
+        argparse_exit_code=0
+    fi
+    if [ ${argparse_exit_code} -eq 0 ]; then
+        trap : 0
+    fi
+    exit ${argparse_exit_code}
 fi
 
 # If not called indirectly through the concept script,
