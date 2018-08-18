@@ -10,8 +10,8 @@ _Σmν = 0.1  # Sum of the three neutrino massed in eV
 output_dirs = {'powerspec': paths['output_dir'] + '/class'}
 
 # Numerical parameters
-boxsize = 1000*Gpc/h
-φ_gridsize = 1_000_000
+boxsize = 1000*Gpc
+φ_gridsize = 10**6
 modes_per_decade = 30
 
 # Cosmology
@@ -25,14 +25,21 @@ class_params = {
     'n_s'    : 0.96,
     'alpha_s': 0.0,
     'k_pivot': 0.05,
-    # Neutrinos
-    'N_ur'                   : 0,
-    'N_ncdm'                 : 1,
-    'deg_ncdm'               : 3,
-    'm_ncdm'                 : _Σmν/3 if _Σmν else 1e-100,
-    'l_max_ncdm'             : 100,
-    'Number of momentum bins': 100,
-    'Maximum q'              : 20,
+    # Add a 3-times degenerate neutrino
+    'N_ur'    : 0,
+    'N_ncdm'  : 1,
+    'deg_ncdm': 3,
+    'm_ncdm'  : _Σmν/3 if _Σmν else 1e-100,
+    # Neutrino precision parameters
+    'ncdm_fluid_approximation': 3,
+    'l_max_ncdm'              : 100,
+    'Number of momentum bins' : 100,
+    'Maximum q'               : 20,
+    # Phoon precision parameters
+    'radiation_streaming_approximation': 3,
+    'l_max_g'                          : 1000,
+    'l_max_pol_g'                      : 500,
+
 }
 
 # Simulation options
