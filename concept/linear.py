@@ -567,7 +567,10 @@ class CosmoResults:
         H_Tʹ: [time⁻¹]        = [c/Mpc],
         ϕ   : [length²time⁻²] = [c²],
         ψ   : [length²time⁻²] = [c²],
-        and so γ also gets units of [length²time⁻²].
+        and so γ also gets units of [length²time⁻²]. Note that H_T is
+        some times defined to have units of [length²]. The H_T_Nb_prime
+        from CLASS follows the unitless convention of
+        https://arxiv.org/pdf/1708.07769.pdf
         We choose to compute k²γ, not γ by itself.
         Using ʹ = d/dτ = a*d/dt = a²H(a)*d/da, we have
         k²γ(a) = -a*H(a)(a*dH_Tʹ(a)/da + H_Tʹ(a)) + k²(ϕ(a) - ψ(a)).
