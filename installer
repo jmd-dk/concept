@@ -1631,15 +1631,25 @@ validate_url(){
                 # failure when using ftp.
                 mkdir -p "${top_dir}/tmp"
                 (cd "${top_dir}/tmp"
-                 wget -t 1 --timeout 30 --no-check-certificate --no-dns-cache -q --spider \
-                      --no-remove-listing ${ipv} "${url}" || :)
+                 wget -t 1 --timeout 30 --no-check-certificate --no-dns-cache --spider \
+                      --no-remove-listing ${ipv} "${url}" > "${top_dir}/tmp/.wget" 2>&1 || :)
                 grep "${filename}" "${top_dir}/tmp/.listing" > /dev/null 2>&1 \
                      || wget_status="error"
                 rm -f "${top_dir}/tmp/.listing"
             else
-                wget -t 1 --timeout 30 --no-check-certificate --no-dns-cache -q --spider ${ipv} \
-                     "${url}" || wget_status="error"
+                wget -t 1 --timeout 30 --no-check-certificate --no-dns-cache --spider ${ipv} \
+                     "${url}" > "${top_dir}/tmp/.wget" 2>&1 || wget_status="error"
             fi
+            if [ "${wget_status}" == "error" ]; then
+                # Heavy scraping can result in bans, indicated by a
+                # "429 Too Many Requests" error. This does not mean
+                # that we cannot download the file, just that the
+                # spider has been disallowed by the server.
+                if grep "429" "${top_dir}/tmp/.wget" >/dev/null 2>&1; then
+                    wget_status="success"
+                fi
+            fi
+            rm -f "${top_dir}/tmp/.wget"
             if [ "${wget_status}" == "success" ]; then
                 break
             fi
@@ -3716,15 +3726,19 @@ Date:    $(date)
 fi
 # Create a python variable, storing the path to the Python interpreter
 if [ -n "${python_dir}" ]; then
+    found_python_interpreter="no"
     for python_version_major in 3 2; do
         if [ -f "${python_dir}/bin/python${python_version_major}" ]; then
+            found_python_interpreter="yes"
             break
         fi
     done
-    python_version_major_dot_minor=$("${python_dir}/bin/python${python_version_major}" -c \
-                                     "from sys import version_info as v; \
-                                     print(str(v.major) + '.' + str(v.minor))")
-    python="${python_dir}/bin/python${python_version_major_dot_minor}"
+    if [ "${found_python_interpreter}" == "yes" ]; then
+        python_version_major_dot_minor=$("${python_dir}/bin/python${python_version_major}" -c \
+                                         "from sys import version_info as v; \
+                                         print(str(v.major) + '.' + str(v.minor))")
+        python="${python_dir}/bin/python${python_version_major_dot_minor}"
+    fi
 fi
 
 
@@ -4620,6 +4634,27 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "  return _SUCCESS_;"                    \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
+    # When using evolver = 0, it appears that the ppw struct has not
+    # been updated correctly when it is time to print the
+    # perturbation results. To fix this, we insert a call to
+    # perturb_total_stress_energy at the top of perturb_print_variables.
+    pattern=' +a *= *pvecback'
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+             "${class_dir}/source/perturbations.c" | head -n 1)
+    ((linenr += 1))
+    new_lines=(                                                                     \
+        "/**"                                                                       \
+        " * Ensure that the ppw (and other) structs are up-to-date,"                \
+        " * which does not seem to be the case when using evolver = 0."             \
+        " *"                                                                        \
+        " */"                                                                       \
+        "struct precision * ppr;"                                                   \
+        "ppr = pppaw->ppr;"                                                         \
+        "class_call(perturb_total_stress_energy(ppr,pba,pth,ppt,index_md,k,y,ppw)," \
+        "  ppt->error_message,"                                                     \
+        "  ppt->error_message);"                                                    \
+    )
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
     # The a = 1 results are not always printed out by CLASS. Fix this.
     pattern='\\( *verbose *> *0\\)'
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
@@ -4728,80 +4763,11 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
     linenr=$(new_class_perturbation_linenr "perturb_print_variables")
-    new_lines=(                                                                                \
-        "/**"                                                                                  \
-        " * Include theta_tot in perturbation output."                                         \
-        " * We compute this as theta_tot = rho_plus_p_theta/rho_plus_p_tot."                   \
-        " * We can reliably get rho_plus_p_tot using"                                          \
-        " *   rho_plus_p_tot = -2./3.*pvecback[pba->index_bg_H_prime]/a+2./3.*pba->K/a/a"      \
-        " * and we should be able to get rho_plus_p_theta from"                                \
-        " *   ppw->rho_plus_p_theta"                                                           \
-        " * However, when using evolver = 0, something goes wrong and ppw->rho_plus_p_theta"   \
-        " * end up with slightly erroneous values."                                            \
-        " * Here we simply compute both rho_plus_p_theta and rho_plus_p_tot"                   \
-        " * by adding up the contribution from each species."                                  \
-        " *"                                                                                   \
-        " */"                                                                                  \
-        "double theta_tot, rho_plus_p_tot, rho_plus_p_theta, rho_plus_p;"                      \
-        "rho_plus_p_tot = 0.;"                                                                 \
-        "rho_plus_p_theta = 0.;"                                                               \
-        "/* Photons */"                                                                        \
-        "rho_plus_p = (1. + 1./3.)*pvecback[pba->index_bg_rho_g];"                             \
-        "rho_plus_p_tot += rho_plus_p;"                                                        \
-        "rho_plus_p_theta += rho_plus_p*theta_g;"                                              \
-        "/* Baryons */"                                                                        \
-        "rho_plus_p = (1. + 0.)*pvecback[pba->index_bg_rho_b];"                                \
-        "rho_plus_p_tot += rho_plus_p;"                                                        \
-        "rho_plus_p_theta += rho_plus_p*theta_b;"                                              \
-        "/* Ultra relativistic species */"                                                     \
-        "if (pba->has_ur){"                                                                    \
-        "  rho_plus_p = (1. + 1./3.)*pvecback[pba->index_bg_rho_ur];"                          \
-        "  rho_plus_p_tot += rho_plus_p;"                                                      \
-        "  rho_plus_p_theta += rho_plus_p*theta_ur;"                                           \
-        "}"                                                                                    \
-        "/* Cold dark matter */"                                                               \
-        "if (pba->has_cdm){"                                                                   \
-        "  rho_plus_p= (1. + 0.)*pvecback[pba->index_bg_rho_cdm];"                             \
-        "  rho_plus_p_tot += rho_plus_p;"                                                      \
-        "  rho_plus_p_theta += rho_plus_p*theta_cdm;"                                          \
-        "}"                                                                                    \
-        "/* Non-cold dark matter */"                                                           \
-        "if ((pba->has_ncdm == _TRUE_) && ((ppt->has_density_transfers == _TRUE_)"             \
-        "  || (ppt->has_velocity_transfers == _TRUE_) || (ppt->has_source_delta_m == _TRUE_))" \
-        "){"                                                                                   \
-        "  for (n_ncdm=0; n_ncdm < pba->N_ncdm; n_ncdm++){"                                    \
-        "    rho_plus_p = (pvecback[pba->index_bg_rho_ncdm1+n_ncdm] "                          \
-        "      + pvecback[pba->index_bg_p_ncdm1+n_ncdm]);"                                     \
-        "    rho_plus_p_tot += rho_plus_p;"                                                    \
-        "    rho_plus_p_theta += rho_plus_p*theta_ncdm[n_ncdm];"                               \
-        "  }"                                                                                  \
-        "}"                                                                                    \
-        "/* Decaying cold dark matter */"                                                      \
-        "if (pba->has_dcdm){"                                                                  \
-        "  rho_plus_p = (1. + 0.)*pvecback[pba->index_bg_rho_dcdm];"                           \
-        "  rho_plus_p_tot += rho_plus_p;"                                                      \
-        "  rho_plus_p_theta += rho_plus_p*theta_dcdm;"                                         \
-        "}"                                                                                    \
-        "/* Dark radiation */"                                                             \
-        "if (pba->has_dr){"                                                                    \
-        "  rho_plus_p = (1. + 1./3.)*pvecback[pba->index_bg_rho_dr];"                          \
-        "  rho_plus_p_tot += rho_plus_p;"                                                      \
-        "  rho_plus_p_theta += rho_plus_p*theta_dr;"                                           \
-        "}"                                                                                    \
-        "/* Scalar field */"                                                                   \
-        "if (pba->has_scf){"                                                                   \
-        "  rho_plus_p = pvecback[pba->index_bg_rho_scf] + pvecback[pba->index_bg_p_scf];"      \
-        "  rho_plus_p_tot += rho_plus_p;"                                                      \
-        "  rho_plus_p_theta += rho_plus_p*theta_scf;"                                          \
-        "}"                                                                                    \
-        "/* Dark energy fluid */"                                                              \
-        "if (pba->has_fld){"                                                                   \
-        "  rho_plus_p_theta += ppw->rho_plus_p_theta_fld;"                                     \
-        "  rho_plus_p_tot += (ppw->rho_plus_p_theta_fld)/theta_fld;"                           \
-        "}"                                                                                    \
-        "/* Compute and store theta_tot */"                                                    \
-        "theta_tot = rho_plus_p_theta/rho_plus_p_tot;"                                         \
-        "class_store_double(dataptr, theta_tot, _TRUE_, storeidx);"                            \
+    new_lines=(                                                                                  \
+        "/* Include theta_tot in perturbation output */"                                         \
+        "double rho_plus_p_tot = -2./3.*pvecback[pba->index_bg_H_prime]/a + 2./3.*pba->K/(a*a);" \
+        "double theta_tot = ppw->rho_plus_p_theta/rho_plus_p_tot;"                               \
+        "class_store_double(dataptr, theta_tot, _TRUE_, storeidx);"                              \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
     # Include h_prime in perturbation output
@@ -4843,7 +4809,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "/* Non-cold dark matter */"                                                        \
         "if (pba->has_ncdm == _TRUE_){"                                                     \
         "  for(n_ncdm=0; n_ncdm < pba->N_ncdm; n_ncdm++)"                                   \
-        "    p_tot_prime += -a*H*(5*pvecback[pba->index_bg_p_ncdm1+n_ncdm] "                \
+        "    p_tot_prime += -a*H*(5*pvecback[pba->index_bg_p_ncdm1+n_ncdm]"                 \
         "    - pvecback[pba->index_bg_pseudo_p_ncdm1+n_ncdm]);"                             \
         "}"                                                                                 \
         "/* Decaying cold dark matter has no pressure */"                                   \
@@ -4852,18 +4818,18 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "  p_tot_prime += -4./3.*a*H*pvecback[pba->index_bg_rho_dr];"                       \
         "/* Scalar field */"                                                                \
         "if (pba->has_fld == _TRUE_){"                                                      \
-        "  p_tot_prime += a*H*pvecback[pba->index_bg_rho_fld] "                             \
+        "  p_tot_prime += a*H*pvecback[pba->index_bg_rho_fld]"                              \
         "    *(a*dw_over_da_fld - 3*w_fld*(1 + w_fld));"                                    \
         "}"                                                                                 \
         "/* Dark energy fluid */"                                                           \
         "if (pba->has_scf == _TRUE_){"                                                      \
-        "  p_tot_prime += -3*H/a*pvecback[pba->index_bg_phi_prime_scf] "                    \
+        "  p_tot_prime += -3*H/a*pvecback[pba->index_bg_phi_prime_scf]"                     \
         "    *pvecback[pba->index_bg_phi_prime_scf]"                                        \
         "    - 2./3.*pvecback[pba->index_bg_dV_scf]*pvecback[pba->index_bg_phi_prime_scf];" \
         "}"                                                                                 \
         "/* Lambda has constant pressure */"                                                \
-        "double H_T_Nb_prime = 3*a*H/rho_plus_p_tot*( "                                     \
-        "  -ppw->delta_p + p_tot_prime*ppw->rho_plus_p_theta/rho_plus_p_tot/(k*k) "         \
+        "double H_T_Nb_prime = 3*a*H/rho_plus_p_tot*("                                      \
+        "  -ppw->delta_p + p_tot_prime*ppw->rho_plus_p_theta/rho_plus_p_tot/(k*k)"          \
         "  + ppw->rho_plus_p_shear);"                                                       \
         "class_store_double(dataptr, H_T_Nb_prime, _TRUE_, storeidx);"                      \
     )
@@ -4939,7 +4905,6 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "if ((abort == _FALSE_) && (ppt->perturbations_verbose < 0)) {" \
         "  printf("                                                     \
         "    \"%*sNode %d: Evolving mode k = %e/Mpc (%d/%d)\\\\n\","    \
-
         "    pba->indentation, \"\","                                   \
         "    pba->node,"                                                \
         "    ppt->k[index_md][index_k],"                                \
