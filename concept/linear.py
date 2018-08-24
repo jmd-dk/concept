@@ -130,7 +130,7 @@ class CosmoResults:
         def construct_func(var_name):
             return (
                 lambda a, component=None, get='as_function_of_k':
-                    self.transfer_function(a, component, var_name, get)
+                    self.transfer_function(var_name, component, get, a)
             )
         for var_name in self.transfer_function_variable_names:
             setattr(self, var_name, construct_func(var_name))
@@ -332,18 +332,40 @@ class CosmoResults:
             # Assuming a flat universe, we have rho_tot == rho_crit.
             if '(.)rho_crit' in self._background:
                 self._background['(.)rho_tot'] = self._background['(.)rho_crit']
-            # We define the special "metric" CLASS species to have a
-            # background density equal to the critical density,
-            # and zero pressure.
-            if '(.)rho_crit' in self._background:
-                self._background['(.)rho_metric'] = self._background['(.)rho_crit']
-                self._background['(.)p_metric'] = np.zeros(
-                    self._background['(.)rho_metric'].size, dtype=C2np['double'])
+            # The special "metric" CLASS species needs to be assigned
+            # some background density, but since we get δρ directly
+            # from CLASS and neither δ nor ρ_bar has any
+            # physical meaning, this background density can be
+            # chosen arbitrarily. Since CO𝘕CEPT relies on
+            # ϱ_bar = a**(3*(1 + w_eff(a)))*ρ_bar(a)
+            # being constant for all species, we also need to assign
+            # the "metric" species an effective equation of
+            # state w_eff(a). This is constructed automatically from the
+            # equation of state w(a), which in turn is constructed from
+            # the background pressure. Thus, though the "metric" species
+            # has no pressure in any meaningful sense, we need to assign
+            # it the background pressure that matchea the assigned
+            # background density. In principle we could steal the
+            # background density and pressure from any of the other,
+            # physical species, or construct a new pair of consistent
+            # background densities and pressures. However, it turns out
+            # that δρ(k, a) goes approximately like a⁻⁴ for a given k
+            # (really it is the envelope of its oscillatins that has
+            # this behaior), which is also the behavior of photons.
+            # Choosing the photon background density and pressure
+            # for the "metric" species then leads to more
+            # accurate splines, which is useful to better
+            # resolve the many oscillaions in δρ.
+            self._background['(.)rho_metric'] = self._background['(.)rho_g']
+            self._background['(.)p_metric'] = self._background['(.)p_g']
             # Remove doppelgänger values in all background variables,
             # using the scale factor array as x values.
             for key, val in self._background.items():
-                _, self._background[key] = remove_doppelgängers(
-                    self._background['a'], val, copy=True)
+                if key != 'a':
+                    _, self._background[key] = remove_doppelgängers(
+                        self._background['a'], val, copy=True)
+            _, self._background['a'] = remove_doppelgängers(
+                self._background['a'], self._background['a'], copy=True)
         return self._background
     # The raw perturbations
     @property
@@ -579,23 +601,42 @@ class CosmoResults:
               = k²γ(a)/(4πGa²)
         where the factor 3/(8πG) = 1 in CLASS units.
         Side-note: In this form (k²γ = 4πGa²δρ) it is clear that γ
-        indead is a potential.
+        indead is a potential. The missing sign comes from the CLASS
+        convention (which is adopted in CO𝘕CEPT) of having δ
+        (and hence δρ) transfer functions be negative.
         Finally, since we want δ(a), we divide by the arbitrary but
         pre-defined background density ρ_metric:
         δ(a) = k²γ(a)/(4πGa²ρ_metric).
+        The δ perturbations will be in N-body gauge, the only gauge in
+        which these will contain all linear GR corrections,
+        and therefore the only gauge of interest when it comes to the
+        "metric" species. Whenever a transfer function in N-body gauge
+        is needed, the compute_transfer function will carry out
+        this conversion, assuming that the stored transfer function
+        is in synchronous gauge. With the "metric" perturbations already
+        in N-body gauge, this transformation should not be carried out.
+        We cannot simply add a condition inside compute_transfer,
+        as this cannot work for combined species which the "metric" is
+        part of. We instead need to keep all transfer functions in
+        synchronous gauge, meaning that we have to transform δ from
+        N-body gauge to synchronous gauge. This transformation will then
+        be exactly cancelled out in the compute_transfer function.
+
         """
         # Check that the delta_metric perturbations
         # has not already been added.
         if 'delta_metric' in self._perturbations[0]:
             return
         masterprint('Constructing metric δ perturbations ...')
-        for k, perturbation in zip(self.k_magnitudes, self._perturbations):
+        for k, perturbation in enumerate(self._perturbations):
+            k_magnitude = self.k_magnitudes[k]
             # Extract needed perturbations along with
             # the scalefactor at which they are tabulated.
-            a    = perturbation['a'           ]
-            ϕ    = perturbation['phi'         ]*ℝ[light_speed**2]
-            ψ    = perturbation['psi'         ]*ℝ[light_speed**2]
-            H_Tʹ = perturbation['H_T_Nb_prime']*ℝ[light_speed/units.Mpc]
+            a     = perturbation['a'           ]
+            ϕ     = perturbation['phi'         ]*ℝ[light_speed**2]
+            ψ     = perturbation['psi'         ]*ℝ[light_speed**2]
+            H_Tʹ  = perturbation['H_T_Nb_prime']*ℝ[light_speed/units.Mpc]
+            θ_tot = perturbation['theta_tot'   ]*ℝ[light_speed/units.Mpc]
             # Compute the derivative of H_Tʹ with respect to a
             H_Tʹ_spline = Spline(a, H_Tʹ)
             Ḣ_Tʹ = asarray([H_Tʹ_spline.eval_deriv(a_i) for a_i in a])
@@ -604,9 +645,14 @@ class CosmoResults:
             H = asarray([hubble(a_i) for a_i in a])
             ρ_metric = self.ρ_bar(a, 'metric')
             # Construct the γ potential
-            k2γ = -a*H*(a*Ḣ_Tʹ + H_Tʹ) + k**2*(ϕ - ψ)
-            # Construct the δ perturbation
+            k2γ = -a*H*(a*Ḣ_Tʹ + H_Tʹ) + k_magnitude**2*(ϕ - ψ)
+            # Construct the δ perturbation (in N-body gauge)
             δ = k2γ/(ℝ[4*π*G_Newton]*a**2*ρ_metric)
+            # Transform from N-body gauge to synchronous gauge
+            w_metric = asarray([self.w(a_i, 'metric') for a_i in a])
+            δ -= ℝ[3/light_speed**2]*a*H*(1 + w_metric)*θ_tot/k_magnitude**2
+            # Store the "metric" δ perturbations,
+            # now in synchronous gauge.
             perturbation['delta_metric'] = δ
         masterprint('done')
 
@@ -615,7 +661,7 @@ class CosmoResults:
     # directly, but rather call e.g. cosmoresults.δ(a, component).
     # Note that the transfer functions returned by this method are those
     # gotten from get_perturbations, not get_transfer.
-    def transfer_function(self, a, component, var_name, get='object'):
+    def transfer_function(self, var_name, component=None, get='object', a=-1):
         if not hasattr(self, '_transfer_functions'):
             self._transfer_functions = {}
         key = (component.class_species if component is not None else None, var_name)
@@ -692,6 +738,29 @@ class CosmoResults:
         if apply_unit:
             values *= ℝ[3/(8*π*G_Newton)*(light_speed/units.Mpc)**2*light_speed**2]
         return values
+    # Method for looking up the equation of state parameter w
+    # of a given component/species at some specific a.
+    def w(self, a, component_or_class_species):
+        if isinstance(component_or_class_species, str):
+            class_species = component_or_class_species
+        else:
+            class_species = component_or_class_species.class_species
+        ρ_bar = 0
+        P_bar = 0
+        for class_species in class_species.split('+'):
+            ρ_bar_spline = self.splines(f'(.)rho_{class_species}')
+            P_bar_spline = self.splines(f'(.)p_{class_species}')
+            # The input a may be either a scalar or an array
+            with unswitch:
+                if isinstance(a, (int, float)):
+                    ρ_bar += ρ_bar_spline.eval(a)
+                    P_bar += P_bar_spline.eval(a)
+                else:
+                    ρ_bar += asarray([ρ_bar_spline.eval(a_i) for a_i in a])
+                    P_bar += asarray([P_bar_spline.eval(a_i) for a_i in a])
+        # As we have done no unit convertion, the ratio P_bar/ρ_bar
+        # gives us the unitless w.
+        return P_bar/ρ_bar
     # Method for looking up the linear growth rate f_growth = H⁻¹Ḋ/D
     # (with D the linear growth factor) at some a.
     @functools.lru_cache()
@@ -1266,39 +1335,49 @@ class TransferFunction:
                 # is in the form {log(a), perturbation_values - trend},
                 # with trend = factor*a**exponent. Here we find this
                 # trend trough curve fitting of perturbation_values.
-                fitted_trends = [
-                    scipy.optimize.curve_fit(
-                        self.power_law,
-                        a_values,
-                        perturbation_values,
-                        (1, 0),
-                        bounds=bounds,
+                fitted_trends = []
+                for bounds in (
+                    ([-ထ, -exponent_max], [+ထ,  0           ]),
+                    ([-ထ,  0           ], [+ထ, +exponent_max]),
+                ):
+                    try:
+                        fitted_trends.append(
+                            scipy.optimize.curve_fit(
+                                self.power_law,
+                                a_values,
+                                perturbation_values,
+                                (1, 0),
+                                bounds=bounds,
+                            )
+                        )
+                    except:
+                        pass
+                if fitted_trends:
+                    self.factors[k], self.exponents[k] = fitted_trends[
+                        np.argmin([fitted_trend[1][1,1] for fitted_trend in fitted_trends])
+                    ][0]
+                else:
+                    warn(
+                        f'Failed to detrend {self.var_name} perturbations for '
+                        f'{self.component.name} at k = {self.k_magnitudes[k]} {unit_length}⁻¹. '
+                        f'The simulation will carry on without this detrending.'
                     )
-                    for bounds in (
-                        (
-                            [-ထ, -exponent_max],
-                            [+ထ,  0           ],
-                        ),
-                        (
-                            [-ထ,  0           ],
-                            [+ထ, +exponent_max],
-                        ),
-                    )
-                ]
-                self.factors[k], self.exponents[k] = fitted_trends[
-                    np.argmin([fitted_trend[1][1,1] for fitted_trend in fitted_trends])
-                ][0]
+                    self.factors[k], self.exponents[k] = 0, 1
                 if abs(self.factors[k]) == ထ:
                     abort(
                         f'Error processing {self.var_name} perturbations for '
-                        f'{self.component.name} at k = {self.k_magnitudes[k]} Mpc⁻¹: '
+                        f'{self.component.name} at k = {self.k_magnitudes[k]} {unit_length}⁻¹: '
                         f'Detrending resulted in factor = {self.factors[k]}.'
                     )
                 if isclose(abs(self.exponents[k]), exponent_max):
+                    sign_str = ''
+                    if self.exponents[k] < 0:
+                        sign_str = '-'
                     abort(
                         f'Error processing {self.var_name} perturbations for '
-                        f'{self.component.name} at k = {self.k_magnitudes[k]} Mpc⁻¹: '
-                        f'Detrending resulted in exponent = exponent_max = {exponent_max}.'
+                        f'{self.component.name} at k = {self.k_magnitudes[k]} {unit_length}⁻¹: '
+                        f'Detrending resulted in exponent = '
+                        f'{sign_str}exponent_max = {sign_str}{exponent_max}.'
                     )
                 if abs(self.exponents[k]) < ℝ[1e+3*machine_ϵ]:
                     self.exponents[k] = 0
@@ -1795,7 +1874,7 @@ def compute_transfer(
         # to N-body gauge, if requested. Note that the special "metric"
         # CLASS species is constructed directly in N-body gauge
         # and so does not need any transformation.
-        if gauge == 'nbody' and component.class_species != 'metric':
+        if gauge == 'nbody':
             # To do the gauge transformation,
             # we need the total θ transfer function.
             transfer_θ_tot = cosmoresults.θ(a)

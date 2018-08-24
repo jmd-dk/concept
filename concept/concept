@@ -641,9 +641,9 @@ if [ "${argparse_finished}" != "yes" ]; then
     exit ${argparse_exit_code}
 fi
 
-# Display warning if the required memory is below one megabyte
+# Display warning if the requested memory is below one megabyte
 if [ ${memory} -gt 0 ] && [ ${memory} -lt 1048576 ]; then
-    colorprint "Warning: The required memory is below 1 MB. \
+    colorprint "Warning: The requested memory is below 1 MB. \
 Have you forgotten to specify the unit?" "red"
 fi
 

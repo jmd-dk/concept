@@ -793,7 +793,7 @@ class Component:
                 approximation = approximation.replace(unicode_superscript(str(n)), str(n))
             # The P=wρ approximation
             approximation_transformed = approximation
-            for s in ('rho', r'\rho', '\rho'):
+            for s in ('\rho', r'\rho', 'rho'):
                 approximation_transformed = approximation_transformed.replace(s, unicode('ρ'))
             if approximation_transformed in {
                     unicode('P=wρ'),
@@ -2599,6 +2599,7 @@ representation_of_species = {
      'matter particles',
      'neutrinos',
      'photons',
+     'particles',
      ): 'particles',
     ('baryon fluid',
      'dark energy fluid',
@@ -2607,6 +2608,7 @@ representation_of_species = {
      'metric',
      'neutrino fluid',
      'photon fluid',
+     'fluid',
      ): 'fluid',
 }
 # Mapping from (CO𝘕CEPT) species names to default

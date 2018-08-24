@@ -264,26 +264,26 @@ set_version "libpng"          "1.6.35" "1.6.33"
 if [ "${mpi}" == "mpich" ]; then
     set_version "mpi"         "3.2.1"  "3.2.1"
 elif [ "${mpi}" == "openmpi" ]; then
-    set_version "mpi"         "3.1.1"
+    set_version "mpi"         "3.1.2"
 fi
 set_version "ncurses"         "6.1"    "6.1"
 set_version "openblas"        "0.3.2" "0.3.2"
-set_version "openssl"         "1.1.0h" "1.1.0h"
+set_version "openssl"         "1.1.0i" "1.1.0i"
 set_version "perl"            "5.28.0"
 set_version "python"          "3.7.0"
 set_version "zlib"            "1.2.11" "1.2.11"
 # Python packages
 set_version "blessings"     "1.7"
-set_version "cython"        "0.28.4"
+set_version "cython"        "0.28.5"
 set_version "cythongsl"     "0.2.2"
 set_version "h5py"          "2.8.0"
-set_version "matplotlib"    "2.2.2"
+set_version "matplotlib"    "2.2.3"
 set_version "mpi4py"        "3.0.0"
-set_version "numpy"         "1.15.0"
+set_version "numpy"         "1.15.1"
 set_version "pip"           "18.0"
-set_version "pytest"        "3.7.0"
+set_version "pytest"        "3.7.2"
 set_version "scipy"         "1.1.0"
-set_version "setuptools"    "40.0.0"
+set_version "setuptools"    "40.2.0"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
 # and specific versions of system dependencies.
@@ -4453,8 +4453,7 @@ ${zlib_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
     # wheels (not bare source) when building. This can be disabled by
     # supplying --no-build-isolation. We try both.
     # Some times the installation process will appear to hang,
-    # but it will eventually get going. This happens often for
-    # particular packages, such as h5py. When this is the case,
+    # but it will eventually get going. When this is the case,
     # write a soothing message.
     for extra_pip_arg in "" "--no-build-isolation"; do
         "${python}" -m pip install -v -v -v                          \
@@ -4599,7 +4598,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     new_lines=("}")
     patch_class "${class_dir}/source/background.c" ${linenr} "insert" "${new_lines[@]}"
     ((linenr -= 3))
-    new_lines=("if (pba->ncdm_quadrature_strategy[k] == qm_auto){")
+    new_lines=("if (pba->ncdm_quadrature_strategy[k] == qm_auto) {")
     patch_class "${class_dir}/source/background.c" ${linenr} "insert" "${new_lines[@]}"
     # Change the values of some preprocessing directives
     # in header files, allowing larger inputs and outputs.
@@ -4634,34 +4633,49 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "  return _SUCCESS_;"                    \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
-    # When using evolver = 0, it appears that the ppw struct has not
-    # been updated correctly when it is time to print the
-    # perturbation results. To fix this, we insert a call to
-    # perturb_total_stress_energy at the top of perturb_print_variables.
-    pattern=' +a *= *pvecback'
+    # When using the Runge-Kutta evolver, the derivatives are only
+    # computed at the beginning of each time step, which is not
+    # necessarily precise enough. Here we remove the derivative
+    # computation in tools/evolver_rkck.c entirely and place it
+    # in the perturb_print_variables function of
+    # source/perturbations.c instead. This also ensures that
+    # e.g. the ppw struct has been updated correctly
+    # when it is time to print the perturbation results.
+    pattern='( *x1 *== *x_ini *)'
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+             "${class_dir}/tools/evolver_rkck.c" | head -n 1)
+    new_lines=(                                          \
+        "/* derivs will be called in print_variables */" \
+        "if (0 == 1) {  /* (x1 == x_ini) { */"           \
+    )
+    patch_class "${class_dir}/tools/evolver_rkck.c" ${linenr} "replace" "${new_lines[@]}"
+
+    pattern='double *\\* *dataptr *;'
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
              "${class_dir}/source/perturbations.c" | head -n 1)
     ((linenr += 1))
-    new_lines=(                                                                     \
-        "/**"                                                                       \
-        " * Ensure that the ppw (and other) structs are up-to-date,"                \
-        " * which does not seem to be the case when using evolver = 0."             \
-        " *"                                                                        \
-        " */"                                                                       \
-        "struct precision * ppr;"                                                   \
-        "ppr = pppaw->ppr;"                                                         \
-        "class_call(perturb_total_stress_energy(ppr,pba,pth,ppt,index_md,k,y,ppw)," \
-        "  ppt->error_message,"                                                     \
-        "  ppt->error_message);"                                                    \
+    new_lines=(                                                                  \
+        "/**"                                                                    \
+        " * Compute perturbation derivatives. This also ensure that the"         \
+        " * ppw (and other) structs are up-to-date. This is important"           \
+        " * when using the Runge-Kutta evolver, as this is otherwise"            \
+        " * not taken care off correctly."                                       \
+        " *"                                                                     \
+        " */"                                                                    \
+        "class_call("                                                            \
+        "  perturb_derivs(tau, y, dy, parameters_and_workspace, error_message)," \
+        "  error_message,"                                                       \
+        "  error_message);"                                                      \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
-    # The a = 1 results are not always printed out by CLASS. Fix this.
+    # The a = 1 results are not always printed out by CLASS
+    # when using the ndf15 evolver. Fix this.
     pattern='\\( *verbose *> *0\\)'
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
              "${class_dir}/tools/evolver_ndf15.c" | head -n 1)
     new_lines=(                                                             \
         "/* If we are printing variables, we must store the final point */" \
-        "if (print_variables!=NULL){"                                       \
+        "if (print_variables!=NULL) {"                                      \
         "  class_call((*print_variables)(tnew, ynew+1, f0+1,"               \
         "    parameters_and_workspace_for_derivs, error_message),"          \
         "    error_message, error_message);"                                \
@@ -4683,7 +4697,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     ((linenr += 2))
     new_lines=(                                                                   \
         "/* Include ncdm Psi0[q] in perturbation output */"                       \
-        "for (index_q=0; index_q<pba->q_size_ncdm[n_ncdm]; index_q++){"           \
+        "for (index_q=0; index_q<pba->q_size_ncdm[n_ncdm]; index_q++) {"          \
         "  sprintf(tmp,\"Psi0[%d](%.16f)\",n_ncdm,pba->q_ncdm[n_ncdm][index_q]);" \
         "  class_store_columntitle(ppt->scalar_titles,tmp,_TRUE_);"               \
         "}"                                                                       \
@@ -4693,21 +4707,21 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
              "${class_dir}/source/perturbations.c" | head -n 1)
     ((linenr += 1))
-    new_lines=(                                                           \
-        "/* Include ncdm Psi0[q] in perturbation output */"               \
-        "if (ppw->approx[ppw->index_ap_ncdmfa] == (int)ncdmfa_on){"       \
-        "  for (index_q=0; index_q<pba->q_size_ncdm[n_ncdm]; index_q++){" \
-        "    class_store_double(dataptr, 0.0, _TRUE_, storeidx);"         \
-        "  }"                                                             \
-        "}"                                                               \
-        "else{"                                                           \
-        "  idx = ppw->pv->index_pt_psi0_ncdm1;"                           \
-        "  for (index_q=0; index_q<pba->q_size_ncdm[n_ncdm]; index_q++){" \
-        "    class_store_double(dataptr, y[idx], _TRUE_, storeidx);"      \
-        "    /* Jump to next momentum bin */"                             \
-        "    idx += (ppw->pv->l_max_ncdm[n_ncdm]+1);"                     \
-        "  }"                                                             \
-        "}"                                                               \
+    new_lines=(                                                            \
+        "/* Include ncdm Psi0[q] in perturbation output */"                \
+        "if (ppw->approx[ppw->index_ap_ncdmfa] == (int)ncdmfa_on) {"       \
+        "  for (index_q=0; index_q<pba->q_size_ncdm[n_ncdm]; index_q++) {" \
+        "    class_store_double(dataptr, 0.0, _TRUE_, storeidx);"          \
+        "  }"                                                              \
+        "}"                                                                \
+        "else{"                                                            \
+        "  idx = ppw->pv->index_pt_psi0_ncdm1;"                            \
+        "  for (index_q=0; index_q<pba->q_size_ncdm[n_ncdm]; index_q++) {" \
+        "    class_store_double(dataptr, y[idx], _TRUE_, storeidx);"       \
+        "    /* Jump to next momentum bin */"                              \
+        "    idx += (ppw->pv->l_max_ncdm[n_ncdm]+1);"                      \
+        "  }"                                                              \
+        "}"                                                                \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
     # Include dark energy fluid in perturbation output
@@ -4745,7 +4759,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     new_lines=(                                                                                   \
         "/* Include dark energy fluid in perturbation output */"                                  \
         "double w_fld, dw_over_da_fld, integral_fld, theta_fld;"                                  \
-        "if (pba->has_fld){"                                                                      \
+        "if (pba->has_fld) {"                                                                     \
         "  class_call(background_w_fld(pba, a, &w_fld, &dw_over_da_fld, &integral_fld),"          \
         "    pba->error_message, ppt->error_message);"                                            \
         "  class_store_double(dataptr, ppw->delta_rho_fld/pvecback[pba->index_bg_rho_fld],"       \
@@ -4807,7 +4821,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "  p_tot_prime += -4./3.*a*H*pvecback[pba->index_bg_rho_ur];"                       \
         "/* Cold dark matter has no pressure */"                                            \
         "/* Non-cold dark matter */"                                                        \
-        "if (pba->has_ncdm == _TRUE_){"                                                     \
+        "if (pba->has_ncdm == _TRUE_) {"                                                    \
         "  for(n_ncdm=0; n_ncdm < pba->N_ncdm; n_ncdm++)"                                   \
         "    p_tot_prime += -a*H*(5*pvecback[pba->index_bg_p_ncdm1+n_ncdm]"                 \
         "    - pvecback[pba->index_bg_pseudo_p_ncdm1+n_ncdm]);"                             \
@@ -4817,12 +4831,12 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "if (pba->has_dr == _TRUE_)"                                                        \
         "  p_tot_prime += -4./3.*a*H*pvecback[pba->index_bg_rho_dr];"                       \
         "/* Scalar field */"                                                                \
-        "if (pba->has_fld == _TRUE_){"                                                      \
+        "if (pba->has_fld == _TRUE_) {"                                                     \
         "  p_tot_prime += a*H*pvecback[pba->index_bg_rho_fld]"                              \
         "    *(a*dw_over_da_fld - 3*w_fld*(1 + w_fld));"                                    \
         "}"                                                                                 \
         "/* Dark energy fluid */"                                                           \
-        "if (pba->has_scf == _TRUE_){"                                                      \
+        "if (pba->has_scf == _TRUE_) {"                                                     \
         "  p_tot_prime += -3*H/a*pvecback[pba->index_bg_phi_prime_scf]"                     \
         "    *pvecback[pba->index_bg_phi_prime_scf]"                                        \
         "    - 2./3.*pvecback[pba->index_bg_dV_scf]*pvecback[pba->index_bg_phi_prime_scf];" \
@@ -4839,9 +4853,9 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
              "${class_dir}/source/perturbations.c" | head -n 1)
     ((linenr += 1))
-    new_lines=(                                           \
-        "/* Do not convert to Newtonian gauge */"         \
-        "if (0==1){  /* (ppt->gauge == synchronous) { */" \
+    new_lines=(                                              \
+        "/* Do not convert to Newtonian gauge */"            \
+        "if (0 == 1) {  /* (ppt->gauge == synchronous) { */" \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "replace" "${new_lines[@]}"
     # Add integers 'node' and 'indentation' and use these to make CLASS

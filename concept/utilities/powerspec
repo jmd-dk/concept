@@ -154,7 +154,7 @@ for ((i = 1; i <= N_snapshots; i += 1)); do
     snapshot_filename="$(echo "${snapshot_filenames}" | sed "${i}q;d")"
     snapshot_params_filename="$(echo "${snapshot_params_filenames}" | sed "${i}q;d")"
     # Make temporary parameter file with everything needed
-    printf "
+    echo "
 # The special_params dict, specifying details of the utility run
 special_params = {
     'special': '$(basename "${this_file}")',
@@ -197,7 +197,7 @@ paths['params'] = params_path_ori
             --no-watch                     \
             ${pure_python_flag}            \
             ${unsafe_build_flag}           \
-        | tee >(cat  >&4)                  \
+        | tee >(cat >&4)                   \
         | grep "^Log file: \|^Job "        \
         | head -n 1                        \
         ; echo "exit_code${PIPESTATUS[0]}" \
