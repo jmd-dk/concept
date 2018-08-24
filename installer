@@ -1623,13 +1623,13 @@ validate_url(){
     fi
     url="$(eval "echo \"\${${progname}_url}\"")"
     filename="$(basename "${url}")"
+    mkdir -p "${top_dir}/tmp"
     for n in {1..3}; do
         for ipv in "--inet4-only" "--inet6-only" ""; do
             wget_status="success"
             if [[ "${url}" == "ftp://"* ]]; then
                 # wget do not always return with a non-zero status on
                 # failure when using ftp.
-                mkdir -p "${top_dir}/tmp"
                 (cd "${top_dir}/tmp"
                  wget -t 1 --timeout 30 --no-check-certificate --no-dns-cache --spider \
                       --no-remove-listing ${ipv} "${url}" > "${top_dir}/tmp/.wget" 2>&1 || :)
