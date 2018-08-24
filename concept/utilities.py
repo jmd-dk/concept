@@ -769,6 +769,9 @@ def CLASS():
                 elif key == 'gr.fac. f':
                     # Unitless
                     key = 'f1'
+                elif key == '(.)w_fld':
+                    # Unitless
+                    key = 'w_fld'
                 else:
                     masterwarn(
                         f'Unrecognized CLASS background variable "{key}". '

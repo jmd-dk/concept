@@ -147,13 +147,13 @@ done
 # If supplied, convert parameter directory to absolute path
 # and put it in quotes.
 if [ "${generate_params}" != "False" ]; then
-    generate_params="\'$(absolute_path "${generate_params}" "${workdir}")\'"
+    generate_params="'$(absolute_path "${generate_params}" "${workdir}")'"
 fi
 
 # Make temporary parameter file with every information needed
 mkdir -p "${this_dir}/params"
 params_filename="${this_dir}/params/$(basename "${this_file}").params"
-printf "
+echo "
 # The special_params dict, specifying details of the utility run
 special_params = {
     'special'        : '$(basename "${this_file}")',

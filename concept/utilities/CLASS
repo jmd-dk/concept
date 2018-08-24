@@ -68,7 +68,7 @@ parser = argparse.ArgumentParser(prog='$(basename "${this_file}")',
 parser.add_argument(
     'perturbations',
     help=(
-        'comma separated string of CLASS species to produce perturbations/transfer '
+        'comma-separated string of CLASS species to produce perturbations/transfer '
         'functions for, e.g. \"b,cdm\" for baryons and cold dark matter. '
         'By default, only the δ transfer functions will be produced, corresponding '
         'to a Boltzmann order of 1. To also get transfer functions for variables '
@@ -142,7 +142,7 @@ fi
 # Make temporary parameter file with every information needed
 mkdir -p "${this_dir}/params"
 params_filename="${this_dir}/params/$(basename "${this_file}").params"
-printf "
+echo "
 # Specifications of fake components corresponding to the
 # perturbations argument of the CLASS utility.
 _initial_conditions = [
@@ -162,8 +162,10 @@ _initial_conditions = [
                 .replace('\"', '')
                 .replace(\"'\", '')
                 .replace(' ', '')
+                .strip(',+')
                 .split(',')
             )
+            if perturbation
         )
     )
 ]

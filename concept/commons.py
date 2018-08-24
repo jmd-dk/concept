@@ -1533,14 +1533,13 @@ def update_class_params(class_params, namespace=None):
     N_ncdm = int(class_params.get('N_ncdm', 0))
     if N_ncdm != 0:
         class_params_default.update({
-            # Disable fluid approximation for non-CDM species
-            'ncdm_fluid_approximation': 3,
-            # Neutrino options needed for accurate δP/δρ
+            # Options needed for accurate ncdm cs2 perturbations
             'evolver': 0,
+            'ncdm_fluid_approximation': 3,
             'l_max_ncdm': 50,
-            'Number of momentum bins': ','.join(['25']*N_ncdm),
-            'Maximum q': ','.join(['15']*N_ncdm),
             'Quadrature strategy': ','.join(['3']*N_ncdm),
+            'Number of momentum bins': ','.join(['25']*N_ncdm),
+            'Maximum q': ','.join(['20']*N_ncdm),
         })
     # Apply updates to the CLASS parameters
     for param_name, param_value in class_params_default.items():

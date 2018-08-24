@@ -11,7 +11,7 @@ output_dirs = {'powerspec': paths['output_dir'] + '/class'}
 
 # Numerical parameters
 boxsize = 1000*Gpc
-φ_gridsize = 10**6
+φ_gridsize = 1e+6
 modes_per_decade = 30
 
 # Cosmology
@@ -32,14 +32,19 @@ class_params = {
     'm_ncdm'  : _Σmν/3 if _Σmν else 1e-100,
     # Neutrino precision parameters
     'ncdm_fluid_approximation': 3,
+    'Quadrature strategy'     : 3,
     'l_max_ncdm'              : 100,
     'Number of momentum bins' : 100,
     'Maximum q'               : 20,
-    # Phoon precision parameters
+    # Photon precision parameters
     'radiation_streaming_approximation': 3,
     'l_max_g'                          : 1000,
     'l_max_pol_g'                      : 500,
-
+    # General precision parameters
+    'evolver'                     : 0,
+    'recfast_Nz0'                 : 1e+5,
+    'tol_thermo_integration'      : 1e-6,
+    'perturb_integration_stepsize': 0.25,
 }
 
 # Simulation options
