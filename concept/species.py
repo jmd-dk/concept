@@ -848,11 +848,6 @@ class Component:
         self._ϱ_bar = -1
         # Particle attributes
         self.mass = mass
-        if self.representation == 'fluid' and self.mass != -1:
-            masterwarn(
-                f'A mass ({self.mass} {unit_mass}) was specified '
-                f'for fluid component "{self.name}"'
-                )
         self.N_allocated = 1
         self.N_local = 1
         # Particle data
@@ -1149,13 +1144,21 @@ class Component:
                 # For fluids, ask CLASS for ρ_bar at the present time.
                 # If CLASS background computations are disabled,
                 # measure ϱ_bar directly from the component data.
-                if enable_class_background:
-                    cosmoresults = compute_cosmo(
-                        class_call_reason=f'in order to determine ̅ϱ of {self.name} ',
-                    )
-                    self._ϱ_bar = cosmoresults.ρ_bar(1, self.class_species)
+                if self.mass == -1:
+                    if enable_class_background:
+                        cosmoresults = compute_cosmo(
+                            class_call_reason=f'in order to determine ̅ϱ of {self.name} ',
+                        )
+                        self._ϱ_bar = cosmoresults.ρ_bar(1, self.class_species)
+                    else:
+                        self._ϱ_bar, σϱ, ϱ_min = measure(self, 'ϱ')
+                        if self._ϱ_bar == 0:
+                            masterwarn(
+                                f'Failed to measure ̅ϱ of {self.name}. '
+                                f'Try specifying the (fluid element) mass.'
+                            )
                 else:
-                    self._ϱ_bar, σϱ, ϱ_min = measure(self, 'ϱ')
+                    self._ϱ_bar = (self.gridsize/boxsize)**3*self.mass
         return self._ϱ_bar
 
     # This method populate the Component pos/mom arrays (for a
@@ -1915,8 +1918,7 @@ class Component:
     # at a certain time t or value of the scale factor a.
     # This has to be a pure Python function,
     # otherwise it cannot be called as ẇ(a=a).
-    @functools.lru_cache()
-    def ẇ(self, t=-1, a=-1):
+    def ẇ(self, *, t=-1, a=-1):
         """This method should not be called before w has been
         initialized by the initialize_w method.
         """
@@ -1929,12 +1931,20 @@ class Component:
         if self.w_type == 'constant':
             return 0
         if self.w_type == 'tabulated (t)':
+            if t == -1:
+                t = cosmic_time(a)
             return self.w_spline.eval_deriv(t)
         if self.w_type == 'tabulated (a)':
-            # The chain rule: dw/dt = da/dt*dw/da
+            # Here we use dw/dt = da/dt*dw/da
+            if a == -1:
+                a = scale_factor(t)
             return ȧ(a)*self.w_spline.eval_deriv(a)
         if self.w_type == 'expression':
             # Approximate the derivative via symmetric difference
+            if t == -1:
+                t = cosmic_time(a)
+            elif a == -1:
+                a = scale_factor(t)
             Δx = 1e+6*machine_ϵ
             units_dict['t'] = t - Δx
             units_dict['a'] = a - Δx
@@ -2220,7 +2230,8 @@ class Component:
                 self.w_constant = self.w_tabulated[1, 0]
             else:
                 # Construct a Spline object from the tabulated data
-                self.w_spline = Spline(self.w_tabulated[0, :], self.w_tabulated[1, :])
+                self.w_spline = Spline(self.w_tabulated[0, :], self.w_tabulated[1, :],
+                    f'w{self.w_type[len(self.w_type) - 3:]} of {self.name}')
 
     # Method which initializes the effective
     # equation of state parameter w_eff.
@@ -2276,13 +2287,13 @@ class Component:
         # is only ever done once per component we do not need to worry.
         # At a = 1 a division by 0 error occurs due to 1/log(a).
         # Here, we use the analytic result w_eff(a=1) = w(1=a).
-        integrand_spline = Spline(a_tabulated, integrand_tabulated)
+        integrand_spline = Spline(a_tabulated, integrand_tabulated, f'w(a)/a of {self.name}')
         w_eff_tabulated_list = [integrand_spline.integrate(1, a)/log(a)
                                 for a in a_tabulated[:(a_tabulated.size - 1)]]
         w_eff_tabulated_list.append(self.w(a=1))
         w_eff_tabulated = asarray(w_eff_tabulated_list)
         # Instantiate the w_eff spline object
-        self.w_eff_spline = Spline(a_tabulated, w_eff_tabulated)
+        self.w_eff_spline = Spline(a_tabulated, w_eff_tabulated, f'w_eff(a) of {self.name}')
         masterprint('done')
 
     # Method which convert named fluid/particle
