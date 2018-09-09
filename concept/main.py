@@ -32,6 +32,7 @@ cimport('from integration import cosmic_time,          '
         '                        expand,               '
         '                        hubble,               '
         '                        initiate_time,        '
+        '                        scale_factor,         '
         '                        scalefactor_integral, '
         )
 cimport('from interactions import find_interactions')
@@ -63,14 +64,19 @@ def scalefactor_integrals(step, Δt):
     go2dump = False
     t_dump = next_dump[1]
     if universals.t + 0.5*Δt + 1e-3*Δt > t_dump:
-        # Dump time will be rached by a time step of 0.5*Δt
+        # Dump time will be reached by a time step of 0.5*Δt
         # (or at least be so close that it is better to include the
         # last little bit). Go exactly to this dump time.
         go2dump = True
         Δt = 2*(t_dump - universals.t)
-    # Find a_next = a(t_next) and tabulate a(t)
+    # Find a_next = a(t_next)
     universals.t_next = universals.t + 0.5*Δt
-    universals.a_next = expand(universals.a, universals.t, 0.5*Δt)
+    if enable_class_background:
+        universals.a_next = scale_factor(universals.t_next)
+    else:
+        # When not using the CLASS background, we also need to
+        # tabulate a(t) from universals.t to universals.t + 0.5*Δt.
+        universals.a_next = expand(universals.a, universals.t, 0.5*Δt)
     if go2dump and next_dump[0] == 'a':
         # This will not change a_next by much. We do it to ensure
         # agreement with future floating point comparisons.
@@ -84,7 +90,7 @@ def scalefactor_integrals(step, Δt):
         abort('The value "{}" was given for the step'.format(step))
     # Do the scalefactor integrals
     for integrand in ᔑdt_steps:
-        ᔑdt_steps[integrand][index] = scalefactor_integral(integrand)
+        ᔑdt_steps[integrand][index] = scalefactor_integral(integrand, universals.t, 0.5*Δt)
 
 # Function which dump all types of output. The return value signifies
 # whether or not something has been dumped.
@@ -408,16 +414,11 @@ def timeloop():
             'ȧ/a',
             *[(integrand, component) for component in components
                 for integrand in (
-                    'a**(-3*w)',
-                    'a**(-3*w-1)',
-                    'a**(3*w-2)',
-                    'a**(3*w-2)*(1+w)',
+                    'a**(-3*w)',    # !!! Only used by gravity_old.py
+                    'a**(-3*w-1)',  # !!! Only used by gravity_old.py
                     'a**(-3*w_eff)',
-                    'a**(-3*w_eff)*w',
                     'a**(-3*w_eff-1)',
                     'a**(3*w_eff-2)',
-                    'a**(3*w_eff-2)*(1+w_eff)',
-                    'ẇlog(a)',
                 )
             ]
         )

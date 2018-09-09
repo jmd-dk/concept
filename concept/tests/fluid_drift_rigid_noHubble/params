@@ -40,6 +40,7 @@ boxsize = 64*Mpc
 t_begin = 0
 
 # Physics
+select_eos_w             = {'matter fluid': 'default'}
 select_boltzmann_closure = {'matter fluid': 'truncate'}
 select_approximations    = {'matter fluid': {'P=wρ': True}}
 

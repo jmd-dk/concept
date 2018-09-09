@@ -351,7 +351,7 @@ class CosmoResults:
             # background densities and pressures. However, it turns out
             # that δρ(k, a) goes approximately like a⁻⁴ for a given k
             # (really it is the envelope of its oscillatins that has
-            # this behaior), which is also the behavior of photons.
+            # this behaviour), which is also the behaviour of photons.
             # Choosing the photon background density and pressure
             # for the "metric" species then leads to more
             # accurate splines, which is useful to better
@@ -638,7 +638,7 @@ class CosmoResults:
             H_Tʹ  = perturbation['H_T_Nb_prime']*ℝ[light_speed/units.Mpc]
             θ_tot = perturbation['theta_tot'   ]*ℝ[light_speed/units.Mpc]
             # Compute the derivative of H_Tʹ with respect to a
-            H_Tʹ_spline = Spline(a, H_Tʹ)
+            H_Tʹ_spline = Spline(a, H_Tʹ, 'H_Tʹ(a)')
             Ḣ_Tʹ = asarray([H_Tʹ_spline.eval_deriv(a_i) for a_i in a])
             # Lastly, we need the Hubble parameter and the mean density
             # of the "metric" species at the times given by a.
@@ -692,7 +692,7 @@ class CosmoResults:
             self._splines = {}
         spline = self._splines.get(y)
         if spline is None:
-            spline = Spline(self.background['a'], self.background[y])
+            spline = Spline(self.background['a'], self.background[y], f'{y}(a)')
             self._splines[y] = spline
         return spline
     # Method for looking up the background density of a given
@@ -1432,7 +1432,10 @@ class TransferFunction:
                     )
                 # Construct cubic spline of
                 # {log(a), perturbations - trend}.
-                spline = Spline(np.log(a_values_k), perturbations_detrended_k)
+                spline = Spline(np.log(a_values_k), perturbations_detrended_k,
+                    f'detrended {self.class_species} {self.var_name} perturbations '
+                    f'as function of log(a) at k = {self.k_magnitudes[k]} {unit_length}⁻¹'
+                )
                 self.splines[k_send] = spline
                 # If class_plot_perturbations is True,
                 # plot the detrended perturbation and save it to disk.
@@ -1509,6 +1512,9 @@ class TransferFunction:
                 (factor*asarray(perturbations_detrended_largest_trusted_k)
                     *asarray(a_values_largest_trusted_k)**exponent
                 ),
+                f'detrended {self.class_species} {self.var_name} perturbations '
+                f'as function of log(a) at k = {self.k_magnitudes[k]} {unit_length}⁻¹ '
+                f'(produced from the largest trusted perturbation)'
             )
             self.splines[k] = spline
             # If class_plot_perturbations is True,
@@ -1939,7 +1945,9 @@ def compute_transfer(
               )
     # Construct a spline object over the tabulated transfer function
     if get == 'spline':
-        transfer_spline = Spline(k_magnitudes, transfer)
+        transfer_spline = Spline(k_magnitudes, transfer,
+            f'Transfer function (var_index = {var_index}) of component {component.name} at a = {a}'
+        )
         return transfer_spline, cosmoresults
     elif get == 'array':
         return transfer, cosmoresults

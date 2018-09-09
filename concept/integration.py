@@ -38,16 +38,32 @@ pxd('ctypedef double (*func_d_dd) (double, double)')
 @cython.cclass
 class Spline:
     # Initialization method
-    @cython.header(x='double[::1]', y='double[::1]')
-    def __init__(self, x, y):
+    @cython.header(
+        # Arguments
+        x='double[::1]',
+        y='double[::1]',
+        name=str,
+        logx='bint',
+        logy='bint',
+        # Locals
+        i='Py_ssize_t',
+    )
+    def __init__(self, x, y, name='', *, logx=False, logy=False):
         # Here x and y = y(x) are the tabulated data.
         # The values in x must be in increasing order.
+        # If logx (logy) is True, the log will be taken of the x (y)
+        # data before it is splined.
         #
         # The triple quoted string below serves as the type declaration
         # for the data attributes of the Spline type.
         # It will get picked up by the pyxpp script
         # and indluded in the .pxd file.
         """
+        double[::1] x
+        double[::1] y
+        str name
+        bint logx
+        bint logy
         double xmin
         double xmax
         double abs_tol_min
@@ -55,22 +71,55 @@ class Spline:
         gsl_interp_accel* acc
         gsl_spline* spline
         """
+        # The name is only for clearer error messages
+        self.name = name
         # The size of the data
         if x.shape[0] != y.shape[0]:
             abort(
+                f'Spline "{self.name}": '
                 f'A Spline object cannot be tabulated using arrays of different lengths. '
                 f'Arrays of lengths {x.shape[0]} and {y.shape[0]} were passed.'
             )
         if x.shape[0] < 3:
             abort(
+                f'Spline "{self.name}": '
                 f'Too few tabulated values ({x.shape[0]}) were given for '
                 f'cubic spline interpolation. At least 3 is needed.'
             )
+        # Take the log, if requested.
+        # Note that a copy of the input data is used,
+        # we do not mutate the input data.
+        self.logx, self.logy = logx, logy
+        if self.logx:
+            for i in range(x.shape[0]):
+                if x[i] <= 0:
+                    self.logx = False
+                    warn(
+                        f'Spline "{self.name}": '
+                        f'Could not take log of spline x data as it contains non-positive values'
+                    )
+                    break
+        if self.logx:
+            x = np.log(x)
+        if self.logy:
+            for i in range(y.shape[0]):
+                if y[i] <= 0:
+                    self.logy = False
+                    warn(
+                        f'Spline "{self.name}": '
+                        'Could not take log of spline y data as it contains non-positive values'
+                    )
+                    break
+        if self.logy:
+            y = np.log(y)
         # Check that the passed x values are strictly increasing and
         # remove doppelgänger points. Note that this does not mutate the
         # passed x and y arrays, and so the new x and y refer to
         # different underlying data.
         x, y = remove_doppelgängers(x, y)
+        # Store a copy of the non-logged, doppelgänger free data
+        self.x = np.exp(x) if self.logx else asarray(x).copy()
+        self.y = np.exp(y) if self.logy else asarray(y).copy()
         # Store meta data
         self.xmin = x[0]
         self.xmax = x[x.shape[0] - 1]
@@ -83,11 +132,8 @@ class Spline:
             # Here we simply overwrite the spline attribute.
             # The boundary condition type is set to 'natural'
             # as to match the default of GSL.
-            # Unlike the GSL version, the entirity of the spline is not
-            # constructed in the initialization. We therefore have to
-            # pass in a copy of the given data, as otherwize the
-            # values in memory may change between future evaluations.
-            self.spline = scipy.interpolate.CubicSpline(x.copy(), y.copy(), bc_type='natural')
+            self.spline = scipy.interpolate.CubicSpline(
+                asarray(x).copy(), asarray(y).copy(), bc_type='natural')
         else:
             # Allocate an interpolation accelerator
             # and a (cubic) spline object.
@@ -97,52 +143,81 @@ class Spline:
             gsl_spline_init(self.spline, cython.address(x[:]), cython.address(y[:]), x.shape[0])
 
     # Method for doing spline evaluation
-    @cython.pheader(x='double',
-                    returns='double',
-                    )
-    def eval(self, x):
-        # Check that the supplied x is within the interpolation interval
+    @cython.pheader(
+        # Arguments
+        x_in='double',
+        # Locals
+        x='double',
+        y='double',
+        returns='double',
+    )
+    def eval(self, x_in):
+        x = log(x_in) if self.logx else x_in
+        # Check that x is within the interpolation interval
         x = self.in_interval(x, 'interpolate to')
         # Use SciPy in pure Python and GSL when compiled
         if not cython.compiled:
-            return float(self.spline(x))
+            y = float(self.spline(x))
         else:
-            return gsl_spline_eval(self.spline, x, self.acc)
+            y = gsl_spline_eval(self.spline, x, self.acc)
+        # Undo the log
+        if self.logy:
+            y = exp(y)
+        return y
 
     # Method for doing spline derivative evaluation
-    @cython.header(x='double',
-                   returns='double',
-                   )
-    def eval_deriv(self, x):
-        # Check that the supplied x is within the interpolation interval
+    @cython.header(
+        # Arguments
+        x_in='double',
+        # Locals
+        x='double',
+        ẏ='double',
+        returns='double',
+    )
+    def eval_deriv(self, x_in):
+        x = log(x_in) if self.logx else x_in
+        # Check that x is within the interpolation interval
         x = self.in_interval(x, 'differentiate at')
         # Use SciPy in pure Python and GSL when compiled
         if not cython.compiled:
-            return self.spline(x, 1)
+            ẏ = self.spline(x, 1)
         else:
-            return gsl_spline_eval_deriv(self.spline, x, self.acc)
+            ẏ = gsl_spline_eval_deriv(self.spline, x, self.acc)
+        # Undo the log
+        if self.logx and self.logy:
+            # ∂ₓy(x) = y(x)/x*∂ₗₙ₍ₓ₎ln(y(x))
+            ẏ *= self.eval(x_in)/x_in
+        elif self.logx:
+            # ∂ₓy(x) = x⁻¹*∂ₗₙ₍ₓ₎y(x)
+            ẏ /= x_in
+        elif self.logy:
+            # ∂ₓy(x) = y(x)*∂ₓln(y(x))
+            ẏ *= self.eval(x_in)
+        return ẏ
 
     # Method for computing the definite integral over some
     # interval [a, b] of the splined function.
-    @cython.header(# Arguments
-                   a='double',
-                   b='double',
-                   # Locals
-                   sign_flip='bint',
-                   ᔑ='double',
-                   returns='double',
-                   )
+    @cython.header(
+        # Arguments
+        a='double',
+        b='double',
+        # Locals
+        sign_flip='bint',
+        ᔑ='double',
+        returns='double',
+    )
     def integrate(self, a, b):
+        if self.logx or self.logy:
+            abort(f'Spline "{self.name}": Spline integration not possible for logged data')
         # Check that the supplied limits are
         # within the interpolation interval.
         a = self.in_interval(a, 'integrate from')
         b = self.in_interval(b, 'integrate to')
         # The function gsl_spline_eval_integ fails for a > b.
         # Take care of this manually by switching a and b and note
-        # down a sign change.
-        if a < b:
-            sign_flip = False
-        else:
+        # the sign change.
+        sign_flip = False
+        if a > b:
             sign_flip = True
             a, b = b, a
         # Use SciPy in pure Python and GSL when compiled
@@ -170,6 +245,7 @@ class Spline:
                 x = self.xmin
             else:
                 abort(
+                    f'Spline "{self.name}": '
                     f'Could not {action} {x} because it is outside the tabulated interval '
                     f'[{self.xmin}, {self.xmax}]'
                 )
@@ -178,6 +254,7 @@ class Spline:
                 x = self.xmax
             else:
                 abort(
+                    f'Spline "{self.name}": '
                     f'Could not {action} {x} because it is outside the tabulated interval '
                     f'[{self.xmin}, {self.xmax}]'
                 )
@@ -694,27 +771,33 @@ integrand_tab_mv = cast(integrand_tab, 'double[:alloc_tab]')
 
 # Function for calculating integrals of the sort
 # ∫_t^(t + Δt) integrand(a) dt.
-@cython.header(# Arguments
-               key=object,  # str or tuple
-               # Locals
-               a='double',
-               component='Component',
-               i='Py_ssize_t',
-               integrand=str,
-               spline='Spline',
-               t='double',
-               w='double',
-               w_eff='double',
-               returns='double',
-               )
-def scalefactor_integral(key):
-    """This function returns the factor
-    ∫_t^(t + Δt) integrand(a) dt
-    used in the drift and kick operations. The integrand is passed
-    as the key argument, which may be a string (e.g. 'a⁻¹') or a tuple
-    in the format (string, component), where again the string is really
-    the integrand. This second form is used when the integrand is
-    component specific, e.g. 'a⁻³ʷ'.
+@cython.header(
+    # Arguments
+    key=object,  # str or tuple
+    t_ini='double',
+    Δt='double',
+    # Locals
+    a='double',
+    a_tab_spline='double[::1]',
+    component='Component',
+    i='Py_ssize_t',
+    integrand=str,
+    integrand_tab_spline='double[::1]',
+    size='Py_ssize_t',
+    spline='Spline',
+    t='double',
+    t_tab_spline='double[::1]',
+    w='double',
+    w_eff='double',
+    returns='double',
+)
+def scalefactor_integral(key, t_ini=-1.0, Δt=-1.0):
+    """This function returns the integral
+    ∫_t^(t + Δt) integrand(a) dt.
+    The integrand is passed as the key argument, which may be a string
+    (e.g. 'a**(-1)') or a tuple in the format (string, component),
+    where again the string is really the integrand. This second form is
+    used when the integrand is component specific, e.g. 'a**(-3*w_eff)'.
     It is important that the expand function expand(a, t, Δt) has been
     called prior to calling this function, as expand generates the
     values needed in the integration. You can call this function
@@ -723,70 +806,78 @@ def scalefactor_integral(key):
     """
     # Extract the integrand from the passed key
     if isinstance(key, str):
-        integrand = key
+        integrand, component = key, None
     else:  # tuple key
         integrand, component = key
-    # If expand has been called as it should, t_tab stores the tabulated
-    # values of t while f_tab now stores the tabulated values of a.
-    # Compute the integrand for these tabulated values.
-    for i in range(size_tab):
-        a = f_tab[i]
-        t = t_tab[i]
+    # When using the CLASS background, a(t) is already tabulated
+    # throughout time. Here we simply construct Spline objects over the
+    # given integrand and ask for the integral.
+    if enable_class_background:
+        spline = spline_t_integrands.get(key)
+        if spline is not None:
+            return spline.integrate(t_ini, t_ini + Δt)
+    # At this point, either enable_class_background is False,
+    # or this is the first time this function has been called with
+    # the given key. In both cases, we now need to tabulate
+    # the integrand.
+    if enable_class_background:
+        if component is None or component.w_type == 'constant':
+            a_tab_spline = spline_a_t.x
+            t_tab_spline = spline_a_t.y
+        else:
+            a_tab_spline = component.w_eff_spline.x
+            t_tab_spline = asarray([spline_a_t.eval(a) for a in a_tab_spline])
+        integrand_tab_spline = empty(t_tab_spline.shape[0], dtype=C2np['double'])
+        size = t_tab_spline.shape[0]
+    else:
+        # We do not use the CLASS background. If expand() has been
+        # called as it should, t_tab_mv stores the tabulated values of t
+        # while f_tab_mv stores the tabulated values of a.
+        a_tab_spline = f_tab_mv
+        t_tab_spline = t_tab_mv
+        integrand_tab_spline = integrand_tab_mv
+        size = size_tab
+    # Do the tabulation
+    for i in range(size):
+        a = a_tab_spline[i]
+        t = t_tab_spline[i]
         with unswitch:
             if integrand == '1' or integrand == '':
-                integrand_tab[i] = 1
+                integrand_tab_spline[i] = 1
             elif integrand == 'a**(-1)':
-                integrand_tab[i] = 1/a
+                integrand_tab_spline[i] = 1/a
             elif integrand == 'a**(-2)':
-                integrand_tab[i] = 1/a**2
+                integrand_tab_spline[i] = 1/a**2
             elif integrand == 'ȧ/a':
-                integrand_tab[i] = hubble(a)
-            elif integrand == 'a**(-3*w)':
+                integrand_tab_spline[i] = hubble(a)
+            elif integrand == 'a**(-3*w)':  # !!! Only used by gravity_old.py
                 w = component.w(t=t, a=a)
-                integrand_tab[i] = a**(-3*w)
+                integrand_tab_spline[i] = a**(-3*w)
+            elif integrand == 'a**(-3*w-1)':  # !!! Only used by gravity_old.py
+                w = component.w(t=t, a=a)
+                integrand_tab_spline[i] = a**(-3*w - 1)
             elif integrand == 'a**(-3*w_eff)':
                 w_eff = component.w_eff(t=t, a=a)
-                integrand_tab[i] = a**(-3*w_eff)
-            elif integrand == 'a**(-3*w_eff)*w':
-                w = component.w(t=t, a=a)
-                w_eff = component.w_eff(t=t, a=a)
-                integrand_tab[i] = a**(-3*w_eff)*w
-            elif integrand == 'a**(-3*w-1)':
-                w = component.w(t=t, a=a)
-                integrand_tab[i] = a**(-3*w - 1)
+                integrand_tab_spline[i] = a**(-3*w_eff)
             elif integrand == 'a**(-3*w_eff-1)':
                 w_eff = component.w_eff(t=t, a=a)
-                integrand_tab[i] = a**(-3*w_eff - 1)
-            elif integrand == 'a**(3*w-2)':
-                w = component.w(t=t, a=a)
-                integrand_tab[i] = a**(3*w - 2)
+                integrand_tab_spline[i] = a**(-3*w_eff - 1)
             elif integrand == 'a**(3*w_eff-2)':
                 w_eff = component.w_eff(t=t, a=a)
-                integrand_tab[i] = a**(3*w_eff - 2)
-            elif integrand == 'a**(-3*w)*w/(1+w)':
-                w = component.w(t=t, a=a)
-                integrand_tab[i] = a**(-3*w)*w/(1 + w)
-            elif integrand == 'a**(-3*w_eff)*w_eff/(1+w_eff)':
-                w_eff = component.w_eff(t=t, a=a)
-                integrand_tab[i] = a**(-3*w_eff)*w_eff/(1 + w_eff)
-            elif integrand == 'a**(3*w-2)*(1+w)':
-                w = component.w(t=t, a=a)
-                integrand_tab[i] = a**(3*w - 2)*(1 + w)
-            elif integrand == 'a**(3*w_eff-2)*(1+w_eff)':
-                w_eff = component.w_eff(t=t, a=a)
-                integrand_tab[i] = a**(3*w_eff - 2)*(1 + w_eff)
-            elif integrand == 'ẇ/(1+w)':
-                w = component.w(t=t, a=a)
-                ẇ = component.ẇ(t=t, a=a)
-                integrand_tab[i] = ẇ/(1 + w)
-            elif integrand == 'ẇlog(a)':
-                ẇ = component.ẇ(t=t, a=a)
-                integrand_tab[i] = ẇ*log(a)
+                integrand_tab_spline[i] = a**(3*w_eff - 2)
             elif master:
-                abort(f'The scalefactor integral with "{integrand}" as the integrand is not implemented')
-    # Do the integration over the entire tabulated integrand
-    spline = Spline(t_tab_mv[:size_tab], integrand_tab_mv[:size_tab])
-    return spline.integrate(t_tab[0], t_tab[size_tab - 1])
+                abort(
+                    f'The scalefactor integral with "{integrand}" as the integrand '
+                    f'is not implemented'
+                )
+    # Do the integration
+    spline = Spline(t_tab_spline[:size], integrand_tab_spline[:size], integrand)
+    if enable_class_background:
+        spline_t_integrands[key] = spline
+    return spline.integrate(t_ini, t_ini + Δt)
+# Global dict of Spline objects defined by scalefactor_integral
+cython.declare(spline_t_integrands=dict)
+spline_t_integrands = {}
 
 # Function which sets the value of universals.a and universals.t
 # based on the user parameters a_begin and t_begin together with the
@@ -827,14 +918,16 @@ def initiate_time(reinitialize=False):
             background = cosmo.get_background()
             # What we need to store is the cosmic time t and the Hubble
             # parametert H, both as functions of the scale factor a.
+            # Since the time stepping is done in t, we furthermore want
+            # the scale factor a as a function of cosmic time t.
             # We do this by defining global Spline objects.
             a_values = smart_mpi(1/(background['z'] + 1), 0, mpifun='bcast')
             t_values = smart_mpi(background['proper time [Gyr]']*units.Gyr, 1, mpifun='bcast')
             H_values = smart_mpi(
                 background['H [1/Mpc]']*(light_speed/units.Mpc), 2, mpifun='bcast')
-            spline_a_t = Spline(a_values, t_values)
-            spline_t_a = Spline(t_values, a_values)
-            spline_a_H = Spline(a_values, H_values)
+            spline_a_t = Spline(a_values, t_values, 't(a)')
+            spline_t_a = Spline(t_values, a_values, 'a(t)')
+            spline_a_H = Spline(a_values, H_values, 'H(a)')
         # A specification of initial scale factor or
         # cosmic time is needed.
         if 'a_begin' in user_params_keys_raw:

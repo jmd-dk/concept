@@ -1485,7 +1485,7 @@ def any2list(val):
     return list(val)
 # Function which replaces ellipses in a dict with previous value
 def replace_ellipsis(d):
-    """Note that for deterministic behavior,
+    """Note that for deterministic behaviour,
     this function assumes that the dictionary d is ordered.
     """
     if not isinstance(d, dict):
@@ -2182,7 +2182,7 @@ user_params['render3D_resolution'] = render3D_resolution
 # Debugging options
 enable_Hubble = bool(user_params.get('enable_Hubble', True))
 user_params['enable_Hubble'] = enable_Hubble
-enable_class_background = bool(user_params.get('enable_class_background', True))
+enable_class_background = bool(user_params.get('enable_class_background', enable_Hubble))
 user_params['enable_class_background'] = enable_class_background
 enable_Ewald = bool(user_params.get('enable_Ewald',  # !!! Only used by gravity_old.py
                                     True if 'pp' in list(itertools.chain.from_iterable(d.values() for d in select_forces.values())) else False))
@@ -2512,7 +2512,7 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node', class_call
         if k_output_values != sorted(k_output_values, key=float):
             masterwarn(
                 'Unsorted k_output_values passed to call_class(). '
-                'This may lead to unexpected behavior'
+                'This may lead to unexpected behaviour'
             )
     if mode == 'mpi':
         if 'k_output_values' not in params_specialized:
@@ -3264,8 +3264,12 @@ if t_begin < 0:
     else:
         masterwarn(
             f'The simulation start at t = {t_begin} {unit_time} < 0. '
-            f'Negative times might lead to unexpected behavior.'
+            f'Negative times might lead to unexpected behaviour.'
         )
+# If the Hubble expansion is deactivated, warn if the CLASS background
+# is meant to be used.
+if not enable_Hubble and enable_class_background:
+    masterwarn('Hubble expansion is deactivated, but enable_class_background is True')
 # Allow for easier names in class_extra_background
 if any(D1_name in class_extra_background for D1_name in {'D', 'D1'}):
     class_extra_background.add('gr.fac. D')

@@ -1309,32 +1309,39 @@ def get_initial_conditions(do_realization=True):
     # Issue warnings if the combined energy density of the components
     # exceed those of the specified Ωcdm and Ωb,
     # assuming a flat universe.
-    ϱ_bbar_components = 0
-    ϱ_cdmbar_components = 0
-    ϱ_mbar_components = 0
-    for component in components:
-        if component.species in {'baryon fluid', 'baryons'}:
-            ϱ_bbar_components += component.ϱ_bar
-        elif component.species in {'dark matter fluid', 'dark matter particles'}:
-            ϱ_cdmbar_components += component.ϱ_bar
-        elif component.species in {'matter fluid', 'matter particles'}:
-            ϱ_mbar_components += component.ϱ_bar
-    ϱ_mbar_components += ϱ_bbar_components + ϱ_cdmbar_components
-    if ϱ_bbar_components > Ωb*ρ_crit and not isclose(ϱ_bbar_components, Ωb*ρ_crit, 1e-6):
-        masterwarn(
-            f'Though Ωb = {Ωb}, the energy density of the components '
-            f'add up to Ωb = {ϱ_bbar_components/ρ_crit}'
-        )
-    if ϱ_cdmbar_components > Ωcdm*ρ_crit and not isclose(ϱ_cdmbar_components, Ωcdm*ρ_crit, 1e-6):
-        masterwarn(
-            f'Though Ωcdm = {Ωcdm}, the energy density of the components '
-            f'add up to Ωcdm = {ϱ_cdmbar_components/ρ_crit}'
-        )
-    if ϱ_mbar_components > Ωm*ρ_crit and not isclose(ϱ_mbar_components, Ωm*ρ_crit, 1e-6):
-        masterwarn(
-            f'Though Ωm = {Ωm}, the energy density of the components '
-            f'add up to Ωm = {ϱ_mbar_components/ρ_crit}'
-        )
+    if enable_Hubble:
+        ϱ_bbar_components = 0
+        ϱ_cdmbar_components = 0
+        ϱ_mbar_components = 0
+        for component in components:
+            if component.species in {'baryon fluid', 'baryons'}:
+                ϱ_bbar_components += component.ϱ_bar
+            elif component.species in {'dark matter fluid', 'dark matter particles'}:
+                ϱ_cdmbar_components += component.ϱ_bar
+            elif component.species in {'matter fluid', 'matter particles'}:
+                ϱ_mbar_components += component.ϱ_bar
+        ϱ_mbar_components += ϱ_bbar_components + ϱ_cdmbar_components
+        if ϱ_bbar_components > Ωb*ρ_crit and not isclose(
+            ϱ_bbar_components, Ωb*ρ_crit, 1e-6,
+        ):
+            masterwarn(
+                f'Though Ωb = {Ωb}, the energy density of the components '
+                f'add up to Ωb = {ϱ_bbar_components/ρ_crit}'
+            )
+        if ϱ_cdmbar_components > Ωcdm*ρ_crit and not isclose(
+            ϱ_cdmbar_components, Ωcdm*ρ_crit, 1e-6,
+        ):
+            masterwarn(
+                f'Though Ωcdm = {Ωcdm}, the energy density of the components '
+                f'add up to Ωcdm = {ϱ_cdmbar_components/ρ_crit}'
+            )
+        if ϱ_mbar_components > Ωm*ρ_crit and not isclose(
+            ϱ_mbar_components, Ωm*ρ_crit, 1e-6,
+        ):
+            masterwarn(
+                f'Though Ωm = {Ωm}, the energy density of the components '
+                f'add up to Ωm = {ϱ_mbar_components/ρ_crit}'
+            )
     return components
 
 
