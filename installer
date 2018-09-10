@@ -4756,17 +4756,24 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
     linenr=$(new_class_perturbation_linenr "perturb_print_variables")
-    new_lines=(                                                                                   \
-        "/* Include dark energy fluid in perturbation output */"                                  \
-        "double w_fld, dw_over_da_fld, integral_fld, theta_fld;"                                  \
-        "if (pba->has_fld) {"                                                                     \
-        "  class_call(background_w_fld(pba, a, &w_fld, &dw_over_da_fld, &integral_fld),"          \
-        "    pba->error_message, ppt->error_message);"                                            \
-        "  class_store_double(dataptr, ppw->delta_rho_fld/pvecback[pba->index_bg_rho_fld],"       \
-        "    pba->has_fld, storeidx);"                                                            \
-        "  theta_fld = ppw->rho_plus_p_theta_fld/((1. + w_fld)*pvecback[pba->index_bg_rho_fld]);" \
-        "  class_store_double(dataptr, theta_fld, pba->has_fld, storeidx);"                       \
-        "}"                                                                                       \
+    new_lines=(                                                                             \
+        "/* Include dark energy fluid in perturbation output */"                            \
+        "double w_fld, dw_over_da_fld, integral_fld, theta_fld;"                            \
+        "if (pba->has_fld) {"                                                               \
+        "  class_call(background_w_fld(pba, a, &w_fld, &dw_over_da_fld, &integral_fld),"    \
+        "    pba->error_message, ppt->error_message);"                                      \
+        "  class_store_double(dataptr, ppw->delta_rho_fld/pvecback[pba->index_bg_rho_fld]," \
+        "    pba->has_fld, storeidx);"                                                      \
+        "  /* For w_fld = -1 (Lambda), we have theta = 0 */"                                \
+        "  if (w_fld == -1.){"                                                              \
+        "    theta_fld = 0.;"                                                               \
+        "  }"                                                                               \
+        "  else{"                                                                           \
+        "    theta_fld = ppw->rho_plus_p_theta_fld/"                                        \
+        "      ((1. + w_fld)*pvecback[pba->index_bg_rho_fld]);"                             \
+        "  }"                                                                               \
+        "  class_store_double(dataptr, theta_fld, pba->has_fld, storeidx);"                 \
+        "}"                                                                                 \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
     # Include theta_tot in perturbation output
