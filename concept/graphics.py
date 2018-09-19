@@ -95,11 +95,15 @@ def plot_powerspec(k_bin_centers, power_dict, filename, powerspec_plot_select):
                     )
         # Plot power spectrum
         plt.figure()
-        plt.loglog(k_bin_centers, power, '-')
-        plt.xlabel(f'$k$ $\mathrm{{[{unit_length}^{{-1}}]}}$', fontsize=14)
-        plt.ylabel(f'power $\mathrm{{[{unit_length}^3]}}$',    fontsize=14)
+        if np.any(asarray(power) != 0):
+            plt.loglog(k_bin_centers, power, '-')
+        else:
+            # The odd case of no power at all
+            plt.semilogx(k_bin_centers, power, '-')
+        plt.xlabel(rf'$k$ $\mathrm{{[{unit_length}^{{-1}}]}}$', fontsize=14)
+        plt.ylabel(rf'power $\mathrm{{[{unit_length}^3]}}$',    fontsize=14)
         t_string = (
-            '$t = {}\, \mathrm{{{}}}$'
+            r'$t = {}\, \mathrm{{{}}}$'
             .format(significant_figures(universals.t, 4, fmt='tex'), unit_time)
         )
         a_string = ''
@@ -107,8 +111,8 @@ def plot_powerspec(k_bin_centers, power_dict, filename, powerspec_plot_select):
             a_string = ', $a = {}$'.format(significant_figures(universals.a, 4, fmt='tex'))
         component_combination_str = (
             component_combination_str
-            .replace('{', '$\{$')
-            .replace('}', '$\}$')
+            .replace('{', r'$\{$')
+            .replace('}', r'$\}$')
             .replace(',', ',\n')
             )
         plt.title(
@@ -118,7 +122,6 @@ def plot_powerspec(k_bin_centers, power_dict, filename, powerspec_plot_select):
             )
         plt.gca().tick_params(axis='both', which='major', labelsize=13)
         plt.gca().tick_params(axis='both', which='minor', labelsize=11)
-        fix_minor_tick_labels()
         plt.tight_layout()
         plt.savefig(filename_combination)
         # Close the figure, leaving no trace in memory of the plot
@@ -200,6 +203,7 @@ def plot_detrended_perturbations(a_values, perturbations_detrended, transferfunc
         ),
         'σ': rf'[\mathrm{{{unit_length}}}^2\mathrm{{{unit_time}}}^{{-2}}]',
         'hʹ': rf'[\mathrm{{{unit_time}}}^{{-1}}]',
+        'H_Tʹ': rf'[\mathrm{{{unit_time}}}^{{-1}}]',
     }[transferfunction.var_name]
     unit_latex = (unit_latex
         .replace('(', '{')
@@ -217,7 +221,6 @@ def plot_detrended_perturbations(a_values, perturbations_detrended, transferfunc
         horizontalalignment='center',
     )
     plt.gca().tick_params(axis='x', which='major', labelsize=13)
-    fix_minor_tick_labels()
     factor = significant_figures(transferfunction.factors[k], 6, fmt='tex', scientific=True)
     exponent = significant_figures(transferfunction.exponents[k], 6, scientific=False)
     plt.text(0.5, 0.8, rf'$\mathrm{{trend}} = {factor}{unit_latex.strip("[]")}a^{{{exponent}}}$',
@@ -334,7 +337,6 @@ def plot_processed_perturbations(a_values, k_magnitudes, transfer, var_name, cla
             plt.xlabel(rf'$k\,[\mathrm{{{unit_length}}}^{{-1}}]$', fontsize=14)
             plt.ylabel(rf'${var_name_latex}\, {unit_latex}$', fontsize=14)
             plt.gca().tick_params(axis='x', which='major', labelsize=13)
-            fix_minor_tick_labels()
             plt.tight_layout()
             plt.savefig(f'{dirname}/{i_figure}.png')
             i_figure += 1

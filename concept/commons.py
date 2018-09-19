@@ -313,16 +313,55 @@ np.lib   .npyio.asbytes   = asbytes
 np.lib   .npyio.asstr     = asstr
 np.lib   .npyio.asunicode = asstr
 # Customize matplotlib
-matplotlib.rcParams.update({# Use a nice font that ships with matplotlib
-                            'text.usetex'       : False,
-                            'font.family'       : 'serif',
-                            'font.serif'        : 'cmr10',
-                            'mathtext.fontset'  : 'cm',
-                            'axes.unicode_minus': False,
-                            # Use outward pointing ticks
-                            'xtick.direction': 'out',
-                            'ytick.direction': 'out',
-                            })
+matplotlib.rcParams.update({
+    # Use a nice font that ships with matplotlib
+    'text.usetex'       : False,
+    'font.family'       : 'serif',
+    'font.serif'        : 'cmr10',
+    'mathtext.fontset'  : 'cm',
+    'axes.unicode_minus': False,
+    # Use outward pointing ticks
+    'xtick.direction': 'out',
+    'ytick.direction': 'out',
+})
+# Function used to set the minor tick formatting in log plots
+def fix_minor_tick_labels(ax=None):
+    """In matplotlib 2.x, tick labels are automatically placed at minor
+    ticks in log plots if the axis range is less than a full decade.
+    Here, a \times glyph is used, which is not handled correctly
+    due to it being inclosed in \mathdefault{}, leading to a
+    MathTextWarning and the \times being replaced
+    with a dummy symbol. The problem is fully described here:
+    https://stackoverflow.com/questions/47253462
+    /matplotlib-2-mathtext-glyph-errors-in-tick-labels
+    This function serves as a workaround. To avoid the warning,
+    you must call this function before calling tight_layout().
+    """
+    if ax is None:
+        ax = plt.gca()
+    fig = ax.get_figure()
+    # Force the figure to be drawn,
+    # ignoring the warning about \times not being recognized.
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', category=matplotlib.mathtext.MathTextWarning)
+        fig.canvas.draw()
+    # Remove \mathdefault from all minor tick labels
+    labels = [label.get_text().replace(r'\mathdefault', '')
+        for label in ax.get_xminorticklabels()]
+    ax.set_xticklabels(labels, minor=True)
+    labels = [label.get_text().replace(r'\mathdefault', '')
+        for label in ax.get_yminorticklabels()]
+    ax.set_yticklabels(labels, minor=True)
+# Overwrite plt.tight_layout and plt.savefig so that these call the
+# fix_minor_tick_labels function before executing their usual code.
+def fix_minor_tick_labels_decorator(f):
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        fix_minor_tick_labels()
+        f(*args, **kwargs)
+    return wrapper
+for func in ('tight_layout', 'savefig'):
+    setattr(plt, func, fix_minor_tick_labels_decorator(getattr(plt, func)))
 
 
 
@@ -2819,17 +2858,19 @@ def sinc(x):
         return y/x
 
 # Function that compares two numbers (identical to math.isclose)
-@cython.header(# Arguments
-               a=number,
-               b=number,
-               rel_tol='double',
-               abs_tol='double',
-               # Locals
-               size_a='double',
-               size_b='double',
-               tol='double',
-               returns='bint',
-               )
+@cython.pheader(
+    # Arguments
+    a=number,
+    b=number,
+    rel_tol='double',
+    abs_tol='double',
+    # Locals
+    answer='bint',
+    size_a='double',
+    size_b='double',
+    tol='double',
+    returns='bint',
+)
 def isclose(a, b, rel_tol=1e-9, abs_tol=0):
     size_a, size_b = abs(a), abs(b)
     if size_a > size_b:
@@ -2838,7 +2879,14 @@ def isclose(a, b, rel_tol=1e-9, abs_tol=0):
         tol = rel_tol*size_b
     if tol < abs_tol:
         tol = abs_tol
-    return abs(a - b) <= tol
+    answer = abs(a - b) <= tol
+    if not answer and (size_a == 0 or size_b == 0) and abs_tol == 0:
+        warn(
+            'isclose() was called with one argument being 0 with no abs_tol. '
+            'This can never result in the arguments being deemed close, '
+            'regardless of the smallness of the other (non-zero) argument.'
+        )
+    return answer
 
 # Function that checks if a (floating point) number
 # is actually an integer.
@@ -3065,49 +3113,20 @@ def disable_numpy_summarization():
         # Cleanup: Reset print options
         np.set_printoptions(threshold=threshold)
 
-# Function used to set the minor tick formatting in log plots
-def fix_minor_tick_labels(ax=None):
-    """In matplotlib 2.x, tick labels are automatically placed at minor
-    ticks in log plots if the axis range is less than a full decade.
-    Here, a '\times' glyph is used, which is not handled correctly
-    due to it being inclosed in \mathdefault{}, leading to a
-    MathTextWarning and the '\times' being replaced with a dummy symbol.
-    The problem is fully described here:
-    https://stackoverflow.com/questions/47253462
-    /matplotlib-2-mathtext-glyph-errors-in-tick-labels
-    This function serves as a workaround. To avoid the warning,
-    you must call this function before calling tight_layout().
-    """
-    if ax is None:
-        ax = plt.gca()
-    fig = ax.get_figure()
-    # Force the figure to be drawn,
-    # ignoring the warning about \times not being recognized.
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore', category=matplotlib.mathtext.MathTextWarning)
-        fig.canvas.draw()
-    # Remove '\mathdefault' from all minor tick labels
-    labels = [label.get_text().replace(r'\mathdefault', '')
-              for label in ax.get_xminorticklabels()]
-    ax.set_xticklabels(labels, minor=True)
-    labels = [label.get_text().replace(r'\mathdefault', '')
-              for label in ax.get_yminorticklabels()]
-    ax.set_yticklabels(labels, minor=True)
-
 # Function taking in some iterable of integers
 # and returning a nice, short str representation.
 def get_integerset_strrep(integers):
     intervals = []
-    for key, group in itertools.groupby(enumerate(sorted(set(any2list(integers)))),
-                                  lambda t: t[0] - t[1]
-                                  ):
+    for key, group in itertools.groupby(
+        enumerate(sorted(set(any2list(integers)))),
+        lambda t: t[0] - t[1]
+    ):
         interval = [t[1] for t in group]
         if len(interval) < 3:
             intervals += interval
         else:
-            intervals.append(f'{interval[0]}–{interval[-1]}')
-    str_rep = ', '.join(map(str, intervals))
-    return str_rep
+            intervals.append(unicode(f'{interval[0]}–{interval[-1]}'))
+    return ', '.join(map(str, intervals))
 
 # Function which should be used when opening hdf5 files
 def open_hdf5(filename, **kwargs):
@@ -3199,9 +3218,12 @@ if user_params.unused:
 # Output times very close to t_begin or a_begin
 # are probably meant to be exactly at t_begin or a_begin
 for time_param in ('t', 'a'):
-    output_times[time_param] = {key: tuple([a_begin if isclose(float(nr), a_begin) else nr
-                                            for nr in val])
-                                for key, val in output_times[time_param].items()}
+    output_times[time_param] = {
+        key: tuple([a_begin
+            if isclose(float(nr), a_begin, abs_tol=(0 if float(nr) else machine_ϵ))
+            else nr for nr in val])
+        for key, val in output_times[time_param].items()
+    }
 # Output times very close to a = 1
 # are probably meant to be exactly at a = 1.
 output_times['a'] = {key: tuple([1 if isclose(float(nr), 1) else nr

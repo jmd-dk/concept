@@ -384,7 +384,8 @@ def powerspec(components, filename):
         masterprint(f'Saving power {spectrum_plural} to "{filename}" ...')
         # The top line of the header, stating general information
         topline = [
-            f'Power {spectrum_plural} from job {jobid} at t = {universals.t:.6g} {unit_time}, '
+            f'Power {spectrum_plural} from CO𝘕CEPT job {jobid} '
+            f'at t = {universals.t:.6g} {unit_time}, '
         ]
         if enable_Hubble:
             topline += [f'a = {a:.6g}, ']
@@ -447,13 +448,14 @@ def powerspec(components, filename):
             row_headings  [i] = f'{{:^{column_widths[i]}}}'.format(row_headings  [i])
         # Assemble the header from its pieces
         delimiter = '  '
-        header = [''.join(topline),
-                  *column_components,
-                  '',
-                  delimiter.join(row_components),
-                  delimiter.join(row_σ),
-                  delimiter.join(row_headings),
-                  ]
+        header = [unicode(line) for line in [
+            ''.join(topline),
+            *column_components,
+            '',
+            delimiter.join(row_components),
+            delimiter.join(row_σ),
+            delimiter.join(row_headings),
+        ]]
         # Save header and power spectra data to text file
         fmt = [f'%-{column_width}{"u" if i == 1 else ".16e"}'
                for i, column_width in enumerate(column_widths)]

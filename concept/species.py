@@ -1857,10 +1857,12 @@ class Component:
             abort(f'Did not recognize w type "{self.w_type}"')
         # For components with a non-linear evolution of ϱ,
         # we cannot handle w ≤ -1, as (ϱ + c⁻²𝒫) becomes non-positive.
-        # This really shoul not be a problem, but the current fluid
+        # This really should not be a problem, but the current fluid
         # implementation computes J/(ϱ + c⁻²𝒫) while solving the
-        # continuity equation.
-        if value <= -1:
+        # continuity equation. If what is being run is not a simulation
+        # but the CLASS utility, this is not a problem as the system
+        # is not to be evolved.
+        if value <= -1 and special_params.get('special') != 'CLASS':
             if (
                     (   self.boltzmann_order > 1
                      or (self.boltzmann_order == 1 and self.boltzmann_closure == 'class'))
@@ -1877,8 +1879,10 @@ class Component:
                 )
         # For components with a non-linear evolution of J,
         # we cannot handle w < 0, as the sound speed c*sqrt(w) becomes
-        # negative.
-        if value < 0:
+        # negative. If what is being run is not a simulation
+        # but the CLASS utility, this is not a problem as the system
+        # is not to be evolved.
+        if value < 0 and special_params.get('special') != 'CLASS':
             if self.boltzmann_order > 1 and (a > universals.a_begin or t > universals.t_begin):
                 if t == -1:
                     t = cosmic_time(a)
@@ -2229,9 +2233,21 @@ class Component:
                 self.w_type = 'constant'
                 self.w_constant = self.w_tabulated[1, 0]
             else:
-                # Construct a Spline object from the tabulated data
+                # Construct a Spline object from the tabulated data.
+                # For most physical species, w(a) is approximately a
+                # power law in a (and thus also approximately in t)
+                # and so a log-log spline should be used.
+                logx, logy = True, True
+                if np.any(asarray(self.w_tabulated[1, :]) <= 0):
+                    logy = False
+                if self.class_species == 'fld':
+                    # The CLASS dark energy fluid (fld) uses
+                    # the {w_0, w_a} parameterization, and so a linear
+                    # spline should be used.
+                    logx, logy = False, False
                 self.w_spline = Spline(self.w_tabulated[0, :], self.w_tabulated[1, :],
-                    f'w{self.w_type[len(self.w_type) - 3:]} of {self.name}')
+                    f'w{self.w_type[len(self.w_type) - 3:]} of {self.name}',
+                    logx=logx, logy=logy)
 
     # Method which initializes the effective
     # equation of state parameter w_eff.
@@ -2292,8 +2308,19 @@ class Component:
                                 for a in a_tabulated[:(a_tabulated.size - 1)]]
         w_eff_tabulated_list.append(self.w(a=1))
         w_eff_tabulated = asarray(w_eff_tabulated_list)
-        # Instantiate the w_eff spline object
-        self.w_eff_spline = Spline(a_tabulated, w_eff_tabulated, f'w_eff(a) of {self.name}')
+        # Instantiate the w_eff spline object.
+        # For most physical species, w_eff(a) is approximately a
+        # power law in a and so a log-log spline should be used.
+        logx, logy = True, True
+        if np.any(asarray(w_eff_tabulated) <= 0):
+            logy = False
+        if self.class_species == 'fld':
+            # The CLASS dark energy fluid (fld) uses
+            # the {w_0, w_a} parameterization. It turns out that the
+            # best spline is achieved from log(a) but linear w_eff.
+            logx, logy = True, False
+        self.w_eff_spline = Spline(a_tabulated, w_eff_tabulated, f'w_eff(a) of {self.name}',
+            logx=logx, logy=logy)
         masterprint('done')
 
     # Method which convert named fluid/particle
@@ -2644,20 +2671,20 @@ default_class_species = {
 # Mapping from species and representations to default w values
 cython.declare(default_w=dict)
 default_w = {
-    'baryon fluid'         : 0,
-    'baryons'              : 0,
+    'baryon fluid'         :  0,
+    'baryons'              :  0,
     'dark energy fluid'    : -1,
     'dark energy particles': -1,
-    'dark matter fluid'    : 0,
-    'dark matter particles': 0,
-    'matter fluid'         : 0,
-    'matter particles'     : 0,
-    'metric'               : 0,
-    'neutrino fluid'       : 1/3,
-    'neutrinos'            : 1/3,
-    'particles'            : 0,
-    'photons'              : 1/3,
-    'photon fluid'         : 1/3,
+    'dark matter fluid'    :  0,
+    'dark matter particles':  0,
+    'matter fluid'         :  0,
+    'matter particles'     :  0,
+    'metric'               :  0,
+    'neutrino fluid'       :  1/3,
+    'neutrinos'            :  1/3,
+    'particles'            :  0,
+    'photons'              :  1/3,
+    'photon fluid'         :  1/3,
 }
 # Set of all approximations implemented on Component objects
 cython.declare(approximations_implemented=set)

@@ -1533,10 +1533,9 @@ def get_fftw_slab(gridsize, buffer_name=0, nullify=False):
             reuse = (fftw_wisdom_reuse and os.path.isfile(wisdom_filename))
         reuse = bcast(reuse if master else None)
         if not reuse and not wisdom_acquired.get((gridsize, nprocs, rigor_final)):
-            masterprint('Acquiring FFTW wisdom ({}) for grid of linear size {} on {} {} ...'
-                        .format(rigor_final, gridsize, nprocs,
-                                'processes' if nprocs > 1 else 'process')
-                        )
+            masterprint(
+                f'Acquiring FFTW wisdom ({rigor_final}) for grid of linear size {gridsize} ...'
+            )
         fftw_struct = fftw_setup(gridsize, gridsize, gridsize,
                                  bytes(rigor_final, encoding='ascii'),
                                  reuse,

@@ -49,7 +49,7 @@ class CosmoResults:
     # Methods with these names will be defined, which will return
     # the corresponding transfer function as a function of k,
     # for a given a.
-    transfer_function_variable_names = ('δ', 'θ', 'δP', 'σ', 'hʹ')
+    transfer_function_variable_names = ('δ', 'θ', 'δP', 'σ', 'hʹ', 'H_Tʹ')
     # Names of scalar attributes
     attribute_names = ('A_s', 'n_s', 'alpha_s', 'k_pivot', 'h')
     # Initialize instance
@@ -129,7 +129,7 @@ class CosmoResults:
         # for a given a.
         def construct_func(var_name):
             return (
-                lambda a, component=None, get='as_function_of_k':
+                lambda a=-1, component=None, get='as_function_of_k':
                     self.transfer_function(var_name, component, get, a)
             )
         for var_name in self.transfer_function_variable_names:
@@ -249,7 +249,7 @@ class CosmoResults:
                     # Only keep the needed background variables
                     self._background = {
                         key: arr for key, arr in self._background.items()
-                        if any([re.search(pattern, key)
+                        if any([key == pattern or re.search(pattern, key)
                             for pattern in self.needed_keys['background'] | class_extra_background
                         ])
                     }
@@ -273,11 +273,11 @@ class CosmoResults:
                 # not used by this simulation.
                 if master and not special_params.get('keep_class_extra_background', False):
                     for key in set(self._background.keys()):
-                        if not any([re.search(pattern, key)
+                        if not any([key == pattern or re.search(pattern, key)
                             for pattern in class_extra_background]
                         ):
                             continue
-                        if any([re.search(pattern, key)
+                        if any([key == pattern or re.search(pattern, key)
                             for pattern in self.needed_keys['background']]
                         ):
                             continue
@@ -302,10 +302,10 @@ class CosmoResults:
             # proportionality factor w. Here we add these missing
             # pressures explicitly.
             constant_eos_w = {
-                'cdm'   : 0,
-                'b'     : 0,
-                'g'     : 1/3,
-                'ur'    : 1/3,
+                'cdm'   :  0,
+                'b'     :  0,
+                'g'     :  1/3,
+                'ur'    :  1/3,
                 'lambda': -1,
                 }
             for class_species, w in constant_eos_w.items():
@@ -375,7 +375,7 @@ class CosmoResults:
             # self.needed_keys['perturbations'], based on the
             # species present in the current simulation.
             class_species_present_list = (universals_dict['class_species_present']
-                .decode().replace('[', '\[').replace(']', '\]').split('+'))
+                .decode().replace('[', r'\[').replace(']', r'\]').split('+'))
             for class_species_present in class_species_present_list:
                 if not class_species_present:
                     continue
@@ -383,7 +383,7 @@ class CosmoResults:
                     # For the special "metric" species, what we need is
                     # the metric potentials ϕ and ψ along with the
                     # conformal time derivative of H_T in N-body gauge.
-                    self.needed_keys['perturbations'] |= {r'^phi$', r'^psi$', r'^H_T_Nb_prime$'}
+                    self.needed_keys['perturbations'] |= {r'^phi$', r'^psi$', r'^H_T_prime$'}
                 else:
                     self.needed_keys['perturbations'] |= {
                         # Density
@@ -419,7 +419,7 @@ class CosmoResults:
                         {
                             key: arr.copy()
                             for key, arr in perturbation.items()
-                            if any([re.search(pattern, key) for pattern in (
+                            if any([key == pattern or re.search(pattern, key) for pattern in (
                                 self.needed_keys['perturbations'] | class_extra_perturbations
                             )])
                          }
@@ -479,11 +479,11 @@ class CosmoResults:
                 # not used by this simulation.
                 if node_master and not special_params.get('keep_class_extra_perturbations', False):
                     for key in set(self._perturbations[0].keys()):
-                        if not any([re.search(pattern, key)
+                        if not any([key == pattern or re.search(pattern, key)
                             for pattern in class_extra_perturbations]
                         ):
                             continue
-                        if any([re.search(pattern, key)
+                        if any([key == pattern or re.search(pattern, key)
                             for pattern in self.needed_keys['perturbations']]
                         ):
                             continue
@@ -552,11 +552,12 @@ class CosmoResults:
             # and the first read-in of the background has to be done
             # in parallel.
             self.load_everything('perturbations')
-            # If the CLASS perturbations for the special "metric"
-            # species has been computed/loaded, we need to manually
-            # convert these into the corresponding δ perturbations.
+            # After the CLASS perturbations needed for the special
+            # "metric" species has been computed/loaded, we need to
+            # manually construct the corresponding δ perturbations
+            # out of these.
             if 'metric' in class_species_present_list:
-                self.add_delta_metric()
+                self.construct_delta_metric()
         return self._perturbations
     # Method which makes sure that everything is loaded
     def load_everything(self, already_loaded=None):
@@ -576,7 +577,7 @@ class CosmoResults:
         for attribute in sorted(attributes):
             getattr(self, attribute)
     # Method which computes and adds "delta_metric" to the perturbations
-    def add_delta_metric(self):
+    def construct_delta_metric(self):
         """This method adds the "delta_metric" perturbation
         to self._perturbations, assuming that the ϕ and ψ potentials and
         H_T' in N-body gauge already exist as perturbations.
@@ -584,19 +585,23 @@ class CosmoResults:
         correction potential γ(a) using
         γ(a) = -(H_Tʹʹ(a) + a*H(a)*H_Tʹ(a))/k² + (ϕ(a) - ψ(a)),
         where ʹ denotes differentiation with respect to
-        conformal time τ. The units of the perturbations
-        from CLASS are as follows:
+        conformal time τ. To get H_Tʹʹ (actually Ḣ_Tʹ, see below) we
+        construct a TransferFunction object over the H_Tʹ perturbations.
+        This takes up the majority of the computation time and is done
+        in parallel. After this, every processes will compute
+        γ(a) for all k.
+        The units of the perturbations from CLASS are as follows:
         H_Tʹ: [time⁻¹]        = [c/Mpc],
         ϕ   : [length²time⁻²] = [c²],
         ψ   : [length²time⁻²] = [c²],
         and so γ also gets units of [length²time⁻²]. Note that H_T is
-        some times defined to have units of [length²]. The H_T_Nb_prime
+        some times defined to have units of [length²]. The H_T_prime
         from CLASS follows the unitless convention of
         https://arxiv.org/pdf/1708.07769.pdf
         We choose to compute k²γ, not γ by itself.
         Using ʹ = d/dτ = a*d/dt = a²H(a)*d/da, we have
-        k²γ(a) = -a*H(a)(a*dH_Tʹ(a)/da + H_Tʹ(a)) + k²(ϕ(a) - ψ(a)).
-        The δρ(a) perturbation is now given by
+        k²γ(a) = -a*H(a)(a*Ḣ_Tʹ(a) + H_Tʹ(a)) + k²(ϕ(a) - ψ(a))
+        with ˙ = d/da. The δρ(a) perturbation is now given by
         δρ(a) = 2/3*γ(a)k²/a² * 3/(8πG)
               = k²γ(a)/(4πGa²)
         where the factor 3/(8πG) = 1 in CLASS units.
@@ -610,7 +615,8 @@ class CosmoResults:
         The δ perturbations will be in N-body gauge, the only gauge in
         which these will contain all linear GR corrections,
         and therefore the only gauge of interest when it comes to the
-        "metric" species. Whenever a transfer function in N-body gauge
+        "metric" species. Also, the H_T_prime from CLASS is in
+        N-body gauge. Whenever a transfer function in N-body gauge
         is needed, the compute_transfer function will carry out
         this conversion, assuming that the stored transfer function
         is in synchronous gauge. With the "metric" perturbations already
@@ -621,36 +627,39 @@ class CosmoResults:
         synchronous gauge, meaning that we have to transform δ from
         N-body gauge to synchronous gauge. This transformation will then
         be exactly cancelled out in the compute_transfer function.
-
         """
         # Check that the delta_metric perturbations
         # has not already been added.
         if 'delta_metric' in self._perturbations[0]:
             return
         masterprint('Constructing metric δ perturbations ...')
+        # Get the H_Tʹ(k, a) transfer functions
+        transfer_H_Tʹ = self.H_Tʹ(get='object')
+        # Construct the "metric" δ(a) for each k
         for k, perturbation in enumerate(self._perturbations):
             k_magnitude = self.k_magnitudes[k]
             # Extract needed perturbations along with
             # the scalefactor at which they are tabulated.
-            a     = perturbation['a'           ]
-            ϕ     = perturbation['phi'         ]*ℝ[light_speed**2]
-            ψ     = perturbation['psi'         ]*ℝ[light_speed**2]
-            H_Tʹ  = perturbation['H_T_Nb_prime']*ℝ[light_speed/units.Mpc]
-            θ_tot = perturbation['theta_tot'   ]*ℝ[light_speed/units.Mpc]
+            a     = perturbation['a'        ]
+            ϕ     = perturbation['phi'      ]*ℝ[light_speed**2]
+            ψ     = perturbation['psi'      ]*ℝ[light_speed**2]
+            H_Tʹ  = perturbation['H_T_prime']*ℝ[light_speed/units.Mpc]
+            θ_tot = perturbation['theta_tot']*ℝ[light_speed/units.Mpc]
             # Compute the derivative of H_Tʹ with respect to a
-            H_Tʹ_spline = Spline(a, H_Tʹ, 'H_Tʹ(a)')
-            Ḣ_Tʹ = asarray([H_Tʹ_spline.eval_deriv(a_i) for a_i in a])
+            Ḣ_Tʹ = asarray([transfer_H_Tʹ.eval_deriv(k, a_i) for a_i in a])
             # Lastly, we need the Hubble parameter and the mean density
             # of the "metric" species at the times given by a.
             H = asarray([hubble(a_i) for a_i in a])
             ρ_metric = self.ρ_bar(a, 'metric')
             # Construct the γ potential
-            k2γ = -a*H*(a*Ḣ_Tʹ + H_Tʹ) + k_magnitude**2*(ϕ - ψ)
+            aH = a*H
+            k_magnitude2 = k_magnitude**2
+            k2γ = -aH*(a*Ḣ_Tʹ + H_Tʹ) + k_magnitude2*(ϕ - ψ)
             # Construct the δ perturbation (in N-body gauge)
             δ = k2γ/(ℝ[4*π*G_Newton]*a**2*ρ_metric)
             # Transform from N-body gauge to synchronous gauge
             w_metric = asarray([self.w(a_i, 'metric') for a_i in a])
-            δ -= ℝ[3/light_speed**2]*a*H*(1 + w_metric)*θ_tot/k_magnitude**2
+            δ -= ℝ[3/light_speed**2]*aH*(1 + w_metric)*θ_tot/k_magnitude2
             # Store the "metric" δ perturbations,
             # now in synchronous gauge.
             perturbation['delta_metric'] = δ
@@ -692,7 +701,36 @@ class CosmoResults:
             self._splines = {}
         spline = self._splines.get(y)
         if spline is None:
-            spline = Spline(self.background['a'], self.background[y], f'{y}(a)')
+            # By far the most background variables are power laws in a.
+            # A few exceptions are the constant pressure of the cdm, b
+            # and lambda CLASS species, the constant density of the
+            # lambda CLASS species, as well as the density, pressure
+            # and equation of state w for the fld CLASS species,
+            if y in {'(.)p_cdm', '(.)p_b', '(.)p_lambda', '(.)rho_lambda'}:
+                logx, logy = True, False
+            elif y in {'(.)rho_fld', '(.)p_fld', '(.)w_fld'}:
+                logx, logy = False, False
+            elif y.startswith('(.)rho_') or y.startswith('(.)p_') or y in {
+                'z',
+                'a',
+                'H [1/Mpc]',
+                'proper time [Gyr]',
+                'conf. time [Mpc]',
+                'gr.fac. D',
+                'gr.fac. f',
+            }:
+                logx, logy = True, True
+            else:
+                logx = True
+                logy = not np.any(asarray(self.background[y]) <= 0)
+                masterwarn(
+                    f'A spline over the unknown CLASS background variable "{y}"(a) '
+                    f'has been made with logx = {logx}, logy = {logy}. '
+                    f'You should add the correct linear/log behaviour of this variable '
+                    f'to the splines() method of the CosmoResults class.'
+                )
+            spline = Spline(self.background['a'], self.background[y], f'{y}(a)',
+                logx=logx, logy=logy)
             self._splines[y] = spline
         return spline
     # Method for looking up the background density of a given
@@ -745,8 +783,7 @@ class CosmoResults:
             class_species = component_or_class_species
         else:
             class_species = component_or_class_species.class_species
-        ρ_bar = 0
-        P_bar = 0
+        ρ_bar = P_bar = 0
         for class_species in class_species.split('+'):
             ρ_bar_spline = self.splines(f'(.)rho_{class_species}')
             P_bar_spline = self.splines(f'(.)p_{class_species}')
@@ -915,7 +952,8 @@ class CosmoResults:
                 self._background = {
                     key.replace('__per__', '/'): dset[...]
                     for key, dset in background_h5.items()
-                    if any([re.search(pattern, key.replace('__per__', '/'))
+                    if any([key.replace('__per__', '/') == pattern
+                        or re.search(pattern, key.replace('__per__', '/'))
                         for pattern in self.needed_keys['background']
                             | (class_extra_background
                                 if special_params.get('keep_class_extra_background', False)
@@ -955,7 +993,8 @@ class CosmoResults:
                     self._perturbations[int(index)] = {
                         key.replace('__per__', '/'): dset[...]
                         for key, dset in d.items()
-                        if any([re.search(pattern, key.replace('__per__', '/'))
+                        if any([key.replace('__per__', '/') == pattern
+                            or re.search(pattern, key.replace('__per__', '/'))
                             for pattern in self.needed_keys['perturbations']
                                 | (class_extra_perturbations
                                     if special_params.get('keep_class_extra_perturbations', False)
@@ -973,11 +1012,11 @@ class CosmoResults:
                 perturbations_loaded = set(self.perturbations[0].keys())
                 perturbations_missing = {perturbation_missing
                     for perturbation_missing in self.needed_keys['perturbations']
-                    if not any([re.search(perturbation_missing, key)
+                    if not any([key == perturbation_missing or re.search(perturbation_missing, key)
                         for key in perturbations_loaded])
                 }
                 for class_species_present in (universals_dict['class_species_present']
-                    .decode().replace('[', '\[').replace(']', '\]').split('+')):
+                    .decode().replace('[', r'\[').replace(']', r'\]').split('+')):
                     perturbations_missing -= {
                         rf'^theta_{class_species_present}$',
                         rf'^cs2_{class_species_present}$',
@@ -1137,11 +1176,12 @@ class TransferFunction:
         }
         perturbations = self.cosmoresults.perturbations
         class_perturbation_name = {
-            'δ' : 'delta_{}',
-            'θ' : 'theta_{}',
-            'δP': 'cs2_{}',  # Note that cs2 is really δP/δρ
-            'σ' : 'shear_{}',
-            'hʹ': 'h_prime',
+            'δ'   : 'delta_{}',
+            'θ'   : 'theta_{}',
+            'δP'  : 'cs2_{}',  # Note that cs2 is really δP/δρ
+            'σ'   : 'shear_{}',
+            'hʹ'  : 'h_prime',
+            'H_Tʹ': 'H_T_prime',
         }[self.var_name]
         approximate_P_as_wρ = (self.var_name == 'δP' and self.component.approximations['P=wρ'])
         # A spline should be constructed for each k value,
@@ -1254,6 +1294,14 @@ class TransferFunction:
                         }
                         # We have CLASS units of [time⁻¹]
                         class_units = ℝ[light_speed/units.Mpc]
+                    elif self.var_name == 'H_Tʹ':
+                        # As H_Tʹ is a species independent quantity,
+                        # we do not have any weights.
+                        weights_species = {class_species: 1
+                            for class_species in self.class_species.split('+')
+                        }
+                        # We have CLASS units of [time⁻¹]
+                        class_units = ℝ[light_speed/units.Mpc]
                     else:
                         abort(f'Do not know how to process transfer function "{self.var_name}"')
                         # Just to satisfy the compiler
@@ -1306,7 +1354,9 @@ class TransferFunction:
                         if not any(perturbations_available.values()):
                             abort(
                                 f'No {class_perturbation_name} perturbations '
-                                f'for the {self.component.name} component available'
+                                + ('' if self.component is None
+                                    else f'for the {self.component.name} component ')
+                                + f'available'
                             )
                 # Remove outliers
                 if outliers_list:
@@ -1358,29 +1408,47 @@ class TransferFunction:
                     ][0]
                 else:
                     warn(
-                        f'Failed to detrend {self.var_name} perturbations for '
-                        f'{self.component.name} at k = {self.k_magnitudes[k]} {unit_length}⁻¹. '
+                        f'Failed to detrend {self.var_name} perturbations '
+                        + ('' if self.component is None else f'for {self.component.name} ')
+                        + f'at k = {self.k_magnitudes[k]} {unit_length}⁻¹. '
                         f'The simulation will carry on without this detrending.'
                     )
                     self.factors[k], self.exponents[k] = 0, 1
                 if abs(self.factors[k]) == ထ:
                     abort(
-                        f'Error processing {self.var_name} perturbations for '
-                        f'{self.component.name} at k = {self.k_magnitudes[k]} {unit_length}⁻¹: '
+                        f'Error processing {self.var_name} perturbations '
+                        + ('' if self.component is None else f'for {self.component.name} ')
+                        + f'at k = {self.k_magnitudes[k]} {unit_length}⁻¹: '
                         f'Detrending resulted in factor = {self.factors[k]}.'
                     )
-                if isclose(abs(self.exponents[k]), exponent_max):
+                # When the exponent is found to be 0, there is no reason
+                # to keep a non-zero factor as the detrending is then
+                # just a constant offset.
+                if isclose(self.exponents[k], 0, rel_tol=1e-9, abs_tol=1e-6):
+                    self.factors[k], self.exponents[k] = 0, 1
+                # If the exponent is found to be equal to the maximum
+                # allowed exponent, it means that the detrending has not
+                # converged. This failed detrending is usually an
+                # indication that CLASS has been run with too
+                # low precision. For H_Tʹ and δ for the
+                # "metric" species, however, this is not necessarily
+                # the case, and so here we allow for such
+                # extreme exponents.
+                if (    isclose(abs(self.exponents[k]), exponent_max)
+                    and not self.var_name == 'H_Tʹ'
+                    and not (self.var_name == 'δ' and self.component.class_species == 'metric')
+                ):
                     sign_str = ''
                     if self.exponents[k] < 0:
                         sign_str = '-'
+                    masterwarn(self.var_name)
                     abort(
-                        f'Error processing {self.var_name} perturbations for '
-                        f'{self.component.name} at k = {self.k_magnitudes[k]} {unit_length}⁻¹: '
+                        f'Error processing {self.var_name} perturbations '
+                        + ('' if self.component is None else f'for {self.component.name} ')
+                        + f'at k = {self.k_magnitudes[k]} {unit_length}⁻¹: '
                         f'Detrending resulted in exponent = '
                         f'{sign_str}exponent_max = {sign_str}{exponent_max}.'
                     )
-                if abs(self.exponents[k]) < ℝ[1e+3*machine_ϵ]:
-                    self.exponents[k] = 0
                 trend = self.factors[k]*asarray(a_values)**self.exponents[k]
                 perturbations_detrended = asarray(perturbation_values) - trend
             # Communicate the spline data
@@ -1454,7 +1522,8 @@ class TransferFunction:
             if k != largest_trusted_k + 1:
                 abort(
                     f'Something odd went wrong while constructing untrusted '
-                    f'{self.var_name} perturbations for {self.component.name}'
+                    f'{self.var_name} perturbations'
+                    + ('' if self.component is None else f' for {self.component.name} ')
                 )
             break
         else:
@@ -1563,7 +1632,7 @@ class TransferFunction:
 
     # Method for evaluating the k'th transfer function
     # at a given scale factor.
-    @cython.header(
+    @cython.pheader(
         # Arguments
         k='Py_ssize_t',
         a='double',
@@ -1606,7 +1675,7 @@ class TransferFunction:
     # Method for evaluating the derivative of the k'th transfer
     # function with respect to the scale factor, at a specific value of
     # the scale factor.
-    @cython.header(
+    @cython.pheader(
         # Arguments
         k='Py_ssize_t',
         a='double',
@@ -1946,7 +2015,10 @@ def compute_transfer(
     # Construct a spline object over the tabulated transfer function
     if get == 'spline':
         transfer_spline = Spline(k_magnitudes, transfer,
-            f'Transfer function (var_index = {var_index}) of component {component.name} at a = {a}'
+            f'Transfer function (var_index = {var_index}) '
+            f'of component {component.name} at a = {a}',
+            logx=True,
+            logy=False,
         )
         return transfer_spline, cosmoresults
     elif get == 'array':
@@ -2857,10 +2929,10 @@ for (varname,
                         ]:
     if master:
         if declaration_type == 'macro':
-            pattern = f'(^|[^0-9a-zA-Z_])#define\s+{varname}\s+(.+?)(/\*| |//|;|\n|$)'
+            pattern = rf'(^|[^0-9a-zA-Z_])#define\s+{varname}\s+(.+?)(/\*| |//|;|\n|$)'
         elif declaration_type == 'variable':
-            pattern = f'(^|[^0-9a-zA-Z_]){varname}\s*=\s*(.*?)(/\*| |//|;|\n|$)'
-        filename_abs = f'{paths["class_dir"]}/{filename}'
+            pattern = rf'(^|[^0-9a-zA-Z_]){varname}\s*=\s*(.*?)(/\*| |//|;|\n|$)'
+        filename_abs = rf'{paths["class_dir"]}/{filename}'
         try:
             with open(filename_abs, 'r') as class_file:
                 value = type(default_value)(re.search(pattern, class_file.read())

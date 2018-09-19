@@ -166,7 +166,7 @@ class Spline:
         return y
 
     # Method for doing spline derivative evaluation
-    @cython.header(
+    @cython.pheader(
         # Arguments
         x_in='double',
         # Locals
@@ -197,7 +197,7 @@ class Spline:
 
     # Method for computing the definite integral over some
     # interval [a, b] of the splined function.
-    @cython.header(
+    @cython.pheader(
         # Arguments
         a='double',
         b='double',
@@ -925,9 +925,9 @@ def initiate_time(reinitialize=False):
             t_values = smart_mpi(background['proper time [Gyr]']*units.Gyr, 1, mpifun='bcast')
             H_values = smart_mpi(
                 background['H [1/Mpc]']*(light_speed/units.Mpc), 2, mpifun='bcast')
-            spline_a_t = Spline(a_values, t_values, 't(a)')
-            spline_t_a = Spline(t_values, a_values, 'a(t)')
-            spline_a_H = Spline(a_values, H_values, 'H(a)')
+            spline_a_t = Spline(a_values, t_values, 't(a)', logx=True, logy=True)
+            spline_t_a = Spline(t_values, a_values, 'a(t)', logx=True, logy=True)
+            spline_a_H = Spline(a_values, H_values, 'H(a)', logx=True, logy=True)
         # A specification of initial scale factor or
         # cosmic time is needed.
         if 'a_begin' in user_params_keys_raw:
