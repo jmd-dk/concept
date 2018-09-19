@@ -4765,10 +4765,10 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "  class_store_double(dataptr, ppw->delta_rho_fld/pvecback[pba->index_bg_rho_fld]," \
         "    pba->has_fld, storeidx);"                                                      \
         "  /* For w_fld = -1 (Lambda), we have theta = 0 */"                                \
-        "  if (w_fld == -1.){"                                                              \
+        "  if (w_fld == -1.) {"                                                             \
         "    theta_fld = 0.;"                                                               \
         "  }"                                                                               \
-        "  else{"                                                                           \
+        "  else {"                                                                          \
         "    theta_fld = ppw->rho_plus_p_theta_fld/"                                        \
         "      ((1. + w_fld)*pvecback[pba->index_bg_rho_fld]);"                             \
         "  }"                                                                               \
@@ -4805,17 +4805,17 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "  ppt->gauge == synchronous, storeidx);"                        \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
-    # Include H_T_Nb_prime in perturbation output
+    # Include H_T_prime in perturbation output
     linenr=$(new_class_perturbation_linenr "perturb_prepare_output")
-    new_lines=(                                                                  \
-        "/* Include H_T_Nb_prime in perturbation output */"                      \
-        "class_store_columntitle(ppt->scalar_titles, \"H_T_Nb_prime\", _TRUE_);" \
+    new_lines=(                                                               \
+        "/* Include H_T_prime (in N-body gauge) in perturbation output */"    \
+        "class_store_columntitle(ppt->scalar_titles, \"H_T_prime\", _TRUE_);" \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
     linenr=$(new_class_perturbation_linenr "perturb_print_variables")
     new_lines=(                                                                             \
         "/**"                                                                               \
-        " * Include H_T_Nb_prime in perturbation output."                                   \
+        " * Include H_T_prime (in N-body gauge) in perturbation output."                    \
         " * Here we make use of rho_plus_p_tot defined earlier."                            \
         " *"                                                                                \
         " */"                                                                               \
@@ -4849,10 +4849,10 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "    - 2./3.*pvecback[pba->index_bg_dV_scf]*pvecback[pba->index_bg_phi_prime_scf];" \
         "}"                                                                                 \
         "/* Lambda has constant pressure */"                                                \
-        "double H_T_Nb_prime = 3*a*H/rho_plus_p_tot*("                                      \
+        "double H_T_prime = 3*a*H/rho_plus_p_tot*("                                         \
         "  -ppw->delta_p + p_tot_prime*ppw->rho_plus_p_theta/rho_plus_p_tot/(k*k)"          \
         "  + ppw->rho_plus_p_shear);"                                                       \
-        "class_store_double(dataptr, H_T_Nb_prime, _TRUE_, storeidx);"                      \
+        "class_store_double(dataptr, H_T_prime, _TRUE_, storeidx);"                         \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
     # Do not convert synchronous variables to Newtonian gauge

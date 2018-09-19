@@ -88,7 +88,7 @@ for a, P_lin, P_nonlin, ax in zip(scalefactors, Pν_linear, Pν_nonlinear, axes)
     )
 axes[0].legend(loc='best').get_frame().set_alpha(0.7)
 axes[-1].set_xlabel(rf'$k\, [\mathrm{{{unit_length}}}^{{-1}}]$')
-fig.tight_layout(h_pad=0)
+plt.tight_layout(h_pad=0)
 fig.subplots_adjust(hspace=0)
 fig_file = f'{this_dir}/result_abs.png'
 plt.savefig(fig_file)

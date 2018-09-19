@@ -18,10 +18,10 @@ modes_per_decade = 30
 H0      = 67*km/(s*Mpc)
 Ωcdm    = 0.27 - Ων
 Ωb      = 0.049
-a_begin = 1/(1 + 199)
+a_begin = 1/(1 + 250)
 class_params = {
     # Primordial parameters
-    'A_s'    : 2.13e-9,
+    'A_s'    : 2.1e-9,
     'n_s'    : 0.96,
     'alpha_s': 0.0,
     'k_pivot': 0.05,

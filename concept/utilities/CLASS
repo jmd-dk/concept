@@ -62,6 +62,17 @@ argparse_finished="no"
 argparse_exit_code=""
 args=$("${python}" -B -c "
 import argparse, sys
+# Function which checks whether the given gauge is valid
+def gauge(value):
+    def raise_argparse_exception():
+        raise argparse.ArgumentTypeError(
+            f\"invalid gauge '{value}'. \"
+            f\"Should be one of N-body, synchronous or Newtonian.\"
+        )
+    value = str(value).replace('-', '').lower()
+    if value not in {'nbody', 'synchronous', 'newtonian'}:
+        raise_argparse_exception()
+    return value
 # Setup command-line arguments
 parser = argparse.ArgumentParser(prog='$(basename "${this_file}")',
                                  description='Run the CO𝘕CEPT $(basename "${this_file}") utility')
@@ -88,6 +99,7 @@ parser.add_argument(
 parser.add_argument(
     '--gauge',
     default='N-body',
+    type=gauge,
     help='gauge of perturbations. Should be one of N-body (default), synchronous or Newtonian.',
 )
 # Enables Python to write directly to screen (stderr)
@@ -148,10 +160,10 @@ echo "
 _initial_conditions = [
     {
          'name'             : class_species,
-         'species'          : 'neutrino fluid',  # No neutrino specific behaviour will come of this
+         'species'          : 'fluid',
          'gridsize'         : 2,
-         'boltzmann_order'  : int(boltzmann_order),
-         'boltzmann_closure': 'truncate',
+         'boltzmann_order'  : int(boltzmann_order) - 1,
+         'boltzmann_closure': 'class',
          'class_species'    : class_species,
          'approximations'   : {'P=wρ': int(boltzmann_order) < 3},
     }

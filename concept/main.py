@@ -367,8 +367,10 @@ def timeloop():
     output_filenames, final_render3D, timespan = prepare_output_times()
     # Get the initial components. These may be loaded from a snapshot
     # or generated on the fly.
+    masterprint('Setting up initial conditions ...')
     components = get_initial_conditions()
     if not components:
+        masterprint('done')
         return
     # Realize all linear fluid variables of all components
     for component in components:
@@ -376,6 +378,7 @@ def timeloop():
         component.realize_if_linear(1, specific_multi_index=0)        # J
         component.realize_if_linear(2, specific_multi_index='trace')  # 𝒫
         component.realize_if_linear(2, specific_multi_index=(0, 0))   # ς
+    masterprint('done')
     # Specification of first dump and a corresponding index
     i_dump = 0
     next_dump = dumps[i_dump]
@@ -994,7 +997,7 @@ cython.declare(ᔑdt_steps=dict,
                dumps=list,
                next_dump=list,
                )
-if special_params:
+if 'special' in special_params:
     # Instead of running a simulation, run some utility
     # as defined by the special_params dict.
     delegate()
