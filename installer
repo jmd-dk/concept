@@ -252,13 +252,13 @@ set_version(){
 # In case of CO𝘕CEPT and CLASS, possible versions are the corresponding
 # GitHub branches and releases.
 set_version "concept"         "master"
-set_version "class"           "2.6.3"
+set_version "class"           "2.7.0"
 set_version "fftw"            "3.3.8"  "3.3.8"
 set_version "fftw_for_gadget" "2.1.5"  "2.1.5"   # Do not change
 set_version "freetype"        "2.9.1"  "2.9.1"
 set_version "gadget"          "2.0.7"            # Do not change
 set_version "gsl"             "2.5"    "2.5"
-set_version "hdf5"            "1.10.2" "1.10.2"
+set_version "hdf5"            "1.10.3" "1.10.3"
 set_version "libffi"          "3.2.1"  "3.2.1"
 set_version "libpng"          "1.6.35" "1.6.33"
 if [ "${mpi}" == "mpich" ]; then
@@ -267,8 +267,8 @@ elif [ "${mpi}" == "openmpi" ]; then
     set_version "mpi"         "3.1.2"
 fi
 set_version "ncurses"         "6.1"    "6.1"
-set_version "openblas"        "0.3.2" "0.3.2"
-set_version "openssl"         "1.1.0i" "1.1.0i"
+set_version "openblas"        "0.3.3" "0.3.3"
+set_version "openssl"         "1.1.1" "1.1.1"
 set_version "perl"            "5.28.0"
 set_version "python"          "3.7.0"
 set_version "zlib"            "1.2.11" "1.2.11"
@@ -277,13 +277,13 @@ set_version "blessings"     "1.7"
 set_version "cython"        "0.28.5"
 set_version "cythongsl"     "0.2.2"
 set_version "h5py"          "2.8.0"
-set_version "matplotlib"    "2.2.3"
+set_version "matplotlib"    "3.0.0"
 set_version "mpi4py"        "3.0.0"
 set_version "numpy"         "1.15.1"
 set_version "pip"           "18.0"
-set_version "pytest"        "3.7.2"
+set_version "pytest"        "3.8.0"
 set_version "scipy"         "1.1.0"
-set_version "setuptools"    "40.2.0"
+set_version "setuptools"    "40.4.1"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
 # and specific versions of system dependencies.
@@ -334,7 +334,6 @@ else
     esc_concept="${esc_concept//\$\{esc_italic\}/${esc_italic}}"
     esc_concept="${esc_concept//\$\{esc_no_italic\}/${esc_no_italic}}"
 fi
-esc_concept_double_backslashes="${esc_concept//\\/\\\\}"
 
 # Text colors
 esc_red="${esc}[91m"
@@ -1619,7 +1618,7 @@ validate_url(){
         fi
     else
         current_step="validation of ${1/CONCEPT/$esc_concept} link"
-        set_status "Validating ${1/CONCEPT/$esc_concept_double_backslashes} link"
+        set_status "Validating ${1/CONCEPT/${esc_concept}} link"
     fi
     url="$(eval "echo \"\${${progname}_url}\"")"
     filename="$(basename "${url}")"
@@ -2935,7 +2934,7 @@ init_install(){
     else
         current_step="the installation of ${1/CONCEPT/$esc_concept} ${progversion}"
         heading "Installing ${1/CONCEPT/$esc_concept} ${progversion}"
-        set_status "Installing ${1/CONCEPT/$esc_concept_double_backslashes} ${progversion}"
+        set_status "Installing ${1/CONCEPT/${esc_concept}} ${progversion}"
     fi
     # Extract the downloaded archive
     extract "${progname}"
@@ -2953,7 +2952,7 @@ init_install(){
 }
 
 # Function for detecting when the current process appears to hang.
-# When an apparent hang is detected, a soothing message is displaayed.
+# When an apparent hang is detected, a soothing message is displayed.
 # This should be used when installing Python packages, as pip/setuptools
 # sometimes has this bad hanging behaviour, especially for particular
 # packages, such as h5py. This function should not be called in a
@@ -4381,7 +4380,7 @@ if [ "${matplotlib_install}" == "yes" ] && [ "${matplotlib_installed}" == "no" ]
         )
         # From http://matplotlib.org/users/installing.html and matplotlib's setupext.py
         dep_versions=(
-            ">=1.7.1"                         \
+            ">=1.10.0"                        \
             ">=2.0.1,!=2.0.4,!=2.1.2,!=2.1.6" \
             ">=2.1"                           \
             ""                                \
@@ -4418,7 +4417,7 @@ if [ "${matplotlib_install}" == "yes" ] && [ "${matplotlib_installed}" == "no" ]
     cp "setup.cfg.template" "setup.cfg"
     freetype_include2="$(echo "${freetype_dir}/include/freetype"* | awk '{print $NF}')"
     libpng_version_majors="$(echo "${libpng_version}" | grep -m 1 -o -P "[0-9]*\.[0-9]*" \
-                                                              | head -n 1)"
+                                                      | head -n 1)"
     libpng_version_majors="$(echo "${libpng_version_majors//./}")"
     basedirlist="${freetype_dir},\
 ${freetype_dir}/include,\
@@ -4521,12 +4520,22 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         filename="$1"
         linenr="$2"
         action="$3"
-        new_lines="$4"
-        # Add comments around inserted lines
+        belonging="$4"
+        new_lines="$5"
+        # Determine file type ("c" or "python")
         extension="${filename##*.}"
+        filetype=""
         if     [ "${extension}" == "c"   ] \
             || [ "${extension}" == "h"   ] \
             || [ "${extension}" == "cpp" ]; then
+            filetype="c"
+        elif   [ "${extension}" == "py"  ] \
+            || [ "${extension}" == "pyx" ] \
+            || [ "${extension}" == "pxd" ]; then
+            filetype="python"
+        fi
+        # Add comments around inserted lines
+        if [ "${filetype}" == "c" ]; then
             new_lines=(""                      \
                 "/************************/"   \
                 "/* For use with CONCEPT */"   \
@@ -4537,9 +4546,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
                 "/**************************/" \
                 ""                             \
             )
-        elif   [ "${extension}" == "py"  ] \
-            || [ "${extension}" == "pyx" ] \
-            || [ "${extension}" == "pxd" ]; then
+        elif [ "${filetype}" == "python" ]; then
             new_lines=(""                    \
                 "########################"   \
                 "# For use with CONCEPT #"   \
@@ -4553,20 +4560,26 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         fi
         # Find indentation at linenr
         indentation=""
-        n_lines=$(wc -l "${filename}" | awk '{print $1}')
-        ((n_lines_down = n_lines - linenr + 1))
+        if [ "${belonging}" == "below" ]; then
+            n_lines=$(wc -l "${filename}" | awk '{print $1}')
+            ((n_lines_down = n_lines - linenr + 1))
+            content="$(tail -n ${n_lines_down} "${filename}")"
+        elif [ "${belonging}" == "above" ]; then
+            ((n_lines_down = linenr - 1))
+            content="$(head -n ${n_lines_down} "${filename}" | tac)"
+        fi
         local IFS=''
         while read -r line; do
             if [ -n "${line// }" ]; then
                 line_unindented="$(echo "${line}" | awk '{gsub(/^ +/,"")} {print $0}')"
                 ((indentation_size = ${#line} - ${#line_unindented})) || :
-                if [ "${line_unindented:0:1}" == "}" ]; then
+                if [ "${filetype}" == "c" ] && [ "${line_unindented:0:1}" == "}" ]; then
                     ((indentation_size += 2))
                 fi
                 indentation="$(printf "%${indentation_size}s")"
                 break
             fi
-        done <<< "$(tail -n ${n_lines_down} "${filename}")"
+        done <<< "${content}"
         # Construct string of indented lines from the new_lines array
         new_line_nr=0
         for new_line in "${new_lines[@]}"; do
@@ -4590,16 +4603,6 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
             sed -i "${linenr}i${new_lines_str}" "${filename}"
         fi
     }
-    # Fix a double free bug
-    pattern='free *\\( *pba *-> *q_ncdm *\\[ *k *\\] *\\) *;'
-    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-             "${class_dir}/source/background.c" | head -n 1);
-    ((linenr += 3))
-    new_lines=("}")
-    patch_class "${class_dir}/source/background.c" ${linenr} "insert" "${new_lines[@]}"
-    ((linenr -= 3))
-    new_lines=("if (pba->ncdm_quadrature_strategy[k] == qm_auto) {")
-    patch_class "${class_dir}/source/background.c" ${linenr} "insert" "${new_lines[@]}"
     # Change the values of some preprocessing directives
     # in header files, allowing larger inputs and outputs.
     # Specifically, these are the changes:
@@ -4632,7 +4635,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "if (a < a_min)"                         \
         "  return _SUCCESS_;"                    \
     )
-    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
     # When using the Runge-Kutta evolver, the derivatives are only
     # computed at the beginning of each time step, which is not
     # necessarily precise enough. Here we remove the derivative
@@ -4648,8 +4651,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "/* derivs will be called in print_variables */" \
         "if (0 == 1) {  /* (x1 == x_ini) { */"           \
     )
-    patch_class "${class_dir}/tools/evolver_rkck.c" ${linenr} "replace" "${new_lines[@]}"
-
+    patch_class "${class_dir}/tools/evolver_rkck.c" ${linenr} "replace" "below" "${new_lines[@]}"
     pattern='double *\\* *dataptr *;'
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
              "${class_dir}/source/perturbations.c" | head -n 1)
@@ -4667,21 +4669,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "  error_message,"                                                       \
         "  error_message);"                                                      \
     )
-    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
-    # The a = 1 results are not always printed out by CLASS
-    # when using the ndf15 evolver. Fix this.
-    pattern='\\( *verbose *> *0\\)'
-    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-             "${class_dir}/tools/evolver_ndf15.c" | head -n 1)
-    new_lines=(                                                             \
-        "/* If we are printing variables, we must store the final point */" \
-        "if (print_variables!=NULL) {"                                      \
-        "  class_call((*print_variables)(tnew, ynew+1, f0+1,"               \
-        "    parameters_and_workspace_for_derivs, error_message),"          \
-        "    error_message, error_message);"                                \
-        "}"                                                                 \
-    )
-    patch_class "${class_dir}/tools/evolver_ndf15.c" ${linenr} "insert" "${new_lines[@]}"
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
     # Include ncdm Psi0[q] in perturbation output
     pattern=' *char +tmp *\\[ *40 *\\] *;'
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
@@ -4690,7 +4678,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "char tmp[1024];" \
         "int index_q;"    \
     )
-    patch_class "${class_dir}/source/perturbations.c" ${linenr} "replace" "${new_lines[@]}"
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "replace" "below" "${new_lines[@]}"
     pattern='sprintf *\\( *tmp *, *\"cs2_ncdm\\[%d\\]\" *, *n_ncdm *\\) *;'
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
              "${class_dir}/source/perturbations.c" | head -n 1)
@@ -4702,7 +4690,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "  class_store_columntitle(ppt->scalar_titles,tmp,_TRUE_);"               \
         "}"                                                                       \
     )
-    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
     pattern='class_store_double *\\( *dataptr *, *delta_p_over_delta_rho_ncdm *\\[ *n_ncdm *\\] *,'
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
              "${class_dir}/source/perturbations.c" | head -n 1)
@@ -4723,7 +4711,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "  }"                                                              \
         "}"                                                                \
     )
-    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
     # Include dark energy fluid in perturbation output
     new_class_perturbation_linenr(){
         if [ "${1}" == "perturb_prepare_output" ]; then
@@ -4754,7 +4742,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "class_store_columntitle(ppt->scalar_titles, \"delta_fld\", pba->has_fld);" \
         "class_store_columntitle(ppt->scalar_titles, \"theta_fld\", pba->has_fld);" \
     )
-    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
     linenr=$(new_class_perturbation_linenr "perturb_print_variables")
     new_lines=(                                                                             \
         "/* Include dark energy fluid in perturbation output */"                            \
@@ -4775,14 +4763,14 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "  class_store_double(dataptr, theta_fld, pba->has_fld, storeidx);"                 \
         "}"                                                                                 \
     )
-    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
     # Include theta_tot in perturbation output
     linenr=$(new_class_perturbation_linenr "perturb_prepare_output")
     new_lines=(                                                               \
         "/* Include theta_tot in perturbation output */"                      \
         "class_store_columntitle(ppt->scalar_titles, \"theta_tot\", _TRUE_);" \
     )
-    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
     linenr=$(new_class_perturbation_linenr "perturb_print_variables")
     new_lines=(                                                                                  \
         "/* Include theta_tot in perturbation output */"                                         \
@@ -4790,28 +4778,28 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "double theta_tot = ppw->rho_plus_p_theta/rho_plus_p_tot;"                               \
         "class_store_double(dataptr, theta_tot, _TRUE_, storeidx);"                              \
     )
-    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
     # Include h_prime in perturbation output
     linenr=$(new_class_perturbation_linenr "perturb_prepare_output")
     new_lines=(                                                                                \
         "/* Include h_prime in perturbation output */"                                         \
         "class_store_columntitle(ppt->scalar_titles, \"h_prime\", ppt->gauge == synchronous);" \
     )
-    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
     linenr=$(new_class_perturbation_linenr "perturb_print_variables")
     new_lines=(                                                          \
         "/* Include h_prime in perturbation output */"                   \
         "class_store_double(dataptr, pvecmetric[ppw->index_mt_h_prime]," \
         "  ppt->gauge == synchronous, storeidx);"                        \
     )
-    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
     # Include H_T_prime in perturbation output
     linenr=$(new_class_perturbation_linenr "perturb_prepare_output")
     new_lines=(                                                               \
         "/* Include H_T_prime (in N-body gauge) in perturbation output */"    \
         "class_store_columntitle(ppt->scalar_titles, \"H_T_prime\", _TRUE_);" \
     )
-    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
     linenr=$(new_class_perturbation_linenr "perturb_print_variables")
     new_lines=(                                                                             \
         "/**"                                                                               \
@@ -4854,7 +4842,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "  + ppw->rho_plus_p_shear);"                                                       \
         "class_store_double(dataptr, H_T_prime, _TRUE_, storeidx);"                         \
     )
-    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
     # Do not convert synchronous variables to Newtonian gauge
     pattern='converting *synchronous *variables *to *newtonian *ones'
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
@@ -4864,7 +4852,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "/* Do not convert to Newtonian gauge */"            \
         "if (0 == 1) {  /* (ppt->gauge == synchronous) { */" \
     )
-    patch_class "${class_dir}/source/perturbations.c" ${linenr} "replace" "${new_lines[@]}"
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "replace" "below" "${new_lines[@]}"
     # Add integers 'node' and 'indentation' and use these to make CLASS
     # print out correctly indented (with regard to CO𝘕CEPT) status
     # updates during perturbation computations, when the
@@ -4886,7 +4874,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "/* Used to print status updates during perturbation computation */" \
         "int node, indentation;"                                             \
     )
-    patch_class "${class_dir}/include/background.h" ${linenr_2} "insert" "${new_lines[@]}"
+    patch_class "${class_dir}/include/background.h" ${linenr_2} "insert" "below" "${new_lines[@]}"
     linenr="$(grep -n "__cinit__" "${class_dir}/python/classy.pyx")"
     linenr="${linenr%%:*}"
     sed -i "${linenr}s/.*/    def __cinit__(self, default=False, node=0, indentation=0):  \
@@ -4896,7 +4884,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "self.ba.node = <int>node"               \
         "self.ba.indentation = <int>indentation" \
     )
-    patch_class "${class_dir}/python/classy.pyx" ${linenr} "insert" "${new_lines[@]}"
+    patch_class "${class_dir}/python/classy.pyx" ${linenr} "insert" "below" "${new_lines[@]}"
     linenr_1="$(grep -n 'cdef struct background:' "${class_dir}/python/cclassy.pxd")"
     linenr_1="${linenr_1%%:*}"
     i=0
@@ -4910,6 +4898,14 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
             linenr_2="$(grep -n 'cdef struct' "${class_dir}/python/cclassy.pxd" \
                 | head -n ${i} | tail -n 1)"
             linenr_2="${linenr_2%%:*}"
+            while :; do
+                ((linenr_2 -= 1))
+                line="$(sed "${linenr_2}!d" "${class_dir}/python/cclassy.pxd")"
+                if [ -n "${line}" ]; then
+                    break
+                fi
+            done
+            ((linenr_2 += 1))
             break
         fi
     done
@@ -4917,7 +4913,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "int node"        \
         "int indentation" \
     )
-    patch_class "${class_dir}/python/cclassy.pxd" ${linenr_2} "insert" "${new_lines[@]}"
+    patch_class "${class_dir}/python/cclassy.pxd" ${linenr_2} "insert" "above" "${new_lines[@]}"
     linenr="$(grep -n 'for (index_k = ppt->k_size\[index_md\]-1; index_k >=0; index_k--)' \
         "${class_dir}/source/perturbations.c")"
     linenr="${linenr%%:*}"
@@ -4934,7 +4930,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "  );"                                                          \
         "}"                                                             \
     )
-    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "${new_lines[@]}"
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
     # Build CLASS, including the Python wrapper classy
     PYTHON="${python}" make ${make_jobs} 2>&1
     # Test CLASS
@@ -5195,7 +5191,7 @@ if [ "${concept_install}" == "yes" ] && [ "${concept_installed}" == "no" ]; then
         # Run basic CO𝘕CEPT test to test the environment
         current_step="basic test of ${esc_concept}"
         heading "Basic test of ${esc_concept}"
-        set_status "Basic test of ${esc_concept_double_backslashes}"
+        set_status "Basic test of ${esc_concept}"
         cd "${concept_dir}"
         concept_test_log="${concept_dir}/test_log"
         "${concept}" -t "basic" 2>&1 | tee "${concept_test_log}"
@@ -5219,7 +5215,7 @@ if [ "${concept_install}" == "yes" ] && [ "${concept_installed}" == "no" ]; then
             if [ "${concept_test_success}" == "yes" ]; then
                 current_step="testing ${esc_concept}"
                 heading "Testing ${esc_concept}"
-                set_status "Testing ${esc_concept_double_backslashes}"
+                set_status "Testing ${esc_concept}"
                 "${concept}" -t "all" 2>&1 | tee "${concept_test_log}"
                 [ ${PIPESTATUS[0]} -eq 0 ] || concept_test_success="no"
                 # Clean test_log if test is successfull
@@ -5408,46 +5404,50 @@ while [ ! -f "${log}" ]; do
 done
 
 # Continuously print the tail of the install log
-printf "\n\n"
 ((n_lines_to_skip = log_file_lines_before_install + 2))
-tail -n +${n_lines_to_skip} -f "${log}" --pid ${log_pid} | while read line; do
-    # Print out the lines, formatted nicely
-    if [[ "${line}" == "${status_prefix}"* ]]; then
-        status_backup_="${status}"
-        status=${line:${status_prefix_length}}
-        if [ "${status}" == "${status_disable}" ]; then
-            # Disable status
-            status_visible="${status_off}"
-            status_backup="${status_backup_}"
-            printf "${esc_up}${esc_erase}"
-            printf "${esc_up}"
-        elif [ "${status}" == "${status_enable}" ]; then
-            # Enable status
-            status_visible="${status_on}"
-            status="${status_backup}"
-            printf "\n${esc_bold}${esc_reverted}${status}${esc_normal}\n"
-        elif [ "${status}" == "${status_finish}" ]; then
-            # Display loop complete. Do nothing
-            :
-        elif [ "${status_visible}" == "${status_on}" ]; then
-            # Normal status update
-            printf "${esc_up}${esc_erase}"
-            printf "${esc_up}"
-            printf "\n${esc_bold}${esc_reverted}${status}${esc_normal}\n"
-        fi
-    else
-        if [ "${status_visible}" == "${status_on}" ]; then
-            # Line with status enabled
-            printf "${esc_up}${esc_erase}"
-            printf "${esc_up}"
-            printf "%s\n" "${line}"
-            printf "\n${esc_bold}${esc_reverted}${status}${esc_normal}\n"
+display_loop(){
+    local IFS=''
+    printf "\n\n"
+    tail -n +${n_lines_to_skip} -f "${log}" --pid ${log_pid} | while read -r line; do
+        # Print out the lines, formatted nicely
+        if [[ "${line}" == "${status_prefix}"* ]]; then
+            status_backup_="${status}"
+            status=${line:${status_prefix_length}}
+            if [ "${status}" == "${status_disable}" ]; then
+                # Disable status
+                status_visible="${status_off}"
+                status_backup="${status_backup_}"
+                printf "${esc_up}${esc_erase}"
+                printf "${esc_up}"
+            elif [ "${status}" == "${status_enable}" ]; then
+                # Enable status
+                status_visible="${status_on}"
+                status="${status_backup}"
+                printf "\n${esc_bold}${esc_reverted}${status}${esc_normal}\n"
+            elif [ "${status}" == "${status_finish}" ]; then
+                # Display loop complete. Do nothing
+                :
+            elif [ "${status_visible}" == "${status_on}" ]; then
+                # Normal status update
+                printf "${esc_up}${esc_erase}"
+                printf "${esc_up}"
+                printf "\n${esc_bold}${esc_reverted}${status}${esc_normal}\n"
+            fi
         else
-            # Line with status disabled
-            printf "%s\n" "${line}"
+            if [ "${status_visible}" == "${status_on}" ]; then
+                # Line with status enabled
+                printf "${esc_up}${esc_erase}"
+                printf "${esc_up}"
+                printf "%s\n" "${line}"
+                printf "\n${esc_bold}${esc_reverted}${status}${esc_normal}\n"
+            else
+                # Line with status disabled
+                printf "%s\n" "${line}"
+            fi
         fi
-    fi
-done
+    done
+}
+display_loop
 
 # Remove the log files if no errors occurred
 installation_guaranteed_successful="no"
