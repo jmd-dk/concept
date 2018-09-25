@@ -975,7 +975,7 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
             # This component should be 3D rendered.
             # Prepare a figure for the 3D render of the i'th component.
             figname = 'render3D_{}'.format(component.name)
-            dpi = 100  # The value of dpi is irrelevant
+            dpi = 100  # This only affects the font size relative to the figure
             fig = plt.figure(figname, figsize=[render3D_resolution/dpi]*2, dpi=dpi)
             ax = fig.gca(projection='3d', facecolor=render3D_bgcolor)
             # The color and α (of a homogeneous column through the
@@ -1019,7 +1019,7 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
                 # Apply size and alpha
                 artist_component = ax.scatter(0, 0, 0,
                                               alpha=α,
-                                              c=color,
+                                              c=np.expand_dims(color, 0),
                                               s=scatter_size,
                                               depthshade=False,
                                               lw=0,
@@ -1122,6 +1122,9 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
             ax.set_ylim(0, boxsize)
             ax.set_zlim(0, boxsize)
             ax.axis('off')  # Remove panes, gridlines, axes, ticks, etc.
+            for spine in ax.spines.values():
+                # Needed due to bug in matplotlib 3.0.0
+                spine.set_visible(False)
             plt.tight_layout(pad=-1)  # Extra tight layout, to prevent white frame
             proj3d.persp_transformation = orthographic_proj  # Use orthographic 3D projection
             # Store the figure, axes and the component
