@@ -113,15 +113,15 @@ class CosmoResults:
             # Unique ID and corresponding file name of this CosmoResults
             # object based on the hash of the CLASS parameters and the
             # CLASS variables _VERSION, _ARGUMENT_LENGTH_MAX_ and a_min.
-            self.id = hashlib.sha1((str(tuple(sorted({
-                str(key).replace(' ', '').lower(): str(val).replace(' ', '').lower()
-                for key, val in self.params.items()
-            }.items()
-            )) + (
-                class__VERSION_,
-                class__ARGUMENT_LENGTH_MAX_,
-                class_a_min,
-            ))).encode()).hexdigest()
+            self.id = hashlib.sha1(str(
+                tuple(sorted({str(key).replace(' ', '').lower(): str(val).replace(' ', '').lower()
+                    for key, val in self.params.items()}.items()))
+                + tuple(sorted([str(val).replace(' ', '').lower()
+                    for val in class_extra_background]))
+                + tuple(sorted([str(val).replace(' ', '').lower()
+                    for val in class_extra_perturbations]))
+                + (class__VERSION_, class__ARGUMENT_LENGTH_MAX_, class_a_min)
+            ).encode()).hexdigest()
             self.filename = f'{paths["reusables_dir"]}/class/{self.id}.hdf5'
         # Message that gets printed if and when CLASS is called
         self.class_call_reason = class_call_reason
