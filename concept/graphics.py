@@ -142,6 +142,7 @@ def plot_powerspec(k_bin_centers, power_dict, filename, powerspec_plot_select):
     factor=str,
     filename=str,
     i='Py_ssize_t',
+    k_str=str,
     key=str,
     loga_value='double',
     loga_values='double[::1]',
@@ -214,9 +215,10 @@ def plot_detrended_perturbations(a_values, perturbations_detrended, transferfunc
     )
     plt.ylabel(rf'$({var_name_latex} - \mathrm{{trend}})\, {unit_latex}$', fontsize=14)
     specific_species = transferfunction.var_name not in ('hʹ',)
+    k_str = significant_figures(transferfunction.k_magnitudes[k], 3, fmt='tex', scientific=True)
     plt.title(
         (rf'{transferfunction.class_species}, ' if specific_species else '')
-        + rf'$k = {transferfunction.k_magnitudes[k]}\, \mathrm{{{unit_length}}}^{{-1}}$',
+        + rf'$k = {k_str}\, \mathrm{{{unit_length}}}^{{-1}}$',
         fontsize=16,
         horizontalalignment='center',
     )
