@@ -1398,6 +1398,10 @@ class TransferFunction:
                                 perturbation_values,
                                 (1, 0),
                                 bounds=bounds,
+                                ftol=1e-12,
+                                xtol=1e-12,
+                                gtol=1e-12,
+                                max_nfev=1000*a_values.shape[0],
                             )
                         )
                     except:
