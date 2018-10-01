@@ -51,7 +51,7 @@ import keyword, os, re, shutil, sys, textwrap, types, unicodedata, warnings
 import math
 import numpy as np
 from numpy import arange, asarray, empty, linspace, logspace, ones, zeros
-np.warnings.filterwarnings(  # Suppress warning from NumPy 14.1 caused by H5Py
+np.warnings.filterwarnings(  # Suppress warning from NumPy 1.14 caused by H5Py
     'ignore',
     'Conversion of the second argument of issubdtype from',
     FutureWarning,
@@ -3299,6 +3299,8 @@ if any(f1_name in class_extra_background for f1_name in {'f', 'f1'}):
     class_extra_background.add('gr.fac. f')
 if any(τ_name in class_extra_background for τ_name in {unicode('τ'), asciify('τ'), 'tau'}):
     class_extra_background.add('conf. time')
+
+
 
 ###########################################################
 # Functionality for "from commons import *" when compiled #

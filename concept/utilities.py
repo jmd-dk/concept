@@ -660,6 +660,7 @@ def info():
     component_variables=dict,
     components=list,
     filename=str,
+    gauge=str,
     i='Py_ssize_t',
     index='Py_ssize_t',
     k_gridsize='Py_ssize_t',
@@ -687,10 +688,12 @@ def CLASS():
     components = get_initial_conditions(do_realization=False)
     # Do CLASS computation
     k_min, k_max, k_gridsize = get_default_k_parameters(φ_gridsize)
+    gauge = special_params['gauge'].replace('-', '').lower()
     cosmoresults = compute_cosmo(
         k_min,
         k_max,
         k_gridsize,
+        'synchronous' if gauge == 'nbody' else gauge,
         class_call_reason='in order to get perturbations ',
     )
     cosmoresults.load_everything()
@@ -877,7 +880,6 @@ def CLASS():
     # Store the a and k values at which the perturbations are tabulated,
     # as well as the primordial parameters needed to convert transfer
     # functions into power spectra and the gauge.
-    gauge = special_params['gauge']
     if master:
         with open_hdf5(filename, mode='a') as hdf5_file:
             perturbations_h5 = hdf5_file.require_group('perturbations')

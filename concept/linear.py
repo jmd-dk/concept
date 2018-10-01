@@ -1772,10 +1772,16 @@ def compute_cosmo(k_min=-1, k_max=-1, k_gridsize=-1,
     # parameter file, this gauge should overwrite what ever is passed
     # to this function.
     gauge = class_params.get('gauge', gauge).replace('-', '').lower()
-    if gauge not in ('synchronous', 'newtonian', 'nbody'):
+    if gauge == 'nbody':
+        masterwarn(
+            f'The "nbody" gauge was specified in the call to compute_cosmo. '
+            f'For this gauge, you should really pass in "synchronous" '
+            f'and then let compute_transfer transform to N-body gauge.'
+        )
+    if gauge not in ('synchronous', 'newtonian'):
         abort(
-            f'Gauge was set to "{gauge}" but must be one of '
-            f'"N-body", "synchronous", "Newtonian"'
+            f'In compute_cosmo, gauge was set to "{gauge}" but must be '
+            f'either "synchronous" or "Newtonian"'
         )
     # Shrink down k_gridsize if it is too large to be handled by CLASS.
     # Also use the largest allowed value as the default value,
