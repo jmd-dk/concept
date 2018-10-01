@@ -538,6 +538,17 @@ parser.add_argument(
     default='${params_unspecified}',
 )
 parser.add_argument(
+    '-c', '--command-line-params',
+    help=(
+        'specify parameter(s) directly from the command line. '
+        'If a parameter file is specified as well, the command line '
+        'parameters will take precedence. This option may be specified '
+        'multiple times.'
+    ),
+    default=[],
+    action='append',
+)
+parser.add_argument(
     '-q', '--queue',
     help='queue for submission of the remote job',
     default='${queue_unspecified}',
@@ -616,6 +627,7 @@ print(  '  argparse_finished=yes'
       + '; memory=\"{}\"'.format(args.memory)
       + '; nprocs={}'.format(args.nprocs)
       + '; params=\"{}\"'.format(args.params)
+      + '; command_line_params=\"{}\"'.format(args.command_line_params)
       + '; queue={}'.format(args.queue)
       + '; test=\"{}\"'.format(args.test)
       + '; utility=\"{}\"'.format(args.utility[0])
@@ -981,14 +993,25 @@ logs_dir_rel="$(sensible_path ${logs_dir})"
 # supplied parameter file for editing.
 # Also make sure that this directory exists.
 mkdir -p "${params_dir}"
+params_cp="${params_dir}/.params_cp_${start_time_human}"
 if [ "${params}" == "${params_default}" ]; then
-    params_cp="${params}"
     params_cp_info=""
 else
-    params_cp="${params_dir}/.params_cp_${start_time_human}"
     cp "${params}" "${params_cp}"
     params_cp_info=" (copied to \"$(sensible_path ${params_cp})\")"
 fi
+# Insert command line parameters
+# at the bottom of the copied parameter file.
+echo "
+# The above is a copy of the CO𝘕CEPT parameter file \"${params}\".
+# Below we apply any additional command line parameters.
+_apply_command_line_params = lambda globals_dict, command_line_params: [
+    exec(assignment.strip(), globals_dict)
+    for arg in command_line_params
+    for assignment in arg.split(';')
+]
+_apply_command_line_params(globals(), ${command_line_params})
+" >> "${params_cp}"
 
 # Create the logs dir if it does not exist
 mkdir -p "${logs_dir}"
