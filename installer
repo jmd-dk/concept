@@ -3535,40 +3535,44 @@ if [ "${openblas_install}" == "yes" ] && [ "${openblas_installed}" == "no" ]; th
     # we install a non-threaded version of OpenBLAS.
     # We wish to use the gfortran Fortran compiler. If it fails,
     # we retry without explicitly specifying any Fortran compiler.
-    # On 32 bit systems, we need to set BINARY=32. First we try without,
-    # then with this option.
+    # We do not care about the C compiler, but it fails on e.g. craycc,
+    # and so we try first without explicitly specifying any C compiler,
+    # and then gcc on failure. Lastly, on 32 bit systems we need to
+    # set BINARY=32. First we try without, then with this option.
     # Note that OpenBLAS runs its test suite during this build.
-    for FC in "gfortran" ""; do
+    make_openblas(){
         for BINARY in "" "32"; do
-            printf "\nAttempting to build OpenBLAS with FC=${FC}, BINARY=${BINARY}\n"
-            openblas_make_success="yes"
-            if [ -n "${FC}" ]; then
-                if [ -n "${BINARY}" ]; then
-                    make USE_THREAD=0 FC="${FC}" BINARY="${BINARY}" || openblas_make_success="no"
-                else
-                    make USE_THREAD=0 FC="${FC}" || openblas_make_success="no"
-                fi
-            else
-                if [ -n "${BINARY}" ]; then
-                    make USE_THREAD=0 BINARY="${BINARY}" || openblas_make_success="no"
-                else
-                    make USE_THREAD=0 || openblas_make_success="no"
-                fi
-            fi
-            if [ "${openblas_make_success}" == "yes" ]; then
-                break
-            fi
-            printf "\nFailed to build OpenBLAS with FC=${FC}, BINARY=${BINARY}\n"
-            make clean
+            for CC in "" "gcc"; do
+                for FC in "gfortran" ""; do
+                    printf "
+Attempting to build OpenBLAS with FC=${FC}, CC=${CC}, BINARY=${BINARY}\n"
+                    openblas_make_success="yes"
+                    make_openblas_cmd="make USE_THREAD=0"
+                    if [ -n "${FC}" ]; then
+                        make_openblas_cmd="${make_openblas_cmd} FC=${FC}"
+                    fi
+                    if [ -n "${CC}" ]; then
+                        make_openblas_cmd="${make_openblas_cmd} CC=${CC}"
+                    fi
+                    if [ -n "${BINARY}" ]; then
+                        make_openblas_cmd="${make_openblas_cmd} BINARY=${BINARY}"
+                    fi
+                    eval "${make_openblas_cmd}" || openblas_make_success="no"
+                    if [ "${openblas_make_success}" == "yes" ]; then
+                        return
+                    fi
+                    printf "
+Failed to build OpenBLAS with FC=${FC}, CC=${CC}, BINARY=${BINARY}\n"
+                    make clean
+                done
+            done
         done
-        if [ "${openblas_make_success}" == "yes" ]; then
-            break
-        fi
-    done
+    }
+    make_openblas
     if [ "${openblas_make_success}" == "yes" ]; then
-        printf "\nSuccessfully build OpenBLAS with FC=${FC}, BINARY=${BINARY}\n\n"
+        printf "\nSuccessfully build OpenBLAS with FC=${FC}, CC=${CC}, BINARY=${BINARY}\n\n"
     else
-        error "OpenBLAS build failed under all combinations of FC, BINARY"
+        error "OpenBLAS build failed under all combinations of FC, CC and BINARY"
         exit 1
     fi
     make PREFIX="${openblas_dir}" install
