@@ -149,6 +149,11 @@ if [ "${resource_manager}" == "slurm" ]; then
         colorprint "Error: Could not find the slurm '${info_command}' command" "red"
         exit 1
     fi
+    # Function which lists information about all jobs in standard
+    # PBS format (jobid, jobname, username, time, state, queue).
+    get_info(){
+        ${info_command} --format='%i %j %u %M %t %P'
+    }
     # State designating a running job
     state_running="R"
 elif [ "${resource_manager}" == "torque" ]; then
@@ -158,6 +163,12 @@ elif [ "${resource_manager}" == "torque" ]; then
         colorprint "Error: Could not find the torque/PBS '${info_command}' command" "red"
         exit 1
     fi
+    # Function which lists information about all jobs in standard
+    # PBS format (jobid, jobname, username, time, state, queue).
+    get_info(){
+        ${info_command}
+    }
+    # State designating a running job
     state_running="R"
 else
     colorprint "Error: Unrecognized resource manager \"${resource_manager}\"" "red"
@@ -174,40 +185,28 @@ my_username="${my_username:0:15}"
 update_job_info(){
     # Aquire information about submitted jobs.
     # Revert the output so that the newest jobs are in the top.
-    info="$(${info_command} | tac)"
+    info="$(get_info | tac)"
     # Reset the state variable
     state="None"
     # Iterate through the output
     while read -r line; do
-        if [ "${resource_manager}" == "slurm" ]; then
-            jobid_line="$(echo "${line}" | awk '{print $1}')"
-        elif [ "${resource_manager}" == "torque" ]; then
-            jobid_line="$(echo "${line}" | awk '{print $1}')"
-        fi
+        jobid_line="$(echo "${line}" | awk '{print $1}')"
         jobid_line="${jobid_line%.*}"
         if [ ${jobid_line} == ${jobid} ]; then
             # Submitted job with matching jobid found
-            if [ "${resource_manager}" == "slurm" ]; then
-                username="$(echo "${line}" | awk '{print $4}')"
-            elif [ "${resource_manager}" == "torque" ]; then
-                username="$(echo "${line}" | awk '{print $3}')"
-            fi
+            username="$(echo "${line}" | awk '{print $3}')"
             username="${username:0:15}"
             if [ "${username}" != "${my_username}" ]; then
                 colorprint "Job ${jobid} does not belong to you" "red"
                 exit 1
             fi
-            if ! echo "${line}" | grep "CONCEPT" > "/dev/null"; then
+            jobname="$(echo "${line}" | awk '{print $2}')"
+            if [[ "${jobname}" != *"CONCEPT"* ]]; then
                 colorprint "Job ${jobid} is not a CO𝘕CEPT job" "red"
                 exit 1
             fi
-            if [ "${resource_manager}" == "slurm" ]; then
-                state="$(echo "${line}" | awk '{print $5}')"
-                queue="$(echo "${line}" | awk '{print $2}')"
-            elif [ "${resource_manager}" == "torque" ]; then
-                state="$(echo "${line}" | awk '{print $5}')"
-                queue="$(echo "${line}" | awk '{print $6}')"
-            fi
+            state="$(echo "${line}" | awk '{print $5}')"
+            queue="$(echo "${line}" | awk '{print $6}')"
             break
         fi
     done <<< "${info}"
@@ -234,53 +233,40 @@ display(){
 # find information about the job.
 if [ "${jobid}" == "__none__" ]; then
     # Aquire information about all submitted jobs
-    info="$(${info_command})"
+    info="$(get_info)"
     # Find all jobs submitted by the user.
     # Keep only the latest, running job.
     Njobs=0
     while read -r line; do
-        if [ "${resource_manager}" == "slurm" ]; then
-            username="$(echo "${line}" | awk '{print $4}')"
-        elif [ "${resource_manager}" == "torque" ]; then
-            username="$(echo "${line}" | awk '{print $3}')"
-        fi
+        username="$(echo "${line}" | awk '{print $3}')"
         username="${username:0:15}"
         if [ "${username}" == "${my_username}" ]; then
-            if [ "${resource_manager}" == "slurm" ]; then
-                jobname="$(echo "${line}" | awk '{print $3}')"
-            elif [ "${resource_manager}" == "torque" ]; then
-                jobname="$(echo "${line}" | awk '{print $2}')"
+            jobname="$(echo "${line}" | awk '{print $2}')"
+            if [[ "${jobname}" != *"CONCEPT"* ]]; then
+                continue
             fi
-            if [[ "${jobname}" == *"CONCEPT"* ]]; then
-                # CO𝘕CEPT job submitted by the user found
-                ((Njobs += 1))
-                if [ "${resource_manager}" == "slurm" ]; then
-                    jobid_i="$(echo "${line}" | awk '{print $1}')"
-                    state_i="$(echo "${line}" | awk '{print $5}')"
-                    queue_i="$(echo "${line}" | awk '{print $2}')"
-                elif [ "${resource_manager}" == "torque" ]; then
-                    jobid_i="$(echo "${line}" | awk '{print $1}')"
-                    state_i="$(echo "${line}" | awk '{print $5}')"
-                    queue_i="$(echo "${line}" | awk '{print $6}')"
-                fi
-                if [ ${Njobs} -eq 1 ]; then
-                    # First CO𝘕CEPT job encountered
-                    jobid="${jobid_i}"
-                    state="${state_i}"
-                    queue="${queue_i}"
-                else
-                    # Another CO𝘕CEPT job encountered
-                    if [ "${state}" == "${state_running}" ]; then
-                        if [ "${state_i}" == "${state_running}" ] && [ ${jobid_i} -ge ${jobid} ]; then
-                            jobid="${jobid_i}"
-                            state="${state_i}"
-                            queue="${queue_i}"
-                        fi
-                    else
+            # CO𝘕CEPT job submitted by the user found
+            ((Njobs += 1))
+            jobid_i="$(echo "${line}" | awk '{print $1}')"
+            state_i="$(echo "${line}" | awk '{print $5}')"
+            queue_i="$(echo "${line}" | awk '{print $6}')"
+            if [ ${Njobs} -eq 1 ]; then
+                # First CO𝘕CEPT job encountered
+                jobid="${jobid_i}"
+                state="${state_i}"
+                queue="${queue_i}"
+            else
+                # Another CO𝘕CEPT job encountered
+                if [ "${state}" == "${state_running}" ]; then
+                    if [ "${state_i}" == "${state_running}" ] && [ ${jobid_i} -ge ${jobid} ]; then
                         jobid="${jobid_i}"
                         state="${state_i}"
                         queue="${queue_i}"
                     fi
+                else
+                    jobid="${jobid_i}"
+                    state="${state_i}"
+                    queue="${queue_i}"
                 fi
             fi
         fi
