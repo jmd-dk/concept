@@ -104,7 +104,7 @@ def convert():
     special_params['snapshot_filename'] parameter to the type
     specified by the snapshot_type parameter.
     If special_params['attributes'] is not empty, it contains
-    information about global parameters and individual componen
+    information about global parameters and individual component
     attributes which should be changed.
     """
     # Create dict of global parameters (params) and (default)dict of

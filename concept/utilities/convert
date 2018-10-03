@@ -149,16 +149,19 @@ fi
 
 # Get filenames of snapshots and create matching (temporary) parameter files
 # in a subdirectory of the utilities directory.
-info="$("${concept}" -p "${params}"                             \
-                     ${interactive_flag}                        \
-                     --local                                    \
-                     ${no_optimization_flag}                    \
-                     ${pure_python_flag}                        \
-                     ${unsafe_build_flag}                       \
-                     -u info                                    \
-                         "$(bash_array2python_list "${paths[@]}")"   \
-                         --generate-params "${this_dir}/params" \
-        )"
+info="$(                                              \
+    "${concept}"                                      \
+        -c "${command_line_param}"                    \
+        -p "${params}"                                \
+        -u info                                       \
+            "$(bash_array2python_list "${paths[@]}")" \
+            --generate-params "${this_dir}/params"    \
+        ${interactive_flag}                           \
+        --local                                       \
+        ${no_optimization_flag}                       \
+        ${pure_python_flag}                           \
+        ${unsafe_build_flag}                          \
+)"
 snapshot_filenames="$(echo "${info}" | grep -x 'Parameters.*' | grep -o '".*"')"
 snapshot_params_filenames="$(echo "${info}"                                           \
                              | grep -x 'The above parameters have been written to .*' \
@@ -217,6 +220,8 @@ paths['params'] = params_path_ori
     exec 4>&1
     jobid_and_exit_code="$(                \
         "${concept}"                       \
+            -c "${command_line_param}"     \
+            -j "${job_directive}"          \
             -m "${main}"                   \
             -n  ${nprocs}                  \
             -p "${params_filename}"        \

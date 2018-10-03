@@ -190,6 +190,8 @@ fi
 exec 4>&1
 jobid_and_exit_code="$(                \
     "${concept}"                       \
+        -c "${command_line_param}"     \
+        -j "${job_directive}"          \
         -m "${main}"                   \
         -n ${nprocs}                   \
         -p "${params_filename}"        \

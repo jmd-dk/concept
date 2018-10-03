@@ -240,6 +240,13 @@ export PYTHONPATH="${concept_dir}:${PYTHONPATH}"
 # library. To fix this we export the zlib library at run time.
 export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
 
+# A bug in HDF5 makes the code crash on certain file systems.
+# A workaround is to set an environment variable as below.
+# The bug is documented here:
+# http://www.nersc.gov/users/data-analytics
+# /data-management/i-o-libraries/hdf5-2/hdf5/
+export HDF5_USE_FILE_LOCKING=FALSE
+
 # The MPI executables and libraries should be
 # on the PATH and LD_LIBRARY_PATH, respectively.
 export PATH="${mpi_dir}/bin:${PATH}"
@@ -265,7 +272,7 @@ if [ "${mpi_implementation}" == "openmpi" ]; then
     # (for nprocs > 2), which means that OpenMP threads are not
     # necessarily assigned to cores in a one-to-one fashion.
     # Fix this by simply removing this binding.
-    mpiexec_args="${mpiexec_args} --bind-to none"
+    export OMPI_MCA_hwloc_base_binding_policy=none
     # In OpenMPI 3, oversubscription (having more MPI processes than
     # physical cores) is disallowed by default.
     if [[ "${mpi_version}" == 3* ]]; then
@@ -293,6 +300,11 @@ get_resource_manager(){
     if get_command sbatch >/dev/null; then
         # Slurm is installed. Use this as the resource manager.
         resource_manager="slurm"
+        srun_found="yes"
+        if ! get_command srun >/dev/null; then
+            colorprint "Warning: Using Slurm but cannot find the srun command" "red"
+            srun_found="no"
+        fi
     elif get_command qsub >/dev/null; then
         # TORQUE/PBS is installed. Use this as the resource manager.
         resource_manager="torque"
@@ -509,10 +521,30 @@ parser = argparse.ArgumentParser(
     description='Run the CO𝘕CEPT code',
 )
 parser.add_argument(
+    '-c', '--command-line-param',
+    help=(
+        'specify parameter(s) directly from the command line. '
+        'If a parameter file is specified as well, the command line '
+        'parameters will take precedence. This option may be specified '
+        'multiple times.'
+    ),
+    default=[],
+    action='append',
+)
+parser.add_argument(
     '-i', '--interactive',
     help='inspect interactively after program execution',
     default=${interactive_default},
     action='store_true',
+)
+parser.add_argument(
+    '-j', '--job-directive',
+    help=(
+        'specify an additional line to add to the jobscript header '
+        'for remote jobs. This option may be specified multiple times.'
+    ),
+    default=[],
+    action='append',
 )
 parser.add_argument(
     '-m', '--main',
@@ -536,17 +568,6 @@ parser.add_argument(
     '-p', '--params',
     help='parameter file to use',
     default='${params_unspecified}',
-)
-parser.add_argument(
-    '-c', '--command-line-params',
-    help=(
-        'specify parameter(s) directly from the command line. '
-        'If a parameter file is specified as well, the command line '
-        'parameters will take precedence. This option may be specified '
-        'multiple times.'
-    ),
-    default=[],
-    action='append',
 )
 parser.add_argument(
     '-q', '--queue',
@@ -617,31 +638,39 @@ else:
     # Do print out error if invalid arguments are given
     # and no utility should be used.
     args = parser.parse_args()
+# Function for converting a list to a str in the form of a Bash array
+def python_list2bash_array(lst):
+    return '({})'.format(\"'\" + \"' '\".join(
+        [str(val).replace(\"'\", '\"') for val in lst]
+    ) + \"'\")
 # Reset stdout
 sys.stdout = stdout_copy
 # Print out the arguments.
 # These will be captured in the Bash 'args' variable
-print(  '  argparse_finished=yes'
-      + '; interactive={}'.format(args.interactive)
-      + '; main=\"{}\"'.format(args.main)
-      + '; memory=\"{}\"'.format(args.memory)
-      + '; nprocs={}'.format(args.nprocs)
-      + '; params=\"{}\"'.format(args.params)
-      + '; command_line_params=\"{}\"'.format(args.command_line_params)
-      + '; queue={}'.format(args.queue)
-      + '; test=\"{}\"'.format(args.test)
-      + '; utility=\"{}\"'.format(args.utility[0])
-      + '; utility_args=({})'.format(\"'\" + \"' '\".join(utility_args) + \"'\")  # Bash array
-      + '; walltime={}'.format(args.walltime)
-      + '; local={}'.format(args.local)
-      + '; no_optimization={}'.format(args.no_optimization)
-      + '; no_watch={}'.format(args.no_watch)
-      + '; pure_python={}'.format(args.pure_python)
-      + '; unsafe_build={}'.format(args.unsafe_build)
-      )
+print('; '.join([
+    \"argparse_finished=yes\",
+    \"command_line_param='{}'\".format(' ; '.join(args.command_line_param).replace(\"'\", '\"')),
+    \"interactive={}\".format(args.interactive),
+    \"job_directive='{}'\".format(' ; '.join(args.job_directive).replace(\"'\", '\"')),
+    \"main='{}'\".format(args.main),
+    \"memory='{}'\".format(args.memory),
+    \"nprocs={}\".format(args.nprocs),
+    \"params='{}'\".format(args.params),
+    \"queue='{}'\".format(args.queue),
+    \"test='{}'\".format(args.test),
+    \"utility='{}'\".format(args.utility[0]),
+    \"utility_args={}\".format(python_list2bash_array(utility_args)),
+    \"walltime={}\".format(args.walltime),
+    \"local={}\".format(args.local),
+    \"no_optimization={}\".format(args.no_optimization),
+    \"no_watch={}\".format(args.no_watch),
+    \"pure_python={}\".format(args.pure_python),
+    \"unsafe_build={}\".format(args.unsafe_build),
+]))
 " "$@" || echo "argparse_exit_code=$?")
 # Evaluate the handled arguments into this scope
 eval "${args}"
+
 # Exit if argparse exited without finishing
 if [ "${argparse_finished}" != "yes" ]; then
     if [ -z "${argparse_exit_code}" ]; then
@@ -940,7 +969,7 @@ if [ "${utility}" != "${utility_unspecified}" ]; then
     fi
     # Set flag variables for the flag command options,
     # so that a utility can call this script with the same flags enabled
-    # as what used to invoke this script originally.
+    # as was used to invoke this script originally.
     local_flag=""
     if [ "${local}" == "True" ]; then
         local_flag="--local"
@@ -1002,16 +1031,17 @@ else
 fi
 # Insert command line parameters
 # at the bottom of the copied parameter file.
-echo "
-# The above is a copy of the CO𝘕CEPT parameter file \"${params}\".
-# Below we apply any additional command line parameters.
-_apply_command_line_params = lambda globals_dict, command_line_params: [
-    exec(assignment.strip(), globals_dict)
-    for arg in command_line_params
-    for assignment in arg.split(';')
+"${python}" -B -c "
+lines = [
+    '# The above is a copy of the CO𝘕CEPT parameter file \"${params}\".',
+    '# Below we apply any additional command line parameters.',
 ]
-_apply_command_line_params(globals(), ${command_line_params})
-" >> "${params_cp}"
+for statement in '${command_line_param}'.split(';'):
+    lines.append(statement.strip())
+lines.append('')
+with open('${params_cp}', 'a') as f:
+    f.write('\n'.join(lines))
+"
 
 # Create the logs dir if it does not exist
 mkdir -p "${logs_dir}"
@@ -1040,20 +1070,29 @@ if [ "${remote}" == "True" ]; then
         mb_per_process=$("${python}" -B -c "print(int(${memory}/(2**20*${nprocs})))")
         # Construct Slurm header
         jobscript_header="$(${python} -B -c "
+directive_prefix = '#SBATCH'
 lines = []
-lines.append('#SBATCH --job-name=${jobname}')
-lines.append('#SBATCH --partition=${queue}')
+lines.append(f'{directive_prefix} --job-name=${jobname}')
+lines.append(f'{directive_prefix} --partition=${queue}')
 if ${nnodes}:
-    lines.append('#SBATCH --nodes=${nnodes}')
-    lines.append('#SBATCH --tasks-per-node=${nprocs_per_node}')
+    lines.append(f'{directive_prefix} --nodes=${nnodes}')
+    lines.append(f'{directive_prefix} --tasks-per-node=${nprocs_per_node}')
 else:
-    lines.append('#SBATCH --ntasks=${nprocs}')
+    lines.append(f'{directive_prefix} --ntasks=${nprocs}')
 if ${memory}:
-    lines.append('#SBATCH --mem-per-cpu=${mb_per_process}M')
+    lines.append(f'{directive_prefix} --mem-per-cpu=${mb_per_process}M')
 if '${walltime}' != '00:00:00':
-    lines.append('#SBATCH --time=${walltime}')
-lines.append('#SBATCH --output=/dev/null')
-lines.append('#SBATCH --error=/dev/null')
+    lines.append(f'{directive_prefix} --time=${walltime}')
+lines.append(f'{directive_prefix} --output=/dev/null')
+lines.append(f'{directive_prefix} --error=/dev/null')
+for job_directive in '${job_directive}'.split(';'):
+    job_directive = job_directive.strip()
+    if not job_directive:
+        continue
+    if not job_directive.startswith(directive_prefix):
+        job_directive = f'{directive_prefix} {job_directive}'
+    lines.append(job_directive))
+)
 lines.append('')
 lines.append('# Get the ID of the current job')
 lines.append('jobid=\"\${SLURM_JOB_ID%%.*}\"')
@@ -1074,16 +1113,25 @@ and the number of processes per node" "red"
         mb_per_process=$("${python}" -B -c "print(int(${memory}/(2**20*${nprocs})))")
         # Construct TORQUE header
         jobscript_header="$(${python} -B -c "
+directive_prefix = '#PBS'
 lines = []
-lines.append('#PBS -N ${jobname}')
-lines.append('#PBS -q ${queue}')
-lines.append('#PBS -l nodes=${nnodes}:ppn=${nprocs_per_node}')
+lines.append(f'{directive_prefix} -N ${jobname}')
+lines.append(f'{directive_prefix} -q ${queue}')
+lines.append(f'{directive_prefix} -l nodes=${nnodes}:ppn=${nprocs_per_node}')
 if ${memory}:
-    lines.append('#PBS -l pmem=${mb_per_process}mb')
+    lines.append(f'{directive_prefix} -l pmem=${mb_per_process}mb')
 if '${walltime}' != '00:00:00':
-    lines.append('#PBS -l walltime=${walltime}')
-lines.append('#PBS -o /dev/null')
-lines.append('#PBS -e /dev/null')
+    lines.append(f'{directive_prefix} -l walltime=${walltime}')
+lines.append(f'{directive_prefix} -o /dev/null')
+lines.append(f'{directive_prefix} -e /dev/null')
+for job_directive in '${job_directive}'.split(';'):
+    job_directive = job_directive.strip()
+    if not job_directive:
+        continue
+    if not job_directive.startswith(directive_prefix):
+        job_directive = f'{directive_prefix} {job_directive}'
+    lines.append(job_directive))
+)
 lines.append('')
 lines.append('# Get the ID of the current job')
 lines.append('jobid=\"\${PBS_JOBID%%.*}\"')
@@ -1102,6 +1150,13 @@ print('\n'.join(lines))
         memory_display="${memory_in_mb} MB"
     else
         memory_display=""
+    fi
+    # The executing command. When using Slurm, it is best to use the
+    # srun command rather than calling mpiexec directly.
+    if [ "${resource_manager}" == "slurm" ] && [ "${srun_found}" == "yes" ]; then
+        jobscript_execute="srun"
+    else
+        jobscript_execute="\"\${mpiexec}\" \${mpiexec_args}"
     fi
     # Write job script file
     jobscript="${this_dir}/jobscript"
@@ -1180,13 +1235,17 @@ fi
 # Run the code. Both stdout and stderr are being logged
 # to logs_dir/jobid, while the stderr alone is also logged
 # to logs_dir/jobid_err.
-(cd \"\${concept_dir}\" && \"\${mpiexec}\" \${mpiexec_args}                                  \\
-                                           \"\${python}\" -B                                 \\
-                                                          \${m_flag} \"\${main_as_library}\" \\
-                                                          \"params='\${params}'\"            \\
-                                                          \"params_cp='\${params_cp}'\"      \\
-                                                          \"jobid='\${jobid}'\"              \\
- >> \"\${logs_dir}/\${jobid}\" 2>> >(tee -a \"\${logs_dir}/\${jobid}_err\"))
+(                                                    \\
+    cd \"\${concept_dir}\"                           \\
+    && ${jobscript_execute}                          \\
+        \"\${python}\" -B                            \\
+            \${m_flag} \"\${main_as_library}\"       \\
+            \"params='\${params}'\"                  \\
+            \"params_cp='\${params_cp}'\"            \\
+            \"jobid='\${jobid}'\"                    \\
+        >> \"\${logs_dir}/\${jobid}\"                \\
+        2>> >(tee -a \"\${logs_dir}/\${jobid}_err\") \\
+)
 
 # Run complete. Do cleanup.
 if [ -f \"\${logs_dir}/\${jobid}_err\" ] && [ ! -s \"\${logs_dir}/\${jobid}_err\" ]; then

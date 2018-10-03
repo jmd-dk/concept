@@ -3179,6 +3179,12 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
         export CFLAGS="-I${zlib_dir}/include ${CFLAGS}"
         with_zlib=--with-zlib="${zlib_dir}/include","${zlib_dir}/lib"
     fi
+    # A bug in HDF5 makes the code crash on certain file systems.
+    # A workaround is to set an environment variable as below.
+    # The bug is documented here:
+    # http://www.nersc.gov/users/data-analytics
+    # /data-management/i-o-libraries/hdf5-2/hdf5/
+    export HDF5_USE_FILE_LOCKING=FALSE
     ./configure                \
         --enable-shared        \
         ${enable_parallel}     \
