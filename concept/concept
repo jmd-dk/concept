@@ -652,7 +652,7 @@ print('; '.join([
     \"command_line_param='{}'\".format(' ; '.join(args.command_line_param).replace(\"'\", '\"')),
     \"interactive={}\".format(args.interactive),
     \"job_directive='{}'\".format(' ; '.join(args.job_directive).replace(\"'\", '\"')),
-    \"main='{}'\".format(args.main),
+    \"main='{}'\".format(str(args.main).replace(\"'\", '\"')),
     \"memory='{}'\".format(args.memory),
     \"nprocs={}\".format(args.nprocs),
     \"params='{}'\".format(args.params),
@@ -795,14 +795,16 @@ if [ "${test}" != "${test_unspecified}" ]; then
     # Function which can extract parameters from the parameter file
     # given by "${this_dir}/params". This is used by some tests.
     get_param(){
-        "${concept}" -n 1                                                    \
-                     -p "${this_dir}/params"                                 \
-                     -m "from commons import *; print('param_var =', ${1})"  \
-                     --pure-python                                           \
-                     --local                                                 \
-                     | grep "param_var"                                      \
-                     | tail -n 1                                             \
-                     | sed 's/^.\{12\}//'
+        "${concept}"                                                \
+            -c "${command_line_param}"                              \
+            -m "from commons import *; print('param_var =', ${1})"  \
+            -n 1                                                    \
+            -p "${this_dir}/params"                                 \
+            --local                                                 \
+            --pure-python                                           \
+        | grep "param_var"                                          \
+        | tail -n 1                                                 \
+        | sed 's/^.\{12\}//'
     }
     if [ "${test}" == "all" ]; then
         # Find and run all tests
