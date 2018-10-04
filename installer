@@ -1699,6 +1699,7 @@ fallback(){
 # progname_downloaded and progname_installed to either "yes" or "no".
 check_progress(){
     # Arguments: Program name
+    progname_display="${1/CONCEPT/${esc_concept}}"
     progname="${1// /_}"
     progname="$(echo "${progname}" | tr '[:upper:]' '[:lower:]')"
     # The program installation directory
@@ -1744,11 +1745,14 @@ check_progress(){
         if [ -d "${gadget_dir}/fftw" ]; then
             mv "${gadget_dir}/fftw" "${gadget_dir}/.fftw"
         fi
+        if [ -d "${gadget_dir}" ] && [ -n "$(ls "${gadget_dir}")" ]; then
+            echo "Cleaning up ${progname_display} directory"
+        fi
         rm -rf "${gadget_dir}/"*
         if [ -d "${gadget_dir}/.fftw" ]; then
             mv "${gadget_dir}/.fftw" "${gadget_dir}/fftw"
         fi
-        if [ -d "${gadget_dir}" ] && [ ! "$(ls -A "${gadget_dir}")" ]; then
+        if [ -d "${gadget_dir}" ] && [ -z "$(ls -A "${gadget_dir}")" ]; then
             rm -rf "${gadget_dir}"
         fi
     elif [ "${progname}" == "python" ]; then
@@ -1756,18 +1760,33 @@ check_progress(){
         # in ${python_dir}, so we cannot just delete this directory.
         :
     elif [ "${progname}" == "ncurses" ]; then
+        if [ -d "${python_dir}/include/ncurses" ]; then
+            echo "Cleaning up ${progname_display} directory"
+        fi
         rm -rf "${python_dir}/include/ncurses"
     elif [ "${progname}" == "openssl" ]; then
+        if [ -d "${python_dir}/include/openssl" ]; then
+            echo "Cleaning up ${progname_display} directory"
+        fi
         rm -rf "${python_dir}/include/openssl"
     elif [ "${progname}" == "libffi" ]; then
+        if [ -d "${python_dir}/lib/libffi"* ]; then
+            echo "Cleaning up ${progname_display} directory"
+        fi
         rm -rf "${python_dir}/lib/libffi"*
     elif [ "${progname}" == "concept" ]; then
         # In the case of CO𝘕CEPT, ${progdir} is set to
         # the GADGET directory.
+        if [ -d "${concept_dir}" ]; then
+            echo "Cleaning up ${progname_display} directory"
+        fi
         rm -rf "${concept_dir}"
     else
         # The files of all other programs live isolated
         # in their very own dedicated directory.
+        if [ -d "${progdir}" ]; then
+            echo "Cleaning up ${progname_display} directory"
+        fi
         rm -rf "${progdir}"
     fi
     # The url to the installation file for this program
