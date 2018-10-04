@@ -36,7 +36,7 @@ if [ "${being_sourced}" == "False" ]; then
 fi
 
 # If this file is being sourced, backups of 'this_file' and 'this_dir'
-# is needed not to alter the values of these variables.
+# are needed not to alter the values of these variables.
 this_file_backup="${this_file}"
 this_dir_backup="${this_dir}"
 
@@ -796,10 +796,10 @@ if [ "${test}" != "${test_unspecified}" ]; then
     # given by "${this_dir}/params". This is used by some tests.
     get_param(){
         "${concept}"                                                \
-            -c "${command_line_param}"                              \
-            -m "from commons import *; print('param_var =', ${1})"  \
-            -n 1                                                    \
-            -p "${this_dir}/params"                                 \
+            -c="${command_line_param}"                              \
+            -m="from commons import *; print('param_var =', ${1})"  \
+            -n=1                                                    \
+            -p="${this_dir}/params"                                 \
             --local                                                 \
             --pure-python                                           \
         | grep "param_var"                                          \
@@ -1093,8 +1093,7 @@ for job_directive in '${job_directive}'.split(';'):
         continue
     if not job_directive.startswith(directive_prefix):
         job_directive = f'{directive_prefix} {job_directive}'
-    lines.append(job_directive))
-)
+    lines.append(job_directive)
 lines.append('')
 lines.append('# Get the ID of the current job')
 lines.append('jobid=\"\${SLURM_JOB_ID%%.*}\"')
@@ -1132,8 +1131,7 @@ for job_directive in '${job_directive}'.split(';'):
         continue
     if not job_directive.startswith(directive_prefix):
         job_directive = f'{directive_prefix} {job_directive}'
-    lines.append(job_directive))
-)
+    lines.append(job_directive)
 lines.append('')
 lines.append('# Get the ID of the current job')
 lines.append('jobid=\"\${PBS_JOBID%%.*}\"')
