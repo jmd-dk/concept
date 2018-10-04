@@ -103,7 +103,7 @@ fi
 # If not called indirectly through the concept script,
 # call the concept script now.
 if [ "${called_from_concept}" != "True" ]; then
-    "${concept}" -u "${this_file}" "$@"
+    "${concept}" -u="${this_file}" "$@"
     trap : 0
     exit 0
 fi
@@ -122,11 +122,11 @@ done
 # Get filenames of snapshots and create matching (temporary) parameter files
 info="$(                                              \
     "${concept}"                                      \
-        -c "${command_line_param}"                    \
-        -p "${params}"                                \
-        -u info                                       \
+        -c="${command_line_param}"                    \
+        -p="${params}"                                \
+        -u=info                                       \
             "$(bash_array2python_list "${paths[@]}")" \
-            --generate-params "${this_dir}/params"    \
+            --generate-params="${this_dir}/params"    \
         ${interactive_flag}                           \
         --local                                       \
         ${no_optimization_flag}                       \
@@ -190,14 +190,14 @@ paths['params'] = params_path_ori
     exec 4>&1
     jobid_and_exit_code="$(                \
         "${concept}"                       \
-            -c "${command_line_param}"     \
-            -j "${job_directive}"          \
-            -m "${main}"                   \
-            -n  ${nprocs}                  \
-            -p "${params_filename}"        \
-            -q "${queue}"                  \
-            -w "${walltime}"               \
-            --memory ${memory}             \
+            -c="${command_line_param}"     \
+            -j="${job_directive}"          \
+            -m="${main}"                   \
+            -n=${nprocs}                   \
+            -p="${params_filename}"        \
+            -q="${queue}"                  \
+            -w="${walltime}"               \
+            --memory=${memory}             \
             ${interactive_flag}            \
             ${local_flag}                  \
             ${no_optimization_flag}        \
@@ -238,7 +238,7 @@ if [ "${remote}" == "True" ] && [ "${no_watch}" == "False" ]; then
     printf "\nYou can now kill (Ctrl-C) this script without cancelling the job${plural}\n"
     printf "\nWill now watch the submitted job${plural}\n\n"
     for jobid in "${jobids[@]}"; do
-        "${concept}" -u watch ${jobid}
+        "${concept}" -u=watch ${jobid}
         echo
     done
 else

@@ -124,7 +124,7 @@ fi
 # If not called indirectly through the concept script,
 # call the concept script now.
 if [ "${called_from_concept}" != "True" ]; then
-    "${concept}" -u "${this_file}" "$@"
+    "${concept}" -u="${this_file}" "$@"
     trap : 0
     exit 0
 fi

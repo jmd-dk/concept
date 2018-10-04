@@ -128,7 +128,7 @@ fi
 # If not called indirectly through the concept script,
 # call the concept script now.
 if [ "${called_from_concept}" != "True" ]; then
-    "${concept}" -u "${this_file}" "$@"
+    "${concept}" -u="${this_file}" "$@"
     trap : 0
     exit 0
 fi
@@ -190,14 +190,14 @@ fi
 exec 4>&1
 jobid_and_exit_code="$(                \
     "${concept}"                       \
-        -c "${command_line_param}"     \
-        -j "${job_directive}"          \
-        -m "${main}"                   \
-        -n ${nprocs}                   \
-        -p "${params_filename}"        \
-        -q "${queue}"                  \
-        -w "${walltime}"               \
-        --memory ${memory}             \
+        -c="${command_line_param}"     \
+        -j="${job_directive}"          \
+        -m="${main}"                   \
+        -n=${nprocs}                   \
+        -p="${params_filename}"        \
+        -q="${queue}"                  \
+        -w="${walltime}"               \
+        --memory=${memory}             \
         ${interactive_flag}            \
         ${local_flag}                  \
         ${no_optimization_flag}        \
