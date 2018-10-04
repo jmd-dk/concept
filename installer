@@ -1746,9 +1746,10 @@ check_progress(){
             mv "${gadget_dir}/fftw" "${gadget_dir}/.fftw"
         fi
         if [ -d "${gadget_dir}" ] && [ -n "$(ls "${gadget_dir}")" ]; then
-            echo "Cleaning up ${progname_display} directory"
+            printf "Cleaning up ${progname_display} directory ..."
+            rm -rf "${gadget_dir}/"*
+            printf " done\n"
         fi
-        rm -rf "${gadget_dir}/"*
         if [ -d "${gadget_dir}/.fftw" ]; then
             mv "${gadget_dir}/.fftw" "${gadget_dir}/fftw"
         fi
@@ -1761,33 +1762,38 @@ check_progress(){
         :
     elif [ "${progname}" == "ncurses" ]; then
         if [ -d "${python_dir}/include/ncurses" ]; then
-            echo "Cleaning up ${progname_display} directory"
+            printf "Cleaning up ${progname_display} directory ..."
+            rm -rf "${python_dir}/include/ncurses"
+            printf " done\n"
         fi
-        rm -rf "${python_dir}/include/ncurses"
     elif [ "${progname}" == "openssl" ]; then
         if [ -d "${python_dir}/include/openssl" ]; then
-            echo "Cleaning up ${progname_display} directory"
+            printf "Cleaning up ${progname_display} directory ..."
+            rm -rf "${python_dir}/include/openssl"
+            printf " done\n"
         fi
-        rm -rf "${python_dir}/include/openssl"
     elif [ "${progname}" == "libffi" ]; then
         if [ -d "${python_dir}/lib/libffi"* ]; then
-            echo "Cleaning up ${progname_display} directory"
+            printf "Cleaning up ${progname_display} directory ..."
+            rm -rf "${python_dir}/lib/libffi"*
+            printf " done\n"
         fi
-        rm -rf "${python_dir}/lib/libffi"*
     elif [ "${progname}" == "concept" ]; then
         # In the case of CO𝘕CEPT, ${progdir} is set to
         # the GADGET directory.
         if [ -d "${concept_dir}" ]; then
-            echo "Cleaning up ${progname_display} directory"
+            printf "Cleaning up ${progname_display} directory ..."
+            rm -rf "${concept_dir}"
+            printf " done\n"
         fi
-        rm -rf "${concept_dir}"
     else
         # The files of all other programs live isolated
         # in their very own dedicated directory.
         if [ -d "${progdir}" ]; then
-            echo "Cleaning up ${progname_display} directory"
+            printf "Cleaning up ${progname_display} directory ..."
+            rm -rf "${progdir}"
+            printf " done\n"
         fi
-        rm -rf "${progdir}"
     fi
     # The url to the installation file for this program
     eval "url=\"\${${progname}_url}\""
