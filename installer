@@ -5389,7 +5389,15 @@ fi
 trap : 0
 ) >> "${log}") 3>&1 1>&2 2>&3 & echo $! > "${top_dir}/.log_pid") \
     | tee -a "${log}_err" 3>&1 1>&2 2>&3 &
-sleep 1
+# Wait for the .log_pid file to be created
+slept=0
+while [ ! -f "${top_dir}/.log_pid" ]; do
+    sleep 1
+    ((slept += 1))
+    if [ ${slept} -eq 30 ]; then
+        break
+    fi
+done
 log_pid=$(cat "${top_dir}/.log_pid")
 rm -f "${top_dir}/.log_pid"
 # End of subprocess #
@@ -5404,8 +5412,6 @@ rm -f "${top_dir}/.log_pid"
 slept=0
 while [ ! -f "${log}" ]; do
     sleep 1
-    # After having slept for a long time, check that the job
-    # has not just finished without producing a log file.
     ((slept += 1))
     if [ ${slept} -eq 30 ]; then
         error "Could not create the log file \"${log}\""
