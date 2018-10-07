@@ -2320,7 +2320,7 @@ print_table(){
     done
     # Reinsert spaces
     table_to_print=("${table_with_esc[@]}")
-    modify_element "~" "\ "
+    modify_element "~" " "
     # Print the table
     c=0
     for ((i = 0; i < nelements; i += 1)); do
@@ -3619,6 +3619,14 @@ Date:    $(date)
 fi
 
 # Python
+if [ "${python_install}" == "yes" ]; then
+    # If the path to an already installed Python distribution is set in
+    # the PYTHONPATH variable, it may conflict with the installation
+    # provided by this script. Specifically, issues have been noted when
+    # updating pip. Here we make sure to unset PYTHONPATH, and we do not
+    # set it again, not even through the reset_environment function.
+    unset PYTHONPATH
+fi
 if [ "${python_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
     init_install "Python"
     # Build with pip if both openssl and zlib are installed.
