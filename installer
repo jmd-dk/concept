@@ -4974,13 +4974,32 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "}"                                                             \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
-    # Build CLASS, including the Python wrapper classy
-    PYTHON="${python}" make ${make_jobs} 2>&1
+    # Build CLASS, including the Python wrapper classy. By default,
+    # the gcc compiler is used with the -ffast-math option. We do not
+    # try out different compilers, but we do try both with and without
+    # the -ffast-math option.
+    cp "Makefile" "Makefile_ori"
+    for fast_math in "yes" "no"; do
+        class_success="yes"
+        cp "Makefile_ori" "Makefile"
+        if [ "${fast_math}" == "no" ]; then
+            sed -i '0,/-ffast-math/s/-ffast-math/#-ffast-math/' "Makefile"
+        fi
+        PYTHON="${python}" make ${make_jobs} 2>&1 || class_success="no"
+        if [ "${class_success}" == "yes" ]; then
+            break
+        fi
+        make clean || :
+    done
+    if [ "${class_success}" == "no" ]; then
+        error "Failed to install CLASS"
+        exit 1
+    fi
     # Test CLASS
     if [ "${fast_install}" == "no" ]; then
         # We do not use the builtin test_class.py, as this require tens
         # of gigabytes and uses the Nose and parameterized Python
-        # packages. Instead we perform a simply test of our own,
+        # packages. Instead we perform a simple test of our own,
         # which only does a background computation.
         if ! "${python}" -c "import sys
 from classy import Class
