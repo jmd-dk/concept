@@ -5080,6 +5080,8 @@ with open('${env_file}', 'w', encoding='utf-8') as file:
     for line in lines:
         if not envs_inserted and 'Update the environment' in line:
             print('# The following has been placed by the installer script.', file=file)
+            if '${python_install}' == 'yes':
+                print('unset PYTHONPATH', file=file)
             print('# These were the PATH-like environment variables', file=file)
             print('# set at install time.', file=file)
             print('pathenv_name_value_pairs_installtime=( \\\\', file=file)
