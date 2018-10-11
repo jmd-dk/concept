@@ -176,11 +176,11 @@ def plot_detrended_perturbations(a_values, perturbations_detrended, transferfunc
             skip += 1
             continue
         loga_values_spline[ℤ[i - skip]] = loga_value
-        perturbations_detrended_spline[ℤ[i - skip]] = spline.eval(loga_value)
+        perturbations_detrended_spline[ℤ[i - skip]] = spline.eval(exp(loga_value))
     loga_values_spline = loga_values_spline[:ℤ[i - skip + 1]]
     perturbations_detrended_spline = perturbations_detrended_spline[:ℤ[i - skip + 1]]
-    plt.semilogx(np.exp(asarray(loga_values_spline)), perturbations_detrended_spline, '-',
-        linewidth=1)
+    plt.semilogx(np.exp(loga_values_spline), perturbations_detrended_spline, '-',
+        linewidth=1, zorder=0)
     # Decorate and save plot
     plt.xlabel('$a$', fontsize=14)
     var_name_latex = transferfunction.var_name

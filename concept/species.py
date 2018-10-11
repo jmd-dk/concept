@@ -138,7 +138,7 @@ class Tensor:
         else:
             N_elements = 0
         return (self.data[multi_index] for multi_index in self.multi_indices[:N_elements])
-    def iterate(self, *attributes, multi_indices=False):
+    def iterate(self, *attributes, multi_indices=False, a_next=-1):
         """This generator yields all normal elements of the tensor
         (that is, the additional degrees of freedom are not included).
         For disguised scalars, all logical elements are realized
@@ -155,7 +155,9 @@ class Tensor:
         for multi_index in self.multi_indices:
             with unswitch:
                 if self.iterative_realizations:
-                    self.component.realize_if_linear(self.varnum, specific_multi_index=multi_index)
+                    self.component.realize_if_linear(
+                        self.varnum, specific_multi_index=multi_index, a_next=a_next,
+                    )
             fluidscalar = self.data[multi_index]
             values = []
             for attribute in attributes:
@@ -1369,15 +1371,18 @@ class Component:
     # Method for 3D realisation of linear transfer functions.
     # As all arguments are optional,
     # this has to be a pure Python method.
-    def realize(self, variables=None,
-                      transfer_spline=None,
-                      cosmoresults=None,
-                      specific_multi_index=None,
-                      a=-1,
-                      gauge='N-body',
-                      options=None,
-                      use_gridˣ=False,
-                      ):
+    def realize(
+        self,
+        variables=None,
+        transfer_spline=None,
+        cosmoresults=None,
+        specific_multi_index=None,
+        a=-1,
+        a_next=-1,
+        gauge='N-body',
+        options=None,
+        use_gridˣ=False,
+    ):
         """This method will realise a given fluid/particle variable from
         a given transfer function. Any existing data for the variable
         in question will be lost.
@@ -1469,7 +1474,7 @@ class Component:
             variables = arange(self.boltzmann_order)
         else:
             # Realize one or more variables
-            variables = any2list(variables)
+            variables = any2list(self.varnames2indices(variables))
             N_vars = len(variables)
             if N_vars > 1:
                 # Realize multiple variables
@@ -1479,7 +1484,6 @@ class Component:
                 if cosmoresults is not None:
                     abort(f'The realize method was called with {N_vars} variables '
                           'while cosmoresults was supplied as well')
-        variables = any2list(variables)
         # Prepare arguments to compute_transfer,
         # if no transfer_spline is passed.
         if transfer_spline is None:
@@ -1536,13 +1540,66 @@ class Component:
                         options = self.realization_options['ς']['backscaling']
                 # Get transfer function if not passed
                 if transfer_spline is None:
+                    # When realizing using the primordial structure
+                    # (as opposed to realizing non-linearly),
+                    # the realization looks like
+                    # ℱₓ⁻¹[T(k) ζ(k) K(k⃗) ℛ(k⃗)],
+                    # with ℛ(k⃗) the primordial noise, T(k) = T(a, k) the
+                    # transfer function at the specified a, ζ(k) the
+                    # primordial curvature perturbations and K(k⃗)
+                    # containing any additional tensor structure.
+                    # The only time dependent part of the realiztion is
+                    # then the transfer function T(a, k). In the case of
+                    # linear realization, i.e. a realization of a
+                    # field of the same variable number as the Boltzmann
+                    # order of the component, we do not actually care
+                    # about realizing the exact field, but only about
+                    # obtaining precise influences from this field on
+                    # other, non-linear fields. For each Boltzmann
+                    # order, we list below the corresponding linear
+                    # fluid variable together with its most important
+                    # evolution equation through which it affects the
+                    # rest of the system.
+                    # Boltzmann order 0:
+                    #     ϱ,     ∇²φ = 4πGa²ρ = 4πGa**(-3*w_eff - 1)ϱ
+                    # Boltzmann order 1:
+                    #     Jᵐ,    ∂ₜϱ = -a**(3*w_eff - 2)∂ᵢJⁱ  + ⋯
+                    # Boltzmann order 2:
+                    #     𝒫,    ∂ₜJᵐ = -a**(-3*w_eff)∂ᵐ𝒫      + ⋯
+                    #     ςᵐₙ,  ∂ₜJᵐ = -a**(-3*w_eff)∂ⁿςᵐₙ    + ⋯
+                    # To take Boltzmann order 0 as an example, this
+                    # means we should realize a weighted average of
+                    # ϱ(t, k⃗), with a weight given by
+                    # a(t)**(-3*w_eff(t) - 1), i.e.
+                    # T(a, k) → 1/(ᔑa(t)**(-3*w_eff(t) - 1) dt)
+                    #             *ᔑa(t)**(-3*w_eff(t) - 1)T(a, k) dt,
+                    # with the integrals ranging over the time step.
+                    # Below these weights are represented as str's.
+                    # The actual averaging is carried out by the
+                    # TransferFunction.as_function_of_k() method.
+                    weight = None
+                    if (
+                            options.get('structure') != 'nonlinear'
+                        and self.representation == 'fluid'
+                        and self.boltzmann_closure == 'class'
+                        and self.boltzmann_order == variable
+                        and a_next != -1
+                    ):
+                        if variable == 0:
+                            weight = 'a**(-3*w_eff-1)'
+                        elif variable == 1:
+                            weight = 'a**(3*w_eff-2)'
+                        elif variable == 2:
+                            weight = 'a**(-3*w_eff)'
                     transfer_spline, cosmoresults = compute_transfer(
                         self,
                         variable,
                         k_min, k_max, k_gridsize,
                         specific_multi_index,
                         a,
+                        a_next,
                         gauge,
+                        weight=weight,
                     )
                 # Do the realization
                 realize(
@@ -1567,6 +1624,7 @@ class Component:
         cosmoresults=None,
         specific_multi_index=None,
         a=-1,
+        a_next=-1,
         gauge='N-body',
         options=None,
         use_gridˣ=False,
@@ -1618,6 +1676,7 @@ class Component:
                 cosmoresults,
                 specific_multi_index,
                 a,
+                a_next,
                 gauge,
                 options,
                 use_gridˣ,
@@ -1691,20 +1750,22 @@ class Component:
     # Method for integrating particle positions/fluid values
     # forward in time.
     # For fluid components, source terms are not included.
-    @cython.header(# Arguments
-                   ᔑdt=dict,
-                   # Locals
-                   i='Py_ssize_t',
-                   momx='double*',
-                   momy='double*',
-                   momz='double*',
-                   posx='double*',
-                   posy='double*',
-                   posz='double*',
-                   rk_order='int',
-                   scheme=str,
-                   )
-    def drift(self, ᔑdt):
+    @cython.header(
+        # Arguments
+        ᔑdt=dict,
+        a_next='double',
+        # Locals
+        i='Py_ssize_t',
+        momx='double*',
+        momy='double*',
+        momz='double*',
+        posx='double*',
+        posy='double*',
+        posz='double*',
+        rk_order='int',
+        scheme=str,
+    )
+    def drift(self, ᔑdt, a_next=-1):
         if self.representation == 'particles':
             masterprint('Drifting {} ...'.format(self.name))
             posx = self.posx
@@ -1741,7 +1802,7 @@ class Component:
                         f'Evolving fluid variables (flux terms, using the MacCormack scheme) '
                         f'of {self.name} ...'
                     )
-                    maccormack(self, ᔑdt)
+                    maccormack(self, ᔑdt, a_next)
                     masterprint('done')
             elif scheme == 'kurganovtadmor':
                 # For the Kurganov-Tadmor scheme to do anything,
@@ -1767,12 +1828,14 @@ class Component:
     # Method for integrating fluid values forward in time
     # due to "internal" source terms, meaning source terms that do not
     # result from interacting with other components.
-    @cython.header(# Arguments
-                   ᔑdt=dict,
-                   # Locals
-                   scheme=str,
-                   )
-    def apply_internal_sources(self, ᔑdt):
+    @cython.header(
+        # Arguments
+        ᔑdt=dict,
+        a_next='double',
+        # Locals
+        scheme=str,
+    )
+    def apply_internal_sources(self, ᔑdt, a_next=-1):
         if self.representation == 'particles':
             return
         scheme = is_selected(self, fluid_scheme_select)
@@ -1799,7 +1862,7 @@ class Component:
                 )
             ):
                 masterprint(f'Evolving fluid variables (internal source terms) of {self.name} ...')
-                maccormack_internal_sources(self, ᔑdt)
+                maccormack_internal_sources(self, ᔑdt, a_next)
                 masterprint('done')
         elif scheme == 'kurganovtadmor':
             # Only the Hubble term in the continuity equation

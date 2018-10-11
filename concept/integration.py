@@ -798,11 +798,11 @@ def scalefactor_integral(key, t_ini=-1.0, Δt=-1.0):
     (e.g. 'a**(-1)') or a tuple in the format (string, component),
     where again the string is really the integrand. This second form is
     used when the integrand is component specific, e.g. 'a**(-3*w_eff)'.
-    It is important that the expand function expand(a, t, Δt) has been
-    called prior to calling this function, as expand generates the
-    values needed in the integration. You can call this function
-    multiple times (and with different integrands) without calling
-    expand in between.
+    When the CLASS background is disabled it is important that the
+    expand function expand(a, t, Δt) has been called prior to calling
+    this function, as expand generates the values needed in
+    the integration. You can call this function multiple times (and with
+    different integrands) without calling expand in between.
     """
     # Extract the integrand from the passed key
     if isinstance(key, str):

@@ -87,7 +87,7 @@ def scalefactor_integrals(step, Δt):
     elif step == 'second half':
         index = 1
     elif master:
-        abort('The value "{}" was given for the step'.format(step))
+        abort(f'The value "{step}" was given for the step')
     # Do the scalefactor integrals
     for integrand in ᔑdt_steps:
         ᔑdt_steps[integrand][index] = scalefactor_integral(integrand, universals.t, 0.5*Δt)
@@ -265,41 +265,49 @@ def nullify_ᔑdt_steps():
 # Function which kick all of the components.
 # Here a 'kick' means all interactions together with other source terms
 # for fluid components.
-@cython.header(# Arguments
-               components=list,
-               step=str,
-               # Locals
-               component='Component',
-               force=str,
-               integrand=object,  # str or tuple
-               interactions_list=list,
-               method=str,
-               receivers=list,
-               suppliers=list,
-               ᔑdt=dict,
-               )
+@cython.header(
+    # Arguments
+    components=list,
+    step=str,
+    # Locals
+    a_next='double',
+    component='Component',
+    force=str,
+    integrand=object,  # str or tuple
+    interactions_list=list,
+    method=str,
+    receivers=list,
+    suppliers=list,
+    ᔑdt=dict,
+)
 def kick(components, step):
     # Construct the local dict ᔑdt,
     # based on which type of step is to be performed.
     ᔑdt = {}
     for integrand in ᔑdt_steps:
-        if step == 'first half':
-            ᔑdt[integrand] = ᔑdt_steps[integrand][0]
-        elif step == 'second half':
-            ᔑdt[integrand] = ᔑdt_steps[integrand][1]
-        elif step == 'whole':
-            ᔑdt[integrand] = np.sum(ᔑdt_steps[integrand])
-        elif master:
-            abort('The value "{}" was given for the step'.format(step))
+        with unswitch:
+            if step == 'first half':
+                ᔑdt[integrand] = ᔑdt_steps[integrand][0]
+            elif step == 'second half':
+                ᔑdt[integrand] = ᔑdt_steps[integrand][1]
+            elif step == 'whole':
+                ᔑdt[integrand] = np.sum(ᔑdt_steps[integrand])
+            elif master:
+                abort(f'The value "{step}" was given for the step')
     # Realize all linear fluid scalars which are not components
     # of a tensor. This comes down to ϱ and 𝒫.
+    a_next = scale_factor(universals.t + ᔑdt['1'])
     for component in components:
-        component.realize_if_linear(0, specific_multi_index=0)        # ϱ
-        component.realize_if_linear(2, specific_multi_index='trace')  # 𝒫
+        component.realize_if_linear(0,  # ϱ
+            specific_multi_index=0, a=universals.a, a_next=a_next
+        )
+        component.realize_if_linear(2,  # 𝒫
+            specific_multi_index='trace', a=universals.a, a_next=a_next,
+        )
     # Apply the effect of all internal source terms
     # on all fluid components. For particle components, this is a no-op.
     for component in components:
-        component.apply_internal_sources(ᔑdt)
+        component.apply_internal_sources(ᔑdt, a_next)
     # Find out which components interact with each other
     # under the different interactions.
     interactions_list = find_interactions(components)
@@ -308,30 +316,34 @@ def kick(components, step):
         getattr(interactions, force)(method, receivers, suppliers, ᔑdt)
 
 # Function which drift all of the components
-@cython.header(# Arguments
-               components=list,
-               step=str,
-               # Locals
-               ᔑdt=dict,
-               integrand=object,  # str or tuple
-               component='Component',
-               )
+@cython.header(
+    # Arguments
+    components=list,
+    step=str,
+    # Locals
+    a_next='double',
+    ᔑdt=dict,
+    integrand=object,  # str or tuple
+    component='Component',
+)
 def drift(components, step):
     # Construct the local dict ᔑdt,
     # based on which type of step is to be performed.
     ᔑdt = {}
     for integrand in ᔑdt_steps:
-        if step == 'first half':
-            ᔑdt[integrand] = ᔑdt_steps[integrand][0]
-        elif step == 'second half':
-            ᔑdt[integrand] = ᔑdt_steps[integrand][1]
-        elif step == 'whole':
-            ᔑdt[integrand] = np.sum(ᔑdt_steps[integrand])
-        elif master:
-            abort('The value "{}" was given for the step'.format(step))
+        with unswitch:
+            if step == 'first half':
+                ᔑdt[integrand] = ᔑdt_steps[integrand][0]
+            elif step == 'second half':
+                ᔑdt[integrand] = ᔑdt_steps[integrand][1]
+            elif step == 'whole':
+                ᔑdt[integrand] = np.sum(ᔑdt_steps[integrand])
+            elif master:
+                abort(f'The value "{step}" was given for the step')
     # Drift all components sequentially
+    a_next = scale_factor(universals.t + ᔑdt['1'])
     for component in components:
-        component.drift(ᔑdt)
+        component.drift(ᔑdt, a_next)
 
 # Function containing the main time loop of CO𝘕CEPT
 @cython.header(# Locals

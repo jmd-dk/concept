@@ -32,7 +32,7 @@ cimport('from communication import partition,                   '
         '                          smart_mpi,                   '
         )
 cimport('from graphics import plot_detrended_perturbations')
-cimport('from integration import Spline, remove_doppelgängers, hubble, ȧ, ä')
+cimport('from integration import Spline, cosmic_time, remove_doppelgängers, hubble, ȧ, ä')
 cimport('from mesh import get_fftw_slab,       '
         '                 domain_decompose,    '
         '                 slab_decompose,      '
@@ -129,8 +129,8 @@ class CosmoResults:
         # for a given a.
         def construct_func(var_name):
             return (
-                lambda a=-1, component=None, get='as_function_of_k':
-                    self.transfer_function(var_name, component, get, a)
+                lambda a=-1, a_next=-1, component=None, get='as_function_of_k', weight=None:
+                    self.transfer_function(var_name, component, get, a, a_next, weight)
             )
         for var_name in self.transfer_function_variable_names:
             setattr(self, var_name, construct_func(var_name))
@@ -666,11 +666,20 @@ class CosmoResults:
         masterprint('done')
 
     # Method which constructs TransferFunction instances and use them
-    # to compute and store transfer functions. Do not use this method
-    # directly, but rather call e.g. cosmoresults.δ(a, component).
-    # Note that the transfer functions returned by this method are those
-    # gotten from get_perturbations, not get_transfer.
-    def transfer_function(self, var_name, component=None, get='object', a=-1):
+    # to compute and store transfer functions. Do not use this
+    # method directly, but rather
+    # call e.g. cosmoresults.δ(a, component=component).
+    def transfer_function(self, var_name,
+        component=None, get='object', a=-1, a_next=-1, weight=None,
+    ):
+        if weight in ('1', 1):
+            weight = None
+        if weight and get not in ('as_function_of_k', 'deriv_as_function_of_k'):
+            abort(
+                f'A weight was supplied to transfer_function() while get="{get}", '
+                f'but get should be either "as_function_of_k" or "deriv_as_function_of_k" '
+                f'when using a weight'
+            )
         if not hasattr(self, '_transfer_functions'):
             self._transfer_functions = {}
         key = (component.class_species if component is not None else None, var_name)
@@ -686,7 +695,7 @@ class CosmoResults:
         if get == 'object':
             return transfer_function
         elif get == 'as_function_of_k':
-            return transfer_function.as_function_of_k(a)
+            return transfer_function.as_function_of_k(a, a_next, weight)
         elif get == 'deriv_as_function_of_k':
             return transfer_function.deriv_as_function_of_k(a)
         else:
@@ -1119,7 +1128,6 @@ class TransferFunction:
         k_size='Py_ssize_t',
         k_start='Py_ssize_t',
         largest_trusted_k='Py_ssize_t',
-        loga_values_largest_trusted_k='double[::1]',
         missing_perturbations_warning=str,
         n_outliers='Py_ssize_t',
         one_k_extra='bint',
@@ -1382,7 +1390,7 @@ class TransferFunction:
                 a_values, perturbation_values = remove_doppelgängers(
                     a_values, perturbation_values, copy=True)
                 # Perform non-linear detrending. The data to be splined
-                # is in the form {log(a), perturbation_values - trend},
+                # is in the form {a, perturbation_values - trend},
                 # with trend = factor*a**exponent. Here we find this
                 # trend trough curve fitting of perturbation_values.
                 fitted_trends = []
@@ -1503,10 +1511,11 @@ class TransferFunction:
                         asarray(perturbations_detrended_k).copy()
                     )
                 # Construct cubic spline of
-                # {log(a), perturbations - trend}.
-                spline = Spline(np.log(a_values_k), perturbations_detrended_k,
+                # {a, perturbations - trend}.
+                spline = Spline(a_values_k, perturbations_detrended_k,
                     f'detrended {self.class_species} {self.var_name} perturbations '
-                    f'as function of log(a) at k = {self.k_magnitudes[k]} {unit_length}⁻¹'
+                    f'as function of a at k = {self.k_magnitudes[k]} {unit_length}⁻¹',
+                    logx=True,
                 )
                 self.splines[k_send] = spline
                 # If class_plot_perturbations is True,
@@ -1558,7 +1567,6 @@ class TransferFunction:
                 perturbations_detrended_largest_trusted_k = (
                     perturbations_detrended_largest_trusted_k[i-1:])
                 break
-        loga_values_largest_trusted_k = np.log(a_values_largest_trusted_k)
         # Carry out the morphing for each of the untrusted perturbations
         factor, exponent = 1, 0
         for k in range(largest_trusted_k + 1, self.k_gridsize):
@@ -1581,13 +1589,14 @@ class TransferFunction:
             ).x
             # Create the spline
             spline = Spline(
-                loga_values_largest_trusted_k,
+                a_values_largest_trusted_k,
                 (factor*asarray(perturbations_detrended_largest_trusted_k)
                     *asarray(a_values_largest_trusted_k)**exponent
                 ),
                 f'detrended {self.class_species} {self.var_name} perturbations '
-                f'as function of log(a) at k = {self.k_magnitudes[k]} {unit_length}⁻¹ '
-                f'(produced from the largest trusted perturbation)'
+                f'as function of a at k = {self.k_magnitudes[k]} {unit_length}⁻¹ '
+                f'(produced from the largest trusted perturbation)',
+                logx=True,
             )
             self.splines[k] = spline
             # If class_plot_perturbations is True,
@@ -1646,35 +1655,145 @@ class TransferFunction:
         returns='double',
     )
     def eval(self, k, a):
-        # Lookup transfer(k, a) by evaluating
-        # the k'th {log(a), transfer - trend} spline.
+        # The spline is over transfer(a) - trend(a)
+        # with trend(a) = factor*a**exponent.
         spline = self.splines[k]
-        return spline.eval(log(a)) + self.factors[k]*a**self.exponents[k]
+        return spline.eval(a) + self.factors[k]*a**self.exponents[k]
 
     # Main method for getting the transfer function as function of k
     # at a specific value of the scale factor.
     @cython.pheader(
         # Arguments
         a='double',
+        a_next='double',
+        weight=str,
         # Locals
+        a_i='double',
+        a_values='double[::1]',
+        fac_density='int',
+        i='Py_ssize_t',
+        index_min='Py_ssize_t',
+        index_max='Py_ssize_t',
         k='Py_ssize_t',
+        n_side_points='int',
+        size='Py_ssize_t',
+        spline_k='Spline',
+        t='double',
+        t_next='double',
+        t_values='double[::1]',
+        w_eff_i='double',
+        weighted_transfer='double[::1]',
+        weighted_transfer_arr=object,  # np.ndarray
+        weights='double[::1]',
+        weights_arr=object,  # np.ndarray
         returns='double[::1]',
     )
-    def as_function_of_k(self, a):
+    def as_function_of_k(self, a, a_next=-1, weight=None):
         """The self.data array is used to store the transfer function
         as function of k for the given a. As this array is reused for
         all calls to this function, you cannot get two arrays of
         transfer function values at different times. If you need this,
         make sure to copy the returned array before calling this
         function again.
+        If a_next and weight are passed, the transfer function will be
+        averaged over the interval [a, a_next] using the time depedent
+        function given by weight as weight.
         """
-        # Populate the data array with transfer_function(k)
-        # and return this array.
         if self.data is None:
             self.data = empty(self.k_gridsize, dtype=C2np['double'])
-        for k in range(self.k_gridsize):
-            self.data[k] = self.eval(k, a)
+        # If a weight is specified, compute the weighted average of the
+        # transfer function over the interval [a, a_next]. Otherwise,
+        # simply compute the transfer function at a. In the case of
+        # a_next == a, the weighted average reduces to the transfer
+        # function at a, and so in this case we do not do the averaging
+        # even if a weight is specified.
+        if weight and a_next != a:
+            if a_next == -1:
+                abort(
+                    f'as_function_of_k() was called with a_next = {a_next}, weight = "{weight}". '
+                    f'When using a weight you must also specify a_next.'
+                )
+            # Number of additional tabulated points to include on both
+            # sides of the interval [a, a_next].
+            n_side_points = 1
+            # Number of points in the averaging integrands between each
+            # pair of points in the tabulated transfer functions.
+            fac_density = 10
+            # Grab buffers for the integrands
+            weights_arr           = self.as_function_of_k_buffers['weights']
+            weighted_transfer_arr = self.as_function_of_k_buffers['weighted_transfer']
+            weights, weighted_transfer = weights_arr, weighted_transfer_arr
+            # The averaging integrals are over cosmic time,
+            # not scale factor.
+            t, t_next = cosmic_time(a), cosmic_time(a_next)
+            # For each k, compute and store the averaged transfer
+            # function over the time step, and also the averaged
+            # weight by itself.
+            for k in range(self.k_gridsize):
+                # Get array of a values between a and a_next at which
+                # the k'th transfer function is tabulated.
+                spline_k = self.splines[k]
+                a_values = spline_k.x
+                index_min = np.searchsorted(a_values, a, 'right')
+                index_max = np.searchsorted(a_values, a_next, 'left')
+                index_min -= n_side_points + 1
+                index_max += n_side_points
+                if index_min < 0:
+                    index_min = 0
+                if index_max > a_values.shape[0] - 1:
+                    index_max = a_values.shape[0] - 1
+                a_values = linspace(
+                    a_values[index_min], a_values[index_max], (index_max - index_min)*fac_density,
+                )
+                size = a_values.shape[0]
+                # Compute weighted transfer function values
+                # at the tabulated times.
+                if size > weighted_transfer.shape[0]:
+                    weights_arr          .resize(size, refcheck=False)
+                    weighted_transfer_arr.resize(size, refcheck=False)
+                    weights, weighted_transfer = weights_arr, weighted_transfer_arr
+                for i in range(size):
+                    a_i = a_values[i]
+                    with unswitch:
+                        if weight == 'a**(-3*w_eff-1)':
+                            w_eff_i = self.component.w_eff(a=a_i)
+                            weights[i] = a_i**(-3*w_eff_i - 1)
+                        elif weight == 'a**(3*w_eff-2)':
+                            w_eff_i = self.component.w_eff(a=a_i)
+                            weights[i] = a_i**(3*w_eff_i - 2)
+                        elif weight == 'a**(-3*w_eff)':
+                            w_eff_i = self.component.w_eff(a=a_i)
+                            weights[i] = a_i**(-3*w_eff_i)
+                        else:
+                            abort(f'weight "{weight}" not implemented in as_function_of_k()')
+                    weighted_transfer[i] = weights[i]*self.eval(k, a_i)
+                    # Replace the i'th scale factor value with the
+                    # corresponding cosmic time.
+                    a_values[i] = cosmic_time(a_i)
+                # All scale factor values have now been replaced
+                # with cosmic times.
+                t_values = a_values
+                # Compute and store the weighted transfer function
+                # 1/(ᔑ weight(t) dt) * ᔑ weight(t)*transfer(t) dt.
+                spline_weights           = Spline(t_values, weights[:size], 'weight(t)')
+                spline_weighted_transfer = Spline(
+                    t_values, weighted_transfer[:size], 'weight(t)*transfer(t)'
+                )
+                self.data[k] = (spline_weighted_transfer.integrate(t, t_next)
+                    /spline_weights.integrate(t, t_next)
+                )
+        else:
+            # For each k, compute and store the transfer function
+            # at the given a.
+            for k in range(self.k_gridsize):
+                self.data[k] = self.eval(k, a)
         return self.data
+    # Persistent buffers used by the the as_function_of_k() method,
+    # shared among all instances.
+    as_function_of_k_buffers = {
+        'weights'          : empty(1, dtype=C2np['double']),
+        'weighted_transfer': empty(1, dtype=C2np['double']),
+    }
 
     # Method for evaluating the derivative of the k'th transfer
     # function with respect to the scale factor, at a specific value of
@@ -1688,20 +1807,14 @@ class TransferFunction:
         spline='Spline',
     )
     def eval_deriv(self, k, a):
-        # The transfer function is splined using {x, f(x)} with
-        #     x = log(a),
-        #     f(x) = transfer(a) - trend(a)
-        #          = transfer(a) - factor*a**exponent,
-        # and so we have
-        #    df/dx = df/da*da/dx
-        #          = df/da*a
-        #          = a*(dtransfer/da - factor*exponent*a**(exponent - 1))
-        #          = a*dtransfer/da - factor*exponent*a**exponent
-        # and then
-        #     dtransfer/da = (df/dx)/a + factor*exponent*a**(exponent - 1).
+        # The spline is over transfer(a) - trend(a)
+        # with trend(a) = factor*a**exponent.
+        # We then have to add dtrend(a)/da = factor*a**(exponent - 1)
+        # to the derivative of the spline to obtain the derivative of
+        # the transfer function.
         spline = self.splines[k]
         exponent = self.exponents[k]
-        return spline.eval_deriv(log(a))/a + self.factors[k]*exponent*a**(exponent - 1)
+        return spline.eval_deriv(a) + self.factors[k]*exponent*a**(exponent - 1)
 
     # Method for getting the derivative of the transfer function
     # with respect to the scale factor, evaluated at a,
@@ -1889,8 +2002,10 @@ def k_float2str(k):
                 k_gridsize='Py_ssize_t',
                 specific_multi_index=object,  # tuple, int-like or str
                 a='double',
+                a_next='double',
                 gauge=str,
                 get=str,
+                weight=str,
                 # Locals
                 H='double',
                 any_negative_values='bint',
@@ -1908,8 +2023,8 @@ def k_float2str(k):
                 )
 def compute_transfer(
     component, variable, k_min, k_max,
-    k_gridsize=-1, specific_multi_index=None, a=-1, gauge='N-body',
-    get='spline',
+    k_gridsize=-1, specific_multi_index=None, a=-1, a_next=-1,
+    gauge='N-body', get='spline', weight=None,
 ):
     """This function calls compute_cosmo which produces a CosmoResults
     instance which can talk to CLASS. Using the δ, θ, etc. methods on
@@ -1954,7 +2069,7 @@ def compute_transfer(
     # and transform to N-body gauge if requested.
     if var_index == 0:
         # Get the δ transfer function
-        transfer = cosmoresults.δ(a, component)
+        transfer = cosmoresults.δ(a, a_next, component=component, weight=weight)
         # Transform the δ transfer function from synchronous
         # to N-body gauge, if requested. Note that the special "metric"
         # CLASS species is constructed directly in N-body gauge
@@ -1971,7 +2086,7 @@ def compute_transfer(
                                  *transfer_θ_tot[k]/k_magnitudes[k]**2)
     elif var_index == 1:
         # Get the θ transfer function
-        transfer = cosmoresults.θ(a, component)
+        transfer = cosmoresults.θ(a, a_next, component=component, weight=weight)
         # Transform the θ transfer function from synchronous
         # to N-body gauge, if requested.
         if gauge == 'nbody':
@@ -1985,11 +2100,10 @@ def compute_transfer(
             # (ȧ*θ_tot)ʹ = a*d/dt(ȧ*θ_tot)
             #            = a*ä*θ_tot + a*ȧ*d/dt(θ_tot)
             #            = a*(ä*θ_tot + ȧ²*d/da(θ_tot))
-            ȧ_transfer_θ_totʹ = a*(  ä(a)   *asarray(cosmoresults.θ(a,
-                                                                    get='as_function_of_k'      ))
-                                   + ȧ(a)**2*asarray(cosmoresults.θ(a,
-                                                                    get='deriv_as_function_of_k'))
-                                   )
+            ȧ_transfer_θ_totʹ = a*(
+                  ä(a)   *asarray(cosmoresults.θ(a, get='as_function_of_k'      ))
+                + ȧ(a)**2*asarray(cosmoresults.θ(a, get='deriv_as_function_of_k'))
+            )
             # Now do the gauge transformation.
             # Check for negative values, which implies that some
             # CLASS data has not converged.
@@ -2011,13 +2125,13 @@ def compute_transfer(
                            )
     elif var_index == 2 and specific_multi_index == 'trace':
         # Get th δP transfer function
-        transfer = cosmoresults.δP(a, component)
+        transfer = cosmoresults.δP(a, a_next, component=component, weight=weight)
     elif (    var_index == 2
           and isinstance(specific_multi_index, tuple)
           and len(specific_multi_index) == 2
           ):
         # Get the σ transfer function
-        transfer = cosmoresults.σ(a, component)
+        transfer = cosmoresults.σ(a, a_next, component=component, weight=weight)
     else:
         abort(f'I do not know how to get transfer function of multi_index {specific_multi_index} '
               f'of variable number {var_index}'

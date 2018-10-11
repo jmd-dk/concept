@@ -29,7 +29,7 @@ from commons import *
 this_dir  = os.path.dirname(os.path.realpath(__file__))
 this_test = os.path.basename(this_dir)
 
-Σmν = class_params['m_ncdm']*class_params['deg_ncdm']
+Σmν = float(class_params['m_ncdm'])*float(class_params['deg_ncdm'])
 n_tailcut = 25
 
 
