@@ -1543,6 +1543,45 @@ def replace_ellipsis(d):
         else:
             falsy_val = val
     return d
+# Context manager which disables summarization of NumPy arrays
+# (the ellipses appearing in str representations of large arrays).
+@contextlib.contextmanager
+def disable_numpy_summarization():
+    # Backup the current print threshold
+    threshold = np.get_printoptions()['threshold']
+    # Set the threshold to infinity so that the str representation
+    # of arrays wil not contain any ellipses
+    # (full printout rather than summarization).
+    np.set_printoptions(threshold=ထ)
+    try:
+        # Yield control back to the caller
+        yield
+    finally:
+        # Cleanup: Reset print options
+        np.set_printoptions(threshold=threshold)
+# Function which turns a dict of items into a dict of str's
+def stringify_dict(d):
+    # Convert keys and values to str's
+    with disable_numpy_summarization():
+        d = {str(key): ', '.join([str(el) for el in any2list(val)]) for key, val in d.items()}
+    # To ensure that the resultant str's are the same in pure Python
+    # and compiled mode, all floats should have no more than 12 digits.
+    d_modified = {}
+    for key, val in d.items():
+        try:
+            f = ast.literal_eval(key)
+            if isinstance(f, float):
+                key = f'{f:.12g}'
+        except:
+            pass
+        try:
+            f = ast.literal_eval(val)
+            if isinstance(f, float):
+                val = f'{f:.12g}'
+        except:
+            pass
+        d_modified[key] = val
+    return d_modified
 # Function that updates given CLASS parameters with default values
 # matching the CO𝘕CEPT parameters.
 def update_class_params(class_params, namespace=None):
@@ -1583,6 +1622,11 @@ def update_class_params(class_params, namespace=None):
     # Apply updates to the CLASS parameters
     for param_name, param_value in class_params_default.items():
         class_params.setdefault(param_name, param_value)
+    # Transform all CLASS container parameters to str's of
+    # comma-separated values. All other CLASS parameters will also
+    # be converted to their str representation.
+    class_params = stringify_dict(class_params)
+    return class_params
 # Subclass the dict to create a dict-like object which keeps track of
 # the number of lookups on each key. This is used to identify unknown
 # (and therefore unused) parameters defined by the user.
@@ -1656,7 +1700,7 @@ for u in ('length', 'time', 'mass'):
 # (module level) class_params, this has to be done again (see the
 # CLASS setup section).
 if 'class_params' in user_params:
-    update_class_params(user_params['class_params'], user_params)
+    user_params['class_params'] = update_class_params(user_params['class_params'], user_params)
 # Find out which of the inferrable parameters are not explicitly set,
 # and so should be inferred.
 user_params_changed_inferrables = user_params.copy()
@@ -2463,30 +2507,7 @@ units_dict.setdefault('cbrt', lambda x: x**(1/3))
 ###############
 # Update class_params with default values. This has already been done
 # before for the version of class_params inside of user_params.
-update_class_params(class_params)
-# Function which turns a dict of items into a dict of str's
-def stringify_dict(d):
-    # Convert keys and values to str's
-    with disable_numpy_summarization():
-        d = {str(key): ', '.join([str(el) for el in any2list(val)]) for key, val in d.items()}
-    # To ensure that the resultant str's are the same in pure Python
-    # and compiled mode, all floats should have no more than 12 digits.
-    d_modified = {}
-    for key, val in d.items():
-        try:
-            f = ast.literal_eval(key)
-            if isinstance(f, float):
-                key = f'{f:.12g}'
-        except:
-            pass
-        try:
-            f = ast.literal_eval(val)
-            if isinstance(f, float):
-                val = f'{f:.12g}'
-        except:
-            pass
-        d_modified[key] = val
-    return d_modified
+class_params = update_class_params(class_params)
 # Function that can call out to CLASS,
 # correctly taking advantage of OpenMP and MPI.
 @cython.pheader(# Arguments
@@ -3095,23 +3116,6 @@ def suppress_stdout(f=sys.stdout):
         finally:
             # Cleanup: Reset sys.stdout
             sys.stdout = f
-
-# Context manager which disables summarization of NumPy arrays
-# (the ellipses appearing in str representations of large arrays).
-@contextlib.contextmanager
-def disable_numpy_summarization():
-    # Backup the current print threshold
-    threshold = np.get_printoptions()['threshold']
-    # Set the threshold to infinity so that the str representation
-    # of arrays wil not contain any ellipses
-    # (full printout rather than summarization).
-    np.set_printoptions(threshold=ထ)
-    try:
-        # Yield control back to the caller
-        yield
-    finally:
-        # Cleanup: Reset print options
-        np.set_printoptions(threshold=threshold)
 
 # Function taking in some iterable of integers
 # and returning a nice, short str representation.
