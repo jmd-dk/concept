@@ -912,8 +912,9 @@ def CLASS():
                 a = all_a_values[a_start + i]
                 transfer_of_k, _ = compute_transfer(
                     component, variable, k_min, k_max,
-                    k_gridsize, specific_multi_index, a, gauge,
-                    get='array',
+                    k_gridsize, specific_multi_index, a,
+                    -1, # The a_next argument
+                    gauge, get='array',
                 )
                 transfer[i, :] = transfer_of_k
             # Gather transfer function data into the master

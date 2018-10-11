@@ -702,17 +702,19 @@ def kurganov_tadmor_internal_sources(component, ᔑdt, a=-1):
         masterprint('done')
 
 # The MacCormack method
-@cython.header(# Arguments
-               component='Component',
-               ᔑdt=dict,
-               # Locals
-               attempt='int',
-               i='Py_ssize_t',
-               max_vacuum_corrections=list,
-               mc_step='int',
-               steps='Py_ssize_t[::1]',
-               )
-def maccormack(component, ᔑdt):
+@cython.header(
+    # Arguments
+    component='Component',
+    ᔑdt=dict,
+    a_next='double',
+    # Locals
+    attempt='int',
+    i='Py_ssize_t',
+    max_vacuum_corrections=list,
+    mc_step='int',
+    steps='Py_ssize_t[::1]',
+)
+def maccormack(component, ᔑdt, a_next=-1):
     # There is nothing to be done by this function
     # if no J variable exist.
     if (   component.boltzmann_order == 0
@@ -744,7 +746,7 @@ def maccormack(component, ᔑdt):
                # Compute starred variables from unstarred variables
                # (first MacCormack step) or vice versa
                # (second MacCormack step).
-               maccormack_step(component, ᔑdt, steps, mc_step)
+               maccormack_step(component, ᔑdt, steps, mc_step, a_next)
            # Do vacuum corrections if toggled for this species.
            # If not, check but du not correct for vacuum.
            if 𝔹[is_selected(component, fluid_options['maccormack']['vacuum_corrections_select'])]:
@@ -799,6 +801,7 @@ maccormack_steps = generate_maccormack_steps()
                ᔑdt=dict,
                steps='Py_ssize_t[::1]',
                mc_step='int',
+               a_next='double',
                # Locals
                J_div='double[:, :, ::1]',
                J_el='double[:, :, ::1]',
@@ -824,7 +827,7 @@ maccormack_steps = generate_maccormack_steps()
                ϱˣ='double[:, :, ::1]',
                𝒫='double[:, :, ::1]',
                )
-def maccormack_step(component, ᔑdt, steps, mc_step):
+def maccormack_step(component, ᔑdt, steps, mc_step, a_next=-1):
     """It is assumed that the unstarred and starred grids have
     correctly populated pseudo and ghost points.
     """
@@ -868,7 +871,7 @@ def maccormack_step(component, ᔑdt, steps, mc_step):
     masterprint('Computing energy fluxes in the continuity equation ...')
     ϱ  = getattr(component.ϱ, view )
     ϱˣ = getattr(component.ϱ, viewˣ)
-    for (dim_div, ), J_div in component.J.iterate(view, multi_indices=True):
+    for (dim_div, ), J_div in component.J.iterate(view, multi_indices=True, a_next=a_next):
         step_i = steps[dim_div] if dim_div == 0 else 0
         step_j = steps[dim_div] if dim_div == 1 else 0
         step_k = steps[dim_div] if dim_div == 2 else 0
@@ -943,30 +946,32 @@ def finalize_maccormack_step(component, mc_step):
 # Function which evolve the fluid variables of a component
 # due to internal source terms. This function should be used together
 # with the maccormack function.
-@cython.header(# Arguments
-               component='Component',
-               ᔑdt=dict,
-               # Locals
-               Jᵢ='FluidScalar',
-               Jᵢ_ptr='double*',
-               i='Py_ssize_t',
-               j='Py_ssize_t',
-               multi_index=tuple,
-               multi_index_list=list,
-               potential='double[:, :, ::1]',
-               potential_ptr='double*',
-               n='Py_ssize_t',
-               source='double[:, :, ::1]',
-               source_ptr='double*',
-               w='double',
-               Δx='double',
-               ςᵢⱼ='FluidScalar',
-               ςᵢⱼ_ptr='double*',
-               ϱ_ptr='double*',
-               𝒫='double[:, :, ::1]',
-               𝒫_ptr='double*',
-               )
-def maccormack_internal_sources(component, ᔑdt):
+@cython.header(
+    # Arguments
+    component='Component',
+    ᔑdt=dict,
+    a_next='double',
+    # Locals
+    Jᵢ='FluidScalar',
+    Jᵢ_ptr='double*',
+    i='Py_ssize_t',
+    j='Py_ssize_t',
+    multi_index=tuple,
+    multi_index_list=list,
+    potential='double[:, :, ::1]',
+    potential_ptr='double*',
+    n='Py_ssize_t',
+    source='double[:, :, ::1]',
+    source_ptr='double*',
+    w='double',
+    Δx='double',
+    ςᵢⱼ='FluidScalar',
+    ςᵢⱼ_ptr='double*',
+    ϱ_ptr='double*',
+    𝒫='double[:, :, ::1]',
+    𝒫_ptr='double*',
+)
+def maccormack_internal_sources(component, ᔑdt, a_next=-1):
     """By "internal sources" is meant source terms which do not arise
     due to interactions, such as the Hubble term in the continuity
     equation for P ≠ wρ.
@@ -995,7 +1000,7 @@ def maccormack_internal_sources(component, ᔑdt):
         or (component.boltzmann_order == 2 and component.boltzmann_closure == 'class')):
         masterprint('Computing the shear term in the Euler equation ...')
         # Loop over all distinct ςᵢⱼ and realize them as we go
-        for multi_index, ςᵢⱼ in component.ς.iterate(multi_indices=True):
+        for multi_index, ςᵢⱼ in component.ς.iterate(multi_indices=True, a_next=a_next):
             # The potential of the source is
             # -ᔑa**(-3*w_eff)dt ςⁱⱼ.
             # Construct this potential, using the starred ϱ grid
