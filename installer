@@ -3180,12 +3180,14 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
     enable_parallel=""
     if [ -n "${mpi_dir}" ]; then
         export CC="${mpi_dir}/bin/mpicc"
+        export CFLAGS="-I${mpi_dir}/include ${CFLAGS}"
         for f in "mpic++" "mpicxx"; do
             if [ -f "${mpi_dir}/bin/${f}" ]; then
                 export CXX="${mpi_dir}/bin/${f}"
                 break
             fi
         done
+        export CPPFLAGS="-I${mpi_dir}/include ${CPPFLAGS}"
         for f in "mpif90" "mpifort"; do
             if [ -f "${mpi_dir}/bin/${f}" ]; then
                 export FC="${mpi_dir}/bin/${f}"
@@ -3193,6 +3195,8 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
                 break
             fi
         done
+        export FFLAGS="-I${mpi_dir}/include ${FFLAGS}"
+        export LDFLAGS="-L${mpi_dir}/lib ${LDFLAGS}"
         export LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}"
         export PATH="${mpi_dir}/bin:${PATH}"
         enable_parallel="--enable-parallel"
