@@ -456,6 +456,12 @@ if [ -z "${top_dir_specified}" ]; then
     top_dir_specified="no"
 fi
 for var in "$@"; do
+    # Strip command line argument for brackets, which may have been
+    # adeed by users not familiar with this syntax for
+    # specifying optional arguments.
+    var="${var#'['}"
+    var="${var%']'}"
+    # Parse command line argument
     if [ "${var}" == "--fast" ]; then
         fast_install="yes"
     elif [ "${var}" == "-y" ]; then
