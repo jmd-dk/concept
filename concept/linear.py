@@ -606,9 +606,8 @@ class CosmoResults:
               = k²γ(a)/(4πGa²)
         where the factor 3/(8πG) = 1 in CLASS units.
         Side-note: In this form (k²γ = 4πGa²δρ) it is clear that γ
-        indead is a potential. The missing sign comes from the CLASS
-        convention (which is adopted in CO𝘕CEPT) of having δ
-        (and hence δρ) transfer functions be negative.
+        indead is a potential. The missing sign stems from γ being
+        defined with the opposite sign of usual potentials.
         Finally, since we want δ(a), we divide by the arbitrary but
         pre-defined background density ρ_metric:
         δ(a) = k²γ(a)/(4πGa²ρ_metric).
