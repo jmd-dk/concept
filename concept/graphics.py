@@ -640,9 +640,9 @@ def render2D(components, filename):
             shifting_factor = 0.28
             # Enforce all pixel values to be between 0 and 1
             projection_min = np.min(projection)
-            projection_max = np.max(projection)
             if projection_min != 0:
                 projection = asarray(projection) - projection_min
+            projection_max = np.max(projection)
             if projection_max not in (0, 1):
                 projection = asarray(projection)*(1/projection_max)
             # Find a good value for the exponent using a binary search
@@ -718,7 +718,7 @@ def render2D(components, filename):
             # The color limits vmin and vmax are determined based on
             # color_truncation_factor_lower and
             # color_truncation_factor_upper, respectively.
-            # These specify the fraction of the mean bin value at which
+            # These specify the accumulated fraction of Σbins at which
             # the histogram should be truncated, for the lower and
             # upper intensity ends. For images with a lot of structure
             # the best results are obtained by giving the lower color
@@ -726,15 +726,18 @@ def render2D(components, filename):
             # the background), while giving the higher color truncation
             # a small value, so that small very overdense regions
             # appear clearly.
-            color_truncation_factor_lower = 0.81
-            color_truncation_factor_upper = 0.012
+            color_truncation_factor_lower = 0.001
+            color_truncation_factor_upper = 0.00002
             occupation = 0
             for i in range(1, N_bins):
-                if bins[i] >= ℝ[color_truncation_factor_lower*Σbins/(N_bins - 1)]:
+                occupation += bins[i]
+                if occupation >= ℝ[color_truncation_factor_lower*Σbins]:
                     vmin = bin_edges[i - 1]
                     break
+            occupation = 0
             for i in range(N_bins - 1, 0, -1):
-                if bins[i] >= ℝ[color_truncation_factor_upper*Σbins/(N_bins - 1)]:
+                occupation += bins[i]
+                if occupation >= ℝ[color_truncation_factor_upper*Σbins]:
                     vmax = bin_edges[i + 1]
                     break
             masterprint('done')
