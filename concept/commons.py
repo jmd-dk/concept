@@ -35,7 +35,7 @@ from __future__ import division  # Needed for Python3 division in Cython
 #######################
 # The CO𝘕CEPT version #
 #######################
-__version__ = 'v0.2.0'
+__version__ = 'master'
 
 
 
