@@ -1,19 +1,24 @@
 CO*N*CEPT
 =========
-<img align="right" height="255" src="http://users-phys.au.dk/jmd/github/concept/render2D.png"/>
+<img align="right" height="300" src="http://users-phys.au.dk/jmd/github/concept/render2D.png"/>
 
 CO*N*CEPT (**CO**smological ***N***-body **C**od**E** in **P**y**T**hon)
 is a free and open-source code for cosmological structure formation.
-The code should run on any Linux system, though it is primarily intended
-for massively parallel computer clusters with distributed memory.
+The code should run on any Linux system, though it is primarily intended for
+massively parallel computer clusters with distributed memory.
 The code is written almost exclusively in Python, but achieves C-like
 performance thanks to Cython.
 
-CO*N*CEPT is a mixed particle and grid code. Current development
-focuses on non-linear neutrino simulations, as described in
-the [νCO*N*CEPT paper](https://arxiv.org/abs/1712.03944).
-The 0.1.0 release corresponds to the version of the code used
-for this paper.
+CO*N*CEPT is capable of simultaneously evolving matter particles and fluids
+such as (massless or massive) neutrinos, at different orders of nonlinearity.
+The [CLASS](https://github.com/lesgourg/class_public) code is fully integrated
+into CO*N*CEPT, making initial condition generation easy.
+For academic papers produced using CO*N*CEPT, see:
+
+- [Linear massive neutrinos, photons and GR corrections](https://arxiv.org/pdf/1811.00822)
+  - (corresponds to the 0.2.0 release)
+- [Non-linear massive neutrinos](https://arxiv.org/abs/1712.03944)
+  - (corresponds to the 0.1.0 release)
 
 
 Installation instructions
@@ -28,7 +33,7 @@ To speed up the installation you may supply the optional `--fast`
 option which skips all tests (not recommended).
 You can download and invoke the installer in one go by
 
-    concept_version=v0.1.0
+    concept_version=v0.2.0
     bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/${concept_version}/installer) [/path/to/concept] [--fast]
 
 where brackets indicate optional arguments. Note that the initial
@@ -48,7 +53,7 @@ CO*N*CEPT on a cluster, but instead make use of an already installed
 MPI 3 library (any implementation should do). This is achieved by
 setting the `mpi_dir` variable, e.g.
 
-    concept_version=v0.1.0
+    concept_version=v0.2.0
     mpi_dir=/path/to/mpi bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/${concept_version}/installer) [/path/to/concept] [--fast]
 
 This trick may also be used should you wish to use
