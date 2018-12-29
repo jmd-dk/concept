@@ -1366,6 +1366,8 @@ def construct_user_params_namespace(params_iteration):
             'bcast'          : bcast,
             'call_openmp_lib': call_openmp_lib,
             # Constants
+            'π'                 : π,
+            unicode('π')        : π,
             'machine_ϵ'         : machine_ϵ,
             unicode('machine_ϵ'): machine_ϵ,
             'eps'               : machine_ϵ,
@@ -2606,7 +2608,8 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node', class_call
         k_output_values_nodes = [[] for _ in range(nnodes)]
         while k_output_values_nodes_deque:
             for method in ('pop', 'popleft'):
-                for nprocs_node_i, k_output_values_node in zip(sorted(nprocs_nodes, reverse=True), k_output_values_nodes):
+                for nprocs_node_i, k_output_values_node in zip(
+                    sorted(nprocs_nodes, reverse=True), k_output_values_nodes):
                     if len(k_output_values_node) < nprocs_node_i:
                         k_output_values_node.append(getattr(k_output_values_nodes_deque, method)())
         k_output_values_nodes = [
