@@ -190,11 +190,12 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
     w = component.w(a=a)
     w_eff = component.w_eff(a=a)
     shape = component.shape
-    # The global sound speed. Unless J is non-linear, the Euler equation
-    # is not going to be solved, and so no pressure gradient is
-    # ever applied, meaning that the sound speed should be 0.
+    # The global comoving sound speed. Unless J is non-linear,
+    # the Euler equation is not going to be solved, and so no pressure
+    # gradient is ever applied, meaning that the sound speed
+    # should be 0.
     if component.boltzmann_order > 1:
-        soundspeed = light_speed*sqrt(w)
+        soundspeed = light_speed*sqrt(w)/a
     else:
         soundspeed = 0
     # Arrays of start and end indices for the local part of the
