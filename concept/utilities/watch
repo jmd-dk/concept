@@ -22,9 +22,9 @@
 
 
 
-# Running this script after submitting a remote job via PBS will print
-# out the output of the code as it is being run. If multiple jobs are
-# running or in queue, the latest will be watched.
+# Running this script after submitting a remote job via Slurm/TORQUE/PBS
+# will print out the output of the code as it is being run.
+# If multiple jobs are running or in queue, the latest will be watched.
 # Alternatively, the job ID can be passed as the first argument when
 # calling this script.
 # You can run this file directly as

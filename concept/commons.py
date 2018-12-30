@@ -51,11 +51,6 @@ import keyword, os, re, shutil, sys, textwrap, types, unicodedata, warnings
 import math
 import numpy as np
 from numpy import arange, asarray, empty, linspace, logspace, ones, zeros
-np.warnings.filterwarnings(  # Suppress warning from NumPy 1.14 caused by H5Py
-    'ignore',
-    'Conversion of the second argument of issubdtype from',
-    FutureWarning,
-)
 import scipy
 import scipy.interpolate
 import scipy.ndimage
