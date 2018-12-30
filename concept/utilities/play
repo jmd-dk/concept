@@ -93,7 +93,7 @@ parser.add_argument('-f', '--frame-rate',
                     type=positive_float,
                     default=${default_framerate},
                     )
-parser.add_argument('-c', '--component', '--component-combination',
+parser.add_argument('--component', '--component-combination',
                     help='component (combination) to play',
                     default='default',
                     )
