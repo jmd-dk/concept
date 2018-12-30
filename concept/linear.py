@@ -307,7 +307,7 @@ class CosmoResults:
                 'g'     :  1/3,
                 'ur'    :  1/3,
                 'lambda': -1,
-                }
+            }
             for class_species, w in constant_eos_w.items():
                 if (    f'(.)rho_{class_species}'   in self._background
                     and f'(.)p_{class_species}' not in self._background):
@@ -344,13 +344,13 @@ class CosmoResults:
             # equation of state w(a), which in turn is constructed from
             # the background pressure. Thus, though the "metric" species
             # has no pressure in any meaningful sense, we need to assign
-            # it the background pressure that matchea the assigned
+            # it the background pressure that matches the assigned
             # background density. In principle we could steal the
             # background density and pressure from any of the other,
             # physical species, or construct a new pair of consistent
             # background densities and pressures. However, it turns out
             # that δρ(k, a) goes approximately like a⁻⁴ for a given k
-            # (really it is the envelope of its oscillatins that has
+            # (really it is the envelope of its oscillations that has
             # this behaviour), which is also the behaviour of photons.
             # Choosing the photon background density and pressure
             # for the "metric" species then leads to more
@@ -411,7 +411,7 @@ class CosmoResults:
                     # parameter class_extra_perturbations. These extra
                     # perturbations are not used directly, but will be
                     # dumped along with the rest to the disk. Only the
-                    # master process will ever store these
+                    # node master processes will ever store these
                     # extra perturbations. A copy of the data is used,
                     # making freeing of the original
                     # CLASS data possible.
@@ -429,7 +429,8 @@ class CosmoResults:
                         # The master process needs to know which
                         # process store which k modes.
                         if master:
-                            k_processes_indices = empty(len(self.k_magnitudes), dtype=C2np['int'])
+                            k_processes_indices = empty(len(self.k_magnitudes),
+                                dtype=C2np['Py_ssize_t'])
                             k_processes_indices[self.k_node_indices] = rank
                             for rank_recv in node_master_ranks:
                                 if rank_recv == rank:
@@ -456,15 +457,22 @@ class CosmoResults:
                                     buffer = get_buffer(size, 'perturbation')
                                     Recv(buffer, source=rank_recv)
                                     perturbation[key] = asarray(buffer).copy()
-                            # The master process now hold perturbations
+                            # The master process now holds perturbations
                             # from all nodes in all_perturbations.
                             self._perturbations = all_perturbations
                         else:
                             for perturbation in self._perturbations:
                                 for key in keys:
                                     send(len(perturbation[key]), dest=master_rank)
-                                    Send(asarray(perturbation[key]), dest=master_rank)
-                # Done extracting perturbations from CLASS
+                                    Send(perturbation[key], dest=master_rank)
+                                    # Once the data has been
+                                    # communicated, delete it from the
+                                    # slave (node master) process.
+                                    perturbation[key].resize(0, refcheck=False)
+                                    del perturbation[key]
+                # The master process now holds all perturbations
+                # while the other node masters do not store any.
+                # We are done extracting perturbations from CLASS.
                 masterprint('done')
                 # Save to disk
                 self.save('perturbations')
@@ -477,7 +485,7 @@ class CosmoResults:
                 self.cosmo.struct_cleanup()
                 # Now remove the extra CLASS perturbations
                 # not used by this simulation.
-                if node_master and not special_params.get('keep_class_extra_perturbations', False):
+                if master:
                     for key in set(self._perturbations[0].keys()):
                         if not any([key == pattern or re.search(pattern, key)
                             for pattern in class_extra_perturbations]
@@ -488,62 +496,141 @@ class CosmoResults:
                         ):
                             continue
                         for perturbation in self._perturbations:
+                            perturbation[key].resize(0, refcheck=False)
                             del perturbation[key]
             # As we only need perturbations defined within the
             # simulation timespan, a >= a_begin, we now cut off the
             # lower tail of all perturbations.
             if master:
-                universals_a_begin = universals.a_begin
-                for perturbation in self._perturbations:
-                    a_values = perturbation['a']
-                    # Find the index in a_values which corresponds to
-                    # universals.a_begin, using a binary search.
-                    index_lower = 0
-                    index_upper = a_values.shape[0] - 1
-                    a_lower = a_values[index_lower]
-                    a_upper = a_values[index_upper]
-                    if a_lower > universals_a_begin:
-                        abort(
-                            f'Not all perturbations are defined at '
-                            f'a_begin = {universals_a_begin}. Note that CLASS perturbations '
-                            f'earlier than a_min = {class_a_min} in source/perturbations.c will '
-                            f'not be used. If you really want perturbations at earlier times, '
-                            f'decrease this a_min.'
-                        )
-                    index = 0
-                    while index_upper - index_lower > 1:
-                        index = (index_lower + index_upper)//2
-                        a_value = a_values[index]
-                        if a_value > universals_a_begin:
-                            index_upper = index
-                        elif a_value < universals_a_begin:
-                            index_lower = index
-                    # Include times slightly earlier
-                    # than absolutely needed.
-                    index -= 3
-                    if index < 0:
-                        index = 0
-                    a_value = a_values[index]
-                    # Remove perturbations earlier than a_begin.
-                    # We have to copy the data, as otherwise the array
-                    # owning will not be owning the data, meaning that
-                    # it cannot be freed by Python's garbage collection.
+                def find_a_min(universals_a_begin):
+                    for perturbation in self._perturbations:
+                        a_values = perturbation['a']
+                        # Find the index in a_values which corresponds to
+                        # universals.a_begin, using a binary search.
+                        index_lower = 0
+                        index_upper = a_values.shape[0] - 1
+                        a_lower = a_values[index_lower]
+                        a_upper = a_values[index_upper]
+                        if a_lower > universals_a_begin:
+                            abort(
+                                f'Not all perturbations are defined at '
+                                f'a_begin = {universals_a_begin}. Note that CLASS '
+                                f'perturbations earlier than a_min = {class_a_min} in '
+                                f'source/perturbations.c will not be used. If you really want '
+                                f'perturbations at still earlier times, decrease this a_min '
+                                f'and recompile CLASS.'
+                            )
+                        index, a_value = 0, -1
+                        while index_upper - index_lower > 1 and a_value != universals_a_begin:
+                            index = (index_lower + index_upper)//2
+                            a_value = a_values[index]
+                            if a_value > universals_a_begin:
+                                index_upper = index
+                            elif a_value < universals_a_begin:
+                                index_lower = index
+                        # Include times slightly earlier
+                        # than absolutely needed.
+                        index -= 3
+                        if index < 0:
+                            index = 0
+                        yield index, a_values[index], perturbation
+                # Find the minimum scale factor value
+                # needed across all k modes.
+                universals_a_begin_min = universals.a_begin
+                for index, universals_a_begin, perturbation in find_a_min(universals_a_begin_min):
+                    if universals_a_begin < universals_a_begin_min:
+                        universals_a_begin_min = universals_a_begin
+                # Remove perturbations earlier than
+                # universals_a_begin_min. We have to copy the data,
+                # as otherwise the array will not be owning the data,
+                # meaning that it cannot be freed by Python's
+                # garbage collection.
+                for index, universals_a_begin, perturbation in find_a_min(universals_a_begin_min):
                     for key, val in perturbation.items():
                         perturbation[key] = asarray(val[index:]).copy()
-            # Communicate perturbations as list of dicts mapping
-            # str's to arrays.
-            size = bcast(len(self._perturbations) if master else None)
-            if size:
+            # The perturbations stored by the master process will now be
+            # distributed among all processes, each storing part of the
+            # total data. We could also give every process a copy of the
+            # entire data set, but as it can take up several GB, this
+            # can be a waste of memory. First the master process divides
+            # the k modes fairly among the processes, so that the memory
+            # burden is shared amongst all processes (and hence nodes).
+            n_modes = bcast(len(self._perturbations) if master else None)
+            if n_modes == self.k_magnitudes.size:
                 keys = bcast(tuple(self._perturbations[0].keys()) if master else None)
-                if not master:
-                    self._perturbations = [{} for _ in range(size)]
-                for perturbation in self._perturbations:
-                    for key in keys:
-                        buffer = smart_mpi(perturbation[key] if master else (), mpifun='bcast')
-                        if not master:
-                            perturbation[key] = asarray(buffer).copy()
-            else:
+                # Let the master divvy up the perturbations
+                if master:
+                    sizes = [np.sum([val.size for val in perturbation.values()])
+                        for perturbation in self._perturbations]
+                    indices = arange(n_modes, dtype=C2np['Py_ssize_t'])[np.argsort(sizes)]
+                    n_surplus = n_modes % nprocs
+                    indices_procs_deque = collections.deque(indices[n_surplus:])
+                    indices_procs = [[] for _ in range(nprocs)]
+                    while indices_procs_deque:
+                        for method in ('pop', 'popleft'):
+                            for indices_proc in indices_procs:
+                                if indices_procs_deque:
+                                    indices_proc.append(getattr(indices_procs_deque, method)())
+                    for index, indices_proc in zip(indices[:n_surplus], reversed(indices_procs)):
+                        indices_proc.append(index)
+                    indices_procs = [asarray(sorted(indices), dtype=C2np['Py_ssize_t'])
+                        for indices in indices_procs]
+                    for other_rank, indices in enumerate(indices_procs):
+                        if other_rank == rank:
+                            continue
+                        # Send the global perturbation indices
+                        send(indices.size, dest=other_rank)
+                        Send(indices, dest=other_rank)
+                        # Send the perturbation data
+                        for index in indices:
+                            perturbation = self._perturbations[index]
+                            for key in keys:
+                                send(perturbation[key].size, dest=other_rank)
+                                Send(perturbation[key], dest=other_rank)
+                                # Once the data has been communicated,
+                                # delete it from the master process.
+                                perturbation[key].resize(0, refcheck=False)
+                                del perturbation[key]
+                    self.k_indices = indices_procs[rank]
+                    self._perturbations = [self._perturbations[index]
+                        for index in self.k_indices]
+                else:
+                    # Receive the global perturbation indices
+                    self.k_indices = np.empty(
+                        recv(source=master_rank), dtype=C2np['Py_ssize_t'])
+                    Recv(self.k_indices, source=master_rank)
+                    # Receive the perturbation data
+                    self._perturbations = [{} for _ in range(self.k_indices.size)]
+                    for perturbation in self._perturbations:
+                        for key in keys:
+                            perturbation[key] = np.empty(
+                                recv(source=master_rank), dtype=C2np['double'])
+                            Recv(perturbation[key], source=master_rank)
+                Barrier()
+                # All processes should be aware of the k indices of all
+                # other processes. We have this as the list of arrays
+                # indices_procs on the mater process, but we now store
+                # it as a single array. This array will give the
+                # ordering of the k modes after a call to allgatherv
+                # on the perturbation data.
+                if master:
+                    self.k_indices_all = np.argsort(np.concatenate(indices_procs))
+                else:
+                    self.k_indices_all = np.empty(
+                        self.k_magnitudes.shape[0], dtype=C2np['Py_ssize_t'],
+                    )
+                Bcast(self.k_indices_all)
+            elif n_modes == 0:
+                # No perturbations exist
                 self._perturbations = []
+            else:
+                # A wrong number of perturbations exist
+                abort(
+                    f'Only {n_modes} of the expected {self.k_magnitudes.size} '
+                    'perturbation k modes exist.'
+                )
+            # Now the perturbation data is fairly distributed amongst
+            # all processes.
             # As perturbations comprise the vast majority of the
             # data volume of what is needed from CLASS, we might
             # as well read in any remaining bits. Specifically, the
@@ -587,9 +674,6 @@ class CosmoResults:
         where ʹ denotes differentiation with respect to
         conformal time τ. To get H_Tʹʹ (actually Ḣ_Tʹ, see below) we
         construct a TransferFunction object over the H_Tʹ perturbations.
-        This takes up the majority of the computation time and is done
-        in parallel. After this, every processes will compute
-        γ(a) for all k.
         The units of the perturbations from CLASS are as follows:
         H_Tʹ: [time⁻¹]        = [c/Mpc],
         ϕ   : [length²time⁻²] = [c²],
@@ -629,13 +713,14 @@ class CosmoResults:
         """
         # Check that the delta_metric perturbations
         # has not already been added.
-        if 'delta_metric' in self._perturbations[0]:
+        if self._perturbations and 'delta_metric' in self._perturbations[0]:
             return
         masterprint('Constructing metric δ perturbations ...')
         # Get the H_Tʹ(k, a) transfer functions
         transfer_H_Tʹ = self.H_Tʹ(get='object')
         # Construct the "metric" δ(a) for each k
-        for k, perturbation in enumerate(self._perturbations):
+        for k_local, perturbation in enumerate(self._perturbations):
+            k = self.k_indices[k_local]
             k_magnitude = self.k_magnitudes[k]
             # Extract needed perturbations along with
             # the scalefactor at which they are tabulated.
@@ -645,7 +730,7 @@ class CosmoResults:
             H_Tʹ  = perturbation['H_T_prime']*ℝ[light_speed/units.Mpc]
             θ_tot = perturbation['theta_tot']*ℝ[light_speed/units.Mpc]
             # Compute the derivative of H_Tʹ with respect to a
-            Ḣ_Tʹ = asarray([transfer_H_Tʹ.eval_deriv(k, a_i) for a_i in a])
+            Ḣ_Tʹ = asarray([transfer_H_Tʹ.eval_deriv(k_local, a_i) for a_i in a])
             # Lastly, we need the Hubble parameter and the mean density
             # of the "metric" species at the times given by a.
             H = asarray([hubble(a_i) for a_i in a])
@@ -1004,10 +1089,6 @@ class CosmoResults:
                         if any([key.replace('__per__', '/') == pattern
                             or re.search(pattern, key.replace('__per__', '/'))
                             for pattern in self.needed_keys['perturbations']
-                                | (class_extra_perturbations
-                                    if special_params.get('keep_class_extra_perturbations', False)
-                                    else set()
-                                )
                         ])
                     }
                 masterprint('done')
@@ -1064,13 +1145,20 @@ class TransferFunction:
         str class_species
         double[::1] k_magnitudes
         Py_ssize_t k_gridsize
+        Py_ssize_t k_gridsize_local
+        Py_ssize_t[::1] k_indices
+        Py_ssize_t[::1] k_indices_all
         double[::1] data
+        double[::1] data_local
         double[::1] data_deriv
+        double[::1] data_deriv_local
         double k_max
         double[::1] factors
         double[::1] exponents
         list splines
         """
+        # Ensure that the cosmological perturbations has been loaded
+        cosmoresults.perturbations
         # Store instance data
         self.cosmoresults = cosmoresults
         self.component = component
@@ -1086,19 +1174,23 @@ class TransferFunction:
         else:
             self.class_species = self.component.class_species
         # The k values at which the transfer function
-        # is tabulated by CLASS.
+        # is tabulated by CLASS. Note that only the modes given by
+        # self.k_indices are stored by this process.
         self.k_magnitudes = self.cosmoresults.k_magnitudes
         self.k_gridsize = self.k_magnitudes.shape[0]
+        self.k_indices = self.cosmoresults.k_indices
+        self.k_gridsize_local = self.k_indices.shape[0]
+        self.k_indices_all = self.cosmoresults.k_indices_all
         # These will become arrays storing the transfer function and its
         # derivative with respect to the scale factor,
         # at a given k and as a function of a.
-        self.data = self.data_deriv = None
+        self.data = self.data_local = self.data_deriv = self.data_deriv_local = None
         # Construct splines of the transfer function as a function of a,
-        # for all k.
+        # for the k modes stored by this process.
         self.k_max = class_k_max.get('all', ထ)
-        self.factors   = empty(self.k_gridsize, dtype=C2np['double'])
-        self.exponents = empty(self.k_gridsize, dtype=C2np['double'])
-        self.splines = [None]*self.k_gridsize
+        self.factors   = empty(self.k_gridsize_local, dtype=C2np['double'])
+        self.exponents = empty(self.k_gridsize_local, dtype=C2np['double'])
+        self.splines = [None]*self.k_gridsize_local
         self.process()
 
     # Method for processing the transfer function data from CLASS.
@@ -1107,44 +1199,43 @@ class TransferFunction:
     @cython.header(
         # Locals
         a_values='double[::1]',
-        a_values_k=object,  # np.ndarray
         a_values_largest_trusted_k='double[::1]',
+        any_contain_untrusted_perturbations='bint',
         approximate_P_as_wρ='bint',
         available='bint',
         class_perturbation_name=str,
         class_species=str,
         class_units='double',
+        contains_untrusted_perturbations='bint',
         exponent='double',
         exponent_max='double',
         factor='double',
         fitted_trends=list,
-        has_data='bint',
         i='Py_ssize_t',
         index='Py_ssize_t',
         k='Py_ssize_t',
-        k_end='Py_ssize_t',
-        k_send='Py_ssize_t',
-        k_size='Py_ssize_t',
-        k_start='Py_ssize_t',
+        k_local='Py_ssize_t',
+        k_max_candidate='double',
+        key=str,
         largest_trusted_k='Py_ssize_t',
+        largest_trusted_k_begin_index='Py_ssize_t',
         missing_perturbations_warning=str,
         n_outliers='Py_ssize_t',
-        one_k_extra='bint',
+        other_rank='int',
         outlier='Py_ssize_t',
         outliers='Py_ssize_t[::1]',
         outliers_list=list,
         perturbation=object,  # np.ndarray or double
         perturbation_k=dict,
+        perturbation_key=str,
+        perturbation_keys=set,
         perturbation_values='double[::1]',
         perturbation_values_arr=object,  # np.ndarray
-        perturbation_values_k=object,  # np.ndarray
-        perturbations=list,
         perturbations_available=dict,
         perturbations_detrended='double[::1]',
         perturbations_detrended_largest_trusted_k='double[::1]',
-        perturbations_detrended_k='double[::1]',
         perturbations_largest_trusted_k=object,  # np.ndarray
-        rank_send='int',
+        rank_largest_trusted_k='int',
         size='Py_ssize_t',
         spline='Spline',
         trend=object,  # np.ndarray
@@ -1177,11 +1268,9 @@ class TransferFunction:
                 if self.component is not None else ''),
             ' are not available'
         ])
-        missing_perturbations_warning_given = False
         perturbations_available = {
             class_species: True for class_species in self.class_species.split('+')
         }
-        perturbations = self.cosmoresults.perturbations
         class_perturbation_name = {
             'δ'   : 'delta_{}',
             'θ'   : 'theta_{}',
@@ -1191,419 +1280,471 @@ class TransferFunction:
             'H_Tʹ': 'H_T_prime',
         }[self.var_name]
         approximate_P_as_wρ = (self.var_name == 'δP' and self.component.approximations['P=wρ'])
-        # A spline should be constructed for each k value,
-        # of which there are self.k_gridsize. Fairly distribute this
-        # work among the processes.
-        k_start, k_size = partition(self.k_gridsize)
-        k_end = k_start + k_size
-        # When the work is not exactly divisible among
-        # the processes, some processes will have an
-        # additional k value to process.
-        one_k_extra = (k_size*nprocs > self.k_gridsize)
-        # Compute and store a Spline object for each k.
-        # This is done in parallel. All processes are forced to
-        # carry out the same number of iterations regardless of the
-        # number of k values which should be processed by them.
-        largest_trusted_k = -1
-        untrusted_perturbations = [None]*self.k_gridsize
-        for k in range(k_start, k_end + (not one_k_extra)):
-            # Only process if this is not the extra iteration
-            has_data = (k < k_end)
-            if has_data:
-                perturbation_k = perturbations[k]
-                a_values = perturbation_k['a'].copy()
-                # The perturbation_k dict store perturbation arrays for
-                # all perturbation types and CLASS species, defined at
-                # times matching those of a_values.
-                # Because a single CO𝘕CEPT species can map to multiple
-                # CLASS species, we need to construct an array of
-                # perturbation values as a weighted sum of perturbations
-                # over the individual ('+'-separated) CLASS species,
-                # with weights dependent on the type of
-                # CLASS perturbation.
-                # We also need to apply the CLASS units, which again
-                # depend on the type of perturbation.
-                # Finally, outlier rejection may take place by adding
-                # indices to the outliers_list.
-                outliers_list = []
-                with unswitch:
-                    if self.var_name == 'δ':
-                        # For δ we have
-                        # δ_tot = (δ_1*ρ_bar_1 + δ_2*ρ_bar_2 + ...)/(ρ_bar_1 + ρ_bar_2 + ...)
-                        weights_species = {
-                            class_species: self.cosmoresults.ρ_bar(a_values, class_species)
-                            for class_species in self.class_species.split('+')
-                        }
-                        Σweights = np.sum(tuple(weights_species.values()), axis=0)
-                        for class_species in weights_species:
-                            weights_species[class_species] *= 1/Σweights
-                        # We have no CLASS units to apply
-                        class_units = 1
-                    elif self.var_name == 'θ':
-                        # For θ we have
-                        # θ_tot = (θ_1*ρ_bar_1 + θ_2*ρ_bar_2 + ...)/(ρ_bar_1 + ρ_bar_2 + ...)
-                        weights_species = {
-                            class_species: self.cosmoresults.ρ_bar(a_values, class_species)
-                            for class_species in self.class_species.split('+')
-                        }
-                        Σweights = np.sum(tuple(weights_species.values()), axis=0)
-                        for class_species in weights_species:
-                            weights_species[class_species] *= 1/Σweights
-                        # We have CLASS units of [time⁻¹]
-                        class_units = ℝ[light_speed/units.Mpc]
-                    elif self.var_name == 'δP':
-                        # CLASS does not provide the δP(k) perturbations
-                        # directly. Instead it provides δP(k)/δρ(k).
-                        # To get the total δP from multiple δP/δρ,
-                        # we then have
-                        # δP_tot = δP_1 + δP_2 + ...
-                        #        = (δP/δρ)_1*δρ_1 + (δP/δρ)_2*δρ_2 + ...
-                        #        = (δP/δρ)_1*δ_1*ρ_bar_1 + (δP/δρ)_2*δ_2*ρ_bar_2 + ...
-                        weights_species = {
-                            class_species: (
-                                self.get_perturbation(perturbation_k, f'delta_{class_species}')
-                                *self.cosmoresults.ρ_bar(a_values, class_species)
-                            )
-                            for class_species in self.class_species.split('+')
-                        }
-                        # The CLASS units of δP/δρ are [length²time⁻²]
-                        class_units = ℝ[light_speed**2]
-                        # Look for oulier points which are outside the
-                        # legal range 0 ≤ δP/δρ ≤ c²/3. As the data is
-                        # directly from CLASS, c = 1.
-                        for class_species in weights_species:
-                            perturbation = self.get_perturbation(
-                                perturbation_k, f'cs2_{class_species}')
-                            if perturbation is not None:
-                                perturbation_values = perturbation
-                                for i in range(perturbation_values.shape[0]):
-                                    if not (0 <= perturbation_values[i] <= ℝ[1/3]):
-                                        outliers_list.append(i)
-                    elif self.var_name == 'σ':
-                        # For σ we have
-                        # σ_tot = (σ_1*(ρ_bar_1 + c⁻²P_bar_1) + σ_2*(ρ_bar_2 + c⁻²P_bar_2) + ...)
-                        #          /((ρ_bar_1 + c⁻²P_bar_1) + (ρ_bar_2 + c⁻²P_bar_2) + ...)
-                        weights_species = {class_species:
-                                                   self.cosmoresults.ρ_bar(a_values, class_species)
-                            + ℝ[light_speed**(-2)]*self.cosmoresults.P_bar(a_values, class_species)
-                            for class_species in self.class_species.split('+')
-                        }
-                        Σweights = np.sum(tuple(weights_species.values()), axis=0)
-                        for class_species in weights_species:
-                            weights_species[class_species] *= 1/Σweights
-                         # We have CLASS units of [length²time⁻²]
-                        class_units = ℝ[light_speed**2]
-                    elif self.var_name == 'hʹ':
-                        # As hʹ is a species independent quantity,
-                        # we do not have any weights.
-                        weights_species = {class_species: 1
-                            for class_species in self.class_species.split('+')
-                        }
-                        # We have CLASS units of [time⁻¹]
-                        class_units = ℝ[light_speed/units.Mpc]
-                    elif self.var_name == 'H_Tʹ':
-                        # As H_Tʹ is a species independent quantity,
-                        # we do not have any weights.
-                        weights_species = {class_species: 1
-                            for class_species in self.class_species.split('+')
-                        }
-                        # We have CLASS units of [time⁻¹]
-                        class_units = ℝ[light_speed/units.Mpc]
-                    else:
-                        abort(f'Do not know how to process transfer function "{self.var_name}"')
-                        # Just to satisfy the compiler
-                        weights_species, class_units = {}, 1
-                # Construct the perturbation_values_arr array from the
-                # CLASS perturbations matching the perturbations type
-                # and CLASS species, together with the weights.
-                perturbation_values_arr = 0
-                if approximate_P_as_wρ:
-                    # We are working on the δP transfer function and
-                    # the P=wρ approximation is enabled.
-                    # This means that δP/δρ = c²w.
-                    # The c² will be provided by class_unit.
-                    for class_species, weights in weights_species.items():
-                        perturbation = asarray(
-                            [self.component.w(a=a_value) for a_value in a_values],
-                            dtype=C2np['double'],
-                        )
-                        perturbation_values_arr += weights*class_units*perturbation
-                else:
-                    # We are working on a normal transfer function
-                    for class_species, weights in weights_species.items():
-                        perturbation = self.get_perturbation(
-                            perturbation_k, class_perturbation_name.format(class_species))
-                        if perturbation is None:
-                            perturbations_available[class_species] = False
-                        else:
-                            perturbation_values_arr += weights*class_units*perturbation
-                if isinstance(perturbation_values_arr, int):
-                    perturbation_values = np.array((), dtype=C2np['double'])
-                else:
-                    perturbation_values = perturbation_values_arr
-                # Warn or abort on missing perturbations.
-                # We only do this for k = 0, which is the first
-                # perturbation encountered on the master process.
+        # Update self.k_max dependent on the CLASS species
+        perturbation_keys = set()
+        for class_species in self.class_species.split('+'):
+            perturbation_keys.add(class_perturbation_name.format(class_species))
+        if self.var_name == 'δP':
+            for class_species in self.class_species.split('+'):
+                perturbation_keys.add(f'delta_{class_species}')
                 if not approximate_P_as_wρ:
-                    if k == 0 and not all(perturbations_available.values()):
-                        if len(perturbations_available) == 1:
-                            abort(
-                                missing_perturbations_warning
-                                .format(class_perturbation_name)
-                                .format(self.class_species)
-                            )
-                        for class_species, available in perturbations_available.items():
-                            if not available:
-                                masterwarn(missing_perturbations_warning
-                                    .format(class_perturbation_name)
-                                    .format(class_species)
-                                )
-                        if not any(perturbations_available.values()):
-                            abort(
-                                f'No {class_perturbation_name} perturbations '
-                                + ('' if self.component is None
-                                    else f'for the {self.component.name} component ')
-                                + f'available'
-                            )
-                # Remove outliers
-                if outliers_list:
-                    outliers = asarray(outliers_list, dtype=C2np['Py_ssize_t'])
-                    n_outliers = 0
-                    outlier = outliers[n_outliers]
-                    for i in range(perturbation_values.shape[0]):
-                        if i == outlier:
-                            n_outliers += 1
-                            if n_outliers < outliers.shape[0]:
-                                outlier = outliers[n_outliers]
-                        elif n_outliers:
-                            index = i - n_outliers
-                            a_values           [index] = a_values           [i]
-                            perturbation_values[index] = perturbation_values[i]
-                    size = a_values.shape[0] - n_outliers
-                    a_values            = a_values           [:size]
-                    perturbation_values = perturbation_values[:size]
-                # The CLASS perturbations sometime contain neighbouring
-                # data points extremely close to each other.
-                # Such doppelgänger points can lead to bad splines
-                # later on, and so we remove them now.
-                a_values, perturbation_values = remove_doppelgängers(
-                    a_values, perturbation_values, copy=True)
-                # Perform non-linear detrending. The data to be splined
-                # is in the form {a, perturbation_values - trend},
-                # with trend = factor*a**exponent. Here we find this
-                # trend trough curve fitting of perturbation_values.
-                fitted_trends = []
-                for bounds in (
-                    ([-ထ, -exponent_max], [+ထ,  0           ]),
-                    ([-ထ,  0           ], [+ထ, +exponent_max]),
-                ):
-                    try:
-                        fitted_trends.append(
-                            scipy.optimize.curve_fit(
-                                self.power_law,
-                                a_values,
-                                perturbation_values,
-                                (1, 0),
-                                bounds=bounds,
-                                ftol=1e-12,
-                                xtol=1e-12,
-                                gtol=1e-12,
-                                max_nfev=1000*a_values.shape[0],
-                            )
+                    perturbation_keys.add(f'cs2_{class_species}')
+        for perturbation_key in perturbation_keys:
+            for key, k_max_candidate in class_k_max.items():
+                if k_max_candidate < self.k_max:
+                    if perturbation_key == key:
+                        self.k_max = k_max_candidate
+                    elif re.search(perturbation_key, key):
+                        self.k_max = k_max_candidate
+        # A spline should be constructed for each local k value
+        largest_trusted_k = -1
+        untrusted_perturbations = [None]*self.k_gridsize_local
+        for k_local, perturbation_k in enumerate(self.cosmoresults.perturbations):
+            # The global k index corresponding to the local k index
+            k = self.k_indices[k_local]
+            # Array of scale factor values at which perturbations for
+            # this k mode is tabulated.
+            a_values = perturbation_k['a'].copy()
+            # The perturbation_k dict store perturbation arrays for
+            # all perturbation types and CLASS species, defined at
+            # times matching those of a_values.
+            # Because a single CO𝘕CEPT species can map to multiple
+            # CLASS species, we need to construct an array of
+            # perturbation values as a weighted sum of perturbations
+            # over the individual ('+'-separated) CLASS species,
+            # with weights dependent on the type of
+            # CLASS perturbation.
+            # We also need to apply the CLASS units, which again
+            # depend on the type of perturbation.
+            # Finally, outlier rejection may take place by adding
+            # indices to the outliers_list.
+            outliers_list = []
+            with unswitch:
+                if self.var_name == 'δ':
+                    # For δ we have
+                    # δ_tot = (δ_1*ρ_bar_1 + δ_2*ρ_bar_2 + ...)/(ρ_bar_1 + ρ_bar_2 + ...)
+                    weights_species = {
+                        class_species: self.cosmoresults.ρ_bar(a_values, class_species)
+                        for class_species in self.class_species.split('+')
+                    }
+                    Σweights = np.sum(tuple(weights_species.values()), axis=0)
+                    for class_species in weights_species:
+                        weights_species[class_species] *= 1/Σweights
+                    # We have no CLASS units to apply
+                    class_units = 1
+                elif self.var_name == 'θ':
+                    # For θ we have
+                    # θ_tot = (θ_1*ρ_bar_1 + θ_2*ρ_bar_2 + ...)/(ρ_bar_1 + ρ_bar_2 + ...)
+                    weights_species = {
+                        class_species: self.cosmoresults.ρ_bar(a_values, class_species)
+                        for class_species in self.class_species.split('+')
+                    }
+                    Σweights = np.sum(tuple(weights_species.values()), axis=0)
+                    for class_species in weights_species:
+                        weights_species[class_species] *= 1/Σweights
+                    # We have CLASS units of [time⁻¹]
+                    class_units = ℝ[light_speed/units.Mpc]
+                elif self.var_name == 'δP':
+                    # CLASS does not provide the δP(k) perturbations
+                    # directly. Instead it provides δP(k)/δρ(k).
+                    # To get the total δP from multiple δP/δρ,
+                    # we then have
+                    # δP_tot = δP_1 + δP_2 + ...
+                    #        = (δP/δρ)_1*δρ_1 + (δP/δρ)_2*δρ_2 + ...
+                    #        = (δP/δρ)_1*δ_1*ρ_bar_1 + (δP/δρ)_2*δ_2*ρ_bar_2 + ...
+                    weights_species = {
+                        class_species: (
+                            perturbation_k.get(f'delta_{class_species}')
+                            *self.cosmoresults.ρ_bar(a_values, class_species)
                         )
-                    except:
-                        pass
-                if fitted_trends:
-                    self.factors[k], self.exponents[k] = fitted_trends[
-                        np.argmin([fitted_trend[1][1,1] for fitted_trend in fitted_trends])
-                    ][0]
+                        for class_species in self.class_species.split('+')
+                    }
+                    # The CLASS units of δP/δρ are [length²time⁻²]
+                    class_units = ℝ[light_speed**2]
+                    # Look for oulier points which are outside the
+                    # legal range 0 ≤ δP/δρ ≤ c²/3. As the data is
+                    # directly from CLASS, c = 1.
+                    for class_species in weights_species:
+                        perturbation = perturbation_k.get(f'cs2_{class_species}')
+                        if perturbation is not None:
+                            perturbation_values = perturbation
+                            for i in range(perturbation_values.shape[0]):
+                                if not (0 <= perturbation_values[i] <= ℝ[1/3]):
+                                    outliers_list.append(i)
+                elif self.var_name == 'σ':
+                    # For σ we have
+                    # σ_tot = (σ_1*(ρ_bar_1 + c⁻²P_bar_1) + σ_2*(ρ_bar_2 + c⁻²P_bar_2) + ...)
+                    #          /((ρ_bar_1 + c⁻²P_bar_1) + (ρ_bar_2 + c⁻²P_bar_2) + ...)
+                    weights_species = {class_species:
+                                               self.cosmoresults.ρ_bar(a_values, class_species)
+                        + ℝ[light_speed**(-2)]*self.cosmoresults.P_bar(a_values, class_species)
+                        for class_species in self.class_species.split('+')
+                    }
+                    Σweights = np.sum(tuple(weights_species.values()), axis=0)
+                    for class_species in weights_species:
+                        weights_species[class_species] *= 1/Σweights
+                     # We have CLASS units of [length²time⁻²]
+                    class_units = ℝ[light_speed**2]
+                elif self.var_name == 'hʹ':
+                    # As hʹ is a species independent quantity,
+                    # we do not have any weights.
+                    weights_species = {class_species: 1
+                        for class_species in self.class_species.split('+')
+                    }
+                    # We have CLASS units of [time⁻¹]
+                    class_units = ℝ[light_speed/units.Mpc]
+                elif self.var_name == 'H_Tʹ':
+                    # As H_Tʹ is a species independent quantity,
+                    # we do not have any weights.
+                    weights_species = {class_species: 1
+                        for class_species in self.class_species.split('+')
+                    }
+                    # We have CLASS units of [time⁻¹]
+                    class_units = ℝ[light_speed/units.Mpc]
                 else:
-                    warn(
-                        f'Failed to detrend {self.var_name} perturbations '
-                        + ('' if self.component is None else f'for {self.component.name} ')
-                        + f'at k = {self.k_magnitudes[k]} {unit_length}⁻¹. '
-                        f'The simulation will carry on without this detrending.'
+                    abort(f'Do not know how to process transfer function "{self.var_name}"')
+                    # Just to satisfy the compiler
+                    weights_species, class_units = {}, 1
+            # Construct the perturbation_values_arr array from the
+            # CLASS perturbations matching the perturbations type
+            # and CLASS species, together with the weights.
+            perturbation_values_arr = 0
+            if approximate_P_as_wρ:
+                # We are working on the δP transfer function and
+                # the P=wρ approximation is enabled.
+                # This means that δP/δρ = c²w.
+                # The c² will be provided by class_unit.
+                for class_species, weights in weights_species.items():
+                    perturbation = asarray(
+                        [self.component.w(a=a_value) for a_value in a_values],
+                        dtype=C2np['double'],
                     )
-                    self.factors[k], self.exponents[k] = 0, 1
-                if abs(self.factors[k]) == ထ:
-                    abort(
-                        f'Error processing {self.var_name} perturbations '
-                        + ('' if self.component is None else f'for {self.component.name} ')
-                        + f'at k = {self.k_magnitudes[k]} {unit_length}⁻¹: '
-                        f'Detrending resulted in factor = {self.factors[k]}.'
+                    perturbation_values_arr += weights*class_units*perturbation
+            else:
+                # We are working on a normal transfer function
+                for class_species, weights in weights_species.items():
+                    perturbation = perturbation_k.get(
+                        class_perturbation_name.format(class_species))
+                    if perturbation is None:
+                        perturbations_available[class_species] = False
+                    else:
+                        perturbation_values_arr += weights*class_units*perturbation
+            if isinstance(perturbation_values_arr, int):
+                perturbation_values = np.array((), dtype=C2np['double'])
+            else:
+                perturbation_values = perturbation_values_arr
+            # Warn or abort on missing perturbations.
+            # We only do this for the first k mode
+            # on the master process.
+            if not approximate_P_as_wρ:
+                if k_local == 0 and not all(perturbations_available.values()):
+                    if len(perturbations_available) == 1:
+                        abort(
+                            missing_perturbations_warning
+                            .format(class_perturbation_name)
+                            .format(self.class_species)
+                        )
+                    for class_species, available in perturbations_available.items():
+                        if not available:
+                            masterwarn(missing_perturbations_warning
+                                .format(class_perturbation_name)
+                                .format(class_species)
+                            )
+                    if not any(perturbations_available.values()):
+                        abort(
+                            f'No {class_perturbation_name} perturbations '
+                            + ('' if self.component is None
+                                else f'for the {self.component.name} component ')
+                            + f'available'
+                        )
+            # Remove outliers
+            if outliers_list:
+                outliers = asarray(outliers_list, dtype=C2np['Py_ssize_t'])
+                n_outliers = 0
+                outlier = outliers[n_outliers]
+                for i in range(perturbation_values.shape[0]):
+                    if i == outlier:
+                        n_outliers += 1
+                        if n_outliers < outliers.shape[0]:
+                            outlier = outliers[n_outliers]
+                    elif n_outliers:
+                        index = i - n_outliers
+                        a_values           [index] = a_values           [i]
+                        perturbation_values[index] = perturbation_values[i]
+                size = a_values.shape[0] - n_outliers
+                a_values            = a_values           [:size]
+                perturbation_values = perturbation_values[:size]
+            # The CLASS perturbations sometime contain neighbouring
+            # data points extremely close to each other.
+            # Such doppelgänger points can lead to bad splines
+            # later on, and so we remove them now.
+            a_values, perturbation_values = remove_doppelgängers(
+                a_values, perturbation_values, copy=True)
+            # Perform non-linear detrending. The data to be splined
+            # is in the form {a, perturbation_values - trend},
+            # with trend = factor*a**exponent. Here we find this
+            # trend trough curve fitting of perturbation_values.
+            fitted_trends = []
+            for bounds in (
+                ([-ထ, -exponent_max], [+ထ,  0           ]),
+                ([-ထ,  0           ], [+ထ, +exponent_max]),
+            ):
+                try:
+                    fitted_trends.append(
+                        scipy.optimize.curve_fit(
+                            self.power_law,
+                            a_values,
+                            perturbation_values,
+                            (1, 0),
+                            bounds=bounds,
+                            ftol=1e-12,
+                            xtol=1e-12,
+                            gtol=1e-12,
+                            max_nfev=1000*a_values.shape[0],
+                        )
                     )
-                # When the exponent is found to be 0, there is no reason
-                # to keep a non-zero factor as the detrending is then
-                # just a constant offset.
-                if isclose(self.exponents[k], 0, rel_tol=1e-9, abs_tol=1e-6):
-                    self.factors[k], self.exponents[k] = 0, 1
-                # If the exponent is found to be equal to the maximum
-                # allowed exponent, it means that the detrending has not
-                # converged. This failed detrending is usually an
-                # indication that CLASS has been run with too
-                # low precision. For H_Tʹ and δ for the
-                # "metric" species, however, this is not necessarily
-                # the case, and so here we allow for such
-                # extreme exponents.
-                if (    isclose(abs(self.exponents[k]), exponent_max)
-                    and not self.var_name == 'H_Tʹ'
-                    and not (self.var_name == 'δ' and self.component.class_species == 'metric')
-                ):
-                    sign_str = ''
-                    if self.exponents[k] < 0:
-                        sign_str = '-'
-                    masterwarn(self.var_name)
-                    abort(
-                        f'Error processing {self.var_name} perturbations '
-                        + ('' if self.component is None else f'for {self.component.name} ')
-                        + f'at k = {self.k_magnitudes[k]} {unit_length}⁻¹: '
-                        f'Detrending resulted in exponent = '
-                        f'{sign_str}exponent_max = {sign_str}{exponent_max}.'
-                    )
-                trend = self.factors[k]*asarray(a_values)**self.exponents[k]
-                perturbations_detrended = asarray(perturbation_values) - trend
-            # Communicate the spline data
-            for rank_send in range(nprocs):
-                # Broadcast the k value belonging to the data to
-                # be communicated. If no data should be communicated,
-                # signal this by broadcasting -1.
-                k_send = bcast(k if has_data else -1, root=rank_send)
-                if k_send == -1:
-                    continue
-                # Broadcast the trend
-                self.factors[k_send], self.exponents[k_send] = bcast(
-                    (self.factors[k], self.exponents[k]),
-                    root=rank_send,
+                except:
+                    pass
+            if fitted_trends:
+                self.factors[k_local], self.exponents[k_local] = fitted_trends[
+                    np.argmin([fitted_trend[1][1,1] for fitted_trend in fitted_trends])
+                ][0]
+            else:
+                warn(
+                    f'Failed to detrend {self.var_name} perturbations '
+                    + ('' if self.component is None else f'for {self.component.name} ')
+                    + f'at k = {self.k_magnitudes[k]} {unit_length}⁻¹. '
+                    f'The simulation will carry on without this detrending.'
                 )
-                # Broadcast the data
-                a_values_k = smart_mpi(
-                    a_values if rank == rank_send else None,
-                    0,  # Buffer, different from the below
-                    root=rank_send,
-                    mpifun='bcast',
-                )
-                perturbations_detrended_k = smart_mpi(
-                    perturbations_detrended if rank == rank_send else None,
-                    1,  # Buffer, different from the above
-                    root=rank_send,
-                    mpifun='bcast',
-                )
-                # If k_send is above that of self.k_max, it means that
-                # this particular perturbation is not trusted at this
-                # high k value. When this is the case, we do not
-                # construct a spline object.
-                self.k_max = allreduce(self.k_max, op=MPI.MIN)
-                if self.k_magnitudes[k_send] > self.k_max:
-                    # If not trusted, save the data. We will process it
-                    # further once all the trusted perturbations have
-                    # been processed.
-                    untrusted_perturbations[k_send] = (
-                        asarray(a_values_k).copy(),
-                        asarray(perturbations_detrended_k).copy(),
-                    )
-                    continue
-                # Take notice of the largest trusted k
-                if k_send > largest_trusted_k:
-                    largest_trusted_k = k_send
-                    a_values_largest_trusted_k = asarray(a_values_k).copy()
-                    perturbations_detrended_largest_trusted_k = (
-                        asarray(perturbations_detrended_k).copy()
-                    )
-                # Construct cubic spline of
-                # {a, perturbations - trend}.
-                spline = Spline(a_values_k, perturbations_detrended_k,
-                    f'detrended {self.class_species} {self.var_name} perturbations '
-                    f'as function of a at k = {self.k_magnitudes[k]} {unit_length}⁻¹',
-                    logx=True,
-                )
-                self.splines[k_send] = spline
-                # If class_plot_perturbations is True,
-                # plot the detrended perturbation and save it to disk.
-                if master and class_plot_perturbations:
-                    plot_detrended_perturbations(
-                        a_values_k, perturbations_detrended_k, self, k_send,
-                    )
-        # Now every process contains all trends and splines for all
-        # trusted perturbations.
-        for k in range(self.k_gridsize):
-            if self.splines[k] is not None:
-                continue
-            # We are at the first untrusted perturbation.
-            # If this is not equal to the largest trusted k plus 1,
-            # something has gone wrong.
-            if k != largest_trusted_k + 1:
+                self.factors[k_local], self.exponents[k_local] = 0, 1
+            if abs(self.factors[k_local]) == ထ:
                 abort(
-                    f'Something odd went wrong while constructing untrusted '
-                    f'{self.var_name} perturbations'
-                    + ('' if self.component is None else f' for {self.component.name} ')
+                    f'Error processing {self.var_name} perturbations '
+                    + ('' if self.component is None else f'for {self.component.name} ')
+                    + f'at k = {self.k_magnitudes[k]} {unit_length}⁻¹: '
+                    f'Detrending resulted in factor = {self.factors[k_local]}.'
                 )
-            break
-        else:
-            # All perturbations are trusted and have been processed
-            masterprint('done')
-            return
-        # We shall now construct splines for the untrusted
-        # perturbations. We do this by morphing the detrended data of
-        # the perturbation with the largest trusted k into being as
-        # similar as possible to the untrusted detrended perturbations.
-        # This morphing is done via
-        # perturbations_detrended_largest_trusted_k
-        #     → (factor*perturbations_detrended_largest_trusted_k
-        #        *a_values_largest_trusted_k**exponent),
-        # where the factor and exponent are new parameters to be found
-        # through minimization.
-        # First, ensure that the data for the trusted perturbation with
-        # the largest k starts at a = a_begin.
-        for i in range(a_values_largest_trusted_k.shape[0]):
-            if a_values_largest_trusted_k[i] > universals.a_begin:
-                perturbations_detrended_largest_trusted_k[i - 1] = np.interp(
-                    universals.a_begin,
-                    a_values_largest_trusted_k,
-                    perturbations_detrended_largest_trusted_k,
+            # When the exponent is found to be 0, there is no reason
+            # to keep a non-zero factor as the detrending is then
+            # just a constant offset.
+            if isclose(self.exponents[k_local], 0, rel_tol=1e-9, abs_tol=1e-6):
+                self.factors[k_local], self.exponents[k_local] = 0, 1
+            # If the exponent is found to be equal to the maximum
+            # allowed exponent, it means that the detrending has not
+            # converged. This failed detrending is usually an
+            # indication that CLASS has been run with too
+            # low precision. For H_Tʹ and δ for the
+            # "metric" species, however, this is not necessarily
+            # the case, and so here we allow for such
+            # extreme exponents.
+            if (    isclose(abs(self.exponents[k_local]), exponent_max)
+                and not self.var_name == 'H_Tʹ'
+                and not (self.var_name == 'δ' and self.component.class_species == 'metric')
+            ):
+                sign_str = ''
+                if self.exponents[k_local] < 0:
+                    sign_str = '-'
+                masterwarn(self.var_name)
+                abort(
+                    f'Error processing {self.var_name} perturbations '
+                    + ('' if self.component is None else f'for {self.component.name} ')
+                    + f'at k = {self.k_magnitudes[k]} {unit_length}⁻¹: '
+                    f'Detrending resulted in exponent = '
+                    f'{sign_str}exponent_max = {sign_str}{exponent_max}.'
                 )
-                a_values_largest_trusted_k[i - 1] = universals.a_begin
-                a_values_largest_trusted_k = a_values_largest_trusted_k[i-1:]
+            trend = self.factors[k_local]*asarray(a_values)**self.exponents[k_local]
+            perturbations_detrended = asarray(perturbation_values) - trend
+            # If k is above that of self.k_max, it means that
+            # this particular perturbation is not trusted at this
+            # high k value. When this is the case, we do not
+            # construct a spline object.
+            if self.k_magnitudes[k] > self.k_max:
+                # Save the untrusted data. We will process it
+                # further once all the trusted perturbations have
+                # been processed.
+                untrusted_perturbations[k_local] = (
+                    asarray(a_values).copy(),
+                    asarray(perturbations_detrended).copy(),
+                )
+                continue
+            # Take notice of the largest trusted k
+            if k > largest_trusted_k:
+                largest_trusted_k = k
+                a_values_largest_trusted_k = asarray(a_values).copy()
                 perturbations_detrended_largest_trusted_k = (
-                    perturbations_detrended_largest_trusted_k[i-1:])
-                break
-        # Carry out the morphing for each of the untrusted perturbations
-        factor, exponent = 1, 0
-        for k in range(largest_trusted_k + 1, self.k_gridsize):
-            # Interpolate untrusted perturbation onto the a_values for
-            # the last trusted perturbation.
-            perturbations_detrended_k = np.interp(
-                a_values_largest_trusted_k,
-                *untrusted_perturbations[k],
-            )
-            # Do the morphing using minimization
-            factor, exponent = scipy.optimize.minimize(
-                self.least_squares_morphing,
-                (factor, exponent),
-                (
-                    asarray(a_values_largest_trusted_k),
-                    asarray(perturbations_detrended_largest_trusted_k),
-                    asarray(perturbations_detrended_k),
-                ),
-                method='nelder-mead',
-            ).x
-            # Create the spline
-            spline = Spline(
-                a_values_largest_trusted_k,
-                (factor*asarray(perturbations_detrended_largest_trusted_k)
-                    *asarray(a_values_largest_trusted_k)**exponent
-                ),
+                    asarray(perturbations_detrended).copy()
+                )
+            # Construct cubic spline of
+            # {a, perturbations - trend}.
+            spline = Spline(a_values, perturbations_detrended,
                 f'detrended {self.class_species} {self.var_name} perturbations '
-                f'as function of a at k = {self.k_magnitudes[k]} {unit_length}⁻¹ '
-                f'(produced from the largest trusted perturbation)',
+                f'as function of a at k = {self.k_magnitudes[k]} {unit_length}⁻¹',
                 logx=True,
             )
-            self.splines[k] = spline
-            # If class_plot_perturbations is True,
-            # plot the detrended perturbation and save it to disk.
-            if master and class_plot_perturbations:
-                plot_detrended_perturbations(*untrusted_perturbations[k], self, k)
-        # All trusted perturbations have been processed and all
-        # untrusted perturbations have been constructed.
+            self.splines[k_local] = spline
+        # Now each process contains trends and splines for all
+        # trusted perturbations owned by themselves.
+        # Find the largest trusted k for all processes.
+        largest_trusted_k = allreduce(largest_trusted_k, op=MPI.MAX)
+        # Does this process contain untrusted perturbations
+        # yet to be processed?
+        contains_untrusted_perturbations = (
+                self.k_indices.shape[0] > 0
+            and largest_trusted_k < self.k_indices[self.k_indices.shape[0] - 1]
+        )
+        any_contain_untrusted_perturbations = allreduce(contains_untrusted_perturbations,
+            op=MPI.LOR)
+        if any_contain_untrusted_perturbations:
+            # Which process holds the largest trusted perturbation?
+            rank_largest_trusted_k = allreduce(rank*(largest_trusted_k in self.k_indices) - 1,
+                op=MPI.SUM)
+            if rank_largest_trusted_k == -nprocs:
+                abort(
+                    f'No trusted {self.class_species} {self.var_name} perturbations available as '
+                    f'the perturbation with lowest k is at {self.k_magnitudes[0]} {unit_length}⁻¹ '
+                    f'while class_k_max for this perturbation is at {self.k_max} {unit_length}⁻¹. '
+                )
+            rank_largest_trusted_k += nprocs
+        # Now construct splines for untrusted perturbations,
+        # if any exist on any process.
+        if any_contain_untrusted_perturbations:
+            masterprint('Processing untrusted transfer functions ...')
+            # Untrusted perturbations exist. Communicate the data of the
+            # largest trusted perturbations to all processes which
+            # contain untrusted perturbations.
+            if rank == rank_largest_trusted_k:
+                for other_rank in range(nprocs):
+                    if other_rank == rank or not recv(source=other_rank):
+                        continue
+                    send(a_values_largest_trusted_k.shape[0], dest=other_rank)
+                    Send(a_values_largest_trusted_k, dest=other_rank)
+                    Send(perturbations_detrended_largest_trusted_k, dest=other_rank)
+            else:
+                send(contains_untrusted_perturbations, dest=rank_largest_trusted_k)
+                if contains_untrusted_perturbations:
+                    size = recv(source=rank_largest_trusted_k)
+                    a_values_largest_trusted_k                = empty(size, dtype=C2np['double'])
+                    perturbations_detrended_largest_trusted_k = empty(size, dtype=C2np['double'])
+                    Recv(a_values_largest_trusted_k               , source=rank_largest_trusted_k)
+                    Recv(perturbations_detrended_largest_trusted_k, source=rank_largest_trusted_k)
+            # Now all processes containing untrusted perturbations
+            # have the data for the largest trusted perturbation.
+            # Find the index corresponding to a_begin, as only the part
+            # [a_begin, 1] should be used for the morphing.
+            for i in range(a_values_largest_trusted_k.shape[0]):
+                largest_trusted_k_begin_index = -1
+                if a_values_largest_trusted_k[i] >= universals.a_begin:
+                    largest_trusted_k_begin_index = i - 1
+                    break
+                if largest_trusted_k_begin_index == -1:
+                    largest_trusted_k_begin_index = 0
+            # We shall now construct splines for the untrusted
+            # perturbations. We do this by morphing the detrended data
+            # of the perturbation with the largest trusted k into being
+            # as similar as possible to the untrusted
+            # detrended perturbations. This morphing is done via
+            # perturbations_detrended_largest_trusted_k
+            #     → (factor*perturbations_detrended_largest_trusted_k
+            #        *a_values_largest_trusted_k**exponent),
+            # where the factor and exponent are new parameters to be
+            # found through minimization.
+            if contains_untrusted_perturbations:
+                # Carry out the morphing for each
+                # of the untrusted perturbations.
+                factor, exponent = 1, 0
+                for k_local, untrusted_perturbation in enumerate(untrusted_perturbations):
+                    if untrusted_perturbation is None:
+                        continue
+                    # Interpolate untrusted perturbation onto the
+                    # a_values for the last trusted perturbation,
+                    # using only data in the range [a_begin, 0].
+                    perturbations_detrended = np.interp(
+                        a_values_largest_trusted_k[largest_trusted_k_begin_index:],
+                        *untrusted_perturbation,
+                    )
+                    # Do the morphing using minimization
+                    factor, exponent = scipy.optimize.minimize(
+                        self.least_squares_morphing,
+                        (factor, exponent),
+                        (
+                            asarray(a_values_largest_trusted_k[largest_trusted_k_begin_index:]),
+                            asarray(perturbations_detrended_largest_trusted_k[
+                                largest_trusted_k_begin_index:]),
+                            asarray(perturbations_detrended),
+                        ),
+                        method='nelder-mead',
+                    ).x
+                    # Create the spline
+                    spline = Spline(
+                        a_values_largest_trusted_k,
+                        (factor*asarray(perturbations_detrended_largest_trusted_k)
+                            *asarray(a_values_largest_trusted_k)**exponent
+                        ),
+                        f'detrended {self.class_species} {self.var_name} perturbations '
+                        f'as function of a at k = {self.k_magnitudes[k]} {unit_length}⁻¹ '
+                        f'(produced from the largest trusted perturbation)',
+                        logx=True,
+                    )
+                    self.splines[k_local] = spline
+            # Done with all untrusted perturbations
+            Barrier()
+            masterprint('done')
+        # If the detrended perturbations should be plotted,
+        # this is done by the master process, which must then receive
+        # the detrended perturbations from the other processes.
+        if class_plot_perturbations:
+            masterprint(f'Plotting detrended transfer functions ...')
+            if master:
+                for other_rank in range(nprocs):
+                    if other_rank == rank:
+                        n_potential_plots = self.k_gridsize_local
+                    else:
+                        n_potential_plots = recv(source=other_rank)
+                    for k_local in range(n_potential_plots):
+                        if other_rank == rank:
+                            k = self.k_indices[k_local]
+                        else:
+                            k = recv(source=other_rank)
+                        if other_rank == rank:
+                            factor   = self.factors  [k_local]
+                            exponent = self.exponents[k_local]
+                            spline   = self.splines  [k_local]
+                        else:
+                            factor, exponent = recv(source=other_rank)
+                            size = recv(source=other_rank)
+                            a_values = get_buffer(size, 'x')
+                            Recv(a_values, source=other_rank)
+                            perturbations_detrended = get_buffer(size, 'y')
+                            Recv(perturbations_detrended, source=other_rank)
+                            # Recreate spline at the master process
+                            spline = Spline(a_values, perturbations_detrended,
+                                f'detrended {self.class_species} {self.var_name} perturbations '
+                                f'as function of a at k = {self.k_magnitudes[k]} {unit_length}⁻¹',
+                                logx=True,
+                            )
+                        plot_detrended_perturbations(
+                            k,
+                            self.k_magnitudes[k],
+                            self.var_name,
+                            self.class_species,
+                            factor,
+                            exponent,
+                            spline,
+                            self.k_magnitudes[largest_trusted_k],
+                        )
+            else:
+                send(self.k_gridsize_local, dest=master_rank)
+                for k_local in range(self.k_gridsize_local):
+                    k = self.k_indices[k_local]
+                    send(k, dest=master_rank)
+                    send((self.factors[k_local], self.exponents[k_local]), dest=master_rank)
+                    spline = self.splines[k_local]
+                    send(spline.x.shape[0], dest=master_rank)
+                    Send(spline.x, dest=master_rank)
+                    Send(spline.y, dest=master_rank)
+            masterprint('done')
+        # All perturbations have been processed
+        Barrier()
         masterprint('done')
 
     # Helper functions for the process method
@@ -1614,50 +1755,23 @@ class TransferFunction:
     def least_squares_morphing(x, a, y, y2):
         factor, exponent = x
         return np.sum((y2 - factor*y*a**exponent)**2)
-    @cython.header(
-        # Arguments
-        perturbation_k=dict,
-        perturbation_key=str,
-        # Locals
-        perturbation=object,  # np.ndarray
-        k_max_candidate='double',
-        key=str,
-        returns=object,  # np.ndarray
-    )
-    def get_perturbation(self, perturbation_k, perturbation_key):
-        # Get the perturbation
-        perturbation = perturbation_k.get(perturbation_key)
-        # If the perturbation is untrusted for large k,
-        # set self.k_max to the largest trusted k if this is lower
-        # than the present self.k_max.
-        for key, k_max_candidate in class_k_max.items():
-            if k_max_candidate < self.k_max:
-                if perturbation_key == key:
-                    self.k_max = k_max_candidate
-                else:
-                    try:
-                        if re.search(perturbation_key, key):
-                            self.k_max = k_max_candidate
-                    except:
-                        pass
-        return perturbation
 
     # Method for evaluating the k'th transfer function
     # at a given scale factor.
     @cython.pheader(
         # Arguments
-        k='Py_ssize_t',
+        k_local='Py_ssize_t',
         a='double',
         # Locals
         spline='Spline',
         value='double',
         returns='double',
     )
-    def eval(self, k, a):
+    def eval(self, k_local, a):
         # The spline is over transfer(a) - trend(a)
         # with trend(a) = factor*a**exponent.
-        spline = self.splines[k]
-        return spline.eval(a) + self.factors[k]*a**self.exponents[k]
+        spline = self.splines[k_local]
+        return spline.eval(a) + self.factors[k_local]*a**self.exponents[k_local]
 
     # Main method for getting the transfer function as function of k
     # at a specific value of the scale factor.
@@ -1673,10 +1787,10 @@ class TransferFunction:
         i='Py_ssize_t',
         index_min='Py_ssize_t',
         index_max='Py_ssize_t',
-        k='Py_ssize_t',
+        k_local='Py_ssize_t',
         n_side_points='int',
         size='Py_ssize_t',
-        spline_k='Spline',
+        spline='Spline',
         t='double',
         t_next='double',
         t_values='double[::1]',
@@ -1699,7 +1813,8 @@ class TransferFunction:
         function given by weight as weight.
         """
         if self.data is None:
-            self.data = empty(self.k_gridsize, dtype=C2np['double'])
+            self.data       = empty(self.k_gridsize      , dtype=C2np['double'])
+            self.data_local = empty(self.k_gridsize_local, dtype=C2np['double'])
         # If a weight is specified, compute the weighted average of the
         # transfer function over the interval [a, a_next]. Otherwise,
         # simply compute the transfer function at a. In the case of
@@ -1728,11 +1843,11 @@ class TransferFunction:
             # For each k, compute and store the averaged transfer
             # function over the time step, and also the averaged
             # weight by itself.
-            for k in range(self.k_gridsize):
+            for k_local in range(self.k_gridsize_local):
                 # Get array of a values between a and a_next at which
                 # the k'th transfer function is tabulated.
-                spline_k = self.splines[k]
-                a_values = spline_k.x
+                spline = self.splines[k_local]
+                a_values = spline.x
                 index_min = np.searchsorted(a_values, a, 'right')
                 index_max = np.searchsorted(a_values, a_next, 'left')
                 index_min -= n_side_points + 1
@@ -1765,7 +1880,7 @@ class TransferFunction:
                             weights[i] = a_i**(-3*w_eff_i)
                         else:
                             abort(f'weight "{weight}" not implemented in as_function_of_k()')
-                    weighted_transfer[i] = weights[i]*self.eval(k, a_i)
+                    weighted_transfer[i] = weights[i]*self.eval(k_local, a_i)
                     # Replace the i'th scale factor value with the
                     # corresponding cosmic time.
                     a_values[i] = cosmic_time(a_i)
@@ -1778,14 +1893,17 @@ class TransferFunction:
                 spline_weighted_transfer = Spline(
                     t_values, weighted_transfer[:size], 'weight(t)*transfer(t)'
                 )
-                self.data[k] = (spline_weighted_transfer.integrate(t, t_next)
+                self.data_local[k_local] = (spline_weighted_transfer.integrate(t, t_next)
                     /spline_weights.integrate(t, t_next)
                 )
         else:
             # For each k, compute and store the transfer function
             # at the given a.
-            for k in range(self.k_gridsize):
-                self.data[k] = self.eval(k, a)
+            for k_local in range(self.k_gridsize_local):
+                self.data_local[k_local] = self.eval(k_local, a)
+        # Gather all local results
+        smart_mpi(self.data_local, self.data, mpifun='allgatherv')
+        self.data = asarray(self.data)[self.k_indices_all]
         return self.data
     # Persistent buffers used by the the as_function_of_k() method,
     # shared among all instances.
@@ -1799,21 +1917,21 @@ class TransferFunction:
     # the scale factor.
     @cython.pheader(
         # Arguments
-        k='Py_ssize_t',
+        k_local='Py_ssize_t',
         a='double',
         # Locals
         exponent='double',
         spline='Spline',
     )
-    def eval_deriv(self, k, a):
+    def eval_deriv(self, k_local, a):
         # The spline is over transfer(a) - trend(a)
         # with trend(a) = factor*a**exponent.
         # We then have to add dtrend(a)/da = factor*a**(exponent - 1)
         # to the derivative of the spline to obtain the derivative of
         # the transfer function.
-        spline = self.splines[k]
-        exponent = self.exponents[k]
-        return spline.eval_deriv(a) + self.factors[k]*exponent*a**(exponent - 1)
+        spline = self.splines[k_local]
+        exponent = self.exponents[k_local]
+        return spline.eval_deriv(a) + self.factors[k_local]*exponent*a**(exponent - 1)
 
     # Method for getting the derivative of the transfer function
     # with respect to the scale factor, evaluated at a,
@@ -1826,7 +1944,10 @@ class TransferFunction:
         returns='double[::1]',
     )
     def deriv_as_function_of_k(self, a):
-        """The self.data_deriv array is used to store the transfer
+        """This method returns an array of derivative data for all k,
+        not just the local ones. This method should then always be
+        called collectively.
+        The self.data_deriv array is used to store the transfer
         function derivatives as function of k for the given a. As this
         array is reused for all calls to this function, you cannot get
         two arrays of transfer function derivatives at different times.
@@ -1836,9 +1957,13 @@ class TransferFunction:
         # Populate the data_deriv array with derivatives of the
         # transfer_function(k) and return this array.
         if self.data_deriv is None:
-            self.data_deriv = empty(self.k_gridsize, dtype=C2np['double'])
-        for k in range(self.k_gridsize):
-            self.data_deriv[k] = self.eval_deriv(k, a)
+            self.data_deriv       = empty(self.k_gridsize      , dtype=C2np['double'])
+            self.data_deriv_local = empty(self.k_gridsize_local, dtype=C2np['double'])
+        for k_local in range(self.k_gridsize_local):
+            self.data_deriv_local[k_local] = self.eval_deriv(k_local, a)
+        # Gather all local results
+        smart_mpi(self.data_deriv_local, self.data_deriv, mpifun='allgatherv')
+        self.data_deriv = asarray(self.data_deriv)[self.k_indices_all]
         return self.data_deriv
 
 # Function which solves the linear cosmology using CLASS,

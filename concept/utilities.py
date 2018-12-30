@@ -649,16 +649,14 @@ def info():
     a='double',
     a_first='double',
     a_min='double',
-    a_size='Py_ssize_t',
-    a_start='Py_ssize_t',
     a_values='double[::1]',
     all_a_values='double[::1]',
     arr='double[::1]',
     class_species=str,
-    complete_transfer='double[:, ::1]',
     component='Component',
     component_variables=dict,
     components=list,
+    convenience_attributes=dict,
     filename=str,
     gauge=str,
     i='Py_ssize_t',
@@ -669,6 +667,7 @@ def info():
     k_min='double',
     max_a_values='double',
     max_a_values_str=str,
+    other_rank='int',
     perturbations=dict,
     size='Py_ssize_t',
     transfer='double[:, ::1]',
@@ -706,7 +705,7 @@ def CLASS():
         os.makedirs(output_dirs['powerspec'], exist_ok=True)
         with open_hdf5(filename, mode='w') as hdf5_file:
             # Store CLASS parameters as attributes on the
-            # "class_params" group. If you need to know furthe
+            # "class_params" group. If you need to know further
             # parameters used by CLASS (i.e. default values),
             # you should specify these explicitly in the class_params
             # user parameter. No unit convertion will take place.
@@ -801,14 +800,20 @@ def CLASS():
                 dset[:] = arr
             # Store a few convenience attributes on the background
             # group, specifying the cosmology. These convenience
-            # attributes include h ≡ H0/(100 km s⁻¹ Mpc⁻¹) and density
-            # parameters (Ω) for all the CLASS species present,
-            # including combination species. Note that these convenience
-            # attributes do not add information; they could be derived
-            # from the data already present in the HDF5 file.
+            # attributes include h ≡ H0/(100 km s⁻¹ Mpc⁻¹), density
+            # parameters (Ω) for all the CLASS species present
+            # (including combination species) and the w_0 and w_a
+            # parameters in the case of dynamical dark energy.
+            # Note that these convenience attributes do not add
+            # information; they could be derived from the data already
+            # present in the HDF5 file.
             convenience_attributes = {'h': H0/(100*units.km/(units.s*units.Mpc))}
             for class_species, ρ_bar in ρ_bars.items():
                 convenience_attributes[f'Omega_{class_species}'] = ρ_bar/ρ_bars['crit']
+            if 'w0_fld' in class_params:
+                convenience_attributes['w_0'] = class_params['w0_fld']
+            if 'wa_fld' in class_params:
+                convenience_attributes['w_a'] = class_params['wa_fld']
             for convenience_name, convenience_val in convenience_attributes.items():
                 background_h5.attrs[convenience_name] = convenience_val
     # Create dict mapping components to lists of
@@ -835,7 +840,7 @@ def CLASS():
     # transfer functions. This is done by merging all of the a arrays
     # for the individual k modes, ensuring that all perturbations will
     # be smooth on this common grid of a values.
-    a_min = 0
+    a_min = -1
     size = 0
     for perturbations in cosmoresults.perturbations:
         a_values = perturbations['a']
@@ -843,40 +848,71 @@ def CLASS():
         if a_first > a_min:
             a_min = a_first
         size += a_values.shape[0]
-    all_a_values = np.empty(size, dtype=C2np['double'])
-    index = 0
-    for perturbations in cosmoresults.perturbations:
-        a_values = perturbations['a']
-        size = a_values.shape[0]
-        all_a_values[index:index+size] = a_values
-        index += size
-    asarray(all_a_values).sort()
-    for index in range(all_a_values.shape[0]):
-        if all_a_values[index] == a_min:
-            all_a_values = all_a_values[index:]
-            break
-    all_a_values, _ = remove_doppelgängers(all_a_values, all_a_values, rel_tol=0.5)
-    all_a_values = asarray(all_a_values).copy()
-    # If too many a values are given, evenly select the amount given by
-    # the "max_a_values" utility argument.
-    max_a_values_str = str(special_params['max_a_values'])
-    if max_a_values_str in {'inf', 'np.inf', 'numpy.inf'}:
-        max_a_values = ထ
-    else:
-        try:
-            max_a_values = float(max_a_values_str)
-        except:
+    if master:
+        a_min = reduce(a_min, op=MPI.MAX)
+        size = reduce(size, op=MPI.SUM)
+        all_a_values = np.empty(size, dtype=C2np['double'])
+        index = 0
+        # The a values of the master itself
+        for perturbations in cosmoresults.perturbations:
+            a_values = perturbations['a']
+            size = a_values.shape[0]
+            all_a_values[index:index+size] = a_values
+            index += size
+        # The a values of the slaves
+        for other_rank in range(nprocs):
+            if other_rank == rank:
+                continue
+            while True:
+                size = recv(source=other_rank)
+                if size == 0:
+                    break
+                Recv(all_a_values[index:], source=other_rank)
+                index += size
+        # Sort and remove duplicate a values
+        asarray(all_a_values).sort()
+        for index in range(all_a_values.shape[0]):
+            if all_a_values[index] == a_min:
+                all_a_values = all_a_values[index:]
+                break
+        all_a_values, _ = remove_doppelgängers(all_a_values, all_a_values, rel_tol=0.5)
+        all_a_values = asarray(all_a_values).copy()
+        # If too many a values are given, evenly select the amount
+        # given by the "max_a_values" utility argument.
+        max_a_values_str = str(special_params['max_a_values'])
+        if max_a_values_str in {'inf', 'np.inf', 'numpy.inf'}:
+            max_a_values = ထ
+        else:
             try:
-                max_a_values = float(eval(max_a_values_str))
+                max_a_values = float(max_a_values_str)
             except:
-                abort(f'Could not interpret max_a_values = {max_a_values_str}')
-    if all_a_values.shape[0] > max_a_values:
-        step = float(all_a_values.shape[0])/(max_a_values - 1)
-        all_a_values_selected = np.empty(int(max_a_values), dtype=C2np['double'])
-        for i in range(int(max_a_values) - 1):
-            all_a_values_selected[i] = all_a_values[cast(int(i*step), 'Py_ssize_t')]
-        all_a_values_selected[int(max_a_values) - 1] = all_a_values[all_a_values.shape[0] - 1]
-        all_a_values = all_a_values_selected
+                try:
+                    max_a_values = float(eval(max_a_values_str))
+                except:
+                    abort(f'Could not interpret max_a_values = {max_a_values_str}')
+        if all_a_values.shape[0] > max_a_values:
+            step = float(all_a_values.shape[0])/(max_a_values - 1)
+            all_a_values_selected = np.empty(int(max_a_values), dtype=C2np['double'])
+            for i in range(int(max_a_values) - 1):
+                all_a_values_selected[i] = all_a_values[cast(int(i*step), 'Py_ssize_t')]
+            all_a_values_selected[int(max_a_values) - 1] = all_a_values[all_a_values.shape[0] - 1]
+            all_a_values = all_a_values_selected
+        # Broadcast the a values to the slave processes
+        bcast(all_a_values.shape[0])
+        Bcast(all_a_values)
+    else:
+        reduce(a_min, op=MPI.MAX)
+        reduce(size, op=MPI.SUM)
+        # Send a values of local perturbations to the master process
+        for perturbations in cosmoresults.perturbations:
+            a_values = perturbations['a']
+            size = a_values.shape[0]
+            send(size, dest=master_rank)
+            Send(a_values, dest=master_rank)
+        send(0, dest=master_rank)
+        # Receive processed a values from the master process
+        all_a_values = empty(bcast(None), dtype=C2np['double'])
+        Bcast(all_a_values)
     # Store the a and k values at which the perturbations are tabulated,
     # as well as the primordial parameters needed to convert transfer
     # functions into power spectra and the gauge.
@@ -902,29 +938,25 @@ def CLASS():
     # has been constructed, it is saved to disk and possibly plotted.
     # For the next transfer function, we reuse the same 2D arrays,
     # as all transfer functions are tabulated at the same a and k.
-    a_start, a_size = partition(all_a_values.shape[0])
-    transfer = np.empty((a_size, k_gridsize), dtype=C2np['double'])
     if master:
-        complete_transfer = np.empty((all_a_values.shape[0], k_gridsize), dtype=C2np['double'])
+        transfer = np.empty((all_a_values.shape[0], k_gridsize), dtype=C2np['double'])
     for component, variable_specifications in component_variables.items():
         for variable, specific_multi_index, var_name in variable_specifications:
-            for i in range(a_size):
-                a = all_a_values[a_start + i]
+            for i in range(all_a_values.shape[0]):
+                a = all_a_values[i]
                 transfer_of_k, _ = compute_transfer(
                     component, variable, k_min, k_max,
                     k_gridsize, specific_multi_index, a,
                     -1, # The a_next argument
                     gauge, get='array',
                 )
-                transfer[i, :] = transfer_of_k
-            # Gather transfer function data into the master
-            smart_mpi(transfer, complete_transfer if master else None, mpifun='gatherv')
+                if master:
+                    transfer[i, :] = transfer_of_k
             if not master:
                 continue
             # Save transfer function to disk
             masterprint(
-                f'Saving processed {var_name} {component.class_species} '
-                f'transfer functions ...'
+                f'Saving processed {var_name} {component.class_species} transfer functions ...'
             )
             var_name_ascii = var_name
             for key, val in {
@@ -937,17 +969,17 @@ def CLASS():
                 perturbations_h5 = hdf5_file.require_group('perturbations')
                 dset = perturbations_h5.create_dataset(
                     f'{var_name_ascii}_{component.class_species}',
-                    asarray(complete_transfer).shape,
+                    asarray(transfer).shape,
                     dtype=C2np['double'],
                 )
-                dset[...] = complete_transfer
+                dset[...] = transfer
             masterprint('done')
             # Plot transfer functions
             if class_plot_perturbations:
                 graphics.plot_processed_perturbations(
                     all_a_values,
                     k_magnitudes,
-                    complete_transfer,
+                    transfer,
                     var_name,
                     component.class_species,
                 )

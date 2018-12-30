@@ -132,14 +132,18 @@ def plot_powerspec(k_bin_centers, power_dict, filename, powerspec_plot_select):
 # Function for plotting detrended CLASS perturbations
 @cython.pheader(
     # Arguments
-    a_values='double[::1]',
-    perturbations_detrended='double[::1]',
-    transferfunction='TransferFunction',
     k='Py_ssize_t',
+    k_magnitude='double',
+    var_name=str,
+    class_species=str,
+    factor='double',
+    exponent='double',
+    spline='Spline',
+    largest_trusted_k_magnitude='double',
     # Locals
     a_values_raw=object,  # np.ndarray
-    exponent=str,
-    factor=str,
+    exponent_str=str,
+    factor_str=str,
     filename=str,
     i='Py_ssize_t',
     k_str=str,
@@ -151,16 +155,17 @@ def plot_powerspec(k_bin_centers, power_dict, filename, powerspec_plot_select):
     perturbations_raw=object,  # np.ndarray
     skip='Py_ssize_t',
     specific_species='bint',
-    spline='Spline',
     unit_latex=str,
     val=str,
     var_name_latex=str,
 )
-def plot_detrended_perturbations(a_values, perturbations_detrended, transferfunction, k):
-    # All processes could carry out this work, but as it involved I/O,
+def plot_detrended_perturbations(k, k_magnitude, var_name, class_species,
+    factor, exponent, spline, largest_trusted_k_magnitude):
+    # All processes could carry out this work, but as it involves I/O,
     # we only allow the master process to do so.
     if not master:
         abort(f'rank {rank} called plot_detrended_perturbations()')
+    a_values, perturbations_detrended = spline.x, spline.y
     loga_values = np.log(a_values)
     # Plot the detrended CLASS data
     plt.figure()
@@ -168,7 +173,6 @@ def plot_detrended_perturbations(a_values, perturbations_detrended, transferfunc
     # Plot the spline at values midway between the data points
     loga_values_spline             = empty(loga_values.shape[0] - 1, dtype=C2np['double'])
     perturbations_detrended_spline = empty(loga_values.shape[0] - 1, dtype=C2np['double'])
-    spline = transferfunction.splines[k]
     skip = 0
     for i in range(loga_values_spline.shape[0]):
         loga_value = 0.5*(loga_values[i] + loga_values[i+1])
@@ -183,29 +187,30 @@ def plot_detrended_perturbations(a_values, perturbations_detrended, transferfunc
         linewidth=1, zorder=0)
     # Decorate and save plot
     plt.xlabel('$a$', fontsize=14)
-    var_name_latex = transferfunction.var_name
+    var_name_latex = var_name
     for key, val in {
-        'δ': r'{\delta}',
-        'θ': r'{\theta}',
-        'ρ': r'{\rho}',
-        'σ': r'{\sigma}',
-        'ʹ': r'^{\prime}',
+        'δ'  : r'{\delta}',
+        'θ'  : r'{\theta}',
+        'ρ'  : r'{\rho}',
+        'σ'  : r'{\sigma}',
+        'ʹ'  : r'^{\prime}',
+        'H_T': r'H_{\mathrm{T}}',
     }.items():
         var_name_latex = var_name_latex.replace(key, val)
     unit_latex = {
-        'δ'    : rf'',
-        'θ'    : rf'[\mathrm{{{unit_time}}}^{{-1}}]',
-        'δP': (
+        'δ'   : rf'',
+        'θ'   : rf'[\mathrm{{{unit_time}}}^{{-1}}]',
+        'δP'  : (
             rf'['
             rf'\mathrm{{{unit_mass}}}'
             rf'\mathrm{{{unit_length}}}^{{-1}}'
             rf'\mathrm{{{unit_time}}}^{{-2}}'
             rf']'
         ),
-        'σ': rf'[\mathrm{{{unit_length}}}^2\mathrm{{{unit_time}}}^{{-2}}]',
-        'hʹ': rf'[\mathrm{{{unit_time}}}^{{-1}}]',
+        'σ'   : rf'[\mathrm{{{unit_length}}}^2\mathrm{{{unit_time}}}^{{-2}}]',
+        'hʹ'  : rf'[\mathrm{{{unit_time}}}^{{-1}}]',
         'H_Tʹ': rf'[\mathrm{{{unit_time}}}^{{-1}}]',
-    }[transferfunction.var_name]
+    }[var_name]
     unit_latex = (unit_latex
         .replace('(', '{')
         .replace(')', '}')
@@ -214,36 +219,47 @@ def plot_detrended_perturbations(a_values, perturbations_detrended, transferfunc
         .replace('m_sun', r'm_{\odot}')
     )
     plt.ylabel(rf'$({var_name_latex} - \mathrm{{trend}})\, {unit_latex}$', fontsize=14)
-    specific_species = transferfunction.var_name not in ('hʹ',)
-    k_str = significant_figures(transferfunction.k_magnitudes[k], 3, fmt='tex', scientific=True)
+    specific_species = var_name not in ('hʹ',)
+    k_str = significant_figures(k_magnitude, 3, fmt='tex', scientific=True)
     plt.title(
-        (rf'{transferfunction.class_species}, ' if specific_species else '')
+        (rf'{class_species}, ' if specific_species else '')
         + rf'$k = {k_str}\, \mathrm{{{unit_length}}}^{{-1}}$',
         fontsize=16,
         horizontalalignment='center',
     )
     plt.gca().tick_params(axis='x', which='major', labelsize=13)
-    factor = significant_figures(transferfunction.factors[k], 6, fmt='tex', scientific=True)
-    exponent = significant_figures(transferfunction.exponents[k], 6, scientific=False)
-    plt.text(0.5, 0.8, rf'$\mathrm{{trend}} = {factor}{unit_latex.strip("[]")}a^{{{exponent}}}$',
+    factor_str = significant_figures(factor, 6, fmt='tex', scientific=True)
+    exponent_str = significant_figures(exponent, 6, scientific=False)
+    plt.text(0.5, 0.8,
+        rf'$\mathrm{{trend}} = {factor_str}{unit_latex.strip("[]")}a^{{{exponent_str}}}$',
         horizontalalignment='center',
         verticalalignment='center',
         transform=plt.gca().transAxes,
         fontsize=14,
     )
+    if k_magnitude > largest_trusted_k_magnitude:
+        plt.text(0.5, 0.65,
+            rf'(using data from $k = {largest_trusted_k_magnitude}\, '
+            rf'\mathrm{{{unit_length}}}^{{-1}}$)',
+            horizontalalignment='center',
+            verticalalignment='center',
+            transform=plt.gca().transAxes,
+            fontsize=14,
+        )
     plt.tight_layout()
     filename = output_dirs['powerspec'] + '/class_perturbations'
     filename += '/' + (var_name_latex
-        .replace('\\', '')
-        .replace('{', '')
-        .replace('}', '')
-        .replace('^', '')
-        .replace('/', '_')
-        .replace('sigma', 'shear')
-        .replace('prime', '_prime')
+        .replace('\\'    , ''      )
+        .replace('{'     , ''      )
+        .replace('}'     , ''      )
+        .replace('^'     , ''      )
+        .replace('mathrm', ''      )
+        .replace('/'     , '_'     )
+        .replace('sigma' , 'shear' )
+        .replace('prime' , '_prime')
     )
     if specific_species:
-        filename += f'_{transferfunction.class_species}'
+        filename += f'_{class_species}'
     os.makedirs(filename, exist_ok=True)
     filename += f'/{k}.png'
     plt.savefig(filename)
@@ -280,9 +296,7 @@ def plot_processed_perturbations(a_values, k_magnitudes, transfer, var_name, cla
     # we only allow the master process to do so.
     if not master:
         abort(f'rank {rank} called plot_processed_perturbations()')
-    masterprint(
-        f'Plotting {var_name} {class_species} transfer functions ...'
-    )
+    masterprint(f'Plotting processed {var_name} {class_species} transfer functions ...')
     var_name_latex = var_name
     for key, val in {
         'δ': r'{\delta}',
@@ -878,14 +892,12 @@ def set_terminal_colormap(colormap):
     higher color numbers. The 16 + 2 = 18 lowest are left alone in order
     not to mess with standard terminal coloring and the colors used for
     the CO𝘕CEPT logo at startup.
-    If the specified colormap is already in use, nothing is done.
+    We apply the colormap even if the specified colormap is already
+    in use, as the resulting log file is easier to parse with every
+    colormap application present.
     """
-    global current_terminal_colormap
     if not master:
         return
-    if current_terminal_colormap == colormap:
-        return
-    current_terminal_colormap = colormap
     colormap_ANSI = getattr(matplotlib.cm, colormap)(linspace(0, 1, 238))[:, :3]
     for i, rgb in enumerate(colormap_ANSI):
         colorhex = matplotlib.colors.rgb2hex(rgb)
@@ -897,10 +909,6 @@ def set_terminal_colormap(colormap):
             wrap=False,
             ensure_newline_after_ellipsis=False,
         )
-# Global variable used to keep track of the currently applied
-# terminal colormap, used by the set_terminal_colormap function.
-cython.declare(current_terminal_colormap=str)
-current_terminal_colormap = None
 
 # Function for 3D renderings of the components
 @cython.header(# Arguments
