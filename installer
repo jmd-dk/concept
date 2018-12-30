@@ -252,38 +252,38 @@ set_version(){
 # In case of CO𝘕CEPT and CLASS, possible versions are the corresponding
 # GitHub branches and releases.
 set_version "concept"         "master"
-set_version "class"           "2.7.0"
+set_version "class"           "2.7.1"
 set_version "fftw"            "3.3.8"  "3.3.8"
 set_version "fftw_for_gadget" "2.1.5"  "2.1.5"   # Do not change
 set_version "freetype"        "2.9.1"  "2.9.1"
 set_version "gadget"          "2.0.7"            # Do not change
 set_version "gsl"             "2.5"    "2.5"
-set_version "hdf5"            "1.10.3" "1.10.3"
+set_version "hdf5"            "1.10.4" "1.10.4"
 set_version "libffi"          "3.2.1"  "3.2.1"
-set_version "libpng"          "1.6.35" "1.6.33"
+set_version "libpng"          "1.6.36" "1.6.33"
 if [ "${mpi}" == "mpich" ]; then
-    set_version "mpi"         "3.2.1"  "3.2.1"
+    set_version "mpi"         "3.3"    "3.3"
 elif [ "${mpi}" == "openmpi" ]; then
-    set_version "mpi"         "3.1.2"
+    set_version "mpi"         "3.1.2"  # 4.0.0 is out!
 fi
 set_version "ncurses"         "6.1"    "6.1"
-set_version "openblas"        "0.3.3" "0.3.3"
-set_version "openssl"         "1.1.1" "1.1.1"
-set_version "perl"            "5.28.0"
-set_version "python"          "3.7.0"
+set_version "openblas"        "0.3.4"  "0.3.4"
+set_version "openssl"         "1.1.1a" "1.1.1a"
+set_version "perl"            "5.28.1"
+set_version "python"          "3.7.2"
 set_version "zlib"            "1.2.11" "1.2.11"
 # Python packages
-set_version "blessings"     "1.7"
-set_version "cython"        "0.28.5"
-set_version "cythongsl"     "0.2.2"
-set_version "h5py"          "2.8.0"
-set_version "matplotlib"    "3.0.0"
-set_version "mpi4py"        "3.0.0"
-set_version "numpy"         "1.15.1"
-set_version "pip"           "18.0"
-set_version "pytest"        "3.8.0"
-set_version "scipy"         "1.1.0"
-set_version "setuptools"    "40.4.1"
+set_version "blessings"       "1.7"
+set_version "cython"          "0.29.2"
+set_version "cythongsl"       "0.2.2"
+set_version "h5py"            "2.9.0"
+set_version "matplotlib"      "3.0.2"
+set_version "mpi4py"          "3.0.0"
+set_version "numpy"           "1.15.4"
+set_version "pip"             "18.1"
+set_version "pytest"          "4.0.2"
+set_version "scipy"           "1.2.0"
+set_version "setuptools"      "40.6.3"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
 # and specific versions of system dependencies.
@@ -2141,8 +2141,8 @@ if [ "${openssl_install}" == "yes" ]; then
             echo "Primary OpenSSL link broken: ${openssl_url}"
             fallback "openssl"
             openssl_version_underscores="$(echo "${openssl_version}" | tr '.' '_')"
-            openssl_url=https://github.com/openssl/openssl/archive/\
-OpenSSL_${openssl_version_underscores}.tar.gz
+            openssl_url="https://github.com/openssl/openssl/archive/\
+OpenSSL_${openssl_version_underscores}.tar.gz"
             echo "Using secondary OpenSSL link: ${openssl_url}"
             # Check if already installed and/or downloaded
             check_progress "OpenSSL"
@@ -3013,7 +3013,7 @@ Please be patient ...\n";                                                       
                 log_size_new=$(du -b "${log}" | awk '{print $1}');                 \
                 log_size_last=${log_size_new};                                     \
             elif [ -n "${kill_time}" ] && [ ${time_slept} -gt ${kill_time} ]; then \
-                echo "Process assumed to be haning. Killing it";                   \
+                echo "Process assumed to be hanging. Killing it";                  \
                 kill -9 ${soothe_pid} >/dev/null 2>&1;                             \
                 wait    ${soothe_pid} >/dev/null 2>&1;                             \
             fi;                                                                    \
@@ -3266,63 +3266,55 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
     # On some systems, the HDF5 test (make check) hangs indefinitely.
     # To counteract this, kill the process if it still runs after
     # ${hdf5_test_max_time} seconds. Count the test as failed if the
-    # last line in test_log is not "make[1]: Leaving directory".
+    # last line in test_log does not contain "make[1]: ".
     if [ "${fast_install}" == "no" ]; then
         hdf5_test_max_time=3600
         # Perform serial + parallel tests if build against MPI
         # or normal tests otherwise.
         if [ -n "${mpi_dir}" ]; then
             # Serial tests
-            (make ${make_jobs} check-s 2>&1 & echo $! >&3) 3> "hdf5_test_pid" \
-                | tee "test_log" & tee_pid=$!
-            sleep 1
-            hdf5_test_pid="$(cat 'hdf5_test_pid')"
-            rm -f "hdf5_test_pid"
+            (make ${make_jobs} check-s 2>&1 | tee "test_log") & hdf5_test_pid=$!
             soothe ${hdf5_test_pid} ${hdf5_test_max_time}
             sleep 1
-            kill -9 ${tee_pid} >/dev/null 2>&1 || :
-            wait    ${tee_pid} >/dev/null 2>&1 || :
-            # Measure success based on the last line of "test_log"
-            if [ -z "$(  tail -n 1 test_log \
-                       | grep 'make\[1\]: Leaving directory' 2> /dev/null)" ]; then
+            kill -9 ${hdf5_test_pid} >/dev/null 2>&1 || :
+            wait    ${hdf5_test_pid} >/dev/null 2>&1 || :
+            exit_code="$(wait ${hdf5_test_pid} >/dev/null 2>&1 || echo $?)"
+            if [ -n "${exit_code}" ]; then
                 hdf5_test_success="no"
             fi
             # Parallel tests
-            (make ${make_jobs} check-p 2>&1 & echo $! >&3) 3> "hdf5_test_pid" \
-                | tee -a "test_log" & tee_pid=$!
-            sleep 1
-            hdf5_test_pid="$(cat 'hdf5_test_pid')"
-            rm -f "hdf5_test_pid"
+            printf "\n\n\nParallel tests below\n\n\n\n" >> "test_log"
+            (make ${make_jobs} check-p 2>&1 | tee "test_log") & hdf5_test_pid=$!
             soothe ${hdf5_test_pid} ${hdf5_test_max_time}
             sleep 1
-            kill -9 ${tee_pid} >/dev/null 2>&1 || :
-            wait    ${tee_pid} >/dev/null 2>&1 || :
-            # Measure success based on the last line of "test_log"
-            if [ -z "$(  tail -n 1 test_log \
-                       | grep 'make\[1\]: Leaving directory' 2> /dev/null)" ]; then
+            kill -9 ${hdf5_test_pid} >/dev/null 2>&1 || :
+            wait    ${hdf5_test_pid} >/dev/null 2>&1 || :
+            exit_code="$(wait ${hdf5_test_pid} >/dev/null 2>&1 || echo $?)"
+            if [ -n "${exit_code}" ]; then
                 hdf5_test_success="no"
             fi
         else
-            (make ${make_jobs} check 2>&1 & echo $! >&3) 3> "hdf5_test_pid" \
-                | tee "test_log" & tee_pid=$!
-            sleep 1
-            hdf5_test_pid="$(cat 'hdf5_test_pid')"
-            rm -f "hdf5_test_pid"
+            (make ${make_jobs} check 2>&1 | tee "test_log") & hdf5_test_pid=$!
             soothe ${hdf5_test_pid} ${hdf5_test_max_time}
             sleep 1
-            kill -9 ${tee_pid} >/dev/null 2>&1 || :
-            wait    ${tee_pid} >/dev/null 2>&1 || :
-            # Measure success based on the last line of "test_log"
-            if [ -z "$(tail -n 1 test_log \
-                       | grep 'make\[1\]: ' 2> /dev/null)" ]; then
+            kill -9 ${hdf5_test_pid} >/dev/null 2>&1 || :
+            wait    ${hdf5_test_pid} >/dev/null 2>&1 || :
+            exit_code="$(wait ${hdf5_test_pid} >/dev/null 2>&1 || echo $?)"
+            if [ -n "${exit_code}" ]; then
                 hdf5_test_success="no"
             fi
         fi
     fi
     make ${make_jobs} install 2>&1
     if [ "${fast_install}" == "no" ]; then
+        printf "\n\n\nInstall tests below\n\n\n\n" >> "test_log"
         make ${make_jobs} check-install 2>&1 | tee -a "test_log"
+        # The text "*FAILED*" will be present in the test log file
+        # if any of the test failed.
         [ ${PIPESTATUS[0]} -eq 0 ] || hdf5_test_success="no"
+        if grep '\*FAILED\*' "test_log" >/dev/null 2>&1; then
+            hdf5_test_success="no"
+        fi
     fi
     hdf5_test_log="${hdf5_dir}/test_log"
     if [ "${hdf5_test_success}" == "no" ]; then
@@ -4248,8 +4240,8 @@ extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n\n"
     # Test NumPy
     if [ "${fast_install}" == "no" ]; then
         numpy_test_log="${python_dir}/numpy_test_log"
-        "${python}" -c "import numpy; numpy.test('full', verbose=2)" 2>&1 \
-            | tee "${numpy_test_log}"
+        "${python}" -c "import numpy; numpy.test('full', verbose=2, \
+extra_argv=['--color=yes'])" 2>&1 | tee "${numpy_test_log}"
         [ ${PIPESTATUS[0]} -eq 0 ] || numpy_test_success="no"
         if [ "${numpy_test_success}" == "yes" ]; then
             if tail -n 1 "${numpy_test_log}" | grep " failed" >/dev/null 2>&1; then
@@ -4371,8 +4363,10 @@ extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n\n"
     # Test SciPy
     if [ "${fast_install}" == "no" ]; then
         scipy_test_log="${python_dir}/scipy_test_log"
-        "${python}" -c "import scipy; scipy.test('full', verbose=2)" 2>&1 \
-            | tee "${scipy_test_log}"
+        # We skip the test_face test as this require bz2,
+        # which may not be installed.
+        "${python}" -c "import scipy; scipy.test('full', verbose=2, \
+extra_argv=['--color=yes', '-k not test_face'])" 2>&1 | tee "${scipy_test_log}"
         [ ${PIPESTATUS[0]} -eq 0 ] || scipy_test_success="no"
         if [ "${scipy_test_success}" == "yes" ]; then
             if tail -n 1 "${scipy_test_log}" | grep " failed" >/dev/null 2>&1; then
@@ -4515,11 +4509,6 @@ ${zlib_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
                                    --find-links="${top_dir}/tmp/pip" \
                                    . 2>&1 & pip_install_pid=$!
         soothe ${pip_install_pid}
-        # Some versions of Matplotlib (e.g. 2.2.2) mistakenly has the
-        # _bz2 module as a hard dependency. Fix this issue.
-        sed -i "s/^import bz2/try:\n    import bz2\nexcept:\n    pass/g" \
-            "${python_dir}/lib/python${python_version_major_dot_minor}/\
-site-packages/matplotlib/cbook/__init__.py" || :
         pypackage_installed=$(check_pypackage_installed matplotlib)
         if [ "${pypackage_installed}" == "yes" ]; then
             break
@@ -4545,8 +4534,7 @@ if [ "${mpi4py_install}" == "yes" ] && [ "${mpi4py_installed}" == "no" ]; then
     reset_environment
 fi
 
-# H5Py (manual invocation of setup.py is needed
-# as --mpi needs to be supplied).
+# H5Py
 if [ "${h5py_install}" == "yes" ] && [ "${h5py_installed}" == "no" ]; then
     export HDF5_DIR="${hdf5_dir}"
     export HDF5_MPI="ON"
@@ -4724,47 +4712,54 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
     # Include ncdm Psi0[q] in perturbation output
-    pattern=' *char +tmp *\\[ *40 *\\] *;'
-    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-             "${class_dir}/source/perturbations.c" | head -n 1)
-    new_lines=(           \
-        "char tmp[1024];" \
-        "int index_q;"    \
-    )
-    patch_class "${class_dir}/source/perturbations.c" ${linenr} "replace" "below" "${new_lines[@]}"
-    pattern='sprintf *\\( *tmp *, *\"cs2_ncdm\\[%d\\]\" *, *n_ncdm *\\) *;'
-    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-             "${class_dir}/source/perturbations.c" | head -n 1)
-    ((linenr += 2))
-    new_lines=(                                                                   \
-        "/* Include ncdm Psi0[q] in perturbation output */"                       \
-        "for (index_q=0; index_q<pba->q_size_ncdm[n_ncdm]; index_q++) {"          \
-        "  sprintf(tmp,\"Psi0[%d](%.16f)\",n_ncdm,pba->q_ncdm[n_ncdm][index_q]);" \
-        "  class_store_columntitle(ppt->scalar_titles,tmp,_TRUE_);"               \
-        "}"                                                                       \
-    )
-    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
-    pattern='class_store_double *\\( *dataptr *, *delta_p_over_delta_rho_ncdm *\\[ *n_ncdm *\\] *,'
-    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-             "${class_dir}/source/perturbations.c" | head -n 1)
-    ((linenr += 1))
-    new_lines=(                                                            \
-        "/* Include ncdm Psi0[q] in perturbation output */"                \
-        "if (ppw->approx[ppw->index_ap_ncdmfa] == (int)ncdmfa_on) {"       \
-        "  for (index_q=0; index_q<pba->q_size_ncdm[n_ncdm]; index_q++) {" \
-        "    class_store_double(dataptr, 0.0, _TRUE_, storeidx);"          \
-        "  }"                                                              \
-        "}"                                                                \
-        "else{"                                                            \
-        "  idx = ppw->pv->index_pt_psi0_ncdm1;"                            \
-        "  for (index_q=0; index_q<pba->q_size_ncdm[n_ncdm]; index_q++) {" \
-        "    class_store_double(dataptr, y[idx], _TRUE_, storeidx);"       \
-        "    /* Jump to next momentum bin */"                              \
-        "    idx += (ppw->pv->l_max_ncdm[n_ncdm]+1);"                      \
-        "  }"                                                              \
-        "}"                                                                \
-    )
-    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
+    include_ncdm_Psi0="no"
+    if [ "${include_ncdm_Psi0}" == "yes" ]; then
+        pattern=' *char +tmp *\\[ *40 *\\] *;'
+        linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+                 "${class_dir}/source/perturbations.c" | head -n 1)
+        new_lines=(           \
+            "char tmp[1024];" \
+            "int index_q;"    \
+        )
+        patch_class "${class_dir}/source/perturbations.c" ${linenr} \
+            "replace" "below" "${new_lines[@]}"
+        pattern='sprintf *\\( *tmp *, *\"cs2_ncdm\\[%d\\]\" *, *n_ncdm *\\) *;'
+        linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+                 "${class_dir}/source/perturbations.c" | head -n 1)
+        ((linenr += 2))
+        new_lines=(                                                                   \
+            "/* Include ncdm Psi0[q] in perturbation output */"                       \
+            "for (index_q=0; index_q<pba->q_size_ncdm[n_ncdm]; index_q++) {"          \
+            "  sprintf(tmp,\"Psi0[%d](%.16f)\",n_ncdm,pba->q_ncdm[n_ncdm][index_q]);" \
+            "  class_store_columntitle(ppt->scalar_titles,tmp,_TRUE_);"               \
+            "}"                                                                       \
+        )
+        patch_class "${class_dir}/source/perturbations.c" ${linenr} \
+            "insert" "below" "${new_lines[@]}"
+        pattern="class_store_double *\\\\( *dataptr *, \
+*delta_p_over_delta_rho_ncdm *\\\\[ *n_ncdm *\\\\] *,"
+        linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+                 "${class_dir}/source/perturbations.c" | head -n 1)
+        ((linenr += 1))
+        new_lines=(                                                            \
+            "/* Include ncdm Psi0[q] in perturbation output */"                \
+            "if (ppw->approx[ppw->index_ap_ncdmfa] == (int)ncdmfa_on) {"       \
+            "  for (index_q=0; index_q<pba->q_size_ncdm[n_ncdm]; index_q++) {" \
+            "    class_store_double(dataptr, 0.0, _TRUE_, storeidx);"          \
+            "  }"                                                              \
+            "}"                                                                \
+            "else{"                                                            \
+            "  idx = ppw->pv->index_pt_psi0_ncdm1;"                            \
+            "  for (index_q=0; index_q<pba->q_size_ncdm[n_ncdm]; index_q++) {" \
+            "    class_store_double(dataptr, y[idx], _TRUE_, storeidx);"       \
+            "    /* Jump to next momentum bin */"                              \
+            "    idx += (ppw->pv->l_max_ncdm[n_ncdm]+1);"                      \
+            "  }"                                                              \
+            "}"                                                                \
+        )
+        patch_class "${class_dir}/source/perturbations.c" ${linenr} \
+            "insert" "below" "${new_lines[@]}"
+    fi
     # Include dark energy fluid in perturbation output
     new_class_perturbation_linenr(){
         if [ "${1}" == "perturb_prepare_output" ]; then
@@ -5189,11 +5184,26 @@ if [ "${fftw_for_gadget_install}" == "yes" ] && [ "${fftw_for_gadget_installed}"
     init_install "FFTW for GADGET"
     export CC="${mpi_dir}/bin/mpicc"
     export MPICC="${mpi_dir}/bin/mpicc"
-    export CFLAGS="-O3 -fPIC"
-    export CPPFLAGS="-I${mpi_dir}/include"
-    export LDFLAGS="-L${mpi_dir}/lib"
-    export MPILIBS="-lmpi"
+    export CFLAGS="-O3 -fPIC ${CFLAGS}"
+    export CPPFLAGS="-I${mpi_dir}/include ${CPPFLAGS}"
+    export LDFLAGS="-L${mpi_dir}/lib ${LDFLAGS}"
+    export MPILIBS="-lmpi ${MPILIBS}"
     export PATH="${mpi_dir}/bin:${PATH}"
+    # Intel compilers may link against the NUMA library, which should be
+    # placed in /usr/lib64. Add this directory to the LDFLAGS.
+    # Both libnuma.so and libnuma.so.1 should exist. To be sure,
+    # we create symlinks to these in a new directory and add this
+    # directory to LDFLAGS as well.
+    export LDFLAGS="${LDFLAGS} -L/usr/lib64"
+    numa_symlink_dir="${fftw_for_gadget_dir}/numa_symlinks"
+    mkdir -p "${numa_symlink_dir}"
+    if [ -f "/usr/lib64/libnuma.so" ] && [ ! -f "/usr/lib64/libnuma.so.1" ]; then
+        ln -s "/usr/lib64/libnuma.so" "${numa_symlink_dir}/libnuma.so.1"
+    fi
+    if [ -f "/usr/lib64/libnuma.so.1" ] && [ ! -f "/usr/lib64/libnuma.so" ]; then
+        ln -s "/usr/lib64/libnuma.so.1" "${numa_symlink_dir}/libnuma.so"
+    fi
+    export LDFLAGS="${LDFLAGS} -L${numa_symlink_dir}"
     # Double-precision
     ./configure --enable-shared      \
                 --enable-mpi         \
@@ -5322,9 +5332,12 @@ rm -rf "${top_dir}/tmp" || :
 # Remove the Python cache generated by all the Python invocations
 # during the install.
 rm -rf "${top_dir}/__pycache__"
-# For some reason, one of the installations leave a file called
-# _configtest.o.d in the top directory. Remove this.
+# Pytest may leave a cache directory
+rm -rf "${top_dir}/.pytest_cache"
+# Remove miscellaneous files which may be left
+# by one of the installations.
 rm -f "${top_dir}/_configtest"*
+rm -f "${top_dir}/gramA" "${top_dir}/gramB"
 # Copyright notice
 disable_status
 copyright_notice(){

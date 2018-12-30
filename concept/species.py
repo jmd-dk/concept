@@ -1357,7 +1357,7 @@ class Component:
                                                                    self.shape)]):
                 return
             if any([s < 1 for s in shape_nopseudo_noghosts]):
-                abort('Attempted to resize fluid grids of the {} component'
+                abort('Attempted to resize fluid grids of the {} component '
                       'to a shape of {}'.format(self.name, shape_nopseudo_noghosts))
             # Recalculate and reassign meta data
             self.shape          = tuple([2 + s + 1 + 2 for s in shape_nopseudo_noghosts])
