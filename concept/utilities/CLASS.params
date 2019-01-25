@@ -1,11 +1,11 @@
 # This is the default parameter file used by the CLASS utility.
 # It is set up to yield cosmologies with neutrinos,
-# the masses of which is specified in _mν below.
+# the masses of which are specified in _mν below.
 # The number of neutrinos is inferred from the number of
 # elements in _mν. Masses of zero are allowed.
 # Specifying the same mass for multiple neutrinos result in a
 # single degenerate neutrino species.
-_mν = [0, 8.68907e-3, 5.00000e-2]  # Neutrino masses in eV
+_mν = [0, 8.7e-3, 5.0e-2]  # Neutrino masses in eV
 
 
 
@@ -23,11 +23,6 @@ H0      = 67*km/(s*Mpc)
 Ωb      = 0.049
 a_begin = 1/(1 + 250)
 class_params = {
-    # Primordial parameters
-    'A_s'    : 2.1e-9,
-    'n_s'    : 0.96,
-    'alpha_s': 0.0,
-    'k_pivot': 0.05,
     # Add neutrino hierarchy
     'N_ur'    : 0,
     'N_ncdm'  : len(set(_mν)),

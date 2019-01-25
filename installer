@@ -4873,12 +4873,12 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "/* Dark radiation */"                                                              \
         "if (pba->has_dr == _TRUE_)"                                                        \
         "  p_tot_prime += -4./3.*a*H*pvecback[pba->index_bg_rho_dr];"                       \
-        "/* Scalar field */"                                                                \
+        "/* Dark energy fluid */"                                                           \
         "if (pba->has_fld == _TRUE_) {"                                                     \
         "  p_tot_prime += a*H*pvecback[pba->index_bg_rho_fld]"                              \
         "    *(a*dw_over_da_fld - 3*w_fld*(1 + w_fld));"                                    \
         "}"                                                                                 \
-        "/* Dark energy fluid */"                                                           \
+        "/* Scalar field */"                                                                \
         "if (pba->has_scf == _TRUE_) {"                                                     \
         "  p_tot_prime += -3*H/a*pvecback[pba->index_bg_phi_prime_scf]"                     \
         "    *pvecback[pba->index_bg_phi_prime_scf]"                                        \

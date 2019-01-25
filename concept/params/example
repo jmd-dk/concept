@@ -90,22 +90,29 @@ R_tophat         = 8*Mpc/h  # Radius of tophat used to compute σ
 modes_per_decade = 30       # Number of linear k modes per decade computed in CLASS
 
 # Cosmology
-H0      = 70*km/(s*Mpc)  # The Hubble constant
-Ωcdm    = 0.25 - Ων      # Density parameter for cold dark matter
-Ωb      = 0.05           # Density parameter for baryonic matter
+H0      = 67*km/(s*Mpc)  # The Hubble constant
+Ωcdm    = 0.27 - Ων      # Density parameter for cold dark matter
+Ωb      = 0.049          # Density parameter for baryonic matter
 a_begin = 0.02           # Scale factor at beginning of simulation
+primordial_spectrum = {  # Parameters for the analytic primordial spectrum
+    'A_s'  : 2.1e-9,    # Amplitude
+    'n_s'  : 0.96,      # Tilt / spectral index
+    'α_s'  : 0,         # Tilt running
+    'pivot': 0.05/Mpc,  # Pivot scale
+}
 class_params = {         # CLASS parameters. See the CLASS documentation for details.
-    # Primordial parameters
-    'n_s'                    : 1,
-    'A_s'                    : 2.30e-9,
     # Neutrino parameters
-    'N_ur'                   : 0,
-    'N_ncdm'                 : 1,
-    'deg_ncdm'               : 3,
-    'm_ncdm'                 : 1/3,
-    'l_max_ncdm'             : 30,
-    'Number of momentum bins': 30,
-    'Maximum q'              : 20,
+    'N_ur'                    : 0,
+    'N_ncdm'                  : 1,
+    'deg_ncdm'                : 3,
+    'm_ncdm'                  : 1/3,
+    'l_max_ncdm'              : 30,
+    'Number of momentum bins' : 30,
+    'Maximum q'               : 18,
+    'Quadrature strategy'     : 3,
+    'ncdm_fluid_approximation': 3,
+    # General precision parameters
+    'evolver'                 : 0,
 }
 
 # Physics

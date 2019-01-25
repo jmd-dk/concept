@@ -2026,31 +2026,32 @@ class Component:
 
     # Method which initializes the equation of state parameter w.
     # Call this before calling the w and ẇ methods.
-    @cython.header(# Arguments
-                   w=object,  # float-like, str or dict
-                   # Locals
-                   char=str,
-                   char_last=str,
-                   class_species=str,
-                   delim_left=str,
-                   delim_right=str,
-                   done_reading_w='bint',
-                   i='int',
-                   i_tabulated='double[:]',
-                   key=str,
-                   line=str,
-                   p_tabulated=object,  # np.ndarray
-                   pattern=str,
-                   unit='double',
-                   w_constant='double',
-                   w_data='double[:, :]',
-                   w_list=list,
-                   w_ori=str,
-                   w_tabulated='double[:]',
-                   w_values='double[::1]',
-                   ρ_tabulated=object,  # np.ndarray
-                   returns='Spline',
-                   )
+    @cython.header(
+        # Arguments
+        w=object,  # float-like, str or dict
+        # Locals
+        char=str,
+        char_last=str,
+        class_species=str,
+        delim_left=str,
+        delim_right=str,
+        done_reading_w='bint',
+        i='int',
+        i_tabulated='double[:]',
+        key=str,
+        line=str,
+        p_tabulated=object,  # np.ndarray
+        pattern=str,
+        unit='double',
+        w_constant='double',
+        w_data='double[:, :]',
+        w_list=list,
+        w_ori=str,
+        w_tabulated='double[:]',
+        w_values='double[::1]',
+        ρ_tabulated=object,  # np.ndarray
+        returns='Spline',
+    )
     def initialize_w(self, w):
         """The w argument can be one of the following (Python) types:
         - float-like: Designates a constant w.
@@ -2137,8 +2138,20 @@ class Component:
             ρ_tabulated = 0
             p_tabulated = 0
             for class_species in self.class_species.split('+'):
-                ρ_tabulated += background[f'(.)rho_{class_species}']
-                p_tabulated += background[f'(.)p_{class_species}']
+                key = f'(.)rho_{class_species}'
+                if key not in background:
+                    abort(
+                        f'No background density {key} for CLASS species "{class_species}" '
+                        f'present in the CLASS background.'
+                    )
+                ρ_tabulated += background[key]
+                key = f'(.)p_{class_species}'
+                if key not in background:
+                    abort(
+                        f'No background pressure {key} for CLASS species "{class_species}" '
+                        f'present in the CLASS background.'
+                    )
+                p_tabulated += background[key]
             w_tabulated = p_tabulated/ρ_tabulated
         elif isinstance(w, str) and w.lower() == 'default':
             # Assign w a constant value based on the species.

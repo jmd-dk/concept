@@ -913,9 +913,8 @@ def CLASS():
         # Receive processed a values from the master process
         all_a_values = empty(bcast(None), dtype=C2np['double'])
         Bcast(all_a_values)
-    # Store the a and k values at which the perturbations are tabulated,
-    # as well as the primordial parameters needed to convert transfer
-    # functions into power spectra and the gauge.
+    # Store the a and k values at which the perturbations are tabulated.
+    # Also store the gauge.
     if master:
         with open_hdf5(filename, mode='a') as hdf5_file:
             perturbations_h5 = hdf5_file.require_group('perturbations')
@@ -927,8 +926,6 @@ def CLASS():
                 'k', (k_magnitudes.shape[0], ), dtype=C2np['double'],
             )
             dset[:] = k_magnitudes
-            for primordial_key in {'A_s', 'n_s', 'alpha_s', 'k_pivot'}:
-                perturbations_h5.attrs[primordial_key] = getattr(cosmoresults, primordial_key)
             perturbations_h5.attrs['gauge'] = bytes(
                 gauge.replace('-', '').lower(), encoding='ascii')
     # Get transfer functions of k for each a.

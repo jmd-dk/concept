@@ -24,18 +24,26 @@
 _this_dir = os.path.dirname(paths['params'])
 
 # Input/output
-output_times     = {'a': {'powerspec': 0.01}}
+output_times     = {'a': {'powerspec': a_begin}}
 powerspec_select = {'all': {'data': True}}
 
 # Numerical parameters
 boxsize    = 8*Gpc
 φ_gridsize = 128
+modes_per_decade = 50
 
 # Cosmology
 H0      = 70*km/(s*Mpc)
 Ωcdm    = 0.25
 Ωb      = 0.05
 a_begin = 0.01
+primordial_spectrum = {
+    # Use weird parameter values
+    'A_s'  : 1e-11,
+    'n_s'  : 0.3,
+    'α_s'  : 0.1,
+    'pivot': 1e-5/kpc,
+}
 
 # Simulation options
 random_seed = 1

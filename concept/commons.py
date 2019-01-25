@@ -1604,18 +1604,6 @@ def update_class_params(class_params, namespace=None):
             class_params_default['Omega_cdm'] = namespace['Ωcdm']
         if 'Ωb' in namespace:
             class_params_default['Omega_b'] = namespace['Ωb']
-    # Add in neutrino CLASS parameters, if neutrinos are present
-    N_ncdm = int(class_params.get('N_ncdm', 0))
-    if N_ncdm != 0:
-        class_params_default.update({
-            # Options needed for accurate ncdm cs2 perturbations
-            'evolver': 0,
-            'ncdm_fluid_approximation': 3,
-            'l_max_ncdm': 50,
-            'Quadrature strategy': ','.join(['3']*N_ncdm),
-            'Number of momentum bins': ','.join(['25']*N_ncdm),
-            'Maximum q': ','.join(['20']*N_ncdm),
-        })
     # Apply updates to the CLASS parameters
     for param_name, param_value in class_params_default.items():
         class_params.setdefault(param_name, param_value)
@@ -1807,70 +1795,72 @@ def to_rgbα(value, default_α=1):
         return to_rgb(value[:3]), value[3]
     # Could not convert value to color and α
     return np.array([-1, -1, -1]), default_α
-cython.declare(# Input/output
-               initial_conditions=object,  # str or container of str's
-               snapshot_type=str,
-               output_dirs=dict,
-               output_bases=dict,
-               output_times=dict,
-               autosave_interval='double',
-               snapshot_select=dict,
-               powerspec_select=dict,
-               render2D_select=dict,
-               render3D_select=dict,
-               # Numerical parameter
-               boxsize='double',
-               ewald_gridsize='Py_ssize_t',
-               φ_gridsize='ptrdiff_t',
-               p3m_scale='double',
-               p3m_cutoff='double',
-               R_tophat='double',
-               modes_per_decade='double',
-               # Cosmology
-               H0='double',
-               Ωcdm='double',
-               Ωb='double',
-               a_begin='double',
-               t_begin='double',
-               class_params=dict,
-               # Physics
-               select_forces=dict,
-               select_class_species=dict,
-               select_eos_w=dict,
-               select_boltzmann_closure=dict,
-               select_realization_options=dict,
-               select_approximations=dict,
-               select_softening_length=dict,
-               # Simlation options
-               fftw_wisdom_rigor=str,
-               fftw_wisdom_reuse='bint',
-               random_seed='unsigned long int',
-               fluid_scheme_select=dict,
-               fluid_options=dict,
-               class_k_max=dict,
-               class_reuse='bint',
-               class_plot_perturbations='bint',
-               class_extra_background=set,
-               class_extra_perturbations=set,
-               # Graphics
-               terminal_width='int',
-               suppress_output=dict,
-               render2D_options=dict,
-               render3D_colors=dict,
-               render3D_bgcolor='double[::1]',
-               render3D_resolution='int',
-               # Debugging options
-               enable_Hubble='bint',
-               enable_class_background='bint',
-               enable_Ewald='bint',
-               enable_debugging='bint',
-               # Hidden parameters
-               special_params=dict,
-               output_times_full=dict,
-               initial_time_step='Py_ssize_t',
-               Δt_begin_autosave='double',
-               Δt_autosave='double',
-               )
+cython.declare(
+    # Input/output
+    initial_conditions=object,  # str or container of str's
+    snapshot_type=str,
+    output_dirs=dict,
+    output_bases=dict,
+    output_times=dict,
+    autosave_interval='double',
+    snapshot_select=dict,
+    powerspec_select=dict,
+    render2D_select=dict,
+    render3D_select=dict,
+    # Numerical parameter
+    boxsize='double',
+    ewald_gridsize='Py_ssize_t',
+    φ_gridsize='ptrdiff_t',
+    p3m_scale='double',
+    p3m_cutoff='double',
+    R_tophat='double',
+    modes_per_decade='double',
+    # Cosmology
+    H0='double',
+    Ωcdm='double',
+    Ωb='double',
+    a_begin='double',
+    t_begin='double',
+    primordial_spectrum=dict,
+    class_params=dict,
+    # Physics
+    select_forces=dict,
+    select_class_species=dict,
+    select_eos_w=dict,
+    select_boltzmann_closure=dict,
+    select_realization_options=dict,
+    select_approximations=dict,
+    select_softening_length=dict,
+    # Simlation options
+    fftw_wisdom_rigor=str,
+    fftw_wisdom_reuse='bint',
+    random_seed='unsigned long int',
+    fluid_scheme_select=dict,
+    fluid_options=dict,
+    class_k_max=dict,
+    class_reuse='bint',
+    class_plot_perturbations='bint',
+    class_extra_background=set,
+    class_extra_perturbations=set,
+    # Graphics
+    terminal_width='int',
+    suppress_output=dict,
+    render2D_options=dict,
+    render3D_colors=dict,
+    render3D_bgcolor='double[::1]',
+    render3D_resolution='int',
+    # Debugging options
+    enable_Hubble='bint',
+    enable_class_background='bint',
+    enable_Ewald='bint',
+    enable_debugging='bint',
+    # Hidden parameters
+    special_params=dict,
+    output_times_full=dict,
+    initial_time_step='Py_ssize_t',
+    Δt_begin_autosave='double',
+    Δt_autosave='double',
+)
 # Input/output
 initial_conditions = user_params.get('initial_conditions', '')
 user_params['initial_conditions'] = initial_conditions
@@ -1982,6 +1972,25 @@ a_begin = float(user_params.get('a_begin', 1))
 user_params['a_begin'] = a_begin
 t_begin = float(user_params.get('t_begin', 0))
 user_params['t_begin'] = t_begin
+primordial_spectrum = dict(user_params.get('primordial_spectrum', {}))
+replace_ellipsis(primordial_spectrum)
+for key, val in primordial_spectrum.copy().items():
+    key_ori = key
+    key = unicode(key).lower()
+    for c in '_sk':
+        key = key.replace(c, '')
+    key = key.replace('alpha', 'α').replace(unicode('α'), 'α').replace(asciify('α'), 'α')
+    for shortened_key, full_key in {'a': 'A_s', 'n': 'n_s', 'α': 'α_s', 'pivot': 'pivot'}.items():
+        if shortened_key == key:
+            primordial_spectrum[full_key] = val
+            break
+    else:
+        masterwarn(f'Could not understand primordial spectrum parameter "{key_ori}"')
+primordial_spectrum = {
+    key: float(primordial_spectrum.get(key, val))
+    for key, val in {'A_s': 2.1e-9, 'n_s': 0.96, 'α_s': 0, 'pivot': 0.05/units.Mpc}.items()
+}
+user_params['primordial_spectrum'] = primordial_spectrum
 class_params = dict(user_params.get('class_params', {}))
 replace_ellipsis(class_params)
 user_params['class_params'] = class_params
@@ -2507,29 +2516,31 @@ units_dict.setdefault('cbrt', lambda x: x**(1/3))
 class_params = update_class_params(class_params)
 # Function that can call out to CLASS,
 # correctly taking advantage of OpenMP and MPI.
-@cython.pheader(# Arguments
-                extra_params=dict,
-                sleep_time='double',
-                mode=str,
-                class_call_reason=str,
-                # Locals
-                compute_perturbations='bint',
-                k_output_value=str,
-                k_output_values=list,
-                k_output_values_node=list,
-                k_output_values_node_indices='Py_ssize_t[::1]',
-                k_output_values_nodes=list,
-                k_output_values_nodes_deque=object,  # collections.deque
-                k_output_values_proc=list,
-                k_output_values_procs=list,
-                k_output_values_procs_deque=object,  # collections.deque
-                method=str,
-                n_modes='Py_ssize_t',
-                n_surplus='Py_ssize_t',
-                nprocs_node_i='int',
-                params_specialized=dict,
-                returns=object,  # classy.Class or (classy.Class, Py_ssize_t[::1])
-                )
+@cython.pheader(
+    # Arguments
+    extra_params=dict,
+    sleep_time='double',
+    mode=str,
+    class_call_reason=str,
+    # Locals
+    compute_perturbations='bint',
+    k_output_value=str,
+    k_output_values=list,
+    k_output_values_node=list,
+    k_output_values_node_indices='Py_ssize_t[::1]',
+    k_output_values_nodes=list,
+    k_output_values_nodes_deque=object,  # collections.deque
+    k_output_values_proc=list,
+    k_output_values_procs=list,
+    k_output_values_procs_deque=object,  # collections.deque
+    method=str,
+    n_modes='Py_ssize_t',
+    n_surplus='Py_ssize_t',
+    nprocs_node_i='int',
+    param=str,
+    params_specialized=dict,
+    returns=object,  # classy.Class or (classy.Class, Py_ssize_t[::1])
+)
 def call_class(extra_params=None, sleep_time=0.1, mode='single node', class_call_reason=''):
     """If mode == 'MPI' and 'k_output_values' is present in the
     CLASS parameters, these k values will be divided fairly among
@@ -2551,6 +2562,15 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node', class_call
     # Merge global and extra CLASS parameters
     params_specialized = class_params.copy()
     params_specialized.update(extra_params)
+    # Print warnings when CLASS parameters are given which does not
+    # affect the linear computation which is to take place.
+    for param in ('A_s', 'n_s', 'alpha_s', 'k_pivot'):
+        if param in params_specialized:
+            masterwarn(
+                f'The CLASS parameter "{param}" was specified. This will not change the CLASS '
+                f'computation. To specify "{param}" for a CO𝘕CEPT simulation, specify it in the '
+                f'"primordial_spectrum" dict.'
+            )
     # If non-cdm perturbations should be computed, the CLASS run
     # may take quite some time to finish. Class has been patched to
     # enable printout of status updates along the way. Flag whether
@@ -2782,14 +2802,20 @@ def pairmin(a, b):
 
 # Modulo function for numbers
 if not cython.compiled:
-    mod = np.mod
+    def mod(x, length):
+        result = np.mod(x, length)
+        if result == length:
+            return 0
+        return result
 else:
-    @cython.header(# Arguments
-                   x=signed_number,
-                   length=signed_number,
-                   remainder_i='Py_ssize_t',
-                   returns=signed_number,
-                   )
+    @cython.header(
+        # Arguments
+        x=signed_number,
+        length=signed_number,
+        # Locals
+        remainder_i='Py_ssize_t',
+        returns=signed_number,
+    )
     def mod(x, length):
         """This function computes the proper modulos, which (given a
         positive length) is always positive. Note that this is different
@@ -2801,8 +2827,12 @@ else:
             if remainder_f == 0:
                 return 0
             elif x < 0:
-                return remainder_f + length
-            return remainder_f
+                result = remainder_f + length
+            else:
+                result = remainder_f
+            if result == length:
+                return 0
+            return result
         else:
             remainder_i = x%length
             if remainder_i == 0:
