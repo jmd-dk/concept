@@ -51,14 +51,14 @@ class CosmoResults:
     # for a given a.
     transfer_function_variable_names = ('δ', 'θ', 'δP', 'σ', 'hʹ', 'H_Tʹ')
     # Names of scalar attributes
-    attribute_names = ('A_s', 'n_s', 'alpha_s', 'k_pivot', 'h')
+    attribute_names = ('h', )
     # Initialize instance
     def __init__(self, params, k_magnitudes, cosmo=None, filename='', class_call_reason=''):
         """If no cosmo object is passed, all results should be loaded
         from disk, if possible. The first time this fails, CLASS will be
         called and a cosmo object will be produced.
         All methods of the cosmo object used in the code which have
-        no arguments are here written as attritubes using the magick of
+        no arguments are here written as attritubes using the magic of
         the property decorator. Methods with arguments should also be
         defined in such a way that their results are cached.
         If a filename is passed, CLASS data will be read from this file.
@@ -177,53 +177,6 @@ class CosmoResults:
                 )
         return self._cosmo
     # Methods returning scalar attributes used in the CLASS run
-    @property
-    def A_s(self):
-        if not hasattr(self, '_A_s'):
-            if not self.load('A_s'):
-                # Get A_s from CLASS
-                self._A_s = self.cosmo.get_current_derived_parameters(['A_s'])['A_s']
-                # Save to disk
-                self.save('A_s')
-            # Communicate
-            self._A_s = bcast(self._A_s if master else None)
-        return self._A_s
-    @property
-    def n_s(self):
-        if not hasattr(self, '_n_s'):
-            if not self.load('n_s'):
-                # Get n_s from CLASS
-                self._n_s = self.cosmo.get_current_derived_parameters(['n_s'])['n_s']
-                # Save to disk
-                self.save('n_s')
-            # Communicate
-            self._n_s = bcast(self._n_s if master else None)
-        return self._n_s
-    @property
-    def alpha_s(self):
-        if not hasattr(self, '_alpha_s'):
-            if not self.load('alpha_s'):
-                # Get alpha_s from CLASS
-                self._alpha_s = self.cosmo.get_current_derived_parameters(['alpha_s'])['alpha_s']
-                # Save to disk
-                self.save('alpha_s')
-            # Communicate
-            self._alpha_s = bcast(self._alpha_s if master else None)
-        return self._alpha_s
-    @property
-    def k_pivot(self):
-        if not hasattr(self, '_k_pivot'):
-            if not self.load('k_pivot'):
-                # Retrieve k_pivot from the CLASS params.
-                # If not defined there, default to the standard CLASS
-                # value of 0.05 Mpc⁻¹. We store this in CLASS units.
-                self._k_pivot = float(self.params.get('k_pivot', 0.05))
-                # Save to disk
-                self.save('k_pivot')
-            # Communicate
-            self._k_pivot = bcast(self._k_pivot if master else None)
-        # Remember to add the unit of Mpc⁻¹
-        return self._k_pivot*units.Mpc**(-1)
     @property
     def h(self):
         if not hasattr(self, '_h'):
@@ -943,19 +896,20 @@ class CosmoResults:
                     abort(f'The CLASS dump {self.filename} contain unexpected parameter values')
             # Save the passed element
             if element in self.attribute_names:
-                # Scalar attribute as attribute on a group
+                # Scalar attribute as attribute on the background group
                 attribute = getattr(self, element)
-                if element == 'k_pivot':
-                    # Convert to CLASS units
-                    attribute /= units.Mpc**(-1)
-                attributes_h5 = hdf5_file.require_group('attributes')
-                attributes_h5.attrs[element.replace('/', '__per__')] = attribute
+                background_h5 = hdf5_file.require_group('background')
+                background_h5.attrs[element.replace('/', '__per__')] = attribute
             elif element == 'k_magnitudes':
                 # Save k_magnitudes in CLASS units (Mpc⁻¹)
-                if self.k_magnitudes is not None and 'k_magnitudes' not in hdf5_file:
-                    dset = hdf5_file.create_dataset('k_magnitudes',
-                                                    (self.k_magnitudes.shape[0], ),
-                                                    dtype=C2np['double'])
+                # as a dataset on the perturbations group.
+                if self.k_magnitudes is not None and 'perturbations/k_magnitudes' not in hdf5_file:
+                    perturbations_h5 = hdf5_file.require_group('perturbations')
+                    dset = perturbations_h5.create_dataset(
+                        'k_magnitudes',
+                        (self.k_magnitudes.shape[0], ),
+                        dtype=C2np['double'],
+                    )
                     dset[:] = asarray(self.k_magnitudes)/units.Mpc**(-1)
             elif element == 'background':
                 # Background arrays as data sets
@@ -968,8 +922,7 @@ class CosmoResults:
                                                             dtype=C2np['double'])
                         dset[:] = val
             elif element == 'perturbations':
-                # Save perturbations as
-                # /perturbations/index/key.
+                # Save perturbations as /perturbations/index/key
                 perturbations_h5 = hdf5_file.require_group('perturbations')
                 # Check whether all keys are already present in the file
                 perturbations_to_store = set(self.perturbations[0].keys())
@@ -1021,18 +974,22 @@ class CosmoResults:
                               ' unexpected parameter values')
             # Load the passed element
             if element in self.attribute_names:
-                # Scalar attribute as attribute on a group
-                attributes_h5 = hdf5_file.get('attributes')
-                if attributes_h5 is None:
+                # Scalar attribute as attribute on the background group
+                background_h5 = hdf5_file.get('background')
+                if background_h5 is None:
                     return bcast(False)
-                attribute = attributes_h5.attrs.get(element.replace('/', '__per__'))
+                attribute = background_h5.attrs.get(element.replace('/', '__per__'))
                 if attribute is None:
                     return bcast(False)
                 setattr(self, '_' + element, attribute)
             elif element == 'k_magnitudes':
-                # Load k_magnitudes.
+                # Load k_magnitudes as a dataset
+                # on the perturbations group.
                 # Remember to add CLASS units (Mpc⁻¹).
-                k_magnitudes_h5 = hdf5_file.get('k_magnitudes')
+                perturbations_h5 = hdf5_file.get('perturbations')
+                if perturbations_h5 is None:
+                    return bcast(False)
+                k_magnitudes_h5 = perturbations_h5.get('k_magnitudes')
                 if k_magnitudes_h5 is None:
                     return bcast(False)
                 self.k_magnitudes = k_magnitudes_h5[...]*units.Mpc**(-1)
@@ -1060,30 +1017,37 @@ class CosmoResults:
                 perturbations_h5 = hdf5_file.get('perturbations')
                 if perturbations_h5 is None:
                     return bcast(False)
+                n_modes = len(perturbations_h5)
+                if 'k_magnitudes' in perturbations_h5:
+                    n_modes -= 1
+                if n_modes == 0:
+                    return bcast(False)
                 masterprint(f'Loading CLASS perturbations from "{self.filename}" ...')
                 self._perturbations = [None]*len(self.k_magnitudes)
                 # Check that the file contain perturbations at all
                 # k modes. This is not the case if the process that
                 # originally wrote the file ended prematurely. In this
                 # case, no other error is necessarily detected.
-                if len(perturbations_h5) < len(self._perturbations):
+                if n_modes < len(self._perturbations):
                     abort(
-                        f'The file "{self.filename}" only contains perturbations for '
-                        f'{len(perturbations_h5)} k modes, whereas it should contain '
-                        f'perturbations for {len(self._perturbations)} k modes. '
-                        f'This can happen if the creation of this file was ended prematurely. '
-                        f'You should remove this file and rerun this simulation.'
+                        f'The file "{self.filename}" only contains perturbations for {n_modes} '
+                        f'k modes, whereas it should contain perturbations for '
+                        f'{len(self._perturbations)} k modes. This can happen if the creation of '
+                        f'this file was ended prematurely. You should remove this file and rerun '
+                        f'this simulation.'
                     )
-                if len(perturbations_h5) > len(self._perturbations):
+                if n_modes > len(self._perturbations):
                     abort(
-                        f'The file "{self.filename}" contains perturbations for '
-                        f'{len(perturbations_h5)} k modes, whereas it should contain '
-                        f'perturbations for {len(self._perturbations)} k modes. '
-                        f'I cannot explain this mismatch, and I cannot use these perturbations.'
+                        f'The file "{self.filename}" contains perturbations for {n_modes} '
+                        f'k modes, whereas it should contain perturbations for '
+                        f'{len(self._perturbations)} k modes. I cannot explain this mismatch, and '
+                        f'I cannot use these perturbations.'
                     )
                 # Load the perturbations
-                for index, d in perturbations_h5.items():
-                    self._perturbations[int(index)] = {
+                for key, d in perturbations_h5.items():
+                    if key == 'k_magnitudes':
+                        continue
+                    self._perturbations[int(key)] = {
                         key.replace('__per__', '/'): dset[...]
                         for key, dset in d.items()
                         if any([key.replace('__per__', '/') == pattern
@@ -1261,7 +1225,7 @@ class TransferFunction:
         # Maximum (absolute) allowed exponent in the trend.
         # If an exponent greater than this is found,
         # the program will terminate.
-        exponent_max = 10
+        exponent_max = 15
         missing_perturbations_warning = ''.join([
             'The {} perturbations ',
             (f'(needed for the {self.component.name} component)'
@@ -1452,7 +1416,7 @@ class TransferFunction:
                             )
                     if not any(perturbations_available.values()):
                         abort(
-                            f'No {class_perturbation_name} perturbations '
+                            f'No {class_perturbation_name.format(class_species)} perturbations '
                             + ('' if self.component is None
                                 else f'for the {self.component.name} component ')
                             + f'available'
@@ -1544,9 +1508,8 @@ class TransferFunction:
                 sign_str = ''
                 if self.exponents[k_local] < 0:
                     sign_str = '-'
-                masterwarn(self.var_name)
-                abort(
-                    f'Error processing {self.var_name} perturbations '
+                warn(
+                    f'While processing {self.var_name} perturbations '
                     + ('' if self.component is None else f'for {self.component.name} ')
                     + f'at k = {self.k_magnitudes[k]} {unit_length}⁻¹: '
                     f'Detrending resulted in exponent = '
@@ -2342,7 +2305,6 @@ def get_default_k_parameters(gridsize):
     k_magnitude='double',
     k_max='double',
     k_min='double',
-    k_pivot='double',
     k2='Py_ssize_t',
     k2_max='Py_ssize_t',
     mass='double',
@@ -2354,6 +2316,7 @@ def get_default_k_parameters(gridsize):
     options_linear=dict,
     option_val=object,  # str or bool
     pariclevar_name=str,
+    pivot='double',
     posⁱ='double*',
     pos_gridpoint='double',
     processed_specific_multi_index=object,  # tuple or str
@@ -2423,8 +2386,8 @@ def realize(component, variable, transfer_spline, cosmoresults,
     linear realization looks like
         Jⁱ(x⃗) = a**(1 - 3w_eff)ϱ_bar(1 + w)ℱₓ⁻¹[T_θ(k)ζ(k)K(k⃗)ℛ(k⃗)],
     where
-        ζ(k) = π*sqrt(2*A_s)*k**(-3/2)*(k/k_pivot)**((n_s - 1)/2)
-                *exp(α_s/4*log(k/k_pivot)**2)
+        ζ(k) = π*sqrt(2*A_s)*k**(-3/2)*(k/pivot)**((n_s - 1)/2)
+                *exp(α_s/4*log(k/pivot)**2)
     is the primordial curvature perturbation
     (see the primordial_analytic_spectrum() function in the CLASS
     primordial.c file for a reference), T_θ(k) is the passed
@@ -2606,10 +2569,10 @@ def realize(component, variable, transfer_spline, cosmoresults,
     w_eff = component.w_eff(a=a)
     ϱ_bar = component.ϱ_bar
     if cosmoresults is not None:
-        A_s = cosmoresults.A_s
-        n_s = cosmoresults.n_s
-        α_s = cosmoresults.alpha_s
-        k_pivot = cosmoresults.k_pivot
+        A_s   = primordial_spectrum['A_s'  ]
+        n_s   = primordial_spectrum['n_s'  ]
+        α_s   = primordial_spectrum['α_s'  ]
+        pivot = primordial_spectrum['pivot']
     # Fill 1D array with values used for the realization.
     # These values are the k (but not k⃗) dependent values inside the
     # inverse Fourier transform, not including any additional tenstor
@@ -2637,19 +2600,19 @@ def realize(component, variable, transfer_spline, cosmoresults,
                 # with K(k⃗) capturing any tensor structure.
                 # The k⃗-independent part needed here is T(k)ζ(k),
                 # with T(k) the supplied transfer function and
-                # ζ(k) = π*sqrt(2*A_s)*k**(-3/2)*(k/k_pivot)**((n_s - 1)/2)
-                #          *exp(α_s/4*log(k/k_pivot)**2)
+                # ζ(k) = π*sqrt(2*A_s)*k**(-3/2)*(k/pivot)**((n_s - 1)/2)
+                #          *exp(α_s/4*log(k/pivot)**2)
                 # the primordial curvature perturbations.
                 # The remaining ℛ(k⃗) is the primordial noise.
                 sqrt_power_common[k2] = (
                     # T(k)
                     transfer
                     # ζ(k)
-                    *ℝ[π*sqrt(2*A_s)*k_pivot**(0.5 - 0.5*n_s)
+                    *ℝ[π*sqrt(2*A_s)*pivot**(0.5 - 0.5*n_s)
                         # Fourier normalization
                         *boxsize**(-1.5)
                     ]*k_magnitude**ℝ[0.5*n_s - 2]
-                    *exp(ℝ[0.25*α_s]*log(k_magnitude*ℝ[1/k_pivot])**2)
+                    *exp(ℝ[0.25*α_s]*log(k_magnitude*ℝ[1/pivot])**2)
                 )
             elif options['structure'] == 'nonlinear':
                 # Realize using ℱₓ⁻¹[T(k)/T_δϱ(k) K(k⃗) ℱₓ[δϱ(x⃗)]],

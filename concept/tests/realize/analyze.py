@@ -53,11 +53,18 @@ for kind, powerspecs in powerspecs_all.items():
 a = a_begin
 z = 1/a - 1
 class_params_specialized = class_params.copy()
-class_params_specialized.update({'output'         : 'mPk',
-                                 'k_output_values': '{}, {}'.format(min(k_values)/units.Mpc**(-1),
-                                                                    max(k_values)/units.Mpc**(-1)),
-                                 'z_pk'           : str(z),
-                                 })
+class_params_specialized.update({
+    'A_s'    : primordial_spectrum['A_s'  ],
+    'n_s'    : primordial_spectrum['n_s'  ],
+    'alpha_s': primordial_spectrum['α_s'  ],
+    'k_pivot': primordial_spectrum['pivot']/units.Mpc**(-1),
+    'output' : 'mPk',
+    'z_pk'   : str(z),
+    'k_output_values': '{}, {}'.format(
+        min(k_values)/units.Mpc**(-1),
+        max(k_values)/units.Mpc**(-1),
+    ),
+})
 cosmo = Class()
 cosmo.set(class_params_specialized)
 cosmo.compute()
