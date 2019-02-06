@@ -78,7 +78,7 @@
 #     - Matplotlib
 #     - MPI4Py
 #     - H5Py
-#     - pip & setuptools (if any of the above)
+#     - pip, setuptools & wheel (if any of the above)
 # - CLASS
 # - CO𝘕CEPT
 # - FFTW 2 (needed by GADGET)
@@ -267,23 +267,24 @@ elif [ "${mpi}" == "openmpi" ]; then
     set_version "mpi"         "3.1.2"  # 4.0.0 is out!
 fi
 set_version "ncurses"         "6.1"    "6.1"
-set_version "openblas"        "0.3.4"  "0.3.4"
+set_version "openblas"        "0.3.5"  "0.3.5"
 set_version "openssl"         "1.1.1a" "1.1.1a"
 set_version "perl"            "5.28.1"
 set_version "python"          "3.7.2"
 set_version "zlib"            "1.2.11" "1.2.11"
 # Python packages
 set_version "blessings"       "1.7"
-set_version "cython"          "0.29.2"
+set_version "cython"          "0.29.4"
 set_version "cythongsl"       "0.2.2"
 set_version "h5py"            "2.9.0"
 set_version "matplotlib"      "3.0.2"
 set_version "mpi4py"          "3.0.0"
-set_version "numpy"           "1.15.4"
-set_version "pip"             "18.1"
-set_version "pytest"          "4.0.2"
+set_version "numpy"           "1.16.1"
+set_version "pip"             "19.0.1"
+set_version "pytest"          "4.2.0"
 set_version "scipy"           "1.2.0"
-set_version "setuptools"      "40.6.3"
+set_version "setuptools"      "40.8.0"
+set_version "wheel"           "0.32.3"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
 # and specific versions of system dependencies.
@@ -3007,7 +3008,7 @@ soothe(){
         if [ ${log_size} -eq ${log_size_new} ]; then                               \
             ((time_slept += ${soothe_update_time}));                               \
             if [ ${log_size} -ne ${log_size_last} ]; then                          \
-                printf "\nThe next step may take an unreasonable amount of time.
+                printf "\n\nThe next step may take an unreasonable amount of time.
 Please be patient ...\n";                                                          \
                 sleep 5;                                                           \
                 log_size_new=$(du -b "${log}" | awk '{print $1}');                 \
@@ -4005,21 +4006,21 @@ pip_install_pypackage(){
     rm -rf "${tmp_pip_dir}_tmp"
 }
 
-# Upgrade pip and setuptools.
+# Upgrade/install pip, setuptools and wheel.
 # Do not use the pip_download or pip_install_pypackage functions
 # for this, as these packages (and their dependencies) may actually be
 # needed for that to work, resulting in a bootstrapping problem.
 # This problem really arises from the choice of installing Python
-# packages from source. Let 'pip install' upgrade pip and setuptools
-# by whatever means it wants, ensuring that the dependencies of these
-# bootstrapping packages are installed/upgraded as well.
+# packages from source. Let 'pip install' upgrade pip, setuptools and
+# wheel by whatever means it wants, ensuring that the dependencies of
+# these bootstrapping packages are installed/upgraded as well.
 if [ "${pip_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
     tmp_pip_dir="${top_dir}/tmp/pip"
     export TMPDIR="${tmp_pip_dir}_tmp"
-    for package in "pip" "setuptools"; do
-        current_step="upgrade of ${package}"
-        heading "Upgrading ${package}"
-        set_status "Upgrading ${package}"
+    for package in "pip" "setuptools" "wheel"; do
+        current_step="upgrade/install of ${package}"
+        heading "Upgrading/installing ${package}"
+        set_status "Upgrading/installing ${package}"
         eval "package_version=\${${package}_version}"
         # Dependent on the version of pip,
         # the --no-cache-dir option may be available or not.
@@ -4036,10 +4037,9 @@ if [ "${pip_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
                 break
             fi
         done
-        # Exit on failure
+        # Do not exit on failure, but write a warning
         if [ "${pip_success}" == "no" ]; then
             error "Could not upgrade ${package}"
-            exit 1
         fi
     done
     reset_environment
@@ -4072,9 +4072,11 @@ for i, package in enumerate(packages):
 print('\n'.join(packages))
 " | awk '{print $1}')"
     while read package; do
-        # No need to attempt updates of pip and setuptools,
+        # No need to attempt updates of pip, setuptools and wheel,
         # as these have just been updated.
-        if [ "${package}" == "pip" ] || [ "${package}" == "setuptools" ]; then
+        if     [ "${package}" == "pip"        ] \
+            || [ "${package}" == "setuptools" ] \
+            || [ "${package}" == "wheel"      ]; then
             continue
         fi
         # Attempt to update all other installed Python packages
@@ -4711,6 +4713,21 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "  error_message);"                                                      \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
+    # Add a missing term to the total pressure perturbation from fld
+    pattern=' *ppw *-> *delta_p * \\+= *pba *-> *cs2_fld *\\* *ppw *-> *delta_rho_fld *;'
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+             "${class_dir}/source/perturbations.c" | head -n 1)
+    ((linenr += 1))
+    new_lines=(                                                           \
+        "/* Add a missing term to the fld pressure perturbation */"       \
+        "double ca2_fld, w_prime_fld;"                                    \
+        "w_prime_fld = dw_over_da_fld*a_prime_over_a*a;"                  \
+        "ca2_fld = w_fld - w_prime_fld/(3.*(1. + w_fld)*a_prime_over_a);" \
+        "ppw->delta_p += (pba->cs2_fld - ca2_fld)*("                      \
+        "  3.*a_prime_over_a*ppw->rho_plus_p_theta_fld/k2);"              \
+    )
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} \
+        "insert" "above" "${new_lines[@]}"
     # Include ncdm Psi0[q] in perturbation output
     include_ncdm_Psi0="no"
     if [ "${include_ncdm_Psi0}" == "yes" ]; then
@@ -4760,7 +4777,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         patch_class "${class_dir}/source/perturbations.c" ${linenr} \
             "insert" "below" "${new_lines[@]}"
     fi
-    # Include dark energy fluid in perturbation output
+    # Include fld in perturbation output
     new_class_perturbation_linenr(){
         if [ "${1}" == "perturb_prepare_output" ]; then
             pattern='ppt *-> *number_of_scalar_titles *='
