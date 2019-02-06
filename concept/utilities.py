@@ -668,7 +668,7 @@ def info():
     max_a_values='double',
     max_a_values_str=str,
     other_rank='int',
-    perturbations=dict,
+    perturbations=object,  # PerturbationDict
     size='Py_ssize_t',
     transfer='double[:, ::1]',
     transfer_of_k='double[::1]',
