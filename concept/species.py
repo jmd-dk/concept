@@ -1977,8 +1977,7 @@ class Component:
         # Compute w_eff
         if a == -1:
             a = scale_factor(t)
-        value = self.w_eff_spline.eval(a)
-        return value
+        return self.w_eff_spline.eval(a)
 
     # Method for computing the proper time derivative
     # of the equation of state parameter w
@@ -2329,32 +2328,45 @@ class Component:
     # equation of state parameter w_eff.
     # Call this before calling the w_eff method,
     # but after calling the initialize_w method.
-    @cython.header(# Locals
-                   a='double',
-                   a_min='double',
-                   a_tabulated='double[::1]',
-                   integrand_spline='Spline',
-                   integrand_tabulated='double[::1]',
-                   n_points='Py_ssize_t',
-                   t='double',
-                   t_tabulated='double[::1]',
-                   w='double',
-                   w_tabulated='double[::1]',
-                   w_eff_tabulated_list=list,
-                   )
+    @cython.header(
+        # Locals
+        a='double',
+        a_min='double',
+        a_tabulated='double[::1]',
+        integrand_spline='Spline',
+        integrand_tabulated='double[::1]',
+        n_points='Py_ssize_t',
+        t='double',
+        t_tabulated='double[::1]',
+        w='double',
+        w_tabulated='double[::1]',
+        w_eff_tabulated_list=list,
+    )
     def initialize_w_eff(self):
         """This method initializes the effective equation of state
         parameter w_eff by defining the w_eff_spline attribute,
         which is used by the w_eff method to get w_eff(a).
         Only future times compared to universals.a will be included.
         The definition of w_eff is
+        ϱ = a**(3(1 + w_eff))ρ
+        such that mean(ϱ) is constant in time. This leads to
         w_eff(a) = 1/log(a)∫₁ᵃ(w/a)da.
+        In the case of a combination (CLASS) species, the above equation
+        fails as this no longer leads to constant mean(ϱ) = ϱ_bar.
+        Instead, the combined w_eff should be build from the individual
+        w_eff as
+        w_eff = log(
+            (  a**(3w_eff₁)ρ₁_bar
+             + a**(3w_eff₂)ρ₂_bar
+            )/(ρ₁_bar + ρ₂_bar)
+        )/(3*log(a))
+        which will then ensure
+        a constant a**(3(1 + w_eff))(ρ₁_bar + ρ₂_bar).
         """
         # For constant w, w_eff = w and so we do not need to do anything
         if self.w_type == 'constant':
             return
-        masterprint(f'Tabulating effective equation of state parameter for {self.name} ...')
-        # Construct tabulated arrays of matching scale factor and w.
+        # Construct a tabulated array of scale factor values.
         # If w is already tabulated at certain values, reuse these.
         if self.w_type == 'tabulated (a)':
             a_tabulated = self.w_tabulated[0, :]
@@ -2370,6 +2382,67 @@ class Component:
             n_points = 1000
             a_tabulated = logspace(log10(a_min), log10(1), n_points)
             w_tabulated = asarray([self.w(a=a) for a in a_tabulated])
+        # Handle combination species
+        if '+' in self.class_species:
+            # We are dealing with a combination species
+            # Construct the total w_eff as a weighted sum of
+            # individual w_eff, computed by instantiating temporary
+            # single-species components.
+            cosmoresults = compute_cosmo(
+                class_call_reason=f'in order to determine w_eff(a) of {self.name} ',
+            )
+            w_eff_total_tabulated = 0
+            ρ_bar_total_tabulated = 0
+            for class_species in self.class_species.split('+'):
+                component = Component(
+                    '',
+                    'fluid',
+                    2,
+                    boltzmann_order=0,
+                    class_species=class_species,
+                    w=None,
+                )
+                component.name = 'tmp'
+                w_eff_tabulated = asarray([component.w_eff(a=a) for a in a_tabulated])
+                ρ_bar_tabulated = cosmoresults.ρ_bar(a_tabulated, class_species, apply_unit=False)
+                w_eff_total_tabulated += a_tabulated**(3*w_eff_tabulated)*ρ_bar_tabulated
+                ρ_bar_total_tabulated += ρ_bar_tabulated
+            # At a = 1 a division by 0 error occurs due to 1/log(a).
+            # Here, we use the analytic result w_eff(a=1) = w(1=a),
+            # which we assumes true even for combination species.
+            a_tabulated_end = a_tabulated[a_tabulated.shape[0] - 1]
+            a_tabulated[a_tabulated.shape[0] - 1] = a_tabulated[a_tabulated.shape[0] - 2]
+            w_eff_total_tabulated = (np.log(w_eff_total_tabulated/ρ_bar_total_tabulated)
+                /(3*np.log(a_tabulated)))
+            a_tabulated[a_tabulated.shape[0] - 1] = a_tabulated_end
+            w_eff_total_tabulated[a_tabulated.shape[0] - 1] = self.w(a=1)
+            w_eff_tabulated = w_eff_total_tabulated
+            # Instantiate the w_eff spline object.
+            # For most physical species, w_eff(a) is approximately a
+            # power law in a and so a log-log spline should be used.
+            logx, logy = True, True
+            if np.any(asarray(w_eff_tabulated) <= 0):
+                logy = False
+            if 'fld' in self.class_species.split('+'):
+                # The CLASS dark energy fluid (fld) uses
+                # the {w_0, w_a} parameterization. It turns out that the
+                # best spline is achieved from log(a) but linear w_eff.
+                # We use this when fld is part of a combination species
+                # as well.
+                logx, logy = True, False
+            self.w_eff_spline = Spline(a_tabulated, w_eff_tabulated, f'w_eff(a) of {self.name}',
+                logx=logx, logy=logy)
+            return
+        masterprint(
+            f'Tabulating effective equation of state parameter '
+            f'for CLASS species "{self.class_species}" ...'
+        )
+        # Construct a tabulated array of scale factor values.
+        # If w is already tabulated at certain values, reuse these.
+        if self.w_type in {'tabulated (a)', 'tabulated (t)'}:
+            w_tabulated = self.w_tabulated[1, :]
+        else:
+            w_tabulated = asarray([self.w(a=a) for a in a_tabulated])
         # Tabulate the integrand w/a
         integrand_tabulated = asarray([w/a for a, w in zip(a_tabulated, w_tabulated)])
         # For each tabulated point, find w_eff by doing the integral.
@@ -2381,7 +2454,7 @@ class Component:
         # Here, we use the analytic result w_eff(a=1) = w(1=a).
         integrand_spline = Spline(a_tabulated, integrand_tabulated, f'w(a)/a of {self.name}')
         w_eff_tabulated_list = [integrand_spline.integrate(1, a)/log(a)
-                                for a in a_tabulated[:(a_tabulated.size - 1)]]
+                                for a in a_tabulated[:(a_tabulated.shape[0] - 1)]]
         w_eff_tabulated_list.append(self.w(a=1))
         w_eff_tabulated = asarray(w_eff_tabulated_list)
         # Instantiate the w_eff spline object.
@@ -2770,7 +2843,7 @@ approximations_implemented = {
 # Set of all component names used internally by the code,
 # and which the user should generally avoid.
 cython.declare(internally_defined_names=set)
-internally_defined_names = {'all', 'all combinations', 'buffer', 'default', 'total'}
+internally_defined_names = {'all', 'all combinations', 'buffer', 'default', 'tmp', 'total'}
 # Names of all implemented fluid variables in order.
 # Note that 𝒫 is not considered a seperate fluid variable,
 # but rather a fluid scalar that lives on ς.
