@@ -52,6 +52,33 @@ class CosmoResults:
     transfer_function_variable_names = ('δ', 'θ', 'δP', 'σ', 'hʹ', 'H_Tʹ')
     # Names of scalar attributes
     attribute_names = ('h', )
+    # Class used instead of regular dict to store the CLASS
+    # perturbations. The only difference is that the class below will
+    # instantiate perturbations missing from the CLASS output,
+    # such as the squared photon sound speed perturbation "cs2_g" which
+    # is always equal to 1/3.
+    class PerturbationDict(dict):
+        missing_CLASS_perturbations = {'cs2_g', 'cs2_ur'}
+        def __getitem__(self, key):
+            if key in self.missing_CLASS_perturbations:
+                # Attempt normal lookup.
+                # On failure, add the missing perturbations.
+                try:
+                    value = super().__getitem__(key)
+                except KeyError:
+                    if key in {'cs2_g', 'cs2_ur'}:
+                        value = 1/3*ones(self['a'].size, dtype=C2np['double'])
+                        self[key] = value
+                        return value
+                return value
+            # Normal lookup
+            return super().__getitem__(key)
+        def get(self, key, value=None):
+            try:
+                value = self.__getitem__(key)
+            except KeyError:
+                pass
+            return value
     # Initialize instance
     def __init__(self, params, k_magnitudes, cosmo=None, filename='', class_call_reason=''):
         """If no cosmo object is passed, all results should be loaded
@@ -592,6 +619,10 @@ class CosmoResults:
             # and the first read-in of the background has to be done
             # in parallel.
             self.load_everything('perturbations')
+            # Represent each perturbation in self._perturbations as a
+            # PerturbationDict object rather than a normal dict.
+            for k_local, perturbation in enumerate(self._perturbations):
+                self._perturbations[k_local] = self.PerturbationDict(perturbation)
             # After the CLASS perturbations needed for the special
             # "metric" species has been computed/loaded, we need to
             # manually construct the corresponding δ perturbations
@@ -1190,7 +1221,7 @@ class TransferFunction:
         outliers='Py_ssize_t[::1]',
         outliers_list=list,
         perturbation=object,  # np.ndarray or double
-        perturbation_k=dict,
+        perturbation_k=object,  # PerturbationDict
         perturbation_key=str,
         perturbation_keys=set,
         perturbation_values='double[::1]',
@@ -1464,7 +1495,6 @@ class TransferFunction:
                             ftol=1e-12,
                             xtol=1e-12,
                             gtol=1e-12,
-                            max_nfev=1000*a_values.shape[0],
                         )
                     )
                 except:
@@ -2158,9 +2188,7 @@ def compute_transfer(
         # Get the δ transfer function
         transfer = cosmoresults.δ(a, a_next, component=component, weight=weight)
         # Transform the δ transfer function from synchronous
-        # to N-body gauge, if requested. Note that the special "metric"
-        # CLASS species is constructed directly in N-body gauge
-        # and so does not need any transformation.
+        # to N-body gauge, if requested.
         if gauge == 'nbody':
             # To do the gauge transformation,
             # we need the total θ transfer function.
@@ -2170,7 +2198,7 @@ def compute_transfer(
             w = component.w(a=a)
             for k in range(k_gridsize):
                 transfer[k] += (ℝ[3*a*H/light_speed**2*(1 + w)]
-                                 *transfer_θ_tot[k]/k_magnitudes[k]**2)
+                    *transfer_θ_tot[k]/k_magnitudes[k]**2)
     elif var_index == 1:
         # Get the θ transfer function
         transfer = cosmoresults.θ(a, a_next, component=component, weight=weight)
