@@ -222,7 +222,7 @@ render2D_options = {  # Specifications of 2D renders for individual and sets of 
         'all': 'z',
         'all combinations': ...,
     },
-    'extend': {  # Length or interval to include along the projected axis
+    'extent': {  # Length or interval to include along the projected axis
         'all': 0.1*boxsize,
         'all combinations': ...,
     },
