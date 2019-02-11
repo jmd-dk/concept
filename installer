@@ -274,15 +274,15 @@ set_version "python"          "3.7.2"
 set_version "zlib"            "1.2.11" "1.2.11"
 # Python packages
 set_version "blessings"       "1.7"
-set_version "cython"          "0.29.4"
+set_version "cython"          "0.29.5"
 set_version "cythongsl"       "0.2.2"
 set_version "h5py"            "2.9.0"
 set_version "matplotlib"      "3.0.2"
 set_version "mpi4py"          "3.0.0"
 set_version "numpy"           "1.16.1"
-set_version "pip"             "19.0.1"
+set_version "pip"             "19.0.2"
 set_version "pytest"          "4.2.0"
-set_version "scipy"           "1.2.0"
+set_version "scipy"           "1.2.1"
 set_version "setuptools"      "40.8.0"
 set_version "wheel"           "0.32.3"
 # Note that the versions may be changed further down due to known
@@ -4565,6 +4565,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         action="$3"
         belonging="$4"
         new_lines="$5"
+        wrap_in_comments="$6"
         # Determine file type ("c" or "python")
         extension="${filename##*.}"
         filetype=""
@@ -4578,28 +4579,30 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
             filetype="python"
         fi
         # Add comments around inserted lines
-        if [ "${filetype}" == "c" ]; then
-            new_lines=(""                      \
-                "/************************/"   \
-                "/* For use with CONCEPT */"   \
-                "/************************/"   \
-                "${new_lines[@]}"              \
-                "/**************************/" \
-                "/* ^For use with CONCEPT^ */" \
-                "/**************************/" \
-                ""                             \
-            )
-        elif [ "${filetype}" == "python" ]; then
-            new_lines=(""                    \
-                "########################"   \
-                "# For use with CONCEPT #"   \
-                "########################"   \
-                "${new_lines[@]}"            \
-                "##########################" \
-                "# ^For use with CONCEPT^ #" \
-                "##########################" \
-                ""                           \
-            )
+        if [ "${wrap_in_comments}" != "no" ]; then
+            if [ "${filetype}" == "c" ]; then
+                new_lines=(""                      \
+                    "/************************/"   \
+                    "/* For use with CONCEPT */"   \
+                    "/************************/"   \
+                    "${new_lines[@]}"              \
+                    "/**************************/" \
+                    "/* ^For use with CONCEPT^ */" \
+                    "/**************************/" \
+                    ""                             \
+                )
+            elif [ "${filetype}" == "python" ]; then
+                new_lines=(""                    \
+                    "########################"   \
+                    "# For use with CONCEPT #"   \
+                    "########################"   \
+                    "${new_lines[@]}"            \
+                    "##########################" \
+                    "# ^For use with CONCEPT^ #" \
+                    "##########################" \
+                    ""                           \
+                )
+            fi
         fi
         # Find indentation at linenr
         indentation=""
@@ -4713,21 +4716,6 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "  error_message);"                                                      \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
-    # Add a missing term to the total pressure perturbation from fld
-    pattern=' *ppw *-> *delta_p * \\+= *pba *-> *cs2_fld *\\* *ppw *-> *delta_rho_fld *;'
-    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-             "${class_dir}/source/perturbations.c" | head -n 1)
-    ((linenr += 1))
-    new_lines=(                                                           \
-        "/* Add a missing term to the fld pressure perturbation */"       \
-        "double ca2_fld, w_prime_fld;"                                    \
-        "w_prime_fld = dw_over_da_fld*a_prime_over_a*a;"                  \
-        "ca2_fld = w_fld - w_prime_fld/(3.*(1. + w_fld)*a_prime_over_a);" \
-        "ppw->delta_p += (pba->cs2_fld - ca2_fld)*("                      \
-        "  3.*a_prime_over_a*ppw->rho_plus_p_theta_fld/k2);"              \
-    )
-    patch_class "${class_dir}/source/perturbations.c" ${linenr} \
-        "insert" "above" "${new_lines[@]}"
     # Include ncdm Psi0[q] in perturbation output
     include_ncdm_Psi0="no"
     if [ "${include_ncdm_Psi0}" == "yes" ]; then
@@ -4777,6 +4765,69 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         patch_class "${class_dir}/source/perturbations.c" ${linenr} \
             "insert" "below" "${new_lines[@]}"
     fi
+    # Add a missing term to the total pressure perturbation from fld
+    pattern=' *ppw *-> *delta_p * \\+= *pba *-> *cs2_fld *\\* *ppw *-> *delta_rho_fld *;'
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+             "${class_dir}/source/perturbations.c" | head -n 1)
+    ((linenr += 1))
+    new_lines=(                                                           \
+        "/* Add a missing term to the fld pressure perturbation */"       \
+        "double ca2_fld, w_prime_fld;"                                    \
+        "w_prime_fld = dw_over_da_fld*a_prime_over_a*a;"                  \
+        "ca2_fld = w_fld - w_prime_fld/(3.*(1. + w_fld)*a_prime_over_a);" \
+        "ppw->delta_p += (pba->cs2_fld - ca2_fld)*("                      \
+        "  3.*a_prime_over_a*ppw->rho_plus_p_theta_fld/k2);"              \
+    )
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} \
+        "insert" "above" "${new_lines[@]}"
+    # For the PPF scheme, include a maximum value for (c_Γ*k*a/H)² above
+    # which Γ = Γ' = 0, for the sake of numerical stability. In CAMB
+    # such a maximum value is present as well and is set to 30. I have
+    # found that a value of 10³ or even 10⁴ ensures stability as well,
+    # while perturbing the fld δ_fld and θ_fld solutions
+    # significantly less.
+    pattern='c_gamma_k_H_square *='
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+             "${class_dir}/source/perturbations.c" | head -n 1)
+    ((linenr += 1))
+    for n in $(grep -n 'ppw *-> *Gamma_prime_fld *=' "${class_dir}/source/perturbations.c" \
+             | awk '{print $1}'); do
+        n="${n//:}"
+        if [ ${n} -ge ${linenr} ]; then
+            new_lines=("")
+            patch_class "${class_dir}/source/perturbations.c" ${n} \
+                "replace" "above" "${new_lines[@]}" "no"
+            break
+        fi
+    done
+    replacements=0
+    for n in $(grep -n 'y *\[ *ppw *-> *pv *-> *index_pt_Gamma_fld *\]' \
+               "${class_dir}/source/perturbations.c" \
+             | awk '{print $1}'); do
+        n="${n//:}"
+        if [ ${n} -ge ${linenr} ]; then
+            sed -i "${n}s/y *\[ *ppw *-> *pv *-> *index_pt_Gamma_fld *\]/Gamma_fld/" \
+                "${class_dir}/source/perturbations.c"
+            ((replacements += 1))
+            if [ ${replacements} -eq 2 ]; then
+                break
+            fi
+        fi
+    done
+    new_lines=(                                                                       \
+        "double c_gamma_k_H_square_max, Gamma_fld;"                                   \
+        "c_gamma_k_H_square_max = 1e+3;"                                              \
+        "if (c_gamma_k_H_square > c_gamma_k_H_square_max){"                           \
+        "  Gamma_fld = 0.0;"                                                          \
+        "  ppw->Gamma_prime_fld = 0.0;"                                               \
+        "} else {"                                                                    \
+        "  Gamma_fld = y[ppw->pv->index_pt_Gamma_fld];"                               \
+        "  ppw->Gamma_prime_fld = a_prime_over_a*(ppw->S_fld/(1.+c_gamma_k_H_square)" \
+        "    - (1.+c_gamma_k_H_square)*Gamma_fld);"                                   \
+        }
+    )
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} \
+        "insert" "above" "${new_lines[@]}"
     # Include fld in perturbation output
     new_class_perturbation_linenr(){
         if [ "${1}" == "perturb_prepare_output" ]; then
@@ -4803,14 +4854,14 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     }
     linenr=$(new_class_perturbation_linenr "perturb_prepare_output")
     new_lines=(                                                                     \
-        "/* Include dark energy fluid in perturbation output */"                    \
+        "/* Include fld in perturbation output */"                                  \
         "class_store_columntitle(ppt->scalar_titles, \"delta_fld\", pba->has_fld);" \
         "class_store_columntitle(ppt->scalar_titles, \"theta_fld\", pba->has_fld);" \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
     linenr=$(new_class_perturbation_linenr "perturb_print_variables")
     new_lines=(                                                                             \
-        "/* Include dark energy fluid in perturbation output */"                            \
+        "/* Include fld in perturbation output */"                                          \
         "double w_fld, dw_over_da_fld, integral_fld, theta_fld;"                            \
         "if (pba->has_fld) {"                                                               \
         "  class_call(background_w_fld(pba, a, &w_fld, &dw_over_da_fld, &integral_fld),"    \
