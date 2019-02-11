@@ -67,7 +67,7 @@ parser.add_argument(
     'version',
     help=(
         'version to update to. You may specify a release version '
-        '(e.g. 0.1.0), the master version or a GitHub commit hash '
+        '(e.g. 0.2.0), the master version or a GitHub commit hash '
         '(e.g. cf3c210e12527691433f960e7d27249a545fb320).'
     ),
 )
@@ -76,6 +76,13 @@ parser.add_argument(
     default=False,
     action='store_true',
     help='install requested version even when it equals the current version',
+)
+parser.add_argument(
+    '--class',
+    default=False,
+    action='store_true',
+    help='update (and patch) CLASS rather than CO𝘕CEPT. '
+    'The version given should still be the CO𝘕CEPT version.',
 )
 # Enables Python to write directly to screen (stderr)
 # in case of help request.
@@ -97,6 +104,7 @@ sys.stdout = stdout_copy
 print('argparse_finished=yes')
 print('version=\"{}\"'.format(args.version))
 print('reinstall=\"{}\"'.format(args.reinstall))
+print('class=\"{}\"'.format(getattr(args, 'class')))
 " "$@" || echo "argparse_exit_code=$?")
 # Evaluate the handled arguments into this scope
 eval "${args}"
@@ -125,32 +133,28 @@ current_version="$("${concept}" -m "import commons; print(commons.__version__)" 
 
 # If the current CO𝘕CEPT version is already the requested version,
 # do nothing unless the --reinstall option was passed.
-if [[ "${current_version}" == *"."* ]]; then
-    if [[ "${current_version}" != "v"* ]]; then
-        current_version="v${current_version}"
-    fi
+if [[ "${current_version}" == *"."* ]] && [[ "${current_version}" != "v"* ]]; then
+    current_version="v${current_version}"
+fi
+if [[ "${version}" == *"."* ]] && [[ "${version}" != "v"* ]]; then
+    version="v${version}"
 fi
 if [ "${version}" == "${current_version}" ] && [ "${version}" != "master" ]; then
-    echo "CO𝘕CEPT version \"${version}\" already installed."
+    if [ "${class}" == "False" ]; then
+        echo "CO𝘕CEPT version \"${version}\" already installed."
+    else
+        echo "The CLASS version installed is already the one that comes \
+with CO𝘕CEPT version \"${version}\"."
+    fi
     if [ "${reinstall}" == "True" ]; then
         echo "A reinstallation will take place."
     else
         echo "If you wish to reinstall this version, \
 run the update utility with the --reinstall option."
+        trap : 0
+        exit 0
     fi
 fi
-
-# Setup backup directory. For safety reasons, we do not allow
-# an update to be performed if this backup directory
-# is not empty.
-backup_dir="${top_dir}/.backup"
-if [ -d "${backup_dir}" ] && [ -n "$(ls -A "${backup_dir}")" ]; then
-    echo "A previously saved backup of CO𝘕CEPT is stored in \"${backup_dir}\". \
-For safety reasons, I refuse to perform an update as long as this backup exist."
-    trap : 0
-    exit 0
-fi
-mkdir -p "${backup_dir}"
 
 # Borrow some functions from the (current) installer script.
 # Sourcing is no good here, as we are not interested in
@@ -206,6 +210,45 @@ if [ "${validate_url_status}" != "success" ]; then
 Check out https://github.com/jmd-dk/concept/ for available versions." "red"
     exit 1
 fi
+
+# If it is CLASS that is to be updated, do so and exit
+if [ "${class}" == "True" ]; then
+    rm -rf "${class_dir}"
+    unset class_dir class_version
+    concept_install=no class_install=yes python_dir="${python_dir}"                       \
+        say_welcome="no" say_copyright="no" say_goodbye="no" bash                         \
+        <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/${version}/installer) \
+        "${top_dir}" --fast
+    # Write out success message
+    if [ "${version}" == "${current_version}" ]; then
+        printf "
+CLASS with CO𝘕CEPT version \"${version}\" reinstalled
+"
+    else
+        printf "
+CLASS updated to CO𝘕CEPT version \"${version}\"
+"
+    fi
+    colorprint "\nNote!" "yellow"
+    printf "You should remove cached CLASS dumps. You can do so by executing
+(cd \"${concept_dir}\" && source concept && make clean_class_reusables)\n\n"
+    colorprint "$(basename "${this_file}") utility finished successfully" "green"
+    # Exit gracefully
+    trap : 0
+    exit 0
+fi
+
+# Setup backup directory. For safety reasons, we do not allow
+# an update to be performed if this backup directory
+# is not empty.
+backup_dir="${top_dir}/.backup"
+if [ -d "${backup_dir}" ] && [ -n "$(ls -A "${backup_dir}")" ]; then
+    echo "A previously saved backup of CO𝘕CEPT is stored in \"${backup_dir}\". \
+For safety reasons, I refuse to perform an update as long as this backup exist."
+    trap : 0
+    exit 0
+fi
+mkdir -p "${backup_dir}"
 
 # Download and extract the specified version of CO𝘕CEPT
 rm -rf "${top_dir}/tmp"
@@ -263,7 +306,7 @@ CO𝘕CEPT version \"${version}\" reinstalled
 "
 else
     printf "
-CO𝘕CEPT updated to version ${version}
+CO𝘕CEPT updated to version \"${version}\"
 "
 fi
 printf "

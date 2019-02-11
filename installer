@@ -5414,7 +5414,7 @@ copyright_notice(){
         printf "${2}\n"
     fi
 }
-if [ "${install_anything}" == "yes" ]; then
+if [ "${install_anything}" == "yes" ] && [ "${say_copyright}" != "no" ]; then
     current_step="copyright notice"
     heading "Copyright notice"
     if [ "${concept_install}" == "yes" ]; then
