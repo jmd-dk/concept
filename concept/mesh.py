@@ -354,7 +354,7 @@ def CIC_vectorgrid2coordinates(grid, x, y, z):
                 )
 def CIC_grid2grid(gridA, gridB, fac=1, fac_grid=None, fac2=1, fac_grid2=None):
     """This function CIC-interpolates values from one grid (gridB) onto
-    another grid (gridA). The physical extend of the passed grids are
+    another grid (gridA). The physical extent of the passed grids are
     assumed to be the same. It is assumed that both grids are closed,
     meaning that the upper grid points (for all three directions)
     recide on the physical boundary of the region in which the grid
@@ -536,7 +536,7 @@ def CIC_grid2grid(gridA, gridB, fac=1, fac_grid=None, fac2=1, fac_grid2=None):
 def CIC_components2domain_grid(component_or_components, domain_grid, quantities,
                                only_fluid_components=False, only_particle_components=False):
     """This function CIC-interpolates particle/fluid elements
-    to domain_grid storing scalar values. The physical extend of the
+    to domain_grid storing scalar values. The physical extent of the
     passed domain_grid should match the domain exactly. The interpolated
     values will be added to the grid. Therefore, if the grid should
     contain the interpolated vales only, the grid must be nullified
