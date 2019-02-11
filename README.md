@@ -33,7 +33,7 @@ To speed up the installation you may supply the optional `--fast`
 option which skips all tests (not recommended).
 You can download and invoke the installer in one go by
 
-    concept_version=v0.2.0
+    concept_version=v0.2.1
     bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/${concept_version}/installer) [/path/to/concept] [--fast]
 
 where brackets indicate optional arguments. Note that the initial
@@ -53,7 +53,7 @@ CO*N*CEPT on a cluster, but instead make use of an already installed
 MPI 3 library (any implementation should do). This is achieved by
 setting the `mpi_dir` variable, e.g.
 
-    concept_version=v0.2.0
+    concept_version=v0.2.1
     mpi_dir=/path/to/mpi bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/${concept_version}/installer) [/path/to/concept] [--fast]
 
 This trick may also be used should you wish to use

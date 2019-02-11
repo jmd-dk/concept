@@ -22,11 +22,11 @@
 
 
 
-# This utility will update the CO𝘕CEPT source files.
+# This utility will update the CO𝘕CEPT or CLASS source files.
 # You can run this file directly as
-# utilities/update version [--reinstall]
+# utilities/update version [--reinstall] [--class]
 # or invoke it via the concept script as
-# ./concept -u update version [--reinstall]
+# ./concept -u update version [--reinstall] [--class]
 
 
 
@@ -139,13 +139,10 @@ fi
 if [[ "${version}" == *"."* ]] && [[ "${version}" != "v"* ]]; then
     version="v${version}"
 fi
-if [ "${version}" == "${current_version}" ] && [ "${version}" != "master" ]; then
-    if [ "${class}" == "False" ]; then
-        echo "CO𝘕CEPT version \"${version}\" already installed."
-    else
-        echo "The CLASS version installed is already the one that comes \
-with CO𝘕CEPT version \"${version}\"."
-    fi
+if     [ "${version}" == "${current_version}" ] \
+    && [ "${version}" != "master"             ] \
+    && [ "${class}"   == "False"              ]; then
+    echo "CO𝘕CEPT version \"${version}\" already installed."
     if [ "${reinstall}" == "True" ]; then
         echo "A reinstallation will take place."
     else
@@ -197,13 +194,16 @@ check_system_dependency "gzip" "${gzip_package}"
 check_system_dependency "tar"  "${tar_package}"
 check_system_dependency "wget" "${wget_package}"
 
+# URLs to the CO𝘕CEPT source code and the installation script
+concept_url="https://github.com/jmd-dk/concept/archive/${version}.tar.gz"
+installer_url="https://raw.githubusercontent.com/jmd-dk/concept/${version}/installer"
+
 # Check that the specified version of CO𝘕CEPT exists
 if [[ "${version}" == *"."* ]]; then
     if [[ "${version}" != "v"* ]]; then
         version="v${version}"
     fi
 fi
-concept_url="https://github.com/jmd-dk/concept/archive/${version}.tar.gz"
 validate_url "CONCEPT" "false"
 if [ "${validate_url_status}" != "success" ]; then
     colorprint "Could not find CO𝘕CEPT version ${version} online. \
@@ -215,23 +215,18 @@ fi
 if [ "${class}" == "True" ]; then
     rm -rf "${class_dir}"
     unset class_dir class_version
-    concept_install=no class_install=yes python_dir="${python_dir}"                       \
-        say_welcome="no" say_copyright="no" say_goodbye="no" bash                         \
-        <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/${version}/installer) \
-        "${top_dir}" --fast
+    concept_install="no" class_install="yes" python_dir="${python_dir}" \
+        say_welcome="no" say_copyright="no" say_goodbye="no"            \
+        bash <(wget -O- ${installer_url}) "${top_dir}" --fast
     # Write out success message
-    if [ "${version}" == "${current_version}" ]; then
-        printf "
-CLASS with CO𝘕CEPT version \"${version}\" reinstalled
+    printf "
+CLASS with CO𝘕CEPT version \"${version}\" installed
 "
-    else
-        printf "
-CLASS updated to CO𝘕CEPT version \"${version}\"
-"
-    fi
-    colorprint "\nNote!" "yellow"
-    printf "You should remove cached CLASS dumps. You can do so by executing
+    if [ -d "${reusables_dir}/class" ] && [ -n "$(ls -A "${reusables_dir}/class")" ]; then
+        colorprint "\nNote!" "yellow"
+        printf "You should remove cached CLASS dumps. You can do so by executing
 (cd \"${concept_dir}\" && source concept && make clean_class_reusables)\n\n"
+    fi
     colorprint "$(basename "${this_file}") utility finished successfully" "green"
     # Exit gracefully
     trap : 0
