@@ -244,7 +244,7 @@ fi
 backup_dir="${top_dir}/.backup"
 if [ -d "${backup_dir}" ] && [ -n "$(ls -A "${backup_dir}")" ]; then
     echo "A previously saved backup of CO𝘕CEPT is stored in \"${backup_dir}\". \
-For safety reasons, I refuse to perform an update as long as this backup exist."
+For safety reasons I refuse to perform an update as long as this backup exists."
     trap : 0
     exit 0
 fi
