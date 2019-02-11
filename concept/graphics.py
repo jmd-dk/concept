@@ -396,7 +396,7 @@ def plot_processed_perturbations(a_values, k_magnitudes, transfer, var_name, cla
     exponent_min='double',
     exponent_upper='double',
     ext=str,
-    extend=tuple,
+    extent=tuple,
     filename_combination=str,
     i='Py_ssize_t',
     i_center='Py_ssize_t',
@@ -478,7 +478,7 @@ def render2D(components, filename):
         # Extract some options for this component combination
         # from the render2D_options user parameter.
         axis   = is_selected(component_combination, render2D_options['axis'])
-        extend = is_selected(component_combination, render2D_options['extend'])
+        extent = is_selected(component_combination, render2D_options['extent'])
         # We now do the CIC interpolation of the components onto the
         # φ grid. We choose to interpolate the mass of each
         # component onto the grid.
@@ -528,12 +528,12 @@ def render2D(components, filename):
             x = domain_start_x + i*L
             with unswitch(1):
                 if 𝔹[axis == 'x']:
-                    if ℝ[extend[0]] <= x:
-                        weight = (ℝ[extend[1]] - x)/L
+                    if ℝ[extent[0]] <= x:
+                        weight = (ℝ[extent[1]] - x)/L
                         if weight > 1:
                             weight = 1
                     else:
-                        weight = 1 - (ℝ[extend[0]] - x)/L
+                        weight = 1 - (ℝ[extent[0]] - x)/L
                     if weight <= 0:
                         continue
                 else:
@@ -544,12 +544,12 @@ def render2D(components, filename):
                     if 𝔹[axis == 'x']:
                         index_m = domain_start_j + j
                     elif 𝔹[axis == 'y']:
-                        if ℝ[extend[0]] <= y:
-                            weight = (ℝ[extend[1]] - y)/L
+                        if ℝ[extent[0]] <= y:
+                            weight = (ℝ[extent[1]] - y)/L
                             if weight > 1:
                                 weight = 1
                         else:
-                            weight = 1 - (ℝ[extend[0]] - y)/L
+                            weight = 1 - (ℝ[extent[0]] - y)/L
                         if weight <= 0:
                             continue
                     else:
@@ -560,12 +560,12 @@ def render2D(components, filename):
                         if not 𝔹[axis == 'z']:
                             index_n = ℤ[φ_gridsize - 1 - domain_start_k] - k
                         else:
-                            if ℝ[extend[0]] <= z:
-                                weight = (ℝ[extend[1]] - z)/L
+                            if ℝ[extent[0]] <= z:
+                                weight = (ℝ[extent[1]] - z)/L
                                 if weight > 1:
                                     weight = 1
                             else:
-                                weight = 1 - (ℝ[extend[0]] - z)/L
+                                weight = 1 - (ℝ[extent[0]] - z)/L
                             if weight <= 0:
                                 continue
                     # Include this grid cell
@@ -608,7 +608,7 @@ def render2D(components, filename):
                 hdf5_file.attrs['boxsize'              ] = boxsize
                 hdf5_file.attrs['component combination'] = component_combination_str
                 hdf5_file.attrs['axis'                 ] = axis
-                hdf5_file.attrs['extend'               ] = extend
+                hdf5_file.attrs['extent'               ] = extent
                 if enable_Hubble:
                     hdf5_file.attrs['a'] = a
                 hdf5_file.attrs['t'    ] = universals.t

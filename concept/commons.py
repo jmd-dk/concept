@@ -2231,7 +2231,7 @@ suppress_output['err'] |= suppress_output['all']
 user_params['suppress_output'] = suppress_output
 render2D_options_defaults = {
     'axis'               : 'z',
-    'extend'             : (0, 0.1*boxsize),
+    'extent'             : (0, 0.1*boxsize),
     'terminal resolution': np.min([terminal_width, φ_gridsize]),
     'colormap'           : 'inferno',
     'enhance'            : True,
@@ -2247,11 +2247,11 @@ for key, val in render2D_options.copy().items():
             'all': val,
             'all combinations': val,
         }
-for key, val in render2D_options['extend'].copy().items():
+for key, val in render2D_options['extent'].copy().items():
     if len(any2list(val)) == 1:
-        render2D_options['extend'][key] = (0, val)
+        render2D_options['extent'][key] = (0, val)
     else:
-        render2D_options['extend'][key] = (np.min(val), np.max(val))
+        render2D_options['extent'][key] = (np.min(val), np.max(val))
 for key, val in render2D_options_defaults.items():
     render2D_options[key]['default'] = val
 user_params['render2D_options'] = render2D_options
