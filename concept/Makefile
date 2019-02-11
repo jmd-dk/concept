@@ -75,20 +75,20 @@ files_utilities = params     \
 ################################################
 # Get the path to the .paths file
 paths_filename = $(shell this_dir="$(CURDIR)";                     \
-				         path="$${this_dir}";                      \
-				         while :; do                               \
-				             if [ -f "$${path}/.paths" ]; then     \
-				                 paths_filename="$${path}/.paths"; \
-				                 break;                            \
-				             fi;                                   \
-				             if [ "$${path}" == "/" ]; then        \
-				                 paths_filename='fail';            \
-				                 break;                            \
-				             fi;                                   \
-				             path="$$(dirname "$${path}")";        \
-				         done;                                     \
-				         echo "$${paths_filename}";                \
-				   )
+    path="$${this_dir}";                      \
+    while :; do                               \
+        if [ -f "$${path}/.paths" ]; then     \
+            paths_filename="$${path}/.paths"; \
+            break;                            \
+        fi;                                   \
+        if [ "$${path}" == "/" ]; then        \
+            paths_filename='fail';            \
+            break;                            \
+        fi;                                   \
+        path="$$(dirname "$${path}")";        \
+    done;                                     \
+    echo "$${paths_filename}";                \
+)
 ifeq ($(paths_filename),fail)
     $(error Could not find the .paths file)
 endif
@@ -405,6 +405,12 @@ clean_output:
 clean_params_cp:
 	$(RM) $(params_dir)/.[^.]*
 # Remove reusable dumps
+clean_class_reusables:
+	$(RM) -r $(reusables_dir)/class
+clean_fftw_reusables:
+	$(RM) -r $(reusables_dir)/fftw
+clean_ewald_reusables:
+	$(RM) -r $(reusables_dir)/ewald
 clean_reusables:
 	$(RM) -r $(reusables_dir)
 # Remove files produced by running tests
