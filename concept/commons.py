@@ -1957,9 +1957,9 @@ p3m_scale = float(user_params.get('p3m_scale', 1.25))
 user_params['p3m_scale'] = p3m_scale
 p3m_cutoff = float(user_params.get('p3m_cutoff', 4.8))
 user_params['p3m_cutoff'] = p3m_cutoff
-R_tophat = float(user_params.get('R_tophat', -1))  # Defautl value will be set later
+R_tophat = float(user_params.get('R_tophat', -1))  # Default value will be set later
 user_params['R_tophat'] = R_tophat
-modes_per_decade = float(user_params.get('modes_per_decade', 100))
+modes_per_decade = float(user_params.get('modes_per_decade', 30))
 user_params['modes_per_decade'] = modes_per_decade
 # Cosmology
 H0 = float(user_params.get('H0', 70*units.km/(units.s*units.Mpc)))
