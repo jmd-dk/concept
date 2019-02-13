@@ -182,6 +182,7 @@ set_dir(){
 # disables all implicit installations.
 if [ "${install_explicit_only}" == "yes" ]; then
     for progname in "concept"         \
+                    "blas"            \
                     "class"           \
                     "fftw"            \
                     "fftw_for_gadget" \
@@ -193,7 +194,6 @@ if [ "${install_explicit_only}" == "yes" ]; then
                     "libpng"          \
                     "mpi"             \
                     "ncurses"         \
-                    "openblas"        \
                     "openssl"         \
                     "perl"            \
                     "python"          \
@@ -222,7 +222,7 @@ set_dir "gsl"             "__top_dir__/gsl"
 set_dir "hdf5"            "__top_dir__/hdf5"
 set_dir "libpng"          "__top_dir__/libpng"
 set_dir "mpi"             "__top_dir__/${mpi}"
-set_dir "openblas"        "__top_dir__/openblas"
+set_dir "blas"            "__top_dir__/openblas"
 set_dir "perl"            "__top_dir__/perl"
 set_dir "python"          "__top_dir__/python"
 set_dir "ncurses"         "${python_dir}"
@@ -252,6 +252,7 @@ set_version(){
 # In case of CO𝘕CEPT and CLASS, possible versions are the corresponding
 # GitHub branches and releases.
 set_version "concept"         "master"
+set_version "blas"            "0.3.5"  "0.3.5"
 set_version "class"           "2.7.1"
 set_version "fftw"            "3.3.8"  "3.3.8"
 set_version "fftw_for_gadget" "2.1.5"  "2.1.5"   # Do not change
@@ -267,7 +268,6 @@ elif [ "${mpi}" == "openmpi" ]; then
     set_version "mpi"         "3.1.2"  # 4.0.0 is out!
 fi
 set_version "ncurses"         "6.1"    "6.1"
-set_version "openblas"        "0.3.5"  "0.3.5"
 set_version "openssl"         "1.1.1a" "1.1.1a"
 set_version "perl"            "5.28.1"
 set_version "python"          "3.7.2"
@@ -426,6 +426,7 @@ reset_environment(){
 }
 
 # Set test_success variables
+blas_test_success="yes"
 class_test_success="yes"
 concept_test_success="yes"
 fftw_test_success="yes"
@@ -438,7 +439,6 @@ libffi_test_success="yes"
 libpng_test_success="yes"
 mpi_test_success="yes"
 ncurses_test_success="yes"
-openblas_test_success="yes"
 openssl_test_success="yes"
 perl_test_success="yes"
 python_test_success="yes"
@@ -1114,12 +1114,12 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             fi
         fi
     fi
-    if [ "${progname}" == 'openblas' ] && [ "${openblas_preinstalled}" == "yes" ]; then
+    if [ "${progname}" == 'blas' ] && [ "${blas_preinstalled}" == "yes" ]; then
         if [ ! -f "${progname_dir}/include/cblas.h" ]; then
             if [ -f "${progname_dir}/../include/cblas.h" ]; then
-                openblas_dir="$(dirname ${progname_dir})"
+                blas_dir="$(dirname ${progname_dir})"
             else
-                error "Could not locate OpenBLAS at \"${openblas_dir}\""
+                error "Could not locate OpenBLAS at \"${blas_dir}\""
                 exit 1
             fi
         fi
@@ -1129,7 +1129,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             if [ -f "${progname_dir}/../lib/libssl.so" ]; then
                 openssl_dir="$(dirname ${progname_dir})"
             else
-                error "Could not locate OpenSSL at \"${openblas_dir}\""
+                error "Could not locate OpenSSL at \"${openssl_dir}\""
                 exit 1
             fi
         fi
@@ -1173,7 +1173,7 @@ fix_path "FreeType"
 fix_path "zlib"
 fix_path "libpng"
 fix_path "ncurses"
-fix_path "OpenBLAS"
+fix_path "BLAS"
 fix_path "OpenSSL"
 fix_path "libffi"
 fix_path "Perl"
@@ -1239,6 +1239,33 @@ if [ "${openssl_preinstalled}" == "yes" ]; then
     assume_preinstalled "perl"
 fi
 
+# Function that checks whether a given Python package
+# is installed or not.
+check_pypackage_installed(){
+    # Arguments: Python package name
+    current_dir="$(pwd)"
+    cd "${top_dir}"
+    # Some Python packages may need access to libraries at runtime
+    current_LD_LIBRARY_PATH="${LD_LIBRARY_PATH}"
+    for lib in "blas" "gsl" "hdf5" "libpng" "mpi" "zlib"; do
+        eval "lib_dir=\"\${${lib}_dir}/lib\""
+        export LD_LIBRARY_PATH="${lib_dir}:${LD_LIBRARY_PATH}"
+    done
+    "${python}" -c "
+try:
+    # CythonGSL has an extra underscore when importing
+    if '${1}' == 'cythongsl':
+        import cython_gsl
+    else:
+        import ${1}
+    print('yes')
+except:
+    print('no')
+" 2>/dev/null
+    cd "${current_dir}"
+    export LD_LIBRARY_PATH="${current_LD_LIBRARY_PATH}"
+}
+
 # Set "pypackage"_preinstalled variables
 blessings_preinstalled="no"
 cython_preinstalled="no"
@@ -1262,14 +1289,7 @@ if [ "${python_preinstalled}" == "yes" ]; then
                      pytest        \
                      scipy         \
                      pip; do
-        pypackage_preinstalled=$("${python}" -c "
-try:
-    import ${pypackage}
-    print('yes')
-except:
-    print('no')
-" 2>/dev/null
-        )
+        pypackage_preinstalled=$(check_pypackage_installed ${pypackage})
         eval "${pypackage}_preinstalled=\"${pypackage_preinstalled}\""
     done
 fi
@@ -1336,7 +1356,6 @@ for pypackage in blessings     \
             eval "${pypackage}_install=\"yes\""
         fi
     fi
-    eval "pypackage_install=\"\${${pypackage}_install}\""
 done
 # FFTW (needed by CO𝘕CEPT)
 if [ -z "${fftw_install}" ]; then
@@ -1397,12 +1416,12 @@ if [ -z "${ncurses_install}" ]; then
         ncurses_install="yes"
     fi
 fi
-# OpenBLAS (needed by NumPy and SciPy)
-if [ -z "${openblas_install}" ]; then
-    openblas_install="no"
-    if [ "${openblas_preinstalled}" == "no" ] && (   [ "${numpy_install}" == "yes" ] \
-                                                  || [ "${scipy_install}" == "yes" ]); then
-        openblas_install="yes"
+# BLAS (needed by NumPy and SciPy)
+if [ -z "${blas_install}" ]; then
+    blas_install="no"
+    if [ "${blas_preinstalled}" == "no" ] && (   [ "${numpy_install}" == "yes" ] \
+                                              || [ "${scipy_install}" == "yes" ]); then
+        blas_install="yes"
     fi
 fi
 # OpenSSL (needed by pip)
@@ -1429,6 +1448,7 @@ fi
 # The install_any_software, install_any_pypackages
 # and install_anything variables.
 if     [ "${concept_install}"         == "yes" ] \
+    || [ "${blas_install}"            == "yes" ] \
     || [ "${class_install}"           == "yes" ] \
     || [ "${gadget_install}"          == "yes" ] \
     || [ "${fftw_for_gadget_install}" == "yes" ] \
@@ -1441,7 +1461,6 @@ if     [ "${concept_install}"         == "yes" ] \
     || [ "${zlib_install}"            == "yes" ] \
     || [ "${freetype_install}"        == "yes" ] \
     || [ "${ncurses_install}"         == "yes" ] \
-    || [ "${openblas_install}"        == "yes" ] \
     || [ "${openssl_install}"         == "yes" ] \
     || [ "${libffi_install}"          == "yes" ] \
     || [ "${perl_install}"            == "yes" ]; then
@@ -2106,25 +2125,25 @@ if [ "${ncurses_install}" == "yes" ]; then
     fi
 fi
 
-# OpenBLAS
-if [ "${openblas_install}" == "yes" ]; then
-    openblas_url="https://github.com/xianyi/OpenBLAS/archive/v${openblas_version}.tar.gz"
+# BLAS
+if [ "${blas_install}" == "yes" ]; then
+    blas_url="https://github.com/xianyi/OpenBLAS/archive/v${blas_version}.tar.gz"
     # Check if already installed and/or downloaded
-    check_progress "OpenBLAS"
+    check_progress "BLAS"
     # If not yet downloaded, validate the URL
-    if [ "${openblas_downloaded}" != "yes" ]; then
-        validate_url "OpenBLAS" "false"
+    if [ "${blas_downloaded}" != "yes" ]; then
+        validate_url "BLAS" "false"
         if [ "${validate_url_status}" != "success" ]; then
-            echo "Primary OpenBLAS link broken: ${openblas_url}"
-            fallback "openblas"
-            openblas_url="https://sourceforge.net/projects/openblas/files/v${openblas_version}/\
-OpenBLAS%20${openblas_version}%20version.tar.gz"
-            echo "Using secondary OpenBLAS link: ${openblas_url}"
+            echo "Primary OpenBLAS link broken: ${blas_url}"
+            fallback "blas"
+            blas_url="https://sourceforge.net/projects/openblas/files/v${blas_version}/\
+OpenBLAS%20${blas_version}%20version.tar.gz"
+            echo "Using secondary BLAS link: ${blas_url}"
             # Check if already installed and/or downloaded
-            check_progress "OpenBLAS"
+            check_progress "BLAS"
             # If not yet downloaded, validate the URL
-            if [ "${openblas_downloaded}" != "yes" ]; then
-                validate_url "OpenBLAS"
+            if [ "${blas_downloaded}" != "yes" ]; then
+                validate_url "BLAS"
             fi
         fi
     fi
@@ -2257,28 +2276,17 @@ if [ -n "${python_dir}" ]; then
     done
 fi
 if [ -n "${python}" ] && [ "${python_installed}" == "yes" ]; then
-    for pypackage in blessings     \
-                     cython        \
-                     cythongsl     \
-                     h5py          \
-                     matplotlib    \
-                     mpi4py        \
-                     numpy         \
-                     pytest        \
-                     scipy         \
+    for pypackage in blessings   \
+                     cython      \
+                     cythongsl   \
+                     h5py        \
+                     matplotlib  \
+                     mpi4py      \
+                     numpy       \
+                     pytest      \
+                     scipy       \
                      pip; do
-        pypackage_installed=$("${python}" -c "
-try:
-    # CythonGSL has an extra underscore when importing
-    if '${pypackage}' == 'cythongsl':
-        import cython_gsl
-    else:
-        import ${pypackage}
-    print('yes')
-except:
-    print('no')
-" 2>/dev/null
-        )
+        pypackage_installed=$(check_pypackage_installed ${pypackage})
         eval "${pypackage}_installed=\"${pypackage_installed}\""
     done
 fi
@@ -2348,6 +2356,7 @@ print_table(){
 # The following software will be installed
 # Name           Version  Installation path
 # CO𝘕CEPT        ...      "/..."
+# OpenBLAS       ...      "/..."
 # CLASS          ...      "/..."
 # FFTW           ...      "/..."
 # FFTW           ...      "/..."
@@ -2359,7 +2368,6 @@ print_table(){
 # libpng         ...      "/..."
 # MPICH/OpenMPI  ...      "/..."
 # ncurses        ...      "/..."
-# OpenBLAS       ...      "/..."
 # OpenSSL        ...      "/..."
 # Perl           ...      "/..."
 # Python         ...      "/..."
@@ -2376,8 +2384,9 @@ print_table(){
 # NumPy         ...
 # pytest        ...
 # SciPy         ...
-concept_patch="no"
+blas_patch="no"
 class_patch="yes"
+concept_patch="no"
 fftw_patch="no"
 fftw_for_gadget_patch="no"
 freetype_patch="no"
@@ -2393,7 +2402,6 @@ elif [ "${mpi}" == "openmpi" ]; then
 fi
 openmpi_patch="no"
 ncurses_patch="no"
-openblas_patch="no"
 openssl_patch="no"
 perl_patch="no"
 python_patch="no"
@@ -2440,6 +2448,13 @@ if [ "${install_any_software}" == "yes" ]; then
             "${esc_concept}$(insert_footnote_installed 'concept')" \
             "${concept_version}$(insert_footnote_patch 'concept')" \
             "\"${concept_dir}\"")
+    fi
+    # OpenBLAS
+    if [ "${blas_install}" == "yes" ]; then
+        table=("${table[@]}"                                 \
+            "OpenBLAS$(insert_footnote_installed 'blas')"    \
+            "${blas_version}$(insert_footnote_patch 'blas')" \
+            "\"${blas_dir}\"")
     fi
     # CLASS (which will be patched)
     if [ "${class_install}" == "yes" ]; then
@@ -2524,13 +2539,6 @@ if [ "${install_any_software}" == "yes" ]; then
             "ncurses$(insert_footnote_installed 'ncurses')"        \
             "${ncurses_version}$(insert_footnote_patch 'ncurses')" \
             "\"${ncurses_dir}\"")
-    fi
-    # OpenBLAS
-    if [ "${openblas_install}" == "yes" ]; then
-        table=("${table[@]}"                                         \
-            "OpenBLAS$(insert_footnote_installed 'openblas')"        \
-            "${openblas_version}$(insert_footnote_patch 'openblas')" \
-            "\"${openblas_dir}\"")
     fi
     # OpenSSL
     if [ "${openssl_install}" == "yes" ]; then
@@ -2752,6 +2760,9 @@ disable_status
 if [ "${concept_install}"         == "yes" ] && [ "${concept_downloaded}"         == "no" ]; then
     download "CONCEPT"
 fi
+if [ "${blas_install}"            == "yes" ] && [ "${blas_downloaded}"            == "no" ]; then
+    download "BLAS"
+fi
 if [ "${class_install}"           == "yes" ] && [ "${class_downloaded}"           == "no" ]; then
     download "CLASS"
 fi
@@ -2781,9 +2792,6 @@ if [ "${mpi_install}"             == "yes" ] && [ "${mpi_downloaded}"           
 fi
 if [ "${ncurses_install}"         == "yes" ] && [ "${ncurses_downloaded}"         == "no" ]; then
     download "ncurses"
-fi
-if [ "${openblas_install}"        == "yes" ] && [ "${openblas_downloaded}"        == "no" ]; then
-    download "OpenBLAS"
 fi
 if [ "${openssl_install}"         == "yes" ] && [ "${openssl_downloaded}"         == "no" ]; then
     download "OpenSSL"
@@ -2825,7 +2833,14 @@ extract(){
         n_files=0
         for f in *; do
             if [ -d "${f}" ]; then
-                rm -rf "${f}"
+                for n in {1..720}; do
+                    rm_success="True"
+                    rm -rf "${f}" || rm_success="False"
+                    if [ "${rm_success}" == "True" ]; then
+                        break
+                    fi
+                    sleep 5
+                done
             else
                 archive="${f}"
                 ((n_files += 1))
@@ -2947,26 +2962,28 @@ init_install(){
     progname="${1// /_}"
     progname="$(echo "${progname}" | tr '[:upper:]' '[:lower:]')"
     eval "progversion=\"\${${progname}_version}\""
-    if [ "${progname}" == "fftw_for_gadget" ]; then
-        # When installing FFTW for GADGET, the version number should
-        # be printed together with FFTW, not GADGET.
-        current_step="the installation of FFTW ${progversion} for GADGET"
-        heading "Installing FFTW ${progversion} for GADGET"
-        set_status "Installing FFTW ${progversion} for GADGET"
-    elif [ "${progname}" == "mpi" ]; then
-        if [ "${mpi}" == "mpich" ]; then
-            current_step="the installation of MPICH ${progversion}"
-            heading "Installing MPICH ${progversion}"
-            set_status "Installing MPICH ${progversion}"
-        elif [ "${mpi}" == "openmpi" ]; then
-            current_step="the installation of OpenMPI ${progversion}"
-            heading "Installing OpenMPI ${progversion}"
-            set_status "Installing OpenMPI ${progversion}"
+    if [ "${progname}" != "${progname_last_init_install}" ]; then
+        if [ "${progname}" == "fftw_for_gadget" ]; then
+            # When installing FFTW for GADGET, the version number should
+            # be printed together with FFTW, not GADGET.
+            current_step="the installation of FFTW ${progversion} for GADGET"
+            heading "Installing FFTW ${progversion} for GADGET"
+            set_status "Installing FFTW ${progversion} for GADGET"
+        elif [ "${progname}" == "mpi" ]; then
+            if [ "${mpi}" == "mpich" ]; then
+                current_step="the installation of MPICH ${progversion}"
+                heading "Installing MPICH ${progversion}"
+                set_status "Installing MPICH ${progversion}"
+            elif [ "${mpi}" == "openmpi" ]; then
+                current_step="the installation of OpenMPI ${progversion}"
+                heading "Installing OpenMPI ${progversion}"
+                set_status "Installing OpenMPI ${progversion}"
+            fi
+        else
+            current_step="the installation of ${1/CONCEPT/$esc_concept} ${progversion}"
+            heading "Installing ${1/CONCEPT/$esc_concept} ${progversion}"
+            set_status "Installing ${1/CONCEPT/${esc_concept}} ${progversion}"
         fi
-    else
-        current_step="the installation of ${1/CONCEPT/$esc_concept} ${progversion}"
-        heading "Installing ${1/CONCEPT/$esc_concept} ${progversion}"
-        set_status "Installing ${1/CONCEPT/${esc_concept}} ${progversion}"
     fi
     # Extract the downloaded archive
     extract "${progname}"
@@ -2981,6 +2998,8 @@ init_install(){
             break
         fi
     done
+    # Save a copy of the program name
+    progname_last_init_install="${progname}"
 }
 
 # Function for detecting when the current process appears to hang.
@@ -3029,20 +3048,77 @@ Please be patient ...\n";                                                       
     wait ${soothe_killer_pid} >/dev/null 2>&1 || :
 }
 
+# List of possible compilers to try for the programs to install.
+# An empty value corresponds to whatever value was set in the
+# environment previous to invoking this script.
+compiler_possibilities=("")
+if [ "${mpi_preinstalled}" == "yes" ]; then
+    compiler_possibilities=("${compiler_possibilities[@]}" "mpi")
+fi
+# Function that sets up the MPI compiler environment
+use_mpi_compilers(){
+    if [ -n "${mpi_dir}" ]; then
+        for f in "mpicc" "mpiCC"; do
+            if [ -f "${mpi_dir}/bin/${f}" ]; then
+                export CC="${mpi_dir}/bin/${f}"
+                break
+            fi
+        done
+        export CFLAGS="-I${mpi_dir}/include ${CFLAGS}"
+        for f in "mpicxx" "mpic++"; do
+            if [ -f "${mpi_dir}/bin/${f}" ]; then
+                export CXX="${mpi_dir}/bin/${f}"
+                break
+            fi
+        done
+        export CPPFLAGS="-I${mpi_dir}/include ${CPPFLAGS}"
+        f="mpif77"
+        if [ -f "${mpi_dir}/bin/${f}" ]; then
+            export FC="${mpi_dir}/bin/${f}"
+        fi
+        for f in "mpifort" "mpif90"; do
+            if [ -f "${mpi_dir}/bin/${f}" ]; then
+                export FC="${mpi_dir}/bin/${f}"
+                export F9X="${FC}"
+                break
+            fi
+        done
+        export FFLAGS="-I${mpi_dir}/include ${FFLAGS}"
+        export LDFLAGS="-L${mpi_dir}/lib ${LDFLAGS}"
+        export LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}"
+        export PATH="${mpi_dir}/bin:${PATH}"
+    fi
+}
+
 # zlib
 if [ "${zlib_install}" == "yes" ] && [ "${zlib_installed}" == "no" ]; then
-    init_install "zlib"
-    ./configure --shared --prefix="${zlib_dir}" 2>&1
-    if [ "${fast_install}" == "no" ]; then
-        make ${make_jobs} test 2>&1 | tee "test_log"
-        [ ${PIPESTATUS[0]} -eq 0 ] || zlib_test_success="no"
+    install_success="no"
+    for compiler in "${compiler_possibilities[@]}"; do
+        reset_environment
+        if [ "${compiler}" == "mpi" ]; then
+            printf "\nInstallation of zlib failed. Attempting with MPI compilers\n\n"
+            use_mpi_compilers
+        fi
+        init_install "zlib"
+        ./configure --shared --prefix="${zlib_dir}" 2>&1 || continue
+        if [ "${fast_install}" == "no" ]; then
+            make ${make_jobs} test 2>&1 | tee "test_log"
+            [ ${PIPESTATUS[0]} -eq 0 ] || zlib_test_success="no"
+        fi
+        zlib_test_log="${zlib_dir}/test_log"
+        if [ "${zlib_test_success}" == "no" ]; then
+            mkdir -p "${zlib_dir}"
+            cp "test_log" "${zlib_test_log}"
+        fi
+        make ${make_jobs} install 2>&1 || continue
+        install_success="yes"
+        break
+    done
+    if [ "${install_success}" == "no" ]; then
+        error "Failed to install zlib"
+        exit 1
     fi
-    zlib_test_log="${zlib_dir}/test_log"
-    if [ "${zlib_test_success}" == "no" ]; then
-        mkdir -p "${zlib_dir}"
-        cp "test_log" "${zlib_test_log}"
-    fi
-    make ${make_jobs} install 2>&1
+    reset_environment
     cp "README" "${zlib_dir}/"
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/zlib" || :
@@ -3056,23 +3132,37 @@ fi
 
 # libpng
 if [ "${libpng_install}" == "yes" ] && [ "${libpng_installed}" == "no" ]; then
-    init_install "libpng"
-    export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
-    export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
-    export LDFLAGS="-L${zlib_dir}/lib ${LDFLAGS}"
-    export ZLIBLIB="${zlib_dir}/lib"
-    export ZLIBINC="${zlib_dir}/include"
-    ./configure --prefix="${libpng_dir}" 2>&1
-    if [ "${fast_install}" == "no" ]; then
-        make ZLIBLIB="${ZLIBLIB}" ZLIBINC="${ZLIBINC}" ${make_jobs} check 2>&1 | tee "test_log"
-        [ ${PIPESTATUS[0]} -eq 0 ] || libpng_test_success="no"
+    install_success="no"
+    for compiler in "${compiler_possibilities[@]}"; do
+        reset_environment
+        if [ "${compiler}" == "mpi" ]; then
+            printf "\nInstallation of libpng failed. Attempting with MPI compilers\n\n"
+            use_mpi_compilers
+        fi
+        init_install "libpng"
+        export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
+        export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
+        export LDFLAGS="-L${zlib_dir}/lib ${LDFLAGS}"
+        export ZLIBLIB="${zlib_dir}/lib"
+        export ZLIBINC="${zlib_dir}/include"
+        ./configure --prefix="${libpng_dir}" 2>&1 || continue
+        if [ "${fast_install}" == "no" ]; then
+            make ZLIBLIB="${ZLIBLIB}" ZLIBINC="${ZLIBINC}" ${make_jobs} check 2>&1 | tee "test_log"
+            [ ${PIPESTATUS[0]} -eq 0 ] || libpng_test_success="no"
+        fi
+        libpng_test_log="${libpng_dir}/test_log"
+        if [ "${libpng_test_success}" == "no" ]; then
+            mkdir -p "${libpng_dir}"
+            cp "test_log" "${libpng_test_log}"
+        fi
+        make ZLIBLIB="${ZLIBLIB}" ZLIBINC="${ZLIBINC}" ${make_jobs} install 2>&1 || continue
+        install_success="yes"
+        break
+    done
+    if [ "${install_success}" == "no" ]; then
+        error "Failed to install libpng"
+        exit 1
     fi
-    libpng_test_log="${libpng_dir}/test_log"
-    if [ "${libpng_test_success}" == "no" ]; then
-        mkdir -p "${libpng_dir}"
-        cp "test_log" "${libpng_test_log}"
-    fi
-    make ZLIBLIB="${ZLIBLIB}" ZLIBINC="${ZLIBINC}" ${make_jobs} install 2>&1
     reset_environment
     cp "LICENSE" "${libpng_dir}/" || :
     cd "${top_dir}"
@@ -3087,19 +3177,34 @@ fi
 
 # GSL
 if [ "${gsl_install}" == "yes" ] && [ "${gsl_installed}" == "no" ]; then
-    init_install "GSL"
-    ./configure --prefix="${gsl_dir}" 2>&1
-    make ${make_jobs} 2>&1
-    if [ "${fast_install}" == "no" ]; then
-        make ${make_jobs} check 2>&1 | tee "test_log"
-        [ ${PIPESTATUS[0]} -eq 0 ] || gsl_test_success="no"
+    install_success="no"
+    for compiler in "${compiler_possibilities[@]}"; do
+        reset_environment
+        if [ "${compiler}" == "mpi" ]; then
+            printf "\nInstallation of GSL failed. Attempting with MPI compilers\n\n"
+            use_mpi_compilers
+        fi
+        init_install "GSL"
+        ./configure --prefix="${gsl_dir}" 2>&1 || continue
+        make ${make_jobs} 2>&1 || continue
+        if [ "${fast_install}" == "no" ]; then
+            make ${make_jobs} check 2>&1 | tee "test_log"
+            [ ${PIPESTATUS[0]} -eq 0 ] || gsl_test_success="no"
+        fi
+        gsl_test_log="${gsl_dir}/test_log"
+        if [ "${gsl_test_success}" == "no" ]; then
+            mkdir -p "${gsl_dir}"
+            cp "test_log" "${gsl_test_log}"
+        fi
+        make ${make_jobs} install 2>&1 || continue
+        install_success="yes"
+        break
+    done
+    if [ "${install_success}" == "no" ]; then
+        error "Failed to install GSL"
+        exit 1
     fi
-    gsl_test_log="${gsl_dir}/test_log"
-    if [ "${gsl_test_success}" == "no" ]; then
-        mkdir -p "${gsl_dir}"
-        cp "test_log" "${gsl_test_log}"
-    fi
-    make ${make_jobs} install 2>&1
+    reset_environment
     cp "COPYING" "README" "${gsl_dir}/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/gsl" || :
@@ -3186,26 +3291,7 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
     # when building againts MPI and zlib.
     enable_parallel=""
     if [ -n "${mpi_dir}" ]; then
-        export CC="${mpi_dir}/bin/mpicc"
-        export CFLAGS="-I${mpi_dir}/include ${CFLAGS}"
-        for f in "mpic++" "mpicxx"; do
-            if [ -f "${mpi_dir}/bin/${f}" ]; then
-                export CXX="${mpi_dir}/bin/${f}"
-                break
-            fi
-        done
-        export CPPFLAGS="-I${mpi_dir}/include ${CPPFLAGS}"
-        for f in "mpif90" "mpifort"; do
-            if [ -f "${mpi_dir}/bin/${f}" ]; then
-                export FC="${mpi_dir}/bin/${f}"
-                export F9X="${FC}"
-                break
-            fi
-        done
-        export FFLAGS="-I${mpi_dir}/include ${FFLAGS}"
-        export LDFLAGS="-L${mpi_dir}/lib ${LDFLAGS}"
-        export LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}"
-        export PATH="${mpi_dir}/bin:${PATH}"
+        use_mpi_compilers
         enable_parallel="--enable-parallel"
     fi
     with_zlib=""
@@ -3390,15 +3476,30 @@ fi
 
 # FreeType
 if [ "${freetype_install}" == "yes" ] && [ "${freetype_installed}" == "no" ]; then
-    init_install "FreeType"
-    ./configure --prefix="${freetype_dir}" \
-                --with-zlib=no             \
-                --with-bzip2=no            \
-                --with-png=no              \
-                --with-harfbuzz=no 2>&1
-    make ${make_jobs} 2>&1
-    # FreeType does not come with a test suite
-    make ${make_jobs} install 2>&1
+    install_success="no"
+    for compiler in "${compiler_possibilities[@]}"; do
+        reset_environment
+        if [ "${compiler}" == "mpi" ]; then
+            printf "\nInstallation of FreeType failed. Attempting with MPI compilers\n\n"
+            use_mpi_compilers
+        fi
+        init_install "FreeType"
+        ./configure --prefix="${freetype_dir}" \
+                    --with-zlib=no             \
+                    --with-bzip2=no            \
+                    --with-png=no              \
+                    --with-harfbuzz=no 2>&1 || continue
+        make ${make_jobs} 2>&1 || continue
+        # FreeType does not come with a test suite
+        make ${make_jobs} install 2>&1 || continue
+        install_success="yes"
+        break
+    done
+    if [ "${install_success}" == "no" ]; then
+        error "Failed to install FreeType"
+        exit 1
+    fi
+    reset_environment
     (cd docs; cp "FTL.TXT" "GPLv2.TXT" "LICENSE.TXT" "${freetype_dir}/" || :)
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/freetype" || :
@@ -3412,30 +3513,44 @@ fi
 
 # ncurses
 if [ "${ncurses_install}" == "yes" ] && [ "${ncurses_installed}" == "no" ]; then
-    init_install "ncurses"
-    # Due to a bug in (at least) ncurses 6.0, this is needed on
-    # some systems. See https://trac.sagemath.org/ticket/19762
-    export CPPFLAGS="-P"
-    ./configure --with-shared --prefix="${ncurses_dir}" 2>&1
-    make ${make_jobs} 2>&1
-    make ${make_jobs} install 2>&1
-    if [ "${fast_install}" == "no" ]; then
-        disable_status
-        (sleep ${sleep_time}; echo "q") | "test/worm" -n 7 > "/dev/tty" 2>&1 \
-            || ncurses_test_success="no"
-        enable_status
-    fi
-    # Additional test run needed (if the first failed), as the one
-    # above do not use tee (as it ruins the display).
-    if [ "${fast_install}" == "no" ] && [ "${ncurses_test_success}" == "no" ]; then
-        disable_status
-        (sleep ${sleep_time}; echo "q") | "test/worm" -n 7 > "test_log" 2>&1 || :
-        enable_status
-    fi
-    ncurses_test_log="${ncurses_dir}/include/ncurses/test_log"
-    if [ "${ncurses_test_success}" == "no" ]; then
-        mkdir -p "${ncurses_dir}/include/ncurses"
-        cp "test_log" "${ncurses_test_log}"
+    install_success="no"
+    for compiler in "${compiler_possibilities[@]}"; do
+        reset_environment
+        if [ "${compiler}" == "mpi" ]; then
+            printf "\nInstallation of ncurses failed. Attempting with MPI compilers\n\n"
+            use_mpi_compilers
+        fi
+        init_install "ncurses"
+        # Due to a bug in (at least) ncurses 6.0, this is needed on
+        # some systems. See https://trac.sagemath.org/ticket/19762
+        export CPPFLAGS="-P"
+        ./configure --with-shared --prefix="${ncurses_dir}" 2>&1 || continue
+        make ${make_jobs} 2>&1 || continue
+        make ${make_jobs} install 2>&1 || continue
+        if [ "${fast_install}" == "no" ]; then
+            disable_status
+            (sleep ${sleep_time}; echo "q") | "test/worm" -n 7 > "/dev/tty" 2>&1 \
+                || ncurses_test_success="no"
+            enable_status
+        fi
+        # Additional test run needed (if the first failed), as the one
+        # above do not use tee (as it ruins the display).
+        if [ "${fast_install}" == "no" ] && [ "${ncurses_test_success}" == "no" ]; then
+            disable_status
+            (sleep ${sleep_time}; echo "q") | "test/worm" -n 7 > "test_log" 2>&1 || :
+            enable_status
+        fi
+        ncurses_test_log="${ncurses_dir}/include/ncurses/test_log"
+        if [ "${ncurses_test_success}" == "no" ]; then
+            mkdir -p "${ncurses_dir}/include/ncurses"
+            cp "test_log" "${ncurses_test_log}"
+        fi
+        install_success="yes"
+        break
+    done
+    if [ "${install_success}" == "no" ]; then
+        error "Failed to install ncurses"
+        exit 1
     fi
     reset_environment
     cp "AUTHORS" "COPYING" "${ncurses_dir}/include/ncurses/" || :
@@ -3451,7 +3566,6 @@ fi
 
 # Perl
 if [ "${perl_install}" == "yes" ] && [ "${perl_installed}" == "no" ]; then
-    init_install "Perl"
     # Sometimes make fails to build due to #include of poll.h from a
     # wrong location. A fix for this is implemented below. First we try
     # without the fix, then with the fix.
@@ -3459,43 +3573,95 @@ if [ "${perl_install}" == "yes" ] && [ "${perl_installed}" == "no" ]; then
     # script will find one by itself. Using some C compilers
     # (e.g. craycc) may lead to failure, while gcc should be a safe
     # choice. Below we first specify gcc as the C compiler, and if this
-    # does not work for whatever reason, we try again without specifying
-    # the C compiler.
+    # does not work for whatever reason, we try with the C compiler(s)
+    # given in CC_possibilities.
+    # Lastly, sometimes the installation will complain that the Perl
+    # libraries should have been compiled statically. Thus, we try with
+    # and witouth the -fPIC C flag.
+    install_success="no"
+    CC_possibilities_perl=("gcc" "${compiler_possibilities[@]}")
     for perl_poll_fix in "False" "True"; do
-        for perl_c_compiler in "gcc" ""; do
-            if [ -n "${perl_c_compiler}" ]; then
-                ./Configure -de -Dprefix="${perl_dir}" -Dcc="${perl_c_compiler}" 2>&1 || :
-            else
-                ./Configure -de -Dprefix="${perl_dir}"                           2>&1 || :
-            fi
-            if [ "${perl_poll_fix}" == "True" ]; then
-                sed -i 's/<poll\.h>/<sys\/poll\.h>/' "dist/IO/poll.h"
-            fi
-            perl_build_failed="False"
-            make ${make_jobs} 2>&1 || perl_build_failed="True"
-            if [ "${perl_build_failed}" == "False" ]; then
+        for perl_CC in "${CC_possibilities_perl[@]}"; do
+            for perl_cflags in "" "-fPIC"; do
+                reset_environment
+                init_install "Perl"
+                printf "
+Attempting to install Perl with perl_poll_fix=${perl_poll_fix}, \
+perl_CC=${perl_CC}, perl_cflags=${perl_cflags}\n\n"
+                if [ "${perl_CC}" == "mpi" ]; then
+                    use_mpi_compilers
+                    perl_CC="${CC}"
+                fi
+                # When an Intel C compiler is used, some libraries like libimf
+                # may not be found by the perl executable. We can fix this by
+                # dropping symlinks to all Intel libraries in the build directory.
+                # For whatever reason, appending to LD_LIBRARY_PATH has no effect.
+                if [ "${perl_CC}" != "gcc" ]; then
+                    while IFS=':' read -ra library_paths; do
+                        for library_path in "${library_paths[@]}"; do
+                            is_intel_lib_dir="False"
+                            for f in "${library_path}"/*; do
+                                f_base="$(basename "${f}")"
+                                if     [[ "${f_base}" == libimf*.a    ]] \
+                                    || [[ "${f_base}" == libimf*.so   ]] \
+                                    || [[ "${f_base}" == libimd*.so.* ]]; then
+                                    is_intel_lib_dir="True"
+                                    break
+                                fi
+                            done
+                            if [ "${is_intel_lib_dir}" == "False" ]; then
+                                continue
+                            fi
+                            for f in "${library_path}"/*; do
+                                f_base="$(basename "${f}")"
+                                if (   [[ "${f_base}" == *.a    ]] \
+                                    || [[ "${f_base}" == *.so   ]] \
+                                    || [[ "${f_base}" == *.so.* ]] \
+                                   ) && [ ! -f "./${f_base}" ]; then
+                                    ln -s "${f}" ./ || :
+                                fi
+                            done
+                        done
+                    done <<< "${LD_LIBRARY_PATH}"
+                fi
+                perl_config_options="-de -Dprefix=${perl_dir}"
+                if [ -n "${perl_CC}" ]; then
+                    perl_config_options="${perl_config_options} -Dcc=${perl_CC}"
+                fi
+                if [ -n "${perl_cflags}" ]; then
+                    perl_config_options="${perl_config_options} -Accflags=${perl_cflags}"
+                fi
+                ./Configure ${perl_config_options} 2>&1 || : continue
+                if [ "${perl_poll_fix}" == "True" ]; then
+                    sed -i 's/<poll\.h>/<sys\/poll\.h>/' 'dist/IO/poll.h' || continue
+                fi
+                make ${make_jobs} 2>&1 || continue
+                if [ "${fast_install}" == "no" ]; then
+                    make ${make_jobs} test 2>&1 | tee "test_log"
+                    [ ${PIPESTATUS[0]} -eq 0 ] || perl_test_success="no"
+                fi
+                perl_test_log="${perl_dir}/test_log"
+                if [ "${perl_test_success}" == "no" ]; then
+                    mkdir -p "${perl_dir}"
+                    cp "test_log" "${perl_test_log}"
+                fi
+                make ${make_jobs} install 2>&1 || continue
+                install_success="yes"
+                break
+            done
+            if [ "${install_success}" == "yes" ]; then
                 break
             fi
-            make distclean || :
         done
-        if [ "${perl_build_failed}" == "False" ]; then
+        if [ "${install_success}" == "yes" ]; then
             break
         fi
     done
-    if [ "${perl_build_failed}" == "True" ]; then
-        error "Error installing Perl"
+    if [ "${install_success}" == "no" ]; then
+        error "Failed to install Perl"
         exit 1
     fi
-    if [ "${fast_install}" == "no" ]; then
-        make ${make_jobs} test 2>&1 | tee "test_log"
-        [ ${PIPESTATUS[0]} -eq 0 ] || perl_test_success="no"
-    fi
-    perl_test_log="${perl_dir}/test_log"
-    if [ "${perl_test_success}" == "no" ]; then
-        mkdir -p "${perl_dir}"
-        cp "test_log" "${perl_test_log}"
-    fi
-    make ${make_jobs} install 2>&1
+    reset_environment
     cp "AUTHORS" "Copying" "README" "${perl_dir}/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/perl" || :
@@ -3509,21 +3675,35 @@ fi
 
 # OpenSSL
 if [ "${openssl_install}" == "yes" ] && [ "${openssl_installed}" == "no" ]; then
-    init_install "OpenSSL"
-    export PATH="${perl_dir}/bin:${PATH}"
-    export PERL="${perl_dir}/bin/perl"
-    ./config shared --prefix="${openssl_dir}" --openssldir="${openssl_dir}/openssl" 2>&1
-    make 2>&1  # Should not be run in parallel!
-    if [ "${fast_install}" == "no" ]; then
-        make test 2>&1 | tee "test_log"  # Should not be run in parallel!
-        [ ${PIPESTATUS[0]} -eq 0 ] || openssl_test_success="no"
+    install_success="no"
+    for compiler in "${compiler_possibilities[@]}"; do
+        reset_environment
+        if [ "${compiler}" == "mpi" ]; then
+            printf "\nInstallation of OpenSSL failed. Attempting with MPI compilers\n\n"
+            use_mpi_compilers
+        fi
+        init_install "OpenSSL"
+        export PATH="${perl_dir}/bin:${PATH}"
+        export PERL="${perl_dir}/bin/perl"
+        ./config shared --prefix="${openssl_dir}" --openssldir="${openssl_dir}/openssl" 2>&1 || continue
+        make 2>&1 || continue  # Should not be run in parallel!
+        if [ "${fast_install}" == "no" ]; then
+            make test 2>&1 | tee "test_log"  # Should not be run in parallel!
+            [ ${PIPESTATUS[0]} -eq 0 ] || openssl_test_success="no"
+        fi
+        openssl_test_log="${openssl_dir}/include/openssl/test_log"
+        if [ "${openssl_test_success}" == "no" ]; then
+            mkdir -p "${openssl_dir}/include/openssl"
+            cp "test_log" "${openssl_test_log}"
+        fi
+        make install 2>&1 || continue  # Should not be run in parallel!
+        install_success="yes"
+        break
+    done
+    if [ "${install_success}" == "no" ]; then
+        error "Failed to install OpenSSL"
+        exit 1
     fi
-    openssl_test_log="${openssl_dir}/include/openssl/test_log"
-    if [ "${openssl_test_success}" == "no" ]; then
-        mkdir -p "${openssl_dir}/include/openssl"
-        cp "test_log" "${openssl_test_log}"
-    fi
-    make install 2>&1  # Should not be run in parallel!
     reset_environment
     cp "LICENSE" "README" "${openssl_dir}/include/openssl/" || :
     cd "${top_dir}"
@@ -3538,19 +3718,34 @@ fi
 
 # libffi
 if [ "${libffi_install}" == "yes" ] && [ "${libffi_installed}" == "no" ]; then
-    init_install "libffi"
-    ./configure --prefix="${libffi_dir}" 2>&1
-    make ${make_jobs} 2>&1
-    if [ "${fast_install}" == "no" ]; then
-        make check 2>&1 | tee "test_log"
-        [ ${PIPESTATUS[0]} -eq 0 ] || libffi_test_success="no"
+    install_success="no"
+    for compiler in "${compiler_possibilities[@]}"; do
+        reset_environment
+        if [ "${compiler}" == "mpi" ]; then
+            printf "\nInstallation of libffi failed. Attempting with MPI compilers\n\n"
+            use_mpi_compilers
+        fi
+        init_install "libffi"
+        ./configure --prefix="${libffi_dir}" 2>&1 || continue
+        make ${make_jobs} 2>&1 || continue
+        if [ "${fast_install}" == "no" ]; then
+            make check 2>&1 | tee "test_log"
+            [ ${PIPESTATUS[0]} -eq 0 ] || libffi_test_success="no"
+        fi
+        libffi_test_log="${libffi_dir}/lib/libffi-${libffi_version}/test_log"
+        if [ "${libffi_test_success}" == "no" ]; then
+            mkdir -p "${libffi_dir}/lib/libffi-${libffi_version}"
+            cp "test_log" "${libffi_test_log}"
+        fi
+        make ${make_jobs} install 2>&1 || continue
+        install_success="yes"
+        break
+    done
+    if [ "${install_success}" == "no" ]; then
+        error "Failed to install libffi"
+        exit 1
     fi
-    libffi_test_log="${libffi_dir}/lib/libffi-${libffi_version}/test_log"
-    if [ "${libffi_test_success}" == "no" ]; then
-        mkdir -p "${libffi_dir}/lib/libffi-${libffi_version}"
-        cp "test_log" "${libffi_test_log}"
-    fi
-    make ${make_jobs} install 2>&1
+    reset_environment
     cp "LICENSE" "README" "${libffi_dir}/lib/libffi-${libffi_version}/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/libffi" || :
@@ -3563,8 +3758,7 @@ Date:    $(date)
 fi
 
 # OpenBLAS
-if [ "${openblas_install}" == "yes" ] && [ "${openblas_installed}" == "no" ]; then
-    init_install "OpenBLAS"
+if [ "${blas_install}" == "yes" ] && [ "${blas_installed}" == "no" ]; then
     # Due to the threading behaviour of Python,
     # we install a non-threaded version of OpenBLAS.
     # We wish to use the gfortran Fortran compiler. If it fails,
@@ -3574,51 +3768,76 @@ if [ "${openblas_install}" == "yes" ] && [ "${openblas_installed}" == "no" ]; th
     # and then gcc on failure. Lastly, on 32 bit systems we need to
     # set BINARY=32. First we try without, then with this option.
     # Note that OpenBLAS runs its test suite during this build.
-    make_openblas(){
-        for BINARY in "" "32"; do
-            for CC in "" "gcc"; do
-                for FC in "gfortran" ""; do
-                    printf "
-Attempting to build OpenBLAS with FC=${FC}, CC=${CC}, BINARY=${BINARY}\n"
-                    openblas_make_success="yes"
-                    make_openblas_cmd="make USE_THREAD=0"
-                    if [ -n "${FC}" ]; then
-                        make_openblas_cmd="${make_openblas_cmd} FC=${FC}"
+    install_success="no"
+    CC_possibilities_openblas=("" "gcc" "${compiler_possibilities[@]}")
+    openblas_possibilities_tried=()
+    for openblas_BINARY in "" "32"; do
+        for openblas_CC in "${CC_possibilities_openblas[@]}"; do
+            for openblas_FC in "gfortran" ""; do
+                s="${openblas_BINARY}_${openblas_CC}_${openblas_FC}"
+                already_tried="False"
+                for s_old in "${openblas_possibilities_tried[@]}"; do
+                    if [ "${s}" == "${s_old}" ]; then
+                        already_tried="True"
+                        break
                     fi
-                    if [ -n "${CC}" ]; then
-                        make_openblas_cmd="${make_openblas_cmd} CC=${CC}"
-                    fi
-                    if [ -n "${BINARY}" ]; then
-                        make_openblas_cmd="${make_openblas_cmd} BINARY=${BINARY}"
-                    fi
-                    eval "${make_openblas_cmd}" || openblas_make_success="no"
-                    if [ "${openblas_make_success}" == "yes" ]; then
-                        return
-                    fi
-                    printf "
-Failed to build OpenBLAS with FC=${FC}, CC=${CC}, BINARY=${BINARY}\n"
-                    make clean
                 done
+                if [ "${already_tried}" == "True" ]; then
+                    continue
+                fi
+                openblas_possibilities_tried=("${s}" "${openblas_possibilities_tried[@]}")
+                reset_environment
+                init_install "BLAS"
+                printf "
+Attempting to install OpenBLAS with openblas_FC=${openblas_FC}, \
+openblas_CC=${openblas_CC}, openblas_BINARY=${openblas_BINARY}\n\n"
+                if [ "${openblas_CC}" == "mpi" ]; then
+                    use_mpi_compilers
+                    openblas_CC="${CC}"
+                    if [ -z "${openblas_FC}" ]; then
+                        openblas_FC="${FC}"
+                    else
+                        export FC="${openblas_FC}"
+                        export F9X="${openblas_FC}"
+                    fi
+                fi
+                openblas_make_options="USE_THREAD=0"
+                if [ -n "${openblas_FC}" ]; then
+                    openblas_make_options="${openblas_make_options} FC=${openblas_FC}"
+                fi
+                if [ -n "${openblas_CC}" ]; then
+                    openblas_make_options="${openblas_make_options} CC=${openblas_CC}"
+                fi
+                if [ -n "${openblas_BINARY}" ]; then
+                    openblas_make_options="${openblas_make_options} BINARY=${openblas_BINARY}"
+                fi
+                make ${openblas_make_options} || continue
+                make PREFIX="${blas_dir}" install || continue
+                install_success="yes"
+                break
             done
+            if [ "${install_success}" == "yes" ]; then
+                break
+            fi
         done
-    }
-    make_openblas
-    if [ "${openblas_make_success}" == "yes" ]; then
-        printf "\nSuccessfully build OpenBLAS with FC=${FC}, CC=${CC}, BINARY=${BINARY}\n\n"
-    else
-        error "OpenBLAS build failed under all combinations of FC, CC and BINARY"
+        if [ "${install_success}" == "yes" ]; then
+            break
+        fi
+    done
+    if [ "${install_success}" == "no" ]; then
+        error "Failed to install OpenBLAS"
         exit 1
     fi
-    make PREFIX="${openblas_dir}" install
-    cp "LICENSE" "${openblas_dir}/" || :
+    reset_environment
+    cp "LICENSE" "${blas_dir}/" || :
     cd "${top_dir}"
-    rm -rf "${top_dir}/tmp/openblas" || :
+    rm -rf "${top_dir}/tmp/blas" || :
     # Write out success notice
     echo "The following has been fully installed:
-Program: OpenBLAS
-Version: ${openblas_version}
+Program: BLAS
+Version: ${blas_version}
 Date:    $(date)
-" >> "${openblas_dir}/.installation_finished"
+" >> "${blas_dir}/.installation_finished"
 fi
 
 # Python
@@ -3631,131 +3850,141 @@ if [ "${python_install}" == "yes" ]; then
     unset PYTHONPATH
 fi
 if [ "${python_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
-    init_install "Python"
-    # Build with pip if both openssl and zlib are installed.
-    # For Python >=3.7, a standalone libffi is also required,
-    # though we do not check explicitly for this.
-    with_ensurepip_install=""
-    if [ -n "${openssl_dir}" ] && [ -n "${zlib_dir}" ]; then
-        with_ensurepip_install="--with-ensurepip=install"
-    fi
-    # Try building with optimizations. If it fails for whatever reason,
-    # fall back to a non-optimized build.
-    for optimize_flag in "--enable-optimizations" ""; do
-        if [ -z "${optimize_flag}" ]; then
-            echo "Attempting to install Python without optimizations"
-        else
-            echo "Attempting to install Python with optimizations"
-        fi
-        pybuild_success="yes"
-        # Set up environment variables and configure options
-        reset_environment
-        if [ -n "${ncurses_dir}" ]; then
-            export CPPFLAGS="-I${ncurses_dir}/include -I${ncurses_dir}/include/ncurses ${CPPFLAGS}"
-            export LD_LIBRARY_PATH="${ncurses_dir}/lib:${LD_LIBRARY_PATH}"
-            export LDFLAGS="-L${ncurses_dir}/lib -Wl,-rpath=${ncurses_dir}/lib ${LDFLAGS}"
-        fi
-        with_openssl=""
-        if [ -n "${openssl_dir}" ]; then
-            export CPPFLAGS="-I${openssl_dir}/include/openssl ${CPPFLAGS}"
-            export LD_LIBRARY_PATH="${openssl_dir}/lib:${LD_LIBRARY_PATH}"
-            export LDFLAGS="-L${openssl_dir}/lib -Wl,-rpath=${openssl_dir}/lib ${LDFLAGS}"
-            with_openssl="--with-openssl=${openssl_dir}"
-            # Modify Modules/Setup.dist in order for Python to use the
-            # custom SSL library.
-            first_line="$(grep -n 'SSL=' 'Modules/Setup.dist')"
-            first_line=${first_line%:*}
-            ((last_line = first_line + 3))
-            sed -i "${first_line},${last_line}s/.//" "Modules/Setup.dist"
-            sed -i "${first_line}s/.*/SSL=${openssl_dir//\//\\/}/" "Modules/Setup.dist"
-        fi
-        if [ -n "${zlib_dir}" ]; then
-            export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
-            export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
-            export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
-        fi
-        with_system_ffi=""
-        if [ -n "${libffi_dir}" ]; then
-            current_dir="$(pwd)"
-            for lib_dir in "lib" "lib64"; do
-                if [ ! -d "${libffi_dir}/${lib_dir}" ]; then
+    install_success="no"
+    # The configure script will check whether atomic operations may
+    # be used. Some compilers (e.g. Intel 2019) only implement a subset
+    # of the needed atomic operations, and so may falsely passed this check.
+    # If none of the other combination of options (compiler and optimization
+    # choices) work, we try everything again while claiming that we do not
+    # support atomic operations at all.
+    for disable_atomic_operations in "no" "yes"; do
+        for compiler in "${compiler_possibilities[@]}"; do
+            # Build with pip if both openssl and zlib are installed.
+            # For Python >=3.7, a standalone libffi is also required,
+            # though we do not check explicitly for this.
+            with_ensurepip_install=""
+            if [ -n "${openssl_dir}" ] && [ -n "${zlib_dir}" ]; then
+                with_ensurepip_install="--with-ensurepip=install"
+            fi
+            # Try building with optimizations (both profile guided
+            # compile time optimization (pgo) and link time
+            # optimization (lto)). If it fails for whatever reason,
+            # fall back to a non-optimized build.
+            for pyoptimizations in "pgo lto" "pgo" "lto" ""; do
+                reset_environment
+                if [ "${compiler}" == "mpi" ]; then
+                    use_mpi_compilers
+                fi
+                init_install "Python"
+                printf "
+Attempting to install Python with pyoptimizations=${pyoptimizations}, \
+compiler=${compiler}, disable_atomic_operations=${disable_atomic_operations}\n\n"
+                # Set up environment variables and configure options
+                if [ "${disable_atomic_operations}" == "yes" ]; then
+                    sed -i '/have_stdatomic_h *= *yes/c\have_stdatomic_h=no' configure
+                fi
+                with_pgo=""
+                if [[ "${pyoptimizations}" == *"pgo"* ]]; then
+                    with_pgo="--enable-optimizations"
+                fi
+                with_lto=""
+                if [[ "${pyoptimizations}" == *"lto"* ]]; then
+                    with_lto="--with-lto"
+                fi
+                if [ -n "${ncurses_dir}" ]; then
+                    export CPPFLAGS="-I${ncurses_dir}/include -I${ncurses_dir}/include/ncurses ${CPPFLAGS}"
+                    export LD_LIBRARY_PATH="${ncurses_dir}/lib:${LD_LIBRARY_PATH}"
+                    export LDFLAGS="-L${ncurses_dir}/lib -Wl,-rpath=${ncurses_dir}/lib ${LDFLAGS}"
+                fi
+                with_openssl=""
+                if [ -n "${openssl_dir}" ]; then
+                    export CPPFLAGS="-I${openssl_dir}/include/openssl ${CPPFLAGS}"
+                    export LD_LIBRARY_PATH="${openssl_dir}/lib:${LD_LIBRARY_PATH}"
+                    export LDFLAGS="-L${openssl_dir}/lib -Wl,-rpath=${openssl_dir}/lib ${LDFLAGS}"
+                    with_openssl="--with-openssl=${openssl_dir}"
+                    # Modify Modules/Setup.dist in order for Python to use the
+                    # custom SSL library.
+                    first_line="$(grep -n 'SSL=' 'Modules/Setup.dist')"
+                    first_line=${first_line%:*}
+                    ((last_line = first_line + 3))
+                    sed -i "${first_line},${last_line}s/.//" "Modules/Setup.dist"
+                    sed -i "${first_line}s/.*/SSL=${openssl_dir//\//\\/}/" "Modules/Setup.dist"
+                fi
+                if [ -n "${zlib_dir}" ]; then
+                    export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
+                    export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
+                    export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
+                fi
+                with_system_ffi=""
+                if [ -n "${libffi_dir}" ]; then
+                    current_dir="$(pwd)"
+                    for lib_dir in "lib" "lib64"; do
+                        if [ ! -d "${libffi_dir}/${lib_dir}" ]; then
+                            continue
+                        fi
+                        cd "${libffi_dir}/${lib_dir}"
+                        for f in *; do
+                            if     [ -d "${f}" ] \
+                                && [[ "${f}" == "libffi"* ]] \
+                                && [ -d "${libffi_dir}/${lib_dir}/${f}/include" ]; then
+                                export CPPFLAGS="-I${libffi_dir}/${lib_dir}/${f}/include ${CPPFLAGS}"
+                                break
+                            fi
+                        done
+                        export LD_LIBRARY_PATH="${libffi_dir}/${lib_dir}:${LD_LIBRARY_PATH}"
+                        export LDFLAGS="-L${libffi_dir}/${lib_dir} \
+-Wl,-rpath=${libffi_dir}/${lib_dir} ${LDFLAGS}"
+                    done
+                    cd "${current_dir}"
+                    with_system_ffi="--with-system-ffi"
+                fi
+                # Configure.
+                # When pgo optimizations are enabled, some of the tests which
+                # are performed may hang. It appears that the configure script
+                # allows each test to take up to an hour before they are
+                # forcefully killed. We thus do not need to kill any such
+                # hanging process manually. We do however write out a soothing
+                # message in the case of such hangs, letting the user know that
+                # everything is all right.
+                pyconfigure_success="yes"
+                ./configure --enable-shared ${with_pgo} ${with_lto} --prefix="${python_dir}" \
+                    ${with_ensurepip_install}                                                \
+                    ${with_openssl}                                                          \
+                    ${with_system_ffi}                                                       \
+                    2>&1 || pyconfigure_success="no" & python_configure_pid=$!
+                soothe ${python_configure_pid}
+                if [ "${pyconfigure_success}" == "no" ]; then
                     continue
                 fi
-                cd "${libffi_dir}/${lib_dir}"
-                for f in *; do
-                    if     [ -d "${f}" ] \
-                        && [[ "${f}" == "libffi"* ]] \
-                        && [ -d "${libffi_dir}/${lib_dir}/${f}/include" ]; then
-                        export CPPFLAGS="-I${libffi_dir}/${lib_dir}/${f}/include ${CPPFLAGS}"
-                        break
-                    fi
-                done
-                export LD_LIBRARY_PATH="${libffi_dir}/${lib_dir}:${LD_LIBRARY_PATH}"
-                export LDFLAGS="-L${libffi_dir}/${lib_dir} \
--Wl,-rpath=${libffi_dir}/${lib_dir} ${LDFLAGS}"
+                # Make
+                make ${make_jobs} 2>&1 || continue
+                # Test
+                if [ "${fast_install}" == "no" ]; then
+                    make ${make_jobs} test 2>&1 | tee "test_log"
+                    [ ${PIPESTATUS[0]} -eq 0 ] || python_test_success="no"
+                fi
+                python_test_log="${python_dir}/test_log"
+                if [ "${python_test_success}" == "no" ]; then
+                    mkdir -p "${python_dir}"
+                    cp "test_log" "${python_test_log}"
+                else
+                    rm -f "${python_test_log}"
+                fi
+                # Make install
+                make install 2>&1 || continue  # Should be run serially
+                install_success="yes"
+                break
             done
-            cd "${current_dir}"
-            with_system_ffi="--with-system-ffi"
-        fi
-        # Configure.
-        # When optimizations are enabled, some of the tests which are
-        # performed may hang. It appears that the configure script
-        # allows each test to take up to an hour before they are
-        # forcefully killed. We thus do not need to kill any such
-        # hanging process manually. We do however write out a soothing
-        # message in the case of such hangs, letting the user know that
-        # everything is all right.
-        ./configure --enable-shared ${optimize_flag} --prefix="${python_dir}" \
-            ${with_ensurepip_install}                                         \
-            ${with_openssl}                                                   \
-            ${with_system_ffi}                                                \
-            2>&1 || pybuild_success="no" & python_configure_pid=$!
-        soothe ${python_configure_pid}
-        if [ "${pybuild_success}" == "no" ]; then
-            if [ -z "${optimize_flag}" ]; then
-                echo "Error: Failed to install Python without optimizations"
-            else
-                echo "Error: Failed to install Python with optimizations"
+            if [ "${install_success}" == "yes" ]; then
+                break
             fi
-            continue
-        fi
-        # Make
-        make ${make_jobs} 2>&1 || pybuild_success="no"
-        if [ "${pybuild_success}" == "no" ]; then
-            if [ -z "${optimize_flag}" ]; then
-                echo "Error: Failed to install Python without optimizations"
-            else
-                echo "Error: Failed to install Python with optimizations"
-            fi
-            continue
-        fi
-        # Test
-        if [ "${fast_install}" == "no" ]; then
-            make ${make_jobs} test 2>&1 | tee "test_log"
-            [ ${PIPESTATUS[0]} -eq 0 ] || python_test_success="no"
-        fi
-        python_test_log="${python_dir}/test_log"
-        if [ "${python_test_success}" == "no" ]; then
-            mkdir -p "${python_dir}"
-            cp "test_log" "${python_test_log}"
-        else
-            rm -f "${python_test_log}"
-        fi
-        # Make install
-        make install 2>&1 || pybuild_success="no"  # Should be run serially
-        if [ "${pybuild_success}" == "no" ]; then
-            if [ -z "${optimize_flag}" ]; then
-                echo "Error: Failed to install Python without optimizations"
-            else
-                echo "Error: Failed to install Python with optimizations"
-            fi
-            continue
-        else
+        done
+        if [ "${install_success}" == "yes" ]; then
             break
         fi
     done
-    if [ "${pybuild_success}" == "no" ]; then
-        error "Error: Failed to install Python, both with and without optimizations"
+    if [ "${install_success}" == "no" ]; then
+        error "Failed to install Python"
         exit 1
     fi
     reset_environment
@@ -3791,22 +4020,6 @@ fi
 ###########################
 # Install Python packages #
 ###########################
-# Function that checks whether a given Python package
-# is installed or not.
-check_pypackage_installed(){
-    # Arguments: Python package name
-    "${python}" -c "
-try:
-    # CythonGSL has an extra underscore when importing
-    if '${1}' == 'cythongsl':
-        import cython_gsl
-    else:
-        import ${1}
-    print('yes')
-except:
-    print('no')
-" 2>/dev/null
-}
 # Set "pypackage"_installed variables
 blessings_installed="no"
 cython_installed="no"
@@ -3999,7 +4212,7 @@ pip_install_pypackage(){
     fi
     reset_environment
     # Exit on failure
-    if [ "${pypackage_installed}" == "no" ]; then
+    if [ "${pypackage_installed}" != "yes" ]; then
         error "pip could not install/upgrade ${1}"
         exit 1
     fi
@@ -4099,13 +4312,48 @@ fi
 
 # Cython
 if [ "${cython_install}" == "yes" ] && [ "${cython_installed}" == "no" ]; then
-    pip_install_pypackage "Cython" "${cython_version}"
+    install_success="no"
+    for compiler in "${compiler_possibilities[@]}"; do
+        reset_environment
+        if [ "${compiler}" == "mpi" ]; then
+            printf "\nInstallation of Cython failed. Attempting with MPI compilers\n\n"
+            use_mpi_compilers
+        fi
+        pip_install_pypackage "Cython" "${cython_version}"
+        if [ "$(check_pypackage_installed cython)" == "no" ]; then
+            continue
+        fi
+        install_success="yes"
+        break
+    done
+    if [ "${install_success}" == "no" ]; then
+        error "Failed to install Cython"
+        exit 1
+    fi
+    reset_environment
 fi
 
 # CythonGSL
 if [ "${cythongsl_install}" == "yes" ] && [ "${cythongsl_installed}" == "no" ]; then
-    export LD_LIBRARY_PATH="${gsl_dir}/lib:${LD_LIBRARY_PATH}"
-    pip_install_pypackage "CythonGSL" "${cythongsl_version}"
+    install_success="no"
+    for compiler in "${compiler_possibilities[@]}"; do
+        reset_environment
+        if [ "${compiler}" == "mpi" ]; then
+            printf "\nInstallation of CythonGSL failed. Attempting with MPI compilers\n\n"
+            use_mpi_compilers
+        fi
+        export LD_LIBRARY_PATH="${gsl_dir}/lib:${LD_LIBRARY_PATH}"
+        pip_install_pypackage "CythonGSL" "${cythongsl_version}"
+        if [ "$(check_pypackage_installed cythongsl)" == "no" ]; then
+            continue
+        fi
+        install_success="yes"
+        break
+    done
+    if [ "${install_success}" == "no" ]; then
+        error "Failed to install CythonGSL"
+        exit 1
+    fi
     reset_environment
 fi
 
@@ -4156,12 +4404,12 @@ if [ "${numpy_install}" == "yes" ] && [ "${numpy_installed}" == "no" ]; then
     fi
     # Create a site.cfg file containing information about OpenBLAS
     echo "[DEFAULT]
-library_dirs = ${openblas_dir}/lib
-include_dirs = ${openblas_dir}/include
+library_dirs = ${blas_dir}/lib
+include_dirs = ${blas_dir}/include
 
 [ALL]
-library_dirs = ${openblas_dir}/lib
-include_dirs = ${openblas_dir}/include
+library_dirs = ${blas_dir}/lib
+include_dirs = ${blas_dir}/include
 
 [atlas]
 atlas_libs = openblas
@@ -4169,77 +4417,88 @@ libraries = openblas
 
 [openblas]
 libraries = openblas
-library_dirs = ${openblas_dir}/lib
-include_dirs = ${openblas_dir}/include
-runtime_library_dirs = ${openblas_dir}/lib
+library_dirs = ${blas_dir}/lib
+include_dirs = ${blas_dir}/include
+runtime_library_dirs = ${blas_dir}/lib
 " > "${numpy_build_dir}/site.cfg"
     # Build and install NumPy with OpenBLAS support.
-    # We always use gfortran as the Fortran compiler,
-    # which ought to be the one used when compiling OpenBLAS.
-    export BLAS="${openblas_dir}/lib/libopenblas.a"
-    export LAPACK="${openblas_dir}/lib/libopenblas.a"
-    export LD_LIBRARY_PATH="${openblas_dir}/lib:${LD_LIBRARY_PATH}"
-    export FC=gfortran
-    # On some systems, the Fortran compiler type and several additional
+    # On some systems, the Fortran compiler and several additional
     # environment variables need to be modified. Here we try all
-    # combinations until we hit a working combination.
+    # combinations until we hit a working one.
     cp -r "${numpy_build_dir}" "${numpy_build_dir}_cp"
-    LDFLAGS_ori="${LDFLAGS}"
-    FFLAGS_ori="${FFLAGS}"
-    for fcompiler in "gnu95" ""; do
-        for extra_FFLAGS in "" "-fPIC"; do
-            export FFLAGS="${extra_FFLAGS} ${FFLAGS_ori}"
-            for extra_LDFLAGS in "" "-shared"; do
-                export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS_ori}"
-                printf "\nAttempting to build NumPy with fcompiler=${fcompiler}, \
-extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n"
-                cd "${top_dir}"
-                rm -rf "${numpy_build_dir}"
-                cp -r "${numpy_build_dir}_cp" "${numpy_build_dir}"
-                cd "${numpy_build_dir}"
-                echo "yes" > ".setuppy_success"
-                if [ -n "${fcompiler}" ]; then
-                    ("${python}" setup.py build --fcompiler="${fcompiler}" \
-                        || echo "no" > ".setuppy_success") & setuppy_pid=$!
-                else
-                    ("${python}" setup.py build \
-                        || echo "no" > ".setuppy_success") & setuppy_pid=$!
-                fi
-                soothe ${setuppy_pid}
-                sleep 1
-                setuppy_success="$(cat '.setuppy_success')"
-                if [ "${setuppy_success}" == "yes" ]; then
-                    break
-                fi
-                printf "\nFailed to build NumPy with fcompiler=${fcompiler}, \
-extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n"
-            done
-            if [ "${setuppy_success}" == "yes" ]; then
-                break
-            fi
-        done
-        if [ "${setuppy_success}" == "yes" ]; then
+    FC_possibilities_numpy=("gfortran" "")
+    for numpy_CC in "${CC_possibilities[@]}"; do
+        if [ "${numpy_CC}" == "mpi" ]; then
+            FC_possibilities_numpy=("${FC_possibilities_numpy[@]}" "mpi")
             break
         fi
     done
-    if [ "${setuppy_success}" == "yes" ]; then
-        printf "\nSuccessfully build NumPy with fcompiler=${fcompiler}, \
-extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n\n"
-    else
-        error "NumPy build failed under all combinations of fcompiler, FFLAGS and LDFLAGS"
-        exit 1
-    fi
-    "${python}" setup.py install & setuppy_pid=$!
-    soothe ${setuppy_pid}
-    reset_environment
-    cd "${top_dir}"
-    # Exit if installation failed
-    if [ "$(check_pypackage_installed numpy)" == "no" ]; then
+    install_success="no"
+    for numpy_FC in "${FC_possibilities_numpy[@]}"; do
+        for fcompiler in "gnu95" ""; do
+            for extra_FFLAGS in "" "-fPIC"; do
+                for extra_LDFLAGS in "" "-shared"; do
+                    reset_environment
+                    if [ "${numpy_FC}" == "mpi" ]; then
+                        use_mpi_compilers
+                    elif [ -n "${numpy_FC}" ]; then
+                        export FC="${numpy_FC}"
+                    fi
+                    export TMPDIR="${tmp_pip_dir}_tmp"
+                    export BLAS="${blas_dir}/lib/libopenblas.a"
+                    export LAPACK="${blas_dir}/lib/libopenblas.a"
+                    export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
+                    export FFLAGS="${extra_FFLAGS} ${FFLAGS}"
+                    export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS}"
+                    printf "\nAttempting to install NumPy with numpy_FC=${numpy_FC}, \
+fcompiler=${fcompiler}, extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n\n"
+                    cd "${top_dir}"
+                    rm -rf "${numpy_build_dir}"
+                    cp -r "${numpy_build_dir}_cp" "${numpy_build_dir}"
+                    cd "${numpy_build_dir}"
+                    echo "yes" > ".setuppy_success"
+                    if [ -n "${fcompiler}" ]; then
+                        ("${python}" setup.py build --fcompiler="${fcompiler}" \
+                            || echo "no" > ".setuppy_success") & setuppy_pid=$!
+                    else
+                        ("${python}" setup.py build \
+                            || echo "no" > ".setuppy_success") & setuppy_pid=$!
+                    fi
+                    soothe ${setuppy_pid}
+                    sleep 1
+                    setuppy_success="$(cat '.setuppy_success')"
+                    if [ "${setuppy_success}" != "yes" ]; then
+                        continue
+                    fi
+                    "${python}" setup.py install & setuppy_pid=$!
+                    soothe ${setuppy_pid}
+                    if [ "$(check_pypackage_installed numpy)" == "no" ]; then
+                        continue
+                    fi
+                    install_success="yes"
+                    break
+                done
+                if [ "${install_success}" == "yes" ]; then
+                    break
+                fi
+            done
+            if [ "${install_success}" == "yes" ]; then
+                break
+            fi
+        done
+        if [ "${install_success}" == "yes" ]; then
+            break
+        fi
+    done
+    if [ "${install_success}" == "no" ]; then
         error "Failed to install NumPy"
         exit 1
     fi
+    cd "${top_dir}"
     rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${top_dir}/tmp/numpy"
+    reset_environment
     # Test NumPy
+    export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
     if [ "${fast_install}" == "no" ]; then
         numpy_test_log="${python_dir}/numpy_test_log"
         "${python}" -c "import numpy; numpy.test('full', verbose=2, \
@@ -4254,6 +4513,7 @@ extra_argv=['--color=yes'])" 2>&1 | tee "${numpy_test_log}"
             rm -f "${numpy_test_log}"
         fi
     fi
+    reset_environment
 fi
 
 # SciPy (manual invocation of setup.py is needed
@@ -4279,12 +4539,12 @@ if [ "${scipy_install}" == "yes" ] && [ "${scipy_installed}" == "no" ]; then
     done
     # Create a site.cfg file containing information about OpenBLAS
     echo "[DEFAULT]
-library_dirs = ${openblas_dir}/lib
-include_dirs = ${openblas_dir}/include
+library_dirs = ${blas_dir}/lib
+include_dirs = ${blas_dir}/include
 
 [ALL]
-library_dirs = ${openblas_dir}/lib
-include_dirs = ${openblas_dir}/include
+library_dirs = ${blas_dir}/lib
+include_dirs = ${blas_dir}/include
 
 [atlas]
 atlas_libs = openblas
@@ -4292,77 +4552,88 @@ libraries = openblas
 
 [openblas]
 libraries = openblas
-library_dirs = ${openblas_dir}/lib
-include_dirs = ${openblas_dir}/include
-runtime_library_dirs = ${openblas_dir}/lib
+library_dirs = ${blas_dir}/lib
+include_dirs = ${blas_dir}/include
+runtime_library_dirs = ${blas_dir}/lib
 " > "${scipy_build_dir}/site.cfg"
     # Build and install SciPy with OpenBLAS support.
-    # We always use gfortran as the Fortran compiler,
-    # which ought to be the one used when compiling OpenBLAS.
-    export BLAS="${openblas_dir}/lib/libopenblas.a"
-    export LAPACK="${openblas_dir}/lib/libopenblas.a"
-    export LD_LIBRARY_PATH="${openblas_dir}/lib:${LD_LIBRARY_PATH}"
-    export FC=gfortran
-    # On some systems, the Fortran compiler type and several additional
+    # On some systems, the Fortran compiler and several additional
     # environment variables need to be modified. Here we try all
-    # combinations until we hit a working combination.
+    # combinations until we hit a working one.
     cp -r "${scipy_build_dir}" "${scipy_build_dir}_cp"
-    LDFLAGS_ori="${LDFLAGS}"
-    FFLAGS_ori="${FFLAGS}"
-    for fcompiler in "gnu95" ""; do
-        for extra_FFLAGS in "" "-fPIC"; do
-            export FFLAGS="${extra_FFLAGS} ${FFLAGS_ori}"
-            for extra_LDFLAGS in "" "-shared"; do
-                export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS_ori}"
-                printf "\nAttempting to build SciPy with fcompiler=${fcompiler}, \
-extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n"
-                cd "${top_dir}"
-                rm -rf "${scipy_build_dir}"
-                cp -r "${scipy_build_dir}_cp" "${scipy_build_dir}"
-                cd "${scipy_build_dir}"
-                echo "yes" > ".setuppy_success"
-                if [ -n "${fcompiler}" ]; then
-                    ("${python}" setup.py build --fcompiler="${fcompiler}" \
-                        || echo "no" > ".setuppy_success") & setuppy_pid=$!
-                else
-                    ("${python}" setup.py build \
-                        || echo "no" > ".setuppy_success") & setuppy_pid=$!
-                fi
-                soothe ${setuppy_pid}
-                sleep 1
-                setuppy_success="$(cat '.setuppy_success')"
-                if [ "${setuppy_success}" == "yes" ]; then
-                    break
-                fi
-                printf "\nFailed to build SciPy with fcompiler=${fcompiler}, \
-extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n"
-            done
-            if [ "${setuppy_success}" == "yes" ]; then
-                break
-            fi
-        done
-        if [ "${setuppy_success}" == "yes" ]; then
+    FC_possibilities_scipy=("gfortran" "")
+    for scipy_CC in "${CC_possibilities[@]}"; do
+        if [ "${scipy_CC}" == "mpi" ]; then
+            FC_possibilities_scipy=("${FC_possibilities_scipy[@]}" "mpi")
             break
         fi
     done
-    if [ "${setuppy_success}" == "yes" ]; then
-        printf "\nSuccessfully build SciPy with fcompiler=${fcompiler}, \
-extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n\n"
-    else
-        error "SciPy build failed under all combinations of fcompiler, FFLAGS and LDFLAGS"
-        exit 1
-    fi
-    "${python}" setup.py install & setuppy_pid=$!
-    soothe ${setuppy_pid}
-    reset_environment
-    cd "${top_dir}"
-    # Exit if installation failed
-    if [ "$(check_pypackage_installed scipy)" == "no" ]; then
+    install_success="no"
+    for scipy_FC in "${FC_possibilities_scipy[@]}"; do
+        for fcompiler in "gnu95" ""; do
+            for extra_FFLAGS in "" "-fPIC"; do
+                for extra_LDFLAGS in "" "-shared"; do
+                    reset_environment
+                    if [ "${scipy_FC}" == "mpi" ]; then
+                        use_mpi_compilers
+                    elif [ -n "${scipy_FC}" ]; then
+                        export FC="${scipy_FC}"
+                    fi
+                    export TMPDIR="${tmp_pip_dir}_tmp"
+                    export BLAS="${blas_dir}/lib/libopenblas.a"
+                    export LAPACK="${blas_dir}/lib/libopenblas.a"
+                    export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
+                    export FFLAGS="${extra_FFLAGS} ${FFLAGS}"
+                    export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS}"
+                    printf "\nAttempting to install SciPy with scipy_FC=${scipy_FC}, \
+fcompiler=${fcompiler}, extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n\n"
+                    cd "${top_dir}"
+                    rm -rf "${scipy_build_dir}"
+                    cp -r "${scipy_build_dir}_cp" "${scipy_build_dir}"
+                    cd "${scipy_build_dir}"
+                    echo "yes" > ".setuppy_success"
+                    if [ -n "${fcompiler}" ]; then
+                        ("${python}" setup.py build --fcompiler="${fcompiler}" \
+                            || echo "no" > ".setuppy_success") & setuppy_pid=$!
+                    else
+                        ("${python}" setup.py build \
+                            || echo "no" > ".setuppy_success") & setuppy_pid=$!
+                    fi
+                    soothe ${setuppy_pid}
+                    sleep 1
+                    setuppy_success="$(cat '.setuppy_success')"
+                    if [ "${setuppy_success}" != "yes" ]; then
+                        continue
+                    fi
+                    "${python}" setup.py install & setuppy_pid=$!
+                    soothe ${setuppy_pid}
+                    if [ "$(check_pypackage_installed scipy)" == "no" ]; then
+                        continue
+                    fi
+                    install_success="yes"
+                    break
+                done
+                if [ "${install_success}" == "yes" ]; then
+                    break
+                fi
+            done
+            if [ "${install_success}" == "yes" ]; then
+                break
+            fi
+        done
+        if [ "${install_success}" == "yes" ]; then
+            break
+        fi
+    done
+    if [ "${install_success}" == "no" ]; then
         error "Failed to install SciPy"
         exit 1
     fi
+    cd "${top_dir}"
     rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
+    reset_environment
     # Test SciPy
+    export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
     if [ "${fast_install}" == "no" ]; then
         scipy_test_log="${python_dir}/scipy_test_log"
         # We skip the test_face test as this require bz2,
@@ -4379,6 +4650,7 @@ extra_argv=['--color=yes', '-k not test_face'])" 2>&1 | tee "${scipy_test_log}"
             rm -f "${scipy_test_log}"
         fi
     fi
+    reset_environment
 fi
 
 # Matplotlib (as Matplotlib has a hard time finding FreeType,
@@ -4494,7 +4766,9 @@ ${zlib_dir}/lib\
                     -L${zlib_dir}/lib              \
                     -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
     export PATH="${freetype_dir}/bin:${libpng_dir}/bin:${PATH}"
-    export LD_LIBRARY_PATH="${libpng_dir}/lib:${zlib_dir}/lib:${LD_LIBRARY_PATH}"
+    export LD_LIBRARY_PATH="${libpng_dir}/lib:${LD_LIBRARY_PATH}"
+    export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
+    export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
     export PKG_CONFIG_PATH="${libpng_dir}/lib/pkgconfig:\
 ${zlib_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
     # After the adoption of PEP 518 (pip 10), some packages require
@@ -4538,6 +4812,8 @@ fi
 
 # H5Py
 if [ "${h5py_install}" == "yes" ] && [ "${h5py_installed}" == "no" ]; then
+    export LD_LIBRARY_PATH="${hdf5_dir}/lib:${LD_LIBRARY_PATH}"
+    export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
     export HDF5_DIR="${hdf5_dir}"
     export HDF5_MPI="ON"
     export CC="${mpi_dir}/bin/mpicc"
@@ -5047,34 +5323,75 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "}"                                                             \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
-    # Build CLASS, including the Python wrapper classy. By default,
-    # the gcc compiler is used with the -ffast-math option. We do not
-    # try out different compilers, but we do try both with and without
-    # the -ffast-math option.
+    # Build CLASS, including the Python wrapper classy. We replace -O4
+    # with -O3 (which are equivalent on compilers that recognize -O4).
+    # We try with and without the --fast-math option, try different
+    # commpilers and various flags for correctly linking to OpenMP.
+    sed -i 's/-O4/-O3/' "Makefile"
     cp "Makefile" "Makefile_ori"
-    for fast_math in "yes" "no"; do
-        class_success="yes"
-        cp "Makefile_ori" "Makefile"
-        if [ "${fast_math}" == "no" ]; then
-            sed -i '0,/-ffast-math/s/-ffast-math/#-ffast-math/' "Makefile"
-        fi
-        PYTHON="${python}" make ${make_jobs} 2>&1 || class_success="no"
-        if [ "${class_success}" == "yes" ]; then
+    cp "python/setup.py" "python/setup.py_ori"
+    install_success="no"
+    for lgomp_in_extra_link_args in "" "-gomp"; do
+        for OMPFLAG in "" "-openmp" "-fopenmp" "-qopenmp"; do
+            if [ -z "${lgomp_in_extra_link_args}" ] && [ -z "${OMPFLAG}" ]; then
+                continue
+            fi
+            for compiler in "${compiler_possibilities[@]}"; do
+                for fast_math in "yes" "no"; do
+                    reset_environment
+                    cp "Makefile_ori" "Makefile"
+                    cp "python/setup.py_ori" "python/setup.py"
+                    make clean || :
+                    export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
+                    if [ "${compiler}" == "mpi" ]; then
+                        use_mpi_compilers
+                        compiler="mpicc"
+                    fi
+                    if [ "${fast_math}" == "no" ]; then
+                        sed -i '0,/-ffast-math/s/-ffast-math/#-ffast-math/' "Makefile"
+                    fi
+                    if [ -n "${compiler}" ]; then
+                        sed -i "s/CC * =/CC = ${compiler}  #/" "Makefile"
+                    fi
+                    if [ -n "${OMPFLAG}" ]; then
+                        sed -i "s/OMPFLAG *=/OMPFLAG = ${OMPFLAG}  #/" "Makefile"
+                    fi
+                    sed -i "s/extra_link_args *=/extra_link_args=\
+'${lgomp_in_extra_link_args} ${OMPFLAG}'.split(),  #/" "python/setup.py"
+                    printf "
+Attempting to install CLASS with lgomp_in_extra_link_args=${lgomp_in_extra_link_args}, \
+OMPFLAG=${OMPFLAG}, compiler=${compiler}, fast_math=${fast_math}\n\n"
+                    PYTHON="${python}" make ${make_jobs} 2>&1 || continue
+                    "${python}" -c "import classy; classy.Class().compute()" || continue
+                    install_success="yes"
+                    break
+                done
+                if [ "${install_success}" == "yes" ]; then
+                    break
+                fi
+            done
+            if [ "${install_success}" == "yes" ]; then
+                break
+            fi
+        done
+        if [ "${install_success}" == "yes" ]; then
             break
         fi
-        make clean || :
     done
-    if [ "${class_success}" == "no" ]; then
+    if [ "${install_success}" == "no" ]; then
         error "Failed to install CLASS"
         exit 1
     fi
+    reset_environment
     # Test CLASS
+    export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
     if [ "${fast_install}" == "no" ]; then
         # We do not use the builtin test_class.py, as this require tens
         # of gigabytes and uses the Nose and parameterized Python
         # packages. Instead we perform a simple test of our own,
         # which only does a background computation.
-        if ! "${python}" -c "import sys
+        if ! "${python}" -c "
+import sys
 from classy import Class
 cosmo = Class()
 cosmo.compute()
@@ -5088,6 +5405,7 @@ sys.exit(int(cosmo.get_background()['proper time [Gyr]'][-1]) != 13)
                > "${class_test_log}"
         fi
     fi
+    reset_environment
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/class" || :
     # Write out success notice
@@ -5141,11 +5459,12 @@ with open('${env_file}', 'r', encoding='utf-8') as file:
 # Generator for extracting environment variables
 def get_envs():
     for var, val in os.environ.items():
-        if (# PATH, LD_LIBRARY_PATH, ...
-               ('path' in var.lower() and (val.startswith('/') or val.startswith(':')))
-            # INTEL_LICENSE_FILE
-            or (var == 'INTEL_LICENSE_FILE' and val.startswith('/'))
-            ):
+        if (
+            # PATH, LD_LIBRARY_PATH, ...
+            ('path' in var.lower() and (val.startswith('/') or val.startswith(':')))
+            # Intel license file
+            or (var in {'INTEL_LICENSE_FILE', 'INTEL_LICENCE_FILE'} and val.startswith('/'))
+        ):
             yield var, val
 # Add environment variables
 envs_inserted = False
@@ -5198,6 +5517,8 @@ utilities_dir='${utilities_dir}'
 ##########################
 # Dependency directories #
 ##########################
+# Directory of BLAS
+blas_dir='${blas_dir}'
 # Directory of CLASS
 class_dir='${class_dir}'
 # Directory of FFTW
@@ -5422,6 +5743,7 @@ if [ "${install_anything}" == "yes" ] && [ "${say_copyright}" != "no" ]; then
     else
         printf "The following software have been installed:\n"
     fi
+    copyright_notice "blas"            "OpenBLAS"
     copyright_notice "class"           "CLASS"
     copyright_notice "fftw"            "FFTW 3"
     copyright_notice "fftw_for_gadget" "FFTW 2"
@@ -5436,7 +5758,6 @@ if [ "${install_anything}" == "yes" ] && [ "${say_copyright}" != "no" ]; then
         copyright_notice "mpi"         "OpenMPI"
     fi
     copyright_notice "ncurses"         "ncurses"
-    copyright_notice "openblas"        "OpenBLAS"
     copyright_notice "openssl"         "OpenSSL"
     copyright_notice "perl"            "Perl"
     copyright_notice "zlib"            "zlib"
@@ -5610,14 +5931,11 @@ display_loop(){
 }
 display_loop
 
-# Remove the log files if no errors occurred
+# Installation complete
 installation_guaranteed_successful="no"
 if [ "${fast_install}" == "no" ] && \
     [ "$(tail -n 1 "${log}")" == "${status_prefix}${status_finish_successfully}" ]; then
     installation_guaranteed_successful="yes"
-fi
-if [ "${installation_guaranteed_successful}" == "yes" ]; then
-    rm -f "${log}" "${log}_err"
 fi
 if [ ! -s "${log}" ]; then
     rm -f "${log}"
@@ -5625,8 +5943,6 @@ fi
 if [ ! -s "${log}_err" ]; then
     rm -f "${log}_err"
 fi
-
-# Installation complete. Deactivate traps before exiting.
 if [ "${say_goodbye}" != "no" ]; then
     if [ "${installation_guaranteed_successful}" == "yes" ]; then
         printf "${esc_bold}${esc_green}${esc_concept} installation finished${esc_normal}\n"

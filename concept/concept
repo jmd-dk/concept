@@ -85,6 +85,28 @@ done
 # Load environment variables from the .env file
 source "${env_file}"
 
+# Add the concept directory to searched paths
+# when importing modules in Python.
+export PYTHONPATH="${concept_dir}:${PYTHONPATH}"
+
+# Some Python packages may need access to libraries at runtime
+for lib in "blas" "gsl" "hdf5" "libpng" "zlib"; do
+    eval "lib_dir=\"\${${lib}_dir}/lib\""
+    export LD_LIBRARY_PATH="${lib_dir}:${LD_LIBRARY_PATH}"
+done
+
+# A bug in HDF5 makes the code crash on certain file systems.
+# A workaround is to set an environment variable as below.
+# The bug is documented here:
+# http://www.nersc.gov/users/data-analytics
+# /data-management/i-o-libraries/hdf5-2/hdf5/
+export HDF5_USE_FILE_LOCKING=FALSE
+
+# The MPI executables and libraries should be
+# on the PATH and LD_LIBRARY_PATH, respectively.
+export PATH="${mpi_dir}/bin:${PATH}"
+export LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}"
+
 # The time before any computation begins.
 # This time is saved both in seconds after the Unix epoch
 # and in a human readable format.
@@ -231,26 +253,6 @@ except:
     list="[$(echo "${list}")]"
     echo "${list}"
 }
-
-# Add the concept directory to searched paths
-# when importing modules in Python.
-export PYTHONPATH="${concept_dir}:${PYTHONPATH}"
-
-# On some systems, libpng finds a wrong version of the zlib shared
-# library. To fix this we export the zlib library at run time.
-export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
-
-# A bug in HDF5 makes the code crash on certain file systems.
-# A workaround is to set an environment variable as below.
-# The bug is documented here:
-# http://www.nersc.gov/users/data-analytics
-# /data-management/i-o-libraries/hdf5-2/hdf5/
-export HDF5_USE_FILE_LOCKING=FALSE
-
-# The MPI executables and libraries should be
-# on the PATH and LD_LIBRARY_PATH, respectively.
-export PATH="${mpi_dir}/bin:${PATH}"
-export LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}"
 
 # Determine the MPI implentation and version
 if [ -f "${mpi_dir}/bin/ompi_info" ]; then
