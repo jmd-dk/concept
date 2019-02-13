@@ -165,7 +165,7 @@ other_cflags =                              \
 
 # General optimization options
 ifneq ($(no_optimization),True)
-    other_cflags += -O3
+    other_cflags += -O3 -flto
 else
     python_cflags_tmp := $(python_cflags)
     python_cflags = $(filter-out -O3, $(python_cflags_tmp))
@@ -186,8 +186,10 @@ ifeq ($(CC_version),icc)
         # Increase amount of inlining
         other_cflags += -inline-factor=200
     endif
-    # Filter out warning about not inlining everything
-    other_cflags += -wd11074 -wd11076
+    # Filter out warnings
+    other_cflags += -wd111    # Unreachable statement
+    other_cflags += -wd11074  # Inlining inhibited
+    other_cflags += -wd11076  # How to get full report
     # Remove unrecognized flags
     python_cflags_cp := $(python_cflags)
     python_cflags = $(filter-out  \
@@ -218,7 +220,7 @@ python_libdir  = $(shell $(python) -c "import sysconfig;                        
                    )
 python_libs    = -L$(python_libdir) -Wl,-rpath=$(python_libdir) $(shell $(python_config) --libs)
 ifneq ($(no_optimization),True)
-    other_libs = -Wl,-O3
+    other_libs = -Wl,-O3 -flto
 endif
 LDLIBS         = $(call uniq, $(foreach flag, $(fftw_libs)                     \
                                               $(gsl_libs)                      \
