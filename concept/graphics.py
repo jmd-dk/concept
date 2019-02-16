@@ -129,6 +129,36 @@ def plot_powerspec(k_bin_centers, power_dict, filename, powerspec_plot_select):
         # Finish progress message
         masterprint('done')
 
+# Mappings from (pieces of) CLASS perturbation variable names
+# to the LaTeX code for typesetting of the variables and their units,
+# used by the plot_*_perturbations functions below.
+var_name_to_latex = {
+    'δ'  : r'{\delta}',
+    'θ'  : r'{\theta}',
+    'ρ'  : r'{\rho}',
+    'σ'  : r'{\sigma}',
+    'ϕ'  : r'{\phi}',
+    'ψ'  : r'{\psi}',
+    'H_T': r'H_{\mathrm{T}}',
+    'ʹ'  : r'^{\prime}',
+}
+var_name_to_latex_unit = {
+    'δ'   : rf'',
+    'θ'   : rf'[\mathrm{{{unit_time}}}^{{-1}}]',
+    'δP'  : (
+        rf'['
+        rf'\mathrm{{{unit_mass}}}'
+        rf'\mathrm{{{unit_length}}}^{{-1}}'
+        rf'\mathrm{{{unit_time}}}^{{-2}}'
+        rf']'
+    ),
+    'σ'   : rf'[\mathrm{{{unit_length}}}^2\mathrm{{{unit_time}}}^{{-2}}]',
+    'ϕ'   : rf'[\mathrm{{{unit_length}}}^2\mathrm{{{unit_time}}}^{{-2}}]',
+    'ψ'   : rf'[\mathrm{{{unit_length}}}^2\mathrm{{{unit_time}}}^{{-2}}]',
+    'hʹ'  : rf'[\mathrm{{{unit_time}}}^{{-1}}]',
+    'H_Tʹ': rf'[\mathrm{{{unit_time}}}^{{-1}}]',
+}
+
 # Function for plotting detrended CLASS perturbations
 @cython.pheader(
     # Arguments
@@ -188,29 +218,9 @@ def plot_detrended_perturbations(k, k_magnitude, var_name, class_species,
     # Decorate and save plot
     plt.xlabel('$a$', fontsize=14)
     var_name_latex = var_name
-    for key, val in {
-        'δ'  : r'{\delta}',
-        'θ'  : r'{\theta}',
-        'ρ'  : r'{\rho}',
-        'σ'  : r'{\sigma}',
-        'ʹ'  : r'^{\prime}',
-        'H_T': r'H_{\mathrm{T}}',
-    }.items():
+    for key, val in var_name_to_latex.items():
         var_name_latex = var_name_latex.replace(key, val)
-    unit_latex = {
-        'δ'   : rf'',
-        'θ'   : rf'[\mathrm{{{unit_time}}}^{{-1}}]',
-        'δP'  : (
-            rf'['
-            rf'\mathrm{{{unit_mass}}}'
-            rf'\mathrm{{{unit_length}}}^{{-1}}'
-            rf'\mathrm{{{unit_time}}}^{{-2}}'
-            rf']'
-        ),
-        'σ'   : rf'[\mathrm{{{unit_length}}}^2\mathrm{{{unit_time}}}^{{-2}}]',
-        'hʹ'  : rf'[\mathrm{{{unit_time}}}^{{-1}}]',
-        'H_Tʹ': rf'[\mathrm{{{unit_time}}}^{{-1}}]',
-    }[var_name]
+    unit_latex = var_name_to_latex_unit[var_name]
     unit_latex = (unit_latex
         .replace('(', '{')
         .replace(')', '}')
@@ -218,8 +228,13 @@ def plot_detrended_perturbations(k, k_magnitude, var_name, class_species,
         .replace('*', '')
         .replace('m_sun', r'm_{\odot}')
     )
-    plt.ylabel(rf'$({var_name_latex} - \mathrm{{trend}})\, {unit_latex}$', fontsize=14)
-    specific_species = var_name not in ('hʹ',)
+    plt.ylabel(
+        rf'$({var_name_latex} - \mathrm{{trend}})\, {unit_latex}$'
+            if unit_latex else
+            rf'${var_name_latex} - \mathrm{{trend}}$',
+        fontsize=14,
+    )
+    specific_species = var_name not in {'ϕ', 'ψ', 'hʹ', 'H_Tʹ'}
     k_str = significant_figures(k_magnitude, 3, fmt='tex', scientific=True)
     plt.title(
         (rf'{class_species}, ' if specific_species else '')
@@ -296,44 +311,37 @@ def plot_processed_perturbations(a_values, k_magnitudes, transfer, var_name, cla
     # we only allow the master process to do so.
     if not master:
         abort(f'rank {rank} called plot_processed_perturbations()')
-    masterprint(f'Plotting processed {var_name} {class_species} transfer functions ...')
+    if class_species == 'tot' and var_name not in {'δ', 'θ', 'δP', 'σ'}:
+        masterprint(f'Plotting processed {var_name} transfer functions ...')
+    else:
+        masterprint(f'Plotting processed {var_name} {class_species} transfer functions ...')
     var_name_latex = var_name
-    for key, val in {
-        'δ': r'{\delta}',
-        'θ': r'{\theta}',
-        'ρ': r'{\rho}',
-        'σ': r'{\sigma}',
-        'ʹ': r'^{\prime}',
-    }.items():
+    for key, val in var_name_to_latex.items():
         var_name_latex = var_name_latex.replace(key, val)
     var_name_ascii = (var_name_latex
-        .replace('\\', '')
-        .replace('{', '')
-        .replace('}', '')
-        .replace('^', '')
-        .replace('/', '_')
-        .replace('sigma', 'shear')
-        .replace('prime', '_prime')
+        .replace('\\'    , ''      )
+        .replace('{'     , ''      )
+        .replace('}'     , ''      )
+        .replace('^'     , ''      )
+        .replace('mathrm', ''      )
+        .replace('/'     , '_'     )
+        .replace('sigma' , 'shear' )
+        .replace('prime' , '_prime')
     )
-    dirname = '/'.join([
-        output_dirs['powerspec'],
-        'class_perturbations_processed',
-        f'{var_name_ascii}_{class_species}'
-    ])
+    if class_species == 'tot' and var_name not in {'δ', 'θ', 'δP', 'σ'}:
+        dirname = '/'.join([
+            output_dirs['powerspec'],
+            'class_perturbations_processed',
+            f'{var_name_ascii}'
+        ])
+    else:
+        dirname = '/'.join([
+            output_dirs['powerspec'],
+            'class_perturbations_processed',
+            f'{var_name_ascii}_{class_species}'
+        ])
     os.makedirs(dirname, exist_ok=True)
-    unit_latex = {
-        'δ'    : rf'',
-        'θ'    : rf'[\mathrm{{{unit_time}}}^{{-1}}]',
-        'δP': (
-            rf'['
-            rf'\mathrm{{{unit_mass}}}'
-            rf'\mathrm{{{unit_length}}}^{{-1}}'
-            rf'\mathrm{{{unit_time}}}^{{-2}}'
-            rf']'
-        ),
-        'σ': rf'[\mathrm{{{unit_length}}}^2\mathrm{{{unit_time}}}^{{-2}}]',
-        'hʹ': rf'[\mathrm{{{unit_time}}}^{{-1}}]',
-    }[var_name]
+    unit_latex = var_name_to_latex_unit[var_name]
     unit_latex = (unit_latex
         .replace('(', '{')
         .replace(')', '}')

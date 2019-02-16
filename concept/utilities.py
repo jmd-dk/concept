@@ -836,6 +836,22 @@ def CLASS():
             if not component.approximations['P=wρ']:
                 variable_specifications.append((2, 'trace', 'δP'))
         component_variables[component] = variable_specifications
+    # Add any extra perturbations specified in the
+    # class_extra_perturbations user parameter.
+    class_tot_perturbation_names = {
+        'theta_tot': 'θ',
+        'phi'      : 'ϕ',
+        'psi'      : 'ψ',
+        'h_prime'  : 'hʹ',
+        'H_T_prime': 'H_Tʹ',
+    }
+    component_variables[None] = []
+    for class_extra_perturbation in sorted(class_extra_perturbations):
+        var_name = class_tot_perturbation_names.get(class_extra_perturbation)
+        if var_name:
+            component_variables[None].append((None, None, var_name))
+    if not component_variables[None]:
+        component_variables.pop(None)
     # Construct array of a values at which to tabulate the
     # transfer functions. This is done by merging all of the a arrays
     # for the individual k modes, ensuring that all perturbations will
@@ -941,31 +957,49 @@ def CLASS():
         for variable, specific_multi_index, var_name in variable_specifications:
             for i in range(all_a_values.shape[0]):
                 a = all_a_values[i]
-                transfer_of_k, _ = compute_transfer(
-                    component, variable, k_min, k_max,
-                    k_gridsize, specific_multi_index, a,
-                    -1, # The a_next argument
-                    gauge, get='array',
-                )
+                if component is None:
+                    transfer_of_k = getattr(cosmoresults, var_name)(a)
+                else:
+                    transfer_of_k, _ = compute_transfer(
+                        component, variable, k_min, k_max,
+                        k_gridsize, specific_multi_index, a,
+                        -1, # The a_next argument
+                        gauge, get='array',
+                    )
                 if master:
                     transfer[i, :] = transfer_of_k
             if not master:
                 continue
             # Save transfer function to disk
-            masterprint(
-                f'Saving processed {var_name} {component.class_species} transfer functions ...'
-            )
+            if component is None:
+                class_species = 'tot'
+            else:
+                class_species = component.class_species
+            if class_species == 'tot':
+                if var_name in {'δ', 'θ', 'δP', 'σ'}:
+                    masterprint(f'Saving processed total {var_name} transfer functions ...')
+                else:
+                    masterprint(f'Saving processed {var_name} transfer functions ...')
+            else:
+                masterprint(f'Saving processed {var_name} {class_species} transfer functions ...')
             var_name_ascii = var_name
             for key, val in {
                 'δ': 'delta',
                 'θ': 'theta',
                 'σ': 'shear',
+                'ϕ': 'phi',
+                'ψ': 'psi',
+                'ʹ': '_prime',
             }.items():
                 var_name_ascii = var_name_ascii.replace(key, val)
             with open_hdf5(filename, mode='a') as hdf5_file:
                 perturbations_h5 = hdf5_file.require_group('perturbations')
+                if class_species == 'tot' and var_name not in {'δ', 'θ', 'δP', 'σ'}:
+                    dset_name = var_name_ascii
+                else:
+                    dset_name = f'{var_name_ascii}_{class_species}'
                 dset = perturbations_h5.create_dataset(
-                    f'{var_name_ascii}_{component.class_species}',
+                    dset_name,
                     asarray(transfer).shape,
                     dtype=C2np['double'],
                 )
@@ -978,7 +1012,7 @@ def CLASS():
                     k_magnitudes,
                     transfer,
                     var_name,
-                    component.class_species,
+                    class_species,
                 )
     # Done writing processed CLASS output
     if master:

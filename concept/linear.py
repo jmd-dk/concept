@@ -49,7 +49,7 @@ class CosmoResults:
     # Methods with these names will be defined, which will return
     # the corresponding transfer function as a function of k,
     # for a given a.
-    transfer_function_variable_names = ('δ', 'θ', 'δP', 'σ', 'hʹ', 'H_Tʹ')
+    transfer_function_variable_names = ('δ', 'θ', 'δP', 'σ', 'ϕ', 'ψ', 'hʹ', 'H_Tʹ')
     # Names of scalar attributes
     attribute_names = ('h', )
     # Class used instead of regular dict to store the CLASS
@@ -138,8 +138,10 @@ class CosmoResults:
                     abort(f'The supplied file "{self.filename}" does not exist')
         else:
             # Unique ID and corresponding file name of this CosmoResults
-            # object based on the hash of the CLASS parameters and the
-            # CLASS variables _VERSION, _ARGUMENT_LENGTH_MAX_ and a_min.
+            # object based on the hash of the CLASS parameters,
+            # the user specified extra CLASS background quantities and
+            # perturbations (if any), as well as the CLASS variables
+            # _VERSION, _ARGUMENT_LENGTH_MAX_ and a_min.
             self.id = hashlib.sha1(str(
                 tuple(sorted({str(key).replace(' ', '').lower(): str(val).replace(' ', '').lower()
                     for key, val in self.params.items()}.items()))
@@ -463,9 +465,11 @@ class CosmoResults:
                 # perturbations (which have now been saved to disk).
                 self.load_everything('perturbations')
                 self.cosmo.struct_cleanup()
-                # Now remove the extra CLASS perturbations
-                # not used by this simulation.
-                if master:
+                # Now remove the extra CLASS perturbations not used by
+                # this simulation. If we are running the CLASS utility
+                # and not a simulation, keep the
+                # extra perturbations around.
+                if master and special_params.get('special') != 'CLASS':
                     for key in set(self._perturbations[0].keys()):
                         if not any([key == pattern or re.search(pattern, key)
                             for pattern in class_extra_perturbations]
@@ -1075,6 +1079,9 @@ class CosmoResults:
                         f'I cannot use these perturbations.'
                     )
                 # Load the perturbations
+                needed_keys = self.needed_keys['perturbations'].copy()
+                if special_params.get('special') == 'CLASS':
+                    needed_keys |= class_extra_perturbations
                 for key, d in perturbations_h5.items():
                     if key == 'k_magnitudes':
                         continue
@@ -1083,7 +1090,7 @@ class CosmoResults:
                         for key, dset in d.items()
                         if any([key.replace('__per__', '/') == pattern
                             or re.search(pattern, key.replace('__per__', '/'))
-                            for pattern in self.needed_keys['perturbations']
+                            for pattern in needed_keys
                         ])
                     }
                 masterprint('done')
@@ -1095,7 +1102,7 @@ class CosmoResults:
                 # missing if "delta" is missing.
                 perturbations_loaded = set(self.perturbations[0].keys())
                 perturbations_missing = {perturbation_missing
-                    for perturbation_missing in self.needed_keys['perturbations']
+                    for perturbation_missing in needed_keys
                     if not any([key == perturbation_missing or re.search(perturbation_missing, key)
                         for key in perturbations_loaded])
                 }
@@ -1244,8 +1251,8 @@ class TransferFunction:
         self.cosmoresults.background
         # Display progress message
         if self.component is None:
-            if self.var_name == 'θ':
-                masterprint(f'Processing total θ transfer functions ...')
+            if self.var_name in {'δ', 'θ', 'δP', 'σ'}:
+                masterprint(f'Processing total {self.var_name} transfer functions ...')
             else:
                 masterprint(f'Processing {self.var_name} transfer functions ...')
         else:
@@ -1259,9 +1266,9 @@ class TransferFunction:
         exponent_max = 15
         missing_perturbations_warning = ''.join([
             'The {} perturbations ',
-            (f'(needed for the {self.component.name} component)'
+            (f'(needed for the {self.component.name} component) '
                 if self.component is not None else ''),
-            ' are not available'
+            'are not available'
         ])
         perturbations_available = {
             class_species: True for class_species in self.class_species.split('+')
@@ -1271,6 +1278,8 @@ class TransferFunction:
             'θ'   : 'theta_{}',
             'δP'  : 'cs2_{}',  # Note that cs2 is really δP/δρ
             'σ'   : 'shear_{}',
+            'ϕ'   : 'phi',
+            'ψ'   : 'psi',
             'hʹ'  : 'h_prime',
             'H_Tʹ': 'H_T_prime',
         }[self.var_name]
@@ -1378,7 +1387,15 @@ class TransferFunction:
                     Σweights = np.sum(tuple(weights_species.values()), axis=0)
                     for class_species in weights_species:
                         weights_species[class_species] *= 1/Σweights
-                     # We have CLASS units of [length²time⁻²]
+                    # We have CLASS units of [length²time⁻²]
+                    class_units = ℝ[light_speed**2]
+                elif self.var_name in {'ϕ', 'ψ'}:
+                    # As ϕ and ψ are species independent quantities,
+                    # we do not have any weights.
+                    weights_species = {class_species: 1
+                        for class_species in self.class_species.split('+')
+                    }
+                    # We have CLASS units of [length²time⁻²]
                     class_units = ℝ[light_speed**2]
                 elif self.var_name == 'hʹ':
                     # As hʹ is a species independent quantity,

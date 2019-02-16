@@ -3325,12 +3325,25 @@ if t_begin < 0:
 if not enable_Hubble and enable_class_background:
     masterwarn('Hubble expansion is deactivated, but enable_class_background is True')
 # Allow for easier names in class_extra_background
-if any(D1_name in class_extra_background for D1_name in {'D', 'D1'}):
-    class_extra_background.add('gr.fac. D')
-if any(f1_name in class_extra_background for f1_name in {'f', 'f1'}):
-    class_extra_background.add('gr.fac. f')
-if any(τ_name in class_extra_background for τ_name in {unicode('τ'), asciify('τ'), 'tau'}):
-    class_extra_background.add('conf. time')
+for val, keys in {
+    'gr.fac. D' : {'D', 'D1'},
+    'gr.fac. f' : {'f', 'f1'},
+    'conf. time': {unicode('τ'), asciify('τ'), 'tau'},
+}.items():
+    if keys & class_extra_background:
+        class_extra_background.difference_update(keys)
+        class_extra_background.add(val)
+# Allow for easier names in class_extra_perturbations
+for val, keys in {
+    'theta_tot': {unicode('θ_tot'), asciify('θ_tot'),
+        unicode('θ_total'), asciify('θ_total'), 'theta', 'theta_total'},
+    'h_prime'  : {unicode('hʹ'), asciify('hʹ'), 'h"', "h'"},
+    'phi'      : {unicode('ϕ'), asciify('ϕ')},
+    'psi'      : {unicode('ψ'), asciify('ψ')},
+}.items():
+    if keys & class_extra_perturbations:
+        class_extra_perturbations.difference_update(keys)
+        class_extra_perturbations.add(val)
 
 
 
