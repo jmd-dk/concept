@@ -212,7 +212,17 @@ CFLAGS = $(call uniq, $(foreach flag, $(python_cflags)  \
            )
 # Libraries to link
 fftw_libs      = -L$(fftw_dir)/lib -Wl,-rpath=$(fftw_dir)/lib -lfftw3_mpi -lfftw3
-gsl_libs       = -L$(gsl_dir)/lib -Wl,-rpath=$(gsl_dir)/lib -lgsl -lgslcblas -lm
+ifneq ("$(wildcard $(blas_dir)/lib/libopenblas.*)","")
+    # OpenBLAS found
+    gsl_blas_libs = -L$(blas_dir)/lib -Wl,-rpath=$(blas_dir)/lib -lopenblas
+else ifneq ("$(wildcard $(blas_dir)/lib/libblas.*)","")
+    # Some BLAS found
+    gsl_blas_libs = -L$(blas_dir)/lib -Wl,-rpath=$(blas_dir)/lib -lblas
+else
+    # No BLAS found
+    gsl_blas_libs = -lgslcblas
+endif
+gsl_libs       = -L$(gsl_dir)/lib -Wl,-rpath=$(gsl_dir)/lib -lgsl $(blas_libs) $(gsl_blas_libs) -lm
 mpi_libs       = -L$(mpi_dir)/lib -Wl,-rpath=$(mpi_dir)/lib -lmpi
 python_libdir  = $(shell $(python) -c "import sysconfig;                          \
                                        print(sysconfig.get_config_var('LIBDIR')); \
