@@ -811,9 +811,9 @@ def CLASS():
             for class_species, ρ_bar in ρ_bars.items():
                 convenience_attributes[f'Omega_{class_species}'] = ρ_bar/ρ_bars['crit']
             if 'w0_fld' in class_params:
-                convenience_attributes['w_0'] = class_params['w0_fld']
+                convenience_attributes['w_0'] = float(class_params['w0_fld'])
             if 'wa_fld' in class_params:
-                convenience_attributes['w_a'] = class_params['wa_fld']
+                convenience_attributes['w_a'] = float(class_params['wa_fld'])
             for convenience_name, convenience_val in convenience_attributes.items():
                 background_h5.attrs[convenience_name] = convenience_val
     # Create dict mapping components to lists of
