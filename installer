@@ -133,7 +133,7 @@ for filename in *; do
     fi
     fileage=$(($(date +%s) - $(stat -c '%Y' "${filename}")))
     if [ ${fileage} -lt ${wget_log_maxage} ]; then
-        rm -f "${filename}"
+        rm -f "${filename}" || :
     fi
 done
 
@@ -377,8 +377,12 @@ env_var_names=(BLAS             \
                CFLAGS           \
                CPPFLAGS         \
                CXX              \
+               CXXFLAGS         \
+               F77              \
+               F90              \
                F9X              \
                FC               \
+               FCFLAGS          \
                FFLAGS           \
                HDF5_DIR         \
                HDF5_MPI         \
@@ -543,7 +547,7 @@ cd "${top_dir}"
 get_command(){
     command_name="${1}"
     # Use the type builtin to locate the command
-    path="$(type "${command_name}" 2>/dev/null || :)"
+    local path="$(type "${command_name}" 2>/dev/null || :)"
     path="${path##* }"
     if [[ "${path}" == "/"* ]]; then
         # The command is a path
@@ -874,7 +878,7 @@ gcc_test(){
     # Prepare for gcc test
     current_dir="$(pwd)"
     gcc_test_dir="${top_dir}/tmp/gcc_test"
-    rm -rf "${gcc_test_dir}"
+    rm -rf "${gcc_test_dir}" || :
     mkdir -p "${gcc_test_dir}"
     cd "${gcc_test_dir}"
     # Write C source to file
@@ -939,7 +943,7 @@ properly compile \"${gcc_test_dir}/main.c\""
     done
     # Cleanup after test
     cd "${current_dir}"
-    rm -rf "${gcc_test_dir}"
+    rm -rf "${gcc_test_dir}" || :
 }
 # Basic gcc test, checking for the standard library,
 # the assembler and linker.
@@ -1194,16 +1198,32 @@ if [ -z "${SSH_CLIENT}" ] && [ -z "${SSH_TTY}" ]; then
     ssh="False"
 fi
 
-# Set the "make_jobs" variable, holding the -j option for future
-# make commands, enabling parallel compilations when running locally.
-# Also set OMP_NUM_THREADS to 1 when running remotely,
-# so that OpenMP runs serially.
-if [ -z "${make_jobs}" ]; then
-    make_jobs="-j"
-    if [ "${ssh}" == "True" ]; then
-        make_jobs=""
-        export OMP_NUM_THREADS=1
+# When running locally, set the "make_jobs" variable, holding the -j
+# option for future make commands, enabling parallel building.
+make_jobs=""
+if [ "${ssh}" == "False" ] && [ -z "${make_jobs}" ]; then
+    # Enable parallel make builds if make supports -j without
+    # specifying the number of jobs explicitly.
+    current_dir="$(pwd)"
+    make_jobs_test_dir="${top_dir}/tmp/make_jobs_test"
+    rm -rf "${make_jobs_test_dir}" || :
+    mkdir -p "${make_jobs_test_dir}"
+    cd "${make_jobs_test_dir}"
+        printf "
+test:
+\t@echo success
+" > "Makefile"
+    make_jobs_output="$(make 2>/dev/null)" || :
+    if [ "${make_jobs_output}" == "success" ]; then
+        make_jobs="-j"
     fi
+    cd "${current_dir}"
+    rm -rf "${make_jobs_test_dir}" || :
+fi
+# Set OMP_NUM_THREADS to 1 when running remotely,
+# so that OpenMP runs serially.
+if [ "${ssh}" == "True" ] && [ -z "${OMP_NUM_THREADS}" ]; then
+    export OMP_NUM_THREADS=1
 fi
 
 
@@ -1249,19 +1269,23 @@ check_pypackage_installed(){
     current_LD_LIBRARY_PATH="${LD_LIBRARY_PATH}"
     for lib in "blas" "gsl" "hdf5" "libpng" "mpi" "zlib"; do
         eval "lib_dir=\"\${${lib}_dir}/lib\""
-        export LD_LIBRARY_PATH="${lib_dir}:${LD_LIBRARY_PATH}"
+        if [ -d "${lib_dir}" ]; then
+            export LD_LIBRARY_PATH="${lib_dir}:${LD_LIBRARY_PATH}"
+        fi
     done
     "${python}" -c "
+from time import sleep
 try:
     # CythonGSL has an extra underscore when importing
     if '${1}' == 'cythongsl':
         import cython_gsl
     else:
         import ${1}
-    print('yes')
+    sleep(1)
+    print('\nyes')
 except:
-    print('no')
-" 2>/dev/null
+    print('\nno')
+" 2>/dev/null | tail -n 1
     cd "${current_dir}"
     export LD_LIBRARY_PATH="${current_LD_LIBRARY_PATH}"
 }
@@ -1606,7 +1630,7 @@ if [ "${setup_passwordless_ssh}" == "True" ]; then
     chmod go-rwx ~/".ssh/config"
     # Remove any previously known hosts
     # (there should be none as ~/.ssh is newly created).
-    rm -f "known_hosts"*
+    rm -f "known_hosts"* || :
     # Only the user may have write permissions to her home directory,
     # in order for ssh to allow password-less login.
     chmod go-w ~
@@ -1660,7 +1684,7 @@ validate_url(){
                       --no-remove-listing ${ipv} "${url}" > "${top_dir}/tmp/.wget" 2>&1 || :)
                 grep "${filename}" "${top_dir}/tmp/.listing" > /dev/null 2>&1 \
                      || wget_status="error"
-                rm -f "${top_dir}/tmp/.listing"
+                rm -f "${top_dir}/tmp/.listing" || :
             else
                 wget -t 1 --timeout 30 --no-check-certificate --no-dns-cache --spider ${ipv} \
                      "${url}" > "${top_dir}/tmp/.wget" 2>&1 || wget_status="error"
@@ -1674,7 +1698,7 @@ validate_url(){
                     wget_status="success"
                 fi
             fi
-            rm -f "${top_dir}/tmp/.wget"
+            rm -f "${top_dir}/tmp/.wget" || :
             if [ "${wget_status}" == "success" ]; then
                 break
             fi
@@ -1773,14 +1797,14 @@ check_progress(){
         fi
         if [ -d "${gadget_dir}" ] && [ -n "$(ls "${gadget_dir}")" ]; then
             printf "Cleaning up ${progname_display} directory ..."
-            rm -rf "${gadget_dir}/"*
+            rm -rf "${gadget_dir}/"* || :
             printf " done\n"
         fi
         if [ -d "${gadget_dir}/.fftw" ]; then
             mv "${gadget_dir}/.fftw" "${gadget_dir}/fftw"
         fi
         if [ -d "${gadget_dir}" ] && [ -z "$(ls -A "${gadget_dir}")" ]; then
-            rm -rf "${gadget_dir}"
+            rm -rf "${gadget_dir}" || :
         fi
     elif [ "${progname}" == "python" ]; then
         # Files from ncurses, OpenSSL and libffi are placed all around
@@ -1789,27 +1813,30 @@ check_progress(){
     elif [ "${progname}" == "ncurses" ]; then
         if [ -d "${python_dir}/include/ncurses" ]; then
             printf "Cleaning up ${progname_display} directory ..."
-            rm -rf "${python_dir}/include/ncurses"
+            rm -rf "${python_dir}/include/ncurses" || :
             printf " done\n"
         fi
     elif [ "${progname}" == "openssl" ]; then
         if [ -d "${python_dir}/include/openssl" ]; then
             printf "Cleaning up ${progname_display} directory ..."
-            rm -rf "${python_dir}/include/openssl"
+            rm -rf "${python_dir}/include/openssl" || :
             printf " done\n"
         fi
     elif [ "${progname}" == "libffi" ]; then
-        if [ -d "${python_dir}/lib/libffi"* ]; then
-            printf "Cleaning up ${progname_display} directory ..."
-            rm -rf "${python_dir}/lib/libffi"*
-            printf " done\n"
-        fi
+        for f in "${python_dir}/lib/libffi"*; do
+            if [ -d "${f}" ]; then
+                printf "Cleaning up ${progname_display} directory ..."
+                rm -rf "${python_dir}/lib/libffi"* || :
+                printf " done\n"
+                break
+            fi
+        done
     elif [ "${progname}" == "concept" ]; then
         # In the case of CO𝘕CEPT, ${progdir} is set to
         # the GADGET directory.
         if [ -d "${concept_dir}" ]; then
             printf "Cleaning up ${progname_display} directory ..."
-            rm -rf "${concept_dir}"
+            rm -rf "${concept_dir}" || :
             printf " done\n"
         fi
     else
@@ -1817,7 +1844,7 @@ check_progress(){
         # in their very own dedicated directory.
         if [ -d "${progdir}" ]; then
             printf "Cleaning up ${progname_display} directory ..."
-            rm -rf "${progdir}"
+            rm -rf "${progdir}" || :
             printf " done\n"
         fi
     fi
@@ -2687,6 +2714,642 @@ if [ "${install_anything}" == "yes" ]; then
     enable_status
 fi
 
+# Find possible C, C++ and Fortran compilers to try out when building
+# the various programs. The compiler possibilities will be gathered in
+# the array "compiler_possibilities". An empty value corresponds to
+# whatever compilers (if any) were set in the environment at the time of
+# invocation of this script. For each compiler (e.g. "gnu") detected,
+# there must be declared a corresponding function
+# (e.g. "use_gnu_compilers"), the job of which is to set compiler
+# environment variables such as CC, CXX and FC.
+# Altering PATH-like environment variables is also allowed.
+current_step="discovering comilers"
+heading "Discovering compilers"
+set_status "Discovering compilers"
+compiler_possibilities=("")
+if [ "${mpi_preinstalled}" == "yes" ]; then
+    compiler_possibilities=("${compiler_possibilities[@]}" "specified_mpi")
+fi
+for program in "gcc" "g++" "gfortran"; do
+    program_path="$(get_command "${program}")" || :
+    if [ -n "${program_path}" ]; then
+        echo "GNU compiler(s) discovered"
+        compiler_possibilities=("${compiler_possibilities[@]}" "gnu")
+        break
+    fi
+done
+for program in "clang" "clang++"; do
+    program_path="$(get_command "${program}")" || :
+    if [ -n "${program_path}" ]; then
+        echo "Clang compiler(s) discovered"
+        compiler_possibilities=("${compiler_possibilities[@]}" "clang")
+        break
+    fi
+done
+for program in "mpicc" "mpiCC" "mpicxx" "mpic++" "mpifort" "mpif90"; do
+    program_path="$(get_command "${program}")" || :
+    if [ -n "${program_path}" ]; then
+        echo "MPI compiler(s) discovered"
+        compiler_possibilities=("${compiler_possibilities[@]}" "mpi")
+        break
+    fi
+done
+for program in "icc" "icpc" "ifort"; do
+    program_path="$(get_command "${program}")" || :
+    if [ -n "${program_path}" ]; then
+        echo "Intel compiler(s) discovered"
+        compiler_possibilities=("${compiler_possibilities[@]}" "intel")
+        break
+    fi
+done
+for program in "craycc" "crayCC" "crayftn"; do
+    program_path="$(get_command "${program}")" || :
+    if [ -n "${program_path}" ]; then
+        echo "Cray compiler(s) discovered"
+        compiler_possibilities=("${compiler_possibilities[@]}" "cray")
+        break
+    fi
+done
+for program in "pgcc" "pgCC" "pgf77" "pgf90"; do
+    program_path="$(get_command "${program}")" || :
+    if [ -n "${program_path}" ]; then
+        echo "Portland compiler(s) discovered"
+        compiler_possibilities=("${compiler_possibilities[@]}" "portland")
+        break
+    fi
+done
+for program in "cc" "c89" "c99" "CC" "c++" "ftn" "f77" "f90" "fortran"; do
+    program_path="$(get_command "${program}")" || :
+    if [ -n "${program_path}" ]; then
+        echo "Some generic compiler(s) discovered"
+        compiler_possibilities=("${compiler_possibilities[@]}" "generic")
+        break
+    fi
+done
+compiler_possibilities=("${compiler_possibilities[@]}" "unset")
+use__compilers(){
+    # This dummy function must exist
+    :
+}
+use_specified_mpi_compilers(){
+    local program program_path bin_path include_path lib_path
+    if [ -n "${1}" ]; then
+        printf "\nInstallation of ${1} failed. Attempting with specified MPI compilers\n\n"
+    fi
+    if [ -n "${mpi_dir}" ]; then
+        bin_path="${mpi_dir}/bin"
+        include_path="${mpi_dir}/include"
+        lib_path="${mpi_dir}/lib"
+        for program in "mpicc" "mpiCC"; do
+            program_path="${bin_path}/${program}"
+            if [ -f "${program_path}" ]; then
+                export CC="${program_path}"
+                break
+            fi
+        done
+        for program in "mpicxx" "mpic++"; do
+            program_path="${bin_path}/${program}"
+            if [ -f "${program_path}" ]; then
+                export CXX="${program_path}"
+                break
+            fi
+        done
+        program_path="${bin_path}/mpif77"
+        if [ -f "${program_path}" ]; then
+            export FC="${program_path}"
+            export F77="${program_path}"
+        fi
+        for program in "mpifort" "mpif90"; do
+            program_path="${bin_path}/${program}"
+            if [ -f "${program_path}" ]; then
+                export FC="${program_path}"
+                export F90="${program_path}"
+                export F9X="${program_path}"
+                break
+            fi
+        done
+        if [ -d "${bin_path}" ]; then
+            export PATH="${bin_path}:${PATH}"
+        fi
+        if [ -d "${include_path}" ]; then
+            export CFLAGS="-I${include_path} ${CFLAGS}"
+            export CXXFLAGS="-I${include_path} ${CXXFLAGS}"
+            export CPPFLAGS="-I${include_path} ${CPPFLAGS}"
+            export FFLAGS="-I${include_path} ${FFLAGS}"
+            export FCFLAGS="-I${include_path} ${FCFLAGS}"
+        fi
+        if [ -d "${lib_path}" ]; then
+            export LDFLAGS="-L${lib_path} ${LDFLAGS}"
+            export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+        fi
+    fi
+}
+use_gnu_compilers(){
+    local program_path bin_path include_path lib_path
+    if [ -n "${1}" ]; then
+        printf "\nInstallation of ${1} failed. Attempting with GNU compilers\n\n"
+    fi
+    program_path="$(get_command "gcc")" || :
+    if [ -n "${program_path}" ]; then
+        export CC="${program_path}"
+        export CXX="${program_path}"
+        bin_path="$(dirname "${program_path}")"
+        include_path="${bin_path}/../include"
+        lib_path="${bin_path}/../lib"
+        if [ -d "${bin_path}" ]; then
+            export PATH="${bin_path}:${PATH}"
+        fi
+        if [ -d "${include_path}" ]; then
+            export CFLAGS="-I${include_path} ${CFLAGS}"
+            export CXXFLAGS="-I${include_path} ${CXXFLAGS}"
+            export CPPFLAGS="-I${include_path} ${CPPFLAGS}"
+        fi
+        if [ -d "${lib_path}" ]; then
+            export LDFLAGS="-L${lib_path} ${LDFLAGS}"
+            export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+        fi
+    fi
+    program_path="$(get_command "g++")" || :
+    if [ -n "${program_path}" ]; then
+        export CXX="${program_path}"
+        bin_path="$(dirname "${program_path}")"
+        include_path="${bin_path}/../include"
+        lib_path="${bin_path}/../lib"
+        if [ -d "${bin_path}" ]; then
+            export PATH="${bin_path}:${PATH}"
+        fi
+        if [ -d "${include_path}" ]; then
+            export CXXFLAGS="-I${include_path} ${CXXFLAGS}"
+            export CPPFLAGS="-I${include_path} ${CPPFLAGS}"
+        fi
+        if [ -d "${lib_path}" ]; then
+            export LDFLAGS="-L${lib_path} ${LDFLAGS}"
+            export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+        fi
+    fi
+    program_path="$(get_command "gfortran")" || :
+    if [ -n "${program_path}" ]; then
+        export FC="${program_path}"
+        export F77="${program_path}"
+        export F90="${program_path}"
+        export F9X="${program_path}"
+        bin_path="$(dirname "${program_path}")"
+        include_path="${bin_path}/../include"
+        lib_path="${bin_path}/../lib"
+        if [ -d "${bin_path}" ]; then
+            export PATH="${bin_path}:${PATH}"
+        fi
+        if [ -d "${include_path}" ]; then
+            export FFLAGS="-I${include_path} ${FFLAGS}"
+            export FCFLAGS="-I${include_path} ${FCFLAGS}"
+        fi
+        if [ -d "${lib_path}" ]; then
+            export LDFLAGS="-L${lib_path} ${LDFLAGS}"
+            export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+        fi
+    fi
+}
+use_clang_compilers(){
+    local program_path bin_path include_path lib_path
+    if [ -n "${1}" ]; then
+        printf "\nInstallation of ${1} failed. Attempting with Clang compilers\n\n"
+    fi
+    program_path="$(get_command "clang")" || :
+    if [ -n "${program_path}" ]; then
+        export CC="${program_path}"
+        bin_path="$(dirname "${program_path}")"
+        include_path="${bin_path}/../include"
+        lib_path="${bin_path}/../lib"
+        if [ -d "${bin_path}" ]; then
+            export PATH="${bin_path}:${PATH}"
+        fi
+        if [ -d "${include_path}" ]; then
+            export CFLAGS="-I${include_path} ${CFLAGS}"
+            export CPPFLAGS="-I${include_path} ${CPPFLAGS}"
+        fi
+        if [ -d "${lib_path}" ]; then
+            export LDFLAGS="-L${lib_path} ${LDFLAGS}"
+            export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+        fi
+    fi
+    program_path="$(get_command "clang++")" || :
+    if [ -n "${program_path}" ]; then
+        export CXX="${program_path}"
+        bin_path="$(dirname "${program_path}")"
+        include_path="${bin_path}/../include"
+        lib_path="${bin_path}/../lib"
+        if [ -d "${bin_path}" ]; then
+            export PATH="${bin_path}:${PATH}"
+        fi
+        if [ -d "${include_path}" ]; then
+            export CXXFLAGS="-I${include_path} ${CXXFLAGS}"
+            export CPPFLAGS="-I${include_path} ${CPPFLAGS}"
+        fi
+        if [ -d "${lib_path}" ]; then
+            export LDFLAGS="-L${lib_path} ${LDFLAGS}"
+            export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+        fi
+    fi
+    # Clang does not have a Fortran compiler
+}
+use_mpi_compilers(){
+    local program program_path bin_path include_path lib_path
+    if [ -n "${1}" ]; then
+        printf "\nInstallation of ${1} failed. Attempting with MPI compilers\n\n"
+    fi
+    for program in "mpicc" "mpiCC"; do
+        program_path="$(get_command "${program}")" || :
+        if [ -n "${program_path}" ]; then
+            export CC="${program_path}"
+            bin_path="$(dirname "${program_path}")"
+            include_path="${bin_path}/../include"
+            lib_path="${bin_path}/../lib"
+            if [ -d "${bin_path}" ]; then
+                export PATH="${bin_path}:${PATH}"
+            fi
+            if [ -d "${include_path}" ]; then
+                export CFLAGS="-I${include_path} ${CFLAGS}"
+                export CPPFLAGS="-I${include_path} ${CPPFLAGS}"
+            fi
+            if [ -d "${lib_path}" ]; then
+                export LDFLAGS="-L${lib_path} ${LDFLAGS}"
+                export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+            fi
+            break
+        fi
+    done
+    for program in "mpicxx" "mpic++"; do
+        program_path="$(get_command "${program}")" || :
+        if [ -n "${program_path}" ]; then
+            export CXX="${program_path}"
+            bin_path="$(dirname "${program_path}")"
+            include_path="${bin_path}/../include"
+            lib_path="${bin_path}/../lib"
+            if [ -d "${bin_path}" ]; then
+                export PATH="${bin_path}:${PATH}"
+            fi
+            if [ -d "${include_path}" ]; then
+                export CXXFLAGS="-I${include_path} ${CXXFLAGS}"
+                export CPPFLAGS="-I${include_path} ${CPPFLAGS}"
+            fi
+            if [ -d "${lib_path}" ]; then
+                export LDFLAGS="-L${lib_path} ${LDFLAGS}"
+                export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+            fi
+            break
+        fi
+    done
+    program_path="$(get_command "mpif77")" || :
+    if [ -n "${program_path}" ]; then
+        export FC="${program_path}"
+        export F77="${program_path}"
+        bin_path="$(dirname "${program_path}")"
+        include_path="${bin_path}/../include"
+        lib_path="${bin_path}/../lib"
+        if [ -d "${bin_path}" ]; then
+            export PATH="${bin_path}:${PATH}"
+        fi
+        if [ -d "${include_path}" ]; then
+            export FFLAGS="-I${include_path} ${FFLAGS}"
+            export FCFLAGS="-I${include_path} ${FCFLAGS}"
+        fi
+        if [ -d "${lib_path}" ]; then
+            export LDFLAGS="-L${lib_path} ${LDFLAGS}"
+            export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+        fi
+    fi
+    for program in "mpifort" "mpif90"; do
+        program_path="$(get_command "${program}")" || :
+        if [ -n "${program_path}" ]; then
+            export FC="${program_path}"
+            export F90="${program_path}"
+            export F9X="${program_path}"
+            bin_path="$(dirname "${program_path}")"
+            include_path="${bin_path}/../include"
+            lib_path="${bin_path}/../lib"
+            if [ -d "${bin_path}" ]; then
+                export PATH="${bin_path}:${PATH}"
+            fi
+            if [ -d "${include_path}" ]; then
+                export FFLAGS="-I${include_path} ${FFLAGS}"
+                export FCFLAGS="-I${include_path} ${FCFLAGS}"
+            fi
+            if [ -d "${lib_path}" ]; then
+                export LDFLAGS="-L${lib_path} ${LDFLAGS}"
+                export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+            fi
+            break
+        fi
+    done
+}
+use_intel_compilers(){
+    local program_path bin_path include_path lib_path
+    if [ -n "${1}" ]; then
+        printf "\nInstallation of ${1} failed. Attempting with Intel compilers\n\n"
+    fi
+    program_path="$(get_command "icc")" || :
+    if [ -n "${program_path}" ]; then
+        export CC="${program_path}"
+        bin_path="$(dirname "${program_path}")"
+        include_path="${bin_path}/../include"
+        lib_path="${bin_path}/../lib"
+        if [ -d "${bin_path}" ]; then
+            export PATH="${bin_path}:${PATH}"
+        fi
+        if [ -d "${include_path}" ]; then
+            export CFLAGS="-I${include_path} ${CFLAGS}"
+            export CPPFLAGS="-I${include_path} ${CPPFLAGS}"
+        fi
+        if [ -d "${lib_path}" ]; then
+            export LDFLAGS="-L${lib_path} ${LDFLAGS}"
+            export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+        fi
+    fi
+    program_path="$(get_command "icpc")" || :
+    if [ -n "${program_path}" ]; then
+        export CXX="${program_path}"
+        bin_path="$(dirname "${program_path}")"
+        include_path="${bin_path}/../include"
+        lib_path="${bin_path}/../lib"
+        if [ -d "${bin_path}" ]; then
+            export PATH="${bin_path}:${PATH}"
+        fi
+        if [ -d "${include_path}" ]; then
+            export CXXFLAGS="-I${include_path} ${CXXFLAGS}"
+            export CPPFLAGS="-I${include_path} ${CPPFLAGS}"
+        fi
+        if [ -d "${lib_path}" ]; then
+            export LDFLAGS="-L${lib_path} ${LDFLAGS}"
+            export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+        fi
+    fi
+    program_path="$(get_command "ifort")" || :
+    if [ -n "${program_path}" ]; then
+        export FC="${program_path}"
+        export F77="${program_path}"
+        export F90="${program_path}"
+        export F9X="${program_path}"
+        bin_path="$(dirname "${program_path}")"
+        include_path="${bin_path}/../include"
+        lib_path="${bin_path}/../lib"
+        if [ -d "${bin_path}" ]; then
+            export PATH="${bin_path}:${PATH}"
+        fi
+        if [ -d "${include_path}" ]; then
+            export FFLAGS="-I${include_path} ${FFLAGS}"
+            export FCFLAGS="-I${include_path} ${FCFLAGS}"
+        fi
+        if [ -d "${lib_path}" ]; then
+            export LDFLAGS="-L${lib_path} ${LDFLAGS}"
+            export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+        fi
+    fi
+}
+use_cray_compilers(){
+    local program_path bin_path include_path lib_path
+    if [ -n "${1}" ]; then
+        printf "\nInstallation of ${1} failed. Attempting with Cray compilers\n\n"
+    fi
+    program_path="$(get_command "craycc")" || :
+    if [ -n "${program_path}" ]; then
+        export CC="${program_path}"
+        bin_path="$(dirname "${program_path}")"
+        include_path="${bin_path}/../include"
+        lib_path="${bin_path}/../lib"
+        if [ -d "${bin_path}" ]; then
+            export PATH="${bin_path}:${PATH}"
+        fi
+        if [ -d "${include_path}" ]; then
+            export CFLAGS="-I${include_path} ${CFLAGS}"
+            export CPPFLAGS="-I${include_path} ${CPPFLAGS}"
+        fi
+        if [ -d "${lib_path}" ]; then
+            export LDFLAGS="-L${lib_path} ${LDFLAGS}"
+            export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+        fi
+    fi
+    program_path="$(get_command "crayCC")" || :
+    if [ -n "${program_path}" ]; then
+        export CXX="${program_path}"
+        bin_path="$(dirname "${program_path}")"
+        include_path="${bin_path}/../include"
+        lib_path="${bin_path}/../lib"
+        if [ -d "${bin_path}" ]; then
+            export PATH="${bin_path}:${PATH}"
+        fi
+        if [ -d "${include_path}" ]; then
+            export CXXFLAGS="-I${include_path} ${CXXFLAGS}"
+            export CPPFLAGS="-I${include_path} ${CPPFLAGS}"
+        fi
+        if [ -d "${lib_path}" ]; then
+            export LDFLAGS="-L${lib_path} ${LDFLAGS}"
+            export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+        fi
+    fi
+    program_path="$(get_command "crayftn")" || :
+    if [ -n "${program_path}" ]; then
+        export FC="${program_path}"
+        export F77="${program_path}"
+        export F90="${program_path}"
+        export F9X="${program_path}"
+        bin_path="$(dirname "${program_path}")"
+        include_path="${bin_path}/../include"
+        lib_path="${bin_path}/../lib"
+        if [ -d "${bin_path}" ]; then
+            export PATH="${bin_path}:${PATH}"
+        fi
+        if [ -d "${include_path}" ]; then
+            export FFLAGS="-I${include_path} ${FFLAGS}"
+            export FCFLAGS="-I${include_path} ${FCFLAGS}"
+        fi
+        if [ -d "${lib_path}" ]; then
+            export LDFLAGS="-L${lib_path} ${LDFLAGS}"
+            export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+        fi
+    fi
+}
+use_portland_compilers(){
+    local program_path bin_path include_path lib_path
+    if [ -n "${1}" ]; then
+        printf "\nInstallation of ${1} failed. Attempting with Portland compilers\n\n"
+    fi
+    program_path="$(get_command "pgcc")" || :
+    if [ -n "${program_path}" ]; then
+        export CC="${program_path}"
+        bin_path="$(dirname "${program_path}")"
+        include_path="${bin_path}/../include"
+        lib_path="${bin_path}/../lib"
+        if [ -d "${bin_path}" ]; then
+            export PATH="${bin_path}:${PATH}"
+        fi
+        if [ -d "${include_path}" ]; then
+            export CFLAGS="-I${include_path} ${CFLAGS}"
+            export CPPFLAGS="-I${include_path} ${CPPFLAGS}"
+        fi
+        if [ -d "${lib_path}" ]; then
+            export LDFLAGS="-L${lib_path} ${LDFLAGS}"
+            export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+        fi
+    fi
+    program_path="$(get_command "pgCC")" || :
+    if [ -n "${program_path}" ]; then
+        export CXX="${program_path}"
+        bin_path="$(dirname "${program_path}")"
+        include_path="${bin_path}/../include"
+        lib_path="${bin_path}/../lib"
+        if [ -d "${bin_path}" ]; then
+            export PATH="${bin_path}:${PATH}"
+        fi
+        if [ -d "${include_path}" ]; then
+            export CXXFLAGS="-I${include_path} ${CXXFLAGS}"
+            export CPPFLAGS="-I${include_path} ${CPPFLAGS}"
+        fi
+        if [ -d "${lib_path}" ]; then
+            export LDFLAGS="-L${lib_path} ${LDFLAGS}"
+            export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+        fi
+    fi
+    program_path="$(get_command "pgf77")" || :
+    if [ -n "${program_path}" ]; then
+        export FC="${program_path}"
+        export F77="${program_path}"
+        bin_path="$(dirname "${program_path}")"
+        include_path="${bin_path}/../include"
+        lib_path="${bin_path}/../lib"
+        if [ -d "${bin_path}" ]; then
+            export PATH="${bin_path}:${PATH}"
+        fi
+        if [ -d "${include_path}" ]; then
+            export FFLAGS="-I${include_path} ${FFLAGS}"
+            export FCFLAGS="-I${include_path} ${FCFLAGS}"
+        fi
+        if [ -d "${lib_path}" ]; then
+            export LDFLAGS="-L${lib_path} ${LDFLAGS}"
+            export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+        fi
+    fi
+    program_path="$(get_command "pgf90")" || :
+    if [ -n "${program_path}" ]; then
+        export FC="${program_path}"
+        export F90="${program_path}"
+        export F9X="${program_path}"
+        bin_path="$(dirname "${program_path}")"
+        include_path="${bin_path}/../include"
+        lib_path="${bin_path}/../lib"
+        if [ -d "${bin_path}" ]; then
+            export PATH="${bin_path}:${PATH}"
+        fi
+        if [ -d "${include_path}" ]; then
+            export FFLAGS="-I${include_path} ${FFLAGS}"
+            export FCFLAGS="-I${include_path} ${FCFLAGS}"
+        fi
+        if [ -d "${lib_path}" ]; then
+            export LDFLAGS="-L${lib_path} ${LDFLAGS}"
+            export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+        fi
+    fi
+}
+use_generic_compilers(){
+    local program program_path bin_path include_path lib_path
+    if [ -n "${1}" ]; then
+        printf "\nInstallation of ${1} failed. Attempting with generic compilers\n\n"
+    fi
+    for program in "cc" "c89" "c99"; do
+        program_path="$(get_command "${program}")" || :
+        if [ -n "${program_path}" ]; then
+            export CC="${program_path}"
+            bin_path="$(dirname "${program_path}")"
+            include_path="${bin_path}/../include"
+            lib_path="${bin_path}/../lib"
+            if [ -d "${bin_path}" ]; then
+                export PATH="${bin_path}:${PATH}"
+            fi
+            if [ -d "${include_path}" ]; then
+                export CFLAGS="-I${include_path} ${CFLAGS}"
+                export CPPFLAGS="-I${include_path} ${CPPFLAGS}"
+            fi
+            if [ -d "${lib_path}" ]; then
+                export LDFLAGS="-L${lib_path} ${LDFLAGS}"
+                export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+            fi
+            break
+        fi
+    done
+    for program in "CC" "c++"; do
+        program_path="$(get_command "${program}")" || :
+        if [ -n "${program_path}" ]; then
+            export CXX="${program_path}"
+            bin_path="$(dirname "${program_path}")"
+            include_path="${bin_path}/../include"
+            lib_path="${bin_path}/../lib"
+            if [ -d "${bin_path}" ]; then
+                export PATH="${bin_path}:${PATH}"
+            fi
+            if [ -d "${include_path}" ]; then
+                export CXXFLAGS="-I${include_path} ${CXXFLAGS}"
+                export CPPFLAGS="-I${include_path} ${CPPFLAGS}"
+            fi
+            if [ -d "${lib_path}" ]; then
+                export LDFLAGS="-L${lib_path} ${LDFLAGS}"
+                export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+            fi
+            break
+        fi
+    done
+    program_path="$(get_command "f77")" || :
+    if [ -n "${program_path}" ]; then
+        export FC="${program_path}"
+        export F77="${program_path}"
+        bin_path="$(dirname "${program_path}")"
+        include_path="${bin_path}/../include"
+        lib_path="${bin_path}/../lib"
+        if [ -d "${bin_path}" ]; then
+            export PATH="${bin_path}:${PATH}"
+        fi
+        if [ -d "${include_path}" ]; then
+            export FFLAGS="-I${include_path} ${FFLAGS}"
+            export FCFLAGS="-I${include_path} ${FCFLAGS}"
+        fi
+        if [ -d "${lib_path}" ]; then
+            export LDFLAGS="-L${lib_path} ${LDFLAGS}"
+            export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+        fi
+    fi
+    for program in "ftn" "f90" "f9x" "fortran"; do
+        program_path="$(get_command "${program}")" || :
+        if [ -n "${program_path}" ]; then
+            export FC="${program_path}"
+            export F90="${program_path}"
+            export F9X="${program_path}"
+            bin_path="$(dirname "${program_path}")"
+            include_path="${bin_path}/../include"
+            lib_path="${bin_path}/../lib"
+            if [ -d "${bin_path}" ]; then
+                export PATH="${bin_path}:${PATH}"
+            fi
+            if [ -d "${include_path}" ]; then
+                export FFLAGS="-I${include_path} ${FFLAGS}"
+                export FCFLAGS="-I${include_path} ${FCFLAGS}"
+            fi
+            if [ -d "${lib_path}" ]; then
+                export LDFLAGS="-L${lib_path} ${LDFLAGS}"
+                export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+            fi
+            break
+        fi
+    done
+}
+use_unset_compilers(){
+    if [ -n "${1}" ]; then
+        printf "\nInstallation of ${1} failed. Attempting with unset compilers\n\n"
+    fi
+    unset CC CXX FC F90 F9X CFLAGS CXXFLAGS CPPFLAGS FCFLAGS FFLAGS LDFLAGS
+}
+if [ "${fast_install}" != "yes" ]; then
+    sleep 1
+fi
+
+
 
 
 #################################
@@ -2694,31 +3357,37 @@ fi
 #################################
 # Function for downloading compressed archives
 download(){
-    # Arguments: Program name
+    # Arguments: Program name, [print_heading]
     progname="${1// /_}"
     progname="$(echo "${progname}" | tr '[:upper:]' '[:lower:]')"
+    print_heading="${2}"
+    if [ -z "${print_heading}" ]; then
+        print_heading="True"
+    fi
     # Do not download if already fully downloaded
     eval "prog_downloaded=\"\${${progname}_downloaded}\""
     if [ "${prog_downloaded}" == "yes" ]; then
         return
     fi
     eval "progversion=\"\${${progname}_version}\""
-    if [ "${progname}" == "fftw_for_gadget" ]; then
-        # When downloading FFTW for GADGET, the version number should
-        # be printed together with FFTW, not GADGET.
-        current_step="the downloading of FFTW ${progversion} for GADGET"
-        heading "Downloading FFTW ${progversion} for GADGET"
-    elif [ "${progname}" == "mpi" ]; then
-        if [ "${mpi}" == "mpich" ]; then
-            current_step="the downloading of MPICH ${progversion}"
-            heading "Downloading MPICH ${progversion}"
-        elif [ "${mpi}" == "openmpi" ]; then
-            current_step="the downloading of OpenMPI ${progversion}"
-            heading "Downloading OpenMPI ${progversion}"
+    if [ "${print_heading}" != "False" ]; then
+        if [ "${progname}" == "fftw_for_gadget" ]; then
+            # When downloading FFTW for GADGET, the version number should
+            # be printed together with FFTW, not GADGET.
+            current_step="the downloading of FFTW ${progversion} for GADGET"
+            heading "Downloading FFTW ${progversion} for GADGET"
+        elif [ "${progname}" == "mpi" ]; then
+            if [ "${mpi}" == "mpich" ]; then
+                current_step="the downloading of MPICH ${progversion}"
+                heading "Downloading MPICH ${progversion}"
+            elif [ "${mpi}" == "openmpi" ]; then
+                current_step="the downloading of OpenMPI ${progversion}"
+                heading "Downloading OpenMPI ${progversion}"
+            fi
+        else
+            current_step="the downloading of ${1/CONCEPT/$esc_concept} ${progversion}"
+            heading "Downloading ${1/CONCEPT/$esc_concept} ${progversion}"
         fi
-    else
-        current_step="the downloading of ${1/CONCEPT/$esc_concept} ${progversion}"
-        heading "Downloading ${1/CONCEPT/$esc_concept} ${progversion}"
     fi
     eval "url=\"\${${progname}_url}\""
     # Download
@@ -3048,57 +3717,12 @@ Please be patient ...\n";                                                       
     wait ${soothe_killer_pid} >/dev/null 2>&1 || :
 }
 
-# List of possible compilers to try for the programs to install.
-# An empty value corresponds to whatever value was set in the
-# environment previous to invoking this script.
-compiler_possibilities=("")
-if [ "${mpi_preinstalled}" == "yes" ]; then
-    compiler_possibilities=("${compiler_possibilities[@]}" "mpi")
-fi
-# Function that sets up the MPI compiler environment
-use_mpi_compilers(){
-    if [ -n "${mpi_dir}" ]; then
-        for f in "mpicc" "mpiCC"; do
-            if [ -f "${mpi_dir}/bin/${f}" ]; then
-                export CC="${mpi_dir}/bin/${f}"
-                break
-            fi
-        done
-        export CFLAGS="-I${mpi_dir}/include ${CFLAGS}"
-        for f in "mpicxx" "mpic++"; do
-            if [ -f "${mpi_dir}/bin/${f}" ]; then
-                export CXX="${mpi_dir}/bin/${f}"
-                break
-            fi
-        done
-        export CPPFLAGS="-I${mpi_dir}/include ${CPPFLAGS}"
-        f="mpif77"
-        if [ -f "${mpi_dir}/bin/${f}" ]; then
-            export FC="${mpi_dir}/bin/${f}"
-        fi
-        for f in "mpifort" "mpif90"; do
-            if [ -f "${mpi_dir}/bin/${f}" ]; then
-                export FC="${mpi_dir}/bin/${f}"
-                export F9X="${FC}"
-                break
-            fi
-        done
-        export FFLAGS="-I${mpi_dir}/include ${FFLAGS}"
-        export LDFLAGS="-L${mpi_dir}/lib ${LDFLAGS}"
-        export LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}"
-        export PATH="${mpi_dir}/bin:${PATH}"
-    fi
-}
-
 # zlib
 if [ "${zlib_install}" == "yes" ] && [ "${zlib_installed}" == "no" ]; then
     install_success="no"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        if [ "${compiler}" == "mpi" ]; then
-            printf "\nInstallation of zlib failed. Attempting with MPI compilers\n\n"
-            use_mpi_compilers
-        fi
+        eval "use_${compiler}_compilers zlib"
         init_install "zlib"
         ./configure --shared --prefix="${zlib_dir}" 2>&1 || continue
         if [ "${fast_install}" == "no" ]; then
@@ -3107,7 +3731,7 @@ if [ "${zlib_install}" == "yes" ] && [ "${zlib_installed}" == "no" ]; then
         fi
         zlib_test_log="${zlib_dir}/test_log"
         if [ "${zlib_test_success}" == "no" ]; then
-            mkdir -p "${zlib_dir}"
+            mkdir -p "$(dirname "${zlib_test_log}")"
             cp "test_log" "${zlib_test_log}"
         fi
         make ${make_jobs} install 2>&1 || continue
@@ -3135,10 +3759,7 @@ if [ "${libpng_install}" == "yes" ] && [ "${libpng_installed}" == "no" ]; then
     install_success="no"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        if [ "${compiler}" == "mpi" ]; then
-            printf "\nInstallation of libpng failed. Attempting with MPI compilers\n\n"
-            use_mpi_compilers
-        fi
+        eval "use_${compiler}_compilers libpng"
         init_install "libpng"
         export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
         export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
@@ -3152,7 +3773,7 @@ if [ "${libpng_install}" == "yes" ] && [ "${libpng_installed}" == "no" ]; then
         fi
         libpng_test_log="${libpng_dir}/test_log"
         if [ "${libpng_test_success}" == "no" ]; then
-            mkdir -p "${libpng_dir}"
+            mkdir -p "$(dirname "${libpng_test_log}")"
             cp "test_log" "${libpng_test_log}"
         fi
         make ZLIBLIB="${ZLIBLIB}" ZLIBINC="${ZLIBINC}" ${make_jobs} install 2>&1 || continue
@@ -3180,10 +3801,7 @@ if [ "${gsl_install}" == "yes" ] && [ "${gsl_installed}" == "no" ]; then
     install_success="no"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        if [ "${compiler}" == "mpi" ]; then
-            printf "\nInstallation of GSL failed. Attempting with MPI compilers\n\n"
-            use_mpi_compilers
-        fi
+        eval "use_${compiler}_compilers GSL"
         init_install "GSL"
         ./configure --prefix="${gsl_dir}" 2>&1 || continue
         make ${make_jobs} 2>&1 || continue
@@ -3193,7 +3811,7 @@ if [ "${gsl_install}" == "yes" ] && [ "${gsl_installed}" == "no" ]; then
         fi
         gsl_test_log="${gsl_dir}/test_log"
         if [ "${gsl_test_success}" == "no" ]; then
-            mkdir -p "${gsl_dir}"
+            mkdir -p "$(dirname "${gsl_test_log}")"
             cp "test_log" "${gsl_test_log}"
         fi
         make ${make_jobs} install 2>&1 || continue
@@ -3218,70 +3836,179 @@ fi
 
 # MPI
 if [ "${mpi_install}" == "yes" ] && [ "${mpi_installed}" == "no" ]; then
-    if [ "${mpi}" == "mpich" ]; then
-        # MPICH
-        init_install "MPI"
-        ./configure --enable-shared --prefix="${mpi_dir}" 2>&1
-        make ${make_jobs} 2>&1
-        make ${make_jobs} install 2>&1
-        # MPICH can be tested by running the code below.
-        # Since this require several GB of memory and will occupy up to
-        # 30 MPI processes, we skip these tests.
-        run_mpi_tests="no"
-        if [ "${run_mpi_tests}" == "yes" ]; then
-            if [ "${fast_install}" == "no" ]; then
-                export RUNTESTS_VERBOSE=1
-                make ${make_jobs} testing 2>&1 | tee "test_log"
-                [ ${PIPESTATUS[0]} -eq 0 ] || mpi_test_success="no"
-            fi
-            mpi_test_log="${mpi_dir}/test_log"
-            if [ "${mpi_test_success}" == "no" ]; then
-                cp "test_log" "${mpi_test_log}"
-            fi
-            reset_environment
+    install_success="no"
+    compiler_possibilities_mpi=()
+    compiler_possibilities_specified_mpi=""
+    for compiler in "${compiler_possibilities[@]}"; do
+        if [ "${compiler}" == "specified_mpi" ]; then
+            compiler_possibilities_specified_mpi="${compiler}"
+        else
+            compiler_possibilities_mpi=("${compiler_possibilities_mpi[@]}" "${compiler}")
         fi
-        cp "COPYRIGHT" "${mpi_dir}/" || :
-        cd "${top_dir}"
-        rm -rf "${top_dir}/tmp/mpi" || :
-        # Write out success notice
-        echo "The following has been fully installed:
-Program: MPI
-Version: ${mpi_version}
-Date:    $(date)
-" >> "${mpi_dir}/.installation_finished"
-    elif [ "${mpi}" == "openmpi" ]; then
-        # OpenMPI
-        init_install "MPI"
-        # Temporary OpenMPI session files can cause OpenMPI to crash.
-        # Remove any temporary directory of the form
-        # /tmp/openmpi-sessions-*
-        # which belongs to the user.
-        my_username="$(whoami)"
-        ls_output="$(ls -l /tmp | grep openmpi-sessions- || :)"
-        if [ -n "${ls_output}" ]; then
-            while read -r line; do
-                username="$(echo "${line}" | awk '{print $3}')"
-                if [ "${username}" == "${my_username}" ]; then
-                    openmpi_session_dirname="$(echo "${line}" | awk '{print $9}')"
-                    rm -rf "/tmp/${openmpi_session_dirname}" || :
-                fi
-            done <<< "${ls_output}"
-        fi
-        # Install OpenMPI
-        ./configure --prefix="${mpi_dir}" 2>&1
-        make ${make_jobs} all 2>&1
-        make ${make_jobs} install 2>&1
-        # OpenMPI does not come with a test suite
-        cp "AUTHORS" "LICENSE" "${mpi_dir}/" || :
-        cd "${top_dir}"
-        rm -rf "${top_dir}/tmp/mpi" || :
-        # Write out success notice
-        echo "The following has been fully installed:
-Program: MPI
-Version: ${mpi_version}
-Date:    $(date)
-" >> "${mpi_dir}/.installation_finished"
+    done
+    if [ -n "${compiler_possibilities_specified_mpi}" ]; then
+        compiler_possibilities_mpi=("${compiler_possibilities_mpi[@]}" \
+            "${compiler_possibilities_specified_mpi}")
     fi
+    for compiler in "${compiler_possibilities_mpi[@]}"; do
+        reset_environment
+        eval "use_${compiler}_compilers MPI"
+        if [ "${mpi}" == "mpich" ]; then
+            # MPICH
+            init_install "MPI"
+            ./configure --enable-shared --prefix="${mpi_dir}" 2>&1 || continue
+            make ${make_jobs} 2>&1 || continue
+            make ${make_jobs} install 2>&1 || continue
+            # MPICH can be tested by running the code below.
+            # Since this require several GB of memory and will occupy up
+            # to 30 MPI processes, we skip these tests.
+            run_mpi_tests="no"
+            if [ "${run_mpi_tests}" == "yes" ]; then
+                if [ "${fast_install}" == "no" ]; then
+                    export RUNTESTS_VERBOSE=1
+                    make ${make_jobs} testing 2>&1 | tee "test_log"
+                    [ ${PIPESTATUS[0]} -eq 0 ] || mpi_test_success="no"
+                fi
+                mpi_test_log="${mpi_dir}/test_log"
+                if [ "${mpi_test_success}" == "no" ]; then
+                    mkdir -p "$(dirname "${mpi_test_log}")"
+                    cp "test_log" "${mpi_test_log}"
+                fi
+            fi
+            install_success="yes"
+            break
+        elif [ "${mpi}" == "openmpi" ]; then
+            # OpenMPI.
+            # On some systems the building of OpenMPI will fail unless
+            # it is configured with the UCX library. If the initial
+            # installation fails we install such a UCX library and
+            # link OpenMPI to it.
+            for install_ucx in "False" "True"; do
+                init_install "MPI"
+                # Temporary OpenMPI session files can cause OpenMPI
+                # to crash. Remove any temporary directory of the form
+                # /tmp/openmpi-sessions-* which belongs to the user.
+                my_username="$(whoami)"
+                ls_output="$(ls -l /tmp | grep openmpi-sessions- || :)"
+                if [ -n "${ls_output}" ]; then
+                    while read -r line; do
+                        username="$(echo "${line}" | awk '{print $3}')"
+                        if [ "${username}" == "${my_username}" ]; then
+                            openmpi_session_dirname="$(echo "${line}" | awk '{print $9}')"
+                            rm -rf "/tmp/${openmpi_session_dirname}" || :
+                        fi
+                    done <<< "${ls_output}"
+                fi
+                # Install dedicated UCX for OpenMPI.
+                # This may fail if it cannot detect the NUMA library.
+                # On failure, install it without NUMA support.
+                current_dir="$(pwd)"
+                if [ "${install_ucx}" == "True" ]; then
+                    install_ucx_success="no"
+                    ucx_dir="${mpi_dir}/ucx"
+                    ucx_version="1.5.0"
+                    ucx_url="https://github.com/openucx/ucx/archive/v${ucx_version}.tar.gz"
+                    download "ucx" "False"
+                    for disable_numa in "" "--disable-numa"; do
+                        printf "
+Attempting to install UCX for OpenMPI with disable_numa=${disable_numa}\n\n"
+                        extract "ucx"
+                        cd "${top_dir}/tmp/ucx"
+                        for f in *; do
+                            if [ -d "${f}" ]; then
+                                cd "${f}"
+                                break
+                            fi
+                        done
+                        # The NUMA library should be placed in
+                        # /usr/lib64. Add this directory to the LDFLAGS.
+                        # Both libnuma.so and libnuma.so.1 should exist.
+                        # To be sure, we create symlinks to these in a
+                        # new directory and add this directory to
+                        # LDFLAGS as well.
+                        # Similarly, the NUMA header files are
+                        # needed and should be placed in /usr/include.
+                        if [ -z "${disable_numa}" ]; then
+                            if [ -d "/usr/lib64" ]; then
+                                export LDFLAGS="${LDFLAGS} -L/usr/lib64"
+                            fi
+                            numa_symlink_dir="${ucx_dir}/numa_symlinks"
+                            rm -rf "${numa_symlink_dir}" || :
+                            mkdir -p "${numa_symlink_dir}" || :
+                            if [ -f "/usr/lib64/libnuma.so" ] && \
+                                [ ! -f "/usr/lib64/libnuma.so.1" ]; then
+                                ln -s "/usr/lib64/libnuma.so" \
+                                    "${numa_symlink_dir}/libnuma.so.1" || :
+                            fi
+                            if [ -f "/usr/lib64/libnuma.so.1" ] && \
+                                [ ! -f "/usr/lib64/libnuma.so" ]; then
+                                ln -s "/usr/lib64/libnuma.so.1" \
+                                    "${numa_symlink_dir}/libnuma.so" || :
+                            fi
+                            export LDFLAGS="${LDFLAGS} -L${numa_symlink_dir}"
+                            if [ -d "/usr/include" ]; then
+                                export CFLAGS="-I/usr/include ${CFLAGS}"
+                                export CXXFLAGS="-I/usr/include ${CXXFLAGS}"
+                                export CPPFLAGS="-I/usr/include ${CPPFLAGS}"
+                            fi
+                        fi
+                        ./autogen.sh 2>&1 || continue
+                        ./contrib/configure-release --prefix="${ucx_dir}" \
+                            ${disable_numa} 2>&1 || continue
+                        make ${make_jobs} 2>&1 || continue
+                        make install 2>&1 || continue
+                        install_ucx_success="yes"
+                        printf "\nInstallation of UCX for OpenMPI successful.
+Now continue with the installation of OpenMPI\n\n"
+                        break
+                    done
+                    if [ "${install_ucx_success}" == "no" ]; then
+                        continue
+                    fi
+                fi
+                cd "${current_dir}"
+                # Install OpenMPI
+                if [ "${install_ucx}" == "False" ]; then
+                    ./configure --prefix="${mpi_dir}" 2>&1 || continue
+                elif [ "${install_ucx}" == "True" ]; then
+                    ./configure --prefix="${mpi_dir}" --with-ucx="${ucx_dir}" 2>&1 || continue
+                fi
+                make ${make_jobs} all 2>&1 || continue
+                make ${make_jobs} install 2>&1 || continue
+                # OpenMPI does not come with a test suite
+                install_success="yes"
+                break
+            done
+            if [ "${install_success}" == "yes" ]; then
+                break
+            fi
+        fi
+    done
+    if [ "${install_success}" == "no" ]; then
+        if [ "${mpi}" == "mpich" ]; then
+            error "Failed to install MPICH"
+        elif [ "${mpi}" == "openmpi" ]; then
+            error "Failed to install OpenMPI"
+        fi
+        exit 1
+    fi
+    reset_environment
+    if [ "${mpi}" == "mpich" ]; then
+        cp "COPYRIGHT" "${mpi_dir}/" || :
+    elif [ "${mpi}" == "openmpi" ]; then
+        cp "AUTHORS" "LICENSE" "${mpi_dir}/" || :
+    fi
+    cd "${top_dir}"
+    rm -rf "${top_dir}/tmp/mpi" || :
+    if [ "${mpi}" == "openmpi" ]; then
+        rm -rf "${top_dir}/tmp/ucx" || :
+    fi
+    # Write out success notice
+    echo "The following has been fully installed:
+Program: MPI
+Version: ${mpi_version}
+Date:    $(date)
+" >> "${mpi_dir}/.installation_finished"
 fi
 
 # HDF5
@@ -3291,7 +4018,7 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
     # when building againts MPI and zlib.
     enable_parallel=""
     if [ -n "${mpi_dir}" ]; then
-        use_mpi_compilers
+        use_specified_mpi_compilers
         enable_parallel="--enable-parallel"
     fi
     with_zlib=""
@@ -3313,7 +4040,7 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
         ${with_zlib}           \
         --prefix="${hdf5_dir}" \
         2>&1
-    # Never versions of gcc (e.g. 8.1.0) do not allow attributes to be
+    # Newer versions of gcc (e.g. 8.1.0) do not allow attributes to be
     # specified after the declarator in function definitions. At least
     # in some versions of HDF5 (e.g. 1.10.2), this rule is broken by
     # src/H5detect.c. If the original build fail, we edit src/H5detect.c
@@ -3340,7 +4067,7 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
         else
             IFS="${IFS_ori}"
         fi
-        rm -f "src/H5detect.c_cp"
+        rm -f "src/H5detect.c_cp" || :
         sed -i 's/^static void \(.*\) HDF_NO_UBSAN/static void HDF_NO_UBSAN \1/' "src/H5detect.c"
         sed -i 's/^int \(.*\) HDF_NO_UBSAN/int HDF_NO_UBSAN \1/' "src/H5detect.c"
         hdf5_make_success="yes"
@@ -3352,8 +4079,7 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
     fi
     # On some systems, the HDF5 test (make check) hangs indefinitely.
     # To counteract this, kill the process if it still runs after
-    # ${hdf5_test_max_time} seconds. Count the test as failed if the
-    # last line in test_log does not contain "make[1]: ".
+    # ${hdf5_test_max_time} seconds.
     if [ "${fast_install}" == "no" ]; then
         hdf5_test_max_time=3600
         # Perform serial + parallel tests if build against MPI
@@ -3397,7 +4123,7 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
         printf "\n\n\nInstall tests below\n\n\n\n" >> "test_log"
         make ${make_jobs} check-install 2>&1 | tee -a "test_log"
         # The text "*FAILED*" will be present in the test log file
-        # if any of the test failed.
+        # if any of the tests failed.
         [ ${PIPESTATUS[0]} -eq 0 ] || hdf5_test_success="no"
         if grep '\*FAILED\*' "test_log" >/dev/null 2>&1; then
             hdf5_test_success="no"
@@ -3405,7 +4131,7 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
     fi
     hdf5_test_log="${hdf5_dir}/test_log"
     if [ "${hdf5_test_success}" == "no" ]; then
-        mkdir -p "${hdf5_dir}"
+        mkdir -p "$(dirname "${hdf5_test_log}")"
         cp "test_log" "${hdf5_test_log}"
     fi
     reset_environment
@@ -3427,13 +4153,12 @@ if [ "${fftw_install}" == "yes" ] && [ "${fftw_installed}" == "no" ]; then
     # when building againts MPI.
     enable_mpi=""
     if [ -n "${mpi_dir}" ]; then
-        export CC="${mpi_dir}/bin/mpicc"
+        use_specified_mpi_compilers
         export CFLAGS="-O3 -fPIC ${CFLAGS}"
         export CPPFLAGS="-I${mpi_dir}/include ${CPPFLAGS}"
         export LDFLAGS="-L${mpi_dir}/lib ${LDFLAGS}"
-        export MPICC="${mpi_dir}/bin/mpicc"
+        export MPICC="${CC}"
         export MPILIBS="-lmpi ${MPILIBS}"
-        export PATH="${mpi_dir}/bin:${PATH}"
         enable_mpi="--enable-mpi"
     fi
     # Double-precision
@@ -3449,7 +4174,7 @@ if [ "${fftw_install}" == "yes" ] && [ "${fftw_installed}" == "no" ]; then
     fi
     fftw_test_log="${fftw_dir}/test_log"
     if [ "${fftw_test_success}" == "no" ]; then
-        mkdir -p "${fftw_dir}"
+        mkdir -p "$(dirname "${ftw_test_log}")"
         cp "test_log" "${fftw_test_log}"
     fi
     make ${make_jobs} install 2>&1
@@ -3479,10 +4204,7 @@ if [ "${freetype_install}" == "yes" ] && [ "${freetype_installed}" == "no" ]; th
     install_success="no"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        if [ "${compiler}" == "mpi" ]; then
-            printf "\nInstallation of FreeType failed. Attempting with MPI compilers\n\n"
-            use_mpi_compilers
-        fi
+        eval "use_${compiler}_compilers FreeType"
         init_install "FreeType"
         ./configure --prefix="${freetype_dir}" \
                     --with-zlib=no             \
@@ -3516,14 +4238,11 @@ if [ "${ncurses_install}" == "yes" ] && [ "${ncurses_installed}" == "no" ]; then
     install_success="no"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        if [ "${compiler}" == "mpi" ]; then
-            printf "\nInstallation of ncurses failed. Attempting with MPI compilers\n\n"
-            use_mpi_compilers
-        fi
+        eval "use_${compiler}_compilers ncurses"
         init_install "ncurses"
         # Due to a bug in (at least) ncurses 6.0, this is needed on
         # some systems. See https://trac.sagemath.org/ticket/19762
-        export CPPFLAGS="-P"
+        export CPPFLAGS="-P ${CPPFLAGS}"
         ./configure --with-shared --prefix="${ncurses_dir}" 2>&1 || continue
         make ${make_jobs} 2>&1 || continue
         make ${make_jobs} install 2>&1 || continue
@@ -3542,7 +4261,7 @@ if [ "${ncurses_install}" == "yes" ] && [ "${ncurses_installed}" == "no" ]; then
         fi
         ncurses_test_log="${ncurses_dir}/include/ncurses/test_log"
         if [ "${ncurses_test_success}" == "no" ]; then
-            mkdir -p "${ncurses_dir}/include/ncurses"
+            mkdir -p "$(dirname "${ncurses_test_log}")"
             cp "test_log" "${ncurses_test_log}"
         fi
         install_success="yes"
@@ -3569,34 +4288,25 @@ if [ "${perl_install}" == "yes" ] && [ "${perl_installed}" == "no" ]; then
     # Sometimes make fails to build due to #include of poll.h from a
     # wrong location. A fix for this is implemented below. First we try
     # without the fix, then with the fix.
-    # Furthermore, if no C compiler is explicitly set, the Configure
-    # script will find one by itself. Using some C compilers
-    # (e.g. craycc) may lead to failure, while gcc should be a safe
-    # choice. Below we first specify gcc as the C compiler, and if this
-    # does not work for whatever reason, we try with the C compiler(s)
-    # given in CC_possibilities.
-    # Lastly, sometimes the installation will complain that the Perl
-    # libraries should have been compiled statically. Thus, we try with
-    # and witouth the -fPIC C flag.
+    # Furthermore, sometimes the installation will complain that the
+    # Perl libraries should have been compiled statically.
+    # Thus, we try with# and witouth the -fPIC C flag.
     install_success="no"
-    CC_possibilities_perl=("gcc" "${compiler_possibilities[@]}")
-    for perl_poll_fix in "False" "True"; do
-        for perl_CC in "${CC_possibilities_perl[@]}"; do
+    for compiler in "${compiler_possibilities[@]}"; do
+        for perl_poll_fix in "False" "True"; do
             for perl_cflags in "" "-fPIC"; do
                 reset_environment
+                eval "use_${compiler}_compilers"
                 init_install "Perl"
                 printf "
-Attempting to install Perl with perl_poll_fix=${perl_poll_fix}, \
-perl_CC=${perl_CC}, perl_cflags=${perl_cflags}\n\n"
-                if [ "${perl_CC}" == "mpi" ]; then
-                    use_mpi_compilers
-                    perl_CC="${CC}"
-                fi
-                # When an Intel C compiler is used, some libraries like libimf
-                # may not be found by the perl executable. We can fix this by
-                # dropping symlinks to all Intel libraries in the build directory.
-                # For whatever reason, appending to LD_LIBRARY_PATH has no effect.
-                if [ "${perl_CC}" != "gcc" ]; then
+Attempting to install Perl with compiler=${compiler}, \
+perl_poll_fix=${perl_poll_fix}, perl_cflags=${perl_cflags}\n\n"
+                # When an Intel C compiler is used, some libraries like
+                # libimf may not be found by the perl executable. We can
+                # fix this by dropping symlinks to all Intel libraries
+                # in the build directory. For whatever reason, updating
+                # to LD_LIBRARY_PATH has no effect.
+                if [ "${compiler}" == "intel" ]; then
                     while IFS=':' read -ra library_paths; do
                         for library_path in "${library_paths[@]}"; do
                             is_intel_lib_dir="False"
@@ -3625,8 +4335,8 @@ perl_CC=${perl_CC}, perl_cflags=${perl_cflags}\n\n"
                     done <<< "${LD_LIBRARY_PATH}"
                 fi
                 perl_config_options="-de -Dprefix=${perl_dir}"
-                if [ -n "${perl_CC}" ]; then
-                    perl_config_options="${perl_config_options} -Dcc=${perl_CC}"
+                if [ -n "${compiler}" ] && [ -n "${CC}" ]; then
+                    perl_config_options="${perl_config_options} -Dcc=${CC}"
                 fi
                 if [ -n "${perl_cflags}" ]; then
                     perl_config_options="${perl_config_options} -Accflags=${perl_cflags}"
@@ -3637,12 +4347,28 @@ perl_CC=${perl_CC}, perl_cflags=${perl_cflags}\n\n"
                 fi
                 make ${make_jobs} 2>&1 || continue
                 if [ "${fast_install}" == "no" ]; then
-                    make ${make_jobs} test 2>&1 | tee "test_log"
-                    [ ${PIPESTATUS[0]} -eq 0 ] || perl_test_success="no"
+                    # On some systems, the Perl test hangs indefinitely.
+                    # To counteract this, kill the process if it still
+                    # runs after ${perl_test_max_time} seconds.
+                    perl_test_max_time=3600
+                    (make ${make_jobs} test 2>&1 | tee "test_log") & perl_test_pid=$!
+                    soothe ${perl_test_pid} ${perl_test_max_time}
+                    sleep 1
+                    kill -9 ${perl_test_pid} >/dev/null 2>&1 || :
+                    wait    ${perl_test_pid} >/dev/null 2>&1 || :
+                    exit_code="$(wait ${perl_test_pid} >/dev/null 2>&1 || echo $?)"
+                    if [ -n "${exit_code}" ]; then
+                        perl_test_success="no"
+                    fi
+                    # The text "Failed" will be present in the test log
+                    # file if any of the tests failed.
+                    if grep 'Failed' "test_log" >/dev/null 2>&1; then
+                        perl_test_success="no"
+                    fi
                 fi
                 perl_test_log="${perl_dir}/test_log"
                 if [ "${perl_test_success}" == "no" ]; then
-                    mkdir -p "${perl_dir}"
+                    mkdir -p "$(dirname "${perl_test_log}")"
                     cp "test_log" "${perl_test_log}"
                 fi
                 make ${make_jobs} install 2>&1 || continue
@@ -3678,10 +4404,7 @@ if [ "${openssl_install}" == "yes" ] && [ "${openssl_installed}" == "no" ]; then
     install_success="no"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        if [ "${compiler}" == "mpi" ]; then
-            printf "\nInstallation of OpenSSL failed. Attempting with MPI compilers\n\n"
-            use_mpi_compilers
-        fi
+        eval "use_${compiler}_compilers OpenSSL"
         init_install "OpenSSL"
         export PATH="${perl_dir}/bin:${PATH}"
         export PERL="${perl_dir}/bin/perl"
@@ -3693,7 +4416,7 @@ if [ "${openssl_install}" == "yes" ] && [ "${openssl_installed}" == "no" ]; then
         fi
         openssl_test_log="${openssl_dir}/include/openssl/test_log"
         if [ "${openssl_test_success}" == "no" ]; then
-            mkdir -p "${openssl_dir}/include/openssl"
+            mkdir -p "$(dirname "${openssl_test_log}")"
             cp "test_log" "${openssl_test_log}"
         fi
         make install 2>&1 || continue  # Should not be run in parallel!
@@ -3721,10 +4444,7 @@ if [ "${libffi_install}" == "yes" ] && [ "${libffi_installed}" == "no" ]; then
     install_success="no"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        if [ "${compiler}" == "mpi" ]; then
-            printf "\nInstallation of libffi failed. Attempting with MPI compilers\n\n"
-            use_mpi_compilers
-        fi
+        eval "use_${compiler}_compilers libffi"
         init_install "libffi"
         ./configure --prefix="${libffi_dir}" 2>&1 || continue
         make ${make_jobs} 2>&1 || continue
@@ -3734,7 +4454,7 @@ if [ "${libffi_install}" == "yes" ] && [ "${libffi_installed}" == "no" ]; then
         fi
         libffi_test_log="${libffi_dir}/lib/libffi-${libffi_version}/test_log"
         if [ "${libffi_test_success}" == "no" ]; then
-            mkdir -p "${libffi_dir}/lib/libffi-${libffi_version}"
+            mkdir -p "$(dirname "${libffi_test_log}")"
             cp "test_log" "${libffi_test_log}"
         fi
         make ${make_jobs} install 2>&1 || continue
@@ -3761,52 +4481,35 @@ fi
 if [ "${blas_install}" == "yes" ] && [ "${blas_installed}" == "no" ]; then
     # Due to the threading behaviour of Python,
     # we install a non-threaded version of OpenBLAS.
-    # We wish to use the gfortran Fortran compiler. If it fails,
-    # we retry without explicitly specifying any Fortran compiler.
-    # We do not care about the C compiler, but it fails on e.g. craycc,
-    # and so we try first without explicitly specifying any C compiler,
-    # and then gcc on failure. Lastly, on 32 bit systems we need to
-    # set BINARY=32. First we try without, then with this option.
+    # We wish to use the gfortran Fortran compiler. We try out all the
+    # compiler environments but overwriting the Fortran compiler.
+    # If this fails, we retry without overwriting the Fortran compiler.
+    # On 32 bit systems we need to set BINARY=32. First we try without,
+    # then with this option.
     # Note that OpenBLAS runs its test suite during this build.
     install_success="no"
-    CC_possibilities_openblas=("" "gcc" "${compiler_possibilities[@]}")
-    openblas_possibilities_tried=()
-    for openblas_BINARY in "" "32"; do
-        for openblas_CC in "${CC_possibilities_openblas[@]}"; do
-            for openblas_FC in "gfortran" ""; do
-                s="${openblas_BINARY}_${openblas_CC}_${openblas_FC}"
-                already_tried="False"
-                for s_old in "${openblas_possibilities_tried[@]}"; do
-                    if [ "${s}" == "${s_old}" ]; then
-                        already_tried="True"
-                        break
-                    fi
-                done
-                if [ "${already_tried}" == "True" ]; then
-                    continue
-                fi
-                openblas_possibilities_tried=("${s}" "${openblas_possibilities_tried[@]}")
+    for openblas_gfortran in "yes" "no"; do
+        for compiler in "${compiler_possibilities[@]}"; do
+            for openblas_BINARY in "" "32"; do
                 reset_environment
+                eval "use_${compiler}_compilers"
                 init_install "BLAS"
                 printf "
-Attempting to install OpenBLAS with openblas_FC=${openblas_FC}, \
-openblas_CC=${openblas_CC}, openblas_BINARY=${openblas_BINARY}\n\n"
-                if [ "${openblas_CC}" == "mpi" ]; then
-                    use_mpi_compilers
-                    openblas_CC="${CC}"
-                    if [ -z "${openblas_FC}" ]; then
-                        openblas_FC="${FC}"
-                    else
-                        export FC="${openblas_FC}"
-                        export F9X="${openblas_FC}"
-                    fi
+Attempting to install OpenBLAS with openblas_gfortran=${openblas_gfortran}, \
+compiler=${compiler}, openblas_BINARY=${openblas_BINARY}\n\n"
+                if [ "${openblas_gfortran}" == "yes" ]; then
+                    export FC="gfortran"
+                    export F77="gfortran"
+                    export F90="gfortran"
+                    export F9X="gfortran"
                 fi
                 openblas_make_options="USE_THREAD=0"
-                if [ -n "${openblas_FC}" ]; then
-                    openblas_make_options="${openblas_make_options} FC=${openblas_FC}"
+                if ([ -n "${compiler}" ] && [ -n "${FC}" ]) \
+                    || [ "${openblas_gfortran}" == "yes" ]; then
+                    openblas_make_options="${openblas_make_options} FC=${FC}"
                 fi
-                if [ -n "${openblas_CC}" ]; then
-                    openblas_make_options="${openblas_make_options} CC=${openblas_CC}"
+                if [ -n "${compiler}" ] && [ -n "${CC}" ]; then
+                    openblas_make_options="${openblas_make_options} CC=${CC}"
                 fi
                 if [ -n "${openblas_BINARY}" ]; then
                     openblas_make_options="${openblas_make_options} BINARY=${openblas_BINARY}"
@@ -3872,13 +4575,11 @@ if [ "${python_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
             # fall back to a non-optimized build.
             for pyoptimizations in "pgo lto" "pgo" "lto" ""; do
                 reset_environment
-                if [ "${compiler}" == "mpi" ]; then
-                    use_mpi_compilers
-                fi
+                eval "use_${compiler}_compilers"
                 init_install "Python"
                 printf "
-Attempting to install Python with pyoptimizations=${pyoptimizations}, \
-compiler=${compiler}, disable_atomic_operations=${disable_atomic_operations}\n\n"
+Attempting to install Python with disable_atomic_operations=${disable_atomic_operations}, \
+compiler=${compiler}, pyoptimizations=${pyoptimizations}\n\n"
                 # Set up environment variables and configure options
                 if [ "${disable_atomic_operations}" == "yes" ]; then
                     sed -i '/have_stdatomic_h *= *yes/c\have_stdatomic_h=no' configure
@@ -3892,7 +4593,8 @@ compiler=${compiler}, disable_atomic_operations=${disable_atomic_operations}\n\n
                     with_lto="--with-lto"
                 fi
                 if [ -n "${ncurses_dir}" ]; then
-                    export CPPFLAGS="-I${ncurses_dir}/include -I${ncurses_dir}/include/ncurses ${CPPFLAGS}"
+                    export CPPFLAGS="-I${ncurses_dir}/include \
+-I${ncurses_dir}/include/ncurses ${CPPFLAGS}"
                     export LD_LIBRARY_PATH="${ncurses_dir}/lib:${LD_LIBRARY_PATH}"
                     export LDFLAGS="-L${ncurses_dir}/lib -Wl,-rpath=${ncurses_dir}/lib ${LDFLAGS}"
                 fi
@@ -3927,7 +4629,8 @@ compiler=${compiler}, disable_atomic_operations=${disable_atomic_operations}\n\n
                             if     [ -d "${f}" ] \
                                 && [[ "${f}" == "libffi"* ]] \
                                 && [ -d "${libffi_dir}/${lib_dir}/${f}/include" ]; then
-                                export CPPFLAGS="-I${libffi_dir}/${lib_dir}/${f}/include ${CPPFLAGS}"
+                                export CPPFLAGS="-I${libffi_dir}/${lib_dir}/${f}/include \
+${CPPFLAGS}"
                                 break
                             fi
                         done
@@ -3965,10 +4668,10 @@ compiler=${compiler}, disable_atomic_operations=${disable_atomic_operations}\n\n
                 fi
                 python_test_log="${python_dir}/test_log"
                 if [ "${python_test_success}" == "no" ]; then
-                    mkdir -p "${python_dir}"
+                    mkdir -p "$(dirname "${python_test_log}")"
                     cp "test_log" "${python_test_log}"
                 else
-                    rm -f "${python_test_log}"
+                    rm -f "${python_test_log}" || :
                 fi
                 # Make install
                 make install 2>&1 || continue  # Should be run serially
@@ -4161,12 +4864,12 @@ pip_install_pypackage(){
     fi
     # Download Python package source
     tmp_pip_dir="${top_dir}/tmp/pip"
-    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
+    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
     mkdir -p "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
     export TMPDIR="${tmp_pip_dir}_tmp"
     pypackage="$(echo "${1}" | tr '[:upper:]' '[:lower:]')"
     pip_download "${pypackage}" "${2}"
-    rm -rf "${tmp_pip_dir}_cp"
+    rm -rf "${tmp_pip_dir}_cp" || :
     cp -r "${tmp_pip_dir}" "${tmp_pip_dir}_cp"
     # Install Python package from source
     upgrade_flag=""
@@ -4196,11 +4899,11 @@ pip_install_pypackage(){
         fi
         if [ -z "${extra_pip_arg}" ]; then
             printf "\npip failed to install ${1}. Now trying with --no-build-isolation\n\n"
-            rm -rf "${tmp_pip_dir}"
+            rm -rf "${tmp_pip_dir}" || :
             cp -r "${tmp_pip_dir}_cp" "${tmp_pip_dir}"
         fi
     done
-    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_cp"
+    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_cp" || :
     # If we failed to install the Python package, try installing it
     # via pip without using any additional arguments.
     if [ "${pypackage_installed}" == "no" ]; then
@@ -4216,7 +4919,7 @@ pip_install_pypackage(){
         error "pip could not install/upgrade ${1}"
         exit 1
     fi
-    rm -rf "${tmp_pip_dir}_tmp"
+    rm -rf "${tmp_pip_dir}_tmp" || :
 }
 
 # Upgrade/install pip, setuptools and wheel.
@@ -4239,7 +4942,7 @@ if [ "${pip_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
         # the --no-cache-dir option may be available or not.
         pip_success="yes"
         for extra_pip_arg in "--no-cache-dir" ""; do
-            rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
+            rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
             mkdir -p "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
             "${python}" -m pip install -v -v -v                  \
                                        ${extra_pip_arg}          \
@@ -4256,7 +4959,7 @@ if [ "${pip_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
         fi
     done
     reset_environment
-    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
+    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
 fi
 
 # Upgrade all packages pre-installed
@@ -4314,11 +5017,7 @@ fi
 if [ "${cython_install}" == "yes" ] && [ "${cython_installed}" == "no" ]; then
     install_success="no"
     for compiler in "${compiler_possibilities[@]}"; do
-        reset_environment
-        if [ "${compiler}" == "mpi" ]; then
-            printf "\nInstallation of Cython failed. Attempting with MPI compilers\n\n"
-            use_mpi_compilers
-        fi
+        eval "use_${compiler}_compilers Cython"
         pip_install_pypackage "Cython" "${cython_version}"
         if [ "$(check_pypackage_installed cython)" == "no" ]; then
             continue
@@ -4338,10 +5037,7 @@ if [ "${cythongsl_install}" == "yes" ] && [ "${cythongsl_installed}" == "no" ]; 
     install_success="no"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        if [ "${compiler}" == "mpi" ]; then
-            printf "\nInstallation of CythonGSL failed. Attempting with MPI compilers\n\n"
-            use_mpi_compilers
-        fi
+        eval "use_${compiler}_compilers CythonGSL"
         export LD_LIBRARY_PATH="${gsl_dir}/lib:${LD_LIBRARY_PATH}"
         pip_install_pypackage "CythonGSL" "${cythongsl_version}"
         if [ "$(check_pypackage_installed cythongsl)" == "no" ]; then
@@ -4370,7 +5066,7 @@ if [ "${numpy_install}" == "yes" ] && [ "${numpy_installed}" == "no" ]; then
     set_status "Installing NumPy ${numpy_version}"
     # Download NumPy
     tmp_pip_dir="${top_dir}/tmp/pip"
-    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
+    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
     mkdir -p "${tmp_pip_dir}_tmp"
     export TMPDIR="${tmp_pip_dir}_tmp"
     pip_download "numpy" "${numpy_version}"
@@ -4422,61 +5118,64 @@ include_dirs = ${blas_dir}/include
 runtime_library_dirs = ${blas_dir}/lib
 " > "${numpy_build_dir}/site.cfg"
     # Build and install NumPy with OpenBLAS support.
-    # On some systems, the Fortran compiler and several additional
-    # environment variables need to be modified. Here we try all
-    # combinations until we hit a working one.
+    # We wish to use the gfortran Fortran compiler. We try out all the
+    # compiler environments but overwriting the Fortran compiler.
+    # If this fails, we retry without overwriting the Fortran compiler.
+    # On some systems, several additional environment variables need to
+    # be modified. We try all combinations until we hit a working one.
     cp -r "${numpy_build_dir}" "${numpy_build_dir}_cp"
-    FC_possibilities_numpy=("gfortran" "")
-    for numpy_CC in "${CC_possibilities[@]}"; do
-        if [ "${numpy_CC}" == "mpi" ]; then
-            FC_possibilities_numpy=("${FC_possibilities_numpy[@]}" "mpi")
-            break
-        fi
-    done
     install_success="no"
-    for numpy_FC in "${FC_possibilities_numpy[@]}"; do
-        for fcompiler in "gnu95" ""; do
-            for extra_FFLAGS in "" "-fPIC"; do
-                for extra_LDFLAGS in "" "-shared"; do
-                    reset_environment
-                    if [ "${numpy_FC}" == "mpi" ]; then
-                        use_mpi_compilers
-                    elif [ -n "${numpy_FC}" ]; then
-                        export FC="${numpy_FC}"
+    for numpy_gfortran in "yes" "no"; do
+        for compiler in "${compiler_possibilities[@]}"; do
+            for fcompiler in "gnu95" ""; do
+                for extra_FCFLAGS in "" "-fPIC"; do
+                    for extra_LDFLAGS in "" "-shared"; do
+                        reset_environment
+                        eval "use_${compiler}_compilers"
+                        printf "
+Attempting to install NumPy with numpy_gfortran=${numpy_gfortran}, compiler=${compiler}, \
+fcompiler=${fcompiler}, extra_FCFLAGS=${extra_FCFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n\n"
+                        if [ "${numpy_gfortran}" == "yes" ]; then
+                            export FC="gfortran"
+                            export F77="gfortran"
+                            export F90="gfortran"
+                            export F9X="gfortran"
+                        fi
+                        export TMPDIR="${tmp_pip_dir}_tmp"
+                        export BLAS="${blas_dir}/lib/libopenblas.a"
+                        export LAPACK="${blas_dir}/lib/libopenblas.a"
+                        export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
+                        export FCFLAGS="${extra_FCFLAGS} ${FCFLAGS}"
+                        export FFLAGS="${extra_FCFLAGS} ${FFLAGS}"
+                        export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS}"
+                        rm -rf "${numpy_build_dir}" || :
+                        cp -r "${numpy_build_dir}_cp" "${numpy_build_dir}"
+                        cd "${numpy_build_dir}"
+                        echo "yes" > ".setuppy_success"
+                        if [ -n "${fcompiler}" ]; then
+                            ("${python}" setup.py build --fcompiler="${fcompiler}" \
+                                || echo "no" > ".setuppy_success") & setuppy_pid=$!
+                        else
+                            ("${python}" setup.py build \
+                                || echo "no" > ".setuppy_success") & setuppy_pid=$!
+                        fi
+                        soothe ${setuppy_pid}
+                        sleep 1
+                        setuppy_success="$(cat '.setuppy_success')"
+                        if [ "${setuppy_success}" != "yes" ]; then
+                            continue
+                        fi
+                        "${python}" setup.py install & setuppy_pid=$!
+                        soothe ${setuppy_pid}
+                        if [ "$(check_pypackage_installed numpy)" == "no" ]; then
+                            continue
+                        fi
+                        install_success="yes"
+                        break
+                    done
+                    if [ "${install_success}" == "yes" ]; then
+                        break
                     fi
-                    export TMPDIR="${tmp_pip_dir}_tmp"
-                    export BLAS="${blas_dir}/lib/libopenblas.a"
-                    export LAPACK="${blas_dir}/lib/libopenblas.a"
-                    export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
-                    export FFLAGS="${extra_FFLAGS} ${FFLAGS}"
-                    export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS}"
-                    printf "\nAttempting to install NumPy with numpy_FC=${numpy_FC}, \
-fcompiler=${fcompiler}, extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n\n"
-                    cd "${top_dir}"
-                    rm -rf "${numpy_build_dir}"
-                    cp -r "${numpy_build_dir}_cp" "${numpy_build_dir}"
-                    cd "${numpy_build_dir}"
-                    echo "yes" > ".setuppy_success"
-                    if [ -n "${fcompiler}" ]; then
-                        ("${python}" setup.py build --fcompiler="${fcompiler}" \
-                            || echo "no" > ".setuppy_success") & setuppy_pid=$!
-                    else
-                        ("${python}" setup.py build \
-                            || echo "no" > ".setuppy_success") & setuppy_pid=$!
-                    fi
-                    soothe ${setuppy_pid}
-                    sleep 1
-                    setuppy_success="$(cat '.setuppy_success')"
-                    if [ "${setuppy_success}" != "yes" ]; then
-                        continue
-                    fi
-                    "${python}" setup.py install & setuppy_pid=$!
-                    soothe ${setuppy_pid}
-                    if [ "$(check_pypackage_installed numpy)" == "no" ]; then
-                        continue
-                    fi
-                    install_success="yes"
-                    break
                 done
                 if [ "${install_success}" == "yes" ]; then
                     break
@@ -4495,7 +5194,7 @@ fcompiler=${fcompiler}, extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFL
         exit 1
     fi
     cd "${top_dir}"
-    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${top_dir}/tmp/numpy"
+    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${top_dir}/tmp/numpy" || :
     reset_environment
     # Test NumPy
     export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
@@ -4510,7 +5209,7 @@ extra_argv=['--color=yes'])" 2>&1 | tee "${numpy_test_log}"
             fi
         fi
         if [ "${numpy_test_success}" == "yes" ]; then
-            rm -f "${numpy_test_log}"
+            rm -f "${numpy_test_log}" || :
         fi
     fi
     reset_environment
@@ -4524,7 +5223,7 @@ if [ "${scipy_install}" == "yes" ] && [ "${scipy_installed}" == "no" ]; then
     set_status "Installing SciPy ${scipy_version}"
     # Download SciPy
     tmp_pip_dir="${top_dir}/tmp/pip"
-    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
+    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
     mkdir -p "${tmp_pip_dir}_tmp"
     export TMPDIR="${tmp_pip_dir}_tmp"
     pip_download "scipy" "${scipy_version}"
@@ -4557,61 +5256,66 @@ include_dirs = ${blas_dir}/include
 runtime_library_dirs = ${blas_dir}/lib
 " > "${scipy_build_dir}/site.cfg"
     # Build and install SciPy with OpenBLAS support.
-    # On some systems, the Fortran compiler and several additional
-    # environment variables need to be modified. Here we try all
-    # combinations until we hit a working one.
+    # We wish to use the gfortran Fortran compiler. We try out all the
+    # compiler environments but overwriting the Fortran compiler.
+    # If this fails, we retry without overwriting the Fortran compiler.
+    # On some systems, several additional environment variables need to
+    # be modified. We try all combinations until we hit a working one.
     cp -r "${scipy_build_dir}" "${scipy_build_dir}_cp"
-    FC_possibilities_scipy=("gfortran" "")
-    for scipy_CC in "${CC_possibilities[@]}"; do
-        if [ "${scipy_CC}" == "mpi" ]; then
-            FC_possibilities_scipy=("${FC_possibilities_scipy[@]}" "mpi")
-            break
-        fi
-    done
     install_success="no"
-    for scipy_FC in "${FC_possibilities_scipy[@]}"; do
-        for fcompiler in "gnu95" ""; do
-            for extra_FFLAGS in "" "-fPIC"; do
-                for extra_LDFLAGS in "" "-shared"; do
-                    reset_environment
-                    if [ "${scipy_FC}" == "mpi" ]; then
-                        use_mpi_compilers
-                    elif [ -n "${scipy_FC}" ]; then
-                        export FC="${scipy_FC}"
+    for scipy_gfortran in "yes" "no"; do
+        for compiler in "${compiler_possibilities[@]}"; do
+            for fcompiler in "gnu95" ""; do
+                for extra_FCFLAGS in "" "-fPIC"; do
+                    for extra_LDFLAGS in "" "-shared"; do
+                        reset_environment
+                        eval "use_${compiler}_compilers"
+                        printf "
+Attempting to install SciPy with scipy_gfortran=${scipy_gfortran}, compiler=${compiler}, \
+fcompiler=${fcompiler}, extra_FCFLAGS=${extra_FCFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n\n"
+                        if [ "${scipy_gfortran}" == "yes" ]; then
+                            export FC="gfortran"
+                            export F77="gfortran"
+                            export F90="gfortran"
+                            export F9X="gfortran"
+                        fi
+                        export TMPDIR="${tmp_pip_dir}_tmp"
+                        export TMPDIR="${tmp_pip_dir}_tmp"
+                        export BLAS="${blas_dir}/lib/libopenblas.a"
+                        export LAPACK="${blas_dir}/lib/libopenblas.a"
+                        export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
+                        export FCFLAGS="${extra_FCFLAGS} ${FCFLAGS}"
+                        export FFLAGS="${extra_FCFLAGS} ${FFLAGS}"
+                        export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS}"
+                        cd "${top_dir}"
+                        rm -rf "${scipy_build_dir}" || :
+                        cp -r "${scipy_build_dir}_cp" "${scipy_build_dir}"
+                        cd "${scipy_build_dir}"
+                        echo "yes" > ".setuppy_success"
+                        if [ -n "${fcompiler}" ]; then
+                            ("${python}" setup.py build --fcompiler="${fcompiler}" \
+                                || echo "no" > ".setuppy_success") & setuppy_pid=$!
+                        else
+                            ("${python}" setup.py build \
+                                || echo "no" > ".setuppy_success") & setuppy_pid=$!
+                        fi
+                        soothe ${setuppy_pid}
+                        sleep 1
+                        setuppy_success="$(cat '.setuppy_success')"
+                        if [ "${setuppy_success}" != "yes" ]; then
+                            continue
+                        fi
+                        "${python}" setup.py install & setuppy_pid=$!
+                        soothe ${setuppy_pid}
+                        if [ "$(check_pypackage_installed scipy)" == "no" ]; then
+                            continue
+                        fi
+                        install_success="yes"
+                        break
+                    done
+                    if [ "${install_success}" == "yes" ]; then
+                        break
                     fi
-                    export TMPDIR="${tmp_pip_dir}_tmp"
-                    export BLAS="${blas_dir}/lib/libopenblas.a"
-                    export LAPACK="${blas_dir}/lib/libopenblas.a"
-                    export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
-                    export FFLAGS="${extra_FFLAGS} ${FFLAGS}"
-                    export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS}"
-                    printf "\nAttempting to install SciPy with scipy_FC=${scipy_FC}, \
-fcompiler=${fcompiler}, extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n\n"
-                    cd "${top_dir}"
-                    rm -rf "${scipy_build_dir}"
-                    cp -r "${scipy_build_dir}_cp" "${scipy_build_dir}"
-                    cd "${scipy_build_dir}"
-                    echo "yes" > ".setuppy_success"
-                    if [ -n "${fcompiler}" ]; then
-                        ("${python}" setup.py build --fcompiler="${fcompiler}" \
-                            || echo "no" > ".setuppy_success") & setuppy_pid=$!
-                    else
-                        ("${python}" setup.py build \
-                            || echo "no" > ".setuppy_success") & setuppy_pid=$!
-                    fi
-                    soothe ${setuppy_pid}
-                    sleep 1
-                    setuppy_success="$(cat '.setuppy_success')"
-                    if [ "${setuppy_success}" != "yes" ]; then
-                        continue
-                    fi
-                    "${python}" setup.py install & setuppy_pid=$!
-                    soothe ${setuppy_pid}
-                    if [ "$(check_pypackage_installed scipy)" == "no" ]; then
-                        continue
-                    fi
-                    install_success="yes"
-                    break
                 done
                 if [ "${install_success}" == "yes" ]; then
                     break
@@ -4630,7 +5334,7 @@ fcompiler=${fcompiler}, extra_FFLAGS=${extra_FFLAGS}, extra_LDFLAGS=${extra_LDFL
         exit 1
     fi
     cd "${top_dir}"
-    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
+    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
     reset_environment
     # Test SciPy
     export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
@@ -4647,7 +5351,7 @@ extra_argv=['--color=yes', '-k not test_face'])" 2>&1 | tee "${scipy_test_log}"
             fi
         fi
         if [ "${scipy_test_success}" == "yes" ]; then
-            rm -f "${scipy_test_log}"
+            rm -f "${scipy_test_log}" || :
         fi
     fi
     reset_environment
@@ -4661,7 +5365,7 @@ if [ "${matplotlib_install}" == "yes" ] && [ "${matplotlib_installed}" == "no" ]
     set_status "Installing Matplotlib ${matplotlib_version}"
     # Download matplotlib itself
     tmp_pip_dir="${top_dir}/tmp/pip"
-    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
+    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
     mkdir -p "${tmp_pip_dir}_tmp"
     export TMPDIR="${tmp_pip_dir}_tmp"
     pip_download "matplotlib" "${matplotlib_version}"
@@ -4716,7 +5420,7 @@ if [ "${matplotlib_install}" == "yes" ] && [ "${matplotlib_installed}" == "no" ]
     for ((i=0; i<${#illegal_pyparsings[@]}; i+=1)); do
         if [[ "${pyparsing_downloaded}" == "pyparsing-${illegal_pyparsings[i]}"* ]]; then
             # Illegal pyparsing downloaded!
-            rm -rf "${top_dir}/tmp/pip/pyparsing"*
+            rm -rf "${top_dir}/tmp/pip/pyparsing"* || :
             break
         fi
     done
@@ -4800,7 +5504,7 @@ ${zlib_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
         error "Could not install matplotlib"
         exit 1
     fi
-    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
+    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
 fi
 
 # MPI4Py
@@ -5230,7 +5934,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "}"                                                                                 \
         "/* Lambda has constant pressure */"                                                \
         "double H_T_prime = 3*a*H/rho_plus_p_tot*("                                         \
-        "  -ppw->delta_p + p_tot_prime*ppw->rho_plus_p_theta/rho_plus_p_tot/(k*k)"          \
+        "  -ppw->delta_p + p_tot_prime*theta_tot/(k*k)"                                     \
         "  + ppw->rho_plus_p_shear);"                                                       \
         "class_store_double(dataptr, H_T_prime, _TRUE_, storeidx);"                         \
     )
@@ -5332,26 +6036,20 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     cp "python/setup.py" "python/setup.py_ori"
     install_success="no"
     for lgomp_in_extra_link_args in "" "-gomp"; do
-        for OMPFLAG in "" "-openmp" "-fopenmp" "-qopenmp"; do
-            if [ -z "${lgomp_in_extra_link_args}" ] && [ -z "${OMPFLAG}" ]; then
-                continue
-            fi
-            for compiler in "${compiler_possibilities[@]}"; do
+        for compiler in "${compiler_possibilities[@]}"; do
+            for OMPFLAG in "-fopenmp" "-openmp" "-qopenmp"; do
                 for fast_math in "yes" "no"; do
                     reset_environment
                     cp "Makefile_ori" "Makefile"
                     cp "python/setup.py_ori" "python/setup.py"
                     make clean || :
                     export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
-                    if [ "${compiler}" == "mpi" ]; then
-                        use_mpi_compilers
-                        compiler="mpicc"
-                    fi
+                    eval "use_${compiler}_compilers CLASS"
                     if [ "${fast_math}" == "no" ]; then
                         sed -i '0,/-ffast-math/s/-ffast-math/#-ffast-math/' "Makefile"
                     fi
-                    if [ -n "${compiler}" ]; then
-                        sed -i "s/CC * =/CC = ${compiler}  #/" "Makefile"
+                    if [ -n "${CC}" ]; then
+                        sed -i "s/CC * =/CC = ${CC//\//\/}  #/" "Makefile"
                     fi
                     if [ -n "${OMPFLAG}" ]; then
                         sed -i "s/OMPFLAG *=/OMPFLAG = ${OMPFLAG}  #/" "Makefile"
@@ -5360,7 +6058,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
 '${lgomp_in_extra_link_args} ${OMPFLAG}'.split(),  #/" "python/setup.py"
                     printf "
 Attempting to install CLASS with lgomp_in_extra_link_args=${lgomp_in_extra_link_args}, \
-OMPFLAG=${OMPFLAG}, compiler=${compiler}, fast_math=${fast_math}\n\n"
+compiler=${compiler}, OMPFLAG=${OMPFLAG}, fast_math=${fast_math}\n\n"
                     PYTHON="${python}" make ${make_jobs} 2>&1 || continue
                     "${python}" -c "import classy; classy.Class().compute()" || continue
                     install_success="yes"
@@ -5571,31 +6269,39 @@ fi
 # FFTW 2.x (GADGET2 is incompatible with FFTW 3.x)
 if [ "${fftw_for_gadget_install}" == "yes" ] && [ "${fftw_for_gadget_installed}" == "no" ]; then
     init_install "FFTW for GADGET"
-    export CC="${mpi_dir}/bin/mpicc"
-    export MPICC="${mpi_dir}/bin/mpicc"
-    export CFLAGS="-O3 -fPIC ${CFLAGS}"
-    export CPPFLAGS="-I${mpi_dir}/include ${CPPFLAGS}"
-    export LDFLAGS="-L${mpi_dir}/lib ${LDFLAGS}"
-    export MPILIBS="-lmpi ${MPILIBS}"
-    export PATH="${mpi_dir}/bin:${PATH}"
+    # Set environment variables and configure options used
+    # when building againts MPI.
+    enable_mpi=""
+    if [ -n "${mpi_dir}" ]; then
+        use_specified_mpi_compilers
+        export CFLAGS="-O3 -fPIC ${CFLAGS}"
+        export CPPFLAGS="-I${mpi_dir}/include ${CPPFLAGS}"
+        export LDFLAGS="-L${mpi_dir}/lib ${LDFLAGS}"
+        export MPICC="${CC}"
+        export MPILIBS="-lmpi ${MPILIBS}"
+        enable_mpi="--enable-mpi"
+    fi
     # Intel compilers may link against the NUMA library, which should be
     # placed in /usr/lib64. Add this directory to the LDFLAGS.
     # Both libnuma.so and libnuma.so.1 should exist. To be sure,
     # we create symlinks to these in a new directory and add this
     # directory to LDFLAGS as well.
-    export LDFLAGS="${LDFLAGS} -L/usr/lib64"
+    if [ -d "/usr/lib64" ]; then
+        export LDFLAGS="${LDFLAGS} -L/usr/lib64"
+    fi
     numa_symlink_dir="${fftw_for_gadget_dir}/numa_symlinks"
-    mkdir -p "${numa_symlink_dir}"
+    rm -rf "${numa_symlink_dir}" || :
+    mkdir -p "${numa_symlink_dir}" || :
     if [ -f "/usr/lib64/libnuma.so" ] && [ ! -f "/usr/lib64/libnuma.so.1" ]; then
-        ln -s "/usr/lib64/libnuma.so" "${numa_symlink_dir}/libnuma.so.1"
+        ln -s "/usr/lib64/libnuma.so" "${numa_symlink_dir}/libnuma.so.1" || :
     fi
     if [ -f "/usr/lib64/libnuma.so.1" ] && [ ! -f "/usr/lib64/libnuma.so" ]; then
-        ln -s "/usr/lib64/libnuma.so.1" "${numa_symlink_dir}/libnuma.so"
+        ln -s "/usr/lib64/libnuma.so.1" "${numa_symlink_dir}/libnuma.so" || :
     fi
     export LDFLAGS="${LDFLAGS} -L${numa_symlink_dir}"
     # Double-precision
     ./configure --enable-shared      \
-                --enable-mpi         \
+                ${enable_mpi}        \
                 --enable-openmp      \
                 --enable-threads     \
                 --enable-type-prefix \
@@ -5609,7 +6315,7 @@ if [ "${fftw_for_gadget_install}" == "yes" ] && [ "${fftw_for_gadget_installed}"
     # Single-precision
     make ${make_jobs} clean
     ./configure --enable-shared      \
-                --enable-mpi         \
+                ${enable_mpi}        \
                 --enable-openmp      \
                 --enable-threads     \
                 --enable-float       \
@@ -5622,7 +6328,7 @@ if [ "${fftw_for_gadget_install}" == "yes" ] && [ "${fftw_for_gadget_installed}"
     fi
     fftw_for_gadget_test_log="${fftw_for_gadget_dir}/test_log"
     if [ "${fftw_for_gadget_test_success}" == "no" ]; then
-        mkdir -p "${fftw_for_gadget_dir}"
+        mkdir -p "$(dirname "${fftw_for_gadget_test_log}")"
         cp "test_log" "${fftw_for_gadget_test_log}"
     fi
     make ${make_jobs} install 2>&1
@@ -5670,7 +6376,8 @@ if [ "${concept_install}" == "yes" ] && [ "${concept_installed}" == "no" ]; then
         "${concept}" -t "basic" 2>&1 | tee "${concept_test_log}"
         [ ${PIPESTATUS[0]} -eq 0 ] || concept_test_success="no"
         if  [ "${gadget_install}" == "yes" ]; then
-            # Run GADGET test if basic CO𝘕CEPT test finished successfully
+            # Run GADGET test
+            # if basic CO𝘕CEPT test finished successfully
             if [ "${concept_test_success}" == "yes" ]; then
                 current_step="testing GADGET"
                 heading "Testing GADGET"
@@ -5680,7 +6387,7 @@ if [ "${concept_install}" == "yes" ] && [ "${concept_installed}" == "no" ]; then
                 [ ${PIPESTATUS[0]} -eq 0 ] || gadget_test_success="no"
                 # Clean test_log if test is successfull
                 if [ "${gadget_test_success}" == "yes" ]; then
-                    rm -f "${gadget_test_log}"
+                    rm -f "${gadget_test_log}" || :
                 fi
             fi
             # Run complete CO𝘕CEPT test suite if basic CO𝘕CEPT test
@@ -5693,8 +6400,10 @@ if [ "${concept_install}" == "yes" ] && [ "${concept_installed}" == "no" ]; then
                 [ ${PIPESTATUS[0]} -eq 0 ] || concept_test_success="no"
                 # Clean test_log if test is successfull
                 if [ "${concept_test_success}" == "yes" ]; then
-                    rm -f "${concept_test_log}"
-                    make distclean
+                    rm -f "${concept_test_log}" || :
+                    # Note that this also removes
+                    # the ${top_dir}/tmp directory.
+                    make distclean || :
                 fi
             fi
         fi
@@ -5720,13 +6429,13 @@ fi
 rm -rf "${top_dir}/tmp" || :
 # Remove the Python cache generated by all the Python invocations
 # during the install.
-rm -rf "${top_dir}/__pycache__"
+rm -rf "${top_dir}/__pycache__" || :
 # Pytest may leave a cache directory
-rm -rf "${top_dir}/.pytest_cache"
+rm -rf "${top_dir}/.pytest_cache" || :
 # Remove miscellaneous files which may be left
 # by one of the installations.
-rm -f "${top_dir}/_configtest"*
-rm -f "${top_dir}/gramA" "${top_dir}/gramB"
+rm -rf "${top_dir}/_configtest"* || :
+rm -f "${top_dir}/gramA" "${top_dir}/gramB" || :
 # Copyright notice
 disable_status
 copyright_notice(){
@@ -5865,7 +6574,7 @@ while [ ! -f "${top_dir}/.log_pid" ]; do
     fi
 done
 log_pid=$(cat "${top_dir}/.log_pid")
-rm -f "${top_dir}/.log_pid"
+rm -f "${top_dir}/.log_pid" || :
 # End of subprocess #
 #####################
 
@@ -5938,10 +6647,10 @@ if [ "${fast_install}" == "no" ] && \
     installation_guaranteed_successful="yes"
 fi
 if [ ! -s "${log}" ]; then
-    rm -f "${log}"
+    rm -f "${log}" || :
 fi
 if [ ! -s "${log}_err" ]; then
-    rm -f "${log}_err"
+    rm -f "${log}_err" || :
 fi
 if [ "${say_goodbye}" != "no" ]; then
     if [ "${installation_guaranteed_successful}" == "yes" ]; then

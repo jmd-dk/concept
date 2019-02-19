@@ -217,7 +217,7 @@ print(path if rel.startswith('../../') else rel)"
 get_command(){
     command_name="${1}"
     # Use the type builtin to locate the command
-    path="$(type "${command_name}" 2>/dev/null | awk '{print $NF}')"
+    local path="$(type "${command_name}" 2>/dev/null | awk '{print $NF}')"
     if [[ "${path}" == "/"* ]]; then
         # The command is a path
         path="$(readlink -f "${path}")"
