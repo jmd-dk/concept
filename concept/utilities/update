@@ -215,8 +215,8 @@ fi
 if [ "${class}" == "True" ]; then
     rm -rf "${class_dir}"
     unset class_dir class_version
-    concept_install="no" class_install="yes" python_dir="${python_dir}" \
-        say_welcome="no" say_copyright="no" say_goodbye="no"            \
+    concept_install="False" class_install="True" python_dir="${python_dir}" \
+        say_welcome="False" say_copyright="False" say_goodbye="False"       \
         bash <(wget -O- ${installer_url}) "${top_dir}" --fast
     # Write out success message
     printf "

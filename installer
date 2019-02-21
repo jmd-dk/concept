@@ -169,9 +169,9 @@ will be installed in this distribution. Pre-installed Python packages
 will not be touched; e.g. if the installer wishes to install NumPy
 1.10.4, but 1.10.3 is already installed, the package will not be
 updated. If you want such Python package updates (or downgrades),
-set the `pythonpackagename_install` environment variable to "yes".
+set the `pythonpackagename_install` environment variable to "True".
 E.g. to overwrite a pre-installed NumPy package:
-  numpy_install=yes python_dir=/path/to/python /path/to/installer
+  numpy_install=True python_dir=/path/to/python /path/to/installer
 If you choose to use a pre-installed Python distribution, it is your
 responsibility that pip is installed as part of this distribution.
 Also, if the blessings package is not pre-installed in the Python
@@ -259,17 +259,17 @@ mpi="$(echo "${mpi}" | tr '[:upper:]' '[:lower:]')"
 set_dir(){
     # Arguments: Program name, install directory.
     # Set "name_preinstalled" if "name_dir" is already set
-    eval "${1}_preinstalled=yes"
-    eval "[ -n \"\${${1}_dir}\" ] || ${1}_preinstalled=no"
+    eval "${1}_preinstalled=True"
+    eval "[ -n \"\${${1}_dir}\" ] || ${1}_preinstalled=\"False\""
     # Set "name_dir" if "name_dir" is not already set
     # or "name" should be installed.
     eval "[ -n \"\${${1}_dir}\" ] || ${1}_dir=\"${2}\""
-    eval "(! (   [ \"\${${1}_install}\"      == \"no\" ] \
-              && [ \"\${${1}_preinstalled}\" == \"no\" ])) || ${1}_dir=\"\""
+    eval "(! (   [ \"\${${1}_install}\"      == \"False\" ] \
+              && [ \"\${${1}_preinstalled}\" == \"False\" ])) || ${1}_dir=\"\""
 }
-# The install_explicit_only environment variable, when set to "yes",
+# The install_explicit_only environment variable, when set to "True",
 # disables all implicit installations.
-if [ "${install_explicit_only}" == "yes" ]; then
+if [ "${install_explicit_only}" == "True" ]; then
     for progname in "concept"         \
                     "blas"            \
                     "class"           \
@@ -296,7 +296,7 @@ if [ "${install_explicit_only}" == "yes" ]; then
                     "numpy"           \
                     "pytest"          \
                     "scipy"; do
-        eval "[ -n \"\${${progname}_install}\" ] || ${progname}_install=\"no\""
+        eval "[ -n \"\${${progname}_install}\" ] || ${progname}_install=\"False\""
     done
 fi
 # Specification of paths. The substring "__top_dir__"
@@ -328,9 +328,9 @@ paths_file="__top_dir__/.paths"
 # in case of unsuccessful retrievel of the link to the first version.
 set_version(){
     # Arguments: Program name, version, [fallback version]
-    eval "[ -z \"\${${1}_version}\" ] || ${1}_version_specifiedbyuser=\"true\""
+    eval "[ -z \"\${${1}_version}\" ] || ${1}_version_specifiedbyuser=\"True\""
     eval "[ -n \"\${${1}_version}\" ] || ${1}_version=\"${2}\""
-    eval "[ \"\${${1}_preinstalled}\" != \"yes\" ] || ${1}_version=\"pre-installed\""
+    eval "[ \"\${${1}_preinstalled}\" != \"True\" ] || ${1}_version=\"pre-installed\""
     if [ -n "${3}" ]; then
         eval "${1}_version_fallback=\"${3}\""
     fi
@@ -447,7 +447,7 @@ error(){
 }
 
 # Print out welcome message
-if [ "${say_welcome}" != "no" ]; then
+if [ "${say_welcome}" != "False" ]; then
     heading "${esc_bold}${esc_yellow}This is the installation script for ${esc_concept},
 the cosmological ${esc_italic}N${esc_no_italic}-body code in Python${esc_normal}"
 fi
@@ -522,38 +522,38 @@ reset_environment(){
 }
 
 # Set test_success variables
-blas_test_success="yes"
-class_test_success="yes"
-concept_test_success="yes"
-fftw_test_success="yes"
-fftw_for_gadget_test_success="yes"
-freetype_test_success="yes"
-gadget_test_success="yes"
-gsl_test_success="yes"
-hdf5_test_success="yes"
-libffi_test_success="yes"
-libpng_test_success="yes"
-mpi_test_success="yes"
-ncurses_test_success="yes"
-openssl_test_success="yes"
-perl_test_success="yes"
-python_test_success="yes"
-zlib_test_success="yes"
-numpy_test_success="yes"
-scipy_test_success="yes"
+blas_test_success="True"
+class_test_success="True"
+concept_test_success="True"
+fftw_test_success="True"
+fftw_for_gadget_test_success="True"
+freetype_test_success="True"
+gadget_test_success="True"
+gsl_test_success="True"
+hdf5_test_success="True"
+libffi_test_success="True"
+libpng_test_success="True"
+mpi_test_success="True"
+ncurses_test_success="True"
+openssl_test_success="True"
+perl_test_success="True"
+python_test_success="True"
+zlib_test_success="True"
+numpy_test_success="True"
+scipy_test_success="True"
 
 # Read in command line arguments
 if [ -z "${do_tests}" ]; then
-    do_tests="no"
+    do_tests="False"
 fi
 if [ -z "${yes_to_defaults}" ]; then
-    yes_to_defaults="no"
+    yes_to_defaults="False"
 fi
 if [ -z "${fix_ssh}" ]; then
     fix_ssh="False"
 fi
 if [ -z "${top_dir_specified}" ]; then
-    top_dir_specified="no"
+    top_dir_specified="False"
 fi
 for var in "$@"; do
     # Strip command line argument for brackets, which may have been
@@ -568,12 +568,12 @@ for var in "$@"; do
         || [ "${var}" == "--tes"   ] \
         || [ "${var}" == "--test"  ] \
         || [ "${var}" == "--tests" ]; then
-        do_tests="yes"
+        do_tests="True"
     elif   [ "${var}" ==  "-y"   ] \
         || [ "${var}" == "--y"   ] \
         || [ "${var}" == "--ye"  ] \
         || [ "${var}" == "--yes" ]; then
-        yes_to_defaults="yes"
+        yes_to_defaults="True"
     elif   [ "${var}" == "--f"         ] \
         || [ "${var}" == "--fi"        ] \
         || [ "${var}" == "--fix"       ] \
@@ -582,9 +582,9 @@ for var in "$@"; do
         || [ "${var}" == "--fix-ss"    ] \
         || [ "${var}" == "--fix-ssh"   ]; then
         fix_ssh="True"
-    elif [ "${top_dir_specified}" == "no" ]; then
+    elif [ "${top_dir_specified}" == "False" ]; then
         top_dir="${var}"
-        top_dir_specified="yes"
+        top_dir_specified="True"
     else
         if [ "${var}" != "${top_dir}" ]; then
             error "Got command line argument \"${var}\", "\
@@ -688,7 +688,7 @@ build_sudo_command(){
 
 # Creating top level directory (top_dir)
 current_step="setup of top level directory"
-if [ "${top_dir_specified}" == "no" ]; then
+if [ "${top_dir_specified}" == "False" ]; then
     printf "\nWhere should the ${esc_concept} code be installed?"
     read -p "$(echo $'\n> ')" -e top_dir
     if [ -z "${top_dir}" ]; then
@@ -980,7 +980,7 @@ check_system_dependency(){
         # Package not installed
         if [ -n "${package_manager}" ]; then
             # Package manager found
-            if [ "${yes_to_defaults}" == "yes" ]; then
+            if [ "${yes_to_defaults}" == "True" ]; then
                 echo "Auto installing '${1}'"
                 build_sudo_command
                 eval "${sudo_command} ${install_command} ${2}"
@@ -1054,15 +1054,15 @@ gcc_test(){
     echo "${C_source}" > main.c
     # Test compile and run
     for i in 0 1; do
-        gcc_test_success="yes"
-        gcc main.c -o main || gcc_test_success="no"
-        if [ "${gcc_test_success}" == "yes" ]; then
+        gcc_test_success="True"
+        gcc main.c -o main || gcc_test_success="False"
+        if [ "${gcc_test_success}" == "True" ]; then
             gcc_test_output="$(./main)"
             if [ "${gcc_test_output}" != "${expected_output}" ]; then
-                gcc_test_success="no"
+                gcc_test_success="False"
             fi
         fi
-        if [ "${gcc_test_success}" == "no" ]; then
+        if [ "${gcc_test_success}" == "False" ]; then
             if [ $i -eq 0 ]; then
                 # Test failed.
                 # Prompt for installation of needed package.
@@ -1073,7 +1073,7 @@ gcc_test(){
                     error "Error: Could not find any installed package manager"
                     exit 1
                 fi
-                if [ "${yes_to_defaults}" == "yes" ]; then
+                if [ "${yes_to_defaults}" == "True" ]; then
                     echo "Auto installing ${name}"
                     eval "${install_command} ${package_name}"
                 else
@@ -1086,13 +1086,15 @@ gcc_test(){
                                 [Yy]* ) eval "${install_command} ${package_name}"
                                         return
                                         ;;
-                                [Nn]* ) error "Terminated install due to missing component: ${name}"
+                                [Nn]* ) error \
+                                            "Terminated install due to missing component: ${name}"
                                         exit 1
                                         ;;
                                 ""    ) eval "${install_command} ${package_name}"
                                         return
                                         ;;
-                                *     ) error "Terminated install due to missing component: ${name}"
+                                *     ) error \
+                                            "Terminated install due to missing component: ${name}"
                                         exit 1
                                         ;;
                             esac
@@ -1158,12 +1160,12 @@ fix_path(){
     progname="${1// /_}"
     progname="$(echo "${progname}" | tr '[:upper:]' '[:lower:]')"
     # Replace "__top_dir__"
-    eval "[ \"\${${progname=}_preinstalled}\" == \"yes\" ] \
+    eval "[ \"\${${progname=}_preinstalled}\" == \"True\" ] \
           || ${progname=}_dir=\"\${${progname=}_dir/__top_dir__/${top_dir}}\""
     # Convert to absolute path
     eval "${progname=}_dir=\"\$(convert_to_abs_path \"\${${progname=}_dir}\")\""
     # Check that the path to pre-installed dependencies exist
-    if eval "[ \"\${${progname}_preinstalled}\" == \"yes\" ] \
+    if eval "[ \"\${${progname}_preinstalled}\" == \"True\" ] \
              && [ ! -d \"\${${progname}_dir}\" ] \
              && [ ! -f \"\${${progname}_dir}\" ]"; then
         error "The specified directory\n\"$(eval "echo \${${progname}_dir}")\"\n\
@@ -1175,7 +1177,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
     if [ -f "${progname_dir}" ]; then
         progname_dir="$(dirname ${progname_dir})"
     fi
-    if [ "${progname}" == 'class' ] && [ "${class_preinstalled}" == "yes" ]; then
+    if [ "${progname}" == 'class' ] && [ "${class_preinstalled}" == "True" ]; then
         if [ ! -f "${progname_dir}/class" ]; then
             if [ -f "${progname_dir}/../class" ]; then
                 class_dir="$(dirname ${progname_dir})"
@@ -1185,7 +1187,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             fi
         fi
     fi
-    if [ "${progname}" == 'concept' ] && [ "${concept_preinstalled}" == "yes" ]; then
+    if [ "${progname}" == 'concept' ] && [ "${concept_preinstalled}" == "True" ]; then
         if [ ! -f "${progname_dir}/concept" ]; then
             if [ -f "${progname_dir}/../concept" ]; then
                 concept_dir="$(dirname ${progname_dir})"
@@ -1195,7 +1197,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             fi
         fi
     fi
-    if [ "${progname}" == 'fftw' ] && [ "${fftw_preinstalled}" == "yes" ]; then
+    if [ "${progname}" == 'fftw' ] && [ "${fftw_preinstalled}" == "True" ]; then
         if     [ ! -f "${progname_dir}/lib/libfftw3.so" ] \
             && [ ! -f "${progname_dir}/lib/libfftw3f.so" ]; then
             if     [ -f "${progname_dir}/../lib/libfftw3.so" ] \
@@ -1207,7 +1209,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             fi
         fi
     fi
-    if [ "${progname}" == 'freetype' ] && [ "${freetype_preinstalled}" == "yes" ]; then
+    if [ "${progname}" == 'freetype' ] && [ "${freetype_preinstalled}" == "True" ]; then
         if [ ! -f "${progname_dir}/lib/libfreetype.so" ]; then
             if [ -f "${progname_dir}/../lib/libfreetype.so" ]; then
                 freetype_dir="$(dirname ${progname_dir})"
@@ -1217,7 +1219,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             fi
         fi
     fi
-    if [ "${progname}" == 'gadget' ] && [ "${gadget_preinstalled}" == "yes" ]; then
+    if [ "${progname}" == 'gadget' ] && [ "${gadget_preinstalled}" == "True" ]; then
         if [ ! -d "${progname_dir}/Gadget2" ]; then
             if [ -d "${progname_dir}/../Gadget2" ]; then
                 gadget_dir="$(dirname ${progname_dir})"
@@ -1227,7 +1229,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             fi
         fi
     fi
-    if [ "${progname}" == 'gsl' ] && [ "${gsl_preinstalled}" == "yes" ]; then
+    if [ "${progname}" == 'gsl' ] && [ "${gsl_preinstalled}" == "True" ]; then
         if [ ! -f "${progname_dir}/lib/libgsl.so" ]; then
             if [ -f "${progname_dir}/../lib/libgsl.so" ]; then
                 gsl_dir="$(dirname ${progname_dir})"
@@ -1237,7 +1239,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             fi
         fi
     fi
-    if [ "${progname}" == 'hdf5' ] && [ "${hdf5_preinstalled}" == "yes" ]; then
+    if [ "${progname}" == 'hdf5' ] && [ "${hdf5_preinstalled}" == "True" ]; then
         if [ ! -f "${progname_dir}/lib/libhdf5.so" ]; then
             if [ -f "${progname_dir}/../lib/libhdf5.so" ]; then
                 hdf5_dir="$(dirname ${progname_dir})"
@@ -1247,7 +1249,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             fi
         fi
     fi
-    if [ "${progname}" == 'libffi' ] && [ "${libffi_preinstalled}" == "yes" ]; then
+    if [ "${progname}" == 'libffi' ] && [ "${libffi_preinstalled}" == "True" ]; then
         if [ ! -f "${progname_dir}/lib/libffi.so" ]; then
             if [ -f "${progname_dir}/../lib/libffi.so" ]; then
                 libffi_dir="$(dirname ${progname_dir})"
@@ -1257,7 +1259,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             fi
         fi
     fi
-    if [ "${progname}" == 'libpng' ] && [ "${libpng_preinstalled}" == "yes" ]; then
+    if [ "${progname}" == 'libpng' ] && [ "${libpng_preinstalled}" == "True" ]; then
         if [ ! -f "${progname_dir}/lib/libpng.so" ]; then
             if [ -f "${progname_dir}/../lib/libpng.so" ]; then
                 libpng_dir="$(dirname ${progname_dir})"
@@ -1267,7 +1269,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             fi
         fi
     fi
-    if [ "${progname}" == 'mpi' ] && [ "${mpi_preinstalled}" == "yes" ]; then
+    if [ "${progname}" == 'mpi' ] && [ "${mpi_preinstalled}" == "True" ]; then
         if [ ! -f "${progname_dir}/bin/mpiexec" ]; then
             if [ -f "${progname_dir}/../bin/mpiexec" ]; then
                 mpi_dir="$(dirname ${progname_dir})"
@@ -1277,7 +1279,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             fi
         fi
     fi
-    if [ "${progname}" == 'ncurses' ] && [ "${ncurses_preinstalled}" == "yes" ]; then
+    if [ "${progname}" == 'ncurses' ] && [ "${ncurses_preinstalled}" == "True" ]; then
         if [ ! -f "${progname_dir}/lib/libncurses.so" ]; then
             if [ -f "${progname_dir}/../lib/libncurses.so" ]; then
                 ncurses_dir="$(dirname ${progname_dir})"
@@ -1287,7 +1289,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             fi
         fi
     fi
-    if [ "${progname}" == 'blas' ] && [ "${blas_preinstalled}" == "yes" ]; then
+    if [ "${progname}" == 'blas' ] && [ "${blas_preinstalled}" == "True" ]; then
         if [ ! -f "${progname_dir}/include/cblas.h" ]; then
             if [ -f "${progname_dir}/../include/cblas.h" ]; then
                 blas_dir="$(dirname ${progname_dir})"
@@ -1297,7 +1299,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             fi
         fi
     fi
-    if [ "${progname}" == 'openssl' ] && [ "${openssl_preinstalled}" == "yes" ]; then
+    if [ "${progname}" == 'openssl' ] && [ "${openssl_preinstalled}" == "True" ]; then
         if [ ! -f "${progname_dir}/lib/libssl.so" ]; then
             if [ -f "${progname_dir}/../lib/libssl.so" ]; then
                 openssl_dir="$(dirname ${progname_dir})"
@@ -1307,7 +1309,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             fi
         fi
     fi
-    if [ "${progname}" == 'perl' ] && [ "${perl_preinstalled}" == "yes" ]; then
+    if [ "${progname}" == 'perl' ] && [ "${perl_preinstalled}" == "True" ]; then
         if [ ! -f "${progname_dir}/bin/perl" ]; then
             if [ -f "${progname_dir}/../bin/perl" ]; then
                 perl_dir="$(dirname ${progname_dir})"
@@ -1317,7 +1319,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             fi
         fi
     fi
-    if [ "${progname}" == 'python' ] && [ "${python_preinstalled}" == "yes" ]; then
+    if [ "${progname}" == 'python' ] && [ "${python_preinstalled}" == "True" ]; then
         if     [ ! -f "${progname_dir}/bin/python" ] \
             && [ ! -f "${progname_dir}/bin/python3" ]; then
             if     [ -f "${progname_dir}/../bin/python" ] \
@@ -1329,7 +1331,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             fi
         fi
     fi
-    if [ "${progname}" == 'zlib' ] && [ "${zlib_preinstalled}" == "yes" ]; then
+    if [ "${progname}" == 'zlib' ] && [ "${zlib_preinstalled}" == "True" ]; then
         if [ ! -f "${progname_dir}/lib/libz.so" ]; then
             if [ -f "${progname_dir}/../lib/libz.so" ]; then
                 zlib_dir="$(dirname ${progname_dir})"
@@ -1404,27 +1406,27 @@ current_step="discovery of dependencies"
 # Flags specifying whether or not any Python packages,
 # software (meaning anything but Python packages) or any of those
 # should be installed.
-install_any_pypackages="no"
-install_any_software="no"
-install_anything="no"
+install_any_pypackages="False"
+install_any_software="False"
+install_anything="False"
 assume_preinstalled(){
     # Arguments: Program name (lowercase)
     eval "name_preinstalled=\"\${${1}_preinstalled}\""
-    if [ "${name_preinstalled}" == "no" ]; then
-        eval "${1}_preinstalled=\"yes\""
+    if [ "${name_preinstalled}" == "False" ]; then
+        eval "${1}_preinstalled=\"True\""
         eval "${1}_dir=\"\""
         eval "${1}_version=\"pre-installed\""
     fi
 }
 # If Python is pre-installed, assume that OpenSSL,
 # libffi and ncurses are also pre-installed.
-if [ "${python_preinstalled}" == "yes" ]; then
+if [ "${python_preinstalled}" == "True" ]; then
     assume_preinstalled "openssl"
     assume_preinstalled "libffi"
     assume_preinstalled "ncurses"
 fi
 # If OpenSSL is pre-installed, assume that Perl is also pre-installed
-if [ "${openssl_preinstalled}" == "yes" ]; then
+if [ "${openssl_preinstalled}" == "True" ]; then
     assume_preinstalled "perl"
 fi
 
@@ -1451,26 +1453,26 @@ try:
     else:
         import ${1}
     sleep(1)
-    print('\nyes')
+    print('\nTrue')
 except:
-    print('\nno')
+    print('\nFalse')
 " 2>/dev/null | tail -n 1
     cd "${current_dir}"
     export LD_LIBRARY_PATH="${current_LD_LIBRARY_PATH}"
 }
 
 # Set "pypackage"_preinstalled variables
-blessings_preinstalled="no"
-cython_preinstalled="no"
-cythongsl_preinstalled="no"
-h5py_preinstalled="no"
-matplotlib_preinstalled="no"
-mpi4py_preinstalled="no"
-numpy_preinstalled="no"
-pytest_preinstalled="no"
-scipy_preinstalled="no"
-pip_preinstalled="no"
-if [ "${python_preinstalled}" == "yes" ]; then
+blessings_preinstalled="False"
+cython_preinstalled="False"
+cythongsl_preinstalled="False"
+h5py_preinstalled="False"
+matplotlib_preinstalled="False"
+mpi4py_preinstalled="False"
+numpy_preinstalled="False"
+pytest_preinstalled="False"
+scipy_preinstalled="False"
+pip_preinstalled="False"
+if [ "${python_preinstalled}" == "True" ]; then
     python=$(ls -1 "${python_dir}/bin/python"* | head -n 1)
     for pypackage in blessings     \
                      cython        \
@@ -1490,46 +1492,46 @@ fi
 # Variables telling whether or not a program needs to be installed.
 # CO𝘕CEPT (install by default)
 if [ -z "${concept_install}" ]; then
-    concept_install="no"
-    if [ "${concept_preinstalled}" == "no" ]; then
-        concept_install="yes"
+    concept_install="False"
+    if [ "${concept_preinstalled}" == "False" ]; then
+        concept_install="True"
     fi
 fi
 # CLASS (needed by CO𝘕CEPT)
 if [ -z "${class_install}" ]; then
-    class_install="no"
-    if [ "${class_preinstalled}" == "no" ] && [ "${concept_install}" == "yes" ]; then
-        class_install="yes"
+    class_install="False"
+    if [ "${class_preinstalled}" == "False" ] && [ "${concept_install}" == "True" ]; then
+        class_install="True"
     fi
 fi
 # GADGET (needed by CO𝘕CEPT)
 if [ -z "${gadget_install}" ]; then
-    gadget_install="no"
-    if [ "${gadget_preinstalled}" == "no" ] && [ "${concept_install}" == "yes" ]; then
-        gadget_install="yes"
+    gadget_install="False"
+    if [ "${gadget_preinstalled}" == "False" ] && [ "${concept_install}" == "True" ]; then
+        gadget_install="True"
     fi
 fi
 # FFTW for GADGET (needed by GADGET)
 if [ -z "${fftw_for_gadget_install}" ]; then
-    fftw_for_gadget_install="no"
-    if [ "${fftw_for_gadget_preinstalled}" == "no" ] && [ "${gadget_install}" == "yes" ]; then
-        fftw_for_gadget_install="yes"
+    fftw_for_gadget_install="False"
+    if [ "${fftw_for_gadget_preinstalled}" == "False" ] && [ "${gadget_install}" == "True" ]; then
+        fftw_for_gadget_install="True"
     fi
 fi
 # Python (needed by CO𝘕CEPT and CLASS)
 if [ -z "${python_install}" ]; then
-    python_install="no"
-    if [ "${python_preinstalled}" == "no" ] && (   [ "${concept_install}" == "yes" ] \
-                                                || [ "${class_install}"   == "yes" ]); then
-        python_install="yes"
+    python_install="False"
+    if [ "${python_preinstalled}" == "False" ] \
+        && ([ "${concept_install}" == "True" ] || [ "${class_install}" == "True" ]); then
+        python_install="True"
     fi
 fi
 # Python packages (needed by CLASS and CO𝘕CEPT)
 if [ -z "${pip_install}" ]; then
     # Always install pip if Python is to be installed
-    pip_install="no"
-    if [ "${python_install}" == "yes" ]; then
-        pip_install="yes"
+    pip_install="False"
+    if [ "${python_install}" == "True" ]; then
+        pip_install="True"
     fi
 fi
 for pypackage in blessings     \
@@ -1543,135 +1545,136 @@ for pypackage in blessings     \
                  scipy; do
     eval "pypackage_install=\"\${${pypackage}_install}\""
     if [ -z "${pypackage_install}" ]; then
-        eval "${pypackage}_install=\"no\""
+        eval "${pypackage}_install=\"False\""
         eval "pypackage_preinstalled=\"\${${pypackage}_preinstalled}\""
-        if [ "${pypackage_preinstalled}" == "no" ] && [ "${concept_install}" == "yes" ]; then
-            eval "${pypackage}_install=\"yes\""
+        if [ "${pypackage_preinstalled}" == "False" ] && [ "${concept_install}" == "True" ]; then
+            eval "${pypackage}_install=\"True\""
         fi
     fi
 done
 # FFTW (needed by CO𝘕CEPT)
 if [ -z "${fftw_install}" ]; then
-    fftw_install="no"
-    if [ "${fftw_preinstalled}" == "no" ] && [ "${concept_install}" == "yes" ]; then
-        fftw_install="yes"
+    fftw_install="False"
+    if [ "${fftw_preinstalled}" == "False" ] && [ "${concept_install}" == "True" ]; then
+        fftw_install="True"
     fi
 fi
 # HDF5 (needed by CO𝘕CEPT)
 if [ -z "${hdf5_install}" ]; then
-    hdf5_install="no"
-    if [ "${hdf5_preinstalled}" == "no" ] && [ "${concept_install}" == "yes" ]; then
-        hdf5_install="yes"
+    hdf5_install="False"
+    if [ "${hdf5_preinstalled}" == "False" ] && [ "${concept_install}" == "True" ]; then
+        hdf5_install="True"
     fi
 fi
 # MPI (needed by CO𝘕CEPT)
 if [ -z "${mpi_install}" ]; then
-    mpi_install="no"
-    if [ "${mpi_preinstalled}" == "no" ] && [ "${concept_install}" == "yes" ]; then
-        mpi_install="yes"
+    mpi_install="False"
+    if [ "${mpi_preinstalled}" == "False" ] && [ "${concept_install}" == "True" ]; then
+        mpi_install="True"
     fi
 fi
 # GSL (needed by CO𝘕CEPT)
 if [ -z "${gsl_install}" ]; then
-    gsl_install="no"
-    if [ "${gsl_preinstalled}" == "no" ] && [ "${concept_install}" == "yes" ]; then
-        gsl_install="yes"
+    gsl_install="False"
+    if [ "${gsl_preinstalled}" == "False" ] && [ "${concept_install}" == "True" ]; then
+        gsl_install="True"
     fi
 fi
 # libpng (needed by matplotlib)
 if [ -z "${libpng_install}" ]; then
-    libpng_install="no"
-    if [ "${libpng_preinstalled}" == "no" ] && [ "${matplotlib_install}" == "yes" ]; then
-        libpng_install="yes"
+    libpng_install="False"
+    if [ "${libpng_preinstalled}" == "False" ] && [ "${matplotlib_install}" == "True" ]; then
+        libpng_install="True"
     fi
 fi
 # zlib (needed by HDF5, libpng and Python)
 if [ -z "${zlib_install}" ]; then
-    zlib_install="no"
-    if [ "${zlib_preinstalled}" == "no" ] && (   [ "${hdf5_install}"   == "yes" ] \
-                                              || [ "${libpng_install}" == "yes" ] \
-                                              || [ "${python_install}" == "yes" ]); then
-        zlib_install="yes"
+    zlib_install="False"
+    if [ "${zlib_preinstalled}" == "False" ] && \
+        (   [ "${hdf5_install}"   == "True" ] \
+         || [ "${libpng_install}" == "True" ] \
+         || [ "${python_install}" == "True" ]); then
+        zlib_install="True"
     fi
 fi
 # FreeType (needed by matplotlib)
 if [ -z "${freetype_install}" ]; then
-    freetype_install="no"
-    if [ "${freetype_preinstalled}" == "no" ] && [ "${matplotlib_install}" == "yes" ]; then
-        freetype_install="yes"
+    freetype_install="False"
+    if [ "${freetype_preinstalled}" == "False" ] && [ "${matplotlib_install}" == "True" ]; then
+        freetype_install="True"
     fi
 fi
 # ncurses (needed by Python, if Python is needed by CO𝘕CEPT)
 if [ -z "${ncurses_install}" ]; then
-    ncurses_install="no"
-    if [ "${ncurses_preinstalled}" == "no" ] && [ "${python_install}"  == "yes" ] \
-                                             && [ "${concept_install}" == "yes" ]; then
-        ncurses_install="yes"
+    ncurses_install="False"
+    if [ "${ncurses_preinstalled}" == "False" ] && [ "${python_install}"  == "True" ] \
+        && [ "${concept_install}" == "True" ]; then
+        ncurses_install="True"
     fi
 fi
 # BLAS (needed by NumPy and SciPy)
 if [ -z "${blas_install}" ]; then
-    blas_install="no"
-    if [ "${blas_preinstalled}" == "no" ] && (   [ "${numpy_install}" == "yes" ] \
-                                              || [ "${scipy_install}" == "yes" ]); then
-        blas_install="yes"
+    blas_install="False"
+    if [ "${blas_preinstalled}" == "False" ] \
+        && ([ "${numpy_install}" == "True" ] || [ "${scipy_install}" == "True" ]); then
+        blas_install="True"
     fi
 fi
 # OpenSSL (needed by pip)
 if [ -z "${openssl_install}" ]; then
-    openssl_install="no"
-    if [ "${openssl_preinstalled}" == "no" ] && [ "${pip_install}" == "yes" ]; then
-        openssl_install="yes"
+    openssl_install="False"
+    if [ "${openssl_preinstalled}" == "False" ] && [ "${pip_install}" == "True" ]; then
+        openssl_install="True"
     fi
 fi
 # libffi (needed by pip)
 if [ -z "${libffi_install}" ]; then
-    libffi_install="no"
-    if [ "${libffi_preinstalled}" == "no" ] && [ "${pip_install}" == "yes" ]; then
-        libffi_install="yes"
+    libffi_install="False"
+    if [ "${libffi_preinstalled}" == "False" ] && [ "${pip_install}" == "True" ]; then
+        libffi_install="True"
     fi
 fi
 # Perl (needed by OpenSSL)
 if [ -z "${perl_install}" ]; then
-    perl_install="no"
-    if [ "${perl_preinstalled}" == "no" ] && [ "${openssl_install}" == "yes" ]; then
-        perl_install="yes"
+    perl_install="False"
+    if [ "${perl_preinstalled}" == "False" ] && [ "${openssl_install}" == "True" ]; then
+        perl_install="True"
     fi
 fi
 # The install_any_software, install_any_pypackages
 # and install_anything variables.
-if     [ "${concept_install}"         == "yes" ] \
-    || [ "${blas_install}"            == "yes" ] \
-    || [ "${class_install}"           == "yes" ] \
-    || [ "${gadget_install}"          == "yes" ] \
-    || [ "${fftw_for_gadget_install}" == "yes" ] \
-    || [ "${python_install}"          == "yes" ] \
-    || [ "${fftw_install}"            == "yes" ] \
-    || [ "${hdf5_install}"            == "yes" ] \
-    || [ "${mpi_install}"             == "yes" ] \
-    || [ "${gsl_install}"             == "yes" ] \
-    || [ "${libpng_install}"          == "yes" ] \
-    || [ "${zlib_install}"            == "yes" ] \
-    || [ "${freetype_install}"        == "yes" ] \
-    || [ "${ncurses_install}"         == "yes" ] \
-    || [ "${openssl_install}"         == "yes" ] \
-    || [ "${libffi_install}"          == "yes" ] \
-    || [ "${perl_install}"            == "yes" ]; then
-        install_any_software="yes"
+if     [ "${concept_install}"         == "True" ] \
+    || [ "${blas_install}"            == "True" ] \
+    || [ "${class_install}"           == "True" ] \
+    || [ "${gadget_install}"          == "True" ] \
+    || [ "${fftw_for_gadget_install}" == "True" ] \
+    || [ "${python_install}"          == "True" ] \
+    || [ "${fftw_install}"            == "True" ] \
+    || [ "${hdf5_install}"            == "True" ] \
+    || [ "${mpi_install}"             == "True" ] \
+    || [ "${gsl_install}"             == "True" ] \
+    || [ "${libpng_install}"          == "True" ] \
+    || [ "${zlib_install}"            == "True" ] \
+    || [ "${freetype_install}"        == "True" ] \
+    || [ "${ncurses_install}"         == "True" ] \
+    || [ "${openssl_install}"         == "True" ] \
+    || [ "${libffi_install}"          == "True" ] \
+    || [ "${perl_install}"            == "True" ]; then
+        install_any_software="True"
 fi
-if     [ "${blessings_install}"       == "yes" ] \
-    || [ "${cython_install}"          == "yes" ] \
-    || [ "${cythongsl_install}"       == "yes" ] \
-    || [ "${h5py_install}"            == "yes" ] \
-    || [ "${matplotlib_install}"      == "yes" ] \
-    || [ "${mpi4py_install}"          == "yes" ] \
-    || [ "${numpy_install}"           == "yes" ] \
-    || [ "${pytest_install}"          == "yes" ] \
-    || [ "${scipy_install}"           == "yes" ]; then
-        install_any_pypackages="yes"
+if     [ "${blessings_install}"       == "True" ] \
+    || [ "${cython_install}"          == "True" ] \
+    || [ "${cythongsl_install}"       == "True" ] \
+    || [ "${h5py_install}"            == "True" ] \
+    || [ "${matplotlib_install}"      == "True" ] \
+    || [ "${mpi4py_install}"          == "True" ] \
+    || [ "${numpy_install}"           == "True" ] \
+    || [ "${pytest_install}"          == "True" ] \
+    || [ "${scipy_install}"           == "True" ]; then
+        install_any_pypackages="True"
 fi
-if [ "${install_any_software}" == "yes" ] || [ "${install_any_pypackages}" == "yes" ]; then
-    install_anything="yes"
+if [ "${install_any_software}" == "True" ] || [ "${install_any_pypackages}" == "True" ]; then
+    install_anything="True"
 fi
 
 
@@ -1738,10 +1741,10 @@ set_status "Beginning subprocess"
 
 # Function for checking that a given url actually exists
 validate_url(){
-    # Arguments: Program name, [exit on error ("true" or "false")]
+    # Arguments: Program name, [exit on error ("True" or "False")]
     progname="$(echo "${1}" | tr '[:upper:]' '[:lower:]')"
     progname="${progname// /_}"
-    exit_on_error="true"
+    exit_on_error="True"
     if [ -n "$2" ]; then
         exit_on_error="$2"
     fi
@@ -1796,7 +1799,7 @@ validate_url(){
         sleep 1
     done
     validate_url_status="${wget_status}"
-    if [ "${exit_on_error}" == "true" ]; then
+    if [ "${exit_on_error}" == "True" ]; then
         if [ "${wget_status}" != "success" ]; then
             error "Error: The ${1} link is broken: ${url}"
             exit 1
@@ -1834,7 +1837,7 @@ fallback(){
 # invocations of this script. The function is called with the program
 # name (progname) as the argument and it will set the variables
 # progname_downloaded, progname_installed and progname_test_success
-# to either "yes" or "no".
+# to either "True" or "False".
 check_progress(){
     # Arguments: Program name
     progname_display="${1/CONCEPT/${esc_concept}}"
@@ -1854,7 +1857,7 @@ check_progress(){
     # .installation_finished will be placed in the program installation
     # directory. Note that some programs share a common installation
     # directory and thefore also a common .installation_finished file.
-    eval "${progname}_installed=\"no\""
+    eval "${progname}_installed=\"False\""
     if [ -f "${progdir}/.installation_finished" ]; then
         while read line; do
             prog_prev="$(echo "${line}" | grep  '^Program:*'     \
@@ -1878,16 +1881,16 @@ check_progress(){
             fi
             if [ "${prog_prev_real}" == "${progname}" ]; then
                 if [ "${version_prev_real}" == "${progversion}" ]; then
-                    eval "${progname}_installed=\"yes\""
+                    eval "${progname}_installed=\"True\""
                     if [ -n "${test_results_prev_real}" ]; then
                         if [ "${test_results_prev}" == "Success" ]; then
-                            eval "${progname}_test_success=\"yes\""
+                            eval "${progname}_test_success=\"True\""
                         elif [ "${test_results_prev_real}" == "Failiure" ]; then
-                            eval "${progname}_test_success=\"no\""
+                            eval "${progname}_test_success=\"False\""
                         fi
                     fi
                     # Installed programs should always count as downloaded
-                    eval "${progname}_downloaded=\"yes\""
+                    eval "${progname}_downloaded=\"True\""
                     return
                 fi
                 # Progam already installed but of incorrect version.
@@ -1963,20 +1966,20 @@ check_progress(){
     # If the source file has already been downloaded fully, a file
     # called .download_finished will be placed in the download_dir with
     # information about this file.
-    eval "${progname}_downloaded=\"no\""
+    eval "${progname}_downloaded=\"False\""
     if [ -f "${download_dir}/.download_finished" ]; then
         file_prev="$(grep "^File:*" "${download_dir}/.download_finished" | sed 's/^File:\s//g' \
                                                                          | sed 's/^ *//')"
         url_prev="$( grep "^URL:*"  "${download_dir}/.download_finished" | sed 's/^URL:\s//g' \
                                                                          | sed 's/^ *//')"
         if [ -f "${download_dir}/${file_prev}" ] && [ "${url_prev}" == "${url}" ]; then
-            eval "${progname}_downloaded=\"yes\""
+            eval "${progname}_downloaded=\"True\""
         fi
     fi
 }
 
 # CO𝘕CEPT
-if [ "${concept_install}" == "yes" ]; then
+if [ "${concept_install}" == "True" ]; then
     # Either download the current state of the master branch
     # or a specific release.
     if [ "${concept_version}" == "master" ]; then
@@ -1988,8 +1991,8 @@ if [ "${concept_install}" == "yes" ]; then
     # Check if already downloaded/installed
     check_progress "CONCEPT"
     # If not yet downloaded, validate the URL
-    if [ "${concept_downloaded}" != "yes" ]; then
-        validate_url "CONCEPT" "false"
+    if [ "${concept_downloaded}" != "True" ]; then
+        validate_url "CONCEPT" "False"
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary CO𝘕CEPT link broken: ${concept_url}"
             error "Error: The installer does not know of a secondary CO𝘕CEPT link"
@@ -1999,7 +2002,7 @@ if [ "${concept_install}" == "yes" ]; then
 fi
 
 # CLASS
-if [ "${class_install}" == "yes" ]; then
+if [ "${class_install}" == "True" ]; then
     # Either download specific release or specific branch
     current_step="processing of CLASS link"
     dots="${class_version//[^.]}"
@@ -2016,8 +2019,8 @@ if [ "${class_install}" == "yes" ]; then
     # Check if already installed/downloaded
     check_progress "CLASS"
     # If not yet downloaded, validate the URL
-    if [ "${class_downloaded}" != "yes" ]; then
-        validate_url "CLASS" "false"
+    if [ "${class_downloaded}" != "True" ]; then
+        validate_url "CLASS" "False"
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary CLASS link broken: ${class_url}"
             error "Error: The installer does not know of a secondary CLASS link"
@@ -2027,13 +2030,13 @@ if [ "${class_install}" == "yes" ]; then
 fi
 
 # FFTW
-if [ "${fftw_install}" == "yes" ]; then
+if [ "${fftw_install}" == "True" ]; then
     fftw_url="http://www.fftw.org/fftw-${fftw_version}.tar.gz"
     # Check if already installed and/or downloaded
     check_progress "FFTW"
     # If not yet downloaded, validate the URL
-    if [ "${fftw_downloaded}" != "yes" ]; then
-        validate_url "FFTW" "false"
+    if [ "${fftw_downloaded}" != "True" ]; then
+        validate_url "FFTW" "False"
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary FFTW link broken: ${fftw_url}"
             fallback "FFTW"
@@ -2042,7 +2045,7 @@ if [ "${fftw_install}" == "yes" ]; then
             # Check if already installed and/or downloaded
             check_progress "FFTW"
             # If not yet downloaded, validate the URL
-            if [ "${fftw_downloaded}" != "yes" ]; then
+            if [ "${fftw_downloaded}" != "True" ]; then
                 validate_url "FFTW"
             fi
         fi
@@ -2050,13 +2053,13 @@ if [ "${fftw_install}" == "yes" ]; then
 fi
 
 # FFTW for GADGET
-if [ "${fftw_for_gadget_install}" == "yes" ]; then
+if [ "${fftw_for_gadget_install}" == "True" ]; then
     fftw_for_gadget_url="http://www.fftw.org/fftw-${fftw_for_gadget_version}.tar.gz"
     # Check if already installed and/or downloaded
     check_progress "FFTW for GADGET"
     # If not yet downloaded, validate the URL
-    if [ "${fftw_for_gadget_downloaded}" != "yes" ]; then
-        validate_url "FFTW for GADGET" "false"
+    if [ "${fftw_for_gadget_downloaded}" != "True" ]; then
+        validate_url "FFTW for GADGET" "False"
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary FFTW 2 link broken: ${fftw_for_gadget_url}"
             fallback "FFTW for GADGET"
@@ -2066,7 +2069,7 @@ fftw-${fftw_for_gadget_version}.tar.gz"
             # Check if already installed and/or downloaded
             check_progress "FFTW for GADGET"
             # If not yet downloaded, validate the URL
-            if [ "${fftw_for_gadget_downloaded}" != "yes" ]; then
+            if [ "${fftw_for_gadget_downloaded}" != "True" ]; then
                 validate_url "FFTW for GADGET"
             fi
         fi
@@ -2074,14 +2077,14 @@ fftw-${fftw_for_gadget_version}.tar.gz"
 fi
 
 # FreeType
-if [ "${freetype_install}" == "yes" ]; then
+if [ "${freetype_install}" == "True" ]; then
     freetype_url="http://download.savannah.gnu.org/releases/freetype/\
 freetype-${freetype_version}.tar.gz"
     # Check if already installed and/or downloaded
     check_progress "FreeType"
     # If not yet downloaded, validate the URL
-    if [ "${freetype_downloaded}" != "yes" ]; then
-        validate_url "FreeType" "false"
+    if [ "${freetype_downloaded}" != "True" ]; then
+        validate_url "FreeType" "False"
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary FreeType link broken: ${freetype_url}"
             fallback "freetype"
@@ -2091,7 +2094,7 @@ ${freetype_version}/freetype-${freetype_version}.tar.gz"
             # Check if already installed and/or downloaded
             check_progress "FreeType"
             # If not yet downloaded, validate the URL
-            if [ "${freetype_downloaded}" != "yes" ]; then
+            if [ "${freetype_downloaded}" != "True" ]; then
                 validate_url "FreeType"
             fi
         fi
@@ -2099,13 +2102,13 @@ ${freetype_version}/freetype-${freetype_version}.tar.gz"
 fi
 
 # GADGET
-if [ "${gadget_install}" == "yes" ]; then
+if [ "${gadget_install}" == "True" ]; then
     gadget_url="http://www.mpa-garching.mpg.de/gadget/gadget-${gadget_version}.tar.gz"
     # Check if already installed/downloaded
     check_progress "GADGET"
     # If not yet downloaded, validate the URL
-    if [ "${gadget_downloaded}" != "yes" ]; then
-        validate_url "GADGET" "false"
+    if [ "${gadget_downloaded}" != "True" ]; then
+        validate_url "GADGET" "False"
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary GADGET link broken: ${gadget_url}"
             error "Error: The installer does not know of a secondary GADGET link"
@@ -2115,13 +2118,13 @@ if [ "${gadget_install}" == "yes" ]; then
 fi
 
 # GSL
-if [ "${gsl_install}" == "yes" ]; then
+if [ "${gsl_install}" == "True" ]; then
     gsl_url="ftp://ftp.gnu.org/gnu/gsl/gsl-${gsl_version}.tar.gz"
     # Check if already installed and/or downloaded
     check_progress "GSL"
     # If not yet downloaded, validate the URL
-    if [ "${gsl_downloaded}" != "yes" ]; then
-        validate_url "GSL" "false"
+    if [ "${gsl_downloaded}" != "True" ]; then
+        validate_url "GSL" "False"
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary GSL link broken: ${gsl_url}"
             fallback "GSL"
@@ -2130,7 +2133,7 @@ if [ "${gsl_install}" == "yes" ]; then
             # Check if already installed and/or downloaded
             check_progress "GSL"
             # If not yet downloaded, validate the URL
-            if [ "${gsl_downloaded}" != "yes" ]; then
+            if [ "${gsl_downloaded}" != "True" ]; then
                 validate_url "GSL"
             fi
         fi
@@ -2138,15 +2141,15 @@ if [ "${gsl_install}" == "yes" ]; then
 fi
 
 # HDF5
-if [ "${hdf5_install}" == "yes" ]; then
+if [ "${hdf5_install}" == "True" ]; then
     hdf5_version_major="$(echo "${hdf5_version}" | grep -o '[0-9]\.[0-9]*')"
     hdf5_url="https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${hdf5_version_major}/\
 hdf5-${hdf5_version}/src/hdf5-${hdf5_version}.tar.gz"
     # Check if already installed and/or downloaded
     check_progress "HDF5"
     # If not yet downloaded, validate the URL
-    if [ "${hdf5_downloaded}" != "yes" ]; then
-        validate_url "HDF5" "false"
+    if [ "${hdf5_downloaded}" != "True" ]; then
+        validate_url "HDF5" "False"
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary HDF5 link broken: ${hdf5_url}"
             fallback "HDF5"
@@ -2157,7 +2160,7 @@ hdf5-${hdf5_version}/src/hdf5-${hdf5_version}.tar.gz"
             # Check if already installed and/or downloaded
             check_progress "HDF5"
             # If not yet downloaded, validate the URL
-            if [ "${hdf5_downloaded}" != "yes" ]; then
+            if [ "${hdf5_downloaded}" != "True" ]; then
                 validate_url "HDF5"
             fi
         fi
@@ -2165,14 +2168,14 @@ hdf5-${hdf5_version}/src/hdf5-${hdf5_version}.tar.gz"
 fi
 
 # libpng
-if [ "${libpng_install}" == "yes" ]; then
+if [ "${libpng_install}" == "True" ]; then
     # For e.g. libpng_version 1.6.18, libpng_version_majors is 16
     libpng_url="http://prdownloads.sourceforge.net/libpng/libpng-${libpng_version}.tar.gz"
     # Check if already installed and/or downloaded
     check_progress "libpng"
     # If not yet downloaded, validate the URL
-    if [ "${libpng_downloaded}" != "yes" ]; then
-        validate_url "libpng" "false"
+    if [ "${libpng_downloaded}" != "True" ]; then
+        validate_url "libpng" "False"
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary libpng link broken: ${libpng_url}"
             fallback "libpng"
@@ -2185,7 +2188,7 @@ libpng${libpng_version_majors}/older-releases/${libpng_version}/libpng-${libpng_
             # Check if already installed and/or downloaded
             check_progress "libpng"
             # If not yet downloaded, validate the URL
-            if [ "${libpng_downloaded}" != "yes" ]; then
+            if [ "${libpng_downloaded}" != "True" ]; then
                 validate_url "libpng"
             fi
         fi
@@ -2193,15 +2196,15 @@ libpng${libpng_version_majors}/older-releases/${libpng_version}/libpng-${libpng_
 fi
 
 # MPI
-if [ "${mpi_install}" == "yes" ]; then
+if [ "${mpi_install}" == "True" ]; then
     if [ "${mpi}" == "mpich" ]; then
         # MPICH
         mpi_url="http://www.mpich.org/static/downloads/${mpi_version}/mpich-${mpi_version}.tar.gz"
         # Check if already installed and/or downloaded
         check_progress "MPI"
         # If not yet downloaded, validate the URL
-        if [ "${mpi_downloaded}" != "yes" ]; then
-            validate_url "MPI" "false"
+        if [ "${mpi_downloaded}" != "True" ]; then
+            validate_url "MPI" "False"
             if [ "${validate_url_status}" != "success" ]; then
                 echo "Primary MPICH link broken: ${mpi_url}"
                 fallback "MPI"
@@ -2210,7 +2213,7 @@ if [ "${mpi_install}" == "yes" ]; then
                 # Check if already installed and/or downloaded
                 check_progress "MPI"
                 # If not yet downloaded, validate the URL
-                if [ "${mpi_downloaded}" != "yes" ]; then
+                if [ "${mpi_downloaded}" != "True" ]; then
                     validate_url "MPI"
                 fi
             fi
@@ -2226,8 +2229,8 @@ downloads/openmpi-${mpi_version}.tar.gz"
         # Check if already installed and/or downloaded
         check_progress "MPI"
         # If not yet downloaded, validate the URL
-        if [ "${mpi_downloaded}" != "yes" ]; then
-            validate_url "MPI" "false"
+        if [ "${mpi_downloaded}" != "True" ]; then
+            validate_url "MPI" "False"
             if [ "${validate_url_status}" != "success" ]; then
                 echo "Primary OpenMPI link broken: ${mpi_url}"
                 error "Error: The installer does not know of a secondary OpenMPI link"
@@ -2238,13 +2241,13 @@ downloads/openmpi-${mpi_version}.tar.gz"
 fi
 
 # ncurses
-if [ "${ncurses_install}" == "yes" ]; then
+if [ "${ncurses_install}" == "True" ]; then
     ncurses_url="http://ftp.gnu.org/gnu/ncurses/ncurses-${ncurses_version}.tar.gz"
     # Check if already installed and/or downloaded
     check_progress "ncurses"
     # If not yet downloaded, validate the URL
-    if [ "${ncurses_downloaded}" != "yes" ]; then
-        validate_url "ncurses" "false"
+    if [ "${ncurses_downloaded}" != "True" ]; then
+        validate_url "ncurses" "False"
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary ncurses link broken: ${ncurses_url}"
             fallback "ncurses"
@@ -2253,7 +2256,7 @@ if [ "${ncurses_install}" == "yes" ]; then
             # Check if already installed and/or downloaded
             check_progress "ncurses"
             # If not yet downloaded, validate the URL
-            if [ "${ncurses_downloaded}" != "yes" ]; then
+            if [ "${ncurses_downloaded}" != "True" ]; then
                 validate_url "ncurses"
             fi
         fi
@@ -2261,13 +2264,13 @@ if [ "${ncurses_install}" == "yes" ]; then
 fi
 
 # BLAS
-if [ "${blas_install}" == "yes" ]; then
+if [ "${blas_install}" == "True" ]; then
     blas_url="https://github.com/xianyi/OpenBLAS/archive/v${blas_version}.tar.gz"
     # Check if already installed and/or downloaded
     check_progress "BLAS"
     # If not yet downloaded, validate the URL
-    if [ "${blas_downloaded}" != "yes" ]; then
-        validate_url "BLAS" "false"
+    if [ "${blas_downloaded}" != "True" ]; then
+        validate_url "BLAS" "False"
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary OpenBLAS link broken: ${blas_url}"
             fallback "blas"
@@ -2277,7 +2280,7 @@ OpenBLAS%20${blas_version}%20version.tar.gz"
             # Check if already installed and/or downloaded
             check_progress "BLAS"
             # If not yet downloaded, validate the URL
-            if [ "${blas_downloaded}" != "yes" ]; then
+            if [ "${blas_downloaded}" != "True" ]; then
                 validate_url "BLAS"
             fi
         fi
@@ -2285,13 +2288,13 @@ OpenBLAS%20${blas_version}%20version.tar.gz"
 fi
 
 # OpenSSL
-if [ "${openssl_install}" == "yes" ]; then
+if [ "${openssl_install}" == "True" ]; then
     openssl_url="https://www.openssl.org/source/openssl-${openssl_version}.tar.gz"
     # Check if already installed and/or downloaded
     check_progress "OpenSSL"
     # If not yet downloaded, validate the URL
-    if [ "${openssl_downloaded}" != "yes" ]; then
-        validate_url "OpenSSL" "false"
+    if [ "${openssl_downloaded}" != "True" ]; then
+        validate_url "OpenSSL" "False"
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary OpenSSL link broken: ${openssl_url}"
             fallback "openssl"
@@ -2302,7 +2305,7 @@ OpenSSL_${openssl_version_underscores}.tar.gz"
             # Check if already installed and/or downloaded
             check_progress "OpenSSL"
             # If not yet downloaded, validate the URL
-            if [ "${openssl_downloaded}" != "yes" ]; then
+            if [ "${openssl_downloaded}" != "True" ]; then
                 validate_url "OpenSSL"
             fi
         fi
@@ -2310,13 +2313,13 @@ OpenSSL_${openssl_version_underscores}.tar.gz"
 fi
 
 # libffi
-if [ "${libffi_install}" == "yes" ]; then
+if [ "${libffi_install}" == "True" ]; then
     libffi_url="ftp://sourceware.org/pub/libffi/libffi-${libffi_version}.tar.gz"
     # Check if already installed and/or downloaded
     check_progress "libffi"
     # If not yet downloaded, validate the URL
-    if [ "${libffi_downloaded}" != "yes" ]; then
-        validate_url "libffi" "false"
+    if [ "${libffi_downloaded}" != "True" ]; then
+        validate_url "libffi" "False"
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary libffi link broken: ${libffi_url}"
             fallback "libffi"
@@ -2325,7 +2328,7 @@ if [ "${libffi_install}" == "yes" ]; then
             # Check if already installed and/or downloaded
             check_progress "libffi"
             # If not yet downloaded, validate the URL
-            if [ "${libffi_downloaded}" != "yes" ]; then
+            if [ "${libffi_downloaded}" != "True" ]; then
                 validate_url "libffi"
             fi
         fi
@@ -2333,13 +2336,13 @@ if [ "${libffi_install}" == "yes" ]; then
 fi
 
 # Perl
-if [ "${perl_install}" == "yes" ]; then
+if [ "${perl_install}" == "True" ]; then
     perl_url="http://www.cpan.org/src/5.0/perl-${perl_version}.tar.gz"
     # Check if already installed and/or downloaded
     check_progress "Perl"
     # If not yet downloaded, validate the URL
-    if [ "${perl_downloaded}" != "yes" ]; then
-        validate_url "Perl" "false"
+    if [ "${perl_downloaded}" != "True" ]; then
+        validate_url "Perl" "False"
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary Perl link broken: ${perl_url}"
             error "Error: The installer does not know of a secondary Perl link"
@@ -2349,13 +2352,13 @@ if [ "${perl_install}" == "yes" ]; then
 fi
 
 # Python
-if [ "${python_install}" == "yes" ]; then
+if [ "${python_install}" == "True" ]; then
     python_url="https://www.python.org/ftp/python/${python_version}/Python-${python_version}.tgz"
     # Check if already installed and/or downloaded
     check_progress "Python"
     # If not yet downloaded, validate the URL
-    if [ "${python_downloaded}" != "yes" ]; then
-        validate_url "Python" "false"
+    if [ "${python_downloaded}" != "True" ]; then
+        validate_url "Python" "False"
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary Python link broken: ${python_url}"
             error "Error: The installer does not know of a secondary Python link"
@@ -2365,14 +2368,14 @@ if [ "${python_install}" == "yes" ]; then
 fi
 
 # zlib
-if [ "${zlib_install}" == "yes" ]; then
+if [ "${zlib_install}" == "True" ]; then
     zlib_url="http://sourceforge.net/projects/libpng/files/zlib/${zlib_version}/\
 zlib-${zlib_version}.tar.gz"
     # Check if already installed and/or downloaded
     check_progress "zlib"
     # If not yet downloaded, validate the URL
-    if [ "${zlib_downloaded}" != "yes" ]; then
-        validate_url "zlib" "false"
+    if [ "${zlib_downloaded}" != "True" ]; then
+        validate_url "zlib" "False"
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary zlib link broken: ${zlib_url}"
             fallback "zlib"
@@ -2381,7 +2384,7 @@ zlib-${zlib_version}.tar.gz"
             # Check if already installed and/or downloaded
             check_progress "zlib"
             # If not yet downloaded, validate the URL
-            if [ "${zlib_downloaded}" != "yes" ]; then
+            if [ "${zlib_downloaded}" != "True" ]; then
                 validate_url "zlib"
             fi
         fi
@@ -2389,28 +2392,27 @@ zlib-${zlib_version}.tar.gz"
 fi
 
 # Set "pypackage"_installed variables
-blessings_installed="no"
-cython_installed="no"
-cythongsl_installed="no"
-h5py_installed="no"
-matplotlib_installed="no"
-mpi4py_installed="no"
-numpy_installed="no"
-pytest_installed="no"
-scipy_installed="no"
-pip_installed="no"
+blessings_installed="False"
+cython_installed="False"
+cythongsl_installed="False"
+h5py_installed="False"
+matplotlib_installed="False"
+mpi4py_installed="False"
+numpy_installed="False"
+pytest_installed="False"
+scipy_installed="False"
+pip_installed="False"
 if [ -n "${python_dir}" ]; then
     for python_version_major in 3 2; do
         if [ -f "${python_dir}/bin/python${python_version_major}" ]; then
             python_version_major_dot_minor=$("${python_dir}/bin/python${python_version_major}" -c \
-                                 "from sys import version_info as v; \
-                                 print(str(v.major) + '.' + str(v.minor))")
+                "from sys import version_info as v; print(str(v.major) + '.' + str(v.minor))")
             python="${python_dir}/bin/python${python_version_major_dot_minor}"
             break
         fi
     done
 fi
-if [ -n "${python}" ] && [ "${python_installed}" == "yes" ]; then
+if [ -n "${python}" ] && [ "${python_installed}" == "True" ]; then
     for pypackage in blessings   \
                      cython      \
                      cythongsl   \
@@ -2519,143 +2521,143 @@ print_table(){
 # NumPy         ...
 # pytest        ...
 # SciPy         ...
-blas_patch="no"
-class_patch="yes"
-concept_patch="no"
-fftw_patch="no"
-fftw_for_gadget_patch="no"
-freetype_patch="no"
-gadget_patch="no"
-gsl_patch="no"
-hdf5_patch="no"
-libffi_patch="no"
-libpng_patch="no"
+blas_patch="False"
+class_patch="True"
+concept_patch="False"
+fftw_patch="False"
+fftw_for_gadget_patch="False"
+freetype_patch="False"
+gadget_patch="False"
+gsl_patch="False"
+hdf5_patch="False"
+libffi_patch="False"
+libpng_patch="False"
 if [ "${mpi}" == "mpich" ]; then
-    mpi_patch="no"
+    mpi_patch="False"
 elif [ "${mpi}" == "openmpi" ]; then
-    mpi_patch="no"
+    mpi_patch="False"
 fi
-openmpi_patch="no"
-ncurses_patch="no"
-openssl_patch="no"
-perl_patch="no"
-python_patch="no"
-zlib_patch="no"
-blessings_patch="no"
-cython_patch="no"
-cythongsl_patch="no"
-h5py_patch="no"
-matplotlib_patch="no"
-mpi4py_patch="no"
-numpy_patch="no"
-pytest_patch="no"
-scipy_patch="no"
+openmpi_patch="False"
+ncurses_patch="False"
+openssl_patch="False"
+perl_patch="False"
+python_patch="False"
+zlib_patch="False"
+blessings_patch="False"
+cython_patch="False"
+cythongsl_patch="False"
+h5py_patch="False"
+matplotlib_patch="False"
+mpi4py_patch="False"
+numpy_patch="False"
+pytest_patch="False"
+scipy_patch="False"
 footnote_patch="${esc_blue}*${esc_normal}"
 footnote_installed="${esc_green}†${esc_normal}"
 insert_footnote_patch(){
     # Argument: Program/Python package name
     eval "program_installed=\"\${${1}_installed}\""
     eval "program_patch=\"\${${1}_patch}\""
-    if [ "${program_installed}" == "no" ] && [ "${program_patch}" == "yes" ]; then
+    if [ "${program_installed}" == "False" ] && [ "${program_patch}" == "True" ]; then
         echo "${footnote_patch}"
     fi
 }
 insert_footnote_installed(){
     # Argument: Program/Python package name
     eval "program_installed=\"\${${1}_installed}\""
-    if [ "${program_installed}" == "yes" ]; then
+    if [ "${program_installed}" == "True" ]; then
         echo "${footnote_installed}"
     fi
 }
-if [ "${install_anything}" == "yes" ]; then
+if [ "${install_anything}" == "True" ]; then
     disable_status
     heading "Installation overview"
 fi
 # Print out software installation overview
-if [ "${install_any_software}" == "yes" ]; then
+if [ "${install_any_software}" == "True" ]; then
     # Title
     table=("${esc_bold}Name${esc_normal}"    \
            "${esc_bold}Version${esc_normal}" \
            "${esc_bold}Installation path${esc_normal}")
     # CO𝘕CEPT
-    if [ "${concept_install}" == "yes" ]; then
+    if [ "${concept_install}" == "True" ]; then
         table=("${table[@]}"                                       \
             "${esc_concept}$(insert_footnote_installed 'concept')" \
             "${concept_version}$(insert_footnote_patch 'concept')" \
             "\"${concept_dir}\"")
     fi
     # OpenBLAS
-    if [ "${blas_install}" == "yes" ]; then
+    if [ "${blas_install}" == "True" ]; then
         table=("${table[@]}"                                 \
             "OpenBLAS$(insert_footnote_installed 'blas')"    \
             "${blas_version}$(insert_footnote_patch 'blas')" \
             "\"${blas_dir}\"")
     fi
     # CLASS (which will be patched)
-    if [ "${class_install}" == "yes" ]; then
+    if [ "${class_install}" == "True" ]; then
         table=("${table[@]}"                                   \
             "CLASS$(insert_footnote_installed 'class')"        \
             "${class_version}$(insert_footnote_patch 'class')" \
             "\"${class_dir}\"")
     fi
     # FFTW
-    if [ "${fftw_install}" == "yes" ]; then
+    if [ "${fftw_install}" == "True" ]; then
         table=("${table[@]}"                                 \
             "FFTW$(insert_footnote_installed 'fftw')"        \
             "${fftw_version}$(insert_footnote_patch 'fftw')" \
             "\"${fftw_dir}\"")
     fi
     # FFTW for gadget
-    if [ "${fftw_for_gadget_install}" == "yes" ]; then
+    if [ "${fftw_for_gadget_install}" == "True" ]; then
         table=("${table[@]}"                                                       \
             "FFTW$(insert_footnote_installed 'fftw_for_gadget')"                   \
             "${fftw_for_gadget_version}$(insert_footnote_patch 'fftw_for_gadget')" \
             "\"${fftw_for_gadget_dir}\"")
     fi
     # FreeType
-    if [ "${freetype_install}" == "yes" ]; then
+    if [ "${freetype_install}" == "True" ]; then
         table=("${table[@]}"                                         \
             "FreeType$(insert_footnote_installed 'freetype')"        \
             "${freetype_version}$(insert_footnote_patch 'freetype')" \
             "\"${freetype_dir}\"")
     fi
     # Gadget
-    if [ "${gadget_install}" == "yes" ]; then
+    if [ "${gadget_install}" == "True" ]; then
         table=("${table[@]}"                                     \
             "Gadget$(insert_footnote_installed 'gadget')"        \
             "${gadget_version}$(insert_footnote_patch 'gadget')" \
             "\"${gadget_dir}\"")
     fi
     # GSL
-    if [ "${gsl_install}" == "yes" ]; then
+    if [ "${gsl_install}" == "True" ]; then
         table=("${table[@]}"                               \
             "GSL$(insert_footnote_installed 'gsl')"        \
             "${gsl_version}$(insert_footnote_patch 'gsl')" \
             "\"${gsl_dir}\"")
     fi
     # HDF5
-    if [ "${hdf5_install}" == "yes" ]; then
+    if [ "${hdf5_install}" == "True" ]; then
         table=("${table[@]}"                                 \
             "HDF5$(insert_footnote_installed 'hdf5')"        \
             "${hdf5_version}$(insert_footnote_patch 'hdf5')" \
             "\"${hdf5_dir}\"")
     fi
     # libffi
-    if [ "${libffi_install}" == "yes" ]; then
+    if [ "${libffi_install}" == "True" ]; then
         table=("${table[@]}"                                     \
             "libffi$(insert_footnote_installed 'libffi')"        \
             "${libffi_version}$(insert_footnote_patch 'libffi')" \
             "\"${libffi_dir}\"")
     fi
     # libpng
-    if [ "${libpng_install}" == "yes" ]; then
+    if [ "${libpng_install}" == "True" ]; then
         table=("${table[@]}"                                     \
             "libpng$(insert_footnote_installed 'libpng')"        \
             "${libpng_version}$(insert_footnote_patch 'libpng')" \
             "\"${libpng_dir}\"")
     fi
     # MPICH/OpenMPI
-    if [ "${mpi_install}" == "yes" ]; then
+    if [ "${mpi_install}" == "True" ]; then
         if [ "${mpi}" == "mpich" ]; then
             table=("${table[@]}"                               \
                 "MPICH$(insert_footnote_installed 'mpi')"      \
@@ -2669,35 +2671,35 @@ if [ "${install_any_software}" == "yes" ]; then
         fi
     fi
     # ncurses
-    if [ "${ncurses_install}" == "yes" ]; then
+    if [ "${ncurses_install}" == "True" ]; then
         table=("${table[@]}"                                       \
             "ncurses$(insert_footnote_installed 'ncurses')"        \
             "${ncurses_version}$(insert_footnote_patch 'ncurses')" \
             "\"${ncurses_dir}\"")
     fi
     # OpenSSL
-    if [ "${openssl_install}" == "yes" ]; then
+    if [ "${openssl_install}" == "True" ]; then
         table=("${table[@]}"                                       \
             "OpenSSL$(insert_footnote_installed 'openssl')"        \
             "${openssl_version}$(insert_footnote_patch 'openssl')" \
             "\"${openssl_dir}\"")
     fi
     # Perl
-    if [ "${perl_install}" == "yes" ]; then
+    if [ "${perl_install}" == "True" ]; then
         table=("${table[@]}"                                 \
             "Perl$(insert_footnote_installed 'perl')"        \
             "${perl_version}$(insert_footnote_patch 'perl')" \
             "\"${perl_dir}\"")
     fi
     # Python
-    if [ "${python_install}" == "yes" ]; then
+    if [ "${python_install}" == "True" ]; then
         table=("${table[@]}"                                     \
             "Python$(insert_footnote_installed 'python')"        \
             "${python_version}$(insert_footnote_patch 'python')" \
             "\"${python_dir}\"")
     fi
     # zlib
-    if [ "${zlib_install}" == "yes" ]; then
+    if [ "${zlib_install}" == "True" ]; then
         table=("${table[@]}"                                 \
             "zlib$(insert_footnote_installed 'zlib')"        \
             "${zlib_version}$(insert_footnote_patch 'zlib')" \
@@ -2720,67 +2722,67 @@ if [ "${install_any_software}" == "yes" ]; then
 fi
 
 # Print out Python package installation overview
-if [ "${install_any_pypackages}" == "yes" ]; then
+if [ "${install_any_pypackages}" == "True" ]; then
     # Title
     table=("${esc_bold}Name${esc_normal}" "${esc_bold}Version${esc_normal}" "")
     # Blessings
-    if [ "${blessings_install}" == "yes" ]; then
+    if [ "${blessings_install}" == "True" ]; then
         table=("${table[@]}"                                           \
             "Blessings$(insert_footnote_installed 'blessings')"        \
             "${blessings_version}$(insert_footnote_patch 'blessings')" \
             "")
     fi
     # Cython
-    if [ "${cython_install}" == "yes" ]; then
+    if [ "${cython_install}" == "True" ]; then
         table=("${table[@]}"                                     \
             "Cython$(insert_footnote_installed 'cython')"        \
             "${cython_version}$(insert_footnote_patch 'cython')" \
             "")
     fi
     # CythonGSL
-    if [ "${cythongsl_install}" == "yes" ]; then
+    if [ "${cythongsl_install}" == "True" ]; then
            table=("${table[@]}"                                        \
             "CythonGSL$(insert_footnote_installed 'cythongsl')"        \
             "${cythongsl_version}$(insert_footnote_patch 'cythongsl')" \
             "")
     fi
     # H5Py
-    if [ "${h5py_install}" == "yes" ]; then
+    if [ "${h5py_install}" == "True" ]; then
         table=("${table[@]}"                                 \
             "H5Py$(insert_footnote_installed 'h5py')"        \
             "${h5py_version}$(insert_footnote_patch 'h5py')" \
             "")
     fi
     # Matplotlib
-    if [ "${matplotlib_install}" == "yes" ]; then
+    if [ "${matplotlib_install}" == "True" ]; then
         table=("${table[@]}"                                             \
             "Matplotlib$(insert_footnote_installed 'matplotlib')"        \
             "${matplotlib_version}$(insert_footnote_patch 'matplotlib')" \
             "")
     fi
     # MPI4Py
-    if [ "${mpi4py_install}" == "yes" ]; then
+    if [ "${mpi4py_install}" == "True" ]; then
         table=("${table[@]}"                                     \
             "MPI4Py$(insert_footnote_installed 'mpi4py')"        \
             "${mpi4py_version}$(insert_footnote_patch 'mpi4py')" \
             "")
     fi
     # NumPy
-    if [ "${numpy_install}" == "yes" ]; then
+    if [ "${numpy_install}" == "True" ]; then
         table=("${table[@]}"                                   \
             "NumPy$(insert_footnote_installed 'numpy')"        \
             "${numpy_version}$(insert_footnote_patch 'numpy')" \
             "")
     fi
     # Pytest
-    if [ "${pytest_install}" == "yes" ]; then
+    if [ "${pytest_install}" == "True" ]; then
         table=("${table[@]}"                                     \
             "pytest$(insert_footnote_installed 'pytest')"        \
             "${pytest_version}$(insert_footnote_patch 'pytest')" \
             "")
     fi
     # SciPy
-    if [ "${scipy_install}" == "yes" ]; then
+    if [ "${scipy_install}" == "True" ]; then
         table=("${table[@]}"                                   \
             "SciPy$(insert_footnote_installed 'scipy')"        \
             "${scipy_version}$(insert_footnote_patch 'scipy')" \
@@ -2817,7 +2819,7 @@ if [ -n "${N_installed}" ]; then
         printf "${footnote_installed} These are already installed and will not be reinstalled\n"
     fi
 fi
-if [ "${install_anything}" == "yes" ]; then
+if [ "${install_anything}" == "True" ]; then
     sleep ${sleep_time}
     enable_status
 fi
@@ -2835,7 +2837,7 @@ current_step="discovering comilers"
 heading "Discovering compilers"
 set_status "Discovering compilers"
 compiler_possibilities=("")
-if [ "${mpi_preinstalled}" == "yes" ]; then
+if [ "${mpi_preinstalled}" == "True" ]; then
     compiler_possibilities=("${compiler_possibilities[@]}" "specified_mpi")
 fi
 for program in "gcc" "g++" "gfortran"; do
@@ -3472,7 +3474,7 @@ download(){
     fi
     # Do not download if already fully downloaded
     eval "prog_downloaded=\"\${${progname}_downloaded}\""
-    if [ "${prog_downloaded}" == "yes" ]; then
+    if [ "${prog_downloaded}" == "True" ]; then
         return
     fi
     eval "progversion=\"\${${progname}_version}\""
@@ -3532,55 +3534,56 @@ Date:    $(date)
 mkdir -p "${top_dir}/tmp"
 # Download the source code for all programs that should be installed
 disable_status
-if [ "${concept_install}"         == "yes" ] && [ "${concept_downloaded}"         == "no" ]; then
+if [ "${concept_install}" == "True" ] && [ "${concept_downloaded}" == "False" ]; then
     download "CONCEPT"
 fi
-if [ "${blas_install}"            == "yes" ] && [ "${blas_downloaded}"            == "no" ]; then
+if [ "${blas_install}" == "True" ] && [ "${blas_downloaded}" == "False" ]; then
     download "BLAS"
 fi
-if [ "${class_install}"           == "yes" ] && [ "${class_downloaded}"           == "no" ]; then
+if [ "${class_install}" == "True" ] && [ "${class_downloaded}" == "False" ]; then
     download "CLASS"
 fi
-if [ "${fftw_install}"            == "yes" ] && [ "${fftw_downloaded}"            == "no" ]; then
+if [ "${fftw_install}" == "True" ] && [ "${fftw_downloaded}" == "False" ]; then
     download "FFTW"
 fi
-if [ "${fftw_for_gadget_install}" == "yes" ] && [ "${fftw_for_gadget_downloaded}" == "no" ]; then
+if [ "${fftw_for_gadget_install}" == "True" ] \
+    && [ "${fftw_for_gadget_downloaded}" == "False" ]; then
     download "FFTW for GADGET"
 fi
-if [ "${freetype_install}"        == "yes" ] && [ "${freetype_downloaded}"        == "no" ]; then
+if [ "${freetype_install}" == "True" ] && [ "${freetype_downloaded}" == "False" ]; then
     download "FreeType"
 fi
-if [ "${gadget_install}"          == "yes" ] && [ "${gadget_downloaded}"          == "no" ]; then
+if [ "${gadget_install}" == "True" ] && [ "${gadget_downloaded}" == "False" ]; then
     download "GADGET"
 fi
-if [ "${gsl_install}"             == "yes" ] && [ "${gsl_downloaded}"             == "no" ]; then
+if [ "${gsl_install}" == "True" ] && [ "${gsl_downloaded}" == "False" ]; then
     download "GSL"
 fi
-if [ "${hdf5_install}"            == "yes" ] && [ "${hdf5_downloaded}"            == "no" ]; then
+if [ "${hdf5_install}" == "True" ] && [ "${hdf5_downloaded}" == "False" ]; then
     download "HDF5"
 fi
-if [ "${libpng_install}"          == "yes" ] && [ "${libpng_downloaded}"          == "no" ]; then
+if [ "${libpng_install}" == "True" ] && [ "${libpng_downloaded}" == "False" ]; then
     download "libpng"
 fi
-if [ "${mpi_install}"             == "yes" ] && [ "${mpi_downloaded}"             == "no" ]; then
+if [ "${mpi_install}" == "True" ] && [ "${mpi_downloaded}" == "False" ]; then
     download "MPI"
 fi
-if [ "${ncurses_install}"         == "yes" ] && [ "${ncurses_downloaded}"         == "no" ]; then
+if [ "${ncurses_install}" == "True" ] && [ "${ncurses_downloaded}" == "False" ]; then
     download "ncurses"
 fi
-if [ "${openssl_install}"         == "yes" ] && [ "${openssl_downloaded}"         == "no" ]; then
+if [ "${openssl_install}" == "True" ] && [ "${openssl_downloaded}" == "False" ]; then
     download "OpenSSL"
 fi
-if [ "${libffi_install}"          == "yes" ] && [ "${libffi_downloaded}"          == "no" ]; then
+if [ "${libffi_install}" == "True" ] && [ "${libffi_downloaded}" == "False" ]; then
     download "libffi"
 fi
-if [ "${perl_install}"            == "yes" ] && [ "${perl_downloaded}"            == "no" ]; then
+if [ "${perl_install}" == "True" ] && [ "${perl_downloaded}" == "False" ]; then
     download "Perl"
 fi
-if [ "${python_install}"          == "yes" ] && [ "${python_downloaded}"          == "no" ]; then
+if [ "${python_install}" == "True" ] && [ "${python_downloaded}" == "False" ]; then
     download "Python"
 fi
-if [ "${zlib_install}"            == "yes" ] && [ "${zlib_downloaded}"            == "no" ]; then
+if [ "${zlib_install}" == "True" ] && [ "${zlib_downloaded}" == "False" ]; then
     download "zlib"
 fi
 enable_status
@@ -3593,10 +3596,10 @@ enable_status
 # Function for extracting compressed files
 extract(){
     # Arguments: Program name, [is_file]
-    # Here, the optional is_file argument can be set to "yes" if
+    # Here, the optional is_file argument can be set to "True" if
     # the first argument is a filename rather than a program name.
     # In that case, the working directory will not be changed.
-    if [ "$2" == "yes" ]; then
+    if [ "$2" == "True" ]; then
         archive="$1"
     else
         progname="${1// /_}"
@@ -3725,7 +3728,7 @@ extract(){
            exit 1
            ;;
     esac
-    if [ "$2" != "yes" ]; then
+    if [ "$2" != "True" ]; then
         cd "${top_dir}"
     fi
 }
@@ -3833,11 +3836,11 @@ install_notice(){
     progname="$(echo "${progname}" | tr '[:upper:]' '[:lower:]')"
     eval "progversion=\"\${${progname}_version}\""
     test_results="None"
-    if [ "${do_tests}" == "yes" ]; then
+    if [ "${do_tests}" == "True" ]; then
         eval "test_success=\"\${${progname}_test_success}\""
-        if [ "${test_success}" == "yes" ]; then
+        if [ "${test_success}" == "True" ]; then
             test_results="Success"
-        elif [ "${test_success}" == "no" ]; then
+        elif [ "${test_success}" == "False" ]; then
             test_results="Failiure"
         fi
     fi
@@ -3852,27 +3855,27 @@ Date:         $(date)
 
 
 # zlib
-if [ "${zlib_install}" == "yes" ] && [ "${zlib_installed}" == "no" ]; then
-    install_success="no"
+if [ "${zlib_install}" == "True" ] && [ "${zlib_installed}" == "False" ]; then
+    install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
         eval "use_${compiler}_compilers zlib"
         init_install "zlib"
         ./configure --shared --prefix="${zlib_dir}" 2>&1 || continue
-        if [ "${do_tests}" == "yes" ]; then
+        if [ "${do_tests}" == "True" ]; then
             make ${make_jobs} test 2>&1 | tee "test_log"
-            [ ${PIPESTATUS[0]} -eq 0 ] || zlib_test_success="no"
+            [ ${PIPESTATUS[0]} -eq 0 ] || zlib_test_success="False"
         fi
         zlib_test_log="${zlib_dir}/test_log"
-        if [ "${zlib_test_success}" == "no" ]; then
+        if [ "${zlib_test_success}" == "False" ]; then
             mkdir -p "$(dirname "${zlib_test_log}")"
             cp "test_log" "${zlib_test_log}"
         fi
         make ${make_jobs} install 2>&1 || continue
-        install_success="yes"
+        install_success="True"
         break
     done
-    if [ "${install_success}" == "no" ]; then
+    if [ "${install_success}" == "False" ]; then
         error "Failed to install zlib"
         exit 1
     fi
@@ -3884,8 +3887,8 @@ if [ "${zlib_install}" == "yes" ] && [ "${zlib_installed}" == "no" ]; then
 fi
 
 # libpng
-if [ "${libpng_install}" == "yes" ] && [ "${libpng_installed}" == "no" ]; then
-    install_success="no"
+if [ "${libpng_install}" == "True" ] && [ "${libpng_installed}" == "False" ]; then
+    install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
         eval "use_${compiler}_compilers libpng"
@@ -3896,20 +3899,20 @@ if [ "${libpng_install}" == "yes" ] && [ "${libpng_installed}" == "no" ]; then
         export ZLIBLIB="${zlib_dir}/lib"
         export ZLIBINC="${zlib_dir}/include"
         ./configure --prefix="${libpng_dir}" 2>&1 || continue
-        if [ "${do_tests}" == "yes" ]; then
+        if [ "${do_tests}" == "True" ]; then
             make ZLIBLIB="${ZLIBLIB}" ZLIBINC="${ZLIBINC}" ${make_jobs} check 2>&1 | tee "test_log"
-            [ ${PIPESTATUS[0]} -eq 0 ] || libpng_test_success="no"
+            [ ${PIPESTATUS[0]} -eq 0 ] || libpng_test_success="False"
         fi
         libpng_test_log="${libpng_dir}/test_log"
-        if [ "${libpng_test_success}" == "no" ]; then
+        if [ "${libpng_test_success}" == "False" ]; then
             mkdir -p "$(dirname "${libpng_test_log}")"
             cp "test_log" "${libpng_test_log}"
         fi
         make ZLIBLIB="${ZLIBLIB}" ZLIBINC="${ZLIBINC}" ${make_jobs} install 2>&1 || continue
-        install_success="yes"
+        install_success="True"
         break
     done
-    if [ "${install_success}" == "no" ]; then
+    if [ "${install_success}" == "False" ]; then
         error "Failed to install libpng"
         exit 1
     fi
@@ -3921,28 +3924,28 @@ if [ "${libpng_install}" == "yes" ] && [ "${libpng_installed}" == "no" ]; then
 fi
 
 # GSL
-if [ "${gsl_install}" == "yes" ] && [ "${gsl_installed}" == "no" ]; then
-    install_success="no"
+if [ "${gsl_install}" == "True" ] && [ "${gsl_installed}" == "False" ]; then
+    install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
         eval "use_${compiler}_compilers GSL"
         init_install "GSL"
         ./configure --prefix="${gsl_dir}" 2>&1 || continue
         make ${make_jobs} 2>&1 || continue
-        if [ "${do_tests}" == "yes" ]; then
+        if [ "${do_tests}" == "True" ]; then
             make ${make_jobs} check 2>&1 | tee "test_log"
-            [ ${PIPESTATUS[0]} -eq 0 ] || gsl_test_success="no"
+            [ ${PIPESTATUS[0]} -eq 0 ] || gsl_test_success="False"
         fi
         gsl_test_log="${gsl_dir}/test_log"
-        if [ "${gsl_test_success}" == "no" ]; then
+        if [ "${gsl_test_success}" == "False" ]; then
             mkdir -p "$(dirname "${gsl_test_log}")"
             cp "test_log" "${gsl_test_log}"
         fi
         make ${make_jobs} install 2>&1 || continue
-        install_success="yes"
+        install_success="True"
         break
     done
-    if [ "${install_success}" == "no" ]; then
+    if [ "${install_success}" == "False" ]; then
         error "Failed to install GSL"
         exit 1
     fi
@@ -3954,8 +3957,8 @@ if [ "${gsl_install}" == "yes" ] && [ "${gsl_installed}" == "no" ]; then
 fi
 
 # MPI
-if [ "${mpi_install}" == "yes" ] && [ "${mpi_installed}" == "no" ]; then
-    install_success="no"
+if [ "${mpi_install}" == "True" ] && [ "${mpi_installed}" == "False" ]; then
+    install_success="False"
     compiler_possibilities_mpi=()
     compiler_possibilities_specified_mpi=""
     for compiler in "${compiler_possibilities[@]}"; do
@@ -3981,20 +3984,20 @@ if [ "${mpi_install}" == "yes" ] && [ "${mpi_installed}" == "no" ]; then
             # MPICH can be tested by running the code below.
             # Since this require several GB of memory and will occupy up
             # to 30 MPI processes, we skip these tests.
-            run_mpi_tests="no"
-            if [ "${run_mpi_tests}" == "yes" ]; then
-                if [ "${do_tests}" == "yes" ]; then
+            run_mpi_tests="False"
+            if [ "${run_mpi_tests}" == "True" ]; then
+                if [ "${do_tests}" == "True" ]; then
                     export RUNTESTS_VERBOSE=1
                     make ${make_jobs} testing 2>&1 | tee "test_log"
-                    [ ${PIPESTATUS[0]} -eq 0 ] || mpi_test_success="no"
+                    [ ${PIPESTATUS[0]} -eq 0 ] || mpi_test_success="False"
                 fi
                 mpi_test_log="${mpi_dir}/test_log"
-                if [ "${mpi_test_success}" == "no" ]; then
+                if [ "${mpi_test_success}" == "False" ]; then
                     mkdir -p "$(dirname "${mpi_test_log}")"
                     cp "test_log" "${mpi_test_log}"
                 fi
             fi
-            install_success="yes"
+            install_success="True"
             break
         elif [ "${mpi}" == "openmpi" ]; then
             # OpenMPI.
@@ -4023,7 +4026,7 @@ if [ "${mpi_install}" == "yes" ] && [ "${mpi_installed}" == "no" ]; then
                 # On failure, install it without NUMA support.
                 current_dir="$(pwd)"
                 if [ "${install_ucx}" == "True" ]; then
-                    install_ucx_success="no"
+                    install_ucx_success="False"
                     ucx_dir="${mpi_dir}/ucx"
                     ucx_version="1.5.0"
                     ucx_url="https://github.com/openucx/ucx/archive/v${ucx_version}.tar.gz"
@@ -4081,7 +4084,7 @@ Attempting to install UCX for OpenMPI with disable_numa=${disable_numa}\n\n"
                         make ${make_jobs} 2>&1 || continue
                         make install 2>&1 || continue
                         cp "AUTHORS" "LICENSE" "${ucx_dir}/" || :
-                        install_ucx_success="yes"
+                        install_ucx_success="True"
                         printf "\nInstallation of UCX for OpenMPI successful.
 Now continue with the installation of OpenMPI\n\n"
                         break
@@ -4090,7 +4093,7 @@ Now continue with the installation of OpenMPI\n\n"
                     export CFLAGS="${CFLAGS_ori}"
                     export CXXFLAGS="${CXXFLAGS_ori}"
                     export CPPFLAGS="${CPPFLAGS_ori}"
-                    if [ "${install_ucx_success}" == "no" ]; then
+                    if [ "${install_ucx_success}" == "False" ]; then
                         continue
                     fi
                 fi
@@ -4104,15 +4107,15 @@ Now continue with the installation of OpenMPI\n\n"
                 make ${make_jobs} all 2>&1 || continue
                 make ${make_jobs} install 2>&1 || continue
                 # OpenMPI does not come with a test suite
-                install_success="yes"
+                install_success="True"
                 break
             done
-            if [ "${install_success}" == "yes" ]; then
+            if [ "${install_success}" == "True" ]; then
                 break
             fi
         fi
     done
-    if [ "${install_success}" == "no" ]; then
+    if [ "${install_success}" == "False" ]; then
         if [ "${mpi}" == "mpich" ]; then
             error "Failed to install MPICH"
         elif [ "${mpi}" == "openmpi" ]; then
@@ -4135,7 +4138,7 @@ Now continue with the installation of OpenMPI\n\n"
 fi
 
 # HDF5
-if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
+if [ "${hdf5_install}" == "True" ] && [ "${hdf5_installed}" == "False" ]; then
     init_install "HDF5"
     # Set environment variables and configure options used
     # when building againts MPI and zlib.
@@ -4168,9 +4171,9 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
     # in some versions of HDF5 (e.g. 1.10.2), this rule is broken by
     # src/H5detect.c. If the original build fail, we edit src/H5detect.c
     # to be compliant with this rule and try again.
-    hdf5_make_success="yes"
-    make ${make_jobs} 2>&1 || hdf5_make_success="no"
-    if [ "${hdf5_make_success}" == "no" ]; then
+    hdf5_make_success="True"
+    make ${make_jobs} 2>&1 || hdf5_make_success="False"
+    if [ "${hdf5_make_success}" == "False" ]; then
         mv "src/H5detect.c" "src/H5detect.c_cp"
         if [ -z "${IFS+x}" ]; then
             IFS_ori="__unset__"
@@ -4193,17 +4196,17 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
         rm -f "src/H5detect.c_cp" || :
         sed -i 's/^static void \(.*\) HDF_NO_UBSAN/static void HDF_NO_UBSAN \1/' "src/H5detect.c"
         sed -i 's/^int \(.*\) HDF_NO_UBSAN/int HDF_NO_UBSAN \1/' "src/H5detect.c"
-        hdf5_make_success="yes"
-        make ${make_jobs} 2>&1 || hdf5_make_success="no"
+        hdf5_make_success="True"
+        make ${make_jobs} 2>&1 || hdf5_make_success="False"
     fi
-    if [ "${hdf5_make_success}" == "no" ]; then
+    if [ "${hdf5_make_success}" == "False" ]; then
         error "Failed to make HDF5"
         exit 1
     fi
     # On some systems, the HDF5 test (make check) hangs indefinitely.
     # To counteract this, kill the process if it still runs after
     # ${hdf5_test_max_time} seconds.
-    if [ "${do_tests}" == "yes" ]; then
+    if [ "${do_tests}" == "True" ]; then
         hdf5_test_max_time=3600
         # Perform serial + parallel tests if build against MPI
         # or normal tests otherwise.
@@ -4216,7 +4219,7 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
             wait    ${hdf5_test_pid} >/dev/null 2>&1 || :
             exit_code="$(wait ${hdf5_test_pid} >/dev/null 2>&1 || echo $?)"
             if [ -n "${exit_code}" ]; then
-                hdf5_test_success="no"
+                hdf5_test_success="False"
             fi
             # Parallel tests
             printf "\n\n\nParallel tests below\n\n\n\n" >> "test_log"
@@ -4227,7 +4230,7 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
             wait    ${hdf5_test_pid} >/dev/null 2>&1 || :
             exit_code="$(wait ${hdf5_test_pid} >/dev/null 2>&1 || echo $?)"
             if [ -n "${exit_code}" ]; then
-                hdf5_test_success="no"
+                hdf5_test_success="False"
             fi
         else
             (make ${make_jobs} check 2>&1 | tee "test_log") & hdf5_test_pid=$!
@@ -4237,23 +4240,23 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
             wait    ${hdf5_test_pid} >/dev/null 2>&1 || :
             exit_code="$(wait ${hdf5_test_pid} >/dev/null 2>&1 || echo $?)"
             if [ -n "${exit_code}" ]; then
-                hdf5_test_success="no"
+                hdf5_test_success="False"
             fi
         fi
     fi
     make ${make_jobs} install 2>&1
-    if [ "${do_tests}" == "yes" ]; then
+    if [ "${do_tests}" == "True" ]; then
         printf "\n\n\nInstall tests below\n\n\n\n" >> "test_log"
         make ${make_jobs} check-install 2>&1 | tee -a "test_log"
         # The text "*FAILED*" will be present in the test log file
         # if any of the tests failed.
-        [ ${PIPESTATUS[0]} -eq 0 ] || hdf5_test_success="no"
+        [ ${PIPESTATUS[0]} -eq 0 ] || hdf5_test_success="False"
         if grep '\*FAILED\*' "test_log" >/dev/null 2>&1; then
-            hdf5_test_success="no"
+            hdf5_test_success="False"
         fi
     fi
     hdf5_test_log="${hdf5_dir}/test_log"
-    if [ "${hdf5_test_success}" == "no" ]; then
+    if [ "${hdf5_test_success}" == "False" ]; then
         mkdir -p "$(dirname "${hdf5_test_log}")"
         cp "test_log" "${hdf5_test_log}"
     fi
@@ -4265,7 +4268,7 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
 fi
 
 # FFTW
-if [ "${fftw_install}" == "yes" ] && [ "${fftw_installed}" == "no" ]; then
+if [ "${fftw_install}" == "True" ] && [ "${fftw_installed}" == "False" ]; then
     init_install "FFTW"
     # Set environment variables and configure options used
     # when building againts MPI.
@@ -4286,12 +4289,12 @@ if [ "${fftw_install}" == "yes" ] && [ "${fftw_installed}" == "no" ]; then
                 --enable-threads \
                 --prefix="${fftw_dir}" 2>&1
     make ${make_jobs} 2>&1
-    if [ "${do_tests}" == "yes" ]; then
+    if [ "${do_tests}" == "True" ]; then
         make ${make_jobs} check 2>&1 | tee "test_log"
-        [ ${PIPESTATUS[0]} -eq 0 ] || fftw_test_success="no"
+        [ ${PIPESTATUS[0]} -eq 0 ] || fftw_test_success="False"
     fi
     fftw_test_log="${fftw_dir}/test_log"
-    if [ "${fftw_test_success}" == "no" ]; then
+    if [ "${fftw_test_success}" == "False" ]; then
         mkdir -p "$(dirname "${ftw_test_log}")"
         cp "test_log" "${fftw_test_log}"
     fi
@@ -4313,8 +4316,8 @@ if [ "${fftw_install}" == "yes" ] && [ "${fftw_installed}" == "no" ]; then
 fi
 
 # FreeType
-if [ "${freetype_install}" == "yes" ] && [ "${freetype_installed}" == "no" ]; then
-    install_success="no"
+if [ "${freetype_install}" == "True" ] && [ "${freetype_installed}" == "False" ]; then
+    install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
         eval "use_${compiler}_compilers FreeType"
@@ -4327,10 +4330,10 @@ if [ "${freetype_install}" == "yes" ] && [ "${freetype_installed}" == "no" ]; th
         make ${make_jobs} 2>&1 || continue
         # FreeType does not come with a test suite
         make ${make_jobs} install 2>&1 || continue
-        install_success="yes"
+        install_success="True"
         break
     done
-    if [ "${install_success}" == "no" ]; then
+    if [ "${install_success}" == "False" ]; then
         error "Failed to install FreeType"
         exit 1
     fi
@@ -4342,8 +4345,8 @@ if [ "${freetype_install}" == "yes" ] && [ "${freetype_installed}" == "no" ]; th
 fi
 
 # ncurses
-if [ "${ncurses_install}" == "yes" ] && [ "${ncurses_installed}" == "no" ]; then
-    install_success="no"
+if [ "${ncurses_install}" == "True" ] && [ "${ncurses_installed}" == "False" ]; then
+    install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
         eval "use_${compiler}_compilers ncurses"
@@ -4354,28 +4357,28 @@ if [ "${ncurses_install}" == "yes" ] && [ "${ncurses_installed}" == "no" ]; then
         ./configure --with-shared --prefix="${ncurses_dir}" 2>&1 || continue
         make ${make_jobs} 2>&1 || continue
         make ${make_jobs} install 2>&1 || continue
-        if [ "${do_tests}" == "yes" ]; then
+        if [ "${do_tests}" == "True" ]; then
             disable_status
             (sleep ${sleep_time}; echo "q") | "test/worm" -n 7 > "/dev/tty" 2>&1 \
-                || ncurses_test_success="no"
+                || ncurses_test_success="False"
             enable_status
         fi
         # Additional test run needed (if the first failed), as the one
         # above do not use tee (as it ruins the display).
-        if [ "${do_tests}" == "yes" ] && [ "${ncurses_test_success}" == "no" ]; then
+        if [ "${do_tests}" == "True" ] && [ "${ncurses_test_success}" == "False" ]; then
             disable_status
             (sleep ${sleep_time}; echo "q") | "test/worm" -n 7 > "test_log" 2>&1 || :
             enable_status
         fi
         ncurses_test_log="${ncurses_dir}/include/ncurses/test_log"
-        if [ "${ncurses_test_success}" == "no" ]; then
+        if [ "${ncurses_test_success}" == "False" ]; then
             mkdir -p "$(dirname "${ncurses_test_log}")"
             cp "test_log" "${ncurses_test_log}"
         fi
-        install_success="yes"
+        install_success="True"
         break
     done
-    if [ "${install_success}" == "no" ]; then
+    if [ "${install_success}" == "False" ]; then
         error "Failed to install ncurses"
         exit 1
     fi
@@ -4387,14 +4390,14 @@ if [ "${ncurses_install}" == "yes" ] && [ "${ncurses_installed}" == "no" ]; then
 fi
 
 # Perl
-if [ "${perl_install}" == "yes" ] && [ "${perl_installed}" == "no" ]; then
+if [ "${perl_install}" == "True" ] && [ "${perl_installed}" == "False" ]; then
     # Sometimes make fails to build due to #include of poll.h from a
     # wrong location. A fix for this is implemented below. First we try
     # without the fix, then with the fix.
     # Furthermore, sometimes the installation will complain that the
     # Perl libraries should have been compiled statically.
     # Thus, we try with# and witouth the -fPIC C flag.
-    install_success="no"
+    install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         for perl_poll_fix in "False" "True"; do
             for perl_cflags in "" "-fPIC"; do
@@ -4449,7 +4452,7 @@ perl_poll_fix=${perl_poll_fix}, perl_cflags=${perl_cflags}\n\n"
                     sed -i 's/<poll\.h>/<sys\/poll\.h>/' 'dist/IO/poll.h' || continue
                 fi
                 make ${make_jobs} 2>&1 || continue
-                if [ "${do_tests}" == "yes" ]; then
+                if [ "${do_tests}" == "True" ]; then
                     # On some systems, the Perl test hangs indefinitely.
                     # To counteract this, kill the process if it still
                     # runs after ${perl_test_max_time} seconds.
@@ -4461,32 +4464,32 @@ perl_poll_fix=${perl_poll_fix}, perl_cflags=${perl_cflags}\n\n"
                     wait    ${perl_test_pid} >/dev/null 2>&1 || :
                     exit_code="$(wait ${perl_test_pid} >/dev/null 2>&1 || echo $?)"
                     if [ -n "${exit_code}" ]; then
-                        perl_test_success="no"
+                        perl_test_success="False"
                     fi
                     # The text "Failed" will be present in the test log
                     # file if any of the tests failed.
                     if grep 'Failed' "test_log" >/dev/null 2>&1; then
-                        perl_test_success="no"
+                        perl_test_success="False"
                     fi
                 fi
                 perl_test_log="${perl_dir}/test_log"
-                if [ "${perl_test_success}" == "no" ]; then
+                if [ "${perl_test_success}" == "False" ]; then
                     mkdir -p "$(dirname "${perl_test_log}")"
                     cp "test_log" "${perl_test_log}"
                 fi
                 make ${make_jobs} install 2>&1 || continue
-                install_success="yes"
+                install_success="True"
                 break
             done
-            if [ "${install_success}" == "yes" ]; then
+            if [ "${install_success}" == "True" ]; then
                 break
             fi
         done
-        if [ "${install_success}" == "yes" ]; then
+        if [ "${install_success}" == "True" ]; then
             break
         fi
     done
-    if [ "${install_success}" == "no" ]; then
+    if [ "${install_success}" == "False" ]; then
         error "Failed to install Perl"
         exit 1
     fi
@@ -4498,30 +4501,31 @@ perl_poll_fix=${perl_poll_fix}, perl_cflags=${perl_cflags}\n\n"
 fi
 
 # OpenSSL
-if [ "${openssl_install}" == "yes" ] && [ "${openssl_installed}" == "no" ]; then
-    install_success="no"
+if [ "${openssl_install}" == "True" ] && [ "${openssl_installed}" == "False" ]; then
+    install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
         eval "use_${compiler}_compilers OpenSSL"
         init_install "OpenSSL"
         export PATH="${perl_dir}/bin:${PATH}"
         export PERL="${perl_dir}/bin/perl"
-        ./config shared --prefix="${openssl_dir}" --openssldir="${openssl_dir}/openssl" 2>&1 || continue
+        ./config shared --prefix="${openssl_dir}" \
+            --openssldir="${openssl_dir}/openssl" 2>&1 || continue
         make 2>&1 || continue  # Should not be run in parallel!
-        if [ "${do_tests}" == "yes" ]; then
+        if [ "${do_tests}" == "True" ]; then
             make test 2>&1 | tee "test_log"  # Should not be run in parallel!
-            [ ${PIPESTATUS[0]} -eq 0 ] || openssl_test_success="no"
+            [ ${PIPESTATUS[0]} -eq 0 ] || openssl_test_success="False"
         fi
         openssl_test_log="${openssl_dir}/include/openssl/test_log"
-        if [ "${openssl_test_success}" == "no" ]; then
+        if [ "${openssl_test_success}" == "False" ]; then
             mkdir -p "$(dirname "${openssl_test_log}")"
             cp "test_log" "${openssl_test_log}"
         fi
         make install 2>&1 || continue  # Should not be run in parallel!
-        install_success="yes"
+        install_success="True"
         break
     done
-    if [ "${install_success}" == "no" ]; then
+    if [ "${install_success}" == "False" ]; then
         error "Failed to install OpenSSL"
         exit 1
     fi
@@ -4533,28 +4537,28 @@ if [ "${openssl_install}" == "yes" ] && [ "${openssl_installed}" == "no" ]; then
 fi
 
 # libffi
-if [ "${libffi_install}" == "yes" ] && [ "${libffi_installed}" == "no" ]; then
-    install_success="no"
+if [ "${libffi_install}" == "True" ] && [ "${libffi_installed}" == "False" ]; then
+    install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
         eval "use_${compiler}_compilers libffi"
         init_install "libffi"
         ./configure --prefix="${libffi_dir}" 2>&1 || continue
         make ${make_jobs} 2>&1 || continue
-        if [ "${do_tests}" == "yes" ]; then
+        if [ "${do_tests}" == "True" ]; then
             make check 2>&1 | tee "test_log"
-            [ ${PIPESTATUS[0]} -eq 0 ] || libffi_test_success="no"
+            [ ${PIPESTATUS[0]} -eq 0 ] || libffi_test_success="False"
         fi
         libffi_test_log="${libffi_dir}/lib/libffi-${libffi_version}/test_log"
-        if [ "${libffi_test_success}" == "no" ]; then
+        if [ "${libffi_test_success}" == "False" ]; then
             mkdir -p "$(dirname "${libffi_test_log}")"
             cp "test_log" "${libffi_test_log}"
         fi
         make ${make_jobs} install 2>&1 || continue
-        install_success="yes"
+        install_success="True"
         break
     done
-    if [ "${install_success}" == "no" ]; then
+    if [ "${install_success}" == "False" ]; then
         error "Failed to install libffi"
         exit 1
     fi
@@ -4566,7 +4570,7 @@ if [ "${libffi_install}" == "yes" ] && [ "${libffi_installed}" == "no" ]; then
 fi
 
 # OpenBLAS
-if [ "${blas_install}" == "yes" ] && [ "${blas_installed}" == "no" ]; then
+if [ "${blas_install}" == "True" ] && [ "${blas_installed}" == "False" ]; then
     # Due to the threading behaviour of Python,
     # we install a non-threaded version of OpenBLAS.
     # We wish to use the gfortran Fortran compiler. We try out all the
@@ -4575,8 +4579,8 @@ if [ "${blas_install}" == "yes" ] && [ "${blas_installed}" == "no" ]; then
     # On 32 bit systems we need to set BINARY=32. First we try without,
     # then with this option.
     # Note that OpenBLAS runs its test suite during this build.
-    install_success="no"
-    for openblas_gfortran in "yes" "no"; do
+    install_success="False"
+    for openblas_gfortran in "True" "False"; do
         for compiler in "${compiler_possibilities[@]}"; do
             for openblas_BINARY in "" "32"; do
                 reset_environment
@@ -4585,7 +4589,7 @@ if [ "${blas_install}" == "yes" ] && [ "${blas_installed}" == "no" ]; then
                 printf "
 Attempting to install OpenBLAS with openblas_gfortran=${openblas_gfortran}, \
 compiler=${compiler}, openblas_BINARY=${openblas_BINARY}\n\n"
-                if [ "${openblas_gfortran}" == "yes" ]; then
+                if [ "${openblas_gfortran}" == "True" ]; then
                     export FC="gfortran"
                     export F77="gfortran"
                     export F90="gfortran"
@@ -4593,7 +4597,7 @@ compiler=${compiler}, openblas_BINARY=${openblas_BINARY}\n\n"
                 fi
                 openblas_make_options="USE_THREAD=0"
                 if ([ -n "${compiler}" ] && [ -n "${FC}" ]) \
-                    || [ "${openblas_gfortran}" == "yes" ]; then
+                    || [ "${openblas_gfortran}" == "True" ]; then
                     openblas_make_options="${openblas_make_options} FC=${FC}"
                 fi
                 if [ -n "${compiler}" ] && [ -n "${CC}" ]; then
@@ -4604,18 +4608,18 @@ compiler=${compiler}, openblas_BINARY=${openblas_BINARY}\n\n"
                 fi
                 make ${openblas_make_options} || continue
                 make PREFIX="${blas_dir}" install || continue
-                install_success="yes"
+                install_success="True"
                 break
             done
-            if [ "${install_success}" == "yes" ]; then
+            if [ "${install_success}" == "True" ]; then
                 break
             fi
         done
-        if [ "${install_success}" == "yes" ]; then
+        if [ "${install_success}" == "True" ]; then
             break
         fi
     done
-    if [ "${install_success}" == "no" ]; then
+    if [ "${install_success}" == "False" ]; then
         error "Failed to install OpenBLAS"
         exit 1
     fi
@@ -4627,7 +4631,7 @@ compiler=${compiler}, openblas_BINARY=${openblas_BINARY}\n\n"
 fi
 
 # Python
-if [ "${python_install}" == "yes" ]; then
+if [ "${python_install}" == "True" ]; then
     # If the path to an already installed Python distribution is set in
     # the PYTHONPATH variable, it may conflict with the installation
     # provided by this script. Specifically, issues have been noted when
@@ -4635,8 +4639,8 @@ if [ "${python_install}" == "yes" ]; then
     # set it again, not even through the reset_environment function.
     unset PYTHONPATH
 fi
-if [ "${python_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
-    install_success="no"
+if [ "${python_install}" == "True" ] && [ "${python_installed}" == "False" ]; then
+    install_success="False"
     # The configure script will check whether atomic operations may
     # be used. Some compilers (e.g. Intel 2019) only implement a subset
     # of the needed atomic operations, and so may falsely passed this check.
@@ -4644,7 +4648,7 @@ if [ "${python_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
     # choices) work, we try everything again while claiming that we do not
     # support atomic operations at all.
     for compiler in "${compiler_possibilities[@]}"; do
-        for disable_atomic_operations in "no" "yes"; do
+        for disable_atomic_operations in "False" "True"; do
             # Build with pip if both openssl and zlib are installed.
             # For Python >=3.7, a standalone libffi is also required,
             # though we do not check explicitly for this.
@@ -4664,7 +4668,7 @@ if [ "${python_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
 Attempting to install Python with compiler=${compiler}, \
 disable_atomic_operations=${disable_atomic_operations}, pyoptimizations=${pyoptimizations}\n\n"
                 # Set up environment variables and configure options
-                if [ "${disable_atomic_operations}" == "yes" ]; then
+                if [ "${disable_atomic_operations}" == "True" ]; then
                     sed -i '/have_stdatomic_h *= *yes/c\have_stdatomic_h=no' configure
                 fi
                 with_pgo=""
@@ -4732,25 +4736,25 @@ ${CPPFLAGS}"
                 # hanging process manually. We do however write out a soothing
                 # message in the case of such hangs, letting the user know that
                 # everything is all right.
-                pyconfigure_success="yes"
+                pyconfigure_success="True"
                 ./configure --enable-shared ${with_pgo} ${with_lto} --prefix="${python_dir}" \
                     ${with_ensurepip_install}                                                \
                     ${with_openssl}                                                          \
                     ${with_system_ffi}                                                       \
-                    2>&1 || pyconfigure_success="no" & python_configure_pid=$!
+                    2>&1 || pyconfigure_success="False" & python_configure_pid=$!
                 soothe ${python_configure_pid}
-                if [ "${pyconfigure_success}" == "no" ]; then
+                if [ "${pyconfigure_success}" == "False" ]; then
                     continue
                 fi
                 # Make
                 make ${make_jobs} 2>&1 || continue
                 # Test
-                if [ "${do_tests}" == "yes" ]; then
+                if [ "${do_tests}" == "True" ]; then
                     make ${make_jobs} test 2>&1 | tee "test_log"
-                    [ ${PIPESTATUS[0]} -eq 0 ] || python_test_success="no"
+                    [ ${PIPESTATUS[0]} -eq 0 ] || python_test_success="False"
                 fi
                 python_test_log="${python_dir}/test_log"
-                if [ "${python_test_success}" == "no" ]; then
+                if [ "${python_test_success}" == "False" ]; then
                     mkdir -p "$(dirname "${python_test_log}")"
                     cp "test_log" "${python_test_log}"
                 else
@@ -4758,18 +4762,18 @@ ${CPPFLAGS}"
                 fi
                 # Make install
                 make install 2>&1 || continue  # Should be run serially
-                install_success="yes"
+                install_success="True"
                 break
             done
-            if [ "${install_success}" == "yes" ]; then
+            if [ "${install_success}" == "True" ]; then
                 break
             fi
         done
-        if [ "${install_success}" == "yes" ]; then
+        if [ "${install_success}" == "True" ]; then
             break
         fi
     done
-    if [ "${install_success}" == "no" ]; then
+    if [ "${install_success}" == "False" ]; then
         error "Failed to install Python"
         exit 1
     fi
@@ -4781,17 +4785,16 @@ ${CPPFLAGS}"
 fi
 # Create a python variable, storing the path to the Python interpreter
 if [ -n "${python_dir}" ]; then
-    found_python_interpreter="no"
+    found_python_interpreter="False"
     for python_version_major in 3 2; do
         if [ -f "${python_dir}/bin/python${python_version_major}" ]; then
-            found_python_interpreter="yes"
+            found_python_interpreter="True"
             break
         fi
     done
-    if [ "${found_python_interpreter}" == "yes" ]; then
+    if [ "${found_python_interpreter}" == "True" ]; then
         python_version_major_dot_minor=$("${python_dir}/bin/python${python_version_major}" -c \
-                                         "from sys import version_info as v; \
-                                         print(str(v.major) + '.' + str(v.minor))")
+            "from sys import version_info as v; print(str(v.major) + '.' + str(v.minor))")
         python="${python_dir}/bin/python${python_version_major_dot_minor}"
     fi
 fi
@@ -4802,15 +4805,15 @@ fi
 # Install Python packages #
 ###########################
 # Set "pypackage"_installed variables
-blessings_installed="no"
-cython_installed="no"
-cythongsl_installed="no"
-h5py_installed="no"
-matplotlib_installed="no"
-mpi4py_installed="no"
-numpy_installed="no"
-pytest_installed="no"
-scipy_installed="no"
+blessings_installed="False"
+cython_installed="False"
+cythongsl_installed="False"
+h5py_installed="False"
+matplotlib_installed="False"
+mpi4py_installed="False"
+numpy_installed="False"
+pytest_installed="False"
+scipy_installed="False"
 if [ -n "${python}" ]; then
     for pypackage in blessings     \
                      cython        \
@@ -4972,7 +4975,7 @@ pip_install_pypackage(){
                                     & pip_install_pid=$!
         soothe ${pip_install_pid}
         pypackage_installed=$(check_pypackage_installed ${pypackage})
-        if [ "${pypackage_installed}" == "yes" ]; then
+        if [ "${pypackage_installed}" == "True" ]; then
             break
         fi
         if [ -z "${extra_pip_arg}" ]; then
@@ -4984,7 +4987,7 @@ pip_install_pypackage(){
     rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_cp" || :
     # If we failed to install the Python package, try installing it
     # via pip without using any additional arguments.
-    if [ "${pypackage_installed}" == "no" ]; then
+    if [ "${pypackage_installed}" == "False" ]; then
         printf "\npip could not install/upgrade ${1}, neither with or without \
 --no-build-isolation\nNow trying without specifying any extra arguments to pip\n\n"
         "${python}" -m pip install "${pypackage}${command_end}" 2>&1 & pip_install_pid=$!
@@ -4993,7 +4996,7 @@ pip_install_pypackage(){
     fi
     reset_environment
     # Exit on failure
-    if [ "${pypackage_installed}" != "yes" ]; then
+    if [ "${pypackage_installed}" != "True" ]; then
         error "pip could not install/upgrade ${1}"
         exit 1
     fi
@@ -5008,7 +5011,7 @@ pip_install_pypackage(){
 # packages from source. Let 'pip install' upgrade pip, setuptools and
 # wheel by whatever means it wants, ensuring that the dependencies of
 # these bootstrapping packages are installed/upgraded as well.
-if [ "${pip_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
+if [ "${pip_install}" == "True" ] && [ "${python_installed}" == "False" ]; then
     tmp_pip_dir="${top_dir}/tmp/pip"
     export TMPDIR="${tmp_pip_dir}_tmp"
     for package in "pip" "setuptools" "wheel"; do
@@ -5018,7 +5021,7 @@ if [ "${pip_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
         eval "package_version=\${${package}_version}"
         # Dependent on the version of pip,
         # the --no-cache-dir option may be available or not.
-        pip_success="yes"
+        pip_success="True"
         for extra_pip_arg in "--no-cache-dir" ""; do
             rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
             mkdir -p "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
@@ -5026,13 +5029,13 @@ if [ "${pip_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
                                        ${extra_pip_arg}          \
                                        -b "${tmp_pip_dir}/build" \
                                        --upgrade                 \
-                                       "${package}==${package_version}" 2>&1 || pip_success="no"
-            if [ "${pip_success}" == "yes" ]; then
+                                       "${package}==${package_version}" 2>&1 || pip_success="False"
+            if [ "${pip_success}" == "True" ]; then
                 break
             fi
         done
         # Do not exit on failure, but write a warning
-        if [ "${pip_success}" == "no" ]; then
+        if [ "${pip_success}" == "False" ]; then
             error "Could not upgrade ${package}"
         fi
     done
@@ -5042,16 +5045,16 @@ fi
 
 # Upgrade all packages pre-installed
 # with the newly installed Python distribution.
-if [ "${python_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
-    installed_packages_success="true"
+if [ "${python_install}" == "True" ] && [ "${python_installed}" == "False" ]; then
+    installed_packages_success="True"
     installed_packages="$("${python}" -m pip list --format=colu2mns 2>/dev/null)" \
-        || installed_packages_success="false"
-    if [ "${installed_packages_success}" == "false" ]; then
-        installed_packages_success="true"
+        || installed_packages_success="False"
+    if [ "${installed_packages_success}" == "False" ]; then
+        installed_packages_success="True"
         installed_packages="$("${python}" -m pip list 2>/dev/null)" \
-            || installed_packages_success="false"
+            || installed_packages_success="False"
     fi
-    if [ "${installed_packages_success}" == "false" ]; then
+    if [ "${installed_packages_success}" == "False" ]; then
         installed_packages="$("${python}" -c "
 import pip
 print('\n'.join([i.key for i in pip.get_installed_distributions()]))
@@ -5075,9 +5078,9 @@ print('\n'.join(packages))
         fi
         # Attempt to update all other installed Python packages
         for n in {1..50}; do
-            pip_success="yes"
-            pip_install_pypackage "${package}" "upgrade" || pip_success="no"
-            if [ "${pip_success}" == "yes" ]; then
+            pip_success="True"
+            pip_install_pypackage "${package}" "upgrade" || pip_success="False"
+            if [ "${pip_success}" == "True" ]; then
                 break
             fi
         done
@@ -5087,23 +5090,23 @@ fi
 # Install Python packages from PyPI
 
 # Blessings
-if [ "${blessings_install}" == "yes" ] && [ "${blessings_installed}" == "no" ]; then
+if [ "${blessings_install}" == "True" ] && [ "${blessings_installed}" == "False" ]; then
     pip_install_pypackage "Blessings" "${blessings_version}"
 fi
 
 # Cython
-if [ "${cython_install}" == "yes" ] && [ "${cython_installed}" == "no" ]; then
-    install_success="no"
+if [ "${cython_install}" == "True" ] && [ "${cython_installed}" == "False" ]; then
+    install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         eval "use_${compiler}_compilers Cython"
         pip_install_pypackage "Cython" "${cython_version}"
-        if [ "$(check_pypackage_installed cython)" == "no" ]; then
+        if [ "$(check_pypackage_installed cython)" == "False" ]; then
             continue
         fi
-        install_success="yes"
+        install_success="True"
         break
     done
-    if [ "${install_success}" == "no" ]; then
+    if [ "${install_success}" == "False" ]; then
         error "Failed to install Cython"
         exit 1
     fi
@@ -5111,20 +5114,20 @@ if [ "${cython_install}" == "yes" ] && [ "${cython_installed}" == "no" ]; then
 fi
 
 # CythonGSL
-if [ "${cythongsl_install}" == "yes" ] && [ "${cythongsl_installed}" == "no" ]; then
-    install_success="no"
+if [ "${cythongsl_install}" == "True" ] && [ "${cythongsl_installed}" == "False" ]; then
+    install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
         eval "use_${compiler}_compilers CythonGSL"
         export LD_LIBRARY_PATH="${gsl_dir}/lib:${LD_LIBRARY_PATH}"
         pip_install_pypackage "CythonGSL" "${cythongsl_version}"
-        if [ "$(check_pypackage_installed cythongsl)" == "no" ]; then
+        if [ "$(check_pypackage_installed cythongsl)" == "False" ]; then
             continue
         fi
-        install_success="yes"
+        install_success="True"
         break
     done
-    if [ "${install_success}" == "no" ]; then
+    if [ "${install_success}" == "False" ]; then
         error "Failed to install CythonGSL"
         exit 1
     fi
@@ -5132,13 +5135,13 @@ if [ "${cythongsl_install}" == "yes" ] && [ "${cythongsl_installed}" == "no" ]; 
 fi
 
 # pytest
-if [ "${pytest_install}" == "yes" ] && [ "${pytest_installed}" == "no" ]; then
+if [ "${pytest_install}" == "True" ] && [ "${pytest_installed}" == "False" ]; then
     pip_install_pypackage "pytest" "${pytest_version}"
 fi
 
 # NumPy (manual invocation of setup.py is needed
 # as we need to link to OpenBLAS).
-if [ "${numpy_install}" == "yes" ] && [ "${numpy_installed}" == "no" ]; then
+if [ "${numpy_install}" == "True" ] && [ "${numpy_installed}" == "False" ]; then
     current_step="installation of NumPy ${numpy_version}"
     heading "Installing NumPy ${numpy_version}"
     set_status "Installing NumPy ${numpy_version}"
@@ -5153,21 +5156,21 @@ if [ "${numpy_install}" == "yes" ] && [ "${numpy_installed}" == "no" ]; then
     # downloaded, in which case the extraction will fail if the
     # corresponding tool is not installed. In that case, try to download
     # NumPy directly from GitHub
-    extract "numpy"* "yes" || :
-    numpy_extract_success="no"
+    extract "numpy"* "True" || :
+    numpy_extract_success="False"
     for f in *; do
         f_lower="$(echo "${f}" | tr '[:upper:]' '[:lower:]')"
         if [ -d "${f}" ] && [[ "${f_lower}" == "numpy"* ]]; then
-            numpy_extract_success="yes"
+            numpy_extract_success="True"
             numpy_build_dir="${tmp_pip_dir}/${f}"
             break
         fi
     done
-    if [ "${numpy_extract_success}" == "no" ]; then
+    if [ "${numpy_extract_success}" == "False" ]; then
         numpy_url="https://github.com/numpy/numpy/archive/v${numpy_version}.tar.gz"
         download "numpy"
         cd "${top_dir}/tmp/numpy"
-        extract * "yes"
+        extract * "True"
         for f in *; do
             f_lower="$(echo "${f}" | tr '[:upper:]' '[:lower:]')"
             if [ -d "${f}" ] && [[ "${f_lower}" == "numpy"* ]]; then
@@ -5202,8 +5205,8 @@ runtime_library_dirs = ${blas_dir}/lib
     # On some systems, several additional environment variables need to
     # be modified. We try all combinations until we hit a working one.
     cp -r "${numpy_build_dir}" "${numpy_build_dir}_cp"
-    install_success="no"
-    for numpy_gfortran in "yes" "no"; do
+    install_success="False"
+    for numpy_gfortran in "True" "False"; do
         for compiler in "${compiler_possibilities[@]}"; do
             for fcompiler in "gnu95" ""; do
                 for extra_FCFLAGS in "" "-fPIC"; do
@@ -5213,7 +5216,7 @@ runtime_library_dirs = ${blas_dir}/lib
                         printf "
 Attempting to install NumPy with numpy_gfortran=${numpy_gfortran}, compiler=${compiler}, \
 fcompiler=${fcompiler}, extra_FCFLAGS=${extra_FCFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n\n"
-                        if [ "${numpy_gfortran}" == "yes" ]; then
+                        if [ "${numpy_gfortran}" == "True" ]; then
                             export FC="gfortran"
                             export F77="gfortran"
                             export F90="gfortran"
@@ -5229,45 +5232,45 @@ fcompiler=${fcompiler}, extra_FCFLAGS=${extra_FCFLAGS}, extra_LDFLAGS=${extra_LD
                         rm -rf "${numpy_build_dir}" || :
                         cp -r "${numpy_build_dir}_cp" "${numpy_build_dir}"
                         cd "${numpy_build_dir}"
-                        echo "yes" > ".setuppy_success"
+                        echo "True" > ".setuppy_success"
                         if [ -n "${fcompiler}" ]; then
                             ("${python}" setup.py build --fcompiler="${fcompiler}" \
-                                || echo "no" > ".setuppy_success") & setuppy_pid=$!
+                                || echo "False" > ".setuppy_success") & setuppy_pid=$!
                         else
                             ("${python}" setup.py build \
-                                || echo "no" > ".setuppy_success") & setuppy_pid=$!
+                                || echo "False" > ".setuppy_success") & setuppy_pid=$!
                         fi
                         soothe ${setuppy_pid}
                         sleep 1
                         setuppy_success="$(cat '.setuppy_success')"
-                        if [ "${setuppy_success}" != "yes" ]; then
+                        if [ "${setuppy_success}" != "True" ]; then
                             continue
                         fi
                         "${python}" setup.py install & setuppy_pid=$!
                         soothe ${setuppy_pid}
-                        if [ "$(check_pypackage_installed numpy)" == "no" ]; then
+                        if [ "$(check_pypackage_installed numpy)" == "False" ]; then
                             continue
                         fi
-                        install_success="yes"
+                        install_success="True"
                         break
                     done
-                    if [ "${install_success}" == "yes" ]; then
+                    if [ "${install_success}" == "True" ]; then
                         break
                     fi
                 done
-                if [ "${install_success}" == "yes" ]; then
+                if [ "${install_success}" == "True" ]; then
                     break
                 fi
             done
-            if [ "${install_success}" == "yes" ]; then
+            if [ "${install_success}" == "True" ]; then
                 break
             fi
         done
-        if [ "${install_success}" == "yes" ]; then
+        if [ "${install_success}" == "True" ]; then
             break
         fi
     done
-    if [ "${install_success}" == "no" ]; then
+    if [ "${install_success}" == "False" ]; then
         error "Failed to install NumPy"
         exit 1
     fi
@@ -5276,17 +5279,17 @@ fcompiler=${fcompiler}, extra_FCFLAGS=${extra_FCFLAGS}, extra_LDFLAGS=${extra_LD
     reset_environment
     # Test NumPy
     export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
-    if [ "${do_tests}" == "yes" ]; then
+    if [ "${do_tests}" == "True" ]; then
         numpy_test_log="${python_dir}/numpy_test_log"
         "${python}" -c "import numpy; numpy.test('full', verbose=2, \
 extra_argv=['--color=yes'])" 2>&1 | tee "${numpy_test_log}"
-        [ ${PIPESTATUS[0]} -eq 0 ] || numpy_test_success="no"
-        if [ "${numpy_test_success}" == "yes" ]; then
+        [ ${PIPESTATUS[0]} -eq 0 ] || numpy_test_success="False"
+        if [ "${numpy_test_success}" == "True" ]; then
             if tail -n 1 "${numpy_test_log}" | grep " failed" >/dev/null 2>&1; then
-                numpy_test_success="no"
+                numpy_test_success="False"
             fi
         fi
-        if [ "${numpy_test_success}" == "yes" ]; then
+        if [ "${numpy_test_success}" == "True" ]; then
             rm -f "${numpy_test_log}" || :
         fi
     fi
@@ -5295,7 +5298,7 @@ fi
 
 # SciPy (manual invocation of setup.py is needed
 # as we need to link to OpenBLAS).
-if [ "${scipy_install}" == "yes" ] && [ "${scipy_installed}" == "no" ]; then
+if [ "${scipy_install}" == "True" ] && [ "${scipy_installed}" == "False" ]; then
     current_step="installation of SciPy ${scipy_version}"
     heading "Installing SciPy ${scipy_version}"
     set_status "Installing SciPy ${scipy_version}"
@@ -5306,7 +5309,7 @@ if [ "${scipy_install}" == "yes" ] && [ "${scipy_installed}" == "no" ]; then
     export TMPDIR="${tmp_pip_dir}_tmp"
     pip_download "scipy" "${scipy_version}"
     cd "${tmp_pip_dir}"
-    extract "scipy"* "yes"
+    extract "scipy"* "True"
     for f in *; do
         f_lower="$(echo "${f}" | tr '[:upper:]' '[:lower:]')"
         if [ -d "${f}" ] && [[ "${f_lower}" == "scipy"* ]]; then
@@ -5340,8 +5343,8 @@ runtime_library_dirs = ${blas_dir}/lib
     # On some systems, several additional environment variables need to
     # be modified. We try all combinations until we hit a working one.
     cp -r "${scipy_build_dir}" "${scipy_build_dir}_cp"
-    install_success="no"
-    for scipy_gfortran in "yes" "no"; do
+    install_success="False"
+    for scipy_gfortran in "True" "False"; do
         for compiler in "${compiler_possibilities[@]}"; do
             for fcompiler in "gnu95" ""; do
                 for extra_FCFLAGS in "" "-fPIC"; do
@@ -5351,7 +5354,7 @@ runtime_library_dirs = ${blas_dir}/lib
                         printf "
 Attempting to install SciPy with scipy_gfortran=${scipy_gfortran}, compiler=${compiler}, \
 fcompiler=${fcompiler}, extra_FCFLAGS=${extra_FCFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n\n"
-                        if [ "${scipy_gfortran}" == "yes" ]; then
+                        if [ "${scipy_gfortran}" == "True" ]; then
                             export FC="gfortran"
                             export F77="gfortran"
                             export F90="gfortran"
@@ -5369,45 +5372,45 @@ fcompiler=${fcompiler}, extra_FCFLAGS=${extra_FCFLAGS}, extra_LDFLAGS=${extra_LD
                         rm -rf "${scipy_build_dir}" || :
                         cp -r "${scipy_build_dir}_cp" "${scipy_build_dir}"
                         cd "${scipy_build_dir}"
-                        echo "yes" > ".setuppy_success"
+                        echo "True" > ".setuppy_success"
                         if [ -n "${fcompiler}" ]; then
                             ("${python}" setup.py build --fcompiler="${fcompiler}" \
-                                || echo "no" > ".setuppy_success") & setuppy_pid=$!
+                                || echo "False" > ".setuppy_success") & setuppy_pid=$!
                         else
                             ("${python}" setup.py build \
-                                || echo "no" > ".setuppy_success") & setuppy_pid=$!
+                                || echo "False" > ".setuppy_success") & setuppy_pid=$!
                         fi
                         soothe ${setuppy_pid}
                         sleep 1
                         setuppy_success="$(cat '.setuppy_success')"
-                        if [ "${setuppy_success}" != "yes" ]; then
+                        if [ "${setuppy_success}" != "True" ]; then
                             continue
                         fi
                         "${python}" setup.py install & setuppy_pid=$!
                         soothe ${setuppy_pid}
-                        if [ "$(check_pypackage_installed scipy)" == "no" ]; then
+                        if [ "$(check_pypackage_installed scipy)" == "False" ]; then
                             continue
                         fi
-                        install_success="yes"
+                        install_success="True"
                         break
                     done
-                    if [ "${install_success}" == "yes" ]; then
+                    if [ "${install_success}" == "True" ]; then
                         break
                     fi
                 done
-                if [ "${install_success}" == "yes" ]; then
+                if [ "${install_success}" == "True" ]; then
                     break
                 fi
             done
-            if [ "${install_success}" == "yes" ]; then
+            if [ "${install_success}" == "True" ]; then
                 break
             fi
         done
-        if [ "${install_success}" == "yes" ]; then
+        if [ "${install_success}" == "True" ]; then
             break
         fi
     done
-    if [ "${install_success}" == "no" ]; then
+    if [ "${install_success}" == "False" ]; then
         error "Failed to install SciPy"
         exit 1
     fi
@@ -5416,19 +5419,19 @@ fcompiler=${fcompiler}, extra_FCFLAGS=${extra_FCFLAGS}, extra_LDFLAGS=${extra_LD
     reset_environment
     # Test SciPy
     export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
-    if [ "${do_tests}" == "yes" ]; then
+    if [ "${do_tests}" == "True" ]; then
         scipy_test_log="${python_dir}/scipy_test_log"
         # We skip the test_face test as this require bz2,
         # which may not be installed.
         "${python}" -c "import scipy; scipy.test('full', verbose=2, \
 extra_argv=['--color=yes', '-k not test_face'])" 2>&1 | tee "${scipy_test_log}"
-        [ ${PIPESTATUS[0]} -eq 0 ] || scipy_test_success="no"
-        if [ "${scipy_test_success}" == "yes" ]; then
+        [ ${PIPESTATUS[0]} -eq 0 ] || scipy_test_success="False"
+        if [ "${scipy_test_success}" == "True" ]; then
             if tail -n 1 "${scipy_test_log}" | grep " failed" >/dev/null 2>&1; then
-                scipy_test_success="no"
+                scipy_test_success="False"
             fi
         fi
-        if [ "${scipy_test_success}" == "yes" ]; then
+        if [ "${scipy_test_success}" == "True" ]; then
             rm -f "${scipy_test_log}" || :
         fi
     fi
@@ -5437,7 +5440,7 @@ fi
 
 # Matplotlib (as Matplotlib has a hard time finding FreeType,
 # some hacks are needed).
-if [ "${matplotlib_install}" == "yes" ] && [ "${matplotlib_installed}" == "no" ]; then
+if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "False" ]; then
     current_step="installation of Matplotlib ${matplotlib_version}"
     heading "Installing Matplotlib ${matplotlib_version}"
     set_status "Installing Matplotlib ${matplotlib_version}"
@@ -5451,7 +5454,7 @@ if [ "${matplotlib_install}" == "yes" ] && [ "${matplotlib_installed}" == "no" ]
     # by CO𝘕CEPT. Most often these dependencies are downloaded
     # automatically by the previous command. In case of failure,
     # we do it manually.
-    if [ "${numpy_preinstalled}" == "yes" ] || [ "${numpy_install}" == "yes" ]; then
+    if [ "${numpy_preinstalled}" == "True" ] || [ "${numpy_install}" == "True" ]; then
         # NumPy already installed
         deps=(                \
             "pyparsing"       \
@@ -5509,7 +5512,7 @@ if [ "${matplotlib_install}" == "yes" ] && [ "${matplotlib_installed}" == "no" ]
     done
     # Install matplotlib
     cd "${tmp_pip_dir}"
-    extract "matplotlib"* "yes"
+    extract "matplotlib"* "True"
     for f in *; do
         f_lower="$(echo "${f}" | tr '[:upper:]' '[:lower:]')"
         if [ -d "${f}" ] && [[ "${f_lower}" == "matplotlib"* ]]; then
@@ -5568,17 +5571,17 @@ ${zlib_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
                                    . 2>&1 & pip_install_pid=$!
         soothe ${pip_install_pid}
         pypackage_installed=$(check_pypackage_installed matplotlib)
-        if [ "${pypackage_installed}" == "yes" ]; then
+        if [ "${pypackage_installed}" == "True" ]; then
             break
         fi
         if [ -z "${extra_pip_arg}" ]; then
-            printf "\nFailed to install matplotlib. Now trying with --no-build-isolation \n\n"
+            printf "\nFailed to install matplotlib. Now trying with --no-build-isolation\n\n"
         fi
     done
     reset_environment
     cd "${top_dir}"
     # Exit if installation failed
-    if [ "${pypackage_installed}" == "no" ]; then
+    if [ "${pypackage_installed}" == "False" ]; then
         error "Could not install matplotlib"
         exit 1
     fi
@@ -5586,14 +5589,14 @@ ${zlib_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
 fi
 
 # MPI4Py
-if [ "${mpi4py_install}" == "yes" ] && [ "${mpi4py_installed}" == "no" ]; then
+if [ "${mpi4py_install}" == "True" ] && [ "${mpi4py_installed}" == "False" ]; then
     export PATH="${mpi_dir}/bin:${PATH}"
     pip_install_pypackage "MPI4Py" "${mpi4py_version}"
     reset_environment
 fi
 
 # H5Py
-if [ "${h5py_install}" == "yes" ] && [ "${h5py_installed}" == "no" ]; then
+if [ "${h5py_install}" == "True" ] && [ "${h5py_installed}" == "False" ]; then
     export LD_LIBRARY_PATH="${hdf5_dir}/lib:${LD_LIBRARY_PATH}"
     export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
     export HDF5_DIR="${hdf5_dir}"
@@ -5608,7 +5611,7 @@ fi
 ###########################
 # Install and patch CLASS #
 ###########################
-if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
+if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     init_install "CLASS"
     # Move the content of the current directory (the files of CLASS,
     # except .gitignore) to the CLASS installation directory.
@@ -5637,7 +5640,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
             filetype="python"
         fi
         # Add comments around inserted lines
-        if [ "${wrap_in_comments}" != "no" ]; then
+        if [ "${wrap_in_comments}" != "False" ]; then
             if [ "${filetype}" == "c" ]; then
                 new_lines=(""                      \
                     "/************************/"   \
@@ -5775,8 +5778,8 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
     # Include ncdm Psi0[q] in perturbation output
-    include_ncdm_Psi0="no"
-    if [ "${include_ncdm_Psi0}" == "yes" ]; then
+    include_ncdm_Psi0="False"
+    if [ "${include_ncdm_Psi0}" == "True" ]; then
         pattern=' *char +tmp *\\[ *40 *\\] *;'
         linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
                  "${class_dir}/source/perturbations.c" | head -n 1)
@@ -5854,7 +5857,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         if [ ${n} -ge ${linenr} ]; then
             new_lines=("")
             patch_class "${class_dir}/source/perturbations.c" ${n} \
-                "replace" "above" "${new_lines[@]}" "no"
+                "replace" "above" "${new_lines[@]}" "False"
             break
         fi
     done
@@ -6059,7 +6062,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     linenr="$(grep -n "__cinit__" "${class_dir}/python/classy.pyx")"
     linenr="${linenr%%:*}"
     sed -i "${linenr}s/.*/    def __cinit__(self, default=False, node=0, indentation=0):  \
-    # Changed for use with CONCEPT/" "${class_dir}/python/classy.pyx"
+        # Changed for use with CONCEPT/" "${class_dir}/python/classy.pyx"
     ((linenr += 1))
     new_lines=(                                  \
         "self.ba.node = <int>node"               \
@@ -6119,18 +6122,18 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     sed -i 's/-O4/-O3/' "Makefile"
     cp "Makefile" "Makefile_ori"
     cp "python/setup.py" "python/setup.py_ori"
-    install_success="no"
+    install_success="False"
     for lgomp_in_extra_link_args in "" "-gomp"; do
         for compiler in "${compiler_possibilities[@]}"; do
             for OMPFLAG in "-fopenmp" "-openmp" "-qopenmp"; do
-                for fast_math in "yes" "no"; do
+                for fast_math in "True" "False"; do
                     reset_environment
                     cp "Makefile_ori" "Makefile"
                     cp "python/setup.py_ori" "python/setup.py"
                     make clean || :
                     export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
                     eval "use_${compiler}_compilers CLASS"
-                    if [ "${fast_math}" == "no" ]; then
+                    if [ "${fast_math}" == "False" ]; then
                         sed -i '0,/-ffast-math/s/-ffast-math/#-ffast-math/' "Makefile"
                     fi
                     if [ -n "${CC}" ]; then
@@ -6146,28 +6149,28 @@ Attempting to install CLASS with lgomp_in_extra_link_args=${lgomp_in_extra_link_
 compiler=${compiler}, OMPFLAG=${OMPFLAG}, fast_math=${fast_math}\n\n"
                     PYTHON="${python}" make ${make_jobs} 2>&1 || continue
                     "${python}" -c "import classy; classy.Class().compute()" || continue
-                    install_success="yes"
+                    install_success="True"
                     break
                 done
-                if [ "${install_success}" == "yes" ]; then
+                if [ "${install_success}" == "True" ]; then
                     break
                 fi
             done
-            if [ "${install_success}" == "yes" ]; then
+            if [ "${install_success}" == "True" ]; then
                 break
             fi
         done
-        if [ "${install_success}" == "yes" ]; then
+        if [ "${install_success}" == "True" ]; then
             break
         fi
     done
-    if [ "${install_success}" == "no" ]; then
+    if [ "${install_success}" == "False" ]; then
         error "Failed to install CLASS"
         exit 1
     fi
     reset_environment
     # Test CLASS
-    if [ "${do_tests}" == "yes" ]; then
+    if [ "${do_tests}" == "True" ]; then
         export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
         # We do not use the builtin test_class.py, as this require tens
         # of gigabytes and uses the Nose and parameterized Python
@@ -6180,10 +6183,10 @@ cosmo = Class()
 cosmo.compute()
 sys.exit(int(cosmo.get_background()['proper time [Gyr]'][-1]) != 13)
 "; then
-            class_test_success="no"
+            class_test_success="False"
         fi
         class_test_log="${class_dir}/test_log"
-        if [ "${class_test_success}" == "no" ]; then
+        if [ "${class_test_success}" == "False" ]; then
             echo "CLASS did not pass a simple background computation test" \
                > "${class_test_log}"
         fi
@@ -6213,7 +6216,7 @@ installer="${top_dir}/installer"
 mpicc="${mpi_dir}/bin/mpicc"
 mpiexec="${mpi_dir}/bin/mpiexec"
 # Move source files, create empty directories and create the .paths file
-if [ "${concept_install}" == "yes" ] && [ "${concept_installed}" == "no" ]; then
+if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; then
     init_install "CONCEPT"
     # Move everything from the concept-${concept_version}
     # directory to ${top_dir}.
@@ -6250,7 +6253,7 @@ with open('${env_file}', 'w', encoding='utf-8') as file:
     for line in lines:
         if not envs_inserted and 'Update the environment' in line:
             print('# The following has been placed by the installer script.', file=file)
-            if '${python_install}' == 'yes':
+            if '${python_install}' == 'True':
                 print('unset PYTHONPATH', file=file)
             print('# These were the PATH-like environment variables', file=file)
             print('# set at install time.', file=file)
@@ -6347,7 +6350,8 @@ fi
 # Install GADGET, used for testing the CO𝘕CEPT code #
 #####################################################
 # FFTW 2.x (GADGET2 is incompatible with FFTW 3.x)
-if [ "${fftw_for_gadget_install}" == "yes" ] && [ "${fftw_for_gadget_installed}" == "no" ]; then
+if [ "${fftw_for_gadget_install}" == "True" ] \
+    && [ "${fftw_for_gadget_installed}" == "False" ]; then
     init_install "FFTW for GADGET"
     # Set environment variables and configure options used
     # when building againts MPI.
@@ -6387,9 +6391,9 @@ if [ "${fftw_for_gadget_install}" == "yes" ] && [ "${fftw_for_gadget_installed}"
                 --enable-type-prefix \
                 --prefix="${fftw_for_gadget_dir}" 2>&1
     make ${make_jobs} 2>&1
-    if [ "${do_tests}" == "yes" ]; then
+    if [ "${do_tests}" == "True" ]; then
         make ${make_jobs} check 2>&1 | tee "test_log"
-        [ ${PIPESTATUS[0]} -eq 0 ] || fftw_for_gadget_test_success="no"
+        [ ${PIPESTATUS[0]} -eq 0 ] || fftw_for_gadget_test_success="False"
     fi
     make ${make_jobs} install 2>&1
     # Single-precision
@@ -6402,12 +6406,12 @@ if [ "${fftw_for_gadget_install}" == "yes" ] && [ "${fftw_for_gadget_installed}"
                 --enable-type-prefix \
                 --prefix="${fftw_for_gadget_dir}" 2>&1
     make ${make_jobs} 2>&1
-    if [ "${do_tests}" == "yes" ]; then
+    if [ "${do_tests}" == "True" ]; then
         make ${make_jobs} check 2>&1 | tee -a "test_log"
-        [ ${PIPESTATUS[0]} -eq 0 ] || fftw_for_gadget_test_success="no"
+        [ ${PIPESTATUS[0]} -eq 0 ] || fftw_for_gadget_test_success="False"
     fi
     fftw_for_gadget_test_log="${fftw_for_gadget_dir}/test_log"
-    if [ "${fftw_for_gadget_test_success}" == "no" ]; then
+    if [ "${fftw_for_gadget_test_success}" == "False" ]; then
         mkdir -p "$(dirname "${fftw_for_gadget_test_log}")"
         cp "test_log" "${fftw_for_gadget_test_log}"
     fi
@@ -6420,7 +6424,7 @@ if [ "${fftw_for_gadget_install}" == "yes" ] && [ "${fftw_for_gadget_installed}"
 fi
 
 # GADGET
-if [ "${gadget_install}" == "yes" ] && [ "${gadget_installed}" == "no" ]; then
+if [ "${gadget_install}" == "True" ] && [ "${gadget_installed}" == "False" ]; then
     init_install "GADGET"
     mkdir -p "${gadget_dir}"
     mv ./* "${gadget_dir}/"
@@ -6435,8 +6439,8 @@ fi
 ##############################
 # Testing GADGET and CO𝘕CEPT #
 ##############################
-if [ "${concept_install}" == "yes" ] && [ "${concept_installed}" == "no" ]; then
-    if [ "${do_tests}" == "yes" ]; then
+if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; then
+    if [ "${do_tests}" == "True" ]; then
         # Run basic CO𝘕CEPT test to test the environment
         current_step="basic test of ${esc_concept}"
         heading "Basic test of ${esc_concept}"
@@ -6444,32 +6448,32 @@ if [ "${concept_install}" == "yes" ] && [ "${concept_installed}" == "no" ]; then
         cd "${concept_dir}"
         concept_test_log="${concept_dir}/test_log"
         "${concept}" -t "basic" 2>&1 | tee "${concept_test_log}"
-        [ ${PIPESTATUS[0]} -eq 0 ] || concept_test_success="no"
-        if  [ "${gadget_install}" == "yes" ]; then
+        [ ${PIPESTATUS[0]} -eq 0 ] || concept_test_success="False"
+        if  [ "${gadget_install}" == "True" ]; then
             # Run GADGET test
             # if basic CO𝘕CEPT test finished successfully
-            if [ "${concept_test_success}" == "yes" ]; then
+            if [ "${concept_test_success}" == "True" ]; then
                 current_step="testing GADGET"
                 heading "Testing GADGET"
                 set_status "Testing GADGET"
                 gadget_test_log="${gadget_dir}/test_log"
                 "${concept}" -t "gadget" 2>&1 | tee "${gadget_test_log}"
-                [ ${PIPESTATUS[0]} -eq 0 ] || gadget_test_success="no"
+                [ ${PIPESTATUS[0]} -eq 0 ] || gadget_test_success="False"
                 # Clean test_log if test is successfull
-                if [ "${gadget_test_success}" == "yes" ]; then
+                if [ "${gadget_test_success}" == "True" ]; then
                     rm -f "${gadget_test_log}" || :
                 fi
             fi
             # Run complete CO𝘕CEPT test suite if basic CO𝘕CEPT test
             # finished successfully.
-            if [ "${concept_test_success}" == "yes" ]; then
+            if [ "${concept_test_success}" == "True" ]; then
                 current_step="testing ${esc_concept}"
                 heading "Testing ${esc_concept}"
                 set_status "Testing ${esc_concept}"
                 "${concept}" -t "all" 2>&1 | tee "${concept_test_log}"
-                [ ${PIPESTATUS[0]} -eq 0 ] || concept_test_success="no"
+                [ ${PIPESTATUS[0]} -eq 0 ] || concept_test_success="False"
                 # Clean test_log if test is successfull
-                if [ "${concept_test_success}" == "yes" ]; then
+                if [ "${concept_test_success}" == "True" ]; then
                     rm -f "${concept_test_log}" || :
                     # Note that this also removes
                     # the ${top_dir}/tmp directory.
@@ -6506,14 +6510,14 @@ rm -f "${top_dir}/gramA" "${top_dir}/gramB" || :
 disable_status
 copyright_notice(){
     # Arguments: Program/package name, text if installed by this script
-    if eval "[ \"\${${1}_install}\" == \"yes\" ]"; then
+    if eval "[ \"\${${1}_install}\" == \"True\" ]"; then
         printf "${2}\n"
     fi
 }
-if [ "${install_anything}" == "yes" ] && [ "${say_copyright}" != "no" ]; then
+if [ "${install_anything}" == "True" ] && [ "${say_copyright}" != "False" ]; then
     current_step="copyright notice"
     heading "Copyright notice"
-    if [ "${concept_install}" == "yes" ]; then
+    if [ "${concept_install}" == "True" ]; then
         printf "${esc_concept} has been installed along with the following dependencies:\n"
     else
         printf "The following software have been installed:\n"
@@ -6554,18 +6558,18 @@ installation directories.\n"
 fi
 # Notice about test errors
 current_step="erroneous tests notice"
-any_test_error_notices="no"
+any_test_error_notices="False"
 erroneous_test_notice(){
     # Arguments: Program name, [alternative message]
     progname="${1// /_}"
     progname="$(echo "${progname}" | tr '[:upper:]' '[:lower:]')"
-    test_success="yes"
+    test_success="True"
     eval "test_success=\"\${${progname}_test_success}\""
-    if [ "${test_success}" == "no" ]; then
-        if [ "${any_test_error_notices}" == "no" ]; then
+    if [ "${test_success}" == "False" ]; then
+        if [ "${any_test_error_notices}" == "False" ]; then
             # First test error notice
             heading "Erroneous tests notice"
-            any_test_error_notices="yes"
+            any_test_error_notices="True"
         else
             # Add newline between notices
             echo
@@ -6583,7 +6587,7 @@ erroneous_test_notice(){
         printf "Some tests of ${real_name} did not pass successfully.\n"
         if [ -n "${2}" ]; then
             printf "${2}\n"
-            if [ "${progname}" != "concept" ] && [ "${concept_test_success}" != "no" ]; then
+            if [ "${progname}" != "concept" ] && [ "${concept_test_success}" != "False" ]; then
                 printf "As ${esc_concept} do seem to function correctly, "
                 printf "you may choose to disregard this.\n"
             fi
@@ -6613,7 +6617,7 @@ erroneous_test_notice "SciPy"
 erroneous_test_notice "zlib"
 erroneous_test_notice "CONCEPT" \
                       "${esc_italic}This should usually be taken seriously!${esc_no_italic}"
-if [ "${any_test_error_notices}" == "yes" ]; then
+if [ "${any_test_error_notices}" == "True" ]; then
     printf "\nThe logged output of the entire installation process can be found in\n"
     printf "\"${log}\"\n"
     printf "while the logged warnings and errors can be found in\n"
@@ -6623,7 +6627,7 @@ fi
 # Subprocess complete
 printf "\n\n\n"
 disable_status
-if [ "${any_test_error_notices}" == "no" ]; then
+if [ "${any_test_error_notices}" == "False" ]; then
     successfully_finish_status
 fi
 # Deactivate traps before exiting subprocess
@@ -6707,10 +6711,10 @@ display_loop(){
 display_loop
 
 # Installation complete
-installation_guaranteed_successful="no"
-if [ "${do_tests}" == "yes" ] && \
+installation_guaranteed_successful="False"
+if [ "${do_tests}" == "True" ] && \
     [ "$(tail -n 1 "${log}")" == "${status_prefix}${status_finish_successfully}" ]; then
-    installation_guaranteed_successful="yes"
+    installation_guaranteed_successful="True"
 fi
 if [ ! -s "${log}" ]; then
     rm -f "${log}" || :
@@ -6718,8 +6722,8 @@ fi
 if [ ! -s "${log}_err" ]; then
     rm -f "${log}_err" || :
 fi
-if [ "${say_goodbye}" != "no" ]; then
-    if [ "${installation_guaranteed_successful}" == "yes" ]; then
+if [ "${say_goodbye}" != "False" ]; then
+    if [ "${installation_guaranteed_successful}" == "True" ]; then
         printf "${esc_bold}${esc_green}${esc_concept} installation finished${esc_normal}\n"
     else
         printf "${esc_concept} installation finished${esc_normal}\n"
