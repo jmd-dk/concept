@@ -2128,33 +2128,36 @@ def k_float2str(k):
     return f'{k:.3e}'.replace('+0', '+').replace('-0', '-').replace('e+0', '')
 
 # Function for computing transfer functions as function of k
-@cython.pheader(# Arguments
-                component='Component',
-                variable=object,  # str or int
-                k_min='double',
-                k_max='double',
-                k_gridsize='Py_ssize_t',
-                specific_multi_index=object,  # tuple, int-like or str
-                a='double',
-                a_next='double',
-                gauge=str,
-                get=str,
-                weight=str,
-                # Locals
-                H='double',
-                any_negative_values='bint',
-                cosmoresults=object,  # CosmoResults
-                k='Py_ssize_t',
-                k_magnitudes='double[::1]',
-                transfer='double[::1]',
-                transfer_hʹ='double[::1]',
-                transfer_spline='Spline',
-                transfer_θ_tot='double[::1]',
-                var_index='Py_ssize_t',
-                w='double',
-                ȧ_transfer_θ_totʹ='double[::1]',
-                returns=tuple,  # (Spline, CosmoResults)
-                )
+@cython.pheader(
+    # Arguments
+    component='Component',
+    variable=object,  # str or int
+    k_min='double',
+    k_max='double',
+    k_gridsize='Py_ssize_t',
+    specific_multi_index=object,  # tuple, int-like or str
+    a='double',
+    a_next='double',
+    gauge=str,
+    get=str,
+    weight=str,
+    # Locals
+    H='double',
+    aH_transfer_θ_totʹ='double[::1]',
+    any_negative_values='bint',
+    cosmoresults=object,  # CosmoResults
+    k='Py_ssize_t',
+    k_magnitudes='double[::1]',
+    transfer='double[::1]',
+    transfer_hʹ='double[::1]',
+    transfer_spline='Spline',
+    transfer_θ_tot='double[::1]',
+    var_index='Py_ssize_t',
+    w='double',
+    ρ_bar='double',
+    ẇ='double',
+    returns=tuple,  # (Spline, CosmoResults)
+)
 def compute_transfer(
     component, variable, k_min, k_max,
     k_gridsize=-1, specific_multi_index=None, a=-1, a_next=-1,
@@ -2207,10 +2210,10 @@ def compute_transfer(
         # Transform the δ transfer function from synchronous
         # to N-body gauge, if requested.
         if gauge == 'nbody':
-            # To do the gauge transformation,
-            # we need the total θ transfer function.
+            # The gauge transformation looks like
+            # δᴺᵇ = δˢ + 3c⁻²aH(1 + w)θˢₜₒₜ/k².
+            # Do the gauge transformation.
             transfer_θ_tot = cosmoresults.θ(a)
-            # Do the gauge transformation
             H = hubble(a)
             w = component.w(a=a)
             for k in range(k_gridsize):
@@ -2222,28 +2225,29 @@ def compute_transfer(
         # Transform the θ transfer function from synchronous
         # to N-body gauge, if requested.
         if gauge == 'nbody':
-            # To do the gauge transformation,
-            # we need the conformal time derivative
-            # of the metric perturbation, hʹ.
+            # The gauge transformation looks like
+            # θᴺᵇ = θˢ + hʹ/2 - 3c⁻²(aHθˢₜₒₜ)ʹ/k²,
+            # With ʹ = d/dτ being conformal time derivatives.
             transfer_hʹ = cosmoresults.hʹ(a)
-            # We also need (ȧ*θ_tot) differentiated with respect to
-            # conformal time, evaluated at the given a.
+            # We need (a*H*θ_tot) differentiated with respect
+            # to conformal time, evaluated at the given a.
             # With ʹ = d/dτ = a*d/dt = aȧ*d/da, we have
-            # (ȧ*θ_tot)ʹ = a*d/dt(ȧ*θ_tot)
-            #            = a*ä*θ_tot + a*ȧ*d/dt(θ_tot)
-            #            = a*(ä*θ_tot + ȧ²*d/da(θ_tot))
-            ȧ_transfer_θ_totʹ = a*(
+            # (a*H*θ_tot)ʹ = a*d/dt(ȧ*θ_tot)
+            #              = a*ä*θ_tot + a*ȧ*d/dt(θ_tot)
+            #              = a*(ä*θ_tot + ȧ²*d/da(θ_tot)),
+            # where a dot denotes differentiation
+            # with respect to cosmic time.
+            aH_transfer_θ_totʹ = a*(
                   ä(a)   *asarray(cosmoresults.θ(a, get='as_function_of_k'      ))
                 + ȧ(a)**2*asarray(cosmoresults.θ(a, get='deriv_as_function_of_k'))
             )
             # Now do the gauge transformation.
-            # Check for negative values, which implies that some
+            # Check for negative values, which may imply that some
             # CLASS data has not converged.
             any_negative_values = False
             for k in range(k_gridsize):
-                transfer[k] += (  0.5*transfer_hʹ[k]
-                                - ℝ[3/light_speed**2]*ȧ_transfer_θ_totʹ[k]/k_magnitudes[k]**2
-                                )
+                transfer[k] += (0.5*transfer_hʹ[k]
+                    - ℝ[3/light_speed**2]*aH_transfer_θ_totʹ[k]/k_magnitudes[k]**2)
                 if transfer[k] < 0:
                     any_negative_values = True
             if any_negative_values:
@@ -2258,6 +2262,21 @@ def compute_transfer(
     elif var_index == 2 and specific_multi_index == 'trace':
         # Get th δP transfer function
         transfer = cosmoresults.δP(a, a_next, component=component, weight=weight)
+        # Transform the δP transfer function from synchronous
+        # to N-body gauge, if requested.
+        if gauge == 'nbody':
+            # The gauge transformation looks like
+            # δPᴺᵇ = δPˢ + aρ_bar(3Hw(1 + w) - ẇ)θˢₜₒₜ/k²,
+            # where a dot denotes differentiation
+            # with respect to cosmic time.
+            # Do the gauge transformation.
+            transfer_θ_tot = cosmoresults.θ(a)
+            ρ_bar = cosmoresults.ρ_bar(a, component)
+            H = hubble(a)
+            w = component.w(a=a)
+            ẇ = component.ẇ(a=a)
+            for k in range(k_gridsize):
+                transfer[k] += ℝ[a*ρ_bar*(3*H*w*(1 + w) - ẇ)]*transfer_θ_tot[k]/k_magnitudes[k]**2
     elif (    var_index == 2
           and isinstance(specific_multi_index, tuple)
           and len(specific_multi_index) == 2
