@@ -22,103 +22,192 @@
 
 
 
-# This script downloads and installs the CO𝘕CEPT code with all its
-# dependencies. If run without an argument, it will prompt for an
-# installation directory. Alternatively, this directory can be passed as
-# an argument. Everything will be installed within this directory.
-# All tests can be skipped by supplying --fast as an argument.
-# You can also download and run the newest version of this script by
-# executing the following command:
-# bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/master/installer)
-#
-# This script should be compatible with bash version 3.0 or later.
-#
-# Before installing the sofware into the specified directory,
-# the installer will check for the following system dependencies:
-# - awk
-# - gcc
-# - g++
-# - gfortran
-# - grep
-# - gzip
-# - make
-# - sed
-# - tar
-# - wget
-# - glibc
-# - as and ld
-# - Linux headers
-# If any of these are missing, an attempt will be made to locate the
-# system's package manager. If successful, you will be asked to install
-# the missing system dependency, which will require root access.
-# If you supply the -y argument when invoking this script, all missing
-# system dependencies will be installed in this way without querying.
-#
-# The following software will be installed in order:
-# - zlib     (needed by libpng, HDF5 and Python)
-# - libpng   (needed by matplotlib)
-# - GSL
-# - MPICH/OpenMPI
-# - HDF5
-# - FFTW
-# - FreeType (needed by matplotlib)
-# - ncurses  (needed by _curses, which is needed by blessings)
-# - Perl     (needed by OpenSSL)
-# - OpenSSL  (needed by pip)
-# - libffi   (needed by _ctypes, which is needed by pip)
-# - OpenBLAS (needed by SciPy and also used by NumPy)
-# - Python, with the following packages (together with their own Python
-#   package dependencies):
-#     - Blessings
-#     - Cython
-#     - CythonGSL
-#     - pytest (needed by NumPy and SciPy)
-#     - NumPy
-#     - SciPy
-#     - Matplotlib
-#     - MPI4Py
-#     - H5Py
-#     - pip, setuptools & wheel (if any of the above)
-# - CLASS
-# - CO𝘕CEPT
-# - FFTW 2 (needed by GADGET)
-# - GADGET
-#
-# By default, any pre-installed versions of the above software will be
-# ignored. Should you wish CO𝘕CEPT to use one such pre-installed
-# component, you have to declare its directory path through the
-# "programname_dir" environment variable. E.g. to use a pre-installed
-# gsl library:
-# gsl_dir=/path/to/gsl /path/to/installer
-# The set of such environment variables correspond to the program names
-# above (though using lowercase only), except for MPI,
-# which are just mpi_dir.
-#
-# You may specify which MPI implementation to use - either MPICH or
-# OpenMPI - by setting the "mpi" environment variable to "mpich" or
-# "openmpi", respectively. The default is MPICH.
-#
-# Should you choose to use a pre-installed Python distribution
-# (by setting the python_dir variable), any missing Python packages
-# will be installed in this distribution. Pre-installed Python packages
-# will not be touched; e.g. if the installer wishes to install NumPy
-# 1.10.4, but 1.10.3 is already installed, the packages will not be
-# updated. If you want such Python package updates (or downgrades),
-# set the "pythonpackagename_install" environment variable to "yes".
-# E.g. to overwrite a pre-installed NumPy package:
-# numpy_install=yes python_dir=/path/to/python /path/to/installer
-#
-# If you choose to use a pre-installed Python distribution, it is your
-# responsibility that pip is installed as part of this distribution.
-# Also, if the blessings package is not pre-installed in the Python
-# distribution, Python should at least be compiled with the ncurses
-# library.
-#
-# Should you wish to install a specific version of some dependency
-# program, simply set the environment variable "programname_version"
-# when invoking the installer. This also works for Python packages.
+# Help text which gets printed if invoked with -h or --help.
+help_text='This script downloads and installs the CO𝘕CEPT code with all its
+dependencies. You can also download and run the newest version of this script
+by executing the following command:
+  bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/master/installer)
 
+If run without an argument, this script will prompt for an
+installation directory. Alternatively, this directory can be passed as
+an argument. Everything will be installed within this directory.
 
+Options taken by this script:
+  -h, --help   Show this help message and exit.
+  -t, --tests  Test the various dependency programs after their individual
+               installations. CO𝘕CEPT itself will similarly be tested.
+               On failure (fatal or non-fatal) of any test, a log file of the
+               test output will be placed in the installation directory of the
+               given program. Any test failures will also be reported at the
+               end of the entire installation.
+  -y, --yes    Accept default options on future quiries. Currently these
+               include only the system wide installations of basic system
+               dependencies (e.g. gcc), should they be missing.
+               Note that this require root access.
+  --fix-ssh    Set up the ~/.ssh directory so that it allows for password-less
+               SSH login between nodes. This may be needed in order to run
+               multi-node MPI computations on clusters.
+               The original state of the ~/.ssh directory will be backed up.
+               Note that this option will perform the changes to ~/.ssh only;
+               no actual installation will take place.
+
+The full invocation signature of this script thus looks like
+  /path/to/installer [/path/to/concept] [-t] [-y]
+or
+  /path/to/installer --fix-ssh
+where brackets indicate optional arguments.
+
+The system dependencies mentioned above consist of the following
+(GNU implementations, specifically):
+  - awk
+  - gcc
+  - g++
+  - gfortran
+  - grep
+  - gzip
+  - make
+  - sed
+  - tar
+  - wget
+  - glibc
+  - as and ld
+  - Linux headers
+If any of these are missing, an attempt will be made to locate the
+package manager on the system. If successful, you will be prompted to install
+the missing system dependency, which will require root access.
+
+The only system dependencies needed but not installed are the GNU core
+utilities and bash. This script (and others used in CO𝘕CEPT) should be
+compatible with bash version 3.0 or later.
+
+The programs which will be installed into the specified installation
+directory consist of the following and will be installed in order:
+  - zlib     (needed by libpng, HDF5 and Python)
+  - libpng   (needed by matplotlib)
+  - GSL
+  - MPICH/OpenMPI
+  - HDF5
+  - FFTW
+  - FreeType (needed by matplotlib)
+  - ncurses  (needed by _curses, which is needed by blessings)
+  - Perl     (needed by OpenSSL)
+  - OpenSSL  (needed by pip)
+  - libffi   (needed by _ctypes, which is needed by pip)
+  - OpenBLAS (needed by SciPy and also used by NumPy)
+  - Python, with the following packages (together with their own Python
+    package dependencies):
+      - pip, setuptools & wheel (if any of the below)
+      - Blessings
+      - Cython
+      - CythonGSL
+      - pytest (needed by NumPy and SciPy if running with tests)
+      - NumPy
+      - SciPy
+      - Matplotlib
+      - MPI4Py
+      - H5Py
+  - CLASS
+  - CO𝘕CEPT
+  - FFTW 2 (needed by GADGET)
+  - GADGET
+
+Due to the numerosity of the above list, the installation process will take
+about an hour on modern hardware. The installation time depend strongly
+on whether make is allowed to build in parallel or not. When running locally
+(i.e. not over SSH), the default is to build in parallel using all available
+CPU cores. Conversely, when running remotely the default is to build serially.
+You can overwrite these defaults by setting the `make_jobs`
+environment variable. E.g. to build in parallel using up to 4 CPU cores,
+invoke this script as
+  make_jobs="-j 4" /path/to/installer [/path/to/concept] [-t] [-y]
+
+The installation time is significantly increased when invoked with -t.
+Note that the Python test suite will be run even when invoked without -t,
+as this is done as part of the profile guided optimization used to make
+the resultant Python interpreter faster.
+
+When installing in a complicated environment with several available compilers
+(typical for clusters) the installation time can be up to several times longer,
+as for each program the installer tries out different compilers
+and other options until a working configuration is found.
+
+By default, any pre-installed software on the list above will be ignored.
+No conflicts should come of this. Should you still wish CO𝘕CEPT to use one such
+pre-installed component, you can declare its directory path through the
+`programname_dir` environment variable.
+E.g. to use a pre-installedgsl library:
+  gsl_dir=/path/to/gsl /path/to/installer [/path/to/concept] [-t] [-y]
+The set of such environment variables correspond to the program names
+above (using lowercase only), except for MPICH/OpenMPI and OpenBLAS, which are
+just mpi_dir and blas_dir, respectively, as the specific MPI and BLAS
+implementation does not matter.
+
+When installing CO𝘕CEPT on a cluster, it is often preferable to make use of an
+already installed MPI library (MPI standard 3, any implementation should do),
+as this is (hopefully) properly configured with e.g. InfiniBand, which may not
+be the case for the MPI installation produced by this script.
+Thus on clusters it is adviced to use
+  mpi_dir=/path/to/mpi /path/to/installer [/path/to/concept] [-t] [-y]
+If you have /path/to/mpi/bin properly loaded into your PATH,
+you can get by without specifying the MPI path explicitly using
+  mpi_dir=$(which mpiexec) /path/to/installer [/path/to/concept] [-t] [-y]
+(Note that $(which mpiexec) results in /path/to/mpi/bin, not /path/to/mpi.
+Though both are valid in this case,
+generally you must specify programname_dir=/path/to/programname,
+not programname_dir=/path/to/programname/bin.)
+
+When not using a pre-installed MPI (i.e. when mpi_dir is not specified),
+you may specify which MPI implementation to install --- either MPICH
+or OpenMPI --- by setting the `mpi` environment variable to "mpich"
+or "openmpi", respectively. E.g.
+  mpi=openmpi /path/to/installer [/path/to/concept] [-t] [-y]
+The default is MPICH.
+
+Should you choose to use a pre-installed Python distribution
+(by setting the python_dir variable), any missing Python packages
+will be installed in this distribution. Pre-installed Python packages
+will not be touched; e.g. if the installer wishes to install NumPy
+1.10.4, but 1.10.3 is already installed, the package will not be
+updated. If you want such Python package updates (or downgrades),
+set the `pythonpackagename_install` environment variable to "yes".
+E.g. to overwrite a pre-installed NumPy package:
+  numpy_install=yes python_dir=/path/to/python /path/to/installer
+If you choose to use a pre-installed Python distribution, it is your
+responsibility that pip is installed as part of this distribution.
+Also, if the blessings package is not pre-installed in the Python
+distribution, Python should at least be compiled with the ncurses
+library.
+
+Should you choose to use a pre-installed GADGET (by setting the gadget_dir
+variable), note that this must be placed in a directory to which you have
+write (as well as read and execute, naturally) permissions and that CO𝘕CEPT
+will make changes to the source files of GADGET during some tests.
+
+Should you wish to install a specific version of some dependency
+program, Python package or CO𝘕CEPT itself, simply set the environment
+variable `programname_version` when invoking the installer.
+E.g. to install GSL 2.4:
+  gsl_version=2.4 /path/to/installer [/path/to/concept] [-t] [-y]
+
+Logs of the installation process are written to install_log (stdout)
+and install_log_err (stderr) in the top installation directory.
+Should the installation process end prematurely (e.g. due to network failure),
+simply rerun this script with the same arguments and environment variables
+as originally, and it will pick up the installation from where it left off.
+
+See https://github.com/jmd-dk/concept for further information.
+'
+# Print help text and exit, if help is requested
+for var in "$@"; do
+    if     [ "${var}" ==  "-h"    ] \
+        || [ "${var}" == "--h"    ] \
+        || [ "${var}" == "--he"   ] \
+        || [ "${var}" == "--hel"  ] \
+        || [ "${var}" == "--help" ]; then
+        printf "${help_text}"
+        exit 0
+    fi
+done
 
 # If invoked directly from the web (e.g. via wget), a small pause
 # ensures that the print outs will not corrupt the loading bar.
@@ -310,6 +399,9 @@ trap 'ctrl_c' SIGINT
 trap 'abort' EXIT
 set -e
 
+# Set sleep_time, the amount of seconds spend sleeping at various stages
+sleep_time=10
+
 # For the terminal to be able to print Unicode characters correctly,
 # the terminal character set needs to be compatible. To ensure this,
 # we set all locale settings to en_US.UTF-8.
@@ -451,11 +543,14 @@ numpy_test_success="yes"
 scipy_test_success="yes"
 
 # Read in command line arguments
-if [ -z "${fast_install}" ]; then
-    fast_install="no"
+if [ -z "${do_tests}" ]; then
+    do_tests="no"
 fi
-if [ -z "${auto_install}" ]; then
-    auto_install="no"
+if [ -z "${yes_to_defaults}" ]; then
+    yes_to_defaults="no"
+fi
+if [ -z "${fix_ssh}" ]; then
+    fix_ssh="False"
 fi
 if [ -z "${top_dir_specified}" ]; then
     top_dir_specified="no"
@@ -464,13 +559,29 @@ for var in "$@"; do
     # Strip command line argument for brackets, which may have been
     # adeed by users not familiar with this syntax for
     # specifying optional arguments.
-    var="${var#'['}"
-    var="${var%']'}"
+    var="${var//\[/}"
+    var="${var//\]/}"
     # Parse command line argument
-    if [ "${var}" == "--fast" ]; then
-        fast_install="yes"
-    elif [ "${var}" == "-y" ]; then
-        auto_install="yes"
+    if     [ "${var}" ==  "-t"     ] \
+        || [ "${var}" == "--t"     ] \
+        || [ "${var}" == "--te"    ] \
+        || [ "${var}" == "--tes"   ] \
+        || [ "${var}" == "--test"  ] \
+        || [ "${var}" == "--tests" ]; then
+        do_tests="yes"
+    elif   [ "${var}" ==  "-y"   ] \
+        || [ "${var}" == "--y"   ] \
+        || [ "${var}" == "--ye"  ] \
+        || [ "${var}" == "--yes" ]; then
+        yes_to_defaults="yes"
+    elif   [ "${var}" == "--f"         ] \
+        || [ "${var}" == "--fi"        ] \
+        || [ "${var}" == "--fix"       ] \
+        || [ "${var}" == "--fix-"      ] \
+        || [ "${var}" == "--fix-s"     ] \
+        || [ "${var}" == "--fix-ss"    ] \
+        || [ "${var}" == "--fix-ssh"   ]; then
+        fix_ssh="True"
     elif [ "${top_dir_specified}" == "no" ]; then
         top_dir="${var}"
         top_dir_specified="yes"
@@ -482,43 +593,8 @@ for var in "$@"; do
         fi
     fi
 done
-# Set sleep_time, the amount of seconds spend sleeping at various stages
-sleep_time=10
-if [ "${fast_install}" == "yes" ]; then
-    sleep_time=0
-fi
-# If auto install mode has been requested using the -y option,
-# prompt for root password if not already root.
-if [ "${auto_install}" == "yes" ] && [ ${EUID} -ne 0 ]; then
-    echo "Auto install mode has been requested with the '-y' option, but you are not root."
-    sudo -k
-    while :; do
-        read -s -p "[sudo] password for $(whoami): " sudo_password
-        echo
-        output="$(echo "${sudo_password}" | sudo -S echo hello 2>&1 || :)"
-        output="${output##* }"
-        if [ "${output}" == "hello" ]; then
-            break
-        fi
-        echo "Sorry, try again."
-    done
-    sudo_command="echo \"${sudo_password}\" | sudo -S"
-    sudo_password=""
-else
-    sudo_command="sudo"
-fi
 
-# Creating top level directory (top_dir)
-current_step="setup of top level directory"
-if [ "${top_dir_specified}" == "no" ]; then
-    printf "\nWhere should the ${esc_concept} code be installed?"
-    read -p "$(echo $'\n> ')" -e top_dir
-    if [ -z "${top_dir}" ]; then
-        # The user hit enter without writing a path.
-        # Install in current directory.
-        top_dir="."
-    fi
-fi
+# Function for converting a path to its absolute form
 initial_dir="$(pwd)"  # It is crucial that this line is before any cd
 convert_to_abs_path(){
     # Arguments: path
@@ -534,9 +610,101 @@ convert_to_abs_path(){
     cd "${current_dir}"
     echo "${abs_path}"
 }
+
+# Setup password-less SSH login between nodes (and exit), if requested
+if [ "${fix_ssh}" == "True" ]; then
+    # Move the preexisting ~/.ssh directory into a directory
+    # ~/.ssh_backup/<date>,
+    # with <date> the current time.
+    if [ -d ~/".ssh" ]; then
+        passwordless_ssh_timestamp="$(date)"
+        passwordless_ssh_timestamp="${passwordless_ssh_timestamp// /-}"
+        passwordless_ssh_backup_dir="$(convert_to_abs_path \
+            "~/.ssh_backup/${passwordless_ssh_timestamp}")"
+        mkdir -p ~/".ssh_backup/${passwordless_ssh_timestamp}"
+        mv ~/".ssh" ~/".ssh_backup/${passwordless_ssh_timestamp}/"
+        echo "The existing ~/.ssh directory has been moved to ${passwordless_ssh_backup_dir}/.ssh"
+    fi
+    mkdir -p ~/".ssh"
+    # The type of encryption to use for the ssh keys.
+    # Should be "dsa" or "rsa".
+    key_type="rsa"
+    # Generate a public/private key pair
+    ssh-keygen -t "${key_type}" -N "" -f ~/".ssh/id_${key_type}" >/dev/null
+    # Add public key to the list of keys allowed to log in
+    cat ~/".ssh/id_${key_type}.pub" >> ~/".ssh/authorized_keys"
+    cat ~/".ssh/id_${key_type}.pub" >> ~/".ssh/authorized_keys2"
+    # Suppress future confirmation dialogs
+    echo "Host *
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  LogLevel ERROR
+" >> ~/".ssh/config"
+    # Remove any previously known hosts (there should be none
+    # as the ~/.ssh directory has just been created).
+    rm -f "known_hosts"* 2>/dev/null || :
+    # Set proper permissions in order for ssh
+    # to allow password-less login.
+    chmod go-w ~
+    chmod 700 ~/".ssh"
+    chmod 644 ~/".ssh/authorized_keys"
+    chmod 644 ~/".ssh/authorized_keys2"
+    chmod go-rwx ~/".ssh/config" || :
+    chmod go-rwx ~/".ssh/id_${key_type}"
+    chmod go+r ~/".ssh/id_${key_type}.pub"
+    # Inform the user on this change
+    printf "\nPassword-less ssh login between nodes has been configured\n"
+    # Do not install CO𝘕CEPT
+    trap : 0
+    exit 0
+fi
+
+# This function should be called before any use of sudo and will cache
+# the root password to the sudo_command variable. After this, instead of
+# invoing sudo, invoke ${sudo_command} (usind eval). This way, the root
+# password has to be entered at most once.
+sudo_command=""
+build_sudo_command(){
+    if [ -z "${sudo_command}" ]; then
+        if [ ${EUID} -eq 0 ]; then
+            sudo_command="sudo"
+        else
+            sudo -k
+            while :; do
+                read -s -p "[sudo] password for $(whoami): " sudo_password
+                echo
+                output="$(echo "${sudo_password}" | sudo -S echo hello 2>&1 || :)"
+                output="${output##* }"
+                if [ "${output}" == "hello" ]; then
+                    break
+                fi
+                echo "Sorry, try again."
+            done
+            sudo_command="echo \"${sudo_password}\" | sudo -S"
+            unset sudo_password
+        fi
+    fi
+}
+
+# Creating top level directory (top_dir)
+current_step="setup of top level directory"
+if [ "${top_dir_specified}" == "no" ]; then
+    printf "\nWhere should the ${esc_concept} code be installed?"
+    read -p "$(echo $'\n> ')" -e top_dir
+    if [ -z "${top_dir}" ]; then
+        # The user hit enter without writing a path.
+        # Install in current directory.
+        top_dir="."
+    fi
+fi
+top_dir_is_sane="True"
+mkdir -p "${top_dir}" 2>/dev/null || top_dir_is_sane="False"
+if [ "${top_dir_is_sane}" == "False" ]; then
+    error "\nThe installation path \"${top_dir}\" cannot be created."
+    exit 1
+fi
 top_dir="$(convert_to_abs_path "${top_dir}")"
 printf "\nThe code will be installed in \"${top_dir}\"\n"
-mkdir -p "${top_dir}"
 cd "${top_dir}"
 
 # Function which prints the absolute path of a given command.
@@ -610,7 +778,7 @@ set_package_manager_and_names(){
             package_manager="${pmanager}"
             # Package names
             case "${package_manager}" in
-                "apt") install_command="${sudo_command} ${package_manager} install -y"
+                "apt") install_command="${package_manager} install -y"
                     set_package_names               \
                         "gawk"                      \
                         "gcc"                       \
@@ -627,7 +795,7 @@ set_package_manager_and_names(){
                         "linux-headers-$(uname -r)"
                     break
                     ;;
-                "apt-get") install_command="${sudo_command} ${package_manager} -y install"
+                "apt-get") install_command="${package_manager} -y install"
                     set_package_names               \
                         "gawk"                      \
                         "gcc"                       \
@@ -644,7 +812,7 @@ set_package_manager_and_names(){
                         "linux-headers-$(uname -r)"
                     break
                     ;;
-                "aptitude") install_command="${sudo_command} ${package_manager} -y install"
+                "aptitude") install_command="${package_manager} -y install"
                     set_package_names               \
                         "gawk"                      \
                         "gcc"                       \
@@ -661,7 +829,7 @@ set_package_manager_and_names(){
                         "linux-headers-$(uname -r)"
                     break
                     ;;
-                "dnf") install_command="${sudo_command} ${package_manager} -y install"
+                "dnf") install_command="${package_manager} -y install"
                     set_package_names       \
                         "gawk"              \
                         "gcc"               \
@@ -678,7 +846,7 @@ set_package_manager_and_names(){
                         "kernel-headers"
                     break
                     ;;
-                "yum") install_command="${sudo_command} ${package_manager} -y install"
+                "yum") install_command="${package_manager} -y install"
                     set_package_names       \
                         "gawk"              \
                         "gcc"               \
@@ -695,7 +863,7 @@ set_package_manager_and_names(){
                         "kernel-headers"
                     break
                     ;;
-                "zypper") install_command="${sudo_command} ${package_manager} -n install"
+                "zypper") install_command="${package_manager} -n install"
                     set_package_names          \
                         "gawk"                 \
                         "gcc"                  \
@@ -712,7 +880,7 @@ set_package_manager_and_names(){
                         "linux-kernel-headers"
                     break
                     ;;
-                "urpmi") install_command="${sudo_command} ${package_manager} --auto"
+                "urpmi") install_command="${package_manager} --auto"
                     set_package_names              \
                         "gawk"                     \
                         "gcc"                      \
@@ -729,7 +897,7 @@ set_package_manager_and_names(){
                         "kernel-userspace-headers"
                     break
                     ;;
-                "pacman") install_command="${sudo_command} ${package_manager} -S --noconfirm"
+                "pacman") install_command="${package_manager} -S --noconfirm"
                     set_package_names   \
                         "gawk"          \
                         "gcc"           \
@@ -746,7 +914,7 @@ set_package_manager_and_names(){
                         "linux-headers"
                     break
                     ;;
-                "eopkg") install_command="${sudo_command} ${package_manager} install -y"
+                "eopkg") install_command="${package_manager} install -y"
                     set_package_names       \
                         "gawk"              \
                         "gcc"               \
@@ -763,7 +931,7 @@ set_package_manager_and_names(){
                         "linux-headers"
                     break
                     ;;
-                "emerge") install_command="${sudo_command} ${package_manager}"
+                "emerge") install_command="${package_manager}"
                     set_package_names       \
                         "gawk"              \
                         "gcc"               \
@@ -780,7 +948,7 @@ set_package_manager_and_names(){
                         "linux-headers"
                     break
                     ;;
-                "slackpkg") install_command="${sudo_command} ${package_manager} install"
+                "slackpkg") install_command="${package_manager} install"
                     set_package_names       \
                         "gawk"              \
                         "gcc"               \
@@ -812,19 +980,20 @@ check_system_dependency(){
         # Package not installed
         if [ -n "${package_manager}" ]; then
             # Package manager found
-            echo
-            if [ "${auto_install}" == "yes" ]; then
+            if [ "${yes_to_defaults}" == "yes" ]; then
                 echo "Auto installing '${1}'"
-                eval "${install_command} ${2}"
+                build_sudo_command
+                eval "${sudo_command} ${install_command} ${2}"
                 printf "${1} successfully installed\n\n"
             else
                 echo "Could not find '${1}'"
                 echo "You can install it by typing:"
-                echo "${install_command} ${2}"
+                echo "sudo ${install_command} ${2}"
                 while :; do
                     read -p "Run above command now? [Y/n] " yn
                     case "${yn}" in
-                        [Yy]* ) eval "${install_command} ${2}"
+                        [Yy]* ) build_sudo_command
+                                eval "${sudo_command} ${install_command} ${2}"
                                 printf "${1} successfully installed\n\n"
                                 return
                                 ;;
@@ -904,7 +1073,7 @@ gcc_test(){
                     error "Error: Could not find any installed package manager"
                     exit 1
                 fi
-                if [ "${auto_install}" == "yes" ]; then
+                if [ "${yes_to_defaults}" == "yes" ]; then
                     echo "Auto installing ${name}"
                     eval "${install_command} ${package_name}"
                 else
@@ -1507,46 +1676,6 @@ fi
 
 
 
-#######################################################
-# Prompt for configuration of password-less ssh login #
-#######################################################
-# If running remotely via ssh, the installation might be on a cluster,
-# which could consist of several nodes. Running MPI jobs via MPICH
-# on multiple nodes require password-less ssh login to the nodes
-# to be sat up.
-# If MPICH is to be installed and we are running remotely via ssh,
-# prompt the user for automatic setup of password-less ssh login.
-setup_passwordless_ssh="False"
-if [ "${ssh}" == "True" ] && [ "${mpi}" == "mpich" ] && [ "${mpi_install}" == "yes" ]; then
-    # The setup of the password-less ssh login will move any preexisting
-    # ~/.ssh directory to ~/.ssh_before_CONCEPT.
-    passwordless_ssh_note=""
-    if [ -d ~/".ssh" ]; then
-        passwordless_ssh_note=" (the existing ~/.ssh\n\
-directory will be moved to ~/.ssh_before_CONCEPT)"
-    fi
-    # Prompt the user
-    printf "\n
-If this is a cluster of multiple nodes, password-less ssh login to these
-nodes needs to be configured in order for MPICH (and hence ${esc_concept})
-to run multi-node MPI jobs.
-
-Should password-less ssh login to the nodes be configured${passwordless_ssh_note}?"
-    read -p " [Y/n] " yn
-    case "${yn}" in
-        [Yy]* ) setup_passwordless_ssh="True"
-                ;;
-        [Nn]* ) setup_passwordless_ssh="False"
-                ;;
-        ""    ) setup_passwordless_ssh="True"
-                ;;
-        *     ) setup_passwordless_ssh="False"
-                ;;
-    esac
-fi
-
-
-
 ###########################
 # Beginning of subprocess #
 log_file_lines_before_install=0
@@ -1597,48 +1726,6 @@ successfully_finish_status(){
 # These are needed to get the spcacing right in the output
 current_step="beginning subprocess"
 set_status "Beginning subprocess"
-
-
-
-##################################################
-# Apply configuration of password-less ssh login #
-##################################################
-# Do the configuration if specified by the user
-if [ "${setup_passwordless_ssh}" == "True" ]; then
-    current_step="configuration of password-less ssh login between nodes"
-    set_status "Configuring password-less ssh login between nodes"
-    # The type of encryption to use for the ssh keys.
-    # Should be "dsa" or "rsa".
-    key_type="rsa"
-    # Move existing ~/.ssh directory
-    if [ -d ~/".ssh" ]; then
-        rm -rf ~/".ssh_before_CONCEPT"
-        mv ~/".ssh" ~/".ssh_before_CONCEPT"
-    fi
-    # Generate a public/private key pair
-    mkdir -p ~/".ssh"
-    ssh-keygen -t "${key_type}" -N "" -f ~/".ssh/id_${key_type}" >/dev/null
-    # Add public key to the list of keys allowed to log in
-    cat ~/".ssh/id_${key_type}.pub" >> ~/".ssh/authorized_keys"
-    cat ~/".ssh/id_${key_type}.pub" >> ~/".ssh/authorized_keys2"
-    # Suppress future confirmation dialogs
-    echo "Host *
-  StrictHostKeyChecking no
-  UserKnownHostsFile /dev/null
-  LogLevel ERROR
-" >> ~/".ssh/config"
-    chmod go-rwx ~/".ssh/config"
-    # Remove any previously known hosts
-    # (there should be none as ~/.ssh is newly created).
-    rm -f "known_hosts"* || :
-    # Only the user may have write permissions to her home directory,
-    # in order for ssh to allow password-less login.
-    chmod go-w ~
-    # Ensure that only the user has any acces to the private key
-    chmod go-rwx ~/".ssh/id_${key_type}"
-    # Inform the user on this change
-    printf "\nPassword-less ssh login to nodes has been configured\n"
-fi
 
 
 
@@ -1746,7 +1833,8 @@ fallback(){
 # of all the programs based on helper files created by previous
 # invocations of this script. The function is called with the program
 # name (progname) as the argument and it will set the variables
-# progname_downloaded and progname_installed to either "yes" or "no".
+# progname_downloaded, progname_installed and progname_test_success
+# to either "yes" or "no".
 check_progress(){
     # Arguments: Program name
     progname_display="${1/CONCEPT/${esc_concept}}"
@@ -1769,24 +1857,44 @@ check_progress(){
     eval "${progname}_installed=\"no\""
     if [ -f "${progdir}/.installation_finished" ]; then
         while read line; do
-            prog_prev="$(echo "${line}" | grep '^Program:*'      \
+            prog_prev="$(echo "${line}" | grep  '^Program:*'     \
                                         | sed 's/^Program:\s//g' \
                                         | sed 's/^ *//')"
             if [ -n "${prog_prev}" ]; then
                 prog_prev_real="${prog_prev// /_}"
                 prog_prev_real="$(echo "${prog_prev_real}" | tr '[:upper:]' '[:lower:]')"
             fi
-            version_prev="$(echo "${line}" | grep '^Version:*'      \
+            version_prev="$(echo "${line}" | grep  '^Version:*'     \
                                            | sed 's/^Version:\s//g' \
                                            | sed 's/^ *//')"
-            if    [ "${version_prev}" == "${progversion}" ] \
-               && [ "${prog_prev_real}" == "${progname}" ]; then
-                eval "${progname}_installed=\"yes\""
-                # Installed programs should always count as downloaded
-                eval "${progname}_downloaded=\"yes\""
-                return
+            if [ -n "${version_prev}" ]; then
+                version_prev_real="${version_prev}"
             fi
-        done <"${progdir}/.installation_finished"
+            test_results_prev="$(echo "${line}" | grep  '^Test results:*'     \
+                                                | sed 's/^Test results:\s//g' \
+                                                | sed 's/^ *//')"
+            if [ -n "${test_results_prev}" ]; then
+                test_results_prev_real="${test_results_prev}"
+            fi
+            if [ "${prog_prev_real}" == "${progname}" ]; then
+                if [ "${version_prev_real}" == "${progversion}" ]; then
+                    eval "${progname}_installed=\"yes\""
+                    if [ -n "${test_results_prev_real}" ]; then
+                        if [ "${test_results_prev}" == "Success" ]; then
+                            eval "${progname}_test_success=\"yes\""
+                        elif [ "${test_results_prev_real}" == "Failiure" ]; then
+                            eval "${progname}_test_success=\"no\""
+                        fi
+                    fi
+                    # Installed programs should always count as downloaded
+                    eval "${progname}_downloaded=\"yes\""
+                    return
+                fi
+                # Progam already installed but of incorrect version.
+                # Count as uninstalled.
+                break
+            fi
+        done <<< "$(tac "${progdir}/.installation_finished")"
     fi
     # If the program is not yet installed fully, remove its directory,
     # cleaning up after any previous failed installation attempts.
@@ -2786,6 +2894,7 @@ for program in "cc" "c89" "c99" "CC" "c++" "ftn" "f77" "f90" "fortran"; do
         break
     fi
 done
+sleep 1
 compiler_possibilities=("${compiler_possibilities[@]}" "unset")
 use__compilers(){
     # This dummy function must exist
@@ -3345,10 +3454,6 @@ use_unset_compilers(){
     fi
     unset CC CXX FC F90 F9X CFLAGS CXXFLAGS CPPFLAGS FCFLAGS FFLAGS LDFLAGS
 }
-if [ "${fast_install}" != "yes" ]; then
-    sleep 1
-fi
-
 
 
 
@@ -3358,7 +3463,8 @@ fi
 # Function for downloading compressed archives
 download(){
     # Arguments: Program name, [print_heading]
-    progname="${1// /_}"
+    progname_formatted="$1"
+    progname="${progname_formatted// /_}"
     progname="$(echo "${progname}" | tr '[:upper:]' '[:lower:]')"
     print_heading="${2}"
     if [ -z "${print_heading}" ]; then
@@ -3396,8 +3502,8 @@ download(){
     for n in {1..50}; do
         for ipv in "--inet4-only" "--inet6-only" ""; do
             wget_status="success"
-            wget --progress=bar:force -t 1 --timeout 60 -c --no-check-certificate --no-dns-cache ${ipv} \
-                 "${url}" || wget_status="error"
+            wget --progress=bar:force -t 1 --timeout 60 -c --no-check-certificate \
+                --no-dns-cache ${ipv} "${url}" || wget_status="error"
             if [ "${wget_status}" == "success" ]; then
                 break
             fi
@@ -3415,7 +3521,7 @@ download(){
     echo "The following has been fully downloaded:
 File:    $(ls -t -1 | head -n 1)
 URL:     ${url}
-Program: ${progname}
+Program: ${progname_formatted}
 Version: ${progversion}
 Date:    $(date)
 " > ".download_finished"
@@ -3717,6 +3823,34 @@ Please be patient ...\n";                                                       
     wait ${soothe_killer_pid} >/dev/null 2>&1 || :
 }
 
+# Function for writing out installation notices as to files in the
+# installation directories of the various programs.
+install_notice(){
+    # Arguments: Program name, program_dir
+    progname_formatted="$1"
+    progdir="$2"
+    progname="${progname_formatted// /_}"
+    progname="$(echo "${progname}" | tr '[:upper:]' '[:lower:]')"
+    eval "progversion=\"\${${progname}_version}\""
+    test_results="None"
+    if [ "${do_tests}" == "yes" ]; then
+        eval "test_success=\"\${${progname}_test_success}\""
+        if [ "${test_success}" == "yes" ]; then
+            test_results="Success"
+        elif [ "${test_success}" == "no" ]; then
+            test_results="Failiure"
+        fi
+    fi
+    echo "The following has been fully installed:
+Program:      ${progname_formatted}
+Version:      ${progversion}
+Test results: ${test_results}
+Date:         $(date)
+" >> "${progdir}/.installation_finished"
+}
+
+
+
 # zlib
 if [ "${zlib_install}" == "yes" ] && [ "${zlib_installed}" == "no" ]; then
     install_success="no"
@@ -3725,7 +3859,7 @@ if [ "${zlib_install}" == "yes" ] && [ "${zlib_installed}" == "no" ]; then
         eval "use_${compiler}_compilers zlib"
         init_install "zlib"
         ./configure --shared --prefix="${zlib_dir}" 2>&1 || continue
-        if [ "${fast_install}" == "no" ]; then
+        if [ "${do_tests}" == "yes" ]; then
             make ${make_jobs} test 2>&1 | tee "test_log"
             [ ${PIPESTATUS[0]} -eq 0 ] || zlib_test_success="no"
         fi
@@ -3746,12 +3880,7 @@ if [ "${zlib_install}" == "yes" ] && [ "${zlib_installed}" == "no" ]; then
     cp "README" "${zlib_dir}/"
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/zlib" || :
-    # Write out success notice
-    echo "The following has been fully installed:
-Program: zlib
-Version: ${zlib_version}
-Date:    $(date)
-" >> "${zlib_dir}/.installation_finished"
+    install_notice "zlib" "${zlib_dir}"
 fi
 
 # libpng
@@ -3767,7 +3896,7 @@ if [ "${libpng_install}" == "yes" ] && [ "${libpng_installed}" == "no" ]; then
         export ZLIBLIB="${zlib_dir}/lib"
         export ZLIBINC="${zlib_dir}/include"
         ./configure --prefix="${libpng_dir}" 2>&1 || continue
-        if [ "${fast_install}" == "no" ]; then
+        if [ "${do_tests}" == "yes" ]; then
             make ZLIBLIB="${ZLIBLIB}" ZLIBINC="${ZLIBINC}" ${make_jobs} check 2>&1 | tee "test_log"
             [ ${PIPESTATUS[0]} -eq 0 ] || libpng_test_success="no"
         fi
@@ -3788,12 +3917,7 @@ if [ "${libpng_install}" == "yes" ] && [ "${libpng_installed}" == "no" ]; then
     cp "LICENSE" "${libpng_dir}/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/libpng" || :
-    # Write out success notice
-    echo "The following has been fully installed:
-Program: libpng
-Version: ${libpng_version}
-Date:    $(date)
-" >> "${libpng_dir}/.installation_finished"
+    install_notice "libpng" "${libpng_dir}"
 fi
 
 # GSL
@@ -3805,7 +3929,7 @@ if [ "${gsl_install}" == "yes" ] && [ "${gsl_installed}" == "no" ]; then
         init_install "GSL"
         ./configure --prefix="${gsl_dir}" 2>&1 || continue
         make ${make_jobs} 2>&1 || continue
-        if [ "${fast_install}" == "no" ]; then
+        if [ "${do_tests}" == "yes" ]; then
             make ${make_jobs} check 2>&1 | tee "test_log"
             [ ${PIPESTATUS[0]} -eq 0 ] || gsl_test_success="no"
         fi
@@ -3826,12 +3950,7 @@ if [ "${gsl_install}" == "yes" ] && [ "${gsl_installed}" == "no" ]; then
     cp "COPYING" "README" "${gsl_dir}/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/gsl" || :
-    # Write out success notice
-    echo "The following has been fully installed:
-Program: GSL
-Version: ${gsl_version}
-Date:    $(date)
-" >> "${gsl_dir}/.installation_finished"
+    install_notice "GSL" "${gsl_dir}"
 fi
 
 # MPI
@@ -3864,7 +3983,7 @@ if [ "${mpi_install}" == "yes" ] && [ "${mpi_installed}" == "no" ]; then
             # to 30 MPI processes, we skip these tests.
             run_mpi_tests="no"
             if [ "${run_mpi_tests}" == "yes" ]; then
-                if [ "${fast_install}" == "no" ]; then
+                if [ "${do_tests}" == "yes" ]; then
                     export RUNTESTS_VERBOSE=1
                     make ${make_jobs} testing 2>&1 | tee "test_log"
                     [ ${PIPESTATUS[0]} -eq 0 ] || mpi_test_success="no"
@@ -3909,6 +4028,10 @@ if [ "${mpi_install}" == "yes" ] && [ "${mpi_installed}" == "no" ]; then
                     ucx_version="1.5.0"
                     ucx_url="https://github.com/openucx/ucx/archive/v${ucx_version}.tar.gz"
                     download "ucx" "False"
+                    LDFLAGS_ori="${LDFLAGS}"
+                    CFLAGS_ori="${CFLAGS}"
+                    CXXFLAGS_ori="${CXXFLAGS}"
+                    CPPFLAGS_ori="${CPPFLAGS}"
                     for disable_numa in "" "--disable-numa"; do
                         printf "
 Attempting to install UCX for OpenMPI with disable_numa=${disable_numa}\n\n"
@@ -3930,7 +4053,7 @@ Attempting to install UCX for OpenMPI with disable_numa=${disable_numa}\n\n"
                         # needed and should be placed in /usr/include.
                         if [ -z "${disable_numa}" ]; then
                             if [ -d "/usr/lib64" ]; then
-                                export LDFLAGS="${LDFLAGS} -L/usr/lib64"
+                                export LDFLAGS="${LDFLAGS_ori} -L/usr/lib64"
                             fi
                             numa_symlink_dir="${ucx_dir}/numa_symlinks"
                             rm -rf "${numa_symlink_dir}" || :
@@ -3947,9 +4070,9 @@ Attempting to install UCX for OpenMPI with disable_numa=${disable_numa}\n\n"
                             fi
                             export LDFLAGS="${LDFLAGS} -L${numa_symlink_dir}"
                             if [ -d "/usr/include" ]; then
-                                export CFLAGS="-I/usr/include ${CFLAGS}"
-                                export CXXFLAGS="-I/usr/include ${CXXFLAGS}"
-                                export CPPFLAGS="-I/usr/include ${CPPFLAGS}"
+                                export CFLAGS="-I/usr/include ${CFLAGS_ori}"
+                                export CXXFLAGS="-I/usr/include ${CXXFLAGS_ori}"
+                                export CPPFLAGS="-I/usr/include ${CPPFLAGS_ori}"
                             fi
                         fi
                         ./autogen.sh 2>&1 || continue
@@ -3957,11 +4080,16 @@ Attempting to install UCX for OpenMPI with disable_numa=${disable_numa}\n\n"
                             ${disable_numa} 2>&1 || continue
                         make ${make_jobs} 2>&1 || continue
                         make install 2>&1 || continue
+                        cp "AUTHORS" "LICENSE" "${ucx_dir}/" || :
                         install_ucx_success="yes"
                         printf "\nInstallation of UCX for OpenMPI successful.
 Now continue with the installation of OpenMPI\n\n"
                         break
                     done
+                    export LDFLAGS="${LDFLAGS_ori}"
+                    export CFLAGS="${CFLAGS_ori}"
+                    export CXXFLAGS="${CXXFLAGS_ori}"
+                    export CPPFLAGS="${CPPFLAGS_ori}"
                     if [ "${install_ucx_success}" == "no" ]; then
                         continue
                     fi
@@ -4003,12 +4131,7 @@ Now continue with the installation of OpenMPI\n\n"
     if [ "${mpi}" == "openmpi" ]; then
         rm -rf "${top_dir}/tmp/ucx" || :
     fi
-    # Write out success notice
-    echo "The following has been fully installed:
-Program: MPI
-Version: ${mpi_version}
-Date:    $(date)
-" >> "${mpi_dir}/.installation_finished"
+    install_notice "MPI" "${mpi_dir}"
 fi
 
 # HDF5
@@ -4080,7 +4203,7 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
     # On some systems, the HDF5 test (make check) hangs indefinitely.
     # To counteract this, kill the process if it still runs after
     # ${hdf5_test_max_time} seconds.
-    if [ "${fast_install}" == "no" ]; then
+    if [ "${do_tests}" == "yes" ]; then
         hdf5_test_max_time=3600
         # Perform serial + parallel tests if build against MPI
         # or normal tests otherwise.
@@ -4119,7 +4242,7 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
         fi
     fi
     make ${make_jobs} install 2>&1
-    if [ "${fast_install}" == "no" ]; then
+    if [ "${do_tests}" == "yes" ]; then
         printf "\n\n\nInstall tests below\n\n\n\n" >> "test_log"
         make ${make_jobs} check-install 2>&1 | tee -a "test_log"
         # The text "*FAILED*" will be present in the test log file
@@ -4138,12 +4261,7 @@ if [ "${hdf5_install}" == "yes" ] && [ "${hdf5_installed}" == "no" ]; then
     cp "COPYING" "README.txt" "${hdf5_dir}/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/hdf5" || :
-    # Write out success notice
-    echo "The following has been fully installed:
-Program: HDF5
-Version: ${hdf5_version}
-Date:    $(date)
-" >> "${hdf5_dir}/.installation_finished"
+    install_notice "HDF5" "${hdf5_dir}"
 fi
 
 # FFTW
@@ -4168,7 +4286,7 @@ if [ "${fftw_install}" == "yes" ] && [ "${fftw_installed}" == "no" ]; then
                 --enable-threads \
                 --prefix="${fftw_dir}" 2>&1
     make ${make_jobs} 2>&1
-    if [ "${fast_install}" == "no" ]; then
+    if [ "${do_tests}" == "yes" ]; then
         make ${make_jobs} check 2>&1 | tee "test_log"
         [ ${PIPESTATUS[0]} -eq 0 ] || fftw_test_success="no"
     fi
@@ -4191,12 +4309,7 @@ if [ "${fftw_install}" == "yes" ] && [ "${fftw_installed}" == "no" ]; then
     cp "COPYING" "README" "${fftw_dir}/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/fftw" || :
-    # Write out success notice
-    echo "The following has been fully installed:
-Program: FFTW
-Version: ${fftw_version}
-Date:    $(date)
-" >> "${fftw_dir}/.installation_finished"
+    install_notice "FFTW" "${fftw_dir}"
 fi
 
 # FreeType
@@ -4225,12 +4338,7 @@ if [ "${freetype_install}" == "yes" ] && [ "${freetype_installed}" == "no" ]; th
     (cd docs; cp "FTL.TXT" "GPLv2.TXT" "LICENSE.TXT" "${freetype_dir}/" || :)
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/freetype" || :
-    # Write out success notice
-    echo "The following has been fully installed:
-Program: FreeType
-Version: ${freetype_version}
-Date:    $(date)
-" >> "${freetype_dir}/.installation_finished"
+    install_notice "FreeType" "${freetype_dir}"
 fi
 
 # ncurses
@@ -4246,7 +4354,7 @@ if [ "${ncurses_install}" == "yes" ] && [ "${ncurses_installed}" == "no" ]; then
         ./configure --with-shared --prefix="${ncurses_dir}" 2>&1 || continue
         make ${make_jobs} 2>&1 || continue
         make ${make_jobs} install 2>&1 || continue
-        if [ "${fast_install}" == "no" ]; then
+        if [ "${do_tests}" == "yes" ]; then
             disable_status
             (sleep ${sleep_time}; echo "q") | "test/worm" -n 7 > "/dev/tty" 2>&1 \
                 || ncurses_test_success="no"
@@ -4254,7 +4362,7 @@ if [ "${ncurses_install}" == "yes" ] && [ "${ncurses_installed}" == "no" ]; then
         fi
         # Additional test run needed (if the first failed), as the one
         # above do not use tee (as it ruins the display).
-        if [ "${fast_install}" == "no" ] && [ "${ncurses_test_success}" == "no" ]; then
+        if [ "${do_tests}" == "yes" ] && [ "${ncurses_test_success}" == "no" ]; then
             disable_status
             (sleep ${sleep_time}; echo "q") | "test/worm" -n 7 > "test_log" 2>&1 || :
             enable_status
@@ -4275,12 +4383,7 @@ if [ "${ncurses_install}" == "yes" ] && [ "${ncurses_installed}" == "no" ]; then
     cp "AUTHORS" "COPYING" "${ncurses_dir}/include/ncurses/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/ncurses" || :
-    # Write out success notice
-    echo "The following has been fully installed:
-Program: ncurses
-Version: ${ncurses_version}
-Date:    $(date)
-" >> "${ncurses_dir}/.installation_finished"
+    install_notice "ncurses" "${ncurses_dir}"
 fi
 
 # Perl
@@ -4346,7 +4449,7 @@ perl_poll_fix=${perl_poll_fix}, perl_cflags=${perl_cflags}\n\n"
                     sed -i 's/<poll\.h>/<sys\/poll\.h>/' 'dist/IO/poll.h' || continue
                 fi
                 make ${make_jobs} 2>&1 || continue
-                if [ "${fast_install}" == "no" ]; then
+                if [ "${do_tests}" == "yes" ]; then
                     # On some systems, the Perl test hangs indefinitely.
                     # To counteract this, kill the process if it still
                     # runs after ${perl_test_max_time} seconds.
@@ -4391,12 +4494,7 @@ perl_poll_fix=${perl_poll_fix}, perl_cflags=${perl_cflags}\n\n"
     cp "AUTHORS" "Copying" "README" "${perl_dir}/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/perl" || :
-    # Write out success notice
-    echo "The following has been fully installed:
-Program: Perl
-Version: ${perl_version}
-Date:    $(date)
-" >> "${perl_dir}/.installation_finished"
+    install_notice "Perl" "${perl_dir}"
 fi
 
 # OpenSSL
@@ -4410,7 +4508,7 @@ if [ "${openssl_install}" == "yes" ] && [ "${openssl_installed}" == "no" ]; then
         export PERL="${perl_dir}/bin/perl"
         ./config shared --prefix="${openssl_dir}" --openssldir="${openssl_dir}/openssl" 2>&1 || continue
         make 2>&1 || continue  # Should not be run in parallel!
-        if [ "${fast_install}" == "no" ]; then
+        if [ "${do_tests}" == "yes" ]; then
             make test 2>&1 | tee "test_log"  # Should not be run in parallel!
             [ ${PIPESTATUS[0]} -eq 0 ] || openssl_test_success="no"
         fi
@@ -4431,12 +4529,7 @@ if [ "${openssl_install}" == "yes" ] && [ "${openssl_installed}" == "no" ]; then
     cp "LICENSE" "README" "${openssl_dir}/include/openssl/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/openssl" || :
-    # Write out success notice
-    echo "The following has been fully installed:
-Program: OpenSSL
-Version: ${openssl_version}
-Date:    $(date)
-" >> "${openssl_dir}/.installation_finished"
+    install_notice "OpenSSL" "${openssl_dir}"
 fi
 
 # libffi
@@ -4448,7 +4541,7 @@ if [ "${libffi_install}" == "yes" ] && [ "${libffi_installed}" == "no" ]; then
         init_install "libffi"
         ./configure --prefix="${libffi_dir}" 2>&1 || continue
         make ${make_jobs} 2>&1 || continue
-        if [ "${fast_install}" == "no" ]; then
+        if [ "${do_tests}" == "yes" ]; then
             make check 2>&1 | tee "test_log"
             [ ${PIPESTATUS[0]} -eq 0 ] || libffi_test_success="no"
         fi
@@ -4469,12 +4562,7 @@ if [ "${libffi_install}" == "yes" ] && [ "${libffi_installed}" == "no" ]; then
     cp "LICENSE" "README" "${libffi_dir}/lib/libffi-${libffi_version}/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/libffi" || :
-    # Write out success notice
-    echo "The following has been fully installed:
-Program: libffi
-Version: ${libffi_version}
-Date:    $(date)
-" >> "${libffi_dir}/.installation_finished"
+    install_notice "libffi" "${libffi_dir}"
 fi
 
 # OpenBLAS
@@ -4535,12 +4623,7 @@ compiler=${compiler}, openblas_BINARY=${openblas_BINARY}\n\n"
     cp "LICENSE" "${blas_dir}/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/blas" || :
-    # Write out success notice
-    echo "The following has been fully installed:
-Program: BLAS
-Version: ${blas_version}
-Date:    $(date)
-" >> "${blas_dir}/.installation_finished"
+    install_notice "BLAS" "${blas_dir}"
 fi
 
 # Python
@@ -4560,8 +4643,8 @@ if [ "${python_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
     # If none of the other combination of options (compiler and optimization
     # choices) work, we try everything again while claiming that we do not
     # support atomic operations at all.
-    for disable_atomic_operations in "no" "yes"; do
-        for compiler in "${compiler_possibilities[@]}"; do
+    for compiler in "${compiler_possibilities[@]}"; do
+        for disable_atomic_operations in "no" "yes"; do
             # Build with pip if both openssl and zlib are installed.
             # For Python >=3.7, a standalone libffi is also required,
             # though we do not check explicitly for this.
@@ -4578,8 +4661,8 @@ if [ "${python_install}" == "yes" ] && [ "${python_installed}" == "no" ]; then
                 eval "use_${compiler}_compilers"
                 init_install "Python"
                 printf "
-Attempting to install Python with disable_atomic_operations=${disable_atomic_operations}, \
-compiler=${compiler}, pyoptimizations=${pyoptimizations}\n\n"
+Attempting to install Python with compiler=${compiler}, \
+disable_atomic_operations=${disable_atomic_operations}, pyoptimizations=${pyoptimizations}\n\n"
                 # Set up environment variables and configure options
                 if [ "${disable_atomic_operations}" == "yes" ]; then
                     sed -i '/have_stdatomic_h *= *yes/c\have_stdatomic_h=no' configure
@@ -4662,7 +4745,7 @@ ${CPPFLAGS}"
                 # Make
                 make ${make_jobs} 2>&1 || continue
                 # Test
-                if [ "${fast_install}" == "no" ]; then
+                if [ "${do_tests}" == "yes" ]; then
                     make ${make_jobs} test 2>&1 | tee "test_log"
                     [ ${PIPESTATUS[0]} -eq 0 ] || python_test_success="no"
                 fi
@@ -4694,12 +4777,7 @@ ${CPPFLAGS}"
     cp "LICENSE" "README.rst" "${python_dir}/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/python" || :
-    # Write out success notice
-    echo "The following has been fully installed:
-Program: Python
-Version: ${python_version}
-Date:    $(date)
-" >> "${python_dir}/.installation_finished"
+    install_notice "Python" "${python_dir}"
 fi
 # Create a python variable, storing the path to the Python interpreter
 if [ -n "${python_dir}" ]; then
@@ -5198,7 +5276,7 @@ fcompiler=${fcompiler}, extra_FCFLAGS=${extra_FCFLAGS}, extra_LDFLAGS=${extra_LD
     reset_environment
     # Test NumPy
     export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
-    if [ "${fast_install}" == "no" ]; then
+    if [ "${do_tests}" == "yes" ]; then
         numpy_test_log="${python_dir}/numpy_test_log"
         "${python}" -c "import numpy; numpy.test('full', verbose=2, \
 extra_argv=['--color=yes'])" 2>&1 | tee "${numpy_test_log}"
@@ -5338,7 +5416,7 @@ fcompiler=${fcompiler}, extra_FCFLAGS=${extra_FCFLAGS}, extra_LDFLAGS=${extra_LD
     reset_environment
     # Test SciPy
     export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
-    if [ "${fast_install}" == "no" ]; then
+    if [ "${do_tests}" == "yes" ]; then
         scipy_test_log="${python_dir}/scipy_test_log"
         # We skip the test_face test as this require bz2,
         # which may not be installed.
@@ -5733,7 +5811,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
             "    class_store_double(dataptr, 0.0, _TRUE_, storeidx);"          \
             "  }"                                                              \
             "}"                                                                \
-            "else{"                                                            \
+            "else {"                                                           \
             "  idx = ppw->pv->index_pt_psi0_ncdm1;"                            \
             "  for (index_q=0; index_q<pba->q_size_ncdm[n_ncdm]; index_q++) {" \
             "    class_store_double(dataptr, y[idx], _TRUE_, storeidx);"       \
@@ -5794,16 +5872,22 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
             fi
         fi
     done
-    new_lines=(                                                                       \
-        "double c_gamma_k_H_square_max, Gamma_fld;"                                   \
-        "c_gamma_k_H_square_max = 1e+3;"                                              \
-        "if (c_gamma_k_H_square > c_gamma_k_H_square_max){"                           \
-        "  Gamma_fld = 0.0;"                                                          \
-        "  ppw->Gamma_prime_fld = 0.0;"                                               \
-        "} else {"                                                                    \
-        "  Gamma_fld = y[ppw->pv->index_pt_Gamma_fld];"                               \
-        "  ppw->Gamma_prime_fld = a_prime_over_a*(ppw->S_fld/(1.+c_gamma_k_H_square)" \
-        "    - (1.+c_gamma_k_H_square)*Gamma_fld);"                                   \
+    new_lines=(                                                                         \
+        "/**"                                                                           \
+        " * The computation of Gamma_fld and Gamma_prime_fld becomes unstable"          \
+        " * at large c_Gamma*k/H. To stabilise the system we set these to zero"         \
+        " * at some large c_Gamma*k/H."                                                 \
+        " *"                                                                            \
+        " */"                                                                           \
+        "double c_gamma_k_H_square_max, Gamma_fld;"                                     \
+        "c_gamma_k_H_square_max = 1e+3;"                                                \
+        "if (c_gamma_k_H_square > c_gamma_k_H_square_max){"                             \
+        "  Gamma_fld = 0.;"                                                             \
+        "  ppw->Gamma_prime_fld = 0.;"                                                  \
+        "} else {"                                                                      \
+        "  Gamma_fld = y[ppw->pv->index_pt_Gamma_fld];"                                 \
+        "  ppw->Gamma_prime_fld = a_prime_over_a*(ppw->S_fld/(1. + c_gamma_k_H_square)" \
+        "    - (1. + c_gamma_k_H_square)*Gamma_fld);"                                   \
         }
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} \
@@ -5934,7 +6018,8 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
         "}"                                                                                 \
         "/* Lambda has constant pressure */"                                                \
         "double H_T_prime = 3*a*H/rho_plus_p_tot*("                                         \
-        "  -ppw->delta_p + p_tot_prime*theta_tot/(k*k)"                                     \
+        "  - ppw->delta_p"                                                                  \
+        "  + p_tot_prime*theta_tot/(k*k)"                                                   \
         "  + ppw->rho_plus_p_shear);"                                                       \
         "class_store_double(dataptr, H_T_prime, _TRUE_, storeidx);"                         \
     )
@@ -6029,7 +6114,7 @@ if [ "${class_install}" == "yes" ] && [ "${class_installed}" == "no" ]; then
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
     # Build CLASS, including the Python wrapper classy. We replace -O4
     # with -O3 (which are equivalent on compilers that recognize -O4).
-    # We try with and without the --fast-math option, try different
+    # We try with and without the -fast-math option, try different
     # commpilers and various flags for correctly linking to OpenMP.
     sed -i 's/-O4/-O3/' "Makefile"
     cp "Makefile" "Makefile_ori"
@@ -6082,8 +6167,8 @@ compiler=${compiler}, OMPFLAG=${OMPFLAG}, fast_math=${fast_math}\n\n"
     fi
     reset_environment
     # Test CLASS
-    export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
-    if [ "${fast_install}" == "no" ]; then
+    if [ "${do_tests}" == "yes" ]; then
+        export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
         # We do not use the builtin test_class.py, as this require tens
         # of gigabytes and uses the Nose and parameterized Python
         # packages. Instead we perform a simple test of our own,
@@ -6106,12 +6191,7 @@ sys.exit(int(cosmo.get_background()['proper time [Gyr]'][-1]) != 13)
     reset_environment
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/class" || :
-    # Write out success notice
-    echo "The following has been fully installed:
-Program: CLASS
-Version: ${class_version}
-Date:    $(date)
-" >> "${class_dir}/.installation_finished"
+    install_notice "CLASS" "${class_dir}"
 fi
 
 
@@ -6307,7 +6387,7 @@ if [ "${fftw_for_gadget_install}" == "yes" ] && [ "${fftw_for_gadget_installed}"
                 --enable-type-prefix \
                 --prefix="${fftw_for_gadget_dir}" 2>&1
     make ${make_jobs} 2>&1
-    if [ "${fast_install}" == "no" ]; then
+    if [ "${do_tests}" == "yes" ]; then
         make ${make_jobs} check 2>&1 | tee "test_log"
         [ ${PIPESTATUS[0]} -eq 0 ] || fftw_for_gadget_test_success="no"
     fi
@@ -6322,7 +6402,7 @@ if [ "${fftw_for_gadget_install}" == "yes" ] && [ "${fftw_for_gadget_installed}"
                 --enable-type-prefix \
                 --prefix="${fftw_for_gadget_dir}" 2>&1
     make ${make_jobs} 2>&1
-    if [ "${fast_install}" == "no" ]; then
+    if [ "${do_tests}" == "yes" ]; then
         make ${make_jobs} check 2>&1 | tee -a "test_log"
         [ ${PIPESTATUS[0]} -eq 0 ] || fftw_for_gadget_test_success="no"
     fi
@@ -6336,12 +6416,7 @@ if [ "${fftw_for_gadget_install}" == "yes" ] && [ "${fftw_for_gadget_installed}"
     cp "COPYING" "README" "${fftw_for_gadget_dir}/" || :
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/fftw_for_gadget" || :
-    # Write out success notice
-    echo "The following has been fully installed:
-Program: FFTW for GADGET
-Version: ${fftw_for_gadget_version}
-Date:    $(date)
-" >> "${fftw_for_gadget_dir}/.installation_finished"
+    install_notice "FFTW for GADGET" "${fftw_for_gadget_dir}"
 fi
 
 # GADGET
@@ -6351,13 +6426,8 @@ if [ "${gadget_install}" == "yes" ] && [ "${gadget_installed}" == "no" ]; then
     mv ./* "${gadget_dir}/"
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/gadget" || :
-    # GADGET will be tested as part of the CO𝘕CEPT test suite.
-    # Write out success notice.
-    echo "The following has been fully installed:
-Program: GADGET
-Version: ${gadget_version}
-Date:    $(date)
-" >> "${gadget_dir}/.installation_finished"
+    # GADGET will be tested as part of the CO𝘕CEPT test suite
+    install_notice "GADGET" "${gadget_dir}"
 fi
 
 
@@ -6366,7 +6436,7 @@ fi
 # Testing GADGET and CO𝘕CEPT #
 ##############################
 if [ "${concept_install}" == "yes" ] && [ "${concept_installed}" == "no" ]; then
-    if [ "${fast_install}" == "no" ]; then
+    if [ "${do_tests}" == "yes" ]; then
         # Run basic CO𝘕CEPT test to test the environment
         current_step="basic test of ${esc_concept}"
         heading "Basic test of ${esc_concept}"
@@ -6409,13 +6479,9 @@ if [ "${concept_install}" == "yes" ] && [ "${concept_installed}" == "no" ]; then
         fi
         cd "${top_dir}"
     fi
-    # Write out success notice. Place it in the GADGET directory
-    # in order to minimize the number of files in the CO𝘕CEPT directory.
-    echo "The following has been fully installed:
-Program: CONCEPT
-Version: ${concept_version}
-Date:    $(date)
-" >> "${gadget_dir}/.installation_finished"
+    # Place the installation notice in the GADGET directory in order
+    # to minimize the number of files in the CO𝘕CEPT directory.
+    install_notice "CONCEPT" "${gadget_dir}"
 fi
 
 
@@ -6642,7 +6708,7 @@ display_loop
 
 # Installation complete
 installation_guaranteed_successful="no"
-if [ "${fast_install}" == "no" ] && \
+if [ "${do_tests}" == "yes" ] && \
     [ "$(tail -n 1 "${log}")" == "${status_prefix}${status_finish_successfully}" ]; then
     installation_guaranteed_successful="yes"
 fi

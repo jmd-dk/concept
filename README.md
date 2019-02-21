@@ -28,13 +28,14 @@ As CO*N*CEPT has a lot of dependencies, it comes with an
 (and CO*N*CEPT itself) into a single location.
 The path to the CO*N*CEPT installation directory may be given
 as an argument. If not, the installer will prompt you for a directory.
-The installation will take a couple of hours, depending on the hardware.
-To speed up the installation you may supply the optional `--fast`
-option which skips all tests (not recommended).
+You may further supply the `--test` option which enables test for each
+dependency and CO*N*CEPT itself during the installation.
+Without tests, the installation takes about an hour on modern hardware.
+
 You can download and invoke the installer in one go by
 
     concept_version=v0.2.1
-    bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/${concept_version}/installer) [/path/to/concept] [--fast]
+    bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/${concept_version}/installer) [/path/to/concept] [--tests]
 
 where brackets indicate optional arguments. Note that the initial
 "`bash`" is required regardless of which shell you are using.
@@ -54,10 +55,13 @@ MPI 3 library (any implementation should do). This is achieved by
 setting the `mpi_dir` variable, e.g.
 
     concept_version=v0.2.1
-    mpi_dir=/path/to/mpi bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/${concept_version}/installer) [/path/to/concept] [--fast]
+    mpi_dir=/path/to/mpi bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/${concept_version}/installer) [/path/to/concept] [--tests]
 
 This trick may also be used should you wish to use
 some other pre-installed dependency.
+
+For further help with the installation process,
+run the [installer](installer) with the `--help` option.
 
 
 Running the code
@@ -86,11 +90,11 @@ It is much larger than typical parameter files because it contains
 
 Further documentation
 ---------------------
-Unfortunately, no additional up-to-date documentation exists.
-An out-of-date [user guide](https://arxiv.org/abs/1510.07621) from back
-when CO*N*CEPT was a pure particle code,
-as well as the [master's thesis](http://users-phys.au.dk/jmd/github/concept/masters_thesis.pdf)
-for which CO*N*CEPT was originally written, are available.
+- For the physics and numerical methods implemented, you may consult my [PhD thesis](https://tildeweb.au.dk/au282038/github/concept/phd_thesis-b5.pdf).
+- No additional up-to-date documentation on how to actually *use* CO*N*CEPT exists.
+  A very out-of-date [user's guide](https://arxiv.org/abs/1510.07621) from back
+  when CO*N*CEPT was a pure particle code, as well as my [master's thesis](http://users-phys.au.dk/jmd/github/concept/masters_thesis.pdf)
+  for which CO*N*CEPT was originally written, are available.
 
 Please direct any questions and issues to the author: dakin(at)phys.au.dk
 
