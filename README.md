@@ -15,7 +15,7 @@ The [CLASS](https://github.com/lesgourg/class_public) code is fully integrated
 into CO*N*CEPT, making initial condition generation easy.
 For academic papers produced using CO*N*CEPT, see:
 
-- [Linear massive neutrinos, photons and GR corrections](https://arxiv.org/pdf/1811.00822)
+- [Linear massive neutrinos, photons and GR corrections](https://arxiv.org/abs/1811.00904)
   - (corresponds to the 0.2.0 release)
 - [Non-linear massive neutrinos](https://arxiv.org/abs/1712.03944)
   - (corresponds to the 0.1.0 release)
