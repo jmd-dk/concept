@@ -367,13 +367,13 @@ set_version "cython"          "0.29.5"
 set_version "cythongsl"       "0.2.2"
 set_version "h5py"            "2.9.0"
 set_version "matplotlib"      "3.0.2"
-set_version "mpi4py"          "3.0.0"
+set_version "mpi4py"          "3.0.1"
 set_version "numpy"           "1.16.1"
-set_version "pip"             "19.0.2"
-set_version "pytest"          "4.2.0"
+set_version "pip"             "19.0.3"
+set_version "pytest"          "4.3.0"
 set_version "scipy"           "1.2.1"
 set_version "setuptools"      "40.8.0"
-set_version "wheel"           "0.32.3"
+set_version "wheel"           "0.33.1"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
 # and specific versions of system dependencies.
@@ -1363,6 +1363,27 @@ log="${log/__top_dir__/${top_dir}}"
 env_file="${env_file/__top_dir__/${top_dir}}"
 paths_file="${paths_file/__top_dir__/${top_dir}}"
 
+# Set test_log path variables
+blas_test_log="${blas_dir}/test_log"  # No BLAS tests actually performed
+class_test_log="${class_dir}/test_log"
+concept_test_log="${concept_dir}/test_log"
+fftw_test_log="${fftw_dir}/test_log"
+fftw_for_gadget_test_log="${fftw_for_gadget_dir}/test_log"
+freetype_test_log="${freetype_dir}/test_log"  # No FreeType tests actually performed
+gadget_test_log="${gadget_dir}/test_log"
+gsl_test_log="${gsl_dir}/test_log"
+hdf5_test_log="${hdf5_dir}/test_log"
+libffi_test_log="${libffi_dir}/lib/libffi-${libffi_version}/test_log"
+libpng_test_log="${libpng_dir}/test_log"
+mpi_test_log="${mpi_dir}/test_log"
+ncurses_test_log="${ncurses_dir}/include/ncurses/test_log"
+openssl_test_log="${openssl_dir}/include/openssl/test_log"
+perl_test_log="${perl_dir}/test_log"
+python_test_log="${python_dir}/test_log"
+zlib_test_log="${zlib_dir}/test_log"
+numpy_test_log="${python_dir}/numpy_test_log"
+scipy_test_log="${python_dir}/scipy_test_log"
+
 # Check whether this script is run locally or remotely via ssh
 ssh="True"
 if [ -z "${SSH_CLIENT}" ] && [ -z "${SSH_TTY}" ]; then
@@ -1885,7 +1906,7 @@ check_progress(){
                     if [ -n "${test_results_prev_real}" ]; then
                         if [ "${test_results_prev}" == "Success" ]; then
                             eval "${progname}_test_success=\"True\""
-                        elif [ "${test_results_prev_real}" == "Failiure" ]; then
+                        elif [ "${test_results_prev_real}" == "Failure" ]; then
                             eval "${progname}_test_success=\"False\""
                         fi
                     fi
@@ -3841,7 +3862,7 @@ install_notice(){
         if [ "${test_success}" == "True" ]; then
             test_results="Success"
         elif [ "${test_success}" == "False" ]; then
-            test_results="Failiure"
+            test_results="Failure"
         fi
     fi
     echo "The following has been fully installed:
@@ -3866,7 +3887,6 @@ if [ "${zlib_install}" == "True" ] && [ "${zlib_installed}" == "False" ]; then
             make ${make_jobs} test 2>&1 | tee "test_log"
             [ ${PIPESTATUS[0]} -eq 0 ] || zlib_test_success="False"
         fi
-        zlib_test_log="${zlib_dir}/test_log"
         if [ "${zlib_test_success}" == "False" ]; then
             mkdir -p "$(dirname "${zlib_test_log}")"
             cp "test_log" "${zlib_test_log}"
@@ -3903,7 +3923,6 @@ if [ "${libpng_install}" == "True" ] && [ "${libpng_installed}" == "False" ]; th
             make ZLIBLIB="${ZLIBLIB}" ZLIBINC="${ZLIBINC}" ${make_jobs} check 2>&1 | tee "test_log"
             [ ${PIPESTATUS[0]} -eq 0 ] || libpng_test_success="False"
         fi
-        libpng_test_log="${libpng_dir}/test_log"
         if [ "${libpng_test_success}" == "False" ]; then
             mkdir -p "$(dirname "${libpng_test_log}")"
             cp "test_log" "${libpng_test_log}"
@@ -3936,7 +3955,6 @@ if [ "${gsl_install}" == "True" ] && [ "${gsl_installed}" == "False" ]; then
             make ${make_jobs} check 2>&1 | tee "test_log"
             [ ${PIPESTATUS[0]} -eq 0 ] || gsl_test_success="False"
         fi
-        gsl_test_log="${gsl_dir}/test_log"
         if [ "${gsl_test_success}" == "False" ]; then
             mkdir -p "$(dirname "${gsl_test_log}")"
             cp "test_log" "${gsl_test_log}"
@@ -3991,7 +4009,6 @@ if [ "${mpi_install}" == "True" ] && [ "${mpi_installed}" == "False" ]; then
                     make ${make_jobs} testing 2>&1 | tee "test_log"
                     [ ${PIPESTATUS[0]} -eq 0 ] || mpi_test_success="False"
                 fi
-                mpi_test_log="${mpi_dir}/test_log"
                 if [ "${mpi_test_success}" == "False" ]; then
                     mkdir -p "$(dirname "${mpi_test_log}")"
                     cp "test_log" "${mpi_test_log}"
@@ -4255,7 +4272,6 @@ if [ "${hdf5_install}" == "True" ] && [ "${hdf5_installed}" == "False" ]; then
             hdf5_test_success="False"
         fi
     fi
-    hdf5_test_log="${hdf5_dir}/test_log"
     if [ "${hdf5_test_success}" == "False" ]; then
         mkdir -p "$(dirname "${hdf5_test_log}")"
         cp "test_log" "${hdf5_test_log}"
@@ -4293,7 +4309,6 @@ if [ "${fftw_install}" == "True" ] && [ "${fftw_installed}" == "False" ]; then
         make ${make_jobs} check 2>&1 | tee "test_log"
         [ ${PIPESTATUS[0]} -eq 0 ] || fftw_test_success="False"
     fi
-    fftw_test_log="${fftw_dir}/test_log"
     if [ "${fftw_test_success}" == "False" ]; then
         mkdir -p "$(dirname "${ftw_test_log}")"
         cp "test_log" "${fftw_test_log}"
@@ -4370,7 +4385,6 @@ if [ "${ncurses_install}" == "True" ] && [ "${ncurses_installed}" == "False" ]; 
             (sleep ${sleep_time}; echo "q") | "test/worm" -n 7 > "test_log" 2>&1 || :
             enable_status
         fi
-        ncurses_test_log="${ncurses_dir}/include/ncurses/test_log"
         if [ "${ncurses_test_success}" == "False" ]; then
             mkdir -p "$(dirname "${ncurses_test_log}")"
             cp "test_log" "${ncurses_test_log}"
@@ -4472,7 +4486,6 @@ perl_poll_fix=${perl_poll_fix}, perl_cflags=${perl_cflags}\n\n"
                         perl_test_success="False"
                     fi
                 fi
-                perl_test_log="${perl_dir}/test_log"
                 if [ "${perl_test_success}" == "False" ]; then
                     mkdir -p "$(dirname "${perl_test_log}")"
                     cp "test_log" "${perl_test_log}"
@@ -4516,7 +4529,6 @@ if [ "${openssl_install}" == "True" ] && [ "${openssl_installed}" == "False" ]; 
             make test 2>&1 | tee "test_log"  # Should not be run in parallel!
             [ ${PIPESTATUS[0]} -eq 0 ] || openssl_test_success="False"
         fi
-        openssl_test_log="${openssl_dir}/include/openssl/test_log"
         if [ "${openssl_test_success}" == "False" ]; then
             mkdir -p "$(dirname "${openssl_test_log}")"
             cp "test_log" "${openssl_test_log}"
@@ -4549,7 +4561,6 @@ if [ "${libffi_install}" == "True" ] && [ "${libffi_installed}" == "False" ]; th
             make check 2>&1 | tee "test_log"
             [ ${PIPESTATUS[0]} -eq 0 ] || libffi_test_success="False"
         fi
-        libffi_test_log="${libffi_dir}/lib/libffi-${libffi_version}/test_log"
         if [ "${libffi_test_success}" == "False" ]; then
             mkdir -p "$(dirname "${libffi_test_log}")"
             cp "test_log" "${libffi_test_log}"
@@ -4753,7 +4764,6 @@ ${CPPFLAGS}"
                     make ${make_jobs} test 2>&1 | tee "test_log"
                     [ ${PIPESTATUS[0]} -eq 0 ] || python_test_success="False"
                 fi
-                python_test_log="${python_dir}/test_log"
                 if [ "${python_test_success}" == "False" ]; then
                     mkdir -p "$(dirname "${python_test_log}")"
                     cp "test_log" "${python_test_log}"
@@ -5280,7 +5290,6 @@ fcompiler=${fcompiler}, extra_FCFLAGS=${extra_FCFLAGS}, extra_LDFLAGS=${extra_LD
     # Test NumPy
     export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
     if [ "${do_tests}" == "True" ]; then
-        numpy_test_log="${python_dir}/numpy_test_log"
         "${python}" -c "import numpy; numpy.test('full', verbose=2, \
 extra_argv=['--color=yes'])" 2>&1 | tee "${numpy_test_log}"
         [ ${PIPESTATUS[0]} -eq 0 ] || numpy_test_success="False"
@@ -5420,7 +5429,6 @@ fcompiler=${fcompiler}, extra_FCFLAGS=${extra_FCFLAGS}, extra_LDFLAGS=${extra_LD
     # Test SciPy
     export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
     if [ "${do_tests}" == "True" ]; then
-        scipy_test_log="${python_dir}/scipy_test_log"
         # We skip the test_face test as this require bz2,
         # which may not be installed.
         "${python}" -c "import scipy; scipy.test('full', verbose=2, \
@@ -6185,7 +6193,6 @@ sys.exit(int(cosmo.get_background()['proper time [Gyr]'][-1]) != 13)
 "; then
             class_test_success="False"
         fi
-        class_test_log="${class_dir}/test_log"
         if [ "${class_test_success}" == "False" ]; then
             echo "CLASS did not pass a simple background computation test" \
                > "${class_test_log}"
@@ -6410,7 +6417,6 @@ if [ "${fftw_for_gadget_install}" == "True" ] \
         make ${make_jobs} check 2>&1 | tee -a "test_log"
         [ ${PIPESTATUS[0]} -eq 0 ] || fftw_for_gadget_test_success="False"
     fi
-    fftw_for_gadget_test_log="${fftw_for_gadget_dir}/test_log"
     if [ "${fftw_for_gadget_test_success}" == "False" ]; then
         mkdir -p "$(dirname "${fftw_for_gadget_test_log}")"
         cp "test_log" "${fftw_for_gadget_test_log}"
@@ -6446,7 +6452,6 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
         heading "Basic test of ${esc_concept}"
         set_status "Basic test of ${esc_concept}"
         cd "${concept_dir}"
-        concept_test_log="${concept_dir}/test_log"
         "${concept}" -t "basic" 2>&1 | tee "${concept_test_log}"
         [ ${PIPESTATUS[0]} -eq 0 ] || concept_test_success="False"
         if  [ "${gadget_install}" == "True" ]; then
@@ -6456,7 +6461,6 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
                 current_step="testing GADGET"
                 heading "Testing GADGET"
                 set_status "Testing GADGET"
-                gadget_test_log="${gadget_dir}/test_log"
                 "${concept}" -t "gadget" 2>&1 | tee "${gadget_test_log}"
                 [ ${PIPESTATUS[0]} -eq 0 ] || gadget_test_success="False"
                 # Clean test_log if test is successfull
