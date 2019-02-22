@@ -2840,10 +2840,6 @@ if [ -n "${N_installed}" ]; then
         printf "${footnote_installed} These are already installed and will not be reinstalled\n"
     fi
 fi
-if [ "${install_anything}" == "True" ]; then
-    sleep ${sleep_time}
-    enable_status
-fi
 
 # Find possible C, C++ and Fortran compilers to try out when building
 # the various programs. The compiler possibilities will be gathered in
@@ -2854,9 +2850,7 @@ fi
 # (e.g. "use_gnu_compilers"), the job of which is to set compiler
 # environment variables such as CC, CXX and FC.
 # Altering PATH-like environment variables is also allowed.
-current_step="discovering comilers"
-heading "Discovering compilers"
-set_status "Discovering compilers"
+printf "\n${esc_bold}Compilers on the system${esc_normal}\n"
 compiler_possibilities=("")
 if [ "${mpi_preinstalled}" == "True" ]; then
     compiler_possibilities=("${compiler_possibilities[@]}" "specified_mpi")
@@ -2917,7 +2911,10 @@ for program in "cc" "c89" "c99" "CC" "c++" "ftn" "f77" "f90" "fortran"; do
         break
     fi
 done
-sleep 1
+if [ "${install_anything}" == "True" ]; then
+    sleep ${sleep_time}
+    enable_status
+fi
 compiler_possibilities=("${compiler_possibilities[@]}" "unset")
 use__compilers(){
     # This dummy function must exist
@@ -5630,7 +5627,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     # To aid us, we define the following function.
     patch_class(){
         filename="$1"
-        linenr="$2"
+        local linenr="$2"
         action="$3"
         belonging="$4"
         new_lines="$5"
@@ -5742,7 +5739,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     a_min=0.001
     pattern=' +a *= *pvecback'
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-             "${class_dir}/source/perturbations.c" | head -n 1)
+        "${class_dir}/source/perturbations.c" | head -n 1)
     ((linenr += 1))
     new_lines=(                                  \
         "/* Only return output at late times */" \
@@ -5761,7 +5758,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     # when it is time to print the perturbation results.
     pattern='( *x1 *== *x_ini *)'
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-             "${class_dir}/tools/evolver_rkck.c" | head -n 1)
+        "${class_dir}/tools/evolver_rkck.c" | head -n 1)
     new_lines=(                                          \
         "/* derivs will be called in print_variables */" \
         "if (0 == 1) {  /* (x1 == x_ini) { */"           \
@@ -5769,7 +5766,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     patch_class "${class_dir}/tools/evolver_rkck.c" ${linenr} "replace" "below" "${new_lines[@]}"
     pattern='double *\\* *dataptr *;'
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-             "${class_dir}/source/perturbations.c" | head -n 1)
+        "${class_dir}/source/perturbations.c" | head -n 1)
     ((linenr += 1))
     new_lines=(                                                                  \
         "/**"                                                                    \
@@ -5790,7 +5787,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     if [ "${include_ncdm_Psi0}" == "True" ]; then
         pattern=' *char +tmp *\\[ *40 *\\] *;'
         linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-                 "${class_dir}/source/perturbations.c" | head -n 1)
+            "${class_dir}/source/perturbations.c" | head -n 1)
         new_lines=(           \
             "char tmp[1024];" \
             "int index_q;"    \
@@ -5799,7 +5796,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
             "replace" "below" "${new_lines[@]}"
         pattern='sprintf *\\( *tmp *, *\"cs2_ncdm\\[%d\\]\" *, *n_ncdm *\\) *;'
         linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-                 "${class_dir}/source/perturbations.c" | head -n 1)
+            "${class_dir}/source/perturbations.c" | head -n 1)
         ((linenr += 2))
         new_lines=(                                                                   \
             "/* Include ncdm Psi0[q] in perturbation output */"                       \
@@ -5813,7 +5810,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         pattern="class_store_double *\\\\( *dataptr *, \
 *delta_p_over_delta_rho_ncdm *\\\\[ *n_ncdm *\\\\] *,"
         linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-                 "${class_dir}/source/perturbations.c" | head -n 1)
+            "${class_dir}/source/perturbations.c" | head -n 1)
         ((linenr += 1))
         new_lines=(                                                            \
             "/* Include ncdm Psi0[q] in perturbation output */"                \
@@ -5834,21 +5831,185 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         patch_class "${class_dir}/source/perturbations.c" ${linenr} \
             "insert" "below" "${new_lines[@]}"
     fi
-    # Add a missing term to the total pressure perturbation from fld
-    pattern=' *ppw *-> *delta_p * \\+= *pba *-> *cs2_fld *\\* *ppw *-> *delta_rho_fld *;'
+    # Correctly implement the fld pressure perturbation,
+    # both with and without PPF.
+    pattern='double *rho_plus_p_theta_fld *;'
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-             "${class_dir}/source/perturbations.c" | head -n 1)
+        "${class_dir}/include/perturbations.h" | head -n 1)
     ((linenr += 1))
-    new_lines=(                                                           \
-        "/* Add a missing term to the fld pressure perturbation */"       \
-        "double ca2_fld, w_prime_fld;"                                    \
-        "w_prime_fld = dw_over_da_fld*a_prime_over_a*a;"                  \
-        "ca2_fld = w_fld - w_prime_fld/(3.*(1. + w_fld)*a_prime_over_a);" \
-        "ppw->delta_p += (pba->cs2_fld - ca2_fld)*("                      \
-        "  3.*a_prime_over_a*ppw->rho_plus_p_theta_fld/k2);"              \
+    new_lines=(                                                                               \
+"double delta_p_fld;  /**< pressure perturbation of fluid, very non-trivial in PPF scheme */" \
+    )
+    patch_class "${class_dir}/include/perturbations.h" ${linenr} \
+        "insert" "above" "${new_lines[@]}"
+    pattern='/\\* *fluid *contribution *\\*/'
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+        "${class_dir}/source/perturbations.c" | head -n 1)
+    ((linenr += 1))
+    new_lines=(                                                                                  \
+        "/**"                                                                                    \
+        " * Count up total pressure and conformal time derivative of pressure,"                  \
+        " * excluding the fld species. These are used for the PPF formalism of fld."             \
+        " *"                                                                                     \
+        " */"                                                                                    \
+        "double p_tot = 0.;"                                                                     \
+        "double p_tot_prime = 0.;"                                                               \
+        "if (pba->has_fld == _TRUE_ && pba->use_ppf == _TRUE_) {"                                \
+        "  /* Photons */"                                                                        \
+        "  p_tot += 1./3.*ppw->pvecback[pba->index_bg_rho_g];"                                   \
+        "  p_tot_prime += -3.*a_prime_over_a*(1. + 1./3.)*1./3."                                 \
+        "    *ppw->pvecback[pba->index_bg_rho_g];"                                               \
+        "  /* Baryons have no pressure */"                                                       \
+        "  /* Ultra relativistic species */"                                                     \
+        "  if (pba->has_ur == _TRUE_) {"                                                         \
+        "    p_tot += 1./3.*ppw->pvecback[pba->index_bg_rho_ur];"                                \
+        "    p_tot_prime += -3.*a_prime_over_a*(1. + 1./3.)*1./3."                               \
+        "      *ppw->pvecback[pba->index_bg_rho_ur];"                                            \
+        "  }"                                                                                    \
+        "  /* Cold dark matter has no pressure */"                                               \
+        "  /* Non-cold dark matter */"                                                           \
+        "  if (pba->has_ncdm == _TRUE_) {"                                                       \
+        "    for(n_ncdm = 0; n_ncdm < pba->N_ncdm; n_ncdm++) {"                                  \
+        "      p_tot += ppw->pvecback[pba->index_bg_p_ncdm1 + n_ncdm];"                          \
+        "      p_tot_prime += -a_prime_over_a*(5.*ppw->pvecback[pba->index_bg_p_ncdm1 + n_ncdm]" \
+        "        - ppw->pvecback[pba->index_bg_pseudo_p_ncdm1 + n_ncdm]);"                       \
+        "    }"                                                                                  \
+        "  }"                                                                                    \
+        "  /* Decaying cold dark matter has no pressure */"                                      \
+        "  /* Dark radiation */"                                                                 \
+        "  if (pba->has_dr == _TRUE_) {"                                                         \
+        "    p_tot += 1./3.*ppw->pvecback[pba->index_bg_rho_dr];"                                \
+        "    p_tot_prime += -3.*a_prime_over_a*(1. + 1./3.)*1./3."                               \
+        "      *ppw->pvecback[pba->index_bg_rho_dr];"                                            \
+        "  }"                                                                                    \
+        "  /* Importantly, we skip the dark energy fluid */"                                     \
+        "  /* Scalar field */"                                                                   \
+        "  if (pba->has_scf == _TRUE_) {"                                                        \
+        "    p_tot += ppw->pvecback[pba->index_bg_p_scf];"                                       \
+        "    p_tot_prime += -3*a_prime_over_a/(a*a)*ppw->pvecback[pba->index_bg_phi_prime_scf]"  \
+        "      *ppw->pvecback[pba->index_bg_phi_prime_scf]"                                      \
+        "      - 2./3.*ppw->pvecback[pba->index_bg_dV_scf]"                                      \
+        "        *ppw->pvecback[pba->index_bg_phi_prime_scf];"                                   \
+        "  }"                                                                                    \
+        "  /* Lambda has constant pressure */"                                                   \
+        "}"                                                                                      \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} \
         "insert" "above" "${new_lines[@]}"
+    for n in $(grep -n 'class_call *( *background_w_fld *(' "${class_dir}/source/perturbations.c" \
+        | awk '{print $1}'); do
+        n="${n//:}"
+        if [ ${n} -gt ${linenr} ]; then
+            ((linenr = n + 1))
+            new_lines=(                                                 \
+                "double w_prime_fld = dw_over_da_fld*a_prime_over_a*a;" \
+            )
+            patch_class "${class_dir}/source/perturbations.c" ${linenr} \
+                "insert" "above" "${new_lines[@]}"
+            break
+        fi
+    done
+    for n in $(grep -n 'ppw *-> *rho_plus_p_theta_fld *=' "${class_dir}/source/perturbations.c" \
+        | awk '{print $1}'); do
+        n="${n//:}"
+        if [ ${n} -gt ${linenr} ]; then
+            ((linenr = n + 1))
+            new_lines=(                                                                          \
+                "/* Pressure perturbation of fld without PPF */"                                 \
+                "double ca2_fld = w_fld - w_prime_fld/(3.*a_prime_over_a*(1. + w_fld));"         \
+                "ppw->delta_p_fld = pba->cs2_fld*ppw->delta_rho_fld"                             \
+                "  + (pba->cs2_fld - ca2_fld)*(3.*a_prime_over_a*ppw->rho_plus_p_theta_fld/k2);" \
+            )
+            patch_class "${class_dir}/source/perturbations.c" ${linenr} \
+                "insert" "above" "${new_lines[@]}"
+            break
+        fi
+    done
+    pattern='s2sq *= ppw *->'
+    linenr_1=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+        "${class_dir}/source/perturbations.c" | head -n 1)
+    ((linenr_1 += 1))
+    pattern='ppw *-> *S_fld *='
+    linenr_2=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+        "${class_dir}/source/perturbations.c" | head -n 1)
+    ((linenr_2 -= 1))
+    sed -i "${linenr_1},${linenr_2}d" "${class_dir}/source/perturbations.c"
+    linenr_2=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+        "${class_dir}/source/perturbations.c" | head -n 1)
+    new_lines=(                                                                                  \
+        "double alpha_prime, X, Y, Z, X_prime, Y_prime, Z_prime;"                                \
+        "double rho_plus_p_theta_fld_prime, metric_euler;"                                       \
+        "double rho_t, rho_t_prime, p_t, p_t_prime, rho_fld, rho_fld_prime, p_fld, p_fld_prime;" \
+        "double H, H_prime;"                                                                     \
+        "double theta_t,theta_t_prime, S, S_prime, Gamma;"                                       \
+        "if (ppt->gauge == synchronous) {"                                                       \
+        "  alpha = (y[ppw->pv->index_pt_eta] + 1.5*a2/k2/s2sq*(ppw->delta_rho"                   \
+        "    + 3.*a_prime_over_a/k2*ppw->rho_plus_p_theta)"                                      \
+        "    - y[ppw->pv->index_pt_Gamma_fld])/a_prime_over_a;"                                  \
+        "  alpha_prime = -2.*a_prime_over_a*alpha + y[ppw->pv->index_pt_eta]"                    \
+        "    - 4.5*(a2/k2)*ppw->rho_plus_p_shear;"                                               \
+        "  metric_euler = 0.;"                                                                   \
+        "} else {"                                                                               \
+        "  alpha = 0.;"                                                                          \
+        "  alpha_prime = 0.;"                                                                    \
+        "  metric_euler = k2*y[ppw->pv->index_pt_phi] - 4.5*a2*ppw->rho_plus_p_shear;"           \
+        "}"                                                                                      \
+    )
+    ((linenr = linenr_2 + 2))
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} \
+        "insert" "above" "${new_lines[@]}"
+    pattern='ppw->delta_rho_fld *='
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+        "${class_dir}/source/perturbations.c" | tail -n 1)
+    ((linenr += 1))
+    new_lines=(                                                                                 \
+        "rho_t = rho_plus_p_tot - p_tot;"                                                       \
+        "p_t = p_tot;"                                                                          \
+        "rho_t_prime = -3.*a_prime_over_a*(rho_t + p_t);"                                       \
+        "p_t_prime = p_tot_prime;"                                                              \
+        "rho_fld = ppw->pvecback[pba->index_bg_rho_fld];"                                       \
+        "p_fld = w_fld*rho_fld;"                                                                \
+        "rho_fld_prime = -3.*a_prime_over_a*(rho_fld + p_fld);"                                 \
+        "p_fld_prime = w_prime_fld*rho_fld - 3.*a_prime_over_a*(1. + w_fld)*p_fld;"             \
+        ""                                                                                      \
+        "H = ppw->pvecback[pba->index_bg_H];"                                                   \
+        "H_prime = ppw->pvecback[pba->index_bg_H_prime];"                                       \
+        "X = c_gamma_k_H_square;"                                                               \
+        "X_prime = -2.*X*(a_prime_over_a + H_prime/H);"                                         \
+        "Y = 4.5*a2/k2/s2sq*(rho_t + p_t);"                                                     \
+        "Y_prime = Y*(2.*a_prime_over_a + (rho_t_prime + p_t_prime)/(rho_t + p_t));"            \
+        "Z = 2./3.*k2*H/a;"                                                                     \
+        "Z_prime = Z*(H_prime/H - a_prime_over_a);"                                             \
+        ""                                                                                      \
+        "theta_t = ppw->rho_plus_p_theta/rho_plus_p_tot;"                                       \
+        "theta_t_prime = -a_prime_over_a*theta_t + (-p_t_prime*theta_t + k2*ppw->delta_p"       \
+        "  - k2*ppw->rho_plus_p_shear)/rho_plus_p_tot+metric_euler;"                            \
+        ""                                                                                      \
+        "S = ppw->S_fld;"                                                                       \
+        "S_prime = -Z_prime/Z*S + 1./Z*(rho_fld_prime + p_fld_prime)*(theta_t + k2*alpha)"      \
+        "  + 1./Z*(rho_fld + p_fld)*(theta_t_prime + k2*alpha_prime);"                          \
+        "rho_plus_p_theta_fld_prime = Z_prime*(S - 1./(1. + Y)*(S/(1. + 1./X)"                  \
+        "  + y[ppw->pv->index_pt_Gamma_fld]*X))"                                                \
+        "  + Z*(S_prime + Y_prime/(1. + Y*Y + 2.*Y)*(S/(1. + 1./X)"                             \
+        "    + y[ppw->pv->index_pt_Gamma_fld]*X)"                                               \
+        "    - 1./(1. + Y)*(S_prime/(1. + 1./X) + S*X_prime/(1. + X*X + 2.*X)"                  \
+        "      + ppw->Gamma_prime_fld*X + y[ppw->pv->index_pt_Gamma_fld]*X_prime))"             \
+        "  - k2*alpha_prime*(rho_fld + p_fld) - k2*alpha*(rho_fld_prime + p_fld_prime);"        \
+        ""                                                                                      \
+        "ppw->delta_p_fld = (rho_plus_p_theta_fld_prime"                                        \
+        "  + 4.*a_prime_over_a*ppw->rho_plus_p_theta_fld - (rho_fld + p_fld)*metric_euler)/k2;" \
+    )
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} \
+        "insert" "above" "${new_lines[@]}"
+    pattern='ppw *-> *delta_p *\\+= *pba *-> *cs2_fld *\\* *ppw *-> *delta_rho_fld *;'
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+        "${class_dir}/source/perturbations.c" | head -n 1)
+    new_lines=(                             \
+        "ppw->delta_p += ppw->delta_p_fld;" \
+    )
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} \
+        "replace" "above" "${new_lines[@]}"
+
     # For the PPF scheme, include a maximum value for (c_Γ*k*a/H)² above
     # which Γ = Γ' = 0, for the sake of numerical stability. In CAMB
     # such a maximum value is present as well and is set to 30. I have
@@ -5857,52 +6018,54 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     # significantly less.
     pattern='c_gamma_k_H_square *='
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-             "${class_dir}/source/perturbations.c" | head -n 1)
-    ((linenr += 1))
-    for n in $(grep -n 'ppw *-> *Gamma_prime_fld *=' "${class_dir}/source/perturbations.c" \
-             | awk '{print $1}'); do
-        n="${n//:}"
-        if [ ${n} -ge ${linenr} ]; then
-            new_lines=("")
-            patch_class "${class_dir}/source/perturbations.c" ${n} \
-                "replace" "above" "${new_lines[@]}" "False"
-            break
-        fi
-    done
+        "${class_dir}/source/perturbations.c" | head -n 1)
+    sed -i "${linenr}d" "${class_dir}/source/perturbations.c"
+    pattern='ppw *-> *S_fld *='
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+        "${class_dir}/source/perturbations.c" | head -n 1)
+    ((linenr += 2))
+    new_lines=(                                                                               \
+        "/**"                                                                                 \
+        " * The computation of Gamma_fld and Gamma_prime_fld becomes unstable"                \
+        " * at large c_Gamma*k/H. To stabilise the system we set these to zero"               \
+        " * at some large c_Gamma*k/H."                                                       \
+        " *"                                                                                  \
+        " */"                                                                                 \
+        "c_gamma_k_H_square = pow(pba->c_gamma_over_c_fld*k/a_prime_over_a, 2)*pba->cs2_fld;" \
+        "double c_gamma_k_H_square_max, Gamma_fld;"                                           \
+        "c_gamma_k_H_square_max = 1e+3;"                                                      \
+        "if (c_gamma_k_H_square > c_gamma_k_H_square_max){"                                   \
+        "  Gamma_fld = 0.;"                                                                   \
+        "  ppw->Gamma_prime_fld = 0.;"                                                        \
+        "} else {"                                                                            \
+        "  Gamma_fld = y[ppw->pv->index_pt_Gamma_fld];"                                       \
+        "  ppw->Gamma_prime_fld = a_prime_over_a*(ppw->S_fld/(1. + c_gamma_k_H_square)"       \
+        "    - (1. + c_gamma_k_H_square)*Gamma_fld);"                                         \
+        }
+    )
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} \
+        "insert" "above" "${new_lines[@]}"
+    pattern='ppw *-> *Gamma_prime_fld *='
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+        "${class_dir}/source/perturbations.c" | tail -n 1)
+    sed -i "${linenr}d" "${class_dir}/source/perturbations.c"
+    pattern='double *alpha_prime'
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+        "${class_dir}/source/perturbations.c" | head -n 1)
+    replacements_todo=6
     replacements=0
     for n in $(grep -n 'y *\[ *ppw *-> *pv *-> *index_pt_Gamma_fld *\]' \
-               "${class_dir}/source/perturbations.c" \
-             | awk '{print $1}'); do
+        "${class_dir}/source/perturbations.c" | awk '{print $1}'); do
         n="${n//:}"
         if [ ${n} -ge ${linenr} ]; then
             sed -i "${n}s/y *\[ *ppw *-> *pv *-> *index_pt_Gamma_fld *\]/Gamma_fld/" \
                 "${class_dir}/source/perturbations.c"
             ((replacements += 1))
-            if [ ${replacements} -eq 2 ]; then
+            if [ ${replacements} -eq ${replacements_todo} ]; then
                 break
             fi
         fi
     done
-    new_lines=(                                                                         \
-        "/**"                                                                           \
-        " * The computation of Gamma_fld and Gamma_prime_fld becomes unstable"          \
-        " * at large c_Gamma*k/H. To stabilise the system we set these to zero"         \
-        " * at some large c_Gamma*k/H."                                                 \
-        " *"                                                                            \
-        " */"                                                                           \
-        "double c_gamma_k_H_square_max, Gamma_fld;"                                     \
-        "c_gamma_k_H_square_max = 1e+3;"                                                \
-        "if (c_gamma_k_H_square > c_gamma_k_H_square_max){"                             \
-        "  Gamma_fld = 0.;"                                                             \
-        "  ppw->Gamma_prime_fld = 0.;"                                                  \
-        "} else {"                                                                      \
-        "  Gamma_fld = y[ppw->pv->index_pt_Gamma_fld];"                                 \
-        "  ppw->Gamma_prime_fld = a_prime_over_a*(ppw->S_fld/(1. + c_gamma_k_H_square)" \
-        "    - (1. + c_gamma_k_H_square)*Gamma_fld);"                                   \
-        }
-    )
-    patch_class "${class_dir}/source/perturbations.c" ${linenr} \
-        "insert" "above" "${new_lines[@]}"
     # Include fld in perturbation output
     new_class_perturbation_linenr(){
         if [ "${1}" == "perturb_prepare_output" ]; then
@@ -5928,10 +6091,11 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         echo ${linenr}
     }
     linenr=$(new_class_perturbation_linenr "perturb_prepare_output")
-    new_lines=(                                                                     \
-        "/* Include fld in perturbation output */"                                  \
-        "class_store_columntitle(ppt->scalar_titles, \"delta_fld\", pba->has_fld);" \
-        "class_store_columntitle(ppt->scalar_titles, \"theta_fld\", pba->has_fld);" \
+    new_lines=(                                                                       \
+        "/* Include fld in perturbation output */"                                    \
+        "class_store_columntitle(ppt->scalar_titles, \"delta_fld\", pba->has_fld);"   \
+        "class_store_columntitle(ppt->scalar_titles, \"theta_fld\", pba->has_fld);"   \
+        "class_store_columntitle(ppt->scalar_titles, \"delta_p_fld\", pba->has_fld);" \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
     linenr=$(new_class_perturbation_linenr "perturb_print_variables")
@@ -5952,6 +6116,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         "      ((1. + w_fld)*pvecback[pba->index_bg_rho_fld]);"                             \
         "  }"                                                                               \
         "  class_store_double(dataptr, theta_fld, pba->has_fld, storeidx);"                 \
+        "  class_store_double(dataptr, ppw->delta_p_fld, pba->has_fld, storeidx);"          \
         "}"                                                                                 \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
@@ -6000,35 +6165,35 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         " */"                                                                               \
         "double p_tot_prime = 0.0;"                                                         \
         "/* Photons */"                                                                     \
-        " p_tot_prime += -4./3.*a*H*pvecback[pba->index_bg_rho_g];"                         \
+        " p_tot_prime += -3.*a*H*(1. + 1./3.)*1./3.*pvecback[pba->index_bg_rho_g];"         \
         "/* Baryons have no pressure */"                                                    \
         "/* Ultra relativistic species */"                                                  \
         "if (pba->has_ur == _TRUE_)"                                                        \
-        "  p_tot_prime += -4./3.*a*H*pvecback[pba->index_bg_rho_ur];"                       \
+        "  p_tot_prime += -3.*a*H*(1. + 1./3.)*1./3.*pvecback[pba->index_bg_rho_ur];"       \
         "/* Cold dark matter has no pressure */"                                            \
         "/* Non-cold dark matter */"                                                        \
         "if (pba->has_ncdm == _TRUE_) {"                                                    \
         "  for(n_ncdm=0; n_ncdm < pba->N_ncdm; n_ncdm++)"                                   \
-        "    p_tot_prime += -a*H*(5*pvecback[pba->index_bg_p_ncdm1+n_ncdm]"                 \
+        "    p_tot_prime += -a*H*(5.*pvecback[pba->index_bg_p_ncdm1+n_ncdm]"                \
         "    - pvecback[pba->index_bg_pseudo_p_ncdm1+n_ncdm]);"                             \
         "}"                                                                                 \
         "/* Decaying cold dark matter has no pressure */"                                   \
         "/* Dark radiation */"                                                              \
         "if (pba->has_dr == _TRUE_)"                                                        \
-        "  p_tot_prime += -4./3.*a*H*pvecback[pba->index_bg_rho_dr];"                       \
+        "  p_tot_prime += -3.*a*H*(1. + 1./3.)*1./3.*pvecback[pba->index_bg_rho_dr];"       \
         "/* Dark energy fluid */"                                                           \
         "if (pba->has_fld == _TRUE_) {"                                                     \
         "  p_tot_prime += a*H*pvecback[pba->index_bg_rho_fld]"                              \
-        "    *(a*dw_over_da_fld - 3*w_fld*(1 + w_fld));"                                    \
+        "    *(a*dw_over_da_fld - 3.*w_fld*(1. + w_fld));"                                  \
         "}"                                                                                 \
         "/* Scalar field */"                                                                \
         "if (pba->has_scf == _TRUE_) {"                                                     \
-        "  p_tot_prime += -3*H/a*pvecback[pba->index_bg_phi_prime_scf]"                     \
+        "  p_tot_prime += -3.*H/a*pvecback[pba->index_bg_phi_prime_scf]"                    \
         "    *pvecback[pba->index_bg_phi_prime_scf]"                                        \
         "    - 2./3.*pvecback[pba->index_bg_dV_scf]*pvecback[pba->index_bg_phi_prime_scf];" \
         "}"                                                                                 \
         "/* Lambda has constant pressure */"                                                \
-        "double H_T_prime = 3*a*H/rho_plus_p_tot*("                                         \
+        "double H_T_prime = 3.*a*H/rho_plus_p_tot*("                                        \
         "  - ppw->delta_p"                                                                  \
         "  + p_tot_prime*theta_tot/(k*k)"                                                   \
         "  + ppw->rho_plus_p_shear);"                                                       \
@@ -6038,7 +6203,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     # Do not convert synchronous variables to Newtonian gauge
     pattern='converting *synchronous *variables *to *newtonian *ones'
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-             "${class_dir}/source/perturbations.c" | head -n 1)
+        "${class_dir}/source/perturbations.c" | head -n 1)
     ((linenr += 1))
     new_lines=(                                              \
         "/* Do not convert to Newtonian gauge */"            \
