@@ -582,6 +582,10 @@ for var in "$@"; do
         || [ "${var}" == "--fix-ss"    ] \
         || [ "${var}" == "--fix-ssh"   ]; then
         fix_ssh="True"
+    elif [ "${var}" == "--fast" ]; then
+        # This is a deprecated option for skipping tests,
+        # which is now the default. Allow it but do nothing.
+        :
     elif [ "${top_dir_specified}" == "False" ]; then
         top_dir="${var}"
         top_dir_specified="True"
