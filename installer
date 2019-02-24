@@ -1747,9 +1747,9 @@ enable_status(){
 successfully_finish_status(){
     echo "${status_prefix}${status_finish_successfully}"
 }
-# These are needed to get the spcacing right in the output
-current_step="beginning subprocess"
-set_status "Beginning subprocess"
+# These are needed to get the spacing right in the output
+current_step="initialisation"
+set_status "Initialising"
 
 
 
@@ -4822,6 +4822,8 @@ numpy_installed="False"
 pytest_installed="False"
 scipy_installed="False"
 if [ -n "${python}" ]; then
+    current_step="checking of installed Python packages"
+    set_status "Checking for installed Python packages"
     for pypackage in blessings     \
                      cython        \
                      cythongsl     \
@@ -5934,14 +5936,14 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         "${class_dir}/source/perturbations.c" | head -n 1)
     ((linenr_2 -= 1))
     sed -i "${linenr_1},${linenr_2}d" "${class_dir}/source/perturbations.c"
-    linenr_2=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
         "${class_dir}/source/perturbations.c" | head -n 1)
     new_lines=(                                                                                  \
         "double alpha_prime, X, Y, Z, X_prime, Y_prime, Z_prime;"                                \
         "double rho_plus_p_theta_fld_prime, metric_euler;"                                       \
         "double rho_t, rho_t_prime, p_t, p_t_prime, rho_fld, rho_fld_prime, p_fld, p_fld_prime;" \
         "double H, H_prime;"                                                                     \
-        "double theta_t,theta_t_prime, S, S_prime, Gamma;"                                       \
+        "double theta_t,theta_t_prime, S, S_prime;"                                              \
         "if (ppt->gauge == synchronous) {"                                                       \
         "  alpha = (y[ppw->pv->index_pt_eta] + 1.5*a2/k2/s2sq*(ppw->delta_rho"                   \
         "    + 3.*a_prime_over_a/k2*ppw->rho_plus_p_theta)"                                      \
@@ -5955,7 +5957,6 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         "  metric_euler = k2*y[ppw->pv->index_pt_phi] - 4.5*a2*ppw->rho_plus_p_shear;"           \
         "}"                                                                                      \
     )
-    ((linenr = linenr_2 + 2))
     patch_class "${class_dir}/source/perturbations.c" ${linenr} \
         "insert" "above" "${new_lines[@]}"
     pattern='ppw->delta_rho_fld *='
@@ -6009,50 +6010,39 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} \
         "replace" "above" "${new_lines[@]}"
-
     # For the PPF scheme, include a maximum value for (c_Γ*k*a/H)² above
     # which Γ = Γ' = 0, for the sake of numerical stability. In CAMB
     # such a maximum value is present as well and is set to 30. I have
     # found that a value of 10³ or even 10⁴ ensures stability as well,
     # while perturbing the fld δ_fld and θ_fld solutions
     # significantly less.
-    pattern='c_gamma_k_H_square *='
+    pattern='ppw *-> *Gamma_prime_fld *='
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
         "${class_dir}/source/perturbations.c" | head -n 1)
-    sed -i "${linenr}d" "${class_dir}/source/perturbations.c"
-    pattern='ppw *-> *S_fld *='
-    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-        "${class_dir}/source/perturbations.c" | head -n 1)
-    ((linenr += 2))
-    new_lines=(                                                                               \
-        "/**"                                                                                 \
-        " * The computation of Gamma_fld and Gamma_prime_fld becomes unstable"                \
-        " * at large c_Gamma*k/H. To stabilise the system we set these to zero"               \
-        " * at some large c_Gamma*k/H."                                                       \
-        " *"                                                                                  \
-        " */"                                                                                 \
-        "c_gamma_k_H_square = pow(pba->c_gamma_over_c_fld*k/a_prime_over_a, 2)*pba->cs2_fld;" \
-        "double c_gamma_k_H_square_max, Gamma_fld;"                                           \
-        "c_gamma_k_H_square_max = 1e+3;"                                                      \
-        "if (c_gamma_k_H_square > c_gamma_k_H_square_max){"                                   \
-        "  Gamma_fld = 0.;"                                                                   \
-        "  ppw->Gamma_prime_fld = 0.;"                                                        \
-        "} else {"                                                                            \
-        "  Gamma_fld = y[ppw->pv->index_pt_Gamma_fld];"                                       \
-        "  ppw->Gamma_prime_fld = a_prime_over_a*(ppw->S_fld/(1. + c_gamma_k_H_square)"       \
-        "    - (1. + c_gamma_k_H_square)*Gamma_fld);"                                         \
+    new_lines=(                                                                         \
+        "/**"                                                                           \
+        " * The computation of Gamma_fld and Gamma_prime_fld becomes unstable"          \
+        " * at large c_Gamma*k/H. To stabilise the system we set these to zero"         \
+        " * at some large c_Gamma*k/H."                                                 \
+        " *"                                                                            \
+        " */"                                                                           \
+        "double c_gamma_k_H_square_max, Gamma_fld;"                                     \
+        "c_gamma_k_H_square_max = 1e+3;"                                                \
+        "if (c_gamma_k_H_square > c_gamma_k_H_square_max){"                             \
+        "  Gamma_fld = 0.;"                                                             \
+        "  ppw->Gamma_prime_fld = 0.;"                                                  \
+        "} else {"                                                                      \
+        "  Gamma_fld = y[ppw->pv->index_pt_Gamma_fld];"                                 \
+        "  ppw->Gamma_prime_fld = a_prime_over_a*(ppw->S_fld/(1. + c_gamma_k_H_square)" \
+        "    - (1. + c_gamma_k_H_square)*Gamma_fld);"                                   \
         }
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} \
-        "insert" "above" "${new_lines[@]}"
-    pattern='ppw *-> *Gamma_prime_fld *='
-    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-        "${class_dir}/source/perturbations.c" | tail -n 1)
-    sed -i "${linenr}d" "${class_dir}/source/perturbations.c"
-    pattern='double *alpha_prime'
+        "replace" "above" "${new_lines[@]}"
+    pattern='Gamma_prime_plus_a_prime_over_a_Gamma *='
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
         "${class_dir}/source/perturbations.c" | head -n 1)
-    replacements_todo=6
+    replacements_todo=5
     replacements=0
     for n in $(grep -n 'y *\[ *ppw *-> *pv *-> *index_pt_Gamma_fld *\]' \
         "${class_dir}/source/perturbations.c" | awk '{print $1}'); do
@@ -6288,10 +6278,12 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         "}"                                                             \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
-    # Build CLASS, including the Python wrapper classy. We replace -O4
-    # with -O3 (which are equivalent on compilers that recognize -O4).
+    # Build CLASS, including the Python wrapper classy. We explicitly
+    # specify Python 3 as the language level and replace -O4 with -O3
+    # (which are equivalent on compilers that recognize -O4).
     # We try with and without the -fast-math option, try different
     # commpilers and various flags for correctly linking to OpenMP.
+    sed -i '1s/^/# cython: language_level=3\n/' "python/classy.pyx"
     sed -i 's/-O4/-O3/' "Makefile"
     cp "Makefile" "Makefile_ori"
     cp "python/setup.py" "python/setup.py_ori"
