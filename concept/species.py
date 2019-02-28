@@ -576,6 +576,7 @@ class Component:
         public double[:, ::1] w_tabulated
         public str w_expression
         Spline w_spline
+        public str w_eff_type
         Spline w_eff_spline
         public dict approximations
         public double _ϱ_bar
@@ -1124,42 +1125,29 @@ class Component:
     @property
     def ϱ_bar(self):
         if self._ϱ_bar == -1:
-            if self.representation == 'particles':
-                # For particles, ϱ_bar = a**3*ρ_bar because w = 0,
-                # which can be easily evaluated at the present time
-                # if the mass is set.
-                # Otherwise, ask CLASS for ρ_bar at the present time.
+            if enable_class_background:
+                cosmoresults = compute_cosmo(
+                    class_call_reason=f'in order to determine ̅ϱ of {self.name} ',
+                )
+                self._ϱ_bar = cosmoresults.ρ_bar(1, self.class_species)
+            elif self.representation == 'particles':
                 if self.mass == -1:
-                    if enable_class_background:
-                        cosmoresults = compute_cosmo(
-                            class_call_reason=f'in order to determine ̅ϱ of {self.name} ',
-                        )
-                        self._ϱ_bar = cosmoresults.ρ_bar(1, self.class_species)
-                    else:
-                        abort(
-                            f'Cannot determine ϱ_bar for particle component "{self.name}" because '
-                            f'its mass is not (yet?) set and enable_class_background is False'
-                            )
-                else:
-                    self._ϱ_bar = self.N*self.mass/boxsize**3
+                    abort(
+                        f'Cannot determine ϱ_bar for particle component "{self.name}" because '
+                        f'its mass is not (yet?) set and enable_class_background is False'
+                    )
+                # This does not hold for decaying species
+                self._ϱ_bar = self.N*self.mass/boxsize**3
             elif self.representation == 'fluid':
-                # For fluids, ask CLASS for ρ_bar at the present time.
-                # If CLASS background computations are disabled,
-                # measure ϱ_bar directly from the component data.
                 if self.mass == -1:
-                    if enable_class_background:
-                        cosmoresults = compute_cosmo(
-                            class_call_reason=f'in order to determine ̅ϱ of {self.name} ',
+                    self._ϱ_bar, σϱ, ϱ_min = measure(self, 'ϱ')
+                    if self._ϱ_bar == 0:
+                        masterwarn(
+                            f'Failed to measure ̅ϱ of {self.name}. '
+                            f'Try specifying the (fluid element) mass.'
                         )
-                        self._ϱ_bar = cosmoresults.ρ_bar(1, self.class_species)
-                    else:
-                        self._ϱ_bar, σϱ, ϱ_min = measure(self, 'ϱ')
-                        if self._ϱ_bar == 0:
-                            masterwarn(
-                                f'Failed to measure ̅ϱ of {self.name}. '
-                                f'Try specifying the (fluid element) mass.'
-                            )
                 else:
+                    # This does not hold for decaying species
                     self._ϱ_bar = (self.gridsize/boxsize)**3*self.mass
         return self._ϱ_bar
 
@@ -1966,18 +1954,20 @@ class Component:
         """This method should not be called before w_eff has been
         initialized by the initialize_w_eff method.
         """
-        # For constant w, w_eff = w
-        if self.w_type == 'constant':
+        # For constant w_eff, w_eff = w
+        if self.w_eff_type == 'constant':
             return self.w(t=t, a=a)
-        # If no time or scale factor value is passed,
-        # use the current time and scale factor value.
-        if t == -1 == a:
-            t = universals.t
-            a = universals.a
-        # Compute w_eff
-        if a == -1:
-            a = scale_factor(t)
-        return self.w_eff_spline.eval(a)
+        elif self.w_eff_type == 'tabulated (a)':
+            # If no time or scale factor value is passed,
+            # use the current time and scale factor value.
+            if t == -1 == a:
+                t = universals.t
+                a = universals.a
+            # Compute w_eff
+            if a == -1:
+                a = scale_factor(t)
+            return self.w_eff_spline.eval(a)
+        abort(f'Did not recognize w_eff type "{self.w_eff_type}"')
 
     # Method for computing the proper time derivative
     # of the equation of state parameter w
@@ -2332,15 +2322,12 @@ class Component:
         # Locals
         a='double',
         a_min='double',
-        a_tabulated='double[::1]',
+        a_tabulated=object,  # np.ndarray
         integrand_spline='Spline',
         integrand_tabulated='double[::1]',
-        n_points='Py_ssize_t',
         t='double',
         t_tabulated='double[::1]',
-        w='double',
-        w_tabulated='double[::1]',
-        w_eff_tabulated_list=list,
+        ρ_bar_tabulated=object,  # np.ndarray
     )
     def initialize_w_eff(self):
         """This method initializes the effective equation of state
@@ -2349,114 +2336,68 @@ class Component:
         Only future times compared to universals.a will be included.
         The definition of w_eff is
         ϱ = a**(3(1 + w_eff))ρ
-        such that mean(ϱ) is constant in time. This leads to
-        w_eff(a) = 1/log(a)∫₁ᵃ(w/a)da.
-        In the case of a combination (CLASS) species, the above equation
-        fails as this no longer leads to constant mean(ϱ) = ϱ_bar.
-        Instead, the combined w_eff should be build from the individual
-        w_eff as
-        w_eff = log(
-            (  a**(3w_eff₁)ρ₁_bar
-             + a**(3w_eff₂)ρ₂_bar
-            )/(ρ₁_bar + ρ₂_bar)
-        )/(3*log(a))
-        which will then ensure
-        a constant a**(3(1 + w_eff))(ρ₁_bar + ρ₂_bar).
+        such that mean(ϱ) = ϱ_bar is constant in time. This leads to
+        w_eff(a) = log(ρ_bar(a=1)/(a**3*ρ_bar))/(3*log(a))
+        which is well behaved for any positive definite ρ_bar.
         """
-        # For constant w, w_eff = w and so we do not need to do anything
-        if self.w_type == 'constant':
+        # If the CLASS background is disabled,
+        # only constant w = w_eff is allowed.
+        if not enable_class_background:
+            # With the CLASS background disabled we do not have access
+            # to the evolution of background densities. We can get by
+            # as long as we have a constant w, in which case w_eff = w.
+            # Note that this does not hold
+            # for interacting/decaying species.
+            if self.w_type != 'constant':
+                abort(
+                    f'Cannot construct w_eff of component "{self.name}" '
+                    f'without access to the CLASS background evolution.'
+                )
+            self.w_eff_type = 'constant'
             return
         # Construct a tabulated array of scale factor values.
         # If w is already tabulated at certain values, reuse these.
+        masterprint(
+            f'Tabulating effective equation of state parameter '
+            f'for the "{self.name}" component ...'
+        )
+        self.w_eff_type = 'tabulated (a)'
         if self.w_type == 'tabulated (a)':
             a_tabulated = self.w_tabulated[0, :]
             a_min = a_tabulated[0]
-            w_tabulated = self.w_tabulated[1, :]
         elif self.w_type == 'tabulated (t)':
             t_tabulated = self.w_tabulated[0, :]
             a_tabulated = asarray([scale_factor(t) for t in t_tabulated])
             a_min = a_tabulated[0]
-            w_tabulated = self.w_tabulated[1, :]
         else:
-            a_min = universals.a
-            n_points = 1000
-            a_tabulated = logspace(log10(a_min), log10(1), n_points)
-            w_tabulated = asarray([self.w(a=a) for a in a_tabulated])
-        # Handle combination species
-        if '+' in self.class_species:
-            # We are dealing with a combination species
-            # Construct the total w_eff as a weighted sum of
-            # individual w_eff, computed by instantiating temporary
-            # single-species components.
-            cosmoresults = compute_cosmo(
-                class_call_reason=f'in order to determine w_eff(a) of {self.name} ',
-            )
-            w_eff_total_tabulated = 0
-            ρ_bar_total_tabulated = 0
-            for class_species in self.class_species.split('+'):
-                component = Component(
-                    '',
-                    'fluid',
-                    2,
-                    boltzmann_order=0,
-                    class_species=class_species,
-                    w=None,
-                )
-                component.name = 'tmp'
-                w_eff_tabulated = asarray([component.w_eff(a=a) for a in a_tabulated])
-                ρ_bar_tabulated = cosmoresults.ρ_bar(a_tabulated, class_species, apply_unit=False)
-                w_eff_total_tabulated += a_tabulated**(3*w_eff_tabulated)*ρ_bar_tabulated
-                ρ_bar_total_tabulated += ρ_bar_tabulated
-            # At a = 1 a division by 0 error occurs due to 1/log(a).
-            # Here, we use the analytic result w_eff(a=1) = w(1=a),
-            # which we assumes true even for combination species.
-            a_tabulated_end = a_tabulated[a_tabulated.shape[0] - 1]
-            a_tabulated[a_tabulated.shape[0] - 1] = a_tabulated[a_tabulated.shape[0] - 2]
-            w_eff_total_tabulated = (np.log(w_eff_total_tabulated/ρ_bar_total_tabulated)
-                /(3*np.log(a_tabulated)))
-            a_tabulated[a_tabulated.shape[0] - 1] = a_tabulated_end
-            w_eff_total_tabulated[a_tabulated.shape[0] - 1] = self.w(a=1)
-            w_eff_tabulated = w_eff_total_tabulated
-            # Instantiate the w_eff spline object.
-            # For most physical species, w_eff(a) is approximately a
-            # power law in a and so a log-log spline should be used.
-            logx, logy = True, True
-            if np.any(asarray(w_eff_tabulated) <= 0):
-                logy = False
-            if 'fld' in self.class_species.split('+'):
-                # The CLASS dark energy fluid (fld) uses
-                # the {w_0, w_a} parameterization. It turns out that the
-                # best spline is achieved from log(a) but linear w_eff.
-                # We use this when fld is part of a combination species
-                # as well.
-                logx, logy = True, False
-            self.w_eff_spline = Spline(a_tabulated, w_eff_tabulated, f'w_eff(a) of {self.name}',
-                logx=logx, logy=logy)
-            return
-        masterprint(
-            f'Tabulating effective equation of state parameter '
-            f'for CLASS species "{self.class_species}" ...'
+            a_min = -1
+        cosmoresults = compute_cosmo(
+            class_call_reason=f'in order to determine w_eff(a) of {self.name} ',
         )
-        # Construct a tabulated array of scale factor values.
-        # If w is already tabulated at certain values, reuse these.
-        if self.w_type in {'tabulated (a)', 'tabulated (t)'}:
-            w_tabulated = self.w_tabulated[1, :]
-        else:
-            w_tabulated = asarray([self.w(a=a) for a in a_tabulated])
-        # Tabulate the integrand w/a
-        integrand_tabulated = asarray([w/a for a, w in zip(a_tabulated, w_tabulated)])
-        # For each tabulated point, find w_eff by doing the integral.
-        # To do this we utilize the integrate method of the
-        # Spline class. This is somewhat wasteful as the same initial
-        # piece of the integral is computed over and over, but as this
-        # is only ever done once per component we do not need to worry.
+        if a_min == -1:
+            a_tabulated = cosmoresults.background['a']
+        ρ_bar_tabulated = cosmoresults.ρ_bar(a_tabulated, self.class_species, apply_unit=False)
+        ρ_bar_0 = ρ_bar_tabulated[ρ_bar_tabulated.shape[0] - 1]
         # At a = 1 a division by 0 error occurs due to 1/log(a).
-        # Here, we use the analytic result w_eff(a=1) = w(1=a).
-        integrand_spline = Spline(a_tabulated, integrand_tabulated, f'w(a)/a of {self.name}')
-        w_eff_tabulated_list = [integrand_spline.integrate(1, a)/log(a)
-                                for a in a_tabulated[:(a_tabulated.shape[0] - 1)]]
-        w_eff_tabulated_list.append(self.w(a=1))
-        w_eff_tabulated = asarray(w_eff_tabulated_list)
+        # Here we use linear extrapolation to obtain the end point.
+        a_tabulated_end = a_tabulated[a_tabulated.shape[0] - 1]
+        a_tabulated[a_tabulated.shape[0] - 1] = a_tabulated[a_tabulated.shape[0] - 2]
+        w_eff_tabulated = np.log(ρ_bar_0/(asarray(a_tabulated)**3*ρ_bar_tabulated)
+            )/(3*np.log(a_tabulated))
+        a_tabulated[a_tabulated.shape[0] - 1] = a_tabulated_end
+        w_eff_tabulated[a_tabulated.shape[0] - 1] = (
+            w_eff_tabulated[a_tabulated.shape[0] - 2]
+            + (
+                  w_eff_tabulated[a_tabulated.shape[0] - 2]
+                - w_eff_tabulated[a_tabulated.shape[0] - 3]
+            )/(
+                  a_tabulated[a_tabulated.shape[0] - 2]
+                - a_tabulated[a_tabulated.shape[0] - 3]
+            )*(
+                  a_tabulated[a_tabulated.shape[0] - 1]
+                - a_tabulated[a_tabulated.shape[0] - 2]
+            )
+        )
         # Instantiate the w_eff spline object.
         # For most physical species, w_eff(a) is approximately a
         # power law in a and so a log-log spline should be used.
@@ -2831,7 +2772,6 @@ default_w = {
     'metric'               :  0,
     'neutrino fluid'       :  1/3,
     'neutrinos'            :  1/3,
-    'particles'            :  0,
     'photons'              :  1/3,
     'photon fluid'         :  1/3,
 }

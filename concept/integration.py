@@ -821,7 +821,7 @@ def scalefactor_integral(key, t_ini=-1.0, Δt=-1.0):
     # the given key. In both cases, we now need to tabulate
     # the integrand.
     if enable_class_background:
-        if component is None or component.w_type == 'constant':
+        if component is None or component.w_eff_type == 'constant':
             a_tab_spline = spline_a_t.x
             t_tab_spline = spline_a_t.y
         else:

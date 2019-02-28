@@ -289,6 +289,8 @@ class CosmoResults:
                 'g'     :  1/3,
                 'ur'    :  1/3,
                 'lambda': -1,
+                'dcdm'  : 0,
+                'dr'    : 1/3,
             }
             for class_species, w in constant_eos_w.items():
                 if (    f'(.)rho_{class_species}'   in self._background
@@ -318,28 +320,38 @@ class CosmoResults:
             # some background density, but since we get δρ directly
             # from CLASS and neither δ nor ρ_bar has any
             # physical meaning, this background density can be
-            # chosen arbitrarily. Since CO𝘕CEPT relies on
-            # ϱ_bar = a**(3*(1 + w_eff(a)))*ρ_bar(a)
-            # being constant for all species, we also need to assign
-            # the "metric" species an effective equation of
-            # state w_eff(a). This is constructed automatically from the
-            # equation of state w(a), which in turn is constructed from
-            # the background pressure. Thus, though the "metric" species
-            # has no pressure in any meaningful sense, we need to assign
-            # it the background pressure that matches the assigned
-            # background density. In principle we could steal the
-            # background density and pressure from any of the other,
-            # physical species, or construct a new pair of consistent
-            # background densities and pressures. However, it turns out
-            # that δρ(k, a) goes approximately like a⁻⁴ for a given k
-            # (really it is the envelope of its oscillations that has
-            # this behaviour), which is also the behaviour of photons.
-            # Choosing the photon background density and pressure
-            # for the "metric" species then leads to more
-            # accurate splines, which is useful to better
-            # resolve the many oscillaions in δρ.
-            self._background['(.)rho_metric'] = self._background['(.)rho_g']
-            self._background['(.)p_metric'] = self._background['(.)p_g']
+            # chosen arbitrarily. From this, a corresponding w_eff(a) is
+            # automatically constructed. A normal equation of state w(a)
+            # is also needed (though its actual value does not matter).
+            # Thus, we also need to assign the metric species a
+            # background pressure.
+            # In principle we could use any background and density and
+            # pressure. However, it turns out that δρ(k, a) (at least on
+            # large scales) approximately follows the behavior of the
+            # other species, which simply comes about because the metric
+            # is built from all physical species which do not have
+            # ρ + P = 0, i.e. all but Λ. Thus, we choose the background
+            # density and pressure for the metric species to equal the
+            # sum of all physical species except Λ. As p_tot does not
+            # exist in the CLASS background data, we loop over each
+            # species manually.
+            def get_metric_contributing_class_species():
+                for class_species in ('g', 'ur'):
+                    if f'(.)rho_{class_species}' in self._background:
+                        yield class_species
+                for n_ncdm in itertools.count():
+                    class_species = f'ncdm[{n_ncdm}]'
+                    if f'(.)rho_{class_species}' not in self._background:
+                        break
+                    yield class_species
+                for class_species in ('b', 'cdm', 'fld'):
+                    if f'(.)rho_{class_species}' in self._background:
+                        yield class_species
+            self._background['(.)rho_metric'] = 0
+            self._background['(.)p_metric'] = 0
+            for class_species in get_metric_contributing_class_species():
+                self._background['(.)rho_metric'] += self._background[f'(.)rho_{class_species}']
+                self._background['(.)p_metric']   += self._background[f'(.)p_{class_species}']
             # Remove doppelgänger values in all background variables,
             # using the scale factor array as x values.
             for key, val in self._background.items():
@@ -784,12 +796,11 @@ class CosmoResults:
         if spline is None:
             # By far the most background variables are power laws in a.
             # A few exceptions are the constant pressure of the cdm, b
-            # and lambda CLASS species, the constant density of the
-            # lambda CLASS species, as well as the density, pressure
-            # and equation of state w for the fld CLASS species,
+            # and lambda CLASS species, as well as the density, pressure
+            # and equation of state w for the fld CLASS species.
             if y in {'(.)p_cdm', '(.)p_b', '(.)p_lambda', '(.)rho_lambda'}:
                 logx, logy = True, False
-            elif y in {'(.)rho_fld', '(.)p_fld', '(.)w_fld'}:
+            elif y in {'(.)rho_fld', '(.)p_fld', '(.)w_fld', '(.)p_metric'}:
                 logx, logy = False, False
             elif y.startswith('(.)rho_') or y.startswith('(.)p_') or y in {
                 'z',
@@ -881,7 +892,7 @@ class CosmoResults:
         return P_bar/ρ_bar
     # Method for looking up the linear growth rate f_growth = H⁻¹Ḋ/D
     # (with D the linear growth factor) at some a.
-    @functools.lru_cache()
+    @lru_cache()
     def growth_fac_f(self, a):
         spline = self.splines('gr.fac. f')
         return spline.eval(a)
@@ -1154,10 +1165,13 @@ class TransferFunction:
         double[::1] data_local
         double[::1] data_deriv
         double[::1] data_deriv_local
+        int n_intervals
         double k_max
-        double[::1] factors
-        double[::1] exponents
-        list splines
+        double[:, ::1] factors
+        double[:, ::1] exponents
+        object splines  # np.ndarray of dtype object
+        list a_values
+        list interval_boarders
         """
         # Ensure that the cosmological perturbations has been loaded
         cosmoresults.perturbations
@@ -1187,12 +1201,20 @@ class TransferFunction:
         # derivative with respect to the scale factor,
         # at a given k and as a function of a.
         self.data = self.data_local = self.data_deriv = self.data_deriv_local = None
+        # (Maximum) number of intervals into wich the scale factor
+        # values should be subdivided when making the detrended splines.
+        # From the manner in which interval_boarders are created in the
+        # process method, one can show that the following is the maximum
+        # possible number of intervals needed.
+        self.n_intervals = 2*len(find_critical_times()) + 4
         # Construct splines of the transfer function as a function of a,
         # for the k modes stored by this process.
         self.k_max = class_k_max.get('all', ထ)
-        self.factors   = empty(self.k_gridsize_local, dtype=C2np['double'])
-        self.exponents = empty(self.k_gridsize_local, dtype=C2np['double'])
-        self.splines = [None]*self.k_gridsize_local
+        self.factors   = empty((self.k_gridsize_local, self.n_intervals), dtype=C2np['double'])
+        self.exponents = empty((self.k_gridsize_local, self.n_intervals), dtype=C2np['double'])
+        self.splines   = empty((self.k_gridsize_local, self.n_intervals), dtype=object)
+        self.a_values          = [None]*self.k_gridsize_local
+        self.interval_boarders = [None]*self.k_gridsize_local
         self.process()
 
     # Method for processing the transfer function data from CLASS.
@@ -1201,20 +1223,23 @@ class TransferFunction:
     @cython.header(
         # Locals
         a_values='double[::1]',
-        a_values_largest_trusted_k='double[::1]',
+        a_values_largest_trusted_k=object,  # np.ndarray of dtype object
         any_contain_untrusted_perturbations='bint',
         approximate_P_as_wρ='bint',
         available='bint',
         class_perturbation_name=str,
         class_species=str,
         class_units='double',
+        crossover='int',
         contains_untrusted_perturbations='bint',
         exponent='double',
-        exponent_max='double',
         factor='double',
-        fitted_trends=list,
         i='Py_ssize_t',
         index='Py_ssize_t',
+        index_left='Py_ssize_t',
+        index_right='Py_ssize_t',
+        interval_a_values='double[::1]',
+        interval_perturbation_values='double[::1]',
         k='Py_ssize_t',
         k_local='Py_ssize_t',
         k_max_candidate='double',
@@ -1235,13 +1260,13 @@ class TransferFunction:
         perturbation_values_arr=object,  # np.ndarray
         perturbations_available=dict,
         perturbations_detrended='double[::1]',
-        perturbations_detrended_largest_trusted_k='double[::1]',
+        perturbations_detrended_largest_trusted_k=object,  # np.ndarray of dtype object
         perturbations_largest_trusted_k=object,  # np.ndarray
         rank_largest_trusted_k='int',
         size='Py_ssize_t',
         spline='Spline',
         trend=object,  # np.ndarray
-        untrusted_perturbations=list,
+        untrusted_perturbations=object,  # np.ndarray of dtype object
         weights=object,  # np.ndarray
         weights_species=dict,
         Σweights=object,  # np.ndarray
@@ -1260,10 +1285,6 @@ class TransferFunction:
                 f'Processing {self.var_name} transfer functions '
                 f'for {self.component.name} ...'
             )
-        # Maximum (absolute) allowed exponent in the trend.
-        # If an exponent greater than this is found,
-        # the program will terminate.
-        exponent_max = 15
         missing_perturbations_warning = ''.join([
             'The {} perturbations ',
             (f'(needed for the {self.component.name} component) '
@@ -1300,9 +1321,14 @@ class TransferFunction:
                         self.k_max = k_max_candidate
                     elif re.search(perturbation_key, key):
                         self.k_max = k_max_candidate
-        # A spline should be constructed for each local k value
+        # Number of additional points on each side of the interval
+        # to include when doing the detrending and splining.
+        crossover = 3
+        # Splines should be constructed for each local k value
         largest_trusted_k = -1
-        untrusted_perturbations = [None]*self.k_gridsize_local
+        untrusted_perturbations = empty(self.k_gridsize_local, dtype=object)
+        a_values_largest_trusted_k = empty(self.n_intervals, dtype=object)
+        perturbations_detrended_largest_trusted_k = empty(self.n_intervals, dtype=object)
         for k_local, perturbation_k in enumerate(self.cosmoresults.perturbations):
             # The global k index corresponding to the local k index
             k = self.k_indices[k_local]
@@ -1323,100 +1349,99 @@ class TransferFunction:
             # Finally, outlier rejection may take place by adding
             # indices to the outliers_list.
             outliers_list = []
-            with unswitch:
-                if self.var_name == 'δ':
-                    # For δ we have
-                    # δ_tot = (δ_1*ρ_bar_1 + δ_2*ρ_bar_2 + ...)/(ρ_bar_1 + ρ_bar_2 + ...)
-                    weights_species = {
-                        class_species: self.cosmoresults.ρ_bar(a_values, class_species)
-                        for class_species in self.class_species.split('+')
-                    }
-                    Σweights = np.sum(tuple(weights_species.values()), axis=0)
-                    for class_species in weights_species:
-                        weights_species[class_species] *= 1/Σweights
-                    # We have no CLASS units to apply
-                    class_units = 1
-                elif self.var_name == 'θ':
-                    # For θ we have
-                    # θ_tot = (θ_1*ρ_bar_1 + θ_2*ρ_bar_2 + ...)/(ρ_bar_1 + ρ_bar_2 + ...)
-                    weights_species = {
-                        class_species: self.cosmoresults.ρ_bar(a_values, class_species)
-                        for class_species in self.class_species.split('+')
-                    }
-                    Σweights = np.sum(tuple(weights_species.values()), axis=0)
-                    for class_species in weights_species:
-                        weights_species[class_species] *= 1/Σweights
-                    # We have CLASS units of [time⁻¹]
-                    class_units = ℝ[light_speed/units.Mpc]
-                elif self.var_name == 'δP':
-                    # CLASS does not provide the δP(k) perturbations
-                    # directly. Instead it provides δP(k)/δρ(k).
-                    # To get the total δP from multiple δP/δρ,
-                    # we then have
-                    # δP_tot = δP_1 + δP_2 + ...
-                    #        = (δP/δρ)_1*δρ_1 + (δP/δρ)_2*δρ_2 + ...
-                    #        = (δP/δρ)_1*δ_1*ρ_bar_1 + (δP/δρ)_2*δ_2*ρ_bar_2 + ...
-                    weights_species = {
-                        class_species: (
-                            perturbation_k.get(f'delta_{class_species}')
-                            *self.cosmoresults.ρ_bar(a_values, class_species)
-                        )
-                        for class_species in self.class_species.split('+')
-                    }
-                    # The CLASS units of δP/δρ are [length²time⁻²]
-                    class_units = ℝ[light_speed**2]
-                    # Look for oulier points which are outside the
-                    # legal range 0 ≤ δP/δρ ≤ c²/3. As the data is
-                    # directly from CLASS, c = 1.
-                    for class_species in weights_species:
-                        perturbation = perturbation_k.get(f'cs2_{class_species}')
-                        if perturbation is not None:
-                            perturbation_values = perturbation
-                            for i in range(perturbation_values.shape[0]):
-                                if not (0 <= perturbation_values[i] <= ℝ[1/3]):
-                                    outliers_list.append(i)
-                elif self.var_name == 'σ':
-                    # For σ we have
-                    # σ_tot = (σ_1*(ρ_bar_1 + c⁻²P_bar_1) + σ_2*(ρ_bar_2 + c⁻²P_bar_2) + ...)
-                    #          /((ρ_bar_1 + c⁻²P_bar_1) + (ρ_bar_2 + c⁻²P_bar_2) + ...)
-                    weights_species = {class_species:
-                                               self.cosmoresults.ρ_bar(a_values, class_species)
-                        + ℝ[light_speed**(-2)]*self.cosmoresults.P_bar(a_values, class_species)
-                        for class_species in self.class_species.split('+')
-                    }
-                    Σweights = np.sum(tuple(weights_species.values()), axis=0)
-                    for class_species in weights_species:
-                        weights_species[class_species] *= 1/Σweights
-                    # We have CLASS units of [length²time⁻²]
-                    class_units = ℝ[light_speed**2]
-                elif self.var_name in {'ϕ', 'ψ'}:
-                    # As ϕ and ψ are species independent quantities,
-                    # we do not have any weights.
-                    weights_species = {class_species: 1
-                        for class_species in self.class_species.split('+')
-                    }
-                    # We have CLASS units of [length²time⁻²]
-                    class_units = ℝ[light_speed**2]
-                elif self.var_name == 'hʹ':
-                    # As hʹ is a species independent quantity,
-                    # we do not have any weights.
-                    weights_species = {class_species: 1
-                        for class_species in self.class_species.split('+')
-                    }
-                    # We have CLASS units of [time⁻¹]
-                    class_units = ℝ[light_speed/units.Mpc]
-                elif self.var_name == 'H_Tʹ':
-                    # As H_Tʹ is a species independent quantity,
-                    # we do not have any weights.
-                    weights_species = {class_species: 1
-                        for class_species in self.class_species.split('+')
-                    }
-                    # We have CLASS units of [time⁻¹]
-                    class_units = ℝ[light_speed/units.Mpc]
-                else:
-                    abort(f'Do not know how to process transfer function "{self.var_name}"')
-                    # Just to satisfy the compiler
-                    weights_species, class_units = {}, 1
+            if self.var_name == 'δ':
+                # For δ we have
+                # δ_tot = (δ_1*ρ_bar_1 + δ_2*ρ_bar_2 + ...)/(ρ_bar_1 + ρ_bar_2 + ...)
+                weights_species = {
+                    class_species: self.cosmoresults.ρ_bar(a_values, class_species)
+                    for class_species in self.class_species.split('+')
+                }
+                Σweights = np.sum(tuple(weights_species.values()), axis=0)
+                for class_species in weights_species:
+                    weights_species[class_species] *= 1/Σweights
+                # We have no CLASS units to apply
+                class_units = 1
+            elif self.var_name == 'θ':
+                # For θ we have
+                # θ_tot = (θ_1*ρ_bar_1 + θ_2*ρ_bar_2 + ...)/(ρ_bar_1 + ρ_bar_2 + ...)
+                weights_species = {
+                    class_species: self.cosmoresults.ρ_bar(a_values, class_species)
+                    for class_species in self.class_species.split('+')
+                }
+                Σweights = np.sum(tuple(weights_species.values()), axis=0)
+                for class_species in weights_species:
+                    weights_species[class_species] *= 1/Σweights
+                # We have CLASS units of [time⁻¹]
+                class_units = ℝ[light_speed/units.Mpc]
+            elif self.var_name == 'δP':
+                # CLASS does not provide the δP(k) perturbations
+                # directly. Instead it provides δP(k)/δρ(k).
+                # To get the total δP from multiple δP/δρ,
+                # we then have
+                # δP_tot = δP_1 + δP_2 + ...
+                #        = (δP/δρ)_1*δρ_1 + (δP/δρ)_2*δρ_2 + ...
+                #        = (δP/δρ)_1*δ_1*ρ_bar_1 + (δP/δρ)_2*δ_2*ρ_bar_2 + ...
+                weights_species = {
+                    class_species: (
+                        perturbation_k.get(f'delta_{class_species}')
+                        *self.cosmoresults.ρ_bar(a_values, class_species)
+                    )
+                    for class_species in self.class_species.split('+')
+                }
+                # The CLASS units of δP/δρ are [length²time⁻²]
+                class_units = ℝ[light_speed**2]
+                # Look for oulier points which are outside the
+                # legal range 0 ≤ δP/δρ ≤ c²/3. As the data is
+                # directly from CLASS, c = 1.
+                for class_species in weights_species:
+                    perturbation = perturbation_k.get(f'cs2_{class_species}')
+                    if perturbation is not None:
+                        perturbation_values = perturbation
+                        for i in range(perturbation_values.shape[0]):
+                            if not (0 <= perturbation_values[i] <= ℝ[1/3]):
+                                outliers_list.append(i)
+            elif self.var_name == 'σ':
+                # For σ we have
+                # σ_tot = (σ_1*(ρ_bar_1 + c⁻²P_bar_1) + σ_2*(ρ_bar_2 + c⁻²P_bar_2) + ...)
+                #          /((ρ_bar_1 + c⁻²P_bar_1) + (ρ_bar_2 + c⁻²P_bar_2) + ...)
+                weights_species = {class_species:
+                                           self.cosmoresults.ρ_bar(a_values, class_species)
+                    + ℝ[light_speed**(-2)]*self.cosmoresults.P_bar(a_values, class_species)
+                    for class_species in self.class_species.split('+')
+                }
+                Σweights = np.sum(tuple(weights_species.values()), axis=0)
+                for class_species in weights_species:
+                    weights_species[class_species] *= 1/Σweights
+                # We have CLASS units of [length²time⁻²]
+                class_units = ℝ[light_speed**2]
+            elif self.var_name in {'ϕ', 'ψ'}:
+                # As ϕ and ψ are species independent quantities,
+                # we do not have any weights.
+                weights_species = {class_species: 1
+                    for class_species in self.class_species.split('+')
+                }
+                # We have CLASS units of [length²time⁻²]
+                class_units = ℝ[light_speed**2]
+            elif self.var_name == 'hʹ':
+                # As hʹ is a species independent quantity,
+                # we do not have any weights.
+                weights_species = {class_species: 1
+                    for class_species in self.class_species.split('+')
+                }
+                # We have CLASS units of [time⁻¹]
+                class_units = ℝ[light_speed/units.Mpc]
+            elif self.var_name == 'H_Tʹ':
+                # As H_Tʹ is a species independent quantity,
+                # we do not have any weights.
+                weights_species = {class_species: 1
+                    for class_species in self.class_species.split('+')
+                }
+                # We have CLASS units of [time⁻¹]
+                class_units = ℝ[light_speed/units.Mpc]
+            else:
+                abort(f'Do not know how to process transfer function "{self.var_name}"')
+                # Just to satisfy the compiler
+                weights_species, class_units = {}, 1
             # Construct the perturbation_values_arr array from the
             # CLASS perturbations matching the perturbations type
             # and CLASS species, together with the weights.
@@ -1492,106 +1517,113 @@ class TransferFunction:
             # later on, and so we remove them now.
             a_values, perturbation_values = remove_doppelgängers(
                 a_values, perturbation_values, copy=True)
-            # Perform non-linear detrending. The data to be splined
-            # is in the form {a, perturbation_values - trend},
-            # with trend = factor*a**exponent. Here we find this
-            # trend trough curve fitting of perturbation_values.
-            fitted_trends = []
-            for bounds in (
-                ([-ထ, -exponent_max], [+ထ,  0           ]),
-                ([-ထ,  0           ], [+ထ, +exponent_max]),
-            ):
-                try:
-                    fitted_trends.append(
-                        scipy.optimize.curve_fit(
-                            self.power_law,
-                            a_values,
-                            perturbation_values,
-                            (1, 0),
-                            bounds=bounds,
-                            ftol=1e-12,
-                            xtol=1e-12,
-                            gtol=1e-12,
-                        )
-                    )
-                except:
-                    pass
-            if fitted_trends:
-                self.factors[k_local], self.exponents[k_local] = fitted_trends[
-                    np.argmin([fitted_trend[1][1,1] for fitted_trend in fitted_trends])
-                ][0]
-            else:
-                warn(
-                    f'Failed to detrend {self.var_name} perturbations '
-                    + ('' if self.component is None else f'for {self.component.name} ')
-                    + f'at k = {self.k_magnitudes[k]} {unit_length}⁻¹. '
-                    f'The simulation will carry on without this detrending.'
-                )
-                self.factors[k_local], self.exponents[k_local] = 0, 1
-            if abs(self.factors[k_local]) == ထ:
-                abort(
-                    f'Error processing {self.var_name} perturbations '
-                    + ('' if self.component is None else f'for {self.component.name} ')
-                    + f'at k = {self.k_magnitudes[k]} {unit_length}⁻¹: '
-                    f'Detrending resulted in factor = {self.factors[k_local]}.'
-                )
-            # When the exponent is found to be 0, there is no reason
-            # to keep a non-zero factor as the detrending is then
-            # just a constant offset.
-            if isclose(self.exponents[k_local], 0, rel_tol=1e-9, abs_tol=1e-6):
-                self.factors[k_local], self.exponents[k_local] = 0, 1
-            # If the exponent is found to be equal to the maximum
-            # allowed exponent, it means that the detrending has not
-            # converged. This failed detrending is usually an
-            # indication that CLASS has been run with too
-            # low precision. For H_Tʹ and δ for the
-            # "metric" species, however, this is not necessarily
-            # the case, and so here we allow for such
-            # extreme exponents.
-            if (    isclose(abs(self.exponents[k_local]), exponent_max)
-                and not self.var_name == 'H_Tʹ'
-                and not (self.var_name == 'δ' and self.component.class_species == 'metric')
-            ):
-                sign_str = ''
-                if self.exponents[k_local] < 0:
-                    sign_str = '-'
-                warn(
-                    f'While processing {self.var_name} perturbations '
-                    + ('' if self.component is None else f'for {self.component.name} ')
-                    + f'at k = {self.k_magnitudes[k]} {unit_length}⁻¹: '
-                    f'Detrending resulted in exponent = '
-                    f'{sign_str}exponent_max = {sign_str}{exponent_max}.'
-                )
-            trend = self.factors[k_local]*asarray(a_values)**self.exponents[k_local]
-            perturbations_detrended = asarray(perturbation_values) - trend
-            # If k is above that of self.k_max, it means that
-            # this particular perturbation is not trusted at this
-            # high k value. When this is the case, we do not
-            # construct a spline object.
+            self.a_values[k_local] = a_values
+            # If k is above that of self.k_max, it means that this
+            # particular perturbation is not trusted at this high
+            # k value. When this is the case, we store the untrusted,
+            # non-detrended data, which we then process later
             if self.k_magnitudes[k] > self.k_max:
-                # Save the untrusted data. We will process it
-                # further once all the trusted perturbations have
-                # been processed.
                 untrusted_perturbations[k_local] = (
                     asarray(a_values).copy(),
-                    asarray(perturbations_detrended).copy(),
+                    asarray(perturbation_values).copy(),
                 )
                 continue
-            # Take notice of the largest trusted k
-            if k > largest_trusted_k:
-                largest_trusted_k = k
-                a_values_largest_trusted_k = asarray(a_values).copy()
-                perturbations_detrended_largest_trusted_k = (
-                    asarray(perturbations_detrended).copy()
+            # Partition a_values into a number of intervals,
+            # each to be detrended individually.
+            # These intervals are determined based on "critical"
+            # times in the history of the universe, e.g. matter-
+            # radiation equality. We place a boundary of an interval at
+            # such critical times, and also halfway (in log-space) in
+            # between such critical times. Additionally, the largest
+            # (in linear and log-space) intervals gets divided into
+            # two intervals of half the size.
+            a_criticals = find_critical_times()
+            interval_boarders = a_criticals[
+                (a_values[0] < a_criticals) & (a_criticals < a_values[a_values.shape[0] - 1])
+            ]
+            interval_boarders = np.unique(np.concatenate(
+                (interval_boarders, [a_values[0], a_values[a_values.shape[0] - 1]])
+            ))
+            interval_loga_values = np.log(interval_boarders)
+            interval_boarders = np.unique(np.concatenate(
+                (
+                    interval_boarders,
+                    np.exp(interval_loga_values[:interval_loga_values.shape[0] - 1]
+                        + 0.5*np.diff(interval_loga_values))
                 )
-            # Construct cubic spline of
-            # {a, perturbations - trend}.
-            spline = Spline(a_values, perturbations_detrended,
-                f'detrended {self.class_species} {self.var_name} perturbations '
-                f'as function of a at k = {self.k_magnitudes[k]} {unit_length}⁻¹',
-                logx=True,
+            ))
+            index = np.argmax(np.diff(interval_boarders))
+            interval_loga_values = np.log(interval_boarders)
+            index_log = np.argmax(np.diff(interval_loga_values))
+            interval_boarders = np.unique(np.concatenate(
+                (
+                    interval_boarders,
+                    [
+                        0.5*(interval_boarders[index] + interval_boarders[index + 1]),
+                        np.exp(0.5*(interval_loga_values[index_log]
+                            + interval_loga_values[index_log + 1])),
+                    ],
+                )
+            ))
+            # Find indices in a_values matching the interval boarders.
+            # Ensure that there is at least min_points_in_interval
+            # points in each interval.
+            min_points_in_interval = 16
+            loga_values = np.log(a_values)
+            interval_indices = asarray([
+                    np.argmin(np.abs(loga_values - log(value))) for value in interval_boarders],
+                dtype=C2np['Py_ssize_t'],
             )
-            self.splines[k_local] = spline
+            interval_indices[0] = 0
+            interval_indices[interval_indices.shape[0] - 1] = a_values.shape[0]
+            for i in range(interval_indices.shape[0] - 1, 0, -1):
+                difference = interval_indices[i] - interval_indices[i-1]
+                if difference < min_points_in_interval:
+                    interval_indices[i-1] -= min_points_in_interval - difference
+                    if interval_indices[i-1] < 0:
+                        interval_indices = interval_indices[i:]
+                        interval_indices[0] = 0
+                        break
+            if interval_indices.shape[0] == 1:
+                interval_indices = asarray([0, a_values.shape[0]])
+            interval_indices[interval_indices.shape[0] - 1] -= 1
+            self.interval_boarders[k_local] = asarray(a_values)[interval_indices]
+            interval_indices[interval_indices.shape[0] - 1] += 1
+            # Perform non-linear detrending on each interval
+            for i in range(interval_indices.shape[0] - 1):
+                a_min = self.interval_boarders[k_local][i]
+                a_max = self.interval_boarders[k_local][i+1]
+                index_left = interval_indices[i] - crossover
+                if index_left < 0:
+                    index_left = 0
+                index_right = interval_indices[i+1] + 1 + crossover
+                if index_right > a_values.shape[0]:
+                    index_right = a_values.shape[0]
+                interval_a_values = a_values[index_left:index_right]
+                interval_perturbation_values = perturbation_values[index_left:index_right]
+                interval_perturbations_detrended = self.detrend(
+                    interval_a_values, interval_perturbation_values, k, k_local, i,
+                )
+                # Take notice of the largest trusted k
+                if k >= largest_trusted_k:
+                    if k > largest_trusted_k:
+                        a_values_largest_trusted_k[:] = None
+                        perturbations_detrended_largest_trusted_k[:] = None
+                    largest_trusted_k = k
+                    interval_boarders_largest_trusted_k = self.interval_boarders[k_local]
+                    a_values_largest_trusted_k[i] = asarray(interval_a_values).copy()
+                    perturbations_detrended_largest_trusted_k[i] = (
+                        asarray(interval_perturbations_detrended).copy()
+                    )
+                # Construct cubic spline of
+                # {a, perturbations - trend}.
+                spline = Spline(interval_a_values, interval_perturbations_detrended,
+                    f'detrended {self.class_species} {self.var_name} perturbations '
+                    f'as function of a at k = {self.k_magnitudes[k]} {unit_length}⁻¹ '
+                    f'in interval {i} (a ∈ [{a_min}, {a_max}])',
+                    logx=True,
+                )
+                self.splines[k_local, i] = spline
         # Now each process contains trends and splines for all
         # trusted perturbations owned by themselves.
         # Find the largest trusted k for all processes.
@@ -1606,15 +1638,15 @@ class TransferFunction:
             op=MPI.LOR)
         if any_contain_untrusted_perturbations:
             # Which process holds the largest trusted perturbation?
-            rank_largest_trusted_k = allreduce(rank*(largest_trusted_k in self.k_indices) - 1,
-                op=MPI.SUM)
-            if rank_largest_trusted_k == -nprocs:
+            rank_largest_trusted_k = allreduce(
+                rank + 1 if largest_trusted_k in self.k_indices else 0, op=MPI.SUM)
+            rank_largest_trusted_k -= 1
+            if rank_largest_trusted_k == -1:
                 abort(
                     f'No trusted {self.class_species} {self.var_name} perturbations available as '
                     f'the perturbation with lowest k is at {self.k_magnitudes[0]} {unit_length}⁻¹ '
                     f'while class_k_max for this perturbation is at {self.k_max} {unit_length}⁻¹. '
                 )
-            rank_largest_trusted_k += nprocs
         # Now construct splines for untrusted perturbations,
         # if any exist on any process.
         if any_contain_untrusted_perturbations:
@@ -1626,76 +1658,82 @@ class TransferFunction:
                 for other_rank in range(nprocs):
                     if other_rank == rank or not recv(source=other_rank):
                         continue
-                    send(a_values_largest_trusted_k.shape[0], dest=other_rank)
-                    Send(a_values_largest_trusted_k, dest=other_rank)
-                    Send(perturbations_detrended_largest_trusted_k, dest=other_rank)
+                    send(interval_boarders_largest_trusted_k.shape[0], dest=other_rank)
+                    Send(interval_boarders_largest_trusted_k, dest=other_rank)
+                    n_intervals = 0
+                    for i in range(self.n_intervals):
+                        if a_values_largest_trusted_k[i] is None:
+                            break
+                        n_intervals += 1
+                    send(n_intervals, dest=other_rank)
+                    for i in range(n_intervals):
+                        send(a_values_largest_trusted_k[i].shape[0], dest=other_rank)
+                        Send(a_values_largest_trusted_k[i], dest=other_rank)
+                        Send(perturbations_detrended_largest_trusted_k[i], dest=other_rank)
             else:
                 send(contains_untrusted_perturbations, dest=rank_largest_trusted_k)
                 if contains_untrusted_perturbations:
-                    size = recv(source=rank_largest_trusted_k)
-                    a_values_largest_trusted_k                = empty(size, dtype=C2np['double'])
-                    perturbations_detrended_largest_trusted_k = empty(size, dtype=C2np['double'])
-                    Recv(a_values_largest_trusted_k               , source=rank_largest_trusted_k)
-                    Recv(perturbations_detrended_largest_trusted_k, source=rank_largest_trusted_k)
+                    a_values_largest_trusted_k[:] = None
+                    perturbations_detrended_largest_trusted_k[:] = None
+                    interval_boarders_largest_trusted_k = empty(
+                        recv(source=rank_largest_trusted_k), dtype=C2np['double'])
+                    Recv(interval_boarders_largest_trusted_k, source=rank_largest_trusted_k)
+                    for i in range(recv(source=rank_largest_trusted_k)):
+                        size = recv(source=rank_largest_trusted_k)
+                        a_values_largest_trusted_k[i] = empty(size, dtype=C2np['double'])
+                        perturbations_detrended_largest_trusted_k[i] = (
+                            empty(size, dtype=C2np['double']))
+                        Recv(a_values_largest_trusted_k[i], source=rank_largest_trusted_k)
+                        Recv(perturbations_detrended_largest_trusted_k[i],
+                            source=rank_largest_trusted_k)
+            for i in range(a_values_largest_trusted_k.shape[0]):
+                if a_values_largest_trusted_k[i] is None:
+                    a_values_largest_trusted_k = a_values_largest_trusted_k[:i]
+                    perturbations_detrended_largest_trusted_k = (
+                        perturbations_detrended_largest_trusted_k[:i])
+                    break
             # Now all processes containing untrusted perturbations
             # have the data for the largest trusted perturbation.
-            # Find the index corresponding to a_begin, as only the part
-            # [a_begin, 1] should be used for the morphing.
-            for i in range(a_values_largest_trusted_k.shape[0]):
-                largest_trusted_k_begin_index = -1
-                if a_values_largest_trusted_k[i] >= universals.a_begin:
-                    largest_trusted_k_begin_index = i - 1
-                    break
-                if largest_trusted_k_begin_index == -1:
-                    largest_trusted_k_begin_index = 0
             # We shall now construct splines for the untrusted
-            # perturbations. We do this by morphing the detrended data
-            # of the perturbation with the largest trusted k into being
-            # as similar as possible to the untrusted
-            # detrended perturbations. This morphing is done via
-            # perturbations_detrended_largest_trusted_k
-            #     → (factor*perturbations_detrended_largest_trusted_k
-            #        *a_values_largest_trusted_k**exponent),
-            # where the factor and exponent are new parameters to be
-            # found through minimization.
+            # perturbations. We do this by reusing the detrended data
+            # for the largest trusted perturbation for all untrusted
+            # perturbations. Individual factors and exponents are still
+            # inferred directly from the untrusted data.
             if contains_untrusted_perturbations:
                 # Carry out the morphing for each
                 # of the untrusted perturbations.
-                factor, exponent = 1, 0
-                for k_local, untrusted_perturbation in enumerate(untrusted_perturbations):
-                    if untrusted_perturbation is None:
+                for k_local in range(untrusted_perturbations.shape[0]):
+                    if untrusted_perturbations[k_local] is None:
                         continue
-                    # Interpolate untrusted perturbation onto the
-                    # a_values for the last trusted perturbation,
-                    # using only data in the range [a_begin, 0].
-                    perturbations_detrended = np.interp(
-                        a_values_largest_trusted_k[largest_trusted_k_begin_index:],
-                        *untrusted_perturbation,
-                    )
-                    # Do the morphing using minimization
-                    factor, exponent = scipy.optimize.minimize(
-                        self.least_squares_morphing,
-                        (factor, exponent),
-                        (
-                            asarray(a_values_largest_trusted_k[largest_trusted_k_begin_index:]),
-                            asarray(perturbations_detrended_largest_trusted_k[
-                                largest_trusted_k_begin_index:]),
-                            asarray(perturbations_detrended),
-                        ),
-                        method='nelder-mead',
-                    ).x
-                    # Create the spline
-                    spline = Spline(
-                        a_values_largest_trusted_k,
-                        (factor*asarray(perturbations_detrended_largest_trusted_k)
-                            *asarray(a_values_largest_trusted_k)**exponent
-                        ),
-                        f'detrended {self.class_species} {self.var_name} perturbations '
-                        f'as function of a at k = {self.k_magnitudes[k]} {unit_length}⁻¹ '
-                        f'(produced from the largest trusted perturbation)',
-                        logx=True,
-                    )
-                    self.splines[k_local] = spline
+                    k = self.k_indices[k_local]
+                    self.interval_boarders[k_local] = interval_boarders_largest_trusted_k
+                    a_values, perturbation_values = untrusted_perturbations[k_local]
+                    for i in range(a_values_largest_trusted_k.shape[0]):
+                        a_min = a_values_largest_trusted_k[i][0]
+                        a_max = a_values_largest_trusted_k[i][
+                            a_values_largest_trusted_k[i].shape[0] - 1]
+                        # Interpolate untrusted perturbation onto the
+                        # a_values for the last trusted perturbation,
+                        # in the current interval.
+                        interval_perturbation_values = np.interp(a_values_largest_trusted_k[i],
+                            a_values, perturbation_values)
+                        # Do detrending. This sets the factor and
+                        # exponent on self, which is all we need.
+                        interval_perturbations_detrended = self.detrend(
+                            a_values_largest_trusted_k[i], interval_perturbation_values,
+                            k, k_local, i,
+                        )
+                        # Create the spline
+                        spline = Spline(
+                            a_values_largest_trusted_k[i],
+                            perturbations_detrended_largest_trusted_k[i],
+                            f'detrended {self.class_species} {self.var_name} perturbations '
+                            f'as function of a at k = {self.k_magnitudes[k]} {unit_length}⁻¹ '
+                            f'in interval {i} (a ∈ [{a_min}, {a_max}]) '
+                            f'(produced from the largest trusted perturbation)',
+                            logx=True,
+                        )
+                        self.splines[k_local, i] = spline
             # Done with all untrusted perturbations
             Barrier()
             masterprint('done')
@@ -1707,64 +1745,193 @@ class TransferFunction:
             if master:
                 for other_rank in range(nprocs):
                     if other_rank == rank:
-                        n_potential_plots = self.k_gridsize_local
+                        n_plots = self.k_gridsize_local
                     else:
-                        n_potential_plots = recv(source=other_rank)
-                    for k_local in range(n_potential_plots):
+                        n_plots = recv(source=other_rank)
+                    factors   = empty(self.n_intervals, dtype=C2np['double'])
+                    exponents = empty(self.n_intervals, dtype=C2np['double'])
+                    for k_local in range(n_plots):
                         if other_rank == rank:
                             k = self.k_indices[k_local]
+                            factors   = asarray(self.factors  [k_local, :]).copy()
+                            exponents = asarray(self.exponents[k_local, :]).copy()
+                            splines = self.splines[k_local, :]
                         else:
                             k = recv(source=other_rank)
-                        if other_rank == rank:
-                            factor   = self.factors  [k_local]
-                            exponent = self.exponents[k_local]
-                            spline   = self.splines  [k_local]
-                        else:
-                            factor, exponent = recv(source=other_rank)
-                            size = recv(source=other_rank)
-                            a_values = get_buffer(size, 'x')
-                            Recv(a_values, source=other_rank)
-                            perturbations_detrended = get_buffer(size, 'y')
-                            Recv(perturbations_detrended, source=other_rank)
-                            # Recreate spline at the master process
-                            spline = Spline(a_values, perturbations_detrended,
-                                f'detrended {self.class_species} {self.var_name} perturbations '
-                                f'as function of a at k = {self.k_magnitudes[k]} {unit_length}⁻¹',
-                                logx=True,
-                            )
+                            Recv(factors, source=other_rank)
+                            Recv(exponents, source=other_rank)
+                            splines = empty(self.n_intervals, dtype=object)
+                            for i in range(self.n_intervals):
+                                if recv(source=other_rank):
+                                    continue
+                                size = recv(source=other_rank)
+                                interval_a_values = get_buffer(size, 'x')
+                                Recv(interval_a_values, source=other_rank)
+                                interval_perturbations_detrended = get_buffer(size, 'y')
+                                Recv(interval_perturbations_detrended, source=other_rank)
+                                # Recreate spline at the master process
+                                splines[i] = Spline(interval_a_values,
+                                    interval_perturbations_detrended,
+                                    f'detrended {self.class_species} {self.var_name} '
+                                    f'perturbations as function of a at '
+                                    f'k = {self.k_magnitudes[k]} {unit_length}⁻¹',
+                                    logx=True,
+                                )
                         plot_detrended_perturbations(
                             k,
                             self.k_magnitudes[k],
                             self.var_name,
                             self.class_species,
-                            factor,
-                            exponent,
-                            spline,
+                            factors,
+                            exponents,
+                            splines,
                             self.k_magnitudes[largest_trusted_k],
+                            crossover,
                         )
             else:
                 send(self.k_gridsize_local, dest=master_rank)
                 for k_local in range(self.k_gridsize_local):
                     k = self.k_indices[k_local]
                     send(k, dest=master_rank)
-                    send((self.factors[k_local], self.exponents[k_local]), dest=master_rank)
-                    spline = self.splines[k_local]
-                    send(spline.x.shape[0], dest=master_rank)
-                    Send(spline.x, dest=master_rank)
-                    Send(spline.y, dest=master_rank)
+                    Send(self.factors[k_local, :], dest=master_rank)
+                    Send(self.exponents[k_local, :], dest=master_rank)
+                    for i in range(self.n_intervals):
+                        spline = self.splines[k_local, i]
+                        send(spline is None, dest=master_rank)
+                        if spline is None:
+                            continue
+                        send(spline.x.shape[0], dest=master_rank)
+                        Send(spline.x, dest=master_rank)
+                        Send(spline.y, dest=master_rank)
             masterprint('done')
         # All perturbations have been processed
         Barrier()
         masterprint('done')
 
     # Helper functions for the process method
+    @cython.header(
+        # Arguments
+        x='double[::1]',
+        y='double[::1]',
+        k='Py_ssize_t',
+        k_local='Py_ssize_t',
+        i='Py_ssize_t',
+        # Locals
+    )
+    def detrend(self, x, y, k, k_local, i):
+        # Maximum (absolute) allowed exponent in the trend.
+        # If an exponent greater than this is found,
+        # the program will terminate.
+        exponent_max = 15
+        # The data to be splined is in the form
+        # {a, perturbation_values - trend},
+        # with trend = factor*a**exponent. Here we find this
+        # trend trough curve fitting of perturbation_values.
+        fitted_trends = []
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', category=RuntimeWarning)
+            for initial_guess in (
+                (-1, 0),
+                (+1, 0),
+            ):
+                for bounds in (
+                    ([-ထ, -exponent_max], [+ထ,  0           ]),
+                    ([-ထ,  0           ], [+ထ, +exponent_max]),
+                ):
+                    try:
+                        fitted_trends.append(
+                            scipy.optimize.curve_fit(
+                                self.power_law,
+                                x,
+                                y,
+                                initial_guess,
+                                bounds=bounds,
+                                ftol=1e-12,
+                                xtol=1e-12,
+                                gtol=1e-12,
+                                maxfev=500*(x.shape[0] + 1),
+                            )
+                        )
+                    except:
+                        pass
+        # The best fit is determined from the variance of
+        # the exponent. Some times, bad fits gets assigned a
+        # variance of exactly zero. Bump such occurrences to
+        # infinity before locating the best fit.
+        for fitted_trend in fitted_trends:
+            if fitted_trend[1][1,1] == 0:
+                fitted_trend[1][1,1] = ထ
+        if fitted_trends:
+            self.factors[k_local, i], self.exponents[k_local, i] = fitted_trends[
+                np.argmin([fitted_trend[1][1,1] for fitted_trend in fitted_trends])
+            ][0]
+        else:
+            warn(
+                f'Failed to detrend {self.var_name} perturbations '
+                + ('' if self.component is None else f'for {self.component.name} ')
+                + f'at k = {self.k_magnitudes[k]} {unit_length}⁻¹. '
+                f'The simulation will carry on without this detrending.'
+            )
+            self.factors[k_local, i], self.exponents[k_local, i] = 0, 1
+        if abs(self.factors[k_local, i]) == ထ:
+            abort(
+                f'Error processing {self.var_name} perturbations '
+                + ('' if self.component is None else f'for {self.component.name} ')
+                + f'at k = {self.k_magnitudes[k]} {unit_length}⁻¹: '
+                f'Detrending resulted in factor = {self.factors[k_local, i]}.'
+            )
+        # When the exponent is found to be 0, there is no reason
+        # to keep a non-zero factor as the detrending is then
+        # just a constant offset.
+        if isclose(self.exponents[k_local, i], 0, rel_tol=1e-9, abs_tol=1e-6):
+            self.factors[k_local, i], self.exponents[k_local, i] = 0, 1
+        # Construct the trend and the detrended perturbations
+        trend = self.factors[k_local, i]*asarray(x)**self.exponents[k_local, i]
+        interval_perturbations_detrended = asarray(y) - trend
+        return interval_perturbations_detrended
     @staticmethod
-    def power_law(a, factor, exponent):
-        return factor*a**exponent
-    @staticmethod
-    def least_squares_morphing(x, a, y, y2):
-        factor, exponent = x
-        return np.sum((y2 - factor*y*a**exponent)**2)
+    def power_law(x, factor, exponent):
+        return factor*x**exponent
+
+
+    # Method which finds out which scale factor interval a given scale
+    # factor value lies within, given the local perturbation index.
+    @cython.header(
+        # Arguments
+        k_local='Py_ssize_t',
+        a='double',
+        # Locals
+        a_max='double',
+        index='Py_ssize_t',
+        index_lower='Py_ssize_t',
+        index_upper='Py_ssize_t',
+        interval_boarders='double[::1]',
+        state_changed='bint',
+        returns='Py_ssize_t',
+    )
+    def get_interval(self, k_local, a):
+        # Get all intervals for this perturbation
+        interval_boarders = self.interval_boarders[k_local]
+        # Find specific interval using binary search
+        a_max = interval_boarders[interval_boarders.shape[0] - 1]
+        if a >= a_max:
+            index = interval_boarders.shape[0] - 2
+        else:
+            index_lower = 0
+            index_upper = interval_boarders.shape[0] - 2
+            state_changed = True
+            while state_changed:
+                state_changed = False
+                index = (index_lower + index_upper)//2
+                if index != index_lower and interval_boarders[index] <= a:
+                    index_lower = index
+                    state_changed = True
+                if index != index_upper and a < interval_boarders[index + 1]:
+                    index_upper = index
+                    state_changed = True
+            if index_upper == index_lower + 1:
+                index = index_upper
+        return index
 
     # Method for evaluating the k'th transfer function
     # at a given scale factor.
@@ -1773,15 +1940,20 @@ class TransferFunction:
         k_local='Py_ssize_t',
         a='double',
         # Locals
+        exponent='double',
+        factor='double',
+        i='Py_ssize_t',
         spline='Spline',
-        value='double',
         returns='double',
     )
     def eval(self, k_local, a):
+        i = self.get_interval(k_local, a)
+        factor   = self.factors  [k_local, i]
+        exponent = self.exponents[k_local, i]
+        spline   = self.splines  [k_local, i]
         # The spline is over transfer(a) - trend(a)
         # with trend(a) = factor*a**exponent.
-        spline = self.splines[k_local]
-        return spline.eval(a) + self.factors[k_local]*a**self.exponents[k_local]
+        return spline.eval(a) + factor*a**exponent
 
     # Main method for getting the transfer function as function of k
     # at a specific value of the scale factor.
@@ -1793,6 +1965,7 @@ class TransferFunction:
         # Locals
         a_i='double',
         a_values='double[::1]',
+        a_values_list=list,
         fac_density='int',
         i='Py_ssize_t',
         index_min='Py_ssize_t',
@@ -1838,7 +2011,8 @@ class TransferFunction:
                     f'When using a weight you must also specify a_next.'
                 )
             # Number of additional tabulated points to include on both
-            # sides of the interval [a, a_next].
+            # sides of the interval [a, a_next]. Should not exceed
+            # "crossover" set in TransferFunction.process.
             n_side_points = 1
             # Number of points in the averaging integrands between each
             # pair of points in the tabulated transfer functions.
@@ -1856,8 +2030,7 @@ class TransferFunction:
             for k_local in range(self.k_gridsize_local):
                 # Get array of a values between a and a_next at which
                 # the k'th transfer function is tabulated.
-                spline = self.splines[k_local]
-                a_values = spline.x
+                a_values = self.a_values[k_local]
                 index_min = np.searchsorted(a_values, a, 'right')
                 index_max = np.searchsorted(a_values, a_next, 'left')
                 index_min -= n_side_points + 1
@@ -1931,17 +2104,22 @@ class TransferFunction:
         a='double',
         # Locals
         exponent='double',
+        factor='double',
+        i='Py_ssize_t',
         spline='Spline',
+        returns='double',
     )
     def eval_deriv(self, k_local, a):
+        i = self.get_interval(k_local, a)
+        factor   = self.factors  [k_local, i]
+        exponent = self.exponents[k_local, i]
+        spline   = self.splines  [k_local, i]
         # The spline is over transfer(a) - trend(a)
         # with trend(a) = factor*a**exponent.
         # We then have to add dtrend(a)/da = factor*a**(exponent - 1)
         # to the derivative of the spline to obtain the derivative of
         # the transfer function.
-        spline = self.splines[k_local]
-        exponent = self.exponents[k_local]
-        return spline.eval_deriv(a) + self.factors[k_local]*exponent*a**(exponent - 1)
+        return spline.eval_deriv(a) + factor*exponent*a**(exponent - 1)
 
     # Method for getting the derivative of the transfer function
     # with respect to the scale factor, evaluated at a,
@@ -1975,6 +2153,71 @@ class TransferFunction:
         smart_mpi(self.data_deriv_local, self.data_deriv, mpifun='allgatherv')
         self.data_deriv = asarray(self.data_deriv)[self.k_indices_all]
         return self.data_deriv
+
+# Function which finds critical moments in the cosmic history,
+# like that of matter-radiation equality
+@lru_cache(copy=True)
+def find_critical_times():
+    # List storing the critical scale factor values
+    a_criticals = []
+    # If the CLASS background is disabled,
+    # we give up computing any critical times.
+    if not enable_class_background:
+        return asarray(a_criticals)
+    # Get the CLASS background
+    cosmoresults = compute_cosmo(class_call_reason=f'in order to find critical times ')
+    background = cosmoresults.background
+    a = background['a']
+    # Compute radiation background density
+    ρ_radiation = 0
+    for class_species in ('g', 'ur', 'dr'):
+        ρ_class_species = background.get(f'(.)rho_{class_species}')
+        if ρ_class_species is not None:
+            ρ_radiation += ρ_class_species
+    for n in itertools.count():
+        ρ_ncdm = background.get(f'(.)rho_ncdm[{n}]')
+        if ρ_ncdm is None:
+            break
+        P_ncdm = background[f'(.)p_ncdm[{n}]']
+        w_ncdm = P_ncdm/ρ_ncdm
+        ρ_radiation += ρ_ncdm*(3*w_ncdm)
+    # Compute matter background density
+    ρ_matter = 0
+    for class_species in ('b', 'cdm', 'dcdm'):
+        ρ_class_species = background.get(f'(.)rho_{class_species}')
+        if ρ_class_species is not None:
+            ρ_matter += ρ_class_species
+    for n in itertools.count():
+        ρ_ncdm = background.get(f'(.)rho_ncdm[{n}]')
+        if ρ_ncdm is None:
+            break
+        P_ncdm = background[f'(.)p_ncdm[{n}]']
+        w_ncdm = P_ncdm/ρ_ncdm
+        ρ_matter += ρ_ncdm*(1 - 3*w_ncdm)
+    # Compute dark energy background density
+    ρ_darkenergy = 0
+    for class_species in ('lambda', 'fld'):
+        ρ_class_species = background.get(f'(.)rho_{class_species}')
+        if ρ_class_species is not None:
+            ρ_darkenergy += ρ_class_species
+    # Find matter-radiation and darkenergy-matter equality
+    a_matter_radiation  = a[np.argmin(np.abs(np.log(ρ_matter)     - np.log(ρ_radiation)))]
+    a_darkenergy_matter = a[np.argmin(np.abs(np.log(ρ_darkenergy) - np.log(ρ_matter)))   ]
+    a_criticals.append(a_matter_radiation)
+    a_criticals.append(a_darkenergy_matter)
+    # Find relativistic to non-relativistic transition times
+    # for massive neutrinos.
+    ncdm_transitions = []
+    for n in itertools.count():
+        ρ_ncdm = background.get(f'(.)rho_ncdm[{n}]')
+        if ρ_ncdm is None:
+            break
+        P_ncdm = background[f'(.)p_ncdm[{n}]']
+        w_ncdm = P_ncdm/ρ_ncdm
+        ncdm_transitions.append(a[np.argmin(np.abs(w_ncdm - 0.5*1/3))])
+    a_criticals += ncdm_transitions
+    # Return critical times as a sorted array or unique times
+    return np.unique(a_criticals)
 
 # Function which solves the linear cosmology using CLASS,
 # from before the initial simulation time and until the present.

@@ -166,13 +166,16 @@ var_name_to_latex_unit = {
     k_magnitude='double',
     var_name=str,
     class_species=str,
-    factor='double',
-    exponent='double',
-    spline='Spline',
+    factors='double[::1]',
+    exponents='double[::1]',
+    splines=object,  # np.ndarray of dtype object
     largest_trusted_k_magnitude='double',
+    crossover='int',
     # Locals
     a_values_raw=object,  # np.ndarray
+    exponent='double',
     exponent_str=str,
+    factor='double',
     factor_str=str,
     filename=str,
     i='Py_ssize_t',
@@ -181,42 +184,29 @@ var_name_to_latex_unit = {
     loga_value='double',
     loga_values='double[::1]',
     loga_values_spline='double[::1]',
+    n='Py_ssize_t',
     perturbations_detrended_spline='double[::1]',
     perturbations_raw=object,  # np.ndarray
     skip='Py_ssize_t',
     specific_species='bint',
+    spline='Spline',
     unit_latex=str,
     val=str,
     var_name_latex=str,
 )
 def plot_detrended_perturbations(k, k_magnitude, var_name, class_species,
-    factor, exponent, spline, largest_trusted_k_magnitude):
+    factors, exponents, splines, largest_trusted_k_magnitude, crossover):
     # All processes could carry out this work, but as it involves I/O,
     # we only allow the master process to do so.
     if not master:
         abort(f'rank {rank} called plot_detrended_perturbations()')
-    a_values, perturbations_detrended = spline.x, spline.y
-    loga_values = np.log(a_values)
-    # Plot the detrended CLASS data
-    plt.figure()
-    plt.semilogx(a_values, perturbations_detrended, '.', markersize=3)
-    # Plot the spline at values midway between the data points
-    loga_values_spline             = empty(loga_values.shape[0] - 1, dtype=C2np['double'])
-    perturbations_detrended_spline = empty(loga_values.shape[0] - 1, dtype=C2np['double'])
-    skip = 0
-    for i in range(loga_values_spline.shape[0]):
-        loga_value = 0.5*(loga_values[i] + loga_values[i+1])
-        if not (ℝ[spline.xmin] <= loga_value <= ℝ[spline.xmax]):
-            skip += 1
-            continue
-        loga_values_spline[ℤ[i - skip]] = loga_value
-        perturbations_detrended_spline[ℤ[i - skip]] = spline.eval(exp(loga_value))
-    loga_values_spline = loga_values_spline[:ℤ[i - skip + 1]]
-    perturbations_detrended_spline = perturbations_detrended_spline[:ℤ[i - skip + 1]]
-    plt.semilogx(np.exp(loga_values_spline), perturbations_detrended_spline, '-',
-        linewidth=1, zorder=0)
-    # Decorate and save plot
-    plt.xlabel('$a$', fontsize=14)
+    n_subplots = 0
+    for spline in splines:
+        if spline is None:
+            break
+        n_subplots += 1
+    fig, axes = plt.subplots(1, n_subplots, figsize=(6*n_subplots + 0.4, 4.8))
+    axes = any2list(axes)
     var_name_latex = var_name
     for key, val in var_name_to_latex.items():
         var_name_latex = var_name_latex.replace(key, val)
@@ -228,40 +218,80 @@ def plot_detrended_perturbations(k, k_magnitude, var_name, class_species,
         .replace('*', '')
         .replace('m_sun', r'm_{\odot}')
     )
-    plt.ylabel(
-        rf'$({var_name_latex} - \mathrm{{trend}})\, {unit_latex}$'
-            if unit_latex else
-            rf'${var_name_latex} - \mathrm{{trend}}$',
-        fontsize=14,
-    )
-    specific_species = var_name not in {'ϕ', 'ψ', 'hʹ', 'H_Tʹ'}
+    specific_species = (var_name not in {'ϕ', 'ψ', 'hʹ', 'H_Tʹ'})
     k_str = significant_figures(k_magnitude, 3, fmt='tex', scientific=True)
-    plt.title(
+    fig.suptitle(
         (rf'{class_species}, ' if specific_species else '')
         + rf'$k = {k_str}\, \mathrm{{{unit_length}}}^{{-1}}$',
         fontsize=16,
         horizontalalignment='center',
     )
-    plt.gca().tick_params(axis='x', which='major', labelsize=13)
-    factor_str = significant_figures(factor, 6, fmt='tex', scientific=True)
-    exponent_str = significant_figures(exponent, 6, scientific=False)
-    plt.text(0.5, 0.8,
-        rf'$\mathrm{{trend}} = {factor_str}{unit_latex.strip("[]")}a^{{{exponent_str}}}$',
-        horizontalalignment='center',
-        verticalalignment='center',
-        transform=plt.gca().transAxes,
-        fontsize=14,
-    )
-    if k_magnitude > largest_trusted_k_magnitude:
-        plt.text(0.5, 0.65,
-            rf'(using data from $k = {largest_trusted_k_magnitude}\, '
-            rf'\mathrm{{{unit_length}}}^{{-1}}$)',
+    for n, ax in enumerate(axes):
+        factor, exponent, spline = factors[n], exponents[n], splines[n]
+        a_values, perturbations_detrended = spline.x, spline.y
+        index_left = 0
+        if n != 0:
+            index_left += crossover
+        index_right = a_values.shape[0]
+        if n != n_subplots - 1:
+            index_right -= crossover
+        a_values = a_values[index_left:index_right]
+        a_min = significant_figures(a_values[0], 4, fmt='tex', scientific=True)
+        a_max = significant_figures(a_values[a_values.shape[0] - 1], 4, fmt='tex', scientific=True)
+        perturbations_detrended = perturbations_detrended[index_left:index_right]
+        # Plot the detrended CLASS data
+        ax.semilogx(a_values, perturbations_detrended, '.', markersize=3)
+        # Plot the spline at values midway between the data points
+        loga_values = np.log(a_values)
+        loga_values_spline             = empty(loga_values.shape[0] - 1, dtype=C2np['double'])
+        perturbations_detrended_spline = empty(loga_values.shape[0] - 1, dtype=C2np['double'])
+        skip = 0
+        for i in range(loga_values_spline.shape[0]):
+            loga_value = 0.5*(loga_values[i] + loga_values[i+1])
+            if not (ℝ[spline.xmin] <= loga_value <= ℝ[spline.xmax]):
+                skip += 1
+                continue
+            loga_values_spline[ℤ[i - skip]] = loga_value
+            perturbations_detrended_spline[ℤ[i - skip]] = spline.eval(exp(loga_value))
+        loga_values_spline = loga_values_spline[:ℤ[i - skip + 1]]
+        perturbations_detrended_spline = perturbations_detrended_spline[:ℤ[i - skip + 1]]
+        ax.semilogx(np.exp(loga_values_spline), perturbations_detrended_spline, '-',
+            linewidth=1, zorder=0)
+        ax.set_xlim(a_values[0], a_values[a_values.shape[0] - 1])
+        # Decorate plot
+        if n == 0:
+            ax.set_ylabel(
+                rf'$({var_name_latex} - \mathrm{{trend}})\, {unit_latex}$'
+                    if unit_latex else
+                    rf'${var_name_latex} - \mathrm{{trend}}$',
+                fontsize=14,
+            )
+        ax.set_xlabel(rf'$a \in [{a_min}, {a_max}]$', fontsize=14)
+        factor_str = significant_figures(factor, 6, fmt='tex', scientific=True)
+        exponent_str = significant_figures(exponent, 6, scientific=False)
+        trend_str = (
+            rf'$\mathrm{{trend}} = 0$'
+            if factor == 0 else
+            rf'$\mathrm{{trend}} = {factor_str}{unit_latex.strip("[]")}a^{{{exponent_str}}}$'
+        )
+        ax.text(0.5, 0.8,
+            trend_str,
             horizontalalignment='center',
             verticalalignment='center',
-            transform=plt.gca().transAxes,
+            transform=ax.transAxes,
             fontsize=14,
         )
-    plt.tight_layout()
+        if k_magnitude > largest_trusted_k_magnitude:
+            ax.text(0.5, 0.65,
+                rf'(using data from $k = {largest_trusted_k_magnitude}\, '
+                rf'\mathrm{{{unit_length}}}^{{-1}}$)',
+                horizontalalignment='center',
+                verticalalignment='center',
+                transform=ax.transAxes,
+                fontsize=14,
+            )
+    # Finalise and save plot
+    fig.subplots_adjust(wspace=0, hspace=0)
     filename = output_dirs['powerspec'] + '/class_perturbations'
     filename += '/' + (var_name_latex
         .replace('\\'    , ''      )
@@ -277,7 +307,7 @@ def plot_detrended_perturbations(k, k_magnitude, var_name, class_species,
         filename += f'_{class_species}'
     os.makedirs(filename, exist_ok=True)
     filename += f'/{k}.png'
-    plt.savefig(filename)
+    plt.savefig(filename, bbox_inches='tight', pad_inches=0.1)
     plt.close()
 
 # Function for plotting processed CLASS perturbations

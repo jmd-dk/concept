@@ -2881,7 +2881,7 @@ if __name__ == '__main__':
         # Make the types file, containing the definitions of all custom
         # types implemented in the .pyx files.
         if filename.endswith('.pyx'):
-            make_types(filename,no_optimization)  # filename == filename_types
+            make_types(filename, no_optimization)  # filename == filename_types
         else:
             raise Exception('Got "{}" which is not a .pyx file as the first argument, '
                             'while receiving more than three arguments'.format(filename))

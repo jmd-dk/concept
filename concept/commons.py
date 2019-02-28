@@ -42,9 +42,10 @@ __version__ = 'master'
 ############################################
 # Imports common to pure Python and Cython #
 ############################################
-# Miscellaneous modules
+# Miscellaneous
 import ast, collections, contextlib, ctypes, cython, functools, hashlib, inspect, itertools
 import keyword, os, re, shutil, sys, textwrap, types, unicodedata, warnings
+from copy import deepcopy
 # For math
 # (note that numpy.array is purposely not imported directly into the
 # global namespace, as this does not play well with Cython).
@@ -320,11 +321,11 @@ matplotlib.rcParams.update({
     'ytick.direction': 'out',
 })
 # Function used to set the minor tick formatting in log plots
-def fix_minor_tick_labels(ax=None):
-    """In matplotlib 2.x, tick labels are automatically placed at minor
-    ticks in log plots if the axis range is less than a full decade.
-    Here, a \times glyph is used, which is not handled correctly
-    due to it being inclosed in \mathdefault{}, leading to a
+def fix_minor_tick_labels(fig=None):
+    """In matplotlib 2.x and 3.x, tick labels are automatically placed
+    at minor ticks in log plots if the axis range is less than a
+    full decade. Here, a \times glyph is used, which is not handled
+    correctly due to it being inclosed in \mathdefault{}, leading to a
     MathTextWarning and the \times being replaced
     with a dummy symbol. The problem is fully described here:
     https://stackoverflow.com/questions/47253462
@@ -332,21 +333,21 @@ def fix_minor_tick_labels(ax=None):
     This function serves as a workaround. To avoid the warning,
     you must call this function before calling tight_layout().
     """
-    if ax is None:
-        ax = plt.gca()
-    fig = ax.get_figure()
+    if fig is None:
+        fig = plt.gcf()
     # Force the figure to be drawn,
     # ignoring the warning about \times not being recognized.
     with warnings.catch_warnings():
         warnings.simplefilter('ignore', category=matplotlib.mathtext.MathTextWarning)
         fig.canvas.draw()
-    # Remove \mathdefault from all minor tick labels
-    labels = [label.get_text().replace(r'\mathdefault', '')
-        for label in ax.get_xminorticklabels()]
-    ax.set_xticklabels(labels, minor=True)
-    labels = [label.get_text().replace(r'\mathdefault', '')
-        for label in ax.get_yminorticklabels()]
-    ax.set_yticklabels(labels, minor=True)
+    for ax in fig.axes:
+        # Remove \mathdefault from all minor tick labels
+        labels = [label.get_text().replace(r'\mathdefault', '')
+            for label in ax.get_xminorticklabels()]
+        ax.set_xticklabels(labels, minor=True)
+        labels = [label.get_text().replace(r'\mathdefault', '')
+            for label in ax.get_yminorticklabels()]
+        ax.set_yticklabels(labels, minor=True)
 # Overwrite plt.tight_layout and plt.savefig so that these call the
 # fix_minor_tick_labels function before executing their usual code.
 def fix_minor_tick_labels_decorator(f):
@@ -2188,6 +2189,8 @@ if 'class_k_max' in user_params:
         class_k_max = {'all': user_params['class_k_max']}
 else:
     class_k_max = {}
+for key, val in class_k_max.copy().items():
+    class_k_max[key] = any2list(val)[0]
 user_params['class_k_max'] = class_k_max
 class_reuse = bool(user_params.get('class_reuse', True))
 user_params['class_reuse'] = class_reuse
@@ -3221,6 +3224,21 @@ def open_hdf5(filename, **kwargs):
         # We did not make it. Try again.
         return open_hdf5(filename, **kwargs)
     return hdf5_file
+
+# Function decorator cache equivalent to functools.lru_cache,
+# but extended with copying functionality (when called with copy=True)
+# so that the returned object is freshly instantiated,
+# handy if the returned object is mutable.
+def lru_cache(maxsize=128, typed=False, copy=False):
+    if not copy:
+        return functools.lru_cache(maxsize, typed)
+    def decorator(f):
+        cached_func = functools.lru_cache(maxsize, typed)(f)
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            return deepcopy(cached_func(*args, **kwargs))
+        return wrapper
+    return decorator
 
 
 
