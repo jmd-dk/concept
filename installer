@@ -6018,35 +6018,39 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     # which Γ = Γ' = 0, for the sake of numerical stability. In CAMB
     # such a maximum value is present as well and is set to 30. I have
     # found that a value of 10³ or even 10⁴ ensures stability as well,
-    # while perturbing the fld δ_fld and θ_fld solutions
+    # while perturbing the fld δ_fld, θ_fld and δp_fld solutions
     # significantly less.
-    pattern='ppw *-> *Gamma_prime_fld *='
+    pattern='c_gamma_k_H_square *='
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
         "${class_dir}/source/perturbations.c" | head -n 1)
-    new_lines=(                                                                         \
-        "/**"                                                                           \
-        " * The computation of Gamma_fld and Gamma_prime_fld becomes unstable"          \
-        " * at large c_Gamma*k/H. To stabilise the system we set these to zero"         \
-        " * at some large c_Gamma*k/H."                                                 \
-        " *"                                                                            \
-        " */"                                                                           \
-        "double c_gamma_k_H_square_max, Gamma_fld;"                                     \
-        "c_gamma_k_H_square_max = 1e+3;"                                                \
-        "if (c_gamma_k_H_square > c_gamma_k_H_square_max){"                             \
-        "  Gamma_fld = 0.;"                                                             \
-        "  ppw->Gamma_prime_fld = 0.;"                                                  \
-        "} else {"                                                                      \
-        "  Gamma_fld = y[ppw->pv->index_pt_Gamma_fld];"                                 \
-        "  ppw->Gamma_prime_fld = a_prime_over_a*(ppw->S_fld/(1. + c_gamma_k_H_square)" \
-        "    - (1. + c_gamma_k_H_square)*Gamma_fld);"                                   \
-        }
+    sed -i "${linenr}d" "${class_dir}/source/perturbations.c"
+    pattern='s2sq *= ppw *->'
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+        "${class_dir}/source/perturbations.c" | head -n 1)
+    ((linenr += 1))
+    new_lines=(                                                                               \
+        "/**"                                                                                 \
+        " * The computation of Gamma_fld and Gamma_prime_fld becomes unstable"                \
+        " * at large c_Gamma*k/H. To stabilise the system we set these to zero"               \
+        " * at some large c_Gamma*k/H."                                                       \
+        " * Here we nullify Gamma_fld only."                                                  \
+        " *"                                                                                  \
+        " */"                                                                                 \
+        'double c_gamma_k_H_square_max, Gamma_fld;'                                           \
+        'c_gamma_k_H_square = pow(pba->c_gamma_over_c_fld*k/a_prime_over_a, 2)*pba->cs2_fld;' \
+        'c_gamma_k_H_square_max = 1e+3;'                                                      \
+        'if (c_gamma_k_H_square > c_gamma_k_H_square_max){'                                   \
+        '  Gamma_fld = 0.;'                                                                   \
+        '} else {'                                                                            \
+        '  Gamma_fld = y[ppw->pv->index_pt_Gamma_fld];'                                       \
+        '}'                                                                                   \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} \
-        "replace" "above" "${new_lines[@]}"
-    pattern='Gamma_prime_plus_a_prime_over_a_Gamma *='
+        "insert" "above" "${new_lines[@]}"
+    pattern='double *alpha_prime *, *X *, *Y *, *Z'
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
         "${class_dir}/source/perturbations.c" | head -n 1)
-    replacements_todo=5
+    replacements_todo=7
     replacements=0
     for n in $(grep -n 'y *\[ *ppw *-> *pv *-> *index_pt_Gamma_fld *\]' \
         "${class_dir}/source/perturbations.c" | awk '{print $1}'); do
@@ -6060,6 +6064,20 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
             fi
         fi
     done
+    pattern='ppw->Gamma_prime_fld *='
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+        "${class_dir}/source/perturbations.c" | head -n 1)
+    new_lines=(                                                                         \
+        "/* Nullify Gamma_prime_fld as done for Gamma_fld above. */"                    \
+        "if (c_gamma_k_H_square > c_gamma_k_H_square_max){"                             \
+        "  ppw->Gamma_prime_fld = 0.;"                                                  \
+        "} else {"                                                                      \
+        "  ppw->Gamma_prime_fld = a_prime_over_a*(ppw->S_fld/(1. + c_gamma_k_H_square)" \
+        "    - (1. + c_gamma_k_H_square)*Gamma_fld);"                                   \
+        "}"                                                                             \
+    )
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} \
+        "replace" "above" "${new_lines[@]}"
     # Include fld in perturbation output
     new_class_perturbation_linenr(){
         if [ "${1}" == "perturb_prepare_output" ]; then
