@@ -3355,9 +3355,10 @@ for val, keys in {
 for val, keys in {
     'theta_tot': {unicode('θ_tot'), asciify('θ_tot'),
         unicode('θ_total'), asciify('θ_total'), 'theta', 'theta_total'},
-    'h_prime'  : {unicode('hʹ'), asciify('hʹ'), 'h"', "h'"},
     'phi'      : {unicode('ϕ'), asciify('ϕ')},
     'psi'      : {unicode('ψ'), asciify('ψ')},
+    'h_prime'  : {unicode('hʹ'), asciify('hʹ'), "h'"},
+    'H_T_prime': {unicode('H_Tʹ'), asciify('H_Tʹ'), "H_T'"}
 }.items():
     if keys & class_extra_perturbations:
         class_extra_perturbations.difference_update(keys)

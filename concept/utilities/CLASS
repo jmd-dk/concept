@@ -165,7 +165,6 @@ _initial_conditions = [
          'boltzmann_order'  : int(boltzmann_order) - 1,
          'boltzmann_closure': 'class',
          'class_species'    : class_species,
-         'approximations'   : {'P=wρ': int(boltzmann_order) < 3},
     }
     for class_species, boltzmann_order in (
         perturbation.split(':') for perturbation in (
@@ -181,6 +180,12 @@ _initial_conditions = [
         )
     )
 ]
+# Set default approximation scheme for each component
+# based on their Boltzmann order.
+_approximations = {
+    specification['name']: {'P=wρ': int(specification['boltzmann_order'] + 1) < 3}
+    for specification in _initial_conditions
+}
 # The special_params dict, specifying details of the utility run
 special_params = {
     'special'     : '$(basename "${this_file}")',
@@ -204,6 +209,11 @@ $(cat "${params}")
 # Use the fake initial conditions corresponding to the
 # perturbations argument of the CLASS utility.
 initial_conditions = _initial_conditions
+# Merge default approximations with user approximations
+try:
+    select_approximations = {**_approximations, **select_approximations}
+except:
+    select_approximations = _approximations
 # Reinsert original path to the parameter file
 paths['params'] = params_path_ori
 " > "${params_filename}"

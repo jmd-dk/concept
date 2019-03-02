@@ -58,18 +58,25 @@ class CosmoResults:
     # such as the squared photon sound speed perturbation "cs2_g" which
     # is always equal to 1/3.
     class PerturbationDict(dict):
-        missing_CLASS_perturbations = {'cs2_g', 'cs2_ur'}
+        missing_CLASS_perturbations = {'cs2_g', 'cs2_ur', 'shear_fld'}
         def __getitem__(self, key):
             if key in self.missing_CLASS_perturbations:
                 # Attempt normal lookup.
                 # On failure, add the missing perturbations.
                 try:
-                    value = super().__getitem__(key)
+                    return super().__getitem__(key)
                 except KeyError:
-                    if key in {'cs2_g', 'cs2_ur'}:
-                        value = 1/3*ones(self['a'].size, dtype=C2np['double'])
-                        self[key] = value
-                        return value
+                    pass
+                if key in {'cs2_g', 'cs2_ur'}:
+                    # Ultrarelativistic species have a
+                    # squared sound speed equal to 1/3.
+                    value = 1/3*ones(self['a'].size, dtype=C2np['double'])
+                elif key == 'shear_fld':
+                    # Dark energy fluid have no shear
+                    value = zeros(self['a'].size, dtype=C2np['double'])
+                else:
+                    abort(f'Key "{key}" not implemented in PerturbationDict')
+                self[key] = value
                 return value
             # Normal lookup
             return super().__getitem__(key)
@@ -798,9 +805,9 @@ class CosmoResults:
             # A few exceptions are the constant pressure of the cdm, b
             # and lambda CLASS species, as well as the density, pressure
             # and equation of state w for the fld CLASS species.
-            if y in {'(.)p_cdm', '(.)p_b', '(.)p_lambda', '(.)rho_lambda'}:
+            if y in {'(.)p_cdm', '(.)p_b', '(.)p_lambda', '(.)rho_lambda', '(.)p_metric'}:
                 logx, logy = True, False
-            elif y in {'(.)rho_fld', '(.)p_fld', '(.)w_fld', '(.)p_metric'}:
+            elif y in {'(.)rho_fld', '(.)p_fld', '(.)w_fld'}:
                 logx, logy = False, False
             elif y.startswith('(.)rho_') or y.startswith('(.)p_') or y in {
                 'z',
@@ -1394,6 +1401,8 @@ class TransferFunction:
                 # legal range 0 ≤ δP/δρ ≤ c²/3. As the data is
                 # directly from CLASS, c = 1.
                 for class_species in weights_species:
+                    if class_species not in {'g', 'ur'} and not class_species.startswith('ncdm['):
+                        continue
                     perturbation = perturbation_k.get(f'cs2_{class_species}')
                     if perturbation is not None:
                         perturbation_values = perturbation

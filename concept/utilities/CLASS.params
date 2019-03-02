@@ -51,8 +51,8 @@ class_params = {
 class_k_max = {}
 class_reuse = True
 class_plot_perturbations = True
-class_extra_background = []
-class_extra_perturbations = []
+class_extra_background = {}
+class_extra_perturbations = {}
 
 # System of units
 unit_length = 'Mpc'

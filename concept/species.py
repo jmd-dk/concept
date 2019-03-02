@@ -926,7 +926,7 @@ class Component:
             if self.boltzmann_order == 3 and self.boltzmann_closure == 'class':
                 abort(
                     f'The "{self.name}" component wants to close the Boltzmann hierarchy using '
-                    f'the linear variable after ς from class, which is not implemented'
+                    f'the linear variable after ς from CLASS, which is not implemented'
                 )
             if self.boltzmann_order > 3:
                 abort(

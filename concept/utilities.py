@@ -832,9 +832,8 @@ def CLASS():
                 variable_specifications.append((1, None, 'θ'))
             if component.boltzmann_order > 2 or (
                 component.boltzmann_order == 2 and component.boltzmann_closure == 'class'):
-                variable_specifications.append((2, (0, 0), 'σ'))
-            if not component.approximations['P=wρ']:
                 variable_specifications.append((2, 'trace', 'δP'))
+                variable_specifications.append((2, (0, 0), 'σ'))
         component_variables[component] = variable_specifications
     # Add any extra perturbations specified in the
     # class_extra_perturbations user parameter.

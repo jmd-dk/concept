@@ -390,6 +390,12 @@ def plot_processed_perturbations(a_values, k_magnitudes, transfer, var_name, cla
             plt.legend()
             plt.xlabel(rf'$k\,[\mathrm{{{unit_length}}}^{{-1}}]$', fontsize=14)
             plt.ylabel(rf'${var_name_latex}\, {unit_latex}$', fontsize=14)
+            if class_species != 'tot':
+                plt.title(
+                    class_species,
+                    fontsize=16,
+                    horizontalalignment='center',
+                )
             plt.gca().tick_params(axis='x', which='major', labelsize=13)
             plt.tight_layout()
             plt.savefig(f'{dirname}/{i_figure}.png')
