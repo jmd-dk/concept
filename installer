@@ -6019,7 +6019,9 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     # such a maximum value is present as well and is set to 30. I have
     # found that a value of 10³ or even 10⁴ ensures stability as well,
     # while perturbing the fld δ_fld, θ_fld and δp_fld solutions
-    # significantly less.
+    # significantly less. Instead of a discontinuities cutoff as
+    # in CAMB, we implement a smooth transition to zero, as defects in
+    # δ_fld, θ_fld and δp_fld have been observed otherwise.
     pattern='c_gamma_k_H_square *='
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
         "${class_dir}/source/perturbations.c" | head -n 1)
@@ -6028,22 +6030,37 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
         "${class_dir}/source/perturbations.c" | head -n 1)
     ((linenr += 1))
-    new_lines=(                                                                               \
-        "/**"                                                                                 \
-        " * The computation of Gamma_fld and Gamma_prime_fld becomes unstable"                \
-        " * at large c_Gamma*k/H. To stabilise the system we set these to zero"               \
-        " * at some large c_Gamma*k/H."                                                       \
-        " * Here we nullify Gamma_fld only."                                                  \
-        " *"                                                                                  \
-        " */"                                                                                 \
-        'double c_gamma_k_H_square_max, Gamma_fld;'                                           \
-        'c_gamma_k_H_square = pow(pba->c_gamma_over_c_fld*k/a_prime_over_a, 2)*pba->cs2_fld;' \
-        'c_gamma_k_H_square_max = 1e+3;'                                                      \
-        'if (c_gamma_k_H_square > c_gamma_k_H_square_max){'                                   \
-        '  Gamma_fld = 0.;'                                                                   \
-        '} else {'                                                                            \
-        '  Gamma_fld = y[ppw->pv->index_pt_Gamma_fld];'                                       \
-        '}'                                                                                   \
+    new_lines=(                                                                                   \
+        "/**"                                                                                     \
+        " * The computation of Gamma_fld and Gamma_prime_fld becomes unstable"                    \
+        " * at large c_Gamma*k/H. To stabilise the system we set these to zero"                   \
+        " * at some large c_Gamma*k/H."                                                           \
+        " * As to not introduce discontinuities, we have a smooth transition"                     \
+        " * phase between the untouched values and completely nullified values."                  \
+        " * This transition is given the shape of an error function in"                           \
+        " * log(c_Gamma*k/H) space. The parameters c_gamma_k_H_square_max_{0|1}"                  \
+        " * specify the borders of the transition."                                               \
+        " * Here we nullify/shrink Gamma_fld only."                                               \
+        " *"                                                                                      \
+        " */"                                                                                     \
+        "double Gamma_fld, Gamma_weight, Gamma_weight_steepness;"                                 \
+        "double c_gamma_k_H_square_max_0, c_gamma_k_H_square_max_1;"                              \
+        "c_gamma_k_H_square_max_0 = 1e+3;"                                                        \
+        "c_gamma_k_H_square_max_1 = 1e+4;"                                                        \
+        "c_gamma_k_H_square = pow(pba->c_gamma_over_c_fld*k/a_prime_over_a, 2)*pba->cs2_fld;"     \
+        "if (c_gamma_k_H_square > c_gamma_k_H_square_max_1){"                                     \
+        "    Gamma_fld = 0.;"                                                                     \
+        "} else {"                                                                                \
+        "  Gamma_fld = y[ppw->pv->index_pt_Gamma_fld];"                                           \
+        "  if (c_gamma_k_H_square > c_gamma_k_H_square_max_0){"                                   \
+        "    Gamma_weight_steepness = 5.; /* 5 results in double precision perfect transition */" \
+        "    Gamma_weight = 0.5*(erf(Gamma_weight_steepness*("                                    \
+        "      0.5*(log(c_gamma_k_H_square_max_0) + log(c_gamma_k_H_square_max_1))"               \
+        "      - log(c_gamma_k_H_square)"                                                         \
+        "    )) + 1.);"                                                                           \
+        "    Gamma_fld *= Gamma_weight;"                                                          \
+        "  }"                                                                                     \
+        "}"                                                                                       \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} \
         "insert" "above" "${new_lines[@]}"
@@ -6068,12 +6085,15 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
         "${class_dir}/source/perturbations.c" | head -n 1)
     new_lines=(                                                                         \
-        "/* Nullify Gamma_prime_fld as done for Gamma_fld above. */"                    \
-        "if (c_gamma_k_H_square > c_gamma_k_H_square_max){"                             \
-        "  ppw->Gamma_prime_fld = 0.;"                                                  \
+        "/* Nullify/shrink Gamma_prime_fld as done for Gamma_fld above */"              \
+        "if (c_gamma_k_H_square > c_gamma_k_H_square_max_1){"                           \
+        "    ppw->Gamma_prime_fld = 0.;"                                                \
         "} else {"                                                                      \
         "  ppw->Gamma_prime_fld = a_prime_over_a*(ppw->S_fld/(1. + c_gamma_k_H_square)" \
         "    - (1. + c_gamma_k_H_square)*Gamma_fld);"                                   \
+        "  if (c_gamma_k_H_square > c_gamma_k_H_square_max_0){"                         \
+        "      ppw->Gamma_prime_fld *= Gamma_weight;"                                   \
+        "  }"                                                                           \
         "}"                                                                             \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} \
