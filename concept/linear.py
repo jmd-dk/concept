@@ -1858,7 +1858,7 @@ class TransferFunction:
                                 ftol=1e-12,
                                 xtol=1e-12,
                                 gtol=1e-12,
-                                maxfev=10_000,
+                                maxfev=1_000,
                             )
                         )
                     except:
