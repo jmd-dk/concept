@@ -2032,7 +2032,6 @@ class Component:
         p_tabulated=object,  # np.ndarray
         pattern=str,
         unit='double',
-        w_constant='double',
         w_data='double[:, :]',
         w_list=list,
         w_ori=str,
