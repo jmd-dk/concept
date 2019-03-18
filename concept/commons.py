@@ -2375,7 +2375,6 @@ cython.declare(
     ρ_crit='double',
     Ωm='double',
     ρ_mbar='double',
-    matter_class_species=str,
     slab_size_padding='ptrdiff_t',
     pm_fac_const='double',
     longrange_exponent_fac='double',
