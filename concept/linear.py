@@ -806,7 +806,7 @@ class CosmoResults:
             # and lambda CLASS species, as well as the density, pressure
             # and equation of state w for the fld CLASS species.
             if y in {'(.)p_b', '(.)p_cdm', '(.)p_dcdm',
-                '(.)p_lambda', '(.)rho_lambda', '(.)p_metric', '(.)p_lapse'}:
+                '(.)p_lambda', '(.)rho_lambda', '(.)p_metric'}:
                 logx, logy = True, False
             elif y in {'(.)rho_fld', '(.)p_fld', '(.)w_fld'}:
                 logx, logy = False, False
