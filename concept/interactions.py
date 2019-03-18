@@ -25,22 +25,22 @@
 from commons import *
 
 # Cython imports
-cimport('from communication import sendrecv_component')
-cimport('from mesh import CIC_components2φ, diff_domain, domain_decompose, fft, slab_decompose')
-cimport('from mesh import CIC_components2φ_general')
+cimport('from communication import communicate_domain, sendrecv_component')
+cimport('from communication import domain_size_x , domain_size_y , domain_size_z' )
+cimport('from communication import domain_start_x, domain_start_y, domain_start_z')
+cimport('from mesh import diff_domain, domain_decompose, fft, slab_decompose')
+cimport('from mesh import CIC_components2φ_general, CIC_grid2grid, CIC_scalargrid2coordinates')
 # Import interactions defined in other modules
 cimport('from gravity import *')
 # DELETE WHEN DONE with gravity_old.py !!!
-cimport('from gravity_old import build_φ, p3m, pm, pp')
+cimport('from gravity_old import build_φ, p3m, pm')
 
 # Function pointer types used in this module
 pxd("""
-#                                       component_1, component_2, rank_2, ᔑdt , local, mutual, extra_args
-ctypedef void   (*func_interaction    )(Component  , Component  , int   , dict, bint , bint  , dict      )
-#                                       k2
-ctypedef double (*func_potential      )(double)
-#                                       component, ᔑdt , gradφ_dim        , dim
-ctypedef void   (*func_apply_potential)(Component, dict, double[:, :, ::1], int)
+#                                   component_1, component_2, rank_2, ᔑdt , local, mutual, extra_args
+ctypedef void   (*func_interaction)(Component  , Component  , int   , dict, bint , bint  , dict      )
+#                                   k2
+ctypedef double (*func_potential  )(double)
 """)
 
 
@@ -92,7 +92,7 @@ def domain_domain(receivers, suppliers, ᔑdt, interaction, interaction_name,
     In this case, every domain will both send and receive from every
     other domain.
     """
-    # List of all particles participating in this interaction
+    # List of all components participating in this interaction
     components = receivers + suppliers
     # Determine whether this "interaction" have any direct effect
     # on the components at all. If not, this will change the
@@ -209,224 +209,38 @@ def domain_domain(receivers, suppliers, ᔑdt, interaction, interaction_name,
             masterprint('done')
 
 # Generic function implementing particle-mesh interactions
-@cython.header(# Arguments
-               receivers=list,
-               suppliers=list,
-               ᔑdt=dict,
-               potential=func_potential,
-               potential_name=str,
-               dependent=list,
-               apply_potential=func_apply_potential,
-               # Locals
-               component='Component',
-               components=list,
-               dim='int',
-               gradφ_dim='double[:, :, ::1]',
-               h='double',
-               φ='double[:, :, ::1]',
-               )
-def particle_mesh(receivers, suppliers, ᔑdt, potential, potential_name,
-                  dependent, apply_potential):
-    """This function will update the affected variables of all receiver
-    components due to an interaction. This is done by constructing a
-    global field by interpolating the dependent variables of all
-    receivers and suppliers onto a grid (the φ grid is used for this).
-    The supplied 'dependent' argument is thus a list of variables which
-    should be interpolated to the grid. For details on the structure
-    of this argument, see the CIC_components2domain_grid function
-    in the mesh module, where the corresponding argument is called
-    quantities.
-
-    The field is then Fourier transformed. To transform the grid to
-    the (Fourier transformed) potential, each grid point is multiplied
-    by potential(k2), where k2 = k² is the squared magnitude of the wave
-    vector at the given grid point. For further details on the potential
-    argument, see the construct_potential function.
-
-    The grid is then Fourier transformed back to real space and
-    differentiated along each dimension to get the force. This force is
-    passed to the apply_potential function for each receiver and
-    each dimension.
-    """
-    # Build the potential due to all components
-    components = receivers + suppliers
-    masterprint('Constructing the {} due to {} ...'
-                .format(potential_name, ', '.join([component.name for component in components])))
-    φ = construct_potential(components, dependent, potential)
-    masterprint('done')
-    # For each dimension, differentiate φ and apply the force to
-    # all receiver components.
-    h = boxsize/φ_gridsize  # Physical grid spacing of φ
-    for dim in range(3):
-        masterprint('Differentiating the {} along the {}-direction and applying it ...'
-                    .format(potential_name, 'xyz'[dim])
-                    )
-        # Do the differentiation of φ
-        gradφ_dim = diff_domain(φ, dim, h, order=4)
-        # Apply force to all the receivers
-        for component in receivers:
-            masterprint('Applying to {} ...'.format(component.name))
-            apply_potential(component, ᔑdt, gradφ_dim, dim)
-            masterprint('done')
-        masterprint('done')
-
-# Generic function capable of constructing a potential grid out of
-# components and a given expression for the potential.
-@cython.header(# Arguments
-               components=list,
-               quantities=list,
-               potential=func_potential,
-               # Locals
-               double_deconv='double',
-               fft_normalization_factor='double',
-               i='Py_ssize_t',
-               j='Py_ssize_t',
-               j_global='Py_ssize_t',
-               k='Py_ssize_t',
-               ki='Py_ssize_t',
-               kj='Py_ssize_t',
-               kj2='Py_ssize_t',
-               kk='Py_ssize_t',
-               k2='Py_ssize_t',
-               slab='double[:, :, ::1]',
-               slab_jik='double*',
-               reciprocal_sqrt_deconv_ij='double',
-               reciprocal_sqrt_deconv_ijk='double',
-               reciprocal_sqrt_deconv_j='double',
-               φ='double[:, :, ::1]',
-               returns='double[:, :, ::1]',
-               )
-def construct_potential(components, quantities, potential):
-    """This function populate the φ grid (including pseudo points and
-    ghost layers) with a real-space potential corresponding to the
-    Fourier-space potential function given, due to all the components.
-    First the variables given in 'quantities' of the components are
-    interpolated to the φ grid, then the grid is Fourier transformed,
-    then the potential function is used to change the value of each grid
-    point, then the grid is Fourirer transformed back to real space.
-    Which variables to extrapolate to the grid is determined by the
-    quantities argument. For details on this argument, see the
-    CIC_components2domain_grid function in the mesh module.
-
-    To transform the grid with interpolated component variables to
-    an actual potential, the grid is Fourier transformed after which the
-    each grid point is multiplied by potential(k2), potential is the
-    supplied function and k2 = k² is the squared magnitude of the wave
-    vector at the given grid point, in physical units. For normal
-    gravity, we have φ(k) = -4πGa²ρ(k)/k² = -4πG a**(-3*w_eff - 1) ϱ(k)/k²,
-    which can be signalled by passing
-    quantities = [('particles', a**(-1)*mass/Vcell),
-                  ('ϱ', a**(-3*w_eff - 1))],
-    potential = lambda k2: -4*π*G_Newton/k2
-    (note: it is not allowed to actually pass a lambda function,
-    in compiled mode anyway).
-    """
-    # CIC interpolate the particles/fluid elements onto the slabs
-    φ = CIC_components2φ(components, quantities)
-    slab = slab_decompose(φ, prepare_fft=True)
-    # Do forward Fourier transform on the slabs
-    # containing the density field.
-    fft(slab, 'forward')
-    # Multiplicative factor needed after a forward and a backward
-    # Fourier transformation.
-    fft_normalization_factor = float(φ_gridsize)**(-3)
-    # Loop through the local j-dimension
-    for j in range(ℤ[slab.shape[0]]):
-        # The j-component of the wave vector (grid units).
-        # Since the slabs are distributed along the j-dimension,
-        # an offset must be used.
-        j_global = ℤ[slab.shape[0]*rank] + j
-        if j_global > ℤ[φ_gridsize//2]:
-            kj = j_global - φ_gridsize
-        else:
-            kj = j_global
-        kj2 = kj**2
-        # Reciprocal square root of the j-component of the deconvolution
-        reciprocal_sqrt_deconv_j = sinc(kj*ℝ[π/φ_gridsize])
-        # Loop through the complete i-dimension
-        for i in range(φ_gridsize):
-            # The i-component of the wave vector (grid units)
-            if i > ℤ[φ_gridsize//2]:
-                ki = i - φ_gridsize
-            else:
-                ki = i
-            # Reciprocal square root of the product of the i-
-            # and the j-component of the deconvolution.
-            reciprocal_sqrt_deconv_ij = sinc(ki*ℝ[π/φ_gridsize])*reciprocal_sqrt_deconv_j
-            # Loop through the complete, padded k-dimension
-            # in steps of 2 (one complex number at a time).
-            for k in range(0, ℤ[slab.shape[2]], 2):
-                # The k-component of the wave vector (grid units)
-                kk = k//2
-                # The squared magnitude of the wave vector (grid units)
-                k2 = ℤ[ki**2 + kj2] + kk**2
-                # Pointer to the [j, i, k]'th element of the slab.
-                # The complex number is then given as
-                # Re = slab_jik[0], Im = slab_jik[1].
-                slab_jik = cython.address(slab[j, i, k:])
-                # Enforce the vanishing of the potential at |k| = 0.
-                # The real-space mean value of the potential will then
-                # be zero, as it should for a peculiar potential.
-                if k2 == 0:
-                    slab_jik[0] = 0  # Real part
-                    slab_jik[1] = 0  # Imag part
-                    continue
-                # Reciprocal square root of the product of
-                # all components of the deconvolution.
-                reciprocal_sqrt_deconv_ijk = reciprocal_sqrt_deconv_ij*sinc(kk*ℝ[π/φ_gridsize])
-                # A full deconvolution is now
-                # 1/reciprocal_sqrt_deconv_ijk**2.
-                # We need however two such full deconvolutions, one for
-                # each CIC interpolation (the component assignment and
-                # the upcoming force interpolation).
-                double_deconv = 1/reciprocal_sqrt_deconv_ijk**4
-                # Get the factor from the potential function at this k².
-                # The physical squared length of the wave vector is
-                # given by (2π/boxsize*|k|)².
-                potential_factor = potential(ℝ[(2*π/boxsize)**2]*k2)
-                # Transform the grid in the following ways:
-                # - Multiply by potential_factor, converting the grid
-                #   values to actual potential values
-                #   (in Fourier space).
-                # - Multiply by double_deconv, taking care of the
-                #   deconvolution needed due to the
-                #   two CIC-interpolations.
-                # - Multiply by fft_normalization_factor, needed to
-                #   normalize the grid values after a forwards and a
-                #   backwards Fourier transformation.
-                slab_jik[0] *= ℝ[potential_factor*double_deconv*fft_normalization_factor]
-                slab_jik[1] *= ℝ[potential_factor*double_deconv*fft_normalization_factor]
-    # Fourier transform the slabs back to coordinate space.
-    # Now the slabs store potential values.
-    fft(slab, 'backward')
-    # Communicate the potential stored in the slabs to φ
-    domain_decompose(slab, φ)  # This also populates pseudo and ghost points
-    # Return the potential grid (though this is a global and is often
-    # imported directly into other modules).
-    return φ
-
-# Generic function implementing particle-mesh interactions
 # for both particle and fluid componenets.
-@cython.header(# Arguments
-               receivers=list,
-               suppliers=list,
-               ᔑdt=dict,
-               potential=func_potential,
-               potential_name=str,
-               dependent=list,
-               apply_potential=func_apply_potential,
-               # Locals
-               component='Component',
-               components=list,
-               dim='int',
-               gradφ_dim='double[:, :, ::1]',
-               h='double',
-               representation=str,
-               φ='double[:, :, ::1]',
-               φ_dict=dict,
-               )
-def particle_mesh_general(receivers, suppliers, ᔑdt, potential, potential_name,
-                          dependent, apply_potential):
+@cython.header(
+    # Arguments
+    receivers=list,
+    suppliers=list,
+    ᔑdt=dict,
+    ᔑdt_key=object,  # str or tuple
+    potential=func_potential,
+    potential_name=str,
+    dependent=list,
+    construct_potential_from=str,
+    # Locals
+    J_dim='FluidScalar',
+    component='Component',
+    components=list,
+    dim='int',
+    gradφ_dim='double[:, :, ::1]',
+    h='double',
+    i='Py_ssize_t',
+    mom_dim='double*',
+    posx='double*',
+    posy='double*',
+    posz='double*',
+    representation=str,
+    x='double',
+    y='double',
+    z='double',
+    φ='double[:, :, ::1]',
+    φ_dict=dict,
+)
+def particle_mesh_general(receivers, suppliers, ᔑdt, ᔑdt_key,
+    potential, potential_name, dependent, construct_potential_from='receivers_suppliers'):
     """This function will update the affected variables of all receiver
     components due to an interaction. This is done by constructing
     global fields by interpolating the dependent variables of all
@@ -455,32 +269,91 @@ def particle_mesh_general(receivers, suppliers, ᔑdt, potential, potential_name
     argument, see the construct_potential_general function.
 
     The grids are then Fourier transformed back to real space and
-    differentiated along each dimension to get the force. This force is
-    passed to the apply_potential function for each receiver and
-    each dimension.
+    differentiated along each dimension to get the force.
+
+    This force is then applied to all receiver using the prescription
+    Δmom = -mass*∂ⁱφ*ᔑdt[ᔑdt_key]
     """
     # Build the two potentials due to all particles and fluid components
-    components = receivers + suppliers
-    masterprint('Constructing the {} due to {} ...'
-                .format(potential_name, ', '.join([component.name for component in components])))
-    φ_dict = construct_potential_general(receivers, suppliers, dependent, potential)
+    components = []
+    construct_potential_from = construct_potential_from.lower()
+    if 'receiver' in construct_potential_from:
+        components += receivers
+    if 'supplier' in construct_potential_from:
+        components += suppliers
+    masterprint(
+        f'Constructing the {potential_name} due to {{}} ...'
+        .format(', '.join([
+            component.name for component in components if component.name != 'fake'
+        ]))
+    )
+    φ_dict = construct_potential_general(receivers, suppliers, dependent, potential,
+        construct_potential_from)
     masterprint('done')
     # For each dimension, differentiate the potentials
     # and apply the force to all receiver components.
     h = boxsize/φ_gridsize  # Physical grid spacing of φ
     for representation, φ in φ_dict.items():
         for dim in range(3):
-            masterprint(f'Differentiating the ({representation}) {potential_name} along the '
-                        f'{"xyz"[dim]}-direction and applying it ...'
-                        )
+            masterprint(
+                f'Differentiating the ({representation}) {potential_name} along the '
+                f'{"xyz"[dim]}-direction and applying it ...'
+            )
             # Do the differentiation of φ
             gradφ_dim = diff_domain(φ, dim, h, order=4)
             # Apply force to all the receivers
             for component in receivers:
                 if component.representation != representation:
                     continue
+                if 𝔹[isinstance(ᔑdt_key, tuple)]:
+                    ᔑdt_key = (ᔑdt_key[0], component)
                 masterprint(f'Applying to {component.name} ...')
-                apply_potential(component, ᔑdt, gradφ_dim, dim)
+                if component.representation == 'particles':
+                    # Extract variables from component
+                    posx    = component.posx
+                    posy    = component.posy
+                    posz    = component.posz
+                    mom_dim = component.mom[dim]
+                    # Update the dim momentum component of all particles
+                    for i in range(component.N_local):
+                        # The coordinates of the i'th particle,
+                        # transformed so that 0 <= x, y, z < 1.
+                        x = (posx[i] - domain_start_x)/domain_size_x
+                        y = (posy[i] - domain_start_y)/domain_size_y
+                        z = (posz[i] - domain_start_z)/domain_size_z
+                        # Look up the force via a CIC interpolation,
+                        # convert it to momentum and subtract it from
+                        # the momentum of particle i (subtraction
+                        # because the force is the negative gradient of
+                        # the potential). The factor with which to
+                        # multiply gradφ_dim by to get momentum updates
+                        # is -mass*Δt, where Δt = ᔑdt['1'].
+                        # Here this integral over the time step is
+                        # generalised and supplied by the caller.
+                        mom_dim[i] -= ℝ[component.mass*ᔑdt[ᔑdt_key]
+                            ]*CIC_scalargrid2coordinates(gradφ_dim, x, y, z)
+                elif component.representation == 'fluid':
+                    # Simply scale and extrapolate the values in
+                    # gradφ_dim to the grid points of the dim'th
+                    # component of the fluid variable J.
+                    # First extract this fluid scalar.
+                    J_dim = component.J[dim]
+                    # The source term has the form
+                    # ∝ -(ϱ + c⁻²𝒫)*∂ⁱφ,
+                    # and so we need to multiply each grid point
+                    # [i, j, k] in gradφ_dim by
+                    # (ϱ[i, j, k] + c⁻²𝒫[i, j, k]). As we are interested
+                    # in the momentum change, we should also multiply
+                    # all grind points by the factor Δt = ᔑdt['1'].
+                    # Here this integral over the time step is
+                    # generalised and supplied by the caller.
+                    CIC_grid2grid(J_dim.grid_noghosts, gradφ_dim,
+                        fac=ℝ[-ᔑdt[ᔑdt_key]],
+                        fac_grid=component.ϱ.grid_noghosts,
+                        fac2=light_speed**(-2)*ℝ[-ᔑdt[ᔑdt_key]],
+                        fac_grid2=component.𝒫.grid_noghosts,
+                    )
+                    communicate_domain(J_dim.grid_mv, mode='populate')
                 masterprint('done')
             masterprint('done')
 
@@ -491,6 +364,7 @@ def particle_mesh_general(receivers, suppliers, ᔑdt, potential, potential_name
                suppliers=list,
                quantities=list,
                potential=func_potential,
+               construct_potential_from=str,
                # Locals
                any_fluid='bint',
                any_fluid_receivers='bint',
@@ -528,13 +402,14 @@ def particle_mesh_general(receivers, suppliers, ᔑdt, potential, potential_name
                φ_dict=dict,
                returns=dict,
                )
-def construct_potential_general(receivers, suppliers, quantities, potential):
+def construct_potential_general(receivers, suppliers, quantities, potential,
+    construct_potential_from='receivers_suppliers'):
     """This function populate two grids (including pseudo points and
     ghost layers) with a real-space potential corresponding to the
     Fourier-space potential function given, due to all the components.
     A seperate grid for particle and fluid components will be
     constructed, the difference being only the handling of
-    deconvolutions needed for the interpolation two/from the grid.
+    deconvolutions needed for the interpolation to/from the grid.
     Both grids will contain the potential due to all the components.
     Which variables to extrapolate to the grid is determined by the
     quantities argument. For details on this argument, see the
@@ -553,22 +428,34 @@ def construct_potential_general(receivers, suppliers, quantities, potential):
     component have a gridsize different from φ_gridsize, interpolation
     will take place but no deconvolution will be made, leading to
     errors on small scales.
-    The two grids are now Fourirer transformed back to real space.
+    The two grids are now Fourier transformed back to real space.
 
     In the case of normal gravity, we have
     φ(k) = -4πGa²ρ(k)/k² = -4πG a**(-3*w_eff - 1) ϱ(k)/k²,
     which can be signalled by passing
-    quantities = [('particles', a**(-1)*mass/Vcell),
+    quantities = [('particles', a**(-3*w_eff - 1)*mass/Vcell),
                   ('ϱ', a**(-3*w_eff - 1))],
     potential = lambda k2: -4*π*G_Newton/k2
     (note that it is not actally allowed to pass an untyped lambda
     function in compiled mode).
+
+    The argument construct_potential_from specifies which components the
+    potential should be constructed from; receivers, suppliers or both.
+    This is simply a str containing one or both of
+    the substrings "receiver", "supplier".
     """
     # CIC interpolate the particles/fluid elements onto the grids.
     # The φ_dict will be a dictionary mapping representations
     # ('particles', 'fluid') to grids. If only one representation is
     # present, only this item will exist in the dictionary.
-    components = receivers + suppliers
+    components = []
+    construct_potential_from = construct_potential_from.lower()
+    if 'receiver' in construct_potential_from:
+        components += receivers
+    if 'supplier' in construct_potential_from:
+        components += suppliers
+    if not components:
+        abort('construct_potential_general got no components from which to construct a potential')
     φ_dict = CIC_components2φ_general(components, quantities)
     # Flags specifying whether any fluid/particle components are present
     any_particles = ('particles' in φ_dict)
@@ -879,24 +766,26 @@ def find_nearest_neighbour(components, selected):
     return neighbour_components, neighbour_ranks, neighbour_indices, neighbour_distances2
 
 # Function that carry out the gravitational interaction
-@cython.pheader(# Arguments
-                method=str,
-                receivers=list,
-                suppliers=list,
-                ᔑdt=dict,
-                # Locals
-                component='Component',
-                components=list,
-                dependent=list,
-                i='Py_ssize_t',
-                Δt='double',
-                φ_Vcell='double',
-                # DELETE BELOW WHEN DONE WITH gravity_old.py !!!
-                dim='int',
-                gradφ_dim='double[:, :, ::1]',
-                h='double',
-                φ='double[:, :, ::1]',
-                )
+@cython.pheader(
+    # Arguments
+    method=str,
+    receivers=list,
+    suppliers=list,
+    ᔑdt=dict,
+    # Locals
+    component='Component',
+    components=list,
+    dependent=list,
+    i='Py_ssize_t',
+    Δt='double',
+    φ_Vcell='double',
+    ᔑdt_key=object,  # str or tuple
+    # DELETE BELOW WHEN DONE WITH gravity_old.py !!!
+    dim='int',
+    gradφ_dim='double[:, :, ::1]',
+    h='double',
+    φ='double[:, :, ::1]',
+)
 def gravity(method, receivers, suppliers, ᔑdt):
     # Regardless of the method, it may happen that some fluid components
     # classified as receivers are incapable of receiving the
@@ -910,7 +799,7 @@ def gravity(method, receivers, suppliers, ᔑdt):
     # If no receivers exist at all, no interaction should take place
     if not receivers:
         return
-    # List of all particles participating in this interaction
+    # List of all components participating in this interaction
     components = receivers + suppliers
     # Compute gravity via one of the following methods
     if method == 'ppnonperiodic':
@@ -938,18 +827,33 @@ def gravity(method, receivers, suppliers, ᔑdt):
         # values over the current time step.
         φ_Vcell = ℝ[(boxsize/φ_gridsize)**3]
         Δt = ᔑdt['1']
-        dependent = [# Particle components
-                     ('particles', [ℝ[ᔑdt['a**(-1)']/(Δt*φ_Vcell)]*component.mass
-                                    for component in components]),
-                     # Fluid components
-                     ('ϱ', [ᔑdt['a**(-3*w_eff-1)', component]*ℝ[1/Δt]
-                            for component in components]),
-                     ]
-        particle_mesh_general(receivers, suppliers, ᔑdt, gravity_potential, 'gravitational potential (PM)',
-                              dependent, apply_gravity_potential)
+        dependent = [
+            # Particle components
+            ('particles', [
+                ᔑdt['a**(-1)']*component.mass*ℝ[1/(Δt*φ_Vcell)]
+                for component in components]
+            ),
+            # Fluid components
+            ('ϱ', [
+                ᔑdt['a**(-3*w_eff-1)', component]*ℝ[1/Δt]
+                for component in components]
+            ),
+        ]
+        # In the fluid description, the gravitational source term is
+        # ∂ₜJⁱ = ⋯ -a**(-3*w_eff)*(ϱ + c⁻²𝒫)*∂ⁱφ
+        # and so a**(-3*w_eff) should be integrated over the time step
+        # to get ΔJⁱ. In the particle description, the gravitational
+        # source term is
+        # ∂ₜmomⁱ = -mass*∂ⁱφ.
+        # In the general case of a changing mass, the current mass is
+        # given by mass*a**(-3*w_eff), and so again, a**(-3*w_eff)
+        # shoud be integrated over the time step
+        # in order to obtain Δmomⁱ.
+        ᔑdt_key = ('a**(-3*w_eff)', 'component')
+        # Execute the gravitational particle-mesh interaction
+        particle_mesh_general(receivers, suppliers, ᔑdt, ᔑdt_key, gravity_potential,
+            'gravitational potential (PM)', dependent)
     elif method == 'p3m':
-        # List of all particles participating in this interaction
-        components = receivers + suppliers
         # The particle-particle-mesh method.
         # So far, this method is only implemented between particles
         # in a single component.
@@ -981,7 +885,7 @@ def gravity(method, receivers, suppliers, ᔑdt):
         p3m(component, ᔑdt)
         masterprint('done')
     elif master:
-        abort('gravity was called with the "{}" method'.format(method))
+        abort(f'gravity() was called with the "{method}" method')
 
 # Function which constructs a list of interactions from a list of
 # components. The list of interactions store information about which

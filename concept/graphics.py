@@ -527,17 +527,17 @@ def render2D(components, filename):
         # φ grid. We choose to interpolate the mass of each
         # component onto the grid.
         # Since all particles have the same mass, the mass contribution
-        # from a single particle is Σmass/component.N,
-        # which equals component.mass.
+        # from a single particle is a**(-3*w_eff)*component.mass.
         # For fluids, each fluid element contributes to the mass by
         # an amount (a*L_cell)**3*ρ(x)
         #         = (a*boxsize/component.gridsize)**3*ρ(x)
         #         = (boxsize/component.gridsize)**3*a**(-3*w_eff)*ϱ(x).
-        # Note that for fluids the total amount of mass is not constant
-        # but depends on w_eff(a).
         interpolation_quantities = [
             # Particle components
-            ('particles', [component.mass for component in component_combination]),
+            ('particles', [
+                a**(-3*component.w_eff(a=a))*component.mass
+                for component in component_combination]
+            ),
             # Fluid components
             ('ϱ', [(boxsize/component.gridsize)**3*a**(-3*component.w_eff(a=a))
                    for component in component_combination]),

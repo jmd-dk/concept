@@ -1825,6 +1825,7 @@ cython.declare(
     primordial_spectrum=dict,
     class_params=dict,
     # Physics
+    select_boltzmann_order=dict,
     select_forces=dict,
     select_class_species=dict,
     select_eos_w=dict,
@@ -1833,6 +1834,7 @@ cython.declare(
     select_approximations=dict,
     select_softening_length=dict,
     # Simlation options
+    Δt_factor='double',
     fftw_wisdom_rigor=str,
     fftw_wisdom_reuse='bint',
     random_seed='unsigned long int',
@@ -1996,6 +1998,16 @@ class_params = dict(user_params.get('class_params', {}))
 replace_ellipsis(class_params)
 user_params['class_params'] = class_params
 # Physics
+select_boltzmann_order = {}
+if user_params.get('select_boltzmann_order'):
+    if isinstance(user_params['select_boltzmann_order'], dict):
+        select_boltzmann_order = user_params['select_boltzmann_order']
+        replace_ellipsis(select_boltzmann_order)
+    else:
+        select_boltzmann_order = {'all': int(user_params['select_boltzmann_order'])}
+select_boltzmann_order['default'] = 2
+select_boltzmann_order.setdefault('metric', 0)
+user_params['select_boltzmann_order'] = select_boltzmann_order
 default_force_method = {
     'gravity': 'pm',
 }
@@ -2039,6 +2051,7 @@ for key, val in replace_ellipsis(dict(user_params.get('select_forces', {}))).ite
             subd_val = subd_val.replace(unicode_superscript(str(n)), str(n))
         subd[subd_key] = subd_val
     select_forces[key] = subd
+select_forces.setdefault('metric', {'gravity': 'pm'})
 user_params['select_forces'] = select_forces
 select_class_species = {}
 if user_params.get('select_class_species'):
@@ -2101,6 +2114,7 @@ select_softening_length.setdefault('particles', '0.03*boxsize/cbrt(N)')
 select_softening_length.setdefault('fluid', 0)
 user_params['select_softening_length'] = select_softening_length
 # Simulation options
+Δt_factor = float(user_params.get('Δt_factor', 1))
 fftw_wisdom_rigor = user_params.get('fftw_wisdom_rigor', 'estimate').lower()
 user_params['fftw_wisdom_rigor'] = fftw_wisdom_rigor
 fftw_wisdom_reuse = bool(user_params.get('fftw_wisdom_reuse', True))
@@ -2344,28 +2358,30 @@ universals, universals_dict = build_struct(
 ############################################
 # Derived and internally defined constants #
 ############################################
-cython.declare(snapshot_dir=str,
-               snapshot_base=str,
-               snapshot_times=dict,
-               powerspec_dir=str,
-               powerspec_base=str,
-               powerspec_times=dict,
-               render2D_dir=str,
-               render2D_base=str,
-               render2D_times=dict,
-               render3D_dir=str,
-               render3D_base=str,
-               render3D_times=dict,
-               autosave_dir=str,
-               ρ_crit='double',
-               Ωm='double',
-               ρ_mbar='double',
-               slab_size_padding='ptrdiff_t',
-               pm_fac_const='double',
-               longrange_exponent_fac='double',
-               p3m_cutoff_phys='double',
-               p3m_scale_phys='double',
-               )
+cython.declare(
+    snapshot_dir=str,
+    snapshot_base=str,
+    snapshot_times=dict,
+    powerspec_dir=str,
+    powerspec_base=str,
+    powerspec_times=dict,
+    render2D_dir=str,
+    render2D_base=str,
+    render2D_times=dict,
+    render3D_dir=str,
+    render3D_base=str,
+    render3D_times=dict,
+    autosave_dir=str,
+    ρ_crit='double',
+    Ωm='double',
+    ρ_mbar='double',
+    matter_class_species=str,
+    slab_size_padding='ptrdiff_t',
+    pm_fac_const='double',
+    longrange_exponent_fac='double',
+    p3m_cutoff_phys='double',
+    p3m_scale_phys='double',
+)
 # Output times not explicitly written as either of type 'a' or 't'
 # is understood as being of type 'a' when Hubble expansion is enabled
 # and of type 't' if it is disabled.
@@ -2418,7 +2434,7 @@ autosave_dir = output_dirs['autosave']
 # comoving density since we only study flat universes).
 ρ_crit = 3*H0**2/(8*π*G_Newton)
 # The density parameter for all matter
-Ωm = Ωcdm + Ωb
+Ωm = Ωb + Ωcdm
 # The average, comoving matter density
 ρ_mbar = Ωm*ρ_crit
 # The real size of the padded (last) dimension of global slab grid

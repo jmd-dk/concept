@@ -167,7 +167,7 @@ def convert():
                            'which does not exist:\n{}'.format(name, attributes[name]))
     # Overwrite parameters in the snapshot with those from the
     # parameter file (those which are currently loaded as globals).
-    # If paremters are passed directly, these should take precedence
+    # If parameters are passed directly, these should take precedence
     # over those from the parameter file.
     snapshot.populate(snapshot.components, params)
     # Edit individual components if component attributes are passed
@@ -200,24 +200,26 @@ def convert():
             component.representation = 'particles'
             exchange(component)
             # The total particle mass and momentum
-            Σmass_particles = component.mass*component.N
+            Σmass_particles = measure(component, 'mass')
             Σmom_particles, σmom_particles = measure(component, 'momentum')
             # Done treating component as particles.
             # Reassign the fluid representation
             component.representation = 'fluid'
             # The mass attribute shall now be the average mass of a
             # fluid element. Since the total mass of the component
-            # should be the same as before, the mass and the gridsize
-            # are related, as
-            # mass = totmass/gridsize**3
-            #      = N*original_mass/gridsize**3.
+            # should be the same as before, the mass (at a = 1) and the
+            # gridsize are related by
+            # mass = (a**(3*w_eff)*Σmass)/gridsize**3
+            #      = original_mass*a**(3*w_eff)*N/gridsize**3.
             # If either mass or gridsize is given by the user,
             # use this to determine the other.
+            w_eff = component.w_eff(a=universals.a)
             if 'gridsize' in attributes[name] and 'mass' not in attributes[name]:
-                component.mass *= float(component.N)/component.gridsize**3
+                component.mass *= universals.a**(3*w_eff)*float(component.N)/component.gridsize**3
             elif 'mass' in attributes[name] and 'gridsize' not in attributes[name]:
-                component.gridsize = int(round(cbrt(original_mass/component.mass*component.N)))
-                Σmass_fluid = component.mass*component.gridsize**3
+                component.gridsize = int(round(cbrt(
+                    universals.a**(3*w_eff)*original_mass/component.mass*component.N)))
+                Σmass_fluid = universals.a**(-3*w_eff)*component.mass*component.gridsize**3
                 if not isclose(Σmass_particles, Σmass_fluid, 1e-6):
                     if Σmass_fluid > Σmass_particles:
                         masterwarn('The specified mass for the "{}" component\n'

@@ -25,11 +25,7 @@
 from commons import *
 
 # Cython imports
-cimport('from communication import communicate_domain')
-cimport('from communication import domain_size_x , domain_size_y , domain_size_z' )
-cimport('from communication import domain_start_x, domain_start_y, domain_start_z')
 cimport('from ewald import ewald')
-cimport('from mesh import CIC_grid2grid, CIC_scalargrid2coordinates')
 
 
 
@@ -229,73 +225,3 @@ def gravity_pairwise(component_1, component_2, rank_2, ᔑdt, local, mutual, ext
 )
 def gravity_potential(k2):
     return ℝ[-4*π*G_Newton]/k2
-
-# Function that applies the differentiated gravitational potential
-# to a component.
-@cython.header(# Arguments
-               component='Component',
-               ᔑdt=dict,
-               gradφ_dim='double[:, :, ::1]',
-               dim='int',
-               # Locals
-               J_dim='FluidScalar',
-               fac='double',
-               i='Py_ssize_t',
-               mom_dim='double*',
-               posx='double*',
-               posy='double*',
-               posz='double*',
-               x='double',
-               y='double',
-               z='double',
-               returns='void',
-               )
-def apply_gravity_potential(component, ᔑdt, gradφ_dim, dim):
-    """The argument gradφ_dim is the differentiated potential [∇φ]_dim
-    in physical units.
-    """
-    if component.representation == 'particles':
-        # Extract variables from component
-        posx    = component.posx
-        posy    = component.posy
-        posz    = component.posz
-        mom_dim = component.mom[dim]
-        # Update the dim momentum component of particle i
-        for i in range(component.N_local):
-            # The coordinates of the i'th particle,
-            # transformed so that 0 <= x, y, z < 1.
-            x = (posx[i] - domain_start_x)/domain_size_x
-            y = (posy[i] - domain_start_y)/domain_size_y
-            z = (posz[i] - domain_start_z)/domain_size_z
-            # Look up the force via a CIC interpolation,
-            # convert it to momentum units and subtract it from the
-            # momentum of particle i (subtraction because the force is
-            # the negative gradient of the potential).
-            # The factor with which to multiply gradφ_dim by to get
-            # momentum updates is -mass*Δt, where Δt = ᔑdt['1'].
-            mom_dim[i] -= ℝ[component.mass*ᔑdt['1']]*CIC_scalargrid2coordinates(gradφ_dim, x, y, z)
-    elif component.representation == 'fluid':
-        # Simply scale and extrapolate the values in gradφ_dim
-        # to the grid points of the dim'th component of the
-        # fluid variable J.
-        # First extract this fluid scalar.
-        J_dim = component.J[dim]
-        # As the gravitational source term is
-        # -a**(-3*w_eff)*(ϱ + c⁻²𝒫)*∂ⁱφ,
-        # we need to multiply each grid point in [i, j, k] in gradφ_dim
-        # by (ϱ[i, j, k] + c⁻²𝒫[i, j, k]) and all grid points by the
-        # same factor -a**(-3*w_eff). Actually, since what we are after
-        # are the updates to the momentum density, we should also
-        # multiply by Δt. Since a**(-3*we_eff) is time dependent,
-        # we should then really swap -a**(-3*w_eff)*Δt
-        # for -ᔑa**(-3*w_eff)dt.
-        fac = -ᔑdt['a**(-3*w_eff)', component]
-        CIC_grid2grid(J_dim.grid_noghosts,
-                      gradφ_dim,
-                      fac=fac,
-                      fac_grid=component.ϱ.grid_noghosts,
-                      fac2=light_speed**(-2)*fac,
-                      fac_grid2=component.𝒫.grid_noghosts,
-                      )
-        # Communicate the pseudo and ghost points of J_dim
-        communicate_domain(J_dim.grid_mv, mode='populate')

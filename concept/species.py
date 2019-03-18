@@ -453,7 +453,7 @@ class Component:
     )
     def __init__(self, name, species, N_or_gridsize, *,
         mass=-1,
-        boltzmann_order=2,
+        boltzmann_order=-1,
         forces=None,
         class_species=None,
         realization_options=None,
@@ -904,6 +904,8 @@ class Component:
         self.Δpos_mv = [self.Δposx_mv, self.Δposy_mv, self.Δposz_mv]
         self.Δmom_mv = [self.Δmomx_mv, self.Δmomy_mv, self.Δmomz_mv]
         # Fluid attributes
+        if boltzmann_order == -1:
+            boltzmann_order = is_selected(self, select_boltzmann_order)
         self.boltzmann_order = boltzmann_order
         if self.representation == 'particles':
             if self.boltzmann_order != 2:
@@ -1679,7 +1681,7 @@ class Component:
         If a variable is passed that does not exist on the component at
         all, this method will return True. Crucially then, the caller
         must never rely on the fact that the variable is linear
-        (only that it is not non-linear), unless it is sure that the
+        (only that it is not non-linear), unless it is certain that the
         variable does indeed exist.
         """
         if self.representation == 'particles':
@@ -1743,36 +1745,25 @@ class Component:
         ᔑdt=dict,
         a_next='double',
         # Locals
+        dim='int',
         i='Py_ssize_t',
-        momx='double*',
-        momy='double*',
-        momz='double*',
-        posx='double*',
-        posy='double*',
-        posz='double*',
+        mom_dim='double*',
+        pos_dim='double*',
         rk_order='int',
         scheme=str,
     )
     def drift(self, ᔑdt, a_next=-1):
         if self.representation == 'particles':
-            masterprint('Drifting {} ...'.format(self.name))
-            posx = self.posx
-            posy = self.posy
-            posz = self.posz
-            momx = self.momx
-            momy = self.momy
-            momz = self.momz
+            masterprint(f'Drifting {self.name} ...')
             # Update positions
-            for i in range(self.N_local):
-                posx[i] += momx[i]*ℝ[ᔑdt['a**(-2)']/self.mass]
-                posy[i] += momy[i]*ℝ[ᔑdt['a**(-2)']/self.mass]
-                posz[i] += momz[i]*ℝ[ᔑdt['a**(-2)']/self.mass]
-                # Toroidal boundaries
-                posx[i] = mod(posx[i], boxsize)
-                posy[i] = mod(posy[i], boxsize)
-                posz[i] = mod(posz[i], boxsize)
+            for dim in range(3):
+                pos_dim, mom_dim = self.pos[dim], self.mom[dim]
+                for i in range(self.N_local):
+                    pos_dim[i] += mom_dim[i]*ℝ[ᔑdt['a**(-2)']/self.mass]
+                    # Toroidal boundaries
+                    pos_dim[i] = mod(pos_dim[i], boxsize)
             masterprint('done')
-            # Some partiles may have drifted out of the local domain.
+            # Some particles may have drifted out of the local domain.
             # Exchange particles to the correct processes.
             exchange(self)
         elif self.representation == 'fluid':
@@ -1824,51 +1815,62 @@ class Component:
         scheme=str,
     )
     def apply_internal_sources(self, ᔑdt, a_next=-1):
+        # Representation specific internal source terms below
         if self.representation == 'particles':
-            return
-        scheme = is_selected(self, fluid_scheme_select)
-        if scheme == 'maccormack':
-            # For the MacCormack scheme we have three internal
-            # source terms: The Hubble term in the continuity equation
-            # and the pressure and shear term in the Euler equation.
-            if (
-                (   # The Hubble term
+            # Particle components have no special internal source terms
+            pass
+        elif self.representation == 'fluid':
+            # Below follow internal source terms not taken into account
+            # by the MacCormack/Kurganov-Tadmor methods.
+            scheme = is_selected(self, fluid_scheme_select)
+            if scheme == 'maccormack':
+                # For the MacCormack scheme we have three internal
+                # source terms: The Hubble term in the continuity
+                # equation and the pressure and shear terms in
+                # the Euler equation.
+                if (
+                    (   # The Hubble term
+                            self.boltzmann_order > 0
+                        and not self.approximations['P=wρ']
+                        and enable_Hubble
+                    )
+                    or
+                    (   # The pressure term
+                            self.boltzmann_order > 1
+                        and not (self.w_type == 'constant' and self.w_constant == 0)
+                    )
+                    or
+                    (
+                        # The shear term
+                            self.boltzmann_order > 2
+                        or (self.boltzmann_order == 2 and self.boltzmann_closure == 'class')
+                    )
+                ):
+                    masterprint(
+                        f'Evolving fluid variables (internal source terms) of {self.name} ...'
+                    )
+                    maccormack_internal_sources(self, ᔑdt, a_next)
+                    masterprint('done')
+            elif scheme == 'kurganovtadmor':
+                # Only the Hubble term in the continuity equation
+                # exist as an internal source term when using
+                # the Kurganov Tadmor scheme.
+                if (
+                    # The Hubble term
                         self.boltzmann_order > 0
                     and not self.approximations['P=wρ']
                     and enable_Hubble
+                ):
+                    masterprint(
+                        f'Evolving fluid variables (internal source terms) of {self.name} ...'
+                    )
+                    kurganov_tadmor_internal_sources(self, ᔑdt)
+                    masterprint('done')
+            else:
+                abort(
+                    f'It was specified that the {self.name} component should be evolved using '
+                    f'the "{scheme}" scheme, which is not implemented.'
                 )
-                or
-                (   # The pressure term
-                        self.boltzmann_order > 1
-                    and not (self.w_type == 'constant' and self.w_constant == 0)
-                )
-                or
-                (
-                    # The shear term
-                        self.boltzmann_order > 2
-                    or (self.boltzmann_order == 2 and self.boltzmann_closure == 'class')
-                )
-            ):
-                masterprint(f'Evolving fluid variables (internal source terms) of {self.name} ...')
-                maccormack_internal_sources(self, ᔑdt, a_next)
-                masterprint('done')
-        elif scheme == 'kurganovtadmor':
-            # Only the Hubble term in the continuity equation
-            # exist as an internal source term when using
-            # the Kurganov Tadmor scheme.
-            if (
-                # The Hubble term
-                    self.boltzmann_order > 0
-                and not self.approximations['P=wρ']
-                and enable_Hubble
-            ):
-                masterprint(f'Evolving fluid variables (internal source terms) of {self.name} ...')
-                kurganov_tadmor_internal_sources(self, ᔑdt)
-                masterprint('done')
-        else:
-            abort(f'It was specified that the {self.name} component should be evolved using '
-                f'the "{scheme}" scheme, which is not implemented.'
-            )
 
     # Method for computing the equation of state parameter w
     # at a certain time t or value of the scale factor a.
@@ -1983,7 +1985,7 @@ class Component:
         if t == -1 == a:
             t = universals.t
             a = universals.a
-        # Compute the current ẇ dependent on its type
+        # Compute ẇ dependent on its type
         if self.w_type == 'constant':
             return 0
         if self.w_type == 'tabulated (t)':
@@ -2011,7 +2013,31 @@ class Component:
             units_dict.pop('t')
             units_dict.pop('a')
             return (w_after - w_before)/(2*Δx)
-        abort('Did not recognize w type "{}"'.format(self.w_type))
+        abort(f'Did not recognize w type "{self.w_type}"')
+
+    # Method for computing the proper time derivative
+    # of the effectice equation of state parameter w_eff
+    # at a certain time t or value of the scale factor a.
+    # This has to be a pure Python function,
+    # otherwise it cannot be called as ẇ_eff(a=a).
+    def ẇ_eff(self, *, t=-1, a=-1):
+        """This method should not be called before w_eff has been
+        initialized by the initialize_w_eff method.
+        """
+        # Compute ẇ_eff dependent on its type
+        if self.w_eff_type == 'constant':
+            return 0
+        if self.w_eff_type == 'tabulated (a)':
+            # If no time or scale factor value is passed,
+            # use the current time and scale factor value.
+            if t == -1 == a:
+                t = universals.t
+                a = universals.a
+            # Compute ẇ_eff. Here we use dw_eff/dt = da/dt*dw_eff/da.
+            if a == -1:
+                a = scale_factor(t)
+            return ȧ(a)*self.w_eff_spline.eval_deriv(a)
+        abort(f'Did not recognize w_eff type "{self.w_type}"')
 
     # Method which initializes the equation of state parameter w.
     # Call this before calling the w and ẇ methods.
@@ -2336,7 +2362,7 @@ class Component:
         The definition of w_eff is
         ϱ = a**(3(1 + w_eff))ρ
         such that mean(ϱ) = ϱ_bar is constant in time. This leads to
-        w_eff(a) = log(ρ_bar(a=1)/(a**3*ρ_bar))/(3*log(a))
+        w_eff(a) = log(ρ_bar(a=1)/ρ_bar)/(3*log(a)) - 1,
         which is well behaved for any positive definite ρ_bar.
         """
         # If the CLASS background is disabled,
@@ -2356,10 +2382,6 @@ class Component:
             return
         # Construct a tabulated array of scale factor values.
         # If w is already tabulated at certain values, reuse these.
-        masterprint(
-            f'Tabulating effective equation of state parameter '
-            f'for the "{self.name}" component ...'
-        )
         self.w_eff_type = 'tabulated (a)'
         if self.w_type == 'tabulated (a)':
             a_tabulated = self.w_tabulated[0, :]
@@ -2375,14 +2397,20 @@ class Component:
         )
         if a_min == -1:
             a_tabulated = cosmoresults.background['a']
+        a_tabulated = a_tabulated.copy()  # Needed as we mutate a_tabulated below
         ρ_bar_tabulated = cosmoresults.ρ_bar(a_tabulated, self.class_species, apply_unit=False)
         ρ_bar_0 = ρ_bar_tabulated[ρ_bar_tabulated.shape[0] - 1]
         # At a = 1 a division by 0 error occurs due to 1/log(a).
         # Here we use linear extrapolation to obtain the end point.
         a_tabulated_end = a_tabulated[a_tabulated.shape[0] - 1]
         a_tabulated[a_tabulated.shape[0] - 1] = a_tabulated[a_tabulated.shape[0] - 2]
-        w_eff_tabulated = np.log(ρ_bar_0/(asarray(a_tabulated)**3*ρ_bar_tabulated)
-            )/(3*np.log(a_tabulated))
+        w_eff_tabulated = np.log(ρ_bar_0/ρ_bar_tabulated)/(3*np.log(a_tabulated)) - 1
+        if (  np.max(w_eff_tabulated[:w_eff_tabulated.shape[0] - 1])
+            - np.min(w_eff_tabulated[:w_eff_tabulated.shape[0] - 1]) < 1e+6*machine_ϵ):
+            # The effective equation of state is really constant.
+            # Treat it as so.
+            self.w_eff_type = 'constant'
+            return
         a_tabulated[a_tabulated.shape[0] - 1] = a_tabulated_end
         w_eff_tabulated[a_tabulated.shape[0] - 1] = (
             w_eff_tabulated[a_tabulated.shape[0] - 2]
@@ -2410,7 +2438,6 @@ class Component:
             logx, logy = True, False
         self.w_eff_spline = Spline(a_tabulated, w_eff_tabulated, f'w_eff(a) of {self.name}',
             logx=logx, logy=logy)
-        masterprint('done')
 
     # Method which convert named fluid/particle
     # variable names to indices.
@@ -2679,22 +2706,29 @@ def get_representation(species):
 
 # Function for adding species to the universals_dict,
 # recording the presence of any species in use.
-@cython.header(# Arguments
-               components=list,
-               # Locals
-               class_species_present=set,
-               class_species_present_bytes=bytes,
-               class_species_previously_present=str,
-               species_present=set,
-               species_present_bytes=bytes,
-               species_previously_present=str,
-               )
+@cython.header(
+    # Arguments
+    components=list,
+    # Locals
+    class_species_present=set,
+    class_species_present_bytes=bytes,
+    class_species_previously_present=str,
+    i='Py_ssize_t',
+    species_present=set,
+    species_present_bytes=bytes,
+    species_previously_present=str,
+)
 def update_species_present(components):
     """We cannot change the species_present and class_species_present
     fields of the universals structure, as this would require sticking
     in a new char*. Instead we use the universals_dict dict.
     For consistency, we store the species as bytes objects.
     """
+    components = components.copy()
+    for i, component in enumerate(components):
+        if component.name in internally_defined_names:
+            components[i] = None
+    components = [component for component in components if component is not None]
     if not components:
         return
     # Species present (CO𝘕CEPT convention)
@@ -2720,23 +2754,25 @@ def update_species_present(components):
 # Mapping from species to their representations
 cython.declare(representation_of_species=dict)
 representation_of_species = {
-    ('baryons',
-     'dark energy particles',
-     'dark matter particles',
-     'matter particles',
-     'neutrinos',
-     'photons',
-     'particles',
-     ): 'particles',
-    ('baryon fluid',
-     'dark energy fluid',
-     'dark matter fluid',
-     'matter fluid',
-     'metric',
-     'neutrino fluid',
-     'photon fluid',
-     'fluid',
-     ): 'fluid',
+    (
+        'baryons',
+        'dark energy particles',
+        'dark matter particles',
+        'matter particles',
+        'neutrinos',
+        'photons',
+        'particles',
+    ): 'particles',
+    (
+        'baryon fluid',
+        'dark energy fluid',
+        'dark matter fluid',
+        'matter fluid',
+        'metric',
+        'neutrino fluid',
+        'photon fluid',
+        'fluid',
+    ): 'fluid',
 }
 # Mapping from (CO𝘕CEPT) species names to default
 # CLASS species names. Note that combination species
@@ -2749,8 +2785,8 @@ default_class_species = {
     'dark energy particles': 'fld',
     'dark matter fluid'    : 'cdm',
     'dark matter particles': 'cdm',
-    'matter fluid'         : 'cdm+b',
-    'matter particles'     : 'cdm+b',
+    'matter fluid'         : 'b+cdm',
+    'matter particles'     : 'b+cdm',
     'metric'               : 'metric',
     'neutrino fluid'       : 'ncdm[0]',
     'neutrinos'            : 'ncdm[0]',
@@ -2782,7 +2818,7 @@ approximations_implemented = {
 # Set of all component names used internally by the code,
 # and which the user should generally avoid.
 cython.declare(internally_defined_names=set)
-internally_defined_names = {'all', 'all combinations', 'buffer', 'default', 'tmp', 'total'}
+internally_defined_names = {'all', 'all combinations', 'buffer', 'default', 'tmp', 'total', 'fake'}
 # Names of all implemented fluid variables in order.
 # Note that 𝒫 is not considered a seperate fluid variable,
 # but rather a fluid scalar that lives on ς.

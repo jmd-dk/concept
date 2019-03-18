@@ -143,8 +143,9 @@ def powerspec(components, filename):
         # Σmass = (a*boxsize)**3*ρ_bar
         #       = boxsize**3*a**(-3*w_eff)*ϱ_bar.
         # Since all particles have the same mass, the mass contribution
-        # from a single particle is Σmass/component.N,
-        # which equals component.mass.
+        # from a single particle is Σmass/component.N. For particles of
+        # constant mass, this is exactly component.mass. In general,
+        # we have Σmass/component.N = a**(-3*w_eff)*component.mass.
         # For fluids, each fluid element contributes to the mass by
         # an amount (a*L_cell)**3*ρ(x)
         #         = (a*boxsize/component.gridsize)**3*ρ(x)
@@ -154,11 +155,16 @@ def powerspec(components, filename):
         )
         interpolation_quantities = [
             # Particle components
-            ('particles', [component.mass for component in component_combination]),
+            ('particles', [
+                component.mass*a**(-3*component.w_eff(a=a))
+                for component in component_combination]
+            ),
             # Fluid components
-            ('ϱ', [(boxsize/component.gridsize)**3*a**(-3*component.w_eff(a=a))
-                   for component in component_combination]),
-            ]
+            ('ϱ', [
+                (boxsize/component.gridsize)**3*a**(-3*component.w_eff(a=a))
+                for component in component_combination]
+            ),
+        ]
         φ_dict = CIC_components2φ_general(list(component_combination), interpolation_quantities)
         # Flags specifying whether any
         # fluid/particle components are present.
@@ -538,53 +544,55 @@ if any(powerspec_times.values()) or special_params.get('special') == 'powerspec'
     σ2_integrand = empty(k_bin_centers.shape[0], dtype=C2np['double'])
 
 # Function which can measure different quantities of a passed component
-@cython.header(# Arguments
-               component='Component',
-               quantity=str,
-               # Locals
-               J_arr=object, # np.ndarray
-               J_noghosts='double[:, :, :]',
-               N='Py_ssize_t',
-               N_elements='Py_ssize_t',
-               Vcell='double',
-               diff_backward='double[:, :, ::1]',
-               diff_forward='double[:, :, ::1]',
-               diff_max='double[::1]',
-               diff_max_dim='double',
-               diff_size='double',
-               dim='int',
-               fluidscalar='FluidScalar',
-               h='double',
-               i='Py_ssize_t',
-               j='Py_ssize_t',
-               k='Py_ssize_t',
-               mom='double*',
-               mom_i='double',
-               names=list,
-               w_eff='double',
-               Δdiff='double',
-               Δdiff_max='double[::1]',
-               Δdiff_max_dim='double',
-               Δdiff_max_list=list,
-               Δdiff_max_normalized_list=list,
-               Σmass='double',
-               Σmom='double[::1]',
-               Σmom_dim='double',
-               Σmom2_dim='double',
-               Σϱ='double',
-               Σϱ2='double',
-               ϱ='FluidScalar',
-               ϱ_arr=object,  # np.ndarray
-               ϱ_bar='double',
-               ϱ_min='double',
-               ϱ_noghosts='double[:, :, :]',
-               σ2mom_dim='double',
-               σ2ϱ='double',
-               σmom='double[::1]',
-               σmom_dim='double',
-               σϱ='double',
-               returns=object,  # double or tuple
-               )
+@cython.header(
+    # Arguments
+    component='Component',
+    quantity=str,
+    # Locals
+    J_arr=object, # np.ndarray
+    J_noghosts='double[:, :, :]',
+    N='Py_ssize_t',
+    N_elements='Py_ssize_t',
+    Vcell='double',
+    a='double',
+    diff_backward='double[:, :, ::1]',
+    diff_forward='double[:, :, ::1]',
+    diff_max='double[::1]',
+    diff_max_dim='double',
+    diff_size='double',
+    dim='int',
+    fluidscalar='FluidScalar',
+    h='double',
+    i='Py_ssize_t',
+    j='Py_ssize_t',
+    k='Py_ssize_t',
+    mom='double*',
+    mom_i='double',
+    names=list,
+    w_eff='double',
+    Δdiff='double',
+    Δdiff_max='double[::1]',
+    Δdiff_max_dim='double',
+    Δdiff_max_list=list,
+    Δdiff_max_normalized_list=list,
+    Σmass='double',
+    Σmom='double[::1]',
+    Σmom_dim='double',
+    Σmom2_dim='double',
+    Σϱ='double',
+    Σϱ2='double',
+    ϱ='FluidScalar',
+    ϱ_arr=object,  # np.ndarray
+    ϱ_bar='double',
+    ϱ_min='double',
+    ϱ_noghosts='double[:, :, :]',
+    σ2mom_dim='double',
+    σ2ϱ='double',
+    σmom='double[::1]',
+    σmom_dim='double',
+    σϱ='double',
+    returns=object,  # double or tuple
+)
 def measure(component, quantity):
     """Implemented quantities are:
     'momentum'
@@ -593,6 +601,7 @@ def measure(component, quantity):
     'discontinuity'  (fluid quantity)
     """
     # Extract variables
+    a = universals.a
     N = component.N
     N_elements = component.gridsize**3
     Vcell = boxsize**3/N_elements
@@ -693,8 +702,9 @@ def measure(component, quantity):
         return ϱ_bar, σϱ, ϱ_min
     elif quantity == 'mass':
         if component.representation == 'particles':
-            # The total mass is fixed for particle components
-            Σmass = component.N*component.mass
+            # Any change in the mass of particle a component is absorbed
+            # into w_eff(a).
+            Σmass = a**(-3*w_eff)*component.N*component.mass
         elif component.representation == 'fluid':
             # NumPy array of local part of ϱ with no pseudo points
             ϱ_arr = asarray(ϱ_noghosts[:(ϱ_noghosts.shape[0] - 1),
@@ -711,7 +721,7 @@ def measure(component, quantity):
             # ϱ = a**(3*(1 + w_eff))*ρ, the total mass is then
             # Σmass = a**(-3*w_eff)*Vcell*Σϱ.
             # Note that the total mass is generally constant.
-            Σmass = universals.a**(-3*w_eff)*Vcell*Σϱ
+            Σmass = a**(-3*w_eff)*Vcell*Σϱ
         return Σmass
     elif quantity == 'discontinuity':
         if component.representation == 'particles':

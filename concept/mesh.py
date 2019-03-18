@@ -856,7 +856,7 @@ def CIC_particles2fluid(component):
     momy = component.momy
     momz = component.momz
     # Variables used in the convertion from particle data to fluid data
-    mass = component.mass
+    mass = universals.a**(-3*component.w_eff(a=universals.a))*component.mass
     Vcell = (boxsize/component.gridsize)**3
     # Interpolate each particle to the grids.
     # Constant factors will be multiplied on later.

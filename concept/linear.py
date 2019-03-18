@@ -58,7 +58,7 @@ class CosmoResults:
     # such as the squared photon sound speed perturbation "cs2_g" which
     # is always equal to 1/3.
     class PerturbationDict(dict):
-        missing_CLASS_perturbations = {'cs2_g', 'cs2_ur', 'shear_fld'}
+        missing_CLASS_perturbations = {'cs2_g', 'cs2_ur', 'cs2_dr', 'shear_fld'}
         def __getitem__(self, key):
             if key in self.missing_CLASS_perturbations:
                 # Attempt normal lookup.
@@ -67,7 +67,7 @@ class CosmoResults:
                     return super().__getitem__(key)
                 except KeyError:
                     pass
-                if key in {'cs2_g', 'cs2_ur'}:
+                if key in {'cs2_g', 'cs2_ur', 'cs2_dr'}:
                     # Ultrarelativistic species have a
                     # squared sound speed equal to 1/3.
                     value = 1/3*ones(self['a'].size, dtype=C2np['double'])
@@ -150,7 +150,7 @@ class CosmoResults:
             # perturbations (if any), as well as the CLASS variables
             # _VERSION, _ARGUMENT_LENGTH_MAX_ and a_min.
             self.id = hashlib.sha1(str(
-                tuple(sorted({str(key).replace(' ', '').lower(): str(val).replace(' ', '').lower()
+                tuple(sorted({str(key).replace(' ', ''): str(val).replace(' ', '').lower()
                     for key, val in self.params.items()}.items()))
                 + tuple(sorted([str(val).replace(' ', '').lower()
                     for val in class_extra_background]))
@@ -285,19 +285,19 @@ class CosmoResults:
             else:
                 self._background = {}
             # CLASS does not give the background pressure for cold
-            # dark matter, baryons, photons, ultra relativistic species
+            # dark matter, baryons, ultra relativistic species
             # or the cosmological constant, as these are always
             # proportional to their densities with a constant
             # proportionality factor w. Here we add these missing
             # pressures explicitly.
             constant_eos_w = {
-                'cdm'   :  0,
                 'b'     :  0,
+                'cdm'   :  0,
+                'dcdm'  :  0,
                 'g'     :  1/3,
                 'ur'    :  1/3,
+                'dr'    :  1/3,
                 'lambda': -1,
-                'dcdm'  : 0,
-                'dr'    : 1/3,
             }
             for class_species, w in constant_eos_w.items():
                 if (    f'(.)rho_{class_species}'   in self._background
@@ -332,7 +332,7 @@ class CosmoResults:
             # is also needed (though its actual value does not matter).
             # Thus, we also need to assign the metric species a
             # background pressure.
-            # In principle we could use any background and density and
+            # In principle we could use any background density and
             # pressure. However, it turns out that δρ(k, a) (at least on
             # large scales) approximately follows the behavior of the
             # other species, which simply comes about because the metric
@@ -343,7 +343,7 @@ class CosmoResults:
             # exist in the CLASS background data, we loop over each
             # species manually.
             def get_metric_contributing_class_species():
-                for class_species in ('g', 'ur'):
+                for class_species in ('g', 'ur', 'dr'):
                     if f'(.)rho_{class_species}' in self._background:
                         yield class_species
                 for n_ncdm in itertools.count():
@@ -351,7 +351,7 @@ class CosmoResults:
                     if f'(.)rho_{class_species}' not in self._background:
                         break
                     yield class_species
-                for class_species in ('b', 'cdm', 'fld'):
+                for class_species in ('b', 'cdm', 'dcdm', 'fld'):
                     if f'(.)rho_{class_species}' in self._background:
                         yield class_species
             self._background['(.)rho_metric'] = 0
@@ -674,12 +674,12 @@ class CosmoResults:
     def construct_delta_metric(self):
         """This method adds the "delta_metric" perturbation
         to self._perturbations, assuming that the ϕ and ψ potentials and
-        H_T' in N-body gauge already exist as perturbations.
+        H_Tʹ in N-body gauge already exist as perturbations.
         The strategy is as follows: For each k, we can compute the GR
         correction potential γ(a) using
         γ(a) = -(H_Tʹʹ(a) + a*H(a)*H_Tʹ(a))/k² + (ϕ(a) - ψ(a)),
         where ʹ denotes differentiation with respect to
-        conformal time τ. To get H_Tʹʹ (actually Ḣ_Tʹ, see below) we
+        conformal time τ. To get H_Tʹʹ (actually ∂ₐH_Tʹ, see below) we
         construct a TransferFunction object over the H_Tʹ perturbations.
         The units of the perturbations from CLASS are as follows:
         H_Tʹ: [time⁻¹]        = [c/Mpc],
@@ -691,7 +691,7 @@ class CosmoResults:
         https://arxiv.org/pdf/1708.07769.pdf
         We choose to compute k²γ, not γ by itself.
         Using ʹ = d/dτ = a*d/dt = a²H(a)*d/da, we have
-        k²γ(a) = -a*H(a)(a*Ḣ_Tʹ(a) + H_Tʹ(a)) + k²(ϕ(a) - ψ(a))
+        k²γ(a) = -a*H(a)(a*∂ₐH_Tʹ(a) + H_Tʹ(a)) + k²(ϕ(a) - ψ(a))
         with ˙ = d/da. The δρ(a) perturbation is now given by
         δρ(a) = 2/3*γ(a)k²/a² * 3/(8πG)
               = k²γ(a)/(4πGa²)
@@ -737,7 +737,7 @@ class CosmoResults:
             H_Tʹ  = perturbation['H_T_prime']*ℝ[light_speed/units.Mpc]
             θ_tot = perturbation['theta_tot']*ℝ[light_speed/units.Mpc]
             # Compute the derivative of H_Tʹ with respect to a
-            Ḣ_Tʹ = asarray([transfer_H_Tʹ.eval_deriv(k_local, a_i) for a_i in a])
+            dda_H_Tʹ = asarray([transfer_H_Tʹ.eval_deriv(k_local, a_i) for a_i in a])
             # Lastly, we need the Hubble parameter and the mean density
             # of the "metric" species at the times given by a.
             H = asarray([hubble(a_i) for a_i in a])
@@ -745,7 +745,7 @@ class CosmoResults:
             # Construct the γ potential
             aH = a*H
             k_magnitude2 = k_magnitude**2
-            k2γ = -aH*(a*Ḣ_Tʹ + H_Tʹ) + k_magnitude2*(ϕ - ψ)
+            k2γ = -aH*(a*dda_H_Tʹ + H_Tʹ) + k_magnitude2*(ϕ - ψ)
             # Construct the δ perturbation (in N-body gauge)
             δ = k2γ/(ℝ[4*π*G_Newton]*a**2*ρ_metric)
             # Transform from N-body gauge to synchronous gauge
@@ -805,7 +805,8 @@ class CosmoResults:
             # A few exceptions are the constant pressure of the cdm, b
             # and lambda CLASS species, as well as the density, pressure
             # and equation of state w for the fld CLASS species.
-            if y in {'(.)p_cdm', '(.)p_b', '(.)p_lambda', '(.)rho_lambda', '(.)p_metric'}:
+            if y in {'(.)p_b', '(.)p_cdm', '(.)p_dcdm',
+                '(.)p_lambda', '(.)rho_lambda', '(.)p_metric', '(.)p_lapse'}:
                 logx, logy = True, False
             elif y in {'(.)rho_fld', '(.)p_fld', '(.)w_fld'}:
                 logx, logy = False, False
@@ -1397,11 +1398,12 @@ class TransferFunction:
                 }
                 # The CLASS units of δP/δρ are [length²time⁻²]
                 class_units = ℝ[light_speed**2]
-                # Look for oulier points which are outside the
+                # Look for outlier points which are outside the
                 # legal range 0 ≤ δP/δρ ≤ c²/3. As the data is
                 # directly from CLASS, c = 1.
                 for class_species in weights_species:
-                    if class_species not in {'g', 'ur'} and not class_species.startswith('ncdm['):
+                    if (class_species not in {'g', 'ur', 'dr'}
+                        and not class_species.startswith('ncdm[')):
                         continue
                     perturbation = perturbation_k.get(f'cs2_{class_species}')
                     if perturbation is not None:
@@ -1826,6 +1828,8 @@ class TransferFunction:
         k_local='Py_ssize_t',
         i='Py_ssize_t',
         # Locals
+        fitted_trends=list,
+        returns='double[::1]',
     )
     def detrend(self, x, y, k, k_local, i):
         # Maximum (absolute) allowed exponent in the trend.
@@ -1901,7 +1905,6 @@ class TransferFunction:
     @staticmethod
     def power_law(x, factor, exponent):
         return factor*x**exponent
-
 
     # Method which finds out which scale factor interval a given scale
     # factor value lies within, given the local perturbation index.
@@ -2061,7 +2064,9 @@ class TransferFunction:
                 for i in range(size):
                     a_i = a_values[i]
                     with unswitch:
-                        if weight == 'a**(-3*w_eff-1)':
+                        if weight == '1':
+                            weights[i] = 1.0
+                        elif weight == 'a**(-3*w_eff-1)':
                             w_eff_i = self.component.w_eff(a=a_i)
                             weights[i] = a_i**(-3*w_eff_i - 1)
                         elif weight == 'a**(3*w_eff-2)':
@@ -2397,9 +2402,11 @@ def k_float2str(k):
     H='double',
     aH_transfer_θ_totʹ='double[::1]',
     any_negative_values='bint',
+    class_species=str,
     cosmoresults=object,  # CosmoResults
     k='Py_ssize_t',
     k_magnitudes='double[::1]',
+    source='double',
     transfer='double[::1]',
     transfer_hʹ='double[::1]',
     transfer_spline='Spline',
@@ -2463,13 +2470,20 @@ def compute_transfer(
         # to N-body gauge, if requested.
         if gauge == 'nbody':
             # The gauge transformation looks like
-            # δᴺᵇ = δˢ + 3c⁻²aH(1 + w)θˢₜₒₜ/k².
-            # Do the gauge transformation.
+            # δᴺᵇ = δˢ + c⁻²(3aH(1 + w) - a*source/ρ_bar)θˢₜₒₜ/k²,
+            # where source is any source term in the homogeneous proper
+            # time continuity equation for the given CLASS species.
+            # All such source terms should be specified below.
+            source = 0
+            for class_species in component.class_species.split('+'):
+                ...
+            # Do the gauge transformation
+            ρ_bar = cosmoresults.ρ_bar(a, component)
             transfer_θ_tot = cosmoresults.θ(a)
             H = hubble(a)
             w = component.w(a=a)
             for k in range(k_gridsize):
-                transfer[k] += (ℝ[3*a*H/light_speed**2*(1 + w)]
+                transfer[k] += (ℝ[light_speed**(-2)*(3*a*H*(1 + w) - a*source/ρ_bar)]
                     *transfer_θ_tot[k]/k_magnitudes[k]**2)
     elif var_index == 1:
         # Get the θ transfer function
@@ -3203,7 +3217,7 @@ def realize(component, variable, transfer_spline, cosmoresults,
         # used to convert from displacement to velocity. We first
         # domain-decompose the realized field stored in the slabs.
         # Importantly, here we have to use a different buffer from the
-        # one already in use# by sqrt_power_common.
+        # one already in used by sqrt_power_common.
         ψⁱ = domain_decompose(slab, 1)
         ψⁱ_noghosts = uⁱ_noghosts = ψⁱ[
             2:(ψⁱ.shape[0] - 2),
@@ -3213,8 +3227,11 @@ def realize(component, variable, transfer_spline, cosmoresults,
         # Determine and set the mass of the particles
         # if this is still unset.
         if component.mass == -1:
+            # For species with varying mass, this is the mass at a = 1
             component.mass = ϱ_bar*boxsize**3/component.N
-        mass = component.mass
+        # The current mass is the set mass at a = 1,
+        # scaled according to w_eff(a).
+        mass = a**(-3*w_eff)*component.mass
         # If we are realizing momenta directly from the displacement
         # fiel ψⁱ, get the linear growth rate f_growth = H⁻¹Ḋ/D,
         # with D the linear growth factor.

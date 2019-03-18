@@ -125,6 +125,9 @@ select_class_species = {  # CLASS species to use for each component
 select_eos_w = {  # Equation of state parameter w for each component
     'all': 'class',
 }
+select_boltzmann_order = {  # Boltzmann order for each component
+    'all': 2,
+}
 select_boltzmann_closure = {  # Closure rule for the Boltzmann hierarchy for each component
     'all': 'class',
 }
@@ -174,6 +177,7 @@ select_softening_length = {  # Gravitational softening for each component
 }
 
 # Simulation options
+Δt_factor         = 1          # This scales the time step size
 fftw_wisdom_rigor = 'measure'  # Rigor level when acquiring FFTW wisdom
 fftw_wisdom_reuse = True       # Reuse FFTW wisdom from earlier runs?
 random_seed = 1                # Seed for pseudo-random numbers

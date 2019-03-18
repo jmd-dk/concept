@@ -305,7 +305,6 @@ def kick(components, step):
             specific_multi_index='trace', a=universals.a, a_next=a_next,
         )
     # Apply the effect of all internal source terms
-    # on all fluid components. For particle components, this is a no-op.
     for component in components:
         component.apply_internal_sources(ᔑdt, a_next)
     # Find out which components interact with each other
@@ -560,7 +559,7 @@ def print_timestep_heading(time_step, Δt, bottleneck, components, end=False):
                                       )
                      )
     for component in components:
-        if component.w_type != 'constant':
+        if component.w_type != 'constant' and component.species != 'metric':
             parts.append(f'\nEoS w ({component.name}):'.ljust(heading_ljust))
             parts.append(significant_figures(component.w(), 4, fmt='unicode'))
     # Find the maximum width of the first column and left justify
@@ -581,63 +580,68 @@ def print_timestep_heading(time_step, Δt, bottleneck, components, end=False):
 cython.declare(heading_ljust='Py_ssize_t')
 heading_ljust = 0
 
-# This function reduces the time step size Δt if it is too,
+# This function reduces the time step size Δt if it is too large,
 # based on a number of conditions.
-@cython.header(# Arguments
-               components=list,
-               Δt='double',
-               Δt_begin='double',
-               timespan='double',
-               worry='bint',
-               # Locals
-               H='double',
-               J_over_ϱ_plus_𝒫_2_i='double',
-               J_over_ϱ_plus_𝒫_2_max='double',
-               Jx='double*',
-               Jy='double*',
-               Jz='double*',
-               bottleneck=str,
-               component='Component',
-               extreme_component='Component',
-               fac_courant='double',
-               fac_hubble='double',
-               fac_dynamical='double',
-               fac_reduce='double',
-               fac_timespan='double',
-               fac_ẇ='double',
-               force=str,
-               i='Py_ssize_t',
-               limiters=list,
-               method=str,
-               mom2_i='double',
-               mom2_max='double',
-               momx='double*',
-               momy='double*',
-               momz='double*',
-               resolutions=list,
-               v_max='double',
-               w='double',
-               w_eff='double',
-               Δt_courant='double',
-               Δt_courant_component='double',
-               Δt_hubble='double',
-               Δt_dynamical='double',
-               Δt_index='Py_ssize_t',
-               Δt_min='double',
-               Δt_max='double',
-               Δt_ratio='double',
-               Δt_ratio_abort='double',
-               Δt_ratio_warn='double',
-               Δt_suggestions=list,
-               Δt_ẇ='double',
-               Δt_ẇ_component='double',
-               Δx_max='double',
-               Σmass='double',
-               ρ_bar='double',
-               ϱ='double*',
-               𝒫='double*',
-               returns=tuple,  # (Δt, bottleneck)
-               )
+@cython.header(
+    # Arguments
+    components=list,
+    Δt='double',
+    Δt_begin='double',
+    timespan='double',
+    worry='bint',
+    # Locals
+    H='double',
+    J_over_ϱ_plus_𝒫_2_i='double',
+    J_over_ϱ_plus_𝒫_2_max='double',
+    Jx='double*',
+    Jy='double*',
+    Jz='double*',
+    a='double',
+    bottleneck=str,
+    component='Component',
+    extreme_component='Component',
+    fac_courant='double',
+    fac_hubble='double',
+    fac_dynamical='double',
+    fac_reduce='double',
+    fac_timespan='double',
+    fac_ẇ='double',
+    force=str,
+    i='Py_ssize_t',
+    limiters=list,
+    method=str,
+    mom2_i='double',
+    mom2_max='double',
+    momx='double*',
+    momy='double*',
+    momz='double*',
+    resolutions=list,
+    v_max='double',
+    w='double',
+    w_eff='double',
+    Δt_courant='double',
+    Δt_courant_component='double',
+    Δt_hubble='double',
+    Δt_dynamical='double',
+    Δt_index='Py_ssize_t',
+    Δt_min='double',
+    Δt_max='double',
+    Δt_ratio='double',
+    Δt_ratio_abort='double',
+    Δt_ratio_warn='double',
+    Δt_suggestions=list,
+    Δt_ẇ='double',
+    Δt_ẇ_component='double',
+    Δt_decay='double',
+    Δt_decay_component='double',
+    Δx_max='double',
+    Σmass='double',
+    ρ_bar='double',
+    ρ_bar_component='double',
+    ϱ='double*',
+    𝒫='double*',
+    returns=tuple,  # (Δt, bottleneck)
+)
 def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
     """This function computes the maximum allowed value of the
     time step size Δt. If the current value of Δt is greater than this,
@@ -654,7 +658,7 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
       single time step is determined by the average inter-particle
       distance, or any "smallest scale" intrinsic to the forces acting
       on the particle species.
-    - A small fraction of 1/abs(ẇ) for every fluid components,
+    - A small fraction of 1/abs(ẇ) for every component,
       so that w varies smoothly.
     The conditions above are written in the same order in the code
     below. The last condition is by far the most involved.
@@ -662,6 +666,8 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
     drastic reduction in the time step size should trigger a warning
     (or even abort the program, for really drastic reductions).
     """
+    a = universals.a
+    H = hubble(a)
     # Ratios Δt_max_allowed/Δt, below which the program
     # will show a warning or abort, respectively.
     Δt_ratio_warn  = 0.5
@@ -681,12 +687,11 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
     limiters = []
     # The maximum allowed time step size
     # suggested by the dynamical time scale.
-    fac_dynamical = 8e-3
+    fac_dynamical = 1.3e-2*Δt_factor
     if enable_Hubble:
         # When the Hubble expansion is enabled,
         # use the current matter density as the mean density.
-        H = hubble()
-        ρ_bar = ρ_mbar*(H/H0)**2
+        ρ_bar = ρ_mbar/a**3
     else:
         # In static space, determine the mean density
         # directly from the components.
@@ -699,13 +704,13 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
     limiters.append('the dynamical timescale')
     # The maximum allowed time step size
     # suggested by the Hubble parameter.
-    fac_hubble = 5e-2
+    fac_hubble = 5e-2*Δt_factor
     Δt_hubble = fac_hubble/H if enable_Hubble else ထ
     Δt_suggestions.append(Δt_hubble)
     limiters.append('the Hubble expansion')
     # The maximum allowed time step size
     # suggested by the simulation timespan.
-    fac_timespan = 1e-1
+    fac_timespan = 1e-1*Δt_factor
     Δt_timespan = fac_timespan*timespan
     Δt_suggestions.append(Δt_timespan)
     limiters.append('the simulation timespan')
@@ -730,10 +735,11 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
     # element or particle may travel in Δt time. This distance is set by
     # the grid resolutions of any forces acting on the components,
     # and also the resolution of the fluid grids for fluid components.
-    fac_courant = 2e-1
+    fac_courant = 2e-1*Δt_factor
     Δt_courant = ထ
     extreme_component = components[0]
     for component in components:
+        w_eff = component.w_eff(a=a)
         if component.representation == 'particles':
             # Determine the maximum comoving distance a particle should
             # be able to travel in a single time step. This is set to be
@@ -759,7 +765,7 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
                 if mom2_i > mom2_max:
                     mom2_max = mom2_i
             mom2_max = allreduce(mom2_max, op=MPI.MAX)
-            v_max = sqrt(mom2_max)/(universals.a**2*component.mass)
+            v_max = sqrt(mom2_max)/(a**(2 - 3*w_eff)*component.mass)
         elif component.representation == 'fluid':
             # Determine the maximum comoving distance a fluid element
             # should be able to communicate over in a singletime step.
@@ -793,7 +799,7 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
                     if J_over_ϱ_plus_𝒫_2_i > J_over_ϱ_plus_𝒫_2_max:
                         J_over_ϱ_plus_𝒫_2_max = J_over_ϱ_plus_𝒫_2_i
                 J_over_ϱ_plus_𝒫_2_max = allreduce(J_over_ϱ_plus_𝒫_2_max, op=MPI.MAX)
-                v_max = universals.a**(-2)*sqrt(J_over_ϱ_plus_𝒫_2_max)
+                v_max = a**(-2)*sqrt(J_over_ϱ_plus_𝒫_2_max)
                 # Since no non-linear evolution happens for J, the Euler
                 # equation and hence the gradient of the pressure will
                 # never be computed. This means that sound waves
@@ -814,8 +820,7 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
                     if J_over_ϱ_plus_𝒫_2_i > J_over_ϱ_plus_𝒫_2_max:
                         J_over_ϱ_plus_𝒫_2_max = J_over_ϱ_plus_𝒫_2_i
                 J_over_ϱ_plus_𝒫_2_max = allreduce(J_over_ϱ_plus_𝒫_2_max, op=MPI.MAX)
-                w_eff = component.w_eff()
-                v_max = universals.a**(3*w_eff - 2)*sqrt(J_over_ϱ_plus_𝒫_2_max)
+                v_max = a**(3*w_eff - 2)*sqrt(J_over_ϱ_plus_𝒫_2_max)
                 # Add the sound speed. When the P=wρ approxiamation is
                 # False, the sound speed is non-global and given by the
                 # square root of δ𝒫/δϱ. However, constructing δ𝒫/δϱ
@@ -823,8 +828,8 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
                 # numerical errors. Regardless of whether the P=wρ
                 # approximation is used or not, we simply use the
                 # global sound speed.
-                w = component.w()
-                v_max += light_speed*sqrt(w)/universals.a
+                w = component.w(a=a)
+                v_max += light_speed*sqrt(w)/a
         # In the odd case of a completely static component,
         # set v_max to be just above 0.
         if v_max == 0:
@@ -838,18 +843,18 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
             Δt_courant = Δt_courant_component
             extreme_component = component
     Δt_suggestions.append(Δt_courant)
-    limiters.append('the Courant condition for {}'.format(extreme_component.name))
+    limiters.append(f'the Courant condition for {extreme_component.name}')
     # The maximum allowed time step size suggested by ẇ
-    fac_ẇ = 1e-3
+    fac_ẇ = 1e-3*Δt_factor
     Δt_ẇ = ထ
     extreme_component = components[0]
     for component in components:
-        Δt_ẇ_component = fac_ẇ/(abs(cast(component.ẇ(), 'double')) + machine_ϵ)
+        Δt_ẇ_component = fac_ẇ/(abs(cast(component.ẇ(a=a), 'double')) + machine_ϵ)
         if Δt_ẇ_component < Δt_ẇ:
             Δt_ẇ = Δt_ẇ_component
             extreme_component = component
     Δt_suggestions.append(Δt_ẇ)
-    limiters.append('ẇ of {}'.format(extreme_component.name))
+    limiters.append(f'ẇ of {extreme_component.name}')
     # The maximum allowed time step satisfying all the conditions above
     Δt_index = np.argmin(Δt_suggestions)
     Δt_max = Δt_suggestions[Δt_index]
