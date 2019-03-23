@@ -859,6 +859,9 @@ def scalefactor_integral(key, t_ini=-1.0, Δt=-1.0):
             elif integrand == 'a**(-3*w_eff)':
                 w_eff = component.w_eff(t=t, a=a)
                 integrand_tab_spline[i] = a**(-3*w_eff)
+            elif integrand == 'a**(-3*w_eff)*Γ/H':
+                w_eff = component.w_eff(t=t, a=a)
+                integrand_tab_spline[i] = a**(-3*w_eff)*component.Γ(a)/hubble(a)
             elif integrand == 'a**(-3*w_eff-1)':
                 w_eff = component.w_eff(t=t, a=a)
                 integrand_tab_spline[i] = a**(-3*w_eff - 1)

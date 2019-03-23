@@ -2007,9 +2007,11 @@ if user_params.get('select_boltzmann_order'):
         select_boltzmann_order = {'all': int(user_params['select_boltzmann_order'])}
 select_boltzmann_order['default'] = 2
 select_boltzmann_order.setdefault('metric', 0)
+select_boltzmann_order.setdefault('lapse', 0)
 user_params['select_boltzmann_order'] = select_boltzmann_order
 default_force_method = {
     'gravity': 'pm',
+    'lapse'  : 'pm',
 }
 select_forces = {}
 for key, val in replace_ellipsis(dict(user_params.get('select_forces', {}))).items():
@@ -2051,7 +2053,8 @@ for key, val in replace_ellipsis(dict(user_params.get('select_forces', {}))).ite
             subd_val = subd_val.replace(unicode_superscript(str(n)), str(n))
         subd[subd_key] = subd_val
     select_forces[key] = subd
-select_forces.setdefault('metric', {'gravity': 'pm'})
+select_forces.setdefault('metric', {'gravity': default_force_method['gravity']})
+select_forces.setdefault('lapse', {'lapse': default_force_method['lapse']})
 user_params['select_forces'] = select_forces
 select_class_species = {}
 if user_params.get('select_class_species'):
@@ -2373,8 +2376,10 @@ cython.declare(
     render3D_times=dict,
     autosave_dir=str,
     ρ_crit='double',
+    Ωdcdm='double',
     Ωm='double',
     ρ_mbar='double',
+    matter_class_species=str,
     slab_size_padding='ptrdiff_t',
     pm_fac_const='double',
     longrange_exponent_fac='double',
@@ -2433,7 +2438,32 @@ autosave_dir = output_dirs['autosave']
 # comoving density since we only study flat universes).
 ρ_crit = 3*H0**2/(8*π*G_Newton)
 # The density parameter for all matter
-Ωm = Ωb + Ωcdm
+Ωdcdm = 0
+if any([key in class_params for key in
+    {'Omega_dcdmdr', 'omega_dcdmdr', 'Omega_ini_dcdm', 'omega_ini_dcdm'}
+]):
+    # Decaying dark matter is present. We compute its contribution to
+    # the total matter density as though it was stable. Though wrong,
+    # the relation ρ_dcdm(a) = Ωdcdm/a**3 will hold at early times.
+    # The only critical use of this is in the computation of the
+    # dynamical time scale. Late time steps may thus be smaller than
+    # necessary, but that is okay.
+    cosmo = Class()
+    class_params_dcdm = class_params.copy()
+    class_params_dcdm['Gamma_dcdm'] = 0
+    cosmo.set(class_params_dcdm)
+    masterprint('Calling CLASS in order to determine Ωdcdm ...')
+    call_openmp_lib(cosmo.compute)
+    masterprint('done')
+    background = cosmo.get_background()
+    if master:
+        Ωdcdm = background['(.)rho_dcdm'][-1]/background['(.)rho_crit'][-1]
+    Ωdcdm = bcast(Ωdcdm)
+Ωm = Ωb + Ωcdm + Ωdcdm
+# Specification of which CLASS species together constitute "matter"
+# in the current simulation. Ignore species with very low Ω.
+matter_class_species = '+'.join([class_species
+    for class_species, Ω in {'b': Ωb, 'cdm': Ωcdm, 'dcdm': Ωdcdm}.items() if Ω > 1e-9])
 # The average, comoving matter density
 ρ_mbar = Ωm*ρ_crit
 # The real size of the padded (last) dimension of global slab grid

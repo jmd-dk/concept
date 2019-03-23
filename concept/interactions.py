@@ -787,6 +787,11 @@ def find_nearest_neighbour(components, selected):
     φ='double[:, :, ::1]',
 )
 def gravity(method, receivers, suppliers, ᔑdt):
+    # A component with the special "lapse" CLASS species should never
+    # take part in gravity, neither as a receiver nor as a supplier
+    # (instead we have the dedicated lapse interaction).
+    receivers = [component for component in receivers if component.class_species != 'lapse']
+    suppliers = [component for component in suppliers if component.class_species != 'lapse']
     # Regardless of the method, it may happen that some fluid components
     # classified as receivers are incapable of receiving the
     # gravitational force due to the lack of the non-linear J
@@ -830,7 +835,7 @@ def gravity(method, receivers, suppliers, ᔑdt):
         dependent = [
             # Particle components
             ('particles', [
-                ᔑdt['a**(-1)']*component.mass*ℝ[1/(Δt*φ_Vcell)]
+                ᔑdt['a**(-3*w_eff-1)', component]*component.mass*ℝ[1/(Δt*φ_Vcell)]
                 for component in components]
             ),
             # Fluid components
@@ -886,6 +891,98 @@ def gravity(method, receivers, suppliers, ᔑdt):
         masterprint('done')
     elif master:
         abort(f'gravity() was called with the "{method}" method')
+
+# Function that carry out the lapse interaction,
+# correcting for the fact that the decay rate of species should be
+# measured in their own rest frame, not the Hubble frame.
+@cython.pheader(
+    # Arguments
+    method=str,
+    receivers=list,
+    suppliers=list,
+    ᔑdt=dict,
+    # Locals
+    component='Component',
+    dependent=list,
+    i='Py_ssize_t',
+    lapse_component='Component',
+    ᔑdt_key=object,  # str or tuple
+)
+def lapse(method, receivers, suppliers, ᔑdt):
+    # This function expects to be called with both the lapse component
+    # and all components with wich it is to interact contained in the
+    # receivers list. The lapse component itself really only serves as a
+    # supplier, and so we move it accordingly. We recognize the lapse
+    # component by it having linear ϱ. All other components should have
+    # non-linear J/momenta.
+    for i, component in enumerate(receivers.copy()):
+        if component.representation == 'fluid' and component.is_linear(0):
+            suppliers.append(component)
+            receivers[i] = None
+    receivers = [receiver for receiver in receivers if receiver is not None]
+    if len(suppliers) == 0:
+        abort(
+            f'The lapse force is to be applied to {receivers}, '
+            f'but no lapse component is supplied'
+        )
+    elif len(suppliers) > 1:
+        abort(
+            f'The lapse force is to be supplied by {suppliers}, '
+            f'at least one of which is not a lapse component.'
+        )
+    lapse_component = suppliers[0]
+    # If no receivers exist at all, no interaction should take place
+    if not receivers:
+        return
+    # For the lapse force, only the PM method is implemented
+    if method == 'pm':
+        # The potential will be build solely from the lapse component,
+        # which has the fluid representation. This means that only a
+        # "fluid" potential will be constructed, i.e. one with no
+        # deconvolutions. If a particle component is present among the
+        # receivers, we will a corresponding "particles" potential.
+        # To trick the system into building this potential as well, we
+        # add a fake particles component to the suppliers.
+        if any([component.representation == 'particles' for component in receivers]):
+            suppliers.append(fake_particle_component)
+        # As the lapse potential is implemented exactly analogous to the
+        # gravitational potential, it obeys the Poisson equation
+        # ∇²φ = 4πGa²ρ = 4πGa**(-3*w_eff - 1)ϱ,
+        # with φ the lapse potential and ρ, ϱ and w_eff belonging to the
+        # fictitious lapse species. The realized φ should take on values
+        # corresponding to its mean over the time step, weighted with
+        # a**(-3*w_eff - 1).
+        dependent = [
+            # The (fake) particle component,
+            # which should not contribute to the potential.
+            ('particles', [0.0]*len(suppliers)),
+            # The fluid lapse component
+            ('ϱ', [ᔑdt['a**(-3*w_eff-1)', lapse_component]/ᔑdt['1']]*len(suppliers)),
+        ]
+        # As the lapse potential is implemented exactly analogous to the
+        # gravitational potential, the momentum updates are again
+        # proportional to a**(-3*w_eff) integrated over the time step
+        # (see the gravity function for a more detailed explanation).
+        # The realized lapse potential is the common lapse potential,
+        # indepedent on the component in question which is to receive
+        # momentum updates. The actual lapse potential needed for a
+        # given component is obtained by multiplying the common lapse
+        # potential by Γ/H, where Γ is the decay rate of the component
+        # and H is the Hubble parameter. As these are time dependent,
+        # the full time step integral is then a**(-3*w_eff)*Γ/H.
+        ᔑdt_key = ('a**(-3*w_eff)*Γ/H', 'component')
+        # Execute the lapse particle-mesh interaction.
+        # As the lapse potential is exactly analogous to the
+        # gravitational potential, we may reuse the gravity_potential
+        # function implementing the Poisson equation for gravity.
+        particle_mesh_general(receivers, suppliers, ᔑdt, ᔑdt_key, gravity_potential,
+            'lapse potential (PM)', dependent, construct_potential_from='suppliers')
+    elif master:
+        abort(f'lapse() was called with the "{method}" method')
+# Fake particle component used by the lapse function
+cython.declare(fake_particle_component='Component')
+fake_particle_component = Component('', 'particles', 1, mass=0, class_species='b', w=0)
+fake_particle_component.name = 'fake'
 
 # Function which constructs a list of interactions from a list of
 # components. The list of interactions store information about which
@@ -969,6 +1066,7 @@ forces_implemented_ordered = [
     ('gravity', 'pp'           ),
     ('gravity', 'p3m'          ),
     ('gravity', 'pm'           ),
+    ('lapse', 'pm'),
 ]
 # Non-ordered version of forces_implemented_ordered, implemented as a
 # (default) dict mapping forces to list of methods.

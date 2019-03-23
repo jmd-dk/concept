@@ -433,6 +433,7 @@ def timeloop():
                     'a**(-3*w_eff)',
                     'a**(-3*w_eff-1)',
                     'a**(3*w_eff-2)',
+                    'a**(-3*w_eff)*Γ/H',
                 )
             ]
         )
@@ -559,7 +560,10 @@ def print_timestep_heading(time_step, Δt, bottleneck, components, end=False):
                                       )
                      )
     for component in components:
-        if component.w_type != 'constant' and component.species != 'metric':
+        if (component.w_type != 'constant'
+            and 'metric' not in component.class_species
+            and 'lapse'  not in component.class_species
+        ):
             parts.append(f'\nEoS w ({component.name}):'.ljust(heading_ljust))
             parts.append(significant_figures(component.w(), 4, fmt='unicode'))
     # Find the maximum width of the first column and left justify
@@ -602,6 +606,7 @@ heading_ljust = 0
     extreme_component='Component',
     fac_courant='double',
     fac_hubble='double',
+    fac_decay='double',
     fac_dynamical='double',
     fac_reduce='double',
     fac_timespan='double',
@@ -622,6 +627,8 @@ heading_ljust = 0
     Δt_courant='double',
     Δt_courant_component='double',
     Δt_hubble='double',
+    Δt_decay='double',
+    Δt_decay_component='double',
     Δt_dynamical='double',
     Δt_index='Py_ssize_t',
     Δt_min='double',
@@ -635,6 +642,7 @@ heading_ljust = 0
     Δx_max='double',
     Σmass='double',
     ρ_bar='double',
+    ρ_bar_component='double',
     ϱ='double*',
     𝒫='double*',
     returns=tuple,  # (Δt, bottleneck)
@@ -657,6 +665,7 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
       on the particle species.
     - A small fraction of 1/abs(ẇ) for every component,
       so that w varies smoothly.
+    - A small fraction of the reciprocal decay rate of each component.
     The conditions above are written in the same order in the code
     below. The last condition is by far the most involved.
     The optional worry argument flag specifies whether or not a
@@ -852,6 +861,25 @@ def reduce_Δt(components, Δt, Δt_begin, timespan, worry=True):
             extreme_component = component
     Δt_suggestions.append(Δt_ẇ)
     limiters.append(f'ẇ of {extreme_component.name}')
+    # The maximum allowed time step size suggested by the decay rate of
+    # each component. At late times, components with large decay rate
+    # will have decayed away almost completely, and so should not be
+    # taken into account regarding the size of the time step. We thus
+    # weigh the decay rate of each component with their current total
+    # mass (or background density) relative to all matter.
+    fac_decay = 1e-3*Δt_factor
+    Δt_decay = ထ
+    extreme_component = components[0]
+    for component in components:
+        if component.representation == 'fluid' and component.is_linear(0):
+            continue
+        ρ_bar_component = component.ϱ_bar*a**(-3*(1 + component.w_eff(a=a)))
+        Δt_decay_component = fac_decay/(abs(component.Γ(a)) + machine_ϵ)*ρ_bar/ρ_bar_component
+        if Δt_decay_component < Δt_decay:
+            Δt_decay = Δt_decay_component
+            extreme_component = component
+    Δt_suggestions.append(Δt_decay)
+    limiters.append(f'decay rate of {extreme_component.name}')
     # The maximum allowed time step satisfying all the conditions above
     Δt_index = np.argmin(Δt_suggestions)
     Δt_max = Δt_suggestions[Δt_index]

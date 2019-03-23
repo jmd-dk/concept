@@ -32,7 +32,7 @@ cimport('from communication import partition,                   '
         '                          smart_mpi,                   '
         )
 cimport('from graphics import plot_detrended_perturbations')
-cimport('from integration import Spline, cosmic_time, remove_doppelgängers, hubble, ȧ, ä')
+cimport('from integration import Spline, cosmic_time, remove_doppelgängers, hubble, Ḣ, ȧ, ä')
 cimport('from mesh import get_fftw_slab,       '
         '                 domain_decompose,    '
         '                 slab_decompose,      '
@@ -224,6 +224,16 @@ class CosmoResults:
             # Communicate
             self._h = bcast(self._h if master else None)
         return self._h
+    @property
+    def Γ_dcdm(self):
+        if not hasattr(self, '_Γ_dcdm'):
+            # Extract directly from the CLASS parameters
+            self._Γ_dcdm = float(self.params.get('Gamma_dcdm', 0))
+            # Apply unit
+            self._Γ_dcdm *= units.km/(units.s*units.Mpc)
+            # Communicate
+            self._Γ_dcdm = bcast(self._Γ_dcdm if master else None)
+        return self._Γ_dcdm
     # The background
     @property
     def background(self):
@@ -319,10 +329,25 @@ class CosmoResults:
                     self._background['(.)p_fld'] = (
                         -1*ones(self._background['(.)rho_fld'].shape, dtype=C2np['double'])
                     )
-            # We also need to store the total background density.
-            # Assuming a flat universe, we have rho_tot == rho_crit.
-            if '(.)rho_crit' in self._background:
-                self._background['(.)rho_tot'] = self._background['(.)rho_crit']
+            # We need the total background density and pressure.
+            # We get these by simply summing over all CLASS species.
+            def get_tot_contributing_class_species():
+                for class_species in ('g', 'ur', 'dr'):
+                    if f'(.)rho_{class_species}' in self._background:
+                        yield class_species
+                for n_ncdm in itertools.count():
+                    class_species = f'ncdm[{n_ncdm}]'
+                    if f'(.)rho_{class_species}' not in self._background:
+                        break
+                    yield class_species
+                for class_species in ('b', 'cdm', 'dcdm', 'lambda', 'fld'):
+                    if f'(.)rho_{class_species}' in self._background:
+                        yield class_species
+            self._background['(.)rho_tot'] = 0
+            self._background['(.)p_tot'] = 0
+            for class_species in get_tot_contributing_class_species():
+                self._background['(.)rho_tot'] += self._background[f'(.)rho_{class_species}']
+                self._background['(.)p_tot']   += self._background[f'(.)p_{class_species}']
             # The special "metric" CLASS species needs to be assigned
             # some background density, but since we get δρ directly
             # from CLASS and neither δ nor ρ_bar has any
@@ -343,22 +368,21 @@ class CosmoResults:
             # exist in the CLASS background data, we loop over each
             # species manually.
             def get_metric_contributing_class_species():
-                for class_species in ('g', 'ur', 'dr'):
-                    if f'(.)rho_{class_species}' in self._background:
-                        yield class_species
-                for n_ncdm in itertools.count():
-                    class_species = f'ncdm[{n_ncdm}]'
-                    if f'(.)rho_{class_species}' not in self._background:
-                        break
+                for class_species in get_tot_contributing_class_species():
+                    if class_species == 'lambda':
+                        continue
                     yield class_species
-                for class_species in ('b', 'cdm', 'dcdm', 'fld'):
-                    if f'(.)rho_{class_species}' in self._background:
-                        yield class_species
             self._background['(.)rho_metric'] = 0
             self._background['(.)p_metric'] = 0
             for class_species in get_metric_contributing_class_species():
                 self._background['(.)rho_metric'] += self._background[f'(.)rho_{class_species}']
                 self._background['(.)p_metric']   += self._background[f'(.)p_{class_species}']
+            # The special "lapse" CLASS species needs to be assigned
+            # some fictitious background density and pressure,
+            # just like the "metric". Here we reuse the values
+            # assigned to the "metric".
+            self._background['(.)rho_lapse'] = self._background['(.)rho_metric']
+            self._background['(.)p_lapse']   = self._background['(.)p_metric']
             # Remove doppelgänger values in all background variables,
             # using the scale factor array as x values.
             for key, val in self._background.items():
@@ -385,6 +409,11 @@ class CosmoResults:
                     # the metric potentials ϕ and ψ along with the
                     # conformal time derivative of H_T in N-body gauge.
                     self.needed_keys['perturbations'] |= {r'^phi$', r'^psi$', r'^H_T_prime$'}
+                elif class_species_present == 'lapse':
+                    # For the special "lapse" species, what we need is
+                    # the conformal time derivative of H_T
+                    # in N-body gauge.
+                    self.needed_keys['perturbations'] |= {r'^H_T_prime$'}
                 else:
                     self.needed_keys['perturbations'] |= {
                         # Density
@@ -647,11 +676,13 @@ class CosmoResults:
             for k_local, perturbation in enumerate(self._perturbations):
                 self._perturbations[k_local] = self.PerturbationDict(perturbation)
             # After the CLASS perturbations needed for the special
-            # "metric" species has been computed/loaded, we need to
-            # manually construct the corresponding δ perturbations
-            # out of these.
+            # "metric" and "lapse" species has been computed/loaded,
+            # we need to manually construct the corresponding
+            # δ perturbations out of these.
             if 'metric' in class_species_present_list:
                 self.construct_delta_metric()
+            if 'lapse' in class_species_present_list:
+                self.construct_delta_lapse()
         return self._perturbations
     # Method which makes sure that everything is loaded
     def load_everything(self, already_loaded=None):
@@ -755,7 +786,82 @@ class CosmoResults:
             # now in synchronous gauge.
             perturbation['delta_metric'] = δ
         masterprint('done')
-
+    # Method which computes and adds "delta_lapse" to the perturbations
+    def construct_delta_lapse(self):
+        """This method adds the "delta_lapse" perturbation
+        to self._perturbations, assuming that H_Tʹ in N-body gauge
+        already exist as a perturbation.
+        The strategy is as follows: For each k, we can compute the GR
+        correction potential γ_lapse(a) using
+        γ_lapse(a) = -1/(3k²)*(H_Tʹʹ(a) + (a*H(a) - Hʹ(a)/H(a))*H_Tʹ(a)),
+        where ʹ denotes differentiation with respect to
+        conformal time τ. To get H_Tʹʹ (actually ∂ₐH_Tʹ, see below) we
+        construct a TransferFunction object over the H_Tʹ perturbations.
+        The units of this perturbation from CLASS is as follows:
+        H_Tʹ: [time⁻¹] = [c/Mpc],
+        and so γ_lapse gets units of [length²time⁻²]. Note that H_T is
+        some times defined to have units of [length²]. The H_T_prime
+        from CLASS follows the unitless convention of
+        https://arxiv.org/pdf/1708.07769.pdf
+        Using ʹ = d/dτ = a*d/dt = a²H(a)*d/da, we have
+        k²γ_lapse(a) = -a/3*(a*H(a)*∂ₐH_Tʹ(a) + (H(a) - Ḣ(a)/H(a))*H_Tʹ(a))
+        with ˙ = ∂ₜ. The δρ(a) perturbation is now given by
+        δρ(a) = 2/3*k²γ_lapse(a)/a² * 3/(8πG)
+              = k²γ_lapse(a)/(4πGa²)
+        where the factor 3/(8πG) = 1 in CLASS units.
+        Note that the same convention is used here as for the metric
+        (not lapse) γ.
+        The H_T_prime from CLASS is in N-body gauge, and so the δ
+        perturbations will likewise be in N-body gauge. Whenever a
+        transfer function in N-body gauge is needed,
+        the compute_transfer function will carry out this conversion,
+        assuming that the stored transfer function is in synchronous
+        gauge. With the "lapse" perturbations already in N-body gauge,
+        this transformation should not be carried out. We cannot simply
+        add a condition inside compute_transfer, as this cannot work for
+        combined species which the "lapse" is part of. We instead need
+        to keep all transfer functions in synchronous gauge, meaning
+        that we have to transform δ from N-body gauge to synchronous
+        gauge. This transformation will then be exactly cancelled out in
+        the compute_transfer function.
+        """
+        # Check that the delta_lapse perturbations
+        # has not already been added.
+        if self._perturbations and 'delta_lapse' in self._perturbations[0]:
+            return
+        masterprint('Constructing lapse δ perturbations ...')
+        # Get the H_Tʹ(k, a) transfer functions
+        transfer_H_Tʹ = self.H_Tʹ(get='object')
+        # Construct the "lapse" δ(a) for each k
+        for k_local, perturbation in enumerate(self._perturbations):
+            k = self.k_indices[k_local]
+            k_magnitude = self.k_magnitudes[k]
+            # Extract needed perturbations along with
+            # the scalefactor at which they are tabulated.
+            a     = perturbation['a'        ]
+            H_Tʹ  = perturbation['H_T_prime']*ℝ[light_speed/units.Mpc]
+            θ_tot = perturbation['theta_tot']*ℝ[light_speed/units.Mpc]
+            # Compute the derivative of H_Tʹ with respect to a
+            dda_H_Tʹ = asarray([transfer_H_Tʹ.eval_deriv(k_local, a_i) for a_i in a])
+            # Lastly, we need the Hubble parameter, its cosmic time
+            # derivative and the mean density of the "lapse" species at
+            # the times given by a.
+            H = asarray([hubble(a_i) for a_i in a])
+            ddt_H = asarray([Ḣ(a_i) for a_i in a])
+            ρ_lapse = self.ρ_bar(a, 'lapse')
+            # Construct the γ_lapse potential
+            aH = a*H
+            k_magnitude2 = k_magnitude**2
+            k2γ_lapse = ℝ[-1/3]*a*(aH*dda_H_Tʹ + (H - ddt_H/H)*H_Tʹ)
+            # Construct the δ perturbation (in N-body gauge)
+            δ = k2γ_lapse/(ℝ[4*π*G_Newton]*a**2*ρ_lapse)
+            # Transform from N-body gauge to synchronous gauge
+            w_lapse = asarray([self.w(a_i, 'lapse') for a_i in a])
+            δ -= ℝ[3/light_speed**2]*aH*(1 + w_lapse)*θ_tot/k_magnitude2
+            # Store the "lapse" δ perturbations,
+            # now in synchronous gauge.
+            perturbation['delta_lapse'] = δ
+        masterprint('done')
     # Method which constructs TransferFunction instances and use them
     # to compute and store transfer functions. Do not use this
     # method directly, but rather
@@ -806,7 +912,7 @@ class CosmoResults:
             # and lambda CLASS species, as well as the density, pressure
             # and equation of state w for the fld CLASS species.
             if y in {'(.)p_b', '(.)p_cdm', '(.)p_dcdm',
-                '(.)p_lambda', '(.)rho_lambda', '(.)p_metric'}:
+                '(.)p_lambda', '(.)rho_lambda', '(.)p_tot', '(.)p_metric', '(.)p_lapse'}:
                 logx, logy = True, False
             elif y in {'(.)rho_fld', '(.)p_fld', '(.)w_fld'}:
                 logx, logy = False, False
@@ -1371,9 +1477,11 @@ class TransferFunction:
                 class_units = 1
             elif self.var_name == 'θ':
                 # For θ we have
-                # θ_tot = (θ_1*ρ_bar_1 + θ_2*ρ_bar_2 + ...)/(ρ_bar_1 + ρ_bar_2 + ...)
-                weights_species = {
-                    class_species: self.cosmoresults.ρ_bar(a_values, class_species)
+                # θ_tot = (θ_1*(ρ_bar_1 + c⁻²P_bar_1) + θ_2*(ρ_bar_2 + c⁻²P_bar_2) + ...)
+                #          /((ρ_bar_1 + c⁻²P_bar_1) + (ρ_bar_2 + c⁻²P_bar_2) + ...)
+                weights_species = {class_species:
+                                           self.cosmoresults.ρ_bar(a_values, class_species)
+                    + ℝ[light_speed**(-2)]*self.cosmoresults.P_bar(a_values, class_species)
                     for class_species in self.class_species.split('+')
                 }
                 Σweights = np.sum(tuple(weights_species.values()), axis=0)
@@ -2403,17 +2511,21 @@ def k_float2str(k):
     aH_transfer_θ_totʹ='double[::1]',
     any_negative_values='bint',
     class_species=str,
+    class_species_present_list=list,
     cosmoresults=object,  # CosmoResults
     k='Py_ssize_t',
     k_magnitudes='double[::1]',
     source='double',
     transfer='double[::1]',
+    transfer_H_Tʹ='double[::1]',
     transfer_hʹ='double[::1]',
     transfer_spline='Spline',
     transfer_θ_tot='double[::1]',
     var_index='Py_ssize_t',
     w='double',
+    weighted_Γ_3H='double',
     ρ_bar='double',
+    θ_weight='double',
     ẇ='double',
     returns=tuple,  # (Spline, CosmoResults)
 )
@@ -2476,7 +2588,10 @@ def compute_transfer(
             # All such source terms should be specified below.
             source = 0
             for class_species in component.class_species.split('+'):
-                ...
+                if class_species == 'dcdm':
+                    source += -cosmoresults.Γ_dcdm*cosmoresults.ρ_bar(a, 'dcdm')
+                elif class_species == 'dr':
+                    source += +cosmoresults.Γ_dcdm*cosmoresults.ρ_bar(a, 'dcdm')
             # Do the gauge transformation
             ρ_bar = cosmoresults.ρ_bar(a, component)
             transfer_θ_tot = cosmoresults.θ(a)
@@ -2525,6 +2640,28 @@ def compute_transfer(
                            f'For now, the simulation will carry on using this possibly '
                            f'erroneous transfer function.'
                            )
+            # In order to introduce the lapse potential for the decaying
+            # dark matter, we have changed the velocity variable away
+            # from that used by CLASS. The needed transformation is
+            # θ_dcdm_CO𝘕CEPT = θ_dcdm_CLASS + Γ_dcdm/(3H)*H_Tʹ.
+            # In the general case for combination species, we have
+            # θ_CO𝘕CEPT = θ_CLASS + θ_weight*Γ_dcdm/(3H)*H_Tʹ,
+            # θ_weight = (ρ_dcdm_bar + c⁻²P_dcdm_bar)/(
+            #   ∑_α (ρ_α_bar + c⁻²P_α_bar)).
+            # When running without a lapse potential/species/component,
+            # we do not perform this additional transformation.
+            class_species_present_list = (universals_dict['class_species_present']
+                .decode().replace('[', r'\[').replace(']', r'\]').split('+'))
+            if ('lapse' in class_species_present_list
+                and 'dcdm' in component.class_species.split('+')):
+                θ_weight = (               cosmoresults.ρ_bar(a, 'dcdm')
+                    + ℝ[light_speed**(-2)]*cosmoresults.P_bar(a, 'dcdm')
+                    )/(                    cosmoresults.ρ_bar(a, component)
+                    + ℝ[light_speed**(-2)]*cosmoresults.P_bar(a, component))
+                weighted_Γ_3H = θ_weight*cosmoresults.Γ_dcdm/(3*hubble(a))
+                transfer_H_Tʹ = cosmoresults.H_Tʹ(a)
+                for k in range(k_gridsize):
+                    transfer[k] += weighted_Γ_3H*transfer_H_Tʹ[k]
     elif var_index == 2 and specific_multi_index == 'trace':
         # Get th δP transfer function
         transfer = cosmoresults.δP(a, a_next, component=component, weight=weight)

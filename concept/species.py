@@ -1153,6 +1153,57 @@ class Component:
                     self._ϱ_bar = (self.gridsize/boxsize)**3*self.mass
         return self._ϱ_bar
 
+    # Method which returns the decay rate of this component
+    @cython.header(
+        # Arguments
+        a='double',
+        # Locals
+        class_species=str,
+        Γ_class_species='double',
+        Γρ_bar='double',
+        ρ_bar='double',
+        ρ_bar_class_species='double',
+        returns='double',
+    )
+    def Γ(self, a=-1):
+        """For components consisting of a combination of
+        (CLASS) species, their Γ is defined as
+        Γ(a) = (Γ_1*ρ_1_bar(a) + Γ_2*ρ_2_bar(a))/(ρ_1_bar(a) + ρ_2_bar(a)),
+        and so Γ is in general time dependent.
+        """
+        if a == -1:
+            a = universals.a
+        if self.w_eff_type == 'constant':
+            # A constant w_eff implies that the particle/fluid element
+            # mass generally given by self.mass*a**(-3*self.w_eff(a=a))
+            # is either constant (w = 0) or a power law in a. This is
+            # not the behaviour we expect for decaying species.
+            return 0
+        if not enable_class_background:
+            # We cannot compute Γ without the CLASS background
+            return 0
+        # Compute CLASS background
+        cosmoresults = compute_cosmo(class_call_reason=f'in order to determine Γ of {self.name} ')
+        # Sum up ρ_bar and Γ*ρ_bar
+        ρ_bar = Γρ_bar = 0
+        for class_species in self.class_species.split('+'):
+            ρ_bar_class_species = cosmoresults.ρ_bar(a, class_species)
+            if class_species == 'dcdm':
+                Γ_class_species = cosmoresults.Γ_dcdm
+            elif class_species == 'dr':
+                # Note that dr does not decay by itself but is the
+                # decay product of dcdm. We should then use
+                # Γ_dr = - ρ_bar_dcdm/ρ_bar_dr*Γ_dcdm
+                Γ_class_species = (
+                    -cosmoresults.ρ_bar(a, 'dcdm')/ρ_bar_class_species*cosmoresults.Γ_dcdm
+                )
+            else:
+                # CLASS species not implemented above are assumed stable
+                Γ_class_species = 0
+            ρ_bar += ρ_bar_class_species
+            Γρ_bar += Γ_class_species*ρ_bar_class_species
+        return Γρ_bar/ρ_bar
+
     # This method populate the Component pos/mom arrays (for a
     # particles representation) or the fluid scalar grids (for a
     # fluid representation) with data. It is deliberately designed so
@@ -1759,7 +1810,7 @@ class Component:
             for dim in range(3):
                 pos_dim, mom_dim = self.pos[dim], self.mom[dim]
                 for i in range(self.N_local):
-                    pos_dim[i] += mom_dim[i]*ℝ[ᔑdt['a**(-2)']/self.mass]
+                    pos_dim[i] += mom_dim[i]*ℝ[ᔑdt['a**(3*w_eff-2)', self]/self.mass]
                     # Toroidal boundaries
                     pos_dim[i] = mod(pos_dim[i], boxsize)
             masterprint('done')
@@ -1812,9 +1863,67 @@ class Component:
         ᔑdt=dict,
         a_next='double',
         # Locals
+        J_dim='double*',
+        J_dim_fluidscalar='FluidScalar',
+        a='double',
+        dim='int',
+        i='Py_ssize_t',
+        mom_decay_factor='double',
+        mom_dim='double*',
         scheme=str,
     )
     def apply_internal_sources(self, ᔑdt, a_next=-1):
+        # Decaying components should have their momentum reduced due
+        # to loss of mass. As the mass at time a is given by
+        # self.mass*a**(-3*self.w_eff(a)),
+        # the mass (and hence momentum) reduction over the time step
+        # can be written as the ratio of this expression evaluated
+        # at both ends of the time step.
+        # Note that this will keep the velocity
+        # au = a²ẋ = a²dx/dt = q/m
+        # constant with respect to the decay (external forces like
+        # gravity will of course change this velocity).
+        # For fluid components, the conserved momentum is
+        # J = a⁴(ρ + P)u = (ϱ + c⁻²𝒫)*a**(-3*w_eff)*au.
+        # For species with w_eff = 0 (and hence w = 0), we indeed have
+        # constant au. When w_eff != 0 due to decay, J is still
+        # conserved while au is not, which is wrong. Thus we need the
+        # same correction factor on fluids.
+        # Importantly, this prescription breaks down for stable
+        # components which nonetheless have non-zero w_eff. This ought
+        # to be sorted out, which would require separating the two
+        # effects (changing equation of state and decay) so that they
+        # are not both relayed by w_eff. For now we check this explicity
+        # and emit a warning if an inconsistent component is used.
+        # Currently the only decaying CLASS species implemented is dcdm.
+        # We really should include dr as well, which now gains
+        # mass/energy rather than loose it. It hower has
+        # w_eff = 1/3 != 0 and so we cannot disinguish between changes
+        # in mass due to decay of dcdm and due to redshifting.
+        a = universals.a
+        mom_decay_factor = a**(3*self.w_eff(a=a))/a_next**(3*self.w_eff(a=a_next))
+        if mom_decay_factor != 1 and 'dcdm' in self.class_species.split('+'):
+            # Check that the species of this component are legal
+            legal_class_species = {'dcdm', 'cdm', 'b'}
+            if not all([class_species in legal_class_species
+                for class_species in self.class_species.split('+')]):
+                masterwarn(
+                    f'Currently you must not mix species with non-zero w_eff together with '
+                    f'decaying species in a single component. This is the case for '
+                    f'"{component.name}" with CLASS species "{self.class_species}".'
+                )
+            # Reduce all momenta, corresponding to the loss of mass
+            if self.representation == 'particles':
+                for dim in range(3):
+                    mom_dim = self.mom[dim]
+                    for i in range(self.N_local):
+                        mom_dim[i] *= mom_decay_factor
+            elif self.representation == 'fluid' and not self.is_linear(1):
+                for dim in range(3):
+                    J_dim_fluidscalar = self.J[dim]
+                    J_dim = J_dim_fluidscalar.grid
+                    for i in range(self.size):
+                        J_dim[i] *= mom_decay_factor
         # Representation specific internal source terms below
         if self.representation == 'particles':
             # Particle components have no special internal source terms
@@ -2758,6 +2867,8 @@ representation_of_species = {
         'baryons',
         'dark energy particles',
         'dark matter particles',
+        'decay radiation particles',
+        'decaying dark matter particles',
         'matter particles',
         'neutrinos',
         'photons',
@@ -2767,6 +2878,9 @@ representation_of_species = {
         'baryon fluid',
         'dark energy fluid',
         'dark matter fluid',
+        'decay radiation fluid',
+        'decaying dark matter fluid',
+        'lapse',
         'matter fluid',
         'metric',
         'neutrino fluid',
@@ -2779,36 +2893,46 @@ representation_of_species = {
 # (e.g. matter) is expressed as e.g. 'cdm+b'.
 cython.declare(default_class_species=dict)
 default_class_species = {
-    'baryon fluid'         : 'b',
-    'baryons'              : 'b',
-    'dark energy fluid'    : 'fld',
-    'dark energy particles': 'fld',
-    'dark matter fluid'    : 'cdm',
-    'dark matter particles': 'cdm',
-    'matter fluid'         : 'b+cdm',
-    'matter particles'     : 'b+cdm',
-    'metric'               : 'metric',
-    'neutrino fluid'       : 'ncdm[0]',
-    'neutrinos'            : 'ncdm[0]',
-    'photon fluid'         : 'g',
-    'photons'              : 'g',
+    'baryon fluid'                  : 'b',
+    'baryons'                       : 'b',
+    'dark energy fluid'             : 'fld',
+    'dark energy particles'         : 'fld',
+    'dark matter fluid'             : 'cdm',
+    'dark matter particles'         : 'cdm',
+    'decay radiation fluid'         : 'dr',
+    'decay radiation particles'     : 'dr',
+    'decaying dark matter fluid'    : 'dcdm',
+    'decaying dark matter particles': 'dcdm',
+    'lapse'                         : 'lapse',
+    'matter fluid'                  : matter_class_species,
+    'matter particles'              : matter_class_species,
+    'metric'                        : 'metric',
+    'neutrino fluid'                : 'ncdm[0]',
+    'neutrinos'                     : 'ncdm[0]',
+    'photon fluid'                  : 'g',
+    'photons'                       : 'g',
 }
 # Mapping from species and representations to default w values
 cython.declare(default_w=dict)
 default_w = {
-    'baryon fluid'         :  0,
-    'baryons'              :  0,
-    'dark energy fluid'    : -1,
-    'dark energy particles': -1,
-    'dark matter fluid'    :  0,
-    'dark matter particles':  0,
-    'matter fluid'         :  0,
-    'matter particles'     :  0,
-    'metric'               :  0,
-    'neutrino fluid'       :  1/3,
-    'neutrinos'            :  1/3,
-    'photons'              :  1/3,
-    'photon fluid'         :  1/3,
+    'baryon fluid'                  :  0,
+    'baryons'                       :  0,
+    'dark energy fluid'             : -1,
+    'dark energy particles'         : -1,
+    'dark matter fluid'             :  0,
+    'dark matter particles'         :  0,
+    'decay radiation fluid'         :  1/3,
+    'decay radiation particles'     :  1/3,
+    'decaying dark matter fluid'    :  0,
+    'decaying dark matter particles':  0,
+    'lapse'                         :  0,
+    'matter fluid'                  :  0,
+    'matter particles'              :  0,
+    'metric'                        :  0,
+    'neutrino fluid'                :  1/3,
+    'neutrinos'                     :  1/3,
+    'photons'                       :  1/3,
+    'photon fluid'                  :  1/3,
 }
 # Set of all approximations implemented on Component objects
 cython.declare(approximations_implemented=set)
