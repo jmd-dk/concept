@@ -1406,7 +1406,7 @@ nor anywhere in the PATH"
                 break
             fi
         done
-        ((j -= 2))
+        ((j -= 2)) || :
         mpi_dir="${mpi_dir_cancidates[0]::$j}"
     fi
     if [ "${progname}" == 'ncurses' ] && [ "${ncurses_preinstalled}" == "True" ]; then
