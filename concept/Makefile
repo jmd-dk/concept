@@ -136,7 +136,7 @@ cythonflags = -$(python_version_major) -a
 # Includes
 fftw_incl   = -I$(fftw_dir)/include
 gsl_incl    = -I$(gsl_dir)/include
-mpi_incl    = -I$(mpi_dir)/include
+mpi_incl    = -I$(mpi_includedir)
 python_incl = $(shell $(python_config) --includes)
 includes    = $(fftw_incl) $(gsl_incl) $(mpi_incl) $(python_incl)
 # Compiler options
@@ -211,7 +211,7 @@ CFLAGS = $(call uniq, $(foreach flag, $(python_cflags)  \
                         )                               \
            )
 # Libraries to link
-fftw_libs      = -L$(fftw_dir)/lib -Wl,-rpath=$(fftw_dir)/lib -lfftw3_mpi -lfftw3
+fftw_libs = -L$(fftw_dir)/lib -Wl,-rpath=$(fftw_dir)/lib -lfftw3_mpi -lfftw3
 ifneq ("$(wildcard $(blas_dir)/lib/libopenblas.*)","")
     # OpenBLAS found
     gsl_blas_libs = -L$(blas_dir)/lib -Wl,-rpath=$(blas_dir)/lib -lopenblas
@@ -222,25 +222,33 @@ else
     # No BLAS found
     gsl_blas_libs = -lgslcblas
 endif
-gsl_libs       = -L$(gsl_dir)/lib -Wl,-rpath=$(gsl_dir)/lib -lgsl $(blas_libs) $(gsl_blas_libs) -lm
-mpi_libs       = -L$(mpi_dir)/lib -Wl,-rpath=$(mpi_dir)/lib -lmpi
-python_libdir  = $(shell $(python) -c "import sysconfig;                          \
-                                       print(sysconfig.get_config_var('LIBDIR')); \
-                                       "                                          \
-                   )
-python_libs    = -L$(python_libdir) -Wl,-rpath=$(python_libdir) $(shell $(python_config) --libs)
+gsl_libs = -L$(gsl_dir)/lib -Wl,-rpath=$(gsl_dir)/lib -lgsl $(blas_libs) $(gsl_blas_libs) -lm
+mpi_libs = -L$(mpi_libdir) -Wl,-rpath=$(mpi_libdir)
+ifneq ("$(wildcard $(mpi_symlinkdir))","")
+    mpi_libs += -L$(mpi_symlinkdir) -Wl,-rpath=$(mpi_symlinkdir)
+endif
+ifneq ("$(wildcard $(mpi_libdir)/libmpi.*)","")
+    mpi_libs += -lmpi
+else ifneq ("$(wildcard $(mpi_libdir)/libmpich.*)","")
+    mpi_libs = -lmpich
+endif
+python_libdir = $(shell $(python) -c "import sysconfig;                          \
+                                      print(sysconfig.get_config_var('LIBDIR')); \
+                                      "                                          \
+                  )
+python_libs = -L$(python_libdir) -Wl,-rpath=$(python_libdir) $(shell $(python_config) --libs)
 ifneq ($(no_optimization),True)
     other_libs = -Wl,-O3 -flto
 endif
-LDLIBS         = $(call uniq, $(foreach flag, $(fftw_libs)                     \
-                                              $(gsl_libs)                      \
-                                              $(mpi_libs)                      \
-                                              $(python_libs)                   \
-                                              $(other_libs)                    \
-                                              ,                                \
-                                               $(call sensible_path,'$(flag)') \
-                                )                                              \
-                   )
+LDLIBS = $(call uniq, $(foreach flag, $(fftw_libs)                    \
+                                      $(gsl_libs)                     \
+                                      $(mpi_libs)                     \
+                                      $(python_libs)                  \
+                                      $(other_libs)                   \
+                                      ,                               \
+                                      $(call sensible_path,'$(flag)') \
+                        )                                             \
+           )
 # Linker options
 python_ldflags = $(shell $(python_config) --ldflags)
 other_ldflags  = -shared

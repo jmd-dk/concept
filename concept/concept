@@ -106,8 +106,12 @@ export HDF5_USE_FILE_LOCKING=FALSE
 
 # The MPI executables and libraries should be
 # on the PATH and LD_LIBRARY_PATH, respectively.
-export PATH="${mpi_dir}/bin:${PATH}"
-export LD_LIBRARY_PATH="${mpi_dir}/lib:${LD_LIBRARY_PATH}"
+export PATH="${mpi_bindir}:${PATH}"
+export LD_LIBRARY_PATH="${mpi_libdir}:${LD_LIBRARY_PATH}"
+# Additional symlinks to MPI libraries might be placed in mpi_symlinkdir
+if [ -d "${mpi_symlinkdir}" ]; then
+    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${mpi_symlinkdir}"
+fi
 
 # The time before any computation begins.
 # This time is saved both in seconds after the Unix epoch
@@ -257,12 +261,15 @@ except:
 }
 
 # Determine the MPI implentation and version
-if [ -f "${mpi_dir}/bin/ompi_info" ]; then
+if [ -f "${mpi_bindir}/ompi_info" ] || [ -f "${mpi_compilerdir}/ompi_info" ]; then
     mpi_implementation="openmpi"
     mpi_version="$("${mpiexec}" --version | head -n 1 | awk '{print $NF}')"
-elif [ -f "${mpi_dir}/bin/mpichversion" ]; then
+elif [ -f "${mpi_bindir}/mpichversion" ]; then
     mpi_implementation="mpich"
-    mpi_version="$("${mpi_dir}/bin/mpichversion" | head -n 1 | awk '{print $NF}')"
+    mpi_version="$("${mpi_bindir}/mpichversion" | head -n 1 | awk '{print $NF}')"
+elif [ -f "${mpi_compilerdir}/mpichversion" ]; then
+    mpi_implementation="mpich"
+    mpi_version="$("${mpi_compilerdir}/mpichversion" | head -n 1 | awk '{print $NF}')"
 else
     mpi_implementation="unknown"
     mpi_version="unknown"

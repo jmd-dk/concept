@@ -44,8 +44,13 @@ gsl_dir='/home/jeppe/Documents/phd/concept/gsl'
 hdf5_dir='/home/jeppe/Documents/phd/concept/hdf5'
 # Directory of libpng
 libpng_dir='/home/jeppe/Documents/phd/concept/libpng'
-# Directory of MPI
+# Directories of MPI
 mpi_dir='/home/jeppe/Documents/phd/concept/mpich'
+mpi_compilerdir='/home/jeppe/Documents/phd/concept/mpich/bin'
+mpi_bindir='/home/jeppe/Documents/phd/concept/mpich/bin'
+mpi_libdir='/home/jeppe/Documents/phd/concept/mpich/lib'
+mpi_includedir='/home/jeppe/Documents/phd/concept/mpich/include'
+mpi_symlinkdir=''
 # Directory of Python
 python_dir='/home/jeppe/Documents/phd/concept/python'
 # Directory of zlib

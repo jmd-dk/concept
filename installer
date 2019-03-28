@@ -150,11 +150,10 @@ Thus on clusters it is adviced to use
   mpi_dir=/path/to/mpi /path/to/installer [/path/to/concept] [-t] [-y]
 If you have /path/to/mpi/bin properly loaded into your PATH,
 you can get by without specifying the MPI path explicitly using
-  mpi_dir=$(which mpiexec) /path/to/installer [/path/to/concept] [-t] [-y]
-(Note that $(which mpiexec) results in /path/to/mpi/bin, not /path/to/mpi.
+  mpi_dir=$(which mpicc) /path/to/installer [/path/to/concept] [-t] [-y]
+(Note that $(which mpicc) results in /path/to/mpi/bin/mpicc, not /path/to/mpi.
 Though both are valid in this case,
-generally you must specify programname_dir=/path/to/programname,
-not programname_dir=/path/to/programname/bin.)
+generally you must specify precisely programname_dir=/path/to/programname.)
 
 When not using a pre-installed MPI (i.e. when mpi_dir is not specified),
 you may specify which MPI implementation to install --- either MPICH
@@ -1156,6 +1155,63 @@ We need to make sure that these are installed."         \
 # with the present versions of the system dependencies.
 :
 
+# Function which finds files deep inside a directory tree
+# (like the GNU find command).
+find_recursive(){
+    # Arguments: Absolute path to directory,
+    # file/directory to find,
+    # [type of file to find: "-f" for file (default),
+    #  "-d" for directory].
+    local dirname="$1"
+    local filename="$2"
+    local fd="$3"
+    if [ -z "${fd}" ]; then
+        fd="-f"
+    fi
+    # Change directory
+    local current_dir="$4"
+    local primary_call="False"
+    if [ -z "${current_dir}" ]; then
+        # This is the primary call to this function
+        primary_call="True"
+        current_dir="$(pwd)"
+        found_results=()
+    fi
+    cd "${dirname}"
+    # Is file at this location?
+    if [ ${fd} "${filename}" ]; then
+        # Found
+        found_results=("${found_results[@]}" "${dirname}/${filename}")
+    else
+        # Not found. Search in all subdirectories.
+        local f
+        for f in *; do
+            if [ -d "${f}" ]; then
+                find_recursive "${dirname}/${f}" "${filename}" "${fd}" "${current_dir}"
+                cd "${dirname}"
+            fi
+        done
+    fi
+    cd "${current_dir}"
+    if [ "${primary_call}" == "True" ]; then
+        # Print out the shortest of the found results, where the length
+        # is measured by counting the number of / in the paths.
+        N=${#found_results[@]}
+        if [ ${N} -gt 0 ]; then
+            shortest_result="${found_results[0]}"
+            n_slashes_shortest=$(echo "${shortest_result}" | awk -F/ '{print NF-1}')
+            for ((i = 1; i < ${N}; i += 1)); do
+                n_slashes=$(echo "${found_results[$i]}" | awk -F/ '{print NF-1}')
+                if [ ${n_slashes} -lt ${n_slashes_shortest} ]; then
+                    shortest_result="${found_results[$i]}"
+                    n_slashes_shortest=${n_slashes}
+                fi
+            done
+            echo "${shortest_result}"
+        fi
+    fi
+}
+
 # Replace "__top_dir__" in paths with the user specified top_dir.
 # Also convert to absolute path and check that this path exist for
 # pre-installed libraries.
@@ -1274,14 +1330,84 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
         fi
     fi
     if [ "${progname}" == 'mpi' ] && [ "${mpi_preinstalled}" == "True" ]; then
-        if [ ! -f "${progname_dir}/bin/mpiexec" ]; then
-            if [ -f "${progname_dir}/../bin/mpiexec" ]; then
-                mpi_dir="$(dirname ${progname_dir})"
+        # As a pre-installed MPI is often used, allow for a rather
+        # general directory layout. Find mpi_bindir, mpi_libdir and
+        # mpi_includedir and set mpi_dir to the deepest common directory
+        # in the path of these three directories.
+        # First find the mpicc executable.
+        progname_dir_shallow="${progname_dir}"
+        for ((i = 0; i < 3; i += 1)); do
+            mpicc="$(find_recursive "${progname_dir_shallow}" "mpicc")"
+            if [ -n "${mpicc}" ] || [ "${progname_dir_shallow}" == "/" ]; then
+                break
+            fi
+            progname_dir_shallow="$(dirname "${progname_dir_shallow}")"
+        done
+        if [ -z "${mpicc}" ]; then
+            error "Could not locate mpicc at \"${mpi_dir}\""
+            exit 1
+        fi
+        # The directory containing mpicc will be stored
+        # in mpi_compilerdir.
+        mpi_compilerdir="$(dirname "${mpicc}")"
+        # Now use mpicc to locate the lib and include directories
+        mpicc_show="$("${mpicc}" -show)"
+        mpi_libdir="$(echo "${mpicc_show}" | grep  -o '\-L[^ ]*' || :)"
+        mpi_libdir="${mpi_libdir:2}"
+        if [ ! -d "${mpi_libdir}" ]; then
+            error "Warning: Could not get MPI library information out of \"${mpicc}\""
+            mpi_libdir="$(dirname "${mpi_compilerdir}")/lib"
+        fi
+        mpi_includedir="$(echo "${mpicc_show}" | grep  -o '\-I[^ ]*' || :)"
+        mpi_includedir="${mpi_includedir:2}"
+        if [ ! -d "${mpi_includedir}" ]; then
+            error "Warning: Could not get MPI include information out of \"${mpicc}\""
+            mpi_includedir="$(dirname "${mpi_compilerdir}")/include"
+        fi
+        # Find the mpiexec executable, which might not be in the same
+        # directory as mpicc. The mpi_bindir directory is set from the
+        # mpiexec executable.
+        progname_dir_shallow="${progname_dir}"
+        for ((i = 0; i < 3; i += 1)); do
+            mpi_bindir="$(find_recursive "${progname_dir_shallow}" "mpiexec")"
+            if [ -n "${mpi_bindir}" ] || [ "${progname_dir_shallow}" == "/" ]; then
+                break
+            fi
+            progname_dir_shallow="$(dirname "${progname_dir_shallow}")"
+        done
+        if [ -n "${mpi_bindir}" ]; then
+            mpi_bindir="$(dirname "${mpi_bindir}")"
+        else
+            # Check for mpiexec in PATH
+            mpiexec="$(which mpiexec || :)"
+            if [ -n "${mpiexec}" ]; then
+                mpi_bindir="$(dirname "${mpiexec}")"
+                printf "\nMPI binary directory set to \"${mpi_bindir}\" (from PATH)\n\n"
             else
-                error "Could not locate MPI at \"${mpi_dir}\""
-                exit 1
+                error "Warning: Could not locate MPI binaries at \"${mpi_dir}\", \
+nor anywhere in the PATH"
+                mpi_bindir="${mpi_compilerdir}"
             fi
         fi
+        # Set mpi_dir
+        mpi_dir_cancidates=("${mpi_bindir}" "${mpi_libdir}" "${mpi_includedir}")
+        N=${#mpi_dir_cancidates[@]}
+        length="${#mpi_dir_cancidates[0]}"
+        different="False"
+        for ((j = 1; j < ${length}; j += 1)); do
+            part0="${mpi_dir_cancidates[0]::$j}"
+            for ((i = 1; i < ${N}; i += 1)); do
+                if [ "${mpi_dir_cancidates[$i]::$j}" != "${part0}" ]; then
+                    different="True"
+                    break
+                fi
+            done
+            if [ "${different}" == "True" ]; then
+                break
+            fi
+        done
+        ((j -= 2))
+        mpi_dir="${mpi_dir_cancidates[0]::$j}"
     fi
     if [ "${progname}" == 'ncurses' ] && [ "${ncurses_preinstalled}" == "True" ]; then
         if [ ! -f "${progname_dir}/lib/libncurses.so" ]; then
@@ -1366,6 +1492,25 @@ fix_path "MPI"
 log="${log/__top_dir__/${top_dir}}"
 env_file="${env_file/__top_dir__/${top_dir}}"
 paths_file="${paths_file/__top_dir__/${top_dir}}"
+
+# Set mpicc, mpi_compilerdir, mpi_bindir, mpi_libdir and mpi_includedir
+# if not already set.
+if [ -z "${mpicc}" ]; then
+    mpicc="${mpi_dir}/bin/mpicc"
+fi
+if [ -z "${mpi_compilerdir}" ]; then
+    mpi_compilerdir="${mpi_dir}/bin"
+fi
+if [ -z "${mpi_bindir}" ]; then
+    mpi_bindir="${mpi_dir}/bin"
+fi
+if [ -z "${mpi_libdir}" ]; then
+    mpi_libdir="${mpi_dir}/lib"
+fi
+if [ -z "${mpi_includedir}" ]; then
+    mpi_includedir="${mpi_dir}/include"
+fi
+
 
 # Set test_log path variables
 blas_test_log="${blas_dir}/test_log"  # No BLAS tests actually performed
@@ -2845,6 +2990,10 @@ if [ -n "${N_installed}" ]; then
     fi
 fi
 
+# This directory is created by the use_specified_mpi_compilers function,
+# where it is used to store symlinks to MPI library files.
+mpi_symlinkdir="${top_dir}/.mpi_symlinks"
+
 # Find possible C, C++ and Fortran compilers to try out when building
 # the various programs. The compiler possibilities will be gathered in
 # the array "compiler_possibilities". An empty value corresponds to
@@ -2930,10 +3079,16 @@ use_specified_mpi_compilers(){
         printf "\nInstallation of ${1} failed. Attempting with specified MPI compilers\n\n"
     fi
     if [ -n "${mpi_dir}" ]; then
-        bin_path="${mpi_dir}/bin"
-        include_path="${mpi_dir}/include"
-        lib_path="${mpi_dir}/lib"
+        compiler_path="${mpi_compilerdir}"
+        bin_path="${mpi_bindir}"
+        include_path="${mpi_includedir}"
+        lib_path="${mpi_libdir}"
         for program in "mpicc" "mpiCC"; do
+            program_path="${compiler_path}/${program}"
+            if [ -f "${program_path}" ]; then
+                export CC="${program_path}"
+                break
+            fi
             program_path="${bin_path}/${program}"
             if [ -f "${program_path}" ]; then
                 export CC="${program_path}"
@@ -2941,18 +3096,39 @@ use_specified_mpi_compilers(){
             fi
         done
         for program in "mpicxx" "mpic++"; do
+            program_path="${compiler_path}/${program}"
+            if [ -f "${program_path}" ]; then
+                export CXX="${program_path}"
+                break
+            fi
             program_path="${bin_path}/${program}"
             if [ -f "${program_path}" ]; then
                 export CXX="${program_path}"
                 break
             fi
         done
-        program_path="${bin_path}/mpif77"
-        if [ -f "${program_path}" ]; then
-            export FC="${program_path}"
-            export F77="${program_path}"
-        fi
+        for program in "mpif77"; do
+            program_path="${compiler_path}/${program}"
+            if [ -f "${program_path}" ]; then
+                export FC="${program_path}"
+                export F77="${program_path}"
+                break
+            fi
+            program_path="${bin_path}/${program}"
+            if [ -f "${program_path}" ]; then
+                export FC="${program_path}"
+                export F77="${program_path}"
+                break
+            fi
+        done
         for program in "mpifort" "mpif90"; do
+            program_path="${compiler_path}/${program}"
+            if [ -f "${program_path}" ]; then
+                export FC="${program_path}"
+                export F90="${program_path}"
+                export F9X="${program_path}"
+                break
+            fi
             program_path="${bin_path}/${program}"
             if [ -f "${program_path}" ]; then
                 export FC="${program_path}"
@@ -2961,6 +3137,9 @@ use_specified_mpi_compilers(){
                 break
             fi
         done
+        if [ -d "${compiler_path}" ]; then
+            export PATH="${compiler_path}:${PATH}"
+        fi
         if [ -d "${bin_path}" ]; then
             export PATH="${bin_path}:${PATH}"
         fi
@@ -2974,6 +3153,45 @@ use_specified_mpi_compilers(){
         if [ -d "${lib_path}" ]; then
             export LDFLAGS="-L${lib_path} ${LDFLAGS}"
             export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
+        fi
+        # When mixing MPICH and Intel MPI, some symlinking is required
+        # due to different library names, as described in section 11 of
+        # https://www.mpich.org/static/downloads/3.1/mpich-3.1-README.txt
+        mkdir -p "${mpi_symlinkdir}"
+        mpi_symlink_pairs=(                      \
+            "libmpi.so"      "libmpich.so.12"    \
+            "libmpi_dbg.so"  "libmpich.so.12"    \
+            "libmpigc4.so"   "libmpichcxx.so.12" \
+            "libmpigc4.so"   "libmpichcxx.so.12" \
+            "libmpigf.so"    "libfmpich.so.12"   \
+            "libmpigf.so"    "libmpichf90.so.12" \
+            "libmpi_dbg.so"  "libmpl.so.1"       \
+            "libmpi.so"      "libmpl.so.1"       \
+            "libmpi.so"      "libopa.so.1"       \
+            "libmpi_dbg.so"  "libopa.so.1"       \
+            "libmpich.so"    "libmpi.so.5"       \
+            "libmpich.so"    "libmpi_dbg.so.5"   \
+            "libmpichcxx.so" "libmpigc4.so.5"    \
+            "libmpichf90.so" "libmpigf.so.5"     \
+        )
+        any_mpi_symlinks="False"
+        for ((mpi_symlink_index=0; mpi_symlink_index<${#mpi_symlink_pairs[@]}; \
+            mpi_symlink_index+=2)); do
+            ((mpi_symlink_name_index = mpi_symlink_index + 1))
+            mpi_symlink="${lib_path}/${mpi_symlink_pairs[${mpi_symlink_index}]}"
+            mpi_symlink_name="${mpi_symlinkdir}/${mpi_symlink_pairs[${mpi_symlink_name_index}]}"
+            if [ -f "${mpi_symlink}" ]; then
+                any_mpi_symlinks="True"
+                if [ ! -f "${mpi_symlink_name}" ]; then
+                    ln -s "${mpi_symlink}" "${mpi_symlink_name}" || :
+                fi
+            fi
+        done
+        if [ "${any_mpi_symlinks}" == "True" ]; then
+            export LDFLAGS="${LDFLAGS} -L${mpi_symlinkdir}"
+            export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${mpi_symlinkdir}"
+        else
+            rm -rf "${mpi_symlinkdir}"
         fi
     fi
 }
@@ -3095,8 +3313,17 @@ use_mpi_compilers(){
         if [ -n "${program_path}" ]; then
             export CC="${program_path}"
             bin_path="$(dirname "${program_path}")"
-            include_path="${bin_path}/../include"
-            lib_path="${bin_path}/../lib"
+            mpicc_show="$("${CC}" -show)"
+            lib_path="$(echo "${mpicc_show}" | grep  -o '\-L[^ ]*' || :)"
+            lib_path="${lib_path:2}"
+            if [ ! -d "${lib_path}" ]; then
+                lib_path="$(dirname "${bin_path}")/lib"
+            fi
+            include_path="$(echo "${mpicc_show}" | grep  -o '\-I[^ ]*' || :)"
+            include_path="${include_path:2}"
+            if [ ! -d "${include_path}" ]; then
+                include_path="$(dirname "${bin_path}")/include"
+            fi
             if [ -d "${bin_path}" ]; then
                 export PATH="${bin_path}:${PATH}"
             fi
@@ -4157,112 +4384,129 @@ fi
 
 # HDF5
 if [ "${hdf5_install}" == "True" ] && [ "${hdf5_installed}" == "False" ]; then
-    init_install "HDF5"
-    # Set environment variables and configure options used
-    # when building againts MPI and zlib.
-    enable_parallel=""
-    if [ -n "${mpi_dir}" ]; then
-        use_specified_mpi_compilers
-        enable_parallel="--enable-parallel"
-    fi
-    with_zlib=""
-    if [ -n "${zlib_dir}" ]; then
-        export LDFLAGS="-L${zlib_dir}/lib ${LDFLAGS}"
-        export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
-        export CFLAGS="-I${zlib_dir}/include ${CFLAGS}"
-        with_zlib=--with-zlib="${zlib_dir}/include","${zlib_dir}/lib"
-    fi
-    # A bug in HDF5 makes the code crash on certain file systems.
-    # A workaround is to set an environment variable as below.
-    # The bug is documented here:
-    # http://www.nersc.gov/users/data-analytics
-    # /data-management/i-o-libraries/hdf5-2/hdf5/
-    export HDF5_USE_FILE_LOCKING=FALSE
-    ./configure                \
-        --enable-shared        \
-        ${enable_parallel}     \
-        ${with_zlib}           \
-        --prefix="${hdf5_dir}" \
-        2>&1
-    # Newer versions of gcc (e.g. 8.1.0) do not allow attributes to be
-    # specified after the declarator in function definitions. At least
-    # in some versions of HDF5 (e.g. 1.10.2), this rule is broken by
-    # src/H5detect.c. If the original build fail, we edit src/H5detect.c
-    # to be compliant with this rule and try again.
-    hdf5_make_success="True"
-    make ${make_jobs} 2>&1 || hdf5_make_success="False"
-    if [ "${hdf5_make_success}" == "False" ]; then
-        mv "src/H5detect.c" "src/H5detect.c_cp"
-        if [ -z "${IFS+x}" ]; then
-            IFS_ori="__unset__"
-        else
-            IFS_ori="${IFS}"
+    install_success="False"
+    hdf5_test_success_backup="${hdf5_test_success}"
+    # Attempt to configure using multiple MPI link flags
+    for extra_LIBS in "" "-lmpi" "-lmpich"; do
+        reset_environment
+        init_install "HDF5"
+        # Set environment variables and configure options used
+        # when building againts MPI and zlib.
+        enable_parallel=""
+        if [ -n "${mpi_dir}" ]; then
+            use_specified_mpi_compilers
+            enable_parallel="--enable-parallel"
+        elif [ "${extra_LIBS}" ]; then
+            break
         fi
-        IFS=''
-        while read -r line; do
-            if [ "${line}" == "static void" ] || [ "${line}" == "int" ] ; then
-                printf "${line} " >> "src/H5detect.c"
-            else
-                echo "${line}" >> "src/H5detect.c"
-            fi
-        done <<< "$(cat "src/H5detect.c_cp")"
-        if [ "${IFS_ori}" == "__unset__" ]; then
-            unset IFS
-        else
-            IFS="${IFS_ori}"
+        with_zlib=""
+        if [ -n "${zlib_dir}" ]; then
+            export LDFLAGS="-L${zlib_dir}/lib ${LDFLAGS}"
+            export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
+            export CFLAGS="-I${zlib_dir}/include ${CFLAGS}"
+            with_zlib=--with-zlib="${zlib_dir}/include","${zlib_dir}/lib"
         fi
-        rm -f "src/H5detect.c_cp" || :
-        sed -i 's/^static void \(.*\) HDF_NO_UBSAN/static void HDF_NO_UBSAN \1/' "src/H5detect.c"
-        sed -i 's/^int \(.*\) HDF_NO_UBSAN/int HDF_NO_UBSAN \1/' "src/H5detect.c"
+        # A bug in HDF5 makes the code crash on certain file systems.
+        # A workaround is to set an environment variable as below.
+        # The bug is documented here:
+        # http://www.nersc.gov/users/data-analytics
+        # /data-management/i-o-libraries/hdf5-2/hdf5/
+        export HDF5_USE_FILE_LOCKING=FALSE
+        if [ -n "${enable_parallel}" ]; then
+            export LIBS="${extra_LIBS} ${LIBS}"
+            printf "
+Attempting to install HDF5 with extra_LIBS=${extra_LIBS}\n\n"
+        fi
+        ./configure                \
+            --enable-shared        \
+            ${enable_parallel}     \
+            ${with_zlib}           \
+            --prefix="${hdf5_dir}" \
+            2>&1 || continue
+        # Newer versions of gcc (e.g. 8.1.0) do not allow attributes to
+        # be specified after the declarator in function definitions.
+        # At least in some versions of HDF5 (e.g. 1.10.2), this rule is
+        # broken by src/H5detect.c. If the original build fail, we edit
+        # src/H5detect.c to be compliant with this rule and try again.
         hdf5_make_success="True"
         make ${make_jobs} 2>&1 || hdf5_make_success="False"
-    fi
-    if [ "${hdf5_make_success}" == "False" ]; then
-        error "Failed to make HDF5"
-        exit 1
-    fi
-    # On some systems, the HDF5 test (make check) hangs indefinitely.
-    # To counteract this, kill the process if it still runs after
-    # ${hdf5_test_max_time} seconds.
-    if [ "${do_tests}" == "True" ]; then
-        hdf5_test_max_time=3600
-        # Perform serial + parallel tests if build against MPI
-        # or normal tests otherwise.
-        if [ -n "${mpi_dir}" ]; then
-            # Serial tests
-            (make ${make_jobs} check-s 2>&1 | tee "test_log") & hdf5_test_pid=$!
-            soothe ${hdf5_test_pid} ${hdf5_test_max_time}
-            sleep 1
-            kill -9 ${hdf5_test_pid} >/dev/null 2>&1 || :
-            wait    ${hdf5_test_pid} >/dev/null 2>&1 || :
-            exit_code="$(wait ${hdf5_test_pid} >/dev/null 2>&1 || echo $?)"
-            if [ -n "${exit_code}" ]; then
-                hdf5_test_success="False"
+        if [ "${hdf5_make_success}" == "False" ]; then
+            mv "src/H5detect.c" "src/H5detect.c_cp"
+            if [ -z "${IFS+x}" ]; then
+                IFS_ori="__unset__"
+            else
+                IFS_ori="${IFS}"
             fi
-            # Parallel tests
-            printf "\n\n\nParallel tests below\n\n\n\n" >> "test_log"
-            (make ${make_jobs} check-p 2>&1 | tee "test_log") & hdf5_test_pid=$!
-            soothe ${hdf5_test_pid} ${hdf5_test_max_time}
-            sleep 1
-            kill -9 ${hdf5_test_pid} >/dev/null 2>&1 || :
-            wait    ${hdf5_test_pid} >/dev/null 2>&1 || :
-            exit_code="$(wait ${hdf5_test_pid} >/dev/null 2>&1 || echo $?)"
-            if [ -n "${exit_code}" ]; then
-                hdf5_test_success="False"
+            IFS=''
+            while read -r line; do
+                if [ "${line}" == "static void" ] || [ "${line}" == "int" ] ; then
+                    printf "${line} " >> "src/H5detect.c"
+                else
+                    echo "${line}" >> "src/H5detect.c"
+                fi
+            done <<< "$(cat "src/H5detect.c_cp")"
+            if [ "${IFS_ori}" == "__unset__" ]; then
+                unset IFS
+            else
+                IFS="${IFS_ori}"
             fi
-        else
-            (make ${make_jobs} check 2>&1 | tee "test_log") & hdf5_test_pid=$!
-            soothe ${hdf5_test_pid} ${hdf5_test_max_time}
-            sleep 1
-            kill -9 ${hdf5_test_pid} >/dev/null 2>&1 || :
-            wait    ${hdf5_test_pid} >/dev/null 2>&1 || :
-            exit_code="$(wait ${hdf5_test_pid} >/dev/null 2>&1 || echo $?)"
-            if [ -n "${exit_code}" ]; then
-                hdf5_test_success="False"
+            rm -f "src/H5detect.c_cp" || :
+            sed -i 's/^static void \(.*\) HDF_NO_UBSAN/static void HDF_NO_UBSAN \1/' \
+                "src/H5detect.c"
+            sed -i 's/^int \(.*\) HDF_NO_UBSAN/int HDF_NO_UBSAN \1/' "src/H5detect.c"
+            hdf5_make_success="True"
+            make ${make_jobs} 2>&1 || continue
+        fi
+        # On some systems, the HDF5 test (make check) hangs
+        # indefinitely. To counteract this, kill the process if it still
+        # runs after ${hdf5_test_max_time} seconds.
+        if [ "${do_tests}" == "True" ]; then
+            hdf5_test_success="${hdf5_test_success_backup}"
+            hdf5_test_max_time=3600
+            # Perform serial + parallel tests if build against MPI
+            # or normal tests otherwise.
+            if [ -n "${mpi_dir}" ]; then
+                # Serial tests
+                (make ${make_jobs} check-s 2>&1 | tee "test_log") & hdf5_test_pid=$!
+                soothe ${hdf5_test_pid} ${hdf5_test_max_time}
+                sleep 1
+                kill -9 ${hdf5_test_pid} >/dev/null 2>&1 || :
+                wait    ${hdf5_test_pid} >/dev/null 2>&1 || :
+                exit_code="$(wait ${hdf5_test_pid} >/dev/null 2>&1 || echo $?)"
+                if [ -n "${exit_code}" ]; then
+                    hdf5_test_success="False"
+                fi
+                # Parallel tests
+                printf "\n\n\nParallel tests below\n\n\n\n" >> "test_log"
+                (make ${make_jobs} check-p 2>&1 | tee "test_log") & hdf5_test_pid=$!
+                soothe ${hdf5_test_pid} ${hdf5_test_max_time}
+                sleep 1
+                kill -9 ${hdf5_test_pid} >/dev/null 2>&1 || :
+                wait    ${hdf5_test_pid} >/dev/null 2>&1 || :
+                exit_code="$(wait ${hdf5_test_pid} >/dev/null 2>&1 || echo $?)"
+                if [ -n "${exit_code}" ]; then
+                    hdf5_test_success="False"
+                fi
+            else
+                (make ${make_jobs} check 2>&1 | tee "test_log") & hdf5_test_pid=$!
+                soothe ${hdf5_test_pid} ${hdf5_test_max_time}
+                sleep 1
+                kill -9 ${hdf5_test_pid} >/dev/null 2>&1 || :
+                wait    ${hdf5_test_pid} >/dev/null 2>&1 || :
+                exit_code="$(wait ${hdf5_test_pid} >/dev/null 2>&1 || echo $?)"
+                if [ -n "${exit_code}" ]; then
+                    hdf5_test_success="False"
+                fi
             fi
         fi
+        make ${make_jobs} install 2>&1 || continue
+        install_success="True"
+        break
+    done
+    if [ "${install_success}" == "False" ]; then
+        error "Failed to install HDF5"
+        exit 1
     fi
-    make ${make_jobs} install 2>&1
     if [ "${do_tests}" == "True" ]; then
         printf "\n\n\nInstall tests below\n\n\n\n" >> "test_log"
         make ${make_jobs} check-install 2>&1 | tee -a "test_log"
@@ -4286,44 +4530,64 @@ fi
 
 # FFTW
 if [ "${fftw_install}" == "True" ] && [ "${fftw_installed}" == "False" ]; then
-    init_install "FFTW"
-    # Set environment variables and configure options used
-    # when building againts MPI.
-    enable_mpi=""
-    if [ -n "${mpi_dir}" ]; then
-        use_specified_mpi_compilers
-        export CFLAGS="-O3 -fPIC ${CFLAGS}"
-        export CPPFLAGS="-I${mpi_dir}/include ${CPPFLAGS}"
-        export LDFLAGS="-L${mpi_dir}/lib ${LDFLAGS}"
-        export MPICC="${CC}"
-        export MPILIBS="-lmpi ${MPILIBS}"
-        enable_mpi="--enable-mpi"
-    fi
-    # Double-precision
-    ./configure --enable-shared  \
-                ${enable_mpi}    \
-                --enable-openmp  \
-                --enable-threads \
-                --prefix="${fftw_dir}" 2>&1
-    make ${make_jobs} 2>&1
-    if [ "${do_tests}" == "True" ]; then
-        make ${make_jobs} check 2>&1 | tee "test_log"
-        [ ${PIPESTATUS[0]} -eq 0 ] || fftw_test_success="False"
+    install_success="False"
+    fftw_test_success_backup="${fftw_test_success}"
+    # Attempt to configure using multiple MPI link flags
+    for extra_MPILIBS in "" "-lmpi" "-lmpich"; do
+        reset_environment
+        init_install "FFTW"
+        # Set environment variables and configure options used
+        # when building againts MPI.
+        enable_mpi=""
+        if [ -n "${mpi_dir}" ]; then
+            use_specified_mpi_compilers
+            export CFLAGS="-O3 -fPIC ${CFLAGS}"
+            export CPPFLAGS="-I${mpi_includedir} ${CPPFLAGS}"
+            export LDFLAGS="-L${mpi_libdir} ${LDFLAGS}"
+            export MPICC="${CC}"
+            enable_mpi="--enable-mpi"
+        elif [ "${extra_MPILIBS}" ]; then
+            break
+        fi
+        # Double-precision
+        if [ -n "${enable_mpi}" ]; then
+            export MPILIBS="${extra_MPILIBS} ${MPILIBS}"
+            printf "
+Attempting to configure FFTW with extra_MPILIBS=${extra_MPILIBS}\n\n"
+        fi
+        ./configure --enable-shared  \
+                    ${enable_mpi}    \
+                    --enable-openmp  \
+                    --enable-threads \
+                    --prefix="${fftw_dir}" 2>&1 || continue
+        make ${make_jobs} 2>&1 || continue
+        if [ "${do_tests}" == "True" ]; then
+            make ${make_jobs} check 2>&1 | tee "test_log"
+            fftw_test_success="${fftw_test_success_backup}"
+            [ ${PIPESTATUS[0]} -eq 0 ] || fftw_test_success="False"
+        fi
+        make ${make_jobs} install 2>&1 || continue
+        # Single-precision
+        make clean || :
+        ./configure --enable-shared        \
+                    ${enable_mpi}          \
+                    --enable-openmp        \
+                    --enable-threads       \
+                    --prefix="${fftw_dir}" \
+                    --enable-float 2>&1 || continue
+        make ${make_jobs}         2>&1 || continue
+        make ${make_jobs} install 2>&1 || continue
+        install_success="True"
+        break
+    done
+    if [ "${install_success}" == "False" ]; then
+        error "Failed to install FFTW"
+        exit 1
     fi
     if [ "${fftw_test_success}" == "False" ]; then
         mkdir -p "$(dirname "${ftw_test_log}")"
         cp "test_log" "${fftw_test_log}"
     fi
-    make ${make_jobs} install 2>&1
-    # Single-precision
-    ./configure --enable-shared        \
-                ${enable_mpi}          \
-                --enable-openmp        \
-                --enable-threads       \
-                --prefix="${fftw_dir}" \
-                --enable-float 2>&1
-    make ${make_jobs} 2>&1
-    make ${make_jobs} install 2>&1
     reset_environment
     cp "COPYING" "README" "${fftw_dir}/" || :
     cd "${top_dir}"
@@ -5601,7 +5865,7 @@ fi
 
 # MPI4Py
 if [ "${mpi4py_install}" == "True" ] && [ "${mpi4py_installed}" == "False" ]; then
-    export PATH="${mpi_dir}/bin:${PATH}"
+    export PATH="${mpi_bindir}:${mpi_compilerdir}:${PATH}"
     pip_install_pypackage "MPI4Py" "${mpi4py_version}"
     reset_environment
 fi
@@ -5612,7 +5876,7 @@ if [ "${h5py_install}" == "True" ] && [ "${h5py_installed}" == "False" ]; then
     export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
     export HDF5_DIR="${hdf5_dir}"
     export HDF5_MPI="ON"
-    export CC="${mpi_dir}/bin/mpicc"
+    export CC="${mpicc}"
     pip_install_pypackage "h5py" "${h5py_version}"
     reset_environment
 fi
@@ -6035,11 +6299,11 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         "/**"                                                                                     \
         " * The computation of Gamma_fld and Gamma_prime_fld becomes unstable"                    \
         " * at large c_Gamma*k/H. To stabilise the system we set these to zero"                   \
-        " * at some large c_Gamma*k/H."                                                           \
+        " * at some large c_Gamma*k/(aH)."                                                        \
         " * As to not introduce discontinuities, we have a smooth transition"                     \
         " * phase between the untouched values and completely nullified values."                  \
         " * This transition is given the shape of an error function in"                           \
-        " * log(c_Gamma*k/H) space. The parameters c_gamma_k_H_square_max_{0|1}"                  \
+        " * log(c_Gamma*k/(aH)) space. The parameters c_gamma_k_H_square_max_{0|1}"               \
         " * specify the borders of the transition."                                               \
         " * Here we nullify/shrink Gamma_fld only."                                               \
         " *"                                                                                      \
@@ -6164,6 +6428,18 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         "}"                                                                                 \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
+    # Include dcdm in the growth factor D(a)
+    pattern='rho_M * \\+='
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+        "${class_dir}/source/background.c" | head -n 1)
+    ((linenr += 1))
+    new_lines=(                                        \
+        "/* Include dcdm in growth factor */"          \
+        "if (pba->has_dcdm == _TRUE_)"                 \
+        "  rho_M += pvecback[pba->index_bg_rho_dcdm];" \
+    )
+    patch_class "${class_dir}/source/background.c" ${linenr} \
+        "insert" "below" "${new_lines[@]}"
     # Include theta_tot in perturbation output
     linenr=$(new_class_perturbation_linenr "perturb_prepare_output")
     new_lines=(                                                               \
@@ -6432,8 +6708,7 @@ tests_dir="${concept_dir}/tests"
 utilities_dir="${concept_dir}/utilities"
 Gadget2_dir="${gadget_dir}/Gadget2"
 installer="${top_dir}/installer"
-mpicc="${mpi_dir}/bin/mpicc"
-mpiexec="${mpi_dir}/bin/mpiexec"
+mpiexec="${mpi_bindir}/mpiexec"
 # Move source files, create empty directories and create the .paths file
 if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; then
     init_install "CONCEPT"
@@ -6535,8 +6810,13 @@ gsl_dir='${gsl_dir}'
 hdf5_dir='${hdf5_dir}'
 # Directory of libpng
 libpng_dir='${libpng_dir}'
-# Directory of MPI
+# Directories of MPI
 mpi_dir='${mpi_dir}'
+mpi_compilerdir='${mpi_compilerdir}'
+mpi_bindir='${mpi_bindir}'
+mpi_libdir='${mpi_libdir}'
+mpi_includedir='${mpi_includedir}'
+mpi_symlinkdir='${mpi_symlinkdir}'
 # Directory of Python
 python_dir='${python_dir}'
 # Directory of zlib
@@ -6571,69 +6851,84 @@ fi
 # FFTW 2.x (GADGET2 is incompatible with FFTW 3.x)
 if [ "${fftw_for_gadget_install}" == "True" ] \
     && [ "${fftw_for_gadget_installed}" == "False" ]; then
-    init_install "FFTW for GADGET"
-    # Set environment variables and configure options used
-    # when building againts MPI.
-    enable_mpi=""
-    if [ -n "${mpi_dir}" ]; then
-        use_specified_mpi_compilers
-        export CFLAGS="-O3 -fPIC ${CFLAGS}"
-        export CPPFLAGS="-I${mpi_dir}/include ${CPPFLAGS}"
-        export LDFLAGS="-L${mpi_dir}/lib ${LDFLAGS}"
-        export MPICC="${CC}"
-        export MPILIBS="-lmpi ${MPILIBS}"
-        enable_mpi="--enable-mpi"
-    fi
-    # Intel compilers may link against the NUMA library, which should be
-    # placed in /usr/lib64. Add this directory to the LDFLAGS.
-    # Both libnuma.so and libnuma.so.1 should exist. To be sure,
-    # we create symlinks to these in a new directory and add this
-    # directory to LDFLAGS as well.
-    if [ -d "/usr/lib64" ]; then
-        export LDFLAGS="${LDFLAGS} -L/usr/lib64"
-    fi
-    numa_symlink_dir="${fftw_for_gadget_dir}/numa_symlinks"
-    rm -rf "${numa_symlink_dir}" || :
-    mkdir -p "${numa_symlink_dir}" || :
-    if [ -f "/usr/lib64/libnuma.so" ] && [ ! -f "/usr/lib64/libnuma.so.1" ]; then
-        ln -s "/usr/lib64/libnuma.so" "${numa_symlink_dir}/libnuma.so.1" || :
-    fi
-    if [ -f "/usr/lib64/libnuma.so.1" ] && [ ! -f "/usr/lib64/libnuma.so" ]; then
-        ln -s "/usr/lib64/libnuma.so.1" "${numa_symlink_dir}/libnuma.so" || :
-    fi
-    export LDFLAGS="${LDFLAGS} -L${numa_symlink_dir}"
-    # Double-precision
-    ./configure --enable-shared      \
-                ${enable_mpi}        \
-                --enable-openmp      \
-                --enable-threads     \
-                --enable-type-prefix \
-                --prefix="${fftw_for_gadget_dir}" 2>&1
-    make ${make_jobs} 2>&1
-    if [ "${do_tests}" == "True" ]; then
-        make ${make_jobs} check 2>&1 | tee "test_log"
-        [ ${PIPESTATUS[0]} -eq 0 ] || fftw_for_gadget_test_success="False"
-    fi
-    make ${make_jobs} install 2>&1
-    # Single-precision
-    make ${make_jobs} clean
-    ./configure --enable-shared      \
-                ${enable_mpi}        \
-                --enable-openmp      \
-                --enable-threads     \
-                --enable-float       \
-                --enable-type-prefix \
-                --prefix="${fftw_for_gadget_dir}" 2>&1
-    make ${make_jobs} 2>&1
-    if [ "${do_tests}" == "True" ]; then
-        make ${make_jobs} check 2>&1 | tee -a "test_log"
-        [ ${PIPESTATUS[0]} -eq 0 ] || fftw_for_gadget_test_success="False"
+    install_success="False"
+    fftw_for_gadget_test_success_backup="${fftw_for_gadget_test_success}"
+    # Attempt to configure using multiple MPI link flags
+    for extra_MPILIBS in "" "-lmpi" "-lmpich"; do
+        reset_environment
+        init_install "FFTW for GADGET"
+        # Set environment variables and configure options used
+        # when building againts MPI.
+        enable_mpi=""
+        if [ -n "${mpi_dir}" ]; then
+            use_specified_mpi_compilers
+            export CFLAGS="-O3 -fPIC ${CFLAGS}"
+            export CPPFLAGS="-I${mpi_includedir} ${CPPFLAGS}"
+            export LDFLAGS="-L${mpi_libdir} ${LDFLAGS}"
+            export MPICC="${CC}"
+            enable_mpi="--enable-mpi"
+        elif [ "${extra_MPILIBS}" ]; then
+            break
+        fi
+        # Intel compilers may link against the NUMA library, which should be
+        # placed in /usr/lib64. Add this directory to the LDFLAGS.
+        # Both libnuma.so and libnuma.so.1 should exist. To be sure,
+        # we create symlinks to these in a new directory and add this
+        # directory to LDFLAGS as well.
+        if [ -d "/usr/lib64" ]; then
+            export LDFLAGS="${LDFLAGS} -L/usr/lib64"
+        fi
+        numa_symlink_dir="${fftw_for_gadget_dir}/numa_symlinks"
+        rm -rf "${numa_symlink_dir}" || :
+        mkdir -p "${numa_symlink_dir}" || :
+        if [ -f "/usr/lib64/libnuma.so" ] && [ ! -f "/usr/lib64/libnuma.so.1" ]; then
+            ln -s "/usr/lib64/libnuma.so" "${numa_symlink_dir}/libnuma.so.1" || :
+        fi
+        if [ -f "/usr/lib64/libnuma.so.1" ] && [ ! -f "/usr/lib64/libnuma.so" ]; then
+            ln -s "/usr/lib64/libnuma.so.1" "${numa_symlink_dir}/libnuma.so" || :
+        fi
+        export LDFLAGS="${LDFLAGS} -L${numa_symlink_dir}"
+        # Double-precision
+        if [ -n "${enable_mpi}" ]; then
+            export MPILIBS="${extra_MPILIBS} ${MPILIBS_backup}"
+            printf "
+Attempting to configure FFTW for GADGET with extra_MPILIBS=${extra_MPILIBS}\n\n"
+        fi
+        ./configure --enable-shared      \
+                    ${enable_mpi}        \
+                    --enable-openmp      \
+                    --enable-threads     \
+                    --enable-type-prefix \
+                    --prefix="${fftw_for_gadget_dir}" 2>&1 || continue
+        make ${make_jobs} 2>&1 || continue
+        if [ "${do_tests}" == "True" ]; then
+            make ${make_jobs} check 2>&1 | tee "test_log"
+            fftw_for_gadget_test_success="${fftw_for_gadget_test_success_backup}"
+            [ ${PIPESTATUS[0]} -eq 0 ] || fftw_for_gadget_test_success="False"
+        fi
+        make ${make_jobs} install 2>&1 || continue
+        # Single-precision
+        make clean || :
+        ./configure --enable-shared      \
+                    ${enable_mpi}        \
+                    --enable-openmp      \
+                    --enable-threads     \
+                    --enable-float       \
+                    --enable-type-prefix \
+                    --prefix="${fftw_for_gadget_dir}" 2>&1 || continue
+        make ${make_jobs}         2>&1 || continue
+        make ${make_jobs} install 2>&1 || continue
+        install_success="True"
+        break
+    done
+    if [ "${install_success}" == "False" ]; then
+        error "Failed to install FFTW for GADGET"
+        exit 1
     fi
     if [ "${fftw_for_gadget_test_success}" == "False" ]; then
         mkdir -p "$(dirname "${fftw_for_gadget_test_log}")"
         cp "test_log" "${fftw_for_gadget_test_log}"
     fi
-    make ${make_jobs} install 2>&1
     reset_environment
     cp "COPYING" "README" "${fftw_for_gadget_dir}/" || :
     cd "${top_dir}"

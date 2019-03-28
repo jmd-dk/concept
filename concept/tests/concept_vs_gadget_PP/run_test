@@ -80,21 +80,41 @@ np.savetxt('${this_dir}/outputlist', $(get_param "snapshot_times['a']"))"
 # Create an edited version of Makefile_gadget with correct parth information
 cp "${this_dir}/Makefile_gadget" "${this_dir}/Makefile_gadget_edited"
 sed -i "/^ *CC= / s/ [^# ]/ \"${mpicc//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
-path="${mpi_dir}/include"
-sed -i "/^ *MPI_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" \
-       "${this_dir}/Makefile_gadget_edited"
-path="${mpi_dir}/lib"
-sed -i "/^ *MPI_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" \
-       "${this_dir}/Makefile_gadget_edited"
+path="${mpi_includedir}"
+sed -i "/^ *MPI_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+path="${mpi_libdir}"
+MPI_LIBS="\"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\""
+if [ -d "${mpi_symlinkdir}" ]; then
+    MPI_LIBS="${MPI_LIBS} \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\""
+fi
+current_dir="$(pwd)"
+cd "${path}"
+mpi_lib_found="False"
+for f in *; do
+    if [[ "${f}" == libmpi.* ]]; then
+        MPI_LIBS="${MPI_LIBS} -lmpi"
+        mpi_lib_found="True"
+        break
+    fi
+done
+if [ "${mpi_lib_found}" == "False" ]; then
+    for f in *; do
+        if [[ "${f}" == libmpich.* ]]; then
+            MPI_LIBS="${MPI_LIBS} -lmpich"
+            mpi_lib_found="True"
+            break
+        fi
+    done
+fi
+cd "${current_dir}"
+sed -i "/^ *MPI_LIBS= / s/ [^# ]/ ${MPI_LIBS}/" "${this_dir}/Makefile_gadget_edited"
 path="${gsl_dir}/include"
-sed -i "/^ *GSL_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" \
-       "${this_dir}/Makefile_gadget_edited"
+sed -i "/^ *GSL_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
 path="${gsl_dir}/lib"
 sed -i "/^ *GSL_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" \
        "${this_dir}/Makefile_gadget_edited"
 path="${fftw_for_gadget_dir}/include"
-sed -i "/^ *FFTW_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" \
-       "${this_dir}/Makefile_gadget_edited"
+sed -i "/^ *FFTW_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
 path="${fftw_for_gadget_dir}/lib"
 sed -i "/^ *FFTW_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" \
        "${this_dir}/Makefile_gadget_edited"
