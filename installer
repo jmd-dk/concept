@@ -1395,9 +1395,12 @@ nor anywhere in the PATH"
         length="${#mpi_dir_cancidates[0]}"
         different="False"
         for ((j = 1; j < ${length}; j += 1)); do
-            part0="${mpi_dir_cancidates[0]::$j}"
+            part0="${mpi_dir_cancidates[0]}"
+            part0="${part0::$j}"
             for ((i = 1; i < ${N}; i += 1)); do
-                if [ "${mpi_dir_cancidates[$i]::$j}" != "${part0}" ]; then
+                part0_i="${mpi_dir_cancidates[$i]}"
+                part0_i="${part0_i::$j}"
+                if [ "${part0_i}" != "${part0}" ]; then
                     different="True"
                     break
                 fi
@@ -1406,8 +1409,14 @@ nor anywhere in the PATH"
                 break
             fi
         done
-        ((j -= 2)) || :
-        mpi_dir="${mpi_dir_cancidates[0]::$j}"
+        ((j -= 1)) || :
+        if [ ${j} -gt 1 ]; then
+            mpi_dir="${mpi_dir_cancidates[0]}"
+            mpi_dir="${mpi_dir::$j}"
+            if [[ "${mpi_dir}" != *"/" ]]; then
+                mpi_dir="$(dirname "${mpi_dir}")"
+            fi
+        fi
     fi
     if [ "${progname}" == 'ncurses' ] && [ "${ncurses_preinstalled}" == "True" ]; then
         if [ ! -f "${progname_dir}/lib/libncurses.so" ]; then
@@ -4396,7 +4405,7 @@ if [ "${hdf5_install}" == "True" ] && [ "${hdf5_installed}" == "False" ]; then
         if [ -n "${mpi_dir}" ]; then
             use_specified_mpi_compilers
             enable_parallel="--enable-parallel"
-        elif [ "${extra_LIBS}" ]; then
+        elif [ -n "${extra_LIBS}" ]; then
             break
         fi
         with_zlib=""
@@ -4546,7 +4555,7 @@ if [ "${fftw_install}" == "True" ] && [ "${fftw_installed}" == "False" ]; then
             export LDFLAGS="-L${mpi_libdir} ${LDFLAGS}"
             export MPICC="${CC}"
             enable_mpi="--enable-mpi"
-        elif [ "${extra_MPILIBS}" ]; then
+        elif [ -n "${extra_MPILIBS}" ]; then
             break
         fi
         # Double-precision
@@ -6867,7 +6876,7 @@ if [ "${fftw_for_gadget_install}" == "True" ] \
             export LDFLAGS="-L${mpi_libdir} ${LDFLAGS}"
             export MPICC="${CC}"
             enable_mpi="--enable-mpi"
-        elif [ "${extra_MPILIBS}" ]; then
+        elif [ -n "${extra_MPILIBS}" ]; then
             break
         fi
         # Intel compilers may link against the NUMA library, which should be
