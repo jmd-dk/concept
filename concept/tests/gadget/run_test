@@ -46,15 +46,15 @@ set -e
 # Cleanup from last test run
 "${this_dir}/clean"
 
-# Create an edited version of Makefile_gadget with correct parth information
-cp "${this_dir}/Makefile_gadget" "${this_dir}/Makefile_gadget_edited"
-sed -i "/^ *CC= / s/ [^# ]/ \"${mpicc//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+# Create an edited version of lcdm_gas.Makefile with correct path information
+cp "${this_dir}/lcdm_gas.Makefile" "${this_dir}/lcdm_gas.Makefile_edited"
+sed -i "/^ *CC= / s/ [^# ]/ \"${mpicc//\//\\/}\"/" "${this_dir}/lcdm_gas.Makefile_edited"
 path="${mpi_includedir}"
-sed -i "/^ *MPI_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+sed -i "/^ *MPI_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\"/" "${this_dir}/lcdm_gas.Makefile_edited"
 path="${mpi_libdir}"
 MPI_LIBS="\"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\""
 if [ -d "${mpi_symlinkdir}" ]; then
-    MPI_LIBS="${MPI_LIBS} \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\""
+    MPI_LIBS="${MPI_LIBS} \"-L${mpi_symlinkdir//\//\\/}\" -Wl,\"-rpath=${mpi_symlinkdir//\//\\/}\""
 fi
 current_dir="$(pwd)"
 cd "${path}"
@@ -76,17 +76,17 @@ if [ "${mpi_lib_found}" == "False" ]; then
     done
 fi
 cd "${current_dir}"
-sed -i "/^ *MPI_LIBS= / s/ [^# ]/ ${MPI_LIBS}/" "${this_dir}/Makefile_gadget_edited"
+sed -i "/^ *MPI_LIBS= / s/ [^# ]/ ${MPI_LIBS}/" "${this_dir}/lcdm_gas.Makefile_edited"
 path="${gsl_dir}/include"
-sed -i "/^ *GSL_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+sed -i "/^ *GSL_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\"/" "${this_dir}/lcdm_gas.Makefile_edited"
 path="${gsl_dir}/lib"
 sed -i "/^ *GSL_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" \
-       "${this_dir}/Makefile_gadget_edited"
+       "${this_dir}/lcdm_gas.Makefile_edited"
 path="${fftw_for_gadget_dir}/include"
-sed -i "/^ *FFTW_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
+sed -i "/^ *FFTW_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\"/" "${this_dir}/lcdm_gas.Makefile_edited"
 path="${fftw_for_gadget_dir}/lib"
 sed -i "/^ *FFTW_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" \
-       "${this_dir}/Makefile_gadget_edited"
+       "${this_dir}/lcdm_gas.Makefile_edited"
 
 # Copy the IC file and outputlist file from the gadget installation
 cp "${gadget_dir}/ICs/lcdm_gas_littleendian.dat" \
