@@ -344,10 +344,10 @@ set_version "blas"            "0.3.5"  "0.3.5"
 set_version "class"           "2.7.1"
 set_version "fftw"            "3.3.8"  "3.3.8"
 set_version "fftw_for_gadget" "2.1.5"  "2.1.5"   # Do not change
-set_version "freetype"        "2.9.1"  "2.9.1"
+set_version "freetype"        "2.10.0" "2.10.0"
 set_version "gadget"          "2.0.7"            # Do not change
 set_version "gsl"             "2.5"    "2.5"
-set_version "hdf5"            "1.10.4" "1.10.4"
+set_version "hdf5"            "1.10.5" "1.10.5"
 set_version "libffi"          "3.2.1"  "3.2.1"
 set_version "libpng"          "1.6.36" "1.6.33"
 if [ "${mpi}" == "mpich" ]; then
@@ -356,20 +356,20 @@ elif [ "${mpi}" == "openmpi" ]; then
     set_version "mpi"         "3.1.2"  # 4.0.0 is out!
 fi
 set_version "ncurses"         "6.1"    "6.1"
-set_version "openssl"         "1.1.1a" "1.1.1a"
+set_version "openssl"         "1.1.1b" "1.1.1b"
 set_version "perl"            "5.28.1"
-set_version "python"          "3.7.2"
+set_version "python"          "3.7.3"
 set_version "zlib"            "1.2.11" "1.2.11"
 # Python packages
 set_version "blessings"       "1.7"
-set_version "cython"          "0.29.5"
+set_version "cython"          "0.29.6"
 set_version "cythongsl"       "0.2.2"
 set_version "h5py"            "2.9.0"
-set_version "matplotlib"      "3.0.2"
+set_version "matplotlib"      "3.0.3"
 set_version "mpi4py"          "3.0.1"
-set_version "numpy"           "1.16.1"
+set_version "numpy"           "1.16.2"
 set_version "pip"             "19.0.3"
-set_version "pytest"          "4.3.0"
+set_version "pytest"          "4.4.0"
 set_version "scipy"           "1.2.1"
 set_version "setuptools"      "40.8.0"
 set_version "wheel"           "0.33.1"
@@ -1626,9 +1626,13 @@ check_pypackage_installed(){
     "${python}" -c "
 from time import sleep
 try:
-    # CythonGSL has an extra underscore when importing
     if '${1}' == 'cythongsl':
+        # CythonGSL has an extra underscore when importing
         import cython_gsl
+    elif '${1}' == 'mpi4py':
+        # For MPI4Py we do a more thorough test
+        import mpi4py
+        from mpi4py import MPI
     else:
         import ${1}
     sleep(1)
@@ -3182,6 +3186,7 @@ use_specified_mpi_compilers(){
             "libmpich.so"    "libmpi_dbg.so.5"   \
             "libmpichcxx.so" "libmpigc4.so.5"    \
             "libmpichf90.so" "libmpigf.so.5"     \
+            "libmpi.so"      "libmpi.so.12"      \
         )
         any_mpi_symlinks="False"
         for ((mpi_symlink_index=0; mpi_symlink_index<${#mpi_symlink_pairs[@]}; \
@@ -3201,6 +3206,79 @@ use_specified_mpi_compilers(){
             export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${mpi_symlinkdir}"
         else
             rm -rf "${mpi_symlinkdir}"
+        fi
+        # Test whether the MPI environment is sane.
+        # If not, a warning will be printed,
+        # but the installation will carry on regardless.
+        current_dir="$(pwd)"
+        MPI_LIBS_backup="${MPI_LIBS}"
+        if [ -d "${mpi_libdir}" ]; then
+            MPI_LIBS="${MPI_LIBS} -L${mpi_libdir} -Wl,-rpath=${mpi_libdir}"
+        fi
+        if [ -d "${mpi_symlinkdir}" ]; then
+            MPI_LIBS="${MPI_LIBS} -L${mpi_symlinkdir} -Wl,-rpath=${mpi_symlinkdir}"
+        fi
+        if [ -d "${mpi_libdir}" ]; then
+            cd "${mpi_libdir}"
+            mpi_lib_found="False"
+            for f in *; do
+                if [[ "${f}" == libmpi.* ]]; then
+                    MPI_LIBS="${MPI_LIBS} -lmpi"
+                    mpi_lib_found="True"
+                    break
+                fi
+            done
+            if [ "${mpi_lib_found}" == "False" ]; then
+                for f in *; do
+                    if [[ "${f}" == libmpich.* ]]; then
+                        MPI_LIBS="${MPI_LIBS} -lmpich"
+                        mpi_lib_found="True"
+                        break
+                    fi
+                done
+            fi
+            cd "${current_dir}"
+        fi
+        mpi_test_dir="${top_dir}/tmp/mpi_test"
+        rm -rf "${mpi_test_dir}" || :
+        mkdir -p "${mpi_test_dir}"
+        cd "${mpi_test_dir}"
+        echo '
+#include <mpi.h>
+#include <stdio.h>
+int main(int argc, char *argv[]) {
+  MPI_Init(&argc, &argv);
+  int master_rank = 0;
+  int rank, number, sum;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  if (rank == 0) {
+    number = 22;
+    MPI_Send(&number, 1, MPI_INT, 1, 0, MPI_COMM_WORLD);
+  } else if (rank == 1) {
+    MPI_Recv(&number, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+  } else {
+    number = -1;
+  }
+  MPI_Reduce(&number, &sum, 1, MPI_INT, MPI_SUM, master_rank, MPI_COMM_WORLD);
+  if (rank == 0){
+    printf("%d\n", sum);
+  }
+  MPI_Finalize();
+  return 0;
+}
+' > "test.c"
+        mpicc ${CFLAGS} -c -o "test.o" "test.c" >/dev/null 2>&1 || :
+        mpicc "test.o" -o "test" ${LDFLAGS} ${MPI_LIBS} >/dev/null 2>&1 || :
+        mpi_environment_test_success="False"
+        mpi_environment_result="$("${mpi_bindir}/mpiexec" -n 4 "./test" 2>/dev/null || :)"
+        if [ "${mpi_environment_result}" == "42" ]; then
+            mpi_environment_test_success="True"
+        fi
+        cd "${current_dir}"
+        rm -rf "${mpi_test_dir}" || :
+        MPI_LIBS="${MPI_LIBS_backup}"
+        if [ "${mpi_environment_test_success}" == "False" ]; then
+            printf "\n\nWarning: The MPI environment does not appear sane!\n\n"
         fi
     fi
 }
@@ -4541,53 +4619,74 @@ fi
 if [ "${fftw_install}" == "True" ] && [ "${fftw_installed}" == "False" ]; then
     install_success="False"
     fftw_test_success_backup="${fftw_test_success}"
-    # Attempt to configure using multiple MPI link flags
-    for extra_MPILIBS in "" "-lmpi" "-lmpich"; do
-        reset_environment
-        init_install "FFTW"
-        # Set environment variables and configure options used
-        # when building againts MPI.
-        enable_mpi=""
-        if [ -n "${mpi_dir}" ]; then
-            use_specified_mpi_compilers
-            export CFLAGS="-O3 -fPIC ${CFLAGS}"
-            export CPPFLAGS="-I${mpi_includedir} ${CPPFLAGS}"
-            export LDFLAGS="-L${mpi_libdir} ${LDFLAGS}"
-            export MPICC="${CC}"
-            enable_mpi="--enable-mpi"
-        elif [ -n "${extra_MPILIBS}" ]; then
+    enable_mpi=""
+    if [ -n "${mpi_dir}" ]; then
+        enable_mpi="--enable-mpi"
+    fi
+    for enable_shared in "--enable-shared" ""; do
+        for shared in "" "-shared"; do
+            if [ -z "${enable_shared}" ] && [ -n "${shared}" ]; then
+                continue
+            fi
+            for with_pic in "" "--with-pic"; do
+                for PIC in "-fPIC" ""; do
+                    for extra_MPILIBS in "" "-lmpi" "-lmpich"; do
+                        if [ -z "${enable_mpi}" ] && [ -n "${extra_MPILIBS}" ]; then
+                            continue
+                        fi
+                        reset_environment
+                        init_install "FFTW"
+                        printf "
+Attempting to install FFTW with enable_shared=${enable_shared}, with_pic=${with_pic}, \
+PIC=${PIC}, shared=${shared}, extra_MPILIBS=${extra_MPILIBS}\n\n"
+                        export CFLAGS="-O3 ${PIC} ${CFLAGS}"
+                        export LDFLAGS="${LDFLAGS} ${shared} ${PIC}"
+                        if [ -n "${enable_mpi}" ]; then
+                            use_specified_mpi_compilers
+                            export MPICC="${CC}"
+                            export MPILIBS="${extra_MPILIBS} ${MPILIBS}"
+                        fi
+                        # Double-precision
+                        ./configure ${enable_shared}  \
+                                    ${enable_mpi}     \
+                                    --disable-fortran \
+                                    ${with_pic}       \
+                                    --prefix="${fftw_dir}" 2>&1 || continue
+                        make ${make_jobs} 2>&1 || continue
+                        if [ "${do_tests}" == "True" ]; then
+                            make ${make_jobs} check 2>&1 | tee "test_log"
+                            fftw_test_success="${fftw_test_success_backup}"
+                            [ ${PIPESTATUS[0]} -eq 0 ] || fftw_test_success="False"
+                        fi
+                        make ${make_jobs} install 2>&1 || continue
+                        # Single-precision
+                        make clean || :
+                        ./configure ${enable_shared}  \
+                                    ${enable_mpi}     \
+                                    --enable-float    \
+                                    --disable-fortran \
+                                    ${with_pic}       \
+                                    --prefix="${fftw_dir}" 2>&1 || continue
+                        make ${make_jobs}         2>&1 || continue
+                        make ${make_jobs} install 2>&1 || continue
+                        install_success="True"
+                        break
+                    done
+                    if [ "${install_success}" == "True" ]; then
+                        break
+                    fi
+                done
+                if [ "${install_success}" == "True" ]; then
+                    break
+                fi
+            done
+            if [ "${install_success}" == "True" ]; then
+                break
+            fi
+        done
+        if [ "${install_success}" == "True" ]; then
             break
         fi
-        # Double-precision
-        if [ -n "${enable_mpi}" ]; then
-            export MPILIBS="${extra_MPILIBS} ${MPILIBS}"
-            printf "
-Attempting to configure FFTW with extra_MPILIBS=${extra_MPILIBS}\n\n"
-        fi
-        ./configure --enable-shared  \
-                    ${enable_mpi}    \
-                    --enable-openmp  \
-                    --enable-threads \
-                    --prefix="${fftw_dir}" 2>&1 || continue
-        make ${make_jobs} 2>&1 || continue
-        if [ "${do_tests}" == "True" ]; then
-            make ${make_jobs} check 2>&1 | tee "test_log"
-            fftw_test_success="${fftw_test_success_backup}"
-            [ ${PIPESTATUS[0]} -eq 0 ] || fftw_test_success="False"
-        fi
-        make ${make_jobs} install 2>&1 || continue
-        # Single-precision
-        make clean || :
-        ./configure --enable-shared        \
-                    ${enable_mpi}          \
-                    --enable-openmp        \
-                    --enable-threads       \
-                    --prefix="${fftw_dir}" \
-                    --enable-float 2>&1 || continue
-        make ${make_jobs}         2>&1 || continue
-        make ${make_jobs} install 2>&1 || continue
-        install_success="True"
-        break
     done
     if [ "${install_success}" == "False" ]; then
         error "Failed to install FFTW"
@@ -5250,7 +5349,18 @@ pip_install_pypackage(){
     # but it will eventually get going. This happens often for
     # particular packages, such as h5py. When this is the case,
     # write a soothing message.
-    for extra_pip_arg in "" "--no-build-isolation"; do
+    for extra_pip_arg in ""    \
+        "--no-build-isolation" \
+        "--no-cache-dir"       \
+        "--no-build-isolation --no-cache-dir"; do
+        if [ -n "${extra_pip_arg}" ]; then
+            printf "\npip failed to install ${1}. Now trying with ${extra_pip_arg}\n\n"
+            rm -rf "${tmp_pip_dir}" || :
+            cp -r "${tmp_pip_dir}_cp" "${tmp_pip_dir}"
+        fi
+        if [ -z "${upgrade_flag}" ]; then
+            "${python}" -m pip uninstall "${pypackage}" -y >/dev/null 2>&1 || :
+        fi
         "${python}" -m pip install -v -v -v                          \
                                    ${extra_pip_arg}                  \
                                    -b "${tmp_pip_dir}/build"         \
@@ -5264,27 +5374,38 @@ pip_install_pypackage(){
         if [ "${pypackage_installed}" == "True" ]; then
             break
         fi
-        if [ -z "${extra_pip_arg}" ]; then
-            printf "\npip failed to install ${1}. Now trying with --no-build-isolation\n\n"
-            rm -rf "${tmp_pip_dir}" || :
-            cp -r "${tmp_pip_dir}_cp" "${tmp_pip_dir}"
-        fi
     done
     rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_cp" || :
     # If we failed to install the Python package, try installing it
     # via pip without using any additional arguments.
     if [ "${pypackage_installed}" == "False" ]; then
         printf "\npip could not install/upgrade ${1}, neither with or without \
---no-build-isolation\nNow trying without specifying any extra arguments to pip\n\n"
+--no-build-isolation and --no-cache-dir\nNow trying without specifying any \
+extra arguments to pip\n\n"
+        if [ -z "${upgrade_flag}" ]; then
+            "${python}" -m pip uninstall "${pypackage}" -y >/dev/null 2>&1 || :
+        fi
         "${python}" -m pip install "${pypackage}${command_end}" 2>&1 & pip_install_pid=$!
+        soothe ${pip_install_pid}
+        pypackage_installed=$(check_pypackage_installed ${pypackage})
+    fi
+    # If we still fail, try with just the --no-cache-dir argument
+    if [ "${pypackage_installed}" == "False" ]; then
+        printf "\npip could not install/upgrade ${1} using no additional arguments\n\
+Now trying with just --no-cache-dir\n\n"
+        if [ -z "${upgrade_flag}" ]; then
+            "${python}" -m pip uninstall "${pypackage}" -y >/dev/null 2>&1 || :
+        fi
+        "${python}" -m pip install --no-cache-dir \
+            "${pypackage}${command_end}" 2>&1 & pip_install_pid=$!
         soothe ${pip_install_pid}
         pypackage_installed=$(check_pypackage_installed ${pypackage})
     fi
     reset_environment
     # Exit on failure
     if [ "${pypackage_installed}" != "True" ]; then
-        error "pip could not install/upgrade ${1}"
-        exit 1
+        echo "pip could not install/upgrade ${1}"
+        return 1
     fi
     rm -rf "${tmp_pip_dir}_tmp" || :
 }
@@ -5874,19 +5995,47 @@ fi
 
 # MPI4Py
 if [ "${mpi4py_install}" == "True" ] && [ "${mpi4py_installed}" == "False" ]; then
-    export PATH="${mpi_bindir}:${mpi_compilerdir}:${PATH}"
-    pip_install_pypackage "MPI4Py" "${mpi4py_version}"
+    install_success="False"
+    for fun in "use_specified_mpi_compilers" ""; do
+        reset_environment
+        if [ -n "${fun}" ]; then
+            eval "${fun}"
+        fi
+        export PATH="${mpi_bindir}:${mpi_compilerdir}:${PATH}"
+        pip_install_pypackage "MPI4Py" "${mpi4py_version}" || continue
+        install_success="True"
+        break
+    done
+    if [ "${install_success}" == "False" ]; then
+        error "Failed to install MPI4Py"
+        exit 1
+    fi
     reset_environment
 fi
 
 # H5Py
 if [ "${h5py_install}" == "True" ] && [ "${h5py_installed}" == "False" ]; then
-    export LD_LIBRARY_PATH="${hdf5_dir}/lib:${LD_LIBRARY_PATH}"
-    export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
-    export HDF5_DIR="${hdf5_dir}"
-    export HDF5_MPI="ON"
-    export CC="${mpicc}"
-    pip_install_pypackage "h5py" "${h5py_version}"
+    install_success="False"
+    for fun in "use_specified_mpi_compilers" ""; do
+        reset_environment
+        if [ -n "${fun}" ]; then
+            eval "${fun}"
+        fi
+        export LD_LIBRARY_PATH="${hdf5_dir}/lib:${LD_LIBRARY_PATH}"
+        if [ -d "${blas_dir}/lib" ]; then
+            export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
+        fi
+        export HDF5_DIR="${hdf5_dir}"
+        export HDF5_MPI="ON"
+        export CC="${mpicc}"
+        pip_install_pypackage "h5py" "${h5py_version}" || continue
+        install_success="True"
+        break
+    done
+    if [ "${install_success}" == "False" ]; then
+        error "Failed to install H5Py"
+        exit 1
+    fi
     reset_environment
 fi
 
@@ -6862,73 +7011,91 @@ if [ "${fftw_for_gadget_install}" == "True" ] \
     && [ "${fftw_for_gadget_installed}" == "False" ]; then
     install_success="False"
     fftw_for_gadget_test_success_backup="${fftw_for_gadget_test_success}"
-    # Attempt to configure using multiple MPI link flags
-    for extra_MPILIBS in "" "-lmpi" "-lmpich"; do
-        reset_environment
-        init_install "FFTW for GADGET"
-        # Set environment variables and configure options used
-        # when building againts MPI.
-        enable_mpi=""
-        if [ -n "${mpi_dir}" ]; then
-            use_specified_mpi_compilers
-            export CFLAGS="-O3 -fPIC ${CFLAGS}"
-            export CPPFLAGS="-I${mpi_includedir} ${CPPFLAGS}"
-            export LDFLAGS="-L${mpi_libdir} ${LDFLAGS}"
-            export MPICC="${CC}"
-            enable_mpi="--enable-mpi"
-        elif [ -n "${extra_MPILIBS}" ]; then
+    enable_mpi=""
+    if [ -n "${mpi_dir}" ]; then
+        enable_mpi="--enable-mpi"
+    fi
+    for enable_shared in "--enable-shared" ""; do
+        for shared in "" "-shared"; do
+            if [ -z "${enable_shared}" ] && [ -n "${shared}" ]; then
+                continue
+            fi
+            for with_pic in "" "--with-pic"; do
+                for PIC in "-fPIC" ""; do
+                    for extra_MPILIBS in "" "-lmpi" "-lmpich"; do
+                        reset_environment
+                        init_install "FFTW for GADGET"
+                        printf "
+Attempting to install FFTW for GADGET with enable_shared=${enable_shared}, with_pic=${with_pic}, \
+PIC=${PIC}, shared=${shared}, extra_MPILIBS=${extra_MPILIBS}\n\n"
+                        export CFLAGS="-O3 ${PIC} ${CFLAGS}"
+                        export LDFLAGS="${LDFLAGS} ${shared} ${PIC}"
+                        if [ -n "${enable_mpi}" ]; then
+                            use_specified_mpi_compilers
+                            export MPICC="${CC}"
+                            export MPILIBS="${extra_MPILIBS} ${MPILIBS}"
+                        fi
+                        # Intel compilers may link against the NUMA library, which should be
+                        # placed in /usr/lib64. Add this directory to the LDFLAGS.
+                        # Both libnuma.so and libnuma.so.1 should exist. To be sure,
+                        # we create symlinks to these in a new directory and add this
+                        # directory to LDFLAGS as well.
+                        if [ -d "/usr/lib64" ]; then
+                            export LDFLAGS="${LDFLAGS} -L/usr/lib64"
+                        fi
+                        numa_symlink_dir="${fftw_for_gadget_dir}/numa_symlinks"
+                        rm -rf "${numa_symlink_dir}" || :
+                        mkdir -p "${numa_symlink_dir}" || :
+                        if [ -f "/usr/lib64/libnuma.so" ] && [ ! -f "/usr/lib64/libnuma.so.1" ]; then
+                            ln -s "/usr/lib64/libnuma.so" "${numa_symlink_dir}/libnuma.so.1" || :
+                        fi
+                        if [ -f "/usr/lib64/libnuma.so.1" ] && [ ! -f "/usr/lib64/libnuma.so" ]; then
+                            ln -s "/usr/lib64/libnuma.so.1" "${numa_symlink_dir}/libnuma.so" || :
+                        fi
+                        export LDFLAGS="${LDFLAGS} -L${numa_symlink_dir}"
+                        # Double-precision
+                        ./configure ${enable_shared}     \
+                                    ${enable_mpi}        \
+                                    --enable-type-prefix \
+                                    --disable-fortran    \
+                                    ${with_pic}          \
+                                    --prefix="${fftw_for_gadget_dir}" 2>&1 || continue
+                        make ${make_jobs} 2>&1 || continue
+                        if [ "${do_tests}" == "True" ]; then
+                            make ${make_jobs} check 2>&1 | tee "test_log"
+                            fftw_for_gadget_test_success="${fftw_for_gadget_test_success_backup}"
+                            [ ${PIPESTATUS[0]} -eq 0 ] || fftw_for_gadget_test_success="False"
+                        fi
+                        make ${make_jobs} install 2>&1 || continue
+                        # Single-precision
+                        make clean || :
+                        ./configure ${enable_shared}     \
+                                    ${enable_mpi}        \
+                                    --enable-float       \
+                                    --enable-type-prefix \
+                                    --disable-fortran    \
+                                    ${with_pic}          \
+                                    --prefix="${fftw_for_gadget_dir}" 2>&1 || continue
+                        make ${make_jobs}         2>&1 || continue
+                        make ${make_jobs} install 2>&1 || continue
+                        install_success="True"
+                        break
+                    done
+                    if [ "${install_success}" == "True" ]; then
+                        break
+                    fi
+                done
+                if [ "${install_success}" == "True" ]; then
+                    break
+                fi
+            done
+            if [ "${install_success}" == "True" ]; then
+                break
+            fi
+        done
+        if [ "${install_success}" == "True" ]; then
             break
         fi
-        # Intel compilers may link against the NUMA library, which should be
-        # placed in /usr/lib64. Add this directory to the LDFLAGS.
-        # Both libnuma.so and libnuma.so.1 should exist. To be sure,
-        # we create symlinks to these in a new directory and add this
-        # directory to LDFLAGS as well.
-        if [ -d "/usr/lib64" ]; then
-            export LDFLAGS="${LDFLAGS} -L/usr/lib64"
-        fi
-        numa_symlink_dir="${fftw_for_gadget_dir}/numa_symlinks"
-        rm -rf "${numa_symlink_dir}" || :
-        mkdir -p "${numa_symlink_dir}" || :
-        if [ -f "/usr/lib64/libnuma.so" ] && [ ! -f "/usr/lib64/libnuma.so.1" ]; then
-            ln -s "/usr/lib64/libnuma.so" "${numa_symlink_dir}/libnuma.so.1" || :
-        fi
-        if [ -f "/usr/lib64/libnuma.so.1" ] && [ ! -f "/usr/lib64/libnuma.so" ]; then
-            ln -s "/usr/lib64/libnuma.so.1" "${numa_symlink_dir}/libnuma.so" || :
-        fi
-        export LDFLAGS="${LDFLAGS} -L${numa_symlink_dir}"
-        # Double-precision
-        if [ -n "${enable_mpi}" ]; then
-            export MPILIBS="${extra_MPILIBS} ${MPILIBS_backup}"
-            printf "
-Attempting to configure FFTW for GADGET with extra_MPILIBS=${extra_MPILIBS}\n\n"
-        fi
-        ./configure --enable-shared      \
-                    ${enable_mpi}        \
-                    --enable-openmp      \
-                    --enable-threads     \
-                    --enable-type-prefix \
-                    --prefix="${fftw_for_gadget_dir}" 2>&1 || continue
-        make ${make_jobs} 2>&1 || continue
-        if [ "${do_tests}" == "True" ]; then
-            make ${make_jobs} check 2>&1 | tee "test_log"
-            fftw_for_gadget_test_success="${fftw_for_gadget_test_success_backup}"
-            [ ${PIPESTATUS[0]} -eq 0 ] || fftw_for_gadget_test_success="False"
-        fi
-        make ${make_jobs} install 2>&1 || continue
-        # Single-precision
-        make clean || :
-        ./configure --enable-shared      \
-                    ${enable_mpi}        \
-                    --enable-openmp      \
-                    --enable-threads     \
-                    --enable-float       \
-                    --enable-type-prefix \
-                    --prefix="${fftw_for_gadget_dir}" 2>&1 || continue
-        make ${make_jobs}         2>&1 || continue
-        make ${make_jobs} install 2>&1 || continue
-        install_success="True"
-        break
     done
     if [ "${install_success}" == "False" ]; then
         error "Failed to install FFTW for GADGET"
