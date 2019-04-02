@@ -74,7 +74,7 @@ sed -i "/^ *MPI_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\"/" "${this_dir}/Makefile_
 path="${mpi_libdir}"
 MPI_LIBS="\"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\""
 if [ -d "${mpi_symlinkdir}" ]; then
-    MPI_LIBS="${MPI_LIBS} \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\""
+    MPI_LIBS="${MPI_LIBS} \"-L${mpi_symlinkdir//\//\\/}\" -Wl,\"-rpath=${mpi_symlinkdir//\//\\/}\""
 fi
 current_dir="$(pwd)"
 cd "${path}"
