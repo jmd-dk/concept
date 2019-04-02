@@ -1391,7 +1391,11 @@ nor anywhere in the PATH"
             fi
         fi
         # Set mpi_dir
-        mpi_dir_cancidates=("${mpi_bindir}" "${mpi_libdir}" "${mpi_includedir}")
+        mpi_dir_cancidates=(                     \
+            "$(readlink -f "${mpi_bindir}"    )" \
+            "$(readlink -f "${mpi_libdir}"    )" \
+            "$(readlink -f "${mpi_includedir}")" \
+        )
         N=${#mpi_dir_cancidates[@]}
         length="${#mpi_dir_cancidates[0]}"
         different="False"
@@ -1417,6 +1421,12 @@ nor anywhere in the PATH"
             if [[ "${mpi_dir}" != *"/" ]]; then
                 mpi_dir="$(dirname "${mpi_dir}")"
             fi
+        fi
+        if [ -f "${mpi_dir}" ]; then
+            mpi_dir="$(dirname "${mpi_dir}")"
+        fi
+        if [ "$(basename "${mpi_dir}")" == "bin" ]; then
+            mpi_dir="$(dirname "${mpi_dir}")"
         fi
     fi
     if [ "${progname}" == 'ncurses' ] && [ "${ncurses_preinstalled}" == "True" ]; then
@@ -3303,7 +3313,7 @@ int main(int argc, char *argv[]) {
   }
   MPI_Reduce(&number, &sum, 1, MPI_INT, MPI_SUM, master_rank, MPI_COMM_WORLD);
   if (rank == 0){
-    printf("%d\n", sum);
+    printf("\nMPI test result = %d\n", sum);
   }
   MPI_Finalize();
   return 0;
@@ -3312,7 +3322,8 @@ int main(int argc, char *argv[]) {
         mpicc ${CFLAGS} -c -o "test.o" "test.c" >/dev/null 2>&1 || :
         mpicc "test.o" -o "test" ${LDFLAGS} ${MPI_LIBS} >/dev/null 2>&1 || :
         mpi_environment_test_success="False"
-        mpi_environment_result="$("${mpi_bindir}/mpiexec" -n 4 "./test" 2>/dev/null || :)"
+        mpi_environment_result="$("${mpi_bindir}/mpiexec" -n 4 "./test" 2>/dev/null \
+            | grep 'MPI test result =' | awk '{print $NF}' || :)"
         if [ "${mpi_environment_result}" == "42" ]; then
             mpi_environment_test_success="True"
         fi

@@ -267,15 +267,26 @@ except:
 
 # Determine the MPI implentation and version
 if [ -f "${mpi_bindir}/ompi_info" ] || [ -f "${mpi_compilerdir}/ompi_info" ]; then
+    # OpenMPI
     mpi_implementation="openmpi"
     mpi_version="$("${mpiexec}" --version | head -n 1 | awk '{print $NF}')"
-elif [ -f "${mpi_bindir}/mpichversion" ]; then
-    mpi_implementation="mpich"
-    mpi_version="$("${mpi_bindir}/mpichversion" | head -n 1 | awk '{print $NF}')"
-elif [ -f "${mpi_compilerdir}/mpichversion" ]; then
-    mpi_implementation="mpich"
-    mpi_version="$("${mpi_compilerdir}/mpichversion" | head -n 1 | awk '{print $NF}')"
+elif [ -f "${mpi_bindir}/mpichversion" ] || [ -f "${mpi_compilerdir}/mpichversion" ]; then
+    # MPICH or MVAPICH
+    for f in "${mpi_bindir}/mpichversion" "${mpi_compilerdir}/mpichversion"; do
+        if [ -f "${f}" ]; then
+            line="$("${mpi_bindir}/mpichversion" | head -n 1)"
+            mpi_implementation="$(echo "${line}" | awk '{print $1}' | tr '[:upper:]' '[:lower:]')"
+            if [[ "${mpi_implementation}" == "mvapich"* ]]; then
+                mpi_implementation="mvapich"
+            else
+                mpi_implementation="mpich"
+            fi
+            mpi_version="$(echo "${line}" | awk '{print $NF}')"
+            break
+        fi
+    done
 else
+    # Unknown MPI implementation
     mpi_implementation="unknown"
     mpi_version="unknown"
 fi
@@ -284,27 +295,31 @@ fi
 mpiexec_args=""
 if [ "${mpi_implementation}" == "openmpi" ]; then
     # Extra arguments to pass to OpenMPI's mpiexec.
-    # By default, newer versions of OpenMPI binds processes to sockets
-    # (for nprocs > 2), which means that OpenMP threads are not
-    # necessarily assigned to cores in a one-to-one fashion.
-    # Fix this by simply removing this binding.
-    export OMPI_MCA_hwloc_base_binding_policy=none
     # In OpenMPI 3, oversubscription (having more MPI processes than
     # physical cores) is disallowed by default.
     if [[ "${mpi_version}" == 3* ]]; then
         mpiexec_args="${mpiexec_args} --oversubscribe"
     fi
+    # If OpenMPI complains about openib, it may be having problems
+    # with infiniband. Try adding "-mca btl ^openib" to mpiexec_args.
+    # By default, newer versions of OpenMPI binds processes to sockets
+    # (for nprocs > 2), which means that OpenMP threads are not
+    # necessarily assigned to cores in a one-to-one fashion.
+    # Fix this by simply removing this binding.
+    export OMPI_MCA_hwloc_base_binding_policy=none
     # Disable aggregation of OpenMPI warnings.
     export OMPI_MCA_orte_base_help_aggregate=0
     # Disable OpenMPI warning about forking
     export OMPI_MCA_mpi_warn_on_fork=0
-    # If OpenMPI complains about openib, it may be having problems
-    # with infiniband. Try adding "-mca btl ^openib" to mpiexec_args.
-    # Note that --prefix should not be used,
-    # as the absolute path to mpiexec is given.
 elif [ "${mpi_implementation}" == "mpich" ]; then
     # Extra arguments to pass to MPICH's mpiexec
-    :
+    mpiexec_args=""
+elif [ "${mpi_implementation}" == "mvapich" ]; then
+    # Extra arguments to pass to MVAPICH's mpiexec
+    mpiexec_args=""
+    # Disable automatic process binding, allowing OpenMP threads to be
+    # assigned to cores in a one-to-one fashion.
+    MV2_ENABLE_AFFINITY=0
 fi
 
 # Function which prints the resource manager.
