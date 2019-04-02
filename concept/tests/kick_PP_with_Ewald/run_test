@@ -72,30 +72,10 @@ sed -i "/^ *CC= / s/ [^# ]/ \"${mpicc//\//\\/}\"/" "${this_dir}/Makefile_gadget_
 path="${mpi_includedir}"
 sed -i "/^ *MPI_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"
 path="${mpi_libdir}"
-MPI_LIBS="\"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\""
+MPI_LIBS="\"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\" -lmpi"
 if [ -d "${mpi_symlinkdir}" ]; then
     MPI_LIBS="${MPI_LIBS} \"-L${mpi_symlinkdir//\//\\/}\" -Wl,\"-rpath=${mpi_symlinkdir//\//\\/}\""
 fi
-current_dir="$(pwd)"
-cd "${path}"
-mpi_lib_found="False"
-for f in *; do
-    if [[ "${f}" == libmpi.* ]]; then
-        MPI_LIBS="${MPI_LIBS} -lmpi"
-        mpi_lib_found="True"
-        break
-    fi
-done
-if [ "${mpi_lib_found}" == "False" ]; then
-    for f in *; do
-        if [[ "${f}" == libmpich.* ]]; then
-            MPI_LIBS="${MPI_LIBS} -lmpich"
-            mpi_lib_found="True"
-            break
-        fi
-    done
-fi
-cd "${current_dir}"
 sed -i "/^ *MPI_LIBS= / s/ [^# ]/ ${MPI_LIBS}/" "${this_dir}/Makefile_gadget_edited"
 path="${gsl_dir}/include"
 sed -i "/^ *GSL_INCL= / s/ [^# ]/ \"-I${path//\//\\/}\"/" "${this_dir}/Makefile_gadget_edited"

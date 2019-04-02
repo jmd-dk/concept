@@ -223,14 +223,9 @@ else
     gsl_blas_libs = -lgslcblas
 endif
 gsl_libs = -L$(gsl_dir)/lib -Wl,-rpath=$(gsl_dir)/lib -lgsl $(blas_libs) $(gsl_blas_libs) -lm
-mpi_libs = -L$(mpi_libdir) -Wl,-rpath=$(mpi_libdir)
+mpi_libs = -L$(mpi_libdir) -Wl,-rpath=$(mpi_libdir) -lmpi
 ifneq ("$(wildcard $(mpi_symlinkdir))","")
     mpi_libs += -L$(mpi_symlinkdir) -Wl,-rpath=$(mpi_symlinkdir)
-endif
-ifneq ("$(wildcard $(mpi_libdir)/libmpi.*)","")
-    mpi_libs += -lmpi
-else ifneq ("$(wildcard $(mpi_libdir)/libmpich.*)","")
-    mpi_libs = -lmpich
 endif
 python_libdir = $(shell $(python) -c "import sysconfig;                          \
                                       print(sysconfig.get_config_var('LIBDIR')); \

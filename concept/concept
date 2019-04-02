@@ -111,6 +111,11 @@ export LD_LIBRARY_PATH="${mpi_libdir}:${LD_LIBRARY_PATH}"
 # Additional symlinks to MPI libraries might be placed in mpi_symlinkdir
 if [ -d "${mpi_symlinkdir}" ]; then
     export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${mpi_symlinkdir}"
+    # If the special symlink named "ld_preload.so" is present
+    # in mpi_symlinkdir, we should include this symlink in LD_PRELOAD.
+    if [ -f "${mpi_symlinkdir}/ld_preload.so" ]; then
+        export LD_PRELOAD="${LD_PRELOAD} ${mpi_symlinkdir}/ld_preload.so"
+    fi
 fi
 
 # The time before any computation begins.

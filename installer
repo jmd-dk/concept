@@ -479,6 +479,7 @@ env_var_names=(BLAS             \
                HDF5_MPI         \
                LAPACK           \
                LD_LIBRARY_PATH  \
+               LD_PRELOAD       \
                LDFLAGS          \
                LIBS             \
                MPICC            \
@@ -3186,7 +3187,15 @@ use_specified_mpi_compilers(){
             "libmpich.so"    "libmpi_dbg.so.5"   \
             "libmpichcxx.so" "libmpigc4.so.5"    \
             "libmpichf90.so" "libmpigf.so.5"     \
+            "libmpi.so"      "libmpi.so"         \
+            "libmpi.so"      "libmpi.so.5"       \
             "libmpi.so"      "libmpi.so.12"      \
+            "libmpi.so.5"    "libmpi.so"         \
+            "libmpi.so.5"    "libmpi.so.5"       \
+            "libmpi.so.5"    "libmpi.so.12"      \
+            "libmpi.so.12"   "libmpi.so"         \
+            "libmpi.so.12"   "libmpi.so.5"       \
+            "libmpi.so.12"   "libmpi.so.12"      \
         )
         any_mpi_symlinks="False"
         for ((mpi_symlink_index=0; mpi_symlink_index<${#mpi_symlink_pairs[@]}; \
@@ -3204,6 +3213,39 @@ use_specified_mpi_compilers(){
         if [ "${any_mpi_symlinks}" == "True" ]; then
             export LDFLAGS="${LDFLAGS} -L${mpi_symlinkdir}"
             export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${mpi_symlinkdir}"
+            # Using MVAPICH2 together with Python (or Fortran) can cause
+            # trouble as described in section 9.1.1 of
+            # http://mvapich.cse.ohio-state.edu/static/media/mvapich/
+            # mvapich2-2.3b-userguide.html#x1-1280009.1.1
+            # Setting the LD_PRELOAD variable should fix this.
+            if [ ! -f "${mpi_symlinkdir}/ld_preload.so" ]; then
+                current_dir="$(pwd)"
+                cd "${mpi_symlinkdir}"
+                f_lib=""
+                n_lib=""
+                for f in *; do
+                    if [[ "${f}" == "libmpi.so"* ]]; then
+                        n="${f#*.}"
+                        if [ "${n}" == "so" ]; then
+                            f_lib="${f}"
+                            break
+                        fi
+                        n="${n#*.}"
+                        if [ -z "${n_lib}" ] || [[ "${n_lib}" == *"."* ]] \
+                            || [ "${n}" -lt "${n_lib}" ]; then
+                            f_lib="${f}"
+                            n_lib="${n}"
+                        fi
+                    fi
+                done
+                cd "${current_dir}"
+                if [ -n "${f_lib}" ]; then
+                    ln -s "${mpi_symlinkdir}/${f_lib}" "${mpi_symlinkdir}/ld_preload.so"
+                fi
+            fi
+            if [ -f "${mpi_symlinkdir}/ld_preload.so" ]; then
+                export LD_PRELOAD="${LD_PRELOAD} ${mpi_symlinkdir}/ld_preload.so"
+            fi
         else
             rm -rf "${mpi_symlinkdir}"
         fi
@@ -4640,6 +4682,7 @@ if [ "${fftw_install}" == "True" ] && [ "${fftw_installed}" == "False" ]; then
 Attempting to install FFTW with enable_shared=${enable_shared}, with_pic=${with_pic}, \
 PIC=${PIC}, shared=${shared}, extra_MPILIBS=${extra_MPILIBS}\n\n"
                         export CFLAGS="-O3 ${PIC} ${CFLAGS}"
+                        export CXXFLAGS="-O3 ${PIC} ${CXXFLAGS}"
                         export LDFLAGS="${LDFLAGS} ${shared} ${PIC}"
                         if [ -n "${enable_mpi}" ]; then
                             use_specified_mpi_compilers
@@ -7023,12 +7066,16 @@ if [ "${fftw_for_gadget_install}" == "True" ] \
             for with_pic in "" "--with-pic"; do
                 for PIC in "-fPIC" ""; do
                     for extra_MPILIBS in "" "-lmpi" "-lmpich"; do
+                        if [ -z "${enable_mpi}" ] && [ -n "${extra_MPILIBS}" ]; then
+                            continue
+                        fi
                         reset_environment
                         init_install "FFTW for GADGET"
                         printf "
 Attempting to install FFTW for GADGET with enable_shared=${enable_shared}, with_pic=${with_pic}, \
 PIC=${PIC}, shared=${shared}, extra_MPILIBS=${extra_MPILIBS}\n\n"
                         export CFLAGS="-O3 ${PIC} ${CFLAGS}"
+                        export CXXFLAGS="-O3 ${PIC} ${CXXFLAGS}"
                         export LDFLAGS="${LDFLAGS} ${shared} ${PIC}"
                         if [ -n "${enable_mpi}" ]; then
                             use_specified_mpi_compilers
