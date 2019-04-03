@@ -4248,7 +4248,7 @@ if [ "${zlib_install}" == "True" ] && [ "${zlib_installed}" == "False" ]; then
     install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        eval "use_${compiler}_compilers zlib"
+        eval "use_${compiler}_compilers zlib" || continue
         init_install "zlib"
         ./configure --shared --prefix="${zlib_dir}" 2>&1 || continue
         if [ "${do_tests}" == "True" ]; then
@@ -4279,7 +4279,7 @@ if [ "${libpng_install}" == "True" ] && [ "${libpng_installed}" == "False" ]; th
     install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        eval "use_${compiler}_compilers libpng"
+        eval "use_${compiler}_compilers libpng" || continue
         init_install "libpng"
         export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
         export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
@@ -4315,7 +4315,7 @@ if [ "${gsl_install}" == "True" ] && [ "${gsl_installed}" == "False" ]; then
     install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        eval "use_${compiler}_compilers GSL"
+        eval "use_${compiler}_compilers GSL" || continue
         init_install "GSL"
         ./configure --prefix="${gsl_dir}" 2>&1 || continue
         make ${make_jobs} 2>&1 || continue
@@ -4360,7 +4360,7 @@ if [ "${mpi_install}" == "True" ] && [ "${mpi_installed}" == "False" ]; then
     fi
     for compiler in "${compiler_possibilities_mpi[@]}"; do
         reset_environment
-        eval "use_${compiler}_compilers MPI"
+        eval "use_${compiler}_compilers MPI" || continue
         if [ "${mpi}" == "mpich" ]; then
             # MPICH
             init_install "MPI"
@@ -4762,7 +4762,7 @@ if [ "${freetype_install}" == "True" ] && [ "${freetype_installed}" == "False" ]
     install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        eval "use_${compiler}_compilers FreeType"
+        eval "use_${compiler}_compilers FreeType" || continue
         init_install "FreeType"
         ./configure --prefix="${freetype_dir}" \
                     --with-zlib=no             \
@@ -4791,7 +4791,7 @@ if [ "${ncurses_install}" == "True" ] && [ "${ncurses_installed}" == "False" ]; 
     install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        eval "use_${compiler}_compilers ncurses"
+        eval "use_${compiler}_compilers ncurses" || continue
         init_install "ncurses"
         # Due to a bug in (at least) ncurses 6.0, this is needed on
         # some systems. See https://trac.sagemath.org/ticket/19762
@@ -4840,86 +4840,99 @@ if [ "${perl_install}" == "True" ] && [ "${perl_installed}" == "False" ]; then
     # Thus, we try with# and witouth the -fPIC C flag.
     install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
-        for perl_poll_fix in "False" "True"; do
-            for perl_cflags in "" "-fPIC"; do
-                reset_environment
-                eval "use_${compiler}_compilers"
-                init_install "Perl"
-                printf "
-Attempting to install Perl with compiler=${compiler}, \
+        libimf_dumped="False"
+        for dump_libimf in "True" "False"; do
+            if [ "${dump_libimf}" == "False" ] && [ "${libimf_dumped}" == "False" ]; then
+                # libimf was not found, so dump_libimf == True is
+                # equivalent to dump_libimf == False.
+                continue
+            fi
+            for perl_poll_fix in "False" "True"; do
+                for perl_cflags in "" "-fPIC"; do
+                    reset_environment
+                    eval "use_${compiler}_compilers" || continue
+                    init_install "Perl"
+                    printf "
+Attempting to install Perl with compiler=${compiler}, dump_libimf=${dump_libimf}, \
 perl_poll_fix=${perl_poll_fix}, perl_cflags=${perl_cflags}\n\n"
-                # When an Intel C compiler is used, some libraries like
-                # libimf may not be found by the perl executable. We can
-                # fix this by dropping symlinks to all Intel libraries
-                # in the build directory. For whatever reason, updating
-                # to LD_LIBRARY_PATH has no effect.
-                if [ "${compiler}" == "intel" ]; then
-                    while IFS=':' read -ra library_paths; do
-                        for library_path in "${library_paths[@]}"; do
-                            is_intel_lib_dir="False"
-                            for f in "${library_path}"/*; do
-                                f_base="$(basename "${f}")"
-                                if     [[ "${f_base}" == libimf*.a    ]] \
-                                    || [[ "${f_base}" == libimf*.so   ]] \
-                                    || [[ "${f_base}" == libimd*.so.* ]]; then
-                                    is_intel_lib_dir="True"
-                                    break
+                    # When an Intel C compiler is used, some libraries
+                    # like libimf may not be found by the perl
+                    # executable. We can fix this by dropping symlinks
+                    # to all Intel libraries into the build directory.
+                    # For whatever reason, updating LD_LIBRARY_PATH
+                    # has no effect.
+                    if [ "${dump_libimf}" == "True" ]; then
+                        while IFS=':' read -ra library_paths; do
+                            for library_path in "${library_paths[@]}"; do
+                                is_intel_lib_dir="False"
+                                for f in "${library_path}"/*; do
+                                    f_base="$(basename "${f}")"
+                                    if     [[ "${f_base}" == libimf*.a    ]] \
+                                        || [[ "${f_base}" == libimf*.so   ]] \
+                                        || [[ "${f_base}" == libimd*.so.* ]]; then
+                                        is_intel_lib_dir="True"
+                                        break
+                                    fi
+                                done
+                                if [ "${is_intel_lib_dir}" == "False" ]; then
+                                    continue
                                 fi
+                                libimf_dumped="True"
+                                for f in "${library_path}"/*; do
+                                    f_base="$(basename "${f}")"
+                                    if (   [[ "${f_base}" == *.a    ]] \
+                                        || [[ "${f_base}" == *.so   ]] \
+                                        || [[ "${f_base}" == *.so.* ]] \
+                                       ) && [ ! -f "./${f_base}" ]; then
+                                        ln -s "${f}" ./ || :
+                                    fi
+                                done
                             done
-                            if [ "${is_intel_lib_dir}" == "False" ]; then
-                                continue
-                            fi
-                            for f in "${library_path}"/*; do
-                                f_base="$(basename "${f}")"
-                                if (   [[ "${f_base}" == *.a    ]] \
-                                    || [[ "${f_base}" == *.so   ]] \
-                                    || [[ "${f_base}" == *.so.* ]] \
-                                   ) && [ ! -f "./${f_base}" ]; then
-                                    ln -s "${f}" ./ || :
-                                fi
-                            done
-                        done
-                    done <<< "${LD_LIBRARY_PATH}"
-                fi
-                perl_config_options="-de -Dprefix=${perl_dir}"
-                if [ -n "${compiler}" ] && [ -n "${CC}" ]; then
-                    perl_config_options="${perl_config_options} -Dcc=${CC}"
-                fi
-                if [ -n "${perl_cflags}" ]; then
-                    perl_config_options="${perl_config_options} -Accflags=${perl_cflags}"
-                fi
-                ./Configure ${perl_config_options} 2>&1 || : continue
-                if [ "${perl_poll_fix}" == "True" ]; then
-                    sed -i 's/<poll\.h>/<sys\/poll\.h>/' 'dist/IO/poll.h' || continue
-                fi
-                make ${make_jobs} 2>&1 || continue
-                if [ "${do_tests}" == "True" ]; then
-                    # On some systems, the Perl test hangs indefinitely.
-                    # To counteract this, kill the process if it still
-                    # runs after ${perl_test_max_time} seconds.
-                    perl_test_max_time=3600
-                    (make ${make_jobs} test 2>&1 | tee "test_log") & perl_test_pid=$!
-                    soothe ${perl_test_pid} ${perl_test_max_time}
-                    sleep 1
-                    kill -9 ${perl_test_pid} >/dev/null 2>&1 || :
-                    wait    ${perl_test_pid} >/dev/null 2>&1 || :
-                    exit_code="$(wait ${perl_test_pid} >/dev/null 2>&1 || echo $?)"
-                    if [ -n "${exit_code}" ]; then
-                        perl_test_success="False"
+                        done <<< "${LD_LIBRARY_PATH}"
                     fi
-                    # The text "Failed" will be present in the test log
-                    # file if any of the tests failed.
-                    if grep 'Failed' "test_log" >/dev/null 2>&1; then
-                        perl_test_success="False"
+                    perl_config_options="-de -Dprefix=${perl_dir}"
+                    if [ -n "${compiler}" ] && [ -n "${CC}" ]; then
+                        perl_config_options="${perl_config_options} -Dcc=${CC}"
                     fi
+                    if [ -n "${perl_cflags}" ]; then
+                        perl_config_options="${perl_config_options} -Accflags=${perl_cflags}"
+                    fi
+                    ./Configure ${perl_config_options} 2>&1 || : continue
+                    if [ "${perl_poll_fix}" == "True" ]; then
+                        sed -i 's/<poll\.h>/<sys\/poll\.h>/' 'dist/IO/poll.h' || continue
+                    fi
+                    make ${make_jobs} 2>&1 || continue
+                    if [ "${do_tests}" == "True" ]; then
+                        # On some systems, the Perl test hangs indefinitely.
+                        # To counteract this, kill the process if it still
+                        # runs after ${perl_test_max_time} seconds.
+                        perl_test_max_time=3600
+                        (make ${make_jobs} test 2>&1 | tee "test_log") & perl_test_pid=$!
+                        soothe ${perl_test_pid} ${perl_test_max_time}
+                        sleep 1
+                        kill -9 ${perl_test_pid} >/dev/null 2>&1 || :
+                        wait    ${perl_test_pid} >/dev/null 2>&1 || :
+                        exit_code="$(wait ${perl_test_pid} >/dev/null 2>&1 || echo $?)"
+                        if [ -n "${exit_code}" ]; then
+                            perl_test_success="False"
+                        fi
+                        # The text "Failed" will be present in the test log
+                        # file if any of the tests failed.
+                        if grep 'Failed' "test_log" >/dev/null 2>&1; then
+                            perl_test_success="False"
+                        fi
+                    fi
+                    if [ "${perl_test_success}" == "False" ]; then
+                        mkdir -p "$(dirname "${perl_test_log}")"
+                        cp "test_log" "${perl_test_log}"
+                    fi
+                    make ${make_jobs} install 2>&1 || continue
+                    install_success="True"
+                    break
+                done
+                if [ "${install_success}" == "True" ]; then
+                    break
                 fi
-                if [ "${perl_test_success}" == "False" ]; then
-                    mkdir -p "$(dirname "${perl_test_log}")"
-                    cp "test_log" "${perl_test_log}"
-                fi
-                make ${make_jobs} install 2>&1 || continue
-                install_success="True"
-                break
             done
             if [ "${install_success}" == "True" ]; then
                 break
@@ -4945,7 +4958,7 @@ if [ "${openssl_install}" == "True" ] && [ "${openssl_installed}" == "False" ]; 
     install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        eval "use_${compiler}_compilers OpenSSL"
+        eval "use_${compiler}_compilers OpenSSL" || continue
         init_install "OpenSSL"
         export PATH="${perl_dir}/bin:${PATH}"
         export PERL="${perl_dir}/bin/perl"
@@ -4980,7 +4993,7 @@ if [ "${libffi_install}" == "True" ] && [ "${libffi_installed}" == "False" ]; th
     install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        eval "use_${compiler}_compilers libffi"
+        eval "use_${compiler}_compilers libffi" || continue
         init_install "libffi"
         ./configure --prefix="${libffi_dir}" 2>&1 || continue
         make ${make_jobs} 2>&1 || continue
@@ -5022,7 +5035,7 @@ if [ "${blas_install}" == "True" ] && [ "${blas_installed}" == "False" ]; then
         for compiler in "${compiler_possibilities[@]}"; do
             for openblas_BINARY in "" "32"; do
                 reset_environment
-                eval "use_${compiler}_compilers"
+                eval "use_${compiler}_compilers" || continue
                 init_install "BLAS"
                 printf "
 Attempting to install OpenBLAS with openblas_gfortran=${openblas_gfortran}, \
@@ -5100,7 +5113,7 @@ if [ "${python_install}" == "True" ] && [ "${python_installed}" == "False" ]; th
             # fall back to a non-optimized build.
             for pyoptimizations in "pgo lto" "pgo" "lto" ""; do
                 reset_environment
-                eval "use_${compiler}_compilers"
+                eval "use_${compiler}_compilers" || continue
                 init_install "Python"
                 printf "
 Attempting to install Python with compiler=${compiler}, \
@@ -5559,7 +5572,7 @@ fi
 if [ "${cython_install}" == "True" ] && [ "${cython_installed}" == "False" ]; then
     install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
-        eval "use_${compiler}_compilers Cython"
+        eval "use_${compiler}_compilers Cython" || continue
         pip_install_pypackage "Cython" "${cython_version}"
         if [ "$(check_pypackage_installed cython)" == "False" ]; then
             continue
@@ -5579,7 +5592,7 @@ if [ "${cythongsl_install}" == "True" ] && [ "${cythongsl_installed}" == "False"
     install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        eval "use_${compiler}_compilers CythonGSL"
+        eval "use_${compiler}_compilers CythonGSL" || continue
         export LD_LIBRARY_PATH="${gsl_dir}/lib:${LD_LIBRARY_PATH}"
         pip_install_pypackage "CythonGSL" "${cythongsl_version}"
         if [ "$(check_pypackage_installed cythongsl)" == "False" ]; then
@@ -5673,7 +5686,7 @@ runtime_library_dirs = ${blas_dir}/lib
                 for extra_FCFLAGS in "" "-fPIC"; do
                     for extra_LDFLAGS in "" "-shared"; do
                         reset_environment
-                        eval "use_${compiler}_compilers"
+                        eval "use_${compiler}_compilers" || continue
                         printf "
 Attempting to install NumPy with numpy_gfortran=${numpy_gfortran}, compiler=${compiler}, \
 fcompiler=${fcompiler}, extra_FCFLAGS=${extra_FCFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n\n"
@@ -5810,7 +5823,7 @@ runtime_library_dirs = ${blas_dir}/lib
                 for extra_FCFLAGS in "" "-fPIC"; do
                     for extra_LDFLAGS in "" "-shared"; do
                         reset_environment
-                        eval "use_${compiler}_compilers"
+                        eval "use_${compiler}_compilers" || continue
                         printf "
 Attempting to install SciPy with scipy_gfortran=${scipy_gfortran}, compiler=${compiler}, \
 fcompiler=${fcompiler}, extra_FCFLAGS=${extra_FCFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n\n"
@@ -6840,7 +6853,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
                     cp "python/setup.py_ori" "python/setup.py"
                     make clean || :
                     export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
-                    eval "use_${compiler}_compilers CLASS"
+                    eval "use_${compiler}_compilers CLASS" || continue
                     if [ "${fast_math}" == "False" ]; then
                         sed -i '0,/-ffast-math/s/-ffast-math/#-ffast-math/' "Makefile"
                     fi
