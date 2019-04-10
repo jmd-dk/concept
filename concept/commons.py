@@ -262,8 +262,16 @@ def sleeping_barrier(sleep_time, mode):
             source = master_rank
         elif mode == 'mpi':
             source = node_master_rank
+        sleep_time = any2list(sleep_time)
+        if len(sleep_time) == 1:
+            sleep_time = sleep_time_max = sleep_time[0]
+        elif len(sleep_time) == 2:
+            sleep_time, sleep_time_max = sleep_time
+        else:
+            abort(f'sleeping_barrier called with sleep_time = {sleep_time}')
         while not iprobe(source=source):
             sleep(sleep_time)
+            sleep_time = np.min([2*sleep_time, sleep_time_max])
         # Remember to receive the message
         recv(source=source)
 # Function that can call another function that uses OpenMP.
@@ -2492,7 +2500,20 @@ p3m_scale_phys = p3m_scale*boxsize/φ_gridsize
 # interact with particles in the neighboring domain via the shortrange
 # force, when the P3M algorithm is used.
 p3m_cutoff_phys = p3m_scale_phys*p3m_cutoff
-
+# Handle optional values in special_params
+if 'max_a_values' in special_params:
+    max_a_values = str(special_params['max_a_values'])
+    if max_a_values in {'inf', 'np.inf', 'numpy.inf'}:
+        max_a_values = ထ
+    else:
+        try:
+            max_a_values = float(max_a_values)
+        except:
+            try:
+                max_a_values = float(eval(max_a_values))
+            except:
+                abort(f'Could not interpret max_a_values = {max_a_values}')
+    special_params['max_a_values'] = int(round(max_a_values))
 
 
 #####################
@@ -2567,7 +2588,7 @@ class_params = update_class_params(class_params)
 @cython.pheader(
     # Arguments
     extra_params=dict,
-    sleep_time='double',
+    sleep_time=object,  # float, int or container or floats and ints
     mode=str,
     class_call_reason=str,
     # Locals

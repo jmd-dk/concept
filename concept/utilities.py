@@ -667,8 +667,7 @@ def info():
     k_magnitudes='double[::1]',
     k_max='double',
     k_min='double',
-    max_a_values='double',
-    max_a_values_str=str,
+    max_a_values='Py_ssize_t',
     other_rank='int',
     perturbations=object,  # PerturbationDict
     size='Py_ssize_t',
@@ -896,23 +895,13 @@ def CLASS():
         all_a_values = asarray(all_a_values).copy()
         # If too many a values are given, evenly select the amount
         # given by the "max_a_values" utility argument.
-        max_a_values_str = str(special_params['max_a_values'])
-        if max_a_values_str in {'inf', 'np.inf', 'numpy.inf'}:
-            max_a_values = ထ
-        else:
-            try:
-                max_a_values = float(max_a_values_str)
-            except:
-                try:
-                    max_a_values = float(eval(max_a_values_str))
-                except:
-                    abort(f'Could not interpret max_a_values = {max_a_values_str}')
+        max_a_values = special_params['max_a_values']
         if all_a_values.shape[0] > max_a_values:
             step = float(all_a_values.shape[0])/(max_a_values - 1)
-            all_a_values_selected = np.empty(int(max_a_values), dtype=C2np['double'])
-            for i in range(int(max_a_values) - 1):
+            all_a_values_selected = np.empty(max_a_values, dtype=C2np['double'])
+            for i in range(max_a_values - 1):
                 all_a_values_selected[i] = all_a_values[cast(int(i*step), 'Py_ssize_t')]
-            all_a_values_selected[int(max_a_values) - 1] = all_a_values[all_a_values.shape[0] - 1]
+            all_a_values_selected[max_a_values - 1] = all_a_values[all_a_values.shape[0] - 1]
             all_a_values = all_a_values_selected
         # Broadcast the a values to the slave processes
         bcast(all_a_values.shape[0])
