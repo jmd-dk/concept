@@ -1810,7 +1810,9 @@ class Component:
             for dim in range(3):
                 pos_dim, mom_dim = self.pos[dim], self.mom[dim]
                 for i in range(self.N_local):
-                    pos_dim[i] += mom_dim[i]*ℝ[ᔑdt['a**(3*w_eff-2)', self]/self.mass]
+                    pos_dim[i] += mom_dim[i]*ℝ[
+                        ᔑdt['a**(-2)']*universals.a**(3*self.w_eff(a=universals.a))/self.mass
+                    ]
                     # Toroidal boundaries
                     pos_dim[i] = mod(pos_dim[i], boxsize)
             masterprint('done')
