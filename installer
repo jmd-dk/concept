@@ -6231,7 +6231,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
            "${class_dir}/include/perturbations.h"
     # As only the (relatively) late-time evolution is needed from CLASS,
     # we hardcode the perturbations output to only be printed here.
-    a_min=0.001
+    a_min="3e-4"
     pattern=' +a *= *pvecback'
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
         "${class_dir}/source/perturbations.c" | head -n 1)

@@ -197,6 +197,7 @@ class CosmoResults:
                 # meaning utilizing all available nodes.
                 self._cosmo, self.k_node_indices = call_class(
                     self.params,
+                    sleep_time=(0.1, 10),
                     mode='MPI',
                     class_call_reason=self.class_call_reason,
                 )
@@ -544,14 +545,26 @@ class CosmoResults:
                         a_lower = a_values[index_lower]
                         a_upper = a_values[index_upper]
                         if a_lower > universals_a_begin:
-                            abort(
+                            msg = (
                                 f'Not all perturbations are defined at '
-                                f'a_begin = {universals_a_begin}. Note that CLASS '
-                                f'perturbations earlier than a_min = {class_a_min} in '
-                                f'source/perturbations.c will not be used. If you really want '
-                                f'perturbations at still earlier times, decrease this a_min '
-                                f'and recompile CLASS.'
+                                f'a_begin = {universals_a_begin}.'
                             )
+                            if class_a_min > 0 and universals_a_begin < class_a_min:
+                                msg += (
+                                    f' Not all perturbations are defined at '
+                                    f'a_begin = {universals_a_begin}. Note that CLASS '
+                                    f'perturbations earlier than a_min = {class_a_min} in '
+                                    f'source/perturbations.c will not be used. If you really want '
+                                    f'perturbations at still earlier times, decrease this a_min '
+                                    f'and recompile CLASS.'
+                                )
+                            elif universals_a_begin < universals.a_begin:
+                                msg += (
+                                    f' It may help to decrease the CLASS parameter '
+                                    f'"perturb_integration_stepsize" and/or '
+                                    f'"perturb_sampling_stepsize".'
+                                )
+                            abort(msg)
                         index, a_value = 0, -1
                         while index_upper - index_lower > 1 and a_value != universals_a_begin:
                             index = (index_lower + index_upper)//2
@@ -2509,7 +2522,6 @@ def k_float2str(k):
     # Locals
     H='double',
     aH_transfer_θ_totʹ='double[::1]',
-    any_negative_values='bint',
     class_species=str,
     class_species_present_list=list,
     cosmoresults=object,  # CosmoResults
@@ -2622,24 +2634,10 @@ def compute_transfer(
                   ä(a)   *asarray(cosmoresults.θ(a, get='as_function_of_k'      ))
                 + ȧ(a)**2*asarray(cosmoresults.θ(a, get='deriv_as_function_of_k'))
             )
-            # Now do the gauge transformation.
-            # Check for negative values, which may imply that some
-            # CLASS data has not converged.
-            any_negative_values = False
+            # Now do the gauge transformation
             for k in range(k_gridsize):
                 transfer[k] += (0.5*transfer_hʹ[k]
                     - ℝ[3/light_speed**2]*aH_transfer_θ_totʹ[k]/k_magnitudes[k]**2)
-                if transfer[k] < 0:
-                    any_negative_values = True
-            if any_negative_values:
-                masterwarn(f'The synchronous to N-body gauge transformation of the θ transfer '
-                           f'function for the {component.class_species} CLASS species at '
-                           f'a = {a} appears to have been carried out inaccurately, '
-                           f'as negative values appear. '
-                           f'You should consider cranking up the precision of CLASS. '
-                           f'For now, the simulation will carry on using this possibly '
-                           f'erroneous transfer function.'
-                           )
             # In order to introduce the lapse potential for the decaying
             # dark matter, we have changed the velocity variable away
             # from that used by CLASS. The needed transformation is
