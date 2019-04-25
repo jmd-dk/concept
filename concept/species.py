@@ -2523,30 +2523,30 @@ class Component:
             self.w_eff_type = 'constant'
             return
         a_tabulated[a_tabulated.shape[0] - 1] = a_tabulated_end
-        w_eff_tabulated[a_tabulated.shape[0] - 1] = (
-            w_eff_tabulated[a_tabulated.shape[0] - 2]
-            + (
-                  w_eff_tabulated[a_tabulated.shape[0] - 2]
-                - w_eff_tabulated[a_tabulated.shape[0] - 3]
-            )/(
-                  a_tabulated[a_tabulated.shape[0] - 2]
-                - a_tabulated[a_tabulated.shape[0] - 3]
-            )*(
-                  a_tabulated[a_tabulated.shape[0] - 1]
-                - a_tabulated[a_tabulated.shape[0] - 2]
-            )
-        )
-        # Instantiate the w_eff spline object.
         # For most physical species, w_eff(a) is approximately a
-        # power law in a and so a log-log spline should be used.
+        # power law in a and so log-log inter-/extrapolation
+        # should be used.
         logx, logy = True, True
-        if np.any(asarray(w_eff_tabulated) <= 0):
+        if np.any(asarray(w_eff_tabulated[:w_eff_tabulated.shape[0] - 1]) <= 0):
             logy = False
         if self.class_species == 'fld':
             # The CLASS dark energy fluid (fld) uses
             # the {w_0, w_a} parameterization. It turns out that the
             # best spline is achieved from log(a) but linear w_eff.
             logx, logy = True, False
+        # Extrapolate to get the value at a = 1
+        w_eff_tabulated_end = scipy.interpolate.interp1d(
+            np.log(     a_tabulated    [:a_tabulated.shape[0] - 1]) if logx else
+                asarray(a_tabulated    [:a_tabulated.shape[0] - 1]),
+            np.log(     w_eff_tabulated[:a_tabulated.shape[0] - 1]) if logy else
+                asarray(w_eff_tabulated[:a_tabulated.shape[0] - 1]),
+            'linear',
+            fill_value='extrapolate',
+        )(log(a_tabulated_end) if logx else a_tabulated_end)
+        if logy:
+            w_eff_tabulated_end = exp(w_eff_tabulated_end)
+        w_eff_tabulated[a_tabulated.shape[0] - 1] = w_eff_tabulated_end
+        # Instantiate the w_eff spline object
         self.w_eff_spline = Spline(a_tabulated, w_eff_tabulated, f'w_eff(a) of {self.name}',
             logx=logx, logy=logy)
 
