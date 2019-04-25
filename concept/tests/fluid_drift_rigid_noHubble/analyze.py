@@ -119,7 +119,6 @@ for ϱ_i, ϱ_snapshot_i, t in zip(ϱ, ϱ_snapshot, times):
     if not isclose(np.mean(abs(ϱ_i - ϱ_snapshot_i)), 0,
                    rel_tol=0,
                    abs_tol=(tol_fac*np.std(ϱ_i) + machine_ϵ)):
-        masterwarn(np.mean(abs(ϱ_i - ϱ_snapshot_i)))
         abort('Fluid did not drift rigidly up to t = {} {}.\n'
               'See "{}" for a visualization.'
               .format(t, unit_time, fig_file))

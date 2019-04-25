@@ -170,7 +170,7 @@ class StandardSnapshot:
                     # with multi_index (0, ), (1, ), ..., (0, 0), ...
                     shape = (component.gridsize, )*3
                     for index, fluidvar in enumerate(
-                        component.fluidvars[:component.boltzmann_order]
+                        component.fluidvars[:component.boltzmann_order + 1]
                     ):
                         fluidvar_h5 = component_h5.create_group('fluidvar_{}'.format(index))
                         for multi_index in fluidvar.multi_indices:
@@ -397,7 +397,7 @@ class StandardSnapshot:
                     # Fluid scalars are already instantiated.
                     # Now populate them.
                     for index, fluidvar in enumerate(
-                        component.fluidvars[:component.boltzmann_order]
+                        component.fluidvars[:component.boltzmann_order + 1]
                     ):
                         fluidvar_h5 = component_h5['fluidvar_{}'.format(index)]
                         for multi_index in fluidvar.multi_indices:
@@ -419,7 +419,7 @@ class StandardSnapshot:
                     unit_J = snapshot_unit_mass/(snapshot_unit_length**2*snapshot_unit_time)
                     units_fluidvars = asarray((unit_ϱ, unit_J), dtype=C2np['double'])
                     size = np.prod(component.shape)
-                    for fluidvar, unit in zip(component.fluidvars[:component.boltzmann_order],
+                    for fluidvar, unit in zip(component.fluidvars[:component.boltzmann_order + 1],
                                               units_fluidvars):
                         if unit == 1:
                             continue
@@ -956,6 +956,8 @@ def save(one_or_more_components, filename, params=None, snapshot_type=snapshot_t
     and force every component to be inclued,
     set save_all_components to True.
     """
+    if not filename:
+        abort('An empty filename was passed to snapshot.save()')
     if params is None:
         params = {}
     # Filter out the components which should be saved

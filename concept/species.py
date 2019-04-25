@@ -63,7 +63,7 @@ class Tensor:
         self.ndim = len(self.shape)
         self.dtype = 'object'
         # Is this tensor really just a scalar in disguise?
-        self.disguised_scalar = (self.component.boltzmann_order == self.varnum)
+        self.disguised_scalar = (self.component.boltzmann_order + 1 == self.varnum)
         # Should this fluid variable do realizations when iterating
         # with the iterate method?
         self.iterative_realizations = (
@@ -453,7 +453,7 @@ class Component:
     )
     def __init__(self, name, species, N_or_gridsize, *,
         mass=-1,
-        boltzmann_order=-1,
+        boltzmann_order=-2,
         forces=None,
         class_species=None,
         realization_options=None,
@@ -471,43 +471,44 @@ class Component:
         # linearly. Below is listed an overview of all allowed
         # combinations of boltzmann_order and boltzmann_closure,
         # together with the accompanying fluid variable behavoir.
-        # Note that for particle components, only boltzmann_order = 2
+        # Note that for particle components, only boltzmann_order = 1
         # is allowed.
         #
-        # boltzmann_order = 0, boltzmann_closure = 'class':
+        # boltzmann_order = -1, boltzmann_closure = 'class':
         #     linear ϱ  (Realized continuously, affects other components gravitationally)
         #
-        # boltzmann_order = 1, boltzmann_closure = 'truncate':
+        # boltzmann_order = 0, boltzmann_closure = 'truncate':
         #     non-linear ϱ  (Though "non-linear", ϱ is frozen in time as no J exist.
-        #                    Also, unlike when boltzmann_order = 1 and boltzmann_closure = 'class',
-        #                    ϱ will only be realized at the beginning of the simulation.)
+        #                    Also, unlike when boltzmann_order = -1 and
+        #                    boltzmann_closure = 'class', ϱ will only be realized
+        #                    at the beginning of the simulation.)
         #
-        # boltzmann_order = 1, boltzmann_closure = 'class':
+        # boltzmann_order = 0, boltzmann_closure = 'class':
         #     non-linear ϱ
         #         linear J  (realized continuously)
         #         linear 𝒫  (P=wρ approximation enforced)
         #
-        # boltzmann_order: 2, boltzmann_closure = 'truncate':
+        # boltzmann_order: 1, boltzmann_closure = 'truncate':
         #     non-linear ϱ
         #     non-linear J
         #         linear 𝒫  (P=wρ approximation enforced)
         #
-        # boltzmann_order = 2, boltzmann_closure = 'class':
+        # boltzmann_order = 1, boltzmann_closure = 'class':
         #     non-linear ϱ
         #     non-linear J
         #         linear 𝒫  (realized continuously)
         #         linear ς  (realized continuously)
         #
-        # boltzmann_order = 3, boltzmann_closure = 'truncate':
+        # boltzmann_order = 2, boltzmann_closure = 'truncate':
         #     non-linear ϱ
         #     non-linear J
         #     non-linear 𝒫  (Though "non-linear", 𝒫 is frozen in time since the evolution equation
         #                    for 𝒫 is not implemented.
-        #                    Also, unlike when boltzmann_order = 2 and boltzmann_closure = 'class',
+        #                    Also, unlike when boltzmann_order = 1 and boltzmann_closure = 'class',
         #                    𝒫 will only be realized at the beginning of the simulation.)
         #     non-linear ς  (Though "non-linear", ς is frozen in time since the evolution equation
         #                    for ς is not implemented.
-        #                    Also, unlike when boltzmann_order = 2 and boltzmann_closure = 'class',
+        #                    Also, unlike when boltzmann_order = 1 and boltzmann_closure = 'class',
         #                    ς will only be realized at the beginning of the simulation.)
         #
         # The triple quoted string below serves as the type declaration
@@ -904,35 +905,35 @@ class Component:
         self.Δpos_mv = [self.Δposx_mv, self.Δposy_mv, self.Δposz_mv]
         self.Δmom_mv = [self.Δmomx_mv, self.Δmomy_mv, self.Δmomz_mv]
         # Fluid attributes
-        if boltzmann_order == -1:
+        if boltzmann_order == -2:
             boltzmann_order = is_selected(self, select_boltzmann_order)
         self.boltzmann_order = boltzmann_order
         if self.representation == 'particles':
-            if self.boltzmann_order != 2:
+            if self.boltzmann_order != 1:
                 abort(
-                    f'Particle components must have boltzmann_order = 2, '
+                    f'Particle components must have boltzmann_order = 1, '
                     f'but boltzmann_order = {self.boltzmann_order} was specified for "{self.name}"'
                 )
         elif self.representation == 'fluid':
-            if self.boltzmann_order < 0:
+            if self.boltzmann_order < -1:
                 abort(
-                    f'Having boltzmann_order < 0 are nonsensical, '
+                    f'Having boltzmann_order < -1 are nonsensical, '
                     f'but boltzmann_order = {self.boltzmann_order} was specified for "{self.name}"'
                 )
-            if self.boltzmann_order == 0 and self.boltzmann_closure == 'truncate':
+            if self.boltzmann_order == -1 and self.boltzmann_closure == 'truncate':
                 abort(
                     f'The fluid component "{self.name}" has no non-linear and no '
                     f'linear fluid variables, and so practically it does not exist. '
                     f'Such components are disallowed.'
                 )
-            if self.boltzmann_order == 3 and self.boltzmann_closure == 'class':
+            if self.boltzmann_order == 2 and self.boltzmann_closure == 'class':
                 abort(
                     f'The "{self.name}" component wants to close the Boltzmann hierarchy using '
                     f'the linear variable after ς from CLASS, which is not implemented'
                 )
-            if self.boltzmann_order > 3:
+            if self.boltzmann_order > 2:
                 abort(
-                    f'Fluids with boltzmann_order > 3 are not implemented, '
+                    f'Fluids with boltzmann_order > 2 are not implemented, '
                     f'but boltzmann_order = {self.boltzmann_order} was specified for "{self.name}"'
                 )
         self.shape = (1, 1, 1)
@@ -945,8 +946,8 @@ class Component:
         self.initialize_w(w)
         self.initialize_w_eff()
         # Fluid data.
-        # Create the boltzmann_order non-linear fluid variables and
-        # store them in the fluidvars list. This is done even for
+        # Create the (boltzmann_order + 1) non-linear fluid variables
+        # and store them in the fluidvars list. This is done even for
         # particle components, as the fluidscalars are all instantiated
         # with a gridsize of 1. The is_linear argument specifies whether
         # the FluidScalar will be a linear or non-linear variable,
@@ -954,14 +955,15 @@ class Component:
         # linearly, as opposed to a linear variable which is only
         # updated through continuous realization. Currently, only ϱ and
         # J is implemented as non-linear variables. It is still allowed
-        # to have boltzmann_order == 3, in which case ς (and 𝒫) is also
+        # to have boltzmann_order == 2, in which case ς (and 𝒫) is also
         # specified as being non-linear, although no non-linear
         # evolution is implemented, meaning that these will then be
         # constant in time. Note that the 𝒫 fuid variable is
         # treated specially, as it really lives on the same tensor as
-        # the ς fluid scalars. Therefore, the 𝒫 fluid scalar is added later.
+        # the ς fluid scalars. Therefore, the 𝒫 fluid scalar
+        # is added later.
         self.fluidvars = []
-        for i in range(self.boltzmann_order):
+        for i in range(self.boltzmann_order + 1):
             # Instantiate the i'th fluid variable
             # as a 3×3×...×3 (i times) symmetric tensor.
             fluidvar = Tensor(self, i, (3, )*i, symmetric=True)
@@ -974,21 +976,21 @@ class Component:
         # we need one additional fluid variable. This should act like
         # a symmetric tensor of rank boltzmann_order, but really only a
         # single element of this tensor need to exist in memory.
-        # For boltzmann_order == 2, ς is the additional fluid variable.
+        # For boltzmann_order == 1, ς is the additional fluid variable.
         # Instantiate the scalar element but disguised as a
-        # 3×3×...×3 (boltzmann_order times) symmetric tensor.
+        # 3×3×...×3 ((boltzmann_order + 1) times) symmetric tensor.
         # Importantly, this fluid variabe is always considered linear.
         if self.boltzmann_closure == 'class':
             disguised_scalar = Tensor(
                 self,
-                self.boltzmann_order,
-                (3, )*self.boltzmann_order,
+                self.boltzmann_order + 1,
+                (3, )*(self.boltzmann_order + 1),
                 symmetric=True,
             )
             # Populate the tensor with a fluidscalar
             multi_index = disguised_scalar.multi_indices[0]
             disguised_scalar[multi_index] = FluidScalar(
-                self.boltzmann_order, multi_index, is_linear=True,
+                self.boltzmann_order + 1, multi_index, is_linear=True,
             )
             # Add this additional fluid variable to the list
             self.fluidvars.append(disguised_scalar)
@@ -997,27 +999,27 @@ class Component:
         # fluid variable, or a non-linear J fluid variable but with the
         # non-linear Boltzmann hierarchy truncated right after J.
         if not self.approximations['P=wρ']:
-            if (   self.boltzmann_order < 1
-                or (self.boltzmann_order == 1 and self.boltzmann_closure == 'truncate')):
+            if (   self.boltzmann_order < 0
+                or (self.boltzmann_order == 0 and self.boltzmann_closure == 'truncate')):
                 # The 𝒫 fluid scalar does not exist at all for
-                # this component, and so whether the P=wρ is True or not
-                # does not make much sense. We set it to True,
-                # reflecting the fact that 𝒫 certainly is not a
-                # non-linear variable.
+                # this component, and so whether the P=wρ approximation
+                # is True or not does not make much sense.
+                # We set it to True, reflecting the fact that
+                # 𝒫 certainly is not a non-linear variable.
                 self.approximations[asciify('P=wρ')] = True
                 self.approximations[unicode('P=wρ')] = True
-            elif self.boltzmann_order == 1 and self.boltzmann_closure == 'class':
+            elif self.boltzmann_order == 0 and self.boltzmann_closure == 'class':
                 masterwarn(
                     f'The P=wρ approximation has been switched on for the "{self.name}" component '
                     f'because Jⁱ = a⁴(ρ + c⁻²P)uⁱ is a linear fluid variable.'
                 )
                 self.approximations[asciify('P=wρ')] = True
                 self.approximations[unicode('P=wρ')] = True
-            elif self.boltzmann_order == 2 and self.boltzmann_closure == 'truncate':
+            elif self.boltzmann_order == 1 and self.boltzmann_closure == 'truncate':
                 masterwarn(
                     f'The P=wρ approximation has been switched on for the "{self.name}" component '
-                    f'because the non-linear Boltzmann hierarchy is truncated after the second '
-                    f'non-linear fluid variable Jⁱ, while 𝒫 is part of the third fluid variable.'
+                    f'because the non-linear Boltzmann hierarchy is truncated after the '
+                    f'non-linear fluid variable Jⁱ, while 𝒫 is part of the next fluid variable.'
                 )
                 self.approximations[asciify('P=wρ')] = True
                 self.approximations[unicode('P=wρ')] = True
@@ -1041,18 +1043,18 @@ class Component:
         # Boltzmann hierarchy. We place 𝒫 on ς, since 𝒫 is the trace
         # missing from ς. The only time we do not instantiate 𝒫 is for
         # a fluid without any J variable, be it linear or non-linear.
-        if not (   self.boltzmann_order < 1
-                or (self.boltzmann_order == 1 and self.boltzmann_closure == 'truncate')):
+        if not (    self.boltzmann_order < 0
+                or (self.boltzmann_order == 0 and self.boltzmann_closure == 'truncate')):
             # We need a 𝒫 fluid scalar
-            if (   (self.boltzmann_order == 1 and self.boltzmann_closure == 'class')
-                or (self.boltzmann_order == 2 and self.boltzmann_closure == 'truncate')
+            if (   (self.boltzmann_order == 0 and self.boltzmann_closure == 'class')
+                or (self.boltzmann_order == 1 and self.boltzmann_closure == 'truncate')
                 ):
                 # The ς tensor on which 𝒫 lives does not yet exist.
                 # Instantiate a fake ς tensor, used only to store 𝒫.
                 self.fluidvars.append(Tensor(self, 2, (), symmetric=True, active=False))
             # Add the 𝒫 fluid scalar to the ς tensor
             self.fluidvars[2]['trace'] = FluidScalar(0, 0,
-                is_linear=(self.boltzmann_order < 3 or self.approximations['P=wρ']),
+                is_linear=(self.boltzmann_order < 2 or self.approximations['P=wρ']),
             )
         # Construct mapping from names of fluid variables (e.g. J)
         # to their indices in self.fluidvars, and also from names of
@@ -1063,7 +1065,7 @@ class Component:
         # and the special "reverse" mapping from indices to names
         # given by the 'ordered' key.
         self.fluid_names = {'ordered': fluidvar_names[:
-                self.boltzmann_order + (0 if self.boltzmann_closure == 'truncate' else 1)
+                self.boltzmann_order + (1 if self.boltzmann_closure == 'truncate' else 2)
             ]
         }
         for index, (fluidvar, fluidvar_name) in enumerate(
@@ -1512,7 +1514,7 @@ class Component:
                 masterwarn('The realize method was called without specifying a variable, '
                            'though a cosmoresults is passed. This cosmoresults will be ignored.')
             # Realize all variables
-            variables = arange(self.boltzmann_order)
+            variables = arange(self.boltzmann_order + 1)
         else:
             # Realize one or more variables
             variables = any2list(self.varnames2indices(variables))
@@ -1550,7 +1552,7 @@ class Component:
                     # The 'velocities from displacements' option
                     options['velocitiesfromdisplacements'] = self.realization_options['mom'][
                         'velocitiesfromdisplacements']
-                    # For particles, the Boltzmann order is always 2,
+                    # For particles, the Boltzmann order is always 1,
                     # corresponding to positions and momenta. However,
                     # when velocities are set to be realized from
                     # displacements, the momenta (proportional to the
@@ -1601,14 +1603,14 @@ class Component:
                     # fluid variable together with its most important
                     # evolution equation through which it affects the
                     # rest of the system.
-                    # Boltzmann order 0:
+                    # Boltzmann order -1:
                     #     ϱ,     ∇²φ = 4πGa²ρ = 4πGa**(-3*w_eff - 1)ϱ
-                    # Boltzmann order 1:
+                    # Boltzmann order 0:
                     #     Jᵐ,    ∂ₜϱ = -a**(3*w_eff - 2)∂ᵢJⁱ  + ⋯
-                    # Boltzmann order 2:
+                    # Boltzmann order 1:
                     #     𝒫,    ∂ₜJᵐ = -a**(-3*w_eff)∂ᵐ𝒫      + ⋯
                     #     ςᵐₙ,  ∂ₜJᵐ = -a**(-3*w_eff)∂ⁿςᵐₙ    + ⋯
-                    # To take Boltzmann order 0 as an example, this
+                    # To take Boltzmann order -1 as an example, this
                     # means we should realize a weighted average of
                     # ϱ(t, k⃗), with a weight given by
                     # a(t)**(-3*w_eff(t) - 1), i.e.
@@ -1623,7 +1625,7 @@ class Component:
                             options.get('structure') != 'nonlinear'
                         and self.representation == 'fluid'
                         and self.boltzmann_closure == 'class'
-                        and self.boltzmann_order == variable
+                        and self.boltzmann_order + 1 == variable
                         and a_next != -1
                     ):
                         if variable == 0:
@@ -1827,8 +1829,8 @@ class Component:
                 # For the MacCormack scheme to do anything,
                 # the J variable must exist.
                 if not (
-                        self.boltzmann_order == 0
-                    or (self.boltzmann_order == 1 and self.boltzmann_closure == 'truncate')
+                        self.boltzmann_order == -1
+                    or (self.boltzmann_order == 0 and self.boltzmann_closure == 'truncate')
                 ):
                     masterprint(
                         f'Evolving fluid variables (flux terms, using the MacCormack scheme) '
@@ -1840,8 +1842,8 @@ class Component:
                 # For the Kurganov-Tadmor scheme to do anything,
                 # the J variable must exist.
                 if not (
-                        self.boltzmann_order == 0
-                    or (self.boltzmann_order == 1 and self.boltzmann_closure == 'truncate')
+                        self.boltzmann_order == -1
+                    or (self.boltzmann_order == 0 and self.boltzmann_closure == 'truncate')
                 ):
                     rk_order = is_selected(
                         self, fluid_options['kurganovtadmor']['rungekuttaorder'])
@@ -1941,20 +1943,20 @@ class Component:
                 # the Euler equation.
                 if (
                     (   # The Hubble term
-                            self.boltzmann_order > 0
+                            self.boltzmann_order > -1
                         and not self.approximations['P=wρ']
                         and enable_Hubble
                     )
                     or
                     (   # The pressure term
-                            self.boltzmann_order > 1
+                            self.boltzmann_order > 0
                         and not (self.w_type == 'constant' and self.w_constant == 0)
                     )
                     or
                     (
                         # The shear term
-                            self.boltzmann_order > 2
-                        or (self.boltzmann_order == 2 and self.boltzmann_closure == 'class')
+                            self.boltzmann_order > 1
+                        or (self.boltzmann_order == 1 and self.boltzmann_closure == 'class')
                     )
                 ):
                     masterprint(
@@ -1968,7 +1970,7 @@ class Component:
                 # the Kurganov Tadmor scheme.
                 if (
                     # The Hubble term
-                        self.boltzmann_order > 0
+                        self.boltzmann_order > -1
                     and not self.approximations['P=wρ']
                     and enable_Hubble
                 ):
@@ -2028,8 +2030,8 @@ class Component:
         # is not to be evolved.
         if value <= -1 and special_params.get('special') != 'CLASS':
             if (
-                    (   self.boltzmann_order > 1
-                     or (self.boltzmann_order == 1 and self.boltzmann_closure == 'class'))
+                    (   self.boltzmann_order > 0
+                     or (self.boltzmann_order == 0 and self.boltzmann_closure == 'class'))
                 and (a > universals.a_begin or t > universals.t_begin)
             ):
                 if t == -1:
@@ -2047,7 +2049,7 @@ class Component:
         # but the CLASS utility, this is not a problem as the system
         # is not to be evolved.
         if value < 0 and special_params.get('special') != 'CLASS':
-            if self.boltzmann_order > 1 and (a > universals.a_begin or t > universals.t_begin):
+            if self.boltzmann_order > 0 and (a > universals.a_begin or t > universals.t_begin):
                 if t == -1:
                     t = cosmic_time(a)
                 elif a == -1:
@@ -2608,7 +2610,7 @@ class Component:
     # scalar fluid grids within the component.
     def iterate_fluidscalars(self, include_disguised_scalar=True, include_additional_dofs=True):
         for i, fluidvar in enumerate(self.fluidvars):
-            if include_disguised_scalar or i < self.boltzmann_order:
+            if include_disguised_scalar or i < self.boltzmann_order + 1:
                 yield from fluidvar
                 if include_additional_dofs:
                     for additional_dof in fluidvar.additional_dofs:

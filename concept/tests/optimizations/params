@@ -26,15 +26,17 @@ _this_dir = os.path.dirname(paths['params'])
 # Input/output
 _size = 16
 initial_conditions = [
-    {'name'   : 'matter component',
-     'species': 'matter particles',
-     'N'      : _size**3,
-     },
-    {'name'           : 'neutrino component',
-     'species'        : 'neutrino fluid',
-     'gridsize'       : _size,
-     'boltzmann_order': 2,
-     },
+    {
+        'name'   : 'matter component',
+        'species': 'matter particles',
+        'N'      : _size**3,
+    },
+    {
+        'name'           : 'neutrino component',
+        'species'        : 'neutrino fluid',
+        'gridsize'       : _size,
+        'boltzmann_order': 1,
+    },
 ]
 output_dirs  = {
     'powerspec': _this_dir + '/output',
@@ -77,11 +79,4 @@ select_boltzmann_closure = {'neutrino fluid': 'class'}
 select_approximations    = {'neutrino fluid': {'P = wρ': False}}
 
 # Simulation options
-fluid_scheme_select = {'neutrino fluid': 'Kurganov-Tadmor'}
-fluid_options = {
-    'Kurganov-Tadmor': {
-        'Runge-Kutta order'  : {'neutrino fluid': 2},
-        'flux_limiter_select': {'neutrino fluid': 'minmod'},
-    },
-}
 class_reuse = False

@@ -54,12 +54,4 @@ select_boltzmann_closure = {'all': 'truncate'}
 select_approximations    = {'all': {'P = wρ': True}}
 
 # Simulation options
-# Simulation options
-fluid_scheme_select = {'matter fluid': 'Kurganov-Tadmor'}
-fluid_options = {
-    'Kurganov-Tadmor': {
-        'Runge-Kutta order'  : {'matter fluid': 2},
-        'flux_limiter_select': {'matter fluid': 'minmod'},
-    },
-}
 class_reuse = False

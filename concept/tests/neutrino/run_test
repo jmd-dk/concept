@@ -98,7 +98,7 @@ initial_conditions.append({
     'name'             : 'neutrino',
     'species'          : 'neutrino fluid',
     'gridsize'         : _size,
-    'boltzmann_order'  : 2,
+    'boltzmann_order'  : 1,
     'boltzmann_closure': 'class',
 })
 " >> "${this_dir}/params_${sim}"
@@ -112,7 +112,7 @@ initial_conditions.append({
     'name'             : 'neutrino',
     'species'          : 'neutrino fluid',
     'gridsize'         : _size,
-    'boltzmann_order'  : 0,
+    'boltzmann_order'  : -1,
     'boltzmann_closure': 'class',
 })
 " >> "${this_dir}/params_${sim}"
@@ -143,7 +143,7 @@ initial_conditions.append({
     'name'             : 'neutrino',
     'species'          : 'neutrino fluid',
     'gridsize'         : _size,
-    'boltzmann_order'  : 2,
+    'boltzmann_order'  : 1,
     'boltzmann_closure': 'class',
 })
 " >> "${this_dir}/params_${sim}"
@@ -158,7 +158,7 @@ initial_conditions.append({
     'name'             : 'neutrino',
     'species'          : 'neutrino fluid',
     'gridsize'         : _size,
-    'boltzmann_order'  : 0,
+    'boltzmann_order'  : -1,
     'boltzmann_closure': 'class',
 })
 " >> "${this_dir}/params_${sim}"

@@ -828,11 +828,11 @@ def CLASS():
             if not component.realization_options['mom'].get('velocitiesfromdisplacements', False):
                 variable_specifications.append((1, None, 'θ'))
         elif component.representation == 'fluid':
+            if component.boltzmann_order > 0 or (
+                component.boltzmann_order == 0 and component.boltzmann_closure == 'class'):
+                variable_specifications.append((1, None, 'θ'))
             if component.boltzmann_order > 1 or (
                 component.boltzmann_order == 1 and component.boltzmann_closure == 'class'):
-                variable_specifications.append((1, None, 'θ'))
-            if component.boltzmann_order > 2 or (
-                component.boltzmann_order == 2 and component.boltzmann_closure == 'class'):
                 variable_specifications.append((2, 'trace', 'δP'))
                 variable_specifications.append((2, (0, 0), 'σ'))
         component_variables[component] = variable_specifications
@@ -895,8 +895,8 @@ def CLASS():
         all_a_values = asarray(all_a_values).copy()
         # If too many a values are given, evenly select the amount
         # given by the "max_a_values" utility argument.
-        max_a_values = special_params['max_a_values']
-        if all_a_values.shape[0] > max_a_values:
+        if all_a_values.shape[0] > special_params['max_a_values']:
+            max_a_values = int(round(special_params['max_a_values']))
             step = float(all_a_values.shape[0])/(max_a_values - 1)
             all_a_values_selected = np.empty(max_a_values, dtype=C2np['double'])
             for i in range(max_a_values - 1):

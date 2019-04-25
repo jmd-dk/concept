@@ -32,7 +32,7 @@ initial_conditions = [  # Initial condition snapshot file or container of compon
         'name'             : 'neutrino component',
         'species'          : 'neutrino fluid',
         'gridsize'         : 32,
-        'boltzmann_order'  : 2,
+        'boltzmann_order'  : 1,
         'boltzmann_closure': 'class',
     },
 ]
@@ -126,7 +126,7 @@ select_eos_w = {  # Equation of state parameter w for each component
     'all': 'class',
 }
 select_boltzmann_order = {  # Boltzmann order for each component
-    'all': 2,
+    'all': 1,
 }
 select_boltzmann_closure = {  # Closure rule for the Boltzmann hierarchy for each component
     'all': 'class',
@@ -182,17 +182,9 @@ fftw_wisdom_rigor = 'measure'  # Rigor level when acquiring FFTW wisdom
 fftw_wisdom_reuse = True       # Reuse FFTW wisdom from earlier runs?
 random_seed = 1                # Seed for pseudo-random numbers
 fluid_scheme_select = {        # Fluid evolution scheme for each component
-    'all': 'Kurganov-Tadmor',
+    'all': 'MacCormack',
 }
 fluid_options = {  # Specifications of fluid scheme parameters
-    'Kurganov-Tadmor': {
-        'Runge-Kutta order': {  # Order of time integration
-            'all': 2,
-        },
-        'flux_limiter_select': {  # Flux limiter function
-            'all': 'minmod',
-        },
-    },
     'MacCormack': {
         'vacuum_corrections_select': {  # Toggle vacuum corrections
             'all': True,
@@ -205,6 +197,14 @@ fluid_options = {  # Specifications of fluid scheme parameters
         },
         'smoothing_select': {  # Amount of smoothing to apply when doing vacuum correction
             'all': 1,
+        },
+    },
+    'Kurganov-Tadmor': {
+        'Runge-Kutta order': {  # Order of time integration
+            'all': 2,
+        },
+        'flux_limiter_select': {  # Flux limiter function
+            'all': 'minmod',
         },
     },
 }

@@ -73,7 +73,7 @@ initial_conditions = {
     'name'             : 'test fluid',
     'species'          : 'matter fluid',
     'gridsize'         : φ_gridsize,
-    'boltzmann_order'  : 1,
+    'boltzmann_order'  : 0,
     'boltzmann_closure': 'truncate',
     'approximations'   : {'P=wρ': True},
 }

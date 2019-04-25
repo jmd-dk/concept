@@ -82,12 +82,12 @@ parser.add_argument(
         'comma-separated string of CLASS species to produce perturbations/transfer '
         'functions for, e.g. \"b,cdm\" for baryons and cold dark matter. '
         'By default, only the δ transfer functions will be produced, corresponding '
-        'to a Boltzmann order of 1. To also get transfer functions for variables '
+        'to a Boltzmann order of 0. To also get transfer functions for variables '
         'further down the Boltzmann hierarchy, you may specify the Boltzmann order '
-        'using a colon. For example, \"b:2,cdm:2\" will produce both δ and θ transfer '
+        'using a colon. For example, \"b:1,cdm:1\" will produce both δ and θ transfer '
         'functions for both baryons and cold dark matter. '
         'Finally, CLASS species can be combined using a plus symbol, so that e.g. '
-        '\"cdm+b:2,g:1\" will result in \"total matter\" δ and θ transfer functions, '
+        '\"b+cdm:1,g:0\" will result in \"total matter\" δ and θ transfer functions, '
         'along with δ transfer functions for photons.'
     ),
 )
@@ -168,7 +168,7 @@ _initial_conditions = [
     }
     for class_species, boltzmann_order in (
         perturbation.split(':') for perturbation in (
-            perturbation + ('' if ':' in perturbation else ':1')
+            perturbation + ('' if ':' in perturbation else ':0')
             for perturbation in (\"\"\"'${perturbations}'\"\"\"
                 .replace('\"', '')
                 .replace(\"'\", '')
@@ -183,7 +183,7 @@ _initial_conditions = [
 # Set default approximation scheme for each component
 # based on their Boltzmann order.
 _approximations = {
-    specification['name']: {'P=wρ': int(specification['boltzmann_order'] + 1) < 3}
+    specification['name']: {'P=wρ': int(specification['boltzmann_order'] + 1) < 2}
     for specification in _initial_conditions
 }
 # The special_params dict, specifying details of the utility run

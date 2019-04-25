@@ -2013,9 +2013,9 @@ if user_params.get('select_boltzmann_order'):
         replace_ellipsis(select_boltzmann_order)
     else:
         select_boltzmann_order = {'all': int(user_params['select_boltzmann_order'])}
-select_boltzmann_order['default'] = 2
-select_boltzmann_order.setdefault('metric', 0)
-select_boltzmann_order.setdefault('lapse', 0)
+select_boltzmann_order['default'] = 1
+select_boltzmann_order.setdefault('metric', -1)
+select_boltzmann_order.setdefault('lapse', -1)
 user_params['select_boltzmann_order'] = select_boltzmann_order
 default_force_method = {
     'gravity': 'pm',
@@ -2132,30 +2132,30 @@ fftw_wisdom_reuse = bool(user_params.get('fftw_wisdom_reuse', True))
 user_params['fftw_wisdom_reuse'] = fftw_wisdom_reuse
 random_seed = to_int(user_params.get('random_seed', 1))
 user_params['random_seed'] = random_seed
-fluid_scheme_select = {'all': 'Kurganov-Tadmor'}
+fluid_scheme_select = {'all': 'MacCormack'}
 if user_params.get('fluid_scheme_select'):
     if isinstance(user_params['fluid_scheme_select'], dict):
         fluid_scheme_select = user_params['fluid_scheme_select']
         replace_ellipsis(fluid_scheme_select)
     else:
         fluid_scheme_select = {'all': user_params['fluid_scheme_select']}
-fluid_scheme_select['default'] = 'Kurganov-Tadmor'
+fluid_scheme_select['default'] = 'MacCormack'
 fluid_scheme_select = {
     key: str(val).lower().replace(' ', '').replace('-', '')
     for key, val in fluid_scheme_select.items()
 }
 user_params['fluid_scheme_select'] = fluid_scheme_select
 fluid_options_defaults = {
-    'kurganovtadmor': {
-        'rungekuttaorder': 2,
-        'flux_limiter_select': 'minmod',
-    },
     'maccormack': {
         'vacuum_corrections_select'    : True,
         'max_vacuum_corrections_select': (1, 'gridsize'),
         'foresight_select'             : 30,
         'smoothing_select'             : 1,
-    }
+    },
+    'kurganovtadmor': {
+        'rungekuttaorder'    : 2,
+        'flux_limiter_select': 'minmod',
+    },
 }
 fluid_options = dict(user_params.get('fluid_options', {}))
 fluid_options = {
@@ -2513,7 +2513,7 @@ if 'max_a_values' in special_params:
                 max_a_values = float(eval(max_a_values))
             except:
                 abort(f'Could not interpret max_a_values = {max_a_values}')
-    special_params['max_a_values'] = int(round(max_a_values))
+    special_params['max_a_values'] = max_a_values
 
 
 #####################
