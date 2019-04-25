@@ -2356,22 +2356,22 @@ def find_critical_times():
 
 # Function which solves the linear cosmology using CLASS,
 # from before the initial simulation time and until the present.
-@cython.pheader(# Arguments
-                k_min='double',
-                k_max='double',
-                k_gridsize='Py_ssize_t',
-                gauge=str,
-                filename=str,
-                class_call_reason=str,
-                # Locals
-                cosmoresults=object, # CosmoResults
-                extra_params=dict,
-                k_gridsize_max='Py_ssize_t',
-                k_magnitudes='double[::1]',
-                k_magnitudes_str=str,
-                params_specialized=dict,
-                returns=object,  # CosmoResults
-               )
+@cython.pheader(
+    # Arguments
+    k_min='double',
+    k_max='double',
+    k_gridsize='Py_ssize_t',
+    gauge=str,
+    filename=str,
+    class_call_reason=str,
+    # Locals
+    cosmoresults=object, # CosmoResults
+    extra_params=dict,
+    k_magnitudes='double[::1]',
+    k_magnitudes_str=str,
+    params_specialized=dict,
+    returns=object,  # CosmoResults
+)
 def compute_cosmo(k_min=-1, k_max=-1, k_gridsize=-1,
     gauge='synchronous', filename='', class_call_reason=''):
     """All calls to CLASS should be done through this function.
@@ -2411,7 +2411,6 @@ def compute_cosmo(k_min=-1, k_max=-1, k_gridsize=-1,
     # Shrink down k_gridsize if it is too large to be handled by CLASS.
     # Also use the largest allowed value as the default value,
     # when no k_gridsize is given.
-    k_gridsize_max = (class__ARGUMENT_LENGTH_MAX_ - 1)//(len(k_float2str(0)) + 1)
     if k_gridsize > k_gridsize_max:
         masterwarn(
             f'Reducing number of k modes from {k_gridsize} to {k_gridsize_max}. '
@@ -2457,7 +2456,7 @@ def compute_cosmo(k_min=-1, k_max=-1, k_gridsize=-1,
             masterwarn(
                 'It looks like you have requested too dense a k grid. '
                 'Some of the CLASS perturbations will be computed at the same k.'
-                )
+            )
         # Specify the extra parameters with which CLASS should be run
         extra_params = {# The |k| values to tabulate the perturbations.
                         # The transfer functions computed directly by
@@ -2717,6 +2716,14 @@ def get_default_k_parameters(gridsize):
     k_max = ℝ[2*π/boxsize]*sqrt(3*(gridsize//2)**2)
     n_decades = log10(k_max/k_min)
     k_gridsize = int(round(modes_per_decade*n_decades))
+    # Shrink down k_gridsize if it is too large to be handled by CLASS
+    if k_gridsize > k_gridsize_max:
+        masterwarn(
+            f'Reducing number of k modes from {k_gridsize} to {k_gridsize_max}. '
+            f'If you really want more k modes, you need to increase the CLASS macro '
+            f'_ARGUMENT_LENGTH_MAX_ in include/parser.h.'
+        )
+        k_gridsize = k_gridsize_max
     return k_min, k_max, k_gridsize
 
 # Function which realises a given variable on a component
@@ -3595,10 +3602,12 @@ def generate_primordial_noise(slab):
 
 
 # Read in definitions from CLASS source files at import time
-cython.declare(class__VERSION_=str,
-               class__ARGUMENT_LENGTH_MAX_='Py_ssize_t',
-               class_a_min='double',
-               )
+cython.declare(
+    class__VERSION_=str,
+    class__ARGUMENT_LENGTH_MAX_='Py_ssize_t',
+    class_a_min='double',
+    k_gridsize_max='Py_ssize_t',
+)
 for (varname,
      filename,
      declaration_type,
@@ -3624,5 +3633,7 @@ for (varname,
         class__VERSION_ = value
     elif varname == '_ARGUMENT_LENGTH_MAX_':
         class__ARGUMENT_LENGTH_MAX_ = value
+        # This is the maximum number of k modes that CLASS can handle
+        k_gridsize_max = (class__ARGUMENT_LENGTH_MAX_ - 1)//(len(k_float2str(0)) + 1)
     elif varname == 'a_min':
         class_a_min = -1.0 if special_params.get('keep_class_extra_background', False) else value
