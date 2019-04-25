@@ -695,7 +695,7 @@ if not cython.compiled:
         setattr(cython, directive, dummy_decorator)
     # Address (pointers into arrays)
     def address(a):
-        dtype = np.ctypeslib.as_ctypes(a)._type_.__name__
+        dtype = np.ctypeslib.as_ctypes(a)._type_.__name__.split('_Array')[0]
         return a.ctypes.data_as(ctypes.POINTER(getattr(ctypes, dtype)))
     setattr(cython, 'address', address)
     # C allocation syntax for memory management
