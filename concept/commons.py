@@ -1973,11 +1973,11 @@ user_params['R_tophat'] = R_tophat
 modes_per_decade = float(user_params.get('modes_per_decade', 30))
 user_params['modes_per_decade'] = modes_per_decade
 # Cosmology
-H0 = float(user_params.get('H0', 70*units.km/(units.s*units.Mpc)))
+H0 = float(user_params.get('H0', 67*units.km/(units.s*units.Mpc)))
 user_params['H0'] = H0
-Ωcdm = float(user_params.get('Ωcdm', 0.25))
+Ωcdm = float(user_params.get('Ωcdm', 0.27))
 user_params['Ωcdm'] = Ωcdm
-Ωb = float(user_params.get('Ωb', 0.05))
+Ωb = float(user_params.get('Ωb', 0.049))
 user_params['Ωb'] = Ωb
 a_begin = float(user_params.get('a_begin', 1))
 user_params['a_begin'] = a_begin
