@@ -339,7 +339,7 @@ set_version(){
 # link to the version given by the middle column is broken.
 # In case of CO𝘕CEPT and CLASS, possible versions are the corresponding
 # GitHub branches and releases.
-set_version "concept"         "master"
+set_version "concept"         "0.3.0"
 set_version "blas"            "0.3.5"  "0.3.5"
 set_version "class"           "2.7.1"
 set_version "fftw"            "3.3.8"  "3.3.8"

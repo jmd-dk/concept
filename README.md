@@ -10,15 +10,24 @@ The code is written almost exclusively in Python, but achieves C-like
 performance thanks to Cython.
 
 CO*N*CEPT is capable of simultaneously evolving matter particles and fluids
-such as (massless or massive) neutrinos, at different orders of nonlinearity.
+such as (massless or massive) neutrinos at different orders of non-linearity.
+Completely linear perturbations in all species and the metric itself are
+fully supported, allowing for simulations consistent with
+general relativity (GR).
 The [CLASS](https://github.com/lesgourg/class_public) code is fully integrated
-into CO*N*CEPT, making initial condition generation easy.
+into CO*N*CEPT, making generation of e.g. initial conditions and GR corrections
+easily available.
+
 For academic papers produced using CO*N*CEPT, see:
 
-- [Linear massive neutrinos, photons and GR corrections](https://arxiv.org/abs/1811.00904)
-  - (corresponds to the 0.2.0 release)
+- [Relativistic implementation of decaying dark matter](https://arxiv.org/abs/1904.11773)
+  - (available as of release 0.3.0)
+- [Linear dark energy perturbations](https://arxiv.org/abs/1904.05210)
+  - (available as of release 0.3.0)
+- [Linear photon, massive neutrino and GR corrections](https://arxiv.org/abs/1811.00904)
+  - (available as of release 0.2.0)
 - [Non-linear massive neutrinos](https://arxiv.org/abs/1712.03944)
-  - (corresponds to the 0.1.0 release)
+  - (available as of release 0.1.0)
 
 
 Installation instructions
@@ -34,7 +43,7 @@ Without tests, the installation takes about an hour on modern hardware.
 
 You can download and invoke the installer in one go by
 
-    concept_version=v0.2.1
+    concept_version=v0.3.0
     bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/${concept_version}/installer) [/path/to/concept] [--tests]
 
 where brackets indicate optional arguments. Note that the initial
@@ -54,7 +63,7 @@ CO*N*CEPT on a cluster, but instead make use of an already installed
 MPI 3 library (any implementation should do). This is achieved by
 setting the `mpi_dir` variable, e.g.
 
-    concept_version=v0.2.1
+    concept_version=v0.3.0
     mpi_dir=/path/to/mpi bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/${concept_version}/installer) [/path/to/concept] [--tests]
 
 This trick may also be used should you wish to use
@@ -69,9 +78,9 @@ Running the code
 To run a small sample simulation, navigate to the `concept` directory
 and invoke
 
-    ./concept -p params/example -n 2 --local
+    ./concept -p params/example_params -n 2 --local
 
-This will run the simulation defined by the provided `example`
+This will run the simulation defined by the provided `example_params`
 parameter file using 2 processes. If omitting `--local` when on
 a cluster, no simulation will be run. Instead, a matching job script
 will be produced. For automatic submission of this job script to the
@@ -83,7 +92,7 @@ For additional options, run
     ./concept -h
 
 To learn about the many parameters which can be specified in a
-parameter file, study the `concept/params/example` parameter file.
+parameter file, study the `concept/params/example_params` parameter file.
 It is much larger than typical parameter files because it contains
 (almost) every possible parameter.
 
