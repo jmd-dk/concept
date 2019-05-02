@@ -1219,6 +1219,152 @@ def loop_unswitching(lines, no_optimization):
             unswitch_lvls.add(unswitch_lvl)
             lines[i] = line.replace('unswitch', 'unswitch_{}'.format(unswitch_lvl))
     unswitch_lvls = sorted(unswitch_lvls)
+    # Potentially much too many if statements will be
+    # inserted, creating code with a structure like this:
+    # if condition:      # Keep
+    #     if condition:  # Delete
+    #         ...        # Keep
+    #     else:          # Delete
+    #         ....       # Delete
+    # where the condition is exactly the same in each if statement.
+    # The code is correct, but Cython can take a very long time
+    # handling this code, so we reduce it here.
+    # As indicated by the comments above, when two nested and equal
+    # if statements are found, the body of the if should be kept
+    # (and unindented one level), whereas everything else about the
+    # if statement should be removed. Doing this repeatedly will remove
+    # all occurrences of these unnecessary if statements.
+    def remove_double_if(lines):
+        pattern = r'(^| )if +(.+):'
+        new_lines = []
+        skip = 0
+        for i, line in enumerate(lines):
+            if skip > 0:
+                skip -= 1
+                continue
+            new_lines.append(line)
+            match = re.search(pattern, line)
+            if match and not line.lstrip().startswith('#'):
+                # If statement found
+                condition = match.group(2).strip()
+                # Check whether the next line is an if statement
+                # with the same condition.
+                double_if = False
+                next_line = lines[i + 1]
+                match = re.search(pattern, next_line)
+                if match and not line.lstrip().startswith('#'):
+                    next_condition = match.group(2).strip()
+                    if condition == next_condition:
+                        double_if = True
+                if double_if:
+                    # Double if statement found. Locate the entirety of
+                    # the inner if block, keeping only the if body.
+                    skip += 1  # Skip the inner if statement
+                    inside_inner_if = True
+                    inner_if_lvl = (len(next_line) - len(next_line.lstrip()))//4
+                    for line in lines[(i + 2):]:
+                        if not line.strip() or line.lstrip().startswith('#'):
+                            # Comment or empty line
+                            new_lines.append(line)
+                            skip += 1
+                            continue
+                        lvl = (len(line) - len(line.lstrip()))//4
+                        if lvl > inner_if_lvl:
+                            if inside_inner_if:
+                                # In inner if body
+                                new_lines.append(line[4:])
+                                skip += 1
+                            else:
+                                # Inside elif or else clause
+                                skip += 1
+                        elif lvl == inner_if_lvl:
+                            inside_inner_if = False
+                            if re.search(r'elif +(.+):', line) or re.search(r'else *:', line):
+                                # Beginning of elif or else
+                                skip += 1
+                            elif line.strip() and not line.lstrip().startswith('#'):
+                                # Outside entire inner if block
+                                break
+                            else:
+                                # Comment or empty line
+                                new_lines.append(line)
+                                skip += 1
+                        elif line.strip() and not line.lstrip().startswith('#'):
+                            # Outside entire inner if block
+                            break
+                        else:
+                            print('From pyxpp.py: How did I end up here?', file=sys.stderr)
+                            sys.exit(1)
+        return new_lines
+    # It is also possible that we have the following
+    # impossible construct:
+    # if condition:     # Keep
+    #     ...           # Keep
+    # else:             # Keep
+    #    if condition:  # Delete
+    #        ...        # Delete
+    # where the condition is exactly the same in each if statement.
+    # The code is correct, but Cython can take a very long time
+    # handling this code, so we reduce it here.
+    def remove_impossible_if(lines):
+        pattern = r'(^| )if +(.+):'
+        pattern_else = r'(^| )else *:'
+        new_lines = []
+        skip = 0
+        for i, line in enumerate(lines):
+            if skip > 0:
+                skip -= 1
+                continue
+            new_lines.append(line)
+            match = re.search(pattern_else, line)
+            if match and not line.lstrip().startswith('#'):
+                # Else clause found. Check whether the first line inside
+                # the else block is an if statement.
+                next_line = lines[i + 1]
+                match = re.search(pattern, next_line)
+                if not match or line.lstrip().startswith('#'):
+                    continue
+                # Else clause with if statement inside it found
+                condition = match.group(2).strip()
+                # Check whether the original if statement accompanying
+                # the else clause has the exact same condition as this
+                # inner if statement.
+                lvl = (len(line) - len(line.lstrip()))//4
+                for prev_line in reversed(lines[:i]):
+                    prev_lvl = (len(prev_line) - len(prev_line.lstrip()))//4
+                    if prev_lvl != lvl:
+                        continue
+                    match = re.search(pattern, prev_line)
+                    if match and not line.lstrip().startswith('#'):
+                        prev_condition = match.group(2).strip()
+                        break
+                if prev_condition != condition:
+                    continue
+                # Impossible if statement found within else clause.
+                # Replace all of the contents within this impossible if
+                # statement with a single pass statement, and change
+                # the condition to False. This keeps the code structure,
+                # but will be compiled away by Cython
+                # and/or the C compiler.
+                new_lines.append(
+                    '    '*(lvl + 1) + 'if False:  # Autoinserted dummy if statement\n'
+                )
+                skip += 1  # Skip the inner if statement
+                new_lines.append(
+                    '    '*(lvl + 2) + 'pass       # Autoinserted dummy if statement\n'
+                )
+                for line in lines[(i + 2):]:
+                    if not line.strip() or line.lstrip().startswith('#'):
+                        # Comment or empty line
+                        skip += 1
+                        continue
+                    next_lvl = (len(line) - len(line.lstrip()))//4
+                    if next_lvl <= lvl + 1:
+                        # Line outside of the impossible if body
+                        break
+                    # Line inside the impossible if body
+                    skip += 1
+        return new_lines
     # Run through the lines and replace any unswitch context manager
     # with the unswitched loop(s). Do this for each unswitch lvl
     # separately, starting with the lower levels (least indented).
@@ -1226,6 +1372,13 @@ def loop_unswitching(lines, no_optimization):
         pattern = r'with +unswitch_{} *(\(.*\))? *:'.format(current_unswitch_lvl)
         new_lines = []
         while True:
+            # Repeatedly apply the remove_* functions until all
+            # occurrences of unnecessary if statements are gone.
+            lines_len_ori = -1
+            while len(lines) != lines_len_ori:
+                lines_len_ori = len(lines)
+                lines = remove_double_if    (lines)
+                lines = remove_impossible_if(lines)
             skip = 0
             for i, line in enumerate(lines):
                 # Should this line be skipped?
@@ -1420,154 +1573,8 @@ def loop_unswitching(lines, no_optimization):
             lines = new_lines
             new_lines = []
     # The lines have now been unswitched.
-    # However, potentially much too many if statements have been
-    # inserted, creating code with a structure like this:
-    # if condition:      # Keep
-    #     if condition:  # Delete
-    #         ...        # Keep
-    #     else:          # Delete
-    #         ....       # Delete
-    # where the condition is exactly the same in each if statement.
-    # The code is correct, but Cython can take a very long time
-    # handling this code, so we reduce it here.
-    # As indicated by the comments above, when two nested and equal
-    # if statements are found, the body of the if should be kept
-    # (and unindented one level), whereas everything else about the
-    # if statement should be removed. Doing this repeatedly will remove
-    # all occurrences of these unnecessary if statements.
-    def remove_double_if(lines):
-        pattern = r'(^| )if +(.+):'
-        new_lines = []
-        skip = 0
-        for i, line in enumerate(lines):
-            if skip > 0:
-                skip -= 1
-                continue
-            new_lines.append(line)
-            match = re.search(pattern, line)
-            if match and not line.lstrip().startswith('#'):
-                # If statement found
-                condition = match.group(2).strip()
-                # Check whether the next line is an if statement
-                # with the same condition.
-                double_if = False
-                next_line = lines[i + 1]
-                match = re.search(pattern, next_line)
-                if match and not line.lstrip().startswith('#'):
-                    next_condition = match.group(2).strip()
-                    if condition == next_condition:
-                        double_if = True
-                if double_if:
-                    # Double if statement found. Locate the entirety of
-                    # the inner if block, keeping only the if body.
-                    skip += 1  # Skip the inner if statement
-                    inside_inner_if = True
-                    inner_if_lvl = (len(next_line) - len(next_line.lstrip()))//4
-                    for line in lines[(i + 2):]:
-                        if not line.strip() or line.lstrip().startswith('#'):
-                            # Comment or empty line
-                            new_lines.append(line)
-                            skip += 1
-                            continue
-                        lvl = (len(line) - len(line.lstrip()))//4
-                        if lvl > inner_if_lvl:
-                            if inside_inner_if:
-                                # In inner if body
-                                new_lines.append(line[4:])
-                                skip += 1
-                            else:
-                                # Inside elif or else clause
-                                skip += 1
-                        elif lvl == inner_if_lvl:
-                            inside_inner_if = False
-                            if re.search(r'elif +(.+):', line) or re.search(r'else *:', line):
-                                # Beginning of elif or else
-                                skip += 1
-                            elif line.strip() and not line.lstrip().startswith('#'):
-                                # Outside entire inner if block
-                                break
-                            else:
-                                # Comment or empty line
-                                new_lines.append(line)
-                                skip += 1
-                        elif line.strip() and not line.lstrip().startswith('#'):
-                            # Outside entire inner if block
-                            break
-                        else:
-                            print('From pyxpp.py: How did I end up here?', file=sys.stderr)
-                            sys.exit(1)
-        return new_lines
-    # It is also possible that we have the following
-    # impossible construct:
-    # if condition:     # Keep
-    #     ...           # Keep
-    # else:             # Keep
-    #    if condition:  # Delete
-    #        ...        # Delete
-    # where the condition is exactly the same in each if statement.
-    # The code is correct, but Cython can take a very long time
-    # handling this code, so we reduce it here.
-    def remove_impossible_if(lines):
-        pattern = r'(^| )if +(.+):'
-        pattern_else = r'(^| )else *:'
-        new_lines = []
-        skip = 0
-        for i, line in enumerate(lines):
-            if skip > 0:
-                skip -= 1
-                continue
-            new_lines.append(line)
-            match = re.search(pattern_else, line)
-            if match and not line.lstrip().startswith('#'):
-                # Else clause found. Check whether the first line inside
-                # the else block is an if statement.
-                next_line = lines[i + 1]
-                match = re.search(pattern, next_line)
-                if not match or line.lstrip().startswith('#'):
-                    continue
-                # Else clause with if statement inside it found
-                condition = match.group(2).strip()
-                # Check whether the original if statement accompanying
-                # the else clause has the exact same condition as this
-                # inner if statement.
-                lvl = (len(line) - len(line.lstrip()))//4
-                for prev_line in reversed(lines[:i]):
-                    prev_lvl = (len(prev_line) - len(prev_line.lstrip()))//4
-                    if prev_lvl != lvl:
-                        continue
-                    match = re.search(pattern, prev_line)
-                    if match and not line.lstrip().startswith('#'):
-                        prev_condition = match.group(2).strip()
-                        break
-                if prev_condition != condition:
-                    continue
-                # Impossible if statement found within else clause.
-                # Replace all of the contents within this impossible if
-                # statement with a single pass statement, and change
-                # the condition to False. This keeps the code structure,
-                # but will be compiled away by Cython
-                # and/or the C compiler.
-                new_lines.append(
-                    '    '*(lvl + 1) + 'if False:  # Autoinserted dummy if statement\n'
-                )
-                skip += 1  # Skip the inner if statement
-                new_lines.append(
-                    '    '*(lvl + 2) + 'pass       # Autoinserted dummy if statement\n'
-                )
-                for line in lines[(i + 2):]:
-                    if not line.strip() or line.lstrip().startswith('#'):
-                        # Comment or empty line
-                        skip += 1
-                        continue
-                    next_lvl = (len(line) - len(line.lstrip()))//4
-                    if next_lvl <= lvl + 1:
-                        # Line outside of the impossible if body
-                        break
-                    # Line inside the impossible if body
-                    skip += 1
-        return new_lines
-    # Repeatedly apply the remove_* functions above until all
-    # occurrences of these unnecessary if statements are gone.
+    # Repeatedly apply the remove_* functions until all
+    # occurrences of unnecessary if statements are gone.
     lines_len_ori = -1
     while len(lines) != lines_len_ori:
         lines_len_ori = len(lines)
@@ -2901,10 +2908,10 @@ if __name__ == '__main__':
             lines = cimport_function             (lines, no_optimization)
             lines = constant_expressions         (lines, no_optimization)
             lines = unicode2ASCII                (lines, no_optimization)
+            lines = power2product                (lines, no_optimization)
             lines = loop_unswitching             (lines, no_optimization)
             lines = remove_duplicate_declarations(lines, no_optimization)
             lines = cython_decorators            (lines, no_optimization)
-            lines = power2product                (lines, no_optimization)
             lines = __init__2__cinit__           (lines, no_optimization)
             lines = fix_addresses                (lines, no_optimization)
             lines = malloc_realloc               (lines, no_optimization)
@@ -2924,9 +2931,9 @@ if __name__ == '__main__':
                     lines = pyxfile.readlines()
                 with open(filename_c, 'r', encoding='utf-8') as cfile:
                     clines = cfile.readlines()
-                lines = add_types_to_addition_chain_exponentiation_variables(lines,
-                                                                             clines,
-                                                                             no_optimization)
+                lines = add_types_to_addition_chain_exponentiation_variables(
+                    lines, clines, no_optimization,
+                )
                 # Write the modified lines to the .pyx-file
                 with open(filename, 'w', encoding='utf-8') as pyxfile:
                     pyxfile.writelines(lines)

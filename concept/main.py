@@ -27,6 +27,7 @@ from commons import *
 # Cython imports
 import interactions
 cimport('from analysis import debug, measure, powerspec')
+cimport('from communication import domain_subdivisions')
 cimport('from graphics import render2D, render3D')
 cimport('from integration import cosmic_time,          '
         '                        expand,               '
@@ -35,7 +36,6 @@ cimport('from integration import cosmic_time,          '
         '                        scale_factor,         '
         '                        scalefactor_integral, '
         )
-cimport('from interactions import find_interactions')
 cimport('from snapshot import get_initial_conditions, save')
 cimport('from species import Component, get_representation')
 cimport('from utilities import delegate')
@@ -309,7 +309,7 @@ def kick(components, step):
         component.apply_internal_sources(ᔑdt, a_next)
     # Find out which components interact with each other
     # under the different interactions.
-    interactions_list = find_interactions(components)
+    interactions_list = interactions.find_interactions(components)
     # Invoke each interaction sequentially
     for force, method, receivers, suppliers in interactions_list:
         getattr(interactions, force)(method, receivers, suppliers, ᔑdt)
@@ -369,6 +369,11 @@ def timeloop():
     if not (  [nr for val in output_times['a'].values() for nr in val]
             + [nr for val in output_times['t'].values() for nr in val]):
         return
+    # Print out domain decomposition
+    masterprint(
+        f'Domain decomposition: '
+        f'{domain_subdivisions[0]}×{domain_subdivisions[1]}×{domain_subdivisions[2]}'
+    )
     # Determine and set the correct initial values for the cosmic time
     # universals.t and the scale factor a(universals.t) = universals.a.
     initiate_time()
@@ -428,8 +433,6 @@ def timeloop():
             'ȧ/a',
             *[(integrand, component) for component in components
                 for integrand in (
-                    'a**(-3*w)',    # !!! Only used by gravity_old.py
-                    'a**(-3*w-1)',  # !!! Only used by gravity_old.py
                     'a**(-3*w_eff)',
                     'a**(-3*w_eff-1)',
                     'a**(3*w_eff-2)',

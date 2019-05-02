@@ -150,7 +150,7 @@ def gravity_pairwise(component_1, component_2, rank_2, ᔑdt, local, mutual, ext
                     elif z_ji < ℝ[-0.5*boxsize]:
                         z_ji += boxsize
                     r = sqrt(x_ji**2 + y_ji**2 + z_ji**2 + ℝ[(0.5*(softening_1 + softening_2))**2])
-                    r_scaled = r*ℝ[1/p3m_scale_phys]
+                    r_scaled = r*ℝ[1/(p3m_scale*boxsize/φ_gridsize)]
                     shortrange_fac = (  r_scaled*ℝ[1/sqrt(π)]*exp(-0.25*r_scaled**2)
                                       + erfc(0.5*r_scaled))
                     forcex_ij = x_ji*ℝ[-shortrange_fac/r**3]
@@ -225,3 +225,15 @@ def gravity_pairwise(component_1, component_2, rank_2, ᔑdt, local, mutual, ext
 )
 def gravity_potential(k2):
     return ℝ[-4*π*G_Newton]/k2
+
+# Function implementing just the long-range part
+# of the gravitational potential (in Fouier space).
+# Here k2 = k² is the squared magnitude of the wave vector,
+# in physical units.
+@cython.header(
+    k2='double',
+    returns='double',
+)
+def gravity_longrange_potential(k2):
+    return exp(-k2*ℝ[(p3m_scale*boxsize/φ_gridsize)**2])*gravity_potential(k2)
+

@@ -1173,7 +1173,7 @@ def correct_vacuum(component, mc_step):
     # A numerator of 1 implies that in the most extreme case,
     # a vacuum cell will be replaced with a weighted average of its
     # 26 neighbour cells (all of the original cell will be distributed
-    # among these neighbors).
+    # among these neighbours).
     fac_smoothing = ℝ[1/(6/1 + 12/2 + 8/3)]*is_selected(
         component,
         fluid_options['maccormack']['smoothing_select'],

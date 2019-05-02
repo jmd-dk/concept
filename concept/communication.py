@@ -484,8 +484,8 @@ def communicate_domain(domain_grid, mode=''):
                           domain_grid[index_recv_start_i:index_recv_end_i,
                                       index_recv_start_j:index_recv_end_j,
                                       index_recv_start_k:index_recv_end_k],
-                          dest  =rank_neighboring_domain(+i, +j, +k),
-                          source=rank_neighboring_domain(-i, -j, -k),
+                          dest  =rank_neighbouring_domain(+i, +j, +k),
+                          source=rank_neighbouring_domain(-i, -j, -k),
                           reverse=reverse,
                           mpifun='Sendrecv',
                           operation=operation)
@@ -580,18 +580,20 @@ def which_domain(x, y, z):
 # This function computes the ranks of the processes governing the
 # domain which is located i domains to the right, j domains forward and
 # k domains up, relative to the local domain.
-@cython.header(# Arguments
-               i='int',
-               j='int',
-               k='int',
-               # Locals
-               returns='int',
-               )
-def rank_neighboring_domain(i, j, k):
-    return domain_layout[mod(domain_layout_local_indices[0] + i, domain_subdivisions[0]),
-                         mod(domain_layout_local_indices[1] + j, domain_subdivisions[1]),
-                         mod(domain_layout_local_indices[2] + k, domain_subdivisions[2]),
-                         ]
+@cython.pheader(
+    # Arguments
+    i='int',
+    j='int',
+    k='int',
+    # Locals
+    returns='int',
+)
+def rank_neighbouring_domain(i, j, k):
+    return domain_layout[
+        mod(domain_layout_local_indices[0] + i, domain_subdivisions[0]),
+        mod(domain_layout_local_indices[1] + j, domain_subdivisions[1]),
+        mod(domain_layout_local_indices[2] + k, domain_subdivisions[2]),
+    ]
 
 # Function which communicates local component data
 @cython.header(# Arguments
@@ -626,11 +628,11 @@ def sendrecv_component(component_send, variables, dest, source, component_recv=N
     The variables argument must be a list of str's designating
     which local data variables of component_send to communicate.
     The implemented variables are:
-    - 'pos' (posx, posy and posz for particles)
-    - 'mom' (momx, momy and momz for particles)
+    - 'pos' (posx, posy and posz)
+    - 'mom' (momx, momy and momz)
     """
     global component_buffer
-    if component_send.representation != 'particles':  # !!! Generalize to fluids also
+    if component_send.representation != 'particles':
         abort('The sendrecv_component function is only implemented for particle components')
     # Determine the mode of operation
     operation = '+='
@@ -654,12 +656,9 @@ def sendrecv_component(component_send, variables, dest, source, component_recv=N
         component_buffer.name           = component_send.name
         component_buffer.species        = component_send.species
         component_buffer.representation = component_send.representation
-        if component_send.representation == 'particles':
-            component_buffer.N                = component_send.N
-            component_buffer.mass             = component_send.mass
-            component_buffer.softening_length = component_send.softening_length
-        elif component_send.representation == 'fluid':
-            ...
+        component_buffer.N                = component_send.N
+        component_buffer.mass             = component_send.mass
+        component_buffer.softening_length = component_send.softening_length
         # Enlarge the data arrays of the component_buffer if necessary
         component_buffer.N_local = sendrecv(component_send.N_local, dest=dest, source=source)
         if component_buffer.N_allocated < component_buffer.N_local:
@@ -1148,24 +1147,21 @@ buffers_mv = collections.OrderedDict()
 buffers_mv[0] = buffer_mv
 
 # Cutout domains at import time
-cython.declare(domain_subdivisions='int[::1]',
-               domain_layout='int[:, :, ::1]',
-               domain_layout_local_indices='int[::1]',
-               domain_size_x='double',
-               domain_size_y='double',
-               domain_size_z='double',
-               domain_volume='double',
-               domain_start_x='double',
-               domain_start_y='double',
-               domain_start_z='double',
-               domain_end_x='double',
-               domain_end_y='double',
-               domain_end_z='double',
-               j='int',
-               x_index='int',
-               y_index='int',
-               z_index='int',
-               )
+cython.declare(
+    domain_subdivisions='int[::1]',
+    domain_layout='int[:, :, ::1]',
+    domain_layout_local_indices='int[::1]',
+    domain_size_x='double',
+    domain_size_y='double',
+    domain_size_z='double',
+    domain_volume='double',
+    domain_start_x='double',
+    domain_start_y='double',
+    domain_start_z='double',
+    domain_end_x='double',
+    domain_end_y='double',
+    domain_end_z='double',
+)
 # Number of subdivisions (domains) of the box
 # in each of the three dimensions.
 domain_subdivisions = cutout_domains(nprocs)
@@ -1187,10 +1183,12 @@ domain_end_y = domain_start_x + domain_size_x
 domain_end_z = domain_start_x + domain_size_x
 
 # Initialize variables used in the exchange function
-cython.declare(N_send='Py_ssize_t[::1]',
-               indices_send='Py_ssize_t**',
-               indices_send_sizes='Py_ssize_t[::1]',
-               )
+cython.declare(
+    N_send='Py_ssize_t[::1]',
+    indices_send='Py_ssize_t**',
+    indices_send_sizes='Py_ssize_t[::1]',
+    j='int',
+)
 # This variable stores the number of particles to send to each prcess
 N_send = empty(nprocs, dtype=C2np['Py_ssize_t'])
 # This Py_ssize_t** variable stores the indices of particles to be send

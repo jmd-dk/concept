@@ -850,12 +850,6 @@ def scalefactor_integral(key, t_ini=-1.0, Δt=-1.0):
                 integrand_tab_spline[i] = 1/a**2
             elif integrand == 'ȧ/a':
                 integrand_tab_spline[i] = hubble(a)
-            elif integrand == 'a**(-3*w)':  # !!! Only used by gravity_old.py
-                w = component.w(t=t, a=a)
-                integrand_tab_spline[i] = a**(-3*w)
-            elif integrand == 'a**(-3*w-1)':  # !!! Only used by gravity_old.py
-                w = component.w(t=t, a=a)
-                integrand_tab_spline[i] = a**(-3*w - 1)
             elif integrand == 'a**(-3*w_eff)':
                 w_eff = component.w_eff(t=t, a=a)
                 integrand_tab_spline[i] = a**(-3*w_eff)

@@ -29,7 +29,7 @@ cimport('from communication import domain_size_x,  domain_size_y,  domain_size_z
                                   'domain_start_x, domain_start_y, domain_start_z,'
                                   'get_buffer,                                    '
 )
-cimport('from mesh import CIC_components2φ_general')
+cimport('from mesh import CIC_components2φ')
 
 # Pure Python imports
 from mpl_toolkits.mplot3d import proj3d  # Importing from mpl_toolkits.mplot3d enables 3D plotting
@@ -542,7 +542,7 @@ def render2D(components, filename):
             ('ϱ', [(boxsize/component.gridsize)**3*a**(-3*component.w_eff(a=a))
                    for component in component_combination]),
             ]
-        φ = CIC_components2φ_general(
+        φ = CIC_components2φ(
             list(component_combination),
             interpolation_quantities,
             add_particles_and_fluids=True,

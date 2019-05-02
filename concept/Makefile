@@ -43,7 +43,6 @@ pyfiles = analysis      \
           fluid         \
           graphics      \
           gravity       \
-          gravity_old   \
           integration   \
           interactions  \
           linear        \

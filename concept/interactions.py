@@ -25,15 +25,14 @@
 from commons import *
 
 # Cython imports
-cimport('from communication import communicate_domain, sendrecv_component')
+cimport('from communication import '
+    'communicate_domain, sendrecv_component, rank_neighbouring_domain')
 cimport('from communication import domain_size_x , domain_size_y , domain_size_z' )
 cimport('from communication import domain_start_x, domain_start_y, domain_start_z')
 cimport('from mesh import diff_domain, domain_decompose, fft, slab_decompose')
-cimport('from mesh import CIC_components2φ_general, CIC_grid2grid, CIC_scalargrid2coordinates')
+cimport('from mesh import CIC_components2φ, CIC_grid2grid, CIC_scalargrid2coordinates')
 # Import interactions defined in other modules
 cimport('from gravity import *')
-# DELETE WHEN DONE with gravity_old.py !!!
-cimport('from gravity_old import build_φ, p3m, pm')
 
 # Function pointer types used in this module
 pxd("""
@@ -46,112 +45,101 @@ ctypedef double (*func_potential  )(double)
 
 
 # Generic function implementing domain-domain pairing
-@cython.header(# Arguments
-              receivers=list,
-              suppliers=list,
-              ᔑdt=dict,
-              interaction=func_interaction,
-              interaction_name=str,
-              dependent=list,  # list of str's
-              affected=list,   # list of str's
-              deterministic='bint',
-              extra_args=dict,
-              # Locals
-              N_domain_pairs='Py_ssize_t',
-              assisted='bint',
-              components=list,
-              component_1='Component',
-              component_2_extrl='Component',
-              component_2_local='Component',
-              i='Py_ssize_t',
-              index_component_1='Py_ssize_t',
-              index_component_2='Py_ssize_t',
-              local='bint',
-              mutual='bint',
-              only_supply='bint',
-              rank_send='int',
-              rank_recv='int',
-              synchronous='bint',
-              )
-def domain_domain(receivers, suppliers, ᔑdt, interaction, interaction_name,
-                  dependent, affected, deterministic, extra_args={}):
-    """This function takes care of pairings between all components
-    and between all domains. The component-pairings include:
-    - Receivers with themselves (interactions between
-      particles/fluid elements within a component).
-    - Receivers with other receivers.
-    - Receivers with suppliers.
-    The receiver components are denoted component_1. These will not
-    be communicated (except when implicitly used as suppliers).
-    The supplier components will be denoted component_2. These will
-    be sent to other processes (domains) and also recieved back from
-    other processes. Thus both local and external versions of
-    component_2 exist, called component_2_local and component_2_extrl.
+@cython.header(
+    # Arguments
+    receivers=list,
+    suppliers=list,
+    ᔑdt=dict,
+    interaction=func_interaction,
+    dependent=list,  # list of str's
+    affected=list,   # list of str's
+    deterministic='bint',
+    extra_args=dict,
+    communication_pattern=str,
+    # Locals
+    assisted='bint',
+    component_pair=set,
+    component_r='Component',
+    component_s_extrl='Component',
+    component_s_local='Component',
+    i='Py_ssize_t',
+    local='bint',
+    mutual='bint',
+    only_supply='bint',
+    pairings=list,
+    rank_recv='int',
+    rank_send='int',
+    ranks_recv='int[::1]',
+    ranks_send='int[::1]',
+    synchronous='bint',
+)
+def domain_domain(
+    receivers, suppliers, ᔑdt, interaction, dependent, affected, deterministic,
+    communication_pattern, extra_args={},
+):
+    """This function takes care of pairings between all receiver and
+    supplier components.
+    The receiver components are denoted component_r. These will not be
+    communicated. The supplier components will be denoted component_s.
+    These will be sent to other processes (domains) and also received
+    back from other processes. Thus both local and external versions of
+    component_s exist, called component_s_local and component_s_extrl.
 
     If affected is an empty list, this is not really an interaction.
     In this case, every domain will both send and receive from every
     other domain.
     """
-    # List of all components participating in this interaction
-    components = receivers + suppliers
     # Determine whether this "interaction" have any direct effect
     # on the components at all. If not, this will change the
     # communication pattern.
-    assisted = True
-    if not affected:
-        assisted = False
-    # Pair each receiver with all receivers and suppliers
-    for     index_component_1, component_1       in enumerate(receivers):
-        for index_component_2, component_2_local in enumerate(components[index_component_1:]):
-            if component_2_local.representation != 'particles':  # !!! Generalize to fluids also
-                abort('The domain_domain function is only implemented for particles')
-            # Flag specifying whether component_2 should only supply
+    assisted = bool(affected)
+    # Get the process ranks to send to and receive from
+    ranks_send, ranks_recv = domain_domain_communication(communication_pattern, assisted)
+    # Pair each receiver with all suppliers
+    pairings = []
+    for component_r in receivers:
+        for component_s_local in suppliers:
+            component_pair = {component_r, component_s_local}
+            if component_pair in pairings:
+                continue
+            pairings.append(component_pair)
+            # Flag specifying whether component_s should only supply
             # forces to component_1 and not receive any momentum
             # updates itself.
-            only_supply = (index_component_2 >= ℤ[len(receivers)])
+            only_supply = (component_s_local not in receivers)
             # Display progress message
-            if interaction_name:
-                if index_component_1 == index_component_2:
-                    masterprint('Letting {} interact under {} ...'
-                                .format(component_1.name, interaction_name)
-                                )
-                elif only_supply:
-                    masterprint('Letting {} interact with {} under {} ...'
-                                .format(component_1.name, component_2_local.name, interaction_name)
-                                )
-                else:
-                    masterprint('Letting {} and {} interact under mutual {} ...'
-                                .format(component_1.name, component_2_local.name, interaction_name)
-                                )
-            # Pair this process/domain with every other process/domain.
-            # The pairing pattern is as follows. This process is paired
-            # with two other processes simultaneously; those with a rank
-            # given by (the local) rank ± i:
-            # - Local component_2 -> rank + i
-            # - Extrl component_2 <- rank - i
-            # On each process, the local component_1 and the external
-            # (received) component_2 then interact.
-            N_domain_pairs = ℤ[1 + nprocs//2] if assisted else nprocs
-            for i in range(N_domain_pairs):
+            if only_supply:
+                masterprint(f'Pairing {component_r.name} ⟵ {component_s_local.name} ...')
+            else:
+                masterprint(f'Pairing {component_r.name} ⟷ {component_s_local.name} ...')
+            # Pair this process/domain with whichever other
+            # processes/domains are needed. This process is paired
+            # with two other processes simultaneously. This rank sends
+            # a copy of the local component_s to rank_send, while
+            # receiving the external component_s from rank_recv.
+            # On each process, the local component_r and the external
+            # (received) component_s then interact.
+            for i in range(ranks_send.shape[0]):
                 # Process ranks to send to and receive from
-                rank_send = mod(rank + i, nprocs)
-                rank_recv = mod(rank - i, nprocs)
-                # Determine whther component_2 should be updated due to
-                # its interaction with component_1. This is usually the
+                rank_send = ranks_send[i]
+                rank_recv = ranks_recv[i]
+                fancyprint(f'rank {rank} sends to {rank_send} and recv from {rank_recv}')
+                # Determine whther component_s should be updated due to
+                # its interaction with component_r. This is usually the
                 # case. The exceptions are
-                # - component_2 is a supplier and not a receiver.
+                # - component_s is a supplier and not a receiver.
                 #   When this is the case, only_supply is True.
-                # - component_2 is really the same as component_1
+                # - component_s is really the same as component_r
                 #   and this is a local interaction, meaning that
                 #   both rank_send and rank_recv is really just the
                 #   local rank. In this case, the supplied interaction
-                #   function should also update the data of component_2
+                #   function should also update the data of component_s
                 #   (not the buffers). This special case is flagged
                 #   by the 'local' variable being True.
-                # - component_2 is really the same as component_1
+                # - component_s is really the same as component_r
                 #   and rank_send == rank_recv (but different from the
                 #   local rank). In this case, the external updates to
-                #   component_2 should not be send back and applied, as
+                #   component_s should not be send back and applied, as
                 #   these updates are already done locally on the other
                 #   process. This special case is flagged by the
                 #   'synchronous' variable being True. The exception
@@ -161,25 +149,24 @@ def domain_domain(receivers, suppliers, ᔑdt, interaction, interaction_name,
                 #   processes synchronously, as they may produce
                 #   different results.
                 local = False
-                if index_component_1 == index_component_2 and rank_send == rank == rank_recv:
+                if 𝔹[component_r is component_s_local] and rank_send == rank == rank_recv:
                     local = True
                 synchronous = False
-                if not local and index_component_1 == index_component_2 and rank_send == rank_recv:
+                if not local and 𝔹[component_r is component_s_local] and rank_send == rank_recv:
                     synchronous = True
                 mutual = True
                 if only_supply or local or (synchronous and deterministic) or not assisted:
                     mutual = False
                 # Communicate the dependent variables
-                # (e.g. pos for gravity) of component_2.
-                component_2_extrl = sendrecv_component(component_2_local,
-                                                       dependent, dest=rank_send,
-                                                                  source=rank_recv,
-                                                       )
-                # Let the local component_1 interaction with the
-                # external component_2. This will update the affected
+                # (e.g. pos for gravity) of component_s.
+                component_s_extrl = sendrecv_component(
+                    component_s_local, dependent, dest=rank_send, source=rank_recv,
+                )
+                # Let the local component_r interaction with the
+                # external component_s. This will update the affected
                 # variables (e.g. mom for gravity) of the local
-                # component_1 and populate the affected variable buffers
-                # of the external component_2, if mutual is True.
+                # component_r and populate the affected variable buffers
+                # of the external component_s, if mutual is True.
                 # If this is a synchronous interaction (meaning that it
                 # is between only two processes, rank_send == rank_recv)
                 # and also non-deterministic, perform the interaction
@@ -188,25 +175,65 @@ def domain_domain(receivers, suppliers, ᔑdt, interaction, interaction_name,
                 if (    not synchronous
                     or (    synchronous and     deterministic)
                     or (    synchronous and not deterministic and rank < rank_send)
-                    ):
-                    interaction(component_1, component_2_extrl,
-                                rank_recv, ᔑdt, local, mutual, extra_args)
+                ):
+                    interaction(
+                        component_r, component_s_extrl, rank_recv, ᔑdt, local, mutual, extra_args,
+                    )
                 if mutual:
                     # Send the populated buffers back to the process
-                    # from which the external component_2 came.
+                    # from which the external component_s came.
                     # Add the received values in the buffers to the
                     # affected variables (e.g. mom for gravity) of
-                    # the local component_2.
-                    sendrecv_component(component_2_extrl,
-                                       affected,
-                                       dest=rank_recv,
-                                       source=rank_send,
-                                       component_recv=component_2_local,
-                                       )
-                    # Nullify the Δ buffers of the external component_2,
+                    # the local component_s.
+                    sendrecv_component(
+                        component_s_extrl, affected,
+                        dest=rank_recv, source=rank_send, component_recv=component_s_local,
+                    )
+                    # Nullify the Δ buffers of the external component_s,
                     # leaving this with no leftover junk.
-                    component_2_extrl.nullify_Δ(affected)
+                    component_s_extrl.nullify_Δ(affected)
             masterprint('done')
+# Function returning iterators over domains/processes with which to
+# pair the local domain in the domain_domain function,
+# depending on the communication_pattern.
+@cython.pheader(
+    # Arguments
+    communication_pattern=str,
+    assisted='bint',
+    # Locals
+    i='Py_ssize_t',
+    returns=tuple,
+)
+def domain_domain_communication(communication_pattern, assisted):
+    ranks = domain_domain_communication_dict[communication_pattern].get(assisted)
+    if ranks:
+        return ranks
+    if communication_pattern == 'pp':
+        # Each process should be paired with all processes. In the usual
+        # case of assisted being True, a process sends and receivers
+        # from two processes simultaneously, meaning that the number of
+        # pairings is cut (roughly) in half.
+        N_domain_pairs = 1 + nprocs//2 if assisted else nprocs
+        ranks_send = np.empty(N_domain_pairs, dtype=C2np['int'])
+        ranks_recv = np.empty(N_domain_pairs, dtype=C2np['int'])
+        for i in range(N_domain_pairs):
+            ranks_send[i] = mod(rank + i, nprocs)
+            ranks_recv[i] = mod(rank - i, nprocs)
+        domain_domain_communication_dict[communication_pattern][assisted] = (
+            (ranks_send, ranks_recv)
+        )
+    elif communication_pattern == 'p3m':
+        ...
+    else:
+        abort(
+            f'domain_domain_communication() got '
+            f'communication_pattern = {communication_pattern} ∉ {{"pp", "p3m"}}'
+        )
+    return domain_domain_communication_dict[communication_pattern][assisted]
+# Cached results of the domain_domain_communication function
+# are stored in the dict below.
+cython.declare(domain_domain_communication_dict=dict)
+domain_domain_communication_dict = {'pp': {}, 'p3m': {}}
 
 # Generic function implementing particle-mesh interactions
 # for both particle and fluid componenets.
@@ -219,14 +246,11 @@ def domain_domain(receivers, suppliers, ᔑdt, interaction, interaction_name,
     potential=func_potential,
     potential_name=str,
     dependent=list,
-    construct_potential_from=str,
     # Locals
     J_dim='FluidScalar',
     component='Component',
-    components=list,
     dim='int',
     gradφ_dim='double[:, :, ::1]',
-    h='double',
     i='Py_ssize_t',
     mom_dim='double*',
     posx='double*',
@@ -236,15 +260,15 @@ def domain_domain(receivers, suppliers, ᔑdt, interaction, interaction_name,
     x='double',
     y='double',
     z='double',
+    Δx_φ='double',
     φ='double[:, :, ::1]',
     φ_dict=dict,
 )
-def particle_mesh_general(receivers, suppliers, ᔑdt, ᔑdt_key,
-    potential, potential_name, dependent, construct_potential_from='receivers_suppliers'):
+def particle_mesh(receivers, suppliers, ᔑdt, ᔑdt_key, potential, potential_name, dependent):
     """This function will update the affected variables of all receiver
     components due to an interaction. This is done by constructing
     global fields by interpolating the dependent variables of all
-    receivers and suppliers onto grids.
+    suppliers onto grids.
     The supplied 'dependent' argument is thus a list of variables which
     should be interpolated to the grid. For details on the structure
     of this argument, see the CIC_components2domain_grid function
@@ -266,33 +290,24 @@ def particle_mesh_general(receivers, suppliers, ᔑdt, ᔑdt_key,
     transformed) potential by multiplying each grid point by
     potential(k2), where k2 = k² is the squared magnitude of the wave
     vector at the given grid point. For further details on the potential
-    argument, see the construct_potential_general function.
+    argument, see the construct_potential function.
 
     The grids are then Fourier transformed back to real space and
     differentiated along each dimension to get the force.
 
-    This force is then applied to all receiver using the prescription
+    This force is then applied to all receivers using the prescription
     Δmom = -mass*∂ⁱφ*ᔑdt[ᔑdt_key]
     """
-    # Build the two potentials due to all particles and fluid components
-    components = []
-    construct_potential_from = construct_potential_from.lower()
-    if 'receiver' in construct_potential_from:
-        components += receivers
-    if 'supplier' in construct_potential_from:
-        components += suppliers
+    # Build the two potentials due to all particles and fluid suppliers
     masterprint(
         f'Constructing the {potential_name} due to {{}} ...'
-        .format(', '.join([
-            component.name for component in components if component.name != 'fake'
-        ]))
+        .format(', '.join([component.name for component in suppliers]))
     )
-    φ_dict = construct_potential_general(receivers, suppliers, dependent, potential,
-        construct_potential_from)
+    φ_dict = construct_potential(receivers, suppliers, dependent, potential)
     masterprint('done')
     # For each dimension, differentiate the potentials
-    # and apply the force to all receiver components.
-    h = boxsize/φ_gridsize  # Physical grid spacing of φ
+    # and apply the force to all receivers.
+    Δx_φ = boxsize/φ_gridsize  # Physical grid spacing of φ
     for representation, φ in φ_dict.items():
         for dim in range(3):
             masterprint(
@@ -300,7 +315,7 @@ def particle_mesh_general(receivers, suppliers, ᔑdt, ᔑdt_key,
                 f'{"xyz"[dim]}-direction and applying it ...'
             )
             # Do the differentiation of φ
-            gradφ_dim = diff_domain(φ, dim, h, order=4)
+            gradφ_dim = diff_domain(φ, dim, Δx_φ, order=4)
             # Apply force to all the receivers
             for component in receivers:
                 if component.representation != representation:
@@ -359,56 +374,53 @@ def particle_mesh_general(receivers, suppliers, ᔑdt, ᔑdt_key,
 
 # Generic function capable of constructing potential grids out of
 # components and a given expression for the potential.
-@cython.header(# Arguments
-               receivers=list,
-               suppliers=list,
-               quantities=list,
-               potential=func_potential,
-               construct_potential_from=str,
-               # Locals
-               any_fluid='bint',
-               any_fluid_receivers='bint',
-               any_particles='bint',
-               any_particles_receivers='bint',
-               components=list,
-               deconv_factor='double',
-               deconv_ijk='double',
-               fft_normalization_factor='double',
-               i='Py_ssize_t',
-               j='Py_ssize_t',
-               j_global='Py_ssize_t',
-               kj='Py_ssize_t',
-               kj2='Py_ssize_t',
-               k='Py_ssize_t',
-               ki='Py_ssize_t',
-               kk='Py_ssize_t',
-               k2='Py_ssize_t',
-               potential_factor='double',
-               receiver_representations=list,
-               reciprocal_sqrt_deconv_ij='double',
-               reciprocal_sqrt_deconv_ijk='double',
-               reciprocal_sqrt_deconv_j='double',
-               representation=str,
-               representation_counter='int',
-               slab='double[:, :, ::1]',
-               slab_dict=dict,
-               slab_fluid='double[:, :, ::1]',
-               slab_fluid_jik='double*',
-               slab_jik='double*',
-               slab_ordereddict=object,  # OrderedDict
-               slab_particles='double[:, :, ::1]',
-               slab_particles_jik='double*',
-               φ='double[:, :, ::1]',
-               φ_dict=dict,
-               returns=dict,
-               )
-def construct_potential_general(receivers, suppliers, quantities, potential,
-    construct_potential_from='receivers_suppliers'):
+@cython.header(
+    # Arguments
+    receivers=list,
+    suppliers=list,
+    quantities=list,
+    potential=func_potential,
+    # Locals
+    any_fluid_receivers='bint',
+    any_fluid_suppliers='bint',
+    any_particles_receivers='bint',
+    any_particles_suppliers='bint',
+    deconv_factor='double',
+    deconv_ijk='double',
+    fft_normalization_factor='double',
+    i='Py_ssize_t',
+    j='Py_ssize_t',
+    j_global='Py_ssize_t',
+    kj='Py_ssize_t',
+    kj2='Py_ssize_t',
+    k='Py_ssize_t',
+    ki='Py_ssize_t',
+    kk='Py_ssize_t',
+    k2='Py_ssize_t',
+    potential_factor='double',
+    receiver_representations=set,
+    reciprocal_sqrt_deconv_ij='double',
+    reciprocal_sqrt_deconv_ijk='double',
+    reciprocal_sqrt_deconv_j='double',
+    representation=str,
+    representation_counter='int',
+    slab='double[:, :, ::1]',
+    slab_dict=dict,
+    slab_fluid='double[:, :, ::1]',
+    slab_fluid_jik='double*',
+    slab_jik='double*',
+    slab_particles_jik='double*',
+    supplier_representations=set,
+    φ='double[:, :, ::1]',
+    φ_dict=dict,
+    returns=dict,
+)
+def construct_potential(receivers, suppliers, quantities, potential):
     """This function populate two grids (including pseudo points and
     ghost layers) with a real-space potential corresponding to the
-    Fourier-space potential function given, due to all the components.
-    A seperate grid for particle and fluid components will be
-    constructed, the difference being only the handling of
+    Fourier-space potential function given, due to all supplier
+    components. A seperate grid for particle and fluid components will
+    be constructed, the difference being only the handling of
     deconvolutions needed for the interpolation to/from the grid.
     Both grids will contain the potential due to all the components.
     Which variables to extrapolate to the grid is determined by the
@@ -438,52 +450,71 @@ def construct_potential_general(receivers, suppliers, quantities, potential,
     potential = lambda k2: -4*π*G_Newton/k2
     (note that it is not actally allowed to pass an untyped lambda
     function in compiled mode).
-
-    The argument construct_potential_from specifies which components the
-    potential should be constructed from; receivers, suppliers or both.
-    This is simply a str containing one or both of
-    the substrings "receiver", "supplier".
     """
+    # Flags specifying whether any fluid/particle components
+    # are present among the receivers and among the suppliers.
+    receiver_representations = {receiver.representation for receiver in receivers}
+    any_particles_receivers  = ('particles' in receiver_representations)
+    any_fluid_receivers      = ('fluid'     in receiver_representations)
+    if not any_particles_receivers and not any_fluid_receivers:
+        abort('construct_potential() got no recognizable receivers')
+    supplier_representations = {supplier.representation for supplier in suppliers}
+    any_particles_suppliers  = ('particles' in supplier_representations)
+    any_fluid_suppliers      = ('fluid'     in supplier_representations)
+    if not any_particles_suppliers and not any_fluid_suppliers:
+        abort('construct_potential() got no recognizable suppliers')
     # CIC interpolate the particles/fluid elements onto the grids.
     # The φ_dict will be a dictionary mapping representations
     # ('particles', 'fluid') to grids. If only one representation is
-    # present, only this item will exist in the dictionary.
-    components = []
-    construct_potential_from = construct_potential_from.lower()
-    if 'receiver' in construct_potential_from:
-        components += receivers
-    if 'supplier' in construct_potential_from:
-        components += suppliers
-    if not components:
-        abort('construct_potential_general got no components from which to construct a potential')
-    φ_dict = CIC_components2φ_general(components, quantities)
-    # Flags specifying whether any fluid/particle components are present
-    any_particles = ('particles' in φ_dict)
-    any_fluid     = ('fluid'     in φ_dict)
+    # present among the suppliers, only this item will exist in the
+    # dictionary. In the case where a representation is present among
+    # the receivers that are not among the suppliers however, we do need
+    # this missing grid in the φ_dict. To ensure at least a nullified
+    # grid of the needed representations, we pass in the needed
+    # representations in the 'ensure' argument.
+    φ_dict = CIC_components2φ(
+        suppliers, quantities, ensure=' '.join(list(receiver_representations)),
+    )
     # Slab decompose the grids
-    slab_dict = {representation: slab_decompose(φ, f'φ_{representation}_slab', prepare_fft=True)
-                 for representation, φ in φ_dict.items()}
+    slab_dict = {
+        representation: slab_decompose(φ, f'φ_{representation}_slab', prepare_fft=True)
+        for representation, φ in φ_dict.items()
+    }
+    if 'fluid' in slab_dict:
+        slab_fluid = slab_dict['fluid']
     # In the case of both particle and fluid components being present,
     # it is important that the particle slabs are handled after the
     # fluid slabs, as the deconvolution factor is only computed for
     # particle components and this is needed after combining the fluid
-    # and particle slabs.
-    slab_ordereddict = collections.OrderedDict()
-    if any_fluid:
-        slab_fluid = slab_dict['fluid']
-        slab_ordereddict['fluid'] = slab_fluid
-    if any_particles:
-        slab_particles = slab_dict['particles']
-        slab_ordereddict['particles'] = slab_particles
-    # Do a forward in-place Fourier transform of the slabs
-    for slab in slab_dict.values():
+    # and particle slabs. It is also important that the order of
+    # representations in slab_dict and φ_dict is the same.
+    if 'fluid' in slab_dict and 'particles' in slab_dict:
+        slab_dict = {
+            representation: slab_dict[representation] for representation in ('fluid', 'particles')
+        }
+        φ_dict = {
+            representation: φ_dict[representation] for representation in ('fluid', 'particles')
+        }
+    # Do a forward in-place Fourier transform of the slabs.
+    # In the case of nullified grids being present solely becasue they
+    # are needed due to the receiver representation,
+    # we can skip the FFT.
+    for representation, slab in slab_dict.items():
+        if representation == 'particles' and not any_particles_suppliers:
+            continue
+        if representation == 'fluid'     and not any_fluid_suppliers:
+            continue
         fft(slab, 'forward')
     # Multiplicative factor needed after a forward and a backward
     # Fourier transformation.
     fft_normalization_factor = float(φ_gridsize)**(-3)
     # For each grid, multiply by the potential and deconvolution
     # factors. Do fluid slabs fist, then particle slabs.
-    for representation_counter, (representation, slab) in enumerate(slab_ordereddict.items()):
+    for representation_counter, (representation, slab) in enumerate(slab_dict.items()):
+        # No need to process the fluid grid if it consist purely
+        # of zeros (i.e. no fluid suppliers exist).
+        if 𝔹[representation == 'fluid' and not any_fluid_suppliers]:
+            continue
         # Begin loop over slabs. As the first and second dimensions
         # are transposed due to the FFT, start with the j-dimension.
         for j in range(ℤ[slab.shape[0]]):
@@ -511,8 +542,9 @@ def construct_potential_general(receivers, suppliers, quantities, potential,
                 # and the j-component of the deconvolution.
                 with unswitch(2):
                     if 𝔹[representation == 'particles']:
-                        reciprocal_sqrt_deconv_ij = (sinc(ki*ℝ[π/φ_gridsize])
-                                                     *reciprocal_sqrt_deconv_j)
+                        reciprocal_sqrt_deconv_ij = (
+                            sinc(ki*ℝ[π/φ_gridsize])*reciprocal_sqrt_deconv_j
+                        )
                 # Loop through the complete, padded k-dimension
                 # in steps of 2 (one complex number at a time).
                 for k in range(0, ℤ[slab.shape[2]], 2):
@@ -535,14 +567,19 @@ def construct_potential_general(receivers, suppliers, quantities, potential,
                     # Get the factor from the potential function at
                     # this k². The physical squared length of the wave
                     # vector is given by (2π/boxsize*|k|)².
-                    potential_factor = potential(ℝ[(2*π/boxsize)**2]*k2)
+                    # The particles grid only need to be processed if it
+                    # is not zero (i.e. particle suppliers exist).
+                    with unswitch(3):
+                        if 𝔹[representation == 'fluid' or any_particles_suppliers]:
+                            potential_factor = potential(ℝ[(2*π/boxsize)**2]*k2)
                     # The final deconvolution factor
                     with unswitch(3):
                         if 𝔹[representation == 'particles']:
                             # Reciprocal square root of the product of
                             # all components of the deconvolution.
-                            reciprocal_sqrt_deconv_ijk = (reciprocal_sqrt_deconv_ij
-                                                          *sinc(kk*ℝ[π/φ_gridsize]))
+                            reciprocal_sqrt_deconv_ijk = (
+                                reciprocal_sqrt_deconv_ij*sinc(kk*ℝ[π/φ_gridsize])
+                            )
                             # The total factor
                             # for a complete deconvolution.
                             deconv_ijk = 1/reciprocal_sqrt_deconv_ijk**2
@@ -550,25 +587,33 @@ def construct_potential_general(receivers, suppliers, quantities, potential,
                             # is needed due to the interpolation from
                             # the particle positions to the grid.
                             deconv_factor = deconv_ijk
-                            # For particle components we will need to do
-                            # a second deconvolutions due to the
+                            # For particle receivers we will need to do
+                            # a second deconvolution due to the
                             # interpolation from the grid back to the
-                            # particles. We carry out this second
-                            # deconvolution now if we only have particle
-                            # components. If both particle and fluid
-                            # components are present, this second
-                            # deconvolution will take place later.
+                            # particles. In the case where we have only
+                            # particle components and thus only a
+                            # particles potential, we carry out this
+                            # second deconvolution now. If both particle
+                            # and fluid components are present,
+                            # this second deconvolution
+                            # will take place later.
                             with unswitch(4):
-                                if not any_fluid:
+                                if 𝔹[not any_fluid_receivers and not any_fluid_suppliers]:
                                     deconv_factor *= deconv_ijk
                         elif 𝔹[representation == 'fluid']:
                             # Do not apply any deconvolution to fluids
                             deconv_factor = 1
-                    # Transform this complex grid point
-                    slab_jik[0] *= ℝ[potential_factor*deconv_factor  # Real part
-                                     *fft_normalization_factor]
-                    slab_jik[1] *= ℝ[potential_factor*deconv_factor  # Imag part
-                                     *fft_normalization_factor]
+                    # Transform this complex grid point.
+                    # The particles grid only need to be processed if it
+                    # is not zero (i.e. particle suppliers exist).
+                    with unswitch(3):
+                        if 𝔹[representation == 'fluid' or any_particles_suppliers]:
+                            slab_jik[0] *= ℝ[  # Real part
+                                potential_factor*deconv_factor*fft_normalization_factor
+                            ]
+                            slab_jik[1] *= ℝ[  # Imag part
+                                potential_factor*deconv_factor*fft_normalization_factor
+                            ]
                     # If only particle components or only fluid
                     # components exist, the slabs now store the final
                     # potential in Fourier space. However, if both
@@ -578,7 +623,7 @@ def construct_potential_general(receivers, suppliers, quantities, potential,
                     # exist and that we are done handling both (at this
                     # gridpoint) if representation_counter == 1.
                     with unswitch(3):
-                        if representation_counter == 1:
+                        if 𝔹[representation_counter == 1]:
                             # Pointers to this element for both slabs.
                             # As we are looping over the particle slab,
                             # we may reuse the pointer above.
@@ -599,27 +644,18 @@ def construct_potential_general(receivers, suppliers, quantities, potential,
                             # back to the particles.
                             slab_particles_jik[0] = deconv_ijk*slab_fluid_jik[0]  # Real part
                             slab_particles_jik[1] = deconv_ijk*slab_fluid_jik[1]  # Imag part
-    # In the general case of both particles and fluids taking part in
-    # the creation of the potential, slab_dict now contains slab-
-    # decomposed potential grids in Fourier space, one for particles and
-    # one for fluids. Importantly, both of these are the total potential
-    # due to both particles and fluids. The difference is solely in the
-    # amount of deconvolution. Now, though both particles and fluids
-    # contribute to the potential, they may not both receive forces due
-    # to it. If this is the case, we now through away
-    # this superfluous potential.
-    receiver_representations = [receiver.representation for receiver in receivers]
-    any_particles_receivers = ('particles' in receiver_representations)
-    any_fluid_receivers     = ('fluid'     in receiver_representations)
-    if any_particles and not any_particles_receivers:
+    # If a representation is present amongst the suppliers but not the
+    # receivers, the corresponding (total) potential has been
+    # constructed but will not be used. Remove it.
+    if any_particles_suppliers and not any_particles_receivers:
         del slab_dict['particles']
         del φ_dict   ['particles']
-    if any_fluid and not any_fluid_receivers:
+    if any_fluid_suppliers and not any_fluid_receivers:
         del slab_dict['fluid']
         del φ_dict   ['fluid']
     if not slab_dict:
         abort(
-            'Something went wrong in the construct_potential_general() function, '
+            'Something went wrong in the construct_potential() function, '
             'as it appears that neither particles nor fluids should receive the force '
             'due to the potential'
         )
@@ -629,7 +665,7 @@ def construct_potential_general(receivers, suppliers, quantities, potential,
     # Domain-decompose the slabs
     for φ, slab in zip(φ_dict.values(), slab_dict.values()):
         domain_decompose(slab, φ)  # Also populates pseudos and ghost
-    # Return the potential grids
+    # Return the potential grid(s)
     return φ_dict
 
 # Function implementing pairwise nearest neighbour search
@@ -754,15 +790,17 @@ def find_nearest_neighbour(components, selected):
                             for component, indices in selected.items()}
     neighbour_distances2 = {component: zeros(indices.shape[0], dtype=C2np['double'])
                             for component, indices in selected.items()}
-    domain_domain(components, [], {}, find_nearest_neighbour_pairwise, '',
-                  dependent=['pos'], affected=[], deterministic=True,
-                  extra_args={'selected': selected,
-                              'neighbour_components': neighbour_components,
-                              'neighbour_indices': neighbour_indices,
-                              'neighbour_ranks': neighbour_ranks,
-                              'neighbour_distances2': neighbour_distances2,
-                              },
-                  )
+    domain_domain(
+        components, [], {}, find_nearest_neighbour_pairwise,
+        dependent=['pos'], affected=[], deterministic=True, communication_pattern='pp',
+        extra_args={
+            'selected'            : selected,
+            'neighbour_components': neighbour_components,
+            'neighbour_indices'   : neighbour_indices,
+            'neighbour_ranks'     : neighbour_ranks,
+            'neighbour_distances2': neighbour_distances2,
+        },
+    )
     return neighbour_components, neighbour_ranks, neighbour_indices, neighbour_distances2
 
 # Function that carry out the gravitational interaction
@@ -772,59 +810,64 @@ def find_nearest_neighbour(components, selected):
     receivers=list,
     suppliers=list,
     ᔑdt=dict,
+    pm_potential=str,
     # Locals
-    component='Component',
-    components=list,
     dependent=list,
-    i='Py_ssize_t',
+    potential=func_potential,
+    potential_name=str,
     Δt='double',
     φ_Vcell='double',
     ᔑdt_key=object,  # str or tuple
-    # DELETE BELOW WHEN DONE WITH gravity_old.py !!!
-    dim='int',
-    gradφ_dim='double[:, :, ::1]',
-    h='double',
-    φ='double[:, :, ::1]',
 )
-def gravity(method, receivers, suppliers, ᔑdt):
-    # A component with the special "lapse" CLASS species should never
-    # take part in gravity, neither as a receiver nor as a supplier
-    # (instead we have the dedicated lapse interaction).
-    receivers = [component for component in receivers if component.class_species != 'lapse']
-    suppliers = [component for component in suppliers if component.class_species != 'lapse']
-    # Regardless of the method, it may happen that some fluid components
-    # classified as receivers are incapable of receiving the
-    # gravitational force due to the lack of the non-linear J
-    # fluid variable. In this case, it becomes a supplier in stead.
-    for i, component in enumerate(receivers.copy()):
-        if component.representation == 'fluid' and component.is_linear(1):
-            suppliers.append(component)
-            receivers[i] = None
-    receivers = [receiver for receiver in receivers if receiver is not None]
-    # If no receivers exist at all, no interaction should take place
-    if not receivers:
-        return
-    # List of all components participating in this interaction
-    components = receivers + suppliers
+def gravity(method, receivers, suppliers, ᔑdt, pm_potential='full'):
     # Compute gravity via one of the following methods
     if method == 'ppnonperiodic':
         # The non-periodic particle-particle method
-        domain_domain(receivers, suppliers, ᔑdt, gravity_pairwise, 'gravitation (PP (non-periodic))',
-                      dependent=['pos'], affected=['mom'], deterministic=True,
-                      extra_args={'periodic'        : False,
-                                  'only_short_range': False,
-                                  },
-                      )
+        masterprint(
+            f'Executing gravitational interaction for {{}} via the non-periodic PP method ...'
+            .format(', '.join([component.name for component in receivers]))
+        )
+        domain_domain(
+            receivers, suppliers, ᔑdt, gravity_pairwise,
+            dependent=['pos'], affected=['mom'], deterministic=True, communication_pattern='pp',
+            extra_args={
+                'periodic'        : False,
+                'only_short_range': False,
+            },
+        )
+        masterprint('done')
     elif method == 'pp':
         # The particle-particle method with Ewald-periodicity
-        domain_domain(receivers, suppliers, ᔑdt, gravity_pairwise, 'gravitation (PP)',
-                      dependent=['pos'], affected=['mom'], deterministic=True,
-                      extra_args={'periodic'        : True,
-                                  'only_short_range': False,
-                                  },
-                      )
+        masterprint(
+            f'Executing gravitational interaction for {{}} via the PP method ...'
+            .format(', '.join([component.name for component in receivers]))
+        )
+        domain_domain(
+            receivers, suppliers, ᔑdt, gravity_pairwise,
+            dependent=['pos'], affected=['mom'], deterministic=True, communication_pattern='pp',
+            extra_args={
+                'periodic'        : True,
+                'only_short_range': False,
+            },
+        )
+        masterprint('done')
     elif method == 'pm':
         # The particle-mesh method.
+        if pm_potential == 'full':
+            # Use the full gravitational potential
+            masterprint(
+                f'Executing gravitational interaction for {{}} via the PM method ...'
+                .format(', '.join([component.name for component in receivers]))
+            )
+            potential = gravity_potential
+            potential_name = 'gravitational potential'
+        elif 'long' in pm_potential:
+            # Only use the long-range part of the
+            # gravitational potential.
+            potential = gravity_longrange_potential
+            potential_name = 'gravitational long-range potential'
+        elif master:
+            abort(f'Unrecognized pm_potential = {pm_potential} in gravity()')
         # The gravitational potential is given by the Poisson equation
         # ∇²φ = 4πGa²ρ = 4πGa**(-3*w_eff - 1)ϱ.
         # The factor in front of the dependent variable ϱ is thus
@@ -836,12 +879,12 @@ def gravity(method, receivers, suppliers, ᔑdt):
             # Particle components
             ('particles', [
                 ᔑdt['a**(-3*w_eff-1)', component]*component.mass*ℝ[1/(Δt*φ_Vcell)]
-                for component in components]
+                for component in suppliers]
             ),
             # Fluid components
             ('ϱ', [
                 ᔑdt['a**(-3*w_eff-1)', component]*ℝ[1/Δt]
-                for component in components]
+                for component in suppliers]
             ),
         ]
         # In the fluid description, the gravitational source term is
@@ -856,45 +899,34 @@ def gravity(method, receivers, suppliers, ᔑdt):
         # in order to obtain Δmomⁱ.
         ᔑdt_key = ('a**(-3*w_eff)', 'component')
         # Execute the gravitational particle-mesh interaction
-        particle_mesh_general(receivers, suppliers, ᔑdt, ᔑdt_key, gravity_potential,
-            'gravitational potential (PM)', dependent)
+        particle_mesh(
+            receivers, suppliers, ᔑdt, ᔑdt_key, potential, potential_name, dependent,
+        )
+        if pm_potential == 'full':
+            masterprint('done')
     elif method == 'p3m':
-        # The particle-particle-mesh method.
-        # So far, this method is only implemented between particles
-        # in a single component.
-        if len(components) != 1:
-            abort('The P³M method can only be used with a single gravitating component')
-        component = components[0]
-        # So far, this method is only implemented for
-        # particle components, not fluids.
-        if component.representation != 'particles':
-            abort('The P³M method can only be used with particle components')
-        # Construct the long-range gravitational potential from all
-        # components which interacts gravitationally.
-        φ = build_φ(components, ᔑdt, only_long_range=True)
-        # For each dimension, differentiate φ and apply the force to
-        # all receiver components.
-        h = boxsize/φ_gridsize  # Physical grid spacing of φ
-        for dim in range(3):
-            # Do the differentiation of φ
-            gradφ_dim = diff_domain(φ, dim, h, order=4)
-            # Apply long-range P³M force to all the receivers
-            for component in receivers:
-                masterprint('Applying gravitational (P³M, long-range) forces along the {}-direction to {} ...'
-                            .format('xyz'[dim], component.name)
-                            )
-                pm(component, ᔑdt, gradφ_dim, dim)
-                masterprint('done')
-        # Now apply the short-range gravitational forces
-        masterprint('Gravitationally (P³M, short-range) accelerating {} ...'.format(component.name))
-        p3m(component, ᔑdt)
+        # The particle-particle-mesh method
+        masterprint(
+            f'Executing gravitational interaction for {{}} via the P³M method ...'
+            .format(', '.join([component.name for component in receivers]))
+        )
+        # The long-range PM part
+        gravity('pm', receivers, suppliers, ᔑdt, 'long-range only')
+        # The short-range PP part
+        masterprint('Applying direct short-range forces ...')
+        domain_domain(
+            receivers, suppliers, ᔑdt, gravity_pairwise,
+            dependent=['pos'], affected=['mom'], deterministic=True, communication_pattern='pp',
+            extra_args={'only_short_range': True},
+        )
+        masterprint('done')
         masterprint('done')
     elif master:
         abort(f'gravity() was called with the "{method}" method')
 
 # Function that carry out the lapse interaction,
 # correcting for the fact that the decay rate of species should be
-# measured in their own rest frame, not the Hubble frame.
+# measured with respect to their individual proper time.
 @cython.pheader(
     # Arguments
     method=str,
@@ -902,62 +934,42 @@ def gravity(method, receivers, suppliers, ᔑdt):
     suppliers=list,
     ᔑdt=dict,
     # Locals
-    component='Component',
     dependent=list,
-    i='Py_ssize_t',
-    lapse_component='Component',
     ᔑdt_key=object,  # str or tuple
 )
 def lapse(method, receivers, suppliers, ᔑdt):
-    # This function expects to be called with both the lapse component
-    # and all components with wich it is to interact contained in the
-    # receivers list. The lapse component itself really only serves as a
-    # supplier, and so we move it accordingly. We recognize the lapse
-    # component by it having linear ϱ. All other components should have
-    # non-linear J/momenta.
-    for i, component in enumerate(receivers.copy()):
-        if component.representation == 'fluid' and component.is_linear(0):
-            suppliers.append(component)
-            receivers[i] = None
-    receivers = [receiver for receiver in receivers if receiver is not None]
+    # While the receivers list stores the correct components,
+    # the suppliers store the lapse component as well as all the
+    # components also present as receivers. As the lapse force should be
+    # supplied solely from the lapse component, we must remove these
+    # additional components.
+    suppliers = oneway_force(receivers, suppliers)
     if len(suppliers) == 0:
-        abort(
-            f'The lapse force is to be applied to {receivers}, '
-            f'but no lapse component is supplied'
-        )
+        abort('The lapse() function got no suppliers, but expected a lapse component.')
     elif len(suppliers) > 1:
         abort(
-            f'The lapse force is to be supplied by {suppliers}, '
-            f'at least one of which is not a lapse component.'
+            f'The lapse() function got the following suppliers: {suppliers}, '
+            f'but expected only a lapse component.'
         )
-    lapse_component = suppliers[0]
-    # If no receivers exist at all, no interaction should take place
-    if not receivers:
-        return
     # For the lapse force, only the PM method is implemented
     if method == 'pm':
-        # The potential will be build solely from the lapse component,
-        # which has the fluid representation. This means that only a
-        # "fluid" potential will be constructed, i.e. one with no
-        # deconvolutions. If a particle component is present among the
-        # receivers, we will a corresponding "particles" potential.
-        # To trick the system into building this potential as well, we
-        # add a fake particles component to the suppliers.
-        if any([component.representation == 'particles' for component in receivers]):
-            suppliers.append(fake_particle_component)
+        masterprint(
+            f'Executing lapse interaction for {{}} via the PM method ...'
+            .format(', '.join([component.name for component in receivers]))
+        )
         # As the lapse potential is implemented exactly analogous to the
         # gravitational potential, it obeys the Poisson equation
         # ∇²φ = 4πGa²ρ = 4πGa**(-3*w_eff - 1)ϱ,
         # with φ the lapse potential and ρ, ϱ and w_eff belonging to the
         # fictitious lapse species. The realized φ should take on values
-        # corresponding to its mean over the time step, weighted with
-        # a**(-3*w_eff - 1).
+        # corresponding to its mean over the time step,
+        # weighted with a**(-3*w_eff - 1).
         dependent = [
-            # The (fake) particle component,
-            # which should not contribute to the potential.
-            ('particles', [0.0]*len(suppliers)),
-            # The fluid lapse component
-            ('ϱ', [ᔑdt['a**(-3*w_eff-1)', lapse_component]/ᔑdt['1']]*len(suppliers)),
+            # The lapse component
+            ('ϱ', [
+                ᔑdt['a**(-3*w_eff-1)', component]/ᔑdt['1']
+                for component in suppliers]
+            ),
         ]
         # As the lapse potential is implemented exactly analogous to the
         # gravitational potential, the momentum updates are again
@@ -975,44 +987,43 @@ def lapse(method, receivers, suppliers, ᔑdt):
         # As the lapse potential is exactly analogous to the
         # gravitational potential, we may reuse the gravity_potential
         # function implementing the Poisson equation for gravity.
-        particle_mesh_general(receivers, suppliers, ᔑdt, ᔑdt_key, gravity_potential,
-            'lapse potential (PM)', dependent, construct_potential_from='suppliers')
+        particle_mesh(
+            receivers, suppliers, ᔑdt, ᔑdt_key, gravity_potential, 'lapse potential', dependent,
+        )
+        masterprint('done')
     elif master:
         abort(f'lapse() was called with the "{method}" method')
-# Fake particle component used by the lapse function
-cython.declare(fake_particle_component='Component')
-fake_particle_component = Component('', 'particles', 1, mass=0, class_species='b', w=0)
-fake_particle_component.name = 'fake'
+
+# Function that given lists of receiver and supplier components of a
+# one-way interaction removes any components from the supplier list that
+# are also present in the receiver list.
+def oneway_force(receivers, suppliers):
+    return [component for component in suppliers if component not in receivers]
 
 # Function which constructs a list of interactions from a list of
 # components. The list of interactions store information about which
 # components interact with one another, via what force and method.
-@cython.header(# Arguments
-               components=list,
-               # Locals
-               component='Component',
-               force=str,
-               forces_in_use=object,  # collections.defaultdict
-               interactions_list=list,
-               method=str,
-               methods=list,
-               methods_implemented=list,
-               receivers=list,
-               suppliers=list,
-               returns=list,
-               )
 def find_interactions(components):
+    # Use cached result
+    interactions_list = interactions_lists.get(tuple(components))
+    if interactions_list:
+        return interactions_list
     # Find all (force, method) pairs in use. Store these as a (default)
     # dict mapping forces to lists of methods.
-    forces_in_use = collections.defaultdict(list)
+    forces_in_use = collections.defaultdict(set)
     for component in components:
         for force, method in component.forces.items():
-            forces_in_use[force].append(method)
+            forces_in_use[force].add(method)
     # Check that all forces and methods assigned
     # to the components are implemented.
     for force, methods in forces_in_use.items():
         methods_implemented = forces_implemented.get(force, [])
         for method in methods:
+            if not method:
+                # When the method is set to an empty string it signifies
+                # that this method should be used as a supplier for the
+                # given force, but not receive the force itself.
+                continue
             if method not in methods_implemented:
                 abort(f'Method "{method}" for force "{force}" is not implemented')
     # Construct the interactions_list with (named) 4-tuples
@@ -1020,56 +1031,98 @@ def find_interactions(components):
     # where receivers is a list of all components which interact
     # via the force and should therefore receive momentum updates
     # computed via this force and the method given as the
-    # second element. The list suppliers contain all components
-    # which interact via the same force but using a different method.
-    # These will supply momentum updates to the receivers, but will not
-    # themselves receive any momentum updates. This does not break
-    # Newton's third law (up to numerical precision) because the missing
-    # momentum updates will be supplied by another method, given in
-    # another 4-tuple. Note that the receivers not only receive but also
-    # supply momentum updates to other receivers. Note also that the
-    # same force can appear in multiple 4-tuples but with
-    # different methods.
+    # second element. In the simple case where all components
+    # interacting under some force use the same method, the suppliers
+    # list holds the same components as the receivers list. When the
+    # same force should be applied to several components using
+    # different methods, the suppliers list still holds all components
+    # as before, while the receivers list is limited to just those
+    # components that should receive the force using the
+    # specified method. Note that the receivers do not contribute to the
+    # force unless they are also present in the suppliers list.
     interactions_list = []
-    for force, method in forces_implemented_ordered:
-        if method not in forces_in_use.get(force, []):
-            continue
-        # Find all receiver and supplier components
-        # for this (force, method) pair.
-        receivers = []
-        suppliers = []
-        for component in components:
-            if force in component.forces:
-                if component.forces[force] == method:
-                    receivers.append(component)
-                else:
+    for force, methods in forces_implemented.items():
+        for method in methods:
+            if method not in forces_in_use.get(force, []):
+                continue
+            # Find all receiver and supplier components
+            # for this (force, method) pair.
+            receivers = []
+            suppliers = []
+            for component in components:
+                if force in component.forces:
                     suppliers.append(component)
-        # Store the 4-tuple in the interactions_list
-        interactions_list.append(Interaction(force, method, receivers, suppliers))
+                    if component.forces[force] == method:
+                        receivers.append(component)
+            # Store the 4-tuple in the interactions_list
+            interactions_list.append(Interaction(force, method, receivers, suppliers))
+    # Cleanup the list of interactions
+    def cleanup():
+        nonlocal interactions_list
+        # If fluid components are present as suppliers for interactions
+        # using a method different from PM, remove them from the
+        # suppliers list and create a new PM interaction instead.
+        for i, interaction in enumerate(interactions_list):
+            if interaction.method == 'pm':
+                continue
+            for component in interaction.suppliers:
+                if component.representation == 'fluid':
+                    interaction.suppliers.remove(component)
+                    interactions_list = (
+                          interactions_list[:i+1]
+                        + [Interaction(interaction.force, 'pm', interaction.receivers, [component])]
+                        + interactions_list[i+1:]
+                    )
+                    return True
+        # Remove interactions with no suppliers or no receivers
+        interactions_list = [interaction for interaction in interactions_list
+            if interaction.receivers and interaction.suppliers]
+        # Merge interactions of identical force, method and receivers
+        # but different suppliers, or identical force, method and suppliers
+        # but different receivers.
+        for     i, interaction_i in enumerate(interactions_list):
+            for j, interaction_j in enumerate(interactions_list[i+1:], i+1):
+                if interaction_i.force != interaction_j.force:
+                    continue
+                if interaction_i.method != interaction_j.method:
+                    continue
+                if (
+                        set(interaction_i.receivers) == set(interaction_j.receivers)
+                    and set(interaction_i.suppliers) != set(interaction_j.suppliers)
+                ):
+                    for supplier in interaction_j.suppliers:
+                        if supplier not in interaction_i.suppliers:
+                            interaction_i.suppliers.insert(0, supplier)
+                    interactions_list.pop(j)
+                    return True
+                if (
+                        set(interaction_i.receivers) != set(interaction_j.receivers)
+                    and set(interaction_i.suppliers) == set(interaction_j.suppliers)
+                ):
+                    for receiver in interaction_j.receivers:
+                        if receiver not in interaction_i.receivers:
+                            interaction_i.receivers.insert(0, receiver)
+                    interactions_list.pop(j)
+                    return True
+    while cleanup():
+        pass
+    # Cache the result and return it
+    interactions_lists[tuple(components)] = interactions_list
     return interactions_list
+# Global dict of interaction lists populated by the above function
+cython.declare(interactions_lists=dict)
+interactions_lists = {}
 # Create the Interaction type used in the above function
-Interaction = collections.namedtuple('Interaction', ('force',
-                                                     'method',
-                                                     'receivers',
-                                                     'suppliers',
-                                                     )
-                                     )
+Interaction = collections.namedtuple(
+    'Interaction', ('force', 'method', 'receivers', 'suppliers')
+)
 
 # Specification of implemented forces.
 # The order specified here will be the order in which the forces
 # are computed and applied.
 # Importantly, all forces and methods should be written with purely
 # alphanumeric, lowercase characters.
-cython.declare(forces_implemented_ordered=list)
-forces_implemented_ordered = [
-    ('gravity', 'ppnonperiodic'),
-    ('gravity', 'pp'           ),
-    ('gravity', 'p3m'          ),
-    ('gravity', 'pm'           ),
-    ('lapse', 'pm'),
-]
-# Non-ordered version of forces_implemented_ordered, implemented as a
-# (default) dict mapping forces to list of methods.
-forces_implemented = collections.defaultdict(list)
-for force, method in forces_implemented_ordered:
-    forces_implemented[force].append(method)
+forces_implemented = {
+    'gravity': ['ppnonperiodic', 'pp', 'p3m', 'pm'],
+    'lapse'  : [                              'pm'],
+}

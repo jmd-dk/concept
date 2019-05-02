@@ -32,7 +32,7 @@ cimport('from communication import communicate_domain,                          
         '                          domain_subdivisions,                            '
         '                          get_buffer,                                     '
         '                          partition,                                      '
-        '                          rank_neighboring_domain,                        '
+        '                          rank_neighbouring_domain,                       '
         '                          smart_mpi,                                      '
         )
 
@@ -997,48 +997,31 @@ def CIC_particles2fluid(component):
     # Return the number of fluid elements not interpolated to
     return N_vacuum
 
-# Function for CIC interpolating components to the φ grid
-@cython.header(# Arguments
-               component_or_components=object, # Component or list of Components
-               quantities=list,
-               # Locals
-               φ='double[:, :, ::1]',
-               returns='double[:, :, ::1]',
-               )
-def CIC_components2φ(component_or_components, quantities):
-    """Exactly what quantities of the components are interpolated to
-    the global φ grid is determined by the quantities argument.
-    For details on this argument,
-    see the CIC_components2domain_grid function.
-    """
-    # If φ_gridsize is illegal, abort now
-    if φ_illegal:
-        abort(φ_illegal)
-    # Fetch the φ grid
-    φ = get_buffer(φ_shape, 'φ', nullify=True)
-    # Interpolate component coordinates
-    # weighted by the given quantities to φ.
-    CIC_components2domain_grid(component_or_components, φ, quantities)
-    return φ
 # Generic function for CIC interpolating components to φ grids.
 # Particle and fluid components will be interpolated to separate grids.
-@cython.header(# Arguments
-               component_or_components=object, # Component or list of Components
-               quantities=list,
-               add_particles_and_fluids='bint',
-               # Locals
-               any_fluid='bint',
-               any_particles='bint',
-               components=list,
-               i='Py_ssize_t',
-               φ_dict=dict,
-               φ_fluid='double[:, :, ::1]',
-               φ_fluid_ptr='double*',
-               φ_particles='double[:, :, ::1]',
-               φ_particles_ptr='double*',
-               returns=object,  # dict or double[:, :, ::1]
-               )
-def CIC_components2φ_general(component_or_components, quantities, add_particles_and_fluids=False):
+@cython.pheader(
+    # Arguments
+    component_or_components=object, # Component or list of Components
+    quantities=list,
+    add_particles_and_fluids='bint',
+    ensure=str,
+    # Locals
+    any_fluid='bint',
+    any_particles='bint',
+    components=list,
+    ensure_fluid='bint',
+    ensure_particles='bint',
+    i='Py_ssize_t',
+    φ_dict=dict,
+    φ_fluid='double[:, :, ::1]',
+    φ_fluid_ptr='double*',
+    φ_particles='double[:, :, ::1]',
+    φ_particles_ptr='double*',
+    returns=object,  # dict or double[:, :, ::1]
+)
+def CIC_components2φ(
+    component_or_components, quantities, add_particles_and_fluids=False, ensure='',
+):
     """Exactly what quantities of the components are interpolated to
     the global φ grids are determined by the quantities argument.
     For details on this argument,
@@ -1047,27 +1030,42 @@ def CIC_components2φ_general(component_or_components, quantities, add_particles
     particles and fluids will be returned. If add_particles_and_fluids
     is True, the fluid φ will be added to the particles φ,
     and only this will be returned.
+    If ensure contains "particle" or "fluid" as a substring,
+    the returned φ dict will contain these grids even if no components
+    with such a representation is passed (in which case the grid will
+    hold only zeros).
     """
     # Argument processing
     if φ_illegal:
         abort(φ_illegal)
+    if add_particles_and_fluids and ensure:
+        abort(
+            f'CIC_components2φ() was called with both add_particles_and_fluids=True '
+            f'and ensure="{ensure}"'
+        )
     if isinstance(component_or_components, list):
         components = component_or_components
     else:
         components = [component_or_components]
     any_particles = any([component.representation == 'particles' for component in components])
     any_fluid     = any([component.representation == 'fluid'     for component in components])
+    ensure_particles = ('particle' in ensure) or any_particles
+    ensure_fluid     = ('fluid'    in ensure) or any_fluid
     # Fetch the φ grids and interpolate the given quantities onto them
     φ_dict = {}
-    if any_particles:
+    if ensure_particles:
         φ_particles = get_buffer(φ_shape, 'φ_particles', nullify=True)
-        CIC_components2domain_grid(components, φ_particles, quantities,
-                                   only_particle_components=True)
+        if any_particles:
+            CIC_components2domain_grid(
+                components, φ_particles, quantities, only_particle_components=True,
+            )
         φ_dict['particles'] = φ_particles
-    if any_fluid:
+    if ensure_fluid:
         φ_fluid = get_buffer(φ_shape, 'φ_fluid', nullify=True)
-        CIC_components2domain_grid(components, φ_fluid, quantities,
-                                   only_fluid_components=True)
+        if any_fluid:
+            CIC_components2domain_grid(
+                components, φ_fluid, quantities, only_fluid_components=True,
+            )
         φ_dict['fluid'] = φ_fluid
     # Add particles and fluid φ if add_particles_and_fluids is True
     if add_particles_and_fluids:
@@ -1335,36 +1333,37 @@ def domain_decompose(slab, domain_grid_or_buffer_name=0):
         request.wait()
     # The right/forward/upper boundaries (the layer of pseudo points,
     # not the ghost layer) of the domain grid should be a copy of the
-    # left/backward/lower boundaries of the neighboring
+    # left/backward/lower boundaries of the neighbouring
     # right/forward/upper domain. Do the needed communication.
     # Also populate the ghost layers of the domain grid.
     communicate_domain(domain_grid, mode='populate')
     return domain_grid
 
 # Function for transfering data from domain grids to slabs
-@cython.pheader(# Arguments
-                domain_grid='double[:, :, ::1]',
-                slab_or_buffer_name=object,  # double[:, :, ::1], int or str
-                prepare_fft='bint',
-                # Locals
-                N_domain2slabs_communications='Py_ssize_t',
-                buffer_name=object,  # int or str
-                domain_grid_noghosts='double[:, :, :]',
-                domain_sendrecv_i_end='int[::1]',
-                domain_sendrecv_i_start='int[::1]',
-                domain2slabs_recvsend_ranks='int[::1]',
-                gridsize='Py_ssize_t',
-                request=object,  # mpi4py.MPI.Request object
-                shape=tuple,
-                slab='double[:, :, ::1]',
-                slab_sendrecv_j_end='int[::1]',
-                slab_sendrecv_j_start='int[::1]',
-                slab_sendrecv_k_end='int[::1]',
-                slab_sendrecv_k_start='int[::1]',
-                slabs2domain_sendrecv_ranks='int[::1]',
-                ℓ='Py_ssize_t',
-                returns='double[:, :, ::1]',
-                )
+@cython.pheader(
+    # Arguments
+    domain_grid='double[:, :, ::1]',
+    slab_or_buffer_name=object,  # double[:, :, ::1], int or str
+    prepare_fft='bint',
+    # Locals
+    N_domain2slabs_communications='Py_ssize_t',
+    buffer_name=object,  # int or str
+    domain_grid_noghosts='double[:, :, :]',
+    domain_sendrecv_i_end='int[::1]',
+    domain_sendrecv_i_start='int[::1]',
+    domain2slabs_recvsend_ranks='int[::1]',
+    gridsize='Py_ssize_t',
+    request=object,  # mpi4py.MPI.Request object
+    shape=tuple,
+    slab='double[:, :, ::1]',
+    slab_sendrecv_j_end='int[::1]',
+    slab_sendrecv_j_start='int[::1]',
+    slab_sendrecv_k_end='int[::1]',
+    slab_sendrecv_k_start='int[::1]',
+    slabs2domain_sendrecv_ranks='int[::1]',
+    ℓ='Py_ssize_t',
+    returns='double[:, :, ::1]',
+)
 def slab_decompose(domain_grid, slab_or_buffer_name=0, prepare_fft=False):
     """This function communicates a global domain decomposed grid into
     a global slab decomposed grid. If an existing slab grid should be
@@ -1377,18 +1376,22 @@ def slab_decompose(domain_grid, slab_or_buffer_name=0, prepare_fft=False):
     """
     # Determine the correct shape of the slab grid corresponding to
     # the passed domain grid.
-    domain_grid_noghosts = domain_grid[2:(domain_grid.shape[0] - 2),
-                                       2:(domain_grid.shape[1] - 2),
-                                       2:(domain_grid.shape[2] - 2)]
+    domain_grid_noghosts = domain_grid[
+        2:(domain_grid.shape[0] - 2),
+        2:(domain_grid.shape[1] - 2),
+        2:(domain_grid.shape[2] - 2),
+    ]
     gridsize = (domain_grid_noghosts.shape[0] - 1)*domain_subdivisions[0]
     if gridsize%nprocs != 0:
-        abort('A domain decomposed grid of gridsize {} was passed to the slab_decompose function. '
-              'This gridsize is not evenly divisible by {} processes.'
-              .format(gridsize, nprocs))
-    shape = (gridsize//nprocs,  # Distributed dimension
-             gridsize,
-             2*(gridsize//2 + 1), # Padded dimension
-             )
+        abort(
+            f'A domain decomposed grid of gridsize {gridsize} was passed to the slab_decompose '
+            f'function. This gridsize is not evenly divisible by {nprocs} processes.'
+        )
+    shape = (
+        gridsize//nprocs,  # Distributed dimension
+        gridsize,
+        2*(gridsize//2 + 1), # Padded dimension
+    )
     # If no slab grid is passed, fetch a buffer of the right shape
     if isinstance(slab_or_buffer_name, (int, str)):
         buffer_name = slab_or_buffer_name
@@ -1399,10 +1402,20 @@ def slab_decompose(domain_grid, slab_or_buffer_name=0, prepare_fft=False):
     else:
         slab = slab_or_buffer_name
         if asarray(slab).shape != shape:
-            abort('The slab and domain grid passed to slab_decompose '
-                  'have incompatible shapes: {}, {}.'
-                  .format(asarray(slab).shape, asarray(domain_grid).shape)
-                  )
+            abort(
+                f'The slab and domain grid passed to slab_decompose have'
+                f'incompatible shapes: {asarray(slab).shape}, {asarray(domain_grid).shape}.'
+            )
+    # Nullify the additional elements in the padded dimension, which may
+    # contain junk. This is not needed if an FFT is to be done.
+    # However, some places the code skips the FFT because it knows that
+    # the slab consists purely of zeros. Any junk in the additional
+    # elements ruin this.
+    # Due to a bug in cython, we need the below operation to be done by
+    # NumPy, not directly on the memory view.
+    # See https://github.com/cython/cython/issues/2941.
+    slab_arr = asarray(slab)
+    slab_arr[:, :, gridsize:] = 0
     # Compute needed communication variables
     (N_domain2slabs_communications,
      domain2slabs_recvsend_ranks,
@@ -1424,22 +1437,28 @@ def slab_decompose(domain_grid, slab_or_buffer_name=0, prepare_fft=False):
             # Since the slabs extend throughout the entire yz-plane,
             # we should send the entire yz-part of domain
             # (excluding ghost and pseudo points).
-            request = smart_mpi(domain_grid_noghosts[
-                                    domain_sendrecv_i_start[ℓ]:domain_sendrecv_i_end[ℓ],
-                                    :ℤ[domain_grid_noghosts.shape[1] - 1],
-                                    :ℤ[domain_grid_noghosts.shape[2] - 1],
-                                                     ],
-                                dest=slabs2domain_sendrecv_ranks[ℓ],
-                                mpifun='Isend')
+            request = smart_mpi(
+                domain_grid_noghosts[
+                    domain_sendrecv_i_start[ℓ]:domain_sendrecv_i_end[ℓ],
+                    :ℤ[domain_grid_noghosts.shape[1] - 1],
+                    :ℤ[domain_grid_noghosts.shape[2] - 1],
+                ],
+                dest=slabs2domain_sendrecv_ranks[ℓ],
+                mpifun='Isend',
+            )
         # The lower ranks storing the slabs receives the message.
         # In the x-dimension, the slabs are always thinner than (or at
         # least as thin as) the domain.
         if ℓ < domain2slabs_recvsend_ranks.shape[0]:
-            smart_mpi(slab[:,
-                           slab_sendrecv_j_start[ℓ]:slab_sendrecv_j_end[ℓ],
-                           slab_sendrecv_k_start[ℓ]:slab_sendrecv_k_end[ℓ]],
-                      source=domain2slabs_recvsend_ranks[ℓ],
-                      mpifun='Recv')
+            smart_mpi(
+                slab[
+                    :,
+                    slab_sendrecv_j_start[ℓ]:slab_sendrecv_j_end[ℓ],
+                    slab_sendrecv_k_start[ℓ]:slab_sendrecv_k_end[ℓ],
+                ],
+                source=domain2slabs_recvsend_ranks[ℓ],
+                mpifun='Recv',
+            )
         # Wait for the non-blockind send to be complete before
         # continuing. Otherwise, data in the send buffer - which is
         # still in use by the non-blocking send - might get overwritten
@@ -1952,7 +1971,7 @@ def diff_domain(grid, dim, h=1, buffer_or_buffer_name=0,
     of each grid point requires information from the original
     (non-differentiated) grid.
     The optional order argument specifies the order of accuracy of the
-    differentiation (the number of neighboring grid points used to
+    differentiation (the number of neighbouring grid points used to
     approximate the derivative).
     For odd orders, the differentiation cannot be symmetric. Set the
     direction argument to either 'forward' or 'backward' to choose from

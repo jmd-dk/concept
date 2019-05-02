@@ -644,7 +644,15 @@ class Component:
             forces = is_selected(self, select_forces, accumulate=True)
         if not forces:
             forces = {}
-        self.forces = forces
+        self.forces = {}
+        for force, method in forces.items():
+            force, method = force.lower(), method.lower()
+            for char in ' _-^()':
+                force, method = force.replace(char, ''), method.replace(char, '')
+            for n in range(10):
+                force  =  force.replace(unicode_superscript(str(n)), str(n))
+                method = method.replace(unicode_superscript(str(n)), str(n))
+            self.forces[force] = method
         # Set the CLASS species
         if class_species is None:
             class_species = is_selected(self, select_class_species)
@@ -940,6 +948,27 @@ class Component:
         self.shape_noghosts = (1, 1, 1)
         self.size = np.prod(self.shape)
         self.size_noghosts = np.prod(self.shape_noghosts)
+        # Components with Boltzmann order -1 cannot received forces but
+        # may still take part in interactions as suppliers. Any such
+        # component should not specify a particul method for its forces.
+        if self.boltzmann_order == -1:
+            self.forces = {key: '' for key in self.forces}
+        # Implement species specific restrictions on the forces below
+        if self.species == 'lapse':
+            # Only allow a component of the special "lapse" species to
+            # participate in the lapse interaction.
+            self.forces = {
+                force: method for force, method in self.forces.items() if force == 'lapse'
+            }
+        # Fluid components may only receive a force using the PM method
+        if self.representation == 'fluid' and master:
+            for force, method in self.forces.items():
+                if method not in {'pm', ''}:
+                    abort(
+                        f'Component "{self.name}" wants to receive the {force} force '
+                        f'using the {method} method, but only the pm method is allowed '
+                        f'for fluid components.'
+                    )
         # Set the equation of state parameter w
         if w is None:
             w = is_selected(self, select_eos_w)

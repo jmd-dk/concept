@@ -28,7 +28,7 @@ from commons import *
 cimport('from mesh import diff_domain')
 cimport('from communication import communicate_domain, get_buffer')
 cimport('from graphics import plot_powerspec')
-cimport('from mesh import CIC_components2φ_general, fft, slab_decompose')
+cimport('from mesh import CIC_components2φ, fft, slab_decompose')
 
 
 
@@ -165,7 +165,7 @@ def powerspec(components, filename):
                 for component in component_combination]
             ),
         ]
-        φ_dict = CIC_components2φ_general(list(component_combination), interpolation_quantities)
+        φ_dict = CIC_components2φ(list(component_combination), interpolation_quantities)
         # Flags specifying whether any
         # fluid/particle components are present.
         any_particles = ('particles' in φ_dict)

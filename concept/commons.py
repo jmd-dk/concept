@@ -1863,7 +1863,6 @@ cython.declare(
     # Debugging options
     enable_Hubble='bint',
     enable_class_background='bint',
-    enable_Ewald='bint',
     enable_debugging='bint',
     # Hidden parameters
     special_params=dict,
@@ -2054,15 +2053,15 @@ for key, val in replace_ellipsis(dict(user_params.get('select_forces', {}))).ite
     subd = {}
     for subd_key, subd_val in select_forces[key].items():
         subd_key, subd_val = subd_key.lower(), subd_val.lower()
-        for char in ' -^()':
+        for char in ' _-^()':
             subd_key, subd_val = subd_key.replace(char, ''), subd_val.replace(char, '')
         for n in range(10):
             subd_key = subd_key.replace(unicode_superscript(str(n)), str(n))
             subd_val = subd_val.replace(unicode_superscript(str(n)), str(n))
         subd[subd_key] = subd_val
     select_forces[key] = subd
-select_forces.setdefault('metric', {'gravity': default_force_method['gravity']})
-select_forces.setdefault('lapse', {'lapse': default_force_method['lapse']})
+select_forces.setdefault('metric', {'gravity': ''})
+select_forces.setdefault('lapse', {'lapse': ''})
 user_params['select_forces'] = select_forces
 select_class_species = {}
 if user_params.get('select_class_species'):
@@ -2301,9 +2300,6 @@ enable_Hubble = bool(user_params.get('enable_Hubble', True))
 user_params['enable_Hubble'] = enable_Hubble
 enable_class_background = bool(user_params.get('enable_class_background', enable_Hubble))
 user_params['enable_class_background'] = enable_class_background
-enable_Ewald = bool(user_params.get('enable_Ewald',  # !!! Only used by gravity_old.py
-                                    True if 'pp' in list(itertools.chain.from_iterable(d.values() for d in select_forces.values())) else False))
-user_params['enable_Ewald'] = enable_Ewald
 enable_debugging = bool(user_params.get('enable_debugging', False))
 user_params['enable_debugging'] = enable_debugging
 # Additional, hidden parameters (parameters not supplied by the user)
@@ -2388,11 +2384,6 @@ cython.declare(
     Ωm='double',
     ρ_mbar='double',
     matter_class_species=str,
-    slab_size_padding='ptrdiff_t',
-    pm_fac_const='double',
-    longrange_exponent_fac='double',
-    p3m_cutoff_phys='double',
-    p3m_scale_phys='double',
 )
 # Output times not explicitly written as either of type 'a' or 't'
 # is understood as being of type 'a' when Hubble expansion is enabled
@@ -2474,32 +2465,6 @@ matter_class_species = '+'.join([class_species
     for class_species, Ω in {'b': Ωb, 'cdm': Ωcdm, 'dcdm': Ωdcdm}.items() if Ω > 1e-9])
 # The average, comoving matter density
 ρ_mbar = Ωm*ρ_crit
-# The real size of the padded (last) dimension of global slab grid
-slab_size_padding = 2*(φ_gridsize//2 + 1)
-# All constant factors across the PM scheme is gathered in the
-# pm_fac_const variable. Its contributions are:
-# Normalization due to forwards and backwards Fourier transforms:
-#     1/φ_gridsize**3
-# Factor in the Greens function:
-#     -4*π*G_Newton/((2*π/((boxsize/φ_gridsize)*φ_gridsize))**2)
-# The acceleration is the negative gradient of the potential:
-#     -1
-# For converting acceleration to momentum (for particles)
-#     particles.mass*Δt
-# Everything except the mass and the time are constant, and is condensed
-# into the pm_fac_const variable.
-pm_fac_const = G_Newton*boxsize**2/(π*φ_gridsize**3)  # ONLY USED BY gravity_old.py !!!
-# The exponential cutoff for the long-range force looks like
-# exp(-k2*rs2). In the code, the wave vector is in grid units in stead
-# of radians. The conversion is 2*π/φ_gridsize. The total factor on k2
-# in the exponential is then
-longrange_exponent_fac = -(2*π/φ_gridsize*p3m_scale)**2
-# The short-range/long-range force scale
-p3m_scale_phys = p3m_scale*boxsize/φ_gridsize
-# Particles within this distance to the surface of the domain should
-# interact with particles in the neighboring domain via the shortrange
-# force, when the P3M algorithm is used.
-p3m_cutoff_phys = p3m_scale_phys*p3m_cutoff
 # Handle optional values in special_params
 if 'max_a_values' in special_params:
     max_a_values = str(special_params['max_a_values'])
@@ -2527,13 +2492,9 @@ if 'max_a_values' in special_params:
 # Add physical quantities.
 units_dict.setdefault('G_Newton'              , G_Newton              )
 units_dict.setdefault('H0'                    , H0                    )
-units_dict.setdefault('p3m_cutoff_phys'       , p3m_cutoff_phys       )
-units_dict.setdefault('p3m_scale_phys'        , p3m_scale_phys        )
-units_dict.setdefault('pm_fac_const'          , pm_fac_const          )
 units_dict.setdefault('R_tophat'              , R_tophat              )
 units_dict.setdefault('a_begin'               , a_begin               )
 units_dict.setdefault('boxsize'               , boxsize               )
-units_dict.setdefault('longrange_exponent_fac', longrange_exponent_fac)
 units_dict.setdefault('t_begin'               , t_begin               )
 units_dict.setdefault(        'Ωcdm'          , Ωcdm                  )
 units_dict.setdefault(unicode('Ωcdm')         , Ωcdm                  )
@@ -2552,7 +2513,6 @@ units_dict.setdefault('p3m_scale'          , p3m_scale          )
 units_dict.setdefault('p3m_cutoff'         , p3m_cutoff         )
 units_dict.setdefault('ewald_gridsize'     , ewald_gridsize     )
 units_dict.setdefault('render3D_resolution', render3D_resolution)
-units_dict.setdefault('slab_size_padding'  , slab_size_padding  )
 units_dict.setdefault(        'φ_gridsize' , φ_gridsize         )
 units_dict.setdefault(unicode('φ_gridsize'), φ_gridsize         )
 # Add numbers
