@@ -1250,51 +1250,76 @@ def loop_unswitching(lines, no_optimization):
                 # Check whether the next line is an if statement
                 # with the same condition.
                 double_if = False
-                next_line = lines[i + 1]
-                match = re.search(pattern, next_line)
-                if match and not line.lstrip().startswith('#'):
+
+                for j in range(i + 1, len(lines)):
+                    next_line = lines[j]
+                    next_line_stripped = next_line.strip()
+                    if not next_line_stripped or next_line_stripped.startswith('#'):
+                        continue
+                    match = re.search(pattern, next_line)
+                    if not match:
+                        break
                     next_condition = match.group(2).strip()
                     if condition == next_condition:
+                        # Double if found
                         double_if = True
-                if double_if:
-                    # Double if statement found. Locate the entirety of
-                    # the inner if block, keeping only the if body.
-                    skip += 1  # Skip the inner if statement
-                    inside_inner_if = True
-                    inner_if_lvl = (len(next_line) - len(next_line.lstrip()))//4
-                    for line in lines[(i + 2):]:
-                        if not line.strip() or line.lstrip().startswith('#'):
-                            # Comment or empty line
-                            new_lines.append(line)
+                    elif not (
+                           re.search(r'\w *\('      , next_condition)
+                        or re.search(r'\w *\['      , next_condition)
+                        or re.search(r'\. *[^\W0-9]', next_condition)
+                    ):
+                        # Double if not found, but some other,
+                        # nested if is found, with a condition that
+                        # cannot change the state of other variables
+                        # by being evaluated. Continue the search for
+                        # double if down the nested if's.
+                        continue
+                    break
+                if not double_if:
+                    continue
+                # Double if statement found.
+                # Insert any skipped additional nested if's.
+                for k in range(i + 1, j):
+                    new_lines.append(lines[k])
+                skip += j - i  # Skip the inner if statement(s)
+                # Locate the entirety of
+                # the inner if block, keeping only the if body.
+                inside_inner_if = True
+                inner_if_lvl = (len(next_line) - len(next_line.lstrip()))//4
+                for line in lines[(j + 1):]:
+                    line_stripped = line.strip()
+                    if not line_stripped or line_stripped.startswith('#'):
+                        # Comment or empty line
+                        new_lines.append(line)
+                        skip += 1
+                        continue
+                    lvl = (len(line) - len(line.lstrip()))//4
+                    if lvl > inner_if_lvl:
+                        if inside_inner_if:
+                            # In inner if body
+                            new_lines.append(line[4:])
                             skip += 1
-                            continue
-                        lvl = (len(line) - len(line.lstrip()))//4
-                        if lvl > inner_if_lvl:
-                            if inside_inner_if:
-                                # In inner if body
-                                new_lines.append(line[4:])
-                                skip += 1
-                            else:
-                                # Inside elif or else clause
-                                skip += 1
-                        elif lvl == inner_if_lvl:
-                            inside_inner_if = False
-                            if re.search(r'elif +(.+):', line) or re.search(r'else *:', line):
-                                # Beginning of elif or else
-                                skip += 1
-                            elif line.strip() and not line.lstrip().startswith('#'):
-                                # Outside entire inner if block
-                                break
-                            else:
-                                # Comment or empty line
-                                new_lines.append(line)
-                                skip += 1
+                        else:
+                            # Inside elif or else clause
+                            skip += 1
+                    elif lvl == inner_if_lvl:
+                        inside_inner_if = False
+                        if re.search(r'elif +(.+):', line) or re.search(r'else *:', line):
+                            # Beginning of elif or else
+                            skip += 1
                         elif line.strip() and not line.lstrip().startswith('#'):
                             # Outside entire inner if block
                             break
                         else:
-                            print('From pyxpp.py: How did I end up here?', file=sys.stderr)
-                            sys.exit(1)
+                            # Comment or empty line
+                            new_lines.append(line)
+                            skip += 1
+                    elif line_stripped and not line_stripped.startswith('#'):
+                        # Outside entire inner if block
+                        break
+                    else:
+                        print('From pyxpp.py: How did I end up here?', file=sys.stderr)
+                        sys.exit(1)
         return new_lines
     # It is also possible that we have the following
     # impossible construct:
@@ -1394,7 +1419,7 @@ def loop_unswitching(lines, no_optimization):
                     # with statement with "if True:".
                     if no_optimization:
                         new_lines.append(' '*(len(line) - len(line.lstrip()))
-                                         + '# Unswitch context manager replaced '
+                                         + '# unswitch context manager replaced '
                                          + 'with trivial if statement\n')
                         new_lines.append(re.sub(pattern, 'if True:', line))
                         continue
@@ -1541,7 +1566,13 @@ def loop_unswitching(lines, no_optimization):
                     for if_header, if_body in zip(if_headers, if_bodies):
                         # Unswitched if/elif/else statement
                         indentation = ' '*(len(loop_lines[0]) - len(loop_lines[0].lstrip()))
-                        lines_unswitched.append(indentation + if_header.lstrip())
+                        if_header_stripped = if_header.strip()
+                        lines_unswitched.append(
+                              indentation
+                            + if_header_stripped
+                            + ('  # unswitched' if if_header_stripped.startswith('if ') else '')
+                            + '\n'
+                        )
                         # Nested loops
                         lines_unswitched += ['    ' + line for line in loop_lines]
                         # Body of unswitched if/elif/else statement

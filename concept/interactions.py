@@ -26,7 +26,8 @@ from commons import *
 
 # Cython imports
 cimport('from communication import '
-    'communicate_domain, sendrecv_component, rank_neighbouring_domain')
+    'communicate_domain, sendrecv_component, rank_neighbouring_domain, domain_subdivisions, '
+)
 cimport('from communication import domain_size_x , domain_size_y , domain_size_z' )
 cimport('from communication import domain_start_x, domain_start_y, domain_start_z')
 cimport('from mesh import diff_domain, domain_decompose, fft, slab_decompose')
@@ -36,204 +37,742 @@ cimport('from gravity import *')
 
 # Function pointer types used in this module
 pxd("""
-#                                   component_1, component_2, rank_2, ᔑdt , local, mutual, extra_args
-ctypedef void   (*func_interaction)(Component  , Component  , int   , dict, bint , bint  , dict      )
-#                                   k2
-ctypedef double (*func_potential  )(double)
+ctypedef void (*func_interaction)(
+    Component,        # receiver
+    Component,        # supplier
+    Py_ssize_t[::1],  # tile_indices_receiver
+    Py_ssize_t[::1],  # tile_indices_supplier
+    int,              # rank_supplier
+    bint,             # only_supply
+    dict,             # ᔑdt
+    dict,             # interaction_extra_args
+)
+ctypedef double (*func_potential)(
+    double,  # k2
+)
 """)
 
 
 
-# Generic function implementing domain-domain pairing
+# Generic function implementing component-component pairing
 @cython.header(
     # Arguments
     receivers=list,
     suppliers=list,
-    ᔑdt=dict,
     interaction=func_interaction,
-    dependent=list,  # list of str's
-    affected=list,   # list of str's
+    ᔑdt=dict,
+    dependent=list,
+    affected=list,
     deterministic='bint',
-    extra_args=dict,
-    communication_pattern=str,
+    pairing_level=str,
+    interaction_extra_args=dict,
     # Locals
-    assisted='bint',
     component_pair=set,
-    component_r='Component',
-    component_s_extrl='Component',
-    component_s_local='Component',
-    i='Py_ssize_t',
-    local='bint',
-    mutual='bint',
-    only_supply='bint',
     pairings=list,
+    receiver='Component',
+    supplier='Component',
+    returns='void',
+)
+def component_component(
+    receivers, suppliers, interaction, ᔑdt, dependent, affected,
+    deterministic, pairing_level, interaction_extra_args={},
+):
+    """This function takes care of pairings between all receiver and
+    supplier components. It then calls doman_domain.
+    """
+    # Pair each receiver with all suppliers
+    pairings = []
+    for receiver in receivers:
+        for supplier in suppliers:
+            component_pair = {receiver, supplier}
+            if component_pair in pairings:
+                continue
+            pairings.append(component_pair)
+            # If pairing should be done at the tile level,
+            # make sure that the tile sorting of particles
+            # in the two components are up-to-date.
+            if pairing_level == 'tile':
+                receiver.tile_sort()
+                supplier.tile_sort()
+            # Flag specifying whether the supplier should only supply
+            # forces to the receiver and not receive any force itself.
+            only_supply = (supplier not in receivers)
+            if only_supply:
+                masterprint(f'Pairing {receiver.name} ⟵ {supplier.name} ...')
+            else:
+                masterprint(f'Pairing {receiver.name} ⟷ {supplier.name} ...')
+            # Pair up doamins for the current
+            # receiver and supplier component.
+            domain_domain(
+                receiver, supplier, interaction, ᔑdt, dependent, affected,
+                only_supply, deterministic, pairing_level, interaction_extra_args,
+            )
+            masterprint('done')
+
+# Generic function implementing domain-domain pairing
+@cython.header(
+    # Arguments
+    receiver='Component',
+    supplier='Component',
+    interaction=func_interaction,
+    ᔑdt=dict,
+    dependent=list,
+    affected=list,
+    only_supply='bint',
+    deterministic='bint',
+    pairing_level=str,
+    interaction_extra_args=dict,
+    # Locals
+    domain_pair_nr='Py_ssize_t',
+    interact='bint',
+    only_supply_passed='bint',
     rank_recv='int',
     rank_send='int',
     ranks_recv='int[::1]',
     ranks_send='int[::1]',
-    synchronous='bint',
+    supplier_extrl='Component',
+    supplier_local='Component',
+    tile_indices='Py_ssize_t[:, ::1]',
+    tile_indices_receiver='Py_ssize_t[::1]',
+    tile_indices_supplier='Py_ssize_t[::1]',
+    returns='void',
 )
 def domain_domain(
-    receivers, suppliers, ᔑdt, interaction, dependent, affected, deterministic,
-    communication_pattern, extra_args={},
+    receiver, supplier, interaction, ᔑdt, dependent, affected,
+    only_supply, deterministic, pairing_level, interaction_extra_args,
 ):
-    """This function takes care of pairings between all receiver and
-    supplier components.
-    The receiver components are denoted component_r. These will not be
-    communicated. The supplier components will be denoted component_s.
-    These will be sent to other processes (domains) and also received
+    """This function takes care of pairings between the domains
+    containing particles/fluid elements of the passed receiver and
+    supplier component.
+    As the components are distributed at the domain level,
+    all communication needed for the interaction will be taken care of
+    by this function. The receiver will not be communicated, while the
+    supplier will be sent to other processes (domains) and also received
     back from other processes. Thus both local and external versions of
-    component_s exist, called component_s_local and component_s_extrl.
-
+    the supplier exist, called supplier_local and supplier_extrl.
+    The dependent and affected arguments specify which attributes of the
+    supplier and receiver component are needed to supply and receive
+    the force, respectively. Only these attributes will be communicated.
     If affected is an empty list, this is not really an interaction.
     In this case, every domain will both send and receive from every
     other domain.
+    If pairing_level == 'domain', the passed interaction will be called
+    directly by this function. If pairing_level == 'tile', the tile_tile
+    function will be called instead.
     """
-    # Determine whether this "interaction" have any direct effect
-    # on the components at all. If not, this will change the
-    # communication pattern.
-    assisted = bool(affected)
-    # Get the process ranks to send to and receive from
-    ranks_send, ranks_recv = domain_domain_communication(communication_pattern, assisted)
-    # Pair each receiver with all suppliers
-    pairings = []
-    for component_r in receivers:
-        for component_s_local in suppliers:
-            component_pair = {component_r, component_s_local}
-            if component_pair in pairings:
-                continue
-            pairings.append(component_pair)
-            # Flag specifying whether component_s should only supply
-            # forces to component_1 and not receive any momentum
-            # updates itself.
-            only_supply = (component_s_local not in receivers)
-            # Display progress message
-            if only_supply:
-                masterprint(f'Pairing {component_r.name} ⟵ {component_s_local.name} ...')
-            else:
-                masterprint(f'Pairing {component_r.name} ⟷ {component_s_local.name} ...')
-            # Pair this process/domain with whichever other
-            # processes/domains are needed. This process is paired
-            # with two other processes simultaneously. This rank sends
-            # a copy of the local component_s to rank_send, while
-            # receiving the external component_s from rank_recv.
-            # On each process, the local component_r and the external
-            # (received) component_s then interact.
-            for i in range(ranks_send.shape[0]):
-                # Process ranks to send to and receive from
-                rank_send = ranks_send[i]
-                rank_recv = ranks_recv[i]
-                fancyprint(f'rank {rank} sends to {rank_send} and recv from {rank_recv}')
-                # Determine whther component_s should be updated due to
-                # its interaction with component_r. This is usually the
-                # case. The exceptions are
-                # - component_s is a supplier and not a receiver.
-                #   When this is the case, only_supply is True.
-                # - component_s is really the same as component_r
-                #   and this is a local interaction, meaning that
-                #   both rank_send and rank_recv is really just the
-                #   local rank. In this case, the supplied interaction
-                #   function should also update the data of component_s
-                #   (not the buffers). This special case is flagged
-                #   by the 'local' variable being True.
-                # - component_s is really the same as component_r
-                #   and rank_send == rank_recv (but different from the
-                #   local rank). In this case, the external updates to
-                #   component_s should not be send back and applied, as
-                #   these updates are already done locally on the other
-                #   process. This special case is flagged by the
-                #   'synchronous' variable being True. The exception
-                #   (to this exception) is when the interaction is non-
-                #   deterministic, in which case this (supposedly
-                #   identical) interaction must not be computed by both
-                #   processes synchronously, as they may produce
-                #   different results.
-                local = False
-                if 𝔹[component_r is component_s_local] and rank_send == rank == rank_recv:
-                    local = True
-                synchronous = False
-                if not local and 𝔹[component_r is component_s_local] and rank_send == rank_recv:
-                    synchronous = True
-                mutual = True
-                if only_supply or local or (synchronous and deterministic) or not assisted:
-                    mutual = False
-                # Communicate the dependent variables
-                # (e.g. pos for gravity) of component_s.
-                component_s_extrl = sendrecv_component(
-                    component_s_local, dependent, dest=rank_send, source=rank_recv,
-                )
-                # Let the local component_r interaction with the
-                # external component_s. This will update the affected
-                # variables (e.g. mom for gravity) of the local
-                # component_r and populate the affected variable buffers
-                # of the external component_s, if mutual is True.
-                # If this is a synchronous interaction (meaning that it
-                # is between only two processes, rank_send == rank_recv)
-                # and also non-deterministic, perform the interaction
-                # only on one of the two processes. The process with
-                # the lower rank is chosen for the job.
-                if (    not synchronous
-                    or (    synchronous and     deterministic)
-                    or (    synchronous and not deterministic and rank < rank_send)
-                ):
+    # Just to satisfy the compiler
+    tile_indices_receiver = tile_indices_supplier = None
+    # Get the process ranks to send to and receive from.
+    # When only_supply is True, each domain will be paired with every
+    # other domain, either in the entire box (pairing_level == 'domain')
+    # or just among the neighbouring domains (pairing_level == 'tile').
+    # When only_supply is False, the results of ab interaction
+    # computed on one process will be send back to the other
+    # participating process and applied, cutting the number of domain
+    # pairs roughly in half.
+    ranks_send, ranks_recv = domain_domain_communication(pairing_level, only_supply)
+    # Backup of the passed only_supply boolean
+    only_supply_passed = only_supply
+    # Pair this process/domain with whichever other
+    # processes/domains are needed. This process is paired
+    # with two other processes simultaneously. This process/rank sends
+    # a copy of the local supplier (from now on referred to
+    # as supplier_local) to rank_send, while receiving the external
+    # supplier (supplier_extrl) from rank_recv.
+    # On each process, the local receiver and the external
+    # (received) supplier_extrl then interact.
+    supplier_local = supplier
+    for domain_pair_nr in range(ranks_send.shape[0]):
+        # Process ranks to send to and receive from
+        rank_send = ranks_send[domain_pair_nr]
+        rank_recv = ranks_recv[domain_pair_nr]
+        # The passed interaction function should always update the
+        # particles of the receiver component within the local domain,
+        # due to the particles of the external supplier component,
+        # within whatever domain they happen to be in.
+        # Unless the supplier component is truly only a supplier and
+        # not also a receiver (only_supply is True), the particles
+        # that supply the force also need to be updated by the passed
+        # interaction function. If the paired external domain is really
+        # the local domain, this update should be done directly. On the
+        # other hand, if the external domain is different from the
+        # local domain, we have no direct access to the memory of these
+        # particles. Instead, the interaction function should store the
+        # changes to the affected variables in the corresponding buffer
+        # variables (Δmom for gravity). All of this should be figured
+        # out by the interaction function on the basis of the passed
+        # receiver, supplier, rank_supplier and only_supply.
+        # Special cases described below may change whether or not the
+        # interaction between this particular domain pair should be
+        # carried out on the local process (specified by the
+        # interac flag), or whether the only_supply
+        # flag should be changed.
+        interact = True
+        only_supply = only_supply_passed
+        with unswitch:
+            if 𝔹[pairing_level == 'domain' and not only_supply_passed]:
+                if rank_send == rank_recv != rank:
+                    # We are dealing with the special case where the
+                    # local process and some other (with a rank given by
+                    # rank_send == rank_recv) both send all of their
+                    # particles to each other, after which the exact
+                    # same interaction takes place on both processes.
+                    # In such a case, even when only_supply is False,
+                    # there is no need to communicate the interaction
+                    # results, as these are already known to both
+                    # processes. Thus, we always pass in only_supply as
+                    # being True in such cases.
+                    only_supply = True
+                    # In the case of a non-deterministic interaction, the above
+                    # logic no longer holds, as the two versions of the
+                    # supposedly same interaction computed on different
+                    # processes will not be identical. In such cases, perform
+                    # the interaction only on one of the two processes.
+                    # The process with the lower rank is chosen for the job.
+                    with unswitch:
+                        if not deterministic:
+                            interact = (rank < rank_send)
+                            only_supply = False
+        # Communicate the dependent variables (e.g. pos for gravity) of
+        # the supplier. For pairing_level == 'domain', communicate all
+        # local particles. For pairing_level == 'tile', we only need to
+        # communicate particles within the tiles that are going to
+        # interact during the current domain-domain pairing.
+        with unswitch:
+            if 𝔹[pairing_level == 'tile']:
+                # Find interaction tiles
+                tile_indices = domain_domain_tile_indices(
+                    receiver, supplier_local, only_supply_passed, domain_pair_nr)
+                tile_indices_receiver = tile_indices[0, :]
+                tile_indices_supplier = tile_indices[1, :]
+            else:  # pairing_level == 'domain'
+                tile_indices_receiver = tile_indices_supplier = None
+        supplier_extrl = sendrecv_component(
+            supplier_local, dependent, tile_indices_supplier, dest=rank_send, source=rank_recv,
+        )
+        # Let the local receiver interact with the
+        # external supplier_extrl. This will update the affected
+        # variables (e.g. mom for gravity) of the local receiver and
+        # populate the affected variable buffers of the
+        # external supplier, if only_supply is False.
+        if interact:
+            with unswitch:
+                if 𝔹[pairing_level == 'tile']:
+                    # Further refer the interaction to the tile level
+                    tile_tile(
+                        receiver, supplier_extrl, tile_indices_receiver, tile_indices_supplier,
+                        interaction, rank_recv, only_supply_passed, only_supply, domain_pair_nr,
+                        ᔑdt, interaction_extra_args,
+                    )
+                else:  # pairing_level == 'domain'
+                    # Perform the interaction now, at the domain level
                     interaction(
-                        component_r, component_s_extrl, rank_recv, ᔑdt, local, mutual, extra_args,
+                        receiver, supplier_extrl, None, None,
+                        rank_recv, only_supply, ᔑdt, interaction_extra_args,
                     )
-                if mutual:
-                    # Send the populated buffers back to the process
-                    # from which the external component_s came.
-                    # Add the received values in the buffers to the
-                    # affected variables (e.g. mom for gravity) of
-                    # the local component_s.
-                    sendrecv_component(
-                        component_s_extrl, affected,
-                        dest=rank_recv, source=rank_send, component_recv=component_s_local,
-                    )
-                    # Nullify the Δ buffers of the external component_s,
-                    # leaving this with no leftover junk.
-                    component_s_extrl.nullify_Δ(affected)
-            masterprint('done')
-# Function returning iterators over domains/processes with which to
-# pair the local domain in the domain_domain function,
-# depending on the communication_pattern.
-@cython.pheader(
+        # Send the populated buffers back to the process from which the
+        # external supplier_extrl came. Add the received values in the
+        # buffers to the affected variables (e.g. mom for gravity) of
+        # the local supplier_local. Note that we should not do this in
+        # the case of a local interaction (rank_send == rank) or in a
+        # where only_supply is True.
+        if rank_send != rank and not only_supply:
+            sendrecv_component(
+                supplier_extrl, affected, tile_indices_supplier,
+                dest=rank_recv, source=rank_send, component_recv=supplier_local,
+            )
+            # Nullify the Δ buffers of the external supplier_extrl,
+            # leaving this with no leftover junk.
+            supplier_extrl.nullify_Δ(affected)
+
+# Function returning the indices of the tiles of the local receiver and
+# supplier which take part in tile-tile interactions under the
+# domain-domain pairing with number domain_pair_nr.
+@cython.header(
     # Arguments
-    communication_pattern=str,
-    assisted='bint',
+    receiver='Component',
+    supplier='Component',
+    only_supply='bint',
+    domain_pair_nr='Py_ssize_t',
+    # Locals
+    dim='int',
+    domain_pair_offsets='Py_ssize_t[:, ::1]',
+    domain_pair_offset='Py_ssize_t[::1]',
+    sign='int',
+    tile_indices='Py_ssize_t[:, ::1]',
+    tile_indices_all=list,
+    tile_indices_component='Py_ssize_t[::1]',
+    tile_indices_list=list,
+    tile_layout='Py_ssize_t[:, :, ::1]',
+    tile_layout_slice_end='Py_ssize_t[::1]',
+    tile_layout_slice_start='Py_ssize_t[::1]',
+    returns='Py_ssize_t[:, ::1]',
+)
+def domain_domain_tile_indices(receiver, supplier, only_supply, domain_pair_nr):
+    tile_indices_all = domain_domain_tile_indices_dict.get((receiver, supplier, only_supply))
+    if tile_indices_all is None:
+        tile_indices_all = [None]*27
+        domain_domain_tile_indices_dict[receiver, supplier, only_supply] = tile_indices_all
+    else:
+        tile_indices = tile_indices_all[domain_pair_nr]
+        if tile_indices is not None:
+            return tile_indices
+    tile_layout_slice_start = empty(3, dtype=C2np['Py_ssize_t'])
+    tile_layout_slice_end   = empty(3, dtype=C2np['Py_ssize_t'])
+    domain_pair_offsets = domain_domain_communication_dict[
+        'tile', only_supply, 'domain_pair_offsets']
+    domain_pair_offset = domain_pair_offsets[domain_pair_nr, :]
+    tile_indices_list = []
+    for i, component in enumerate((receiver, supplier)):
+        tile_layout = component.tile_layout
+        sign = {0: -1, 1: +1}[i]
+        for dim in range(3):
+            if domain_pair_offset[dim] == -sign:
+                tile_layout_slice_start[dim] = 0
+                tile_layout_slice_end[dim]   = 1
+            elif domain_pair_offset[dim] == 0:
+                tile_layout_slice_start[dim] = 0
+                tile_layout_slice_end[dim]   = tile_layout.shape[dim]
+            elif domain_pair_offset[dim] == +sign:
+                tile_layout_slice_start[dim] = tile_layout.shape[dim] - 1
+                tile_layout_slice_end[dim]   = tile_layout.shape[dim]
+        tile_indices_component = asarray(tile_layout[
+            tile_layout_slice_start[0]:tile_layout_slice_end[0],
+            tile_layout_slice_start[1]:tile_layout_slice_end[1],
+            tile_layout_slice_start[2]:tile_layout_slice_end[2],
+        ]).flatten()
+        tile_indices_list.append(tile_indices_component)
+    tile_indices = asarray(tile_indices_list, dtype=C2np['Py_ssize_t'])
+    tile_indices_all[domain_pair_nr] = tile_indices
+    return tile_indices
+# Cached results of the domain_domain_tile_indices function
+# are stored in the dict below.
+cython.declare(domain_domain_tile_indices_dict=dict)
+domain_domain_tile_indices_dict = {}
+
+# Function returning the process ranks with which to pair
+# the local process/domain in the domain_domain function,
+# depending on the pairing level and whether
+# the interaction is trivial or not.
+@cython.header(
+    # Arguments
+    pairing_level=str,
+    only_supply='bint',
     # Locals
     i='Py_ssize_t',
     returns=tuple,
 )
-def domain_domain_communication(communication_pattern, assisted):
-    ranks = domain_domain_communication_dict[communication_pattern].get(assisted)
+def domain_domain_communication(pairing_level, only_supply):
+    ranks = domain_domain_communication_dict.get((pairing_level, only_supply))
     if ranks:
         return ranks
-    if communication_pattern == 'pp':
-        # Each process should be paired with all processes. In the usual
-        # case of assisted being True, a process sends and receivers
-        # from two processes simultaneously, meaning that the number of
-        # pairings is cut (roughly) in half.
-        N_domain_pairs = 1 + nprocs//2 if assisted else nprocs
+    if pairing_level == 'domain':
+        # When only_supply is True, each process should be paired with
+        # all processes. When only_supply is False, advantage is taken
+        # of the fact that a process is paired with two other processes
+        # simultaneously, meaning that the number of pairings is cut
+        # (roughly) in half. The particular order implemented below
+        # is of no importance.
+        N_domain_pairs = nprocs if only_supply else 1 + nprocs//2
         ranks_send = np.empty(N_domain_pairs, dtype=C2np['int'])
         ranks_recv = np.empty(N_domain_pairs, dtype=C2np['int'])
         for i in range(N_domain_pairs):
             ranks_send[i] = mod(rank + i, nprocs)
             ranks_recv[i] = mod(rank - i, nprocs)
-        domain_domain_communication_dict[communication_pattern][assisted] = (
-            (ranks_send, ranks_recv)
+        domain_domain_communication_dict[pairing_level, only_supply] = (ranks_send, ranks_recv)
+    elif pairing_level == 'tile':
+        # When only_supply is True, each domian should be paired with
+        # itself and all 26 neighbouring domains. Even though we might
+        # have nprocs < 27, meaning that some of the neighbouring
+        # domains might be the same, we always include all of them.
+        # If only_supply is False, advantage is taken of the fact that a
+        # domain is simultaneously paired with two other domains along
+        # the same direction (e.g. to the left and to the right),
+        # cutting the number of pairings (roughly) in half. The order is
+        # as specified below, and stored (as directions, not ranks) in
+        # domain_domain_communication_dict[
+        #     'tile', only_supply, 'domain_pair_offsets'].
+        ranks_send = []
+        ranks_recv = []
+        offsets_list = []
+        # - This domain itself
+        offsets = np.array([0, 0, 0], dtype=C2np['int'])
+        offsets_list.append(offsets.copy())
+        ranks_send.append(rank_neighbouring_domain(*(+offsets)))
+        ranks_recv.append(rank_neighbouring_domain(*(-offsets)))
+        # - Domains at the 6 faces
+        #   (when only_supply is False, send right, forward, upward)
+        direction = np.array([+1, 0, 0], dtype=C2np['int'])
+        for i in range(3):
+            offsets = np.roll(direction, i)
+            offsets_list.append(offsets.copy())
+            ranks_send.append(rank_neighbouring_domain(*(+offsets)))
+            ranks_recv.append(rank_neighbouring_domain(*(-offsets)))
+            if only_supply:
+                offsets_list.append(-offsets)
+                ranks_send.append(rank_neighbouring_domain(*(-offsets)))
+                ranks_recv.append(rank_neighbouring_domain(*(+offsets)))
+        # - Domains at the 12 edges
+        #   (when only_supply is False, send
+        #     {right  , forward}, {left     , forward },
+        #     {forward, upward }, {backward , upward  },
+        #     {right  , upward }, {rightward, downward},
+        # )
+        direction = np.array([+1, +1,  0], dtype=C2np['int'])
+        flip      = np.array([-1, +1, +1], dtype=C2np['int'])
+        for i in range(3):
+            offsets = np.roll(direction, i)
+            offsets_list.append(offsets.copy())
+            ranks_send.append(rank_neighbouring_domain(*(+offsets)))
+            ranks_recv.append(rank_neighbouring_domain(*(-offsets)))
+            if only_supply:
+                offsets_list.append(-offsets)
+                ranks_send.append(rank_neighbouring_domain(*(-offsets)))
+                ranks_recv.append(rank_neighbouring_domain(*(+offsets)))
+            offsets *= np.roll(flip, i)
+            offsets_list.append(offsets.copy())
+            ranks_send.append(rank_neighbouring_domain(*(+offsets)))
+            ranks_recv.append(rank_neighbouring_domain(*(-offsets)))
+            if only_supply:
+                offsets_list.append(-offsets)
+                ranks_send.append(rank_neighbouring_domain(*(-offsets)))
+                ranks_recv.append(rank_neighbouring_domain(*(+offsets)))
+        # - Domains at the 8 corners
+        #   (when only_supply is False, send
+        #    {right, forward , upward  },
+        #    {right, forward , downward},
+        #    {left , forward , upward  },
+        #    {right, backward, upward  },
+        # )
+        offsets = np.array([+1, +1, +1], dtype=C2np['int'])
+        offsets_list.append(offsets.copy())
+        ranks_send.append(rank_neighbouring_domain(*(+offsets)))
+        ranks_recv.append(rank_neighbouring_domain(*(-offsets)))
+        if only_supply:
+            offsets_list.append(-offsets)
+            ranks_send.append(rank_neighbouring_domain(*(-offsets)))
+            ranks_recv.append(rank_neighbouring_domain(*(+offsets)))
+        direction = np.array([+1, +1, -1], dtype=C2np['int'])
+        for i in range(3):
+            offsets = np.roll(direction, i)
+            offsets_list.append(offsets.copy())
+            ranks_send.append(rank_neighbouring_domain(*(+offsets)))
+            ranks_recv.append(rank_neighbouring_domain(*(-offsets)))
+            if only_supply:
+                offsets_list.append(-offsets)
+                ranks_send.append(rank_neighbouring_domain(*(-offsets)))
+                ranks_recv.append(rank_neighbouring_domain(*(+offsets)))
+        domain_domain_communication_dict[pairing_level, only_supply] = (
+            (np.array(ranks_send, dtype=C2np['int']), np.array(ranks_recv, dtype=C2np['int']))
         )
-    elif communication_pattern == 'p3m':
-        ...
+        domain_domain_communication_dict[pairing_level, only_supply, 'domain_pair_offsets'] = (
+            np.array(offsets_list, dtype=C2np['Py_ssize_t'])
+        )
     else:
         abort(
             f'domain_domain_communication() got '
-            f'communication_pattern = {communication_pattern} ∉ {{"pp", "p3m"}}'
+            f'pairing_level = {pairing_level} ∉ {{"domain", "tile"}}'
         )
-    return domain_domain_communication_dict[communication_pattern][assisted]
+    return domain_domain_communication_dict[pairing_level, only_supply]
 # Cached results of the domain_domain_communication function
 # are stored in the dict below.
 cython.declare(domain_domain_communication_dict=dict)
-domain_domain_communication_dict = {'pp': {}, 'p3m': {}}
+domain_domain_communication_dict = {}
+
+# Generic function implementing tile-tile pairing
+@cython.header(
+    # Arguments
+    receiver='Component',
+    supplier='Component',
+    tile_indices_receiver='Py_ssize_t[::1]',
+    tile_indices_supplier='Py_ssize_t[::1]',
+    interaction=func_interaction,
+    rank_supplier='int',
+    only_supply_passed='bint',
+    only_supply='bint',
+    domain_pair_nr='Py_ssize_t',
+    ᔑdt=dict,
+    interaction_extra_args=dict,
+    # Locals
+    i='Py_ssize_t',
+    tile_indices_receiver_supplier=object,  # np.ndarray of dtype object
+    tile_indices_supplier_paired='Py_ssize_t[::1]',
+    returns='void',
+)
+def tile_tile(
+    receiver, supplier, tile_indices_receiver, tile_indices_supplier,
+    interaction, rank_supplier, only_supply_passed, only_supply, domain_pair_nr,
+    ᔑdt, interaction_extra_args,
+):
+    """This function takes care of pairings between neighbouring tiles
+    within a domain and boundary tiles at the interface between two
+    domains.
+    If the supplier component is external to this rank, it is expected
+    that it has been properly communicated. Also, both the receiver and
+    the supplier components are expected to already be tile sorted.
+    """
+    # The strategy for pairing the tiles is as follows.
+    # - We always have just a single receiver tile at a time, as no two
+    #   tiles can ever need the same set of other tiles with which to
+    #   interact (except for the case of just two neighbour tiles,
+    #   but that is covered by a single receiver and a single
+    #   supplier tile).
+    # - We thus loop throug the receiver tiles one by one, and pair them
+    #   up with as many supplier tiles as possible. Thee first receiver
+    #   tile then gets paired with all of the tiles in
+    #   tile_indices_supplier which happen to be a neighbour tile.
+    #   Later receiver tiles may not get assigned all neighbouring
+    #   supplier tiles, as the {receiver tile, supplier tile} pair may
+    #   already have been encountered. This avoidance of double counting
+    #   should only be done in the case of rank == rank_supplier.
+    # Get the supplier tile indices
+    # with which to pair each receiver tile.
+    tile_indices_receiver_supplier = get_tile_tile_pairs(
+        receiver, supplier, tile_indices_receiver, tile_indices_supplier,
+        rank_supplier, only_supply_passed, domain_pair_nr, 'gravity',
+    )
+    # For each receiver tile, call the interaction with the required
+    # neighbouring supplier tiles.
+    for i in range(tile_indices_receiver.shape[0]):
+        tile_indices_supplier_paired = tile_indices_receiver_supplier[i]
+        interaction(
+            receiver, supplier, tile_indices_receiver[i:i+1], tile_indices_supplier_paired,
+            rank_supplier, only_supply, ᔑdt, interaction_extra_args,
+        )
+
+# Function that given arrays of receiver and supplier tiles
+# returns them in paired format.
+@cython.header(
+    # Arguments
+    receiver='Component',
+    supplier='Component',
+    tile_indices_receiver='Py_ssize_t[::1]',
+    tile_indices_supplier='Py_ssize_t[::1]',
+    rank_supplier='int',
+    only_supply_passed='bint',
+    domain_pair_nr='Py_ssize_t',
+    interaction_name=str,
+    # Locals
+    dim='int',
+    domain_pair_offset='Py_ssize_t[::1]',
+    global_tile_layout_shape='Py_ssize_t[::1]',
+    i='Py_ssize_t',
+    j='Py_ssize_t',
+    key=tuple,
+    l='Py_ssize_t',
+    l_offset='Py_ssize_t',
+    l_s='Py_ssize_t',
+    m='Py_ssize_t',
+    m_offset='Py_ssize_t',
+    m_s='Py_ssize_t',
+    n='Py_ssize_t',
+    n_offset='Py_ssize_t',
+    n_s='Py_ssize_t',
+    neighbourtile_index_3D_global='Py_ssize_t[::1]',
+    suppliertile_indices_3D_global_to_1D_local=dict,
+    tile_index_3D_global_s=tuple,
+    tile_index_r='Py_ssize_t',
+    tile_index_s='Py_ssize_t',
+    tile_layout='Py_ssize_t[:, :, ::1]',
+    wraparound='bint',
+    returns=object,  # np.ndarray of dtype object
+)
+def get_tile_tile_pairs(
+    receiver, supplier, tile_indices_receiver, tile_indices_supplier,
+    rank_supplier, only_supply_passed, domain_pair_nr, interaction_name,
+):
+    # Lookup cached result
+    key = (receiver.name, supplier.name, interaction_name, domain_pair_nr)
+    tile_indices_receiver_supplier = tile_indices_receiver_supplier_dict.get(key)
+    if tile_indices_receiver_supplier is not None:
+        return tile_indices_receiver_supplier
+    # List of lists storing the supplier tile indices
+    # for each receiver tile. The type of this data structure will
+    # change during the computation.
+    tile_indices_receiver_supplier = [[] for i in range(tile_indices_receiver.shape[0])]
+    # Get the shape of the local (domain) tile layout,
+    # as well as of the global (box) tile layout.
+    if interaction_name == 'gravity':
+        tile_layout = receiver.tile_layout
+        tile_layout_shape = asarray(asarray(tile_layout).shape)
+    else:
+        abort(f'interaction_name {interaction_name} not implemented by get_tile_tile_pairs()')
+    # The general computation below takes a long time when dealing with
+    # many tiles. By far the worst case is when all tiles in the local
+    # domain should be paired with themselves, which is the case for
+    # domain_pair_nr == 0. For this case we perform a much faster,
+    # more specialised computation.
+    if domain_pair_nr == 0:
+        if rank != rank_supplier:
+            abort(
+                f'get_tile_tile_pairs() got rank_supplier = {rank_supplier} != rank = {rank} '
+                f'at domain_pair_nr == 0'
+            )
+        if not np.all(asarray(tile_indices_receiver) == asarray(tile_indices_supplier)):
+            abort(
+                f'get_tile_tile_pairs() got tile_indices_receiver != tile_indices_supplier '
+                f'at domain_pair_nr == 0'
+            )
+        i = 0
+        for         l in range(tile_layout.shape[0]):
+            for     m in range(tile_layout.shape[1]):
+                for n in range(tile_layout.shape[2]):
+                    if i != tile_layout[l, m, n]:
+                        abort(
+                            f'It looks as though the tile layout of {receiver.name} is incorrect'
+                        )
+                    neighbourtile_indices_supplier = tile_indices_receiver_supplier[i]
+                    for l_offset in range(-1, 2):
+                        l_s = l + l_offset
+                        if l_s == -1 or l_s == ℤ[tile_layout.shape[0]]:
+                            continue
+                        for m_offset in range(-1, 2):
+                            m_s = m + m_offset
+                            if m_s == -1 or m_s == ℤ[tile_layout.shape[1]]:
+                                continue
+                            for n_offset in range(-1, 2):
+                                n_s = n + n_offset
+                                if n_s == -1 or n_s == ℤ[tile_layout.shape[2]]:
+                                    continue
+                                tile_index_s = tile_layout[l_s, m_s, n_s]
+                                if tile_index_s >= i:
+                                    neighbourtile_indices_supplier.append(tile_index_s)
+                    tile_indices_receiver_supplier[i] = asarray(
+                        neighbourtile_indices_supplier, dtype=C2np['Py_ssize_t'],
+                    )
+                    i += 1
+    else:
+        # Get relative offsets of the domains currently being paired
+        domain_pair_offset = domain_domain_communication_dict[
+            'tile', only_supply_passed, 'domain_pair_offsets'][domain_pair_nr, :]
+        # Get the indices of the global domain layout matching the
+        # receiver (local) domain and supplier domain.
+        domain_layout_receiver_indices = asarray(
+            np.unravel_index(rank, domain_subdivisions)
+        )
+        domain_layout_supplier_indices = asarray(
+            np.unravel_index(rank_supplier, domain_subdivisions)
+        )
+        global_tile_layout_shape = asarray(
+            asarray(domain_subdivisions)*tile_layout_shape,
+            dtype=C2np['Py_ssize_t'],
+        )
+        tile_index_3D_r_start = domain_layout_receiver_indices*tile_layout_shape
+        tile_index_3D_s_start = domain_layout_supplier_indices*tile_layout_shape
+        # Construct dict mapping global supplier 3D indices to their
+        # local 1D counterparts.
+        suppliertile_indices_3D_global_to_1D_local = {}
+        for j in range(tile_indices_supplier.shape[0]):
+            tile_index_s = tile_indices_supplier[j]
+            tile_index_3D_s = supplier.get_tile_index_3D(tile_index_s)
+            tile_index_3D_global_s = tuple(tile_index_3D_s + tile_index_3D_s_start)
+            suppliertile_indices_3D_global_to_1D_local[tile_index_3D_global_s] = tile_index_s
+        # Pair each receiver tile with all neighbouring supplier tiles
+        for i in range(tile_indices_receiver.shape[0]):
+            neighbourtile_indices_supplier = tile_indices_receiver_supplier[i]
+            # Construct global 3D index of this receiver tile
+            tile_index_r = tile_indices_receiver[i]
+            tile_index_3D_r = receiver.get_tile_index_3D(tile_index_r)
+            tile_index_3D_global_r = tile_index_3D_r + tile_index_3D_r_start
+            # Loop over all neighbouring receiver tiles
+            # (including the tile itself).
+            for         l in range(-1, 2):
+                for     m in range(-1, 2):
+                    for n in range(-1, 2):
+                        neighbourtile_index_3D_global = asarray(
+                            tile_index_3D_global_r + asarray((l, m, n)),
+                            dtype=C2np['Py_ssize_t'],
+                        )
+                        # For domain_pair_nr == 0, all tiles in the
+                        # local domain are paired with all others.
+                        # Here we must not take the periodicity into
+                        # account, as such interacions are performed by
+                        # future domain pairings.
+                        with unswitch:
+                            if domain_pair_nr == 0:
+                                wraparound = False
+                                for dim in range(3):
+                                    if not (
+                                        0 <= neighbourtile_index_3D_global[dim]
+                                          <  global_tile_layout_shape[dim]
+                                    ):
+                                        wraparound = True
+                                        break
+                                if wraparound:
+                                    continue
+                        # Take the periodicity of the domain layout
+                        # into account. This should only be done
+                        # along the direction(s) connecting
+                        # the paired domains.
+                        with unswitch:
+                            if 𝔹[domain_pair_offset[0] != 0]:
+                                neighbourtile_index_3D_global[0] = mod(
+                                    neighbourtile_index_3D_global[0],
+                                    global_tile_layout_shape[0],
+                                )
+                        with unswitch:
+                            if 𝔹[domain_pair_offset[1] != 0]:
+                                neighbourtile_index_3D_global[1] = mod(
+                                    neighbourtile_index_3D_global[1],
+                                    global_tile_layout_shape[1],
+                                )
+                        with unswitch:
+                            if 𝔹[domain_pair_offset[2] != 0]:
+                                neighbourtile_index_3D_global[2] = mod(
+                                    neighbourtile_index_3D_global[2],
+                                    global_tile_layout_shape[2],
+                                )
+                        # Check if a supplier tile sits at the location
+                        # of the current neighbour tile.
+                        tile_index_s = suppliertile_indices_3D_global_to_1D_local.get(
+                            tuple(neighbourtile_index_3D_global),
+                            -1,
+                        )
+                        if tile_index_s != -1:
+                            # For domain_pair_nr == 0, all tiles in the
+                            # local domain are paired with all others.
+                            # To not double count, we disregard the
+                            # pairing if the supplier index is lower
+                            # than the receiver.
+                            with unswitch:
+                                if domain_pair_nr == 0:
+                                    if tile_index_s < tile_index_r:
+                                        continue
+                            neighbourtile_indices_supplier.append(tile_index_s)
+            # Convert the neighbouring supplier tile indices from a list
+            # to an Py_ssize_t[::1] array.
+            # We also sort the indices, though this is not necessary.
+            neighbourtile_indices_supplier = asarray(
+                neighbourtile_indices_supplier, dtype=C2np['Py_ssize_t'],
+            )
+            neighbourtile_indices_supplier.sort()
+            tile_indices_receiver_supplier[i] = neighbourtile_indices_supplier
+    # Transform tile_indices_receiver_supplier to an object array,
+    # the elements of which is arrays of dtype Py_ssize_t.
+    tile_indices_receiver_supplier = asarray(tile_indices_receiver_supplier, dtype=object)
+    # If all arrays in tile_indices_receiver_supplier are of the
+    # same size, it will not be stored as an object array of Py_ssize_t
+    # arrays, but instead a 2D object array. In compiled mode this leads
+    # to a crash, as elements of tile_indices_receiver_supplier must be
+    # compatible with Py_ssize_t[::1]. We can convert it to a 2D
+    # Py_ssize_t array instead, single-index elements of which exactly
+    # are the Py_ssize_t[::1] arrays we need. When the arrays in
+    # tile_indices_receiver_supplier are not of the same size, such a
+    # conversion will fail. Since we do not care about the conversion
+    # in such a case anyway, we always just attempt to do
+    # the conversion. If it succeed, it was needed. If not, it was not
+    # needed anyway.
+    try:
+        tile_indices_receiver_supplier = asarray(
+            tile_indices_receiver_supplier, dtype=C2np['Py_ssize_t'])
+    except ValueError:
+        pass
+    # Cache and return result
+    tile_indices_receiver_supplier_dict[key] = tile_indices_receiver_supplier
+    return tile_indices_receiver_supplier
+# Cache uses by the get_tile_tile_pairs function
+cython.declare(tile_indices_receiver_supplier_dict=dict)
+tile_indices_receiver_supplier_dict = {}
 
 # Generic function implementing particle-mesh interactions
 # for both particle and fluid componenets.
@@ -321,7 +860,7 @@ def particle_mesh(receivers, suppliers, ᔑdt, ᔑdt_key, potential, potential_n
                 if component.representation != representation:
                     continue
                 if 𝔹[isinstance(ᔑdt_key, tuple)]:
-                    ᔑdt_key = (ᔑdt_key[0], component)
+                    ᔑdt_key = (ᔑdt_key[0], component.name)
                 masterprint(f'Applying to {component.name} ...')
                 if component.representation == 'particles':
                     # Extract variables from component
@@ -668,141 +1207,6 @@ def construct_potential(receivers, suppliers, quantities, potential):
     # Return the potential grid(s)
     return φ_dict
 
-# Function implementing pairwise nearest neighbour search
-@cython.header(# Arguments
-               component_1='Component',
-               component_2='Component',
-               rank_2='int',
-               ᔑdt=dict,
-               local='bint',
-               mutual='bint',
-               extra_args=dict,
-               # Locals
-               N_2='Py_ssize_t',
-               i='Py_ssize_t',
-               index='Py_ssize_t',
-               j='Py_ssize_t',
-               neighbour_components=list,
-               neighbour_distances2='double[::1]',
-               neighbour_indices='Py_ssize_t[::1]',
-               neighbour_ranks='int[::1]',
-               posx_1='double*',
-               posx_2='double*',
-               posy_1='double*',
-               posy_2='double*',
-               posz_1='double*',
-               posz_2='double*',
-               r2='double',
-               r2_min='double',
-               selected=dict,
-               selected_indices='Py_ssize_t[::1]',
-               x_ji='double',
-               xi='double',
-               y_ji='double',
-               yi='double',
-               z_ji='double',
-               zi='double',
-               returns='void',
-               )
-def find_nearest_neighbour_pairwise(component_1, component_2, rank_2, ᔑdt, local, mutual, extra_args):
-    if component_1.representation != 'particles' or component_2.representation != 'particles':
-        abort('find_nearest_neighbour_pairwise is only implemented for particle components')
-    # Extract extra arguments
-    selected = extra_args['selected']
-    if not component_1 in selected:
-        return
-    selected_indices = selected[component_1]
-    neighbour_components = extra_args['neighbour_components'][component_1]
-    neighbour_indices = extra_args['neighbour_indices'][component_1]
-    neighbour_ranks = extra_args['neighbour_ranks'][component_1]
-    neighbour_distances2 = extra_args['neighbour_distances2'][component_1]
-    # Extract variables from the first (the local) component
-    posx_1 = component_1.posx
-    posy_1 = component_1.posy
-    posz_1 = component_1.posz
-    # Extract variables from the second (the external) component
-    N_2 = component_2.N_local
-    posx_2 = component_2.posx
-    posy_2 = component_2.posy
-    posz_2 = component_2.posz
-    # Loop over the selected particles
-    for i in range(selected_indices.shape[0]):
-        index = selected_indices[i]
-        r2_min = neighbour_distances2[i] if neighbour_components[i] else ထ
-        xi = posx_1[index]
-        yi = posy_1[index]
-        zi = posz_1[index]
-        # Loop over all particles in the external component
-        for j in range(N_2):
-            # "Vector" from particle j to particle i
-            x_ji = xi - posx_2[j]
-            y_ji = yi - posy_2[j]
-            z_ji = zi - posz_2[j]
-            # Translate coordinates so they
-            # correspond to the nearest image.
-            if x_ji > ℝ[0.5*boxsize]:
-                x_ji -= boxsize
-            elif x_ji < ℝ[-0.5*boxsize]:
-                x_ji += boxsize
-            if y_ji > ℝ[0.5*boxsize]:
-                y_ji -= boxsize
-            elif y_ji < ℝ[-0.5*boxsize]:
-                y_ji += boxsize
-            if z_ji > ℝ[0.5*boxsize]:
-                z_ji -= boxsize
-            elif z_ji < ℝ[-0.5*boxsize]:
-                z_ji += boxsize
-            # Squared distance
-            r2 = x_ji**2 + y_ji**2 + z_ji**2
-            if r2 < r2_min and not (i == j and local):
-                # New neighbour candidate found
-                r2_min = r2
-                neighbour_components[i] = component_2.name
-                neighbour_indices[i] = j
-                neighbour_ranks[i] = rank_2
-                neighbour_distances2[i] = r2
-
-# Function that finds the nearest neighbour particles
-# to a selected subset of particle components.
-@cython.header(# Arguments
-               components=list,
-               selected=dict,
-               # Locals
-               component='Component',
-               indices='Py_ssize_t[::1]',
-               neighbour_components=dict,
-               neighbour_distances2=dict,
-               neighbour_indices=dict,
-               neighbour_ranks=dict,
-               returns=tuple,
-               )
-def find_nearest_neighbour(components, selected):
-    """Here selected is a dict with Component instances as keys
-    and corresponding particle indices (type Py_ssize_t[::1]) as values.
-    These indices are the selected particles which neighbours should
-    be found among all the given components.
-    """
-    neighbour_components = {component: ['']*indices.shape[0]
-                            for component, indices in selected.items()}
-    neighbour_ranks      = {component: zeros(indices.shape[0], dtype=C2np['int'])
-                            for component, indices in selected.items()}
-    neighbour_indices    = {component: zeros(indices.shape[0], dtype=C2np['Py_ssize_t'])
-                            for component, indices in selected.items()}
-    neighbour_distances2 = {component: zeros(indices.shape[0], dtype=C2np['double'])
-                            for component, indices in selected.items()}
-    domain_domain(
-        components, [], {}, find_nearest_neighbour_pairwise,
-        dependent=['pos'], affected=[], deterministic=True, communication_pattern='pp',
-        extra_args={
-            'selected'            : selected,
-            'neighbour_components': neighbour_components,
-            'neighbour_indices'   : neighbour_indices,
-            'neighbour_ranks'     : neighbour_ranks,
-            'neighbour_distances2': neighbour_distances2,
-        },
-    )
-    return neighbour_components, neighbour_ranks, neighbour_indices, neighbour_distances2
-
 # Function that carry out the gravitational interaction
 @cython.pheader(
     # Arguments
@@ -827,10 +1231,13 @@ def gravity(method, receivers, suppliers, ᔑdt, pm_potential='full'):
             f'Executing gravitational interaction for {{}} via the non-periodic PP method ...'
             .format(', '.join([component.name for component in receivers]))
         )
-        domain_domain(
-            receivers, suppliers, ᔑdt, gravity_pairwise,
-            dependent=['pos'], affected=['mom'], deterministic=True, communication_pattern='pp',
-            extra_args={
+        component_component(
+            receivers, suppliers, gravity_pairwise, ᔑdt,
+            dependent=['pos'],
+            affected=['mom'],
+            deterministic=True,
+            pairing_level='domain',
+            interaction_extra_args={
                 'periodic'        : False,
                 'only_short_range': False,
             },
@@ -842,10 +1249,13 @@ def gravity(method, receivers, suppliers, ᔑdt, pm_potential='full'):
             f'Executing gravitational interaction for {{}} via the PP method ...'
             .format(', '.join([component.name for component in receivers]))
         )
-        domain_domain(
-            receivers, suppliers, ᔑdt, gravity_pairwise,
-            dependent=['pos'], affected=['mom'], deterministic=True, communication_pattern='pp',
-            extra_args={
+        component_component(
+            receivers, suppliers, gravity_pairwise, ᔑdt,
+            dependent=['pos'],
+            affected=['mom'],
+            deterministic=True,
+            pairing_level='domain',
+            interaction_extra_args={
                 'periodic'        : True,
                 'only_short_range': False,
             },
@@ -878,12 +1288,12 @@ def gravity(method, receivers, suppliers, ᔑdt, pm_potential='full'):
         dependent = [
             # Particle components
             ('particles', [
-                ᔑdt['a**(-3*w_eff-1)', component]*component.mass*ℝ[1/(Δt*φ_Vcell)]
+                ᔑdt['a**(-3*w_eff-1)', component.name]*component.mass*ℝ[1/(Δt*φ_Vcell)]
                 for component in suppliers]
             ),
             # Fluid components
             ('ϱ', [
-                ᔑdt['a**(-3*w_eff-1)', component]*ℝ[1/Δt]
+                ᔑdt['a**(-3*w_eff-1)', component.name]*ℝ[1/Δt]
                 for component in suppliers]
             ),
         ]
@@ -907,17 +1317,20 @@ def gravity(method, receivers, suppliers, ᔑdt, pm_potential='full'):
     elif method == 'p3m':
         # The particle-particle-mesh method
         masterprint(
-            f'Executing gravitational interaction for {{}} via the P³M method ...'
+            'Executing gravitational interaction for {} via the P³M method ...'
             .format(', '.join([component.name for component in receivers]))
         )
         # The long-range PM part
         gravity('pm', receivers, suppliers, ᔑdt, 'long-range only')
         # The short-range PP part
         masterprint('Applying direct short-range forces ...')
-        domain_domain(
-            receivers, suppliers, ᔑdt, gravity_pairwise,
-            dependent=['pos'], affected=['mom'], deterministic=True, communication_pattern='pp',
-            extra_args={'only_short_range': True},
+        component_component(
+            receivers, suppliers, gravity_pairwise, ᔑdt,
+            dependent=['pos'],
+            affected=['mom'],
+            deterministic=True,
+            pairing_level='tile',
+            interaction_extra_args={'only_short_range': True},
         )
         masterprint('done')
         masterprint('done')
@@ -967,7 +1380,7 @@ def lapse(method, receivers, suppliers, ᔑdt):
         dependent = [
             # The lapse component
             ('ϱ', [
-                ᔑdt['a**(-3*w_eff-1)', component]/ᔑdt['1']
+                ᔑdt['a**(-3*w_eff-1)', component.name]/ᔑdt['1']
                 for component in suppliers]
             ),
         ]

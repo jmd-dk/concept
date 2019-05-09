@@ -878,7 +878,7 @@ def render2D(components, filename):
                         value = vmax
                     elif value < vmin:
                         value = vmin
-                    colornumber = 18 + int(round((value - vmin)*ℝ[237/(vmax - vmin)]))
+                    colornumber = 18 + cast(round((value - vmin)*ℝ[237/(vmax - vmin)]), 'int')
                     # Insert a space with colored background
                     terminal_projection_ANSI.append(f'{ANSI_ESC}[48;5;{colornumber}m ')
                 # Insert newline with no background color

@@ -26,7 +26,10 @@ from commons import *
 
 # Cython imports
 cimport('from analysis import measure')
-cimport('from communication import communicate_domain, domain_subdivisions, exchange, smart_mpi')
+cimport('from communication import '
+    'communicate_domain, domain_subdivisions, exchange, smart_mpi, '
+    'domain_size_x, domain_size_y, domain_size_z, domain_start_x, domain_start_y, domain_start_z, '
+)
 cimport('from fluid import maccormack, maccormack_internal_sources, '
     'kurganov_tadmor, kurganov_tadmor_internal_sources'
 )
@@ -562,6 +565,13 @@ class Component:
         public double[::1] Δmomz_mv
         public list Δpos_mv
         public list Δmom_mv
+        # Particle (short-range) tile bookkeping variables
+        public object tiles_particle_indices  # 3D np.ndarray of dtype object storing Py_ssize_t[::1]
+        Py_ssize_t** tiles_particle_indices_linear
+        Py_ssize_t[::1] tiles_sizes_linear
+        Py_ssize_t[::1] tiles_N_linear
+        double last_tile_sort
+        public Py_ssize_t[:, :, ::1] tile_layout
         # Fluid attributes
         public Py_ssize_t gridsize
         public tuple shape
@@ -912,6 +922,13 @@ class Component:
         self.Δmom[2] = self.Δmomz
         self.Δpos_mv = [self.Δposx_mv, self.Δposy_mv, self.Δposz_mv]
         self.Δmom_mv = [self.Δmomx_mv, self.Δmomy_mv, self.Δmomz_mv]
+        # Particle (short-range) tile bookkeping variables
+        self.tiles_particle_indices = empty([0]*3, dtype=object)
+        self.tiles_particle_indices_linear = malloc(1*sizeof('Py_ssize_t*'))
+        self.tiles_sizes_linear = empty(0, dtype=C2np['Py_ssize_t'])
+        self.tiles_N_linear = empty(0, dtype=C2np['Py_ssize_t'])
+        self.last_tile_sort = -1
+        self.tile_layout = empty([0]*3, dtype=C2np['Py_ssize_t'])
         # Fluid attributes
         if boltzmann_order == -2:
             boltzmann_order = is_selected(self, select_boltzmann_order)
@@ -1888,6 +1905,174 @@ class Component:
                     f'the "{scheme}" scheme, which is not implemented.'
                 )
 
+    # Method for sorting particles according to short-range tiles
+    @cython.pheader(
+        # Arguments
+        a='double',
+        # Locals
+        i='Py_ssize_t',
+        n_subdivisions='Py_ssize_t',
+        posx='double*',
+        posy='double*',
+        posz='double*',
+        tile_N='Py_ssize_t',
+        tile_growth='double',
+        tile_index='Py_ssize_t',
+        tile_index_i='Py_ssize_t',
+        tile_index_j='Py_ssize_t',
+        tile_index_k='Py_ssize_t',
+        tile_layout='Py_ssize_t[:, :, ::1]',
+        tile_particle_indices='Py_ssize_t[::1]',
+        tile_particle_indices_arr=object,  # np.ndarray of dtype Py_ssize_t
+        tile_size='Py_ssize_t',
+        tile_size_x='double',
+        tile_size_y='double',
+        tile_size_z='double',
+        tiles_N_linear='Py_ssize_t[::1]',
+        tiles_particle_indices=object,  # 3D np.ndarray of dtype object storing Py_ssize_t[::1]
+        tiles_particle_indices_linear='Py_ssize_t**',
+        tiles_sizes_linear='Py_ssize_t[::1]',
+        returns='void',
+    )
+    def tile_sort(self, a=-1):
+        # Do not perform tile sort if already sorted
+        if a == -1:
+            a = universals.a
+        if self.last_tile_sort == a:
+            return
+        # Do not perform tile sort on fluids
+        if self.representation != 'particles':
+            return
+        # Perform tile sort
+        self.last_tile_sort = a
+        if self.name:
+            masterprint(f'Tile sorting particles of {self.name} ...')
+        # Determine the size of tiles,
+        # which is the same for all of them.
+        n_subdivisions = ℤ[np.min(asarray(
+            (φ_gridsize/asarray(domain_subdivisions))/(p3m_cutoff*p3m_scale),
+            dtype=C2np['Py_ssize_t'],
+        ))]
+        if n_subdivisions < 3 and master:
+            message = [
+                f'Each domain is subdivided into '
+                f'just {n_subdivisions}×{n_subdivisions}×{n_subdivisions} tiles, '
+                f'but at least 3×3×3 is needed. Try increasing φ_gridsize.'
+            ]
+            if 1 != nprocs != int(round(cbrt(nprocs)))**3:
+                message.append(
+                    'It may also help to choose a lower and/or cubic number of processes.'
+                )
+            abort(' '.join(message))
+        tile_size_x = domain_size_x/n_subdivisions
+        tile_size_y = domain_size_y/n_subdivisions
+        tile_size_z = domain_size_z/n_subdivisions
+        # The tiling layout; mapping from 3D integer labels
+        # to 1D integer labels. As this is shared across all components,
+        # the data lives as a global NumPy array in this module.
+        if self.tile_layout.shape[0] == 0:
+            if tile_layout_arr.shape[0] == 0:
+                tile_layout_arr.resize([n_subdivisions]*3, refcheck=False)
+                tile_layout_arr[...] = arange(n_subdivisions**3, dtype=C2np['Py_ssize_t']
+                    ).reshape([n_subdivisions]*3)
+                masterprint('Tile decomposition: {}'
+                    .format('×'.join((map(str, tile_layout_arr.shape))))
+                )
+            self.tile_layout = tile_layout_arr
+        # Allocate tile_indices on the component if not yet done
+        if self.tiles_particle_indices.shape[0] == 0:
+            # 3D-indexed array storing the tile_particle_indices arrays
+            self.tiles_particle_indices.resize([n_subdivisions]*3, refcheck=False)
+            # Linearly-indexed version of tiles_particle_indices.
+            # Note that indexing this returns a pointer, not an array.
+            self.tiles_particle_indices_linear = realloc(
+                self.tiles_particle_indices_linear, n_subdivisions**3*sizeof('Py_ssize_t*'),
+            )
+            # Linearly-indexed array storing the sizes
+            # of the tile_particle_indices arrays.
+            self.tiles_sizes_linear = zeros(n_subdivisions**3, dtype=C2np['Py_ssize_t'])
+            # Linearly-indexed array storing the number
+            # of particles within each tile.
+            self.tiles_N_linear = zeros(n_subdivisions**3, dtype=C2np['Py_ssize_t'])
+            # Allocate each of the n_subdivisions**3
+            # tile_particle_indices arrays and initialize the
+            # surrounding bookkeeping structures.
+            for         tile_index_i in range(n_subdivisions):
+                for     tile_index_j in range(n_subdivisions):
+                    for tile_index_k in range(n_subdivisions):
+                        # Allocate tile_particle_indices array,
+                        # used for storing indices of particles
+                        # within this tile.
+                        # We allocate half of the mean required memory.
+                        tile_particle_indices_arr = empty(
+                            ℤ[self.N_local//(2*n_subdivisions**3)],
+                            dtype=C2np['Py_ssize_t'],
+                        )
+                        self.tiles_particle_indices[
+                            tile_index_i, tile_index_j, tile_index_k,
+                        ] = tile_particle_indices_arr
+                        # Store the size of the tile_particle_indices
+                        # array for this tile.
+                        tile_index = self.tile_layout[tile_index_i, tile_index_j, tile_index_k]
+                        self.tiles_sizes_linear[tile_index] = tile_particle_indices_arr.shape[0]
+                        # Store linearly-indexed pointer to the
+                        # tile_particle_indices array for this tile.
+                        tile_particle_indices = tile_particle_indices_arr
+                        self.tiles_particle_indices_linear[tile_index] = (
+                            cython.address(tile_particle_indices[:])
+                        )
+        # This determines the factor by which the tile_particle_indices
+        # arrays grow each time additional memory is required.
+        tile_growth = 1.2
+        # Sort the local particles into tiles
+        posx = self.posx
+        posy = self.posy
+        posz = self.posz
+        tile_layout = self.tile_layout
+        tiles_particle_indices = self.tiles_particle_indices
+        tiles_particle_indices_linear = self.tiles_particle_indices_linear
+        tiles_sizes_linear = self.tiles_sizes_linear
+        tiles_N_linear = self.tiles_N_linear
+        tiles_N_linear[:] = 0
+        for i in range(self.N_local):
+            # Get linear index to the tile where the particle is located
+            tile_index_i = cast((posx[i] - domain_start_x)/tile_size_x, 'Py_ssize_t')
+            tile_index_j = cast((posy[i] - domain_start_y)/tile_size_y, 'Py_ssize_t')
+            tile_index_k = cast((posz[i] - domain_start_z)/tile_size_z, 'Py_ssize_t')
+            tile_index = tile_layout[tile_index_i, tile_index_j, tile_index_k]
+            # Resize the tile_particle_indices array if necessary
+            tile_N = tiles_N_linear[tile_index]
+            tile_size = tiles_sizes_linear[tile_index]
+            if tile_N == tile_size:
+                tile_size = cast(tile_growth*tile_size, 'Py_ssize_t') + 1
+                tile_particle_indices_arr = tiles_particle_indices[
+                    tile_index_i, tile_index_j, tile_index_k,
+                ]
+                tile_particle_indices_arr.resize(tile_size, refcheck=False)
+                tiles_sizes_linear[tile_index] = tile_size
+                tile_particle_indices = tile_particle_indices_arr
+                tiles_particle_indices_linear[tile_index] = (
+                    cython.address(tile_particle_indices[:])
+                )
+            # Add this particle to the tile
+            tiles_particle_indices_linear[tile_index][tile_N] = i
+            tiles_N_linear[tile_index] += 1
+        if self.name:
+            masterprint('done')
+
+    # Method converting a linear tile index into its 3D version
+    @cython.header(
+        # Arguments
+        tile_index='Py_ssize_t',
+        # Locals
+        returns='Py_ssize_t[::1]',
+    )
+    def get_tile_index_3D(self, tile_index):
+        return asarray(
+            np.unravel_index(tile_index, asarray(self.tile_layout).shape),
+            dtype=C2np['Py_ssize_t'],
+        )
+
     # Method for integrating fluid values forward in time
     # due to "internal" source terms, meaning source terms that do not
     # result from interacting with other components.
@@ -2823,6 +3008,15 @@ class Component:
         free(self.momx)
         free(self.momy)
         free(self.momz)
+        free(self.Δpos)
+        free(self.Δposx)
+        free(self.Δposy)
+        free(self.Δposz)
+        free(self.Δmom)
+        free(self.Δmomx)
+        free(self.Δmomy)
+        free(self.Δmomz)
+        free(self.tiles_particle_indices_linear)
 
     # String representation
     def __repr__(self):
@@ -2892,6 +3086,11 @@ def update_species_present(components):
     universals_dict['class_species_present'] = class_species_present_bytes
 
 
+
+# Array used to linearize the 3D integer labels of the
+# tiling layout, used for short-range forces.
+cython.declare(tile_layout_arr=object)
+tile_layout_arr = np.empty([0]*3, dtype=C2np['Py_ssize_t'])
 
 # Mapping from species to their representations
 cython.declare(representation_of_species=dict)

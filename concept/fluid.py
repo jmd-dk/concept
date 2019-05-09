@@ -291,7 +291,7 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
                     # -ᔑa**(3*w_eff - 2)∂ₘJᵐ.
                     for lr in range(2):
                         f_interface[lr] = (
-                            ℝ[ᔑdt['a**(3*w_eff-2)', component]/ᔑdt['1']]
+                            ℝ[ᔑdt['a**(3*w_eff-2)', component.name]/ᔑdt['1']]
                             *Jᵐ_interface[lr]
                         )
                     # The final, numerical flux of ϱ through
@@ -401,7 +401,7 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
                         # -ᔑa**(3*w_eff - 2)∂ⁿ(JᵐJₙ/(ϱ + c⁻²𝒫)).
                         for lr in range(2):
                             f_interface[lr] = (
-                                ℝ[ᔑdt['a**(3*w_eff-2)', component]/ᔑdt['1']]
+                                ℝ[ᔑdt['a**(3*w_eff-2)', component.name]/ᔑdt['1']]
                                 *(Jᵐ_interface[lr]*Jₙ_interface[lr]
                                 /(ϱ_interface[lr] + ℝ[light_speed**(-2)]*𝒫_interface[lr]))
                             )
@@ -413,7 +413,7 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
                             if use_𝒫 and m == n:
                                 for lr in range(2):
                                     f_interface[lr] += (
-                                        ℝ[ᔑdt['a**(-3*w_eff)', component]/ᔑdt['1']]
+                                        ℝ[ᔑdt['a**(-3*w_eff)', component.name]/ᔑdt['1']]
                                         *𝒫_interface[lr]
                                     )
                         # The final, numerical flux of Jᵐ through
@@ -443,7 +443,7 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
                                             flux += ςᵐₙ_interface[lr]
                                         Δ = flux*ℝ[
                                             0.5*(1 + rk_step)/rk_order
-                                            *ᔑdt['a**(-3*w_eff)', component]/Δx
+                                            *ᔑdt['a**(-3*w_eff)', component.name]/Δx
                                         ]
                                         # Update Jᵐ[i - 1, j, k] and
                                         # Jᵐ[i, j, k] due to the ςᵐₙ
@@ -883,7 +883,7 @@ def maccormack_step(component, ᔑdt, steps, mc_step, a_next=-1):
                           J_div[i + step_i, j + step_j, k + step_k]
                         - J_div[i         , j         , k         ]
                     )
-                    ϱˣ[i, j, k] += Δ*ℝ[-ᔑdt['a**(3*w_eff-2)', component]/Δx]
+                    ϱˣ[i, j, k] += Δ*ℝ[-ᔑdt['a**(3*w_eff-2)', component.name]/Δx]
     masterprint('done')
     # Stop here if ϱ is the last non-linear fluid variable
     if component.boltzmann_order < 1:
@@ -921,7 +921,7 @@ def maccormack_step(component, ᔑdt, steps, mc_step, a_next=-1):
                                + ℝ[light_speed**(-2)]*𝒫[i, j, k]
                                )
                         )
-                        Jˣ_el[i, j, k] += Δ*ℝ[-ᔑdt['a**(3*w_eff-2)', component]/Δx]
+                        Jˣ_el[i, j, k] += Δ*ℝ[-ᔑdt['a**(3*w_eff-2)', component.name]/Δx]
     masterprint('done')
     # Stop here if J is the last non-linear fluid variable
     if component.boltzmann_order < 2:
@@ -1010,7 +1010,7 @@ def maccormack_internal_sources(component, ᔑdt, a_next=-1):
             potential_ptr = component.ϱ.gridˣ
             ςᵢⱼ_ptr = ςᵢⱼ.grid
             for n in range(component.size):
-                potential_ptr[n] = ℝ[-ᔑdt['a**(-3*w_eff)', component]]*ςᵢⱼ_ptr[n]
+                potential_ptr[n] = ℝ[-ᔑdt['a**(-3*w_eff)', component.name]]*ςᵢⱼ_ptr[n]
             # Loop over elements of J affected by ςᵢⱼ
             for i in set(multi_index):
                 Jᵢ = component.J[i]
@@ -1039,7 +1039,7 @@ def maccormack_internal_sources(component, ᔑdt, a_next=-1):
             source = diff_domain(𝒫, i, Δx, order=2, noghosts=False)
             source_ptr = cython.address(source[:, :, :])
             for n in range(component.size):
-                Jᵢ_ptr[n] += ℝ[-ᔑdt['a**(-3*w_eff)', component]]*source_ptr[n]
+                Jᵢ_ptr[n] += ℝ[-ᔑdt['a**(-3*w_eff)', component.name]]*source_ptr[n]
         masterprint('done')
     # Update ϱ due to its internal source term
     # in the continuity equation

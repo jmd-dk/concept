@@ -814,7 +814,7 @@ if not cython.compiled:
     dummypxd = DummyPxd()
     def pxd(s):
         # Remove comments
-        lines = s.split('\n')
+        lines = pyxpp.oneline(s.split('\n'))
         code_lines = []
         for line in lines:
             if not line.lstrip().startswith('#'):

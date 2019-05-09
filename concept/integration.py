@@ -776,10 +776,16 @@ integrand_tab_mv = cast(integrand_tab, 'double[:alloc_tab]')
     key=object,  # str or tuple
     t_ini='double',
     Δt='double',
+    all_components=list,
     # Locals
     a='double',
     a_tab_spline='double[::1]',
     component='Component',
+    component_0='Component',
+    component_1='Component',
+    component_name=str,
+    component_names=list,
+    components=list,
     i='Py_ssize_t',
     integrand=str,
     integrand_tab_spline='double[::1]',
@@ -787,17 +793,19 @@ integrand_tab_mv = cast(integrand_tab, 'double[:alloc_tab]')
     spline='Spline',
     t='double',
     t_tab_spline='double[::1]',
-    w='double',
     w_eff='double',
+    w_eff_0='double',
+    w_eff_1='double',
     returns='double',
 )
-def scalefactor_integral(key, t_ini=-1.0, Δt=-1.0):
+def scalefactor_integral(key, t_ini, Δt, all_components):
     """This function returns the integral
     ∫_t^(t + Δt) integrand(a) dt.
     The integrand is passed as the key argument, which may be a string
-    (e.g. 'a**(-1)') or a tuple in the format (string, component),
-    where again the string is really the integrand. This second form is
-    used when the integrand is component specific, e.g. 'a**(-3*w_eff)'.
+    (e.g. 'a**(-1)') or a tuple in the format (string, component.name),
+    (string, component_0.name, component_1.name) etc., where again the
+    first string is really the integrand. The tuple form is used when
+    the integrand is component specific, e.g. 'a**(-3*w_eff)'.
     When the CLASS background is disabled it is important that the
     expand function expand(a, t, Δt) has been called prior to calling
     this function, as expand generates the values needed in
@@ -805,10 +813,18 @@ def scalefactor_integral(key, t_ini=-1.0, Δt=-1.0):
     different integrands) without calling expand in between.
     """
     # Extract the integrand from the passed key
-    if isinstance(key, str):
+    components = []
+    if 𝔹[isinstance(key, str)]:
+        # Global integrand
         integrand, component = key, None
-    else:  # tuple key
-        integrand, component = key
+    else:
+        # Component integrand
+        integrand, *component_names = key
+        for component_name in component_names:
+            for component in all_components:
+                if component.name == component_name:
+                    components.append(component)
+                    break
     # When using the CLASS background, a(t) is already tabulated
     # throughout time. Here we simply construct Spline objects over the
     # given integrand and ask for the integral.
@@ -821,12 +837,14 @@ def scalefactor_integral(key, t_ini=-1.0, Δt=-1.0):
     # the given key. In both cases, we now need to tabulate
     # the integrand.
     if enable_class_background:
-        if component is None or component.w_eff_type == 'constant':
+        for component in components:
+            if component is not None and component.w_eff_type != 'constant':
+                a_tab_spline = component.w_eff_spline.x
+                t_tab_spline = asarray([spline_a_t.eval(a) for a in a_tab_spline])
+                break
+        else:
             a_tab_spline = spline_a_t.x
             t_tab_spline = spline_a_t.y
-        else:
-            a_tab_spline = component.w_eff_spline.x
-            t_tab_spline = asarray([spline_a_t.eval(a) for a in a_tab_spline])
         integrand_tab_spline = empty(t_tab_spline.shape[0], dtype=C2np['double'])
         size = t_tab_spline.shape[0]
     else:
@@ -842,31 +860,56 @@ def scalefactor_integral(key, t_ini=-1.0, Δt=-1.0):
         a = a_tab_spline[i]
         t = t_tab_spline[i]
         with unswitch:
-            if integrand == '1' or integrand == '':
-                integrand_tab_spline[i] = 1
-            elif integrand == 'a**(-1)':
-                integrand_tab_spline[i] = 1/a
-            elif integrand == 'a**(-2)':
-                integrand_tab_spline[i] = 1/a**2
-            elif integrand == 'ȧ/a':
-                integrand_tab_spline[i] = hubble(a)
-            elif integrand == 'a**(-3*w_eff)':
-                w_eff = component.w_eff(t=t, a=a)
-                integrand_tab_spline[i] = a**(-3*w_eff)
-            elif integrand == 'a**(-3*w_eff)*Γ/H':
-                w_eff = component.w_eff(t=t, a=a)
-                integrand_tab_spline[i] = a**(-3*w_eff)*component.Γ(a)/hubble(a)
-            elif integrand == 'a**(-3*w_eff-1)':
-                w_eff = component.w_eff(t=t, a=a)
-                integrand_tab_spline[i] = a**(-3*w_eff - 1)
-            elif integrand == 'a**(3*w_eff-2)':
-                w_eff = component.w_eff(t=t, a=a)
-                integrand_tab_spline[i] = a**(3*w_eff - 2)
-            elif master:
-                abort(
-                    f'The scalefactor integral with "{integrand}" as the integrand '
-                    f'is not implemented'
-                )
+            if 𝔹[isinstance(key, str)]:
+                # Global integrands
+                with unswitch:
+                    if integrand == '1' or integrand == '':
+                        integrand_tab_spline[i] = 1
+                    elif integrand == 'a**(-1)':
+                        integrand_tab_spline[i] = 1/a
+                    elif integrand == 'a**(-2)':
+                        integrand_tab_spline[i] = 1/a**2
+                    elif integrand == 'ȧ/a':
+                        integrand_tab_spline[i] = hubble(a)
+                    elif master:
+                        abort(
+                            f'The scalefactor integral with "{integrand}" as the integrand '
+                            f'is not implemented'
+                        )
+            elif ℤ[len(key) == 2]:
+                # Single-component integrands
+                with unswitch:
+                    if integrand == 'a**(-3*w_eff)':
+                        w_eff = component.w_eff(t=t, a=a)
+                        integrand_tab_spline[i] = a**(-3*w_eff)
+                    elif integrand == 'a**(-3*w_eff)*Γ/H':
+                        w_eff = component.w_eff(t=t, a=a)
+                        integrand_tab_spline[i] = a**(-3*w_eff)*component.Γ(a)/hubble(a)
+                    elif integrand == 'a**(-3*w_eff-1)':
+                        w_eff = component.w_eff(t=t, a=a)
+                        integrand_tab_spline[i] = a**(-3*w_eff - 1)
+                    elif integrand == 'a**(3*w_eff-2)':
+                        w_eff = component.w_eff(t=t, a=a)
+                        integrand_tab_spline[i] = a**(3*w_eff - 2)
+                    elif master:
+                        abort(
+                            f'The scalefactor integral with "{integrand}" as the integrand '
+                            f'is not implemented'
+                        )
+            elif ℤ[len(key) == 3]:
+                # Two-component integrands
+                component_0 = components[0]
+                component_1 = components[1]
+                with unswitch:
+                    if integrand == 'a**(-3*w_eff₀-3*w_eff₁-1)':
+                        w_eff_0 = component_0.w_eff(t=t, a=a)
+                        w_eff_1 = component_1.w_eff(t=t, a=a)
+                        integrand_tab_spline[i] = a**(-3*w_eff_0 - 3*w_eff_1 - 1)
+                    elif master:
+                        abort(
+                            f'The scalefactor integral with "{integrand}" as the integrand '
+                            f'is not implemented'
+                        )
     # Do the integration
     spline = Spline(t_tab_spline[:size], integrand_tab_spline[:size], integrand)
     if enable_class_background:

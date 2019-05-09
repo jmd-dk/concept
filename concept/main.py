@@ -47,16 +47,18 @@ cimport('from utilities import delegate')
 # The result is stored in ᔑdt_steps[integrand][index],
 # where index == 0 corresponds to step == 'first half' and
 # index == 1 corresponds to step == 'second half'.
-@cython.header(# Arguments
-               step=str,
-               Δt='double',
-               # Locals
-               go2dump='bint',
-               index='int',
-               integrand=object,  # str or tuple
-               t_dump='double',
-               )
-def scalefactor_integrals(step, Δt):
+@cython.header(
+    # Arguments
+    step=str,
+    Δt='double',
+    components=list,
+    # Locals
+    go2dump='bint',
+    index='int',
+    integrand=object,  # str or tuple
+    t_dump='double',
+)
+def scalefactor_integrals(step, Δt, components):
     global ᔑdt_steps
     # Update the scale factor and the cosmic time. This also
     # tabulates a(t), needed for the scalefactor integrals.
@@ -90,7 +92,9 @@ def scalefactor_integrals(step, Δt):
         abort(f'The value "{step}" was given for the step')
     # Do the scalefactor integrals
     for integrand in ᔑdt_steps:
-        ᔑdt_steps[integrand][index] = scalefactor_integral(integrand, universals.t, 0.5*Δt)
+        ᔑdt_steps[integrand][index] = scalefactor_integral(
+            integrand, universals.t, 0.5*Δt, components,
+        )
 
 # Function which dump all types of output. The return value signifies
 # whether or not something has been dumped.
@@ -427,16 +431,25 @@ def timeloop():
     ᔑdt_steps = {
         key: zeros(2, dtype=C2np['double'])
         for key in (
+            # Global integrands
             '1',
             'a**(-1)',
             'a**(-2)',
             'ȧ/a',
-            *[(integrand, component) for component in components
+            # Single-component integrands
+            *[(integrand, component.name) for component, in itertools.product(*[components]*1)
                 for integrand in (
                     'a**(-3*w_eff)',
                     'a**(-3*w_eff-1)',
                     'a**(3*w_eff-2)',
                     'a**(-3*w_eff)*Γ/H',
+                )
+            ],
+            # Two-component integrands
+            *[(integrand, component_0.name, component_1.name)
+                for component_0, component_1 in itertools.product(*[components]*2)
+                for integrand in (
+                    'a**(-3*w_eff₀-3*w_eff₁-1)',
                 )
             ]
         )
@@ -458,7 +471,7 @@ def timeloop():
         # Even though 'whole' is used, the first kick (and the first
         # kick after a dump) is really only half a step (the first
         # half), as ᔑdt_steps[integrand][1] == 0 for every integrand.
-        scalefactor_integrals('first half', Δt)
+        scalefactor_integrals('first half', Δt, components)
         kick(components, 'whole')
         universals.a, universals.t = universals.a_next, universals.t_next
         do_autosave = bcast(autosave_interval > 0
@@ -498,7 +511,7 @@ def timeloop():
             nullify_ᔑdt_steps()
             continue
         # Drift
-        scalefactor_integrals('second half', Δt)
+        scalefactor_integrals('second half', Δt, components)
         drift(components, 'whole')
         universals.a, universals.t = universals.a_next, universals.t_next
         do_autosave = bcast(autosave_interval > 0
