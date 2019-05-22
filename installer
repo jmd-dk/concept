@@ -1178,6 +1178,10 @@ find_recursive(){
         current_dir="$(pwd)"
         found_results=()
     fi
+    dirname="$(convert_to_abs_path "${dirname}")"
+    if [ ! -d "${dirname}" ]; then
+        return
+    fi
     cd "${dirname}"
     # Is file at this location?
     if [ ${fd} "${filename}" ]; then
@@ -1561,24 +1565,21 @@ fi
 
 # When running locally, set the "make_jobs" variable, holding the -j
 # option for future make commands, enabling parallel building.
-make_jobs=""
+# Some implementations of make does not support the bare -j option
+# without explicitly specifying a number afterwards. If so, we do not
+# make use of the -j option.
 if [ "${ssh}" == "False" ] && [ -z "${make_jobs}" ]; then
-    # Enable parallel make builds if make supports -j without
-    # specifying the number of jobs explicitly.
-    current_dir="$(pwd)"
     make_jobs_test_dir="${top_dir}/tmp/make_jobs_test"
     rm -rf "${make_jobs_test_dir}" || :
     mkdir -p "${make_jobs_test_dir}"
-    cd "${make_jobs_test_dir}"
-        printf "
+    printf "
 test:
 \t@echo success
-" > "Makefile"
-    make_jobs_output="$(make 2>/dev/null)" || :
+" > "${make_jobs_test_dir}/Makefile"
+    make_jobs_output="$(cd "${make_jobs_test_dir}" && make -j 2>/dev/null)" || :
     if [ "${make_jobs_output}" == "success" ]; then
         make_jobs="-j"
     fi
-    cd "${current_dir}"
     rm -rf "${make_jobs_test_dir}" || :
 fi
 # Set OMP_NUM_THREADS to 1 when running remotely,
@@ -3090,6 +3091,7 @@ for program in "cc" "c89" "c99" "CC" "c++" "ftn" "f77" "f90" "fortran"; do
 done
 if [ "${install_anything}" == "True" ]; then
     sleep ${sleep_time}
+    echo
     enable_status
 fi
 compiler_possibilities=("${compiler_possibilities[@]}" "unset")

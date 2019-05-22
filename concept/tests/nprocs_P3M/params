@@ -33,8 +33,12 @@ output_times       = {'snapshot': (0.1, 0.5, 1)}
 # Numerical parameters
 boxsize    = 8*Mpc
 φ_gridsize = 64
-p3m_scale  = 1.25
-p3m_cutoff = 4.8
+shortrange_params = {
+    'gravity': {
+        'scale' : 1.25*boxsize/φ_gridsize,
+        'cutoff': '4.8*scale',
+    },
+}
 
 # Cosmology
 H0      = 70*km/s/Mpc

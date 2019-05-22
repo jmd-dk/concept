@@ -42,6 +42,49 @@ cimport('from utilities import delegate')
 
 
 
+
+
+def hmm():
+    a = 0
+    b = 1
+
+    if a:
+        if b:
+            # Keep
+            do_something()
+            do_something()
+        elif a:
+            # Change to else
+            do_something()
+            do_something()
+        elif c:
+            # Delete
+            do_something()
+            do_something()
+        else:
+            # Delete
+            do_something()
+            do_something()
+        # Keep
+        do_something()
+        do_something()
+        if a:
+            # Keep
+            do_something()
+            do_something()
+        # Keep
+        do_something()
+        do_something()
+    # Keep
+    do_something()
+    do_something()
+
+
+
+
+
+
+
 # Function that computes several time integrals with integrands having
 # to do with the scale factor (e.g. ∫dta⁻¹).
 # The result is stored in ᔑdt_steps[integrand][index],
@@ -1050,23 +1093,28 @@ def prepare_output_times():
     return output_filenames, final_render3D, timespan
 
 # Declare global variables used in above functions
-cython.declare(ᔑdt_steps=dict,
-               i_dump='Py_ssize_t',
-               dumps=list,
-               next_dump=list,
-               )
-if 'special' in special_params:
-    # Instead of running a simulation, run some utility
-    # as defined by the special_params dict.
-    delegate()
-else:
-    # Run the time loop
-    timeloop()
-    # Simulation done
-    universals.any_warnings = allreduce(universals.any_warnings, op=MPI.LOR)
-    if universals.any_warnings:
-        masterprint(f'CO𝘕CEPT run {jobid} finished')
+cython.declare(
+    ᔑdt_steps=dict,
+    i_dump='Py_ssize_t',
+    dumps=list,
+    next_dump=list,
+)
+
+# If this module is run properly (detected by jobid being set),
+# launch the CO𝘕CEPT run.
+if jobid != -1:
+    if 'special' in special_params:
+        # Instead of running a simulation, run some utility
+        # as defined by the special_params dict.
+        delegate()
     else:
-        masterprint(f'CO𝘕CEPT run {jobid} finished successfully', fun=terminal.bold_green)
-# Shutdown CO𝘕CEPT properly
-abort(exit_code=0)
+        # Run the time loop
+        timeloop()
+        # Simulation done
+        universals.any_warnings = allreduce(universals.any_warnings, op=MPI.LOR)
+        if universals.any_warnings:
+            masterprint(f'CO𝘕CEPT run {jobid} finished')
+        else:
+            masterprint(f'CO𝘕CEPT run {jobid} finished successfully', fun=terminal.bold_green)
+    # Shutdown CO𝘕CEPT properly
+    abort(exit_code=0)

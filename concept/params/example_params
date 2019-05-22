@@ -87,13 +87,18 @@ render3D_select = {  # Toggle rendering for each component
 }
 
 # Numerical parameters
-boxsize          = 128*Mpc  # Linear size of the simulation box
-ewald_gridsize   = 64       # Linear gridsize of the grid of Ewald corrections
-φ_gridsize       = _size    # Linear gridsize of the potential
-p3m_scale        = 1.25     # The long/short-range force split scale in units of boxsize/φ_gridsize
-p3m_cutoff       = 4.8      # Maximum reach of short-range force in units of p3m_scale
+boxsize           = 128*Mpc  # Linear size of the simulation box
+ewald_gridsize    = 64       # Linear gridsize of the grid of Ewald corrections
+φ_gridsize        = _size    # Linear gridsize of the potential
+shortrange_params = {        # Short-range force parameters for each short-range force
+    'gravity': {
+        'scale'    : 1.25*boxsize/φ_gridsize,  # The long/short-range force split scale
+        'cutoff'   : '4.8*scale',              # Maximum reach of short-range force
+        'subtiling': (2, 2, 2),                # Subtile decomposition
+    },
+}
 R_tophat         = 8*Mpc/h  # Radius of tophat used to compute σ
-modes_per_decade = 30       # Number of linear k modes per decade computed in CLASS
+modes_per_decade = 30       # Number of linear k modes per decade computed by CLASS
 
 # Cosmology
 H0      = 67*km/(s*Mpc)  # The Hubble constant

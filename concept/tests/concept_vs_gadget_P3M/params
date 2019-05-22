@@ -31,10 +31,14 @@ output_bases       = {'snapshot': 'snapshot'}
 output_times       = {'snapshot': (0.1, 0.5, 1)}
 
 # Numerical parameters
-boxsize          = 8*Mpc/0.7  # (GADGET implicitly uses length/h)
-φ_gridsize       = 32
-p3m_scale        = 1.25
-p3m_cutoff       = 4.5
+boxsize    = 8*Mpc/h
+φ_gridsize = 32
+shortrange_params = {
+    'gravity': {
+        'scale' : 1.25*boxsize/φ_gridsize,
+        'cutoff': '4.5*scale',
+    },
+}
 
 # Cosmology
 H0      = 70*km/s/Mpc

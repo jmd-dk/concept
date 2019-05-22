@@ -57,6 +57,7 @@ import scipy.interpolate
 import scipy.ndimage
 import scipy.optimize
 import scipy.signal
+import scipy.special
 # For plotting
 import matplotlib
 matplotlib.use('agg')  # Use a matplotlib backend that does not require a running X-server
@@ -433,7 +434,7 @@ def fancyprint(
     if leftover_indentation:
         if indent != -1:
             indent += progressprint['indentation']
-        if ensure_newline_after_ellipsis and progressprint['previous'].endswith('...'):
+        if ensure_newline_after_ellipsis and progressprint['previous_print_ends_in_ellipsis']:
             args = ('\n', ) + args
     if indent == -1:
         indent = 0
@@ -468,6 +469,7 @@ def fancyprint(
         print(text, flush=True, end=end, **kwargs)
         progressprint['length'] = 0
         progressprint['previous'] = text
+        progressprint['previous_print_ends_in_ellipsis'] = False
     else:
         # Stitch text pieces together
         text = sep.join([str(arg) for arg in args])
@@ -479,6 +481,7 @@ def fancyprint(
         # Add indentation, and also wrap long message if wrap is True
         indentation = ' '*indent
         is_progress_message = text.endswith('...')
+        progressprint['previous_print_ends_in_ellipsis'] = is_progress_message
         if wrap:
             # Allow for paths to be wrapped before slashes. We do this
             # by using the break_on_hyphens feature of textwrap.wrap.
@@ -597,11 +600,13 @@ def fancyprint(
                     return
         # Print out message
         print(text, flush=True, end='', **kwargs)
-progressprint = {'maxintervallength': len(' done after ??? ms'),
-                 'time'             : [],
-                 'indentation'      : 0,
-                 'previous'         : '',
-                 }
+progressprint = {
+    'maxintervallength'              : len(' done after ??? ms'),
+    'time'                           : [],
+    'indentation'                    : 0,
+    'previous'                       : '',
+    'previous_print_ends_in_ellipsis': False,
+}
 # As the suppress_output and terminal_width user parameters are used
 # in fancyprint, they need to be defined before they are actually
 # read in as parameters.
@@ -685,13 +690,15 @@ if not cython.compiled:
             # Return decorator
             return dummy_decorator
     # Already builtin: cfunc, inline, locals, returns
-    for directive in ('boundscheck',
-                      'cdivision',
-                      'initializedcheck',
-                      'wraparound',
-                      'header',
-                      'pheader',
-                      ):
+    for directive in (
+        'boundscheck',
+        'cdivision',
+        'initializedcheck',
+        'wraparound',
+        'header',
+        'pheader',
+        'iterator',
+    ):
         setattr(cython, directive, dummy_decorator)
     # Address (pointers into arrays)
     def address(a):
@@ -700,35 +707,41 @@ if not cython.compiled:
     setattr(cython, 'address', address)
     # C allocation syntax for memory management
     def sizeof(dtype):
-        # C dtype names to NumPy dtype names
-        if dtype in C2np:
-            dtype = C2np[dtype]
-        elif dtype[-1] == '*':
-            # Allocate pointer array of pointers (e.g. double**).
-            # Emulate these as lists of arrays.
-            return [empty(1, dtype=sizeof(dtype[:-1]).dtype)]
-        else:
-            dtype=object
-        return np.array([1], dtype=dtype)
+        # Extract number of pointer enferences base datatype
+        nstars = dtype.count('*')
+        dtype = C2np.get(dtype.rstrip('*'), object)
+        # Return both results
+        return dtype, nstars
     def malloc(a):
-        if isinstance(a, list):
-            # Pointer to pointer represented as list of arrays
-            return a
-        return empty(int(a[0]), dtype=a.dtype)
+        if not a:
+            return None
+        # Unpack
+        dtype, nstars = a[0], a[1]
+        size = len(a)//2
+        # Emulate direct pointer as NumPy array
+        if nstars == 0:
+            return empty(size, dtype=dtype)
+        # Emulate double (or higher) pointers as lists
+        return [None for _ in range(size)]
     def realloc(p, a):
+        if p is None:
+            return malloc(a)
+        size = len(a)//2
         if isinstance(p, list):
             # Reallocation of pointer array (e.g. double**)
-            size = len(a)
             p = p[:size] + [None]*(size - len(p))
         else:
             # Reallocation pointer (e.g. double*)
-            size = int(a[0])
             p.resize(size, refcheck=False)
         return p
     def free(a):
-        # NumPy arrays cannot be manually freed.
-        # Resize the array to the minimal size.
-        a.resize(0, refcheck=False)
+        if isinstance(p, list):
+            # Do nothing in the case of pointer arrays
+            pass
+        else:
+            # NumPy arrays cannot be manually freed.
+            # Resize the array to the minimal size.
+            a.resize(0, refcheck=False)
     # Casting
     def cast(a, dtype):
         if not isinstance(dtype, str):
@@ -768,8 +781,8 @@ if not cython.compiled:
                        )
     cbrt = lambda x: x**(1/3)
     from math import erf, erfc
-    # The closest thing to a Null pointer in pure Python is the
-    # None object (not presently used inside pure Python code).
+    # The closest thing to a Null pointer in pure Python
+    # is the None object.
     NULL = None
     # Dummy functions and constants
     def dummy_func(*args, **kwargs):
@@ -1820,8 +1833,7 @@ cython.declare(
     boxsize='double',
     ewald_gridsize='Py_ssize_t',
     φ_gridsize='ptrdiff_t',
-    p3m_scale='double',
-    p3m_cutoff='double',
+    shortrange_params=dict,
     R_tophat='double',
     modes_per_decade='double',
     # Cosmology
@@ -1963,10 +1975,19 @@ ewald_gridsize = to_int(user_params.get('ewald_gridsize', 64))
 user_params['ewald_gridsize'] = ewald_gridsize
 φ_gridsize = to_int(user_params.get('φ_gridsize', 64))
 user_params['φ_gridsize'] = φ_gridsize
-p3m_scale = float(user_params.get('p3m_scale', 1.25))
-user_params['p3m_scale'] = p3m_scale
-p3m_cutoff = float(user_params.get('p3m_cutoff', 4.8))
-user_params['p3m_cutoff'] = p3m_cutoff
+shortrange_params = dict(user_params.get('shortrange_params', {}))
+if shortrange_params and not isinstance(list(shortrange_params.values())[0], dict):
+    shortrange_params = {'default': shortrange_params}
+shortrange_params.setdefault('default', {})
+for shortrange_force in ('gravity', ):
+    shortrange_params.setdefault(shortrange_force, shortrange_params['default'].copy())
+for d in shortrange_params.values():
+    d.setdefault('scale', 1.25*boxsize/φ_gridsize)
+    d.setdefault('cutoff', 4.8*d['scale'])
+    d.setdefault('subtiling', (2, 2, 2))
+    cutoff = d['cutoff']
+    if isinstance(cutoff, str):
+        d['cutoff'] = eval(cutoff.replace('scale', str(d['scale'])))
 R_tophat = float(user_params.get('R_tophat', -1))  # Default value will be set later
 user_params['R_tophat'] = R_tophat
 modes_per_decade = float(user_params.get('modes_per_decade', 30))
@@ -2509,8 +2530,6 @@ units_dict.setdefault(unicode('ρ_crit')       , ρ_crit                )
 units_dict.setdefault(        'ρ_mbar'        , ρ_mbar                )
 units_dict.setdefault(unicode('ρ_mbar')       , ρ_mbar                )
 # Add dimensionless sizes
-units_dict.setdefault('p3m_scale'          , p3m_scale          )
-units_dict.setdefault('p3m_cutoff'         , p3m_cutoff         )
 units_dict.setdefault('ewald_gridsize'     , ewald_gridsize     )
 units_dict.setdefault('render3D_resolution', render3D_resolution)
 units_dict.setdefault(        'φ_gridsize' , φ_gridsize         )
@@ -3337,6 +3356,11 @@ if autosave_interval > 1*units.yr:
 if autosave_interval < 0:
     autosave_interval = 0
     user_params['autosave_interval'] = autosave_interval
+# Check keys in shortrange_params
+for d in shortrange_params.values():
+    for key in d:
+        if key not in {'scale', 'cutoff', 'subtiling'}:
+            masterwarn(f'unrecognized parameter "{key}" in shortrange_params')
 # Abort on negative a_begin
 if a_begin <= 0:
     abort(

@@ -600,6 +600,7 @@ def rank_neighbouring_domain(i, j, k):
     # Arguments
     component_send='Component',
     variables=list,  # list of str's
+    interaction_name=str,
     tile_indices_send='Py_ssize_t[::1]',
     dest='int',
     source='int',
@@ -607,39 +608,36 @@ def rank_neighbouring_domain(i, j, k):
     # Locals
     N_particles='Py_ssize_t',
     N_particles_recv='Py_ssize_t',
-    component_buffer_N_local='Py_ssize_t',
     dim='int',
+    domain_layout_source='int[::1]',
     i='Py_ssize_t',
     j='Py_ssize_t',
-    mv_dim_recv='double[::1]',
-    mv_dim_send='double[::1]',
-    mv_dim_send_buffer='double[::1]',
-    mv_recv=list,
+    mv_recv='double[::1]',
     mv_recv_buf='double[::1]',
-    mv_send=list,
+    mv_send='double[::1]',
+    mv_recv_list=list,
+    mv_send_buf='double[::1]',
+    mv_send_list=list,
     n='Py_ssize_t',
     operation=str,
-    particle_indices='Py_ssize_t*',
-    tile_N='Py_ssize_t',
-    tile_growth='double',
+    subtiling_name=str,
+    tile='Py_ssize_t*',
     tile_index='Py_ssize_t',
-    tile_index_3D='Py_ssize_t[::1]',
-    tile_layout='Py_ssize_t[:, :, ::1]',
-    tile_size='Py_ssize_t',
-    tile_particle_indices='Py_ssize_t[::1]',
-    tile_particle_indices_arr=object,  # np.ndarray of dtype Py_ssize_t
-    tiles_N='Py_ssize_t[::1]',
-    tiles_N_buf='Py_ssize_t[::1]',
-    tiles_N_buf_recv='Py_ssize_t[::1]',
-    tiles_particle_indices='Py_ssize_t**',
-    tiles_sizes='Py_ssize_t[::1]',
+    tiles='Py_ssize_t**',
+    tiles_N='Py_ssize_t*',
+    tiles_N_recv='Py_ssize_t*',
+    tiles_recv='Py_ssize_t**',
+    tiling='Tiling',
+    tiling_name=str,
+    tiling_recv='Tiling',
     variable=str,
     returns='Component',
 )
 def sendrecv_component(
-    component_send, variables, tile_indices_send, dest, source, component_recv=None,
+    component_send, variables, interaction_name,
+    tile_indices_send, dest, source, component_recv=None,
 ):
-    """This function operate in two modes:
+    """This function operates in two modes:
     - Communicate data (no component_recv supplied):
       The data of component_send will be send and received
       into the global component_buffer.
@@ -665,11 +663,9 @@ def sendrecv_component(
     specified will be communicated. Note that the passed
     tile_indices_send should be identical on all processes.
     After tile particles have been communicated, the returned buffer
-    component storing them do not contain the particles in the standard
-    tile sorted manner. However, tiles_N_linear array attribute will
-    still hold the number of particles within each tile. All particles
-    within a given tile occopy a contiguous string in memory, and the
-    order of tiles is as specified by the supplied tile_indices_send.
+    component will be tile sorted at the domain (tile, not subtile)
+    level. Note that the particle order is not preserved when doing such
+    a communication + tile sorting.
     """
     global component_buffer
     if component_send.representation != 'particles':
@@ -687,10 +683,29 @@ def sendrecv_component(
     if 𝔹[tile_indices_send is None]:
         N_particles = component_send.N_local
     else:
-        N_particles = 0
-        tiles_N = component_send.tiles_N_linear
-        for i in range(tile_indices_send.shape[0]):
-            N_particles += tiles_N[tile_indices_send[i]]
+        tiling_name = f'{interaction_name} (tiles)'
+        tiling = component_send.tilings[tiling_name]
+        tiles   = tiling.tiles
+        tiles_N = tiling.tiles_N
+        if 𝔹[operation == '=']:
+            N_particles = 0
+            for i in range(tile_indices_send.shape[0]):
+                N_particles += tiles_N[tile_indices_send[i]]
+        else:
+            # When operation == '+=', we always send all particles back
+            # to the process from which they originally came.
+            # Really we should only include particles within the tiles
+            # given by tile_indices_send, and so the above loop over
+            # these tile is correct even when operation == '+='.
+            # However, as long as this function has been called
+            # correctly, the component_send is really just a buffer
+            # component storing only particles within the specified
+            # tiles, and so we can skip the counting above.
+            N_particles = component_send.N_local
+            # Also extract tile variables from component_recv
+            tiling_recv = component_recv.tilings[tiling_name]
+            tiles_recv   = tiling_recv.tiles
+            tiles_N_recv = tiling_recv.tiles_N
     N_particles_recv = sendrecv(N_particles, dest=dest, source=source)
     # In communicate mode (operation == '='),
     # the global component_buffer is used as component_recv.
@@ -701,13 +716,6 @@ def sendrecv_component(
         # component_send (Component) and instantiate such an instance.
         if component_buffer is None:
             component_buffer = type(component_send)('', 'dark matter particles', 1)
-        # Ensure that the needed tile arrays are allocated on the buffer
-        if 𝔹[tile_indices_send is not None] and component_buffer.last_tile_sort == -1:
-            component_buffer.name = ''
-            component_buffer_N_local = component_buffer.N_local
-            component_buffer.N_local = 0
-            component_buffer.tile_sort()
-            component_buffer.N_local = component_buffer_N_local
         # Adjust important meta data on the buffer component
         component_buffer.name             = component_send.name
         component_buffer.species          = component_send.species
@@ -724,139 +732,99 @@ def sendrecv_component(
     # Operation-dependant preparations for the communication
     if 𝔹[operation == '=' and tile_indices_send is not None]:
         # For communication mode with tiles, the particles within the
-        # tiles are temporarily copied to the mv_dim_send_buffer buffer.
+        # tiles are temporarily copied to the mv_send_buf buffer.
         # Make sure that this is large enough.
-        mv_dim_send_buffer = get_buffer(N_particles, 'send')
+        mv_send_buf = get_buffer(N_particles, 'send')
     elif 𝔹[operation == '+=']:
         # We need to receive the data into a buffer, and then update the
         # local data by this amount. Get the buffer.
         mv_recv_buf = get_buffer(N_particles_recv, 'recv')
-    # When in communication and tile mode, the buffer component needs
-    # to know its own tiling.
-    if 𝔹[operation == '=' and tile_indices_send is not None]:
-        # The particle data from component_send on one process will be
-        # communicated to component_recv == component_buffer on this
-        # process. As we are in tile mode, only the particles within the
-        # tiles specified by tile_indices_send will be communicated.
-        # We do not copy over the exact indices of the particles from
-        # one process to the other. Instead, the buffer component will
-        # simply contain all particles of a given tile in a contiguous
-        # order, with the tile order dictated by tile_indices_send.
-        # The only other thing that we need to know is then the number
-        # of particles within each tile. This is communicated here.
-        tiles_N_buf = tiles_N_buf_arr
-        tiles_N_buf_recv = tiles_N_buf_recv_arr
-        if tiles_N_buf.shape[0] < tile_indices_send.shape[0]:
-            tiles_N_buf_arr.resize(tile_indices_send.shape[0], refcheck=False)
-            tiles_N_buf_recv_arr.resize(tile_indices_send.shape[0], refcheck=False)
-            tiles_N_buf = tiles_N_buf_arr
-            tiles_N_buf_recv = tiles_N_buf_recv_arr
-        for i in range(tile_indices_send.shape[0]):
-            tiles_N_buf[i] = tiles_N[tile_indices_send[i]]
-        Sendrecv(tiles_N_buf, recvbuf=tiles_N_buf_recv, dest=dest, source=source)
-        tiles_N = component_recv.tiles_N_linear
-        for i in range(tile_indices_send.shape[0]):
-            tiles_N[tile_indices_send[i]] = tiles_N_buf_recv[i]
-        # We can now "sort component_recv by hand", meaning
-        # populating component_recv.tiles_particle_indices_linear with
-        # the correct indices.
-        tiles_particle_indices = component_recv.tiles_particle_indices_linear
-        tiles_sizes = component_recv.tiles_sizes_linear
-        tile_layout = component_recv.tile_layout
-        n = 0
-        for i in range(tile_indices_send.shape[0]):
-            tile_index = tile_indices_send[i]
-            # Make sure that the index array is large enough
-            tile_N = tiles_N[tile_index]
-            if tiles_sizes[tile_index] < tile_N:
-                tile_growth = 1.2
-                tile_size = cast(tile_growth*tile_N, 'Py_ssize_t') + 1
-                tile_index_3D = component_recv.get_tile_index_3D(tile_index)
-                tile_particle_indices_arr = component_recv.tiles_particle_indices[
-                    tile_index_3D[0], tile_index_3D[1], tile_index_3D[2],
-                ]
-                tile_particle_indices_arr.resize(tile_size, refcheck=False)
-                tiles_sizes[tile_index] = tile_size
-                tile_particle_indices = tile_particle_indices_arr
-                tiles_particle_indices[tile_index] = (
-                    cython.address(tile_particle_indices[:])
-                )
-            particle_indices = tiles_particle_indices[tile_index]
-            for j in range(tile_N):
-                particle_indices[j] = n
-                n += 1
-        # Point tiles_N back to component_send
-        tiles_N = component_send.tiles_N_linear
     # Do the communication for each variable
     for variable in variables:
         # Get arrays to send and receive into
         if variable == 'pos':
             with unswitch:
                 if 𝔹[operation == '=']:
-                    mv_send = component_send.pos_mv
+                    mv_send_list = component_send.pos_mv
                 else:
-                    mv_send = component_send.Δpos_mv
-            mv_recv = component_recv.pos_mv
+                    mv_send_list = component_send.Δpos_mv
+            mv_recv_list = component_recv.pos_mv
         elif variable == 'mom':
             with unswitch:
                 if 𝔹[operation == '=']:
-                    mv_send = component_send.mom_mv
+                    mv_send_list = component_send.mom_mv
                 else:
-                    mv_send = component_send.Δmom_mv
-            mv_recv = component_recv.mom_mv
+                    mv_send_list = component_send.Δmom_mv
+            mv_recv_list = component_recv.mom_mv
         else:
             abort(
                 f'Currently only "pos" and "mom" are implemented '
                 f'as variables in sendrecv_component()'
             )
         for dim in range(3):
-            mv_dim_send = mv_send[dim][:component_send.N_local]
+            mv_send = mv_send_list[dim][:component_send.N_local]
             # In communication mode with tiles, we only need to send the
             # particular particles within the specified tiles. Here we
             # copy the variable of these specific particles to a buffer.
             with unswitch:
                 if 𝔹[operation == '=' and tile_indices_send is not None]:
-                    tiles_particle_indices = component_send.tiles_particle_indices_linear
                     n = 0
                     for i in range(tile_indices_send.shape[0]):
-                        particle_indices = tiles_particle_indices[tile_indices_send[i]]
-                        for j in range(tiles_N[tile_indices_send[i]]):
-                            mv_dim_send_buffer[n] = mv_dim_send[particle_indices[j]]
+                        tile_index = tile_indices_send[i]
+                        tile = tiles[tile_index]
+                        for j in range(tiles_N[tile_index]):
+                            mv_send_buf[n] = mv_send[tile[j]]
                             n += 1
-                    mv_dim_send = mv_dim_send_buffer[:n]
+                    mv_send = mv_send_buf[:n]
             # Communicate the particle data
-            mv_dim_recv = mv_recv[dim][:component_recv.N_local]
+            mv_recv = mv_recv_list[dim][:component_recv.N_local]
             with unswitch:
                 if 𝔹[operation == '=']:
-                    Sendrecv(mv_dim_send, recvbuf=mv_dim_recv, dest=dest, source=source)
+                    Sendrecv(mv_send, recvbuf=mv_recv, dest=dest, source=source)
                 else:
-                    Sendrecv(mv_dim_send, recvbuf=mv_recv_buf, dest=dest, source=source)
+                    Sendrecv(mv_send, recvbuf=mv_recv_buf, dest=dest, source=source)
                     with unswitch:
                         if 𝔹[tile_indices_send is None]:
                             # Update all particles
                             for i in range(N_particles_recv):
-                                mv_dim_recv[i] += mv_recv_buf[i]
+                                mv_recv[i] += mv_recv_buf[i]
                         else:
                             # Update particles in the specified tiles
-                            tiles_N = component_recv.tiles_N_linear
-                            tiles_particle_indices = component_recv.tiles_particle_indices_linear
                             n = 0
                             for i in range(tile_indices_send.shape[0]):
-                                particle_indices = tiles_particle_indices[tile_indices_send[i]]
-                                for j in range(tiles_N[tile_indices_send[i]]):
-                                    mv_dim_recv[particle_indices[j]] += mv_recv_buf[n]
+                                tile_index = tile_indices_send[i]
+                                tile = tiles_recv[tile_index]
+                                for j in range(tiles_N_recv[tile_index]):
+                                    mv_recv[tile[j]] += mv_recv_buf[n]
                                     n += 1
+    # When in communication and tile mode,
+    # the buffer (recv) component needs to know its own tiling.
+    if 𝔹[operation == '=' and tile_indices_send is not None]:
+        # Ensure that the required tiling (and subtiling)
+        # is instantiated on the buffer component.
+        if tiling_name not in component_recv.tilings:
+            component_recv.init_tiling(tiling_name, initial_tile_size=0)
+            subtiling_name = f'{interaction_name} (subtiles)'
+            component_recv.init_tiling(subtiling_name, initial_tile_size=0)
+        tiling_recv = component_recv.tilings[tiling_name]
+        # Place the tiling over the domain of the process
+        # with a rank given by 'source'.
+        domain_layout_source = asarray(np.unravel_index(source, domain_subdivisions),
+            dtype=C2np['int'])
+        tiling_recv.relocate(asarray(
+            (
+                domain_layout_source[0]*domain_size_x,
+                domain_layout_source[1]*domain_size_y,
+                domain_layout_source[2]*domain_size_z,
+            ),
+            dtype=C2np['double'],
+        ))
+        # Perform tile sorting, but do not sort into subtiles
+        component_recv.tile_sort(tiling_name)
     return component_recv
-# Declare buffers used by sendrecv_component
-cython.declare(
-    component_buffer='Component',
-    tiles_N_buf_arr=object,
-    tiles_N_buf_recv_arr=object,
-)
+# Declare buffer component used by sendrecv_component
+cython.declare(component_buffer='Component')
 component_buffer = None
-tiles_N_buf_arr = empty(1, dtype=C2np['Py_ssize_t'])
-tiles_N_buf_recv_arr = empty(1, dtype=C2np['Py_ssize_t'])
-
 
 # Very general function for different MPI communications
 @cython.pheader(# Arguments
@@ -1011,10 +979,10 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1, root=master_rank
     if sending and recving:
         if   (    arr_send.dtype == np.dtype(C2np['double'])
               and arr_recv.dtype != np.dtype(C2np['double'])):
-              arr_recv = arr_recv.astype(C2np['double'])
+            arr_recv = arr_recv.astype(C2np['double'])
         elif (    arr_send.dtype != np.dtype(C2np['double'])
               and arr_recv.dtype == np.dtype(C2np['double'])):
-              arr_send = arr_send.astype(C2np['double'])
+            arr_send = arr_send.astype(C2np['double'])
     # Are the passed arrays contiguous?
     contiguous_send = arr_send.flags.c_contiguous
     contiguous_recv = arr_recv.flags.c_contiguous

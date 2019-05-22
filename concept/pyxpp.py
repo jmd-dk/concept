@@ -47,22 +47,27 @@ the following changes happens to the source code (in the .pyx file):
   'else:', including these lines themselves. Also removes the triple
   quotes around the Cython statements in the else body. The 'else'
   clause is optional.
+- Calls to build_struct will be replaced with specialized C structs
+  which are declared dynamically from the call. Type declarations
+  of this struct, its fields and its corresponding dict are inserted.
 - Insert the line 'from commons cimport *'
   just below 'from commons import *'.
 - Transform the 'cimport()' function calls into proper cimports.
+- Replaces calls to iterator functions decorated with @cython.iterator
+  with the bare source code in these functions, effectively inlining
+  the call.
 - Replace 'ℝ[expression]' with a double variable, 'ℤ[expression]' with a
   Py_ssize_t variable and '𝔹[expression]' with a bint variable which is
   equal to 'expression' and defined on a suitable line.
+- Unicode non-ASCII letters will be replaced with ASCII-strings.
+- Integer powers will be replaced by products.
+- Loop unswitching is performed on if statements under an unswitch
+  context manager, which are indented under one or more loops.
 - Replaces the cython.header and cython.pheader decorators with
   all of the Cython decorators which improves performance. The
   difference between the two is that cython.header turns into
   cython.cfunc and cython.inline (among others), while cython.pheader
   turns into cython.ccall (among others).
-- Integer powers will be replaced by products.
-- Calls to build_struct will be replaced with specialized C structs
-  which are declared dynamically from the call. Type declarations
-  of this struct, its fields and its corresponding dict are inserted.
-- Unicode non-ASCII letters will be replaced with ASCII-strings.
 - __init__ methods in cclasses are renamed to __cinit__.
 - Replace (with '0') or remove ':' and '...' intelligently, when taking
   the address of arrays.
@@ -71,8 +76,6 @@ the following changes happens to the source code (in the .pyx file):
   appropriate pointer type.
 - Replaced the cast() function with actual Cython syntax, e.g.
   <double[::1]>.
-- Loop unswitching is performed on if statements under an unswitch
-  context manager, which are indented under one or more loops.
 - A comment will be added to the end of the file, listing all the
   implemented extension types within the file.
 
@@ -100,7 +103,8 @@ else:
         loader.exec_module(module)
         return module
 # General imports
-import collections, contextlib, copy, itertools, keyword, os, re, shutil, unicodedata
+import collections, contextlib, copy, inspect, itertools
+import keyword, os, re, shutil, unicodedata, warnings
 # For math
 import numpy as np
 
@@ -469,6 +473,201 @@ def cimport_function(lines, no_optimization):
 
 
 
+def inline_iterators(lines, no_optimization):
+    # We need to import the *.py file given by the global
+    # "filename" variable, and then investigate its content.
+    # In order to get the *.py file and not the *.so file,
+    # we rely on all *.py files to be already copied to the
+    # pure_python_source_dir specified below.
+    pure_python_source_dir = os.getcwd() + '/.pure_python_source_copy'
+    sys.path.insert(0, pure_python_source_dir)
+    # If we do this using the load_source function constructed from
+    # calls to importlib, this function will fail. We therefore rely
+    # on the deprecated imp module.
+    # This ought to some day be made to work with importlib.
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', category=DeprecationWarning)
+        import imp
+    load_source = imp.load_source
+    # Import "filename", which matches the lines passed, but these are
+    # the pure Python lines.
+    module = load_source(filename.rstrip('.py'), filename)
+    module_dict = module.__dict__
+    # Remove the inserted pure_python_source_dir from sys.path
+    sys.path.pop(0)
+    # Function for processing the source lines
+    # of an inline iterator function.
+    def process_inline_iterator_lines(func_name, iterator_lines):
+        if func_name in cached_iterators:
+            return cached_iterators[func_name].copy()
+        # Remove the function definition lines(s)
+        def_encountered = False
+        parens = 0
+        parens_any = False
+        for i, iterator_line in enumerate(iterator_lines):
+            if iterator_line.lstrip().startswith('#'):
+                continue
+            parens += iterator_line.count('(')
+            if parens:
+                parens_any = True
+            parens -= iterator_line.count(')')
+            if iterator_line.lstrip().startswith('def '):
+                def_encountered = True
+            if not def_encountered:
+                continue
+            if iterator_line.rstrip().endswith(':') and parens == 0 and parens_any:
+                break
+        iterator_lines = iterator_lines[i+1:]
+        # Remove yield line, which has to be only on the last line.
+        # We could generalise this to work for any number of yields,
+        # if we needed to.
+        iterator_lines = iterator_lines[:-1]
+        # Find indentation level
+        for iterator_line in iterator_lines:
+            iterator_line_stripped = iterator_line.strip()
+            if iterator_line_stripped and not iterator_line_stripped.startswith('#'):
+                indentation = len(iterator_line) - len(iterator_line.lstrip())
+                break
+        # Remove indentation
+        for i, iterator_line in enumerate(iterator_lines):
+            if iterator_line[:indentation] != ' '*indentation:
+                continue
+            iterator_lines[i] = iterator_line[indentation:]
+        # Store the unindented source lines of the iterator
+        cached_iterators[func_name] = iterator_lines
+        return iterator_lines.copy()
+    cached_iterators = {}
+    # Replace usages of inline iterators with the content of the
+    # iterator functions themselves.
+    new_lines = []
+    for_indentation = -1
+    for line in lines:
+        if not line.strip():
+            new_lines.append(line)
+            continue
+        indentation = len(line) - len(line.lstrip())
+        if indentation <= for_indentation:
+            for_indentation = -1
+        if for_indentation != -1:
+            line = ' '*(inlined_indentation - for_indentation - 4) + line
+        if line.lstrip().startswith('#'):
+            new_lines.append(line)
+            continue
+        # Check for usage of inline iterator at this line
+        match = re.search(r'^ *for +(.+?) +in +(.+?) *\(', line)
+        if not match:
+            new_lines.append(line)
+            continue
+        func_name = match.group(2)
+        stop = False
+        for no in r'.,()[]{}':
+            if no in func_name:
+                stop = True
+                break
+        if stop:
+            new_lines.append(line)
+            continue
+        if func_name.startswith('"') or func_name.startswith("'"):
+            new_lines.append(line)
+            continue
+        if not func_name in module_dict:
+            new_lines.append(line)
+            continue
+        try:
+            iterator_lines = inspect.getsourcelines(module_dict[func_name])[0]
+        except:
+            new_lines.append(line)
+            continue
+        iterator_lines = oneline(iterator_lines)
+        for iterator_line in iterator_lines:
+            if iterator_line.lstrip().startswith('#'):
+                continue
+            if '@cython.iterator' in iterator_line:
+                break
+        else:
+            new_lines.append(line)
+            continue
+        # Use of iterator to be inlined found
+        iterator_lines = process_inline_iterator_lines(func_name, iterator_lines)
+        # Apply correct indentation
+        for_indentation = len(line) - len(line.lstrip())
+        iterator_lines = [' '*for_indentation + iterator_line for iterator_line in iterator_lines]
+        # Replace iterator call with inlined iterator code lines
+        new_lines += [
+            '\n',
+            ' '*for_indentation + f'# Beginning of inlined iterator "{func_name}"\n',
+        ]
+        new_lines += iterator_lines
+        # Indent the rest of the function according
+        # to the inlined iterator.
+        for iterator_line in iterator_lines[::-1]:
+            if not iterator_line.strip():
+                continue
+            if iterator_line.lstrip().startswith('#'):
+                continue
+            inlined_indentation = len(iterator_line) - len(iterator_line.lstrip())
+            break
+        new_lines += [
+            ' '*inlined_indentation + f'# End of inlined iterator "{func_name}"\n',
+            '\n',
+        ]
+    # Replace the inline iterator function definitions themselves with
+    # a trivial function definition, to reduce compilation time.
+    # We cannot remove these function definitions completely,
+    # as the functions must still be importable.
+    lines = new_lines
+    new_lines = []
+    skip = 0
+    for j, line in enumerate(lines):
+        if skip:
+            skip -= 1
+            continue
+        if line.lstrip().startswith('#'):
+            new_lines.append(line)
+            continue
+        if '@cython.iterator' in line:
+            indentation = len(line) - len(line.lstrip())
+            def_encountered = False
+            parens = 0
+            parens_any = False
+            for i, iterator_line in enumerate(lines[j+1:], j+1):
+                if iterator_line.lstrip().startswith('#'):
+                    continue
+                parens += iterator_line.count('(')
+                if parens:
+                    parens_any = True
+                parens -= iterator_line.count(')')
+                if iterator_line.lstrip().startswith('def '):
+                    def_encountered = True
+                if not def_encountered:
+                    continue
+                if iterator_line.rstrip().endswith(':') and parens == 0 and parens_any:
+                    break
+            new_lines += (lines[j+1:i+1]
+                + [
+                    ' '*(indentation + 4)
+                        + '# This function was originally decorated with @cython.iterator.\n',
+                    ' '*(indentation + 4)
+                        + '# Its original content has been removed.\n',
+                    ' '*(indentation + 4) + 'pass\n',
+                    '\n',
+                ]
+            )
+            for i, iterator_line in enumerate(lines[i+1:], i+1):
+                if iterator_line.lstrip().startswith('#'):
+                    continue
+                if not iterator_line.strip():
+                    continue
+                if len(iterator_line) - len(iterator_line.lstrip()) == indentation:
+                    break
+            skip = i - j - 1
+            continue
+        else:
+            new_lines.append(line)
+    return new_lines
+
+
+
 def constant_expressions(lines, no_optimization, first_call=True):
     sets = {'ℝ': 'double',
             'ℤ': 'Py_ssize_t',
@@ -639,7 +838,6 @@ def constant_expressions(lines, no_optimization, first_call=True):
             if match:
                 s = match.group().rstrip(')')
                 if s.count('(') - s.count(')') == 1:
-                    print('var:', var, ',,, line:', line, flush=True)
                     return True
             return False
         return (   multi_assign_in_for(var, line_ori)
@@ -1232,10 +1430,9 @@ def loop_unswitching(lines, no_optimization):
     # As indicated by the comments above, when two nested and equal
     # if statements are found, the body of the if should be kept
     # (and unindented one level), whereas everything else about the
-    # if statement should be removed. Doing this repeatedly will remove
-    # all occurrences of these unnecessary if statements.
+    # if statement should be removed.
     def remove_double_if(lines):
-        pattern = r'(^| )if +(.+):'
+        pattern = r'^ *if +(.+):'
         new_lines = []
         skip = 0
         for i, line in enumerate(lines):
@@ -1243,23 +1440,32 @@ def loop_unswitching(lines, no_optimization):
                 skip -= 1
                 continue
             new_lines.append(line)
-            match = re.search(pattern, line)
+            line_no_inline_comment = line
+            if '#' in line_no_inline_comment:
+                line_no_inline_comment = (
+                    line_no_inline_comment[:line_no_inline_comment.index('#')].rstrip() + '\n')
+            match = re.search(pattern, line_no_inline_comment)
             if match and not line.lstrip().startswith('#'):
                 # If statement found
-                condition = match.group(2).strip()
+                condition = match.group(1).strip()
                 # Check whether the next line is an if statement
                 # with the same condition.
                 double_if = False
-
                 for j in range(i + 1, len(lines)):
                     next_line = lines[j]
                     next_line_stripped = next_line.strip()
                     if not next_line_stripped or next_line_stripped.startswith('#'):
                         continue
-                    match = re.search(pattern, next_line)
+                    next_line_no_inline_comment = next_line
+                    if '#' in next_line_no_inline_comment:
+                        next_line_no_inline_comment = (
+                            next_line_no_inline_comment[
+                                :next_line_no_inline_comment.index('#')].rstrip() + '\n'
+                        )
+                    match = re.search(pattern, next_line_no_inline_comment)
                     if not match:
                         break
-                    next_condition = match.group(2).strip()
+                    next_condition = match.group(1).strip()
                     if condition == next_condition:
                         # Double if found
                         double_if = True
@@ -1332,8 +1538,8 @@ def loop_unswitching(lines, no_optimization):
     # The code is correct, but Cython can take a very long time
     # handling this code, so we reduce it here.
     def remove_impossible_if(lines):
-        pattern = r'(^| )if +(.+):'
-        pattern_else = r'(^| )else *:'
+        pattern = r'^ *if +(.+):'
+        pattern_else = r'^ *else *:'
         new_lines = []
         skip = 0
         for i, line in enumerate(lines):
@@ -1341,16 +1547,26 @@ def loop_unswitching(lines, no_optimization):
                 skip -= 1
                 continue
             new_lines.append(line)
-            match = re.search(pattern_else, line)
+            line_no_inline_comment = line
+            if '#' in line_no_inline_comment:
+                line_no_inline_comment = (
+                    line_no_inline_comment[:line_no_inline_comment.index('#')].rstrip() + '\n')
+            match = re.search(pattern_else, line_no_inline_comment)
             if match and not line.lstrip().startswith('#'):
                 # Else clause found. Check whether the first line inside
                 # the else block is an if statement.
                 next_line = lines[i + 1]
-                match = re.search(pattern, next_line)
+                next_line_no_inline_comment = next_line
+                if '#' in next_line_no_inline_comment:
+                    next_line_no_inline_comment = (
+                        next_line_no_inline_comment[
+                            :next_line_no_inline_comment.index('#')].rstrip() + '\n'
+                    )
+                match = re.search(pattern, next_line_no_inline_comment)
                 if not match or line.lstrip().startswith('#'):
                     continue
                 # Else clause with if statement inside it found
-                condition = match.group(2).strip()
+                condition = match.group(1).strip()
                 # Check whether the original if statement accompanying
                 # the else clause has the exact same condition as this
                 # inner if statement.
@@ -1359,9 +1575,15 @@ def loop_unswitching(lines, no_optimization):
                     prev_lvl = (len(prev_line) - len(prev_line.lstrip()))//4
                     if prev_lvl != lvl:
                         continue
-                    match = re.search(pattern, prev_line)
+                    prev_line_no_inline_comment = prev_line
+                    if '#' in prev_line_no_inline_comment:
+                        prev_line_no_inline_comment = (
+                            prev_line_no_inline_comment[
+                                :prev_line_no_inline_comment.index('#')].rstrip() + '\n'
+                        )
+                    match = re.search(pattern, prev_line_no_inline_comment)
                     if match and not line.lstrip().startswith('#'):
-                        prev_condition = match.group(2).strip()
+                        prev_condition = match.group(1).strip()
                         break
                 if prev_condition != condition:
                     continue
@@ -1390,11 +1612,96 @@ def loop_unswitching(lines, no_optimization):
                     # Line inside the impossible if body
                     skip += 1
         return new_lines
+    # The remove_impossible_if function can produce code like this:
+    # if False:  # Delete
+    #     ...    # Delete
+    # else:      # Delete
+    #     ...    # Unindent 4 spaces
+    # As stated above, the function below serves to delete the falsy
+    # if statement along with its entire body and the else statement,
+    # and in addition unindent the entire else body by a single
+    # indentation level. The simpler case where no else clause exists
+    # is also taken care of. Also, if an elif statement exists,
+    # this is converted into an if (effectively taking the place of the
+    # original if statement).
+    def remove_falsy_if(lines):
+        pattern = r'^ *if +(False|0|0\.|\.0|0\.0) *:'
+        pattern_else = r'^ *else *:'
+        pattern_elif = r'^ *elif +(.+):'
+        new_lines = []
+        skip = 0
+        for i, line in enumerate(lines):
+            if skip > 0:
+                skip -= 1
+                continue
+            line_no_inline_comment = line
+            if '#' in line_no_inline_comment:
+                line_no_inline_comment = (
+                    line_no_inline_comment[:line_no_inline_comment.index('#')].rstrip() + '\n')
+            match = re.search(pattern, line_no_inline_comment)
+            if not match or line.lstrip().startswith('#'):
+                new_lines.append(line)
+                continue
+            else:
+                # Falsy if statement found.
+                # Find matching else statement.
+                lvl = (len(line) - len(line.lstrip()))//4
+                for j, next_line in enumerate(lines[i+1:], i+1):
+                    if not next_line.strip() or next_line.lstrip().startswith('#'):
+                        continue
+                    next_lvl = (len(next_line) - len(next_line.lstrip()))//4
+                    next_line_no_inline_comment = next_line
+                    if '#' in next_line_no_inline_comment:
+                        next_line_no_inline_comment = (
+                            next_line_no_inline_comment[
+                                :next_line_no_inline_comment.index('#')].rstrip() + '\n'
+                        )
+                    if next_lvl == lvl and re.search(pattern_else, next_line_no_inline_comment):
+                        # Else statement found.
+                        # Skip the if statement and body.
+                        skip = j - i - 1
+                        # Find end of else body. Insert unindented else
+                        # body lines as we go.
+                        for k, next_line in enumerate(lines[j+1:], j+1):
+                            if not next_line.strip() or next_line.lstrip().startswith('#'):
+                                new_lines.append(next_line)
+                                continue
+                            next_lvl = (len(next_line) - len(next_line.lstrip()))//4
+                            if next_lvl > lvl:
+                                # Inside else body
+                                next_line_unindented = next_line[4:]
+                                new_lines.append(next_line_unindented)
+                            else:
+                                # Outside of else body
+                                break
+                        else:
+                            # The else block is the last thing
+                            # in the file.
+                            return new_lines
+                        # Skip over else body lines, as these has
+                        # already been inserted.
+                        skip = k - i - 1
+                        break
+                    elif next_lvl == lvl and re.search(pattern_elif, next_line):
+                        # Elif statement found.
+                        # Replace original if statement with this.
+                        new_lines.append(' '*4*lvl + 'if' + next_line[4*lvl + 4:])
+                        skip = j - i
+                        break
+                    elif next_lvl <= lvl:
+                        # Outside if statement, no else found.
+                        # Skip the if statement and body.
+                        skip = j - i - 1
+                        break
+                else:
+                    # The if statement is the last thing in the file
+                    return new_lines
+        return new_lines
     # Run through the lines and replace any unswitch context manager
     # with the unswitched loop(s). Do this for each unswitch lvl
     # separately, starting with the lower levels (least indented).
     for current_unswitch_lvl in unswitch_lvls:
-        pattern = r'with +unswitch_{} *(\(.*\))? *:'.format(current_unswitch_lvl)
+        pattern = r'^ *with +unswitch_{} *(\(.*\))? *:'.format(current_unswitch_lvl)
         new_lines = []
         while True:
             # Repeatedly apply the remove_* functions until all
@@ -1404,6 +1711,7 @@ def loop_unswitching(lines, no_optimization):
                 lines_len_ori = len(lines)
                 lines = remove_double_if    (lines)
                 lines = remove_impossible_if(lines)
+                lines = remove_falsy_if     (lines)
             skip = 0
             for i, line in enumerate(lines):
                 # Should this line be skipped?
@@ -1412,16 +1720,22 @@ def loop_unswitching(lines, no_optimization):
                     continue
                 # Search for unswitch context managers with an unswitch
                 # level matching the current level.
-                match = re.search(pattern, line.strip())
+                line_no_inline_comment = line
+                if '#' in line_no_inline_comment:
+                    line_no_inline_comment = (
+                        line_no_inline_comment[:line_no_inline_comment.index('#')].rstrip() + '\n')
+                match = re.search(pattern, line_no_inline_comment.strip())
                 if match and not line.lstrip().startswith('#'):
                     # Loop unswitching found.
                     # If optimizations are disabled, simply replace the
                     # with statement with "if True:".
                     if no_optimization:
-                        new_lines.append(' '*(len(line) - len(line.lstrip()))
-                                         + '# unswitch context manager replaced '
-                                         + 'with trivial if statement\n')
-                        new_lines.append(re.sub(pattern, 'if True:', line))
+                        indentation = ' '*(len(line) - len(line.lstrip()))
+                        new_lines.append(
+                            indentation
+                            + '# unswitch context manager replaced '
+                            + 'with trivial if statement\n')
+                        new_lines.append(indentation + 'if True:\n')
                         continue
                     # Determine the number of indentation levels to do
                     # loop unswitching on. This is the n in unswitch(n).
@@ -1513,13 +1827,19 @@ def loop_unswitching(lines, no_optimization):
                         loop_body_end_nr = i + 1 + j
                         # Record if/elif/else
                         if under_unswitch:
-                            line_rstripped = line.rstrip()
+                            line_no_inline_comment = line
+                            if '#' in line_no_inline_comment:
+                                line_no_inline_comment = (
+                                    line_no_inline_comment[
+                                        :line_no_inline_comment.index('#')].rstrip() + '\n'
+                                )
+                            line_no_inline_comment_rstripped = line_no_inline_comment.rstrip()
                             if after_if:
                                 after_if.append(line)
                                 continue
                             else:
                                 if lvl == unswitch_lvl + 1:
-                                    if any(re.search(pattern, line_rstripped)
+                                    if any(re.search(pattern, line_no_inline_comment_rstripped)
                                            for pattern in patterns):
                                         if_headers.append(line)
                                         if_bodies.append([])
@@ -1611,6 +1931,7 @@ def loop_unswitching(lines, no_optimization):
         lines_len_ori = len(lines)
         lines = remove_double_if    (lines)
         lines = remove_impossible_if(lines)
+        lines = remove_falsy_if     (lines)
     return lines
 
 
@@ -2029,7 +2350,10 @@ def power2product(lines, no_optimization):
                                      line[exponent_indices[1]:])
         # Done replacing '**' in this line.
         # Remove any temporarily inserted strings.
-        line = line.replace(starstar_replacement, '**')
+        line_old = None
+        while line_old != line:
+            line_old = line
+            line = line.replace(starstar_replacement, '**')
         new_lines.append(line)
     return new_lines
 # Variable name of inserted variables used for the addition
@@ -2937,6 +3261,7 @@ if __name__ == '__main__':
             lines = cython_structs               (lines, no_optimization)
             lines = cimport_commons              (lines, no_optimization)
             lines = cimport_function             (lines, no_optimization)
+            lines = inline_iterators             (lines, no_optimization)
             lines = constant_expressions         (lines, no_optimization)
             lines = unicode2ASCII                (lines, no_optimization)
             lines = power2product                (lines, no_optimization)

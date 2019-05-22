@@ -31,7 +31,7 @@ output_bases       = {'snapshot': 'snapshot'}
 output_times       = {'snapshot': (0.1, 0.5, 1)}
 
 # Numerical parameters
-boxsize    = 16*Mpc/0.7  # (GADGET implicitly uses length/h)
+boxsize    = 16*Mpc/h
 φ_gridsize = 32
 
 # Cosmology

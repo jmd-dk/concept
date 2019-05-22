@@ -269,12 +269,12 @@ except:
 if [ -f "${mpi_bindir}/ompi_info" ] || [ -f "${mpi_compilerdir}/ompi_info" ]; then
     # OpenMPI
     mpi_implementation="openmpi"
-    mpi_version="$("${mpiexec}" --version | head -n 1 | awk '{print $NF}')"
+    mpi_version="$("${mpiexec}" --version 2>&1 | head -n 1 | awk '{print $NF}')"
 elif [ -f "${mpi_bindir}/mpichversion" ] || [ -f "${mpi_compilerdir}/mpichversion" ]; then
     # MPICH or MVAPICH
     for f in "${mpi_bindir}/mpichversion" "${mpi_compilerdir}/mpichversion"; do
         if [ -f "${f}" ]; then
-            line="$("${mpi_bindir}/mpichversion" | head -n 1)"
+            line="$("${mpi_bindir}/mpichversion" 2>&1 | head -n 1)"
             mpi_implementation="$(echo "${line}" | awk '{print $1}' | tr '[:upper:]' '[:lower:]')"
             if [[ "${mpi_implementation}" == "mvapich"* ]]; then
                 mpi_implementation="mvapich"
@@ -975,21 +975,57 @@ if [ "${prepare_files}" == "True" ]; then
         fi
     else
         # Rename compiled Cython modules *.so_ back to *.so
-        # and compile with Cython.
         if ls "${concept_dir}/"*.so_ > /dev/null 2>&1; then
             (cd "${concept_dir}" && for f in *.so_; do
                                         mv "${f}" "${f%.so_}.so"
                                     done
              )
         fi
+        # When compiling, the pyxpp.py script needs a copy of
+        # all *.py source files located in a directory named
+        # ".pure_python_source_copy", placed within the
+        # concept directory.
+        pure_python_source_dir="${concept_dir}/.pure_python_source_copy"
+        mkdir -p "${pure_python_source_dir}"
+        cp "${concept_dir}"/*.py "${pure_python_source_dir}"/
+        # When running locally, set the "make_jobs" variable,
+        # holding the -j option for future make commands, enabling
+        # parallel building. Some implementations of make does not
+        # support the bare -j option without explicitly specifying a
+        # number afterwards. If so, we do not make use of the -j option.
+        if [ "${ssh}" == "False" ] && [ -z "${make_jobs}" ]; then
+            tmp_dir_preexists="False"
+            if [ -d "${top_dir}/tmp" ]; then
+                tmp_dir_preexists="True"
+            fi
+            make_jobs_test_dir="${top_dir}/tmp/make_jobs_test"
+            rm -rf "${make_jobs_test_dir}" || :
+            mkdir -p "${make_jobs_test_dir}"
+            printf "
+test:
+\t@echo success
+" > "${make_jobs_test_dir}/Makefile"
+            make_jobs_output="$(cd "${make_jobs_test_dir}" && make -j 2>/dev/null)" || :
+            if [ "${make_jobs_output}" == "success" ]; then
+                make_jobs="-j"
+            fi
+            if [ "${tmp_dir_preexists}" == "True" ]; then
+                rm -rf "${make_jobs_test_dir}" || :
+            else
+                rm -rf "${top_dir}/tmp" || :
+            fi
+        fi
         # Compile all the modules in parallel.
         # Cython might warn about redeclarations in CythonGSL,
         # which we filter out as we do not want to worry about them.
-        (cd "${concept_dir}" && make unsafe_build="${unsafe_build}"         \
-                                     no_optimization="${no_optimization}"   \
-                                     -j                                     \
-                                     2> >(grep -v 'GSL_.* redeclared' 1>&2)
-                                     )
+        (cd "${concept_dir}" && make               \
+            unsafe_build="${unsafe_build}"         \
+            no_optimization="${no_optimization}"   \
+            ${make_jobs}                           \
+            2> >(grep -v 'GSL_.* redeclared' 1>&2) \
+        )
+        # Remove the temporary pure_python_source_dir
+        rm -rf "${pure_python_source_dir}"
     fi
 fi
 

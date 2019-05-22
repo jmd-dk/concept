@@ -54,6 +54,8 @@ ctypedef double (*func_potential)(
 
 
 
+
+
 # Generic function implementing component-component pairing
 @cython.header(
     # Arguments
@@ -65,23 +67,32 @@ ctypedef double (*func_potential)(
     affected=list,
     deterministic='bint',
     pairing_level=str,
+    interaction_name=str,
     interaction_extra_args=dict,
     # Locals
     component_pair=set,
     pairings=list,
     receiver='Component',
+    subtiling_name=str,
     supplier='Component',
+    tile_sorted=set,
+    tiling_name=str,
     returns='void',
 )
 def component_component(
     receivers, suppliers, interaction, ᔑdt, dependent, affected,
-    deterministic, pairing_level, interaction_extra_args={},
+    deterministic, pairing_level, interaction_name, interaction_extra_args={},
 ):
     """This function takes care of pairings between all receiver and
     supplier components. It then calls doman_domain.
     """
+    # The names used to refer to the domain and tile level tiling
+    # (tiles and subtiles). Only used if pairing_level == 'tile'.
+    tiling_name    = f'{interaction_name} (tiles)'
+    subtiling_name = f'{interaction_name} (subtiles)'
     # Pair each receiver with all suppliers
     pairings = []
+    tile_sorted = set()
     for receiver in receivers:
         for supplier in suppliers:
             component_pair = {receiver, supplier}
@@ -91,9 +102,21 @@ def component_component(
             # If pairing should be done at the tile level,
             # make sure that the tile sorting of particles
             # in the two components are up-to-date.
-            if pairing_level == 'tile':
-                receiver.tile_sort()
-                supplier.tile_sort()
+            with unswitch:
+                if pairing_level == 'tile':
+                    with unswitch(1):
+                        if receiver not in tile_sorted:
+                            receiver.tile_sort(tiling_name)
+                            tile_sorted.add(receiver)
+                            # Also ensure existence of subtiling
+                            if subtiling_name not in receiver.tilings:
+                                receiver.init_tiling(subtiling_name)
+                    if supplier not in tile_sorted:
+                        supplier.tile_sort(tiling_name)
+                        tile_sorted.add(supplier)
+                        # Also ensure existence of subtiling
+                        if subtiling_name not in supplier.tilings:
+                            supplier.init_tiling(subtiling_name)
             # Flag specifying whether the supplier should only supply
             # forces to the receiver and not receive any force itself.
             only_supply = (supplier not in receivers)
@@ -104,8 +127,8 @@ def component_component(
             # Pair up doamins for the current
             # receiver and supplier component.
             domain_domain(
-                receiver, supplier, interaction, ᔑdt, dependent, affected,
-                only_supply, deterministic, pairing_level, interaction_extra_args,
+                receiver, supplier, interaction, ᔑdt, dependent, affected, only_supply,
+                deterministic, pairing_level, interaction_name, interaction_extra_args,
             )
             masterprint('done')
 
@@ -121,6 +144,7 @@ def component_component(
     only_supply='bint',
     deterministic='bint',
     pairing_level=str,
+    interaction_name=str,
     interaction_extra_args=dict,
     # Locals
     domain_pair_nr='Py_ssize_t',
@@ -139,7 +163,7 @@ def component_component(
 )
 def domain_domain(
     receiver, supplier, interaction, ᔑdt, dependent, affected,
-    only_supply, deterministic, pairing_level, interaction_extra_args,
+    only_supply, deterministic, pairing_level, interaction_name, interaction_extra_args,
 ):
     """This function takes care of pairings between the domains
     containing particles/fluid elements of the passed receiver and
@@ -242,13 +266,14 @@ def domain_domain(
             if 𝔹[pairing_level == 'tile']:
                 # Find interaction tiles
                 tile_indices = domain_domain_tile_indices(
-                    receiver, supplier_local, only_supply_passed, domain_pair_nr)
+                    receiver, supplier_local, only_supply_passed, domain_pair_nr, interaction_name)
                 tile_indices_receiver = tile_indices[0, :]
                 tile_indices_supplier = tile_indices[1, :]
             else:  # pairing_level == 'domain'
                 tile_indices_receiver = tile_indices_supplier = None
         supplier_extrl = sendrecv_component(
-            supplier_local, dependent, tile_indices_supplier, dest=rank_send, source=rank_recv,
+            supplier_local, dependent, interaction_name, tile_indices_supplier,
+            dest=rank_send, source=rank_recv,
         )
         # Let the local receiver interact with the
         # external supplier_extrl. This will update the affected
@@ -262,7 +287,7 @@ def domain_domain(
                     tile_tile(
                         receiver, supplier_extrl, tile_indices_receiver, tile_indices_supplier,
                         interaction, rank_recv, only_supply_passed, only_supply, domain_pair_nr,
-                        ᔑdt, interaction_extra_args,
+                        interaction_name, ᔑdt, interaction_extra_args,
                     )
                 else:  # pairing_level == 'domain'
                     # Perform the interaction now, at the domain level
@@ -278,7 +303,7 @@ def domain_domain(
         # where only_supply is True.
         if rank_send != rank and not only_supply:
             sendrecv_component(
-                supplier_extrl, affected, tile_indices_supplier,
+                supplier_extrl, affected, interaction_name, tile_indices_supplier,
                 dest=rank_recv, source=rank_send, component_recv=supplier_local,
             )
             # Nullify the Δ buffers of the external supplier_extrl,
@@ -294,6 +319,7 @@ def domain_domain(
     supplier='Component',
     only_supply='bint',
     domain_pair_nr='Py_ssize_t',
+    interaction_name=str,
     # Locals
     dim='int',
     domain_pair_offsets='Py_ssize_t[:, ::1]',
@@ -306,9 +332,11 @@ def domain_domain(
     tile_layout='Py_ssize_t[:, :, ::1]',
     tile_layout_slice_end='Py_ssize_t[::1]',
     tile_layout_slice_start='Py_ssize_t[::1]',
+    tiling='Tiling',
+    tiling_name=str,
     returns='Py_ssize_t[:, ::1]',
 )
-def domain_domain_tile_indices(receiver, supplier, only_supply, domain_pair_nr):
+def domain_domain_tile_indices(receiver, supplier, only_supply, domain_pair_nr, interaction_name):
     tile_indices_all = domain_domain_tile_indices_dict.get((receiver, supplier, only_supply))
     if tile_indices_all is None:
         tile_indices_all = [None]*27
@@ -323,8 +351,10 @@ def domain_domain_tile_indices(receiver, supplier, only_supply, domain_pair_nr):
         'tile', only_supply, 'domain_pair_offsets']
     domain_pair_offset = domain_pair_offsets[domain_pair_nr, :]
     tile_indices_list = []
+    tiling_name = f'{interaction_name} (tiles)'
     for i, component in enumerate((receiver, supplier)):
-        tile_layout = component.tile_layout
+        tiling = component.tilings[tiling_name]
+        tile_layout = tiling.layout
         sign = {0: -1, 1: +1}[i]
         for dim in range(3):
             if domain_pair_offset[dim] == -sign:
@@ -352,8 +382,8 @@ domain_domain_tile_indices_dict = {}
 
 # Function returning the process ranks with which to pair
 # the local process/domain in the domain_domain function,
-# depending on the pairing level and whether
-# the interaction is trivial or not.
+# depending on the pairing level and supplier only supplies
+# or also receives.
 @cython.header(
     # Arguments
     pairing_level=str,
@@ -491,6 +521,7 @@ domain_domain_communication_dict = {}
     only_supply_passed='bint',
     only_supply='bint',
     domain_pair_nr='Py_ssize_t',
+    interaction_name=str,
     ᔑdt=dict,
     interaction_extra_args=dict,
     # Locals
@@ -502,7 +533,7 @@ domain_domain_communication_dict = {}
 def tile_tile(
     receiver, supplier, tile_indices_receiver, tile_indices_supplier,
     interaction, rank_supplier, only_supply_passed, only_supply, domain_pair_nr,
-    ᔑdt, interaction_extra_args,
+    interaction_name, ᔑdt, interaction_extra_args,
 ):
     """This function takes care of pairings between neighbouring tiles
     within a domain and boundary tiles at the interface between two
@@ -529,7 +560,7 @@ def tile_tile(
     # with which to pair each receiver tile.
     tile_indices_receiver_supplier = get_tile_tile_pairs(
         receiver, supplier, tile_indices_receiver, tile_indices_supplier,
-        rank_supplier, only_supply_passed, domain_pair_nr, 'gravity',
+        rank_supplier, only_supply_passed, domain_pair_nr, interaction_name,
     )
     # For each receiver tile, call the interaction with the required
     # neighbouring supplier tiles.
@@ -574,6 +605,8 @@ def tile_tile(
     tile_index_r='Py_ssize_t',
     tile_index_s='Py_ssize_t',
     tile_layout='Py_ssize_t[:, :, ::1]',
+    tiling='Tiling',
+    tiling_name=str,
     wraparound='bint',
     returns=object,  # np.ndarray of dtype object
 )
@@ -592,11 +625,10 @@ def get_tile_tile_pairs(
     tile_indices_receiver_supplier = [[] for i in range(tile_indices_receiver.shape[0])]
     # Get the shape of the local (domain) tile layout,
     # as well as of the global (box) tile layout.
-    if interaction_name == 'gravity':
-        tile_layout = receiver.tile_layout
-        tile_layout_shape = asarray(asarray(tile_layout).shape)
-    else:
-        abort(f'interaction_name {interaction_name} not implemented by get_tile_tile_pairs()')
+    tiling_name = f'{interaction_name} (tiles)'
+    tiling = receiver.tilings[tiling_name]
+    tile_layout = tiling.layout
+    tile_layout_shape = asarray(asarray(tile_layout).shape)
     # The general computation below takes a long time when dealing with
     # many tiles. By far the worst case is when all tiles in the local
     # domain should be paired with themselves, which is the case for
@@ -664,7 +696,7 @@ def get_tile_tile_pairs(
         suppliertile_indices_3D_global_to_1D_local = {}
         for j in range(tile_indices_supplier.shape[0]):
             tile_index_s = tile_indices_supplier[j]
-            tile_index_3D_s = supplier.get_tile_index_3D(tile_index_s)
+            tile_index_3D_s = asarray(tiling.tile_index3D(tile_index_s))
             tile_index_3D_global_s = tuple(tile_index_3D_s + tile_index_3D_s_start)
             suppliertile_indices_3D_global_to_1D_local[tile_index_3D_global_s] = tile_index_s
         # Pair each receiver tile with all neighbouring supplier tiles
@@ -672,7 +704,7 @@ def get_tile_tile_pairs(
             neighbourtile_indices_supplier = tile_indices_receiver_supplier[i]
             # Construct global 3D index of this receiver tile
             tile_index_r = tile_indices_receiver[i]
-            tile_index_3D_r = receiver.get_tile_index_3D(tile_index_r)
+            tile_index_3D_r = asarray(tiling.tile_index3D(tile_index_r))
             tile_index_3D_global_r = tile_index_3D_r + tile_index_3D_r_start
             # Loop over all neighbouring receiver tiles
             # (including the tile itself).
@@ -1232,15 +1264,12 @@ def gravity(method, receivers, suppliers, ᔑdt, pm_potential='full'):
             .format(', '.join([component.name for component in receivers]))
         )
         component_component(
-            receivers, suppliers, gravity_pairwise, ᔑdt,
+            receivers, suppliers, gravity_pairwise_nonperiodic, ᔑdt,
             dependent=['pos'],
             affected=['mom'],
             deterministic=True,
             pairing_level='domain',
-            interaction_extra_args={
-                'periodic'        : False,
-                'only_short_range': False,
-            },
+            interaction_name='gravity',
         )
         masterprint('done')
     elif method == 'pp':
@@ -1255,10 +1284,7 @@ def gravity(method, receivers, suppliers, ᔑdt, pm_potential='full'):
             affected=['mom'],
             deterministic=True,
             pairing_level='domain',
-            interaction_extra_args={
-                'periodic'        : True,
-                'only_short_range': False,
-            },
+            interaction_name='gravity',
         )
         masterprint('done')
     elif method == 'pm':
@@ -1324,13 +1350,14 @@ def gravity(method, receivers, suppliers, ᔑdt, pm_potential='full'):
         gravity('pm', receivers, suppliers, ᔑdt, 'long-range only')
         # The short-range PP part
         masterprint('Applying direct short-range forces ...')
+        tabulate_shortrange_gravity()
         component_component(
-            receivers, suppliers, gravity_pairwise, ᔑdt,
+            receivers, suppliers, gravity_pairwise_shortrange, ᔑdt,
             dependent=['pos'],
             affected=['mom'],
             deterministic=True,
             pairing_level='tile',
-            interaction_extra_args={'only_short_range': True},
+            interaction_name='gravity',
         )
         masterprint('done')
         masterprint('done')
