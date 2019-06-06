@@ -119,9 +119,16 @@ sensible_path = $(shell $(python) -c "import os, sys;                           
                                       print(path);                                                \
                                       "                                                           \
                   )
+# Read in the paths
+paths = $(shell grep -o '.*=' $(paths_filename) | sed 's/.$$//')
+# Check whether the Python interpreter works.
+# Error out if not.
+python_test = $(shell $(python) -c "print('success')")
+ifneq ($(python_test),success)
+    $(error Try sourcing the concept script)
+endif
 # Transform all the included paths to sensible paths
 # to reduce screen clutter when making.
-paths = $(shell grep -o '.*=' $(paths_filename) | sed 's/.$$//')
 $(foreach path,$(paths),$(eval $(path)=$(call sensible_path,$($(path)))))
 
 
