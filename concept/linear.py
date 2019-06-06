@@ -1976,8 +1976,8 @@ class TransferFunction:
                         fitted_trends.append(
                             scipy.optimize.curve_fit(
                                 self.power_law,
-                                x,
-                                y,
+                                asarray(x),
+                                asarray(y),
                                 initial_guess,
                                 bounds=bounds,
                                 ftol=1e-12,
