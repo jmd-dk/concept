@@ -1036,8 +1036,9 @@ def load(filename, compare_params=True,
     # Check that all particles are positioned within the box.
     # Particles exactly on the upper boundaries will be moved to the
     # physically equivalent lower boundaries.
-    for component in snapshot.components:
-        out_of_bounds_check(component, snapshot.params['boxsize'])
+    if not only_params:
+        for component in snapshot.components:
+            out_of_bounds_check(component, snapshot.params['boxsize'])
     # Scatter particles to the correct domain-specific process.
     # Also communicate pseudo and ghost points of fluid variables.
     if not only_params and do_exchange:
