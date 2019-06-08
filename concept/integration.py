@@ -696,15 +696,17 @@ def rkf45(ḟ, f_start, t_start, t_end, abs_tol, rel_tol, save_intermediate=Fals
     global size_tab, t_tab, t_tab_mv
     # The maximum and minimum step size
     Δt = t_end - t_start
-    h_min = 10*machine_ϵ
+    h_min = ℝ[10*machine_ϵ]
     h_max = 0.01*Δt + h_min
     # Initial values
     h = h_max*rel_tol
     i = 0
     f = f_start
     t = t_start
+    if Δt == 0:
+        return f
     # Drive the method
-    while t < t_end - 1e+3*machine_ϵ:
+    while t_end - t >  ℝ[1e+3*machine_ϵ]:
         # The embedded Runge-Kutta-Fehlberg 4(5) step
         k1 = h*ḟ(t             , f)
         k2 = h*ḟ(t + ℝ[1/4  ]*h, f + ℝ[1/4      ]*k1)
@@ -717,7 +719,7 @@ def rkf45(ḟ, f_start, t_start, t_end, abs_tol, rel_tol, save_intermediate=Fals
         # The error estimate
         error = abs(f5 - f4) + machine_ϵ
         # The local tolerance
-        tolerance = (rel_tol*abs(f5) + abs_tol)*sqrt(h/Δt)
+        tolerance = (rel_tol*abs(f5) + abs_tol)*sqrt(h/Δt) + ℝ[2*machine_ϵ]
         if error < tolerance:
             # Step accepted
             t += h
