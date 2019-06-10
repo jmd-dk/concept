@@ -340,8 +340,8 @@ set_version(){
 # In case of CO𝘕CEPT and CLASS, possible versions are the corresponding
 # GitHub branches and releases.
 set_version "concept"         "master"
-set_version "blas"            "0.3.5"  "0.3.5"
-set_version "class"           "2.7.1"
+set_version "blas"            "0.3.6"  "0.3.6"
+set_version "class"           "2.7.2"
 set_version "fftw"            "3.3.8"  "3.3.8"
 set_version "fftw_for_gadget" "2.1.5"  "2.1.5"   # Do not change
 set_version "freetype"        "2.10.0" "2.10.0"
@@ -349,30 +349,30 @@ set_version "gadget"          "2.0.7"            # Do not change
 set_version "gsl"             "2.5"    "2.5"
 set_version "hdf5"            "1.10.5" "1.10.5"
 set_version "libffi"          "3.2.1"  "3.2.1"
-set_version "libpng"          "1.6.36" "1.6.33"
+set_version "libpng"          "1.6.37" "1.6.33"
 if [ "${mpi}" == "mpich" ]; then
     set_version "mpi"         "3.3"    "3.3"
 elif [ "${mpi}" == "openmpi" ]; then
     set_version "mpi"         "3.1.2"  # 4.0.0 is out!
 fi
 set_version "ncurses"         "6.1"    "6.1"
-set_version "openssl"         "1.1.1b" "1.1.1b"
-set_version "perl"            "5.28.1"
+set_version "openssl"         "1.1.1c" "1.1.1c"
+set_version "perl"            "5.30.0"
 set_version "python"          "3.7.3"
 set_version "zlib"            "1.2.11" "1.2.11"
 # Python packages
 set_version "blessings"       "1.7"
-set_version "cython"          "0.29.6"
+set_version "cython"          "0.29.10"
 set_version "cythongsl"       "0.2.2"
 set_version "h5py"            "2.9.0"
-set_version "matplotlib"      "3.0.3"
+set_version "matplotlib"      "3.0.3"  # matplotlib 3.1.0 not acceptable due to bug (see graphics.py)
 set_version "mpi4py"          "3.0.1"
-set_version "numpy"           "1.16.2"
-set_version "pip"             "19.0.3"
-set_version "pytest"          "4.4.0"
-set_version "scipy"           "1.2.1"
-set_version "setuptools"      "40.8.0"
-set_version "wheel"           "0.33.1"
+set_version "numpy"           "1.16.4"
+set_version "pip"             "19.1.1"
+set_version "pytest"          "4.6.1"
+set_version "scipy"           "1.3.0"
+set_version "setuptools"      "41.0.1"
+set_version "wheel"           "0.33.4"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
 # and specific versions of system dependencies.
