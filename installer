@@ -5031,38 +5031,86 @@ if [ "${blas_install}" == "True" ] && [ "${blas_installed}" == "False" ]; then
     # If this fails, we retry without overwriting the Fortran compiler.
     # On 32 bit systems we need to set BINARY=32. First we try without,
     # then with this option.
+    # On Haswell architectures the -mavx2 C and Fortran compiler flag
+    # is added, though not all compilers accept these. We first try
+    # with both, then we switch them out for -mavx, then only with the C
+    # flag -mavx2, then only with the C flag -mavx. If all fail we
+    # disable AVX2 entirely. If this fails as well we additionally
+    # disable AVX.
     # Note that OpenBLAS runs its test suite during this build.
     install_success="False"
-    for openblas_gfortran in "True" "False"; do
-        for compiler in "${compiler_possibilities[@]}"; do
-            for openblas_BINARY in "" "32"; do
-                reset_environment
-                eval "use_${compiler}_compilers" || continue
-                init_install "BLAS"
-                printf "
-Attempting to install OpenBLAS with openblas_gfortran=${openblas_gfortran}, \
-compiler=${compiler}, openblas_BINARY=${openblas_BINARY}\n\n"
-                if [ "${openblas_gfortran}" == "True" ]; then
-                    export FC="gfortran"
-                    export F77="gfortran"
-                    export F90="gfortran"
-                    export F9X="gfortran"
+    mavx_C_options=("-mavx2" "-mavx" "-mavx2" "-mavx" "NO_AVX2" "NO_AVX")
+    mavx_F_options=("-mavx2" "-mavx" ""       ""      "NO_AVX2" "NO_AVX")
+    for ((mavx_index=0; mavx_index<${#mavx_C_options[@]}; mavx_index++)); do
+        mavx_C="${mavx_C_options[${mavx_index}]}"
+        mavx_F="${mavx_F_options[${mavx_index}]}"
+        for openblas_gfortran in "True" "False"; do
+            for compiler in "${compiler_possibilities[@]}"; do
+                for openblas_BINARY in "" "32"; do
+                    reset_environment
+                    eval "use_${compiler}_compilers" || continue
+                    init_install "BLAS"
+                    printf "
+Attempting to install OpenBLAS with mavx_C=${mavx_C}, mavx_F=${mavx_F}, \
+openblas_gfortran=${openblas_gfortran}, compiler=${compiler}, \
+openblas_BINARY=${openblas_BINARY}\n\n"
+                    openblas_make_options="USE_THREAD=0"
+                    if [ "${mavx_C}" == "NO_AVX2" ]; then
+                        # Disable AVX2 completely
+                        openblas_make_options="${openblas_make_options} NO_AVX2=1"
+                    elif [ "${mavx_C}" == "NO_AVX" ]; then
+                        # Disable AVX2 and AVX completely
+                        openblas_make_options="${openblas_make_options} NO_AVX2=1 NO_AVX=1"
+                    else
+                        # Handle the C mavx flag
+                        pattern='CCOMMON_OPT *\\+= *-mavx2'
+                        linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+                            "Makefile.x86_64" | head -n 1)
+                        if [ "${mavx_C}" != "-mavx2" ] && [ -z "${linenr}" ]; then
+                            continue
+                        fi
+                        if [ -z "${mavx_C}" ]; then
+                            sed -i "${linenr}d" "Makefile.x86_64"
+                        elif [ "${mavx_C}" == "-mavx" ]; then
+                            sed -i "${linenr}s/.*/CCOMMON_OPT += -mavx/" "Makefile.x86_64"
+                        fi
+                        # Handle the F mavx flag
+                        pattern='FCOMMON_OPT *\\+= *-mavx2'
+                        linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+                            "Makefile.x86_64" | head -n 1)
+                        if [ "${mavx_F}" != "-mavx2" ] && [ -z "${linenr}" ]; then
+                            continue
+                        fi
+                        if [ -z "${mavx_F}" ]; then
+                            sed -i "${linenr}d" "Makefile.x86_64"
+                        elif [ "${mavx_F}" == "-mavx" ]; then
+                            sed -i "${linenr}s/.*/FCOMMON_OPT += -mavx/" "Makefile.x86_64"
+                        fi
+                    fi
+                    if [ "${openblas_gfortran}" == "True" ]; then
+                        export FC="gfortran"
+                        export F77="gfortran"
+                        export F90="gfortran"
+                        export F9X="gfortran"
+                    fi
+                    if ([ -n "${compiler}" ] && [ -n "${FC}" ]) \
+                        || [ "${openblas_gfortran}" == "True" ]; then
+                        openblas_make_options="${openblas_make_options} FC=${FC}"
+                    fi
+                    if [ -n "${compiler}" ] && [ -n "${CC}" ]; then
+                        openblas_make_options="${openblas_make_options} CC=${CC}"
+                    fi
+                    if [ -n "${openblas_BINARY}" ]; then
+                        openblas_make_options="${openblas_make_options} BINARY=${openblas_BINARY}"
+                    fi
+                    make ${openblas_make_options} || continue
+                    make PREFIX="${blas_dir}" install || continue
+                    install_success="True"
+                    break
+                done
+                if [ "${install_success}" == "True" ]; then
+                    break
                 fi
-                openblas_make_options="USE_THREAD=0"
-                if ([ -n "${compiler}" ] && [ -n "${FC}" ]) \
-                    || [ "${openblas_gfortran}" == "True" ]; then
-                    openblas_make_options="${openblas_make_options} FC=${FC}"
-                fi
-                if [ -n "${compiler}" ] && [ -n "${CC}" ]; then
-                    openblas_make_options="${openblas_make_options} CC=${CC}"
-                fi
-                if [ -n "${openblas_BINARY}" ]; then
-                    openblas_make_options="${openblas_make_options} BINARY=${openblas_BINARY}"
-                fi
-                make ${openblas_make_options} || continue
-                make PREFIX="${blas_dir}" install || continue
-                install_success="True"
-                break
             done
             if [ "${install_success}" == "True" ]; then
                 break
