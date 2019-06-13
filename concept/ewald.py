@@ -30,30 +30,30 @@ cimport('from mesh import CIC_vectorgrid2coordinates, tabulate_vectorfield')
 
 
 # Cython function for computing Ewald correction
-@cython.header(# Argument
-               x='double',
-               y='double',
-               z='double',
-               # Locals
-               dist='double',
-               dist_x='double',
-               dist_y='double',
-               dist_z='double',
-               dist2='double',
-               force='double*',
-               force_x='double',
-               force_y='double',
-               force_z='double',
-               kx='double',
-               ky='double',
-               kz='double',
-               r3='double',
-               scalarpart='double',
-               sumindex_x='int',
-               sumindex_y='int',
-               sumindex_z='int',
-               returns='double*',
-               )
+@cython.header(
+    # Argument
+    x='double',
+    y='double',
+    z='double',
+    # Locals
+    dist='double',
+    dist_x='double',
+    dist_y='double',
+    dist_z='double',
+    dist2='double',
+    force_x='double',
+    force_y='double',
+    force_z='double',
+    kx='double',
+    ky='double',
+    kz='double',
+    r3='double',
+    scalarpart='double',
+    sumindex_x='int',
+    sumindex_y='int',
+    sumindex_z='int',
+    returns='double*',
+)
 def summation(x, y, z):
     """ This function performs the Ewald summation given the distance
     x, y, z between two particles, normalized so that
@@ -67,8 +67,7 @@ def summation(x, y, z):
     all particle images except the nearest one. Note that this nearest
     image need not be the actual particle.
     """
-    # The Ewald force vector and its components
-    force = vector
+    # The Ewald force vector components
     force_x = force_y = force_z = 0
     # The image is on top of the particle: No force
     if x == 0 and y == 0 and z == 0:
@@ -94,7 +93,7 @@ def summation(x, y, z):
                 if dist > maxdist:
                     continue
                 scalarpart = -dist**(-3)*(erfc(dist*ℝ[1/(2*rs)])
-                                          + dist*ℝ[1/(sqrt(π)*rs)]*exp(dist2*ℝ[-1/(4*rs**2)]))
+                    + dist*ℝ[1/(sqrt(π)*rs)]*exp(dist2*ℝ[-1/(4*rs**2)]))
                 force_x += dist_x*scalarpart
                 force_y += dist_y*scalarpart
                 force_z += dist_z*scalarpart
@@ -118,6 +117,10 @@ def summation(x, y, z):
     force[1] = force_y
     force[2] = force_z
     return force
+# Vector used as the return value
+# of the summation function.
+cython.declare(force='double*')
+force = malloc(3*sizeof('double'))
 
 # Master function of this module. Returns the Ewald force correction.
 @cython.header(# Arguments

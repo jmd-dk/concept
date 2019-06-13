@@ -932,10 +932,10 @@ render2D_terminal_image_select = {
 # Function for chancing the colormap of the terminal
 def set_terminal_colormap(colormap):
     """This function constructs and apply a terminal colormap with
-    256 - 16 - 2 = 238 ANSI/VT100 control sequences, remapping the 238
-    higher color numbers. The 16 + 2 = 18 lowest are left alone in order
-    not to mess with standard terminal coloring and the colors used for
-    the CO𝘕CEPT logo at startup.
+    256 - (16 + 2) = 238 ANSI/VT100 control sequences, remapping the
+    238 higher color numbers. The 16 + 2 = 18 lowest are left alone in
+    order not to mess with standard terminal coloring and the colors
+    used for the CO𝘕CEPT logo at startup.
     We apply the colormap even if the specified colormap is already
     in use, as the resulting log file is easier to parse with every
     colormap application present.
@@ -945,14 +945,14 @@ def set_terminal_colormap(colormap):
     colormap_ANSI = getattr(matplotlib.cm, colormap)(linspace(0, 1, 238))[:, :3]
     for i, rgb in enumerate(colormap_ANSI):
         colorhex = matplotlib.colors.rgb2hex(rgb)
-        masterprint(
+        statechange = (
             f'{ANSI_ESC}]4;{18 + i};rgb:'
-            f'{colorhex[1:3]}/{colorhex[3:5]}/{colorhex[5:]}{ANSI_ESC}\\',
-            end='',
-            indent=-1,
-            wrap=False,
-            ensure_newline_after_ellipsis=False,
+            f'{colorhex[1:3]}/{colorhex[3:5]}/{colorhex[5:]}{ANSI_ESC}\\'
         )
+        # As this does not actually print anything on the screen,
+        # we use the normal print function as to not mess with the
+        # bookkeeping inside fancyprint.
+        print(statechange, end='')
 
 # Function for 3D renderings of the components
 @cython.header(# Arguments
@@ -1173,7 +1173,7 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
                                               transform=ax.transAxes,
                                               )
             # Configure axis options
-            ax.set_aspect('equal')
+            ax.set_aspect('equal')  # Note: This fails with matplotlib 3.1.0
             ax.dist = 9  # Zoom level
             ax.set_xlim(0, boxsize)
             ax.set_ylim(0, boxsize)

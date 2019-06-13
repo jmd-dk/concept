@@ -40,6 +40,7 @@ pxd("""
 ctypedef void (*func_interaction)(
     Component,        # receiver
     Component,        # supplier
+    str,              # pairing_level
     Py_ssize_t[::1],  # tile_indices_receiver
     Py_ssize_t[::1],  # tile_indices_supplier
     int,              # rank_supplier
@@ -51,8 +52,6 @@ ctypedef double (*func_potential)(
     double,  # k2
 )
 """)
-
-
 
 
 
@@ -87,9 +86,15 @@ def component_component(
     supplier components. It then calls doman_domain.
     """
     # The names used to refer to the domain and tile level tiling
-    # (tiles and subtiles). Only used if pairing_level == 'tile'.
-    tiling_name    = f'{interaction_name} (tiles)'
-    subtiling_name = f'{interaction_name} (subtiles)'
+    # (tiles and subtiles). In the case of pairing_level == 'domain',
+    # no actual tiling will take place, but we still need the
+    # tile + subtile structure. For this, the trivial tiling,
+    # spanning the box, is used.
+    if pairing_level == 'tile':
+        tiling_name    = f'{interaction_name} (tiles)'
+        subtiling_name = f'{interaction_name} (subtiles)'
+    else:  # pairing_level == 'domain':
+        tiling_name = subtiling_name = 'trivial'
     # Pair each receiver with all suppliers
     pairings = []
     tile_sorted = set()
@@ -99,38 +104,28 @@ def component_component(
             if component_pair in pairings:
                 continue
             pairings.append(component_pair)
-            # If pairing should be done at the tile level,
-            # make sure that the tile sorting of particles
+            # Make sure that the tile sorting of particles
             # in the two components are up-to-date.
-            with unswitch:
-                if pairing_level == 'tile':
-                    with unswitch(1):
-                        if receiver not in tile_sorted:
-                            receiver.tile_sort(tiling_name)
-                            tile_sorted.add(receiver)
-                            # Also ensure existence of subtiling
-                            if subtiling_name not in receiver.tilings:
-                                receiver.init_tiling(subtiling_name)
-                    if supplier not in tile_sorted:
-                        supplier.tile_sort(tiling_name)
-                        tile_sorted.add(supplier)
-                        # Also ensure existence of subtiling
-                        if subtiling_name not in supplier.tilings:
-                            supplier.init_tiling(subtiling_name)
+            with unswitch(1):
+                if receiver not in tile_sorted:
+                    receiver.tile_sort(tiling_name)
+                    tile_sorted.add(receiver)
+                    # Also ensure existence of subtiling
+                    receiver.init_tiling(subtiling_name)
+            if supplier not in tile_sorted:
+                supplier.tile_sort(tiling_name)
+                tile_sorted.add(supplier)
+                # Also ensure existence of subtiling
+                supplier.init_tiling(subtiling_name)
             # Flag specifying whether the supplier should only supply
             # forces to the receiver and not receive any force itself.
             only_supply = (supplier not in receivers)
-            if only_supply:
-                masterprint(f'Pairing {receiver.name} ⟵ {supplier.name} ...')
-            else:
-                masterprint(f'Pairing {receiver.name} ⟷ {supplier.name} ...')
             # Pair up doamins for the current
             # receiver and supplier component.
             domain_domain(
                 receiver, supplier, interaction, ᔑdt, dependent, affected, only_supply,
                 deterministic, pairing_level, interaction_name, interaction_extra_args,
             )
-            masterprint('done')
 
 # Generic function implementing domain-domain pairing
 @cython.header(
@@ -190,7 +185,7 @@ def domain_domain(
     # When only_supply is True, each domain will be paired with every
     # other domain, either in the entire box (pairing_level == 'domain')
     # or just among the neighbouring domains (pairing_level == 'tile').
-    # When only_supply is False, the results of ab interaction
+    # When only_supply is False, the results of an interaction
     # computed on one process will be send back to the other
     # participating process and applied, cutting the number of domain
     # pairs roughly in half.
@@ -229,7 +224,7 @@ def domain_domain(
         # Special cases described below may change whether or not the
         # interaction between this particular domain pair should be
         # carried out on the local process (specified by the
-        # interac flag), or whether the only_supply
+        # interact flag), or whether the only_supply
         # flag should be changed.
         interact = True
         only_supply = only_supply_passed
@@ -247,12 +242,13 @@ def domain_domain(
                     # processes. Thus, we always pass in only_supply as
                     # being True in such cases.
                     only_supply = True
-                    # In the case of a non-deterministic interaction, the above
-                    # logic no longer holds, as the two versions of the
-                    # supposedly same interaction computed on different
-                    # processes will not be identical. In such cases, perform
-                    # the interaction only on one of the two processes.
-                    # The process with the lower rank is chosen for the job.
+                    # In the case of a non-deterministic interaction,
+                    # the above logic no longer holds, as the two
+                    # versions of the supposedly same interaction
+                    # computed on different processes will not be
+                    # identical. In such cases, perform the interaction
+                    # only on one of the two processes. The process with
+                    # the lower rank is chosen for the job.
                     with unswitch:
                         if not deterministic:
                             interact = (rank < rank_send)
@@ -264,15 +260,17 @@ def domain_domain(
         # interact during the current domain-domain pairing.
         with unswitch:
             if 𝔹[pairing_level == 'tile']:
-                # Find interaction tiles
+                # Find interacting tiles
                 tile_indices = domain_domain_tile_indices(
                     receiver, supplier_local, only_supply_passed, domain_pair_nr, interaction_name)
                 tile_indices_receiver = tile_indices[0, :]
                 tile_indices_supplier = tile_indices[1, :]
             else:  # pairing_level == 'domain'
-                tile_indices_receiver = tile_indices_supplier = None
+                # For domain level pairing we make use of
+                # the trivial tiling, containing a single tile.
+                tile_indices_receiver = tile_indices_supplier = tile_indices_trivial
         supplier_extrl = sendrecv_component(
-            supplier_local, dependent, interaction_name, tile_indices_supplier,
+            supplier_local, dependent, pairing_level, interaction_name, tile_indices_supplier,
             dest=rank_send, source=rank_recv,
         )
         # Let the local receiver interact with the
@@ -292,7 +290,8 @@ def domain_domain(
                 else:  # pairing_level == 'domain'
                     # Perform the interaction now, at the domain level
                     interaction(
-                        receiver, supplier_extrl, None, None,
+                        receiver, supplier_extrl, pairing_level,
+                        tile_indices_receiver, tile_indices_supplier,
                         rank_recv, only_supply, ᔑdt, interaction_extra_args,
                     )
         # Send the populated buffers back to the process from which the
@@ -300,15 +299,19 @@ def domain_domain(
         # buffers to the affected variables (e.g. mom for gravity) of
         # the local supplier_local. Note that we should not do this in
         # the case of a local interaction (rank_send == rank) or in a
-        # where only_supply is True.
+        # case where only_supply is True.
         if rank_send != rank and not only_supply:
             sendrecv_component(
-                supplier_extrl, affected, interaction_name, tile_indices_supplier,
+                supplier_extrl, affected, pairing_level, interaction_name, tile_indices_supplier,
                 dest=rank_recv, source=rank_send, component_recv=supplier_local,
             )
             # Nullify the Δ buffers of the external supplier_extrl,
             # leaving this with no leftover junk.
             supplier_extrl.nullify_Δ(affected)
+# Tile indices for the trivial tiling,
+# used by the domain_domain function.
+cython.declare(tile_indices_trivial='Py_ssize_t[::1]')
+tile_indices_trivial = zeros(1, dtype=C2np['Py_ssize_t'])
 
 # Function returning the indices of the tiles of the local receiver and
 # supplier which take part in tile-tile interactions under the
@@ -526,6 +529,7 @@ domain_domain_communication_dict = {}
     interaction_extra_args=dict,
     # Locals
     i='Py_ssize_t',
+    pairing_level=str,
     tile_indices_receiver_supplier=object,  # np.ndarray of dtype object
     tile_indices_supplier_paired='Py_ssize_t[::1]',
     returns='void',
@@ -564,10 +568,12 @@ def tile_tile(
     )
     # For each receiver tile, call the interaction with the required
     # neighbouring supplier tiles.
+    pairing_level = 'tile'
     for i in range(tile_indices_receiver.shape[0]):
         tile_indices_supplier_paired = tile_indices_receiver_supplier[i]
         interaction(
-            receiver, supplier, tile_indices_receiver[i:i+1], tile_indices_supplier_paired,
+            receiver, supplier, pairing_level,
+            tile_indices_receiver[i:i+1], tile_indices_supplier_paired,
             rank_supplier, only_supply, ᔑdt, interaction_extra_args,
         )
 
@@ -871,8 +877,11 @@ def particle_mesh(receivers, suppliers, ᔑdt, ᔑdt_key, potential, potential_n
     """
     # Build the two potentials due to all particles and fluid suppliers
     masterprint(
-        f'Constructing the {potential_name} due to {{}} ...'
-        .format(', '.join([component.name for component in suppliers]))
+        f'Constructing the {potential_name} due to {suppliers[0].name} ...'
+        if len(suppliers) == 1 else (
+            f'Constructing the {potential_name} due to {{{{{{}}}}}} ...'
+            .format(', '.join([component.name for component in suppliers]))
+        )
     )
     φ_dict = construct_potential(receivers, suppliers, dependent, potential)
     masterprint('done')
@@ -1239,13 +1248,15 @@ def construct_potential(receivers, suppliers, quantities, potential):
     # Return the potential grid(s)
     return φ_dict
 
-# Function that carry out the gravitational interaction
+# Function that carries out the gravitational interaction
 @cython.pheader(
     # Arguments
     method=str,
     receivers=list,
     suppliers=list,
     ᔑdt=dict,
+    interaction_type=str,
+    printout='bint',
     pm_potential=str,
     # Locals
     dependent=list,
@@ -1255,46 +1266,51 @@ def construct_potential(receivers, suppliers, quantities, potential):
     φ_Vcell='double',
     ᔑdt_key=object,  # str or tuple
 )
-def gravity(method, receivers, suppliers, ᔑdt, pm_potential='full'):
+def gravity(method, receivers, suppliers, ᔑdt, interaction_type, printout, pm_potential='full'):
     # Compute gravity via one of the following methods
-    if method == 'ppnonperiodic':
-        # The non-periodic particle-particle method
-        masterprint(
-            f'Executing gravitational interaction for {{}} via the non-periodic PP method ...'
-            .format(', '.join([component.name for component in receivers]))
-        )
-        component_component(
-            receivers, suppliers, gravity_pairwise_nonperiodic, ᔑdt,
-            dependent=['pos'],
-            affected=['mom'],
-            deterministic=True,
-            pairing_level='domain',
-            interaction_name='gravity',
-        )
-        masterprint('done')
-    elif method == 'pp':
-        # The particle-particle method with Ewald-periodicity
-        masterprint(
-            f'Executing gravitational interaction for {{}} via the PP method ...'
-            .format(', '.join([component.name for component in receivers]))
-        )
-        component_component(
-            receivers, suppliers, gravity_pairwise, ᔑdt,
-            dependent=['pos'],
-            affected=['mom'],
-            deterministic=True,
-            pairing_level='domain',
-            interaction_name='gravity',
-        )
-        masterprint('done')
+    if method == 'p3m':
+        # The particle-particle-mesh method
+        if printout:
+            if 𝔹['long' in interaction_type]:
+                extra_message = ' (long-range only)'
+            elif 𝔹['short' in interaction_type]:
+                extra_message = ' (short-range only)'
+            else:
+                extra_message = ''
+            masterprint(
+                'Executing',
+                shortrange_progress_messages('gravity', method, receivers, extra_message),
+                '...',
+            )
+        # The long-range PM part
+        if 𝔹['any' in interaction_type] or 𝔹['long' in interaction_type]:
+            gravity('pm', receivers, suppliers, ᔑdt, interaction_type, printout, 'long-range only')
+        # The short-range PP part
+        if 𝔹['any' in interaction_type] or 𝔹['short' in interaction_type]:
+            tabulate_shortrange_gravity()
+            component_component(
+                receivers, suppliers, gravity_pairwise_shortrange, ᔑdt,
+                dependent=['pos'],
+                affected=['mom'],
+                deterministic=True,
+                pairing_level='tile',
+                interaction_name='gravity',
+            )
+        if printout:
+            masterprint('done')
     elif method == 'pm':
         # The particle-mesh method.
         if pm_potential == 'full':
             # Use the full gravitational potential
-            masterprint(
-                f'Executing gravitational interaction for {{}} via the PM method ...'
-                .format(', '.join([component.name for component in receivers]))
-            )
+            if printout:
+                masterprint(
+                    f'Executing gravitational interaction for {receivers[0].name} '
+                    f'via the PM method ...'
+                    if len(receivers) == 1 else (
+                        'Executing gravitational interaction for {{{}}} via the PM method ...'
+                        .format(', '.join([component.name for component in receivers]))
+                    )
+                )
             potential = gravity_potential
             potential_name = 'gravitational potential'
         elif 'long' in pm_potential:
@@ -1339,28 +1355,42 @@ def gravity(method, receivers, suppliers, ᔑdt, pm_potential='full'):
             receivers, suppliers, ᔑdt, ᔑdt_key, potential, potential_name, dependent,
         )
         if pm_potential == 'full':
-            masterprint('done')
-    elif method == 'p3m':
-        # The particle-particle-mesh method
+            if printout:
+                masterprint('done')
+    elif method == 'pp':
+        # The particle-particle method with Ewald-periodicity
         masterprint(
-            'Executing gravitational interaction for {} via the P³M method ...'
-            .format(', '.join([component.name for component in receivers]))
+            'Executing',
+            shortrange_progress_messages('gravity', method, receivers),
+            '...',
         )
-        # The long-range PM part
-        gravity('pm', receivers, suppliers, ᔑdt, 'long-range only')
-        # The short-range PP part
-        masterprint('Applying direct short-range forces ...')
-        tabulate_shortrange_gravity()
         component_component(
-            receivers, suppliers, gravity_pairwise_shortrange, ᔑdt,
+            receivers, suppliers, gravity_pairwise, ᔑdt,
             dependent=['pos'],
             affected=['mom'],
             deterministic=True,
-            pairing_level='tile',
+            pairing_level='domain',
             interaction_name='gravity',
         )
         masterprint('done')
-        masterprint('done')
+    elif method == 'ppnonperiodic':
+        # The non-periodic particle-particle method
+        if printout:
+            masterprint(
+                'Executing',
+                shortrange_progress_messages('gravity', method, receivers),
+                '...',
+            )
+        component_component(
+            receivers, suppliers, gravity_pairwise_nonperiodic, ᔑdt,
+            dependent=['pos'],
+            affected=['mom'],
+            deterministic=True,
+            pairing_level='domain',
+            interaction_name='gravity',
+        )
+        if printout:
+            masterprint('done')
     elif master:
         abort(f'gravity() was called with the "{method}" method')
 
@@ -1373,11 +1403,13 @@ def gravity(method, receivers, suppliers, ᔑdt, pm_potential='full'):
     receivers=list,
     suppliers=list,
     ᔑdt=dict,
+    interaction_type=str,
+    printout='bint',
     # Locals
     dependent=list,
     ᔑdt_key=object,  # str or tuple
 )
-def lapse(method, receivers, suppliers, ᔑdt):
+def lapse(method, receivers, suppliers, ᔑdt, interaction_type, printout):
     # While the receivers list stores the correct components,
     # the suppliers store the lapse component as well as all the
     # components also present as receivers. As the lapse force should be
@@ -1393,10 +1425,14 @@ def lapse(method, receivers, suppliers, ᔑdt):
         )
     # For the lapse force, only the PM method is implemented
     if method == 'pm':
-        masterprint(
-            f'Executing lapse interaction for {{}} via the PM method ...'
-            .format(', '.join([component.name for component in receivers]))
-        )
+        if printout:
+            masterprint(
+                f'Executing lapse interaction for {receivers[0].name} via the PM method ...'
+                if len(receivers) == 1 else (
+                    'Executing lapse interaction for {{{}}} via the PM method ...'
+                    .format(', '.join([component.name for component in receivers]))
+                )
+            )
         # As the lapse potential is implemented exactly analogous to the
         # gravitational potential, it obeys the Poisson equation
         # ∇²φ = 4πGa²ρ = 4πGa**(-3*w_eff - 1)ϱ,
@@ -1430,9 +1466,56 @@ def lapse(method, receivers, suppliers, ᔑdt):
         particle_mesh(
             receivers, suppliers, ᔑdt, ᔑdt_key, gravity_potential, 'lapse potential', dependent,
         )
-        masterprint('done')
+        if printout:
+            masterprint('done')
     elif master:
         abort(f'lapse() was called with the "{method}" method')
+
+# Function implementing progress messages used for the short-range
+# kicks intertwined with drift operations.
+@cython.pheader(
+    # Arguments
+    force=str,
+    method=str,
+    receivers=list,
+    extra_message=str,
+    # Locals
+    component='Component',
+    returns=str,
+)
+def shortrange_progress_messages(force, method, receivers, extra_message=' (short-range only)'):
+    if force == 'gravity':
+        if method == 'p3m':
+            return (
+                f'gravitational interaction for {receivers[0].name} via '
+                f'the P³M method{extra_message}'
+            ) if len(receivers) == 1 else (
+                f'gravitational interaction for {{{{{{}}}}}} via the P³M method{extra_message}'
+                .format(', '.join([component.name for component in receivers]))
+            )
+        elif method == 'pp':
+            return (
+                f'gravitational interaction for {receivers[0].name} via '
+                f'the PP method'
+            ) if len(receivers) == 1 else (
+                'gravitational interaction for {{{}}} via the PP method'
+                .format(', '.join([component.name for component in receivers]))
+            )
+        elif method == 'ppnonperiodic':
+            return (
+                f'gravitational interaction for {receivers[0].name} via '
+                f'the non-periodic PP method'
+            ) if len(receivers) == 1 else (
+                'gravitational interaction for {{{}}} via the non-periodic PP method'
+                .format(', '.join([component.name for component in receivers]))
+            )
+        else:
+            abort(
+                f'"{method}" is not a known method for '
+                f'force "{force}" in shortrange_progress_messages()'
+            )
+    else:
+        abort(f'Unknown force "{force}" supplied to shortrange_progress_messages()')
 
 # Function that given lists of receiver and supplier components of a
 # one-way interaction removes any components from the supplier list that
@@ -1443,9 +1526,22 @@ def oneway_force(receivers, suppliers):
 # Function which constructs a list of interactions from a list of
 # components. The list of interactions store information about which
 # components interact with one another, via what force and method.
-def find_interactions(components):
+def find_interactions(components, interaction_type='any'):
+    """You may specify an interaction_type to only get
+    specific interactions. The options are:
+    - interaction_type == 'any':
+      Include every interaction.
+    - interaction_type == 'long-range':
+      Include long-range interactions only, i.e. ones with a method of
+      either PM and P³M. Note that P³M interactions will also be
+      returned for interaction_type == 'short-range'.
+    - interaction_type == 'short-range':
+      Include short-range interactions only, i.e. any other than PM.
+      Note that P³M interactions will also be returned
+      for interaction_type == 'short-range'.
+    """
     # Use cached result
-    interactions_list = interactions_lists.get(tuple(components))
+    interactions_list = interactions_lists.get(tuple(components + [interaction_type]))
     if interactions_list:
         return interactions_list
     # Find all (force, method) pairs in use. Store these as a (default)
@@ -1472,7 +1568,7 @@ def find_interactions(components):
     # via the force and should therefore receive momentum updates
     # computed via this force and the method given as the
     # second element. In the simple case where all components
-    # interacting under some force use the same method, the suppliers
+    # interacting under some force using the same method, the suppliers
     # list holds the same components as the receivers list. When the
     # same force should be applied to several components using
     # different methods, the suppliers list still holds all components
@@ -1508,18 +1604,19 @@ def find_interactions(components):
             for component in interaction.suppliers:
                 if component.representation == 'fluid':
                     interaction.suppliers.remove(component)
-                    interactions_list = (
-                          interactions_list[:i+1]
-                        + [Interaction(interaction.force, 'pm', interaction.receivers, [component])]
-                        + interactions_list[i+1:]
+                    interactions_list.insert(
+                        i + 1,
+                        Interaction(
+                            interaction.force, 'pm', interaction.receivers.copy(), [component],
+                        )
                     )
                     return True
         # Remove interactions with no suppliers or no receivers
         interactions_list = [interaction for interaction in interactions_list
             if interaction.receivers and interaction.suppliers]
         # Merge interactions of identical force, method and receivers
-        # but different suppliers, or identical force, method and suppliers
-        # but different receivers.
+        # but different suppliers, or identical force,
+        # method and suppliers but different receivers.
         for     i, interaction_i in enumerate(interactions_list):
             for j, interaction_j in enumerate(interactions_list[i+1:], i+1):
                 if interaction_i.force != interaction_j.force:
@@ -1546,8 +1643,24 @@ def find_interactions(components):
                     return True
     while cleanup():
         pass
+    # In the case that only some interactions should be considered,
+    # remove the unwanted interactions.
+    if 'long' in interaction_type:
+        for interaction in interactions_list:
+            if interaction.method not in {'pm', 'p3m'}:
+                interaction.receivers[:] = []
+        while cleanup():
+            pass
+    elif 'short' in interaction_type:
+        for interaction in interactions_list:
+            if interaction.method == 'pm':
+                interaction.receivers[:] = []
+        while cleanup():
+            pass
+    elif 'any' not in interaction_type:
+        abort(f'find_interactions(): Unknown interaction_type "{interaction_type}"')
     # Cache the result and return it
-    interactions_lists[tuple(components)] = interactions_list
+    interactions_lists[tuple(components + [interaction_type])] = interactions_list
     return interactions_list
 # Global dict of interaction lists populated by the above function
 cython.declare(interactions_lists=dict)

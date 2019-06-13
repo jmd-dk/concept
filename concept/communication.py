@@ -105,48 +105,56 @@ def find_N_recv(N_send):
     N_recv[rank] = N_recv_max
     return N_recv
 
-# This function examines every particle and communicates them to the
-# process governing the domain in which the particle is located.
-@cython.header(# Arguments
-               component='Component',
-               reset_buffers='bint',
-               # Locals
-               ID_recv='int',
-               ID_send='int',
-               N_local='Py_ssize_t',
-               N_needed='Py_ssize_t',
-               N_recv='Py_ssize_t[::1]',
-               N_recv_j='Py_ssize_t',
-               N_recv_max='Py_ssize_t',
-               N_recv_tot='Py_ssize_t',
-               N_send_j='Py_ssize_t',
-               N_send_max='Py_ssize_t',
-               N_send_tot='Py_ssize_t',
-               N_send_tot_global='Py_ssize_t',
-               buffer_name=object,  # int or str
-               holes_filled='Py_ssize_t',
-               i='Py_ssize_t',
-               index_recv_j='Py_ssize_t',
-               indices_send_j='Py_ssize_t*',
-               j='int',
-               k='Py_ssize_t',
-               k_start='Py_ssize_t',
-               momx='double*',
-               momx_mv='double[::1]',
-               momy='double*',
-               momy_mv='double[::1]',
-               momz='double*',
-               momz_mv='double[::1]',
-               owner='int',
-               posx='double*',
-               posx_mv='double[::1]',
-               posy='double*',
-               posy_mv='double[::1]',
-               posz='double*',
-               posz_mv='double[::1]',
-               sendbuf_mv='double[::1]',
-               Δmemory='Py_ssize_t',
-               )
+# This function examines every particle of the supplied component and
+# communicates them to the process governing the domain in which the
+# particle is located.
+@cython.header(
+    # Arguments
+    component='Component',
+    reset_buffers='bint',
+    # Locals
+    ID_recv='int',
+    ID_send='int',
+    N_local='Py_ssize_t',
+    N_needed='Py_ssize_t',
+    N_recv='Py_ssize_t[::1]',
+    N_recv_j='Py_ssize_t',
+    N_recv_max='Py_ssize_t',
+    N_recv_tot='Py_ssize_t',
+    N_send_j='Py_ssize_t',
+    N_send_max='Py_ssize_t',
+    N_send_tot='Py_ssize_t',
+    N_send_tot_global='Py_ssize_t',
+    buffer_name=object,  # int or str
+    holes_filled='Py_ssize_t',
+    i='Py_ssize_t',
+    index_recv_j='Py_ssize_t',
+    indices_send_j='Py_ssize_t*',
+    j='int',
+    k='Py_ssize_t',
+    k_start='Py_ssize_t',
+    momx='double*',
+    momx_mv='double[::1]',
+    momy='double*',
+    momy_mv='double[::1]',
+    momz='double*',
+    momz_mv='double[::1]',
+    owner='int',
+    posx='double*',
+    posx_mv='double[::1]',
+    posy='double*',
+    posy_mv='double[::1]',
+    posz='double*',
+    posz_mv='double[::1]',
+    rung_index='Py_ssize_t',
+    rung_indices='Py_ssize_t*',
+    rung_indices_buf='Py_ssize_t[::1]',
+    rung_indices_mv='Py_ssize_t[::1]',
+    rungs_N='Py_ssize_t*',
+    sendbuf_mv='double[::1]',
+    Δmemory='Py_ssize_t',
+    returns='void',
+)
 def exchange(component, reset_buffers=False):
     """This function will do an exchange of particles between processes,
     so that every particle resides on the process in charge of the
@@ -169,7 +177,7 @@ def exchange(component, reset_buffers=False):
     posy = component.posy
     posz = component.posz
     # The index buffers indices_send[:] increase in size by this amount
-    Δmemory = 2 + cast(0.01*N_local/nprocs, 'Py_ssize_t')
+    Δmemory = 2 + cast(0.01*N_local, 'Py_ssize_t')
     # Reset the number of particles to be sent
     for j in range(nprocs):
         N_send[j] = 0
@@ -178,28 +186,34 @@ def exchange(component, reset_buffers=False):
         # Rank of the process that local particle i belongs to
         owner = which_domain(posx[i], posy[i], posz[i])
         if owner != rank:
-            # Particle owned by nonlocal process owner.
-            # Append the owner's index buffer with the particle index.
+            # Particle owned by nonlocal process.
+            # Append the particle index to the owner's index buffer.
             indices_send[owner][N_send[owner]] = i
-            # Increase the number of particle to send to this process.
+            # Increase the number of particle to send to this process
             N_send[owner] += 1
             # Enlarge the index buffer indices_send[owner] if needed
             if N_send[owner] == indices_send_sizes[owner]:
                 indices_send_sizes[owner] += Δmemory
-                indices_send[owner] = realloc(indices_send[owner],
-                                              indices_send_sizes[owner]*sizeof('Py_ssize_t'))
+                indices_send[owner] = realloc(
+                    indices_send[owner],
+                    indices_send_sizes[owner]*sizeof('Py_ssize_t'),
+                )
     # No need to continue if no particles should be exchanged
     N_send_tot = sum(N_send)
     N_send_tot_global = allreduce(N_send_tot, op=MPI.SUM)
     if N_send_tot_global == 0:
         return
-    # Print out exchange message
-    masterprint('Exchanging {} of the {} particles ...'.format(N_send_tot_global, component.name))
     # Grab a buffer for holding the data to be send.
     # The 'send' buffer is also used internally by smart_mpi.
     buffer_name = 'send'
     N_send_max = max(N_send)
     sendbuf_mv = get_buffer(N_send_max, buffer_name)
+    # We additionally need a buffer storing Py_ssize_t,
+    # for the rung indices.
+    if component.use_rungs:
+        if rung_indices_arr.shape[0] < N_send_max:
+            rung_indices_arr.resize(N_send_max, refcheck=False)
+        rung_indices_buf = rung_indices_arr
     # Find out how many particles to receive
     N_recv = find_N_recv(N_send)
     # The maximum number of particles to
@@ -207,7 +221,7 @@ def exchange(component, reset_buffers=False):
     N_recv_max = N_recv[rank]
     N_recv_tot = sum(N_recv) - N_recv_max
     # Enlarge the component data attributes, if needed. This may not be
-    # strcitly necessary as more particles may be send than received.
+    # strictly necessary as more particles may be send than received.
     N_needed = N_local + N_recv_tot
     if component.N_allocated < N_needed:
         component.resize(N_needed)
@@ -217,17 +231,22 @@ def exchange(component, reset_buffers=False):
         posz = component.posz
     # Extract momenta pointers and all memory views
     # of the possibly resized data.
-    momx = component.momx
-    momy = component.momy
-    momz = component.momz
+    momx    = component.momx
+    momy    = component.momy
+    momz    = component.momz
     posx_mv = component.posx_mv
     posy_mv = component.posy_mv
     posz_mv = component.posz_mv
     momx_mv = component.momx_mv
     momy_mv = component.momy_mv
     momz_mv = component.momz_mv
-    # Exchange particles between processes
+    # Extract rung information
+    rung_indices    = component.rung_indices
+    rung_indices_mv = component.rung_indices_mv
+    rungs_N         = component.rungs_N
+    # Start index for received data
     index_recv_j = N_local
+    # Exchange particles between processes
     for j in range(1, nprocs):
         # Process ranks to send/receive to/from
         ID_send = mod(rank + j, nprocs)
@@ -235,51 +254,83 @@ def exchange(component, reset_buffers=False):
         # Number of particles to send/receive
         N_send_j = N_send[ID_send]
         N_recv_j = N_recv[ID_recv]
-        # The indices of particles to send and the index from
-        # which received particles are allowed to be appended.
+        # The indices of particles to send
         indices_send_j = indices_send[ID_send]
         # Send/receive posx
         for i in range(N_send_j):
             sendbuf_mv[i] = posx[indices_send_j[i]]
-        Sendrecv(sendbuf_mv[:N_send_j],
-                 dest=ID_send,
-                 recvbuf=posx_mv[index_recv_j:],
-                 source=ID_recv)
+        Sendrecv(
+            sendbuf_mv[:N_send_j],
+            dest=ID_send,
+            recvbuf=posx_mv[index_recv_j:],
+            source=ID_recv,
+        )
         # Send/receive posy
         for i in range(N_send_j):
             sendbuf_mv[i] = posy[indices_send_j[i]]
-        Sendrecv(sendbuf_mv[:N_send_j],
-                 dest=ID_send,
-                 recvbuf=posy_mv[index_recv_j:],
-                 source=ID_recv)
+        Sendrecv(
+            sendbuf_mv[:N_send_j],
+            dest=ID_send,
+            recvbuf=posy_mv[index_recv_j:],
+            source=ID_recv,
+        )
         # Send/receive posz
         for i in range(N_send_j):
             sendbuf_mv[i] = posz[indices_send_j[i]]
-        Sendrecv(sendbuf_mv[:N_send_j],
-                 dest=ID_send,
-                 recvbuf=posz_mv[index_recv_j:],
-                 source=ID_recv)
+        Sendrecv(
+            sendbuf_mv[:N_send_j],
+            dest=ID_send,
+            recvbuf=posz_mv[index_recv_j:],
+            source=ID_recv,
+        )
         # Send/receive momx
         for i in range(N_send_j):
             sendbuf_mv[i] = momx[indices_send_j[i]]
-        Sendrecv(sendbuf_mv[:N_send_j],
-                 dest=ID_send,
-                 recvbuf=momx_mv[index_recv_j:],
-                 source=ID_recv)
+        Sendrecv(
+            sendbuf_mv[:N_send_j],
+            dest=ID_send,
+            recvbuf=momx_mv[index_recv_j:],
+            source=ID_recv,
+        )
         # Send/receive momy
         for i in range(N_send_j):
             sendbuf_mv[i] = momy[indices_send_j[i]]
-        Sendrecv(sendbuf_mv[:N_send_j],
-                 dest=ID_send,
-                 recvbuf=momy_mv[index_recv_j:],
-                 source=ID_recv)
+        Sendrecv(
+            sendbuf_mv[:N_send_j],
+            dest=ID_send,
+            recvbuf=momy_mv[index_recv_j:],
+            source=ID_recv,
+        )
         # Send/receive momz
         for i in range(N_send_j):
             sendbuf_mv[i] = momz[indices_send_j[i]]
-        Sendrecv(sendbuf_mv[:N_send_j],
-                 dest=ID_send,
-                 recvbuf=momz_mv[index_recv_j:],
-                 source=ID_recv)
+        Sendrecv(
+            sendbuf_mv[:N_send_j],
+            dest=ID_send,
+            recvbuf=momz_mv[index_recv_j:],
+            source=ID_recv,
+        )
+        # If rungs are being used by this component, we additionally
+        # need to communicate the rung indices of the communicate
+        # particles
+        with unswitch:
+            if component.use_rungs:
+                # Send/receive rung_indices
+                for i in range(N_send_j):
+                    # Add rung_index to buffer
+                    rung_index = rung_indices[indices_send_j[i]]
+                    rung_indices_buf[i] = rung_index
+                    # Decrement rung population
+                    rungs_N[rung_index] -= 1
+                Sendrecv(
+                    rung_indices_buf[:N_send_j],
+                    dest=ID_send,
+                    recvbuf=rung_indices_mv[index_recv_j:],
+                    source=ID_recv,
+                )
+                # Increment rung population due to received particles
+                for i in range(index_recv_j, index_recv_j + N_recv_j):
+                    rungs_N[rung_indices[i]] += 1
         # Update the start index for received data
         index_recv_j += N_recv_j
         # Mark the holes in the data by setting posx[hole] = -1
@@ -307,6 +358,9 @@ def exchange(component, reset_buffers=False):
                 momx[k] = momx[i]
                 momy[k] = momy[i]
                 momz[k] = momz[i]
+                with unswitch:
+                    if component.use_rungs:
+                        rung_indices[k] = rung_indices[i]
                 k_start = k + 1
                 holes_filled += 1
                 break
@@ -315,6 +369,17 @@ def exchange(component, reset_buffers=False):
                 break
     # Update N_local
     component.N_local = N_needed - N_send_tot
+    # When not using rungs, all particles occupy rung 0
+    if not component.use_rungs:
+        rungs_N[0] = component.N_local
+    # Update the rung flags
+    if component.use_rungs:
+        # Find and set lowest and highest populated rung
+        component.set_lowest_highest_populated_rung()
+        # There is no need to have the lowest active rung
+        # be below the lowest populated rung.
+        if component.lowest_active_rung < component.lowest_populated_rung:
+            component.lowest_active_rung = component.lowest_populated_rung
     # If reset_buffers is True, reset the global indices_send and
     # sendbuf to their basic forms. This buffer will then be rebuild in
     # future calls.
@@ -323,8 +388,8 @@ def exchange(component, reset_buffers=False):
         for j in range(nprocs):
             indices_send[j] = realloc(indices_send[j], 1*sizeof('Py_ssize_t'))
             indices_send_sizes[j] = 1
-    # Finalize exchange message
-    masterprint('done')
+        if component.use_rungs:
+            rung_indices_arr.resize(1, refcheck=False)
 
 # Function for communicating boundary values of a
 # domain grid between processes.
@@ -600,6 +665,7 @@ def rank_neighbouring_domain(i, j, k):
     # Arguments
     component_send='Component',
     variables=list,  # list of str's
+    pairing_level=str,
     interaction_name=str,
     tile_indices_send='Py_ssize_t[::1]',
     dest='int',
@@ -614,27 +680,34 @@ def rank_neighbouring_domain(i, j, k):
     j='Py_ssize_t',
     mv_recv='double[::1]',
     mv_recv_buf='double[::1]',
-    mv_send='double[::1]',
     mv_recv_list=list,
+    mv_rung_indices='Py_ssize_t[::1]',
+    mv_send='double[::1]',
     mv_send_buf='double[::1]',
     mv_send_list=list,
     n='Py_ssize_t',
     operation=str,
+    rung='Py_ssize_t*',
+    rung_index='Py_ssize_t',
+    rung_indices='Py_ssize_t*',
+    rung_indices_buf='Py_ssize_t[::1]',
+    rungs_N='Py_ssize_t*',
     subtiling_name=str,
-    tile='Py_ssize_t*',
+    tile='Py_ssize_t**',
     tile_index='Py_ssize_t',
-    tiles='Py_ssize_t**',
-    tiles_N='Py_ssize_t*',
-    tiles_N_recv='Py_ssize_t*',
-    tiles_recv='Py_ssize_t**',
+    tiles='Py_ssize_t***',
+    tiles_recv='Py_ssize_t***',
+    tiles_rungs_N='Py_ssize_t**',
+    tiles_rungs_N_recv='Py_ssize_t**',
     tiling='Tiling',
     tiling_name=str,
     tiling_recv='Tiling',
+    use_rungs='bint',
     variable=str,
     returns='Component',
 )
 def sendrecv_component(
-    component_send, variables, interaction_name,
+    component_send, variables, pairing_level, interaction_name,
     tile_indices_send, dest, source, component_recv=None,
 ):
     """This function operates in two modes:
@@ -658,14 +731,15 @@ def sendrecv_component(
     The implemented variables are:
     - 'pos' (posx, posy and posz)
     - 'mom' (momx, momy and momz)
-    If the tile_indices_send argument is None, all local particles
-    will be communicated. If not, only particles within the tiles
-    specified will be communicated. Note that the passed
-    tile_indices_send should be identical on all processes.
-    After tile particles have been communicated, the returned buffer
-    component will be tile sorted at the domain (tile, not subtile)
-    level. Note that the particle order is not preserved when doing such
-    a communication + tile sorting.
+    Only particles within the tiles given by tile_indices_send will be
+    communicated. The tiling used will be determined from
+    interaction_name. In the case of pairing_level == 'domain',
+    no actual tiling should be used, and so here we use the trivial
+    tiling. Note that the passed tile_indices_send should be identical
+    on all processes. After tile particles have been communicated,
+    the returned buffer component will be tile sorted at the domain
+    (tile, not subtile) level. Note that the particle order is not
+    preserved when doing such a communication + tile sorting.
     """
     global component_buffer
     if component_send.representation != 'particles':
@@ -678,38 +752,43 @@ def sendrecv_component(
     operation = '+='
     if 𝔹[component_recv is None]:
         operation = '='
-    # Find out how many particles should be communicated. This is either
-    # all local particles, or just the ones within the specified tiles.
-    if 𝔹[tile_indices_send is None]:
-        N_particles = component_send.N_local
-    else:
+    # Determine which tiling to use
+    if pairing_level == 'tile':
         tiling_name = f'{interaction_name} (tiles)'
-        tiling = component_send.tilings[tiling_name]
-        tiles   = tiling.tiles
-        tiles_N = tiling.tiles_N
-        if 𝔹[operation == '=']:
-            N_particles = 0
-            for i in range(tile_indices_send.shape[0]):
-                N_particles += tiles_N[tile_indices_send[i]]
-        else:
-            # When operation == '+=', we always send all particles back
-            # to the process from which they originally came.
-            # Really we should only include particles within the tiles
-            # given by tile_indices_send, and so the above loop over
-            # these tile is correct even when operation == '+='.
-            # However, as long as this function has been called
-            # correctly, the component_send is really just a buffer
-            # component storing only particles within the specified
-            # tiles, and so we can skip the counting above.
-            N_particles = component_send.N_local
-            # Also extract tile variables from component_recv
-            tiling_recv = component_recv.tilings[tiling_name]
-            tiles_recv   = tiling_recv.tiles
-            tiles_N_recv = tiling_recv.tiles_N
+    else:  # pairing_level == 'domain'
+        tiling_name = 'trivial'
+    # Find out how many particles should be communicated
+    tiling = component_send.tilings[tiling_name]
+    tiles         = tiling.tiles
+    tiles_rungs_N = tiling.tiles_rungs_N
+    if 𝔹[operation == '=']:
+        N_particles = 0
+        for i in range(tile_indices_send.shape[0]):
+            rungs_N = tiles_rungs_N[tile_indices_send[i]]
+            for rung_index in range(
+                ℤ[component_send.lowest_populated_rung],
+                ℤ[component_send.highest_populated_rung + 1],
+            ):
+                N_particles += rungs_N[rung_index]
+    else:
+        # When operation == '+=', we always send all particles back
+        # to the process from which they originally came.
+        # Really we should only include particles within the tiles
+        # given by tile_indices_send, and so the above loop over
+        # these tiles is correct even when operation == '+='.
+        # However, as long as this function has been called
+        # correctly, the component_send is really just a buffer
+        # component storing only particles within the specified
+        # tiles, and so we can skip the counting above.
+        N_particles = component_send.N_local
+        # Also extract tile variables from component_recv
+        tiling_recv = component_recv.tilings[tiling_name]
+        tiles_recv         = tiling_recv.tiles
+        tiles_rungs_N_recv = tiling_recv.tiles_rungs_N
     N_particles_recv = sendrecv(N_particles, dest=dest, source=source)
     # In communicate mode (operation == '='),
     # the global component_buffer is used as component_recv.
-    if operation == '=':
+    if 𝔹[operation == '=']:
         # We cannot simply import Component from the species module,
         # as this would create an import loop. Instead, the first time
         # the component_buffer is needed, we grab the type of the passed
@@ -723,19 +802,25 @@ def sendrecv_component(
         component_buffer.N                = component_send.N
         component_buffer.mass             = component_send.mass
         component_buffer.softening_length = component_send.softening_length
+        component_buffer.use_rungs        = component_send.use_rungs
         # Enlarge the data arrays of the component_buffer if necessary
         component_buffer.N_local = N_particles_recv
         if component_buffer.N_allocated < component_buffer.N_local:
+            # Temporarily set use_rungs = True to ensure that the
+            # rung_indices get resized as well.
+            use_rungs = component_buffer.use_rungs
+            component_buffer.use_rungs = True
             component_buffer.resize(component_buffer.N_local)
+            component_buffer.use_rungs = use_rungs
         # Use component_buffer as component_recv
         component_recv = component_buffer
     # Operation-dependant preparations for the communication
-    if 𝔹[operation == '=' and tile_indices_send is not None]:
-        # For communication mode with tiles, the particles within the
-        # tiles are temporarily copied to the mv_send_buf buffer.
+    if 𝔹[operation == '=']:
+        # In communication mode the particles within the tiles are
+        # temporarily copied to the mv_send_buf buffer.
         # Make sure that this is large enough.
         mv_send_buf = get_buffer(N_particles, 'send')
-    elif 𝔹[operation == '+=']:
+    else:  # operation == '+=':
         # We need to receive the data into a buffer, and then update the
         # local data by this amount. Get the buffer.
         mv_recv_buf = get_buffer(N_particles_recv, 'recv')
@@ -763,68 +848,128 @@ def sendrecv_component(
             )
         for dim in range(3):
             mv_send = mv_send_list[dim][:component_send.N_local]
-            # In communication mode with tiles, we only need to send the
-            # particular particles within the specified tiles. Here we
-            # copy the variable of these specific particles to a buffer.
+            # In communication mode we only need to send the particular
+            # particles within the specified tiles. Here we copy the
+            # variable of these specific particles to a buffer.
             with unswitch:
-                if 𝔹[operation == '=' and tile_indices_send is not None]:
+                if 𝔹[operation == '=']:
                     n = 0
                     for i in range(tile_indices_send.shape[0]):
                         tile_index = tile_indices_send[i]
-                        tile = tiles[tile_index]
-                        for j in range(tiles_N[tile_index]):
-                            mv_send_buf[n] = mv_send[tile[j]]
-                            n += 1
+                        tile    = tiles        [tile_index]
+                        rungs_N = tiles_rungs_N[tile_index]
+                        for rung_index in range(
+                            ℤ[component_send.lowest_populated_rung],
+                            ℤ[component_send.highest_populated_rung + 1],
+                        ):
+                            rung = tile[rung_index]
+                            for j in range(rungs_N[rung_index]):
+                                mv_send_buf[n] = mv_send[rung[j]]
+                                n += 1
                     mv_send = mv_send_buf[:n]
             # Communicate the particle data
             mv_recv = mv_recv_list[dim][:component_recv.N_local]
             with unswitch:
                 if 𝔹[operation == '=']:
                     Sendrecv(mv_send, recvbuf=mv_recv, dest=dest, source=source)
-                else:
+                else:  # operation == '+='
                     Sendrecv(mv_send, recvbuf=mv_recv_buf, dest=dest, source=source)
-                    with unswitch:
-                        if 𝔹[tile_indices_send is None]:
-                            # Update all particles
-                            for i in range(N_particles_recv):
-                                mv_recv[i] += mv_recv_buf[i]
-                        else:
-                            # Update particles in the specified tiles
-                            n = 0
-                            for i in range(tile_indices_send.shape[0]):
-                                tile_index = tile_indices_send[i]
-                                tile = tiles_recv[tile_index]
-                                for j in range(tiles_N_recv[tile_index]):
-                                    mv_recv[tile[j]] += mv_recv_buf[n]
-                                    n += 1
-    # When in communication and tile mode,
-    # the buffer (recv) component needs to know its own tiling.
-    if 𝔹[operation == '=' and tile_indices_send is not None]:
+                    # Update particles in the specified tiles.
+                    # Though only particles on active rungs will have
+                    # non-zero updates, we have to loop over all
+                    # populated rungs, as otherwise the indexing into
+                    # mv_recv_buf will not be correct.
+                    n = 0
+                    for i in range(tile_indices_send.shape[0]):
+                        tile_index = tile_indices_send[i]
+                        tile    = tiles_recv        [tile_index]
+                        rungs_N = tiles_rungs_N_recv[tile_index]
+                        for rung_index in range(
+                            ℤ[component_recv.lowest_populated_rung],
+                            ℤ[component_recv.highest_populated_rung + 1],
+                        ):
+                            rung = tile[rung_index]
+                            for j in range(rungs_N[rung_index]):
+                                mv_recv[rung[j]] += mv_recv_buf[n]
+                                n += 1
+    # When in communication mode, we additionally need to communicate
+    # the rung indices of the communicated particle.
+    # If not using rungs, we skip this.
+    if 𝔹[operation == '=' and component_send.use_rungs]:
+        # Create contiguous memory view over rung indices.
+        # We must only include the rung indices for
+        # particles within the specified tiles.
+        if rung_indices_arr.shape[0] < N_particles:
+            rung_indices_arr.resize(N_particles, refcheck=False)
+        rung_indices_buf = rung_indices_arr
+        n = 0
+        for i in range(tile_indices_send.shape[0]):
+            tile_index = tile_indices_send[i]
+            tile    = tiles        [tile_index]
+            rungs_N = tiles_rungs_N[tile_index]
+            for rung_index in range(
+                ℤ[component_send.lowest_populated_rung],
+                ℤ[component_send.highest_populated_rung + 1],
+            ):
+                rung = tile[rung_index]
+                for j in range(rungs_N[rung_index]):
+                    rung_indices_buf[n] = rung_index
+                    n += 1
+        # Communicate rung indices
+        Sendrecv(rung_indices_buf[:n], recvbuf=component_recv.rung_indices_mv, dest=dest, source=source)
+        # Count up how many particles occupy each rung
+        rung_indices = component_recv.rung_indices
+        rungs_N = component_recv.rungs_N
+        for rung_index in range(N_rungs):
+            rungs_N[rung_index] = 0
+        for i in range(component_recv.N_local):
+            rungs_N[rung_indices[i]] += 1
+        # Find and set lowest and highest populated rung
+        component_recv.set_lowest_highest_populated_rung()
+        # Communicate the active rung
+        component_recv.lowest_active_rung = sendrecv(
+            component_send.lowest_active_rung, dest=dest, source=source,
+        )
+        if component_recv.lowest_active_rung < component_recv.lowest_populated_rung:
+            # There is no need to have the lowest active rung
+            # be below the lowest populated rung.
+            component_recv.lowest_active_rung = component_recv.lowest_populated_rung
+    # When in communication mode the buffer (recv) component
+    # needs to know its own tiling.
+    if 𝔹[operation == '=']:
         # Ensure that the required tiling (and subtiling)
         # is instantiated on the buffer component.
-        if tiling_name not in component_recv.tilings:
-            component_recv.init_tiling(tiling_name, initial_tile_size=0)
-            subtiling_name = f'{interaction_name} (subtiles)'
-            component_recv.init_tiling(subtiling_name, initial_tile_size=0)
-        tiling_recv = component_recv.tilings[tiling_name]
+        tiling_recv = component_recv.tilings.get(tiling_name)
+        if tiling_recv is None:
+            component_recv.init_tiling(tiling_name, initial_rung_size=0)
+            tiling_recv = component_recv.tilings[tiling_name]
+            if 𝔹[tiling_name != 'trivial']:
+                subtiling_name = f'{interaction_name} (subtiles)'
+                component_recv.init_tiling(subtiling_name, initial_rung_size=0)
         # Place the tiling over the domain of the process
         # with a rank given by 'source'.
-        domain_layout_source = asarray(np.unravel_index(source, domain_subdivisions),
-            dtype=C2np['int'])
-        tiling_recv.relocate(asarray(
-            (
-                domain_layout_source[0]*domain_size_x,
-                domain_layout_source[1]*domain_size_y,
-                domain_layout_source[2]*domain_size_z,
-            ),
-            dtype=C2np['double'],
-        ))
+        if 𝔹[tiling_name != 'trivial']:
+            domain_layout_source = asarray(np.unravel_index(source, domain_subdivisions),
+                dtype=C2np['int'])
+            tiling_recv.relocate(asarray(
+                (
+                    domain_layout_source[0]*domain_size_x,
+                    domain_layout_source[1]*domain_size_y,
+                    domain_layout_source[2]*domain_size_z,
+                ),
+                dtype=C2np['double'],
+            ))
         # Perform tile sorting, but do not sort into subtiles
         component_recv.tile_sort(tiling_name)
     return component_recv
-# Declare buffer component used by sendrecv_component
-cython.declare(component_buffer='Component')
+# Declare buffer component and buffer for rung_indices
+# used by sendrecv_component.
+cython.declare(
+    component_buffer='Component',
+    rung_indices_arr=object,
+)
 component_buffer = None
+rung_indices_arr = empty(0, dtype=C2np['Py_ssize_t'])
 
 # Very general function for different MPI communications
 @cython.pheader(# Arguments

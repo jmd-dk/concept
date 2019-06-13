@@ -218,43 +218,55 @@ def get_neighbourtile_pair_index(tiles_offset):
 # called within a loop. See gravity_pairwise() for an example.
 @cython.iterator
 def particle_particle(
-    receiver, supplier, tile_indices_receiver, tile_indices_supplier,
-    rank_supplier, interaction_name,
+    receiver, supplier, pairing_level,
+    tile_indices_receiver, tile_indices_supplier,
+    rank_supplier, interaction_name, only_supply,
 ):
     # Cython declarations for variables used for the iteration,
     # not including those to yield.
     # Do not write these using the decorator syntax above this function.
     cython.declare(
-        N_r='Py_ssize_t',
-        N_s='Py_ssize_t',
         N_subtiles='Py_ssize_t',
-        all_subtile__pairings='Py_ssize_t***',
-        all_subtile__pairings_N='Py_ssize_t**',
+        all_subtile_pairings='Py_ssize_t***',
+        all_subtile_pairings_N='Py_ssize_t**',
         dim='int',
-        i_end='Py_ssize_t',
-        initial_tile_size='Py_ssize_t',
-        j_end='Py_ssize_t',
-        j_start='Py_ssize_t',
-        pairing_level=str,
+        highest_populated_rung_r='Py_ssize_t',
+        highest_populated_rung_s='Py_ssize_t',
+        lowest_active_rung_r='Py_ssize_t',
+        lowest_active_rung_s='Py_ssize_t',
+        lowest_populated_rung_r='Py_ssize_t',
+        lowest_populated_rung_s='Py_ssize_t',
         posx_r='double*',
         posx_s='double*',
         posy_r='double*',
         posy_s='double*',
         posz_r='double*',
         posz_s='double*',
+        rung_index_s_start='Py_ssize_t',
+        rung_particle_index_r='Py_ssize_t',
+        rung_particle_index_s='Py_ssize_t',
+        rung_particle_index_s_start='Py_ssize_t',
+        rung_N_r='Py_ssize_t',
+        rung_N_s='Py_ssize_t',
+        rung_r='Py_ssize_t*',
+        rung_s='Py_ssize_t*',
+        rungs_N_r='Py_ssize_t*',
+        rungs_N_s='Py_ssize_t*',
         subtile_index_r='Py_ssize_t',
         subtile_index_s='Py_ssize_t',
         subtile_pairings='Py_ssize_t**',
-        subtile_pairings_r='Py_ssize_t*',
         subtile_pairings_N='Py_ssize_t*',
         subtile_pairings_N_r='Py_ssize_t',
         subtile_pairings_index='Py_ssize_t',
-        subtile_r='Py_ssize_t*',
-        subtile_s='Py_ssize_t*',
-        subtiles_N_r='Py_ssize_t*',
-        subtiles_N_s='Py_ssize_t*',
-        subtiles_r='Py_ssize_t**',
-        subtiles_s='Py_ssize_t**',
+        subtile_pairings_r='Py_ssize_t*',
+        subtile_r='Py_ssize_t**',
+        subtile_s='Py_ssize_t**',
+        subtiles_contain_particles_r='unsigned char*',
+        subtiles_contain_particles_s='unsigned char*',
+        subtiles_r='Py_ssize_t***',
+        subtiles_rungs_N_r='Py_ssize_t**',
+        subtiles_rungs_N_s='Py_ssize_t**',
+        subtiles_s='Py_ssize_t***',
         subtiling_name=str,
         subtiling_name_2=str,
         subtiling_r='Tiling',
@@ -266,12 +278,10 @@ def particle_particle(
         tile_index3D_r='Py_ssize_t[::1]',
         tile_index3D_s='Py_ssize_t[::1]',
         tile_pair_index='Py_ssize_t',
-        tile_r='Py_ssize_t*',
-        tile_s='Py_ssize_t*',
-        tiles_N_r='Py_ssize_t*',
-        tiles_N_s='Py_ssize_t*',
-        tiles_r='Py_ssize_t**',
-        tiles_s='Py_ssize_t**',
+        tiles_contain_particles_r='unsigned char*',
+        tiles_contain_particles_s='unsigned char*',
+        tiles_r='Py_ssize_t***',
+        tiles_s='Py_ssize_t***',
         tiling_location_r='double[::1]',
         tiling_location_s='double[::1]',
         tiling_name=str,
@@ -282,195 +292,249 @@ def particle_particle(
         zi='double',
     )
     # Extract particle variables from the receiver component
-    N_r = receiver.N_local
     posx_r = receiver.posx
     posy_r = receiver.posy
     posz_r = receiver.posz
+    lowest_active_rung_r     = receiver.lowest_active_rung
+    lowest_populated_rung_r  = receiver.lowest_populated_rung
+    highest_populated_rung_r = receiver.highest_populated_rung
     # Extract particle variables from the supplier
     # (the external) component.
-    N_s = supplier.N_local
     posx_s = supplier.posx
     posy_s = supplier.posy
     posz_s = supplier.posz
-    # Infer pairing level ('domain' or 'tile') from passed tile indices
-    if tile_indices_receiver is not None:
-        pairing_level = 'tile'
-        # Extract tiling variables from receiver
-        tiling_name       = f'{interaction_name} (tiles)'
-        subtiling_name    = f'{interaction_name} (subtiles)'
-        tiling_r          = receiver.tilings[tiling_name]
-        tiles_r           = tiling_r.tiles
-        tiles_N_r         = tiling_r.tiles_N
-        tiling_location_r = tiling_r.location
-        tile_extent       = tiling_r.tile_extent  # The same for receiver and supplier
-        subtiling_r       = receiver.tilings[subtiling_name]
-        subtiles_r        = subtiling_r.tiles
-        subtiles_N_r      = subtiling_r.tiles_N
-        N_subtiles        = subtiling_r.size  # The same for receiver and supplier
-        # Extract tiling variables from supplier
-        tiling_s          = supplier.tilings[tiling_name]
-        tiles_s           = tiling_s.tiles
-        tiles_N_s         = tiling_s.tiles_N
-        tiling_location_s = tiling_s.location
-        subtiling_s       = supplier.tilings[subtiling_name]
-        subtiles_s        = subtiling_s.tiles
-        subtiles_N_s      = subtiling_s.tiles_N
-        # When the receiver and supplier components are the same
-        # and the receiver and supplier domains are also the same,
-        # we now have a case where (tiling_r is tiling_s) and
-        # (subtiling_r is subtiling_s) are both True. This is OK for
-        # the coarse tiling, but not for the subtiling, as here we need
-        # to re-sort the particles during the iteration below. That is,
-        # we need to keep track of the sorting of the receiver tiles
-        # into subtiles while also keeping track of the sorting of the
-        # supplier tiles into subtiles. We thus always need two separate
-        # subtiling_{r/s} instances, which we do not have in the case
-        # mentioned. When this is the case, we make use of a second,
-        # separate instance.
-        if 𝔹[receiver.name == supplier.name and rank == rank_supplier]:
-            subtiling_name_2 = f'{interaction_name} (subtiles 2)'
-            if subtiling_name_2 not in supplier.tilings:
-                initial_tile_size = supplier.N_local//(2*int(np.prod(tiling_s.shape)))
-                subtiling_s_2 = supplier.init_tiling(subtiling_name, initial_tile_size)
-                supplier.tilings[subtiling_name  ] = subtiling_s
-                supplier.tilings[subtiling_name_2] = subtiling_s_2
-            subtiling_s = supplier.tilings[subtiling_name_2]
-            subtiles_s = subtiling_s.tiles
-            subtiles_N_s = subtiling_s.tiles_N
-        # Get subtile pairings between each
-        # of the 27 possible tile pairings.
-        subtile_pairings_index = get_subtile_pairings(
-            subtiling_r, shortrange_params[interaction_name]['cutoff'],
-        )
-        all_subtile_pairings   = subtile_pairings_cache  [subtile_pairings_index]
-        all_subtile_pairings_N = subtile_pairings_N_cache[subtile_pairings_index]
-    else:
-        pairing_level = 'domain'
-        # This is just to create one-iteration loops.
-        # The tiling will not be used.
-        tile_indices_receiver = tile_indices_supplier = empty(1, dtype=C2np['Py_ssize_t'])
-        N_subtiles = 1
-        # These are not used, but Cython and the compiler
-        # likes to have them defined.
-        tiling_r = tiling_s = subtiling_r = subtiling_s = None
-        tile_r = tile_s = subtile_r = subtile_s = NULL
+    lowest_active_rung_s     = supplier.lowest_active_rung
+    lowest_populated_rung_s  = supplier.lowest_populated_rung
+    highest_populated_rung_s = supplier.highest_populated_rung
+    # The names used to refer to the domain and tile level tiling
+    # (tiles and subtiles). In the case of pairing_level == 'domain',
+    # we always use the trivial tiling.
+    if ℤ[pairing_level == 'tile']:
+        tiling_name    = f'{interaction_name} (tiles)'
+        subtiling_name = f'{interaction_name} (subtiles)'
+    else:  # pairing_level == 'domain':
+        tiling_name = subtiling_name = 'trivial'
+    # Extract tiling variables from receiver
+    tiling_r = receiver.tilings[tiling_name]
+    tiling_location_r         = tiling_r.location
+    tile_extent               = tiling_r.tile_extent  # The same for receiver and supplier
+    tiles_r                   = tiling_r.tiles
+    tiles_contain_particles_r = tiling_r.contain_particles
+    subtiling_r = receiver.tilings[subtiling_name]
+    subtiles_r                   = subtiling_r.tiles
+    subtiles_contain_particles_r = subtiling_r.contain_particles
+    N_subtiles                   = subtiling_r.size  # The same for receiver and supplier
+    # Extract tiling variables from supplier
+    tiling_s = supplier.tilings[tiling_name]
+    tiling_location_s         = tiling_s.location
+    tiles_s                   = tiling_s.tiles
+    tiles_contain_particles_s = tiling_s.contain_particles
+    subtiling_s = supplier.tilings[subtiling_name]
+    subtiles_s                   = subtiling_s.tiles
+    subtiles_contain_particles_s = subtiling_s.contain_particles
+    # When the receiver and supplier components are the same
+    # and the receiver and supplier domains are also the same,
+    # we now have a case where (tiling_r is tiling_s) and
+    # (subtiling_r is subtiling_s) are both True. This is OK for
+    # the coarse tiling, but not for the subtiling, as here we need
+    # to re-sort the particles during the iteration below. That is,
+    # we need to keep track of the sorting of the receiver tiles
+    # into subtiles while also keeping track of the sorting of the
+    # supplier tiles into subtiles. We thus always need two separate
+    # subtiling_{r/s} instances, which we do not have in the case
+    # mentioned. When this is the case, we make use of a second,
+    # separate Tiling instance. If however the subtiling in use is the
+    # trivial tiling, the re-sorting has no effect, and so we do not
+    # have to worry.
+    if 𝔹[receiver.name == supplier.name and rank == rank_supplier and subtiling_name != 'trivial']:
+        subtiling_name_2 = f'{interaction_name} (subtiles 2)'
+        if subtiling_name_2 not in supplier.tilings:
+            supplier.tilings.pop(subtiling_name)
+            subtiling_s_2 = supplier.init_tiling(subtiling_name)
+            supplier.tilings[subtiling_name  ] = subtiling_s
+            supplier.tilings[subtiling_name_2] = subtiling_s_2
+        subtiling_s = supplier.tilings[subtiling_name_2]
+        subtiles_s                   = subtiling_s.tiles
+        subtiles_contain_particles_s = subtiling_s.contain_particles
+    # Get subtile pairings between each
+    # of the 27 possible tile pairings.
+    subtile_pairings_index = get_subtile_pairings(
+        subtiling_r, shortrange_params[interaction_name]['cutoff'],
+    )
+    all_subtile_pairings   = subtile_pairings_cache  [subtile_pairings_index]
+    all_subtile_pairings_N = subtile_pairings_N_cache[subtile_pairings_index]
+    # Flags specifying whether the force betweeen particle i and j
+    # should be applied to i and j. If only_supply is True,
+    # the values below are correct. Otherwise, other values
+    # will be set further down.
+    apply_to_i = True
+    apply_to_j = False
     # Loop over the requested tiles in the receiver
     for tile_index_r in range(ℤ[tile_indices_receiver.shape[0]]):
         tile_index_r = tile_indices_receiver[tile_index_r]
+        # Skip tile if it does not contain any particles at all,
+        # or only inactive particles when only_supply is True.
+        with unswitch(1):
+            if 𝔹[not only_supply]:
+                if tiles_contain_particles_r[tile_index_r] == 0:
+                    continue
+            else:
+                if tiles_contain_particles_r[tile_index_r] != 2:
+                    continue
         # Sort particles within the receiver tile into subtiles
-        with unswitch:
-            if 𝔹[pairing_level == 'tile']:
-                tile_index3D_r = tiling_r.tile_index3D(tile_index_r)
-                for dim in range(3):
-                    tile_location_r[dim] = (
-                        tiling_location_r[dim] + tile_index3D_r[dim]*tile_extent[dim]
-                    )
-                subtiling_r.relocate(tile_location_r)
-                subtiling_r.sort(tiling_r, tile_index_r)
+        tile_index3D_r = tiling_r.tile_index3D(tile_index_r)
+        for dim in range(3):
+            tile_location_r[dim] = tiling_location_r[dim] + tile_index3D_r[dim]*tile_extent[dim]
+        subtiling_r.relocate(tile_location_r)
+        subtiling_r.sort(tiling_r, tile_index_r)
+        subtiles_rungs_N_r = subtiling_r.tiles_rungs_N
         # Loop over the requested tiles in the supplier
         for tile_index_s in range(ℤ[tile_indices_supplier.shape[0]]):
             tile_index_s = tile_indices_supplier[tile_index_s]
+            # Skip tile if it does not contain any particles at all
+            if tiles_contain_particles_s[tile_index_s] == 0:
+                continue
             # Sort particles within the supplier tile into subtiles
-            with unswitch:
-                if 𝔹[pairing_level == 'tile']:
-                    tile_index3D_s = tiling_s.tile_index3D(tile_index_s)
-                    for dim in range(3):
-                        tile_location_s[dim] = (
-                            tiling_location_s[dim] + tile_index3D_s[dim]*tile_extent[dim]
-                        )
-                    subtiling_s.relocate(tile_location_s)
-                    subtiling_s.sort(tiling_s, tile_index_s)
+            tile_index3D_s = tiling_s.tile_index3D(tile_index_s)
+            for dim in range(3):
+                tile_location_s[dim] = (
+                    tiling_location_s[dim] + tile_index3D_s[dim]*tile_extent[dim]
+                )
+            subtiling_s.relocate(tile_location_s)
+            subtiling_s.sort(tiling_s, tile_index_s)
+            subtiles_rungs_N_s = subtiling_s.tiles_rungs_N
             # Get the needed subtile pairings for the selected receiver
             # and supplier tiles (which should be neighbour tiles).
-            with unswitch:
-                if 𝔹[pairing_level == 'tile']:
-                    for dim in range(3):
-                        tiles_offset[dim] = tile_index3D_s[dim] - tile_index3D_r[dim]
-                    tile_pair_index = get_neighbourtile_pair_index(tiles_offset)
-                    subtile_pairings   = all_subtile_pairings  [tile_pair_index]
-                    subtile_pairings_N = all_subtile_pairings_N[tile_pair_index]
+            for dim in range(3):
+                tiles_offset[dim] = tile_index3D_s[dim] - tile_index3D_r[dim]
+            tile_pair_index = get_neighbourtile_pair_index(tiles_offset)
+            subtile_pairings   = all_subtile_pairings  [tile_pair_index]
+            subtile_pairings_N = all_subtile_pairings_N[tile_pair_index]
             # Loop over all subtiles in the selected receiver tile
             for subtile_index_r in range(N_subtiles):
-                # Prepare for the loop over (some of the) supplier tiles
-                # and the loop over all particles in the selected
-                # receiver subtile.
-                with unswitch:
-                    if 𝔹[pairing_level == 'tile']:
-                        subtile_pairings_r   = subtile_pairings  [subtile_index_r]
-                        subtile_pairings_N_r = subtile_pairings_N[subtile_index_r]
-                        i_end = subtiles_N_r[subtile_index_r]
-                        subtile_r = subtiles_r[subtile_index_r]
-                    else:  # pairing_level == 'domain'
-                        i_end = N_r
-                        subtile_pairings_N_r = 1
-                # Loop over the needed supplier tiles
+                # Skip subtile if it does not contain
+                # any particles at all, or only inactive particles
+                # when only_supply is True.
+                with unswitch(3):
+                    if 𝔹[not only_supply]:
+                        if subtiles_contain_particles_r[subtile_index_r] == 0:
+                            continue
+                    else:
+                        if subtiles_contain_particles_r[subtile_index_r] != 2:
+                            continue
+                subtile_r = subtiles_r[subtile_index_r]
+                rungs_N_r = subtiles_rungs_N_r[subtile_index_r]
+                subtile_pairings_r   = subtile_pairings  [subtile_index_r]
+                subtile_pairings_N_r = subtile_pairings_N[subtile_index_r]
+                # Loop over the needed supplier subtiles
                 for subtile_index_s in range(subtile_pairings_N_r):
-                    # Prepare for the loop over all particles
-                    # in the selected supplier subtile.
-                    with unswitch:
-                        if 𝔹[pairing_level == 'tile']:
-                            subtile_index_s = subtile_pairings_r[subtile_index_s]
-                            subtile_s = subtiles_s[subtile_index_s]
-                            j_end = subtiles_N_s[subtile_index_s]
-                        else:  # pairing_level == 'domain'
-                            j_end = N_s
-                    # Loop over all receiver particles in the domain
-                    # (pairing_level == 'domain') or just this subtile
-                    # (pairing_level == 'tile').
-                    for i in range(i_end):
-                        # If the receiver and supplier component are one
-                        # and the same and the two paired domains are
-                        # one and the same, we need to make sure not to
-                        # double count the particles.
-                        with unswitch:
+                    subtile_index_s = subtile_pairings_r[subtile_index_s]
+                    # Skip subtile if it does not contain
+                    # any particles at all.
+                    if subtiles_contain_particles_s[subtile_index_s] == 0:
+                        continue
+                    subtile_s = subtiles_s[subtile_index_s]
+                    rungs_N_s = subtiles_rungs_N_s[subtile_index_s]
+                    # Loop over all rungs in the receiver subtile
+                    for rung_index_r in range(
+                        ℤ[lowest_active_rung_r if only_supply else lowest_populated_rung_r],
+                        ℤ[highest_populated_rung_r + 1],
+                    ):
+                        rung_N_r = rungs_N_r[rung_index_r]
+                        if rung_N_r == 0:
+                            continue
+                        rung_r = subtile_r[rung_index_r]
+                        # We need to pair all active receiver rungs
+                        # with all supplier rungs. All inactive
+                        # receiver rungs need only to be paired with
+                        # the active supplier rungs (i.e. we do not need
+                        # to pair up two inacive rungs).
+                        # If only_supply is True, the values already set
+                        # will be used.
+                        rung_index_s_start = lowest_populated_rung_s
+                        with unswitch(5):
+                            if 𝔹[not only_supply]:
+                                # The supplier should receive
+                                # a kick as well.
+                                if rung_index_r < lowest_active_rung_r:
+                                    # Only the supplier should receive
+                                    # a kick.
+                                    apply_to_i = False
+                                    rung_index_s_start = lowest_active_rung_s
+                                else:
+                                    # The receiver and the supplier
+                                    # should receive a kick.
+                                    apply_to_i = True
+                        # We need to make sure not to double count the
+                        # rung pairs for local interactions. Here,
+                        # local means that the current components,
+                        # domains, tiles and subtiles for the receiver
+                        # and supplier are all the same.
+                        with unswitch(5):
                             if 𝔹[receiver.name == supplier.name and rank == rank_supplier]:
-                                with unswitch:
-                                    if 𝔹[pairing_level == 'tile']:
-                                        # When using (sub)tiles, double
-                                        # counting particles is only
-                                        # possible when the current
-                                        # receiver and supplier tile are
-                                        # one and the same and the
-                                        # current receiver and supplier
-                                        # subtile are also one
-                                        # and the same.
-                                        if True:  #with unswitch(3):
+                                with unswitch(3):
+                                    if 𝔹[tile_index_r == tile_index_s]:
+                                        with unswitch(1):
+                                            if 𝔹[subtile_index_r == subtile_index_s]:
+                                                if rung_index_s_start < rung_index_r:
+                                                    rung_index_s_start = rung_index_r
+                        # Loop over the needed supplier rungs
+                        for rung_index_s in range(
+                            rung_index_s_start, ℤ[highest_populated_rung_s + 1]
+                        ):
+                            rung_N_s = rungs_N_s[rung_index_s]
+                            if rung_N_s == 0:
+                                continue
+                            rung_s = subtile_s[rung_index_s]
+                            # Flag whether we need to apply the force to
+                            # the supplier particles in this rung (if
+                            # not, we still apply the force to the
+                            # receiver particles).
+                            with unswitch(6):
+                                if 𝔹[not only_supply]:
+                                    apply_to_j = (rung_index_s >= lowest_active_rung_s)
+                            # Loop over all particles
+                            # in the receiver rung.
+                            for rung_particle_index_r in range(rung_N_r):
+                                # Get receiver particle index
+                                i = rung_r[rung_particle_index_r]
+                                # Get coordinates of receiver particle
+                                xi = posx_r[i]
+                                yi = posy_r[i]
+                                zi = posz_r[i]
+                                # We need to make sure not to double
+                                # count the particle pairs for local
+                                # interactions. Here, local means that
+                                # the current components, domains,
+                                # tiles, subtiles and rungs for the
+                                # receiver and supplier are all
+                                # the same.
+                                rung_particle_index_s_start = 0
+                                with unswitch(7):
+                                    if 𝔹[receiver.name == supplier.name and rank == rank_supplier]:
+                                        with unswitch(5):
                                             if 𝔹[tile_index_r == tile_index_s]:
-                                                if True: #with unswitch(1):
+                                                with unswitch(3):
                                                     if 𝔹[subtile_index_r == subtile_index_s]:
-                                                        j_start = i + 1
-                                                    else:
-                                                        j_start = 0
-                                            else:
-                                                j_start = 0
-                                    else:  # pairing_level == 'domain'
-                                        j_start = i + 1
-                            else:
-                                j_start = 0
-                        # Change i from being a subtile-particle index
-                        # to being a particle index.
-                        with unswitch:
-                            if 𝔹[pairing_level == 'tile']:
-                                i = subtile_r[i]
-                        # Coordinates of receiver particle
-                        xi = posx_r[i]
-                        yi = posy_r[i]
-                        zi = posz_r[i]
-                        # Loop over all supplier particles in the domain
-                        # (pairing_level == 'domain') or just
-                        # this subtile (pairing_level == 'tile').
-                        for j in range(j_start, j_end):
-                            # Change j from being a subtile-particle
-                            # index to being a particle index.
-                            with unswitch:
-                                if 𝔹[pairing_level == 'tile']:
-                                    j = subtile_s[j]
-                            # "Vector" from particle j to particle i
-                            x_ji = xi - posx_s[j]
-                            y_ji = yi - posy_s[j]
-                            z_ji = zi - posz_s[j]
-                            # Yield the needed variables
-                            yield i, j, x_ji, y_ji, z_ji
+                                                        with unswitch(1):
+                                                            if 𝔹[rung_index_r == rung_index_s]:
+                                                                rung_particle_index_s_start = (
+                                                                    rung_particle_index_r + 1
+                                                                )
+                                # Loop over the needed particles
+                                # in the supplier rung.
+                                for rung_particle_index_s in range(
+                                    rung_particle_index_s_start, rung_N_s,
+                                ):
+                                    # Get supplier particle index
+                                    j = rung_s[rung_particle_index_s]
+                                    # "Vector" from particle j
+                                    # to particle i.
+                                    x_ji = xi - posx_s[j]
+                                    y_ji = yi - posy_s[j]
+                                    z_ji = zi - posz_s[j]
+                                    # Yield the needed variables
+                                    yield i, j, rung_index_r, rung_index_s, x_ji, y_ji, z_ji, apply_to_i, apply_to_j
 # Variables used by the particle_particle function
 cython.declare(
     tile_location_r='double[::1]',
@@ -479,13 +543,14 @@ cython.declare(
 )
 tile_location_r = empty(3, dtype=C2np['double'])
 tile_location_s = empty(3, dtype=C2np['double'])
-tiles_offset  = empty(3, dtype=C2np['Py_ssize_t'])
+tiles_offset    = empty(3, dtype=C2np['Py_ssize_t'])
 
 # Function implementing pairwise gravity (full/periodic)
 @cython.header(
     # Arguments
     receiver='Component',
     supplier='Component',
+    pairing_level=str,
     tile_indices_receiver='Py_ssize_t[::1]',
     tile_indices_supplier='Py_ssize_t[::1]',
     rank_supplier='int',
@@ -493,15 +558,17 @@ tiles_offset  = empty(3, dtype=C2np['Py_ssize_t'])
     ᔑdt=dict,
     extra_args=dict,
     # Locals
+    apply_to_i='bint',
+    apply_to_j='bint',
     force_ij='double*',
     forcex_ij='double',
     forcey_ij='double',
     forcez_ij='double',
+    gravity_factor='double',
+    gravity_factors='double[::1]',
     i='Py_ssize_t',
     interaction_name=str,
     j='Py_ssize_t',
-    mass_r='double',
-    mass_s='double',
     momx_r='double*',
     momx_s='double*',
     momy_r='double*',
@@ -509,44 +576,48 @@ tiles_offset  = empty(3, dtype=C2np['Py_ssize_t'])
     momz_r='double*',
     momz_s='double*',
     r3='double',
-    softening_r='double',
-    softening_s='double',
+    rung_index_r='Py_ssize_t',
+    rung_index_s='Py_ssize_t',
     x_ji='double',
     y_ji='double',
     z_ji='double',
     Δmomx_s='double*',
-    Δmomx_ij='double',
     Δmomy_s='double*',
-    Δmomy_ij='double',
     Δmomz_s='double*',
-    Δmomz_ij='double',
     returns='void',
 )
 def gravity_pairwise(
-    receiver, supplier, tile_indices_receiver, tile_indices_supplier,
+    receiver, supplier, pairing_level,
+    tile_indices_receiver, tile_indices_supplier,
     rank_supplier, only_supply, ᔑdt, extra_args,
 ):
-    # Extract particle variables from the receiver component
-    mass_r = receiver.mass
-    softening_r = receiver.softening_length
+    # Extract variables from the receiver component
     momx_r = receiver.momx
     momy_r = receiver.momy
     momz_r = receiver.momz
-    # Extract particle variables from the supplier
-    # (the external) component.
-    mass_s = supplier.mass
-    softening_s = supplier.softening_length
-    momx_s = supplier.momx
-    momy_s = supplier.momy
-    momz_s = supplier.momz
+    # Extract variables from the supplier (the external) component
+    momx_s  = supplier.momx
+    momy_s  = supplier.momy
+    momz_s  = supplier.momz
     Δmomx_s = supplier.Δmomx
     Δmomy_s = supplier.Δmomy
     Δmomz_s = supplier.Δmomz
+    # Construct array of factors used for momentum updates:
+    #   Δmom = -r⃗/r³*G*mass_r*mass_s*Δt/a.
+    # In the general case of decaying particles,
+    # the mass of each particle is
+    #   mass(a) = component.mass*a**(-3*component.w_eff(a=a)).
+    # Below we integrate over the time dependence.
+    # The array should be indexed with the rung_index
+    # of the receiver particle.
+    gravity_factors = G_Newton*receiver.mass*supplier.mass*ᔑdt[
+        'a**(-3*w_eff₀-3*w_eff₁-1)', receiver.name, supplier.name]
     # Loop over all (receiver, supplier) particle pairs (i, j)
     interaction_name = 'gravity'
-    for i, j, x_ji, y_ji, z_ji in particle_particle(
-        receiver, supplier, tile_indices_receiver, tile_indices_supplier,
-        rank_supplier, interaction_name,
+    for i, j, rung_index_r, rung_index_s, x_ji, y_ji, z_ji, apply_to_i, apply_to_j in particle_particle(
+        receiver, supplier, pairing_level,
+        tile_indices_receiver, tile_indices_supplier,
+        rank_supplier, interaction_name, only_supply,
     ):
         # Translate coordinates so they correspond to the nearest image
         if x_ji > ℝ[0.5*boxsize]:
@@ -565,30 +636,19 @@ def gravity_pairwise(
         # nearest one, which might not be the actual particle.
         force_ij = ewald(x_ji, y_ji, z_ji)
         # Add in the force from the particle's nearest image
-        r3 = (x_ji**2 + y_ji**2 + z_ji**2 + ℝ[(0.5*(softening_r + softening_s))**2])**1.5
+        r3 = (x_ji**2 + y_ji**2 + z_ji**2
+            + ℝ[(0.5*(receiver.softening_length + supplier.softening_length))**2]
+        )**1.5
         forcex_ij = force_ij[0] - x_ji*ℝ[1/r3]
         forcey_ij = force_ij[1] - y_ji*ℝ[1/r3]
         forcez_ij = force_ij[2] - z_ji*ℝ[1/r3]
-        # Convert force on particle i from particle j to
-        # momentum change of partcicle i due to particle j.
-        # This looks like
-        #   Δmom = force*G*mass_r*mass_s/a.
-        # In the general case of decaying particles,
-        # the mass of each receiver particle is
-        #   mass_r(a) = receiver.mass*a**(-3*receiver.w_eff(a)),
-        # and likewise for the supplier particles. Below we
-        # integrate over the entire time dependence.
-        Δmomx_ij = forcex_ij*ℝ[G_Newton*mass_r*mass_s
-            *ᔑdt['a**(-3*w_eff₀-3*w_eff₁-1)', receiver.name, supplier.name]]
-        Δmomy_ij = forcey_ij*ℝ[G_Newton*mass_r*mass_s
-            *ᔑdt['a**(-3*w_eff₀-3*w_eff₁-1)', receiver.name, supplier.name]]
-        Δmomz_ij = forcez_ij*ℝ[G_Newton*mass_r*mass_s
-            *ᔑdt['a**(-3*w_eff₀-3*w_eff₁-1)', receiver.name, supplier.name]]
-        # Apply momentum change to particle i
-        # of the receiver.
-        momx_r[i] += Δmomx_ij
-        momy_r[i] += Δmomy_ij
-        momz_r[i] += Δmomz_ij
+        # Compute and apply momentum change
+        # to particle i due to particle j.
+        if apply_to_i:
+            gravity_factor = gravity_factors[rung_index_r]
+            momx_r[i] += forcex_ij*gravity_factor
+            momy_r[i] += forcey_ij*gravity_factor
+            momz_r[i] += forcez_ij*gravity_factor
         # Apply or save the momentum change of particle j
         # of the supplier (the external component).
         with unswitch:
@@ -596,21 +656,26 @@ def gravity_pairwise(
                 # This interaction is exlusively within the
                 # local domain. Apply momentum changes
                 # directly to particle j.
-                momx_s[j] -= Δmomx_ij
-                momy_s[j] -= Δmomy_ij
-                momz_s[j] -= Δmomz_ij
+                if apply_to_j:
+                    gravity_factor = gravity_factors[rung_index_s]
+                    momx_s[j] -= forcex_ij*gravity_factor
+                    momy_s[j] -= forcey_ij*gravity_factor
+                    momz_s[j] -= forcez_ij*gravity_factor
             elif 𝔹[not only_supply]:
                 # Add momentum change to the external
                 # Δmom buffers of the supplier.
-                Δmomx_s[j] -= Δmomx_ij
-                Δmomy_s[j] -= Δmomy_ij
-                Δmomz_s[j] -= Δmomz_ij
+                if apply_to_j:
+                    gravity_factor = gravity_factors[rung_index_s]
+                    Δmomx_s[j] -= forcex_ij*gravity_factor
+                    Δmomy_s[j] -= forcey_ij*gravity_factor
+                    Δmomz_s[j] -= forcez_ij*gravity_factor
 
 # Function implementing pairwise gravity (short-range only)
 @cython.header(
     # Arguments
     receiver='Component',
     supplier='Component',
+    pairing_level=str,
     tile_indices_receiver='Py_ssize_t[::1]',
     tile_indices_supplier='Py_ssize_t[::1]',
     rank_supplier='int',
@@ -618,14 +683,16 @@ def gravity_pairwise(
     ᔑdt=dict,
     extra_args=dict,
     # Locals
+    apply_to_i='bint',
+    apply_to_j='bint',
     forcex_ij='double',
     forcey_ij='double',
     forcez_ij='double',
+    gravity_factor='double',
+    gravity_factors='double[::1]',
     i='Py_ssize_t',
     interaction_name=str,
     j='Py_ssize_t',
-    mass_r='double',
-    mass_s='double',
     momx_r='double*',
     momx_s='double*',
     momy_r='double*',
@@ -633,46 +700,50 @@ def gravity_pairwise(
     momz_r='double*',
     momz_s='double*',
     r2='double',
+    rung_index_r='Py_ssize_t',
+    rung_index_s='Py_ssize_t',
     shortrange_factor='double',
     shortrange_index='Py_ssize_t',
-    softening_r='double',
-    softening_s='double',
     x_ji='double',
     y_ji='double',
     z_ji='double',
     Δmomx_s='double*',
-    Δmomx_ij='double',
     Δmomy_s='double*',
-    Δmomy_ij='double',
     Δmomz_s='double*',
-    Δmomz_ij='double',
     returns='void',
 )
 def gravity_pairwise_shortrange(
-    receiver, supplier, tile_indices_receiver, tile_indices_supplier,
+    receiver, supplier, pairing_level,
+    tile_indices_receiver, tile_indices_supplier,
     rank_supplier, only_supply, ᔑdt, extra_args,
 ):
-    # Extract particle variables from the receiver component
-    mass_r = receiver.mass
-    softening_r = receiver.softening_length
+    # Extract variables from the receiver component
     momx_r = receiver.momx
     momy_r = receiver.momy
     momz_r = receiver.momz
-    # Extract particle variables from the supplier
-    # (the external) component.
-    mass_s = supplier.mass
-    softening_s = supplier.softening_length
-    momx_s = supplier.momx
-    momy_s = supplier.momy
-    momz_s = supplier.momz
+    # Extract variables from the supplier (the external) component
+    momx_s  = supplier.momx
+    momy_s  = supplier.momy
+    momz_s  = supplier.momz
     Δmomx_s = supplier.Δmomx
     Δmomy_s = supplier.Δmomy
     Δmomz_s = supplier.Δmomz
+    # Construct array of factors used for momentum updates:
+    #   Δmom = -r⃗/r³*G*mass_r*mass_s*Δt/a.
+    # In the general case of decaying particles,
+    # the mass of each particle is
+    #   mass(a) = component.mass*a**(-3*component.w_eff(a=a)).
+    # Below we integrate over the time dependence.
+    # The array should be indexed with the rung_index
+    # of the receiver particle.
+    gravity_factors = G_Newton*receiver.mass*supplier.mass*ᔑdt[
+        'a**(-3*w_eff₀-3*w_eff₁-1)', receiver.name, supplier.name]
     # Loop over all (receiver, supplier) particle pairs (i, j)
     interaction_name = 'gravity'
-    for i, j, x_ji, y_ji, z_ji in particle_particle(
-        receiver, supplier, tile_indices_receiver, tile_indices_supplier,
-        rank_supplier, interaction_name,
+    for i, j, rung_index_r, rung_index_s, x_ji, y_ji, z_ji, apply_to_i, apply_to_j in particle_particle(
+        receiver, supplier, pairing_level,
+        tile_indices_receiver, tile_indices_supplier,
+        rank_supplier, interaction_name, only_supply,
     ):
         # Translate coordinates so they correspond to the nearest image
         if x_ji > ℝ[0.5*boxsize]:
@@ -694,38 +765,25 @@ def gravity_pairwise_shortrange(
         if r2 > ℝ[shortrange_params['gravity']['cutoff']**2]:
             continue
         # Add softening
-        r2 += ℝ[(0.5*(softening_r + softening_s))**2]
+        r2 += ℝ[(0.5*(receiver.softening_length + supplier.softening_length))**2]
         # Compute the short-range force. Here the "force" is in units
         # of inverse length squared, given by
         # force = -r⃗/r³ (x/sqrt(π) exp(-x²/4) + erfc(x/2)),
         # where x = r/scale with scale the long/short-range
         # force split scale.
         # We have this whole expression except for r⃗ already tabulated.
-        shortrange_index = int(r2*(shortrange_table.shape[0] - 1)/shortrange_table_maxr2)
+        shortrange_index = int(r2*ℝ[(shortrange_table_size - 1)/shortrange_table_maxr2])
         shortrange_factor = shortrange_table_ptr[shortrange_index]
         forcex_ij = x_ji*shortrange_factor
         forcey_ij = y_ji*shortrange_factor
         forcez_ij = z_ji*shortrange_factor
-        # Convert force on particle i from particle j to
-        # momentum change of partcicle i due to particle j.
-        # This looks like
-        #   Δmom = force*G*mass_r*mass_s/a.
-        # In the general case of decaying particles,
-        # the mass of each receiver particle is
-        #   mass_r(a) = receiver.mass*a**(-3*receiver.w_eff(a)),
-        # and likewise for the supplier particles. Below we
-        # integrate over the entire time dependence.
-        Δmomx_ij = forcex_ij*ℝ[G_Newton*mass_r*mass_s
-            *ᔑdt['a**(-3*w_eff₀-3*w_eff₁-1)', receiver.name, supplier.name]]
-        Δmomy_ij = forcey_ij*ℝ[G_Newton*mass_r*mass_s
-            *ᔑdt['a**(-3*w_eff₀-3*w_eff₁-1)', receiver.name, supplier.name]]
-        Δmomz_ij = forcez_ij*ℝ[G_Newton*mass_r*mass_s
-            *ᔑdt['a**(-3*w_eff₀-3*w_eff₁-1)', receiver.name, supplier.name]]
-        # Apply momentum change to particle i
-        # of the receiver.
-        momx_r[i] += Δmomx_ij
-        momy_r[i] += Δmomy_ij
-        momz_r[i] += Δmomz_ij
+        # Compute and apply momentum change to particle i due to
+        # particle j, if particle i is on an active rung.
+        if apply_to_i:
+            gravity_factor = gravity_factors[rung_index_r]
+            momx_r[i] += forcex_ij*gravity_factor
+            momy_r[i] += forcey_ij*gravity_factor
+            momz_r[i] += forcez_ij*gravity_factor
         # Apply or save the momentum change of particle j
         # of the supplier (the external component).
         with unswitch:
@@ -733,15 +791,19 @@ def gravity_pairwise_shortrange(
                 # This interaction is exlusively within the
                 # local domain. Apply momentum changes
                 # directly to particle j.
-                momx_s[j] -= Δmomx_ij
-                momy_s[j] -= Δmomy_ij
-                momz_s[j] -= Δmomz_ij
+                if apply_to_j:
+                    gravity_factor = gravity_factors[rung_index_s]
+                    momx_s[j] -= forcex_ij*gravity_factor
+                    momy_s[j] -= forcey_ij*gravity_factor
+                    momz_s[j] -= forcez_ij*gravity_factor
             elif 𝔹[not only_supply]:
                 # Add momentum change to the external
                 # Δmom buffers of the supplier.
-                Δmomx_s[j] -= Δmomx_ij
-                Δmomy_s[j] -= Δmomy_ij
-                Δmomz_s[j] -= Δmomz_ij
+                if apply_to_j:
+                    gravity_factor = gravity_factors[rung_index_s]
+                    Δmomx_s[j] -= forcex_ij*gravity_factor
+                    Δmomy_s[j] -= forcey_ij*gravity_factor
+                    Δmomz_s[j] -= forcez_ij*gravity_factor
 # Helper function for the gravity_pairwise_shortrange function,
 # which initializes the global shortrange table.
 @cython.header(returns='void')
@@ -755,13 +817,11 @@ def tabulate_shortrange_gravity():
     sometimes need to go a bit beyound cutoff. Just to be safe we
     tabulate out to 2*cutoff.
     """
-    global shortrange_table, shortrange_table_ptr, shortrange_table_maxr2
+    global shortrange_table, shortrange_table_ptr
     if shortrange_table is not None:
         return
     scale  = shortrange_params['gravity']['scale']
-    cutoff = shortrange_params['gravity']['cutoff']
-    size = 2**20
-    r2 = np.linspace(0, (2*cutoff)**2, size)
+    r2 = np.linspace(0, shortrange_table_maxr2, shortrange_table_size)
     r = np.sqrt(r2)
     x = r/scale
     # Compute r⁻³. The zeroth element is r == 0.
@@ -774,22 +834,24 @@ def tabulate_shortrange_gravity():
     # Do the tabulation and populate global variables
     shortrange_table = -one_over_r3*(x/np.sqrt(π)*np.exp(-0.25*x**2) + scipy.special.erfc(0.5*x))
     shortrange_table_ptr = cython.address(shortrange_table[:])
-    shortrange_table_maxr2 = r2[size - 1]
-# Global variables set by the tabulate_shortrange_gravity function
+# Global variables used by the tabulate_shortrange_gravity function
 cython.declare(
     shortrange_table='double[::1]',
     shortrange_table_ptr='double*',
+    shortrange_table_size='Py_ssize_t',
     shortrange_table_maxr2='double',
 )
 shortrange_table = None
 shortrange_table_ptr = NULL
-shortrange_table_maxr2 = -1
+shortrange_table_size = 2**20
+shortrange_table_maxr2 = (2*shortrange_params['gravity']['cutoff'])**2
 
 # Function implementing pairwise gravity (non-periodic)
 @cython.header(
     # Arguments
     receiver='Component',
     supplier='Component',
+    pairing_level=str,
     tile_indices_receiver='Py_ssize_t[::1]',
     tile_indices_supplier='Py_ssize_t[::1]',
     rank_supplier='int',
@@ -797,14 +859,16 @@ shortrange_table_maxr2 = -1
     ᔑdt=dict,
     extra_args=dict,
     # Locals
+    apply_to_i='bint',
+    apply_to_j='bint',
     forcex_ij='double',
     forcey_ij='double',
     forcez_ij='double',
+    gravity_factor='double',
+    gravity_factors='double[::1]',
     i='Py_ssize_t',
     interaction_name=str,
     j='Py_ssize_t',
-    mass_r='double',
-    mass_s='double',
     momx_r='double*',
     momx_s='double*',
     momy_r='double*',
@@ -812,8 +876,8 @@ shortrange_table_maxr2 = -1
     momz_r='double*',
     momz_s='double*',
     r3='double',
-    softening_r='double',
-    softening_s='double',
+    rung_index_r='Py_ssize_t',
+    rung_index_s='Py_ssize_t',
     x_ji='double',
     y_ji='double',
     z_ji='double',
@@ -826,56 +890,52 @@ shortrange_table_maxr2 = -1
     returns='void',
 )
 def gravity_pairwise_nonperiodic(
-    receiver, supplier, tile_indices_receiver, tile_indices_supplier,
+    receiver, supplier, pairing_level,
+    tile_indices_receiver, tile_indices_supplier,
     rank_supplier, only_supply, ᔑdt, extra_args,
 ):
-    # Extract particle variables from the receiver component
-    mass_r = receiver.mass
-    softening_r = receiver.softening_length
+    # Extract variables from the receiver component
     momx_r = receiver.momx
     momy_r = receiver.momy
     momz_r = receiver.momz
-    # Extract particle variables from the supplier
-    # (the external) component.
-    mass_s = supplier.mass
-    softening_s = supplier.softening_length
-    momx_s = supplier.momx
-    momy_s = supplier.momy
-    momz_s = supplier.momz
+    # Extract variables from the supplier (the external) component
+    momx_s  = supplier.momx
+    momy_s  = supplier.momy
+    momz_s  = supplier.momz
     Δmomx_s = supplier.Δmomx
     Δmomy_s = supplier.Δmomy
     Δmomz_s = supplier.Δmomz
+    # Construct array of factors used for momentum updates:
+    #   Δmom = -r⃗/r³*G*mass_r*mass_s*Δt/a.
+    # In the general case of decaying particles,
+    # the mass of each particle is
+    #   mass(a) = component.mass*a**(-3*component.w_eff(a=a)).
+    # Below we integrate over the time dependence.
+    # The array should be indexed with the rung_index
+    # of the receiver particle.
+    gravity_factors = G_Newton*receiver.mass*supplier.mass*ᔑdt[
+        'a**(-3*w_eff₀-3*w_eff₁-1)', receiver.name, supplier.name]
     # Loop over all (receiver, supplier) particle pairs (i, j)
     interaction_name = 'gravity'
-    for i, j, x_ji, y_ji, z_ji in particle_particle(
-        receiver, supplier, tile_indices_receiver, tile_indices_supplier,
-        rank_supplier, interaction_name,
+    for i, j, rung_index_r, rung_index_s, x_ji, y_ji, z_ji, apply_to_i, apply_to_j in particle_particle(
+        receiver, supplier, pairing_level,
+        tile_indices_receiver, tile_indices_supplier,
+        rank_supplier, interaction_name, only_supply,
     ):
         # The direct force on particle i from particle j
-        r3 = (x_ji**2 + y_ji**2 + z_ji**2 + ℝ[(0.5*(softening_r + softening_s))**2])**1.5
+        r3 = (x_ji**2 + y_ji**2 + z_ji**2
+            + ℝ[(0.5*(receiver.softening_length + supplier.softening_length))**2]
+        )**1.5
         forcex_ij = x_ji*ℝ[-1/r3]
         forcey_ij = y_ji*ℝ[-1/r3]
         forcez_ij = z_ji*ℝ[-1/r3]
-        # Convert force on particle i from particle j to
-        # momentum change of partcicle i due to particle j.
-        # This looks like
-        #   Δmom = force*G*mass_r*mass_s/a.
-        # In the general case of decaying particles,
-        # the mass of each receiver particle is
-        #   mass_r(a) = receiver.mass*a**(-3*receiver.w_eff(a)),
-        # and likewise for the supplier particles. Below we
-        # integrate over the entire time dependence.
-        Δmomx_ij = forcex_ij*ℝ[G_Newton*mass_r*mass_s
-            *ᔑdt['a**(-3*w_eff₀-3*w_eff₁-1)', receiver.name, supplier.name]]
-        Δmomy_ij = forcey_ij*ℝ[G_Newton*mass_r*mass_s
-            *ᔑdt['a**(-3*w_eff₀-3*w_eff₁-1)', receiver.name, supplier.name]]
-        Δmomz_ij = forcez_ij*ℝ[G_Newton*mass_r*mass_s
-            *ᔑdt['a**(-3*w_eff₀-3*w_eff₁-1)', receiver.name, supplier.name]]
-        # Apply momentum change to particle i
-        # of the receiver.
-        momx_r[i] += Δmomx_ij
-        momy_r[i] += Δmomy_ij
-        momz_r[i] += Δmomz_ij
+        # Compute and apply momentum change
+        # to particle i due to particle j.
+        if apply_to_i:
+            gravity_factor = gravity_factors[rung_index_r]
+            momx_r[i] += forcex_ij*gravity_factor
+            momy_r[i] += forcey_ij*gravity_factor
+            momz_r[i] += forcez_ij*gravity_factor
         # Apply or save the momentum change of particle j
         # of the supplier (the external component).
         with unswitch:
@@ -883,15 +943,19 @@ def gravity_pairwise_nonperiodic(
                 # This interaction is exlusively within the
                 # local domain. Apply momentum changes
                 # directly to particle j.
-                momx_s[j] -= Δmomx_ij
-                momy_s[j] -= Δmomy_ij
-                momz_s[j] -= Δmomz_ij
+                if apply_to_j:
+                    gravity_factor = gravity_factors[rung_index_s]
+                    momx_s[j] -= forcex_ij*gravity_factor
+                    momy_s[j] -= forcey_ij*gravity_factor
+                    momz_s[j] -= forcez_ij*gravity_factor
             elif 𝔹[not only_supply]:
                 # Add momentum change to the external
                 # Δmom buffers of the supplier.
-                Δmomx_s[j] -= Δmomx_ij
-                Δmomy_s[j] -= Δmomy_ij
-                Δmomz_s[j] -= Δmomz_ij
+                if apply_to_j:
+                    gravity_factor = gravity_factors[rung_index_s]
+                    Δmomx_s[j] -= forcex_ij*gravity_factor
+                    Δmomy_s[j] -= forcey_ij*gravity_factor
+                    Δmomz_s[j] -= forcez_ij*gravity_factor
 
 # Function implementing the gravitational potential (in Fouier space).
 # Here k2 = k² is the squared magnitude of the wave vector,

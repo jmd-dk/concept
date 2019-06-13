@@ -439,37 +439,51 @@ class Tiling:
     # Initialization method
     @cython.header(
         # Arguments
+        tiling_name=str,
         component='Component',
         shape=object,  # sequence of length 3 or int-like
         extent='double[::1]',
-        initial_tile_size='Py_ssize_t',
+        initial_rung_size=object,  # sequence of length N_rungs or int-like
         # Locals
         dim='int',
         i='Py_ssize_t',
+        initial_rung_sizes='Py_ssize_t[::1]',
         j='Py_ssize_t',
         k='Py_ssize_t',
-        tile='Py_ssize_t*',
+        rung_index='Py_ssize_t',
+        tile='Py_ssize_t**',
         tile_index='Py_ssize_t',
         tile_index3D='Py_ssize_t[::1]',
+        rung='Py_ssize_t*',
+        rungs_sizes='Py_ssize_t*',
+        rungs_N='Py_ssize_t*',
     )
-    def __init__(self, component, shape, extent, initial_tile_size=0):
+    def __init__(self, tiling_name, component, shape, extent, initial_rung_size=0):
         # The triple quoted string below serves as the type declaration
         # for the data attributes of the Tiling type.
         # It will get picked up by the pyxpp script
         # and indluded in the .pxd file.
         """
+        str                   name
+        bint                  is_trivial
         Component             component
         Py_ssize_t[::1]       shape
         Py_ssize_t            size
         Py_ssize_t[:, :, ::1] layout
         Py_ssize_t[:, ::1]    layout_1Dto3D
-        Py_ssize_t**          tiles
-        Py_ssize_t*           tiles_sizes
-        Py_ssize_t*           tiles_N
+        Py_ssize_t***         tiles
+        Py_ssize_t**          tiles_rungs_N
+        Py_ssize_t**          tiles_rungs_sizes
+        unsigned char*        contain_particles
         double[::1]           location
         double[::1]           extent
         double[::1]           tile_extent
         """
+        # Remember the name of this tiling
+        self.name = tiling_name
+        # The tiling with the name 'trivial' is special.
+        # Note whether this tiling is the trivial tiling.
+        self.is_trivial = (self.name == 'trivial')
         # A separate Tiling instance should be used for each component
         self.component = component
         # The shape of this tiling.
@@ -502,22 +516,61 @@ class Tiling:
                     tile_index3D[0] = i
                     tile_index3D[1] = j
                     tile_index3D[2] = k
-        # The tiles themselves. This is a double pointer indexed using
-        # tiles[tile_index][tile_particle_index] -> particle_index,
-        # with particle_index used to directly index
-        # e.g. Component.posx. A tile is then just a
-        # pointer tiles[tile_index], itself storing particle indices.
-        # Each tile also have an allocation and occupation size,
-        # denoted by tiles_sizes[tile_index] and
-        # tiles_N[tile_index], respectively.
-        self.tiles       = malloc(self.size*sizeof('Py_ssize_t*'))
-        self.tiles_sizes = malloc(self.size*sizeof('Py_ssize_t'))
-        self.tiles_N     = malloc(self.size*sizeof('Py_ssize_t'))
+        # Create array of initial rung sizes. If the passed
+        # initial_rung_size is a single number, this will be used for
+        # all rungs.
+        initial_rung_size = any2list(initial_rung_size)
+        if len(initial_rung_size) == 1:
+            initial_rung_size *= N_rungs
+        elif len(initial_rung_size) != N_rungs:
+            abort(
+                f'A Tiling with initial rung sizes of {initial_rung_size} is about '
+                f'to be initialized, but we need one size for each of the {N_rungs} rungs.'
+            )
+        initial_rung_sizes = asarray(initial_rung_size, dtype=C2np['Py_ssize_t'])
+        # The tiles themselves. This is a triple pointer,
+        # indexed in the following way:
+        # tile = tiles[tile_index],
+        # rung = tile[rung_index],
+        # particle_index = rung[rung_particle_index],
+        # where particle_index index directly into e.g. Component.posx.
+        # The number of tiles is fixed for any given tiling,
+        # and the number of rungs is always given by N_rungs.
+        # The number of particles within a rung is not constant,
+        # however, and so we additionally need to keep track of the
+        # allocation and occupation size of each rung.
+        # These are denoted rungs_sizes and rungs_N, and are similarly
+        # index as
+        # rungs_sizes = tiles_rungs_sizes[tile_index],
+        # rung_size = rungs_sizes[rung_index],
+        # and
+        # rungs_N = tiles_rungs_N[tile_index],
+        # rung_N = rungs_N[rung_index].
+        # Thus, rung_particle_index goes from 0 to rung_N - 1.
+        # We furthermore have the contain_particles array, which
+        # indicate the content of a given tile:
+        # contain_particles[tile_index] == 0 -> No particles at all
+        # contain_particles[tile_index] == 1 -> Only inactive particles
+        # contain_particles[tile_index] == 2 -> Active particles
+        self.tiles             = malloc(self.size*sizeof('Py_ssize_t**'))
+        self.tiles_rungs_sizes = malloc(self.size*sizeof('Py_ssize_t*'))
+        self.tiles_rungs_N     = malloc(self.size*sizeof('Py_ssize_t*'))
+        self.contain_particles = malloc(self.size*sizeof('unsigned char'))
         for tile_index in range(self.size):
-            tile = malloc(initial_tile_size*sizeof('Py_ssize_t'))
-            self.tiles      [tile_index] = tile
-            self.tiles_sizes[tile_index] = initial_tile_size
-            self.tiles_N    [tile_index] = 0
+            tile = malloc(N_rungs*sizeof('Py_ssize_t*'))
+            self.tiles[tile_index] = tile
+            for rung_index in range(N_rungs):
+                rung = malloc(initial_rung_sizes[rung_index]*sizeof('Py_ssize_t'))
+                tile[rung_index] = rung
+            rungs_sizes = malloc(N_rungs*sizeof('Py_ssize_t'))
+            self.tiles_rungs_sizes[tile_index] = rungs_sizes
+            for rung_index in range(N_rungs):
+                rungs_sizes[rung_index] = initial_rung_sizes[rung_index]
+            rungs_N = malloc(N_rungs*sizeof('Py_ssize_t'))
+            self.tiles_rungs_N[tile_index] = rungs_N
+            for rung_index in range(N_rungs):
+                rungs_N[rung_index] = 0
+            self.contain_particles[tile_index] = 0
         # When sorting particles into tiles, we need to know the spatial
         # location of each tile. For this, we need the position of the
         # beginning of the tiling (the left, backward, lower corner of
@@ -531,26 +584,31 @@ class Tiling:
             self.tile_extent[dim] = self.extent[dim]/self.shape[dim]
         self.location = zeros(3, dtype=C2np['double'])
 
-    # Method for resizing a given tile.
-    # If no tile_size is given, the size of the tile
-    # will be increased by a factor tile_growth.
+    # Method for resizing a given rung within a given tile.
+    # If no rung_size is given, the size of the rung
+    # will be increased by a factor rung_growth.
     @cython.header(
         # Arguments
         tile_index='Py_ssize_t',
-        tile_size='Py_ssize_t',
+        rung_index='Py_ssize_t',
+        rung_size='Py_ssize_t',
         # Locals
-        tile='Py_ssize_t*',
-        tile_growth='double',
+        rung='Py_ssize_t*',
+        rung_growth='double',
+        rungs_sizes='Py_ssize_t*',
+        tile='Py_ssize_t**',
         returns='void',
     )
-    def resize(self, tile_index, tile_size=-1):
-        tile = self.tiles[tile_index]
-        if tile_size == -1:
-            tile_growth = 1.1
-            tile_size = cast(tile_growth*self.tiles_sizes[tile_index], 'Py_ssize_t') + 1
-        tile = realloc(tile, tile_size*sizeof('Py_ssize_t'))
-        self.tiles      [tile_index] = tile
-        self.tiles_sizes[tile_index] = tile_size
+    def resize(self, tile_index, rung_index, rung_size=-1):
+        tile        = self.tiles            [tile_index]
+        rungs_sizes = self.tiles_rungs_sizes[tile_index]
+        rung = tile[rung_index]
+        if rung_size == -1:
+            rung_growth = 1.1
+            rung_size = cast(rung_growth*rungs_sizes[rung_index], 'Py_ssize_t') + 1
+        rung = realloc(rung, rung_size*sizeof('Py_ssize_t'))
+        tile       [rung_index] = rung
+        rungs_sizes[rung_index] = rung_size
 
     # Method for spatially relocating the tiling
     @cython.header(
@@ -586,72 +644,136 @@ class Tiling:
         coarse_tiling='Tiling',
         coarse_tile_index='Py_ssize_t',
         # Locals
-        coarse_tile='Py_ssize_t*',
-        coarse_tile_N='Py_ssize_t',
+        coarse_rung='Py_ssize_t*',
+        coarse_rung_N='Py_ssize_t',
+        coarse_rung_index='Py_ssize_t',
+        coarse_rung_particle_index='Py_ssize_t',
+        coarse_rungs_N='Py_ssize_t*',
+        coarse_tile='Py_ssize_t**',
+        contain_particles='unsigned char*',
+        contains='unsigned char',
         i='Py_ssize_t',
         j='Py_ssize_t',
         k='Py_ssize_t',
         layout='Py_ssize_t[:, :, ::1]',
+        lowest_active_rung='Py_ssize_t',
         particle_index='Py_ssize_t',
         posx='double*',
         posy='double*',
         posz='double*',
+        rung='Py_ssize_t*',
+        rung_N='Py_ssize_t',
+        rung_index='Py_ssize_t',
+        rung_indices='Py_ssize_t*',
+        rungs_N='Py_ssize_t*',
         tile_index='Py_ssize_t',
-        tile_N='Py_ssize_t',
-        tiles='Py_ssize_t**',
-        tiles_N='Py_ssize_t*',
-        tiles_sizes='Py_ssize_t*',
+        tiles='Py_ssize_t***',
+        tiles_rungs_N='Py_ssize_t**',
+        tiles_rungs_sizes='Py_ssize_t**',
         returns='void',
     )
     def sort(self, coarse_tiling=None, coarse_tile_index=-1):
         # Extract variables
-        layout      = self.layout
-        tiles       = self.tiles
-        tiles_sizes = self.tiles_sizes
-        tiles_N     = self.tiles_N
-        posx        = self.component.posx
-        posy        = self.component.posy
-        posz        = self.component.posz
-        # Nullify the particle count in each tile
-        for tile_index in range(self.size):
-            tiles_N[tile_index] = 0
+        layout = self.layout
+        rung_indices       = self.component.rung_indices
+        posx               = self.component.posx
+        posy               = self.component.posy
+        posz               = self.component.posz
+        lowest_active_rung = self.component.lowest_active_rung
+        tiles             = self.tiles
+        tiles_rungs_sizes = self.tiles_rungs_sizes
+        tiles_rungs_N     = self.tiles_rungs_N
+        contain_particles = self.contain_particles
         # If only the particles within a coarser tile should be sorted
         # (into finer tiles), extract this coarse tile.
         if 𝔹[coarse_tiling is not None]:
+            # If this is the trivial tiling, the only allowed coarse
+            # tiling is itself. It is thus already sorted.
+            if self.is_trivial:
+                return
             coarse_tile = coarse_tiling.tiles[coarse_tile_index]
-            coarse_tile_N = coarse_tiling.tiles_N[coarse_tile_index]
+            coarse_rungs_N = coarse_tiling.tiles_rungs_N[coarse_tile_index]
+        # Reset the particle count for each rung within every tile
+        for tile_index in range(self.size):
+            rungs_N = tiles_rungs_N[tile_index]
+            for rung_index in range(N_rungs):
+                rungs_N[rung_index] = 0
+        # Reset particle content within each tile
+        for tile_index in range(self.size):
+            contain_particles[tile_index] = 0
         # Place each particle into a tile. If any of the particles
         # are outside of the tiling, this will fail.
-        for particle_index in range(
-            coarse_tile_N if 𝔹[coarse_tiling is not None] else self.component.N_local
-        ):
+        coarse_rung_N = 1  # Needed when not using a coarse tile
+        rung_index = 0     # Needed when not using rungs
+        tile_index = 0     # Used if this is the trivial tiling
+        for particle_index in range(self.component.N_local if coarse_tiling is None else N_rungs):
+            # When a coarse tile is in use, the particle_index
+            # variable is really the rung_index for the coarse tile.
+            # Use it to pick out the coarse rung.
             with unswitch:
                 if 𝔹[coarse_tiling is not None]:
-                    particle_index = coarse_tile[particle_index]
-            # Determine the tile within which this particle is located
-            i = cast((posx[particle_index] - ℝ[self.location[0]])/ℝ[self.tile_extent[0]],
-                'Py_ssize_t')
-            j = cast((posy[particle_index] - ℝ[self.location[1]])/ℝ[self.tile_extent[1]],
-                'Py_ssize_t')
-            k = cast((posz[particle_index] - ℝ[self.location[2]])/ℝ[self.tile_extent[2]],
-                'Py_ssize_t')
-            tile_index = layout[i, j, k]
-            # Resize this tile if necessary
-            tile_N = tiles_N[tile_index]
-            if tile_N == self.tiles_sizes[tile_index]:
-                self.resize(tile_index)
-            # Add this particle to the tile
-            tiles[tile_index][tile_N] = particle_index
-            tiles_N[tile_index] += 1
-
+                    coarse_rung_index = particle_index
+                    coarse_rung   = coarse_tile   [coarse_rung_index]
+                    coarse_rung_N = coarse_rungs_N[coarse_rung_index]
+            # Loop over the particles in this coarse rung. When not
+            # using a coarse tile, this is a one-iteration loop.
+            for coarse_rung_particle_index in range(coarse_rung_N):
+                with unswitch:
+                    if 𝔹[coarse_tiling is not None]:
+                        particle_index = coarse_rung[coarse_rung_particle_index]
+                # Determine the tile within which this particle
+                # is located. For the trivial tiling,
+                # we already know the answer.
+                with unswitch:
+                    if not self.is_trivial:
+                        i = cast((posx[particle_index] - ℝ[self.location[0]])
+                            /ℝ[self.tile_extent[0]], 'Py_ssize_t')
+                        j = cast((posy[particle_index] - ℝ[self.location[1]])
+                            /ℝ[self.tile_extent[1]], 'Py_ssize_t')
+                        k = cast((posz[particle_index] - ℝ[self.location[2]])
+                            /ℝ[self.tile_extent[2]], 'Py_ssize_t')
+                        tile_index = layout[i, j, k]
+                # Get the index of the rung for this particle
+                with unswitch:
+                    if self.component.use_rungs:
+                        rung_index = rung_indices[particle_index]
+                # Resize this rung within the tile, if needed
+                rungs_N = tiles_rungs_N[tile_index]
+                rung_N = rungs_N[rung_index]
+                if rung_N == tiles_rungs_sizes[tile_index][rung_index]:
+                    self.resize(tile_index, rung_index)
+                # Add this particle to the rung within the tile
+                rung = tiles[tile_index][rung_index]
+                rung[rung_N] = particle_index
+                rungs_N[rung_index] += 1
+                # Update tile content
+                if rung_index < lowest_active_rung:
+                    # This particle sits on an inactive rung
+                    contains = 1
+                else:
+                    # This particle sits on an active rung
+                    contains = 2
+                if contain_particles[tile_index] < contains:
+                    contain_particles[tile_index] = contains
     # This method is automaticlly called when a Tiling instance
     # is garbage collected. All manually allocated memory is freed.
     def __dealloc__(self):
+        cython.declare(
+            rung_index='Py_ssize_t',
+            tile='Py_ssize_t**',
+            tile_index='Py_ssize_t',
+        )
         for tile_index in range(self.size):
-            free(self.tiles[tile_index])
+            tile = self.tiles[tile_index]
+            for rung_index in range(N_rungs):
+                free(tile[rung_index])
+            free(tile)
+            free(self.tiles_rungs_sizes[tile_index])
+            free(self.tiles_rungs_N[tile_index])
         free(self.tiles)
-        free(self.tiles_sizes)
-        free(self.tiles_N)
+        free(self.tiles_rungs_sizes)
+        free(self.tiles_rungs_N)
+        free(self.contain_particles)
 
     # String representation
     def __repr__(self):
@@ -795,6 +917,14 @@ class Component:
         public double[::1] Δmomz_mv
         public list Δpos_mv
         public list Δmom_mv
+        # Short-range rungs
+        bint use_rungs
+        Py_ssize_t lowest_active_rung
+        Py_ssize_t lowest_populated_rung
+        Py_ssize_t highest_populated_rung
+        Py_ssize_t* rung_indices
+        Py_ssize_t[::1] rung_indices_mv
+        Py_ssize_t* rungs_N
         # Dict used for storing Tiling instances
         public dict tilings
         # Fluid attributes
@@ -1147,6 +1277,21 @@ class Component:
         self.Δmom[2] = self.Δmomz
         self.Δpos_mv = [self.Δposx_mv, self.Δposy_mv, self.Δposz_mv]
         self.Δmom_mv = [self.Δmomx_mv, self.Δmomy_mv, self.Δmomz_mv]
+        # Short-range rungs
+        self.use_rungs = bool(
+            self.representation == 'particles' and ({'pp', 'p3m'} & set(self.forces.values()))
+        )
+        self.lowest_active_rung = 0
+        self.lowest_populated_rung = 0
+        self.highest_populated_rung = 0
+        rung_indices_N = self.N_local if self.use_rungs else 1
+        self.rung_indices = malloc(rung_indices_N*sizeof('Py_ssize_t'))
+        self.rung_indices_mv = cast(self.rung_indices, 'Py_ssize_t[:rung_indices_N]')
+        for i in range(rung_indices_N):
+            self.rung_indices[i] = 0
+        self.rungs_N = malloc(N_rungs*sizeof('Py_ssize_t'))
+        for i in range(N_rungs):
+            self.rungs_N[i] = 0
         # Dict used for storing Tiling instances
         self.tilings = {}
         # Fluid attributes
@@ -1598,15 +1743,17 @@ class Component:
 
     # This method will grow/shrink the data attributes.
     # Note that it will update N_allocated but not N_local.
-    @cython.pheader(# Arguments
-                    size_or_shape_nopseudo_noghosts=object,  # Py_ssize_t or tuple
-                    # Locals
-                    fluidscalar='FluidScalar',
-                    s='Py_ssize_t',
-                    shape_nopseudo_noghosts=tuple,
-                    size='Py_ssize_t',
-                    s_old='Py_ssize_t',
-                    )
+    @cython.pheader(
+        # Arguments
+        size_or_shape_nopseudo_noghosts=object,  # Py_ssize_t or tuple
+        # Locals
+        fluidscalar='FluidScalar',
+        i='Py_ssize_t',
+        s='Py_ssize_t',
+        shape_nopseudo_noghosts=tuple,
+        size='Py_ssize_t',
+        s_old='Py_ssize_t',
+    )
     def resize(self, size_or_shape_nopseudo_noghosts):
         if self.representation == 'particles':
             size = size_or_shape_nopseudo_noghosts
@@ -1656,6 +1803,16 @@ class Component:
                 self.Δmom_mv = [self.Δmomx_mv, self.Δmomy_mv, self.Δmomz_mv]
                 # Nullify the newly allocated Δ buffer
                 self.nullify_Δ()
+                # Reallocate rung indices, if rungs are in use
+                if self.use_rungs:
+                    self.rung_indices = realloc(
+                        self.rung_indices,
+                        self.N_allocated*sizeof('Py_ssize_t'),
+                    )
+                    # New particles default to rung 0
+                    for i in range(self.rung_indices_mv.shape[0], self.N_allocated):
+                        self.rung_indices[i] = 0
+                    self.rung_indices_mv = cast(self.rung_indices, 'Py_ssize_t[:self.N_allocated]')
         elif self.representation == 'fluid':
             shape_nopseudo_noghosts = size_or_shape_nopseudo_noghosts
             # The allocated shape of the fluid grids are 5 points
@@ -2073,17 +2230,27 @@ class Component:
     )
     def drift(self, ᔑdt, a_next=-1):
         if self.representation == 'particles':
-            masterprint(f'Drifting {self.name} ...')
             # Update positions
             for dim in range(3):
                 pos_dim, mom_dim = self.pos[dim], self.mom[dim]
                 for i in range(self.N_local):
+                    # The factor a**(3*w_eff) is included below to
+                    # account for decaying particles, for which the mass
+                    # is given by a**(-3*w_eff)*self.mass.
+                    # We should not include this time-varying factor
+                    # inside the integral, as the reciprocal factor
+                    # hides inside the momentum (as it is proportional
+                    # to the mass). Furthermore we should not evaluate
+                    # this factor at different values dependent on which
+                    # short-range rung is being drifted, as the factor
+                    # inside the momentum is only applied once
+                    # for every base time step (i.e. it is considered
+                    # a long-range "force" / source term).
                     pos_dim[i] += mom_dim[i]*ℝ[
                         ᔑdt['a**(-2)']*universals.a**(3*self.w_eff(a=universals.a))/self.mass
                     ]
                     # Toroidal boundaries
                     pos_dim[i] = mod(pos_dim[i], boxsize)
-            masterprint('done')
             # Some particles may have drifted out of the local domain.
             # Exchange particles to the correct processes.
             exchange(self)
@@ -2125,11 +2292,96 @@ class Component:
                     f'the "{scheme}" scheme, which is not implemented.'
                 )
 
+    # Method for assigning a rung index (0 to N_rungs - 1)
+    # to every local particle, if this component uses rungs.
+    @cython.header(
+        # Arguments
+        Δt='double',
+        # Locals
+        a='double',
+        fac_shortrange='double',
+        i='Py_ssize_t',
+        mom2='double',
+        momx='double*',
+        momy='double*',
+        momz='double*',
+        rung_index='Py_ssize_t',
+        rung_indices='Py_ssize_t*',
+        rungs_N='Py_ssize_t*',
+        v2='double',
+        returns='void',
+    )
+    def assign_rungs(self, Δt):
+        # When not using rungs, all particles occupy rung 0.
+        # The rung indices themselves are not needed.
+        if not self.use_rungs:
+            self.rungs_N[0] = self.N_local
+            return
+        a = universals.a
+        # Extract variables
+        momx         = self.momx
+        momy         = self.momy
+        momz         = self.momz
+        rung_indices = self.rung_indices
+        rungs_N      = self.rungs_N
+        # This factor determines how far a particle is allowed to drift
+        # in a single short-range drift operation, in units of its
+        # softening length.
+        fac_shortrange = 1*Δt_factor
+        # Reset the particle count for each rung
+        for rung_index in range(N_rungs):
+            rungs_N[rung_index] = 0
+        # Assign a rung to each particle
+        for i in range(self.N_local):
+            # Get the (squared) velocity in comoving units
+            mom2 = momx[i]**2 + momy[i]**2 + momz[i]**2
+            v2 = mom2*ℝ[1/(a**(2 - 3*self.w_eff(a=a))*self.mass)**2]
+            # Determine the rung. This is an integer between 0
+            # (corresponding to the base time step size Δt)
+            # and N_rungs - 1. Each rung uses half the time step size
+            # of the previous rung.
+            if v2 <= ℝ[(fac_shortrange*self.softening_length/Δt)**2]:
+                rung_index = 0
+            else:
+                rung_index = cast(
+                    0.5*log2(v2*ℝ[(Δt/(fac_shortrange*self.softening_length))**2]),
+                    'Py_ssize_t',
+                ) + 1
+                if rung_index > ℤ[N_rungs - 1]:
+                    rung_index = ℤ[N_rungs - 1]
+            # Register this rung with the particle
+            rung_indices[i] = rung_index
+            rungs_N[rung_index] += 1
+        # Flag the lowest and highest populated rungs
+        self.set_lowest_highest_populated_rung()
+
+    # Method for setting the (local) lowest and highest populated rung
+    @cython.header(
+        # Locals
+        highest_populated_rung='Py_ssize_t',
+        lowest_populated_rung='Py_ssize_t',
+        rung_index='Py_ssize_t',
+        returns='void',
+    )
+    def set_lowest_highest_populated_rung(self):
+        lowest_populated_rung = ℤ[N_rungs - 1]
+        highest_populated_rung = 0
+        for rung_index in range(N_rungs):
+            if self.rungs_N[rung_index] > 0:
+                lowest_populated_rung = rung_index
+                break
+        for rung_index in range(N_rungs - 1, -1, -1):
+            if self.rungs_N[rung_index] > 0:
+                highest_populated_rung = rung_index
+                break
+        self.lowest_populated_rung = lowest_populated_rung
+        self.highest_populated_rung = highest_populated_rung
+
     # Method for initializing a tiling
     @cython.header(
         # Arguments
         tiling_name=str,
-        initial_tile_size='Py_ssize_t',
+        initial_rung_size=object,  # sequence of length N_rungs or int-like
         # Locals
         coarse_tiling='Tiling',
         extent='double[::1]',
@@ -2139,9 +2391,33 @@ class Component:
         tiling='Tiling',
         returns='Tiling',
     )
-    def init_tiling(self, tiling_name, initial_tile_size=-1):
+    def init_tiling(self, tiling_name, initial_rung_size=-1):
+        # Do nothing if the tiling is already initialized
+        # on this component.
+        tiling = self.tilings.get(tiling_name)
+        if tiling is not None:
+            return tiling
         # Different tilings specified below
-        if tiling_name == 'gravity (tiles)':
+        if tiling_name == 'trivial':
+            # This tiling spans the box using a single tile,
+            # resulting in no actual tiling. It is useful since the
+            # rung-ordering of particles is done at the tile level.
+            tiling_names.add(tiling_name)
+            shape = 1
+            # The rungs within the tile start out with half
+            # of the mean required memory per rung.
+            if initial_rung_size == -1:
+                initial_rung_size = [
+                    self.rungs_N[rung_index]//2
+                    for rung_index in range(N_rungs)
+                ]
+            # The extent of the entire tiling,
+            # i.e. the extent of the box.
+            extent = asarray([boxsize]*3, dtype=C2np['double'])
+            # The position of the beginning of the tiling,
+            # i.e. the left, backward, lower corner of the box.
+            location = zeros(3, dtype=C2np['double'])
+        elif tiling_name == 'gravity (tiles)':
             # This tiling is used for the P³M method for gravity.
             # The tile decomposition on a domain will have a shape
             # of size×size×size, with size determined from the
@@ -2165,13 +2441,16 @@ class Component:
                         'It may also help to choose a lower and/or cubic number of processes.'
                     )
                 abort(' '.join(message))
-            # The tiles start out with half of the mean
-            # required memory per tile.
-            if initial_tile_size == -1:
-                initial_tile_size = cast(self.N_local//(2*size**3), 'Py_ssize_t')
+            # The rungs within each tile start out with half
+            # of the mean required memory per rung.
+            if initial_rung_size == -1:
+                initial_rung_size = [
+                    self.rungs_N[rung_index]//(2*size**3)
+                    for rung_index in range(N_rungs)
+                ]
             # The extent of the entire tiling,
             # i.e. the extent of the domain.
-            extent = asarray((domain_size_x , domain_size_y , domain_size_z ),
+            extent = asarray((domain_size_x, domain_size_y, domain_size_z),
                 dtype=C2np['double'])
             # The position of the beginning of the tiling,
             # i.e. the left, backward, lower corner of this domain.
@@ -2180,8 +2459,10 @@ class Component:
         elif tiling_name == 'gravity (subtiles)':
             shape = shortrange_params['gravity']['subtiling']
             if tiling_name not in tiling_names:
-                masterprint('Gravitational subtile decomposition: {}'
-                    .format('×'.join([str(size) for size in shape])))
+                masterprint(
+                    f'Gravitational subtile decomposition: '
+                    f'{shape[0]}×{shape[1]}×{shape[2]}'
+                )
                 tiling_names.add(tiling_name)
             # The entire (sub)tiling currently being initialized lives
             # within one tile of the "gravity (tiles)" tiling.
@@ -2192,10 +2473,13 @@ class Component:
                     'Cannot initialize the "gravity (subtiles)" tiling '
                     'without first having the "gravity (tiles)" tiling initialized'
                 )
-            # The tiles start out with half of the mean
-            # required memory per tile.
-            if initial_tile_size == -1:
-                initial_tile_size = self.N_local//(2*int(np.prod(coarse_tiling.shape)))
+            # The rungs within each tile start out with half
+            # of the mean required memory per rung.
+            if initial_rung_size == -1:
+                initial_rung_size = [
+                    self.rungs_N[rung_index]//(2*int(np.prod(shape)*np.prod(coarse_tiling.shape)))
+                    for rung_index in range(N_rungs)
+                ]
             # The extent of the entire (sub)tiling,
             # i.e. the extent of a coarse tile.
             extent = coarse_tiling.tile_extent
@@ -2207,9 +2491,9 @@ class Component:
         else:
             abort(f'Tiling with name "{tiling_name}" not implemented in Component.tile_sort()')
         # Instantiate Tiling instance
-        if initial_tile_size == -1:
-            initial_tile_size = 0
-        tiling = Tiling(self, shape, extent, initial_tile_size)
+        if initial_rung_size == -1:
+            initial_rung_size = 0
+        tiling = Tiling(tiling_name, self, shape, extent, initial_rung_size)
         self.tilings[tiling_name] = tiling
         # Relocate the tiling if an initial location has been specified
         if location is not None:
@@ -2282,7 +2566,10 @@ class Component:
         # w_eff = 1/3 != 0 and so we cannot disinguish between changes
         # in mass due to decay of dcdm and due to redshifting.
         a = universals.a
-        mom_decay_factor = a**(3*self.w_eff(a=a))/a_next**(3*self.w_eff(a=a_next))
+        if a_next == -1:
+            mom_decay_factor = 1
+        else:
+            mom_decay_factor = a**(3*self.w_eff(a=a))/a_next**(3*self.w_eff(a=a_next))
         if mom_decay_factor != 1 and 'dcdm' in self.class_species.split('+'):
             # Check that the species of this component are legal
             legal_class_species = {'dcdm', 'cdm', 'b'}
@@ -3179,6 +3466,8 @@ class Component:
         free(self.Δmomx)
         free(self.Δmomy)
         free(self.Δmomz)
+        free(self.rung_indices)
+        free(self.rungs_N)
 
     # String representation
     def __repr__(self):

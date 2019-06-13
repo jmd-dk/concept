@@ -567,14 +567,35 @@ if any(powerspec_times.values()) or special_params.get('special') == 'powerspec'
     j='Py_ssize_t',
     k='Py_ssize_t',
     mom='double*',
+    mom2='double',
+    mom2_max='double',
+    mom2_i='double',
+    momx='double*',
+    momy='double*',
+    momz='double*',
     mom_i='double',
     names=list,
+    previous_result=tuple,
+    v_rms='double',
+    v_max='double',
+    w='double',
     w_eff='double',
     Δdiff='double',
     Δdiff_max='double[::1]',
     Δdiff_max_dim='double',
     Δdiff_max_list=list,
     Δdiff_max_normalized_list=list,
+    J_over_ϱ_plus_𝒫_2_i='double',
+    J_over_ϱ_plus_𝒫_2_max='double',
+    J_over_ϱ_2_i='double',
+    J_over_ϱ_2_max='double',
+    Jx_mv='double[:, :, ::1]',
+    Jx_ptr='double*',
+    Jy_mv='double[:, :, ::1]',
+    Jy_ptr='double*',
+    Jz_mv='double[:, :, ::1]',
+    Jz_ptr='double*',
+    ΣJ_over_ϱ_plus_𝒫_2='double',
     Σmass='double',
     Σmom='double[::1]',
     Σmom_dim='double',
@@ -585,31 +606,187 @@ if any(powerspec_times.values()) or special_params.get('special') == 'powerspec'
     ϱ_arr=object,  # np.ndarray
     ϱ_bar='double',
     ϱ_min='double',
+    ϱ_mv='double[:, :, ::1]',
     ϱ_noghosts='double[:, :, :]',
+    ϱ_ptr='double*',
     σ2mom_dim='double',
     σ2ϱ='double',
     σmom='double[::1]',
     σmom_dim='double',
     σϱ='double',
+    𝒫_mv='double[:, :, ::1]',
+    𝒫_ptr='double*',
     returns=object,  # double or tuple
 )
 def measure(component, quantity):
     """Implemented quantities are:
+    'v_max'
+    'v_rms'
     'momentum'
     'ϱ'              (fluid quantity)
     'mass'           (fluid quantity)
     'discontinuity'  (fluid quantity)
     """
-    # Extract variables
     a = universals.a
+    # Check cache for result
+    previous_result = measurements.get((component, quantity), ())
+    if previous_result and previous_result[0] == a:
+        return previous_result[1]
+    # Extract variables
     N = component.N
     N_elements = component.gridsize**3
     Vcell = boxsize**3/N_elements
-    w_eff = component.w_eff()
+    w     = component.w    (a=a)
+    w_eff = component.w_eff(a=a)
     ϱ = component.ϱ
     ϱ_noghosts = ϱ.grid_noghosts
     # Quantities exhibited by both particle and fluid components
-    if quantity == 'momentum':
+    if quantity == 'v_max':
+        # The propagation speed of information in
+        # comoving coordinates is
+        # v = c*sqrt(w)/a + ẋ, ẋ = dx/dt = u/a,
+        # where u is the peculiar velocity.
+        # For fluids we have
+        # ϱ = a**(3*(1 + w_eff))ρ, J = a**4*(ρ + c⁻²P)u,
+        # and so
+        # u = a**(-4)*J/(ρ + c⁻²P)
+        #   = a**(3*w_eff - 1)*J/(ϱ + c⁻²𝒫),
+        # and then
+        # v = c*sqrt(w)/a + a**(3*w_eff - 2)*J/(ϱ + c⁻²𝒫),
+        # where c*sqrt(w) is an approximation for the local sound speed.
+        # For particles we have w = 0 and ẋ = mom/(a**2*m), and so
+        # v = mom/(a**2*mass).
+        # In the case of decyaing (matter) particles, the mass at time a
+        # is really a**(-3*w_eff)*mass, and so we get
+        # v = mom/(a**(2 - 3*w_eff)*mass)
+        if component.representation == 'particles':
+            mom2_max = 0
+            momx = component.momx
+            momy = component.momy
+            momz = component.momz
+            for i in range(component.N_local):
+                mom2_i = momx[i]**2 + momy[i]**2 + momz[i]**2
+                if mom2_i > mom2_max:
+                    mom2_max = mom2_i
+            mom2_max = allreduce(mom2_max, op=MPI.MAX)
+            v_max = sqrt(mom2_max)/(a**(2 - 3*w_eff)*component.mass)
+        elif component.representation == 'fluid':
+            if (    component.boltzmann_order == -1
+                or (component.boltzmann_order == 0 and component.boltzmann_closure == 'truncate')
+                ):
+                # Without J as a fluid variable, no velocity exists
+                # and so no Courant limit needs to be set.
+                v_max = 0
+            elif component.boltzmann_order == 0 and component.boltzmann_closure == 'class':
+                # With J as a linear fluid variable, we only need to
+                # consider one of its components. Also, the P = wρ
+                # approximation is guaranteed to be enabled.
+                ϱ_ptr  = component.ϱ .grid
+                Jx_ptr = component.Jx.grid
+                J_over_ϱ_2_max = 0
+                for i in range(component.size):
+                    J_over_ϱ_2_i = (Jx_ptr[i]/ϱ_ptr[i])**2
+                    if J_over_ϱ_2_i > J_over_ϱ_2_max:
+                        J_over_ϱ_2_max = J_over_ϱ_2_i
+                J_over_ϱ_2_max = allreduce(J_over_ϱ_2_max, op=MPI.MAX)
+                J_over_ϱ_plus_𝒫_2_max = 3*J_over_ϱ_2_max/(1 + w)**2
+                v_max = a**(3*w_eff - 2)*sqrt(J_over_ϱ_plus_𝒫_2_max)
+                # Since no non-linear evolution happens for J, the Euler
+                # equation and hence the gradient of the pressure will
+                # never be computed. This means that sound waves
+                # cannot form, and so we do not need to take the sound
+                # speed into account.
+            else:
+                # J is non-linear
+                ϱ_ptr  = component.ϱ .grid
+                𝒫_ptr  = component.𝒫 .grid
+                Jx_ptr = component.Jx.grid
+                Jy_ptr = component.Jy.grid
+                Jz_ptr = component.Jz.grid
+                J_over_ϱ_plus_𝒫_2_max = 0
+                for i in range(component.size):
+                    J_over_ϱ_plus_𝒫_2_i = (
+                        (Jx_ptr[i]**2 + Jy_ptr[i]**2 + Jz_ptr[i]**2)
+                        /(ϱ_ptr[i] + ℝ[light_speed**(-2)]*𝒫_ptr[i])**2
+                    )
+                    if J_over_ϱ_plus_𝒫_2_i > J_over_ϱ_plus_𝒫_2_max:
+                        J_over_ϱ_plus_𝒫_2_max = J_over_ϱ_plus_𝒫_2_i
+                J_over_ϱ_plus_𝒫_2_max = allreduce(J_over_ϱ_plus_𝒫_2_max, op=MPI.MAX)
+                v_max = a**(3*w_eff - 2)*sqrt(J_over_ϱ_plus_𝒫_2_max)
+                # Add the sound speed. When the P=wρ approxiamation is
+                # False, the sound speed is non-global and given by the
+                # square root of δ𝒫/δϱ. However, constructing δ𝒫/δϱ
+                # locally from the ϱ and 𝒫 grids leads to large
+                # numerical errors. Regardless of whether the P=wρ
+                # approximation is used or not, we simply use the
+                # global sound speed.
+                v_max += light_speed*sqrt(w)/a
+        # Store result in cache and return
+        measurements[component, quantity] = (a, v_max)
+        return v_max
+    elif quantity == 'v_rms':
+        if component.representation == 'particles':
+            mom2 = 0
+            momx = component.momx
+            momy = component.momy
+            momz = component.momz
+            for i in range(component.N_local):
+                mom2 += momx[i]**2 + momy[i]**2 + momz[i]**2
+            mom2 = allreduce(mom2, op=MPI.SUM)
+            v_rms = sqrt(mom2/component.N)/(a**(2 - 3*component.w_eff(a=a))*component.mass)
+        elif component.representation == 'fluid':
+            if (    component.boltzmann_order == -1
+                or (component.boltzmann_order == 0 and component.boltzmann_closure == 'truncate')
+                ):
+                # Without J as a fluid variable, no velocity exists
+                v_rms = 0
+            elif component.boltzmann_order == 0 and component.boltzmann_closure == 'class':
+                # With J as a linear fluid variable, we only need to
+                # consider one of its components. Also, the P = wρ
+                # approximation is guaranteed to be enabled.
+                ϱ_mv  = component.ϱ .grid_mv
+                Jx_mv = component.Jx.grid_mv
+                ΣJ_over_ϱ_plus_𝒫_2 = 0
+                for         i in range(2, ℤ[component.shape[0] - 2 - 1]):
+                    for     j in range(2, ℤ[component.shape[1] - 2 - 1]):
+                        for k in range(2, ℤ[component.shape[2] - 2 - 1]):
+                            ΣJ_over_ϱ_plus_𝒫_2 += 3*(Jx_mv[i, j, k]/(ϱ_mv[i, j, k]*(1 + w)))**2
+                ΣJ_over_ϱ_plus_𝒫_2 = allreduce(ΣJ_over_ϱ_plus_𝒫_2, op=MPI.SUM)
+                v_rms = a**(3*w_eff - 2)*sqrt(ΣJ_over_ϱ_plus_𝒫_2/N_elements)
+                # Since no non-linear evolution happens for J, the Euler
+                # equation and hence the gradient of the pressure will
+                # never be computed. This means that sound waves
+                # cannot form, and so we do not need to take the sound
+                # speed into account.
+            else:
+                # J is non-linear
+                ϱ_mv  = component.ϱ .grid_mv
+                𝒫_mv  = component.𝒫 .grid_mv
+                Jx_mv = component.Jx.grid_mv
+                Jy_mv = component.Jy.grid_mv
+                Jz_mv = component.Jz.grid_mv
+                ΣJ_over_ϱ_plus_𝒫_2 = 0
+                for         i in range(2, ℤ[component.shape[0] - 2 - 1]):
+                    for     j in range(2, ℤ[component.shape[1] - 2 - 1]):
+                        for k in range(2, ℤ[component.shape[2] - 2 - 1]):
+                            ΣJ_over_ϱ_plus_𝒫_2 += (
+                                (Jx_mv[i, j, k]**2 + Jy_mv[i, j, k]**2 + Jz_mv[i, j, k]**2)
+                                /(ϱ_mv[i, j, k] + ℝ[light_speed**(-2)]*𝒫_mv[i, j, k])**2
+                            )
+                ΣJ_over_ϱ_plus_𝒫_2 = allreduce(ΣJ_over_ϱ_plus_𝒫_2, op=MPI.SUM)
+                v_rms = a**(3*w_eff - 2)*sqrt(ΣJ_over_ϱ_plus_𝒫_2/N_elements)
+                # Add the sound speed. When the P=wρ approxiamation is
+                # False, the sound speed is non-global and given by the
+                # square root of δ𝒫/δϱ. However, constructing δ𝒫/δϱ
+                # locally from the ϱ and 𝒫 grids leads to large
+                # numerical errors. Regardless of whether the P=wρ
+                # approximation is used or not, we simply use the
+                # global sound speed.
+                v_rms += light_speed*sqrt(w)/a
+        # Store result in cache and return
+        measurements[component, quantity] = (a, v_rms)
+        return v_rms
+    elif quantity == 'momentum':
         Σmom = empty(3, dtype=C2np['double'])
         σmom = empty(3, dtype=C2np['double'])
         if component.representation == 'particles':
@@ -666,6 +843,8 @@ def measure(component, quantity):
                 # Pack results
                 Σmom[dim] = Σmom_dim
                 σmom[dim] = σmom_dim
+        # Store result in cache and return
+        measurements[component, quantity] = (a, (Σmom, σmom))
         return Σmom, σmom
     # Fluid quantities
     elif quantity == 'ϱ':
@@ -699,6 +878,8 @@ def measure(component, quantity):
             σϱ = sqrt(σ2ϱ)
             # Compute minimum value of ϱ
             ϱ_min = allreduce(np.min(ϱ_arr), op=MPI.MIN)
+        # Store result in cache and return
+        measurements[component, quantity] = (a, (ϱ_bar, σϱ, ϱ_min))
         return ϱ_bar, σϱ, ϱ_min
     elif quantity == 'mass':
         if component.representation == 'particles':
@@ -722,6 +903,8 @@ def measure(component, quantity):
             # Σmass = a**(-3*w_eff)*Vcell*Σϱ.
             # Note that the total mass is generally constant.
             Σmass = a**(-3*w_eff)*Vcell*Σϱ
+        # Store result in cache and return
+        measurements[component, quantity] = (a, Σmass)
         return Σmass
     elif quantity == 'discontinuity':
         if component.representation == 'particles':
@@ -788,10 +971,15 @@ def measure(component, quantity):
                                                            ], dtype=C2np['double'],
                                                           )
                                                  )
+        # Store result in cache and return
+        measurements[component, quantity] = (a, (names, Δdiff_max_list, Δdiff_max_normalized_list))
         return names, Δdiff_max_list, Δdiff_max_normalized_list
     elif master:
         abort('The measure function was called with quantity=\'{}\', which is not implemented'
               .format(quantity))
+# Cache used by the measure function
+cython.declare(measurements=dict)
+measurements = {}
 
 # Function for doing debugging analysis
 @cython.header(# Arguments

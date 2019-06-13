@@ -240,27 +240,28 @@ def CIC_scalargrid2coordinates(grid, x, y, z):
 
 # Function for doing lookup in a grid with vector values and
 # CIC-interpolating to specified coordinates
-@cython.header(# Argument
-               grid='double[:, :, :, :]',
-               x='double',
-               y='double',
-               z='double',
-               # Locals
-               Wxl='double',
-               Wxu='double',
-               Wyl='double',
-               Wyu='double',
-               Wzl='double',
-               Wzu='double',
-               dim='int',
-               x_lower='Py_ssize_t',
-               x_upper='Py_ssize_t',
-               y_lower='Py_ssize_t',
-               y_upper='Py_ssize_t',
-               z_lower='Py_ssize_t',
-               z_upper='Py_ssize_t',
-               returns='double*',
-               )
+@cython.header(
+    # Argument
+    grid='double[:, :, :, :]',
+    x='double',
+    y='double',
+    z='double',
+    # Locals
+    Wxl='double',
+    Wxu='double',
+    Wyl='double',
+    Wyu='double',
+    Wzl='double',
+    Wzu='double',
+    dim='int',
+    x_lower='Py_ssize_t',
+    x_upper='Py_ssize_t',
+    y_lower='Py_ssize_t',
+    y_upper='Py_ssize_t',
+    z_lower='Py_ssize_t',
+    z_upper='Py_ssize_t',
+    returns='double*',
+)
 def CIC_vectorgrid2coordinates(grid, x, y, z):
     """This function looks up tabulated vectors in a grid and
     interpolates to (x, y, z) via the cloud in cell (CIC) method.
@@ -310,6 +311,11 @@ def CIC_vectorgrid2coordinates(grid, x, y, z):
                        + grid[x_upper, y_upper, z_lower, dim]*ℝ[Wxu*Wyu]*Wzl
                        + grid[x_upper, y_upper, z_upper, dim]*ℝ[Wxu*Wyu]*Wzu)
     return vector
+# Vector used as the return value
+# of the CIC_vectorgrid2coordinates function.
+cython.declare(vector='double*')
+vector = malloc(3*sizeof('double'))
+
 
 # Function which interpolates one grid onto another grid,
 # optionally multiplying the interpolated values by a factor.

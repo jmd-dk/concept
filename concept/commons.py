@@ -373,6 +373,9 @@ for func in ('tight_layout', 'savefig'):
 #############################
 # Print and abort functions #
 #############################
+# The ANSI ESC character used for ANSI/VT100 control sequences
+cython.declare(ANSI_ESC=str)
+ANSI_ESC = '\x1b'
 # Function which takes in a previously saved time as input
 # and returns the time which has elapsed since then, nicely formatted.
 def time_since(initial_time):
@@ -421,7 +424,7 @@ def fancyprint(
     ensure_newline_after_ellipsis=True,
     is_warning=False,
     **kwargs,
-    ):
+):
     # If called without any arguments, print the empty string
     if not args:
         args = ('', )
@@ -447,21 +450,24 @@ def fancyprint(
         N_args_usual = 2 if leftover_indentation else 1
         indent -= 4
         progressprint['indentation'] -= 4
-        text = ' done after {}'.format(time_since(progressprint['time'].pop()))
+        text = ' {{}}({}){{}}'.format(time_since(progressprint['time'].pop()))
+        text_length = len(text) - 4
+        text = text.format(f'{ANSI_ESC}[37m', f'{ANSI_ESC}[0m')
         if len(args) > N_args_usual:
             text += sep + sep.join([str(arg) for arg in args[N_args_usual:]])
         # Convert to proper Unicode characters
         text = unicode(text)
         # The progressprint['maxintervallength'] variable stores the
         # length of the longest interval-message so far.
-        if len(text) > progressprint['maxintervallength']:
-            progressprint['maxintervallength'] = len(text)
+        if text_length > progressprint['maxintervallength']:
+            progressprint['maxintervallength'] = text_length
         # Prepend the text with whitespace so that all future
         # interval-messages lign up to the right.
-        text = ' '*(+ terminal_width
-                    - progressprint['length']
-                    - progressprint['maxintervallength']
-                    ) + text
+        text = ' '*(
+            + terminal_width
+            - progressprint['length']
+            - progressprint['maxintervallength']
+        ) + text
         # Apply supplied function to text
         if fun:
             text = fun(text)
@@ -601,7 +607,7 @@ def fancyprint(
         # Print out message
         print(text, flush=True, end='', **kwargs)
 progressprint = {
-    'maxintervallength'              : len(' done after ??? ms'),
+    'maxintervallength'              : len(' (??? ms)'),
     'time'                           : [],
     'indentation'                    : 0,
     'previous'                       : '',
@@ -650,12 +656,19 @@ def masterwarn(*args, **kwargs):
 # exiting, call this function with exit_code=0 to shutdown a
 # successfull CO𝘕CEPT run.
 def abort(*args, exit_code=1, prefix='Aborting', **kwargs):
-    # Print out final messages
+    # Print out message on error
     if exit_code != 0:
+        # In an effort to prevent the error message from being printed
+        # by multiple processes, all slave processes sleep a little.
+        # If the master process is also aborting, this will fire the
+        # comm.Abort() before the slaves wake up, prohibiting the same
+        # error message from appearing many times.
+        if not master:
+            sleep(1)
         warn(*args, prefix=prefix, **kwargs)
         sleep(0.1)
     if master:
-        masterprint('Total execution time: {}'.format(time_since(start_time)), **kwargs)
+        masterprint(f'Total execution time: {time_since(start_time)}', **kwargs)
     # Ensure that every printed message is flushed
     sys.stderr.flush()
     sys.stdout.flush()
@@ -1855,6 +1868,7 @@ cython.declare(
     select_softening_length=dict,
     # Simlation options
     Δt_factor='double',
+    N_rungs='Py_ssize_t',
     fftw_wisdom_rigor=str,
     fftw_wisdom_reuse='bint',
     random_seed='unsigned long int',
@@ -2146,6 +2160,7 @@ select_softening_length.setdefault('fluid', 0)
 user_params['select_softening_length'] = select_softening_length
 # Simulation options
 Δt_factor = float(user_params.get('Δt_factor', 1))
+N_rungs = int(user_params.get('N_rungs', 1))
 fftw_wisdom_rigor = user_params.get('fftw_wisdom_rigor', 'estimate').lower()
 user_params['fftw_wisdom_rigor'] = fftw_wisdom_rigor
 fftw_wisdom_reuse = bool(user_params.get('fftw_wisdom_reuse', True))
@@ -2337,21 +2352,6 @@ user_params['Δt_autosave'] = Δt_autosave
 
 
 
-#####################################################
-# Global (cross-module) definitions and allocations #
-#####################################################
-# The ANSI ESC character used for ANSI/VT100 control sequences
-cython.declare(ANSI_ESC=str)
-ANSI_ESC = '\x1b'
-# Useful for temporary storage of 3D vector
-cython.declare(vector='double*',
-               vector_mv='double[::1]',
-               )
-vector = malloc(3*sizeof('double'))
-vector_mv = cast(vector, 'double[:3]')
-
-
-
 ##############
 # Universals #
 ##############
@@ -2371,11 +2371,6 @@ universals, universals_dict = build_struct(
     a_begin=('double', a_begin),
     t_begin=('double', t_begin),
     z_begin=('double', (ထ if a_begin == 0 else 1/a_begin - 1)),
-    # Scale factor and cosmic time at next time step
-    a_next='double',
-    t_next='double',
-    # Current time step
-    time_step=('Py_ssize_t', 0),
     # '+'-separated strings of CO𝘕CEPT/CLASS species present in the simulation
     species_present='char*',
     class_species_present='char*',
@@ -2587,6 +2582,10 @@ class_params = update_class_params(class_params)
     nprocs_node_i='int',
     param=str,
     params_specialized=dict,
+    transformations=dict,
+    value=str,
+    value_proper=str,
+    values_improper=set,
     returns=object,  # classy.Class or (classy.Class, Py_ssize_t[::1])
 )
 def call_class(extra_params=None, sleep_time=0.1, mode='single node', class_call_reason=''):
@@ -2630,6 +2629,17 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node', class_call
     # comma-separated values. All other CLASS parameters will also
     # be converted to their str representation.
     params_specialized = stringify_dict(params_specialized)
+    # Transform parameters to correct CLASS syntax
+    for param, transformations in {
+        'use_ppf': {'yes': {'True', '1', '1.0'}, 'no': {'False', '0', '0.0'}},
+    }.items():
+        value = params_specialized.get(param)
+        if value is None:
+            continue
+        for value_proper, values_improper in transformations.items():
+            if value in values_improper:
+                params_specialized[param] = value_proper
+                break
     # Fairly distribute the k modes among the nodes,
     # taking the number of processes in each node into account.
     if 'k_output_values' in params_specialized:
@@ -3293,6 +3303,9 @@ def lru_cache(maxsize=128, typed=False, copy=False):
 # Abort on unrecognized snapshot_type
 if snapshot_type not in ('standard', 'gadget2'):
     abort('Does not recognize snapshot type "{}"'.format(user_params['snapshot_type']))
+# Abort for non-positive number of rungs
+if N_rungs < 1:
+    abort(f'N_rungs = {N_rungs}, but at least one rung must exist')
 # Abort on illegal FFTW rigor
 if fftw_wisdom_rigor not in ('estimate', 'measure', 'patient', 'exhaustive'):
     abort('Does not recognize FFTW rigor "{}"'.format(user_params['fftw_wisdom_rigor']))

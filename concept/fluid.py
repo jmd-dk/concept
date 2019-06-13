@@ -158,17 +158,11 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
         # t_flux = universals.t - 0.5*ᔑdt['1']. Right before a dump time
         # however, the time span of the two half time steps making up
         # the full time step are not equal. A more general formula
-        # capturing this fact is t_flux = universals.t_next - ᔑdt['1'].
-        # Both of these formulae assume that the passed a is the current
-        # a, i.e. a == universals.a. If the passed a is something else,
-        # we may only use t_flux = cosmic_time(a) - 0.5*ᔑdt['1'], as the
-        # passed time should always correspond to the time of the source
-        # terms, which is half a step into the future compared to the
-        # flux terms.
-        if a == universals.a:
-            t_flux = universals.t_next - ᔑdt['1']
-        else:
-            t_flux = cosmic_time(a) - 0.5*ᔑdt['1']
+        # capturing this fact is t_flux = cosmic_time(a) - 0.5*ᔑdt['1'],
+        # where we rely on the passed a to correspond to the time of the
+        # source terms, which is half a step into the future compared to
+        # the flux terms.
+        t_flux = cosmic_time(a) - 0.5*ᔑdt['1']
         if rk_step == 0:
             a = scale_factor(t_flux + 0.25*ᔑdt['1'])
         elif rk_step == 1:
