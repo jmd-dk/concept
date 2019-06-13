@@ -1697,6 +1697,49 @@ def loop_unswitching(lines, no_optimization):
                     # The if statement is the last thing in the file
                     return new_lines
         return new_lines
+    # Function which replaces for loops containing only a single pass
+    # statement with a pass statement at the level of the for statement.
+    def remove_empty_loop(lines):
+        new_lines = []
+        skip = 0
+        for i, line in enumerate(lines):
+            if skip:
+                skip -= 1
+                continue
+            line_stripped = line.strip()
+            if not line_stripped:
+                new_lines.append(line)
+                continue
+            if line_stripped.startswith('#'):
+                new_lines.append(line)
+                continue
+            if not line_stripped.startswith('for '):
+                new_lines.append(line)
+                continue
+            # For loop detected
+            indentation = len(line) - len(line.lstrip())
+            loop_body = []
+            for j, loop_line in enumerate(lines[i+1:], i + 1):
+                loop_line_stripped = loop_line.strip()
+                if not loop_line_stripped:
+                    continue
+                if loop_line_stripped.startswith('#'):
+                    continue
+                loop_indentation = len(loop_line) - len(loop_line.lstrip())
+                if loop_indentation <= indentation:
+                    break
+                else:
+                    loop_body.append(loop_line)
+            if {loop_line.strip() for loop_line in loop_body}.difference({'', 'pass'}):
+                # The loop contains a non-empty body
+                new_lines.append(line)
+                continue
+            else:
+                # The loop is empty
+                skip = j - i - 1
+                # new_lines.append(line)
+                continue
+        return new_lines
     # Run through the lines and replace any unswitch context manager
     # with the unswitched loop(s). Do this for each unswitch lvl
     # separately, starting with the lower levels (least indented).
@@ -1876,10 +1919,13 @@ def loop_unswitching(lines, no_optimization):
                                         break
                         if not empty_else:
                             indentation = '    '*(unswitch_lvl + 1)
-                            if_headers.append('{}else:  # This is an autoinserted else block\n'
-                                              .format(indentation))
-                            if_bodies.append(['{}    # End of autoinserted else block\n'
-                                              .format(indentation)])
+                            if_headers.append(
+                                f'{indentation}else:  # This is an autoinserted else block\n'
+                            )
+                            if_bodies.append([
+                                f'{indentation}    pass\n',  # If no statement is present above
+                                f'{indentation}    # End of autoinserted else block\n'
+                            ])
                     # Stitch together the recorded pieces to perform
                     # the loop unswitching.
                     lines_unswitched = []
@@ -1932,6 +1978,7 @@ def loop_unswitching(lines, no_optimization):
         lines = remove_double_if    (lines)
         lines = remove_impossible_if(lines)
         lines = remove_falsy_if     (lines)
+        lines = remove_empty_loop   (lines)
     return lines
 
 
