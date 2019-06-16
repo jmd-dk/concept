@@ -23,7 +23,7 @@
 
 
 # Non-parameter variable used to control the size of the simulation
-_size = 32
+_size = 36
 
 # Input/output
 initial_conditions = [  # Initial condition snapshot file or container of components to be generated
@@ -44,7 +44,7 @@ initial_conditions = [  # Initial condition snapshot file or container of compon
 ]
 snapshot_type = 'standard'  # Type of output snapshots
 output_dirs = {  # Directories for storing output
-    'snapshot' : paths['output_dir'] + '/example_params',
+    'snapshot' : paths['output_dir'] + '/' + basename(paths['params']),
     'powerspec': ...,
     'render2D' : ...,
     'render3D' : ...,
@@ -93,7 +93,7 @@ ewald_gridsize    = 64       # Linear gridsize of the grid of Ewald corrections
 shortrange_params = {        # Short-range force parameters for each short-range force
     'gravity': {
         'scale'    : 1.25*boxsize/φ_gridsize,  # The long/short-range force split scale
-        'cutoff'   : '4.8*scale',              # Maximum reach of short-range force
+        'cutoff'   : '4.5*scale',              # Maximum reach of short-range force
         'subtiling': (2, 2, 2),                # Subtile decomposition
     },
 }
@@ -128,7 +128,8 @@ class_params = {         # CLASS parameters. See the CLASS documentation for det
 
 # Physics
 select_forces = {  # Forces and methods which act on each component
-    'all': {'gravity': 'pm'},
+    'particles': {'gravity': 'p3m'},
+    'fluid'    : {'gravity': 'pm' },
 }
 select_class_species = {  # CLASS species to use for each component
     'all': 'default',
@@ -189,7 +190,7 @@ select_softening_length = {  # Gravitational softening for each component
 
 # Simulation options
 Δt_factor         = 1          # This scales the time step size
-N_rungs           = 1          # Number of available rungs for adaptive time stepping
+N_rungs           = 3          # Number of available rungs for adaptive time stepping
 fftw_wisdom_rigor = 'measure'  # Rigor level when acquiring FFTW wisdom
 fftw_wisdom_reuse = True       # Reuse FFTW wisdom from earlier runs?
 random_seed = 1                # Seed for pseudo-random numbers

@@ -3136,10 +3136,11 @@ def realize(component, variable, transfer_spline, cosmoresults,
             generate_primordial_noise(slab_structure)
         elif options['structure'] == 'nonlinear':
             # Populate slab_structure with ℱₓ[ϱ(x⃗)]
-            masterprint(f'Extracting structure from ϱ of {component.name}')
+            masterprint(f'Extracting structure from ϱ of {component.name} ...')
             slab_decompose(component.ϱ.gridˣ_mv if use_gridˣ else component.ϱ.grid_mv,
                 slab_structure)
             fft(slab_structure, 'forward')
+            masterprint('done')
         # Remove the k⃗ = 0⃗ mode, leaving ℱₓ[δϱ(x⃗)]
         if master:
             slab_structure[0, 0, 0] = 0  # Real part

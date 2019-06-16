@@ -1388,8 +1388,10 @@ def construct_user_params_namespace(params_iteration):
             're'   : re,
             'sys'  : sys,
             # Functions
-            'rand'  : np.random.random,
-            'random': np.random.random,
+            'rand'    : np.random.random,
+            'random'  : np.random.random,
+            'basename': os.path.basename,
+            'dirname' : os.path.basename,
             # MPI variables and functions
             'master'         : master,
             'nprocs'         : nprocs,
