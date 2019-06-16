@@ -1193,15 +1193,15 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
                 'α_factor': (α_factor if component.representation == 'fluid' else None),
                 'rgbα'    : (rgbα     if component.representation == 'fluid' else None),
                                            }
-        # Create the temporary 3D render directory if necessary
-        if not (nprocs == 1 == len(render3D_dict)):
-            if master:
-                os.makedirs(render3D_dir, exist_ok=True)
-            Barrier()
         masterprint('done')
         # Return if no component is to be 3D rendered
         if not render3D_dict:
             return
+    # Create the temporary 3D render directory if necessary
+    if not (nprocs == 1 == len(render3D_dict)):
+        if master:
+            os.makedirs(render3D_dir, exist_ok=True)
+        Barrier()
     # Print out progress message
     names = tuple(render3D_dict.keys())
     if len(names) == 1:
