@@ -146,10 +146,13 @@ def find_N_recv(N_send):
     posy_mv='double[::1]',
     posz='double*',
     posz_mv='double[::1]',
-    rung_index='Py_ssize_t',
-    rung_indices='Py_ssize_t*',
-    rung_indices_buf='Py_ssize_t[::1]',
-    rung_indices_mv='Py_ssize_t[::1]',
+    rung_index='signed char',
+    rung_indices='signed char*',
+    rung_indices_buf='signed char[::1]',
+    rung_indices_mv='signed char[::1]',
+    rung_jumps='signed char*',
+    rung_jumps_buf='signed char[::1]',
+    rung_jumps_mv='signed char[::1]',
     rungs_N='Py_ssize_t*',
     sendbuf_mv='double[::1]',
     Δmemory='Py_ssize_t',
@@ -208,12 +211,14 @@ def exchange(component, reset_buffers=False):
     buffer_name = 'send'
     N_send_max = max(N_send)
     sendbuf_mv = get_buffer(N_send_max, buffer_name)
-    # We additionally need a buffer storing Py_ssize_t,
-    # for the rung indices.
+    # We additionally need a buffer storing signed char,
+    # for the rung indices and rung jumps.
     if component.use_rungs:
         if rung_indices_arr.shape[0] < N_send_max:
             rung_indices_arr.resize(N_send_max, refcheck=False)
         rung_indices_buf = rung_indices_arr
+        # We reuse the buffer for rung jumps as well
+        rung_jumps_buf = rung_indices_buf
     # Find out how many particles to receive
     N_recv = find_N_recv(N_send)
     # The maximum number of particles to
@@ -241,9 +246,11 @@ def exchange(component, reset_buffers=False):
     momy_mv = component.momy_mv
     momz_mv = component.momz_mv
     # Extract rung information
+    rungs_N         = component.rungs_N
     rung_indices    = component.rung_indices
     rung_indices_mv = component.rung_indices_mv
-    rungs_N         = component.rungs_N
+    rung_jumps      = component.rung_jumps
+    rung_jumps_mv   = component.rung_jumps_mv
     # Start index for received data
     index_recv_j = N_local
     # Exchange particles between processes
@@ -331,6 +338,16 @@ def exchange(component, reset_buffers=False):
                 # Increment rung population due to received particles
                 for i in range(index_recv_j, index_recv_j + N_recv_j):
                     rungs_N[rung_indices[i]] += 1
+                # Send/receive rung_jumps
+                for i in range(N_send_j):
+                    # Add rung_jump to buffer
+                    rung_jumps_buf[i] = rung_jumps[indices_send_j[i]]
+                Sendrecv(
+                    rung_jumps_buf[:N_send_j],
+                    dest=ID_send,
+                    recvbuf=rung_jumps_mv[index_recv_j:],
+                    source=ID_recv,
+                )
         # Update the start index for received data
         index_recv_j += N_recv_j
         # Mark the holes in the data by setting posx[hole] = -1
@@ -361,6 +378,7 @@ def exchange(component, reset_buffers=False):
                 with unswitch:
                     if component.use_rungs:
                         rung_indices[k] = rung_indices[i]
+                        rung_jumps  [k] = rung_jumps  [i]
                 k_start = k + 1
                 holes_filled += 1
                 break
@@ -681,16 +699,17 @@ def rank_neighbouring_domain(i, j, k):
     mv_recv='double[::1]',
     mv_recv_buf='double[::1]',
     mv_recv_list=list,
-    mv_rung_indices='Py_ssize_t[::1]',
     mv_send='double[::1]',
     mv_send_buf='double[::1]',
     mv_send_list=list,
     n='Py_ssize_t',
     operation=str,
     rung='Py_ssize_t*',
-    rung_index='Py_ssize_t',
-    rung_indices='Py_ssize_t*',
-    rung_indices_buf='Py_ssize_t[::1]',
+    rung_index='signed char',
+    rung_indices='signed char*',
+    rung_indices_buf='signed char[::1]',
+    rung_jumps='signed char*',
+    rung_jumps_buf='signed char[::1]',
     rungs_N='Py_ssize_t*',
     subtiling_name=str,
     tile='Py_ssize_t**',
@@ -807,7 +826,7 @@ def sendrecv_component(
         component_buffer.N_local = N_particles_recv
         if component_buffer.N_allocated < component_buffer.N_local:
             # Temporarily set use_rungs = True to ensure that the
-            # rung_indices get resized as well.
+            # rung_indices and rung_jumps get resized as well.
             use_rungs = component_buffer.use_rungs
             component_buffer.use_rungs = True
             component_buffer.resize(component_buffer.N_local)
@@ -893,7 +912,7 @@ def sendrecv_component(
                                 mv_recv[rung[j]] += mv_recv_buf[n]
                                 n += 1
     # When in communication mode, we additionally need to communicate
-    # the rung indices of the communicated particle.
+    # the rung indices and rung jumps of the communicated particles.
     # If not using rungs, we skip this.
     if 𝔹[operation == '=' and component_send.use_rungs]:
         # Create contiguous memory view over rung indices.
@@ -902,6 +921,24 @@ def sendrecv_component(
         if rung_indices_arr.shape[0] < N_particles:
             rung_indices_arr.resize(N_particles, refcheck=False)
         rung_indices_buf = rung_indices_arr
+        # We reuse the buffer for rung jumps as well
+        rung_jumps_buf = rung_indices_buf
+        n = 0
+        for i in range(tile_indices_send.shape[0]):
+            tile_index = tile_indices_send[i]
+            rungs_N = tiles_rungs_N[tile_index]
+            for rung_index in range(
+                ℤ[component_send.lowest_populated_rung],
+                ℤ[component_send.highest_populated_rung + 1],
+            ):
+                for j in range(rungs_N[rung_index]):
+                    rung_indices_buf[n] = rung_index
+                    n += 1
+        # Communicate rung indices
+        Sendrecv(rung_indices_buf[:n],
+            recvbuf=component_recv.rung_indices_mv, dest=dest, source=source)
+        # Fill buffer with rung jumps and communicate these as well
+        rung_jumps = component_send.rung_jumps
         n = 0
         for i in range(tile_indices_send.shape[0]):
             tile_index = tile_indices_send[i]
@@ -913,10 +950,10 @@ def sendrecv_component(
             ):
                 rung = tile[rung_index]
                 for j in range(rungs_N[rung_index]):
-                    rung_indices_buf[n] = rung_index
+                    rung_jumps_buf[n] = rung_jumps[rung[j]]
                     n += 1
-        # Communicate rung indices
-        Sendrecv(rung_indices_buf[:n], recvbuf=component_recv.rung_indices_mv, dest=dest, source=source)
+        Sendrecv(rung_jumps_buf[:n],
+            recvbuf=component_recv.rung_jumps_mv, dest=dest, source=source)
         # Count up how many particles occupy each rung
         rung_indices = component_recv.rung_indices
         rungs_N = component_recv.rungs_N
@@ -963,13 +1000,14 @@ def sendrecv_component(
         component_recv.tile_sort(tiling_name)
     return component_recv
 # Declare buffer component and buffer for rung_indices
-# used by sendrecv_component.
+# used by sendrecv_component(). The rung_indices_arr array is also
+# used by the exchange() function.
 cython.declare(
     component_buffer='Component',
     rung_indices_arr=object,
 )
 component_buffer = None
-rung_indices_arr = empty(0, dtype=C2np['Py_ssize_t'])
+rung_indices_arr = empty(0, dtype=C2np['signed char'])
 
 # Very general function for different MPI communications
 @cython.pheader(# Arguments

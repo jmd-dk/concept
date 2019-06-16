@@ -230,24 +230,30 @@ def particle_particle(
         all_subtile_pairings='Py_ssize_t***',
         all_subtile_pairings_N='Py_ssize_t**',
         dim='int',
-        highest_populated_rung_r='Py_ssize_t',
-        highest_populated_rung_s='Py_ssize_t',
-        lowest_active_rung_r='Py_ssize_t',
-        lowest_active_rung_s='Py_ssize_t',
-        lowest_populated_rung_r='Py_ssize_t',
-        lowest_populated_rung_s='Py_ssize_t',
+        highest_populated_rung_r='signed char',
+        highest_populated_rung_s='signed char',
+        lowest_active_rung_r='signed char',
+        lowest_active_rung_s='signed char',
+        lowest_populated_rung_r='signed char',
+        lowest_populated_rung_s='signed char',
         posx_r='double*',
         posx_s='double*',
         posy_r='double*',
         posy_s='double*',
         posz_r='double*',
         posz_s='double*',
-        rung_index_s_start='Py_ssize_t',
+        rung_index_s_start='signed char',
         rung_particle_index_r='Py_ssize_t',
         rung_particle_index_s='Py_ssize_t',
         rung_particle_index_s_start='Py_ssize_t',
         rung_N_r='Py_ssize_t',
         rung_N_s='Py_ssize_t',
+        rung_index_r='signed char',
+        rung_index_s='signed char',
+        rung_jump_r='signed char',
+        rung_jump_s='signed char',
+        rung_jumps_r='signed char*',
+        rung_jumps_s='signed char*',
         rung_r='Py_ssize_t*',
         rung_s='Py_ssize_t*',
         rungs_N_r='Py_ssize_t*',
@@ -261,8 +267,8 @@ def particle_particle(
         subtile_pairings_r='Py_ssize_t*',
         subtile_r='Py_ssize_t**',
         subtile_s='Py_ssize_t**',
-        subtiles_contain_particles_r='unsigned char*',
-        subtiles_contain_particles_s='unsigned char*',
+        subtiles_contain_particles_r='signed char*',
+        subtiles_contain_particles_s='signed char*',
         subtiles_r='Py_ssize_t***',
         subtiles_rungs_N_r='Py_ssize_t**',
         subtiles_rungs_N_s='Py_ssize_t**',
@@ -278,8 +284,8 @@ def particle_particle(
         tile_index3D_r='Py_ssize_t[::1]',
         tile_index3D_s='Py_ssize_t[::1]',
         tile_pair_index='Py_ssize_t',
-        tiles_contain_particles_r='unsigned char*',
-        tiles_contain_particles_s='unsigned char*',
+        tiles_contain_particles_r='signed char*',
+        tiles_contain_particles_s='signed char*',
         tiles_r='Py_ssize_t***',
         tiles_s='Py_ssize_t***',
         tiling_location_r='double[::1]',
@@ -306,6 +312,8 @@ def particle_particle(
     lowest_active_rung_s     = supplier.lowest_active_rung
     lowest_populated_rung_s  = supplier.lowest_populated_rung
     highest_populated_rung_s = supplier.highest_populated_rung
+    rung_jumps_r = receiver.rung_jumps
+    rung_jumps_s = supplier.rung_jumps
     # The names used to refer to the domain and tile level tiling
     # (tiles and subtiles). In the case of pairing_level == 'domain',
     # we always use the trivial tiling.
@@ -498,6 +506,30 @@ def particle_particle(
                             for rung_particle_index_r in range(rung_N_r):
                                 # Get receiver particle index
                                 i = rung_r[rung_particle_index_r]
+                                # Construct rung_index_i. This is equal
+                                # to rung_index_r, except for when a
+                                # particle jump to another rung.
+                                # In this case, rung_index_i no longer
+                                # corresponds to any actual rung,
+                                # but it can be used to correctly index
+                                # into arrays of time step integrals.
+                                if True:  #with unswitch(7):
+                                    if 𝔹[receiver.use_rungs]:
+                                        rung_jump_r = rung_jumps_r[i]
+                                        if rung_jump_r == 0:
+                                            # Particle i stays
+                                            # at its current rung.
+                                            rung_index_i = rung_index_r
+                                        elif rung_jump_r == +1:
+                                            # Particle i jumps up to rung
+                                            # rung_index_r + 1.
+                                            rung_index_i = rung_index_r + ℤ[2*N_rungs]
+                                        else:  # rung_jump_r == -1
+                                            # Particle i jumps down to rung
+                                            # rung_index_r - 1.
+                                            rung_index_i = rung_index_r + N_rungs
+                                    else:
+                                        rung_index_i = rung_index_r
                                 # Get coordinates of receiver particle
                                 xi = posx_r[i]
                                 yi = posy_r[i]
@@ -528,13 +560,32 @@ def particle_particle(
                                 ):
                                     # Get supplier particle index
                                     j = rung_s[rung_particle_index_s]
+                                    # Construct rung_index_j
+                                    if True:  # with unswitch(8):
+                                        if 𝔹[not only_supply and supplier.use_rungs]:
+                                            rung_jump_s = rung_jumps_s[j]
+                                            if rung_jump_s == 0:
+                                                # Particle j stays
+                                                # at its current rung.
+                                                rung_index_j = rung_index_s
+                                            elif rung_jump_s == +1:
+                                                # Particle j jumps up to
+                                                # rung rung_index_s + 1.
+                                                rung_index_j = rung_index_s + ℤ[2*N_rungs]
+                                            else:  # rung_jump_s == -1
+                                                # Particle j jumps
+                                                # down to rung
+                                                # rung_index_s - 1.
+                                                rung_index_j = rung_index_s + N_rungs
+                                        else:
+                                            rung_index_j = rung_index_s
                                     # "Vector" from particle j
                                     # to particle i.
                                     x_ji = xi - posx_s[j]
                                     y_ji = yi - posy_s[j]
                                     z_ji = zi - posz_s[j]
                                     # Yield the needed variables
-                                    yield i, j, rung_index_r, rung_index_s, x_ji, y_ji, z_ji, apply_to_i, apply_to_j
+                                    yield i, j, rung_index_i, rung_index_j, x_ji, y_ji, z_ji, apply_to_i, apply_to_j
 # Variables used by the particle_particle function
 cython.declare(
     tile_location_r='double[::1]',
@@ -576,8 +627,8 @@ tiles_offset    = empty(3, dtype=C2np['Py_ssize_t'])
     momz_r='double*',
     momz_s='double*',
     r3='double',
-    rung_index_r='Py_ssize_t',
-    rung_index_s='Py_ssize_t',
+    rung_index_i='signed char',
+    rung_index_j='signed char',
     x_ji='double',
     y_ji='double',
     z_ji='double',
@@ -614,7 +665,7 @@ def gravity_pairwise(
         'a**(-3*w_eff₀-3*w_eff₁-1)', receiver.name, supplier.name]
     # Loop over all (receiver, supplier) particle pairs (i, j)
     interaction_name = 'gravity'
-    for i, j, rung_index_r, rung_index_s, x_ji, y_ji, z_ji, apply_to_i, apply_to_j in particle_particle(
+    for i, j, rung_index_i, rung_index_j, x_ji, y_ji, z_ji, apply_to_i, apply_to_j in particle_particle(
         receiver, supplier, pairing_level,
         tile_indices_receiver, tile_indices_supplier,
         rank_supplier, interaction_name, only_supply,
@@ -645,7 +696,7 @@ def gravity_pairwise(
         # Compute and apply momentum change
         # to particle i due to particle j.
         if apply_to_i:
-            gravity_factor = gravity_factors[rung_index_r]
+            gravity_factor = gravity_factors[rung_index_i]
             momx_r[i] += forcex_ij*gravity_factor
             momy_r[i] += forcey_ij*gravity_factor
             momz_r[i] += forcez_ij*gravity_factor
@@ -657,7 +708,7 @@ def gravity_pairwise(
                 # local domain. Apply momentum changes
                 # directly to particle j.
                 if apply_to_j:
-                    gravity_factor = gravity_factors[rung_index_s]
+                    gravity_factor = gravity_factors[rung_index_j]
                     momx_s[j] -= forcex_ij*gravity_factor
                     momy_s[j] -= forcey_ij*gravity_factor
                     momz_s[j] -= forcez_ij*gravity_factor
@@ -665,7 +716,7 @@ def gravity_pairwise(
                 # Add momentum change to the external
                 # Δmom buffers of the supplier.
                 if apply_to_j:
-                    gravity_factor = gravity_factors[rung_index_s]
+                    gravity_factor = gravity_factors[rung_index_j]
                     Δmomx_s[j] -= forcex_ij*gravity_factor
                     Δmomy_s[j] -= forcey_ij*gravity_factor
                     Δmomz_s[j] -= forcez_ij*gravity_factor
@@ -700,8 +751,8 @@ def gravity_pairwise(
     momz_r='double*',
     momz_s='double*',
     r2='double',
-    rung_index_r='Py_ssize_t',
-    rung_index_s='Py_ssize_t',
+    rung_index_i='signed char',
+    rung_index_j='signed char',
     shortrange_factor='double',
     shortrange_index='Py_ssize_t',
     x_ji='double',
@@ -740,7 +791,7 @@ def gravity_pairwise_shortrange(
         'a**(-3*w_eff₀-3*w_eff₁-1)', receiver.name, supplier.name]
     # Loop over all (receiver, supplier) particle pairs (i, j)
     interaction_name = 'gravity'
-    for i, j, rung_index_r, rung_index_s, x_ji, y_ji, z_ji, apply_to_i, apply_to_j in particle_particle(
+    for i, j, rung_index_i, rung_index_j, x_ji, y_ji, z_ji, apply_to_i, apply_to_j in particle_particle(
         receiver, supplier, pairing_level,
         tile_indices_receiver, tile_indices_supplier,
         rank_supplier, interaction_name, only_supply,
@@ -780,7 +831,7 @@ def gravity_pairwise_shortrange(
         # Compute and apply momentum change to particle i due to
         # particle j, if particle i is on an active rung.
         if apply_to_i:
-            gravity_factor = gravity_factors[rung_index_r]
+            gravity_factor = gravity_factors[rung_index_i]
             momx_r[i] += forcex_ij*gravity_factor
             momy_r[i] += forcey_ij*gravity_factor
             momz_r[i] += forcez_ij*gravity_factor
@@ -792,7 +843,7 @@ def gravity_pairwise_shortrange(
                 # local domain. Apply momentum changes
                 # directly to particle j.
                 if apply_to_j:
-                    gravity_factor = gravity_factors[rung_index_s]
+                    gravity_factor = gravity_factors[rung_index_j]
                     momx_s[j] -= forcex_ij*gravity_factor
                     momy_s[j] -= forcey_ij*gravity_factor
                     momz_s[j] -= forcez_ij*gravity_factor
@@ -800,7 +851,7 @@ def gravity_pairwise_shortrange(
                 # Add momentum change to the external
                 # Δmom buffers of the supplier.
                 if apply_to_j:
-                    gravity_factor = gravity_factors[rung_index_s]
+                    gravity_factor = gravity_factors[rung_index_j]
                     Δmomx_s[j] -= forcex_ij*gravity_factor
                     Δmomy_s[j] -= forcey_ij*gravity_factor
                     Δmomz_s[j] -= forcez_ij*gravity_factor
@@ -876,8 +927,8 @@ shortrange_table_maxr2 = (2*shortrange_params['gravity']['cutoff'])**2
     momz_r='double*',
     momz_s='double*',
     r3='double',
-    rung_index_r='Py_ssize_t',
-    rung_index_s='Py_ssize_t',
+    rung_index_i='signed char',
+    rung_index_j='signed char',
     x_ji='double',
     y_ji='double',
     z_ji='double',
@@ -917,7 +968,7 @@ def gravity_pairwise_nonperiodic(
         'a**(-3*w_eff₀-3*w_eff₁-1)', receiver.name, supplier.name]
     # Loop over all (receiver, supplier) particle pairs (i, j)
     interaction_name = 'gravity'
-    for i, j, rung_index_r, rung_index_s, x_ji, y_ji, z_ji, apply_to_i, apply_to_j in particle_particle(
+    for i, j, rung_index_i, rung_index_j, x_ji, y_ji, z_ji, apply_to_i, apply_to_j in particle_particle(
         receiver, supplier, pairing_level,
         tile_indices_receiver, tile_indices_supplier,
         rank_supplier, interaction_name, only_supply,

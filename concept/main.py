@@ -154,6 +154,9 @@ def timeloop():
     # Minimum allowed time step size.
     # If Δt needs to be lower than this, the program will terminate.
     Δt_min = 1e-4*Δt_begin
+    # Construct initial rung populatation
+    for component in components:
+        component.assign_rungs(Δt, fac_softening)
     # Dict of arrays which will store the time step integrals for the
     # highest rung (all time step integrals for lower rungs can be build
     # by adding up these).
@@ -199,8 +202,9 @@ def timeloop():
             print_timestep_heading(time_step, Δt,
                 bottleneck if time_step_type == 'init' else '', components)
             # Analyze and print out debugging information, if required
-            if enable_debugging:
-                debug(components)
+            with unswitch:
+                if enable_debugging:
+                    debug(components)
             # Handle the time step.
             # This is either of type "init" or "full".
             if time_step_type == 'init':
@@ -212,8 +216,8 @@ def timeloop():
                 # sources terms. Each particle rung will be kicked by
                 # half a sub-step. It is assumed that the drifting and
                 # kicking of all components is synchronized. As this
-                # does count as an actual time step, the universal time
-                # will not be updated.
+                # does not count as an actual time step,
+                # the universal time will not be updated.
                 # The base time step Δt is split into 2**N_rungs half
                 # sub-steps for the highest rung (number N_rungs - 1).
                 # The short-range kick of the particles at rung 0,
@@ -228,7 +232,7 @@ def timeloop():
                 kick_long(components, ᔑdt_substeps, 'init')
                 # Assign a short-range rung to each particle
                 for component in components:
-                    component.assign_rungs(Δt)
+                    component.assign_rungs(Δt, fac_softening)
                 # Initial half kick of particles on all rungs
                 kick_short(components, ᔑdt_substeps)
                 # The full step following this init step will reuse all
@@ -236,7 +240,7 @@ def timeloop():
                 # sub-steps at the beginning of the base step. Here it
                 # is assumed that the content of ᔑdt_substeps is
                 # computed by a previous full step, in which case the
-                # integrals to reuse will be at ones at the end, not
+                # integrals to reuse will be the ones at the end, not
                 # the beginning. We thus need to shift the 2**N_rungs//2
                 # integrals so that they appear at the end.
                 for integrals in ᔑdt_substeps.values():
@@ -271,7 +275,7 @@ def timeloop():
                 # time step (Δt away) and kicked half a sub-step
                 # (of size Δt/(2*2**i) for run i) into the next
                 # base time step.
-                driftkick_short(components, ᔑdt_substeps)
+                driftkick_short(components, Δt, ᔑdt_substeps)
                 # All drifting is now exactly at the next base time
                 # step, while the long-range kicks are lacking behind.
                 # Before doing the long-range kicks, set the universal
@@ -417,12 +421,6 @@ cython.declare(Δt_reltol='double')
     component='Component',
     component_lapse='Component',
     extreme_force=str,
-    fac_courant='double',
-    fac_decay='double',
-    fac_dynamical='double',
-    fac_hubble='double',
-    fac_pm='double',
-    fac_ẇ='double',
     force=str,
     lapse_gridsize='Py_ssize_t',
     method=str,
@@ -480,11 +478,7 @@ def get_base_timestep_size(components):
     H = hubble(a)
     Δt = ထ
     bottleneck = ''
-    ###################
-    # Global limiters #
-    ###################
     # The dynamical time scale
-    fac_dynamical = 1.3e-2*Δt_factor
     ρ_bar = 0
     for component in components:
         ρ_bar += a**(-3*(1 + component.w_eff(a=a)))*component.ϱ_bar
@@ -494,23 +488,17 @@ def get_base_timestep_size(components):
         bottleneck = 'the dynamical timescale'
     # The Hubble time
     if enable_Hubble:
-        fac_hubble = 5e-2*Δt_factor
         Δt_hubble = fac_hubble/H
         if Δt_hubble < Δt:
             Δt = Δt_hubble
             bottleneck = 'the Hubble time'
-    ######################
-    # Component limiters #
-    ######################
     # 1/abs(ẇ)
-    fac_ẇ = 1e-3*Δt_factor
     for component in components:
         Δt_ẇ = fac_ẇ/(abs(cast(component.ẇ(a=a), 'double')) + machine_ϵ)
         if Δt_ẇ < Δt:
             Δt = Δt_ẇ
             bottleneck = f'ẇ of {component.name}'
     # Reciprocal decay rate
-    fac_decay = 1e-3*Δt_factor
     for component in components:
         if component.representation == 'fluid' and component.is_linear(0):
             continue
@@ -519,11 +507,7 @@ def get_base_timestep_size(components):
         if Δt_decay < Δt:
             Δt = Δt_decay
             bottleneck = f'decay rate of {component.name}'
-    ###################################
-    # Particle/fluid element limiters #
-    ###################################
     # Courant condition for fluid elements
-    fac_courant = 0.12*Δt_factor
     for component in components:
         if component.representation == 'particles':
             continue
@@ -540,7 +524,6 @@ def get_base_timestep_size(components):
             Δt = Δt_courant
             bottleneck = f'the Courant condition for {component.name}'
     # PM limiter
-    fac_pm = 0.035*Δt_factor
     for component in components:
         # Find PM resolution for this component.
         # The PM method is implemented for gravity and the lapse force.
@@ -588,7 +571,6 @@ def get_base_timestep_size(components):
             Δt = Δt_pm
             bottleneck = f'the PM method of the {extreme_force} force for {component.name}'
     # P³M limiter
-    fac_p3m = 0.035*Δt_factor
     for component in components:
         # Find P³M resolution for this component.
         # The P³M method is only implemented for gravity.
@@ -795,12 +777,12 @@ def kick_long(components, ᔑdt_substeps, step_type):
     integrals='double[::1]',
     integrand=object,  # str or tuple
     interactions_list=list,
-    lowest_populated_rung='Py_ssize_t',
+    lowest_populated_rung='signed char',
     method=str,
     printout='bint',
     receiver='Component',
     receivers=list,
-    rung_index='Py_ssize_t',
+    rung_index='signed char',
     rung_integrals='double[::1]',
     suppliers=list,
     ᔑdt=dict,
@@ -837,7 +819,23 @@ def kick_short(components, ᔑdt_substeps):
     ᔑdt = ᔑdt_rungs
     if not ᔑdt:
         for integrand in ᔑdt_substeps:
-            ᔑdt[integrand] = zeros(N_rungs, dtype=C2np['double'])
+            # We need a value of the integral for each rung,
+            # of which there are N_rungs. Additionally, we need a value
+            # of the integral for jumping down/up a rung, for each rung,
+            # meaning that we need 3*N_rungs integrals. The integral
+            # for a normal kick of rung rung_index is then stored in
+            # ᔑdt[integrand][rung_index], while the integral for jumping
+            # down from rung rung_index to rung_index - 1 is stored in
+            # ᔑdt[integrand][rung_index + N_rungs], while the integral
+            # for jumping up from rung_index to rung_index + 1 is stored
+            # in ᔑdt[integrand][rung_index + 2*N_rungs]. Since a
+            # particle at rung 0 cannot jump down and a particle at rung
+            # N_rungs - 1 cannot jump up, indices 0 + N_rungs = N_rungs
+            # and N_rungs - 1 + 2*N_rungs = 3*N_rungs - 1 are unused.
+            # We allocate 3*N_rungs - 1 integrals, leaving the unused
+            # index N_rungs be, while the unused index 3*N_rungs - 1
+            # will be out of bounce.
+            ᔑdt[integrand] = zeros(3*N_rungs - 1, dtype=C2np['double'])
     for integrand, integrals in ᔑdt_substeps.items():
         rung_integrals = ᔑdt[integrand]
         for rung_index in range(ℤ[N_rungs - 1], lowest_populated_rung - 1, -1):
@@ -903,31 +901,35 @@ def drift_fluids(components, ᔑdt_substeps):
 @cython.header(
     # Arguments
     components=list,
+    Δt='double',
     ᔑdt_substeps=dict,
     # Locals
-    component='Component',
     any_kicks='bint',
+    any_rung_jumps='bint',
+    any_rung_jumps_list=list,
+    component='Component',
     driftkick_index='Py_ssize_t',
     force=str,
+    i='Py_ssize_t',
     index_end='Py_ssize_t',
     index_start='Py_ssize_t',
     integrals='double[::1]',
     integrand=object,  # str or tuple
     interactions_list=list,
-    lowest_active_rung='Py_ssize_t',
+    lowest_active_rung='signed char',
     message=list,
     method=str,
     particle_components=list,
     printout='bint',
     receivers=list,
-    rung_index='Py_ssize_t',
+    rung_index='signed char',
     rung_integrals='double[::1]',
     suppliers=list,
     text=str,
     ᔑdt=dict,
     returns='void',
 )
-def driftkick_short(components, ᔑdt_substeps):
+def driftkick_short(components, Δt, ᔑdt_substeps):
     """Every rung is fully drifted and kicked over a complete base time
     step of size Δt. Rung i will be kicked 2**i times.
     All rungs will be drifted synchronously in steps
@@ -987,7 +989,8 @@ def driftkick_short(components, ᔑdt_substeps):
     # We have short-range interactions.
     # Prepare progress message.
     message = [
-        f'Intertwining drifts of {particle_components[0].name} with the following particle interactions:'
+        f'Intertwining drifts of {particle_components[0].name} with '
+        f'the following particle interactions:'
         if len(particle_components) == 1 else (
            'Intertwining drifts of {{{}}} with the following particle interactions:'
             .format(', '.join([component.name for component in particle_components]))
@@ -1058,7 +1061,7 @@ def driftkick_short(components, ᔑdt_substeps):
         ᔑdt = ᔑdt_rungs
         for integrand, integrals in ᔑdt_substeps.items():
             rung_integrals = ᔑdt[integrand]
-            for rung_index in range(ℤ[N_rungs - 1], lowest_active_rung - 1, -1):
+            for rung_index in range(lowest_active_rung, N_rungs):
                 index_start = (
                     ℤ[2**(N_rungs - 1 - rung_index)]
                     + (driftkick_index//ℤ[2**(N_rungs - 1 - rung_index)]
@@ -1066,14 +1069,42 @@ def driftkick_short(components, ᔑdt_substeps):
                 )
                 index_end = index_start + ℤ[2**(N_rungs - rung_index)]
                 rung_integrals[rung_index] = sum(integrals[index_start:index_end])
+                # We additionally need the integral for jumping down
+                # from rung_index to rung_index - 1. We store this using
+                # index (rung_index + N_rungs). For any given rung, such
+                # a down-jump is only allowed every second kick. When
+                # disallowed, we store -1.
+                if rung_index > 0 and (
+                    (ℤ[driftkick_index + 1] - ℤ[2**(N_rungs - 1 - rung_index)]
+                        ) % 2**(N_rungs - rung_index) == 0
+                ):
+                    index_end = index_start + ℤ[2**(N_rungs - 1 - rung_index)]
+                    rung_integrals[rung_index + N_rungs] = sum(integrals[index_start:index_end])
+                else:
+                    rung_integrals[rung_index + N_rungs] = -1
+                # We additionally need the integral for jumping up
+                # from rung_index to rung_index + 1.
+                if rung_index < ℤ[N_rungs - 1]:
+                    index_end = index_start + 3*2**(ℤ[N_rungs - 2] - rung_index)
+                    rung_integrals[rung_index + ℤ[2*N_rungs]] = sum(
+                        integrals[index_start:index_end])
         # Perform short-range kicks, unless the time step size is zero
         # for all active rungs (i.e. they are all at a sync time),
         # in wich case we go to the next (drift) sub-step.  We cannot
         # just return, as the kicks may still not be at the sync time.
         rung_integrals = ᔑdt['1']
-        if sum(rung_integrals[lowest_active_rung:]) == 0:
+        if sum(rung_integrals[lowest_active_rung:N_rungs]) == 0:
             continue
-        # A kick is to be performed
+        # A short-range kick is to be performed
+        any_rung_jumps_list = []
+        for component in particle_components:
+            # Flag inter-rung jumps for each particle.
+            # The list any_rung_jumps_list will store booleans telling
+            # whether or not any local particles of this component
+            # jump rung.
+            any_rung_jumps_list.append(
+                component.flag_rung_jumps(Δt, rung_integrals, fac_softening)
+            )
         if printout:
             # This is the first kick. Print out progress message.
             masterprint(message[0])
@@ -1082,7 +1113,13 @@ def driftkick_short(components, ᔑdt_substeps):
             masterprint('...', indent=4, wrap=False)
             printout = False
         for force, method, receivers, suppliers in interactions_list:
-            getattr(interactions, force)(method, receivers, suppliers, ᔑdt, 'short-range', printout)
+            # Perform interaction
+            getattr(interactions, force)(
+                method, receivers, suppliers, ᔑdt, 'short-range', printout)
+        # Apply inter-rung jumps
+        for component, any_rung_jumps in zip(particle_components, any_rung_jumps_list):
+            if any_rung_jumps:
+                component.apply_rung_jumps()
     # Finalize the progress message. If printout is True, no message
     # was ever printed (because there were no kicks).
     if not printout:
@@ -1231,8 +1268,11 @@ def autosave(components, time_step, Δt, Δt_begin):
     # Locals
     component='Component',
     i='Py_ssize_t',
+    last_populated_rung='signed char',
     part=str,
     parts=list,
+    rung_index='signed char',
+    rung_N='Py_ssize_t',
     width='Py_ssize_t',
     width_max='Py_ssize_t',
     returns='void',
@@ -1259,6 +1299,7 @@ def print_timestep_heading(time_step, Δt, bottleneck, components, end=False):
         parts.append(f'{{}} {unit_time}'.format(significant_figures(Δt, 4, fmt='unicode')))
         if bottleneck:
             parts.append(f' (limited by {bottleneck})')
+    # Equation of state of each component
     for component in components:
         if (component.w_type != 'constant'
             and 'metric' not in component.class_species
@@ -1266,6 +1307,19 @@ def print_timestep_heading(time_step, Δt, bottleneck, components, end=False):
         ):
             parts.append(f'\nEoS w ({component.name}):'.ljust(heading_ljust))
             parts.append(significant_figures(component.w(), 4, fmt='unicode'))
+    # Rung population for each component
+    for component in components:
+        if not component.use_rungs:
+            continue
+        parts.append(f'\nRung population ({component.name}):'.ljust(heading_ljust))
+        rung_population = []
+        last_populated_rung = 0
+        for rung_index in range(N_rungs):
+            rung_N = allreduce(component.rungs_N[rung_index], op=MPI.SUM)
+            rung_population.append(str(rung_N))
+            if rung_N > 0:
+                last_populated_rung = rung_index
+        parts.append(', '.join(rung_population[:last_populated_rung+1]))
     # Find the maximum width of the first column and left justify
     # the entire first colum to match this maximum width.
     if heading_ljust == 0:
@@ -1405,6 +1459,50 @@ def prepare_for_output():
     return dump_times, output_filenames
 
 
+
+# Here we set the values for the various factors
+# used when determining the time step size.
+cython.declare(
+    fac_courant='double',
+    fac_decay='double',
+    fac_dynamical='double',
+    fac_hubble='double',
+    fac_p3m='double',
+    fac_pm='double',
+    fac_softening='double',
+    fac_ẇ='double',
+)
+# The base time step should be below the dynamic time scale
+# times this factor.
+fac_dynamical = 1.3e-2*Δt_factor
+# The base time step should be below the current Hubble time scale
+# times this factor.
+fac_hubble = 5e-2*Δt_factor
+# The base time step should be below |ẇ|⁻¹ times this factor,
+# for all components. Here w is the equation of state parameter.
+fac_ẇ = 1e-3*Δt_factor
+# The base time step should be below |Γ|⁻¹ times this factor,
+# for all components. Here Γ is the decay rate.
+fac_decay = 1e-3*Δt_factor
+# The base time step should be below that set by the 1D Courant
+# condition times this factor, for all fluid components.
+fac_courant = 0.12*Δt_factor
+# The base time step should be small enough so that particles
+# participating in interactions using the PM method do not drift further
+# than the size of one PM grid cell times this factor in a single
+# time step. The same condition is applied to fluids, where the bulk
+# velocity is what counts (i.e. we ignore the sound speed).
+fac_pm = 0.035*Δt_factor
+# The base time step should be small enough so that particles
+# participating in interactions using the P³M method do not drift
+# further than the long/short-range force split scale times this factor
+# in a single time step.
+fac_p3m = 0.035*Δt_factor
+# When using adaptive time stepping (N_rungs > 1), the individual time
+# step size for a given particle must not exceed its softening length
+# times this factor. If it does, the particle jump to the rung just
+# above its current rung.
+fac_softening = 0.1*Δt_factor
 
 # If this module is run properly (detected by jobid being set),
 # launch the CO𝘕CEPT run.

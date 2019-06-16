@@ -90,28 +90,29 @@ def pxd(s):
 pxd('from libc.stddef cimport ptrdiff_t')
 # C type names to NumPy dtype names
 cython.declare(C2np=dict)
-C2np = {# Booleans
-        'bint': np.bool,
-        # Integers
-        'char'         : np.byte,
-        'short'        : np.short,
-        'int'          : np.intc,
-        'long int'     : np.long,
-        'long long int': np.longlong,
-        'ptrdiff_t'    : np.intp,
-        'Py_ssize_t'   : np.intp,
-        # Unsgined integers
-        'unsigned char'         : np.ubyte,
-        'unsigned short'        : np.ushort,
-        'unsigned int'          : np.uintc,
-        'unsigned long int'     : np.uint,
-        'unsigned long long int': np.ulonglong,
-        'size_t'                : np.uintp,
-        # Floating-point numbers
-        'float'     : np.single,
-        'double'    : np.double,
-        'long float': np.longfloat,
-        }
+C2np = {
+    # Booleans
+    'bint': np.bool,
+    # Integers
+    'signed char'  : np.byte,
+    'short'        : np.short,
+    'int'          : np.intc,
+    'long int'     : np.long,
+    'long long int': np.longlong,
+    'ptrdiff_t'    : np.intp,
+    'Py_ssize_t'   : np.intp,
+    # Unsgined integers
+    'unsigned char'         : np.ubyte,
+    'unsigned short'        : np.ushort,
+    'unsigned int'          : np.uintc,
+    'unsigned long int'     : np.uint,
+    'unsigned long long int': np.ulonglong,
+    'size_t'                : np.uintp,
+    # Floating-point numbers
+    'float'     : np.single,
+    'double'    : np.double,
+    'long float': np.longfloat,
+}
 # In NumPy, binary operations between some unsigned int types (unsigned
 # long int, unsigned long long int, size_t) and signed int types results
 # in a double, rather than a signed int.
@@ -3303,9 +3304,16 @@ def lru_cache(maxsize=128, typed=False, copy=False):
 # Abort on unrecognized snapshot_type
 if snapshot_type not in ('standard', 'gadget2'):
     abort('Does not recognize snapshot type "{}"'.format(user_params['snapshot_type']))
-# Abort for non-positive number of rungs
+# Abort for non-positive number of rungs. Also, since the rung indices
+# are stored as signed chars, the largest rung index that can be
+# represented is 127, corresponding to the highest rung for
+# N_rungs = 128. As we use up to 3*N_rungs - 1 for indexing,
+# we choose a largest allowed N_rungs of 40, as we do not want to worry
+# about overflow.
 if N_rungs < 1:
     abort(f'N_rungs = {N_rungs}, but at least one rung must exist')
+if N_rungs > 40:
+    abort(f'N_rungs = {N_rungs}, but must not be greater than 40')
 # Abort on illegal FFTW rigor
 if fftw_wisdom_rigor not in ('estimate', 'measure', 'patient', 'exhaustive'):
     abort('Does not recognize FFTW rigor "{}"'.format(user_params['fftw_wisdom_rigor']))

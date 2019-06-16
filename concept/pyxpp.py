@@ -2433,23 +2433,25 @@ def add_types_to_addition_chain_exponentiation_variables(lines, clines, no_optim
     # (or no type at all for module level variables which may be treated
     # seperately by Cython). Whenever a PyObject* declaration is found
     # for such a variable, it really should have the type Py_ssize_t.
-    funcsuffixes2types = {# Integers
-                          'char'      : 'char',
-                          'short'     : 'short',
-                          'int'       : 'int',
-                          'long'      : 'long int',
-                          'pylonglong': 'long long int',
-                          'ptrdifft'  : 'ptrdiff_t',
-                          # Unsgined integers
-                          'unsignedchar'      : 'unsigned char',
-                          'unsignedshort'     : 'unsigned short',
-                          'unsignedint'       : 'unsigned int',
-                          'unsignedlong'      : 'unsigned long int',
-                          'unsignedpylonglong': 'unsigned long long int',
-                          'ssizet'            : 'Py_ssize_t',
-                          # Floating-point numbers
-                          'double': 'double',
-                          }
+    funcsuffixes2types = {
+        # Integers
+        'char'      : 'char',
+        'signedchar': 'signed char',
+        'short'     : 'short',
+        'int'       : 'int',
+        'long'      : 'long int',
+        'pylonglong': 'long long int',
+        'ptrdifft'  : 'ptrdiff_t',
+        # Unsgined integers
+        'unsignedchar'      : 'unsigned char',
+        'unsignedshort'     : 'unsigned short',
+        'unsignedint'       : 'unsigned int',
+        'unsignedlong'      : 'unsigned long int',
+        'unsignedpylonglong': 'unsigned long long int',
+        'ssizet'            : 'Py_ssize_t',
+        # Floating-point numbers
+        'double': 'double',
+    }
     def search_backwards(tmp_varname, variable_numer, prev_clines):
         pattern = r'{} *= *([^\W0-9]\w*) *\('
         for prev_cline in reversed(prev_clines):

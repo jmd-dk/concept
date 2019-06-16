@@ -450,7 +450,7 @@ class Tiling:
         initial_rung_sizes='Py_ssize_t[::1]',
         j='Py_ssize_t',
         k='Py_ssize_t',
-        rung_index='Py_ssize_t',
+        rung_index='signed char',
         tile='Py_ssize_t**',
         tile_index='Py_ssize_t',
         tile_index3D='Py_ssize_t[::1]',
@@ -474,7 +474,7 @@ class Tiling:
         Py_ssize_t***         tiles
         Py_ssize_t**          tiles_rungs_N
         Py_ssize_t**          tiles_rungs_sizes
-        unsigned char*        contain_particles
+        signed char*          contain_particles
         double[::1]           location
         double[::1]           extent
         double[::1]           tile_extent
@@ -555,7 +555,7 @@ class Tiling:
         self.tiles             = malloc(self.size*sizeof('Py_ssize_t**'))
         self.tiles_rungs_sizes = malloc(self.size*sizeof('Py_ssize_t*'))
         self.tiles_rungs_N     = malloc(self.size*sizeof('Py_ssize_t*'))
-        self.contain_particles = malloc(self.size*sizeof('unsigned char'))
+        self.contain_particles = malloc(self.size*sizeof('signed char'))
         for tile_index in range(self.size):
             tile = malloc(N_rungs*sizeof('Py_ssize_t*'))
             self.tiles[tile_index] = tile
@@ -590,7 +590,7 @@ class Tiling:
     @cython.header(
         # Arguments
         tile_index='Py_ssize_t',
-        rung_index='Py_ssize_t',
+        rung_index='signed char',
         rung_size='Py_ssize_t',
         # Locals
         rung='Py_ssize_t*',
@@ -646,25 +646,25 @@ class Tiling:
         # Locals
         coarse_rung='Py_ssize_t*',
         coarse_rung_N='Py_ssize_t',
-        coarse_rung_index='Py_ssize_t',
+        coarse_rung_index='signed char',
         coarse_rung_particle_index='Py_ssize_t',
         coarse_rungs_N='Py_ssize_t*',
         coarse_tile='Py_ssize_t**',
-        contain_particles='unsigned char*',
-        contains='unsigned char',
+        contain_particles='signed char*',
+        contains='signed char',
         i='Py_ssize_t',
         j='Py_ssize_t',
         k='Py_ssize_t',
         layout='Py_ssize_t[:, :, ::1]',
-        lowest_active_rung='Py_ssize_t',
+        lowest_active_rung='signed char',
         particle_index='Py_ssize_t',
         posx='double*',
         posy='double*',
         posz='double*',
         rung='Py_ssize_t*',
         rung_N='Py_ssize_t',
-        rung_index='Py_ssize_t',
-        rung_indices='Py_ssize_t*',
+        rung_index='signed char',
+        rung_indices='signed char*',
         rungs_N='Py_ssize_t*',
         tile_index='Py_ssize_t',
         tiles='Py_ssize_t***',
@@ -759,7 +759,7 @@ class Tiling:
     # is garbage collected. All manually allocated memory is freed.
     def __dealloc__(self):
         cython.declare(
-            rung_index='Py_ssize_t',
+            rung_index='signed char',
             tile='Py_ssize_t**',
             tile_index='Py_ssize_t',
         )
@@ -805,6 +805,8 @@ class Component:
         approximations=dict,
         softening_length=object,  # float or str
         realization_options=dict,
+        # Locals
+        i='Py_ssize_t',
     )
     def __init__(self, name, species, N_or_gridsize, *,
         mass=-1,
@@ -919,12 +921,14 @@ class Component:
         public list Δmom_mv
         # Short-range rungs
         bint use_rungs
-        Py_ssize_t lowest_active_rung
-        Py_ssize_t lowest_populated_rung
-        Py_ssize_t highest_populated_rung
-        Py_ssize_t* rung_indices
-        Py_ssize_t[::1] rung_indices_mv
+        signed char lowest_active_rung
+        signed char lowest_populated_rung
+        signed char highest_populated_rung
         Py_ssize_t* rungs_N
+        signed char* rung_indices
+        signed char[::1] rung_indices_mv
+        signed char* rung_jumps
+        signed char[::1] rung_jumps_mv
         # Dict used for storing Tiling instances
         public dict tilings
         # Fluid attributes
@@ -1279,19 +1283,24 @@ class Component:
         self.Δmom_mv = [self.Δmomx_mv, self.Δmomy_mv, self.Δmomz_mv]
         # Short-range rungs
         self.use_rungs = bool(
-            self.representation == 'particles' and ({'pp', 'p3m'} & set(self.forces.values()))
+            N_rungs > 1
+            and self.representation == 'particles'
+            and ({'pp', 'p3m'} & set(self.forces.values()))
         )
         self.lowest_active_rung = 0
         self.lowest_populated_rung = 0
         self.highest_populated_rung = 0
-        rung_indices_N = self.N_local if self.use_rungs else 1
-        self.rung_indices = malloc(rung_indices_N*sizeof('Py_ssize_t'))
-        self.rung_indices_mv = cast(self.rung_indices, 'Py_ssize_t[:rung_indices_N]')
-        for i in range(rung_indices_N):
-            self.rung_indices[i] = 0
         self.rungs_N = malloc(N_rungs*sizeof('Py_ssize_t'))
         for i in range(N_rungs):
             self.rungs_N[i] = 0
+        self.rung_indices = malloc(self.N_local*sizeof('signed char'))
+        self.rung_indices_mv = cast(self.rung_indices, 'signed char[:self.N_local]')
+        for i in range(self.N_local):
+            self.rung_indices[i] = 0
+        self.rung_jumps = malloc(self.N_local*sizeof('signed char'))
+        for i in range(self.N_local):
+            self.rung_jumps[i] = 0
+        self.rung_jumps_mv = cast(self.rung_jumps, 'signed char[:self.N_local]')
         # Dict used for storing Tiling instances
         self.tilings = {}
         # Fluid attributes
@@ -1803,16 +1812,23 @@ class Component:
                 self.Δmom_mv = [self.Δmomx_mv, self.Δmomy_mv, self.Δmomz_mv]
                 # Nullify the newly allocated Δ buffer
                 self.nullify_Δ()
-                # Reallocate rung indices, if rungs are in use
+                # Reallocate rung indices and jumps, if rungs are in use
                 if self.use_rungs:
                     self.rung_indices = realloc(
                         self.rung_indices,
-                        self.N_allocated*sizeof('Py_ssize_t'),
+                        self.N_allocated*sizeof('signed char'),
+                    )
+                    self.rung_jumps = realloc(
+                        self.rung_jumps,
+                        self.N_allocated*sizeof('signed char'),
                     )
                     # New particles default to rung 0
                     for i in range(self.rung_indices_mv.shape[0], self.N_allocated):
                         self.rung_indices[i] = 0
-                    self.rung_indices_mv = cast(self.rung_indices, 'Py_ssize_t[:self.N_allocated]')
+                    self.rung_indices_mv = cast(self.rung_indices, 'signed char[:self.N_allocated]')
+                    for i in range(self.rung_jumps_mv.shape[0], self.N_allocated):
+                        self.rung_jumps[i] = 0
+                    self.rung_jumps_mv = cast(self.rung_jumps, 'signed char[:self.N_allocated]')
         elif self.representation == 'fluid':
             shape_nopseudo_noghosts = size_or_shape_nopseudo_noghosts
             # The allocated shape of the fluid grids are 5 points
@@ -2297,21 +2313,21 @@ class Component:
     @cython.header(
         # Arguments
         Δt='double',
+        fac_softening='double',
         # Locals
         a='double',
-        fac_shortrange='double',
         i='Py_ssize_t',
         mom2='double',
         momx='double*',
         momy='double*',
         momz='double*',
-        rung_index='Py_ssize_t',
-        rung_indices='Py_ssize_t*',
+        rung_index='signed char',
+        rung_indices='signed char*',
         rungs_N='Py_ssize_t*',
         v2='double',
         returns='void',
     )
-    def assign_rungs(self, Δt):
+    def assign_rungs(self, Δt, fac_softening):
         # When not using rungs, all particles occupy rung 0.
         # The rung indices themselves are not needed.
         if not self.use_rungs:
@@ -2324,10 +2340,6 @@ class Component:
         momz         = self.momz
         rung_indices = self.rung_indices
         rungs_N      = self.rungs_N
-        # This factor determines how far a particle is allowed to drift
-        # in a single short-range drift operation, in units of its
-        # softening length.
-        fac_shortrange = 1*Δt_factor
         # Reset the particle count for each rung
         for rung_index in range(N_rungs):
             rungs_N[rung_index] = 0
@@ -2340,11 +2352,11 @@ class Component:
             # (corresponding to the base time step size Δt)
             # and N_rungs - 1. Each rung uses half the time step size
             # of the previous rung.
-            if v2 <= ℝ[(fac_shortrange*self.softening_length/Δt)**2]:
+            if v2 <= ℝ[(fac_softening*self.softening_length/Δt)**2]:
                 rung_index = 0
             else:
                 rung_index = cast(
-                    0.5*log2(v2*ℝ[(Δt/(fac_shortrange*self.softening_length))**2]),
+                    0.5*log2(v2*ℝ[(Δt/(fac_softening*self.softening_length))**2]),
                     'Py_ssize_t',
                 ) + 1
                 if rung_index > ℤ[N_rungs - 1]:
@@ -2355,12 +2367,131 @@ class Component:
         # Flag the lowest and highest populated rungs
         self.set_lowest_highest_populated_rung()
 
+    # Method for flagging particle inter-rung jumps to come
+    @cython.header(
+        # Arguments
+        Δt='double',
+        rung_integrals='double[::1]',
+        fac_softening='double',
+        # Locals
+        a='double',
+        any_rung_jumps='bint',
+        down_jump_threshold='double',
+        i='Py_ssize_t',
+        lowest_active_rung='signed char',
+        mom2='double',
+        momx='double*',
+        momy='double*',
+        momz='double*',
+        rung_index='signed char',
+        rung_indices='signed char*',
+        rung_jump='signed char',
+        rung_jumps='signed char*',
+        v2='double',
+        v2_max='double',
+        v2_min='double',
+        returns='bint',
+    )
+    def flag_rung_jumps(self, Δt, rung_integrals, fac_softening):
+        # When not using rungs, all particles occupy rung 0,
+        # and no rung jumps are possible.
+        if not self.use_rungs:
+            return False
+        a = universals.a
+        # When a particle velocity is below down_jump_threshold times
+        # the minimum velocity of its current rung, it jumps down.
+        # This should be somewhat below unity, so that a particle only
+        # jumps down (gets a larger time step) if its velocity is well
+        # below what is absolutely needed. As particles jump up in rung
+        # as soon as they hit the upper velocity limit of their current
+        # rung, this threshold ensures that particles with velocities
+        # right at the border between two rungs stay at a given rung,
+        # rather than fluctuating back and forth between two rungs,
+        # which would degrade the symplecticity.
+        down_jump_threshold = 0.85
+        # Extract variables
+        momx               = self.momx
+        momy               = self.momy
+        momz               = self.momz
+        rung_indices       = self.rung_indices
+        rung_jumps         = self.rung_jumps
+        lowest_active_rung = self.lowest_active_rung
+        # Check for inter-rung jumps for each active particle
+        any_rung_jumps = False
+        for i in range(self.N_local):
+            rung_index = rung_indices[i]
+            if rung_index < lowest_active_rung:
+                continue
+            # Get the (squared) velocity in comoving units
+            mom2 = momx[i]**2 + momy[i]**2 + momz[i]**2
+            v2 = mom2*ℝ[1/(a**(2 - 3*self.w_eff(a=a))*self.mass)**2]
+            # Get maximum allowed v² at the current rung
+            # of this particle.
+            v2_max = (2**cast(2*rung_index, 'Py_ssize_t')
+                *ℝ[(fac_softening*self.softening_length/Δt)**2])
+            # If the particle velocity is larger than allowed
+            # for this rung, jump up to the next rung.
+            if v2 > v2_max:
+                if rung_index < ℤ[N_rungs - 1]:
+                    rung_jumps[i] = +1
+                    any_rung_jumps = True
+                continue
+            # Particle should not jump up.
+            # If at rung zero, it cannot jump down either.
+            if rung_index == 0:
+                continue
+            # Jumping down is only allowed every second kick, for any
+            # particular rung. When jumping down is disallowed, the
+            # down jumping rung integrals are set to -1.
+            if rung_integrals[rung_index + N_rungs] == -1:
+                # Jumping down disallowed
+                continue
+            # Get minimum allowed v² at the current rung
+            # of this particle.
+            v2_min = 0.25*v2_max
+            # If the particle velocity is below down_jump_threshold
+            # times the minimum velocity for this rung,
+            # jump down to the rung below.
+            if v2 < ℝ[down_jump_threshold**2]*v2_min:
+                rung_jumps[i] = -1
+                any_rung_jumps = True
+                continue
+        return any_rung_jumps
+
+    # Method for applying flagged particle inter-rung jumps
+    @cython.header(
+        # Locals
+        i='Py_ssize_t',
+        rung_index='signed char',
+        rung_indices='signed char*',
+        rung_jump='signed char',
+        rung_jumps='signed char*',
+        rungs_N='Py_ssize_t*',
+        returns='void',
+    )
+    def apply_rung_jumps(self):
+        rung_indices = self.rung_indices
+        rung_jumps   = self.rung_jumps
+        rungs_N      = self.rungs_N
+        for i in range(self.N_local):
+            rung_jump = rung_jumps[i]
+            if rung_jump == 0:
+                continue
+            # Particle i undergoes an inter-rung jump
+            rung_index = rung_indices[i]
+            rungs_N[rung_index] -= 1
+            rung_index += rung_jump
+            rungs_N[rung_index] += 1
+            rung_indices[i] = rung_index
+            rung_jumps[i] = 0
+        self.set_lowest_highest_populated_rung()
+
     # Method for setting the (local) lowest and highest populated rung
     @cython.header(
         # Locals
-        highest_populated_rung='Py_ssize_t',
-        lowest_populated_rung='Py_ssize_t',
-        rung_index='Py_ssize_t',
+        highest_populated_rung='signed char',
+        lowest_populated_rung='signed char',
+        rung_index='signed char',
         returns='void',
     )
     def set_lowest_highest_populated_rung(self):
@@ -2387,6 +2518,7 @@ class Component:
         extent='double[::1]',
         location='double[::1]',
         size='Py_ssize_t',
+        rung_index='signed char',
         shape=object,  # sequence of length 3 or int-like
         tiling='Tiling',
         returns='Tiling',
@@ -3466,8 +3598,9 @@ class Component:
         free(self.Δmomx)
         free(self.Δmomy)
         free(self.Δmomz)
-        free(self.rung_indices)
         free(self.rungs_N)
+        free(self.rung_indices)
+        free(self.rung_jumps)
 
     # String representation
     def __repr__(self):
@@ -3635,4 +3768,3 @@ fluidvar_names = ('ϱ', 'J', 'ς')
 cython.declare(allow_similarly_named_components='bint', component_names=set)
 allow_similarly_named_components = False
 component_names = set()
-
