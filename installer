@@ -351,9 +351,9 @@ set_version "hdf5"            "1.10.5" "1.10.5"
 set_version "libffi"          "3.2.1"  "3.2.1"
 set_version "libpng"          "1.6.37" "1.6.33"
 if [ "${mpi}" == "mpich" ]; then
-    set_version "mpi"         "3.3"    "3.3"
+    set_version "mpi"         "3.3.1"  "3.3.1"
 elif [ "${mpi}" == "openmpi" ]; then
-    set_version "mpi"         "3.1.2"  # 4.0.0 is out!
+    set_version "mpi"         "4.0.1"
 fi
 set_version "ncurses"         "6.1"    "6.1"
 set_version "openssl"         "1.1.1c" "1.1.1c"
@@ -365,11 +365,11 @@ set_version "blessings"       "1.7"
 set_version "cython"          "0.29.10"
 set_version "cythongsl"       "0.2.2"
 set_version "h5py"            "2.9.0"
-set_version "matplotlib"      "3.0.3"  # matplotlib 3.1.0 not acceptable due to bug (see graphics.py)
-set_version "mpi4py"          "3.0.1"
+set_version "matplotlib"      "3.1.0"
+set_version "mpi4py"          "3.0.2"
 set_version "numpy"           "1.16.4"
 set_version "pip"             "19.1.1"
-set_version "pytest"          "4.6.1"
+set_version "pytest"          "4.6.3"
 set_version "scipy"           "1.3.0"
 set_version "setuptools"      "41.0.1"
 set_version "wheel"           "0.33.4"
@@ -3090,8 +3090,8 @@ for program in "cc" "c89" "c99" "CC" "c++" "ftn" "f77" "f90" "fortran"; do
     fi
 done
 if [ "${install_anything}" == "True" ]; then
-    sleep ${sleep_time}
     echo
+    sleep ${sleep_time}
     enable_status
 fi
 compiler_possibilities=("${compiler_possibilities[@]}" "unset")

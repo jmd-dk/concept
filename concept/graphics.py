@@ -902,7 +902,7 @@ def render2D(components, filename):
             masterprint(f'Saving image to "{filename_combination}" ...')
             plt.imsave(
                 filename_combination,
-                projection,
+                asarray(projection),
                 cmap=colormap,
                 vmin=vmin,
                 vmax=vmax,
@@ -1173,7 +1173,6 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
                                               transform=ax.transAxes,
                                               )
             # Configure axis options
-            ax.set_aspect('equal')  # Note: This fails with matplotlib 3.1.0
             ax.dist = 9  # Zoom level
             ax.set_xlim(0, boxsize)
             ax.set_ylim(0, boxsize)
@@ -1329,7 +1328,7 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
                 # a 3D render containing all components.
                 if len(names) > 1:
                     filename_component_alpha = '{}/{}_alpha.png'.format(render3D_dir, name)
-                    plt.imsave(filename_component_alpha, render3D_image)
+                    plt.imsave(filename_component_alpha, asarray(render3D_image))
             # Add opaque background to render3D_image
             add_background()
             # Save combined 3D render of the j'th component
@@ -1342,7 +1341,7 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
                     filename_component = filename.replace('_a=', '_{}_a='.format(name))
                 else:
                     filename_component = filename.replace('.png', '_{}.png'.format(name))
-            plt.imsave(filename_component, render3D_image)
+            plt.imsave(filename_component, asarray(render3D_image))
         Barrier()
         masterprint('done')
         # Finally, combine the full 3D renders of individual components
@@ -1355,7 +1354,7 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
             blend(filenames_component_alpha)
             # Add opaque background to render3D_image and save it
             add_background()
-            plt.imsave(filename, render3D_image)
+            plt.imsave(filename, asarray(render3D_image))
             masterprint('done')
     # Remove the temporary directory, if cleanup is requested
     if master and cleanup and not (nprocs == 1 == len(render3D_dict)):

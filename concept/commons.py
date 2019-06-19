@@ -343,13 +343,20 @@ def fix_minor_tick_labels(fig=None):
     This function serves as a workaround. To avoid the warning,
     you must call this function before calling tight_layout().
     """
+    import logging
     if fig is None:
         fig = plt.gcf()
-    # Force the figure to be drawn,
-    # ignoring the warning about \times not being recognized.
+    # Force the figure to be drawn, ignoring the warning about \times
+    # not being recognized. Prior to matplotlib 3.1.0, the warning is
+    # emitted through the warnings module, whereas later versions uses
+    # the logging module.
+    logger = logging.getLogger('matplotlib.mathtext')
+    original_level = logger.getEffectiveLevel()
+    logger.setLevel(logging.ERROR)
     with warnings.catch_warnings():
         warnings.simplefilter('ignore', category=matplotlib.mathtext.MathTextWarning)
         fig.canvas.draw()
+    logger.setLevel(original_level)
     for ax in fig.axes:
         # Remove \mathdefault from all minor tick labels
         labels = [label.get_text().replace(r'\mathdefault', '')

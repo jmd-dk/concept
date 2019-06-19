@@ -299,9 +299,10 @@ fi
 mpiexec_args=""
 if [ "${mpi_implementation}" == "openmpi" ]; then
     # Extra arguments to pass to OpenMPI's mpiexec.
-    # In OpenMPI 3, oversubscription (having more MPI processes than
-    # physical cores) is disallowed by default.
-    if [[ "${mpi_version}" == 3* ]]; then
+    # In OpenMPI 3 and 4, oversubscription (having more MPI processes
+    # than physical cores) is disallowed by default.
+    mpi_version_major="${mpi_version:0:1}"
+    if [ "${mpi_version_major}" -ge 3 2>/dev/null ]; then
         mpiexec_args="${mpiexec_args} --oversubscribe"
     fi
     # If OpenMPI complains about openib, it may be having problems
@@ -316,7 +317,7 @@ if [ "${mpi_implementation}" == "openmpi" ]; then
         export OMPI_MCA_hwloc_base_binding_policy=none
         # You can also try OMPI_MCA_hwloc_base_binding_policy=core:overload
     fi
-    # Disable aggregation of OpenMPI warnings.
+    # Disable aggregation of OpenMPI warnings
     export OMPI_MCA_orte_base_help_aggregate=0
     # Disable OpenMPI warning about forking
     export OMPI_MCA_mpi_warn_on_fork=0
