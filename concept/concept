@@ -321,6 +321,20 @@ if [ "${mpi_implementation}" == "openmpi" ]; then
     export OMPI_MCA_orte_base_help_aggregate=0
     # Disable OpenMPI warning about forking
     export OMPI_MCA_mpi_warn_on_fork=0
+    # In OpenMPI 4, infiniband ports are disabled by default in favour
+    # of UCX. If this leads to an error about not initializing an
+    # OpenFabrics device, we overwrite this default.
+    if [ -z "${OMPI_MCA_btl_openib_allow_ib}" ] \
+        && [ "${mpi_version_major}" -ge 4 2>/dev/null ]; then
+        mpi_warning="$("${python}" -c 'from mpi4py import MPI' 2>&1)"
+        if [ -n "${mpi_warning}" ]; then
+            if echo "${mpi_warning}" | grep "error" | grep "OpenFabrics" >/dev/null; then
+                if echo "${mpi_warning}" | grep "btl_openib_allow_ib" >/dev/null; then
+                    export OMPI_MCA_btl_openib_allow_ib=1
+                fi
+            fi
+        fi
+    fi
 elif [ "${mpi_implementation}" == "mpich" ]; then
     # Extra arguments to pass to MPICH's mpiexec
     mpiexec_args=""
