@@ -2373,10 +2373,10 @@ class Component:
         Δt='double',
         rung_integrals='double[::1]',
         fac_softening='double',
+        Δt_downjump_fac='double',
         # Locals
         a='double',
         any_rung_jumps='bint',
-        down_jump_threshold='double',
         i='Py_ssize_t',
         lowest_active_rung='signed char',
         mom2='double',
@@ -2392,23 +2392,12 @@ class Component:
         v2_min='double',
         returns='bint',
     )
-    def flag_rung_jumps(self, Δt, rung_integrals, fac_softening):
+    def flag_rung_jumps(self, Δt, rung_integrals, fac_softening, Δt_downjump_fac):
         # When not using rungs, all particles occupy rung 0,
         # and no rung jumps are possible.
         if not self.use_rungs:
             return False
         a = universals.a
-        # When a particle velocity is below down_jump_threshold times
-        # the minimum velocity of its current rung, it jumps down.
-        # This should be somewhat below unity, so that a particle only
-        # jumps down (gets a larger time step) if its velocity is well
-        # below what is absolutely needed. As particles jump up in rung
-        # as soon as they hit the upper velocity limit of their current
-        # rung, this threshold ensures that particles with velocities
-        # right at the border between two rungs stay at a given rung,
-        # rather than fluctuating back and forth between two rungs,
-        # which would degrade the symplecticity.
-        down_jump_threshold = 0.85
         # Extract variables
         momx               = self.momx
         momy               = self.momy
@@ -2449,10 +2438,10 @@ class Component:
             # Get minimum allowed v² at the current rung
             # of this particle.
             v2_min = 0.25*v2_max
-            # If the particle velocity is below down_jump_threshold
+            # If the particle velocity is below Δt_downjump_fac
             # times the minimum velocity for this rung,
             # jump down to the rung below.
-            if v2 < ℝ[down_jump_threshold**2]*v2_min:
+            if v2 < ℝ[Δt_downjump_fac**2]*v2_min:
                 rung_jumps[i] = -1
                 any_rung_jumps = True
                 continue
@@ -2517,9 +2506,8 @@ class Component:
         coarse_tiling='Tiling',
         extent='double[::1]',
         location='double[::1]',
-        size='Py_ssize_t',
         rung_index='signed char',
-        shape=object,  # sequence of length 3 or int-like
+        shape=object,  # sequence of length 3 or int-like or str
         tiling='Tiling',
         returns='Tiling',
     )
@@ -2534,8 +2522,8 @@ class Component:
             # This tiling spans the box using a single tile,
             # resulting in no actual tiling. It is useful since the
             # rung-ordering of particles is done at the tile level.
-            tiling_names.add(tiling_name)
-            shape = 1
+            shape = (1, 1, 1)
+            tiling_shapes[tiling_name] = asarray(shape, dtype=C2np['Py_ssize_t'])
             # The rungs within the tile start out with half
             # of the mean required memory per rung.
             if initial_rung_size == -1:
@@ -2551,22 +2539,27 @@ class Component:
             location = zeros(3, dtype=C2np['double'])
         elif tiling_name == 'gravity (tiles)':
             # This tiling is used for the P³M method for gravity.
-            # The tile decomposition on a domain will have a shape
-            # of size×size×size, with size determined from the
-            # criterion that it must be at least as large as
-            # the short-range cutoff.
-            shape = size = np.min(asarray(
-                (boxsize/asarray(domain_subdivisions))/shortrange_params['gravity']['cutoff'],
-                dtype=C2np['Py_ssize_t'],
-            ))
-            if tiling_name not in tiling_names:
-                masterprint(f'Gravitational tile decomposition: {size}×{size}×{size}')
-                tiling_names.add(tiling_name)
-            # We need this tiling to be at least 3×3×3
-            if size < 3:
+            # The same tiling is applied to all domains. The tile
+            # decomposition on a domain will have a general shape
+            # of shape[0]×shape[1]×shape[2], with shape[dim] determined
+            # by the criterion that a tile must be at least as large as
+            # the short-range cutoff length, in all directions. At the
+            # same time, we want to maximize the number of tiles.
+            if tiling_name not in tiling_shapes:
+                shape = asarray(
+                    (boxsize/asarray(domain_subdivisions))/shortrange_params['gravity']['cutoff'],
+                    dtype=C2np['Py_ssize_t'],
+                )
+                masterprint(f'Gravitational tile decomposition: {shape[0]}×{shape[1]}×{shape[2]}')
+                tiling_shapes[tiling_name] = shape
+            else:
+                shape = tiling_shapes[tiling_name]
+            # We need this tiling to have a size of at least 3
+            # in every direction.
+            if np.min(shape) < 3:
                 message = [
-                    f'For the P³M method, each domain needs to be subdivided into '
-                    f'at least 3×3×3 tiles. Try increasing φ_gridsize.'
+                    f'For the P³M method, the domain tiling needs a subdivision of at least 3 '
+                    f'in every direction. Try increasing φ_gridsize.'
                 ]
                 if 1 != nprocs != int(round(cbrt(nprocs)))**3:
                     message.append(
@@ -2577,7 +2570,7 @@ class Component:
             # of the mean required memory per rung.
             if initial_rung_size == -1:
                 initial_rung_size = [
-                    self.rungs_N[rung_index]//(2*size**3)
+                    self.rungs_N[rung_index]//(2*np.prod(shape))
                     for rung_index in range(N_rungs)
                 ]
             # The extent of the entire tiling,
@@ -2589,13 +2582,6 @@ class Component:
             location = asarray((domain_start_x, domain_start_y, domain_start_z),
                 dtype=C2np['double'])
         elif tiling_name == 'gravity (subtiles)':
-            shape = shortrange_params['gravity']['subtiling']
-            if tiling_name not in tiling_names:
-                masterprint(
-                    f'Gravitational subtile decomposition: '
-                    f'{shape[0]}×{shape[1]}×{shape[2]}'
-                )
-                tiling_names.add(tiling_name)
             # The entire (sub)tiling currently being initialized lives
             # within one tile of the "gravity (tiles)" tiling.
             # Get this coarser tiling.
@@ -2605,6 +2591,79 @@ class Component:
                     'Cannot initialize the "gravity (subtiles)" tiling '
                     'without first having the "gravity (tiles)" tiling initialized'
                 )
+            # Get the shape of the subtiling
+            if tiling_name not in tiling_shapes:
+                shape = shortrange_params['gravity']['subtiling']
+                if shape == 'automatic':
+                    # The subtiling shape is to be determined
+                    # automatically. It is optimal to have the subtiles
+                    # be as cubic as possible. Additionally, we have
+                    # found that having (on average) ~8–16
+                    # particles/subtile is optimal. To a good
+                    # approximation this is independent on the amount of
+                    # clustering. Here we pick the most cubic choice of
+                    # all possible subtiling shapes which leads to
+                    # subtiles of a volume comparable to the above
+                    # stated number of particles.
+                    particles_per_subtile_min, particles_per_subtile_max = 8, 16
+                    tiling_global_shape = asarray(
+                        asarray(domain_subdivisions)*asarray(coarse_tiling.shape),
+                        dtype=C2np['double'],
+                    )
+                    shape_candidates = []
+                    for particles_per_subtile in (
+                        particles_per_subtile_min, particles_per_subtile_max,
+                    ):
+                        shape = np.prod(tiling_global_shape)/tiling_global_shape
+                        shape *= (float(self.N)/
+                            (nprocs*np.prod(asarray(coarse_tiling.shape)*shape)
+                                *particles_per_subtile)
+                        )**ℝ[1/3]
+                        shape = asarray(np.round(shape), dtype=C2np['Py_ssize_t'])
+                        shape[shape == 0] = 1
+                        shape_candidates.append(shape)
+                    shape_diff = shape_candidates[0] - shape_candidates[1]
+                    shape_base = shape_candidates[1]
+                    shape_candidates = {}
+                    for         i in range(shape_diff[0] + 1):
+                        for     j in range(shape_diff[1] + 1):
+                            for k in range(shape_diff[2] + 1):
+                                shape = shape_base + np.array((i, j, k))
+                                subtiling_global_shape = tiling_global_shape*shape
+                                particles_per_subtile = (
+                                    float(self.N)/np.prod(subtiling_global_shape)
+                                )
+                                # Construct tuple key to be used to store
+                                # this shape. The lower the value of each
+                                # element in the key, the better we consider
+                                # this key to be.
+                                key = []
+                                noncubicness = np.max((
+                                    np.max(subtiling_global_shape)**3
+                                        /np.prod(subtiling_global_shape),
+                                    np.prod(subtiling_global_shape)
+                                        /np.min(subtiling_global_shape)**3,
+                                ))
+                                key.append(noncubicness)
+                                ratio = particles_per_subtile/(
+                                    (particles_per_subtile_min*particles_per_subtile_max)**0.5
+                                )
+                                if ratio < 1:
+                                    ratio = 1/ratio
+                                key.append(ratio)
+                                shape_candidates[tuple(key)] = shape
+                    # Pick the shape with the smallest key
+                    shape = shape_candidates[sorted(shape_candidates)[0]]
+                    # Always use a subtile decomposition of
+                    # at least 2 in each direction.
+                    shape[shape == 1] = 2
+                shape = asarray(shape, dtype=C2np['Py_ssize_t'])
+                masterprint(
+                    f'Gravitational subtile decomposition: {shape[0]}×{shape[1]}×{shape[2]}'
+                )
+                tiling_shapes[tiling_name] = shape
+            else:
+                shape = tiling_shapes[tiling_name]
             # The rungs within each tile start out with half
             # of the mean required memory per rung.
             if initial_rung_size == -1:
@@ -3671,8 +3730,10 @@ def update_species_present(components):
 
 
 
-# Set of names of all tilings instantiated across all components
-tiling_names = set()
+# Mapping from tiling names to shapes of all tilings instantiated
+# across all components.
+cython.declare(tiling_shapes=dict)
+tiling_shapes = {}
 
 # Mapping from species to their representations
 cython.declare(representation_of_species=dict)

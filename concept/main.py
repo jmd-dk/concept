@@ -55,6 +55,8 @@ cimport('from utilities import delegate')
     dump_times=list,
     integrals='double[::1]',
     output_filenames=dict,
+    period_frac='double',
+    recompute_Δt_max='bint',
     sync_at_dump='bint',
     sync_time='double',
     time_step='Py_ssize_t',
@@ -63,9 +65,12 @@ cimport('from utilities import delegate')
     timespan='double',
     Δt='double',
     Δt_begin='double',
+    Δt_downjump_fac='double',
     Δt_half='double',
+    Δt_increase_fac='double',
     Δt_increase_max_fac='double',
     Δt_increase_min_fac='double',
+    Δt_initial_fac='double',
     Δt_min='double',
     Δt_max='double',
     Δt_new='double',
@@ -114,30 +119,57 @@ def timeloop():
         # Return now if all dumps lie at the initial time
         if len(dump_times) == 0:
             return
+    # The initial time step size Δt will be set to the maximum allowed
+    # value times this factor. At early times of almost homogeneity,
+    # it is preferable with a small Δt, and so
+    # this factor should be below unity.
+    Δt_initial_fac = 0.9
     # When reducing Δt, set it to the maximum allowed value
     # times this factor.
     Δt_reduce_fac = 0.95
-    # Set the number of time steps before the base time step size Δt is
+    # When increasing Δt, we never increase it beyond the maximally
+    # alowed value Δt_max. In fact, we never increase Δt beyond
+    # Δt + Δt_increase_fac*(Δt_max - Δt).
+    # A value of Δt_increase_fac slightly below 1 ensures that the time
+    # step size is not set right at the boundary of what is allowed,
+    # which would be bad as the time step will then often have to be
+    # lowered right after it has been increased.
+    Δt_increase_fac = 0.95
+    # The maximum allowed fractional increase in Δt
+    # after Δt_period time steps with constant time step size.
+    Δt_increase_max_fac = 0.25
+    # The minimum fractional increase in Δt needed before it is deemed
+    # worth it to synchronize drifts/kicks and update Δt.
+    Δt_increase_min_fac = 0.01
+    # Ratios between old and new Δt, below which the program
+    # will show a warning or abort, respectively.
+    Δt_ratio_warn  = 0.7
+    Δt_ratio_abort = 0.01
+    # When using adaptive time stepping (N_rungs > 1), a particle jumps
+    # to the rung just above its current rung as soon as its velocity
+    # gets too large (according to fac_softening). Before it jumps to
+    # the rung just below, its velocity has to be this factor times the
+    # minimum velocity of its current rung. This factor should be
+    # somewhat below unity, so that a particle only jumps down (gets a
+    # larger time step) if its velocity is well below what is absolutely
+    # needed. This ensures that particles with velocities right at the
+    # border between two rungs stay at a given rung over many time
+    # steps, rather than fluctuating back and forth between two rungs,
+    # which would degrade the symplecticity.
+    Δt_downjump_fac = 0.85
+    # The number of time steps before the base time step size Δt is
     # allowed to increase. Choosing a multiple of 8 prevents the
     # formation of spurious anisotropies when evolving fluids with the
     # MacCormack method, as each of the 8 flux directions are then
-    # used with the same time step size.
+    # used with the same time step size (in the simple case of no
+    # reduction to Δt and no synchronizations due to dumps).
     Δt_period = 1*8
-    # The maximum allowed fractional increase in Δt
-    Δt_increase_max_fac = 0.15
-    # The minimum fractional increase in Δt needed before it is deemed
-    # worth it to synchronize drifts/kicks and update Δt.
-    Δt_increase_min_fac = 0.005
-    # Ratios between old and new Δt, below which the program
-    # will show a warning or abort, respectively.
-    Δt_ratio_warn  = 0.5
-    Δt_ratio_abort = 0.01
     # Set initial time step size
     if Δt_begin_autosave == -1:
         # Set the initial time step size to the largest allowed value
-        # times Δt_reduce_fac.
+        # times Δt_initial_fac.
         Δt_max, bottleneck = get_base_timestep_size(components)
-        Δt_begin = Δt_reduce_fac*Δt_max
+        Δt_begin = Δt_initial_fac*Δt_max
         # We always want the simulation time span to be at least
         # one whole Δt_period long.
         timespan = dump_times[len(dump_times) - 1].t - universals.t
@@ -195,6 +227,7 @@ def timeloop():
     time_step_type = 'init'
     sync_time = ထ
     time_step_last_sync = 0
+    recompute_Δt_max = True
     for dump_index, dump_time in enumerate(dump_times):
         # Break out of this loop when a dump has been performed
         while True:
@@ -256,6 +289,7 @@ def timeloop():
                     # Next base step should synchronize.
                     # Thereafter we can lower the base time step size.
                     sync_time = universals.t + 0.5*Δt
+                    recompute_Δt_max = False
                     continue
             elif time_step_type == 'full':
                 # This is a full base time step of size Δt.
@@ -275,7 +309,7 @@ def timeloop():
                 # time step (Δt away) and kicked half a sub-step
                 # (of size Δt/(2*2**i) for run i) into the next
                 # base time step.
-                driftkick_short(components, Δt, ᔑdt_substeps)
+                driftkick_short(components, Δt, ᔑdt_substeps, Δt_downjump_fac)
                 # All drifting is now exactly at the next base time
                 # step, while the long-range kicks are lacking behind.
                 # Before doing the long-range kicks, set the universal
@@ -298,8 +332,6 @@ def timeloop():
                 # Check whether we are at sync time
                 if Δt_half == 0 or sync_time - universals.t <= Δt_reltol*Δt:
                     # We are at sync time. Base time step completed.
-                    time_step += 1
-                    time_step_last_sync = time_step
                     # Ensure that the universal time
                     # matches exactly with the sync time.
                     universals.t = sync_time
@@ -308,7 +340,9 @@ def timeloop():
                     sync_time = ထ
                     # Reduce base time step if necessary.
                     # If not, increase it as allowed.
-                    Δt_max, bottleneck = get_base_timestep_size(components)
+                    if recompute_Δt_max:
+                        Δt_max, bottleneck = get_base_timestep_size(components)
+                    recompute_Δt_max = True
                     if Δt > Δt_max:
                         # Reduce base time step size
                         Δt_new = Δt_reduce_fac*Δt_max
@@ -333,7 +367,6 @@ def timeloop():
                     else:
                         # The base time step size will be increased,
                         # and so we have no bottleneck.
-                        bottleneck_cp = bottleneck
                         bottleneck = ''
                         # New, bigger base time step size,
                         # according to Δt ∝ a.
@@ -345,11 +378,19 @@ def timeloop():
                         Δt_new += ℝ[(1 + Δt_increase_min_fac)*Δt_begin]
                         # Make sure that the relative change
                         # of the base time step size is not too big.
-                        if  Δt_new > ℝ[1 + Δt_increase_max_fac]*Δt:
-                            Δt_new = ℝ[1 + Δt_increase_max_fac]*Δt
-                        if Δt_new > Δt_max:
-                            Δt_new = Δt_max
+                        if  Δt_new > ℝ[Δt + Δt_increase_fac*(Δt_max - Δt)]:
+                            Δt_new = ℝ[Δt + Δt_increase_fac*(Δt_max - Δt)]
+                        period_frac = float(time_step + 1 - time_step_last_sync)/Δt_period
+                        if period_frac > 1:
+                            period_frac = 1
+                        elif period_frac < 0:
+                            period_frac = 0
+                        if  Δt_new > ℝ[1 + period_frac*Δt_increase_max_fac]*Δt:
+                            Δt_new = ℝ[1 + period_frac*Δt_increase_max_fac]*Δt
                         Δt = Δt_new
+                    # Update time step counters
+                    time_step += 1
+                    time_step_last_sync = time_step
                     # If it is time, perform autosave
                     with unswitch:
                         if autosave_interval > 0:
@@ -365,7 +406,7 @@ def timeloop():
                             Δt_max = (dump_times[dump_index + 1].t - universals.t)/1.5
                             if Δt > Δt_max:
                                 Δt = Δt_max
-                        # Break out of the ifinite loop,
+                        # Break out of the infinite loop,
                         # proceeding to the next dump time.
                         break
                     # Not at dump time.
@@ -387,14 +428,16 @@ def timeloop():
                     # We should synchronize, whereafter the
                     # base time step size can be lowered.
                     sync_time = universals.t + 0.5*Δt
+                    recompute_Δt_max = False
                     continue
                 # Check whether the base time step should be increased
                 if (Δt_max > ℝ[1 + Δt_increase_min_fac]*Δt
-                    and (time_step + 1 - time_step_last_sync) % Δt_period == 0
+                    and (time_step + 1 - time_step_last_sync) >= Δt_period
                 ):
                     # We should synchronize, whereafter the
                     # base time step size can be raised.
                     sync_time = universals.t + 0.5*Δt
+                    recompute_Δt_max = False
                     continue
                 # Base time step completed
                 time_step += 1
@@ -468,9 +511,6 @@ def get_base_timestep_size(components):
       would take to traverse the long/short-range force split scale for
       a particle with the rms velocity of all particles within a
       given component.
-    The size of the "small fraction" factors which should be multiplied
-    on the above limiters is tuned by hand to achieve a power spectrum
-    that has converged to within 1% on all scales, for Δt_factor = 1.
     The return value is a tuple containing the maximum allowed Δt and a
     str stating which limiter is the bottleneck.
     """
@@ -503,7 +543,7 @@ def get_base_timestep_size(components):
         if component.representation == 'fluid' and component.is_linear(0):
             continue
         ρ_bar_component = component.ϱ_bar*a**(-3*(1 + component.w_eff(a=a)))
-        Δt_decay = fac_decay/(abs(component.Γ(a)) + machine_ϵ)*ρ_bar/ρ_bar_component
+        Δt_decay = fac_Γ/(abs(component.Γ(a)) + machine_ϵ)*ρ_bar/ρ_bar_component
         if Δt_decay < Δt:
             Δt = Δt_decay
             bottleneck = f'decay rate of {component.name}'
@@ -562,7 +602,7 @@ def get_base_timestep_size(components):
             v_rms -= light_speed*sqrt(component.w(a=a))/a
         # In the odd case of a completely static component,
         # set v_rms to be just above 0.
-        if v_rms == 0:
+        if v_rms < machine_ϵ:
             v_rms = machine_ϵ
         # The PM limiter
         Δx_max = boxsize/resolution
@@ -590,7 +630,7 @@ def get_base_timestep_size(components):
         v_rms = measure(component, 'v_rms')
         # In the odd case of a completely static component,
         # set v_rms to be just above 0.
-        if v_rms == 0:
+        if v_rms < machine_ϵ:
             v_rms = machine_ϵ
         # The P³M limiter
         Δx_max = scale
@@ -903,6 +943,7 @@ def drift_fluids(components, ᔑdt_substeps):
     components=list,
     Δt='double',
     ᔑdt_substeps=dict,
+    Δt_downjump_fac='double',
     # Locals
     any_kicks='bint',
     any_rung_jumps='bint',
@@ -929,7 +970,7 @@ def drift_fluids(components, ᔑdt_substeps):
     ᔑdt=dict,
     returns='void',
 )
-def driftkick_short(components, Δt, ᔑdt_substeps):
+def driftkick_short(components, Δt, ᔑdt_substeps, Δt_downjump_fac):
     """Every rung is fully drifted and kicked over a complete base time
     step of size Δt. Rung i will be kicked 2**i times.
     All rungs will be drifted synchronously in steps
@@ -1103,7 +1144,7 @@ def driftkick_short(components, Δt, ᔑdt_substeps):
             # whether or not any local particles of this component
             # jump rung.
             any_rung_jumps_list.append(
-                component.flag_rung_jumps(Δt, rung_integrals, fac_softening)
+                component.flag_rung_jumps(Δt, rung_integrals, fac_softening, Δt_downjump_fac)
             )
         if printout:
             # This is the first kick. Print out progress message.
@@ -1287,13 +1328,13 @@ def print_timestep_heading(time_step, Δt, bottleneck, components, end=False):
     parts = []
     parts.append('\nEnd of main time loop' if end else terminal.bold(f'\nTime step {time_step}'))
     if enable_Hubble:
+        parts.append('\nScale factor:'.ljust(heading_ljust))
+        parts.append(significant_figures(universals.a, 4, fmt='unicode'))
+    if enable_Hubble:
         parts.append('\nCosmic time:'.ljust(heading_ljust))
     else:
         parts.append('\nTime:'.ljust(heading_ljust))
     parts.append(f'{{}} {unit_time}'.format(significant_figures(universals.t, 4, fmt='unicode')))
-    if enable_Hubble:
-        parts.append('\nScale factor:'.ljust(heading_ljust))
-        parts.append(significant_figures(universals.a, 4, fmt='unicode'))
     if not end:
         parts.append('\nStep size:'.ljust(heading_ljust))
         parts.append(f'{{}} {unit_time}'.format(significant_figures(Δt, 4, fmt='unicode')))
@@ -1311,7 +1352,7 @@ def print_timestep_heading(time_step, Δt, bottleneck, components, end=False):
     for component in components:
         if not component.use_rungs:
             continue
-        parts.append(f'\nRung population ({component.name}):'.ljust(heading_ljust))
+        parts.append(f'\nRung population ({component.name}): ')
         rung_population = []
         last_populated_rung = 0
         for rung_index in range(N_rungs):
@@ -1325,7 +1366,7 @@ def print_timestep_heading(time_step, Δt, bottleneck, components, end=False):
     if heading_ljust == 0:
         width_max = 0
         for part in parts:
-            if part.endswith(':'):
+            if part.endswith(':') and 'Rung population' not in part:
                 width = len(part)
                 if width > width_max:
                     width_max = width
@@ -1460,49 +1501,54 @@ def prepare_for_output():
 
 
 
-# Here we set the values for the various factors
-# used when determining the time step size.
+# Here we set the values for the various factors used when determining
+# the time step size. The values given below has been tuned by hand as
+# to achieve a matter power spectrum at a = 1 that has converged to
+# within 1% on all scales, for Δt_base_factor = Δt_rung_factor = 1.
+# For further specification of each factor,
+# consult the get_base_timestep_size() function.
 cython.declare(
-    fac_courant='double',
-    fac_decay='double',
     fac_dynamical='double',
     fac_hubble='double',
-    fac_p3m='double',
-    fac_pm='double',
-    fac_softening='double',
     fac_ẇ='double',
+    fac_Γ='double',
+    fac_courant='double',
+    fac_pm='double',
+    fac_p3m='double',
+    fac_softening='double',
 )
 # The base time step should be below the dynamic time scale
 # times this factor.
-fac_dynamical = 1.3e-2*Δt_factor
+fac_dynamical = 0.042*Δt_base_factor
 # The base time step should be below the current Hubble time scale
 # times this factor.
-fac_hubble = 5e-2*Δt_factor
+fac_hubble = 0.12*Δt_base_factor
 # The base time step should be below |ẇ|⁻¹ times this factor,
 # for all components. Here w is the equation of state parameter.
-fac_ẇ = 1e-3*Δt_factor
+fac_ẇ = 1e-3*Δt_base_factor
 # The base time step should be below |Γ|⁻¹ times this factor,
 # for all components. Here Γ is the decay rate.
-fac_decay = 1e-3*Δt_factor
+fac_Γ = 3e-3*Δt_base_factor
 # The base time step should be below that set by the 1D Courant
 # condition times this factor, for all fluid components.
-fac_courant = 0.12*Δt_factor
+fac_courant = 0.08*Δt_base_factor
 # The base time step should be small enough so that particles
 # participating in interactions using the PM method do not drift further
 # than the size of one PM grid cell times this factor in a single
 # time step. The same condition is applied to fluids, where the bulk
 # velocity is what counts (i.e. we ignore the sound speed).
-fac_pm = 0.035*Δt_factor
+fac_pm = 0.032*Δt_base_factor
 # The base time step should be small enough so that particles
 # participating in interactions using the P³M method do not drift
 # further than the long/short-range force split scale times this factor
 # in a single time step.
-fac_p3m = 0.035*Δt_factor
+fac_p3m = 0.027*Δt_base_factor
 # When using adaptive time stepping (N_rungs > 1), the individual time
-# step size for a given particle must not exceed its softening length
-# times this factor. If it does, the particle jump to the rung just
-# above its current rung.
-fac_softening = 0.1*Δt_factor
+# step size for a given particle must not be so large that it drifts
+# further than its softening length times this factor. If it does become
+# large enough for this, the particle jumps to the rung just above
+# its current rung.
+fac_softening = 2.0*Δt_rung_factor
 
 # If this module is run properly (detected by jobid being set),
 # launch the CO𝘕CEPT run.

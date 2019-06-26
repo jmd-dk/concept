@@ -94,7 +94,7 @@ shortrange_params = {        # Short-range force parameters for each short-range
     'gravity': {
         'scale'    : 1.25*boxsize/φ_gridsize,  # The long/short-range force split scale
         'cutoff'   : '4.5*scale',              # Maximum reach of short-range force
-        'subtiling': (2, 2, 2),                # Subtile decomposition
+        'subtiling': 'automatic',              # Subtile decomposition
     },
 }
 R_tophat         = 8*Mpc/h  # Radius of tophat used to compute σ
@@ -189,7 +189,8 @@ select_softening_length = {  # Gravitational softening for each component
 }
 
 # Simulation options
-Δt_factor         = 1          # This scales the time step size
+Δt_base_factor    = 1          # This scales the base time step size
+Δt_rung_factor    = 1          # This scales the rung time step sizes
 N_rungs           = 3          # Number of available rungs for adaptive time stepping
 fftw_wisdom_rigor = 'measure'  # Rigor level when acquiring FFTW wisdom
 fftw_wisdom_reuse = True       # Reuse FFTW wisdom from earlier runs?

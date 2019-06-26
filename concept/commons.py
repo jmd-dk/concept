@@ -1877,7 +1877,8 @@ cython.declare(
     select_approximations=dict,
     select_softening_length=dict,
     # Simlation options
-    Δt_factor='double',
+    Δt_base_factor='double',
+    Δt_rung_factor='double',
     N_rungs='Py_ssize_t',
     fftw_wisdom_rigor=str,
     fftw_wisdom_reuse='bint',
@@ -2008,10 +2009,19 @@ for shortrange_force in ('gravity', ):
 for d in shortrange_params.values():
     d.setdefault('scale', 1.25*boxsize/φ_gridsize)
     d.setdefault('cutoff', 4.8*d['scale'])
-    d.setdefault('subtiling', (2, 2, 2))
+    d.setdefault('subtiling', 'automatic')
     cutoff = d['cutoff']
     if isinstance(cutoff, str):
         d['cutoff'] = eval(cutoff.replace('scale', str(d['scale'])))
+    subtiling = d['subtiling']
+    if isinstance(subtiling, str):
+        if subtiling.lower().startswith('auto'):
+            d['subtiling'] = 'automatic'
+    else:
+        subtiling = tuple(any2list(subtiling))
+        if len(subtiling) == 1:
+            subtiling *= 3
+        d['subtiling'] = subtiling
 R_tophat = float(user_params.get('R_tophat', -1))  # Default value will be set later
 user_params['R_tophat'] = R_tophat
 modes_per_decade = float(user_params.get('modes_per_decade', 30))
@@ -2169,7 +2179,8 @@ select_softening_length.setdefault('particles', '0.03*boxsize/cbrt(N)')
 select_softening_length.setdefault('fluid', 0)
 user_params['select_softening_length'] = select_softening_length
 # Simulation options
-Δt_factor = float(user_params.get('Δt_factor', 1))
+Δt_base_factor = float(user_params.get('Δt_base_factor', 1))
+Δt_rung_factor = float(user_params.get('Δt_rung_factor', 1))
 N_rungs = int(user_params.get('N_rungs', 1))
 fftw_wisdom_rigor = user_params.get('fftw_wisdom_rigor', 'estimate').lower()
 user_params['fftw_wisdom_rigor'] = fftw_wisdom_rigor
@@ -3316,13 +3327,12 @@ if snapshot_type not in ('standard', 'gadget2'):
 # Abort for non-positive number of rungs. Also, since the rung indices
 # are stored as signed chars, the largest rung index that can be
 # represented is 127, corresponding to the highest rung for
-# N_rungs = 128. As we use up to 3*N_rungs - 1 for indexing,
-# we choose a largest allowed N_rungs of 40, as we do not want to worry
-# about overflow.
+# N_rungs = 128. In fact, memory errors has been observed already for
+# N_rungs >= 32. To be safe, we choose a largest allowed N_rungs of 30.
 if N_rungs < 1:
     abort(f'N_rungs = {N_rungs}, but at least one rung must exist')
-if N_rungs > 40:
-    abort(f'N_rungs = {N_rungs}, but must not be greater than 40')
+if N_rungs > 30:
+    abort(f'N_rungs = {N_rungs}, but must not be greater than 30')
 # Abort on illegal FFTW rigor
 if fftw_wisdom_rigor not in ('estimate', 'measure', 'patient', 'exhaustive'):
     abort('Does not recognize FFTW rigor "{}"'.format(user_params['fftw_wisdom_rigor']))
@@ -3386,11 +3396,14 @@ if autosave_interval > 1*units.yr:
 if autosave_interval < 0:
     autosave_interval = 0
     user_params['autosave_interval'] = autosave_interval
-# Check keys in shortrange_params
+# Check keys and values in shortrange_params
 for d in shortrange_params.values():
-    for key in d:
+    for key, val in d.items():
         if key not in {'scale', 'cutoff', 'subtiling'}:
             masterwarn(f'unrecognized parameter "{key}" in shortrange_params')
+        if key == 'subtiling':
+            if isinstance(val, str) and val != 'automatic':
+                abort(f'Failed to interpret subtiling "{val}"')
 # Abort on negative a_begin
 if a_begin <= 0:
     abort(
