@@ -1346,7 +1346,7 @@ def print_timestep_heading(time_step, Δt, bottleneck, components, end=False):
             and 'metric' not in component.class_species
             and 'lapse'  not in component.class_species
         ):
-            parts.append(f'\nEoS w ({component.name}):'.ljust(heading_ljust))
+            parts.append(f'\nEoS w ({component.name}): ')
             parts.append(significant_figures(component.w(), 4, fmt='unicode'))
     # Rung population for each component
     for component in components:
@@ -1366,7 +1366,11 @@ def print_timestep_heading(time_step, Δt, bottleneck, components, end=False):
     if heading_ljust == 0:
         width_max = 0
         for part in parts:
-            if part.endswith(':') and 'Rung population' not in part:
+            if (   'Scale factor:' in part
+                or 'Cosmic time:'  in part
+                or 'Time:'         in part
+                or 'Step size:'    in part
+            ):
                 width = len(part)
                 if width > width_max:
                     width_max = width
@@ -1525,13 +1529,13 @@ fac_dynamical = 0.042*Δt_base_factor
 fac_hubble = 0.12*Δt_base_factor
 # The base time step should be below |ẇ|⁻¹ times this factor,
 # for all components. Here w is the equation of state parameter.
-fac_ẇ = 1e-3*Δt_base_factor
+fac_ẇ = 0.0017*Δt_base_factor
 # The base time step should be below |Γ|⁻¹ times this factor,
 # for all components. Here Γ is the decay rate.
-fac_Γ = 3e-3*Δt_base_factor
+fac_Γ = 0.0028*Δt_base_factor
 # The base time step should be below that set by the 1D Courant
 # condition times this factor, for all fluid components.
-fac_courant = 0.08*Δt_base_factor
+fac_courant = 0.14*Δt_base_factor
 # The base time step should be small enough so that particles
 # participating in interactions using the PM method do not drift further
 # than the size of one PM grid cell times this factor in a single

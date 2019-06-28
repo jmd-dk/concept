@@ -1328,7 +1328,9 @@ class Component:
             if self.boltzmann_order == 2 and self.boltzmann_closure == 'class':
                 abort(
                     f'The "{self.name}" component wants to close the Boltzmann hierarchy using '
-                    f'the linear variable after ς from CLASS, which is not implemented'
+                    f'the linear variable after ς from CLASS, which is not implemented. '
+                    f'You need to lower its Boltzmann order to '
+                    f'1 or use boltzmann_closure = "truncate".'
                 )
             if self.boltzmann_order > 2:
                 abort(
@@ -2654,9 +2656,13 @@ class Component:
                                 shape_candidates[tuple(key)] = shape
                     # Pick the shape with the smallest key
                     shape = shape_candidates[sorted(shape_candidates)[0]]
-                    # Always use a subtile decomposition of
-                    # at least 2 in each direction.
-                    shape[shape == 1] = 2
+                    # Always use a subtile decomposition of at least 2
+                    # in each direction, unless this leads to more
+                    # subtiles than particles.
+                    shape_atleast2 = shape.copy()
+                    shape_atleast2[shape_atleast2 == 1] = 2
+                    if np.prod(tiling_global_shape*shape_atleast2) < self.N:
+                        shape = shape_atleast2
                 shape = asarray(shape, dtype=C2np['Py_ssize_t'])
                 masterprint(
                     f'Gravitational subtile decomposition: {shape[0]}×{shape[1]}×{shape[2]}'

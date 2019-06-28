@@ -181,7 +181,7 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
     # Comoving grid spacing
     Δx = boxsize/component.gridsize
     # Parameters specific to the passed component
-    w = component.w(a=a)
+    w     = component.w    (a=a)
     w_eff = component.w_eff(a=a)
     shape = component.shape
     # The global comoving sound speed. Unless J is non-linear,
@@ -196,8 +196,8 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
     # fluid grids, meaning disregarding pseudo points and ghost points.
     # We have 2 ghost points in the beginning and 1 pseudo point and
     # 2 ghost points in the end.
-    indices_local_start = asarray((2, 2, 2)      , dtype=C2np['Py_ssize_t'])
-    indices_local_end   = asarray(component.shape, dtype=C2np['Py_ssize_t']) - 2 - 1
+    indices_local_start = asarray((2, 2, 2), dtype=C2np['Py_ssize_t'])
+    indices_local_end   = asarray(shape    , dtype=C2np['Py_ssize_t']) - 2 - 1
     # Get the flux limiter function for this component
     flux_limiter_name = is_selected(
         component,
@@ -1080,57 +1080,57 @@ def check_vacuum(component, mc_step):
 
 # Function which checks for imminent vacuum in a fluid component
 # and does one sweep of vacuum corrections.
-@cython.header(# Arguments
-               component='Component',
-               mc_step='int',
-               # Locals
-               Jx='double[:, :, ::1]',
-               Jx_correction='double',
-               Jx_ptr='double*',
-               Jxˣ='double[:, :, ::1]',
-               Jy='double[:, :, ::1]',
-               Jy_correction='double',
-               Jy_ptr='double*',
-               Jyˣ='double[:, :, ::1]',
-               Jz='double[:, :, ::1]',
-               Jz_correction='double',
-               Jz_ptr='double*',
-               Jzˣ='double[:, :, ::1]',
-               dist2='Py_ssize_t',
-               fac_smoothing='double',
-               fac_time='double',
-               foresight='double',
-               i='Py_ssize_t',
-               indices_local_start='Py_ssize_t[::1]',
-               indices_local_end='Py_ssize_t[::1]',
-               j='Py_ssize_t',
-               k='Py_ssize_t',
-               m='Py_ssize_t',
-               mi='Py_ssize_t',
-               mj='Py_ssize_t',
-               mk='Py_ssize_t',
-               n='Py_ssize_t',
-               ni='Py_ssize_t',
-               nj='Py_ssize_t',
-               nk='Py_ssize_t',
-               shape=tuple,
-               vacuum_imminent='bint',
-               ΔJx='double[:, :, ::1]',
-               ΔJx_ptr='double*',
-               ΔJy='double[:, :, ::1]',
-               ΔJy_ptr='double*',
-               ΔJz='double[:, :, ::1]',
-               ΔJz_ptr='double*',
-               Δϱ='double[:, :, ::1]',
-               Δϱ_ptr='double*',
-               ϱ='double[:, :, ::1]',
-               ϱ_correction='double',
-               ϱ_ijk='double',
-               ϱ_ptr='double*',
-               ϱˣ='double[:, :, ::1]',
-               ϱˣ_ijk='double',
-               returns='bint',
-               )
+@cython.header(
+    # Arguments
+    component='Component',
+    mc_step='int',
+    # Locals
+    Jx='double[:, :, ::1]',
+    Jx_correction='double',
+    Jx_ptr='double*',
+    Jxˣ='double[:, :, ::1]',
+    Jy='double[:, :, ::1]',
+    Jy_correction='double',
+    Jy_ptr='double*',
+    Jyˣ='double[:, :, ::1]',
+    Jz='double[:, :, ::1]',
+    Jz_correction='double',
+    Jz_ptr='double*',
+    Jzˣ='double[:, :, ::1]',
+    dist2='Py_ssize_t',
+    fac_smoothing='double',
+    fac_time='double',
+    foresight='double',
+    i='Py_ssize_t',
+    indices_local_start='Py_ssize_t[::1]',
+    indices_local_end='Py_ssize_t[::1]',
+    j='Py_ssize_t',
+    k='Py_ssize_t',
+    m='Py_ssize_t',
+    mi='Py_ssize_t',
+    mj='Py_ssize_t',
+    mk='Py_ssize_t',
+    n='Py_ssize_t',
+    ni='Py_ssize_t',
+    nj='Py_ssize_t',
+    nk='Py_ssize_t',
+    vacuum_imminent='bint',
+    ΔJx='double[:, :, ::1]',
+    ΔJx_ptr='double*',
+    ΔJy='double[:, :, ::1]',
+    ΔJy_ptr='double*',
+    ΔJz='double[:, :, ::1]',
+    ΔJz_ptr='double*',
+    Δϱ='double[:, :, ::1]',
+    Δϱ_ptr='double*',
+    ϱ='double[:, :, ::1]',
+    ϱ_correction='double',
+    ϱ_ijk='double',
+    ϱ_ptr='double*',
+    ϱˣ='double[:, :, ::1]',
+    ϱˣ_ijk='double',
+    returns='bint',
+)
 def correct_vacuum(component, mc_step):
     """This function will detect and correct for imminent vacuum in a
     fluid component. If vacuum is found to be imminent, a value of True
@@ -1176,9 +1176,8 @@ def correct_vacuum(component, mc_step):
     # fluid grids, meaning disregarding pseudo points and ghost points.
     # We have 2 ghost points in the beginning and 1 pseudo point and
     # 2 ghost points in the end.
-    shape = component.shape
-    indices_local_start = asarray([2, 2, 2], dtype=C2np['Py_ssize_t'])
-    indices_local_end   = asarray(shape    , dtype=C2np['Py_ssize_t']) - 2 - 1
+    indices_local_start = asarray([2, 2, 2]      , dtype=C2np['Py_ssize_t'])
+    indices_local_end   = asarray(component.shape, dtype=C2np['Py_ssize_t']) - 2 - 1
     # Extract memory views and pointers to the fluid variables
     ϱ       = component.ϱ .grid_mv
     ϱ_ptr   = component.ϱ .grid
@@ -1255,7 +1254,8 @@ def correct_vacuum(component, mc_step):
                     # density will be reached.
                     if mc_step == 0:
                         # The number of time steps before densities
-                        # lower than the vacuum density is given by
+                        # become lower than the vacuum density is given
+                        # by
                         # ϱ + timesteps*dϱ == ρ_vacuum, dϱ = ½(ϱˣ - ϱ).
                         # --> timesteps = 2*(ϱ - ρ_vacuum)/(ϱ - ϱˣ).
                         fac_time = 0.5*(ϱ_ijk - ϱˣ_ijk)/(ϱ_ijk - ρ_vacuum)
@@ -1279,14 +1279,14 @@ def correct_vacuum(component, mc_step):
                             # in grid units (1 ≤ dist2 ≤ 12).
                             dist2 = (ni - mi)**2 + (nj - mj)**2 + (nk - mk)**2
                             # Compute vacuum corrections
-                            ϱ_correction  = (ϱ [ni, nj, nk] - ℝ[ϱ [mi, mj, mk]])*ℝ[ fac_smoothing
-                                                                                   *fac_time/dist2]
-                            Jx_correction = (Jx[ni, nj, nk] - ℝ[Jx[mi, mj, mk]])*ℝ[ fac_smoothing
-                                                                                   *fac_time/dist2]
-                            Jy_correction = (Jy[ni, nj, nk] - ℝ[Jy[mi, mj, mk]])*ℝ[ fac_smoothing
-                                                                                   *fac_time/dist2]
-                            Jz_correction = (Jz[ni, nj, nk] - ℝ[Jz[mi, mj, mk]])*ℝ[ fac_smoothing
-                                                                                   *fac_time/dist2]
+                            ϱ_correction = (ϱ[ni, nj, nk] - ℝ[ϱ[mi, mj, mk]])*ℝ[
+                                fac_smoothing*fac_time]*ℝ[1/dist2]
+                            Jx_correction = (Jx[ni, nj, nk] - ℝ[Jx[mi, mj, mk]])*ℝ[
+                                fac_smoothing*fac_time]*ℝ[1/dist2]
+                            Jy_correction = (Jy[ni, nj, nk] - ℝ[Jy[mi, mj, mk]])*ℝ[
+                                fac_smoothing*fac_time]*ℝ[1/dist2]
+                            Jz_correction = (Jz[ni, nj, nk] - ℝ[Jz[mi, mj, mk]])*ℝ[
+                                fac_smoothing*fac_time]*ℝ[1/dist2]
                             # Store vacuum corrections
                             Δϱ [mi, mj, mk] += ϱ_correction
                             ΔJx[mi, mj, mk] += Jx_correction
@@ -1320,16 +1320,23 @@ def correct_vacuum(component, mc_step):
     # The return value should indicate whether or not
     # vacuum corrections have been carried out.
     return vacuum_imminent
-# 1D memory views of relative indices to the 27 neighbours of a cell
-# (itself included). These are thus effectively mappings from
-# 1D indices to 3D indices.
-cython.declare(relative_neighbour_indices_i='Py_ssize_t[::1]',
-               relative_neighbour_indices_j='Py_ssize_t[::1]',
-               relative_neighbour_indices_k='Py_ssize_t[::1]',
-               )
-relative_neighbour_indices = asarray([(i, j, k) for i in range(-1, 2)
-                                                for j in range(-1, 2)
-                                                for k in range(-1, 2)], dtype=C2np['Py_ssize_t'])
-relative_neighbour_indices_i = asarray(relative_neighbour_indices[:, 0]).copy()
-relative_neighbour_indices_j = asarray(relative_neighbour_indices[:, 1]).copy()
-relative_neighbour_indices_k = asarray(relative_neighbour_indices[:, 2]).copy()
+# Relative 1D indices to the 27 neighbours of a cell (itself included).
+# These are thus effectively mappings from 1D indices to 3D indices.
+cython.declare(
+    relative_neighbour_indices_i_mv='Py_ssize_t[::1]',
+    relative_neighbour_indices_j_mv='Py_ssize_t[::1]',
+    relative_neighbour_indices_k_mv='Py_ssize_t[::1]',
+    relative_neighbour_indices_i='Py_ssize_t*',
+    relative_neighbour_indices_j='Py_ssize_t*',
+    relative_neighbour_indices_k='Py_ssize_t*',
+)
+relative_neighbour_indices = asarray(
+    [(i, j, k) for i in range(-1, 2) for j in range(-1, 2) for k in range(-1, 2)],
+    dtype=C2np['Py_ssize_t'],
+)
+relative_neighbour_indices_i_mv = asarray(relative_neighbour_indices[:, 0]).copy()
+relative_neighbour_indices_j_mv = asarray(relative_neighbour_indices[:, 1]).copy()
+relative_neighbour_indices_k_mv = asarray(relative_neighbour_indices[:, 2]).copy()
+relative_neighbour_indices_i = cython.address(relative_neighbour_indices_i_mv[:])
+relative_neighbour_indices_j = cython.address(relative_neighbour_indices_j_mv[:])
+relative_neighbour_indices_k = cython.address(relative_neighbour_indices_k_mv[:])

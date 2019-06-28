@@ -2205,8 +2205,8 @@ fluid_options_defaults = {
     'maccormack': {
         'vacuum_corrections_select'    : True,
         'max_vacuum_corrections_select': (1, 'gridsize'),
-        'foresight_select'             : 30,
-        'smoothing_select'             : 1,
+        'foresight_select'             : 25,
+        'smoothing_select'             : 2.0,
     },
     'kurganovtadmor': {
         'rungekuttaorder'    : 2,
