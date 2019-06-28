@@ -207,10 +207,10 @@ fluid_options = {  # Specifications of fluid scheme parameters
             'all': (1, 'gridsize'),
         },
         'foresight_select': {  # Number of time steps to look ahead when doing vacuum corrections
-            'all': 30,
+            'all': 25,
         },
         'smoothing_select': {  # Amount of smoothing to apply when doing vacuum correction
-            'all': 1,
+            'all': 2.0,
         },
     },
     'Kurganov-Tadmor': {
