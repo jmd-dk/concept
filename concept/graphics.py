@@ -547,7 +547,7 @@ def render2D(components, filename):
             interpolation_quantities,
             add_particles_and_fluids=True,
         )
-        domain = φ[2:(φ.shape[0] - 3), 2:(φ.shape[1] - 3), 2:(φ.shape[0] - 3)]
+        domain = φ[2:(φ.shape[0] - 3), 2:(φ.shape[1] - 3), 2:(φ.shape[2] - 3)]
         # The array storing the projected render. This is allocated
         # in full on every process.
         projection = get_buffer((φ_gridsize, )*2, 'projection', nullify=True)
