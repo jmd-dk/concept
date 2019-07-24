@@ -1883,6 +1883,8 @@ cython.declare(
     fftw_wisdom_rigor=str,
     fftw_wisdom_reuse='bint',
     random_seed='unsigned long int',
+    primordial_amplitude_fixed='bint',
+    primordial_phase_shift='double',
     fluid_scheme_select=dict,
     fluid_options=dict,
     class_k_max=dict,
@@ -2188,6 +2190,10 @@ fftw_wisdom_reuse = bool(user_params.get('fftw_wisdom_reuse', True))
 user_params['fftw_wisdom_reuse'] = fftw_wisdom_reuse
 random_seed = to_int(user_params.get('random_seed', 1))
 user_params['random_seed'] = random_seed
+primordial_amplitude_fixed = bool(user_params.get('primordial_amplitude_fixed', False))
+user_params['primordial_amplitude_fixed'] = primordial_amplitude_fixed
+primordial_phase_shift = np.mod(float(user_params.get('primordial_phase_shift', 0)), 2*π)
+user_params['primordial_phase_shift'] = primordial_phase_shift
 fluid_scheme_select = {'all': 'MacCormack'}
 if user_params.get('fluid_scheme_select'):
     if isinstance(user_params['fluid_scheme_select'], dict):
@@ -3342,6 +3348,18 @@ if random_seed < 1:
     masterwarn(
         f'A random_seed of {random_seed} was specified. '
         f'This should be > 0 to avoid clashes with the default GSL seed.'
+    )
+# Sanity check on fixed and paired primordial parameters
+if not primordial_amplitude_fixed and primordial_phase_shift != 0:
+    abort(
+        f'You are using primordial_phase_shift = {primordial_phase_shift} ≠ 0 while having '
+        f'primordial_amplitude_fixed = False, but a phase shift is only implemented '
+        f'for fixed amplitude.'
+    )
+if primordial_phase_shift == 1:
+    masterwarn(
+        f'You have specified primordial_phase_shift = 1. '
+        f'Are you sure that you do not mean primordial_phase_shift = π?'
     )
 # Warn about unused but specified parameters
 if user_params.unused:

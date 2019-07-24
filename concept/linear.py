@@ -3449,12 +3449,15 @@ slab_structure_previous_info = {}
     j_global='Py_ssize_t',
     j_global_conj='Py_ssize_t',
     k='Py_ssize_t',
+    ki='Py_ssize_t',
     ki_start='Py_ssize_t',
     ki_step='Py_ssize_t',
     ki_stop='Py_ssize_t',
+    kj='Py_ssize_t',
     kj_start='Py_ssize_t',
     kj_step='Py_ssize_t',
     kj_stop='Py_ssize_t',
+    kk='Py_ssize_t',
     kk_start='Py_ssize_t',
     kk_step='Py_ssize_t',
     kk_stop='Py_ssize_t',
@@ -3468,6 +3471,8 @@ slab_structure_previous_info = {}
     plane_nyquist='double[:, :, ::1]',
     shell='Py_ssize_t',
     slab_jik='double*',
+    θ='double',
+    θ_str=str,
 )
 def generate_primordial_noise(slab):
     """Given the already allocated slab, this function will populate
@@ -3513,7 +3518,20 @@ def generate_primordial_noise(slab):
     and setting each point equal to the conjucate of the corresponding
     symmetric point.
     """
-    masterprint('Generating primordial noise ...')
+    if primordial_amplitude_fixed:
+        if primordial_phase_shift == 0:
+            masterprint('Generating primordial noise of fixed amplitude ...')
+        else:
+            if isclose(primordial_phase_shift, π):
+                θ_str = 'π'
+            else:
+                θ_str = str(primordial_phase_shift)
+            masterprint(
+                f'Generating primordial noise of fixed amplitude '
+                f'and phase shift {θ_str} ...'
+            )
+    else:
+        masterprint('Generating primordial Gaussian noise ...')
     # The global gridsize is equal to
     # the first (1) dimension of the slab.
     gridsize = slab.shape[1]
@@ -3538,12 +3556,15 @@ def generate_primordial_noise(slab):
                 kj_start, kj_stop, kj_step = ℤ[-shell + 1], ℤ[shell + 1], ℤ[2*shell - 1]
                 ki_start, ki_stop, ki_step = ℤ[-shell + 1], ℤ[shell + 1],             1
                 kk_start, kk_stop, kk_step =            0 ,   shell     ,             1
-            elif face == 2:
+            else:  # face == 2:
                 # The two ki = constant faces
                 kj_start, kj_stop, kj_step = ℤ[-shell + 2],   shell     ,             1
                 ki_start, ki_stop, ki_step = ℤ[-shell + 1], ℤ[shell + 1], ℤ[2*shell - 1]
                 kk_start, kk_stop, kk_step =            0 ,   shell     ,             1
-            # Loop over the face
+            # Loop over the face.
+            # Note that at least in Cython 0.29.2, these loops are not
+            # optimized as the step value is unknown at cythonization
+            # time.
             for kj in range(kj_start, kj_stop, kj_step):
                 j_global = kj + gridsize if kj < 0 else kj
                 j = j_global - ℤ[slab.shape[0]*rank]
@@ -3551,8 +3572,20 @@ def generate_primordial_noise(slab):
                     i = ki + gridsize if ki < 0 else ki
                     for kk in range(kk_start, kk_stop, kk_step):
                         # Draw the random numbers
-                        noise_re = random_gaussian(0, ℝ[1/sqrt(2)])
-                        noise_im = random_gaussian(0, ℝ[1/sqrt(2)])
+                        with unswitch:
+                            if primordial_amplitude_fixed:
+                                # Generate random noise of fixed
+                                # amplitude.
+                                θ = ℝ[2*π]*random()
+                                with unswitch:
+                                    if primordial_phase_shift:
+                                        θ += primordial_phase_shift
+                                noise_re = cos(θ)
+                                noise_im = sin(θ)
+                            else:
+                                # Generate Gaussian noise
+                                noise_re = random_gaussian(0, ℝ[1/sqrt(2)])
+                                noise_im = random_gaussian(0, ℝ[1/sqrt(2)])
                         # Populate the local slab
                         with unswitch(2):
                             if 0 <= j < ℤ[slab.shape[0]]:

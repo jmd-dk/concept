@@ -194,7 +194,10 @@ select_softening_length = {  # Gravitational softening for each component
 N_rungs           = 3          # Number of available rungs for adaptive time stepping
 fftw_wisdom_rigor = 'measure'  # Rigor level when acquiring FFTW wisdom
 fftw_wisdom_reuse = True       # Reuse FFTW wisdom from earlier runs?
-random_seed = 1                # Seed for pseudo-random numbers
+random_seed                = 1      # Seed for pseudo-random numbers
+primordial_amplitude_fixed = False  # Replace Gaussian noise with noise of fixed amplitude?
+primordial_phase_shift     = 0      # Phase shift when using fixed amplitude (set to π for paired simulations)
+
 fluid_scheme_select = {        # Fluid evolution scheme for each component
     'all': 'MacCormack',
 }
