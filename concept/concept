@@ -88,6 +88,10 @@ source "${env_file}"
 # Add the concept directory to searched paths
 # when importing modules in Python.
 export PYTHONPATH="${concept_dir}:${PYTHONPATH}"
+# Do not add the user site directory
+# (~.local/lib/python3.x/site-packages) to searched paths
+# when importing modules in Python.
+export PYTHONNOUSERSITE="True"
 
 # Some Python packages may need access to libraries at runtime
 for lib in "blas" "gsl" "hdf5" "libpng" "zlib"; do
