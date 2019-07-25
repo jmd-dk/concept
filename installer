@@ -5139,6 +5139,11 @@ if [ "${python_install}" == "True" ]; then
     # updating pip. Here we make sure to unset PYTHONPATH, and we do not
     # set it again, not even through the reset_environment function.
     unset PYTHONPATH
+    # As we are installing Python from scratch, we remove the user site
+    # directory (~/.local/lib/python3.x/site-packages) from the searched
+    # paths when importing modules in Python. In this way, other Python
+    # distributions on the system cannot interfere with this one.
+    export PYTHONNOUSERSITE="True"
 fi
 if [ "${python_install}" == "True" ] && [ "${python_installed}" == "False" ]; then
     install_success="False"
@@ -5340,7 +5345,7 @@ pip_download(){
     # version string that pip understands, e.g. ">=1.4".
     # The third argument determines how many seconds pip shoul get
     # to download the package before it is killed. This can be helpful
-    # if pip (for whatever reason) desides to run the setup.py file of
+    # if pip (for whatever reason) decides to run the setup.py file of
     # the package after a successful download, and that process ends
     # up hanging. If no third argument is given, or if the third
     # argument is 0, no time limit is set.
@@ -5459,72 +5464,77 @@ pip_install_pypackage(){
     if [ "${2}" == "upgrade" ]; then
         upgrade_flag="--upgrade"
     fi
-    # After the adoption of PEP 518 (pip 10), some packages require
-    # wheels (not bare source) when building. This can be disabled by
-    # supplying --no-build-isolation. We try both.
-    # Some times the installation process will appear to hang,
-    # but it will eventually get going. This happens often for
-    # particular packages, such as h5py. When this is the case,
-    # write a soothing message.
-    for extra_pip_arg in ""    \
-        "--no-build-isolation" \
-        "--no-cache-dir"       \
-        "--no-build-isolation --no-cache-dir"; do
-        if [ -n "${extra_pip_arg}" ]; then
-            printf "\npip failed to install ${1}. Now trying with ${extra_pip_arg}\n\n"
-            rm -rf "${tmp_pip_dir}" || :
-            cp -r "${tmp_pip_dir}_cp" "${tmp_pip_dir}"
-        fi
-        if [ -z "${upgrade_flag}" ]; then
-            "${python}" -m pip uninstall "${pypackage}" -y >/dev/null 2>&1 || :
-        fi
-        "${python}" -m pip install -v -v -v                          \
-                                   ${extra_pip_arg}                  \
-                                   -b "${tmp_pip_dir}/build"         \
-                                   ${upgrade_flag}                   \
-                                   --no-index                        \
-                                   --find-links="${tmp_pip_dir}"     \
-                                   "${pypackage}${command_end}" 2>&1 \
-                                    & pip_install_pid=$!
-        soothe ${pip_install_pid}
-        pypackage_installed=$(check_pypackage_installed ${pypackage})
+    for pyuser in "" "--user"; do
+        # After the adoption of PEP 518 (pip 10), some packages require
+        # wheels (not bare source) when building. This can be disabled by
+        # supplying --no-build-isolation. We try both.
+        # Some times the installation process will appear to hang,
+        # but it will eventually get going. This happens often for
+        # particular packages, such as h5py. When this is the case,
+        # write a soothing message.
+        for extra_pip_arg in ""    \
+            "--no-build-isolation" \
+            "--no-cache-dir"       \
+            "--no-build-isolation --no-cache-dir"; do
+            if [ -n "${extra_pip_arg}" ]; then
+                printf "\npip failed to install ${1}. \
+Now trying with ${pyuser} ${extra_pip_arg}\n\n"
+                rm -rf "${tmp_pip_dir}" || :
+                cp -r "${tmp_pip_dir}_cp" "${tmp_pip_dir}"
+            fi
+            if [ -z "${upgrade_flag}" ]; then
+                "${python}" -m pip uninstall "${pypackage}" -y >/dev/null 2>&1 || :
+            fi
+            "${python}" -m pip install ${pyuser} -v -v -v                \
+                                       ${extra_pip_arg}                  \
+                                       -b "${tmp_pip_dir}/build"         \
+                                       ${upgrade_flag}                   \
+                                       --no-index                        \
+                                       --find-links="${tmp_pip_dir}"     \
+                                       "${pypackage}${command_end}" 2>&1 \
+                                        & pip_install_pid=$!
+            soothe ${pip_install_pid}
+            pypackage_installed=$(check_pypackage_installed ${pypackage})
+            if [ "${pypackage_installed}" == "True" ]; then
+                break
+            fi
+        done
         if [ "${pypackage_installed}" == "True" ]; then
             break
         fi
-    done
-    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_cp" || :
-    # If we failed to install the Python package, try installing it
-    # via pip without using any additional arguments.
-    if [ "${pypackage_installed}" == "False" ]; then
+        rm -rf "${tmp_pip_dir}"
+        # If we failed to install the Python package, try installing it
+        # via pip without using any additional arguments.
         printf "\npip could not install/upgrade ${1}, neither with or without \
 --no-build-isolation and --no-cache-dir\nNow trying without specifying any \
 extra arguments to pip\n\n"
         if [ -z "${upgrade_flag}" ]; then
             "${python}" -m pip uninstall "${pypackage}" -y >/dev/null 2>&1 || :
         fi
-        "${python}" -m pip install "${pypackage}${command_end}" 2>&1 & pip_install_pid=$!
+        "${python}" -m pip install ${pyuser} "${pypackage}${command_end}" 2>&1 & pip_install_pid=$!
         soothe ${pip_install_pid}
         pypackage_installed=$(check_pypackage_installed ${pypackage})
-    fi
-    # If we still fail, try with just the --no-cache-dir argument
-    if [ "${pypackage_installed}" == "False" ]; then
+        if [ "${pypackage_installed}" == "True" ]; then
+            break
+        fi
+        # If we still fail, try with just the --no-cache-dir argument
         printf "\npip could not install/upgrade ${1} using no additional arguments\n\
 Now trying with just --no-cache-dir\n\n"
         if [ -z "${upgrade_flag}" ]; then
             "${python}" -m pip uninstall "${pypackage}" -y >/dev/null 2>&1 || :
         fi
-        "${python}" -m pip install --no-cache-dir \
+        "${python}" -m pip install ${pyuser} --no-cache-dir \
             "${pypackage}${command_end}" 2>&1 & pip_install_pid=$!
         soothe ${pip_install_pid}
         pypackage_installed=$(check_pypackage_installed ${pypackage})
-    fi
+    done
     reset_environment
     # Exit on failure
     if [ "${pypackage_installed}" != "True" ]; then
         echo "pip could not install/upgrade ${1}"
         return 1
     fi
-    rm -rf "${tmp_pip_dir}_tmp" || :
+    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${tmp_pip_dir}_cp" || :
 }
 
 # Upgrade/install pip, setuptools and wheel.
@@ -5730,53 +5740,59 @@ runtime_library_dirs = ${blas_dir}/lib
     # be modified. We try all combinations until we hit a working one.
     cp -r "${numpy_build_dir}" "${numpy_build_dir}_cp"
     install_success="False"
-    for numpy_gfortran in "True" "False"; do
-        for compiler in "${compiler_possibilities[@]}"; do
-            for fcompiler in "gnu95" ""; do
-                for extra_FCFLAGS in "" "-fPIC"; do
-                    for extra_LDFLAGS in "" "-shared"; do
-                        reset_environment
-                        eval "use_${compiler}_compilers" || continue
-                        printf "
-Attempting to install NumPy with numpy_gfortran=${numpy_gfortran}, compiler=${compiler}, \
-fcompiler=${fcompiler}, extra_FCFLAGS=${extra_FCFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n\n"
-                        if [ "${numpy_gfortran}" == "True" ]; then
-                            export FC="gfortran"
-                            export F77="gfortran"
-                            export F90="gfortran"
-                            export F9X="gfortran"
+    for pyuser in "" "--user"; do
+        for numpy_gfortran in "True" "False"; do
+            for compiler in "${compiler_possibilities[@]}"; do
+                for fcompiler in "gnu95" ""; do
+                    for extra_FCFLAGS in "" "-fPIC"; do
+                        for extra_LDFLAGS in "" "-shared"; do
+                            reset_environment
+                            eval "use_${compiler}_compilers" || continue
+                            printf "
+Attempting to install NumPy with pyuser=${pyuser}, numpy_gfortran=${numpy_gfortran}, \
+compiler=${compiler}, fcompiler=${fcompiler}, extra_FCFLAGS=${extra_FCFLAGS}, \
+extra_LDFLAGS=${extra_LDFLAGS}\n\n"
+                            if [ "${numpy_gfortran}" == "True" ]; then
+                                export FC="gfortran"
+                                export F77="gfortran"
+                                export F90="gfortran"
+                                export F9X="gfortran"
+                            fi
+                            export TMPDIR="${tmp_pip_dir}_tmp"
+                            export BLAS="${blas_dir}/lib/libopenblas.a"
+                            export LAPACK="${blas_dir}/lib/libopenblas.a"
+                            export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
+                            export FCFLAGS="${extra_FCFLAGS} ${FCFLAGS}"
+                            export FFLAGS="${extra_FCFLAGS} ${FFLAGS}"
+                            export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS}"
+                            rm -rf "${numpy_build_dir}" || :
+                            cp -r "${numpy_build_dir}_cp" "${numpy_build_dir}"
+                            cd "${numpy_build_dir}"
+                            echo "True" > ".setuppy_success"
+                            if [ -n "${fcompiler}" ]; then
+                                ("${python}" setup.py build --fcompiler="${fcompiler}" \
+                                    || echo "False" > ".setuppy_success") & setuppy_pid=$!
+                            else
+                                ("${python}" setup.py build \
+                                    || echo "False" > ".setuppy_success") & setuppy_pid=$!
+                            fi
+                            soothe ${setuppy_pid}
+                            sleep 1
+                            setuppy_success="$(cat '.setuppy_success')"
+                            if [ "${setuppy_success}" != "True" ]; then
+                                continue
+                            fi
+                            "${python}" setup.py install ${pyuser} & setuppy_pid=$!
+                            soothe ${setuppy_pid}
+                            if [ "$(check_pypackage_installed numpy)" == "False" ]; then
+                                continue
+                            fi
+                            install_success="True"
+                            break
+                        done
+                        if [ "${install_success}" == "True" ]; then
+                            break
                         fi
-                        export TMPDIR="${tmp_pip_dir}_tmp"
-                        export BLAS="${blas_dir}/lib/libopenblas.a"
-                        export LAPACK="${blas_dir}/lib/libopenblas.a"
-                        export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
-                        export FCFLAGS="${extra_FCFLAGS} ${FCFLAGS}"
-                        export FFLAGS="${extra_FCFLAGS} ${FFLAGS}"
-                        export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS}"
-                        rm -rf "${numpy_build_dir}" || :
-                        cp -r "${numpy_build_dir}_cp" "${numpy_build_dir}"
-                        cd "${numpy_build_dir}"
-                        echo "True" > ".setuppy_success"
-                        if [ -n "${fcompiler}" ]; then
-                            ("${python}" setup.py build --fcompiler="${fcompiler}" \
-                                || echo "False" > ".setuppy_success") & setuppy_pid=$!
-                        else
-                            ("${python}" setup.py build \
-                                || echo "False" > ".setuppy_success") & setuppy_pid=$!
-                        fi
-                        soothe ${setuppy_pid}
-                        sleep 1
-                        setuppy_success="$(cat '.setuppy_success')"
-                        if [ "${setuppy_success}" != "True" ]; then
-                            continue
-                        fi
-                        "${python}" setup.py install & setuppy_pid=$!
-                        soothe ${setuppy_pid}
-                        if [ "$(check_pypackage_installed numpy)" == "False" ]; then
-                            continue
-                        fi
-                        install_success="True"
-                        break
                     done
                     if [ "${install_success}" == "True" ]; then
                         break
@@ -5867,55 +5883,61 @@ runtime_library_dirs = ${blas_dir}/lib
     # be modified. We try all combinations until we hit a working one.
     cp -r "${scipy_build_dir}" "${scipy_build_dir}_cp"
     install_success="False"
-    for scipy_gfortran in "True" "False"; do
-        for compiler in "${compiler_possibilities[@]}"; do
-            for fcompiler in "gnu95" ""; do
-                for extra_FCFLAGS in "" "-fPIC"; do
-                    for extra_LDFLAGS in "" "-shared"; do
-                        reset_environment
-                        eval "use_${compiler}_compilers" || continue
-                        printf "
-Attempting to install SciPy with scipy_gfortran=${scipy_gfortran}, compiler=${compiler}, \
-fcompiler=${fcompiler}, extra_FCFLAGS=${extra_FCFLAGS}, extra_LDFLAGS=${extra_LDFLAGS}\n\n"
-                        if [ "${scipy_gfortran}" == "True" ]; then
-                            export FC="gfortran"
-                            export F77="gfortran"
-                            export F90="gfortran"
-                            export F9X="gfortran"
+    for pyuser in "" "--user"; do
+        for scipy_gfortran in "True" "False"; do
+            for compiler in "${compiler_possibilities[@]}"; do
+                for fcompiler in "gnu95" ""; do
+                    for extra_FCFLAGS in "" "-fPIC"; do
+                        for extra_LDFLAGS in "" "-shared"; do
+                            reset_environment
+                            eval "use_${compiler}_compilers" || continue
+                            printf "
+Attempting to install SciPy with pyuser=${pyuser}, scipy_gfortran=${scipy_gfortran}, \
+compiler=${compiler}, fcompiler=${fcompiler}, extra_FCFLAGS=${extra_FCFLAGS}, \
+extra_LDFLAGS=${extra_LDFLAGS}\n\n"
+                            if [ "${scipy_gfortran}" == "True" ]; then
+                                export FC="gfortran"
+                                export F77="gfortran"
+                                export F90="gfortran"
+                                export F9X="gfortran"
+                            fi
+                            export TMPDIR="${tmp_pip_dir}_tmp"
+                            export TMPDIR="${tmp_pip_dir}_tmp"
+                            export BLAS="${blas_dir}/lib/libopenblas.a"
+                            export LAPACK="${blas_dir}/lib/libopenblas.a"
+                            export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
+                            export FCFLAGS="${extra_FCFLAGS} ${FCFLAGS}"
+                            export FFLAGS="${extra_FCFLAGS} ${FFLAGS}"
+                            export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS}"
+                            cd "${top_dir}"
+                            rm -rf "${scipy_build_dir}" || :
+                            cp -r "${scipy_build_dir}_cp" "${scipy_build_dir}"
+                            cd "${scipy_build_dir}"
+                            echo "True" > ".setuppy_success"
+                            if [ -n "${fcompiler}" ]; then
+                                ("${python}" setup.py build --fcompiler="${fcompiler}" \
+                                    || echo "False" > ".setuppy_success") & setuppy_pid=$!
+                            else
+                                ("${python}" setup.py build \
+                                    || echo "False" > ".setuppy_success") & setuppy_pid=$!
+                            fi
+                            soothe ${setuppy_pid}
+                            sleep 1
+                            setuppy_success="$(cat '.setuppy_success')"
+                            if [ "${setuppy_success}" != "True" ]; then
+                                continue
+                            fi
+                            "${python}" setup.py install ${pyuser} & setuppy_pid=$!
+                            soothe ${setuppy_pid}
+                            if [ "$(check_pypackage_installed scipy)" == "False" ]; then
+                                continue
+                            fi
+                            install_success="True"
+                            break
+                        done
+                        if [ "${install_success}" == "True" ]; then
+                            break
                         fi
-                        export TMPDIR="${tmp_pip_dir}_tmp"
-                        export TMPDIR="${tmp_pip_dir}_tmp"
-                        export BLAS="${blas_dir}/lib/libopenblas.a"
-                        export LAPACK="${blas_dir}/lib/libopenblas.a"
-                        export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
-                        export FCFLAGS="${extra_FCFLAGS} ${FCFLAGS}"
-                        export FFLAGS="${extra_FCFLAGS} ${FFLAGS}"
-                        export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS}"
-                        cd "${top_dir}"
-                        rm -rf "${scipy_build_dir}" || :
-                        cp -r "${scipy_build_dir}_cp" "${scipy_build_dir}"
-                        cd "${scipy_build_dir}"
-                        echo "True" > ".setuppy_success"
-                        if [ -n "${fcompiler}" ]; then
-                            ("${python}" setup.py build --fcompiler="${fcompiler}" \
-                                || echo "False" > ".setuppy_success") & setuppy_pid=$!
-                        else
-                            ("${python}" setup.py build \
-                                || echo "False" > ".setuppy_success") & setuppy_pid=$!
-                        fi
-                        soothe ${setuppy_pid}
-                        sleep 1
-                        setuppy_success="$(cat '.setuppy_success')"
-                        if [ "${setuppy_success}" != "True" ]; then
-                            continue
-                        fi
-                        "${python}" setup.py install & setuppy_pid=$!
-                        soothe ${setuppy_pid}
-                        if [ "$(check_pypackage_installed scipy)" == "False" ]; then
-                            continue
-                        fi
-                        install_success="True"
-                        break
                     done
                     if [ "${install_success}" == "True" ]; then
                         break
@@ -6997,11 +7019,11 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
     mkdir -p "${logs_dir}"
     mkdir -p "${output_dir}"
     mkdir -p "${params_dir}"
-    # Add PATH-like environment variables present at install time (now)
-    # to the .env file.
-    current_step="addition of PATH-like environment variables to the .env file"
-    printf "\nAdding PATH-like environment variables to .env\n"
-    set_status "Adding PATH-like environment variables to .env"
+    # Add PATH-like and a few PYTHON environment variables present at
+    # install time (now) to the .env file.
+    current_step="addition of PATH-like and PYTHON environment variables to the .env file"
+    printf "\nAdding PATH-like and PYTHON environment variables to .env\n"
+    set_status "Adding PATH-like and PYTHON environment variables to .env"
     "${python}" -c "
 import os
 with open('${env_file}', 'r', encoding='utf-8') as file:
@@ -7021,11 +7043,10 @@ envs_inserted = False
 with open('${env_file}', 'w', encoding='utf-8') as file:
     for line in lines:
         if not envs_inserted and 'Update the environment' in line:
-            print('# The following has been placed by the installer script.', file=file)
+            print('# The following has been placed by the installer script', file=file)
             if '${python_install}' == 'True':
                 print('unset PYTHONPATH', file=file)
-            print('# These were the PATH-like environment variables', file=file)
-            print('# set at install time.', file=file)
+                print('export PYTHONNOUSERSITE=\"True\"', file=file)
             print('pathenv_name_value_pairs_installtime=( \\\\', file=file)
             for var, val in get_envs():
                 print(f'    {var} \"{val}\" \\\\', file=file)
