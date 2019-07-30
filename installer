@@ -711,6 +711,11 @@ top_dir="$(convert_to_abs_path "${top_dir}")"
 printf "\nThe code will be installed in \"${top_dir}\"\n"
 cd "${top_dir}"
 
+# This directory may be created by the fix_path, use_mpi_compilers or
+# use_specified_mpi_compilers functions, which use it to store symlinks
+# to MPI library files.
+mpi_symlinkdir="${top_dir}/.mpi_symlinks"
+
 # Function which prints the absolute path of a given command.
 # If the command is not an executable file on the PATH but instead a
 # known function, the input command is printed as is. If the command
@@ -1356,15 +1361,58 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
         # in mpi_compilerdir.
         mpi_compilerdir="$(dirname "${mpicc}")"
         # Now use mpicc to locate the lib and include directories
-        mpicc_show="$("${mpicc}" -show)"
-        mpi_libdir="$(echo "${mpicc_show}" | grep  -o '\-L[^ ]*' || :)"
-        mpi_libdir="${mpi_libdir:2}"
+        mpicc_show="$("${mpicc}" -show || :)"
+        mpi_libdirs="$(echo "${mpicc_show}" | grep -o '\-L[^ ]*' || :)"
+        n_mpi_libdirs=$(echo "${mpi_libdirs}" | wc -l)
+        if [ ${n_mpi_libdirs} -eq 1 ]; then
+            mpi_libdir="${mpi_libdirs:2}"
+        else
+            # Several lib directories exist. Merge them via symlinking.
+            mpi_libdir_merged="${mpi_symlinkdir}/merged_lib_specified"
+            mkdir -p "${mpi_libdir_merged}"
+            while read mpi_libdir; do
+                mpi_libdir="${mpi_libdir:2}"
+                if [ -d "${mpi_libdir}" ]; then
+                    for f in "${mpi_libdir}/"*; do
+                        f_base="$(basename "${f}")"
+                        mpi_symlink_name="${mpi_libdir_merged}/${f_base}"
+                        if     [ ! -f "${mpi_symlink_name}" ] \
+                            && [ ! -d "${mpi_symlink_name}" ]; then
+                            ln -s "${f}" "${mpi_symlink_name}" >/dev/null 2>&1 || :
+                        fi
+                    done
+                fi
+            done <<< "${mpi_libdirs}"
+            mpi_libdir="${mpi_libdir_merged}"
+        fi
         if [ ! -d "${mpi_libdir}" ]; then
             error "Warning: Could not get MPI library information out of \"${mpicc}\""
             mpi_libdir="$(dirname "${mpi_compilerdir}")/lib"
         fi
-        mpi_includedir="$(echo "${mpicc_show}" | grep  -o '\-I[^ ]*' || :)"
-        mpi_includedir="${mpi_includedir:2}"
+        mpi_includedirs="$(echo "${mpicc_show}" | grep -o '\-I[^ ]*' || :)"
+        n_mpi_includedirs=$(echo "${mpi_includedirs}" | wc -l)
+        if [ ${n_mpi_includedirs} -eq 1 ]; then
+            mpi_includedir="${mpi_includedirs:2}"
+        else
+            # Several include directories exist.
+            # Merge them via symlinking.
+            mpi_includedir_merged="${mpi_symlinkdir}/merged_include_specified"
+            mkdir -p "${mpi_includedir_merged}"
+            while read mpi_includedir; do
+                mpi_includedir="${mpi_includedir:2}"
+                if [ -d "${mpi_includedir}" ]; then
+                    for f in "${mpi_includedir}/"*; do
+                        f_base="$(basename "${f}")"
+                        mpi_symlink_name="${mpi_includedir_merged}/${f_base}"
+                        if     [ ! -f "${mpi_symlink_name}" ] \
+                            && [ ! -d "${mpi_symlink_name}" ]; then
+                            ln -s "${f}" "${mpi_symlink_name}" >/dev/null 2>&1 || :
+                        fi
+                    done
+                fi
+            done <<< "${mpi_includedirs}"
+            mpi_includedir="${mpi_includedir_merged}"
+        fi
         if [ ! -d "${mpi_includedir}" ]; then
             error "Warning: Could not get MPI include information out of \"${mpicc}\""
             mpi_includedir="$(dirname "${mpi_compilerdir}")/include"
@@ -1534,7 +1582,6 @@ fi
 if [ -z "${mpi_includedir}" ]; then
     mpi_includedir="${mpi_dir}/include"
 fi
-
 
 # Set test_log path variables
 blas_test_log="${blas_dir}/test_log"  # No BLAS tests actually performed
@@ -3015,10 +3062,6 @@ if [ -n "${N_installed}" ]; then
     fi
 fi
 
-# This directory is created by the use_specified_mpi_compilers function,
-# where it is used to store symlinks to MPI library files.
-mpi_symlinkdir="${top_dir}/.mpi_symlinks"
-
 # Find possible C, C++ and Fortran compilers to try out when building
 # the various programs. The compiler possibilities will be gathered in
 # the array "compiler_possibilities". An empty value corresponds to
@@ -3455,14 +3498,58 @@ use_mpi_compilers(){
         if [ -n "${program_path}" ]; then
             export CC="${program_path}"
             bin_path="$(dirname "${program_path}")"
-            mpicc_show="$("${CC}" -show)"
-            lib_path="$(echo "${mpicc_show}" | grep  -o '\-L[^ ]*' || :)"
-            lib_path="${lib_path:2}"
+            mpicc_show="$("${CC}" -show || :)"
+            lib_paths="$(echo "${mpicc_show}" | grep -o '\-L[^ ]*' || :)"
+            n_lib_paths=$(echo "${lib_paths}" | wc -l)
+            if [ ${n_lib_paths} -eq 1 ]; then
+                lib_path="${lib_paths:2}"
+            else
+                # Several lib directories exist.
+                # Merge them via symlinking.
+                lib_path_merged="${mpi_symlinkdir}/merged_lib"
+                mkdir -p "${lib_path_merged}"
+                while read lib_path; do
+                    lib_path="${lib_path:2}"
+                    if [ -d "${lib_path}" ]; then
+                        for f in "${lib_path}/"*; do
+                            f_base="$(basename "${f}")"
+                            mpi_symlink_name="${lib_path_merged}/${f_base}"
+                            if     [ ! -f "${mpi_symlink_name}" ] \
+                                && [ ! -d "${mpi_symlink_name}" ]; then
+                                ln -s "${f}" "${mpi_symlink_name}" >/dev/null 2>&1 || :
+                            fi
+                        done
+                    fi
+                done <<< "${lib_paths}"
+                lib_path="${lib_path_merged}"
+            fi
             if [ ! -d "${lib_path}" ]; then
                 lib_path="$(dirname "${bin_path}")/lib"
             fi
-            include_path="$(echo "${mpicc_show}" | grep  -o '\-I[^ ]*' || :)"
-            include_path="${include_path:2}"
+            include_paths="$(echo "${mpicc_show}" | grep -o '\-I[^ ]*' || :)"
+            n_include_paths=$(echo "${include_paths}" | wc -l)
+            if [ ${n_include_paths} -eq 1 ]; then
+                include_path="${include_paths:2}"
+            else
+                # Several include directories exist.
+                # Merge them via symlinking.
+                include_path_merged="${mpi_symlinkdir}/merged_include"
+                mkdir -p "${include_path_merged}"
+                while read include_path; do
+                    include_path="${include_path:2}"
+                    if [ -d "${include_path}" ]; then
+                        for f in "${include_path}/"*; do
+                            f_base="$(basename "${f}")"
+                            mpi_symlink_name="${include_path_merged}/${f_base}"
+                            if     [ ! -f "${mpi_symlink_name}" ] \
+                                && [ ! -d "${mpi_symlink_name}" ]; then
+                                ln -s "${f}" "${mpi_symlink_name}" >/dev/null 2>&1 || :
+                            fi
+                        done
+                    fi
+                done <<< "${include_paths}"
+                include_path="${include_path_merged}"
+            fi
             if [ ! -d "${include_path}" ]; then
                 include_path="$(dirname "${bin_path}")/include"
             fi
@@ -5149,10 +5236,10 @@ if [ "${python_install}" == "True" ] && [ "${python_installed}" == "False" ]; th
     install_success="False"
     # The configure script will check whether atomic operations may
     # be used. Some compilers (e.g. Intel 2019) only implement a subset
-    # of the needed atomic operations, and so may falsely passed this check.
-    # If none of the other combination of options (compiler and optimization
-    # choices) work, we try everything again while claiming that we do not
-    # support atomic operations at all.
+    # of the needed atomic operations, and so may falsely passed this
+    # check. If none of the other combination of options (compiler and
+    # optimization choices) work, we try everything again while claiming
+    # that we do not support atomic operations at all.
     for compiler in "${compiler_possibilities[@]}"; do
         for disable_atomic_operations in "False" "True"; do
             # Build with pip if both openssl and zlib are installed.
