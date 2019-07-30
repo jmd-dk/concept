@@ -295,57 +295,6 @@ else
     mpi_version="unknown"
 fi
 
-# MPI implementation specifics
-mpiexec_args=""
-if [ "${mpi_implementation}" == "openmpi" ]; then
-    # Extra arguments to pass to OpenMPI's mpiexec.
-    # In OpenMPI 3 and 4, oversubscription (having more MPI processes
-    # than physical cores) is disallowed by default.
-    mpi_version_major="${mpi_version:0:1}"
-    if [ "${mpi_version_major}" -ge 3 2>/dev/null ]; then
-        mpiexec_args="${mpiexec_args} --oversubscribe"
-    fi
-    # If OpenMPI complains about openib, it may be having problems
-    # with infiniband. Try adding "-mca btl ^openib" to mpiexec_args.
-    # By default, newer versions of OpenMPI binds processes to sockets
-    # (for nprocs > 2), which means that OpenMP threads are not
-    # necessarily assigned to cores in a one-to-one fashion.
-    # Fix this by simply removing this binding. We only do this however
-    # if running locally, as otherwise the resource manager should take
-    # care of the binding.
-    if [ "${ssh}" != "True" ]; then
-        export OMPI_MCA_hwloc_base_binding_policy=none
-        # You can also try OMPI_MCA_hwloc_base_binding_policy=core:overload
-    fi
-    # Disable aggregation of OpenMPI warnings
-    export OMPI_MCA_orte_base_help_aggregate=0
-    # Disable OpenMPI warning about forking
-    export OMPI_MCA_mpi_warn_on_fork=0
-    # In OpenMPI 4, infiniband ports are disabled by default in favour
-    # of UCX. If this leads to an error about not initializing an
-    # OpenFabrics device, we overwrite this default.
-    if [ -z "${OMPI_MCA_btl_openib_allow_ib}" ] \
-        && [ "${mpi_version_major}" -ge 4 2>/dev/null ]; then
-        mpi_warning="$("${python}" -c 'from mpi4py import MPI' 2>&1)"
-        if [ -n "${mpi_warning}" ]; then
-            if echo "${mpi_warning}" | grep "error" | grep "OpenFabrics" >/dev/null; then
-                if echo "${mpi_warning}" | grep "btl_openib_allow_ib" >/dev/null; then
-                    export OMPI_MCA_btl_openib_allow_ib=1
-                fi
-            fi
-        fi
-    fi
-elif [ "${mpi_implementation}" == "mpich" ]; then
-    # Extra arguments to pass to MPICH's mpiexec
-    mpiexec_args=""
-elif [ "${mpi_implementation}" == "mvapich" ]; then
-    # Extra arguments to pass to MVAPICH's mpiexec
-    mpiexec_args=""
-    # Disable automatic process binding, allowing OpenMP threads to be
-    # assigned to cores in a one-to-one fashion.
-    export MV2_ENABLE_AFFINITY=0
-fi
-
 # Function which prints the resource manager.
 # In order, the implemented resource managers are:
 # - Slurm
@@ -355,11 +304,6 @@ get_resource_manager(){
     if get_command sbatch >/dev/null; then
         # Slurm is installed. Use this as the resource manager.
         resource_manager="slurm"
-        srun_found="yes"
-        if ! get_command srun >/dev/null; then
-            colorprint "Warning: Using Slurm but cannot find the srun command" "red"
-            srun_found="no"
-        fi
     elif get_command qsub >/dev/null; then
         # TORQUE/PBS is installed. Use this as the resource manager.
         resource_manager="torque"
@@ -845,6 +789,88 @@ if [ "${params}" == "${params_unspecified}" ]; then
     params="${params_default}"
 fi
 
+# Determine wheter to run CO𝘕CEPT locally or remotely (via some
+# resource manager). Always treat tests as if they were run locally.
+remote="False"
+if     [ "${local}" == "False"               ] \
+    && [ "${test}"  == "${test_unspecified}" ] \
+    && [ "${ssh}"   == "True"                ]; then
+    remote="True"
+fi
+
+# If run locally, set the number of OpenMP threads
+# equal to the number of MPI processes. When running remotely,
+# leave the OMP_NUM_THREADS unset as this will utilise all available
+# CPU cores.
+if [ "${remote}" != "True" ]; then
+    nprocs_per_node="${nprocs}"
+    if [[ "${nprocs}" == *':'* ]]; then
+        nprocs_per_node=$("${python}" -B -c "print('${nprocs}'[('${nprocs}'.index(':') + 1):])")
+    fi
+    # Use the same number of OpenMP threads as MPI processes/node,
+    # unless OMP_NUM_THREADS is already defined.
+    if [ -z "${OMP_NUM_THREADS}" ]; then
+        export OMP_NUM_THREADS=${nprocs_per_node}
+    fi
+fi
+
+# MPI implementation specifics
+mpiexec_args=""
+mpi_env=""
+if [ "${mpi_implementation}" == "openmpi" ]; then
+    # Extra arguments to pass to OpenMPI's mpiexec.
+    # In OpenMPI 3 and 4, oversubscription (having more MPI processes
+    # than physical cores) is disallowed by default.
+    mpi_version_major="${mpi_version:0:1}"
+    if [ "${mpi_version_major}" -ge 3 2>/dev/null ]; then
+        mpiexec_args="${mpiexec_args} --oversubscribe"
+    fi
+    # Disable aggregation of OpenMPI warnings
+    mpi_env="${mpi_env}
+export OMPI_MCA_orte_base_help_aggregate=0"
+    # Disable OpenMPI warning about forking
+    mpi_env="${mpi_env}
+export OMPI_MCA_mpi_warn_on_fork=0"
+    # In OpenMPI 4, infiniband ports are disabled by default in favour
+    # of UCX. If this leads to an error about not initializing an
+    # OpenFabrics device, we overwrite this default.
+    if [ -z "${OMPI_MCA_btl_openib_allow_ib}" ] \
+        && [ "${mpi_version_major}" -ge 4 2>/dev/null ]; then
+        mpi_warning="$("${python}" -c 'from mpi4py import MPI' 2>&1)"
+        if [ -n "${mpi_warning}" ]; then
+            if echo "${mpi_warning}" | grep "error" | grep "OpenFabrics" >/dev/null; then
+                if echo "${mpi_warning}" | grep "btl_openib_allow_ib" >/dev/null; then
+                    mpi_env="${mpi_env}
+export OMPI_MCA_btl_openib_allow_ib=1"
+                fi
+            fi
+        fi
+    fi
+    # By default, newer versions of OpenMPI binds processes to sockets
+    # (for nprocs > 2), which means that OpenMP threads are not
+    # necessarily assigned to cores in a one-to-one fashion.
+    # Fix this by simply removing this binding. We only do this however
+    # if running locally, as otherwise the resource manager should take
+    # care of the binding.
+    comment=""
+    if [ "${remote}" == "True" ]; then
+        comment="# "
+    fi
+    mpi_env="${mpi_env}
+${comment}export OMPI_MCA_hwloc_base_binding_policy=none"
+elif [ "${mpi_implementation}" == "mpich" ]; then
+    # Extra arguments to pass to MPICH's mpiexec
+    mpiexec_args=""
+elif [ "${mpi_implementation}" == "mvapich" ]; then
+    # Extra arguments to pass to MVAPICH's mpiexec
+    mpiexec_args=""
+    # Disable automatic process binding, allowing OpenMP threads to be
+    # assigned to cores in a one-to-one fashion.
+    mpi_env="${mpi_env}
+export MV2_ENABLE_AFFINITY=0"
+fi
+eval "${mpi_env}"
+
 # If a test is to be run, run it and exit
 if [ "${test}" != "${test_unspecified}" ]; then
     # Function which can extract parameters from the parameter file
@@ -949,34 +975,10 @@ print('Total execution time: {}'.format(time_since(${start_time_epoch})))"
     exit 0
 fi
 
-# Determine wheter to run CO𝘕CEPT locally or remotely (via some
-# resource manager). Always treat tests as if they were run locally.
-remote="False"
-if [ "${local}" == "False" ] && [ "${test}" == "${test_unspecified}" ] \
-                             && [ "${ssh}" == "True" ]; then
-    remote="True"
-fi
-
 # Cannot run in interactive mode when running remotely
 if [ "${remote}" == "True" ] && [ "${interactive}" == "True" ]; then
     colorprint "Cannot run in interactive mode when run remotely" "red"
     exit 1
-fi
-
-# If run locally, set the number of OpenMP threads
-# equal to the number of MPI processes. When running remotely,
-# leave the OMP_NUM_THREADS unset as this will utilise all available
-# CPU cores.
-if [ "${remote}" != "True" ]; then
-    nprocs_per_node="${nprocs}"
-    if [[ "${nprocs}" == *':'* ]]; then
-        nprocs_per_node=$("${python}" -B -c "print('${nprocs}'[('${nprocs}'.index(':') + 1):])")
-    fi
-    # Use the same number of OpenMP threads as MPI processes/node,
-    # unless OMP_NUM_THREADS is already defined.
-    if [ -z "${OMP_NUM_THREADS}" ]; then
-        export OMP_NUM_THREADS=${nprocs_per_node}
-    fi
 fi
 
 # Compile or do cleanup from last compilation.
@@ -1169,7 +1171,7 @@ lines.append(f'{directive_prefix} --job-name=${jobname}')
 lines.append(f'{directive_prefix} --partition=${queue}')
 if ${nnodes}:
     lines.append(f'{directive_prefix} --nodes=${nnodes}')
-    lines.append(f'{directive_prefix} --tasks-per-node=${nprocs_per_node}')
+    lines.append(f'{directive_prefix} --ntasks-per-node=${nprocs_per_node}')
 else:
     lines.append(f'{directive_prefix} --ntasks=${nprocs}')
 if ${memory}:
@@ -1242,12 +1244,75 @@ print('\n'.join(lines))
     else
         memory_display=""
     fi
-    # The executing command. When using Slurm, it is best to use the
-    # srun command rather than calling mpiexec directly.
-    if [ "${resource_manager}" == "slurm" ] && [ "${srun_found}" == "yes" ]; then
-        jobscript_execute="srun"
-    else
-        jobscript_execute="\"\${mpiexec}\" \${mpiexec_args}"
+    # The executing command for the MPI computation.
+    # When using Slurm, it is best to use the srun command
+    # rather than calling mpiexec directly.
+    mpi_executor="\"\${mpiexec}\""
+    mpi_executor_args="\${mpiexec_args}"
+    if [ "${resource_manager}" == "slurm" ]; then
+        if get_command "srun" >/dev/null; then
+            srun_args=""
+            # Check that srun works as is with
+            # the given MPI implementation, or whether
+            # this has to be specified explicitly.
+            srun_works(){
+                srun_output="$(srun -n 4 $1 "${python}" -c \
+                    'from mpi4py import MPI; print("success")' 2>&1 || :)"
+                srun_expected_output="$(printf "success\nsuccess\nsuccess\nsuccess")"
+                if [ "${srun_output}" == "${srun_expected_output}" ]; then
+                    echo "True"
+                else
+                    echo "False"
+                fi
+            }
+            srun_success="True"
+            if [ "$(srun_works)" == "False" ]; then
+                srun_success="False"
+                srun_mpi_list="$(srun --mpi=list 2>&1 || :)"
+                srun_mpi_tried=" "
+                # For some reason, the srun command can sometimes break
+                # out of the loop over lines, which is why we have this
+                # additional, outer loop.
+                while [ "${srun_success}" == "False" ]; do
+                    any_new_line="False"
+                    while read line; do
+                        if [[ "${srun_mpi_tried}" == *" ${line} "* ]]; then
+                            continue
+                        fi
+                        any_new_line="True"
+                        srun_mpi_tried="${srun_mpi_tried}${line} "
+                        if [[ "${line}" == *"/"* ]]; then
+                            srun_mpi="--mpi=$(echo "${line#*\/}")"
+                            srun_success="$(srun_works ${srun_mpi})"
+                            if [ "${srun_success}" == "True" ]; then
+                                srun_args="${srun_args} ${srun_mpi}"
+                                break
+                            fi
+                        fi
+                    done <<< "${srun_mpi_list}"
+                    if [ "${any_new_line}" == "False" ]; then
+                        break
+                    fi
+                done
+            fi
+            if [ "${srun_success}" == "True" ]; then
+                # We want to disable process binding/affinity. Check
+                # whether srun understands the --cpu_bind=none option.
+                srun_success="$(srun_works "${srun_args} --cpu_bind=none")"
+                if [ "${srun_success}" == "True" ]; then
+                    srun_args="${srun_args} --cpu_bind=none"
+                fi
+                # Assign srun as the MPI executor
+                mpi_executor="srun"
+                srun_args="${srun_args## }"  # Trim leading space
+                mpi_executor_args="${srun_args}"
+            else
+                colorprint "Warning: Using Slurm but the srun command does not \
+seem to be functional" "red"
+            fi
+        else
+            colorprint "Warning: Using Slurm but cannot find the srun command" "red"
+        fi
     fi
     # Write job script file
     jobscript="${this_dir}/jobscript"
@@ -1257,6 +1322,12 @@ ${jobscript_header}
 # Source the concept script
 source '${concept}'
 
+# MPI executor
+mpi_executor='${mpi_executor}'
+mpi_executor_args='${mpi_executor_args}'
+
+# Environment variables${mpi_env}
+
 # Variables
 logs_dir='${logs_dir}'
 logs_dir_rel='${logs_dir_rel}'
@@ -1264,7 +1335,6 @@ main='${main}'
 main_as_command='${main_as_command}'
 main_rel='${main_rel}'
 memory_display='${memory_display}'
-mpiexec_args='${mpiexec_args}'
 nnodes=${nnodes}
 nprocs=${nprocs}
 nprocs_per_node=${nprocs_per_node}
@@ -1328,7 +1398,7 @@ fi
 # to logs_dir/jobid_err.
 (                                                    \\
     cd \"\${concept_dir}\"                           \\
-    && ${jobscript_execute}                          \\
+    && \"\${mpi_executor}\" \${mpi_executor_args}    \\
         \"\${python}\" -B                            \\
             \${m_flag} \"\${main_as_library}\"       \\
             \"params='\${params}'\"                  \\
