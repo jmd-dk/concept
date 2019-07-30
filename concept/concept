@@ -798,22 +798,6 @@ if     [ "${local}" == "False"               ] \
     remote="True"
 fi
 
-# If run locally, set the number of OpenMP threads
-# equal to the number of MPI processes. When running remotely,
-# leave the OMP_NUM_THREADS unset as this will utilise all available
-# CPU cores.
-if [ "${remote}" != "True" ]; then
-    nprocs_per_node="${nprocs}"
-    if [[ "${nprocs}" == *':'* ]]; then
-        nprocs_per_node=$("${python}" -B -c "print('${nprocs}'[('${nprocs}'.index(':') + 1):])")
-    fi
-    # Use the same number of OpenMP threads as MPI processes/node,
-    # unless OMP_NUM_THREADS is already defined.
-    if [ -z "${OMP_NUM_THREADS}" ]; then
-        export OMP_NUM_THREADS=${nprocs_per_node}
-    fi
-fi
-
 # MPI implementation specifics
 mpiexec_args=""
 mpi_env=""

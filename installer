@@ -6341,7 +6341,6 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         " * ppw (and other) structs are up-to-date. This is important"           \
         " * when using the Runge-Kutta evolver, as this is otherwise"            \
         " * not taken care off correctly."                                       \
-        " *"                                                                     \
         " */"                                                                    \
         "class_call("                                                            \
         "  perturb_derivs(tau, y, dy, parameters_and_workspace, error_message)," \
@@ -6417,7 +6416,6 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         "/**"                                                                                    \
         " * Count up total pressure and conformal time derivative of pressure,"                  \
         " * excluding the fld species. These are used for the PPF formalism of fld."             \
-        " *"                                                                                     \
         " */"                                                                                    \
         "double p_tot = 0.;"                                                                     \
         "double p_tot_prime = 0.;"                                                               \
@@ -6603,7 +6601,6 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         " * log(c_Gamma*k/(aH)) space. The parameters c_gamma_k_H_square_max_{0|1}"               \
         " * specify the borders of the transition."                                               \
         " * Here we nullify/shrink Gamma_fld only."                                               \
-        " *"                                                                                      \
         " */"                                                                                     \
         "double Gamma_fld, Gamma_weight, Gamma_weight_steepness;"                                 \
         "double c_gamma_k_H_square_max_0, c_gamma_k_H_square_max_1;"                              \
@@ -6692,7 +6689,6 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         "/**"                                                                         \
         " * We choose to store cs2_fld = delta_p_fld/delta_rho_fld rather than"       \
         " * simply delta_p_fld itself, as is done for massive neutrinos."             \
-        " *"                                                                          \
         " */"                                                                         \
         "class_store_columntitle(ppt->scalar_titles, \"cs2_fld\", pba->has_fld);"     \
     )
@@ -6778,7 +6774,6 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         "/**"                                                                               \
         " * Include H_T_prime (in N-body gauge) in perturbation output."                    \
         " * Here we make use of rho_plus_p_tot defined earlier."                            \
-        " *"                                                                                \
         " */"                                                                               \
         "double p_tot_prime = 0.0;"                                                         \
         "/* Photons */"                                                                     \
@@ -6828,12 +6823,14 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         "if (0 == 1) {  /* (ppt->gauge == synchronous) { */" \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "replace" "below" "${new_lines[@]}"
-    # Add integers 'node' and 'indentation' and use these to make CLASS
-    # print out correctly indented (with regard to CO𝘕CEPT) status
-    # updates during perturbation computations, when the
-    # perturbations_verbose parameter is negative. The 'node' and
-    # 'indentation' integers are added to the classy.Class initializer
-    # as optional arguments and then stored in the 'background' struct.
+    # Add integers 'node', 'num_threads' and 'indentation' to the
+    # classy.Class initializer as optional arguments and store them in
+    # the 'background' struct. Here 'node' and 'indentation' will be
+    # used to make CLASS print out correctly indented (with regard to
+    # CO𝘕CEPT) status updates during perturbation computations, when the
+    # perturbations_verbose parameter is negative. The 'num_threads'
+    # integer will hold the number of MPI processes on the local node,
+    # which signals the number of OpenMP threads to use.
     linenr_1="$(grep -n 'struct background' "${class_dir}/include/background.h" | head -n 1)"
     linenr_1="${linenr_1%%:*}"
     i=0
@@ -6848,15 +6845,19 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     new_lines=(                                                              \
         "/* Used to print status updates during perturbation computation */" \
         "int node, indentation;"                                             \
+        "/* The number of OpenMP threads to use */"                          \
+        "int num_threads;"                                                   \
     )
     patch_class "${class_dir}/include/background.h" ${linenr_2} "insert" "below" "${new_lines[@]}"
     linenr="$(grep -n "__cinit__" "${class_dir}/python/classy.pyx")"
     linenr="${linenr%%:*}"
-    sed -i "${linenr}s/.*/    def __cinit__(self, default=False, node=0, indentation=0):  \
+    sed -i "${linenr}s/.*/    def __cinit__(self, \
+        default=False, node=0, num_threads=1, indentation=0): \
         # Changed for use with CONCEPT/" "${class_dir}/python/classy.pyx"
     ((linenr += 1))
     new_lines=(                                  \
         "self.ba.node = <int>node"               \
+        "self.ba.num_threads = <int>num_threads" \
         "self.ba.indentation = <int>indentation" \
     )
     patch_class "${class_dir}/python/classy.pyx" ${linenr} "insert" "below" "${new_lines[@]}"
@@ -6886,6 +6887,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     done
     new_lines=(           \
         "int node"        \
+        "int num_threads" \
         "int indentation" \
     )
     patch_class "${class_dir}/python/cclassy.pxd" ${linenr_2} "insert" "above" "${new_lines[@]}"
@@ -6893,20 +6895,34 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         "${class_dir}/source/perturbations.c")"
     linenr="${linenr%%:*}"
     ((linenr += 1))
-    new_lines=(                                                                 \
-        "if ((abort == _FALSE_) && (ppt->perturbations_verbose < 0)) {"         \
-        "  printf("                                                             \
-        "    \"%*sNode %d, thread %d: Evolving mode k = %e/Mpc (%d/%d)\\\\n\"," \
-        "    pba->indentation, \"\","                                           \
-        "    pba->node,"                                                        \
-        "    thread,"                                                           \
-        "    ppt->k[index_md][index_k],"                                        \
-        "    index_k+1,"                                                        \
-        "    ppt->k_size[index_md]"                                             \
-        "  );"                                                                  \
-        "}"                                                                     \
+    new_lines=(                                                                   \
+        "if ((abort == _FALSE_) && (ppt->perturbations_verbose < 0)) {"           \
+        "  printf("                                                               \
+        "    \"%*sNode %d, thread %d: Evolving mode k = %.3e/Mpc (%d/%d)\\\\n\"," \
+        "    pba->indentation, \"\","                                             \
+        "    pba->node,"                                                          \
+        "    thread,"                                                             \
+        "    ppt->k[index_md][index_k],"                                          \
+        "    index_k+1,"                                                          \
+        "    ppt->k_size[index_md]"                                               \
+        "  );"                                                                    \
+        "  fflush(stdout);"                                                       \
+        "}"                                                                       \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
+    pattern='#pragma *omp *parallel'
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${class_dir}/source/perturbations.c" \
+        | head -n 1)
+    new_lines=(                                                                  \
+        "if (pba->num_threads != -1) {"                                          \
+        "  /**"                                                                  \
+        "   * Explicitly set the number of OpenMP threads."                      \
+        "   * Note that the value of OMP_NUM_THREADS is now completely ignored." \
+        "   */"                                                                  \
+        "  omp_set_num_threads(pba->num_threads);"                               \
+        "}"                                                                      \
+    )
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "replace" "below" "${new_lines[@]}"
     # Build CLASS, including the Python wrapper classy. We explicitly
     # specify Python 3 as the language level and replace -O4 with -O3
     # (which are equivalent on compilers that recognize -O4).

@@ -2741,6 +2741,23 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node', class_call
     else:
         if 'k_output_values' in params_specialized:
             k_output_values_node_indices = arange(len(k_output_values), dtype=C2np['Py_ssize_t'])
+    # Choose the thread (OpenMP) scheme for the CLASS computation.
+    # This should always be 'mpi'; the 'env' option is available for
+    # debugging only. With 'mpi', the number of available threads on
+    # each node is set to match the number of MPI processes. With 'env',
+    # the number of available threads is instead taken from the
+    # environment variable OMP_NUM_THREADS. A warning will be emitted
+    # if OMP_NUM_THREADS is set while using the 'mpi' thread scheme.
+    thread_scheme = ('mpi', 'env')[0]
+    OMP_NUM_THREADS = os.environ.get('OMP_NUM_THREADS')
+    warn_on_set_OMP_NUM_THREADS = (thread_scheme == 'mpi' and OMP_NUM_THREADS)
+    if thread_scheme == 'mpi':
+        num_threads = nprocs_node
+    elif thread_scheme == 'env':
+        try:
+            num_threads = int(OMP_NUM_THREADS)
+        except:
+            num_threads = -1
     # Write out progress message. If perturbations will be computed,
     # the node masters will print out status updates from within the
     # Class C code. Thus we need to skip to the line below the progress
@@ -2749,6 +2766,11 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node', class_call
     masterprint(f'Calling CLASS {class_call_reason}...')
     if compute_perturbations:
         masterprint('\n', end='')
+        if warn_on_set_OMP_NUM_THREADS:
+            masterwarn(
+                f'The environment contains OMP_NUM_THREADS={OMP_NUM_THREADS}. '
+                f'This will be ignored.'
+            )
     # Instantiate a classy.Class instance and populate it with the
     # CLASS parameters. Feed the Class instance with information about
     # the local node (number) and current terminal indentation due to
@@ -2756,7 +2778,8 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node', class_call
     # No line wrapping will be performed, but usually the progress print
     # indentation level is not deep enough at this point to make the
     # Class output exceed the terminal width.
-    cosmo = Class(node=node, indentation=bcast(progressprint['indentation']))
+    cosmo = Class(node=node, num_threads=num_threads,
+        indentation=bcast(progressprint['indentation']))
     cosmo.set(params_specialized)
     # Call cosmo.compute in such a way as to allow
     # for OpenMP parallelization.
