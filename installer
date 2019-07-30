@@ -6842,11 +6842,12 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
             break
         fi
     done
-    new_lines=(                                                              \
-        "/* Used to print status updates during perturbation computation */" \
-        "int node, indentation;"                                             \
-        "/* The number of OpenMP threads to use */"                          \
-        "int num_threads;"                                                   \
+    new_lines=(                                                \
+        "/**"                                                  \
+        " * Used to set number of OpenMP threads and to print" \
+        " * status updates during perturbation computations."  \
+        " */"                                                  \
+        "int node, num_threads, indentation;"                  \
     )
     patch_class "${class_dir}/include/background.h" ${linenr_2} "insert" "below" "${new_lines[@]}"
     linenr="$(grep -n "__cinit__" "${class_dir}/python/classy.pyx")"
@@ -6922,7 +6923,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         "  omp_set_num_threads(pba->num_threads);"                               \
         "}"                                                                      \
     )
-    patch_class "${class_dir}/source/perturbations.c" ${linenr} "replace" "below" "${new_lines[@]}"
+    patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "above" "${new_lines[@]}"
     # Build CLASS, including the Python wrapper classy. We explicitly
     # specify Python 3 as the language level and replace -O4 with -O3
     # (which are equivalent on compilers that recognize -O4).
