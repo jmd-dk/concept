@@ -6893,17 +6893,18 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         "${class_dir}/source/perturbations.c")"
     linenr="${linenr%%:*}"
     ((linenr += 1))
-    new_lines=(                                                         \
-        "if ((abort == _FALSE_) && (ppt->perturbations_verbose < 0)) {" \
-        "  printf("                                                     \
-        "    \"%*sNode %d: Evolving mode k = %e/Mpc (%d/%d)\\\\n\","    \
-        "    pba->indentation, \"\","                                   \
-        "    pba->node,"                                                \
-        "    ppt->k[index_md][index_k],"                                \
-        "    index_k+1,"                                                \
-        "    ppt->k_size[index_md]"                                     \
-        "  );"                                                          \
-        "}"                                                             \
+    new_lines=(                                                                 \
+        "if ((abort == _FALSE_) && (ppt->perturbations_verbose < 0)) {"         \
+        "  printf("                                                             \
+        "    \"%*sNode %d, thread %d: Evolving mode k = %e/Mpc (%d/%d)\\\\n\"," \
+        "    pba->indentation, \"\","                                           \
+        "    pba->node,"                                                        \
+        "    thread,"                                                           \
+        "    ppt->k[index_md][index_k],"                                        \
+        "    index_k+1,"                                                        \
+        "    ppt->k_size[index_md]"                                             \
+        "  );"                                                                  \
+        "}"                                                                     \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
     # Build CLASS, including the Python wrapper classy. We explicitly
