@@ -853,7 +853,10 @@ elif [ "${mpi_implementation}" == "mvapich" ]; then
     mpi_env="${mpi_env}
 export MV2_ENABLE_AFFINITY=0"
 fi
-eval "${mpi_env}"
+if [ -n "${mpi_env}" ]; then
+    eval "${mpi_env}"
+    mpi_env="# Environment variables${mpi_env}"
+fi
 
 # If a test is to be run, run it and exit
 if [ "${test}" != "${test_unspecified}" ]; then
@@ -1231,8 +1234,8 @@ print('\n'.join(lines))
     # The executing command for the MPI computation.
     # When using Slurm, it is best to use the srun command
     # rather than calling mpiexec directly.
-    mpi_executor="\"\${mpiexec}\""
-    mpi_executor_args="\${mpiexec_args}"
+    mpi_executor="${mpiexec}"
+    mpi_executor_args="${mpiexec_args}"
     if [ "${resource_manager}" == "slurm" ]; then
         if get_command "srun" >/dev/null; then
             srun_args=""
@@ -1310,7 +1313,7 @@ source '${concept}'
 mpi_executor='${mpi_executor}'
 mpi_executor_args='${mpi_executor_args}'
 
-# Environment variables${mpi_env}
+${mpi_env}
 
 # Variables
 logs_dir='${logs_dir}'
