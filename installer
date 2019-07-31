@@ -7116,6 +7116,15 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
     init_install "CONCEPT"
     # Move everything from the concept-${concept_version}
     # directory to ${top_dir}.
+    if [ -f "${top_dir}/installer" ]; then
+        # An installation script already exists in the directory where
+        # the downloaded installation script for the installed CO𝘕CEPT
+        # version should go. This pre-existing installation script might
+        # be the very file running now, and so it is not safe to
+        # overwrite it. Instead, move the new installation script there
+        # under a new name, reflecting its version.
+        mv "installer" "${top_dir}/installer_${concept_version}"
+    fi
     mv ./{.[!.],}* "${top_dir}/"
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/concept" || :
