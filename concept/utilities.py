@@ -661,6 +661,7 @@ def info():
     convenience_attributes=dict,
     filename=str,
     gauge=str,
+    gauge_str=str,
     i='Py_ssize_t',
     index='Py_ssize_t',
     k_gridsize='Py_ssize_t',
@@ -932,8 +933,7 @@ def CLASS():
                 'k', (k_magnitudes.shape[0], ), dtype=C2np['double'],
             )
             dset[:] = k_magnitudes
-            perturbations_h5.attrs['gauge'] = bytes(
-                gauge.replace('-', '').lower(), encoding='ascii')
+            perturbations_h5.attrs['gauge'] = bytes(gauge, encoding='ascii')
     # Get transfer functions of k for each a.
     # Partition the work across the a values.
     # Collect the results into the 2D transfer array.
@@ -941,10 +941,30 @@ def CLASS():
     # has been constructed, it is saved to disk and possibly plotted.
     # For the next transfer function, we reuse the same 2D arrays,
     # as all transfer functions are tabulated at the same a and k.
+    gauge_str = {
+        'newtonian': 'Newtonian',
+        'nbody'    : 'N-body',
+    }.get(gauge, gauge)
     if master:
         transfer = np.empty((all_a_values.shape[0], k_gridsize), dtype=C2np['double'])
     for component, variable_specifications in component_variables.items():
+        if component is None:
+            class_species = 'tot'
+        else:
+            class_species = component.class_species
         for variable, specific_multi_index, var_name in variable_specifications:
+            if class_species == 'tot':
+                if var_name in {'δ', 'θ', 'δP', 'σ'}:
+                    masterprint(
+                        f'Working on total {var_name} {gauge_str} gauge transfer functions ...'
+                    )
+                else:
+                    masterprint(f'Working on {var_name} transfer functions ...')
+            else:
+                masterprint(
+                    f'Working on {var_name} {class_species} '
+                    f'{gauge_str} gauge transfer functions ...'
+                )
             for i in range(all_a_values.shape[0]):
                 a = all_a_values[i]
                 if component is None:
@@ -961,10 +981,6 @@ def CLASS():
             if not master:
                 continue
             # Save transfer function to disk
-            if component is None:
-                class_species = 'tot'
-            else:
-                class_species = component.class_species
             if class_species == 'tot':
                 if var_name in {'δ', 'θ', 'δP', 'σ'}:
                     masterprint(f'Saving processed total {var_name} transfer functions ...')
@@ -1004,6 +1020,8 @@ def CLASS():
                     var_name,
                     class_species,
                 )
+            # Completely done with this requested transfer function
+            masterprint('done')
     # Done writing processed CLASS output
     if master:
         masterprint(f'All processed CLASS output has been saved to "{filename}"')
