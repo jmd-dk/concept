@@ -197,7 +197,7 @@ class CosmoResults:
                 # meaning utilizing all available nodes.
                 self._cosmo, self.k_node_indices = call_class(
                     self.params,
-                    sleep_time=(0.1, 10),
+                    sleep_time=(0.1, 1),
                     mode='MPI',
                     class_call_reason=self.class_call_reason,
                 )

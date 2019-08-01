@@ -830,24 +830,28 @@ export OMPI_MCA_btl_openib_allow_ib=1"
             fi
         fi
     fi
-    # By default, newer versions of OpenMPI binds processes to sockets
-    # (for nprocs > 2), which means that OpenMP threads are not
-    # necessarily assigned to cores in a one-to-one fashion.
-    # Fix this by simply removing this binding. We only do this however
-    # if running locally, as otherwise the resource manager should take
-    # care of the binding.
-    comment=""
-    if [ "${remote}" == "True" ]; then
-        comment="# "
+    # Disable automatic process binding/affinity, allowing OpenMP
+    # threads to be assigned to cores in a one-to-one fashion.
+    # This is off by default prior to OpenMPI version 1.7.
+    # All of 1.7 -- 4.0 supports the --bind-to none option to mpiexec.
+    # Here we add this option if it is understood.
+    mpiexec_output="$("${mpiexec}" --bind-to none -n 1 echo "success" 2>&1 || :)"
+    if [ "${mpiexec_output}" == "success" ]; then
+        mpiexec_args="${mpiexec_args} --bind-to none"
     fi
+    # For OpenMPI 1.8 -- 4.0 process binding can also be deactivated
+    # using the following environment variable.
     mpi_env="${mpi_env}
-${comment}export OMPI_MCA_hwloc_base_binding_policy=none"
+export OMPI_MCA_hwloc_base_binding_policy=none"
 elif [ "${mpi_implementation}" == "mpich" ]; then
-    # Extra arguments to pass to MPICH's mpiexec
-    mpiexec_args=""
+    # Though MPICH should not use process binding by default,
+    # it still supports a --bind-to none option. Here we check if this
+    # is really so, and apply it.
+    mpiexec_output="$("${mpiexec}" --bind-to none -n 1 echo "success" 2>&1 || :)"
+    if [ "${mpiexec_output}" == "success" ]; then
+        mpiexec_args="${mpiexec_args} --bind-to none"
+    fi
 elif [ "${mpi_implementation}" == "mvapich" ]; then
-    # Extra arguments to pass to MVAPICH's mpiexec
-    mpiexec_args=""
     # Disable automatic process binding, allowing OpenMP threads to be
     # assigned to cores in a one-to-one fashion.
     mpi_env="${mpi_env}
@@ -1231,74 +1235,21 @@ print('\n'.join(lines))
     else
         memory_display=""
     fi
-    # The executing command for the MPI computation.
-    # When using Slurm, it is best to use the srun command
-    # rather than calling mpiexec directly.
-    mpi_executor="${mpiexec}"
-    mpi_executor_args="${mpiexec_args}"
-    if [ "${resource_manager}" == "slurm" ]; then
-        if get_command "srun" >/dev/null; then
-            srun_args=""
-            # Check that srun works as is with
-            # the given MPI implementation, or whether
-            # this has to be specified explicitly.
-            srun_works(){
-                srun_output="$(srun -n 4 $1 "${python}" -c \
-                    'from mpi4py import MPI; print("success")' 2>&1 || :)"
-                srun_expected_output="$(printf "success\nsuccess\nsuccess\nsuccess")"
-                if [ "${srun_output}" == "${srun_expected_output}" ]; then
-                    echo "True"
-                else
-                    echo "False"
-                fi
-            }
-            srun_success="True"
-            if [ "$(srun_works)" == "False" ]; then
-                srun_success="False"
-                srun_mpi_list="$(srun --mpi=list 2>&1 || :)"
-                srun_mpi_tried=" "
-                # For some reason, the srun command can sometimes break
-                # out of the loop over lines, which is why we have this
-                # additional, outer loop.
-                while [ "${srun_success}" == "False" ]; do
-                    any_new_line="False"
-                    while read line; do
-                        if [[ "${srun_mpi_tried}" == *" ${line} "* ]]; then
-                            continue
-                        fi
-                        any_new_line="True"
-                        srun_mpi_tried="${srun_mpi_tried}${line} "
-                        if [[ "${line}" == *"/"* ]]; then
-                            srun_mpi="--mpi=$(echo "${line#*\/}")"
-                            srun_success="$(srun_works ${srun_mpi})"
-                            if [ "${srun_success}" == "True" ]; then
-                                srun_args="${srun_args} ${srun_mpi}"
-                                break
-                            fi
-                        fi
-                    done <<< "${srun_mpi_list}"
-                    if [ "${any_new_line}" == "False" ]; then
-                        break
-                    fi
-                done
-            fi
-            if [ "${srun_success}" == "True" ]; then
-                # We want to disable process binding/affinity. Check
-                # whether srun understands the --cpu_bind=none option.
-                srun_success="$(srun_works "${srun_args} --cpu_bind=none")"
-                if [ "${srun_success}" == "True" ]; then
-                    srun_args="${srun_args} --cpu_bind=none"
-                fi
-                # Assign srun as the MPI executor
-                mpi_executor="srun"
-                srun_args="${srun_args## }"  # Trim leading space
-                mpi_executor_args="${srun_args}"
+    # The executing command for the MPI computation when run remotely.
+    # When using Slurm, it is best to use the srun command rather than
+    # calling mpiexec directly.
+    # If the mpi_executor variable is already defined, we use this.
+    if [ -z "${mpi_executor}" ]; then
+        mpi_executor="${mpiexec}${mpiexec_args}"
+        if [ "${resource_manager}" == "slurm" ]; then
+            if get_command "srun" >/dev/null; then
+                # Use the Slurm srun command as the MPI executor.
+                # We further disable process binding/affinity in Slurm.
+                mpi_executor="srun --cpu_bind=none"
             else
-                colorprint "Warning: Using Slurm but the srun command does not \
-seem to be functional" "red"
+                colorprint "Warning: Using Slurm but cannot find the srun command. \
+Using mpiexec instead." "red"
             fi
-        else
-            colorprint "Warning: Using Slurm but cannot find the srun command" "red"
         fi
     fi
     # Write job script file
@@ -1311,7 +1262,6 @@ source '${concept}'
 
 # MPI executor
 mpi_executor='${mpi_executor}'
-mpi_executor_args='${mpi_executor_args}'
 
 ${mpi_env}
 
@@ -1324,7 +1274,6 @@ main_rel='${main_rel}'
 memory_display='${memory_display}'
 nnodes=${nnodes}
 nprocs=${nprocs}
-nprocs_per_node=${nprocs_per_node}
 params='${params}'
 params_cp='${params_cp}'
 params_cp_info='${params_cp_info}'
@@ -1385,7 +1334,7 @@ fi
 # to logs_dir/jobid_err.
 (                                                    \\
     cd \"\${concept_dir}\"                           \\
-    && \"\${mpi_executor}\" \${mpi_executor_args}    \\
+    && \${mpi_executor}                              \\
         \"\${python}\" -B                            \\
             \${m_flag} \"\${main_as_library}\"       \\
             \"params='\${params}'\"                  \\

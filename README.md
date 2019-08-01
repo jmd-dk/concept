@@ -39,7 +39,7 @@ The path to the CO*N*CEPT installation directory may be given
 as an argument. If not, the installer will prompt you for a directory.
 You may further supply the `--tests` option which enables tests for each
 dependency and CO*N*CEPT itself during the installation.
-Without tests, the installation takes about an hour on modern hardware.
+Without tests, the installation takes about an hour or two on modern hardware.
 
 You can download and invoke the installer in one go by
 
