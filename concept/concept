@@ -789,6 +789,22 @@ if [ "${params}" == "${params_unspecified}" ]; then
     params="${params_default}"
 fi
 
+# Check for syntax errors in supplied parameter file.
+# Other types of errors will not be detected before runtime.
+if [ "${params}" != "${params_default}" ]; then
+    params_traceback="$("${python}" -B -c "
+import ast
+with open('${params}', 'r', encoding='utf-8') as f:
+    source = f.read()
+ast.parse(source)
+" 2>&1 || :)"
+    if [ -n "${params_traceback}" ]; then
+        colorprint "Error in parameter file \"${params}\":" "red"
+        echo "${params_traceback}"
+        exit 1
+    fi
+fi
+
 # Determine wheter to run CO𝘕CEPT locally or remotely (via some
 # resource manager). Always treat tests as if they were run locally.
 remote="False"
