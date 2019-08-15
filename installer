@@ -5760,7 +5760,13 @@ fi
 
 # pytest
 if [ "${pytest_install}" == "True" ] && [ "${pytest_installed}" == "False" ]; then
-    pip_install_pypackage "pytest" "${pytest_version}"
+    # As pytest is not a critical dependency (it is only used for
+    # testing NumPy and SciPy), we continue past failure to install it.
+    install_success="True"
+    pip_install_pypackage "pytest" "${pytest_version}" || install_success="False"
+    if [ "${install_success}" == "False" ]; then
+        error "Failed to install pytest. The installation will continue regardless."
+    fi
 fi
 
 # NumPy (manual invocation of setup.py is needed
