@@ -163,7 +163,7 @@ unwanted_warnings =         \
     uninitialized           \
     implicit-fallthrough    \
 
-python_cflags = $(filter-out $(addprefix -W,$(unwanted_warnings)), \
+python_cflags = $(filter-out $(addprefix -W,$(unwanted_warnings)) -g -fwrapv, \
                              $(shell $(python_config) --cflags))
 other_cflags =                              \
     -pthread                                \
@@ -177,7 +177,7 @@ other_cflags =                              \
 
 # General optimization options
 ifneq ($(no_optimization),True)
-    other_cflags += -O3 -flto
+    other_cflags += -O3 -march=native -flto
 else
     python_cflags_tmp := $(python_cflags)
     python_cflags = $(filter-out -O3, $(python_cflags_tmp))
@@ -215,13 +215,13 @@ ifeq ($(CC_version),icc)
         , $(other_cflags_cp)      \
     )
 endif
-CFLAGS = $(call uniq, $(foreach flag, $(python_cflags)  \
-                                      $(other_cflags)   \
-                                      $(includes)       \
-                                      ,                 \
-                        $(call sensible_path,'$(flag)') \
-                        )                               \
-           )
+CFLAGS += $(call uniq, $(foreach flag, $(python_cflags)  \
+                                       $(other_cflags)   \
+                                       $(includes)       \
+                                       ,                 \
+                         $(call sensible_path,'$(flag)') \
+                         )                               \
+            )
 # Check whether the -flto option is recognized
 flto_recognized=True
 ifneq ($(no_optimization),True)
@@ -263,19 +263,19 @@ ifneq ($(no_optimization),True)
         other_libs += -flto
     endif
 endif
-LDLIBS = $(call uniq, $(foreach flag, $(fftw_libs)                    \
-                                      $(gsl_libs)                     \
-                                      $(mpi_libs)                     \
-                                      $(python_libs)                  \
-                                      $(other_libs)                   \
-                                      ,                               \
-                                      $(call sensible_path,'$(flag)') \
-                        )                                             \
-           )
+LDLIBS += $(call uniq, $(foreach flag, $(fftw_libs)                    \
+                                       $(gsl_libs)                     \
+                                       $(mpi_libs)                     \
+                                       $(python_libs)                  \
+                                       $(other_libs)                   \
+                                       ,                               \
+                                       $(call sensible_path,'$(flag)') \
+                         )                                             \
+            )
 # Linker options
 python_ldflags = $(shell $(python_config) --ldflags)
 other_ldflags  = -shared
-LDFLAGS        = $(call uniq, $(foreach flag, $(python_ldflags)               \
+LDFLAGS       += $(call uniq, $(foreach flag, $(python_ldflags)               \
                                               $(other_ldflags)                \
                                               ,                               \
                                               $(call sensible_path,'$(flag)') \
@@ -416,20 +416,26 @@ endif
 ###################
 # Cleanup targets #
 ###################
-.PHONY:             \
-    clean           \
-    clean_autosave  \
-    clean_auxiliary \
-    clean_logs      \
-    clean_params_cp \
-    clean_tests     \
-    clean_utilities \
-    distclean       \
+.PHONY:                   \
+    clean                 \
+    clean_autosave        \
+    clean_auxiliary       \
+    clean_ics             \
+    clean_logs            \
+    clean_output          \
+    clean_params_cp       \
+    clean_reusables       \
+    clean_class_reusables \
+    clean_ewald_reusables \
+    clean_fftw_reusables  \
+    clean_tests           \
+    clean_utilities       \
+    distclean             \
 
 # Remove all compile files
 clean:
 	$(RM) -r $(foreach ext,pyc pyx pxd c html o so so_,\
-		       $(addsuffix .$(ext), $(pyfiles))) $(types) __pycache__
+	    $(addsuffix .$(ext), $(pyfiles))) $(types) __pycache__
 # Remove files generated via autosave
 clean_autosave:
 	$(RM) $(ics_dir)/autosave_*
@@ -450,14 +456,14 @@ clean_output:
 clean_params_cp:
 	$(RM) $(params_dir)/.[^.]*
 # Remove reusable dumps
-clean_class_reusables:
-	$(RM) -r $(reusables_dir)/class
-clean_fftw_reusables:
-	$(RM) -r $(reusables_dir)/fftw
-clean_ewald_reusables:
-	$(RM) -r $(reusables_dir)/ewald
 clean_reusables:
 	$(RM) -r $(reusables_dir)
+clean_class_reusables:
+	$(RM) -r $(reusables_dir)/class
+clean_ewald_reusables:
+	-$(RM) -r $(reusables_dir)/ewald
+clean_fftw_reusables:
+	$(RM) -r $(reusables_dir)/fftw
 # Remove files produced by running tests
 clean_tests:
 	$(foreach clean_file,$(wildcard $(tests_dir)/*/clean),$(clean_file);)
@@ -467,9 +473,9 @@ clean_utilities:
 	$(RM) -r $(top_dir)/tmp
 # Remove all unnecessary files,
 # leaving CO𝘕CEPT in a distribution ready state.
-# Note that no files in the output directory will be removed,
-# and that only only auto-generated files will be removed from the
-# ICs and params directories.
+# Note that no files in the ics or output directory will be removed,
+# and that only auto-generated files will be removed from the
+# params directories.
 distclean:          \
     clean           \
     clean_autosave  \
