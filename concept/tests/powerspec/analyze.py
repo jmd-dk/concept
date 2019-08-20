@@ -141,25 +141,19 @@ if not k_whole_gridsize[0] == k_half_gridsize[0]:
           'The compared power spectra are plotted in "{}.png" and "{}.png"'
           .format(powerspec_filename_whole_gridsize, powerspec_filename_half_gridsize)
           )
-# New, trimmed (k, power) of whole_gridsize with only the same k as in half_gridsize
-k_whole_gridsize_trimmed = k_half_gridsize
-power_whole_gridsize_trimmed = []
-for k in k_half_gridsize:
-    where = np.argwhere(k == k_whole_gridsize)
-    if where.size == 0:
-        abort('The k value {} is present in "{}" but not in "{}"'
-              .format(k, powerspec_filename_half_gridsize, powerspec_filename_whole_gridsize)
-              )
-    index = where[0][0]
-    power_whole_gridsize_trimmed.append(power_whole_gridsize[index])
-power_whole_gridsize_trimmed = asarray(power_whole_gridsize_trimmed)
+# New, interpolated (k, power) of whole_gridsize onto the k's of half_gridsize
+k_whole_gridsize_interp = k_half_gridsize
+power_whole_gridsize_interp = exp(np.interp(
+    log(k_half_gridsize), log(k_whole_gridsize), log(power_whole_gridsize)
+))
 # Compare the powers(k) below k_max/2 = (k2_max/sqrt(3))/2,
 # where the CIC noise should not be significant.
 k_max = k_half_gridsize[-1]/sqrt(3)
 power_half_gridsize_firstpart = power_half_gridsize[k_half_gridsize < 0.5*k_max]
-power_whole_gridsize_trimmed_firstpart = power_whole_gridsize_trimmed[k_whole_gridsize_trimmed
-                                                                      < 0.5*k_max]
-if not np.all(abs((  power_whole_gridsize_trimmed_firstpart
+power_whole_gridsize_interp_firstpart = power_whole_gridsize_interp[
+    k_whole_gridsize_interp < 0.5*k_max
+]
+if not np.all(abs((  power_whole_gridsize_interp_firstpart
                    - power_half_gridsize_firstpart
                    )/power_half_gridsize_firstpart
                   ) < rel_tol

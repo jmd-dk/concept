@@ -33,76 +33,78 @@ cimport('from mesh import CIC_components2φ, fft, slab_decompose')
 
 
 # Function for computing power spectra of sets of components
-@cython.pheader(# Arguments
-                components=list,
-                filename=str,
-                # Locals
-                W='double',
-                a='double',
-                any_fluid='bint',
-                any_particles='bint',
-                column_components=list,
-                column_width_normal='Py_ssize_t',
-                column_widths=list,
-                component='Component',
-                component_combination=tuple,
-                component_combination_str=str,
-                component_combinations=object,  # generator
-                component_index='Py_ssize_t',
-                component_indices_str=str,
-                component_mapping=object,  # OrderedDict
-                deconv_ijk='double',
-                delimiter=str,
-                fill_n_modes='bint',
-                fmt=list,
-                header=list,
-                i='Py_ssize_t',
-                index_largest_mode='Py_ssize_t',
-                interpolation_quantities=list,
-                j='Py_ssize_t',
-                j_global='Py_ssize_t',
-                k='Py_ssize_t',
-                k_bin_index='Py_ssize_t',
-                k_magnitude='double',
-                k2='Py_ssize_t',
-                kR='double',
-                ki='Py_ssize_t',
-                kj='Py_ssize_t',
-                kj2='Py_ssize_t',
-                kk='Py_ssize_t',
-                longest_name_size='Py_ssize_t',
-                max_n_modes='Py_ssize_t',
-                nyquist='Py_ssize_t',
-                power='double[::1]',
-                power_dict=object,  # OrderedDict
-                power_jik='double',
-                reciprocal_sqrt_deconv_ij='double',
-                reciprocal_sqrt_deconv_ijk='double',
-                reciprocal_sqrt_deconv_j='double',
-                representation=str,
-                row_components=list,
-                row_headings=list,
-                row_σ=list,
-                save_powerspecs='bint',
-                size_i='Py_ssize_t',
-                size_j='Py_ssize_t',
-                size_k='Py_ssize_t',
-                slab='double[:, :, ::1]',
-                slab_dict=dict,
-                slab_fluid='double[:, :, ::1]',
-                slab_fluid_jik='double*',
-                slab_particles='double[:, :, ::1]',
-                slab_particles_jik='double*',
-                spectrum_plural=str,
-                symmetry_multiplicity='int',
-                topline=list,
-                Σmass='double',
-                σ_dict=object,  # OrderedDict
-                σ_str=str,
-                φ='double[:, :, ::1]',
-                φ_dict=dict,
-                )
+@cython.pheader(
+    # Arguments
+    components=list,
+    filename=str,
+    # Locals
+    W='double',
+    a='double',
+    any_fluid='bint',
+    any_particles='bint',
+    column_components=list,
+    column_width_normal='Py_ssize_t',
+    column_widths=list,
+    component='Component',
+    component_combination=tuple,
+    component_combination_str=str,
+    component_combinations=object,  # generator
+    component_index='Py_ssize_t',
+    component_indices_str=str,
+    component_mapping=object,  # OrderedDict
+    deconv_ijk='double',
+    delimiter=str,
+    fill_n_modes='bint',
+    fmt=list,
+    header=list,
+    i='Py_ssize_t',
+    index_largest_mode='Py_ssize_t',
+    interpolation_quantities=list,
+    j='Py_ssize_t',
+    j_global='Py_ssize_t',
+    k='Py_ssize_t',
+    k_bin_index='Py_ssize_t',
+    k_magnitude='double',
+    k2='Py_ssize_t',
+    kR='double',
+    ki='Py_ssize_t',
+    kj='Py_ssize_t',
+    kj2='Py_ssize_t',
+    kk='Py_ssize_t',
+    longest_name_size='Py_ssize_t',
+    max_n_modes='Py_ssize_t',
+    nyquist='Py_ssize_t',
+    power='double[::1]',
+    power_dict=object,  # OrderedDict
+    power_jik='double',
+    reciprocal_sqrt_deconv_ij='double',
+    reciprocal_sqrt_deconv_ijk='double',
+    reciprocal_sqrt_deconv_j='double',
+    representation=str,
+    row_components=list,
+    row_headings=list,
+    row_σ=list,
+    save_powerspecs='bint',
+    size_i='Py_ssize_t',
+    size_j='Py_ssize_t',
+    size_k='Py_ssize_t',
+    slab='double[:, :, ::1]',
+    slab_dict=dict,
+    slab_fluid='double[:, :, ::1]',
+    slab_fluid_jik='double*',
+    slab_particles='double[:, :, ::1]',
+    slab_particles_jik='double*',
+    spectrum_plural=str,
+    symmetry_multiplicity='int',
+    topline=list,
+    Σmass='double',
+    σ_dict=object,  # OrderedDict
+    σ_str=str,
+    φ='double[:, :, ::1]',
+    φ_dict=dict,
+)
 def powerspec(components, filename):
+    global n_modes_fine
     # Always produce the powerspectrum at the current time
     a = universals.a
     # Ordered dicts storing the power and rms density variation,
@@ -132,8 +134,11 @@ def powerspec(components, filename):
         masterprint(f'Computing power spectrum of {component_combination_str} ...')
         # Grab a designated buffer for the power spectrum
         # of this component, and store it in the power dict.
-        power = get_buffer(k_bin_centers.shape[0], f'powerspec_{component_combination_str}',
-                           nullify=True)
+        power = get_buffer(
+            k_bin_centers_size,
+            f'powerspec_{component_combination_str}',
+            nullify=True,
+        )
         power_dict[component_combination] = power
         # We now do the CIC interpolation of the component onto a grid
         # and perform the FFT on this grid. Here the φ grid is used.
@@ -184,9 +189,9 @@ def powerspec(components, filename):
             fft(slab, 'forward')
             size_j, size_i, size_k = slab.shape[0], slab.shape[1], slab.shape[2]
         # Flag specifying whether or not n_modes has been computed
-        fill_n_modes = (n_modes[0] == -1)
+        fill_n_modes = (n_modes_fine[0] == -1)
         if fill_n_modes:
-            n_modes[0] = 0
+            n_modes_fine[0] = 0
         # Begin loop over slabs. As the first and second dimensions
         # are transposed due to the FFT, start with the j-dimension.
         nyquist = φ_gridsize//2
@@ -297,30 +302,60 @@ def powerspec(components, filename):
                         symmetry_multiplicity = 1
                     else:
                         symmetry_multiplicity = 2
-                    # If the number of modes in each k bin has not
-                    # been computed, do this now.
+                    # If the number of modes in each k² has not
+                    # been tallied up yet, do this now.
                     with unswitch(3):
                         if fill_n_modes:
                             # Increase the multiplicity
-                            n_modes[k_bin_index] += symmetry_multiplicity
+                            # of this specific k2.
+                            n_modes_fine[k2] += symmetry_multiplicity
                     # Increase the power in this bin.
                     # For now, power holds the sum of powers.
                     power[k_bin_index] += symmetry_multiplicity*power_jik
         # Sum power into the master process
-        Reduce(sendbuf=(MPI.IN_PLACE if master else power),
-               recvbuf=(power        if master else None),
-               op=MPI.SUM,
-               )
-        # If n_modes has just been computed,
-        # sum the individual results into the master process.
+        Reduce(
+            sendbuf=(MPI.IN_PLACE if master else power),
+            recvbuf=(power        if master else None),
+            op=MPI.SUM,
+        )
+        # If n_modes_fine has just been tallied up,
+        # construct n_modes and adjust k_bin_centers.
         if fill_n_modes:
-            Reduce(sendbuf=(MPI.IN_PLACE if master else n_modes),
-                   recvbuf=(n_modes      if master else None),
-                   op=MPI.SUM,
-                   )
-            # The maximm n_modes is used for formatting the output.
-            # Store this as the additional, last element.
-            n_modes[n_modes.shape[0] - 1] = max(n_modes)
+            # Sum n_modes_fine into the master process
+            Reduce(
+                sendbuf=(MPI.IN_PLACE if master else n_modes_fine),
+                recvbuf=(n_modes_fine if master else None),
+                op=MPI.SUM,
+            )
+            # The master process now holds all the information needed.
+            # Also, the slave processes are no longer in need
+            # of the n_modes_fine array.
+            if not master:
+                n_modes_fine = zeros(1, dtype=C2np['Py_ssize_t'])
+                continue
+            # Redefine k_bin_centers so that each element is the mean of
+            # all the k values that falls within the bin, using the
+            # multiplicity (n_modes_fine) as weight. As a side product
+            # we also construct n_modes from n_modes_fine.
+            # Lastly, we store the maximum value of n_modes as its last
+            # (extra) element, as it is used for formatting the output.
+            k_bin_centers[:] = 0
+            for k2 in range(1, n_modes_fine.shape[0]):
+                if ℤ[n_modes_fine[k2]] == 0:
+                    continue
+                k_magnitude = ℝ[2*π/boxsize]*sqrt(k2)
+                k_bin_index = k_bin_indices[k2]
+                n_modes[k_bin_index] += ℤ[n_modes_fine[k2]]
+                k_bin_centers[k_bin_index] += ℤ[n_modes_fine[k2]]*k_magnitude
+            max_n_modes = 0
+            for k_bin_index in range(k_bin_centers.shape[0]):
+                if ℤ[n_modes[k_bin_index]] > 0:
+                    k_bin_centers[k_bin_index] /= ℤ[n_modes[k_bin_index]]
+                    if ℤ[n_modes[k_bin_index]] > max_n_modes:
+                        max_n_modes = ℤ[n_modes[k_bin_index]]
+            n_modes[n_modes.shape[0] - 1] = max_n_modes
+            # The master process now also no longer need n_modes_fine
+            n_modes_fine = zeros(1, dtype=C2np['Py_ssize_t'])
         # The master process now holds all the information needed
         if not master:
             continue
@@ -486,21 +521,24 @@ def powerspec(components, filename):
     )
 # Initialize variables used for the power spectrum computation
 # at import time, if such computation should ever take place.
-cython.declare(i='Py_ssize_t',
-               k_bin_center='double',
-               k_bin_centers='double[::1]',
-               k_bin_indices='Py_ssize_t[::1]',
-               k_bin_size='double',
-               k_max='double',
-               k_min='double',
-               k_magnitude='double',
-               k2='Py_ssize_t',
-               k2_max='Py_ssize_t',
-               n_modes='Py_ssize_t[::1]',
-               powerspec_data_select=dict,
-               powerspec_plot_select=dict,
-               σ2_integrand='double[::1]',
-               )
+cython.declare(
+    i='Py_ssize_t',
+    k_bin_center='double',
+    k_bin_centers='double[::1]',
+    k_bin_centers_size='Py_ssize_t',
+    k_bin_indices='Py_ssize_t[::1]',
+    k_bin_size='double',
+    k_max='double',
+    k_min='double',
+    k_magnitude='double',
+    k2='Py_ssize_t',
+    k2_max='Py_ssize_t',
+    n_modes='Py_ssize_t[::1]',
+    n_modes_fine='Py_ssize_t[::1]',
+    powerspec_data_select=dict,
+    powerspec_plot_select=dict,
+    σ2_integrand='double[::1]',
+)
 if any(powerspec_times.values()) or special_params.get('special') == 'powerspec':
     # Construct the powerspec_data_select and powerspec_plot_select
     # dicts from the powerspec_select parameter.
@@ -511,9 +549,19 @@ if any(powerspec_times.values()) or special_params.get('special') == 'powerspec'
     # Maximum and minum k values
     k_min = ℝ[2*π/boxsize]
     k_max = ℝ[2*π/boxsize]*sqrt(k2_max)
-    # Construct linear k bins, each with a size of k_min
+    # Construct linear k bins, each with a size of k_min.
+    # Note that k_bin_centers will be changed later according to the
+    # k² values on the 3D grid that falls inside each bin. The final
+    # placing of the bin centers are then really defined indirectly by
+    # k_bin_indices below (which depend on the initial values
+    # given to k_bin_centers).
     k_bin_size = k_min
-    k_bin_centers = np.arange(k_min, k_max + k_bin_size, k_bin_size)
+    k_bin_centers = np.arange(
+        k_min + (0.5 - 1e+1*machine_ϵ)*k_bin_size,
+        k_max + k_bin_size,
+        k_bin_size,
+    )
+    k_bin_centers_size = k_bin_centers.shape[0]
     # Construct array mapping k2 (grid units) to bin index
     k_bin_indices = empty(k2_max + 1, dtype=C2np['Py_ssize_t'])
     k_bin_indices[0] = 0
@@ -521,7 +569,7 @@ if any(powerspec_times.values()) or special_params.get('special') == 'powerspec'
     for k2 in range(1, k_bin_indices.shape[0]):
         k_magnitude = ℝ[2*π/boxsize]*sqrt(k2)
         # Find index of closest bin center
-        for i in range(i, ℤ[k_bin_centers.shape[0]]):
+        for i in range(i, k_bin_centers_size):
             k_bin_center = k_bin_centers[i]
             if k_bin_center > k_magnitude:
                 # k2 belongs to either bin (i - 1) or bin i
@@ -530,18 +578,30 @@ if any(powerspec_times.values()) or special_params.get('special') == 'powerspec'
                 else:
                     k_bin_indices[k2] = i
                 break
-    # Array counting the multiplicity (number of modes) in the bins.
-    # One additional element is allocated, which will be used to store
-    # the largest of all the other numbers.
-    n_modes = zeros(k_bin_centers.shape[0] + 1, dtype=C2np['Py_ssize_t'])
-    # The multiplicity of each bin is the same for all components and
-    # constant throughout time. We therefore only need to compute
+    # For the slave processes, the k_bin_centers are only used
+    # above to define the k_bin_indices.
+    if not master:
+        k_bin_centers = None
+    # Array counting the multiplicity (number of modes) of each
+    # k² in the 3D grid.
+    n_modes_fine = zeros(k_bin_indices.shape[0], dtype=C2np['Py_ssize_t'])
+    # The multiplicity of each k² value is the same for all components
+    # and constant throughout time. We therefore only need to compute
     # this once. Flag the first element so that we know it has not
     # been computed yet.
-    n_modes[0] = -1
-    # Array used for storing the integrand of σ²,
-    # the squared rms density variation σ_R_tophat (usually σ₈).
-    σ2_integrand = empty(k_bin_centers.shape[0], dtype=C2np['double'])
+    n_modes_fine[0] = -1
+    # Once the power spectrum has been collectively computed, it is up
+    # to the master process to store and/or plot it.
+    # For this, additional arrays are needed.
+    if master:
+        # Like n_modes_fine, but counting the multiplicity of the bins,
+        # rather than the individual k² elements.
+        # One additional element is allocated, which will be used to
+        # store the largest of all the other multiplicities.
+        n_modes = zeros(k_bin_centers_size + 1, dtype=C2np['Py_ssize_t'])
+        # Array used for storing the integrand of σ²,
+        # the squared rms density variation σ_R_tophat (usually σ₈).
+        σ2_integrand = empty(k_bin_centers_size, dtype=C2np['double'])
 
 # Function which can measure different quantities of a passed component
 @cython.header(
