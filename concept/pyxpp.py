@@ -1182,6 +1182,20 @@ def constant_expressions(lines, no_optimization, first_call=True):
                         attributes[variables[v]] = var[(dot_index + 1):]
                 variables = [var for var in list(set(variables))
                              if var and var[0] not in '.0123456789']
+                # Remove non-variables
+                nonvariables = {
+                    'bint', 'int', 'float', 'double', 'Py_ssize_t',
+                    'tuple', 'list', 'set', 'dict',
+                    'sin', 'cos', 'tan',
+                    'arcsin', 'arccos', 'arctan', 'arctan2',
+                    'sinh', 'cosh', 'tanh', 'arcsinh', 'arccosh', 'arctanh',
+                    'exp', 'log', 'log2', 'log10',
+                    'sqrt', 'cbrt',
+                    'erf', 'erfc',
+                    'floor', 'ceil', 'round',
+                    'mod', 'fmod',
+                }
+                variables = list(set(variables) - nonvariables)
                 linenr_where_defined = [-1]*len(variables)
                 placements = ['below']*len(variables)
                 defined_in_function = [False]*len(variables)
@@ -1194,12 +1208,13 @@ def constant_expressions(lines, no_optimization, first_call=True):
                         in_docstring = {'"""': False, "'''": False}
                         for j, line2 in enumerate(reversed(lines[:end])):
                             # Skip doc strings
+                            line2_lstripped = line2.lstrip()
                             for triple_quote in ('"""', "'''"):
-                                if line2.lstrip().startswith(triple_quote):
+                                if line2_lstripped.startswith(triple_quote):
                                     in_docstring[triple_quote] = not in_docstring[triple_quote]
                                     if line2.rstrip().endswith(triple_quote) and len(line2.strip()) > 5:
                                         in_docstring[triple_quote] = not in_docstring[triple_quote]
-                                elif line2.rstrip().endswith(triple_quote):
+                                elif not line2_lstripped.startswith('#') and line2.rstrip().endswith(triple_quote):
                                     in_docstring[triple_quote] = not in_docstring[triple_quote]
                             if in_docstring['"""'] or  in_docstring["'''"]:
                                 continue
@@ -2845,10 +2860,16 @@ def make_pxd(filename, no_optimization):
         pxd_lines.pop()
     else:
         pxd_lines.append('\n')
-    # Import all types with spaces (e.g. "long int") from the commons module
+    # Import all types with spaces (e.g. "long int")
+    # from the commons module.
     types_with_spaces = [(key.replace(' ', ''), key)
                          for key in commons.C2np.keys()
                          if ' ' in key]
+    # Include const and static types, (e.g. "const int")
+    types_with_spaces += [
+        (modifier + key.replace(' ', ''), f'{modifier} {key}') for key in commons.C2np.keys()
+        for modifier in ('const', 'static')
+    ]
     types_with_spaces = sorted(types_with_spaces, key=lambda t: len(t[1]), reverse=True)
     # Function that finds non-indented function definitions in a block
     # of code (list of lines). It appends to header_lines and pxd_lines.
