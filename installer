@@ -1693,7 +1693,7 @@ try:
         import cython_gsl
     elif '${1}' == 'mpi4py':
         # For MPI4Py we do a more thorough test
-        import mpi4py
+        import mpi4py.rc; mpi4py.rc.threads = False  # Do not use threads
         from mpi4py import MPI
     else:
         import ${1}

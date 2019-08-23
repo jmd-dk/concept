@@ -63,6 +63,9 @@ import matplotlib
 matplotlib.use('agg')  # Use a matplotlib backend that does not require a running X-server
 import matplotlib.mathtext
 import matplotlib.pyplot as plt
+# MPI
+import mpi4py.rc; mpi4py.rc.threads = False  # Do not use threads
+from mpi4py import MPI
 # For I/O
 from glob import glob
 import h5py
@@ -127,22 +130,22 @@ if not cython.compiled:
 #############
 # MPI setup #
 #############
-from mpi4py import MPI
-cython.declare(master='bint',
-               master_node='int',
-               master_rank='int',
-               nnodes='int',
-               node='int',
-               node_master='bint',
-               node_master_rank='int',
-               node_master_ranks='int[::1]',
-               node_ranks='int[::1]',
-               nodes='int[::1]',
-               nprocs='int',
-               nprocs_node='int',
-               nprocs_nodes='int[::1]',
-               rank='int',
-               )
+cython.declare(
+    master='bint',
+    master_node='int',
+    master_rank='int',
+    nnodes='int',
+    node='int',
+    node_master='bint',
+    node_master_rank='int',
+    node_master_ranks='int[::1]',
+    node_ranks='int[::1]',
+    nodes='int[::1]',
+    nprocs='int',
+    nprocs_node='int',
+    nprocs_nodes='int[::1]',
+    rank='int',
+)
 # The MPI communicator
 comm = MPI.COMM_WORLD
 # Number of processes started with mpiexec

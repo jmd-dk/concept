@@ -836,7 +836,10 @@ export OMPI_MCA_mpi_warn_on_fork=0"
     # OpenFabrics device, we overwrite this default.
     if [ -z "${OMPI_MCA_btl_openib_allow_ib}" ] \
         && [ "${mpi_version_major}" -ge 4 2>/dev/null ]; then
-        mpi_warning="$("${python}" -c 'from mpi4py import MPI' 2>&1)"
+        mpi_warning="$("${python}" -c '
+import mpi4py.rc; mpi4py.rc.threads = False  # Do not use threads
+from mpi4py import MPI
+' 2>&1)"
         if [ -n "${mpi_warning}" ]; then
             if echo "${mpi_warning}" | grep "error" | grep "OpenFabrics" >/dev/null; then
                 if echo "${mpi_warning}" | grep "btl_openib_allow_ib" >/dev/null; then
