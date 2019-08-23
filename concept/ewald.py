@@ -77,10 +77,11 @@ def summation(x, y, z):
         return force
     # Remove the direct force, as we
     # are interested in the correction only
-    r3 = (x**2 + y**2 + z**2)**1.5
-    force_x += x/r3
-    force_y += y/r3
-    force_z += z/r3
+    r3 = x**2 + y**2 + z**2
+    r3 *= sqrt(r3)
+    force_x += x*ℝ[1/r3]
+    force_y += y*ℝ[1/r3]
+    force_z += z*ℝ[1/r3]
     # The short range (real space) sum
     for sumindex_x in range(n_lower, n_upper):
         for sumindex_y in range(n_lower, n_upper):
@@ -89,9 +90,9 @@ def summation(x, y, z):
                 dist_y = y - sumindex_y
                 dist_z = z - sumindex_z
                 dist2 = dist_x**2 + dist_y**2 + dist_z**2
-                dist = sqrt(dist2)
-                if dist > maxdist:
+                if dist2 > ℝ[maxdist**2]:
                     continue
+                dist = sqrt(dist2)
                 scalarpart = -dist**(-3)*(erfc(dist*ℝ[1/(2*rs)])
                     + dist*ℝ[1/(sqrt(π)*rs)]*exp(dist2*ℝ[-1/(4*rs**2)]))
                 force_x += dist_x*scalarpart
