@@ -104,28 +104,26 @@ include $(paths_filename)
 # near this Makefile, the return value is the relative path. Otherwise,
 # the return value is just the untouched argument.
 # A backslash will be placed before spaces.
-sensible_path = $(shell $(python) -c "import os, sys;                                             \
-                                      path = ''' $1 '''.strip(' \"').strip(\"'\");                \
-                                      not path and sys.exit();                                    \
-                                      prefix = ([''] + [prefix for prefix in                      \
-                                                        ('-I', '-L', '-Wl,-rpath=')               \
-                                                        if path.startswith(prefix)]               \
-                                                )[-1];                                            \
-                                      abspath = path[len(prefix):];                               \
-                                      relpath = os.path.relpath(abspath, '.');                    \
-                                      path = abspath if relpath.startswith('../..') else relpath; \
-                                      path = prefix + path;                                       \
-                                      path = path.replace(' ', chr(92) + ' ');                    \
-                                      path = path.replace(2*chr(92), chr(92));                    \
-                                      path = path.strip();                                        \
-                                      print(path);                                                \
-                                      "                                                           \
-                  )
+sensible_path = $(shell $(python) -B -c "pass;                         \
+    import os, sys;                                                    \
+    path = ''' $1 '''.strip(' \"').strip(\"'\");                       \
+    not path and sys.exit();                                           \
+    prefix = ([''] + [prefix for prefix in ('-I', '-L', '-Wl,-rpath=') \
+        if path.startswith(prefix)])[-1];                              \
+    abspath = path[len(prefix):];                                      \
+    relpath = os.path.relpath(abspath, '.');                           \
+    path = abspath if relpath.startswith('../..') else relpath;        \
+    path = prefix + path;                                              \
+    path = path.replace(' ', chr(92) + ' ');                           \
+    path = path.replace(2*chr(92), chr(92));                           \
+    path = path.strip();                                               \
+    print(path);                                                       \
+")
 # Read in the paths
 paths = $(shell grep -o '.*=' $(paths_filename) | sed 's/.$$//')
 # Check whether the Python interpreter works.
 # Error out if not.
-python_test = $(shell $(python) -c "print('success')")
+python_test = $(shell $(python) -B -c "print('success')")
 ifneq ($(python_test),success)
     $(error Try sourcing the concept script)
 endif
@@ -139,11 +137,24 @@ $(foreach path,$(paths),$(eval $(path)=$(call sensible_path,$($(path)))))
 # Settings for compilation and linking #
 ########################################
 # Function which eliminates duplicates
-uniq = $(strip $(if $1,$(firstword $1) $(call uniq,$(filter-out $(firstword $1),$1))))
+define unique
+$(shell $(python) -B -c "pass;
+    import re;
+    unique_word_patterns = {r'^-I', r'^-L', r'^-l', r'^-W', r'^-O3$$'};
+    words = [word for word in '$1'.split() if word];
+    words_prev = set();
+    words = [(word, words_prev.add(word))[0] for word in words if not word in words_prev
+        or not any(re.search(pattern, word) for pattern in unique_word_patterns)
+    ];
+    print(' '.join(words));
+")
+endef
+
+
 # The python configuration script
 python_config = $(shell readlink -f $$(which $(python)))-config
 # Options passed when cythonizing .pyx files
-python_version_major = $(shell $(python) -c "import sys; print(sys.version_info.major)")
+python_version_major = $(shell $(python) -B -c "import sys; print(sys.version_info.major)")
 cythonflags = -$(python_version_major) -a
 # Includes
 fftw_incl   = -I$(fftw_dir)/include
@@ -215,12 +226,12 @@ ifeq ($(CC_version),icc)
         , $(other_cflags_cp)      \
     )
 endif
-CFLAGS += $(call uniq, $(foreach flag, $(python_cflags)  \
-                                       $(other_cflags)   \
-                                       $(includes)       \
-                                       ,                 \
-                         $(call sensible_path,'$(flag)') \
-                         )                               \
+CFLAGS += $(call unique, $(foreach flag, $(python_cflags)  \
+                                         $(other_cflags)   \
+                                         $(includes)       \
+                                         ,                 \
+                         $(call sensible_path,'$(flag)')   \
+                         )                                 \
             )
 # Check whether the -flto option is recognized
 flto_recognized=True
@@ -252,9 +263,9 @@ mpi_libs = -L$(mpi_libdir) -Wl,-rpath=$(mpi_libdir) -lmpi
 ifneq ("$(wildcard $(mpi_symlinkdir))","")
     mpi_libs += -L$(mpi_symlinkdir) -Wl,-rpath=$(mpi_symlinkdir)
 endif
-python_libdir = $(shell $(python) -c "import sysconfig;                          \
-                                      print(sysconfig.get_config_var('LIBDIR')); \
-                                      "                                          \
+python_libdir = $(shell $(python) -B -c "import sysconfig;                          \
+                                         print(sysconfig.get_config_var('LIBDIR')); \
+                                         "                                          \
                   )
 python_libs = -L$(python_libdir) -Wl,-rpath=$(python_libdir) $(shell $(python_config) --libs)
 ifneq ($(no_optimization),True)
@@ -263,23 +274,23 @@ ifneq ($(no_optimization),True)
         other_libs += -flto
     endif
 endif
-LDLIBS += $(call uniq, $(foreach flag, $(fftw_libs)                    \
-                                       $(gsl_libs)                     \
-                                       $(mpi_libs)                     \
-                                       $(python_libs)                  \
-                                       $(other_libs)                   \
-                                       ,                               \
-                                       $(call sensible_path,'$(flag)') \
-                         )                                             \
+LDLIBS += $(call unique, $(foreach flag, $(fftw_libs)                    \
+                                         $(gsl_libs)                     \
+                                         $(mpi_libs)                     \
+                                         $(python_libs)                  \
+                                         $(other_libs)                   \
+                                         ,                               \
+                                         $(call sensible_path,'$(flag)') \
+                           )                                             \
             )
 # Linker options
 python_ldflags = $(shell $(python_config) --ldflags)
 other_ldflags  = -shared
-LDFLAGS       += $(call uniq, $(foreach flag, $(python_ldflags)               \
-                                              $(other_ldflags)                \
-                                              ,                               \
-                                              $(call sensible_path,'$(flag)') \
-                                )                                             \
+LDFLAGS       += $(call unique, $(foreach flag, $(python_ldflags)               \
+                                                $(other_ldflags)                \
+                                                ,                               \
+                                                $(call sensible_path,'$(flag)') \
+                                  )                                             \
                    )
 
 
@@ -291,14 +302,15 @@ LDFLAGS       += $(call uniq, $(foreach flag, $(python_ldflags)               \
 # .py --> ((.pyx --> types) --> .pxd) --> (.c + .html) --> .o --> .so
 # build chain. A heading is printed at the beginning of the build.
 define heading
-    $(python) -c "import blessings;                                                     \
-                  import sys;                                                           \
-                  from time import sleep;                                               \
-                  sys.exit() if '$(heading_printed)' else None;                         \
-                  unsafe = ' (unsafe)' if '$(unsafe_build)' == 'True' else '';          \
-                  terminal = blessings.Terminal(force_styling=True);                    \
-                  print(terminal.bold_yellow('Building modules' + unsafe), flush=True); \
-                  "
+    $(python) -B -c "pass;                                                    \
+        import sys;                                                           \
+        from time import sleep;                                               \
+        import blessings;                                                     \
+        sys.exit() if '$(heading_printed)' else None;                         \
+        unsafe = ' (unsafe)' if '$(unsafe_build)' == 'True' else '';          \
+        terminal = blessings.Terminal(force_styling=True);                    \
+        print(terminal.bold_yellow('Building modules' + unsafe), flush=True); \
+    "
     $(eval heading_printed = True)
     sleep 0.1
 endef
@@ -320,7 +332,7 @@ endif
 # Link object files into shared object Python modules
 $(addsuffix .so, $(pyfiles)): %.so: %.o
 	@$(call heading)
-	$(CC) $< -o $@ $(LDFLAGS) $(LDLIBS)
+	$(CC) $< -o $@ $(call unique, $(LDFLAGS) $(LDLIBS))
 
 # Compile C source files into object files
 $(addsuffix .o, $(pyfiles)): %.o: %.c
