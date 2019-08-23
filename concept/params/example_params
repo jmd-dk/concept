@@ -189,16 +189,15 @@ select_softening_length = {  # Gravitational softening for each component
 }
 
 # Simulation options
-Δt_base_factor    = 1          # This scales the base time step size
-Δt_rung_factor    = 1          # This scales the rung time step size needed for a given velocity
-N_rungs           = 3          # Number of available rungs for adaptive time stepping
-fftw_wisdom_rigor = 'measure'  # Rigor level when acquiring FFTW wisdom
-fftw_wisdom_reuse = True       # Reuse FFTW wisdom from earlier runs?
+Δt_base_factor    = 1               # This scales the base time step size
+Δt_rung_factor    = 1               # This scales the rung time step size needed for a given velocity
+N_rungs           = 3               # Number of available rungs for adaptive time stepping
+fftw_wisdom_rigor = 'measure'       # Rigor level when acquiring FFTW wisdom
+fftw_wisdom_reuse = True            # Reuse FFTW wisdom from earlier runs?
 random_seed                = 1      # Seed for pseudo-random numbers
 primordial_amplitude_fixed = False  # Replace Gaussian noise with noise of fixed amplitude?
 primordial_phase_shift     = 0      # Phase shift when using fixed amplitude (set to π for paired simulations)
-
-fluid_scheme_select = {        # Fluid evolution scheme for each component
+fluid_scheme_select = {  # Fluid evolution scheme for each component
     'all': 'MacCormack',
 }
 fluid_options = {  # Specifications of fluid scheme parameters
@@ -232,8 +231,9 @@ class_extra_background = {}       # Extra CLASS background variables to dump
 class_extra_perturbations = {}    # Extra CLASS perturbations to dump
 
 # Graphics
-terminal_width = 80  # Maximum width of terminal output, in characters
-suppress_output = {  # Suppress terminal output matching these regexes
+terminal_width = 80                # Maximum width of terminal output, in characters
+enable_terminal_formatting = True  # Use formatted terminal output (e.g. colors)
+suppress_output = {                # Suppress terminal output matching these regexes
     'out': (),
     'err': (),
     'all': (),
@@ -273,7 +273,9 @@ unit_time   = 'Gyr'      # Physical time   corresponding to a numerical value of
 unit_mass   = '10¹⁰ m☉'  # Physical mass   corresponding to a numerical value of 1.0
 
 # Debugging options
+print_load_imbalance    = False  # Print the CPU load imbalance after each time step
 enable_Hubble           = True   # Enable Hubble expansion
 enable_class_background = True   # Use CLASS to compute the evolution of the background
 enable_debugging        = False  # Enable debugging mode
+
 

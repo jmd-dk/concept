@@ -57,10 +57,13 @@ cimport('from utilities import delegate')
     output_filenames=dict,
     period_frac='double',
     recompute_Δt_max='bint',
+    subtiling_name=str,
     sync_at_dump='bint',
     sync_time='double',
+    tiling_name=str,
     time_step='Py_ssize_t',
     time_step_last_sync='Py_ssize_t',
+    time_step_previous='Py_ssize_t',
     time_step_type=str,
     timespan='double',
     Δt='double',
@@ -223,6 +226,7 @@ def timeloop():
     # The main time loop
     masterprint('Beginning of main time loop')
     time_step = initial_time_step
+    time_step_previous = time_step - 1
     bottleneck = ''
     time_step_type = 'init'
     sync_time = ထ
@@ -231,9 +235,33 @@ def timeloop():
     for dump_index, dump_time in enumerate(dump_times):
         # Break out of this loop when a dump has been performed
         while True:
-            # Print out message at beginning of each time step
-            print_timestep_heading(time_step, Δt,
-                bottleneck if time_step_type == 'init' else '', components)
+            # Things to do at the beginning and end of each time step
+            if time_step > time_step_previous:
+                time_step_previous = time_step
+                # Print out message at the end of each time step
+                if time_step > initial_time_step:
+                    print_timestep_footer(components)
+                # Update universals.time_step. This is only ever done
+                # here, and so in general you should not count on
+                # universals.time_step being exactly equal to time_step.
+                universals.time_step = time_step
+                # Print out message at the beginning of each time step
+                print_timestep_heading(time_step, Δt,
+                    bottleneck if time_step_type == 'init' else '', components)
+                # Sort particles in memory so that the order matches
+                # the visiting order when iterating through all subtiles
+                # within tiles, improving the performance of
+                # CPU caching. If multiple tilings+subtilings exist on
+                # a component, the sorting will be done with respect to
+                # the first one encountered.
+                for component in components:
+                    for subtiling_name in component.tilings:
+                        match = re.search(r'(.*) \(subtiles\)', subtiling_name)
+                        if not match:
+                            continue
+                        tiling_name = f'{match.group(1)} (tiles)'
+                        component.tile_sort(tiling_name, None, -1, subtiling_name)
+                        break
             # Analyze and print out debugging information, if required
             with unswitch:
                 if enable_debugging:
@@ -442,6 +470,7 @@ def timeloop():
                 # Base time step completed
                 time_step += 1
     # All dumps completed; end of main time loop
+    print_timestep_footer(components)
     print_timestep_heading(time_step, Δt, bottleneck, components, end=True)
     # Remove dumped autosave snapshot, if any
     if master:
@@ -1319,10 +1348,7 @@ def autosave(components, time_step, Δt, Δt_begin):
     returns='void',
 )
 def print_timestep_heading(time_step, Δt, bottleneck, components, end=False):
-    global heading_ljust, timestep_heading_last_time_step
-    if timestep_heading_last_time_step == time_step:
-        return
-    timestep_heading_last_time_step = time_step
+    global heading_ljust
     # Create list of text pieces. Left justify the first column
     # according to the global heading_ljust.
     parts = []
@@ -1380,12 +1406,105 @@ def print_timestep_heading(time_step, Δt, bottleneck, components, end=False):
                 parts[i] = part.ljust(heading_ljust)
     # Print out the combined heading
     masterprint(''.join(parts))
-cython.declare(
-    heading_ljust='Py_ssize_t',
-    timestep_heading_last_time_step='Py_ssize_t',
-)
+# Global scalar used by the print_timestep_heading() function
+cython.declare(heading_ljust='Py_ssize_t')
 heading_ljust = 0
-timestep_heading_last_time_step = -1
+
+# Function which prints out debugging information at the end of each
+# time step, if such output is requested.
+@cython.header(
+    # Arguments
+    components=list,
+    # Locals
+    component='Component',
+    decimals='Py_ssize_t',
+    direct_summation_time='double',
+    direct_summation_time_mean='double',
+    direct_summation_time_total='double',
+    imbalance='double',
+    imbalance_max_str_len='Py_ssize_t',
+    imbalance_str=str,
+    message=list,
+    other_rank='int',
+    rank_max_load='int',
+    tiling='Tiling',
+    value_bad='double',
+    value_miserable='double',
+    returns='void',
+)
+def print_timestep_footer(components):
+    # Print out the load imbalance, measured purely over
+    # direct summation interactions and stored on the Tiling's.
+    if 𝔹[print_load_imbalance and nprocs > 1]:
+        # Decimals to show (of percentage)
+        decimals = 1
+        # Values at which to change color
+        value_bad       = 0.3
+        value_miserable = 1.0
+        # Tally up computation times
+        direct_summation_time = 0
+        for component in components:
+            for tiling in component.tilings.values():
+                direct_summation_time += tiling.computation_time_total
+                # The computation_time_total attribute is not used
+                # anywhere except here. Nullify it so that the same data
+                # is not used again for the next printout.
+                tiling.computation_time_total = 0
+        if allreduce(direct_summation_time > 0, op=MPI.LOR):
+            Gather(asarray([direct_summation_time]), direct_summation_times)
+            if master:
+                direct_summation_time_total = sum(direct_summation_times)
+                direct_summation_time_mean = direct_summation_time_total/nprocs
+                for other_rank in range(nprocs):
+                    imbalances[other_rank] = (
+                        direct_summation_times[other_rank]/direct_summation_time_mean - 1
+                    )
+                rank_max_load = np.argmax(imbalances)
+                if 𝔹[print_load_imbalance == 'full']:
+                    # We want to print out the load imbalance
+                    # for each process individually.
+                    message = ['Load imbalance:']
+                    imbalance_max_str_len = (
+                        len(str(int(100*np.max(np.abs(imbalances))))) + decimals + 1
+                    )
+                    for other_rank in range(nprocs):
+                        imbalance = imbalances[other_rank]
+                        imbalance_str = (
+                            ('+' if imbalance >= 0 else '-')
+                            + rf'{{{{:>{{}}.{decimals}f}}}}'
+                                .format(imbalance_max_str_len)
+                                .format(100*abs(imbalance))
+                        )
+                        if other_rank == rank_max_load:
+                            if imbalance >= value_miserable:
+                                imbalance_str = terminal.bold_red(imbalance_str)
+                            elif imbalance >= value_bad:
+                                imbalance_str = terminal.bold_yellow(imbalance_str)
+                            else:
+                                imbalance_str = terminal.bold(imbalance_str)
+                        message.append(''.join([
+                            '    Process ',
+                            ' '*(ℤ[len(str(nprocs - 1))] - len(str(other_rank))),
+                            f'{other_rank}: {imbalance_str}%',
+                        ]))
+                    # Print out load imbalances
+                    masterprint('\n'.join(message))
+                else:
+                    # We want to print out only the
+                    # worst case load imbalance.
+                    imbalance = imbalances[rank_max_load]
+                    imbalance_str = f'{{:.{decimals}f}}'.format(100*imbalance)
+                    if imbalance >= value_miserable:
+                        imbalance_str = terminal.bold_red(imbalance_str)
+                    elif imbalance >= value_bad:
+                        imbalance_str = terminal.bold_yellow(imbalance_str)
+                    masterprint(f'Load imbalance: {imbalance_str}% (process {rank_max_load})')
+    elif ...:
+        ...
+# Arrays used by the print_timestep_footer() function
+cython.declare(direct_summation_times='double[::1]', imbalances='double[::1]')
+direct_summation_times = empty(nprocs, dtype=C2np['double']) if master else None
+imbalances = empty(nprocs, dtype=C2np['double']) if master else None
 
 # Function which checks the sanity of the user supplied output times,
 # creates output directories and defines the output filename patterns.

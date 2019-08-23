@@ -444,6 +444,7 @@ class Tiling:
         shape=object,  # sequence of length 3 or int-like
         extent='double[::1]',
         initial_rung_size=object,  # sequence of length N_rungs or int-like
+        refinement_period='Py_ssize_t',
         # Locals
         dim='int',
         i='Py_ssize_t',
@@ -458,7 +459,8 @@ class Tiling:
         rungs_sizes='Py_ssize_t*',
         rungs_N='Py_ssize_t*',
     )
-    def __init__(self, tiling_name, component, shape, extent, initial_rung_size=0):
+    def __init__(self, tiling_name, component, shape, extent,
+        initial_rung_size, refinement_period):
         # The triple quoted string below serves as the type declaration
         # for the data attributes of the Tiling type.
         # It will get picked up by the pyxpp script
@@ -478,6 +480,10 @@ class Tiling:
         double[::1]           location
         double[::1]           extent
         double[::1]           tile_extent
+        Py_ssize_t            refinement_period
+        Py_ssize_t            refinement_offset
+        double                computation_time
+        double                computation_time_total
         """
         # Remember the name of this tiling
         self.name = tiling_name
@@ -540,7 +546,7 @@ class Tiling:
         # however, and so we additionally need to keep track of the
         # allocation and occupation size of each rung.
         # These are denoted rungs_sizes and rungs_N, and are similarly
-        # index as
+        # indexed as
         # rungs_sizes = tiles_rungs_sizes[tile_index],
         # rung_size = rungs_sizes[rung_index],
         # and
@@ -583,6 +589,31 @@ class Tiling:
         for dim in range(3):
             self.tile_extent[dim] = self.extent[dim]/self.shape[dim]
         self.location = zeros(3, dtype=C2np['double'])
+        # If this is a subtiling and it uses automatic refinement,
+        # it needs a refinement period (measured in base time steps).
+        # This is set by the subtiling_refinement_period user parameter.
+        # However, this is for subtilings with cubic subtiles, i.e. subtilings
+        # where the subtiles have the same physical extent in each
+        # direction (not necessarily a shape of the form [n]*3).
+        # Such cubic subtiles will get all three dimensions refined
+        # simultaneously, and thus stay cubic. For non-cubic
+        # subtiles, the refinement works on only one or two
+        # directions at a time, and hence these are in need of a
+        # shorter refinement period.
+        if refinement_period > 0:
+            refinement_period = int(round(refinement_period/len(set(self.tile_extent))))
+            if refinement_period < subtiling_refinement_period_min:
+                refinement_period = subtiling_refinement_period_min
+        self.refinement_period = refinement_period
+        self.refinement_offset = 0
+        # The running total computation time,
+        # measured over interactions between tile pairs.
+        # Both the computation_time and computation_time_total
+        # attributes are set by the interactions module.
+        # The main module looks up computation_time_total,
+        # and nullifies it at the beginning of each time step.
+        self.computation_time = 0
+        self.computation_time_total = 0
 
     # Method for resizing a given rung within a given tile.
     # If no rung_size is given, the size of the rung
@@ -727,11 +758,11 @@ class Tiling:
                 with unswitch:
                     if not self.is_trivial:
                         i = cast((posx[particle_index] - ℝ[self.location[0]])
-                            /ℝ[self.tile_extent[0]], 'Py_ssize_t')
+                            *ℝ[1/self.tile_extent[0]], 'Py_ssize_t')
                         j = cast((posy[particle_index] - ℝ[self.location[1]])
-                            /ℝ[self.tile_extent[1]], 'Py_ssize_t')
+                            *ℝ[1/self.tile_extent[1]], 'Py_ssize_t')
                         k = cast((posz[particle_index] - ℝ[self.location[2]])
-                            /ℝ[self.tile_extent[2]], 'Py_ssize_t')
+                            *ℝ[1/self.tile_extent[2]], 'Py_ssize_t')
                         tile_index = layout[i, j, k]
                 # Get the index of the rung for this particle
                 with unswitch:
@@ -969,6 +1000,9 @@ class Component:
         FluidScalar ςzz
         FluidScalar 𝒫
         """
+        # A reference to each and every Component instance ever created
+        # is stored in the global components_all set.
+        components_all.add(self)
         # Check that the name does not conflict with
         # one of the special names used internally,
         # and that the name has not already been used.
@@ -2508,8 +2542,9 @@ class Component:
         coarse_tiling='Tiling',
         extent='double[::1]',
         location='double[::1]',
+        refinement_period='Py_ssize_t',
         rung_index='signed char',
-        shape=object,  # sequence of length 3 or int-like or str
+        shape=object,  # sequence of length 3 or 2 or int-like
         tiling='Tiling',
         returns='Tiling',
     )
@@ -2520,6 +2555,7 @@ class Component:
         if tiling is not None:
             return tiling
         # Different tilings specified below
+        refinement_period = 0
         if tiling_name == 'trivial':
             # This tiling spans the box using a single tile,
             # resulting in no actual tiling. It is useful since the
@@ -2584,6 +2620,11 @@ class Component:
             location = asarray((domain_start_x, domain_start_y, domain_start_z),
                 dtype=C2np['double'])
         elif tiling_name == 'gravity (subtiles)':
+            # Grab the constant refinement period,
+            # if automatic subtiling refinement is enabled.
+            shape = shortrange_params['gravity']['subtiling']
+            if 𝔹[shape[0] == 'automatic']:
+                refinement_period = shape[1]
             # The entire (sub)tiling currently being initialized lives
             # within one tile of the "gravity (tiles)" tiling.
             # Get this coarser tiling.
@@ -2595,19 +2636,17 @@ class Component:
                 )
             # Get the shape of the subtiling
             if tiling_name not in tiling_shapes:
-                shape = shortrange_params['gravity']['subtiling']
-                if shape == 'automatic':
+                if 𝔹[shape[0] == 'automatic']:
                     # The subtiling shape is to be determined
                     # automatically. It is optimal to have the subtiles
                     # be as cubic as possible. Additionally, we have
-                    # found that having (on average) ~8–16
-                    # particles/subtile is optimal. To a good
-                    # approximation this is independent on the amount of
-                    # clustering. Here we pick the most cubic choice of
-                    # all possible subtiling shapes which leads to
-                    # subtiles of a volume comparable to the above
-                    # stated number of particles.
-                    particles_per_subtile_min, particles_per_subtile_max = 8, 16
+                    # found that having (on average) ~8–14
+                    # particles/subtile is optimal, when the particles
+                    # are not too clustered. Here we pick the most cubic
+                    # choice of all possible subtiling shapes which
+                    # leads to subtiles of a volume comparable to the
+                    # above stated number of particles.
+                    particles_per_subtile_min, particles_per_subtile_max = 8, 14
                     tiling_global_shape = asarray(
                         asarray(domain_subdivisions)*asarray(coarse_tiling.shape),
                         dtype=C2np['double'],
@@ -2635,10 +2674,10 @@ class Component:
                                 particles_per_subtile = (
                                     float(self.N)/np.prod(subtiling_global_shape)
                                 )
-                                # Construct tuple key to be used to store
-                                # this shape. The lower the value of each
-                                # element in the key, the better we consider
-                                # this key to be.
+                                # Construct tuple key to be used to
+                                # store this shape. The lower the value
+                                # of each element in the key, the better
+                                # we consider this key to be.
                                 key = []
                                 noncubicness = np.max((
                                     np.max(subtiling_global_shape)**3
@@ -2670,7 +2709,7 @@ class Component:
                 tiling_shapes[tiling_name] = shape
             else:
                 shape = tiling_shapes[tiling_name]
-            # The rungs within each tile start out with half
+            # The rungs within each subtile start out with half
             # of the mean required memory per rung.
             if initial_rung_size == -1:
                 initial_rung_size = [
@@ -2690,7 +2729,7 @@ class Component:
         # Instantiate Tiling instance
         if initial_rung_size == -1:
             initial_rung_size = 0
-        tiling = Tiling(tiling_name, self, shape, extent, initial_rung_size)
+        tiling = Tiling(tiling_name, self, shape, extent, initial_rung_size, refinement_period)
         self.tilings[tiling_name] = tiling
         # Relocate the tiling if an initial location has been specified
         if location is not None:
@@ -2703,11 +2742,40 @@ class Component:
         tiling_name=str,
         coarse_tiling='Tiling',
         coarse_tile_index='Py_ssize_t',
+        subtiling_name=str,
         # Locals
+        N_subtiles='Py_ssize_t',
+        count='Py_ssize_t',
+        dim='int',
+        highest_populated_rung='signed char',
+        i='Py_ssize_t',
+        lowest_populated_rung='signed char',
+        quantity='int',
+        quantityx='double*',
+        quantityy='double*',
+        quantityz='double*',
+        rung='Py_ssize_t*',
+        rung_particle_index='Py_ssize_t',
+        rungs_N='Py_ssize_t*',
+        subtile='Py_ssize_t**',
+        subtile_index='Py_ssize_t',
+        subtiles='Py_ssize_t***',
+        subtiles_contain_particles='signed char*',
+        subtiles_rungs_N='Py_ssize_t**',
+        subtiling='Tiling',
+        tile_extent='double[::1]',
+        tile_index='Py_ssize_t',
+        tile_index3D='Py_ssize_t[::1]',
+        tiles_contain_particles='signed char*',
         tiling='Tiling',
+        tiling_location='double[::1]',
+        tmpx='double*',
+        tmpy='double*',
+        tmpz='double*',
         returns='void',
     )
-    def tile_sort(self, tiling_name, coarse_tiling=None, coarse_tile_index=-1):
+    def tile_sort(self, tiling_name, coarse_tiling=None, coarse_tile_index=-1,
+        subtiling_name=''):
         # Get the tiling from the passed tiling_name
         tiling = self.tilings.get(tiling_name)
         if tiling is None:
@@ -2715,6 +2783,84 @@ class Component:
             # on this component. Do it now.
             tiling = self.init_tiling(tiling_name)
         # Perform tile sort
+        tiling.sort(coarse_tiling, coarse_tile_index)
+        # When a subtiling_name is supplied, this signals an in-memory
+        # sorting of the pos and mom data arrays of the particles,
+        # so that the order in memory matches that of the particle
+        # visiting order when iterating over the tiles and subtiles.
+        if not subtiling_name:
+            return
+        # Extract variables
+        lowest_populated_rung  = self.lowest_populated_rung
+        highest_populated_rung = self.highest_populated_rung
+        tiles_contain_particles = tiling.contain_particles
+        tiling_location         = tiling.location
+        tile_extent             = tiling.tile_extent
+        subtiling = self.tilings.get(subtiling_name)
+        if subtiling is None:
+            subtiling = self.init_tiling(subtiling_name)
+        subtiles                   = subtiling.tiles
+        N_subtiles                 = subtiling.size
+        subtiles_contain_particles = subtiling.contain_particles
+        # Iterate over the tiles and subtiles while keeping a counter
+        # keeping track of the particle visiting number. We copy the
+        # particle positions and momenta to a temporary buffer using the
+        # visiting order. After the iteration we then copy this sorted
+        # buffer into the original data arrays. We use the Δmom buffers
+        # as the temporary buffers, as these should not store any data
+        # at the time of calling this method.
+        tmpx = self.Δmomx
+        tmpy = self.Δmomy
+        tmpz = self.Δmomz
+        for quantity in range(2):
+            if quantity == 0:
+                quantityx = self.momx
+                quantityy = self.momy
+                quantityz = self.momz
+            else:  # quantity == 1
+                quantityx = self.posx
+                quantityy = self.posy
+                quantityz = self.posz
+            count = 0
+            # Loop over all tiles
+            for tile_index in range(tiling.size):
+                if tiles_contain_particles[tile_index] == 0:
+                    continue
+                # Sort particles within the tile into subtiles
+                tile_index3D = tiling.tile_index3D(tile_index)
+                for dim in range(3):
+                    tile_location[dim] = tiling_location[dim] + tile_index3D[dim]*tile_extent[dim]
+                subtiling.relocate(tile_location)
+                subtiling.sort(tiling, tile_index)
+                subtiles_rungs_N = subtiling.tiles_rungs_N
+                # Loop over all subtiles in the tile
+                for subtile_index in range(N_subtiles):
+                    if subtiles_contain_particles[subtile_index] == 0:
+                        continue
+                    subtile = subtiles[subtile_index]
+                    rungs_N = subtiles_rungs_N[subtile_index]
+                    # Loop over all rungs in the subtile
+                    for rung_index in range(lowest_populated_rung, ℤ[highest_populated_rung + 1]):
+                        rung_N = rungs_N[rung_index]
+                        if rung_N == 0:
+                            continue
+                        rung = subtile[rung_index]
+                        # Loop over all particles in the rung
+                        for rung_particle_index in range(rung_N):
+                            particle_index = rung[rung_particle_index]
+                            # Copy the data to the temporary buffers
+                            tmpx[count] = quantityx[particle_index]
+                            tmpy[count] = quantityy[particle_index]
+                            tmpz[count] = quantityz[particle_index]
+                            count += 1
+            # Copy the sorted data back into the data arrays
+            for i in range(self.N_local):
+                quantityx[i] = tmpx[i]
+            for i in range(self.N_local):
+                quantityy[i] = tmpy[i]
+            for i in range(self.N_local):
+                quantityz[i] = tmpz[i]
+        # Finally we need to re-sort the tiling
         tiling.sort(coarse_tiling, coarse_tile_index)
 
     # Method for integrating fluid values forward in time
@@ -3673,6 +3819,10 @@ class Component:
     def __str__(self):
         return self.__repr__()
 
+# Array used by the Component.tile_sort() method
+cython.declare(tile_location='double[::1]')
+tile_location = empty(3, dtype=C2np['double'])
+
 
 
 # Function for getting the component representation based on the species
@@ -3733,6 +3883,244 @@ def update_species_present(components):
         '+'.join(set('+'.join(class_species_present).split('+'))).encode()
     )
     universals_dict['class_species_present'] = class_species_present_bytes
+
+# Function which refines the subtiling corresponding to the given
+# interaction_name, on all instantiated components. The original
+# subtilings are not deleted, and so may later be substituted back in
+# if desired.
+@cython.header(
+    # Arguments
+    interaction_name=str,
+    # Locals
+    component='Component',
+    computation_time_total='double',
+    dim='int',
+    key=tuple,
+    key2=tuple,
+    refinement_offset='Py_ssize_t',
+    shape='Py_ssize_t[::1]',
+    subtile_extent='double[::1]',
+    subtile_extent_max='double',
+    subtiling='Tiling',
+    subtiling_2='Tiling',
+    subtiling_name=str,
+    subtiling_name_2=str,
+    subtiling_rejected='Tiling',
+    subtiling_rejected_2='Tiling',
+    returns='void',
+)
+def tentatively_refine_subtiling(interaction_name):
+    subtiling_name   = f'{interaction_name} (subtiles)'
+    subtiling_name_2 = f'{interaction_name} (subtiles 2)'
+    shape = None
+    for component in components_all:
+        subtiling = component.tilings.pop(subtiling_name, None)
+        if subtiling is None:
+            continue
+        # Component with the right subtiling found.
+        # Take a copy of its computation_time_total and
+        # refinement_offset attributes, as we need to copy these over
+        # to the refined subtiling.
+        computation_time_total = subtiling.computation_time_total
+        refinement_offset      = subtiling.refinement_offset
+        # Remove the subtiling (including its second version
+        # "subtiles 2") from the component and store it away.
+        key = (component, subtiling_name)
+        stored_subtilings[key] = subtiling
+        subtiling_2 = component.tilings.pop(subtiling_name_2, None)
+        if subtiling_2 is not None:
+            key2 = (component, subtiling_name_2)
+            stored_subtilings[key2] = subtiling_2
+        # If we have already attempted this refinement before,
+        # the new, rejected subtilings are stored
+        # in rejected_subtilings. Reuse these if available.
+        subtiling_rejected = rejected_subtilings.pop(key, None)
+        if subtiling_rejected is not None:
+            subtiling_rejected.computation_time_total = computation_time_total
+            subtiling_rejected.refinement_offset      = refinement_offset
+            component.tilings[subtiling_name] = subtiling_rejected
+            if subtiling_2 is not None:
+                subtiling_rejected_2 = rejected_subtilings.pop(key2, None)
+                if subtiling_rejected_2 is not None:
+                    component.tilings[subtiling_name_2] = subtiling_rejected_2
+            tiling_shapes[subtiling_name] = asarray(subtiling_rejected.shape).copy()
+            continue
+        # Refine the subtiling shape
+        if shape is None:
+            shape = tiling_shapes[subtiling_name]
+            subtile_extent = subtiling.tile_extent
+            subtile_extent_max = max(subtile_extent)
+            for dim in range(3):
+                if subtile_extent[dim] == subtile_extent_max:
+                    shape[dim] += 1
+        # Initialize new subtiling
+        subtiling = component.init_tiling(subtiling_name)
+        subtiling.computation_time_total = computation_time_total
+        subtiling.refinement_offset      = refinement_offset
+        if subtiling_2 is not None:
+            component.tilings.pop(subtiling_name)
+            subtiling_2 = component.init_tiling(subtiling_name)
+            component.tilings[subtiling_name  ] = subtiling
+            component.tilings[subtiling_name_2] = subtiling_2
+# Global containers temporarily storing subtilings for each component
+cython.declare(stored_subtilings=dict, rejected_subtilings=dict)
+stored_subtilings = {}
+rejected_subtilings = {}
+
+# Function which either accepts or rejects the tentative subtile
+# refining carried out by tentatively_refine_subtiling().
+@cython.header(
+    # Arguments
+    interaction_name=str,
+    computation_times_sum='double[::1]',
+    computation_times_sqsums='double[::1]',
+    computation_times_N='Py_ssize_t[::1]',
+    # Locals
+    N='Py_ssize_t',
+    any_acceptance='bint',
+    component='Component',
+    computation_time_total_new='double',
+    computation_time_total_old='double',
+    index='Py_ssize_t',
+    key=tuple,
+    keys=list,
+    message='Py_ssize_t[::1]',
+    name=str,
+    other_rank='int',
+    sigmas='double',
+    shape='Py_ssize_t[::1]',
+    subtiling='Tiling',
+    subtiling_name=str,
+    subtiling_name_2=str,
+    subtiling_names=set,
+    subtiling_rejected='Tiling',
+    returns='void',
+)
+def accept_or_reject_subtiling_refinement(
+    interaction_name, computation_times_sum, computation_times_sqsums, computation_times_N,
+):
+    """
+    All three computation_times_* arrays are indexed as follows:
+    computation_times_sum[rung_index] -> new computation times with
+    lowest_active_rung == rung_index, "new" meaning with the subtiling
+    refinement.
+    computation_times_sum[N_rungs + rung_index] -> old computation
+    times with, "old" meaning with the original subtiling refinement.
+    """
+    # Compute mean of all computation times
+    for index in range(ℤ[2*N_rungs]):
+        N = computation_times_N[index]
+        computation_times_mean[index] = (
+            computation_times_sum[index]/computation_times_N[index]
+        ) if N > 0 else 0
+    # Compute std of old computation times
+    for index in range(N_rungs, ℤ[2*N_rungs]):
+        N = computation_times_N[index]
+        computation_times_std[index] = (
+            sqrt(computation_times_sqsums[index]/N - computation_times_mean[index]**2)
+        ) if N > 0 else 0
+    # Compute the total time it took to carry out all of the old
+    # computations together. To exaggerate a bit (encouraging early
+    # subtile refinement), we use mean + sigmas*std rather than just
+    # the mean, where sigmas sets the number of standard deviations
+    # we wish to exaggerate with.
+    sigmas = 0.3
+    computation_time_total_old = 0
+    for index in range(N_rungs, ℤ[2*N_rungs]):
+        if computation_times_N[index] == 0 or computation_times_N[-N_rungs + index] == 0:
+            continue
+        computation_time_total_old += computation_times_N[index]*(
+            computation_times_mean[index] + sigmas*computation_times_std[index]
+        )
+    # Compute the total time it would take the new subtiling to perform
+    # the work recorded by the old subtiling.
+    computation_time_total_new = 0
+    for index in range(N_rungs):
+        if computation_times_N[index] == 0 or computation_times_N[N_rungs + index] == 0:
+            continue
+        computation_time_total_new += (
+            computation_times_N[N_rungs + index]*computation_times_mean[index]
+        )
+    # Accept the recent subtiling refinement if it outperforms the
+    # old one. Otherwise reject it.
+    subtiling_name   = f'{interaction_name} (subtiles)'
+    subtiling_name_2 = f'{interaction_name} (subtiles 2)'
+    subtiling_names = {subtiling_name, subtiling_name_2}
+    if computation_time_total_new < computation_time_total_old:
+        # Accept recent subtiling refinement.
+        # The old subtilings should be cleaned up. Here we remove the
+        # only references to the old subtilings, after which their
+        # memory is available for garbage collection.
+        for key in tuple(stored_subtilings.keys()):
+            if key[1] in subtiling_names:
+                stored_subtilings.pop(key)
+        # We want to send the new subtiling decomposition
+        # to the master processes.
+        message = tiling_shapes[subtiling_name]
+    else:
+        # Reject recent subtiling refinement.
+        # Move the stored subtilings back on to their respective
+        # components and insert rejected subtilings into the global
+        # rejected_subtilings dict.
+        keys = []
+        for key, subtiling in stored_subtilings.items():
+            component, name = key
+            if name in subtiling_names:
+                keys.append(key)
+                shape = subtiling.shape
+                subtiling_rejected = component.tilings[name]
+                subtiling.computation_time_total = subtiling_rejected.computation_time_total
+                subtiling.refinement_offset      = subtiling_rejected.refinement_offset
+                rejected_subtilings[key] = subtiling_rejected
+                component.tilings[name] = subtiling
+        tiling_shapes[subtiling_name] = asarray(shape).copy()
+        # Remove the old references in the stored_subtilings dict
+        for key in keys:
+            stored_subtilings.pop(key)
+        # We want to let the master process know that the new subtiling
+        # has been rejected.
+        message = subtiling_refinement_message_rejected
+    # Gather information about the acceptance of the new subtiling
+    # and print out any positive results.
+    Gather(message, subtiling_refinement_message_recv)
+    any_acceptance = False
+    if master:
+        for other_rank in range(nprocs):
+            index = 3*other_rank
+            if subtiling_refinement_message_recv[index] == 0:
+                continue
+            any_acceptance = True
+            shape = subtiling_refinement_message_recv[index:index+3]
+            with unswitch:
+                if interaction_name == 'gravity':
+                    masterprint(
+                        f'Rank {other_rank}: Refined gravitational subtile decomposition: '
+                        f'{shape[0]}×{shape[1]}×{shape[2]}'
+                    )
+                elif ...:
+                    ...
+    # If even a single process accepted the refinement, we fast forward
+    # the refinement cycle so that we immeiately begin collecting
+    # computation times, on all processes.
+    if bcast(any_acceptance if master else None):
+        for component in components_all:
+            subtiling = component.tilings.get(subtiling_name)
+            if subtiling is None:
+                continue
+            subtiling.refinement_offset += (
+                subtiling.refinement_period - subtiling_refinement_period_min
+            )
+# Arrays used by the accept_or_reject_subtiling_refinement() function
+cython.declare(
+    computation_times_mean='double[::1]',
+    computation_times_std='double[::1]',
+    subtiling_refinement_message_rejected='Py_ssize_t[::1]',
+    subtiling_refinement_message_recv='Py_ssize_t[::1]',
+)
+computation_times_mean = zeros(2*N_rungs, dtype=C2np['double'])
+computation_times_std  = zeros(2*N_rungs, dtype=C2np['double'])
+subtiling_refinement_message_rejected = zeros(3, dtype=C2np['Py_ssize_t'])
+subtiling_refinement_message_recv = empty(3*nprocs, dtype=C2np['Py_ssize_t']) if master else None
 
 
 
@@ -3835,3 +4223,6 @@ fluidvar_names = ('ϱ', 'J', 'ς')
 cython.declare(allow_similarly_named_components='bint', component_names=set)
 allow_similarly_named_components = False
 component_names = set()
+# Set of all instantiated components
+cython.declare(components_all=set)
+components_all = set()

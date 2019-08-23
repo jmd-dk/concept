@@ -34,8 +34,9 @@ cimport('from communication import '
 
 
 # Function responsible for constructing pairings between subtiles within
-# the supplied subtiling. Subtiles further away than the supplied cutoff
-# will not be paired.
+# the supplied subtiling, including the corresponding subtiles in the 26
+# neighbour tiles. Subtiles further away than the supplied cutoff will
+# not be paired.
 @cython.header(
     # Arguments
     subtiling='Tiling',
@@ -44,6 +45,8 @@ cimport('from communication import '
     all_pairings='Py_ssize_t***',
     all_pairings_N='Py_ssize_t**',
     dim='int',
+    extent_over_cutoff_dim='double',
+    key=tuple,
     pairing_index='Py_ssize_t',
     pairings='Py_ssize_t**',
     pairings_N='Py_ssize_t*',
@@ -51,12 +54,15 @@ cimport('from communication import '
     r_dim='Py_ssize_t',
     r2='double',
     same_tile='bint',
+    shape='Py_ssize_t[::1]',
+    size='Py_ssize_t',
     subtile_index_r='Py_ssize_t',
     subtile_index_s='Py_ssize_t',
     subtile_index3D='Py_ssize_t[::1]',
     subtile_index3D_r='Py_ssize_t[::1]',
     subtile_index3D_s='Py_ssize_t[::1]',
     subtile_pairings_index='Py_ssize_t',
+    tile_extent='double[::1]',
     tile_pair_index='Py_ssize_t',
     tiles_offset='Py_ssize_t[::1]',
     tiles_offset_i='Py_ssize_t',
@@ -66,16 +72,33 @@ cimport('from communication import '
 )
 def get_subtile_pairings(subtiling, cutoff):
     global subtile_pairings_cache, subtile_pairings_N_cache, subtile_pairings_cache_size
-    # Get index of the required subtile pairings in the global cache.
-    subtile_pairings_index = subtile_pairings_cache_indices.get(
-        (subtiling, cutoff), subtile_pairings_cache_size,
-    )
-    # Return cached results in form of the cache index
+    # Lookup index of the required subtile pairings in the global cache.
+    # We first try a quick lookup using the passed subtiling instance
+    # as key. The same subtiling must then never be used with more than
+    # one cutoff, and the attributes (e.g. shape and extent) on a
+    # subtiling instance must never be redefined.
+    subtile_pairings_index = subtile_pairings_cache_indices.get(subtiling, subtile_pairings_cache_size)
     if subtile_pairings_index < subtile_pairings_cache_size:
         return subtile_pairings_index
-    # No cached results found.
-    # Create subtile pairings for each of the 27 cases
-    # of neighbour tiles.
+    # The subtile pairings was not found in the cache. It is possible
+    # that a different subtiling instance with the same shape and the
+    # same extent in units of the cutoff is present in the cache.
+    # All results are therefore also stored using keys of the form
+    # (shape, extent/cutoff). Try this more involved lookup.
+    for dim in range(3):
+        extent_over_cutoff_dim = subtiling.extent[dim]*ℝ[1/cutoff]
+        extent_over_cutoff[dim] = float(f'{extent_over_cutoff_dim:.12g}')
+    shape = subtiling.shape
+    key = (tuple(shape), tuple(extent_over_cutoff))
+    subtile_pairings_index = subtile_pairings_cache_indices.get(key, subtile_pairings_cache_size)
+    if subtile_pairings_index < subtile_pairings_cache_size:
+        # Found in cache. Add the missing, quick key.
+        subtile_pairings_cache_indices[subtiling] = subtile_pairings_index
+        return subtile_pairings_index
+    # No cached results found. Create subtile pairings
+    # for each of the 27 cases of neighbour tiles.
+    size = subtiling.size
+    tile_extent = subtiling.tile_extent
     all_pairings   = malloc(27*sizeof('Py_ssize_t**'))
     all_pairings_N = malloc(27*sizeof('Py_ssize_t*'))
     tiles_offset      = empty(3, dtype=C2np['Py_ssize_t'])
@@ -93,12 +116,12 @@ def get_subtile_pairings(subtiling, cutoff):
                 tile_pair_index = get_neighbourtile_pair_index(tiles_offset)
                 # Allocate memory for subtile pairings
                 # for this particular tile pair.
-                pairings   = malloc(subtiling.size*sizeof('Py_ssize_t*'))
-                pairings_N = malloc(subtiling.size*sizeof('Py_ssize_t'))
+                pairings   = malloc(size*sizeof('Py_ssize_t*'))
+                pairings_N = malloc(size*sizeof('Py_ssize_t'))
                 all_pairings  [tile_pair_index] = pairings
                 all_pairings_N[tile_pair_index] = pairings_N
                 # Loop over all receiver subtiles
-                for subtile_index_r in range(subtiling.size):
+                for subtile_index_r in range(size):
                     # Get 3D subtile index. As the tile_index3D() method
                     # return a view over internal data and we mutate
                     # subtile_index3D_r below, we take a copy of the
@@ -117,11 +140,11 @@ def get_subtile_pairings(subtiling, cutoff):
                     # physical separation. Note that subtile_index3D_r
                     # no longer represents the actual index in memory.
                     for dim in range(3):
-                        subtile_index3D_r[dim] -= tiles_offset[dim]*subtiling.shape[dim]
+                        subtile_index3D_r[dim] -= tiles_offset[dim]*shape[dim]
                     # Allocate memory for subtile pairings with this
                     # particular receiver subilte.
                     # We give it the maximum possible needed memory.
-                    pairings_r = malloc(subtiling.size*sizeof('Py_ssize_t'))
+                    pairings_r = malloc(size*sizeof('Py_ssize_t'))
                     pairings[subtile_index_r] = pairings_r
                     # Pair receiver subtile with every supplier subtile,
                     # unless the tile is being paired with itself.
@@ -129,10 +152,7 @@ def get_subtile_pairings(subtiling, cutoff):
                     # subtile pairing (while still pairing every subtile
                     # with themselves).
                     pairing_index = 0
-                    for subtile_index_s in range(
-                        subtile_index_r if same_tile else 0,
-                        subtiling.size,
-                    ):
+                    for subtile_index_s in range(subtile_index_r if same_tile else 0, size):
                         subtile_index3D_s = subtiling.tile_index3D(subtile_index_s)
                         # Measure (squared) distance between the subtile
                         # pair and reject if larger than the passed
@@ -150,7 +170,7 @@ def get_subtile_pairings(subtiling, cutoff):
                                 # between the closest two points
                                 # in the two subtiles.
                                 r_dim -= 1
-                            r2 += (r_dim*subtiling.tile_extent[dim])**2
+                            r2 += (r_dim*tile_extent[dim])**2
                         if r2 > ℝ[cutoff**2]:
                             continue
                         # Add this supplier subtile to the list of
@@ -175,16 +195,19 @@ def get_subtile_pairings(subtiling, cutoff):
     )
     subtile_pairings_cache  [subtile_pairings_index] = all_pairings
     subtile_pairings_N_cache[subtile_pairings_index] = all_pairings_N
-    subtile_pairings_cache_indices[subtiling, cutoff] = subtile_pairings_index
+    subtile_pairings_cache_indices[subtiling] = subtile_pairings_index
+    subtile_pairings_cache_indices[key      ] = subtile_pairings_index
     # Return cached results in form of the cache index
     return subtile_pairings_index
 # Caches used by the get_subtile_pairings function
 cython.declare(
+    extent_over_cutoff='double[::1]',
     subtile_pairings_cache_size='Py_ssize_t',
     subtile_pairings_cache_indices=dict,
     subtile_pairings_cache='Py_ssize_t****',
     subtile_pairings_N_cache='Py_ssize_t***',
 )
+extent_over_cutoff = empty(3, dtype=C2np['double'])
 subtile_pairings_cache_size = 0
 subtile_pairings_cache_indices = {}
 subtile_pairings_cache   = malloc(subtile_pairings_cache_size*sizeof('Py_ssize_t***'))
@@ -219,7 +242,7 @@ def get_neighbourtile_pair_index(tiles_offset):
 @cython.iterator
 def particle_particle(
     receiver, supplier, pairing_level,
-    tile_indices_receiver, tile_indices_supplier,
+    tile_indices_receiver, tile_indices_supplier_paired, tile_indices_supplier_paired_N,
     rank_supplier, interaction_name, only_supply,
 ):
     # Cython declarations for variables used for the iteration,
@@ -275,7 +298,6 @@ def particle_particle(
         subtiles_s='Py_ssize_t***',
         subtiling_name=str,
         subtiling_name_2=str,
-        subtiling_r='Tiling',
         subtiling_s='Tiling',
         subtiling_s_2='Tiling',
         tile_extent='double[::1]',
@@ -283,6 +305,8 @@ def particle_particle(
         tile_index_s='Py_ssize_t',
         tile_index3D_r='Py_ssize_t[::1]',
         tile_index3D_s='Py_ssize_t[::1]',
+        tile_indices_supplier='Py_ssize_t*',
+        tile_indices_supplier_N='Py_ssize_t',
         tile_pair_index='Py_ssize_t',
         tiles_contain_particles_r='signed char*',
         tiles_contain_particles_s='signed char*',
@@ -317,7 +341,7 @@ def particle_particle(
     # The names used to refer to the domain and tile level tiling
     # (tiles and subtiles). In the case of pairing_level == 'domain',
     # we always use the trivial tiling.
-    if ℤ[pairing_level == 'tile']:
+    if 𝔹[pairing_level == 'tile']:
         tiling_name    = f'{interaction_name} (tiles)'
         subtiling_name = f'{interaction_name} (subtiles)'
     else:  # pairing_level == 'domain':
@@ -377,8 +401,18 @@ def particle_particle(
     # will be set further down.
     apply_to_i = True
     apply_to_j = False
+    # The current time. This is yielded back to the caller,
+    # where time() - particle_particle_t_begin should be added to the
+    # computation_time of the receiver subtiling. This is used for the
+    # automatic subtiling refinement and the load imbalancing printout.
+    particle_particle_t_begin = time()
     # Loop over the requested tiles in the receiver
     for tile_index_r in range(ℤ[tile_indices_receiver.shape[0]]):
+        # Lookup supplier tile indices with which to pair the current
+        # receiver tile.
+        tile_indices_supplier   = tile_indices_supplier_paired  [tile_index_r]
+        tile_indices_supplier_N = tile_indices_supplier_paired_N[tile_index_r]
+        # Now make tile_index_r an actual receiver tile index
         tile_index_r = tile_indices_receiver[tile_index_r]
         # Skip tile if it does not contain any particles at all,
         # or only inactive particles when only_supply is True.
@@ -397,7 +431,7 @@ def particle_particle(
         subtiling_r.sort(tiling_r, tile_index_r)
         subtiles_rungs_N_r = subtiling_r.tiles_rungs_N
         # Loop over the requested tiles in the supplier
-        for tile_index_s in range(ℤ[tile_indices_supplier.shape[0]]):
+        for tile_index_s in range(tile_indices_supplier_N):
             tile_index_s = tile_indices_supplier[tile_index_s]
             # Skip tile if it does not contain any particles at all
             if tiles_contain_particles_s[tile_index_s] == 0:
@@ -585,7 +619,7 @@ def particle_particle(
                                     y_ji = yi - posy_s[j]
                                     z_ji = zi - posz_s[j]
                                     # Yield the needed variables
-                                    yield i, j, rung_index_i, rung_index_j, x_ji, y_ji, z_ji, apply_to_i, apply_to_j
+                                    yield i, j, rung_index_i, rung_index_j, x_ji, y_ji, z_ji, apply_to_i, apply_to_j, particle_particle_t_begin, subtiling_r
 # Variables used by the particle_particle function
 cython.declare(
     tile_location_r='double[::1]',
@@ -603,7 +637,8 @@ tiles_offset    = empty(3, dtype=C2np['Py_ssize_t'])
     supplier='Component',
     pairing_level=str,
     tile_indices_receiver='Py_ssize_t[::1]',
-    tile_indices_supplier='Py_ssize_t[::1]',
+    tile_indices_supplier_paired='Py_ssize_t**',
+    tile_indices_supplier_paired_N='Py_ssize_t*',
     rank_supplier='int',
     only_supply='bint',
     ᔑdt=dict,
@@ -616,7 +651,8 @@ tiles_offset    = empty(3, dtype=C2np['Py_ssize_t'])
     forcey_ij='double',
     forcez_ij='double',
     gravity_factor='double',
-    gravity_factors='double[::1]',
+    gravity_factors='const double[::1]',
+    gravity_factors_ptr='const double*',
     i='Py_ssize_t',
     interaction_name=str,
     j='Py_ssize_t',
@@ -626,20 +662,21 @@ tiles_offset    = empty(3, dtype=C2np['Py_ssize_t'])
     momy_s='double*',
     momz_r='double*',
     momz_s='double*',
+    particle_particle_t_begin='double',
+    particle_particle_t_final='double',
     r3='double',
     rung_index_i='signed char',
     rung_index_j='signed char',
+    softening2='double',
+    subtiling_r='Tiling',
     x_ji='double',
     y_ji='double',
     z_ji='double',
-    Δmomx_s='double*',
-    Δmomy_s='double*',
-    Δmomz_s='double*',
     returns='void',
 )
 def gravity_pairwise(
     receiver, supplier, pairing_level,
-    tile_indices_receiver, tile_indices_supplier,
+    tile_indices_receiver, tile_indices_supplier_paired, tile_indices_supplier_paired_N,
     rank_supplier, only_supply, ᔑdt, extra_args,
 ):
     # Extract variables from the receiver component
@@ -647,12 +684,20 @@ def gravity_pairwise(
     momy_r = receiver.momy
     momz_r = receiver.momz
     # Extract variables from the supplier (the external) component
-    momx_s  = supplier.momx
-    momy_s  = supplier.momy
-    momz_s  = supplier.momz
-    Δmomx_s = supplier.Δmomx
-    Δmomy_s = supplier.Δmomy
-    Δmomz_s = supplier.Δmomz
+    if rank == rank_supplier:
+        # This interaction is exclusively within the local domain.
+        # Apply momentum changes to supplier component directly.
+        momx_s = supplier.momx
+        momy_s = supplier.momy
+        momz_s = supplier.momz
+    else:
+        # This interaction is between the local and an external domain.
+        # Apply momentum changes to the external Δmom buffers.
+        momx_s = supplier.Δmomx
+        momy_s = supplier.Δmomy
+        momz_s = supplier.Δmomz
+    # The combined, squared softening length
+    softening2 = (0.5*(receiver.softening_length + supplier.softening_length))**2
     # Construct array of factors used for momentum updates:
     #   Δmom = -r⃗/r³*G*mass_r*mass_s*Δt/a.
     # In the general case of decaying particles,
@@ -663,11 +708,13 @@ def gravity_pairwise(
     # of the receiver particle.
     gravity_factors = G_Newton*receiver.mass*supplier.mass*ᔑdt[
         'a**(-3*w_eff₀-3*w_eff₁-1)', receiver.name, supplier.name]
+    gravity_factors_ptr = cython.address(gravity_factors[:])
     # Loop over all (receiver, supplier) particle pairs (i, j)
     interaction_name = 'gravity'
-    for i, j, rung_index_i, rung_index_j, x_ji, y_ji, z_ji, apply_to_i, apply_to_j in particle_particle(
+    particle_particle_t_begin = 0
+    for i, j, rung_index_i, rung_index_j, x_ji, y_ji, z_ji, apply_to_i, apply_to_j, particle_particle_t_begin, subtiling_r in particle_particle(
         receiver, supplier, pairing_level,
-        tile_indices_receiver, tile_indices_supplier,
+        tile_indices_receiver, tile_indices_supplier_paired, tile_indices_supplier_paired_N,
         rank_supplier, interaction_name, only_supply,
     ):
         # Translate coordinates so they correspond to the nearest image
@@ -687,39 +734,34 @@ def gravity_pairwise(
         # nearest one, which might not be the actual particle.
         force_ij = ewald(x_ji, y_ji, z_ji)
         # Add in the force from the particle's nearest image
-        r3 = (x_ji**2 + y_ji**2 + z_ji**2
-            + ℝ[(0.5*(receiver.softening_length + supplier.softening_length))**2]
-        )**1.5
+        r3 = x_ji**2 + y_ji**2 + z_ji**2 + softening2
+        r3 *= sqrt(r3)
         forcex_ij = force_ij[0] - x_ji*ℝ[1/r3]
         forcey_ij = force_ij[1] - y_ji*ℝ[1/r3]
         forcez_ij = force_ij[2] - z_ji*ℝ[1/r3]
         # Compute and apply momentum change
         # to particle i due to particle j.
-        if apply_to_i:
-            gravity_factor = gravity_factors[rung_index_i]
-            momx_r[i] += forcex_ij*gravity_factor
-            momy_r[i] += forcey_ij*gravity_factor
-            momz_r[i] += forcez_ij*gravity_factor
+        with unswitch(3):
+            if apply_to_i:
+                gravity_factor = gravity_factors_ptr[rung_index_i]
+                momx_r[i] += forcex_ij*gravity_factor
+                momy_r[i] += forcey_ij*gravity_factor
+                momz_r[i] += forcez_ij*gravity_factor
         # Apply or save the momentum change of particle j
         # of the supplier (the external component).
         with unswitch:
-            if 𝔹[not only_supply and rank == rank_supplier]:
-                # This interaction is exlusively within the
-                # local domain. Apply momentum changes
-                # directly to particle j.
-                if apply_to_j:
-                    gravity_factor = gravity_factors[rung_index_j]
-                    momx_s[j] -= forcex_ij*gravity_factor
-                    momy_s[j] -= forcey_ij*gravity_factor
-                    momz_s[j] -= forcez_ij*gravity_factor
-            elif 𝔹[not only_supply]:
-                # Add momentum change to the external
-                # Δmom buffers of the supplier.
-                if apply_to_j:
-                    gravity_factor = gravity_factors[rung_index_j]
-                    Δmomx_s[j] -= forcex_ij*gravity_factor
-                    Δmomy_s[j] -= forcey_ij*gravity_factor
-                    Δmomz_s[j] -= forcez_ij*gravity_factor
+            if 𝔹[not only_supply]:
+                with unswitch(2):
+                    if apply_to_j:
+                        gravity_factor = gravity_factors_ptr[rung_index_j]
+                        momx_s[j] -= forcex_ij*gravity_factor
+                        momy_s[j] -= forcey_ij*gravity_factor
+                        momz_s[j] -= forcez_ij*gravity_factor
+    # Add computation time to the running total,
+    # for use with automatic subtiling refinement.
+    if particle_particle_t_begin != 0:
+        particle_particle_t_final = time()
+        subtiling_r.computation_time += particle_particle_t_final - particle_particle_t_begin
 
 # Function implementing pairwise gravity (short-range only)
 @cython.header(
@@ -728,7 +770,8 @@ def gravity_pairwise(
     supplier='Component',
     pairing_level=str,
     tile_indices_receiver='Py_ssize_t[::1]',
-    tile_indices_supplier='Py_ssize_t[::1]',
+    tile_indices_supplier_paired='Py_ssize_t**',
+    tile_indices_supplier_paired_N='Py_ssize_t*',
     rank_supplier='int',
     only_supply='bint',
     ᔑdt=dict,
@@ -739,8 +782,8 @@ def gravity_pairwise(
     forcex_ij='double',
     forcey_ij='double',
     forcez_ij='double',
-    gravity_factor='double',
-    gravity_factors='double[::1]',
+    gravity_factors='const double[::1]',
+    gravity_factors_ptr='const double*',
     i='Py_ssize_t',
     interaction_name=str,
     j='Py_ssize_t',
@@ -750,22 +793,24 @@ def gravity_pairwise(
     momy_s='double*',
     momz_r='double*',
     momz_s='double*',
+    particle_particle_t_begin='double',
+    particle_particle_t_final='double',
     r2='double',
     rung_index_i='signed char',
     rung_index_j='signed char',
     shortrange_factor='double',
     shortrange_index='Py_ssize_t',
+    softening2='double',
+    subtiling_r='Tiling',
+    total_factor='double',
     x_ji='double',
     y_ji='double',
     z_ji='double',
-    Δmomx_s='double*',
-    Δmomy_s='double*',
-    Δmomz_s='double*',
     returns='void',
 )
 def gravity_pairwise_shortrange(
     receiver, supplier, pairing_level,
-    tile_indices_receiver, tile_indices_supplier,
+    tile_indices_receiver, tile_indices_supplier_paired, tile_indices_supplier_paired_N,
     rank_supplier, only_supply, ᔑdt, extra_args,
 ):
     # Extract variables from the receiver component
@@ -773,12 +818,20 @@ def gravity_pairwise_shortrange(
     momy_r = receiver.momy
     momz_r = receiver.momz
     # Extract variables from the supplier (the external) component
-    momx_s  = supplier.momx
-    momy_s  = supplier.momy
-    momz_s  = supplier.momz
-    Δmomx_s = supplier.Δmomx
-    Δmomy_s = supplier.Δmomy
-    Δmomz_s = supplier.Δmomz
+    if rank == rank_supplier:
+        # This interaction is exclusively within the local domain.
+        # Apply momentum changes to supplier component directly.
+        momx_s = supplier.momx
+        momy_s = supplier.momy
+        momz_s = supplier.momz
+    else:
+        # This interaction is between the local and an external domain.
+        # Apply momentum changes to the external Δmom buffers.
+        momx_s = supplier.Δmomx
+        momy_s = supplier.Δmomy
+        momz_s = supplier.Δmomz
+    # The combined, squared softening length
+    softening2 = (0.5*(receiver.softening_length + supplier.softening_length))**2
     # Construct array of factors used for momentum updates:
     #   Δmom = -r⃗/r³*G*mass_r*mass_s*Δt/a.
     # In the general case of decaying particles,
@@ -789,11 +842,13 @@ def gravity_pairwise_shortrange(
     # of the receiver particle.
     gravity_factors = G_Newton*receiver.mass*supplier.mass*ᔑdt[
         'a**(-3*w_eff₀-3*w_eff₁-1)', receiver.name, supplier.name]
+    gravity_factors_ptr = cython.address(gravity_factors[:])
     # Loop over all (receiver, supplier) particle pairs (i, j)
     interaction_name = 'gravity'
-    for i, j, rung_index_i, rung_index_j, x_ji, y_ji, z_ji, apply_to_i, apply_to_j in particle_particle(
+    particle_particle_t_begin = 0
+    for i, j, rung_index_i, rung_index_j, x_ji, y_ji, z_ji, apply_to_i, apply_to_j, particle_particle_t_begin, subtiling_r in particle_particle(
         receiver, supplier, pairing_level,
-        tile_indices_receiver, tile_indices_supplier,
+        tile_indices_receiver, tile_indices_supplier_paired, tile_indices_supplier_paired_N,
         rank_supplier, interaction_name, only_supply,
     ):
         # Translate coordinates so they correspond to the nearest image
@@ -809,14 +864,12 @@ def gravity_pairwise_shortrange(
             z_ji -= boxsize
         elif z_ji < ℝ[-0.5*boxsize]:
             z_ji += boxsize
-        r2 = x_ji**2 + y_ji**2 + z_ji**2
+        r2 = x_ji**2 + y_ji**2 + z_ji**2 + softening2
         # If the particle pair is separated by a distance larger
         # than the range of the short-range force,
         # ignore this interaction completely.
         if r2 > ℝ[shortrange_params['gravity']['cutoff']**2]:
             continue
-        # Add softening
-        r2 += ℝ[(0.5*(receiver.softening_length + supplier.softening_length))**2]
         # Compute the short-range force. Here the "force" is in units
         # of inverse length squared, given by
         # force = -r⃗/r³ (x/sqrt(π) exp(-x²/4) + erfc(x/2)),
@@ -825,77 +878,85 @@ def gravity_pairwise_shortrange(
         # We have this whole expression except for r⃗ already tabulated.
         shortrange_index = int(r2*ℝ[(shortrange_table_size - 1)/shortrange_table_maxr2])
         shortrange_factor = shortrange_table_ptr[shortrange_index]
-        forcex_ij = x_ji*shortrange_factor
-        forcey_ij = y_ji*shortrange_factor
-        forcez_ij = z_ji*shortrange_factor
         # Compute and apply momentum change to particle i due to
         # particle j, if particle i is on an active rung.
-        if apply_to_i:
-            gravity_factor = gravity_factors[rung_index_i]
-            momx_r[i] += forcex_ij*gravity_factor
-            momy_r[i] += forcey_ij*gravity_factor
-            momz_r[i] += forcez_ij*gravity_factor
+        with unswitch(3):
+            if apply_to_i:
+                total_factor = shortrange_factor*gravity_factors_ptr[rung_index_i]
+                momx_r[i] += x_ji*total_factor
+                momy_r[i] += y_ji*total_factor
+                momz_r[i] += z_ji*total_factor
         # Apply or save the momentum change of particle j
         # of the supplier (the external component).
         with unswitch:
-            if 𝔹[not only_supply and rank == rank_supplier]:
-                # This interaction is exlusively within the
-                # local domain. Apply momentum changes
-                # directly to particle j.
-                if apply_to_j:
-                    gravity_factor = gravity_factors[rung_index_j]
-                    momx_s[j] -= forcex_ij*gravity_factor
-                    momy_s[j] -= forcey_ij*gravity_factor
-                    momz_s[j] -= forcez_ij*gravity_factor
-            elif 𝔹[not only_supply]:
-                # Add momentum change to the external
-                # Δmom buffers of the supplier.
-                if apply_to_j:
-                    gravity_factor = gravity_factors[rung_index_j]
-                    Δmomx_s[j] -= forcex_ij*gravity_factor
-                    Δmomy_s[j] -= forcey_ij*gravity_factor
-                    Δmomz_s[j] -= forcez_ij*gravity_factor
+            if 𝔹[not only_supply]:
+                with unswitch(2):
+                    if apply_to_j:
+                        total_factor = shortrange_factor*gravity_factors_ptr[rung_index_j]
+                        momx_s[j] -= x_ji*total_factor
+                        momy_s[j] -= y_ji*total_factor
+                        momz_s[j] -= z_ji*total_factor
+    # Add computation time to the running total,
+    # for use with automatic subtiling refinement.
+    if particle_particle_t_begin != 0:
+        particle_particle_t_final = time()
+        subtiling_r.computation_time += particle_particle_t_final - particle_particle_t_begin
+
 # Helper function for the gravity_pairwise_shortrange function,
 # which initializes the global shortrange table.
-@cython.header(returns='void')
+@cython.header(
+    # Locals
+    component='Component',
+    i='Py_ssize_t',
+    r='double[::1]',
+    r_center='double',
+    shortrange_table_nonconst='double[::1]',
+    x_center='double',
+    returns='void',
+)
 def tabulate_shortrange_gravity():
     """This function tabulates the short-range factor
     y = -r⁻³(x/sqrt(π)exp(-x²/4) + erfc(x/2))
-    with x = r/scale where r is the distance between two particles
-    and scale is the long/short-range force split scale.
-    We only need this for 0 <= r <= cutoff, where cutoff is the maximum
-    reach of the short-range force. However, due to softening we
-    sometimes need to go a bit beyound cutoff. Just to be safe we
-    tabulate out to 2*cutoff.
+    in the global shortrange_table array. The tabulation is quadratic
+    in r, which is the distance between two particles, while x = r/scale
+    with scale the long/short-range force split scale.
+    We only need the tabulation for for 0 <= r <= cutoff, where cutoff
+    is the maximum reach of the short-range force.
     """
     global shortrange_table, shortrange_table_ptr
     if shortrange_table is not None:
         return
-    scale  = shortrange_params['gravity']['scale']
-    r2 = np.linspace(0, shortrange_table_maxr2, shortrange_table_size)
-    r = np.sqrt(r2)
-    x = r/scale
-    # Compute r⁻³. The zeroth element is r == 0.
-    # Here we explicitly set r⁻³ to 0, corresponding to zero force in
-    # the case of two particles sitting on top of each other.
-    one_over_r3 = r.copy()
-    one_over_r3[0] = 1
-    one_over_r3 **= -3
-    one_over_r3[0] = 0
-    # Do the tabulation and populate global variables
-    shortrange_table = -one_over_r3*(x/np.sqrt(π)*np.exp(-0.25*x**2) + scipy.special.erfc(0.5*x))
+    # The distances at which the tabulation will be carried out,
+    # quadratically spaced.
+    r = np.sqrt(linspace(0, shortrange_table_maxr2, shortrange_table_size))
+    # Create the table. The i'th element of shortrange_table really
+    # corresponds to the value at r[i+½]. Nearest grid point lookups
+    # can then be performed by cheap floor (int casting) indexing.
+    shortrange_table_nonconst = empty(shortrange_table_size, dtype=C2np['double'])
+    for i in range(shortrange_table_size):
+        if i == ℤ[shortrange_table_size - 1]:
+            r_center = r[i]
+        else:
+            r_center = 0.5*(r[i] + r[i+1])
+        x_center = r_center*ℝ[1/shortrange_params['gravity']['scale']]
+        shortrange_table_nonconst[i] = -r_center**(-3)*(
+            ℝ[1/sqrt(π)]*x_center*exp(-ℝ[0.5*x_center]**2) + erfc(ℝ[0.5*x_center])
+        )
+    # Assign global variables
+    shortrange_table = shortrange_table_nonconst
     shortrange_table_ptr = cython.address(shortrange_table[:])
-# Global variables used by the tabulate_shortrange_gravity function
+# Global variables used by the tabulate_shortrange_gravity()
+# and gravity_pairwise_shortrange() functions.
 cython.declare(
-    shortrange_table='double[::1]',
-    shortrange_table_ptr='double*',
+    shortrange_table='const double[::1]',
+    shortrange_table_ptr='const double*',
     shortrange_table_size='Py_ssize_t',
     shortrange_table_maxr2='double',
 )
 shortrange_table = None
 shortrange_table_ptr = NULL
 shortrange_table_size = 2**20
-shortrange_table_maxr2 = (2*shortrange_params['gravity']['cutoff'])**2
+shortrange_table_maxr2 = (1 + 1e-3)*shortrange_params['gravity']['cutoff']**2
 
 # Function implementing pairwise gravity (non-periodic)
 @cython.header(
@@ -904,7 +965,8 @@ shortrange_table_maxr2 = (2*shortrange_params['gravity']['cutoff'])**2
     supplier='Component',
     pairing_level=str,
     tile_indices_receiver='Py_ssize_t[::1]',
-    tile_indices_supplier='Py_ssize_t[::1]',
+    tile_indices_supplier_paired='Py_ssize_t**',
+    tile_indices_supplier_paired_N='Py_ssize_t*',
     rank_supplier='int',
     only_supply='bint',
     ᔑdt=dict,
@@ -916,7 +978,8 @@ shortrange_table_maxr2 = (2*shortrange_params['gravity']['cutoff'])**2
     forcey_ij='double',
     forcez_ij='double',
     gravity_factor='double',
-    gravity_factors='double[::1]',
+    gravity_factors='const double[::1]',
+    gravity_factors_ptr='const double*',
     i='Py_ssize_t',
     interaction_name=str,
     j='Py_ssize_t',
@@ -926,23 +989,20 @@ shortrange_table_maxr2 = (2*shortrange_params['gravity']['cutoff'])**2
     momy_s='double*',
     momz_r='double*',
     momz_s='double*',
+    particle_particle_t_begin='double',
+    particle_particle_t_final='double',
     r3='double',
     rung_index_i='signed char',
     rung_index_j='signed char',
+    subtiling_r='Tiling',
     x_ji='double',
     y_ji='double',
     z_ji='double',
-    Δmomx_s='double*',
-    Δmomx_ij='double',
-    Δmomy_s='double*',
-    Δmomy_ij='double',
-    Δmomz_s='double*',
-    Δmomz_ij='double',
     returns='void',
 )
 def gravity_pairwise_nonperiodic(
     receiver, supplier, pairing_level,
-    tile_indices_receiver, tile_indices_supplier,
+    tile_indices_receiver, tile_indices_supplier_paired, tile_indices_supplier_paired_N,
     rank_supplier, only_supply, ᔑdt, extra_args,
 ):
     # Extract variables from the receiver component
@@ -950,12 +1010,18 @@ def gravity_pairwise_nonperiodic(
     momy_r = receiver.momy
     momz_r = receiver.momz
     # Extract variables from the supplier (the external) component
-    momx_s  = supplier.momx
-    momy_s  = supplier.momy
-    momz_s  = supplier.momz
-    Δmomx_s = supplier.Δmomx
-    Δmomy_s = supplier.Δmomy
-    Δmomz_s = supplier.Δmomz
+    if rank == rank_supplier:
+        # This interaction is exclusively within the local domain.
+        # Apply momentum changes to supplier component directly.
+        momx_s = supplier.momx
+        momy_s = supplier.momy
+        momz_s = supplier.momz
+    else:
+        # This interaction is between the local and an external domain.
+        # Apply momentum changes to the external Δmom buffers.
+        momx_s = supplier.Δmomx
+        momy_s = supplier.Δmomy
+        momz_s = supplier.Δmomz
     # Construct array of factors used for momentum updates:
     #   Δmom = -r⃗/r³*G*mass_r*mass_s*Δt/a.
     # In the general case of decaying particles,
@@ -966,47 +1032,46 @@ def gravity_pairwise_nonperiodic(
     # of the receiver particle.
     gravity_factors = G_Newton*receiver.mass*supplier.mass*ᔑdt[
         'a**(-3*w_eff₀-3*w_eff₁-1)', receiver.name, supplier.name]
+    gravity_factors_ptr = cython.address(gravity_factors[:])
     # Loop over all (receiver, supplier) particle pairs (i, j)
     interaction_name = 'gravity'
-    for i, j, rung_index_i, rung_index_j, x_ji, y_ji, z_ji, apply_to_i, apply_to_j in particle_particle(
+    particle_particle_t_begin = 0
+    for i, j, rung_index_i, rung_index_j, x_ji, y_ji, z_ji, apply_to_i, apply_to_j, particle_particle_t_begin, subtiling_r in particle_particle(
         receiver, supplier, pairing_level,
-        tile_indices_receiver, tile_indices_supplier,
+        tile_indices_receiver, tile_indices_supplier_paired, tile_indices_supplier_paired_N,
         rank_supplier, interaction_name, only_supply,
     ):
         # The direct force on particle i from particle j
         r3 = (x_ji**2 + y_ji**2 + z_ji**2
             + ℝ[(0.5*(receiver.softening_length + supplier.softening_length))**2]
-        )**1.5
+        )
+        r3 *= sqrt(r3)
         forcex_ij = x_ji*ℝ[-1/r3]
         forcey_ij = y_ji*ℝ[-1/r3]
         forcez_ij = z_ji*ℝ[-1/r3]
         # Compute and apply momentum change
         # to particle i due to particle j.
-        if apply_to_i:
-            gravity_factor = gravity_factors[rung_index_r]
-            momx_r[i] += forcex_ij*gravity_factor
-            momy_r[i] += forcey_ij*gravity_factor
-            momz_r[i] += forcez_ij*gravity_factor
+        with unswitch(3):
+            if apply_to_i:
+                gravity_factor = gravity_factors_ptr[rung_index_r]
+                momx_r[i] += forcex_ij*gravity_factor
+                momy_r[i] += forcey_ij*gravity_factor
+                momz_r[i] += forcez_ij*gravity_factor
         # Apply or save the momentum change of particle j
         # of the supplier (the external component).
         with unswitch:
-            if 𝔹[not only_supply and rank == rank_supplier]:
-                # This interaction is exlusively within the
-                # local domain. Apply momentum changes
-                # directly to particle j.
-                if apply_to_j:
-                    gravity_factor = gravity_factors[rung_index_s]
-                    momx_s[j] -= forcex_ij*gravity_factor
-                    momy_s[j] -= forcey_ij*gravity_factor
-                    momz_s[j] -= forcez_ij*gravity_factor
-            elif 𝔹[not only_supply]:
-                # Add momentum change to the external
-                # Δmom buffers of the supplier.
-                if apply_to_j:
-                    gravity_factor = gravity_factors[rung_index_s]
-                    Δmomx_s[j] -= forcex_ij*gravity_factor
-                    Δmomy_s[j] -= forcey_ij*gravity_factor
-                    Δmomz_s[j] -= forcez_ij*gravity_factor
+            if 𝔹[not only_supply]:
+                with unswitch(2):
+                    if apply_to_j:
+                        gravity_factor = gravity_factors_ptr[rung_index_s]
+                        momx_s[j] -= forcex_ij*gravity_factor
+                        momy_s[j] -= forcey_ij*gravity_factor
+                        momz_s[j] -= forcez_ij*gravity_factor
+    # Add computation time to the running total,
+    # for use with automatic subtiling refinement.
+    if particle_particle_t_begin != 0:
+        particle_particle_t_final = time()
+        subtiling_r.computation_time += particle_particle_t_final - particle_particle_t_begin
 
 # Function implementing the gravitational potential (in Fouier space).
 # Here k2 = k² is the squared magnitude of the wave vector,
@@ -1027,5 +1092,5 @@ def gravity_potential(k2):
     returns='double',
 )
 def gravity_longrange_potential(k2):
-    return exp(-k2*ℝ[shortrange_params['gravity']['scale']**2])*gravity_potential(k2)
+    return exp(k2*ℝ[-shortrange_params['gravity']['scale']**2])*gravity_potential(k2)
 

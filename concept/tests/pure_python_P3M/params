@@ -35,8 +35,9 @@ boxsize    = 4*Mpc
 φ_gridsize = 24
 shortrange_params = {
     'gravity': {
-        'scale' : 1.25*boxsize/φ_gridsize,
-        'cutoff': '3.1*scale',
+        'scale'    : 1.25*boxsize/φ_gridsize,
+        'cutoff'   : '3.1*scale',
+        'subtiling': 2,
     },
 }
 

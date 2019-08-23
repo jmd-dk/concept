@@ -32,6 +32,7 @@ cimport('from communication import domain_size_x , domain_size_y , domain_size_z
 cimport('from communication import domain_start_x, domain_start_y, domain_start_z')
 cimport('from mesh import diff_domain, domain_decompose, fft, slab_decompose')
 cimport('from mesh import CIC_components2φ, CIC_grid2grid, CIC_scalargrid2coordinates')
+cimport('from species import tentatively_refine_subtiling, accept_or_reject_subtiling_refinement')
 # Import interactions defined in other modules
 cimport('from gravity import *')
 
@@ -42,7 +43,8 @@ ctypedef void (*func_interaction)(
     Component,        # supplier
     str,              # pairing_level
     Py_ssize_t[::1],  # tile_indices_receiver
-    Py_ssize_t[::1],  # tile_indices_supplier
+    Py_ssize_t**,     # tile_indices_supplier_paired
+    Py_ssize_t*,      # tile_indices_supplier_paired_N
     int,              # rank_supplier
     bint,             # only_supply
     dict,             # ᔑdt
@@ -69,10 +71,26 @@ ctypedef double (*func_potential)(
     interaction_name=str,
     interaction_extra_args=dict,
     # Locals
+    anticipate_refinement='bint',
+    anticipation_period='Py_ssize_t',
+    attempt_refinement='bint',
     component_pair=set,
+    computation_time='double',
+    judge_refinement='bint',
+    judgement_period='Py_ssize_t',
+    lowest_active_rung='signed char',
+    only_supply='bint',
     pairings=list,
     receiver='Component',
+    refinement_offset='Py_ssize_t',
+    refinement_period='Py_ssize_t',
+    rung_index='signed char',
+    subtiles_computation_times_N_interaction='Py_ssize_t[::1]',
+    subtiles_computation_times_interaction='double[::1]',
+    subtiles_computation_times_sq_interaction='double[::1]',
+    subtiling='Tiling',
     subtiling_name=str,
+    subtiling_name_2=str,
     supplier='Component',
     tile_sorted=set,
     tiling_name=str,
@@ -90,14 +108,101 @@ def component_component(
     # no actual tiling will take place, but we still need the
     # tile + subtile structure. For this, the trivial tiling,
     # spanning the box, is used.
-    if pairing_level == 'tile':
-        tiling_name    = f'{interaction_name} (tiles)'
-        subtiling_name = f'{interaction_name} (subtiles)'
+    if 𝔹[pairing_level == 'tile']:
+        tiling_name      = f'{interaction_name} (tiles)'
+        subtiling_name   = f'{interaction_name} (subtiles)'
+        subtiling_name_2 = f'{interaction_name} (subtiles 2)'
     else:  # pairing_level == 'domain':
         tiling_name = subtiling_name = 'trivial'
-    # Pair each receiver with all suppliers
+    # Set flags anticipate_refinement, attempt_refinement and
+    # judge_refinement. The first signals whether a tentative subtiling
+    # refinement attempt is comming up soon, in which case we should
+    # be collecting computation time data of the current subtiling.
+    # The second specifies whether a tentative refinement of the
+    # subtilings in use should be performed now, meaning prior to
+    # the interaction. The third specifies whether the previously
+    # performed tentative refinement should be concluded, resulting in
+    # either accepting or rejecting the refinement.
+    anticipate_refinement = attempt_refinement = judge_refinement = False
+    if 𝔹[pairing_level == 'tile'
+        and shortrange_params[interaction_name]['subtiling'][0] == 'automatic'
+    ]:
+        # The anticipation_period and judgement_period specifies the
+        # number of time steps spend collecting computation time data
+        # before and after a tentative sutiling refinement.
+        # The refinement will be judged after the first interaction of
+        # the time step after judgement_period time steps has gone by
+        # after the tentative refinement (there may be many more
+        # interactions in this time step, depending on N_rungs).
+        # Note that changes to anticipation_period or judgement_period
+        # need to be reflected in the subtiling_refinement_period_min
+        # variable, defined in the commons module. The relation is
+        # subtiling_refinement_period_min = (
+        #     anticipation_period + judgement_period + 1)
+        anticipation_period = 4
+        judgement_period = 2
+        subtiles_computation_times_interaction    = subtiles_computation_times   [interaction_name]
+        subtiles_computation_times_sq_interaction = subtiles_computation_times_sq[interaction_name]
+        subtiles_computation_times_N_interaction  = subtiles_computation_times_N [interaction_name]
+        for receiver in receivers:
+            subtiling = receiver.tilings.get(subtiling_name)
+            if subtiling is None:
+                continue
+            refinement_period = subtiling.refinement_period
+            refinement_offset = subtiling.refinement_offset
+            if refinement_period == 0:
+                abort(
+                    f'The subtiling "{subtiling_name}" is set to use automatic subtiling '
+                    f'refinement, but it has a refinement period of {refinement_period}.'
+                )
+            # We judge the attempted refinement after 2 whole time steps
+            # has gone by; this one and the next. The refinement will
+            # then be judged after the first interaction on the third
+            # time step (there may be many more interactions
+            # if N_rungs > 1).
+            if interaction_name in subtilings_under_tentative_refinement:
+                anticipate_refinement = True
+                judge_refinement = (
+                    ℤ[universals.time_step + refinement_offset + 1] % refinement_period == 0
+                )
+            else:
+                attempt_refinement = (
+                    (ℤ[universals.time_step + refinement_offset + 1] + judgement_period
+                        ) % refinement_period == 0
+                )
+                # We begin storing the computation time data of the
+                # current subtiling 4 time steps before we tentatively
+                # apply the new subtiling.
+                anticipate_refinement = (
+                    (ℤ[universals.time_step + refinement_offset + 1] + judgement_period
+                        ) % refinement_period >= refinement_period - anticipation_period
+                )
+            break
+    # Do the tentative subtiling refinement, if required
+    if attempt_refinement:
+        # Copy the old computation times to new locations in
+        # subtiles_computation_times_interaction, making room for the
+        # new computation times.
+        for rung_index in range(N_rungs):
+            subtiles_computation_times_interaction[N_rungs + rung_index] = (
+                subtiles_computation_times_interaction[rung_index]
+            )
+            subtiles_computation_times_sq_interaction[N_rungs + rung_index] = (
+                subtiles_computation_times_sq_interaction[rung_index]
+            )
+            subtiles_computation_times_N_interaction[N_rungs + rung_index] = (
+                subtiles_computation_times_N_interaction[rung_index]
+            )
+            subtiles_computation_times_interaction   [rung_index] = 0
+            subtiles_computation_times_sq_interaction[rung_index] = 0
+            subtiles_computation_times_N_interaction [rung_index] = 0
+        # Replace the subtilings with slighly refined versions
+        subtilings_under_tentative_refinement.add(interaction_name)
+        tentatively_refine_subtiling(interaction_name)
+    # Pair each receiver with all suppliers and let them interact
     pairings = []
     tile_sorted = set()
+    computation_time = 0  # Total tile-tile computation time for this call to component_component()
     for receiver in receivers:
         for supplier in suppliers:
             component_pair = {receiver, supplier}
@@ -120,12 +225,82 @@ def component_component(
             # Flag specifying whether the supplier should only supply
             # forces to the receiver and not receive any force itself.
             only_supply = (supplier not in receivers)
-            # Pair up doamins for the current
+            # Pair up domains for the current
             # receiver and supplier component.
             domain_domain(
                 receiver, supplier, interaction, ᔑdt, dependent, affected, only_supply,
                 deterministic, pairing_level, interaction_name, interaction_extra_args,
             )
+        # The interactions between the receiver and all suppliers are
+        # now done. Add the accumulated computation time to the local
+        # computation_time variable, then nullify the computation time
+        # stored on the subtiling, so that it is ready for new data.
+        # To keep the total computation time tallied up over the entire
+        # time step present on the subtiling, add the currently stored
+        # computation time to the computation_time_total attribute
+        # before doing the nullification.
+        subtiling = receiver.tilings[subtiling_name]
+        computation_time += subtiling.computation_time
+        subtiling.computation_time_total += subtiling.computation_time
+        subtiling.computation_time = 0
+    # All interactions are now done. If the measured computation time
+    # should be used for automatic subtiling refinement, store this
+    # outside of this function.
+    if 𝔹[pairing_level == 'tile'
+        and shortrange_params[interaction_name]['subtiling'][0] == 'automatic'
+    ]:
+        # The computation time depends drastically on which rungs are
+        # currently active. We therefore store the total computation
+        # time according to the current lowest active rung.
+        if anticipate_refinement or attempt_refinement or judge_refinement:
+            lowest_active_rung = ℤ[N_rungs - 1]
+            for receiver in receivers:
+                if receiver.lowest_active_rung < lowest_active_rung:
+                    lowest_active_rung = receiver.lowest_active_rung
+                    if lowest_active_rung == 0:
+                        break
+            subtiles_computation_times_interaction   [lowest_active_rung] += computation_time
+            subtiles_computation_times_sq_interaction[lowest_active_rung] += computation_time**2
+            subtiles_computation_times_N_interaction [lowest_active_rung] += 1
+        # If it is time to judge a previously attempted refinement,
+        # do so and reset the computation time.
+        if judge_refinement:
+            subtilings_under_tentative_refinement.remove(interaction_name)
+            accept_or_reject_subtiling_refinement(
+                interaction_name,
+                subtiles_computation_times_interaction,
+                subtiles_computation_times_sq_interaction,
+                subtiles_computation_times_N_interaction,
+            )
+            subtiles_computation_times_interaction   [:] = 0
+            subtiles_computation_times_sq_interaction[:] = 0
+            subtiles_computation_times_N_interaction [:] = 0
+# Containers used by the component_component() function.
+# The subtiles_computation_times and subtiles_computation_times_N are
+# used to store total computation times and numbers for performed
+# interations. They are indexed as
+# subtiles_computation_times[interaction_name][rung_index],
+# resulting in the accumulated computation time for this interaction
+# when the lowest active rung corresponds to rung_index.
+# The subtilings_under_tentative_refinement set contain names of
+# interactions the subtilings of which are currently under
+# tentative refinement.
+cython.declare(
+    subtiles_computation_times=object,
+    subtiles_computation_times_sq=object,
+    subtiles_computation_times_N=object,
+    subtilings_under_tentative_refinement=set,
+)
+subtiles_computation_times = collections.defaultdict(
+    lambda: zeros(ℤ[2*N_rungs], dtype=C2np['double'])
+)
+subtiles_computation_times_sq = collections.defaultdict(
+    lambda: zeros(ℤ[2*N_rungs], dtype=C2np['double'])
+)
+subtiles_computation_times_N = collections.defaultdict(
+    lambda: zeros(ℤ[2*N_rungs], dtype=C2np['Py_ssize_t'])
+)
+subtilings_under_tentative_refinement = set()
 
 # Generic function implementing domain-domain pairing
 @cython.header(
@@ -154,6 +329,9 @@ def component_component(
     tile_indices='Py_ssize_t[:, ::1]',
     tile_indices_receiver='Py_ssize_t[::1]',
     tile_indices_supplier='Py_ssize_t[::1]',
+    tile_indices_supplier_paired='Py_ssize_t**',
+    tile_indices_supplier_paired_N='Py_ssize_t*',
+    tile_pairings_index='Py_ssize_t',
     returns='void',
 )
 def domain_domain(
@@ -269,6 +447,8 @@ def domain_domain(
                 # For domain level pairing we make use of
                 # the trivial tiling, containing a single tile.
                 tile_indices_receiver = tile_indices_supplier = tile_indices_trivial
+                tile_indices_supplier_paired = tile_indices_trivial_paired
+                tile_indices_supplier_paired_N = tile_indices_trivial_paired_N
         supplier_extrl = sendrecv_component(
             supplier_local, dependent, pairing_level, interaction_name, tile_indices_supplier,
             dest=rank_send, source=rank_recv,
@@ -281,17 +461,27 @@ def domain_domain(
         if interact:
             with unswitch:
                 if 𝔹[pairing_level == 'tile']:
-                    # Further refer the interaction to the tile level
-                    tile_tile(
-                        receiver, supplier_extrl, tile_indices_receiver, tile_indices_supplier,
-                        interaction, rank_recv, only_supply_passed, only_supply, domain_pair_nr,
-                        interaction_name, ᔑdt, interaction_extra_args,
+                    # Get the supplier tiles with which to pair each
+                    # receiver tile and perform the interaction
+                    # at the tile level.
+                    tile_pairings_index = get_tile_pairings(
+                        receiver, supplier, tile_indices_receiver, tile_indices_supplier,
+                        rank_recv, only_supply_passed, domain_pair_nr, interaction_name,
+                    )
+                    tile_indices_supplier_paired   = tile_pairings_cache  [tile_pairings_index]
+                    tile_indices_supplier_paired_N = tile_pairings_N_cache[tile_pairings_index]
+                    interaction(
+                        receiver, supplier_extrl, pairing_level,
+                        tile_indices_receiver,
+                        tile_indices_supplier_paired, tile_indices_supplier_paired_N,
+                        rank_recv, only_supply, ᔑdt, interaction_extra_args,
                     )
                 else:  # pairing_level == 'domain'
                     # Perform the interaction now, at the domain level
                     interaction(
                         receiver, supplier_extrl, pairing_level,
-                        tile_indices_receiver, tile_indices_supplier,
+                        tile_indices_receiver,
+                        tile_indices_supplier_paired, tile_indices_supplier_paired_N,
                         rank_recv, only_supply, ᔑdt, interaction_extra_args,
                     )
         # Send the populated buffers back to the process from which the
@@ -310,8 +500,16 @@ def domain_domain(
             supplier_extrl.nullify_Δ(affected)
 # Tile indices for the trivial tiling,
 # used by the domain_domain function.
-cython.declare(tile_indices_trivial='Py_ssize_t[::1]')
+cython.declare(
+    tile_indices_trivial='Py_ssize_t[::1]',
+    tile_indices_trivial_paired='Py_ssize_t**',
+    tile_indices_trivial_paired_N='Py_ssize_t*',
+)
 tile_indices_trivial = zeros(1, dtype=C2np['Py_ssize_t'])
+tile_indices_trivial_paired = malloc(1*sizeof('Py_ssize_t*'))
+tile_indices_trivial_paired[0] = cython.address(tile_indices_trivial[:])
+tile_indices_trivial_paired_N = malloc(1*sizeof('Py_ssize_t'))
+tile_indices_trivial_paired_N[0] = tile_indices_trivial.shape[0]
 
 # Function returning the indices of the tiles of the local receiver and
 # supplier which take part in tile-tile interactions under the
@@ -512,71 +710,6 @@ def domain_domain_communication(pairing_level, only_supply):
 cython.declare(domain_domain_communication_dict=dict)
 domain_domain_communication_dict = {}
 
-# Generic function implementing tile-tile pairing
-@cython.header(
-    # Arguments
-    receiver='Component',
-    supplier='Component',
-    tile_indices_receiver='Py_ssize_t[::1]',
-    tile_indices_supplier='Py_ssize_t[::1]',
-    interaction=func_interaction,
-    rank_supplier='int',
-    only_supply_passed='bint',
-    only_supply='bint',
-    domain_pair_nr='Py_ssize_t',
-    interaction_name=str,
-    ᔑdt=dict,
-    interaction_extra_args=dict,
-    # Locals
-    i='Py_ssize_t',
-    pairing_level=str,
-    tile_indices_receiver_supplier=object,  # np.ndarray of dtype object
-    tile_indices_supplier_paired='Py_ssize_t[::1]',
-    returns='void',
-)
-def tile_tile(
-    receiver, supplier, tile_indices_receiver, tile_indices_supplier,
-    interaction, rank_supplier, only_supply_passed, only_supply, domain_pair_nr,
-    interaction_name, ᔑdt, interaction_extra_args,
-):
-    """This function takes care of pairings between neighbouring tiles
-    within a domain and boundary tiles at the interface between two
-    domains.
-    If the supplier component is external to this rank, it is expected
-    that it has been properly communicated. Also, both the receiver and
-    the supplier components are expected to already be tile sorted.
-    """
-    # The strategy for pairing the tiles is as follows.
-    # - We always have just a single receiver tile at a time, as no two
-    #   tiles can ever need the same set of other tiles with which to
-    #   interact (except for the case of just two neighbour tiles,
-    #   but that is covered by a single receiver and a single
-    #   supplier tile).
-    # - We thus loop throug the receiver tiles one by one, and pair them
-    #   up with as many supplier tiles as possible. Thee first receiver
-    #   tile then gets paired with all of the tiles in
-    #   tile_indices_supplier which happen to be a neighbour tile.
-    #   Later receiver tiles may not get assigned all neighbouring
-    #   supplier tiles, as the {receiver tile, supplier tile} pair may
-    #   already have been encountered. This avoidance of double counting
-    #   should only be done in the case of rank == rank_supplier.
-    # Get the supplier tile indices
-    # with which to pair each receiver tile.
-    tile_indices_receiver_supplier = get_tile_tile_pairs(
-        receiver, supplier, tile_indices_receiver, tile_indices_supplier,
-        rank_supplier, only_supply_passed, domain_pair_nr, interaction_name,
-    )
-    # For each receiver tile, call the interaction with the required
-    # neighbouring supplier tiles.
-    pairing_level = 'tile'
-    for i in range(tile_indices_receiver.shape[0]):
-        tile_indices_supplier_paired = tile_indices_receiver_supplier[i]
-        interaction(
-            receiver, supplier, pairing_level,
-            tile_indices_receiver[i:i+1], tile_indices_supplier_paired,
-            rank_supplier, only_supply, ᔑdt, interaction_extra_args,
-        )
-
 # Function that given arrays of receiver and supplier tiles
 # returns them in paired format.
 @cython.header(
@@ -606,26 +739,35 @@ def tile_tile(
     n_offset='Py_ssize_t',
     n_s='Py_ssize_t',
     neighbourtile_index_3D_global='Py_ssize_t[::1]',
+    pairings='Py_ssize_t**',
+    pairings_N='Py_ssize_t*',
+    pairs_N='Py_ssize_t',
     suppliertile_indices_3D_global_to_1D_local=dict,
     tile_index_3D_global_s=tuple,
     tile_index_r='Py_ssize_t',
     tile_index_s='Py_ssize_t',
+    tile_indices_supplier_paired='Py_ssize_t[::1]',
+    tile_indices_supplier_paired_ptr='Py_ssize_t*',
     tile_layout='Py_ssize_t[:, :, ::1]',
+    tile_pairings_index='Py_ssize_t',
     tiling='Tiling',
     tiling_name=str,
     wraparound='bint',
-    returns=object,  # np.ndarray of dtype object
+    returns='Py_ssize_t',
 )
-def get_tile_tile_pairs(
+def get_tile_pairings(
     receiver, supplier, tile_indices_receiver, tile_indices_supplier,
     rank_supplier, only_supply_passed, domain_pair_nr, interaction_name,
 ):
-    # Lookup cached result
+    global tile_pairings_cache, tile_pairings_N_cache, tile_pairings_cache_size
+    # Lookup index of the required tile pairings in the global cache
     key = (receiver.name, supplier.name, interaction_name, domain_pair_nr)
-    tile_indices_receiver_supplier = tile_indices_receiver_supplier_dict.get(key)
-    if tile_indices_receiver_supplier is not None:
-        return tile_indices_receiver_supplier
-    # List of lists storing the supplier tile indices
+    tile_pairings_index = tile_pairings_cache_indices.get(key, tile_pairings_cache_size)
+    if tile_pairings_index < tile_pairings_cache_size:
+        return tile_pairings_index
+    # No cached results found. We will now compute the supplier tile
+    # indices to be paired with each of the receiver tiles.
+    # Below is a list of lists storing the supplier tile indices
     # for each receiver tile. The type of this data structure will
     # change during the computation.
     tile_indices_receiver_supplier = [[] for i in range(tile_indices_receiver.shape[0])]
@@ -643,12 +785,12 @@ def get_tile_tile_pairs(
     if domain_pair_nr == 0:
         if rank != rank_supplier:
             abort(
-                f'get_tile_tile_pairs() got rank_supplier = {rank_supplier} != rank = {rank} '
+                f'get_tile_pairings() got rank_supplier = {rank_supplier} != rank = {rank} '
                 f'at domain_pair_nr == 0'
             )
         if not np.all(asarray(tile_indices_receiver) == asarray(tile_indices_supplier)):
             abort(
-                f'get_tile_tile_pairs() got tile_indices_receiver != tile_indices_supplier '
+                f'get_tile_pairings() got tile_indices_receiver != tile_indices_supplier '
                 f'at domain_pair_nr == 0'
             )
         i = 0
@@ -786,7 +928,7 @@ def get_tile_tile_pairs(
             neighbourtile_indices_supplier.sort()
             tile_indices_receiver_supplier[i] = neighbourtile_indices_supplier
     # Transform tile_indices_receiver_supplier to an object array,
-    # the elements of which is arrays of dtype Py_ssize_t.
+    # the elements of which are arrays of dtype Py_ssize_t.
     tile_indices_receiver_supplier = asarray(tile_indices_receiver_supplier, dtype=object)
     # If all arrays in tile_indices_receiver_supplier are of the
     # same size, it will not be stored as an object array of Py_ssize_t
@@ -805,12 +947,43 @@ def get_tile_tile_pairs(
             tile_indices_receiver_supplier, dtype=C2np['Py_ssize_t'])
     except ValueError:
         pass
-    # Cache and return result
+    # Cache the result. This cache is not actually used, but it ensures
+    # that Python will not garbage collect the data.
     tile_indices_receiver_supplier_dict[key] = tile_indices_receiver_supplier
-    return tile_indices_receiver_supplier
-# Cache uses by the get_tile_tile_pairs function
-cython.declare(tile_indices_receiver_supplier_dict=dict)
+    # Now comes the caching that is actually used, where we use pointers
+    # rather than Python objects.
+    pairs_N = tile_indices_receiver_supplier.shape[0]
+    pairings   = malloc(pairs_N*sizeof('Py_ssize_t*'))
+    pairings_N = malloc(pairs_N*sizeof('Py_ssize_t'))
+    for i in range(pairs_N):
+        tile_indices_supplier_paired = tile_indices_receiver_supplier[i]
+        tile_indices_supplier_paired_ptr = cython.address(tile_indices_supplier_paired[:])
+        pairings[i] = tile_indices_supplier_paired_ptr
+        pairings_N[i] = tile_indices_supplier_paired.shape[0]
+    tile_pairings_cache_size += 1
+    tile_pairings_cache = realloc(
+        tile_pairings_cache, tile_pairings_cache_size*sizeof('Py_ssize_t**'),
+    )
+    tile_pairings_N_cache = realloc(
+        tile_pairings_N_cache, tile_pairings_cache_size*sizeof('Py_ssize_t*'),
+    )
+    tile_pairings_cache  [tile_pairings_index] = pairings
+    tile_pairings_N_cache[tile_pairings_index] = pairings_N
+    tile_pairings_cache_indices[key] = tile_pairings_index
+    return tile_pairings_index
+# Caches used by the get_tile_pairings function
+cython.declare(
+    tile_indices_receiver_supplier_dict=dict,
+    tile_pairings_cache_size='Py_ssize_t',
+    tile_pairings_cache_indices=dict,
+    tile_pairings_cache='Py_ssize_t***',
+    tile_pairings_N_cache='Py_ssize_t**',
+)
 tile_indices_receiver_supplier_dict = {}
+tile_pairings_cache_size = 0
+tile_pairings_cache_indices = {}
+tile_pairings_cache   = malloc(tile_pairings_cache_size*sizeof('Py_ssize_t**'))
+tile_pairings_N_cache = malloc(tile_pairings_cache_size*sizeof('Py_ssize_t*'))
 
 # Generic function implementing particle-mesh interactions
 # for both particle and fluid componenets.
@@ -913,9 +1086,9 @@ def particle_mesh(receivers, suppliers, ᔑdt, ᔑdt_key, potential, potential_n
                     for i in range(component.N_local):
                         # The coordinates of the i'th particle,
                         # transformed so that 0 <= x, y, z < 1.
-                        x = (posx[i] - domain_start_x)/domain_size_x
-                        y = (posy[i] - domain_start_y)/domain_size_y
-                        z = (posz[i] - domain_start_z)/domain_size_z
+                        x = (posx[i] - domain_start_x)*ℝ[1/domain_size_x]
+                        y = (posy[i] - domain_start_y)*ℝ[1/domain_size_y]
+                        z = (posz[i] - domain_start_z)*ℝ[1/domain_size_z]
                         # Look up the force via a CIC interpolation,
                         # convert it to momentum and subtract it from
                         # the momentum of particle i (subtraction

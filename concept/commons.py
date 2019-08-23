@@ -463,7 +463,10 @@ def fancyprint(
         progressprint['indentation'] -= 4
         text = ' {{}}({}){{}}'.format(time_since(progressprint['time'].pop()))
         text_length = len(text) - 4
-        text = text.format(f'{ANSI_ESC}[37m', f'{ANSI_ESC}[0m')
+        if enable_terminal_formatting:
+            text = text.format(f'{ANSI_ESC}[37m', f'{ANSI_ESC}[0m')
+        else:
+            text = text.format('', '')
         if len(args) > N_args_usual:
             text += sep + sep.join([str(arg) for arg in args[N_args_usual:]])
         # Convert to proper Unicode characters
@@ -624,12 +627,13 @@ progressprint = {
     'previous'                       : '',
     'previous_print_ends_in_ellipsis': False,
 }
-# As the suppress_output and terminal_width user parameters are used
-# in fancyprint, they need to be defined before they are actually
-# read in as parameters.
-cython.declare(suppress_output=dict, terminal_width='int')
+# As the suppress_output, terminal_width and enable_terminal_formatting
+# user parameters are used in fancyprint, they need to be defined before
+# they are actually read in as parameters.
+cython.declare(suppress_output=dict, terminal_width='int', enable_terminal_formatting='bint')
 suppress_output = {'out': set(), 'err': set()}
 terminal_width = 80
+enable_terminal_formatting = True
 
 # Functions for printing warnings
 def warn(*args, skipline=True, prefix='Warning', wrap=True, **kwargs):
@@ -1285,15 +1289,18 @@ params_file_content += '\n'.join([
 ###########################
 # Dimensionless constants #
 ###########################
-cython.declare(machine_ϵ='double',
-               π='double',
-               ρ_vacuum='double',
-               ထ='double',
-               )
-machine_ϵ = np.finfo(C2np['double']).eps
-π = np.pi
-ρ_vacuum = 1e+2*machine_ϵ
-ထ = cast(np.inf, 'double')
+cython.declare(
+    machine_ϵ='double',
+    π='double',
+    ρ_vacuum='double',
+    ထ='double',
+    NaN='double',
+)
+machine_ϵ = float(np.finfo(C2np['double']).eps)
+π = float(np.pi)
+ρ_vacuum = float(1e+2*machine_ϵ)
+ထ = float('inf')
+NaN = float('nan')  # Note: nan (all lowercase) conflicts with the nan() function of C's math lib
 
 
 
@@ -1897,12 +1904,14 @@ cython.declare(
     class_extra_perturbations=set,
     # Graphics
     terminal_width='int',
+    enable_terminal_formatting='bint',
     suppress_output=dict,
     render2D_options=dict,
     render3D_colors=dict,
     render3D_bgcolor='double[::1]',
     render3D_resolution='int',
     # Debugging options
+    print_load_imbalance=object,
     enable_Hubble='bint',
     enable_class_background='bint',
     enable_debugging='bint',
@@ -2011,6 +2020,7 @@ if shortrange_params and not isinstance(list(shortrange_params.values())[0], dic
 shortrange_params.setdefault('default', {})
 for shortrange_force in ('gravity', ):
     shortrange_params.setdefault(shortrange_force, shortrange_params['default'].copy())
+subtiling_refinement_period_default = 32
 for d in shortrange_params.values():
     d.setdefault('scale', 1.25*boxsize/φ_gridsize)
     d.setdefault('cutoff', 4.8*d['scale'])
@@ -2021,12 +2031,23 @@ for d in shortrange_params.values():
     subtiling = d['subtiling']
     if isinstance(subtiling, str):
         if subtiling.lower().startswith('auto'):
-            d['subtiling'] = 'automatic'
+            d['subtiling'] = ('automatic', subtiling_refinement_period_default)
     else:
         subtiling = tuple(any2list(subtiling))
         if len(subtiling) == 1:
-            subtiling *= 3
+            subtiling = subtiling[0]
+            if isinstance(subtiling, str):
+                if subtiling.lower().startswith('auto'):
+                    subtiling = ('automatic', subtiling_refinement_period_default)
+            else:
+                subtiling = (int(subtiling),)*3
+        elif len(subtiling) == 2:
+            if isinstance(subtiling[1], str):
+                subtiling = (subtiling[1], int(subtiling[0]))
+            if isinstance(subtiling[0], str) and subtiling[0].lower().startswith('auto'):
+                subtiling = ('automatic', int(subtiling[1]))
         d['subtiling'] = subtiling
+user_params['shortrange_params'] = shortrange_params
 R_tophat = float(user_params.get('R_tophat', -1))  # Default value will be set later
 user_params['R_tophat'] = R_tophat
 modes_per_decade = float(user_params.get('modes_per_decade', 30))
@@ -2185,8 +2206,11 @@ select_softening_length.setdefault('fluid', 0)
 user_params['select_softening_length'] = select_softening_length
 # Simulation options
 Δt_base_factor = float(user_params.get('Δt_base_factor', 1))
+user_params['Δt_base_factor'] = Δt_base_factor
 Δt_rung_factor = float(user_params.get('Δt_rung_factor', 1))
+user_params['Δt_rung_factor'] = Δt_rung_factor
 N_rungs = int(user_params.get('N_rungs', 1))
+user_params['N_rungs'] = N_rungs
 fftw_wisdom_rigor = user_params.get('fftw_wisdom_rigor', 'estimate').lower()
 user_params['fftw_wisdom_rigor'] = fftw_wisdom_rigor
 fftw_wisdom_reuse = bool(user_params.get('fftw_wisdom_reuse', True))
@@ -2297,6 +2321,8 @@ user_params['class_extra_perturbations'] = class_extra_perturbations
 # Graphics
 terminal_width = to_int(user_params.get('terminal_width', 80))
 user_params['terminal_width'] = terminal_width
+enable_terminal_formatting = bool(user_params.get('enable_terminal_formatting', True))
+user_params['enable_terminal_formatting'] = enable_terminal_formatting
 suppress_output = {}
 if 'suppress_output' in user_params:
     if isinstance(user_params['suppress_output'], str):
@@ -2362,6 +2388,10 @@ user_params['render3D_bgcolor'] = render3D_bgcolor
 render3D_resolution = to_int(user_params.get('render3D_resolution', 1080))
 user_params['render3D_resolution'] = render3D_resolution
 # Debugging options
+print_load_imbalance = user_params.get('print_load_imbalance', False)
+if isinstance(print_load_imbalance, str):
+    print_load_imbalance = print_load_imbalance.lower()
+user_params['print_load_imbalance'] = print_load_imbalance
 enable_Hubble = bool(user_params.get('enable_Hubble', True))
 user_params['enable_Hubble'] = enable_Hubble
 enable_class_background = bool(user_params.get('enable_class_background', enable_Hubble))
@@ -2394,14 +2424,16 @@ user_params['Δt_autosave'] = Δt_autosave
 universals, universals_dict = build_struct(
     # Flag specifying whether any warnings have been given
     any_warnings=('bint', False),
-    # Current scale factor and cosmic time
+    # Current scale factor, cosmic time and time step
     a=('double', a_begin),
     t=('double', t_begin),
+    time_step=('Py_ssize_t', initial_time_step),
     # Initial time of simulation
     a_begin=('double', a_begin),
     t_begin=('double', t_begin),
     z_begin=('double', (ထ if a_begin == 0 else 1/a_begin - 1)),
-    # '+'-separated strings of CO𝘕CEPT/CLASS species present in the simulation
+    # '+'-separated strings of CO𝘕CEPT/CLASS species
+    # present in the simulation.
     species_present='char*',
     class_species_present='char*',
 )
@@ -3348,6 +3380,18 @@ def lru_cache(maxsize=128, typed=False, copy=False):
         return wrapper
     return decorator
 
+# The terminal object from blessings is used for formatted printing.
+# If this is disabled, we replace the terminal object
+# with a dummy object.
+if not enable_terminal_formatting:
+    class DummyTerminal:
+        @staticmethod
+        def dummy_func(x):
+            return x
+        def __getattr__(self, att):
+            return self.dummy_func
+    terminal = DummyTerminal()
+
 
 
 ##############################################################
@@ -3356,6 +3400,44 @@ def lru_cache(maxsize=128, typed=False, copy=False):
 # Abort on unrecognized snapshot_type
 if snapshot_type not in ('standard', 'gadget2'):
     abort('Does not recognize snapshot type "{}"'.format(user_params['snapshot_type']))
+# Check format on 'subtiling' values in shortrange_params.
+# Among other things, the refinement period used for automatic subtiling
+# refinement has to at least as big as subtiling_refinement_period_min,
+# as otherwise the implemented subtiling refinement shceme will not
+# function properly. To get the right value of
+# subtiling_refinement_period_min, consult the anticipation_period and
+# judgement_period variables in the interactions module.
+cython.declare(subtiling_refinement_period_min='Py_ssize_t')
+subtiling_refinement_period_min = 7
+for key, d in shortrange_params.items():
+    subtiling = d['subtiling']
+    if len(subtiling) == 3:
+        for el in subtiling:
+            if not isinstance(el, int):
+                abort(f'Could not understand shortrange_params["{key}"]["subtiling"] == {subtiling}')
+            if el < 1:
+                abort(
+                    f'shortrange_params["{key}"]["subtiling"] == {subtiling}, '
+                    f'but must be at least 1 in every direction.'
+                )
+    elif len(subtiling) == 2:
+        if not (subtiling[0] == 'automatic' and isinstance(subtiling[1], int)):
+            abort(
+                f'shortrange_params["{key}"]["subtiling"] == {subtiling}. '
+                f'When two values are specified, the first should be the str "automatic" '
+                f'and the second should be an int specifying the subtiling refinement period.'
+            )
+        # The subtiling refinement period needs to be at least 7 for the
+        # automatic subtiling refinement scheme to function properly.
+        if subtiling[1] < subtiling_refinement_period_min:
+            masterwarn(
+                f'The automatic subtiling refinement period specified in '
+                f'shortrange_params["{key}"]["subtiling"] is {subtiling[1]}, '
+                f'which is too small. It has been increased to {subtiling_refinement_period_min}.'
+            )
+            d['subtiling'] = (subtiling[0], subtiling_refinement_period_min)
+    else:
+        abort(f'Could not understand shortrange_params["{key}"]["subtiling"] == {subtiling}')
 # Abort for non-positive number of rungs. Also, since the rung indices
 # are stored as signed chars, the largest rung index that can be
 # represented is 127, corresponding to the highest rung for
