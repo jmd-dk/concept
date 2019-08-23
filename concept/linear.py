@@ -149,6 +149,10 @@ class CosmoResults:
             # the user specified extra CLASS background quantities and
             # perturbations (if any), as well as the CLASS variables
             # _VERSION, _ARGUMENT_LENGTH_MAX_ and a_min.
+            # We use a sha1 hash, which is 40 characters (hexadecimals)
+            # long. For the sake of short filenames, we only use the
+            # first sha_length characters.
+            sha_length = 10  # 10 -> 50% chance of 1 hash collision after ~10⁶ hashes
             self.id = hashlib.sha1(str(
                 tuple(sorted({str(key).replace(' ', ''): str(val).replace(' ', '').lower()
                     for key, val in self.params.items()}.items()))
@@ -157,7 +161,7 @@ class CosmoResults:
                 + tuple(sorted([str(val).replace(' ', '').lower()
                     for val in class_extra_perturbations]))
                 + (class__VERSION_, class__ARGUMENT_LENGTH_MAX_, class_a_min)
-            ).encode()).hexdigest()
+            ).encode()).hexdigest()[:sha_length]
             self.filename = f'{paths["reusables_dir"]}/class/{self.id}.hdf5'
         # Message that gets printed if and when CLASS is called
         self.class_call_reason = class_call_reason
