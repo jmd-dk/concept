@@ -621,6 +621,12 @@ parser.add_argument(
     default=${unsafe_build_default},
     action='store_true',
 )
+parser.add_argument(
+    '-v', '--version',
+    help='print version info',
+    default=False,
+    action='store_true',
+)
 # Enables Python to write directly to screen (stderr)
 # in case of help request.
 stdout_copy = sys.stdout
@@ -665,6 +671,7 @@ print('; '.join([
     \"no_watch={}\".format(args.no_watch),
     \"pure_python={}\".format(args.pure_python),
     \"unsafe_build={}\".format(args.unsafe_build),
+    \"version={}\".format(args.version),
 ]))
 " "$@" || echo "argparse_exit_code=$?")
 # Evaluate the handled arguments into this scope
@@ -679,6 +686,14 @@ if [ "${argparse_finished}" != "yes" ]; then
         trap : 0
     fi
     exit ${argparse_exit_code}
+fi
+
+# Print version info and exit, if requested
+if [ "${version}" == "True" ]; then
+    "${concept}" -m 'import commons; print(commons.__version__)' \
+        --local --pure-python | tail -n 1
+    trap : 0
+    exit 0
 fi
 
 # Display warning if the requested memory is below one megabyte
