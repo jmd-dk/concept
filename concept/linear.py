@@ -2791,6 +2791,8 @@ def get_default_k_parameters(gridsize):
     option_key=str,
     options_linear=dict,
     option_val=object,  # str or bool
+    particle_component_index='Py_ssize_t',
+    particle_components=list,
     pariclevar_name=str,
     pivot='double',
     posⁱ='double*',
@@ -3156,6 +3158,16 @@ def realize(component, variable, transfer_spline, cosmoresults,
     # Initialize index0 and index1.
     # The actual values are not important.
     index0 = index1 = 0
+    # Get the index at which this component appears
+    # in the list of instantiated particle components.
+    particle_components = [
+        other_component for other_component in component.components_all
+        if other_component.representation == 'particles'
+    ]
+    if component.representation == 'particles':
+        particle_component_index = particle_components.index(component)
+    else:
+        particle_component_index = -1
     # Loop over all fluid scalars of the fluid variable
     fluidvar = component.fluidvars[fluid_index]
     for multi_index in (
@@ -3414,6 +3426,16 @@ def realize(component, variable, transfer_spline, cosmoresults,
                                 # Displace the position of particle
                                 # at grid point (i, j, k).
                                 displacement = ψⁱ_noghosts[i, j, k]
+                                # When running with multiple particle
+                                # components, it is preferable to not
+                                # realize these "on top of each other",
+                                # as this leads to large early
+                                # gravitational forces. Here we shift
+                                # the positions by ½ grid cell (in the
+                                # case of two particle components) for
+                                # the second particle component.
+                                displacement += particle_component_index*ℝ[
+                                    boxsize/(gridsize*len(particle_components))]
                                 posⁱ[index] = mod(pos_gridpoint + displacement, boxsize)
                             with unswitch(3):
                                 if options['velocitiesfromdisplacements']:

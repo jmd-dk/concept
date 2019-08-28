@@ -999,10 +999,14 @@ class Component:
         FluidScalar ςzy
         FluidScalar ςzz
         FluidScalar 𝒫
+        # Other
+        public set components_all
         """
         # A reference to each and every Component instance ever created
-        # is stored in the global components_all set.
+        # is stored in the global components_all set. Also store a
+        # reference to components_all on this Component instance.
         components_all.add(self)
+        self.components_all = components_all
         # Check that the name does not conflict with
         # one of the special names used internally,
         # and that the name has not already been used.
