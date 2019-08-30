@@ -1119,31 +1119,25 @@ def compare_parameters(params, filename):
     msg = ''
     # Do the comparisons one by one
     if enable_Hubble and not isclose(a_begin, float(params['a']), rel_tol):
-        msg += '{}a_begin: {}'.format(indent_str,
-                                      vs.format(a_begin, params['a']))
+        msg += '{}a_begin: {}'.format(indent_str, vs.format(a_begin, params['a']))
     if not isclose(boxsize, float(params['boxsize']), rel_tol):
-        msg += '{}boxsize: {} [{}]'.format(indent_str,
-                                           vs.format(boxsize, params['boxsize']),
-                                           unit_length)
+        msg += '{}boxsize: {} [{}]'.format(
+            indent_str, vs.format(boxsize, params['boxsize']), unit_length,
+        )
     if not isclose(H0, float(params['H0']), rel_tol):
         unit = units.km/(units.s*units.Mpc)
-        msg += '{}H0: {} [km s⁻¹ Mpc⁻¹]'.format(indent_str,
-                                                vs.format(H0/unit, params['H0']/unit))
+        msg += '{}H0: {} [km s⁻¹ Mpc⁻¹]'.format(indent_str, vs.format(H0/unit, params['H0']/unit))
     if 'Ωb' in params:
         if not isclose(Ωb, float(params['Ωb']), rel_tol):
-            msg += '{}Ωb: {}'.format(indent_str,
-                                     vs.format(Ωm, params['Ωb']))
+            msg += '{}Ωb: {}'.format(indent_str, vs.format(Ωb, params['Ωb']))
     if 'Ωcdm' in params:
         if not isclose(Ωcdm, float(params['Ωcdm']), rel_tol):
-            msg += '{}Ωcdm: {}'.format(indent_str,
-                                       vs.format(Ωm, params['Ωcdm']))
+            msg += '{}Ωcdm: {}'.format(indent_str, vs.format(Ωcdm, params['Ωcdm']))
     if 'Ωm' in params:
         if not isclose(Ωm, float(params['Ωm']), rel_tol):
-            msg += '{}Ωm: {}'.format(indent_str,
-                                     vs.format(Ωm, params['Ωm']))
+            msg += '{}Ωm: {}'.format(indent_str, vs.format(Ωm, params['Ωm']))
     if msg:
-        msg = ('Mismatch between current parameters and those in the snapshot "{}":{}'
-               ).format(filename, msg)
+        msg = f'Mismatch between current parameters and those in the snapshot "{filename}":{msg}'
         masterwarn(msg, skipline=False)
 
 # Function which does a sanity check of particle components,
