@@ -271,17 +271,17 @@ a_stamps = []
 for match in re.finditer(
     'Rendering 2D projection of'
     '.+?'
-    '((?:Cosmic time|Time): +[^\n]+?)\n'
-    '(Scale factor: +[0-1]\.[0-9]+?\n)?',
+    '(Scale factor: +[0-1]\.[0-9]+?\n)?'
+    '((?:Cosmic time|Time): +[^\n]+?)\n',
     text,
     flags=re.DOTALL,
 ):
-    t_stamp = re.sub(' +', ' ', match.group(1))
-    t_stamps.append(t_stamp)
-    a_stamp = match.group(2)
+    a_stamp = match.group(1)
     if a_stamp:
         a_stamp = re.sub(' +', ' ', a_stamp.rstrip())
         a_stamps.append(a_stamp)
+    t_stamp = re.sub(' +', ' ', match.group(2))
+    t_stamps.append(t_stamp)
 # Construct final time stamp strings,
 # All time stamp strings should have the same length,
 # as otherwise they may not properly overwrite each other.
