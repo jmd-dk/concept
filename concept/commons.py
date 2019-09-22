@@ -44,7 +44,7 @@ __version__ = 'master'
 ############################################
 # Miscellaneous
 import ast, collections, contextlib, ctypes, cython, functools, hashlib, inspect, itertools
-import keyword, os, re, shutil, sys, textwrap, types, unicodedata, warnings
+import keyword, os, re, shutil, sys, textwrap, traceback, types, unicodedata, warnings
 from copy import deepcopy
 # For math
 # (note that numpy.array is purposely not imported directly into the
@@ -3391,6 +3391,19 @@ if not enable_terminal_formatting:
         def __getattr__(self, att):
             return self.dummy_func
     terminal = DummyTerminal()
+
+# Some times, the MPI environment can make erroneous file system
+# operations halt, rather than fail normaly. Here we monkey patch
+# os.makedirs to abort the program on failure.
+def tryexcept_wrapper(func, abort_msg=''):
+    def inner(*args, **kwargs):
+        try:
+            func(*args, **kwargs)
+        except Exception:
+            traceback.print_exc()
+            abort(abort_msg)
+    return inner
+os.makedirs = tryexcept_wrapper(os.makedirs, 'os.makedirs() failed')
 
 
 
