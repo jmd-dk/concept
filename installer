@@ -4457,8 +4457,8 @@ if [ "${mpi_install}" == "True" ] && [ "${mpi_installed}" == "False" ]; then
             # MPICH
             init_install "MPI"
             ./configure --enable-shared --prefix="${mpi_dir}" 2>&1 || continue
-            make ${make_jobs} 2>&1 || continue
-            make ${make_jobs} install 2>&1 || continue
+            make         2>&1 || continue  # Building in parallel takes up a lot of resources
+            make install 2>&1 || continue  # Building in parallel takes up a lot of resources
             # MPICH can be tested by running the code below.
             # Since this require several GB of memory and will occupy up
             # to 30 MPI processes, we skip these tests.
