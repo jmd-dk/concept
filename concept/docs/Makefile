@@ -3,6 +3,7 @@ publish: html
 	@mkdir -p $(PUBLISHDIR)
 	@cp -r $(BUILDDIR)/html/* $(PUBLISHDIR)/
 	@touch $(PUBLISHDIR)/.nojekyll
+	@rm -f $(PUBLISHDIR)/thesis_*.pdf
 	@printf "\nThe html documentation has been collected in \"$(PUBLISHDIR)\"\n"
 .PHONY: publish
 
