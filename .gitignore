@@ -23,6 +23,8 @@
 /tmp
 
 # Subdirectories
+/concept/docs/_build
+/concept/docs/publish
 /concept/ICs
 /concept/logs
 /concept/output
