@@ -1390,48 +1390,55 @@ def produce_np_and_builtin_function(funcname):
 # be properly read in later. First construct a namespace in which the
 # parameters can be read in.
 def construct_user_params_namespace(params_iteration):
-    return {# Include all of NumPy
-            **vars(np).copy(),
-            # Overwrite the NumPy min and max function with NumPy and
-            # builtin hybrid min and max functions.
-            'min': produce_np_and_builtin_function('min'),
-            'max': produce_np_and_builtin_function('max'),
-            # The paths dict
-            'paths': paths,
-            # Modules
-            'numpy': np,
-            'np'   : np,
-            'os'   : os,
-            're'   : re,
-            'sys'  : sys,
-            # Functions
-            'rand'    : np.random.random,
-            'random'  : np.random.random,
-            'basename': os.path.basename,
-            'dirname' : os.path.basename,
-            # MPI variables and functions
-            'master'         : master,
-            'nprocs'         : nprocs,
-            'rank'           : rank,
-            'bcast'          : bcast,
-            'call_openmp_lib': call_openmp_lib,
-            # Constants
-            'π'                 : π,
-            unicode('π')        : π,
-            'machine_ϵ'         : machine_ϵ,
-            unicode('machine_ϵ'): machine_ϵ,
-            'eps'               : machine_ϵ,
-            'ထ'                 : ထ,
-            unicode('ထ')        : ထ,
-            # Print and abort functions
-            'fancyprint' : fancyprint,
-            'masterprint': masterprint,
-            'warn'       : warn,
-            'masterwarn' : masterwarn,
-            'abort'      : abort,
-            # The number of times this namespace has been constructed
-            'params_iteration': params_iteration,
-            }
+    user_params = {
+        # Include all of NumPy
+        **vars(np).copy(),
+        # Overwrite the NumPy min and max function with NumPy and
+        # builtin hybrid min and max functions.
+        'min': produce_np_and_builtin_function('min'),
+        'max': produce_np_and_builtin_function('max'),
+        # The paths dict
+        'paths': paths,
+        # Modules
+        'numpy': np,
+        'np'   : np,
+        'os'   : os,
+        're'   : re,
+        'sys'  : sys,
+        # Functions
+        'rand'    : np.random.random,
+        'random'  : np.random.random,
+        'basename': os.path.basename,
+        'dirname' : os.path.basename,
+        # MPI variables and functions
+        'master'         : master,
+        'nprocs'         : nprocs,
+        'rank'           : rank,
+        'bcast'          : bcast,
+        'call_openmp_lib': call_openmp_lib,
+        # Constants
+        'π'                 : π,
+        unicode('π')        : π,
+        'machine_ϵ'         : machine_ϵ,
+        unicode('machine_ϵ'): machine_ϵ,
+        'eps'               : machine_ϵ,
+        'ထ'                 : ထ,
+        unicode('ထ')        : ထ,
+        # Print and abort functions
+        'fancyprint' : fancyprint,
+        'masterprint': masterprint,
+        'warn'       : warn,
+        'masterwarn' : masterwarn,
+        'abort'      : abort,
+        # The number of times this namespace has been constructed
+        'params_iteration': params_iteration,
+    }
+    # Remove "size" (np.size) form the user_params.
+    # We do this because of the _size parameter idiom, where with
+    # np.size available in user_params it appears as though the
+    # underscore is unnecessary.
+    user_params.pop('size')
+    return user_params
 user_params = construct_user_params_namespace('units')
 # Add units to the user_params namespace.
 # These do not represent the choice of units; the names should merely
@@ -2008,11 +2015,11 @@ if user_params.get('render3D_select'):
         render3D_select = {'all': user_params['render3D_select']}
 user_params['render3D_select'] = render3D_select
 # Numerical parameters
-boxsize = float(user_params.get('boxsize', 1))
+boxsize = float(user_params.get('boxsize', 512*units.Mpc))
 user_params['boxsize'] = boxsize
 ewald_gridsize = to_int(user_params.get('ewald_gridsize', 64))
 user_params['ewald_gridsize'] = ewald_gridsize
-φ_gridsize = to_int(user_params.get('φ_gridsize', 64))
+φ_gridsize = to_int(user_params.get('φ_gridsize', 32))
 user_params['φ_gridsize'] = φ_gridsize
 shortrange_params = dict(user_params.get('shortrange_params', {}))
 if shortrange_params and not isinstance(list(shortrange_params.values())[0], dict):

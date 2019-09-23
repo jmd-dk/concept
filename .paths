@@ -6,6 +6,8 @@
 #######################
 # Directory containing the source code
 concept_dir='/home/jeppe/Documents/phd/concept/concept'
+# Directory containing the documentation
+docs_dir='/home/jeppe/Documents/phd/concept/concept/docs'
 # Directory intended for initial conditions
 ics_dir='/home/jeppe/Documents/phd/concept/concept/ICs'
 # Directory containing the log files

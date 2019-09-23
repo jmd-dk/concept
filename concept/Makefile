@@ -397,6 +397,16 @@ endif
 
 
 
+##################
+# Other  targets #
+##################
+# For building the documentation
+docs:
+	@$(MAKE) -C $(docs_dir)
+.PHONY: docs
+
+
+
 ###########################
 # Additional dependencies #
 ###########################
@@ -432,6 +442,7 @@ endif
     clean                 \
     clean_autosave        \
     clean_auxiliary       \
+    clean_docs            \
     clean_ics             \
     clean_logs            \
     clean_output          \
@@ -458,6 +469,9 @@ clean_auxiliary:
 # Remove everything in the ICs directory
 clean_ics:
 	$(RM) -r $(ics_dir)/* $(ics_dir)/.[^.]*
+# Remove documentation build
+clean_docs:
+	$(MAKE) -C $(docs_dir) clean_sphinx
 # Remove everything in the log directory
 clean_logs:
 	$(RM) -r $(logs_dir)/* $(logs_dir)/.[^.]*
@@ -492,6 +506,7 @@ distclean:          \
     clean           \
     clean_autosave  \
     clean_auxiliary \
+    clean_docs      \
     clean_logs      \
     clean_params_cp \
     clean_reusables \

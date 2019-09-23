@@ -1,0 +1,26 @@
+Effortless installation
+-----------------------
+
+.. note::
+   Don't bother trying this on anything but a Linux system
+
+To install the newest version of CO\ *N*\ CEPT along with all of its
+dependencies, open a terminal and invoke
+
+.. code-block:: bash
+
+   bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/master/installer)
+
+You will be prompted for an installation directory.
+
+
+.. note::
+   The initial ``bash`` is required regardless of your shell
+
+The installation will take an hour or two. You can kill the installation at
+any time --- it will pick up from where it left off if you reenter the
+installation command.
+
+
+
+
