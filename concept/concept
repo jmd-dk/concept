@@ -1050,7 +1050,7 @@ if [ "${prepare_files}" == "True" ]; then
                 tmp_dir_preexists="True"
             fi
             make_jobs_test_dir="${top_dir}/tmp/make_jobs_test"
-            rm -rf "${make_jobs_test_dir}" || :
+            rm -rf "${make_jobs_test_dir}" 2>/dev/null || :
             mkdir -p "${make_jobs_test_dir}"
             printf "
 test:
@@ -1061,9 +1061,9 @@ test:
                 make_jobs="-j"
             fi
             if [ "${tmp_dir_preexists}" == "True" ]; then
-                rm -rf "${make_jobs_test_dir}" || :
+                rm -rf "${make_jobs_test_dir}" 2>/dev/null || :
             else
-                rm -rf "${top_dir}/tmp" || :
+                rm -rf "${top_dir}/tmp" 2>/dev/null || :
             fi
         fi
         # Compile all the modules in parallel.
@@ -1076,7 +1076,7 @@ test:
             2> >(grep -v 'GSL_.* redeclared' 1>&2) \
         )
         # Remove the temporary pure_python_source_dir
-        rm -rf "${pure_python_source_dir}"
+        rm -rf "${pure_python_source_dir}" 2>/dev/null || :
     fi
 fi
 
