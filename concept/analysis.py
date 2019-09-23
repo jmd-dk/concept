@@ -736,8 +736,8 @@ def measure(component, quantity):
             if (    component.boltzmann_order == -1
                 or (component.boltzmann_order == 0 and component.boltzmann_closure == 'truncate')
                 ):
-                # Without J as a fluid variable, no velocity exists
-                # and so no Courant limit needs to be set.
+                # Without J as a fluid variable,
+                # no explicit velocity exists.
                 v_max = 0
             elif component.boltzmann_order == 0 and component.boltzmann_closure == 'class':
                 # With J as a linear fluid variable, we only need to
