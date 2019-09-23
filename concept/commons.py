@@ -3460,6 +3460,13 @@ if N_rungs < 1:
     abort(f'N_rungs = {N_rungs}, but at least one rung must exist')
 if N_rungs > 30:
     abort(f'N_rungs = {N_rungs}, but must not be greater than 30')
+# Warn about Δt_rung_factor != 1 (the default) when not using rungs,
+# as the value of Δt_rung_factor then does not matter.
+if N_rungs == 1 and Δt_rung_factor != 1:
+    masterwarn(
+        f'You are running without rungs (N_rungs = 1), but have set '
+        f'Δt_rung_factor = {Δt_rung_factor}. This value does not matter.'
+    )
 # Abort on illegal FFTW rigor
 if fftw_wisdom_rigor not in ('estimate', 'measure', 'patient', 'exhaustive'):
     abort('Does not recognize FFTW rigor "{}"'.format(user_params['fftw_wisdom_rigor']))
