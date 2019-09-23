@@ -156,11 +156,11 @@ globals().update(primordial_spectrum)
 def ζ(k):
     return (π*sqrt(2*A_s)*k**(-3/2)*(k/pivot)**((n_s - 1)/2)
         *exp(α_s/4*log(k/pivot)**2))
-with open_hdf5(f'{this_dir}/output_small_massless/class_processed.hdf5') as f:
+with open_hdf5(f'{this_dir}/output_small_massless/class_processed.hdf5', mode='r') as f:
     k_class = f['perturbations/k'][:]
     δ_tot = f['perturbations/delta_cdm+b'][-1, :]
 Ptot_massless_class = (δ_tot*ζ(k_class))**2
-with open_hdf5(f'{this_dir}/output_small_massive_linear/class_processed.hdf5') as f:
+with open_hdf5(f'{this_dir}/output_small_massive_linear/class_processed.hdf5', mode='r') as f:
     δ_tot = (
         + (Ωcdm + Ωb)*f['perturbations/delta_cdm+b'  ][-1, :]
         + (Ων       )*f['perturbations/delta_ncdm[0]'][-1, :]
