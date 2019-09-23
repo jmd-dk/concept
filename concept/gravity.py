@@ -955,7 +955,7 @@ cython.declare(
 )
 shortrange_table = None
 shortrange_table_ptr = NULL
-shortrange_table_size = 2**14
+shortrange_table_size = 2**14  # Lower value improves caching, but leads to inaccurate lookups
 shortrange_table_maxr2 = (1 + 1e-3)*shortrange_params['gravity']['cutoff']**2
 
 # Function implementing pairwise gravity (non-periodic)
