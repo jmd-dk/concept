@@ -568,7 +568,7 @@ def info():
         value = params['boxsize']*h
         alt_str = ''
         if isint(value) and not isint(params['boxsize']):
-            alt_str = ' = {:.12g}/{:.12g} {}'.format(int(round(value)), h, unit_length)
+            alt_str = ' = {:.12g} {}/h'.format(int(round(value)), unit_length)
         masterprint('{:<20} {:.12g} {}{}'.format('boxsize', params['boxsize'], unit_length, alt_str))
         # Print out the cosmological density parameters Ωcdm and Ωb.
         # These are only present in the standard snapshots. In gadget2
