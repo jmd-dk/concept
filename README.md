@@ -50,7 +50,7 @@ for further guidance.
 
 
 
-[CLASS](https://github.com/lesgourg/class_public)
-[documentation](http://jmd-dk.github.io/concept/index.html)
-[tutorial](http://jmd-dk.github.io/concept/tutorial/tutorial.html)
+[CLASS]: https://github.com/lesgourg/class_public
+[documentation]: http://jmd-dk.github.io/concept/index.html
+[tutorial]: http://jmd-dk.github.io/concept/tutorial/tutorial.html
 
