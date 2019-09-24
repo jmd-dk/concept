@@ -25,8 +25,7 @@ general relativistic corrections.
 
 
 
-Getting Started
----------------
+### Getting Started
 To get started with CO*N*CEPT, walking through the [tutorial] is highly
 recommended. That said, installation can be as simple as
 
