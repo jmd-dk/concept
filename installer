@@ -7212,7 +7212,6 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/concept" || :
     # Create directories
-    mkdir -p "${docs_dir}"
     mkdir -p "${ics_dir}"
     mkdir -p "${logs_dir}"
     mkdir -p "${output_dir}"
@@ -7337,7 +7336,7 @@ paths_file='${paths_file}'
 python='${python}'
 " > "${paths_file}"
     # Attempt to build the CO𝘕CEPT documentation
-    (cd "${docs_dir}" && make docs) || :
+    (cd "${concept_dir}" && make docs) || :
     # CO𝘕CEPT will be tested later
 fi
 
@@ -7509,6 +7508,8 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
                     # Note that this also removes
                     # the ${top_dir}/tmp directory.
                     make distclean || :
+                    # Attempt to rebuild the CO𝘕CEPT documentation
+                    make docs || :
                 fi
             fi
         fi
