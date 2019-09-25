@@ -48,8 +48,10 @@ html: Makefile
 	@sed -i 's/.*>Next .*//g'    $(BUILDDIR)/html/tutorial/utilities.html
 	@sed -i 's/.*Previous<.*//g' $(BUILDDIR)/html/installation.html
 	@sed -i 's/.*>Next .*//g'    $(BUILDDIR)/html/installation.html
-	@sed -i 's/.*Previous<.*//g' $(BUILDDIR)/html/parameters.html
-	@sed -i 's/.*>Next .*//g'    $(BUILDDIR)/html/parameters.html
+	@sed -i 's/.*Previous<.*//g' $(BUILDDIR)/html/command_line_options.html
+	@sed -i 's/.*>Next .*//g'    $(BUILDDIR)/html/command_line_options.html
+	@sed -i 's/.*Previous<.*//g' $(BUILDDIR)/html/parameters/parameters.html
+	@sed -i 's/.*>Next .*//g'    $(BUILDDIR)/html/parameters/debugging_options.html
 	@sed -i 's/.*Previous<.*//g' $(BUILDDIR)/html/utilities/utilities.html
 	@for filename in $$(find $(BUILDDIR)/html/utilities/ -name '*.html'); do \
 	    sed -i 's/.*Previous<.*//g' $${filename} ; \
@@ -59,6 +61,10 @@ html: Makefile
 	@sed -i 's/.*Previous<.*//g' $(BUILDDIR)/html/troubleshooting.html
 	@sed -i 's/.*>Next .*//g'    $(BUILDDIR)/html/publications.html
 	@sed -i 's/.*Previous<.*//g' $(BUILDDIR)/html/publications.html
+	@# Convert all tables in the parameter sections to plain tables
+	@for filename in $$(find $(BUILDDIR)/html/parameters/ -name '*.html'); do \
+	    sed -i 's/<table class="docutils.*"/<table/g' $${filename} ; \
+	done
 
 
 

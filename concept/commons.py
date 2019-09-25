@@ -1236,11 +1236,11 @@ def sensible_path(path):
 
 
 ##########################
-# Command line arguments #
+# Command-line arguments #
 ##########################
-# Handle command line arguments given to the Python interpreter
+# Handle command-line arguments given to the Python interpreter
 # (not those explicitly given to the concept script).
-# Construct a dict from command line arguments of the form
+# Construct a dict from command-line arguments of the form
 # "param='value'"
 cython.declare(argd=dict,
                globals_dict=dict,
@@ -1254,7 +1254,7 @@ globals_dict = {}
 exec('', globals_dict)
 for key in globals_dict.keys():
     argd.pop(key, None)
-# Extract command line arguments from the dict.
+# Extract command-line arguments from the dict.
 # If not given, give the arguments some default values.
 # The parameter file
 paths['params'] = argd.get('params', '')
