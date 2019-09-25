@@ -67,6 +67,7 @@ cimport('from utilities import delegate')
     time_step_type=str,
     timespan='double',
     Δt='double',
+    Δt_backup='double',
     Δt_begin='double',
     Δt_downjump_fac='double',
     Δt_half='double',
@@ -83,6 +84,7 @@ cimport('from utilities import delegate')
     Δt_ratio_warn='double',
     Δt_reduce_fac='double',
     Δt_sync='double',
+    Δt_tmp='double',
     ᔑdt_substeps=dict,
     returns='void',
 )
@@ -140,7 +142,7 @@ def timeloop():
     Δt_increase_fac = 0.95
     # The maximum allowed fractional increase in Δt
     # after Δt_period time steps with constant time step size.
-    Δt_increase_max_fac = 0.25
+    Δt_increase_max_fac = 0.33
     # The minimum fractional increase in Δt needed before it is deemed
     # worth it to synchronize drifts/kicks and update Δt.
     Δt_increase_min_fac = 0.01
@@ -232,6 +234,7 @@ def timeloop():
     sync_time = ထ
     time_step_last_sync = 0
     recompute_Δt_max = True
+    Δt_backup = -1
     for dump_index, dump_time in enumerate(dump_times):
         # Break out of this loop when a dump has been performed
         while True:
@@ -366,6 +369,13 @@ def timeloop():
                     # Reset time_step_type and sync_time
                     time_step_type = 'init'
                     sync_time = ထ
+                    # If Δt has been momentarily lowered just to each
+                    # this sync time, the true value is stored in
+                    # Δt_backup. Here we undo this lowering.
+                    if Δt_backup != -1:
+                        if Δt < Δt_backup:
+                            Δt = Δt_backup
+                        Δt_backup = -1
                     # Reduce base time step if necessary.
                     # If not, increase it as allowed.
                     if recompute_Δt_max:
@@ -406,15 +416,17 @@ def timeloop():
                         Δt_new += ℝ[(1 + Δt_increase_min_fac)*Δt_begin]
                         # Make sure that the relative change
                         # of the base time step size is not too big.
-                        if  Δt_new > ℝ[Δt + Δt_increase_fac*(Δt_max - Δt)]:
-                            Δt_new = ℝ[Δt + Δt_increase_fac*(Δt_max - Δt)]
-                        period_frac = float(time_step + 1 - time_step_last_sync)/Δt_period
+                        Δt_tmp = Δt + Δt_increase_fac*(Δt_max - Δt)
+                        if Δt_new > Δt_tmp:
+                            Δt_new = Δt_tmp
+                        period_frac = float(time_step + 1 - time_step_last_sync)*ℝ[1/Δt_period]
                         if period_frac > 1:
                             period_frac = 1
                         elif period_frac < 0:
                             period_frac = 0
-                        if  Δt_new > ℝ[1 + period_frac*Δt_increase_max_fac]*Δt:
-                            Δt_new = ℝ[1 + period_frac*Δt_increase_max_fac]*Δt
+                        Δt_tmp = (1 + period_frac*Δt_increase_max_fac)*Δt
+                        if Δt_new > Δt_tmp:
+                            Δt_new = Δt_tmp
                         Δt = Δt_new
                     # Update time step counters
                     time_step += 1
@@ -433,6 +445,12 @@ def timeloop():
                         if dump_index != len(dump_times) - 1:
                             Δt_max = (dump_times[dump_index + 1].t - universals.t)/1.5
                             if Δt > Δt_max:
+                                # We are now lowering Δt in order to
+                                # reach the next dump time exactly. Once
+                                # the dump is completed, this lowering
+                                # of Δt should be undone, and so we take
+                                # a backup of the actual Δt.
+                                Δt_backup = Δt
                                 Δt = Δt_max
                         # Break out of the infinite loop,
                         # proceeding to the next dump time.
@@ -442,6 +460,12 @@ def timeloop():
                     # base time steps before we reach the dump time.
                     Δt_max = (dump_time.t - universals.t)/1.5
                     if Δt > Δt_max:
+                        # We are now lowering Δt in order to reach the
+                        # next dump time exactly. Once the dump is
+                        # completed, this lowering of Δt should be
+                        # undone, and so we take a backup
+                        # of the actual Δt.
+                        Δt_backup = Δt
                         Δt = Δt_max
                     # Go to init step
                     continue
