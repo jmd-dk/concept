@@ -19,7 +19,7 @@ allowing for simulations consistent with general relativity.
 CO*N*CEPT comes with a sophisticated initial condition generator built in,
 and can output snapshots, power spectra and several kinds of renders.
 
-The [CLASS] is fully integrated into CO*N*CEPT, supplying the needed
+The [CLASS] code is fully integrated into CO*N*CEPT, supplying the needed
 information for e.g. initial condition generation and
 general relativistic corrections.
 
@@ -29,7 +29,9 @@ general relativistic corrections.
 To get started with CO*N*CEPT, walking through the [tutorial] is highly
 recommended. That said, installation can be as simple as
 
-    bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/master/installer)
+```bash
+bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/master/installer)
+```
 
 which installs CO*N*CEPT along with all of its dependencies into a single
 directory. The installation takes about an hour or two on modern hardware.
@@ -39,7 +41,9 @@ command and it will pick up from where it was.
 To run a small sample simulation, navigate to the `concept` directory
 and invoke
 
-    ./concept -p params/example_params -n 2 --local
+```bash
+./concept -p params/example_params -n 2 --local
+```
 
 This will run the simulation defined by the provided `example_params`
 parameter file using 2 processes.
