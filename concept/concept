@@ -498,7 +498,7 @@ def time(value):
         value = int(math.ceil(s*units['s'] + m*units['m'] + h*units['h'] + d*units['d']))
     # Now value should be in integer seconds
     if value < 0:
-        raise argparse.ArgumentTypeError(\"the walltime cannot be negative\")
+        raise argparse.ArgumentTypeError(\"the wall time cannot be negative\")
     # Convert to the format hh:mm:ss.
     h = value//units['h']
     value -= h*units['h']
@@ -522,8 +522,8 @@ parser = argparse.ArgumentParser(
 parser.add_argument(
     '-c', '--command-line-param',
     help=(
-        'specify parameter(s) directly from the command line. '
-        'If a parameter file is specified as well, the command line '
+        'specify parameter(s) directly from the command-line. '
+        'If a parameter file is specified as well, the command-line '
         'parameters will take precedence. This option may be specified '
         'multiple times.'
     ),
@@ -587,7 +587,7 @@ parser.add_argument(
 )
 parser.add_argument(
     '-w', '--walltime',
-    help='walltime for remote job',
+    help='wall time for remote job',
     type=time,
     default='${walltime_default}',
 )
@@ -702,9 +702,9 @@ if [ ${memory} -gt 0 ] && [ ${memory} -lt 1048576 ]; then
 Have you forgotten to specify the unit?" "red"
 fi
 
-# Display warning if the requested walltime is below one minute
+# Display warning if the requested wall time is below one minute
 if [ "${walltime}" != "00:00:00" ] && [[ "${walltime}" == "00:00:"* ]]; then
-    colorprint "Warning: The requested walltime is below 1 minute. \
+    colorprint "Warning: The requested wall time is below 1 minute. \
 Have you forgotten to specify the unit?" "red"
 fi
 
@@ -1149,12 +1149,12 @@ else
     cp "${params}" "${params_cp}"
     params_cp_info=" (copied to \"$(sensible_path ${params_cp})\")"
 fi
-# Insert command line parameters
+# Insert command-line parameters
 # at the bottom of the copied parameter file.
 "${python}" -B -c "
 lines = [
     '# The above is a copy of the CO𝘕CEPT parameter file \"${params}\".',
-    '# Below we apply any additional command line parameters.',
+    '# Below we apply any additional command-line parameters.',
 ]
 for statement in '${command_line_param}'.split(';'):
     lines.append(statement.strip())

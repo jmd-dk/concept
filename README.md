@@ -53,7 +53,7 @@ for further guidance.
 
 
 
-[CLASS]: https://github.com/lesgourg/class_public
+[CLASS]: http://class-code.net
 [documentation]: http://jmd-dk.github.io/concept/index.html
 [tutorial]: http://jmd-dk.github.io/concept/tutorial/tutorial.html
 
