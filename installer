@@ -7424,7 +7424,7 @@ paths_file='${paths_file}'
 python='${python}'
 " > "${paths_file}"
     # Attempt to build the CO𝘕CEPT documentation
-    (cd "${concept_dir}" && make docs) || :
+    (cd "${concept_dir}" && source concept && make docs) || :
     # CO𝘕CEPT will be tested later
 fi
 
