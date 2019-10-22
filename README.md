@@ -54,6 +54,6 @@ for further guidance.
 
 
 [CLASS]: http://class-code.net
-[documentation]: http://jmd-dk.github.io/concept/index.html
-[tutorial]: http://jmd-dk.github.io/concept/tutorial/tutorial.html
+[documentation]: https://jmd-dk.github.io/concept/
+[tutorial]: https://jmd-dk.github.io/concept/tutorial/tutorial.html
 

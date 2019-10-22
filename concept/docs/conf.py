@@ -12,7 +12,7 @@ import sphinx_rtd_theme
 extensions = ['sphinx_rtd_theme']
 html_theme = 'sphinx_rtd_theme'
 html_theme_options = {
-    'canonical_url': 'https://jmd-dk.github.io/concept/index.html',
+    'canonical_url': 'https://jmd-dk.github.io/concept/',
     'logo_only': False,
     'display_version': False,
     'prev_next_buttons_location': 'both',
