@@ -169,10 +169,11 @@ CC_version = $(shell info="$$($(CC) --version | head -n 1 || :)";               
                      elif echo "$${info}" | grep -i icc >/dev/null; then echo "icc"; \
                      else echo "gcc"; \
                      fi)
-unwanted_warnings =         \
-    unused-but-set-variable \
-    uninitialized           \
-    implicit-fallthrough    \
+unwanted_warnings =            \
+    uninitialized              \
+    missing-field-initializers \
+    unused-but-set-variable    \
+    implicit-fallthrough       \
 
 python_cflags = $(filter-out $(addprefix -W,$(unwanted_warnings)) -g -fwrapv, \
                              $(shell $(python_config) --cflags))
