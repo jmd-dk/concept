@@ -37,7 +37,7 @@ running CO\ *N*\ CEPT simulations locally.
      </span></code>
    </h4>
 
-Displays a short description of each command-line option and exit. This is
+Displays a short description of each command-line option and exits. This is
 helpful if you forget the exact syntax. For learning about the usage of a
 given option, this page is much preferable.
 
@@ -250,6 +250,18 @@ remote job (which fails if you have not specified the ``-q``
      Pure Python:
      <code class="docutils literal notranslate"><span class="pre">
        --pure-python
+     </span></code>
+   </h4>
+
+*Under construction!*
+
+
+.. raw:: html
+
+   <h4>
+     No recompilation:
+     <code class="docutils literal notranslate"><span class="pre">
+       --no-recompilation
      </span></code>
    </h4>
 

@@ -347,6 +347,7 @@ local_default="False"
 main_default="${concept_dir}/main.py"
 memory_default=0  # 0 implies unset
 no_watch_default="False"
+no_recompilation_default="False"
 no_optimization_default="False"
 nprocs_default=1
 params_default="None"
@@ -598,6 +599,12 @@ parser.add_argument(
     action='store_true',
 )
 parser.add_argument(
+    '--no-recompilation',
+    help='do not re-cythonize and recompile before running',
+    default=${no_recompilation_default},
+    action='store_true',
+)
+parser.add_argument(
     '--no-optimization',
     help='disable compiler optimizations',
     default=${no_optimization_default},
@@ -667,6 +674,7 @@ print('; '.join([
     \"utility_args={}\".format(python_list2bash_array(utility_args)),
     \"walltime={}\".format(args.walltime),
     \"local={}\".format(args.local),
+    \"no_recompilation={}\".format(args.no_recompilation),
     \"no_optimization={}\".format(args.no_optimization),
     \"no_watch={}\".format(args.no_watch),
     \"pure_python={}\".format(args.pure_python),
@@ -1032,51 +1040,54 @@ if [ "${prepare_files}" == "True" ]; then
                                     done
              )
         fi
-        # When compiling, the pyxpp.py script needs a copy of
-        # all *.py source files located in a directory named
-        # ".pure_python_source_copy", placed within the
-        # concept directory.
-        pure_python_source_dir="${concept_dir}/.pure_python_source_copy"
-        mkdir -p "${pure_python_source_dir}"
-        cp "${concept_dir}"/*.py "${pure_python_source_dir}"/
-        # When running locally, set the "make_jobs" variable,
-        # holding the -j option for future make commands, enabling
-        # parallel building. Some implementations of make does not
-        # support the bare -j option without explicitly specifying a
-        # number afterwards. If so, we do not make use of the -j option.
-        if [ "${ssh}" == "False" ] && [ -z "${make_jobs}" ]; then
-            tmp_dir_preexists="False"
-            if [ -d "${top_dir}/tmp" ]; then
-                tmp_dir_preexists="True"
-            fi
-            make_jobs_test_dir="${top_dir}/tmp/make_jobs_test"
-            rm -rf "${make_jobs_test_dir}" 2>/dev/null || :
-            mkdir -p "${make_jobs_test_dir}"
-            printf "
+        if [ "${no_recompilation}" != "True" ]; then
+            # When compiling, the pyxpp.py script needs a copy of
+            # all *.py source files located in a directory named
+            # ".pure_python_source_copy", placed within the
+            # concept directory.
+            pure_python_source_dir="${concept_dir}/.pure_python_source_copy"
+            mkdir -p "${pure_python_source_dir}"
+            cp "${concept_dir}"/*.py "${pure_python_source_dir}"/
+            # When running locally, set the "make_jobs" variable,
+            # holding the -j option for future make commands, enabling
+            # parallel building. Some implementations of make does not
+            # support the bare -j option without explicitly specifying a
+            # number afterwards. If so, we do not make use of
+            # the -j option.
+            if [ "${ssh}" == "False" ] && [ -z "${make_jobs}" ]; then
+                tmp_dir_preexists="False"
+                if [ -d "${top_dir}/tmp" ]; then
+                    tmp_dir_preexists="True"
+                fi
+                make_jobs_test_dir="${top_dir}/tmp/make_jobs_test"
+                rm -rf "${make_jobs_test_dir}" 2>/dev/null || :
+                mkdir -p "${make_jobs_test_dir}"
+                printf "
 test:
 \t@echo success
 " > "${make_jobs_test_dir}/Makefile"
-            make_jobs_output="$(cd "${make_jobs_test_dir}" && make -j 2>/dev/null)" || :
-            if [ "${make_jobs_output}" == "success" ]; then
-                make_jobs="-j"
+                make_jobs_output="$(cd "${make_jobs_test_dir}" && make -j 2>/dev/null)" || :
+                if [ "${make_jobs_output}" == "success" ]; then
+                    make_jobs="-j"
+                fi
+                if [ "${tmp_dir_preexists}" == "True" ]; then
+                    rm -rf "${make_jobs_test_dir}" 2>/dev/null || :
+                else
+                    rm -rf "${top_dir}/tmp" 2>/dev/null || :
+                fi
             fi
-            if [ "${tmp_dir_preexists}" == "True" ]; then
-                rm -rf "${make_jobs_test_dir}" 2>/dev/null || :
-            else
-                rm -rf "${top_dir}/tmp" 2>/dev/null || :
-            fi
+            # Compile all the modules in parallel.
+            # Cython might warn about redeclarations in CythonGSL,
+            # which we filter out as we do not want to worry about them.
+            (cd "${concept_dir}" && make               \
+                unsafe_build="${unsafe_build}"         \
+                no_optimization="${no_optimization}"   \
+                ${make_jobs}                           \
+                2> >(grep -v 'GSL_.* redeclared' 1>&2) \
+            )
+            # Remove the temporary pure_python_source_dir
+            rm -rf "${pure_python_source_dir}" 2>/dev/null || :
         fi
-        # Compile all the modules in parallel.
-        # Cython might warn about redeclarations in CythonGSL,
-        # which we filter out as we do not want to worry about them.
-        (cd "${concept_dir}" && make               \
-            unsafe_build="${unsafe_build}"         \
-            no_optimization="${no_optimization}"   \
-            ${make_jobs}                           \
-            2> >(grep -v 'GSL_.* redeclared' 1>&2) \
-        )
-        # Remove the temporary pure_python_source_dir
-        rm -rf "${pure_python_source_dir}" 2>/dev/null || :
     fi
 fi
 
@@ -1097,6 +1108,10 @@ if [ "${utility}" != "${utility_unspecified}" ]; then
     interactive_flag=""
     if [ "${interactive}" == "True" ]; then
         interactive_flag="--interactive"
+    fi
+    no_recompilation_flag=""
+    if [ "${no_recompilation}" == "True" ]; then
+        no_recompilation_flag="--no-recompilation"
     fi
     no_optimization_flag=""
     if [ "${no_optimization}" == "True" ]; then

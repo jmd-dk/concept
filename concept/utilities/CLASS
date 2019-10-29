@@ -233,6 +233,7 @@ jobid_and_exit_code="$(                \
         --memory=${memory}             \
         ${interactive_flag}            \
         ${local_flag}                  \
+        ${no_recompilation_flag}       \
         ${no_optimization_flag}        \
         ${no_watch_flag}               \
         ${pure_python_flag}            \
