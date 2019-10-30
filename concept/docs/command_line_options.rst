@@ -212,7 +212,7 @@ documented above.
    <h4>
      No watching:
      <code class="docutils literal notranslate"><span class="pre">
-       --no-watch
+       --no-watching
      </span></code>
    </h4>
 

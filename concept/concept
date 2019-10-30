@@ -346,7 +346,7 @@ interactive_default="False"
 local_default="False"
 main_default="${concept_dir}/main.py"
 memory_default=0  # 0 implies unset
-no_watch_default="False"
+no_watching_default="False"
 no_recompilation_default="False"
 no_optimization_default="False"
 nprocs_default=1
@@ -611,9 +611,9 @@ parser.add_argument(
     action='store_true',
 )
 parser.add_argument(
-    '--no-watch',
+    '--no-watching',
     help='do not follow the submitted job via the watch utility',
-    default=${no_watch_default},
+    default=${no_watching_default},
     action='store_true',
 )
 parser.add_argument(
@@ -676,7 +676,7 @@ print('; '.join([
     \"local={}\".format(args.local),
     \"no_recompilation={}\".format(args.no_recompilation),
     \"no_optimization={}\".format(args.no_optimization),
-    \"no_watch={}\".format(args.no_watch),
+    \"no_watching={}\".format(args.no_watching),
     \"pure_python={}\".format(args.pure_python),
     \"unsafe_build={}\".format(args.unsafe_build),
     \"version={}\".format(args.version),
@@ -1117,9 +1117,9 @@ if [ "${utility}" != "${utility_unspecified}" ]; then
     if [ "${no_optimization}" == "True" ]; then
         no_optimization_flag="--no-optimization"
     fi
-    no_watch_flag=""
-    if [ "${no_watch}" == "True" ]; then
-        no_watch_flag="--no-watch"
+    no_watching_flag=""
+    if [ "${no_watching}" == "True" ]; then
+        no_watching_flag="--no-watching"
     fi
     pure_python_flag=""
     if [ "${pure_python}" == "True" ]; then
@@ -1434,8 +1434,8 @@ An almost complete job script has been saved to \"${jobscript}\"." "red"
     # Deactivate traps before exiting
     trap : 0
     # Invoke the watch utility on the submitted job
-    # unless --no-watch was supplied.
-    if [ "${no_watch}" == "False" ]; then
+    # unless --no-watching was supplied.
+    if [ "${no_watching}" == "False" ]; then
         # Invoke the watch utility on the submitted job
         echo "You can now kill (Ctrl-C) this script without cancelling the job"
         sleep 1
