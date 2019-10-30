@@ -235,7 +235,7 @@ jobid_and_exit_code="$(                \
         ${local_flag}                  \
         ${no_recompilation_flag}       \
         ${no_optimization_flag}        \
-        ${no_watch_flag}               \
+        ${no_watching_flag}            \
         ${pure_python_flag}            \
         ${unsafe_build_flag}           \
     | tee >(cat - >&4)                 \
@@ -260,7 +260,7 @@ jobid="$("${python}" -B -c                                                      
 
 # Exit gracefully
 echo
-if [ "${remote}" == "False" ] || [ "${no_watch}" == "False" ]; then
+if [ "${remote}" == "False" ] || [ "${no_watching}" == "False" ]; then
     if [ -z "${jobid}" ]; then
         colorprint "Error capturing jobid from output" "red"
         exit 1

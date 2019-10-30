@@ -201,7 +201,7 @@ paths['params'] = params_path_ori
             ${local_flag}                  \
             ${no_recompilation_flag}       \
             ${no_optimization_flag}        \
-            --no-watch                     \
+            --no-watching                  \
             ${pure_python_flag}            \
             ${unsafe_build_flag}           \
         | tee >(cat >&4)                   \
@@ -233,7 +233,7 @@ plural=""
 if [ ${N_snapshots} -gt 1 ]; then
     plural="s"
 fi
-if [ "${remote}" == "True" ] && [ "${no_watch}" == "False" ]; then
+if [ "${remote}" == "True" ] && [ "${no_watching}" == "False" ]; then
     printf "\nYou can now kill (Ctrl-C) this script without cancelling the job${plural}\n"
     printf "\nWill now watch the submitted job${plural}\n\n"
     for jobid in "${jobids[@]}"; do
@@ -245,7 +245,7 @@ else
 fi
 
 # Exit gracefully
-if [ "${remote}" == "False" ] || [ "${no_watch}" == "False" ]; then
+if [ "${remote}" == "False" ] || [ "${no_watching}" == "False" ]; then
     completely_successful="yes"
     for jobid in "${jobids[@]}"; do
         if [ -z "${jobid}" ]; then
