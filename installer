@@ -41,7 +41,7 @@ Options taken by this script:
                given program. Any test failures will also be reported at the
                end of the entire installation.
   -y, --yes    Accept default options on future quiries. Currently these
-               include only the system wide installations of basic system
+               include only the system-wide installations of basic system
                dependencies (e.g. gcc), should they be missing.
                Note that this require root access.
   --fix-ssh    Set up the ~/.ssh directory so that it allows for password-less
@@ -196,7 +196,7 @@ Should the installation process end prematurely (e.g. due to network failure),
 simply rerun this script with the same arguments and environment variables
 as originally, and it will pick up the installation from where it left off.
 
-See https://github.com/jmd-dk/concept for further information.
+See https://github.com/jmd-dk/concept/ for further information.
 '
 # Print help text and exit, if help is requested
 for var in "$@"; do
@@ -374,10 +374,10 @@ set_version "matplotlib"       "3.1.1"
 set_version "mpi4py"           "3.0.2"
 set_version "numpy"            "1.17.3"
 set_version "pip"              "19.3.1"
-set_version "pytest"           "5.2.1"
+set_version "pytest"           "5.2.2"
 set_version "scipy"            "1.3.1"
-set_version "setuptools"       "41.4.0"
-set_version "sphinx"           "2.2.0"
+set_version "setuptools"       "41.6.0"
+set_version "sphinx"           "2.2.1"
 set_version "sphinx_rtd_theme" "0.4.3"
 set_version "wheel"            "0.33.6"
 # Note that the versions may be changed further down due to known
@@ -4806,55 +4806,91 @@ if [ "${fftw_install}" == "True" ] && [ "${fftw_installed}" == "False" ]; then
     if [ -n "${mpi_dir}" ]; then
         enable_mpi="--enable-mpi"
     fi
-    for enable_shared in "--enable-shared" ""; do
-        for shared in "" "-shared"; do
-            if [ -z "${enable_shared}" ] && [ -n "${shared}" ]; then
-                continue
-            fi
-            for with_pic in "" "--with-pic"; do
-                for PIC in "-fPIC" ""; do
-                    for extra_MPILIBS in "" "-lmpi" "-lmpich"; do
-                        if [ -z "${enable_mpi}" ] && [ -n "${extra_MPILIBS}" ]; then
-                            continue
+    for extra_optimizations in "True" "False"; do
+        for enable_shared in "--enable-shared" ""; do
+            for shared in "" "-shared"; do
+                if [ -z "${enable_shared}" ] && [ -n "${shared}" ]; then
+                    continue
+                fi
+                for with_pic in "" "--with-pic"; do
+                    for PIC in "-fPIC" ""; do
+                        for extra_MPILIBS in "" "-lmpi" "-lmpich"; do
+                            if [ -z "${enable_mpi}" ] && [ -n "${extra_MPILIBS}" ]; then
+                                continue
+                            fi
+                            for SIMD in                    \
+                                "--enable-avx512"          \
+                                "--enable-avx2"            \
+                                "--enable-avx"             \
+                                "--enable-sse2"            \
+                                "--enable-generic-simd256" \
+                                "--enable-generic-simd128" \
+                                ""                         \
+                            ; do
+                                reset_environment
+                                init_install "FFTW"
+                                printf "
+Attempting to install FFTW with extra_optimizations=${extra_optimizations}, \
+enable_shared=${enable_shared}, with_pic=${with_pic}, \
+PIC=${PIC}, shared=${shared}, extra_MPILIBS=${extra_MPILIBS}, SIMD=${SIMD}\n\n"
+                                if [ -n "${enable_mpi}" ]; then
+                                    use_specified_mpi_compilers
+                                    export MPICC="${CC}"
+                                    export MPILIBS="${extra_MPILIBS} ${MPILIBS}"
+                                fi
+                                export CFLAGS="-O3 ${PIC} ${CFLAGS}"
+                                export CXXFLAGS="-O3 ${PIC} ${CXXFLAGS}"
+                                export LDFLAGS="${LDFLAGS} -Wl,-O3 ${shared} ${PIC}"
+                                if [ "${extra_optimizations}" == "True" ]; then
+                                    export CFLAGS="${CFLAGS} -march=native"
+                                    info="$("${CC}" --version | head -n 1 || :)"
+                                    if echo "${info}" | grep -i icc >/dev/null; then
+                                        # icc
+                                        export CFLAGS="${CFLAGS} \
+-fp-model fast=2 -inline-factor=200"
+                                    else
+                                        # Assume gcc
+                                        export CFLAGS="${CFLAGS} \
+-ffast-math --param max-inline-insns-auto=100 --param early-inlining-insns=200"
+                                    fi
+                                fi
+                                # Double-precision
+                                ./configure ${enable_shared}  \
+                                            ${enable_mpi}     \
+                                            --disable-fortran \
+                                            ${with_pic}       \
+                                            ${SIMD}           \
+                                            --prefix="${fftw_dir}" 2>&1 || continue
+                                make ${make_jobs} 2>&1 || continue
+                                if [ "${extra_optimizations}" == "True" ]; then
+                                    make check || continue
+                                fi
+                                if [ "${do_tests}" == "True" ]; then
+                                    make ${make_jobs} check 2>&1 | tee "test_log"
+                                    fftw_test_success="${fftw_test_success_backup}"
+                                    [ ${PIPESTATUS[0]} -eq 0 ] || fftw_test_success="False"
+                                fi
+                                make ${make_jobs} install 2>&1 || continue
+                                # Single-precision
+                                make clean || :
+                                ./configure ${enable_shared}  \
+                                            ${enable_mpi}     \
+                                            --enable-float    \
+                                            --disable-fortran \
+                                            ${with_pic}       \
+                                            --prefix="${fftw_dir}" 2>&1 || continue
+                                make ${make_jobs}         2>&1 || continue
+                                make ${make_jobs} install 2>&1 || continue
+                                install_success="True"
+                                break
+                            done
+                            if [ "${install_success}" == "True" ]; then
+                                break
+                            fi
+                        done
+                        if [ "${install_success}" == "True" ]; then
+                            break
                         fi
-                        reset_environment
-                        init_install "FFTW"
-                        printf "
-Attempting to install FFTW with enable_shared=${enable_shared}, with_pic=${with_pic}, \
-PIC=${PIC}, shared=${shared}, extra_MPILIBS=${extra_MPILIBS}\n\n"
-                        export CFLAGS="-O3 ${PIC} ${CFLAGS}"
-                        export CXXFLAGS="-O3 ${PIC} ${CXXFLAGS}"
-                        export LDFLAGS="${LDFLAGS} ${shared} ${PIC}"
-                        if [ -n "${enable_mpi}" ]; then
-                            use_specified_mpi_compilers
-                            export MPICC="${CC}"
-                            export MPILIBS="${extra_MPILIBS} ${MPILIBS}"
-                        fi
-                        # Double-precision
-                        ./configure ${enable_shared}  \
-                                    ${enable_mpi}     \
-                                    --disable-fortran \
-                                    ${with_pic}       \
-                                    --prefix="${fftw_dir}" 2>&1 || continue
-                        make ${make_jobs} 2>&1 || continue
-                        if [ "${do_tests}" == "True" ]; then
-                            make ${make_jobs} check 2>&1 | tee "test_log"
-                            fftw_test_success="${fftw_test_success_backup}"
-                            [ ${PIPESTATUS[0]} -eq 0 ] || fftw_test_success="False"
-                        fi
-                        make ${make_jobs} install 2>&1 || continue
-                        # Single-precision
-                        make clean || :
-                        ./configure ${enable_shared}  \
-                                    ${enable_mpi}     \
-                                    --enable-float    \
-                                    --disable-fortran \
-                                    ${with_pic}       \
-                                    --prefix="${fftw_dir}" 2>&1 || continue
-                        make ${make_jobs}         2>&1 || continue
-                        make ${make_jobs} install 2>&1 || continue
-                        install_success="True"
-                        break
                     done
                     if [ "${install_success}" == "True" ]; then
                         break
@@ -5267,6 +5303,8 @@ if [ "${python_install}" == "True" ]; then
     # updating pip. Here we make sure to unset PYTHONPATH, and we do not
     # set it again, not even through the reset_environment function.
     unset PYTHONPATH
+    # Similarly unset PYTHONHOME
+    unset PYTHONHOME
     # As we are installing Python from scratch, we remove the user site
     # directory (~/.local/lib/python3.x/site-packages) from the searched
     # paths when importing modules in Python. In this way, other Python
@@ -5275,21 +5313,21 @@ if [ "${python_install}" == "True" ]; then
 fi
 if [ "${python_install}" == "True" ] && [ "${python_installed}" == "False" ]; then
     install_success="False"
+    # Build with pip if both openssl and zlib are installed.
+    # For Python >=3.7, a standalone libffi is also required,
+    # though we do not check explicitly for this.
+    with_ensurepip_install=""
+    if [ -n "${openssl_dir}" ] && [ -n "${zlib_dir}" ]; then
+        with_ensurepip_install="--with-ensurepip=install"
+    fi
     # The configure script will check whether atomic operations may
     # be used. Some compilers (e.g. Intel 2019) only implement a subset
-    # of the needed atomic operations, and so may falsely passed this
+    # of the needed atomic operations, and so may falsely pass this
     # check. If none of the other combination of options (compiler and
     # optimization choices) work, we try everything again while claiming
     # that we do not support atomic operations at all.
     for compiler in "${compiler_possibilities[@]}"; do
         for disable_atomic_operations in "False" "True"; do
-            # Build with pip if both openssl and zlib are installed.
-            # For Python >=3.7, a standalone libffi is also required,
-            # though we do not check explicitly for this.
-            with_ensurepip_install=""
-            if [ -n "${openssl_dir}" ] && [ -n "${zlib_dir}" ]; then
-                with_ensurepip_install="--with-ensurepip=install"
-            fi
             # Try building with optimizations (both profile guided
             # compile time optimization (pgo) and link time
             # optimization (lto)). If it fails for whatever reason,
@@ -7331,6 +7369,7 @@ with open('${env_file}', 'w', encoding='utf-8') as file:
             print('# The following has been placed by the installer script', file=file)
             if '${python_install}' == 'True':
                 print('unset PYTHONPATH', file=file)
+                print('unset PYTHONHOME', file=file)
                 print('export PYTHONNOUSERSITE=\"True\"', file=file)
             print('pathenv_name_value_pairs_installtime=( \\\\', file=file)
             for var, val in get_envs():
@@ -7423,8 +7462,6 @@ paths_file='${paths_file}'
 # The Python interpreter
 python='${python}'
 " > "${paths_file}"
-    # Attempt to build the CO𝘕CEPT documentation
-    (cd "${concept_dir}" && source concept && make docs) || :
     # CO𝘕CEPT will be tested later
 fi
 
@@ -7442,75 +7479,97 @@ if [ "${fftw_for_gadget_install}" == "True" ] \
     if [ -n "${mpi_dir}" ]; then
         enable_mpi="--enable-mpi"
     fi
-    for enable_shared in "--enable-shared" ""; do
-        for shared in "" "-shared"; do
-            if [ -z "${enable_shared}" ] && [ -n "${shared}" ]; then
-                continue
-            fi
-            for with_pic in "" "--with-pic"; do
-                for PIC in "-fPIC" ""; do
-                    for extra_MPILIBS in "" "-lmpi" "-lmpich"; do
-                        if [ -z "${enable_mpi}" ] && [ -n "${extra_MPILIBS}" ]; then
-                            continue
-                        fi
-                        reset_environment
-                        init_install "FFTW for GADGET"
-                        printf "
-Attempting to install FFTW for GADGET with enable_shared=${enable_shared}, with_pic=${with_pic}, \
+    for extra_optimizations in "True" "False"; do
+        for enable_shared in "--enable-shared" ""; do
+            for shared in "" "-shared"; do
+                if [ -z "${enable_shared}" ] && [ -n "${shared}" ]; then
+                    continue
+                fi
+                for with_pic in "" "--with-pic"; do
+                    for PIC in "-fPIC" ""; do
+                        for extra_MPILIBS in "" "-lmpi" "-lmpich"; do
+                            if [ -z "${enable_mpi}" ] && [ -n "${extra_MPILIBS}" ]; then
+                                continue
+                            fi
+                            reset_environment
+                            init_install "FFTW for GADGET"
+                            printf "
+Attempting to install FFTW for GADGET with extra_optimizations=${extra_optimizations}, \
+enable_shared=${enable_shared}, with_pic=${with_pic}, \
 PIC=${PIC}, shared=${shared}, extra_MPILIBS=${extra_MPILIBS}\n\n"
-                        export CFLAGS="-O3 ${PIC} ${CFLAGS}"
-                        export CXXFLAGS="-O3 ${PIC} ${CXXFLAGS}"
-                        export LDFLAGS="${LDFLAGS} ${shared} ${PIC}"
-                        if [ -n "${enable_mpi}" ]; then
-                            use_specified_mpi_compilers
-                            export MPICC="${CC}"
-                            export MPILIBS="${extra_MPILIBS} ${MPILIBS}"
+                            export CFLAGS="-O3 ${PIC} ${CFLAGS}"
+                            export CXXFLAGS="-O3 ${PIC} ${CXXFLAGS}"
+                            export LDFLAGS="${LDFLAGS} -Wl,-O3 ${shared} ${PIC}"
+                            if [ -n "${enable_mpi}" ]; then
+                                use_specified_mpi_compilers
+                                export MPICC="${CC}"
+                                export MPILIBS="${extra_MPILIBS} ${MPILIBS}"
+                            fi
+                            if [ "${extra_optimizations}" == "True" ]; then
+                                export CFLAGS="${CFLAGS} -march=native"
+                                info="$("${CC}" --version | head -n 1 || :)"
+                                if echo "${info}" | grep -i icc >/dev/null; then
+                                    # icc
+                                    export CFLAGS="${CFLAGS} \
+-fp-model fast=2 -inline-factor=200"
+                                else
+                                    # Assume gcc
+                                    export CFLAGS="${CFLAGS} \
+-ffast-math --param max-inline-insns-auto=100 --param early-inlining-insns=200"
+                                fi
+                            fi
+                            # Intel compilers may link against the NUMA library, which should be
+                            # placed in /usr/lib64. Add this directory to the LDFLAGS.
+                            # Both libnuma.so and libnuma.so.1 should exist. To be sure,
+                            # we create symlinks to these in a new directory and add this
+                            # directory to LDFLAGS as well.
+                            if [ -d "/usr/lib64" ]; then
+                                export LDFLAGS="${LDFLAGS} -L/usr/lib64"
+                            fi
+                            numa_symlink_dir="${fftw_for_gadget_dir}/numa_symlinks"
+                            rm -rf "${numa_symlink_dir}" || :
+                            mkdir -p "${numa_symlink_dir}" || :
+                            if [ -f "/usr/lib64/libnuma.so" ] && [ ! -f "/usr/lib64/libnuma.so.1" ]; then
+                                ln -s "/usr/lib64/libnuma.so" "${numa_symlink_dir}/libnuma.so.1" || :
+                            fi
+                            if [ -f "/usr/lib64/libnuma.so.1" ] && [ ! -f "/usr/lib64/libnuma.so" ]; then
+                                ln -s "/usr/lib64/libnuma.so.1" "${numa_symlink_dir}/libnuma.so" || :
+                            fi
+                            export LDFLAGS="${LDFLAGS} -L${numa_symlink_dir}"
+                            # Double-precision
+                            ./configure ${enable_shared}     \
+                                        ${enable_mpi}        \
+                                        --enable-type-prefix \
+                                        --disable-fortran    \
+                                        ${with_pic}          \
+                                        --prefix="${fftw_for_gadget_dir}" 2>&1 || continue
+                            make ${make_jobs} 2>&1 || continue
+                            if [ "${extra_optimizations}" == "True" ]; then
+                                make check || continue
+                            fi
+                            if [ "${do_tests}" == "True" ]; then
+                                make ${make_jobs} check 2>&1 | tee "test_log"
+                                fftw_for_gadget_test_success="${fftw_for_gadget_test_success_backup}"
+                                [ ${PIPESTATUS[0]} -eq 0 ] || fftw_for_gadget_test_success="False"
+                            fi
+                            make ${make_jobs} install 2>&1 || continue
+                            # Single-precision
+                            make clean || :
+                            ./configure ${enable_shared}     \
+                                        ${enable_mpi}        \
+                                        --enable-float       \
+                                        --enable-type-prefix \
+                                        --disable-fortran    \
+                                        ${with_pic}          \
+                                        --prefix="${fftw_for_gadget_dir}" 2>&1 || continue
+                            make ${make_jobs}         2>&1 || continue
+                            make ${make_jobs} install 2>&1 || continue
+                            install_success="True"
+                            break
+                        done
+                        if [ "${install_success}" == "True" ]; then
+                            break
                         fi
-                        # Intel compilers may link against the NUMA library, which should be
-                        # placed in /usr/lib64. Add this directory to the LDFLAGS.
-                        # Both libnuma.so and libnuma.so.1 should exist. To be sure,
-                        # we create symlinks to these in a new directory and add this
-                        # directory to LDFLAGS as well.
-                        if [ -d "/usr/lib64" ]; then
-                            export LDFLAGS="${LDFLAGS} -L/usr/lib64"
-                        fi
-                        numa_symlink_dir="${fftw_for_gadget_dir}/numa_symlinks"
-                        rm -rf "${numa_symlink_dir}" || :
-                        mkdir -p "${numa_symlink_dir}" || :
-                        if [ -f "/usr/lib64/libnuma.so" ] && [ ! -f "/usr/lib64/libnuma.so.1" ]; then
-                            ln -s "/usr/lib64/libnuma.so" "${numa_symlink_dir}/libnuma.so.1" || :
-                        fi
-                        if [ -f "/usr/lib64/libnuma.so.1" ] && [ ! -f "/usr/lib64/libnuma.so" ]; then
-                            ln -s "/usr/lib64/libnuma.so.1" "${numa_symlink_dir}/libnuma.so" || :
-                        fi
-                        export LDFLAGS="${LDFLAGS} -L${numa_symlink_dir}"
-                        # Double-precision
-                        ./configure ${enable_shared}     \
-                                    ${enable_mpi}        \
-                                    --enable-type-prefix \
-                                    --disable-fortran    \
-                                    ${with_pic}          \
-                                    --prefix="${fftw_for_gadget_dir}" 2>&1 || continue
-                        make ${make_jobs} 2>&1 || continue
-                        if [ "${do_tests}" == "True" ]; then
-                            make ${make_jobs} check 2>&1 | tee "test_log"
-                            fftw_for_gadget_test_success="${fftw_for_gadget_test_success_backup}"
-                            [ ${PIPESTATUS[0]} -eq 0 ] || fftw_for_gadget_test_success="False"
-                        fi
-                        make ${make_jobs} install 2>&1 || continue
-                        # Single-precision
-                        make clean || :
-                        ./configure ${enable_shared}     \
-                                    ${enable_mpi}        \
-                                    --enable-float       \
-                                    --enable-type-prefix \
-                                    --disable-fortran    \
-                                    ${with_pic}          \
-                                    --prefix="${fftw_for_gadget_dir}" 2>&1 || continue
-                        make ${make_jobs}         2>&1 || continue
-                        make ${make_jobs} install 2>&1 || continue
-                        install_success="True"
-                        break
                     done
                     if [ "${install_success}" == "True" ]; then
                         break
@@ -7596,8 +7655,6 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
                     # Note that this also removes
                     # the ${top_dir}/tmp directory.
                     make distclean || :
-                    # Attempt to rebuild the CO𝘕CEPT documentation
-                    make docs || :
                 fi
             fi
         fi
@@ -7607,6 +7664,20 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
     # to minimize the number of files in the CO𝘕CEPT directory.
     install_notice "CONCEPT" "${gadget_dir}"
 fi
+
+
+
+###################################
+# Build the CO𝘕CEPT code and docs #
+###################################
+current_step="building ${esc_concept}"
+heading "Building ${esc_concept}"
+set_status "Building ${esc_concept}"
+cd "${concept_dir}"
+logo_printed=True ./concept
+(source concept && make clean_logs)
+(source concept && make docs) || :
+cd "${top_dir}"
 
 
 
