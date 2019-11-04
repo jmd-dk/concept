@@ -635,7 +635,6 @@ if any(powerspec_times.values()) or special_params.get('special') == 'powerspec'
     momz='double*',
     mom_i='double',
     names=list,
-    previous_result=tuple,
     t='double',
     v_rms='double',
     v_max='double',
@@ -690,10 +689,6 @@ def measure(component, quantity):
     """
     t = universals.t
     a = universals.a
-    # Check cache for result
-    previous_result = measurements.get((component, quantity), ())
-    if previous_result and previous_result[0] == t:
-        return previous_result[1]
     # Extract variables
     N = component.N
     N_elements = component.gridsize**3
@@ -783,8 +778,6 @@ def measure(component, quantity):
                 # approximation is used or not, we simply use the
                 # global sound speed.
                 v_max += light_speed*sqrt(w)/a
-        # Store result in cache and return
-        measurements[component, quantity] = (t, v_max)
         return v_max
     elif quantity == 'v_rms':
         if component.representation == 'particles':
@@ -845,8 +838,6 @@ def measure(component, quantity):
                 # approximation is used or not, we simply use the
                 # global sound speed.
                 v_rms += light_speed*sqrt(w)/a
-        # Store result in cache and return
-        measurements[component, quantity] = (t, v_rms)
         return v_rms
     elif quantity == 'momentum':
         Σmom = empty(3, dtype=C2np['double'])
@@ -905,8 +896,6 @@ def measure(component, quantity):
                 # Pack results
                 Σmom[dim] = Σmom_dim
                 σmom[dim] = σmom_dim
-        # Store result in cache and return
-        measurements[component, quantity] = (t, (Σmom, σmom))
         return Σmom, σmom
     # Fluid quantities
     elif quantity == 'ϱ':
@@ -940,8 +929,6 @@ def measure(component, quantity):
             σϱ = sqrt(σ2ϱ)
             # Compute minimum value of ϱ
             ϱ_min = allreduce(np.min(ϱ_arr), op=MPI.MIN)
-        # Store result in cache and return
-        measurements[component, quantity] = (t, (ϱ_bar, σϱ, ϱ_min))
         return ϱ_bar, σϱ, ϱ_min
     elif quantity == 'mass':
         if component.representation == 'particles':
@@ -965,8 +952,6 @@ def measure(component, quantity):
             # Σmass = a**(-3*w_eff)*Vcell*Σϱ.
             # Note that the total mass is generally constant.
             Σmass = a**(-3*w_eff)*Vcell*Σϱ
-        # Store result in cache and return
-        measurements[component, quantity] = (t, Σmass)
         return Σmass
     elif quantity == 'discontinuity':
         if component.representation == 'particles':
@@ -1033,15 +1018,12 @@ def measure(component, quantity):
                                                            ], dtype=C2np['double'],
                                                           )
                                                  )
-        # Store result in cache and return
-        measurements[component, quantity] = (a, (names, Δdiff_max_list, Δdiff_max_normalized_list))
         return names, Δdiff_max_list, Δdiff_max_normalized_list
     elif master:
-        abort('The measure function was called with quantity=\'{}\', which is not implemented'
-              .format(quantity))
-# Cache used by the measure function
-cython.declare(measurements=dict)
-measurements = {}
+        abort(
+            f'The measure function was called with '
+            f'quantity=\'{quantity}\', which is not implemented'
+        )
 
 # Function for doing debugging analysis
 @cython.header(# Arguments
