@@ -189,9 +189,10 @@ select_softening_length = {  # Gravitational softening for each component
 }
 
 # Simulation options
-Δt_base_factor    = 1               # This scales the base time step size
-Δt_rung_factor    = 1               # This scales the rung time step size needed for a given velocity
-N_rungs           = 3               # Number of available rungs for adaptive time stepping
+Δt_base_background_factor = 1       # This scales the 'background' time step limiters
+Δt_base_nonlinear_factor  = 1       # This scales the 'non-linear' time step limiters
+Δt_rung_factor            = 1       # This scales the rung time step size needed for a given short-range acceleration
+N_rungs = 10                        # Number of available rungs for adaptive time stepping
 fftw_wisdom_rigor = 'measure'       # Rigor level when acquiring FFTW wisdom
 fftw_wisdom_reuse = True            # Reuse FFTW wisdom from earlier runs?
 random_seed                = 1      # Seed for pseudo-random numbers
