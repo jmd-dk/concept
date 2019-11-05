@@ -53,7 +53,7 @@ for further guidance.
 
 
 
-[CLASS]: http://class-code.net
+[CLASS]: http://class-code.net/
 [documentation]: https://jmd-dk.github.io/concept/
 [tutorial]: https://jmd-dk.github.io/concept/tutorial/tutorial.html
 
