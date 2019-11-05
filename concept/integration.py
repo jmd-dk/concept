@@ -878,7 +878,7 @@ def scalefactor_integral(key, t_ini, Δt, all_components):
                             f'The scalefactor integral with "{integrand}" as the integrand '
                             f'is not implemented'
                         )
-            elif ℤ[len(key) == 2]:
+            elif ℤ[len(key)] == 2:
                 # Single-component integrands
                 with unswitch:
                     if integrand == 'a**(-3*w_eff)':
@@ -893,15 +893,17 @@ def scalefactor_integral(key, t_ini, Δt, all_components):
                     elif integrand == 'a**(3*w_eff-2)':
                         w_eff = component.w_eff(t=t, a=a)
                         integrand_tab_spline[i] = a**(3*w_eff - 2)
+                    elif integrand == 'a**(2-3*w_eff)':
+                        w_eff = component.w_eff(t=t, a=a)
+                        integrand_tab_spline[i] = a**(2 - 3*w_eff)
                     elif master:
                         abort(
                             f'The scalefactor integral with "{integrand}" as the integrand '
                             f'is not implemented'
                         )
-            elif ℤ[len(key) == 3]:
+            elif ℤ[len(key)] == 3:
                 # Two-component integrands
-                component_0 = components[0]
-                component_1 = components[1]
+                component_0, component_1 = components
                 with unswitch:
                     if integrand == 'a**(-3*w_eff₀-3*w_eff₁-1)':
                         w_eff_0 = component_0.w_eff(t=t, a=a)
@@ -912,6 +914,8 @@ def scalefactor_integral(key, t_ini, Δt, all_components):
                             f'The scalefactor integral with "{integrand}" as the integrand '
                             f'is not implemented'
                         )
+            else:
+                abort(f'scalefactor_integral(): Invalid lenth ({len(key)}) of key {key}')
     # Do the integration
     spline = Spline(t_tab_spline[:size], integrand_tab_spline[:size], integrand)
     if enable_class_background:

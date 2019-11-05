@@ -150,12 +150,15 @@ def find_N_recv(N_send):
     rung_indices='signed char*',
     rung_indices_buf='signed char[::1]',
     rung_indices_mv='signed char[::1]',
-    rung_jumps='signed char*',
-    rung_jumps_buf='signed char[::1]',
-    rung_jumps_mv='signed char[::1]',
     rungs_N='Py_ssize_t*',
     sendbuf_mv='double[::1]',
     Δmemory='Py_ssize_t',
+    Δmomx='double*',
+    Δmomx_mv='double[::1]',
+    Δmomy='double*',
+    Δmomy_mv='double[::1]',
+    Δmomz='double*',
+    Δmomz_mv='double[::1]',
     returns='void',
 )
 def exchange(component, reset_buffers=False):
@@ -212,13 +215,11 @@ def exchange(component, reset_buffers=False):
     N_send_max = max(N_send)
     sendbuf_mv = get_buffer(N_send_max, buffer_name)
     # We additionally need a buffer storing signed char,
-    # for the rung indices and rung jumps.
+    # for the rung indices.
     if component.use_rungs:
         if rung_indices_arr.shape[0] < N_send_max:
             rung_indices_arr.resize(N_send_max, refcheck=False)
         rung_indices_buf = rung_indices_arr
-        # We reuse the buffer for rung jumps as well
-        rung_jumps_buf = rung_indices_buf
     # Find out how many particles to receive
     N_recv = find_N_recv(N_send)
     # The maximum number of particles to
@@ -245,12 +246,19 @@ def exchange(component, reset_buffers=False):
     momx_mv = component.momx_mv
     momy_mv = component.momy_mv
     momz_mv = component.momz_mv
+    # Extract Δmom pointers and memory views, storing the acceleration
+    # used to determine the rung for each particle. If not using rungs,
+    # we do not communicate these.
+    Δmomx    = component.Δmomx
+    Δmomy    = component.Δmomy
+    Δmomz    = component.Δmomz
+    Δmomx_mv = component.Δmomx_mv
+    Δmomy_mv = component.Δmomy_mv
+    Δmomz_mv = component.Δmomz_mv
     # Extract rung information
     rungs_N         = component.rungs_N
     rung_indices    = component.rung_indices
     rung_indices_mv = component.rung_indices_mv
-    rung_jumps      = component.rung_jumps
-    rung_jumps_mv   = component.rung_jumps_mv
     # Start index for received data
     index_recv_j = N_local
     # Exchange particles between processes
@@ -317,9 +325,8 @@ def exchange(component, reset_buffers=False):
             recvbuf=momz_mv[index_recv_j:],
             source=ID_recv,
         )
-        # If rungs are being used by this component, we additionally
-        # need to communicate the rung indices of the communicate
-        # particles
+        # If using rungs, exchange the rung indices and the acceleration
+        # stored in Δmom.
         with unswitch:
             if component.use_rungs:
                 # Send/receive rung_indices
@@ -338,14 +345,31 @@ def exchange(component, reset_buffers=False):
                 # Increment rung population due to received particles
                 for i in range(index_recv_j, index_recv_j + N_recv_j):
                     rungs_N[rung_indices[i]] += 1
-                # Send/receive rung_jumps
+                # Send/receive Δmomx
                 for i in range(N_send_j):
-                    # Add rung_jump to buffer
-                    rung_jumps_buf[i] = rung_jumps[indices_send_j[i]]
+                    sendbuf_mv[i] = Δmomx[indices_send_j[i]]
                 Sendrecv(
-                    rung_jumps_buf[:N_send_j],
+                    sendbuf_mv[:N_send_j],
                     dest=ID_send,
-                    recvbuf=rung_jumps_mv[index_recv_j:],
+                    recvbuf=Δmomx_mv[index_recv_j:],
+                    source=ID_recv,
+                )
+                # Send/receive Δmomy
+                for i in range(N_send_j):
+                    sendbuf_mv[i] = Δmomy[indices_send_j[i]]
+                Sendrecv(
+                    sendbuf_mv[:N_send_j],
+                    dest=ID_send,
+                    recvbuf=Δmomy_mv[index_recv_j:],
+                    source=ID_recv,
+                )
+                # Send/receive Δmomz
+                for i in range(N_send_j):
+                    sendbuf_mv[i] = Δmomz[indices_send_j[i]]
+                Sendrecv(
+                    sendbuf_mv[:N_send_j],
+                    dest=ID_send,
+                    recvbuf=Δmomz_mv[index_recv_j:],
                     source=ID_recv,
                 )
         # Update the start index for received data
@@ -378,7 +402,9 @@ def exchange(component, reset_buffers=False):
                 with unswitch:
                     if component.use_rungs:
                         rung_indices[k] = rung_indices[i]
-                        rung_jumps  [k] = rung_jumps  [i]
+                        Δmomx[k] = Δmomx[i]
+                        Δmomy[k] = Δmomy[i]
+                        Δmomz[k] = Δmomz[i]
                 k_start = k + 1
                 holes_filled += 1
                 break
@@ -850,16 +876,21 @@ def sendrecv_component(
             with unswitch:
                 if 𝔹[operation == '=']:
                     mv_send_list = component_send.pos_mv
-                else:
-                    mv_send_list = component_send.Δpos_mv
-            mv_recv_list = component_recv.pos_mv
+                    mv_recv_list = component_recv.pos_mv
+                else:  # operation == '+='
+                    abort('Δpos not implemented')
         elif variable == 'mom':
+            # Note that we always use Δmom and not mom for mv_recv_list.
+            # Thus, it is the local Δmom that is updated from the
+            # received external Δmom, not the local mom.
+            # The final "mom += Δmom" must be carried out later.
             with unswitch:
                 if 𝔹[operation == '=']:
                     mv_send_list = component_send.mom_mv
-                else:
+                    mv_recv_list = component_recv.Δmom_mv
+                else:  # operation == '+='
                     mv_send_list = component_send.Δmom_mv
-            mv_recv_list = component_recv.mom_mv
+                    mv_recv_list = component_recv.Δmom_mv
         else:
             abort(
                 f'Currently only "pos" and "mom" are implemented '
@@ -887,9 +918,9 @@ def sendrecv_component(
                                 n += 1
                     mv_send = mv_send_buf[:n]
             # Communicate the particle data
-            mv_recv = mv_recv_list[dim][:component_recv.N_local]
             with unswitch:
                 if 𝔹[operation == '=']:
+                    mv_recv = mv_recv_list[dim][:component_recv.N_local]
                     Sendrecv(mv_send, recvbuf=mv_recv, dest=dest, source=source)
                 else:  # operation == '+='
                     Sendrecv(mv_send, recvbuf=mv_recv_buf, dest=dest, source=source)
@@ -898,6 +929,7 @@ def sendrecv_component(
                     # non-zero updates, we have to loop over all
                     # populated rungs, as otherwise the indexing into
                     # mv_recv_buf will not be correct.
+                    mv_recv = mv_recv_list[dim][:component_recv.N_local]
                     n = 0
                     for i in range(tile_indices_send.shape[0]):
                         tile_index = tile_indices_send[i]
@@ -1007,7 +1039,7 @@ cython.declare(
     rung_indices_arr=object,
 )
 component_buffer = None
-rung_indices_arr = empty(0, dtype=C2np['signed char'])
+rung_indices_arr = empty(1, dtype=C2np['signed char'])
 
 # Very general function for different MPI communications
 @cython.pheader(# Arguments

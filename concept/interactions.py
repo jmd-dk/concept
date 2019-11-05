@@ -353,9 +353,6 @@ def domain_domain(
     If affected is an empty list, this is not really an interaction.
     In this case, every domain will both send and receive from every
     other domain.
-    If pairing_level == 'domain', the passed interaction will be called
-    directly by this function. If pairing_level == 'tile', the tile_tile
-    function will be called instead.
     """
     # Just to satisfy the compiler
     tile_indices_receiver = tile_indices_supplier = None
@@ -390,15 +387,13 @@ def domain_domain(
         # Unless the supplier component is truly only a supplier and
         # not also a receiver (only_supply is True), the particles
         # that supply the force also need to be updated by the passed
-        # interaction function. If the paired external domain is really
-        # the local domain, this update should be done directly. On the
-        # other hand, if the external domain is different from the
-        # local domain, we have no direct access to the memory of these
-        # particles. Instead, the interaction function should store the
-        # changes to the affected variables in the corresponding buffer
-        # variables (Δmom for gravity). All of this should be figured
-        # out by the interaction function on the basis of the passed
-        # receiver, supplier, rank_supplier and only_supply.
+        # interaction function. It is important that the passed
+        # interaction function do not update the affected variables
+        # directly (e.g. mom for gravity), but instead update the
+        # corresponding buffers (e.g. Δmom for gravity). These are the
+        # buffers that will be communicated, but just as importantly,
+        # Δmom is used to figure out which short-range rung any given
+        # particle belongs to.
         # Special cases described below may change whether or not the
         # interaction between this particular domain pair should be
         # carried out on the local process (specified by the
@@ -455,9 +450,9 @@ def domain_domain(
         )
         # Let the local receiver interact with the
         # external supplier_extrl. This will update the affected
-        # variables (e.g. mom for gravity) of the local receiver and
-        # populate the affected variable buffers of the
-        # external supplier, if only_supply is False.
+        # variable buffers (e.g. Δmom for gravity) of the local
+        # receiver, and of the external supplier if only_supply
+        # is False.
         if interact:
             with unswitch:
                 if 𝔹[pairing_level == 'tile']:
@@ -486,10 +481,10 @@ def domain_domain(
                     )
         # Send the populated buffers back to the process from which the
         # external supplier_extrl came. Add the received values in the
-        # buffers to the affected variables (e.g. mom for gravity) of
-        # the local supplier_local. Note that we should not do this in
-        # the case of a local interaction (rank_send == rank) or in a
-        # case where only_supply is True.
+        # buffers to the affected variable buffers (e.g. Δmom for
+        # gravity) of the local supplier_local. Note that we should not
+        # do this in the case of a local interaction (rank_send == rank)
+        # or in a case where only_supply is True.
         if rank_send != rank and not only_supply:
             sendrecv_component(
                 supplier_extrl, affected, pairing_level, interaction_name, tile_indices_supplier,
@@ -1532,11 +1527,12 @@ def gravity(method, receivers, suppliers, ᔑdt, interaction_type, printout, pm_
                 masterprint('done')
     elif method == 'pp':
         # The particle-particle method with Ewald-periodicity
-        masterprint(
-            'Executing',
-            shortrange_progress_messages('gravity', method, receivers),
-            '...',
-        )
+        if printout:
+            masterprint(
+                'Executing',
+                shortrange_progress_messages('gravity', method, receivers),
+                '...',
+            )
         component_component(
             receivers, suppliers, gravity_pairwise, ᔑdt,
             dependent=['pos'],
@@ -1545,7 +1541,8 @@ def gravity(method, receivers, suppliers, ᔑdt, interaction_type, printout, pm_
             pairing_level='domain',
             interaction_name='gravity',
         )
-        masterprint('done')
+        if printout:
+            masterprint('done')
     elif method == 'ppnonperiodic':
         # The non-periodic particle-particle method
         if printout:

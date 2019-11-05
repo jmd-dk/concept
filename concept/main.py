@@ -53,7 +53,6 @@ cimport('from utilities import delegate')
     dump_index='Py_ssize_t',
     dump_time=object,  # collections.namedtuple
     dump_times=list,
-    integrals='double[::1]',
     output_filenames=dict,
     period_frac='double',
     recompute_Δt_max='bint',
@@ -69,8 +68,7 @@ cimport('from utilities import delegate')
     Δt='double',
     Δt_backup='double',
     Δt_begin='double',
-    Δt_downjump_fac='double',
-    Δt_half='double',
+    Δt_jump_fac='double',
     Δt_increase_fac='double',
     Δt_increase_max_fac='double',
     Δt_increase_min_fac='double',
@@ -83,9 +81,8 @@ cimport('from utilities import delegate')
     Δt_ratio_abort='double',
     Δt_ratio_warn='double',
     Δt_reduce_fac='double',
-    Δt_sync='double',
+    Δt_reltol='double',
     Δt_tmp='double',
-    ᔑdt_substeps=dict,
     returns='void',
 )
 def timeloop():
@@ -150,18 +147,27 @@ def timeloop():
     # will show a warning or abort, respectively.
     Δt_ratio_warn  = 0.7
     Δt_ratio_abort = 0.01
-    # When using adaptive time stepping (N_rungs > 1), a particle jumps
-    # to the rung just above its current rung as soon as its velocity
-    # gets too large (according to fac_softening). Before it jumps to
-    # the rung just below, its velocity has to be this factor times the
-    # minimum velocity of its current rung. This factor should be
-    # somewhat below unity, so that a particle only jumps down (gets a
-    # larger time step) if its velocity is well below what is absolutely
-    # needed. This ensures that particles with velocities right at the
-    # border between two rungs stay at a given rung over many time
-    # steps, rather than fluctuating back and forth between two rungs,
-    # which would degrade the symplecticity.
-    Δt_downjump_fac = 0.85
+    # When using adaptive time stepping (N_rungs > 1), the particles may
+    # jump from their current rung to the rung just above or below,
+    # depending on their (short-range) acceleration and the time step
+    # size Δt. To ensure that particles with accelerations right at the
+    # border between two rungs does not jump between these rungs too
+    # often (which would degrade the symplecticity), we introduce
+    # Δt_jump_fac so that in order to jump up (get assigned a smaller
+    # individual time step size), a particle has to belong to the rung
+    # above even if the time step size had been Δt*Δt_jump_fac < Δt.
+    # Likewise, to jump down (get assigned a larger individual time step
+    # size), a particle has to belong to the rung below even if the time
+    # step size had been Δt/Δt_jump_fac > Δt. The factor Δt_jump_fac
+    # should then be somewhat below unity.
+    Δt_jump_fac = 0.95
+    # Due to floating point imprecisions, universals.t may not land
+    # exactly at sync_time when it should, which is needed to detect
+    # whether we are at a synchronization time or not. To fix this,
+    # we consider the universal time to be at the synchronization time
+    # if they differ by less than Δt_reltol times the
+    # base time step size Δt.
+    Δt_reltol = 1e-9
     # The number of time steps before the base time step size Δt is
     # allowed to increase. Choosing a multiple of 8 prevents the
     # formation of spurious anisotropies when evolving fluids with the
@@ -191,40 +197,22 @@ def timeloop():
     # Minimum allowed time step size.
     # If Δt needs to be lower than this, the program will terminate.
     Δt_min = 1e-4*Δt_begin
-    # Construct initial rung populatation
-    for component in components:
-        component.assign_rungs(Δt, fac_softening)
-    # Dict of arrays which will store the time step integrals for the
-    # highest rung (all time step integrals for lower rungs can be build
-    # by adding up these).
-    ᔑdt_substeps = {
-        integrand: zeros(ℤ[2**N_rungs//2*3], dtype=C2np['double'])
-        for integrand in (
-            # Global integrands
-            '1',
-            'a**(-1)',
-            'a**(-2)',
-            'ȧ/a',
-            # Single-component integrands
-            *[(integrand, component.name) for component, in itertools.product(*[components]*1)
-                for integrand in (
-                    'a**(-3*w_eff)',
-                    'a**(-3*w_eff-1)',
-                    'a**(3*w_eff-2)',
-                    'a**(-3*w_eff)*Γ/H',
-                )
-            ],
-            # Two-component integrands
-            *[(integrand, component_0.name, component_1.name)
-                for component_0, component_1 in itertools.product(*[components]*2)
-                for integrand in (
-                    'a**(-3*w_eff₀-3*w_eff₁-1)',
-                )
-            ]
-        )
-    }
     # Record what time it is, for use with autosaving
     autosave_time = time()
+    # Populate the global ᔑdt_scalar and ᔑdt_rungs dicts
+    # with integrand keys
+    get_time_step_integrals(0, 0, components)
+    # Construct initial rung populatation by carrying out a initial
+    # short kick, but without applying the momentum updates.
+    if any([component.use_rungs for component in components]):
+        masterprint('Determining initial rung population ...')
+        # Set rungs_N. At this point, all particles should be assigned
+        # to rung 0, resulting in rungs_N = [N_local, 0, 0, ...].
+        for component in components:
+            if component.use_rungs:
+                component.set_rungs_N()
+        kick_short(components, Δt, fake=True)
+        masterprint('done')
     # The main time loop
     masterprint('Beginning of main time loop')
     time_step = initial_time_step
@@ -251,20 +239,6 @@ def timeloop():
                 # Print out message at the beginning of each time step
                 print_timestep_heading(time_step, Δt,
                     bottleneck if time_step_type == 'init' else '', components)
-                # Sort particles in memory so that the order matches
-                # the visiting order when iterating through all subtiles
-                # within tiles, improving the performance of
-                # CPU caching. If multiple tilings+subtilings exist on
-                # a component, the sorting will be done with respect to
-                # the first one encountered.
-                for component in components:
-                    for subtiling_name in component.tilings:
-                        match = re.search(r'(.*) \(subtiles\)', subtiling_name)
-                        if not match:
-                            continue
-                        tiling_name = f'{match.group(1)} (tiles)'
-                        component.tile_sort(tiling_name, None, -1, subtiling_name)
-                        break
             # Analyze and print out debugging information, if required
             with unswitch:
                 if enable_debugging:
@@ -282,33 +256,41 @@ def timeloop():
                 # kicking of all components is synchronized. As this
                 # does not count as an actual time step,
                 # the universal time will not be updated.
-                # The base time step Δt is split into 2**N_rungs half
-                # sub-steps for the highest rung (number N_rungs - 1).
-                # The short-range kick of the particles at rung 0,
-                # as well as fluid kick and long-range particle kick
-                # is then 2**N_rungs//2 half sub-steps long.
-                # Compute time step integrals for each
-                # of these 2**N_rungs//2 half sub-steps.
-                compute_time_step_integrals(Δt, components, ᔑdt_substeps, 'init', sync_time)
                 # Apply initial half kick to fluids, initial half
                 # long-range kick to particles and inital half
                 # application of internal sources.
-                kick_long(components, ᔑdt_substeps, 'init')
-                # Assign a short-range rung to each particle
+                kick_long(components, Δt, sync_time, 'init', Δt_reltol)
+                # All short-range rungs are synchronized. Re-assign a
+                # short-range rung to each particle based on their
+                # short-range acceleration, disregarding their
+                # currently assigned rung and flagged rung jumps.
+                # Any flagged rung jumps will be nullified.
                 for component in components:
                     component.assign_rungs(Δt, fac_softening)
-                # Initial half kick of particles on all rungs
-                kick_short(components, ᔑdt_substeps)
-                # The full step following this init step will reuse all
-                # of the 2**N_rungs//2 integrals computed for the half
-                # sub-steps at the beginning of the base step. Here it
-                # is assumed that the content of ᔑdt_substeps is
-                # computed by a previous full step, in which case the
-                # integrals to reuse will be the ones at the end, not
-                # the beginning. We thus need to shift the 2**N_rungs//2
-                # integrals so that they appear at the end.
-                for integrals in ᔑdt_substeps.values():
-                    integrals[ℤ[2**N_rungs]:] = integrals[:ℤ[2**N_rungs//2]]
+                # Sort particles in memory so that the order matches
+                # the visiting order when iterating through all subtiles
+                # within tiles, improving the performance of
+                # CPU caching. If multiple tilings+subtilings exist on
+                # a component, the sorting will be done with respect to
+                # the first one encountered. For this in-memory sorting,
+                # the Δmom buffers will be used. It is then important
+                # that these do not currently contain information
+                # needed later. Note that for N_rungs = 1, the tiles and
+                # subtiles are not yet instantiated if this is the
+                # first time step, as no fake short-range kick has been
+                # performed prior to the time loop.
+                for component in components:
+                    for subtiling_name in component.tilings:
+                        match = re.search(r'(.*) \(subtiles\)', subtiling_name)
+                        if not match:
+                            continue
+                        tiling_name = f'{match.group(1)} (tiles)'
+                        component.tile_sort(tiling_name, None, -1, subtiling_name)
+                        break
+                # Initial half short-range kick of particles on all
+                # rungs. No rung jumps will occur, as any such has been
+                # nullified above.
+                kick_short(components, Δt)
                 # Check whether next dump is within 1.5*Δt
                 if dump_time.t - universals.t <= 1.5*Δt:
                     # Next base step should synchronize at dump time
@@ -327,50 +309,42 @@ def timeloop():
                 # All components will be drifted and kicked Δt.
                 # The kicks will start and end half a time step ahead
                 # of the drifts.
-                # The base time step Δt needs to be split
-                # into 2**N_rungs half sub-steps for the
-                # highest rung (number N_rungs - 1).
-                # Compute time step integrals for each half sub-step.
-                compute_time_step_integrals(Δt, components, ᔑdt_substeps, 'full', sync_time)
-                # Drift fluids
-                drift_fluids(components, ᔑdt_substeps)
+                # Drift fluids.
+                drift_fluids(components, Δt, sync_time, Δt_reltol)
                 # Continually perform interlaced drift and kick
-                # operations of the rungs, until the particles are
-                # drifted forward to the exact time of the next base
-                # time step (Δt away) and kicked half a sub-step
-                # (of size Δt/(2*2**i) for run i) into the next
-                # base time step.
-                driftkick_short(components, Δt, ᔑdt_substeps, Δt_downjump_fac)
+                # operations of the short-range particle rungs, until
+                # the particles are drifted forward to the exact time of
+                # the next base time step (Δt away) and kicked half a
+                # sub-step (of size Δt/2**(rung_index + 1)) into the
+                # next base time step.
+                driftkick_short(components, Δt, sync_time, Δt_jump_fac, Δt_reltol)
                 # All drifting is now exactly at the next base time
-                # step, while the long-range kicks are lacking behind.
+                # step, while the long-range kicks are lagging behind.
                 # Before doing the long-range kicks, set the universal
-                # time to match the current position of the long-range
-                # kicks, so that various time averages will be over
-                # the kick step.
-                integrals = ᔑdt_substeps['1']
-                Δt_half = sum(integrals[:ℤ[2**N_rungs//2]])
-                universals.t += Δt_half
+                # time and scale factor to match the current position of
+                # the long-range kicks, so that various time averages
+                # will be over the kick step.
+                universals.t += 0.5*Δt
+                if universals.t + Δt_reltol*Δt + ℝ[2*machine_ϵ] > sync_time:
+                    universals.t = sync_time
                 universals.a = scale_factor(universals.t)
                 # Apply full kick to fluids, full long-range kick to
                 # particles and fully apply internal sources.
-                kick_long(components, ᔑdt_substeps, 'full')
-                # Set universal time to match end of this base time
-                # step (the location of drifts).
-                integrals = ᔑdt_substeps['1']
-                Δt_half = sum(integrals[ℤ[2**N_rungs//2]:ℤ[2**N_rungs]])
-                universals.t += Δt_half
+                kick_long(components, Δt, sync_time, 'full', Δt_reltol)
+                # Set universal time and scale factor to match end of
+                # this base time step (the location of drifts).
+                universals.t += 0.5*Δt
+                if universals.t + Δt_reltol*Δt + ℝ[2*machine_ϵ] > sync_time:
+                    universals.t = sync_time
                 universals.a = scale_factor(universals.t)
                 # Check whether we are at sync time
-                if Δt_half == 0 or sync_time - universals.t <= Δt_reltol*Δt:
+                if universals.t == sync_time:
                     # We are at sync time. Base time step completed.
-                    # Ensure that the universal time
-                    # matches exactly with the sync time.
-                    universals.t = sync_time
                     # Reset time_step_type and sync_time
                     time_step_type = 'init'
                     sync_time = ထ
-                    # If Δt has been momentarily lowered just to each
-                    # this sync time, the true value is stored in
+                    # If Δt has been momentarily lowered just to reach
+                    # the sync time, the true value is stored in
                     # Δt_backup. Here we undo this lowering.
                     if Δt_backup != -1:
                         if Δt < Δt_backup:
@@ -501,10 +475,6 @@ def timeloop():
         autosave_filename = f'{autosave_dir}/autosave_{jobid}.hdf5'
         if os.path.isfile(autosave_filename):
             os.remove(autosave_filename)
-# Two times with a difference below Δt_reltol*Δt
-# should be treated as indistinguishable.
-cython.declare(Δt_reltol='double')
-Δt_reltol = 1e-6
 
 # Function for computing the size of the base time step
 @cython.header(
@@ -542,17 +512,18 @@ def get_base_timestep_size(components):
     categories; global limiters, component limiters and
     particle/fluid element limiters. For each limiter, the value of Δt
     should not be exceed a small fraction of the following.
-    Global limiters:
-    - The dynamical time scale.
-    - The Hubble time (≃ present age of the universe)
-      if Hubble expansion is enabled.
-    Component limiters:
-    - 1/abs(ẇ) for every component, so that the transition from
-      relativistic to non-relativistic happens smoothly.
-    - The reciprocal decay rate of each matter component, wieghted with
-      their current total mass (or background density) relative to
-      all matter.
-    Particle/fluid element limiters:
+    Background limiters:
+      Global background limiters:
+      - The dynamical time scale.
+      - The Hubble time (≃ present age of the universe)
+        if Hubble expansion is enabled.
+      Component background limiters:
+      - 1/abs(ẇ) for every component, so that the transition from
+        relativistic to non-relativistic happens smoothly.
+      - The reciprocal decay rate of each matter component, weighted
+        with their current total mass (or background density) relative
+        to all matter.
+    Non-linear limiters:
     - For fluid components (with a Boltzmann hierarchy closed after J
       (velocity)): The time it takes for the fastest fluid element to
       traverse a fluid cell, i.e. the Courant condition.
@@ -694,113 +665,141 @@ def get_base_timestep_size(components):
     # Return maximum allowed base time step size and the bottleneck
     return Δt, bottleneck
 
-# Function for tabulating integrals over (sub) time steps
+# Function for computing all time step integrals
+# between two specified cosmic times.
 @cython.header(
     # Arguments
-    Δt_base='double',
+    t_start='double',
+    t_end='double',
     components=list,
-    ᔑdt_substeps=dict,
-    step_type=str,
-    sync_time='double',
     # Locals
-    at_sync_time='bint',
-    half_substep='Py_ssize_t',
-    index_end='Py_ssize_t',
-    index_start='Py_ssize_t',
+    component='Component',
+    component_name=str,
+    component_names=tuple,
+    enough_info='bint',
     integrals='double[::1]',
     integrand=object,  # str or tuple
-    t='double',
-    t_half_sub_end='double',
-    t_half_sub_start='double',
-    Δt_half_sub='double',
-    returns='void',
+    integrands=tuple,
+    returns=dict,
 )
-def compute_time_step_integrals(Δt_base, components, ᔑdt_substeps, step_type, sync_time):
-    # Always operate from the current time
-    t = universals.t
-    # The base time step should be divided
-    # into 2**N_rungs equal half sub-steps.
-    Δt_half_sub = Δt_base/ℤ[2**N_rungs]
-    # Loop over each integrand
-    for integrand, integrals in ᔑdt_substeps.items():
-        # For each half sub-step in the base step, compute integrals for
-        # every integrand contained in ᔑdt_substeps.
-        with unswitch:
-            if step_type == 'init':
-                # The initial half kick is over the first 2**N_rungs//2
-                # half sub-steps (for particles on rung 0).
-                index_start = 0
-                index_end = ℤ[2**N_rungs//2]
-            else:  # step_type == 'full'
-                # A full step is over the entire base step Δt, but also
-                # half of the next base step. We thus need to know the
-                # integrals at 3/2*2**N_rungs half sub-steps. The first
-                # 2**N_rungs/2 of these half sub-steps were used in the
-                # previous step and are thus already known. We reuse
-                # these rather than recomputing them.
-                integrals[:ℤ[2**N_rungs//2]] = integrals[ℤ[2**N_rungs]:]
-                index_start = ℤ[2**N_rungs//2]
-                index_end = ℤ[2**N_rungs//2*3]
-        at_sync_time = False
-        for half_substep in range(index_start, index_end):
-            # Start and end time for this half sub-step
-            t_half_sub_start = t + half_substep*Δt_half_sub
-            t_half_sub_end = t_half_sub_start + Δt_half_sub
-            # If the end time is beyond the sync time,
-            # set it equal to the sync time.
-            if t_half_sub_end > sync_time:
-                at_sync_time = True
-                t_half_sub_end = sync_time
-                # If the end time is extremely near the start time,
-                # it means that integrals for all half sub-steps up
-                # to the sync time have already been computed.
-                # The integral for the current half sub-step, as well as
-                # for all later ones, should be nullified.
-                if t_half_sub_end - t_half_sub_start <= Δt_reltol*Δt_base:
-                    integrals[half_substep:] = 0
+def get_time_step_integrals(t_start, t_end, components):
+    # The first time this function is called, the global ᔑdt_scalar
+    # and ᔑdt_rungs gets populated.
+    if not ᔑdt_scalar:
+        integrands = (
+            # Global integrands
+            '1',
+            'a**(-1)',
+            'a**(-2)',
+            'ȧ/a',
+            # Single-component integrands
+            *[(integrand, component.name) for component, in itertools.product(*[components]*1)
+                for integrand in (
+                    'a**(-3*w_eff)',
+                    'a**(-3*w_eff-1)',
+                    'a**(3*w_eff-2)',
+                    'a**(2-3*w_eff)',
+                    'a**(-3*w_eff)*Γ/H',
+                )
+            ],
+            # Two-component integrands
+            *[(integrand, component_0.name, component_1.name)
+                for component_0, component_1 in itertools.product(*[components]*2)
+                for integrand in (
+                    'a**(-3*w_eff₀-3*w_eff₁-1)',
+                )
+            ]
+        )
+        # Populate scalar dict
+        for integrand in integrands:
+            ᔑdt_scalar[integrand] = 0
+        # For the rungs dict, we need an integral for each rung,
+        # of which there are N_rungs. Additionally, we need a value
+        # of the integral for jumping down/up a rung, for each rung,
+        # meaning that we need 3*N_rungs integrals. The integral
+        # for a normal kick of rung rung_index is then stored in
+        # ᔑdt_rungs[integrand][rung_index], while the integral for
+        # jumping down from rung rung_index to rung_index - 1 is stored
+        # in ᔑdt_rungs[integrand][rung_index + N_rungs], while the
+        # integral for jumping up from rung_index to rung_index + 1 is
+        # stored in ᔑdt_rungs[integrand][rung_index + 2*N_rungs]. Since
+        # a particle at rung 0 cannot jump down and a particle at rung
+        # N_rungs - 1 cannot jump up, indices 0 + N_rungs = N_rungs
+        # and N_rungs - 1 + 2*N_rungs = 3*N_rungs - 1 are unused.
+        # We allocate 3*N_rungs - 1 integrals, leaving the unused
+        # index N_rungs be, while the unused index 3*N_rungs - 1
+        # will be out of bounce.
+        for integrand in integrands:
+            ᔑdt_rungs[integrand] = zeros(3*N_rungs - 1, dtype=C2np['double'])
+    # Fill ᔑdt_scalar with integrals
+    for integrand in ᔑdt_scalar.keys():
+        # If the passed components are only a subset of all components
+        # present in the simulation, some integrals cannot be computed.
+        # This is OK, as presumably the caller it not interested in
+        # these anyway. Store NaN if the current integrand cannot be
+        # computed for this reason.
+        if isinstance(integrand, tuple):
+            enough_info = True
+            component_names = integrand[1:]
+            for component_name in component_names:
+                for component in components:
+                    if component_name == component.name:
+                        break
+                else:
+                    enough_info = False
                     break
-            # When not using the CLASS background,
-            # we need to tabulate a(t) over the sub-step.
-            with unswitch:
-                if not enable_class_background:
-                    expand(
-                        scale_factor(t_half_sub_start),
-                        t_half_sub_start,
-                        t_half_sub_end - t_half_sub_start,
-                    )
-            # Compute and store the integral
-            integrals[half_substep] = scalefactor_integral(
-                integrand, t_half_sub_start, t_half_sub_end - t_half_sub_start, components,
-            )
-            # When at the sync time, integrals for all later
-            # half sub-steps should be nullified.
-            if at_sync_time:
-                integrals[half_substep+1:] = 0
-                break
+            if not enough_info:
+                ᔑdt_scalar[integrand] = NaN
+                continue
+        # Compute integral
+        with unswitch:
+            if t_start == t_end:
+                ᔑdt_scalar[integrand] = 0
+            else:
+                with unswitch:
+                    if not enable_class_background:
+                        expand(
+                            scale_factor(t_start),
+                            t_start,
+                            ℝ[t_end - t_start],
+                        )
+                ᔑdt_scalar[integrand] = scalefactor_integral(
+                    integrand, t_start, ℝ[t_end - t_start], components,
+                )
+    # Return the global ᔑdt_scalar
+    return ᔑdt_scalar
+# Dict returned by the get_time_step_integrals() function,
+# storing a single time step integral for each integrand.
+cython.declare(ᔑdt_scalar=dict)
+ᔑdt_scalar = {}
+# Dict storing time step integrals for each rung,
+# indexed as ᔑdt_rungs[integrand][rung_index].
+cython.declare(ᔑdt_rungs=dict)
+ᔑdt_rungs = {}
 
 # Function which perform long-range kicks on all components
 @cython.header(
     # Arguments
     components=list,
-    ᔑdt_substeps=dict,
+    Δt='double',
+    sync_time='double',
     step_type=str,
+    Δt_reltol='double',
     # Locals
-    a='double',
-    a_next='double',
+    a_start='double',
+    a_end='double',
     component='Component',
     force=str,
-    integrals='double[::1]',
-    integrand=object,  # str or tuple
-    interactions_list=list,
     method=str,
     printout='bint',
     receivers=list,
     suppliers=list,
-    t='double',
+    t_end='double',
+    t_start='double',
     ᔑdt=dict,
     returns='void',
 )
-def kick_long(components, ᔑdt_substeps, step_type):
+def kick_long(components, Δt, sync_time, step_type, Δt_reltol):
     """We take into account three different cases of long-range kicks:
     - Internal source terms (fluid and particle components).
     - Interactions acting on fluids (only PM implemented).
@@ -809,47 +808,36 @@ def kick_long(components, ᔑdt_substeps, step_type):
     This function can operate in two separate modes:
     - step_type == 'init':
       The kick is over the first half of the base time step of size Δt.
-      This interval consists of the first 2**N_rungs//4 sub-steps
-      or equivalently the first 2**N_rungs//2 half sub-steps.
     - step_type == 'full':
       The kick is over the second half of the base time step of size Δt
       as well as over an equally sized portion of the next time step.
-      This interval consists of the last 2**N_rungs//2 sub-steps
-      or equivalently the last 2**N_rungs half sub-steps,
-      i.e. every sub-step but the first 2**N_rungs//2.
+      Here it is expected that universals.t and universals.t matches the
+      long-range kicks, so that it is in between the current and next
+      time step.
     """
-    # Construct local dict ᔑdt, mapping each integral to a single
-    # number, based on the time step type.
-    ᔑdt = {}
-    for integrand, integrals in ᔑdt_substeps.items():
-        with unswitch:
-            if 𝔹[step_type == 'init']:
-                ᔑdt[integrand] = sum(integrals[:ℤ[2**N_rungs//2]])
-            else:  # step_type == 'full'
-                ᔑdt[integrand] = sum(integrals[ℤ[2**N_rungs//2]:])
-    # If the time step size is zero, meaning that we are already
-    # at a sync time, return now.
-    if ᔑdt['1'] == 0:
+    # Get time step integrals over half ('init')
+    # or whole ('full') time step.
+    t_start = universals.t
+    t_end = t_start + (Δt/2 if step_type == 'init' else Δt)
+    if t_end + Δt_reltol*Δt + ℝ[2*machine_ϵ] > sync_time:
+        t_end = sync_time
+    if t_start == t_end:
         return
-    # Set t and a to match the time at the beginning of the kick.
-    # Note that when the drifts and kicks are out of sync, you should
-    # manually set universals.t and universals.a to match the current
-    # time for the kicks, prior to calling this function.
-    t = universals.t
-    a = universals.a
+    ᔑdt = get_time_step_integrals(t_start, t_end, components)
     # Realize all linear fluid scalars which are not components
     # of a tensor. This comes down to ϱ and 𝒫.
-    a_next = scale_factor(t + ᔑdt['1'])
+    a_start = universals.a
+    a_end = scale_factor(t_end)
     for component in components:
         component.realize_if_linear(0,  # ϱ
-            specific_multi_index=0, a=a, a_next=a_next
+            specific_multi_index=0, a=a_start, a_next=a_end,
         )
         component.realize_if_linear(2,  # 𝒫
-            specific_multi_index='trace', a=a, a_next=a_next,
+            specific_multi_index='trace', a=a_start, a_next=a_end,
         )
     # Apply the effect of all internal source terms
     for component in components:
-        component.apply_internal_sources(ᔑdt, a_next)
+        component.apply_internal_sources(ᔑdt, a_end)
     # Find all long-range interactions
     interactions_list = interactions.find_interactions(components, 'long-range')
     # Invoke each long-range interaction sequentially
@@ -861,112 +849,108 @@ def kick_long(components, ᔑdt_substeps, step_type):
 @cython.header(
     # Arguments
     components=list,
-    ᔑdt_substeps=dict,
+    Δt='double',
+    fake='bint',
     # Locals
     component='Component',
     force=str,
-    index_end='Py_ssize_t',
-    index_start='Py_ssize_t',
-    integrals='double[::1]',
+    highest_populated_rung='signed char',
     integrand=object,  # str or tuple
     interactions_list=list,
-    lowest_populated_rung='signed char',
     method=str,
+    particle_components=list,
     printout='bint',
-    receiver='Component',
     receivers=list,
     rung_index='signed char',
-    rung_integrals='double[::1]',
     suppliers=list,
-    ᔑdt=dict,
+    t_end='double',
+    t_start='double',
+    ᔑdt_rung=dict,
     returns='void',
 )
-def kick_short(components, ᔑdt_substeps):
+def kick_short(components, Δt, fake=False):
     """The kick is over the first half of the sub-step for each rung.
-    A sub-step for rung i is 1/2**i as long as the base step
-    of size Δt, and so half a sub-step is 1/(2*2**i) of the base step.
+    A sub-step for rung rung_index is 1/2**rung_index as long as the
+    base step of size Δt, and so half a sub-step is
+    1/2**(rung_index + 1) of the base step. If fake is True, the kick is
+    still carried out, but no momentum updates will be applied.
     """
-    # Find all short-range interactions
-    interactions_list = interactions.find_interactions(components, 'short-range')
+    # Collect all particle components. Do nothing if none exists.
+    particle_components = [
+        component for component in components if component.representation == 'particles'
+    ]
+    if not particle_components:
+        return
+    # Find all short-range interactions. Do nothing if none exists.
+    interactions_list = interactions.find_interactions(particle_components, 'short-range')
     if not interactions_list:
         return
     # As we only do a single, simultaneous interaction for all rungs,
-    # we must flag all rungs as active. For performance reasons, we
-    # choose the lowest active rung as the lowest populated rung.
-    lowest_populated_rung = ℤ[N_rungs - 1]
-    for component in components:
-        # Set lowest active rung
+    # we must flag all (populated) rungs as active.
+    for component in particle_components:
         component.lowest_active_rung = component.lowest_populated_rung
-        # Lowest populated rung among all components
-        if component.lowest_populated_rung < lowest_populated_rung:
-            lowest_populated_rung = component.lowest_populated_rung
-    lowest_populated_rung = allreduce(lowest_populated_rung, op=MPI.MIN)
+    # Get the highest populated rung amongst all components
+    # and processes.
+    highest_populated_rung = allreduce(
+        np.max([component.highest_populated_rung for component in particle_components]),
+        op=MPI.MAX,
+    )
     # Though the size of the time interval over which to kick is
     # different for each rung, we only perform a single interaction
     # for each pair of components and short-range forces.
-    # We then need to know all of the N_rungs time step integrals for
-    # each integrand simultaneously. Here we store these as
-    # ᔑdt[integrand][rung_index]. We reuse the global ᔑdt_rungs as a
-    # container (no content will be reused). If this is the first call,
-    # we first populate this with arrays for each integrand.
-    ᔑdt = ᔑdt_rungs
-    if not ᔑdt:
-        for integrand in ᔑdt_substeps:
-            # We need a value of the integral for each rung,
-            # of which there are N_rungs. Additionally, we need a value
-            # of the integral for jumping down/up a rung, for each rung,
-            # meaning that we need 3*N_rungs integrals. The integral
-            # for a normal kick of rung rung_index is then stored in
-            # ᔑdt[integrand][rung_index], while the integral for jumping
-            # down from rung rung_index to rung_index - 1 is stored in
-            # ᔑdt[integrand][rung_index + N_rungs], while the integral
-            # for jumping up from rung_index to rung_index + 1 is stored
-            # in ᔑdt[integrand][rung_index + 2*N_rungs]. Since a
-            # particle at rung 0 cannot jump down and a particle at rung
-            # N_rungs - 1 cannot jump up, indices 0 + N_rungs = N_rungs
-            # and N_rungs - 1 + 2*N_rungs = 3*N_rungs - 1 are unused.
-            # We allocate 3*N_rungs - 1 integrals, leaving the unused
-            # index N_rungs be, while the unused index 3*N_rungs - 1
-            # will be out of bounce.
-            ᔑdt[integrand] = zeros(3*N_rungs - 1, dtype=C2np['double'])
-    for integrand, integrals in ᔑdt_substeps.items():
-        rung_integrals = ᔑdt[integrand]
-        for rung_index in range(ℤ[N_rungs - 1], lowest_populated_rung - 1, -1):
-            index_end = 2**(ℤ[N_rungs - 1] - rung_index)
-            index_start = index_end//2
-            rung_integrals[rung_index] = sum(integrals[index_start:index_end])
-            if rung_index != ℤ[N_rungs - 1]:
-                rung_integrals[rung_index] += rung_integrals[rung_index + 1]
+    # We then need to know all time step integrals for
+    # each integrand simultaneously.
+    # We store these in the global ᔑdt_rungs.
+    t_start = universals.t
+    for rung_index in range(highest_populated_rung + 1):
+        t_end = t_start + Δt/2**(rung_index + 1)
+        ᔑdt_rung = get_time_step_integrals(t_start, t_end, particle_components)
+        for integrand, integral in ᔑdt_rung.items():
+            ᔑdt_rungs[integrand][rung_index] = integral
+    # The interactions to come will accumulate momentum updates
+    # into the Δmom buffers, so these need to be nullified.
+    for component in particle_components:
+        component.nullify_Δ('mom')
     # Invoke short-range interactions
     printout = True
     for force, method, receivers, suppliers in interactions_list:
-        getattr(interactions, force)(method, receivers, suppliers, ᔑdt, 'short-range', printout)
-# Dict storing time step integrals used by the kick_short()
-# and driftkick_short() functions. This holds time step integrals for
-# each rung and is indexed by ᔑdt_rungs[integrand][rung_index].
-cython.declare(ᔑdt_rungs=dict)
-ᔑdt_rungs = {}
+        getattr(interactions, force)(
+            method, receivers, suppliers, ᔑdt_rungs, 'short-range', printout,
+        )
+    # Assign rungs or apply momentum updates depending on
+    # whether this is a fake call or not.
+    for component in particle_components:
+        with unswitch:
+            if fake:
+                # The above interactions should only be used
+                # to determine the particle rungs.
+                component.convert_Δmom_to_acc(ᔑdt_rungs)
+                component.assign_rungs(Δt, fac_softening)
+            else:
+                # Apply the momentum updates from the above
+                # interactions and convert these to accelerations
+                # in an in-place manner.
+                component.apply_Δmom()
+                component.convert_Δmom_to_acc(ᔑdt_rungs)
 
 # Function which drifts all fluid components
 @cython.header(
     # Arguments
     components=list,
-    ᔑdt_substeps=dict,
+    Δt='double',
+    sync_time='double',
+    Δt_reltol='double',
     # Locals
-    a_next='double',
+    a_end='double',
     component='Component',
     fluid_components=list,
-    integrals='double[::1]',
-    integrand=object,  # str or tuple
-    t='double',
+    t_end='double',
+    t_start='double',
     ᔑdt=dict,
     returns='void',
 )
-def drift_fluids(components, ᔑdt_substeps):
-    """This function always drift over a full base time step,
-    consisting of 2**N_rungs half sub-steps. If you wish to e.g. only
-    drift over the first half, you should nullify the last 2**N_rungs
-    integrals in ᔑdt_substeps before calling this function.
+def drift_fluids(components, Δt, sync_time, Δt_reltol):
+    """This function always drift over a full base time step.
     """
     # Collect all fluid components. Do nothing if none exists.
     fluid_components = [
@@ -974,39 +958,39 @@ def drift_fluids(components, ᔑdt_substeps):
     ]
     if not fluid_components:
         return
-    # Construct local dict ᔑdt,
-    # mapping each integral to a single number.
-    ᔑdt = {}
-    for integrand, integrals in ᔑdt_substeps.items():
-        ᔑdt[integrand] = sum(integrals[:ℤ[2**N_rungs]])
-    # If the time step size is zero, meaning that we are already
-    # at a sync time, return now.
-    if ᔑdt['1'] == 0:
+    # Get time step integrals over entire time step
+    t_start = universals.t
+    t_end = t_start + Δt
+    if t_end + Δt_reltol*Δt + ℝ[2*machine_ϵ] > sync_time:
+        t_end = sync_time
+    if t_start == t_end:
         return
+    ᔑdt = get_time_step_integrals(t_start, t_end, fluid_components)
     # Drift all fluid components sequentially
-    t = universals.t
-    a_next = scale_factor(t + ᔑdt['1'])
+    a_end = scale_factor(t_end)
     for component in fluid_components:
-        component.drift(ᔑdt, a_next)
+        component.drift(ᔑdt, a_end)
 
-# Function which perform interlaced drift and kick operations
+# Function which performs interlaced drift and kick operations
 # on the short-range rungs.
 @cython.header(
     # Arguments
     components=list,
     Δt='double',
-    ᔑdt_substeps=dict,
-    Δt_downjump_fac='double',
+    sync_time='double',
+    Δt_jump_fac='double',
+    Δt_reltol='double',
     # Locals
+    any_rung_jumps_arr='int[::1]',
     any_kicks='bint',
-    any_rung_jumps='bint',
-    any_rung_jumps_list=list,
     component='Component',
     driftkick_index='Py_ssize_t',
     force=str,
+    highest_populated_rung='signed char',
     i='Py_ssize_t',
     index_end='Py_ssize_t',
     index_start='Py_ssize_t',
+    integral='double',
     integrals='double[::1]',
     integrand=object,  # str or tuple
     interactions_list=list,
@@ -1017,22 +1001,24 @@ def drift_fluids(components, ᔑdt_substeps):
     printout='bint',
     receivers=list,
     rung_index='signed char',
-    rung_integrals='double[::1]',
     suppliers=list,
+    t_end='double',
+    t_start='double',
     text=str,
     ᔑdt=dict,
+    ᔑdt_rung=dict,
     returns='void',
 )
-def driftkick_short(components, Δt, ᔑdt_substeps, Δt_downjump_fac):
+def driftkick_short(components, Δt, sync_time, Δt_jump_fac, Δt_reltol):
     """Every rung is fully drifted and kicked over a complete base time
-    step of size Δt. Rung i will be kicked 2**i times.
+    step of size Δt. Rung rung_index will be kicked 2**rung_index times.
     All rungs will be drifted synchronously in steps
-    of Δt/(2**N_rungs//2), i.e. each drift is over two half sub-steps.
+    of Δt/2**(N_rungs - 1), i.e. each drift is over two half sub-steps.
     The first drift will start at the beginning of the base step.
-    The kicks will vary in size for the different rungs. Rung i will
-    be kicked Δt/(2**i) in each kick operation, i.e. a whole sub-step
-    for the highest rung (N_rungs - 1), two sub-steps for the rung
-    below, four sub-steps for the rung below that, and so on.
+    The kicks will vary in size for the different rungs. Rung rung_index
+    will be kicked Δt/2**rung_index in each kick operation, i.e. a whole
+    sub-step for the highest rung (N_rungs - 1), two sub-steps for the
+    rung below, four sub-steps for the rung below that, and so on.
     It as assumed that all rungs have already been kicked so that
     these are half a kick-sized step ahead of the drifts. Thus, the
     kick position of the highest rung is already half a sub-step into
@@ -1066,15 +1052,15 @@ def driftkick_short(components, Δt, ᔑdt_substeps, Δt_downjump_fac):
     # within this function, as the long-range kicks
     # are handled elsewhere.
     if not interactions_list:
-        # Construct local dict ᔑdt,
-        # mapping each integral to a single number.
-        ᔑdt = {}
-        for integrand, integrals in ᔑdt_substeps.items():
-            ᔑdt[integrand] = sum(integrals[:ℤ[2**N_rungs]])
-        # If the time step size is zero, meaning that we are already
-        # at a sync time, return now.
-        if ᔑdt['1'] == 0:
+        # Get time step integrals over entire time step
+        t_start = universals.t
+        t_end = t_start + Δt
+        if t_end + Δt_reltol*Δt + ℝ[2*machine_ϵ] > sync_time:
+            t_end = sync_time
+        if t_start == t_end:
             return
+        ᔑdt = get_time_step_integrals(t_start, t_end, particle_components)
+        # Drift all particle components and return
         for component in particle_components:
             masterprint(f'Drifting {component.name} ...')
             component.drift(ᔑdt)
@@ -1096,20 +1082,15 @@ def driftkick_short(components, Δt, ᔑdt_substeps, Δt_downjump_fac):
     printout = True
     # Perform the interlaced drifts and kicks
     any_kicks = True
-    for driftkick_index in range(ℤ[2**N_rungs//2]):
-        # Fill in local dict ᔑdt, mapping each integral over the drift
-        # to a single number.
+    for driftkick_index in range(ℤ[2**(N_rungs - 1)]):
+        # For each value of driftkick_index, a drift and a kick should
+        # be performed. The time step integrals needed are contructed
+        # using index_start and index_end, which index into a
+        # (non-existing) array or half sub-steps. That is, an index
+        # corresponds to a time via
+        # t = universals.t + Δt*index/2**N_rungs.
         if any_kicks:
-            # We nullify ᔑdt only after a kick.
-            # In this way, successive drifts with no kicks in between
-            # can be performed in one go.
-            ᔑdt = {}
-            for integrand in ᔑdt_substeps:
-                ᔑdt[integrand] = 0
-        index_start = 2*driftkick_index
-        index_end = index_start + 2
-        for integrand, integrals in ᔑdt_substeps.items():
-            ᔑdt[integrand] += sum(integrals[index_start:index_end])
+            index_start = 2*driftkick_index
         # Determine the lowest active rung
         # (the lowest rung which should receive a kick).
         # All rungs above this should be kicked as well.
@@ -1120,7 +1101,7 @@ def driftkick_short(components, Δt, ᔑdt_substeps, Δt_downjump_fac):
         # Set lowest active rung for each component
         # and check if any kicks are to be performed.
         any_kicks = False
-        for component in components:
+        for component in particle_components:
             # There is no need to have the lowest active rung
             # be below the lowest populated rung.
             if lowest_active_rung < component.lowest_populated_rung:
@@ -1132,93 +1113,128 @@ def driftkick_short(components, Δt, ᔑdt_substeps, Δt_downjump_fac):
                 any_kicks = True
         any_kicks = allreduce(any_kicks, op=MPI.LOR)
         # Skip the kick if no particles at all occupy active rungs.
-        # The drift is not skipped, as we do not overwrite the values
-        # in ᔑdt, but add to them.
+        # The drift is not skipped, as t_start stays the same in the
+        # next iteration.
         if not any_kicks:
             continue
-        # A kick is to be performed. First do the drift.
+        # A kick is to be performed. First we should do the drift,
+        # for which we need the time step integrals.
+        index_end = 2*driftkick_index + 2
+        t_start = universals.t + Δt*(float(index_start)/ℤ[2**N_rungs])
+        if t_start + ℝ[Δt_reltol*Δt + 2*machine_ϵ] > sync_time:
+            t_start = sync_time
+        t_end = universals.t + Δt*(float(index_end)/ℤ[2**N_rungs])
+        if t_end + ℝ[Δt_reltol*Δt + 2*machine_ϵ] > sync_time:
+            t_end = sync_time
         # If the time step size is zero, meaning that we are already
         # at a sync time regarding the drifts, we skip the drift but
         # do not return, as the kicks may still not be at the sync time.
-        if ᔑdt['1'] != 0:
+        if t_end > t_start:
+            ᔑdt = get_time_step_integrals(t_start, t_end, particle_components)
             for component in particle_components:
                 component.drift(ᔑdt)
+        # Get the highest populated rung amongst all components
+        # and processes.
+        highest_populated_rung = allreduce(
+            np.max([component.highest_populated_rung for component in particle_components]),
+            op=MPI.MAX,
+        )
+        # Particles on rungs from lowest_active_rung to
+        # highest_populated_rung (inclusive) should be kicked.
         # Though the size of the time interval over which to kick is
-        # different for each rung, we perform the kicks of the
-        # N_rungs - lowest_active_rung lowest rungs using a single
-        # interaction for each pair of components and
-        # short-range forces. We then need to know all of the
-        # N_rungs - lowest_active_rung time step integrals for each
-        # integrand simultaneously. Here we store these
-        # as ᔑdt[integrand][rung_index]. We reuse the global ᔑdt_rungs
-        # as a container (no content will be reused).
-        ᔑdt = ᔑdt_rungs
-        for integrand, integrals in ᔑdt_substeps.items():
-            rung_integrals = ᔑdt[integrand]
-            for rung_index in range(lowest_active_rung, N_rungs):
-                index_start = (
-                    ℤ[2**(N_rungs - 1 - rung_index)]
-                    + (driftkick_index//ℤ[2**(N_rungs - 1 - rung_index)]
-                        )*ℤ[2**(N_rungs - rung_index)]
-                )
-                index_end = index_start + ℤ[2**(N_rungs - rung_index)]
-                rung_integrals[rung_index] = sum(integrals[index_start:index_end])
-                # We additionally need the integral for jumping down
-                # from rung_index to rung_index - 1. We store this using
-                # index (rung_index + N_rungs). For any given rung, such
-                # a down-jump is only allowed every second kick. When
-                # disallowed, we store -1.
-                if rung_index > 0 and (
-                    (ℤ[driftkick_index + 1] - ℤ[2**(N_rungs - 1 - rung_index)]
-                        ) % 2**(N_rungs - rung_index) == 0
-                ):
-                    index_end = index_start + ℤ[2**(N_rungs - 1 - rung_index)]
-                    rung_integrals[rung_index + N_rungs] = sum(integrals[index_start:index_end])
-                else:
-                    rung_integrals[rung_index + N_rungs] = -1
-                # We additionally need the integral for jumping up
-                # from rung_index to rung_index + 1.
-                if rung_index < ℤ[N_rungs - 1]:
-                    index_end = index_start + 3*2**(ℤ[N_rungs - 2] - rung_index)
-                    rung_integrals[rung_index + ℤ[2*N_rungs]] = sum(
-                        integrals[index_start:index_end])
+        # different for each rung, we perform the kicks using a single
+        # interaction for each pair of components and short-range
+        # forces. We then need to know all of the
+        # (highest_populated_rung - lowest_active_rung) time step
+        # integrals for each integrand simultaneously. Here we store
+        # these as ᔑdt_rungs[integrand][rung_index].
+        for rung_index in range(lowest_active_rung, ℤ[highest_populated_rung + 1]):
+            index_start = (
+                ℤ[2**(N_rungs - 1 - rung_index)]
+                + (driftkick_index//ℤ[2**(N_rungs - 1 - rung_index)]
+                    )*ℤ[2**(N_rungs - rung_index)]
+            )
+            index_end = index_start + ℤ[2**(N_rungs - rung_index)]
+            t_start = universals.t + Δt*(float(index_start)/ℤ[2**N_rungs])
+            if t_start + ℝ[Δt_reltol*Δt + 2*machine_ϵ] > sync_time:
+                t_start = sync_time
+            t_end = universals.t + Δt*(float(index_end)/ℤ[2**N_rungs])
+            if t_end + ℝ[Δt_reltol*Δt + 2*machine_ϵ] > sync_time:
+                t_end = sync_time
+            ᔑdt_rung = get_time_step_integrals(t_start, t_end, particle_components)
+            for integrand, integral in ᔑdt_rung.items():
+                ᔑdt_rungs[integrand][rung_index] = integral
+            # We additionally need the integral for jumping down
+            # from rung_index to rung_index - 1. We store this using
+            # index (rung_index + N_rungs). For any given rung, such
+            # a down-jump is only allowed every second kick. When
+            # disallowed, we store -1.
+            if rung_index > 0 and (
+                (ℤ[driftkick_index + 1] - ℤ[2**(N_rungs - 1 - rung_index)]
+                    ) % 2**(N_rungs - rung_index) == 0
+            ):
+                index_end = index_start + ℤ[2**(N_rungs - 1 - rung_index)]
+                t_end = universals.t + Δt*(float(index_end)/ℤ[2**N_rungs])
+                if t_end + ℝ[Δt_reltol*Δt + 2*machine_ϵ] > sync_time:
+                    t_end = sync_time
+                ᔑdt_rung = get_time_step_integrals(t_start, t_end, particle_components)
+                for integrand, integral in ᔑdt_rung.items():
+                    ᔑdt_rungs[integrand][rung_index + N_rungs] = integral
+            else:
+                for integrals in ᔑdt_rungs.values():
+                    integrals[rung_index + N_rungs] = -1
+            # We additionally need the integral for jumping up
+            # from rung_index to rung_index + 1.
+            if rung_index < ℤ[N_rungs - 1]:
+                index_end = index_start + 3*2**(ℤ[N_rungs - 2] - rung_index)
+                t_end = universals.t + Δt*(float(index_end)/ℤ[2**N_rungs])
+                if t_end + ℝ[Δt_reltol*Δt + 2*machine_ϵ] > sync_time:
+                    t_end = sync_time
+                ᔑdt_rung = get_time_step_integrals(t_start, t_end, particle_components)
+                for integrand, integral in ᔑdt_rung.items():
+                    ᔑdt_rungs[integrand][rung_index + ℤ[2*N_rungs]] = integral
         # Perform short-range kicks, unless the time step size is zero
         # for all active rungs (i.e. they are all at a sync time),
         # in wich case we go to the next (drift) sub-step.  We cannot
-        # just return, as the kicks may still not be at the sync time.
-        rung_integrals = ᔑdt['1']
-        if sum(rung_integrals[lowest_active_rung:N_rungs]) == 0:
+        # just return, as all kicks may still not be at the sync time.
+        integrals = ᔑdt_rungs['1']
+        if sum(integrals[lowest_active_rung:ℤ[highest_populated_rung + 1]]) == 0:
             continue
-        # A short-range kick is to be performed
-        any_rung_jumps_list = []
-        for component in particle_components:
-            # Flag inter-rung jumps for each particle.
-            # The list any_rung_jumps_list will store booleans telling
-            # whether or not any local particles of this component
-            # jump rung.
-            any_rung_jumps_list.append(
-                component.flag_rung_jumps(Δt, rung_integrals, fac_softening, Δt_downjump_fac)
-            )
+        # Print out progress message if this is the first kick
         if printout:
-            # This is the first kick. Print out progress message.
             masterprint(message[0])
             for text in message[1:]:
                 masterprint(text, indent=4)
             masterprint('...', indent=4, wrap=False)
             printout = False
+        # Flag inter-rung jumps and nullify Δmom.
+        # Only particles currently on active rungs will be affected.
+        # Whether or not any rung jumping takes place in a given
+        # particle component is stored in any_rung_jumps_arr.
+        any_rung_jumps_arr = zeros(len(particle_components), dtype=C2np['int'])
+        for i, component in enumerate(particle_components):
+            any_rung_jumps_arr[i] = (
+                component.flag_rung_jumps(Δt, Δt_jump_fac, fac_softening, ᔑdt_rungs)
+            )
+            component.nullify_Δ('mom')
+        Allreduce(MPI.IN_PLACE, any_rung_jumps_arr, op=MPI.LOR)
+        # Perform short-range interactions
         for force, method, receivers, suppliers in interactions_list:
-            # Perform interaction
             getattr(interactions, force)(
-                method, receivers, suppliers, ᔑdt, 'short-range', printout)
-        # Apply inter-rung jumps
-        for component, any_rung_jumps in zip(particle_components, any_rung_jumps_list):
-            if any_rung_jumps:
+                method, receivers, suppliers, ᔑdt_rungs, 'short-range', printout)
+        # Apply momentum updates
+        for component in particle_components:
+            component.apply_Δmom()
+        # Convert momentum updates to accelerations in an in-place
+        # manner, and apply the flagged rung jumps.
+        for i, component in enumerate(particle_components):
+            component.convert_Δmom_to_acc(ᔑdt_rungs)
+            if any_rung_jumps_arr[i]:
                 component.apply_rung_jumps()
     # Finalize the progress message. If printout is True, no message
     # was ever printed (because there were no kicks).
     if not printout:
         masterprint('done')
-
 
 # Function which dump all types of output
 @cython.header(
@@ -1651,7 +1667,8 @@ def prepare_for_output():
 # Here we set the values for the various factors used when determining
 # the time step size. The values given below has been tuned by hand as
 # to achieve a matter power spectrum at a = 1 that has converged to
-# within 1% on all scales, for Δt_base_factor = Δt_rung_factor = 1.
+# within ~1% on all relevant scales, for
+# Δt_base_background_factor = Δt_base_nonlinear_factor = Δt_rung_factor = 1.
 # For further specification of each factor,
 # consult the get_base_timestep_size() function.
 cython.declare(
@@ -1666,36 +1683,39 @@ cython.declare(
 )
 # The base time step should be below the dynamic time scale
 # times this factor.
-fac_dynamical = 0.042*Δt_base_factor
+fac_dynamical = 0.057*Δt_base_background_factor
 # The base time step should be below the current Hubble time scale
 # times this factor.
-fac_hubble = 0.12*Δt_base_factor
+fac_hubble = 0.16*Δt_base_background_factor
 # The base time step should be below |ẇ|⁻¹ times this factor,
 # for all components. Here w is the equation of state parameter.
-fac_ẇ = 0.0017*Δt_base_factor
+fac_ẇ = 0.0017*Δt_base_background_factor
 # The base time step should be below |Γ|⁻¹ times this factor,
 # for all components. Here Γ is the decay rate.
-fac_Γ = 0.0028*Δt_base_factor
+fac_Γ = 0.0028*Δt_base_background_factor
 # The base time step should be below that set by the 1D Courant
 # condition times this factor, for all fluid components.
-fac_courant = 0.14*Δt_base_factor
+fac_courant = 0.14*Δt_base_nonlinear_factor
 # The base time step should be small enough so that particles
 # participating in interactions using the PM method do not drift further
 # than the size of one PM grid cell times this factor in a single
 # time step. The same condition is applied to fluids, where the bulk
 # velocity is what counts (i.e. we ignore the sound speed).
-fac_pm = 0.032*Δt_base_factor
+fac_pm = 0.032*Δt_base_nonlinear_factor
 # The base time step should be small enough so that particles
 # participating in interactions using the P³M method do not drift
 # further than the long/short-range force split scale times this factor
 # in a single time step.
-fac_p3m = 0.027*Δt_base_factor
+fac_p3m = 0.027*Δt_base_nonlinear_factor
 # When using adaptive time stepping (N_rungs > 1), the individual time
 # step size for a given particle must not be so large that it drifts
-# further than its softening length times this factor. If it does become
-# large enough for this, the particle jumps to the rung just above
-# its current rung.
-fac_softening = 2.0*Δt_rung_factor
+# further than its softening length times this factor, due to its
+# (short-range) acceleration (i.e. its current velocity is not
+# considered). If it does become large enough for this, the particle
+# jumps to the rung just above its current rung.
+# In GADGET2, this same factor is called ErrTolIntAccuracy (or η)
+# and has a value of 0.025.
+fac_softening = 0.025*Δt_rung_factor
 
 # If this module is run properly (detected by jobid being set),
 # launch the CO𝘕CEPT run.

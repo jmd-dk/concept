@@ -46,7 +46,7 @@ __version__ = 'master'
 import ast, collections, contextlib, ctypes, cython, functools, hashlib, inspect, itertools
 import keyword, os, re, shutil, sys, textwrap, traceback, types, unicodedata, warnings
 from copy import deepcopy
-# For math
+# Math
 # (note that numpy.array is purposely not imported directly into the
 # global namespace, as this does not play well with Cython).
 import math
@@ -58,7 +58,7 @@ import scipy.ndimage
 import scipy.optimize
 import scipy.signal
 import scipy.special
-# For plotting
+# Plotting
 import matplotlib
 matplotlib.use('agg')  # Use a matplotlib backend that does not require a running X-server
 import matplotlib.mathtext
@@ -66,11 +66,17 @@ import matplotlib.pyplot as plt
 # MPI
 import mpi4py.rc; mpi4py.rc.threads = False  # Do not use threads
 from mpi4py import MPI
-# For I/O
+# I/O
 from glob import glob
 import h5py
-# CLASS
-from classy import Class
+# CLASS.
+# We do not exit on missing classy. This allows the update utility
+# to be used to install and patch CLASS+classy even when no
+# CLASS+classy is already installed.
+try:
+    from classy import Class
+except ModuleNotFoundError:
+    traceback.print_exc()
 # For fancy terminal output
 import blessings
 # For timing
@@ -157,7 +163,7 @@ rank = comm.rank
 master_rank = 0
 master = (rank == master_rank)
 # MPI functions for communication.
-# For never versions of NumPy, we have to pass the dtype of the arrays
+# For newer versions of NumPy, we have to pass the dtype of the arrays
 # explicitly when using uppercase communication methods.
 def buf_and_dtype(buf):
     try:
@@ -171,6 +177,8 @@ Allgather = lambda sendbuf, recvbuf: comm.Allgather(
     buf_and_dtype(sendbuf), recvbuf)
 Allgatherv = lambda sendbuf, recvbuf: comm.Allgatherv(
     buf_and_dtype(sendbuf), recvbuf)
+Allreduce = lambda sendbuf, recvbuf, op=MPI.SUM: comm.Allreduce(
+    buf_and_dtype(sendbuf), recvbuf, op)
 Barrier = comm.Barrier
 Bcast = lambda buf, root=master_rank: comm.Bcast(buf_and_dtype(buf), root)
 Gather = lambda sendbuf, recvbuf, root=master_rank: comm.Gather(
@@ -1609,7 +1617,7 @@ def disable_numpy_summarization():
     # Backup the current print threshold
     threshold = np.get_printoptions()['threshold']
     # Set the threshold to infinity so that the str representation
-    # of arrays wil not contain any ellipses
+    # of arrays will not contain any ellipses
     # (full printout rather than summarization).
     np.set_printoptions(threshold=ထ)
     try:
@@ -1894,7 +1902,8 @@ cython.declare(
     select_approximations=dict,
     select_softening_length=dict,
     # Simlation options
-    Δt_base_factor='double',
+    Δt_base_background_factor='double',
+    Δt_base_nonlinear_factor='double',
     Δt_rung_factor='double',
     N_rungs='Py_ssize_t',
     fftw_wisdom_rigor=str,
@@ -2212,11 +2221,13 @@ select_softening_length.setdefault('particles', '0.03*boxsize/cbrt(N)')
 select_softening_length.setdefault('fluid', 0)
 user_params['select_softening_length'] = select_softening_length
 # Simulation options
-Δt_base_factor = float(user_params.get('Δt_base_factor', 1))
-user_params['Δt_base_factor'] = Δt_base_factor
+Δt_base_background_factor = float(user_params.get('Δt_base_background_factor', 1))
+user_params['Δt_base_background_factor'] = Δt_base_background_factor
+Δt_base_nonlinear_factor = float(user_params.get('Δt_base_nonlinear_factor', 1))
+user_params['Δt_base_nonlinear_factor'] = Δt_base_nonlinear_factor
 Δt_rung_factor = float(user_params.get('Δt_rung_factor', 1))
 user_params['Δt_rung_factor'] = Δt_rung_factor
-N_rungs = int(user_params.get('N_rungs', 1))
+N_rungs = int(user_params.get('N_rungs', 10))
 user_params['N_rungs'] = N_rungs
 fftw_wisdom_rigor = user_params.get('fftw_wisdom_rigor', 'estimate').lower()
 user_params['fftw_wisdom_rigor'] = fftw_wisdom_rigor
