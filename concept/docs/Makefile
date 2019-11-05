@@ -24,9 +24,9 @@ html: Makefile
 	@# Build HTML with Sphinx
 	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)
 	@# Change GitHub button text and link
-	@for filename in $$(find $(BUILDDIR)/html/ -name '*.html'); do                    \
-	    sed -i 's/Edit on GitHub/Code Repository/g' $${filename} ;                    \
-	    sed -i 's/github\.com\/\/[^"]*/github\.com\/jmd-dk\/concept/g' $${filename} ; \
+	@for filename in $$(find $(BUILDDIR)/html/ -name '*.html'); do                      \
+	    sed -i 's/Edit on GitHub/Code Repository/g' $${filename} ;                      \
+	    sed -i 's/github\.com\/\/[^"]*/github\.com\/jmd-dk\/concept\//g' $${filename} ; \
 	done
 	@# Write CO𝘕CEPT in the heading with an italics N using HTML tags.
 	@# Also insert a small (en) space after N, needed due to the heading font.
