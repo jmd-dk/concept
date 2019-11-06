@@ -1377,8 +1377,10 @@ def autosave(components, time_step, Δt, Δt_begin):
     end='bint',
     # Locals
     component='Component',
+    header_lines=list,
     i='Py_ssize_t',
     last_populated_rung='signed char',
+    line=list,
     part=str,
     parts=list,
     rung_index='signed char',
@@ -1388,24 +1390,44 @@ def autosave(components, time_step, Δt, Δt_begin):
     returns='void',
 )
 def print_timestep_heading(time_step, Δt, bottleneck, components, end=False):
-    global heading_ljust
-    # Create list of text pieces. Left justify the first column
-    # according to the global heading_ljust.
-    parts = []
-    parts.append('\nEnd of main time loop' if end else terminal.bold(f'\nTime step {time_step}'))
+    # This function builds up its output as strings in the parts list
+    parts = ['\nEnd of main time loop' if end else terminal.bold(f'\nTime step {time_step}')]
+    # Create the header lines (current scale factor, time and time
+    # step), ensuring proper alignment.
+    header_lines = []
     if enable_Hubble:
-        parts.append('\nScale factor:'.ljust(heading_ljust))
-        parts.append(significant_figures(universals.a, 4, fmt='unicode'))
-    if enable_Hubble:
-        parts.append('\nCosmic time:'.ljust(heading_ljust))
-    else:
-        parts.append('\nTime:'.ljust(heading_ljust))
-    parts.append(f'{{}} {unit_time}'.format(significant_figures(universals.t, 4, fmt='unicode')))
+        header_lines.append(
+            [
+                '\nScale factor',
+                significant_figures(universals.a, 4, fmt='unicode'),
+                '',
+            ]
+        )
+    header_lines.append(
+        [
+            '\nCosmic time' if enable_Hubble else '\nTime',
+            significant_figures(universals.t, 4, fmt='unicode'),
+            unit_time,
+        ]
+    )
     if not end:
-        parts.append('\nStep size:'.ljust(heading_ljust))
-        parts.append(f'{{}} {unit_time}'.format(significant_figures(Δt, 4, fmt='unicode')))
-        if bottleneck:
-            parts.append(f' (limited by {bottleneck})')
+        header_lines.append(
+            [
+                '\nStep size',
+                significant_figures(Δt, 4, fmt='unicode'),
+                unit_time + (f' (limited by {bottleneck})' if bottleneck else ''),
+            ]
+        )
+    header_maxlength0 = np.max([len(line[0]) for line in header_lines])
+    header_maxdot1 = np.max([line[1].index('.') for line in header_lines])
+    for line in header_lines:
+        line[0] += ':' + ' '*(header_maxlength0 - len(line[0]) + 1)
+        line[1] = ' '*(header_maxdot1 - line[1].index('.')) + line[1]
+    header_maxlength1 = np.max([len(line[1]) for line in header_lines])
+    for line in header_lines:
+        if line[2]:
+            line[2] = ' '*(header_maxlength1 - len(line[1]) + 1) + line[2]
+    parts += [''.join(line) for line in header_lines]
     # Equation of state of each component
     for component in components:
         if (component.w_type != 'constant'
@@ -1427,28 +1449,8 @@ def print_timestep_heading(time_step, Δt, bottleneck, components, end=False):
             if rung_N > 0:
                 last_populated_rung = rung_index
         parts.append(', '.join(rung_population[:last_populated_rung+1]))
-    # Find the maximum width of the first column and left justify
-    # the entire first colum to match this maximum width.
-    if heading_ljust == 0:
-        width_max = 0
-        for part in parts:
-            if (   'Scale factor:' in part
-                or 'Cosmic time:'  in part
-                or 'Time:'         in part
-                or 'Step size:'    in part
-            ):
-                width = len(part)
-                if width > width_max:
-                    width_max = width
-        heading_ljust = width_max + 1
-        for i, part in enumerate(parts):
-            if part.endswith(':'):
-                parts[i] = part.ljust(heading_ljust)
     # Print out the combined heading
     masterprint(''.join(parts))
-# Global scalar used by the print_timestep_heading() function
-cython.declare(heading_ljust='Py_ssize_t')
-heading_ljust = 0
 
 # Function which prints out debugging information at the end of each
 # time step, if such output is requested.
