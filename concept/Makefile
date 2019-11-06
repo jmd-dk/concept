@@ -194,20 +194,17 @@ other_cflags =                              \
 ifneq ($(no_optimization),True)
     optimizations = -O3 -march=native
     # Check whether the -flto option is recognized
-    lto_warning=$(shell echo "int main(void){ return 0; }" > .lto_test.c;           \
-                        $(CC) -flto -c -o .lto_test.o .lto_test.c 2>&1 | grep flto; \
-                        $(RM) -f .lto_test.c .lto_test.o                            \
+    lto_warning = $(shell echo "int main(void){ return 0; }" > .lto_test.c;           \
+                          $(CC) -flto -c -o .lto_test.o .lto_test.c 2>&1 | grep flto; \
+                          $(RM) -f .lto_test.c .lto_test.o                            \
     )
-    lto_recognized=False
+    lto_recognized = False
     ifeq ("$(lto_warning)","")
-        lto_recognized=True
+        lto_recognized = True
     endif
     ifeq ($(lto_recognized),True)
         optimizations += -flto
     endif
-else
-    python_cflags_tmp := $(python_cflags)
-    python_cflags = $(filter-out -O3, $(python_cflags_tmp))
 endif
 # Options specific to the compiler version
 ifeq ($(CC_version),gcc)
