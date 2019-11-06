@@ -2929,10 +2929,15 @@ class Component:
         tiling.sort(coarse_tiling, coarse_tile_index)
         # When a subtiling_name is supplied, this signals an in-memory
         # sorting of the pos and mom data arrays of the particles,
-        # so that the order in memory matches that of the particle
-        # visiting order when iterating over the tiles and subtiles.
+        # as well as of the rung indices. The final memory order will
+        # match that of the particle visiting order when iterating over
+        # the tiles and subtiles.
         if not subtiling_name:
             return
+        masterprint(
+            f'Reordering {self.name} particles in memory according to the',
+            tiling_name.rstrip(' (tiles)'), 'tiling ...',
+        )
         # Extract variables
         lowest_populated_rung  = self.lowest_populated_rung
         highest_populated_rung = self.highest_populated_rung
@@ -3029,6 +3034,7 @@ class Component:
                     rung_indices[i] = tmp_rung_indices[i]
         # Finally we need to re-sort the tiling
         tiling.sort(coarse_tiling, coarse_tile_index)
+        masterprint('done')
 
     # Method for integrating fluid values forward in time
     # due to "internal" source terms, meaning source terms that do not
