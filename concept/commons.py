@@ -1479,7 +1479,24 @@ def exec_params(content, d, suppress_exceptions=True):
             except:
                 pass
     if not suppress_exceptions:
-        exec(content, d)
+        # If exceptions should raise an error, we do an extra exec
+        # on the full content.
+        # However, for some strange reason, having f-strings inside of
+        # content may lead to the following:
+        # SyntaxError: Format strings are only supported in Python 3.6 and greater
+        # This has been observed using Python 3.8.0. Even weirder, the
+        # SyntaxError only occurs when running in compiled mode without
+        # link time optimization (-flto). Inserting a call to print()
+        # also makes the SyntaxError go away.
+        # Below we ignore this SyntaxError should it be raised.
+        # Note that the exec below is not intended to find SyntaxError's
+        # anyway, but rather things like NameError's. Any real
+        # SyntaxError's in the parameter file will be caught earlier,
+        # by the concept script attempting to parse it into an AST.
+        try:
+            exec(content, d)
+        except SyntaxError:
+            pass
 # Execute the content of the parameter file in the namespace defined
 # by user_params in order to get the user defined units.
 exec_params(params_file_content, user_params)
