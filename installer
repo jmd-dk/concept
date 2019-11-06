@@ -4314,6 +4314,11 @@ soothe(){
     # checking the size of the log file generated
     # by this installation script.
     soothe_update_time=60
+    if [ -n "${kill_time}" ] && [ ${kill_time} -lt ${soothe_update_time} ]; then
+        error "soothe() called with kill_time=${kill_time} < \
+soothe_update_time=${soothe_update_time}"
+        exit 1
+    fi
     (
     log_size_last=-1;                                                              \
     log_size=$(du -b "${log}" | awk '{print $1}');                                 \
@@ -4345,7 +4350,7 @@ Please be patient ...\n";                                                       
     wait ${soothe_killer_pid} >/dev/null 2>&1 || :
 }
 
-# Function for writing out installation notices as to files in the
+# Function for writing out installation notices to files in the
 # installation directories of the various programs.
 install_notice(){
     # Arguments: Program name, program_dir
@@ -4733,11 +4738,13 @@ Attempting to install HDF5 with extra_LIBS=${extra_LIBS}\n\n"
         if [ "${do_tests}" == "True" ]; then
             hdf5_test_success="${hdf5_test_success_backup}"
             hdf5_test_max_time=3600
+            exit_code_filename="${top_dir}/tmp/.exit_code_hdf5"
             # Perform serial + parallel tests if build against MPI
             # or normal tests otherwise.
             if [ -n "${mpi_dir}" ]; then
                 # Serial tests
-                (make ${make_jobs} check-s 2>&1 | tee "test_log") & hdf5_test_pid=$!
+                (make ${make_jobs} check-s 2>&1 | tee "test_log"; \
+                 echo "${PIPESTATUS[0]}" > "${exit_code_filename}") & hdf5_test_pid=$!
                 soothe ${hdf5_test_pid} ${hdf5_test_max_time}
                 sleep 1
                 kill -9 ${hdf5_test_pid} >/dev/null 2>&1 || :
@@ -4745,10 +4752,16 @@ Attempting to install HDF5 with extra_LIBS=${extra_LIBS}\n\n"
                 exit_code="$(wait ${hdf5_test_pid} >/dev/null 2>&1 || echo $?)"
                 if [ -n "${exit_code}" ]; then
                     hdf5_test_success="False"
+                else
+                    exit_code="$(cat "${exit_code_filename}" 2>/dev/null || :)"
+                    if [ "${exit_code}" != "0" ]; then
+                        hdf5_test_success="False"
+                    fi
                 fi
                 # Parallel tests
                 printf "\n\n\nParallel tests below\n\n\n\n" >> "test_log"
-                (make ${make_jobs} check-p 2>&1 | tee "test_log") & hdf5_test_pid=$!
+                (make ${make_jobs} check-p 2>&1 | tee "test_log"; \
+                 echo "${PIPESTATUS[0]}" > "${exit_code_filename}") & hdf5_test_pid=$!
                 soothe ${hdf5_test_pid} ${hdf5_test_max_time}
                 sleep 1
                 kill -9 ${hdf5_test_pid} >/dev/null 2>&1 || :
@@ -4756,9 +4769,15 @@ Attempting to install HDF5 with extra_LIBS=${extra_LIBS}\n\n"
                 exit_code="$(wait ${hdf5_test_pid} >/dev/null 2>&1 || echo $?)"
                 if [ -n "${exit_code}" ]; then
                     hdf5_test_success="False"
+                else
+                    exit_code="$(cat "${exit_code_filename}" 2>/dev/null || :)"
+                    if [ "${exit_code}" != "0" ]; then
+                        hdf5_test_success="False"
+                    fi
                 fi
             else
-                (make ${make_jobs} check 2>&1 | tee "test_log") & hdf5_test_pid=$!
+                (make ${make_jobs} check 2>&1 | tee "test_log"; \
+                 echo "${PIPESTATUS[0]}" > "${exit_code_filename}") & hdf5_test_pid=$!
                 soothe ${hdf5_test_pid} ${hdf5_test_max_time}
                 sleep 1
                 kill -9 ${hdf5_test_pid} >/dev/null 2>&1 || :
@@ -4766,8 +4785,14 @@ Attempting to install HDF5 with extra_LIBS=${extra_LIBS}\n\n"
                 exit_code="$(wait ${hdf5_test_pid} >/dev/null 2>&1 || echo $?)"
                 if [ -n "${exit_code}" ]; then
                     hdf5_test_success="False"
+                else
+                    exit_code="$(cat "${exit_code_filename}" 2>/dev/null || :)"
+                    if [ "${exit_code}" != "0" ]; then
+                        hdf5_test_success="False"
+                    fi
                 fi
             fi
+            rm -f "${exit_code_filename}" || :
         fi
         make install 2>&1 || continue  # Building in parallel takes up a lot of resources
         install_success="True"
@@ -5073,7 +5098,9 @@ perl_poll_fix=${perl_poll_fix}, perl_cflags=${perl_cflags}\n\n"
                         # To counteract this, kill the process if it still
                         # runs after ${perl_test_max_time} seconds.
                         perl_test_max_time=3600
-                        (make ${make_jobs} test 2>&1 | tee "test_log") & perl_test_pid=$!
+                        exit_code_filename="${top_dir}/tmp/.exit_code_perl"
+                        (make ${make_jobs} test 2>&1 | tee "test_log"; \
+                         echo "${PIPESTATUS[0]}" > "${exit_code_filename}") & perl_test_pid=$!
                         soothe ${perl_test_pid} ${perl_test_max_time}
                         sleep 1
                         kill -9 ${perl_test_pid} >/dev/null 2>&1 || :
@@ -5081,12 +5108,18 @@ perl_poll_fix=${perl_poll_fix}, perl_cflags=${perl_cflags}\n\n"
                         exit_code="$(wait ${perl_test_pid} >/dev/null 2>&1 || echo $?)"
                         if [ -n "${exit_code}" ]; then
                             perl_test_success="False"
+                        else
+                            exit_code="$(cat "${exit_code_filename}" 2>/dev/null || :)"
+                            if [ "${exit_code}" != "0" ]; then
+                                perl_test_success="False"
+                            fi
                         fi
                         # The text "Failed" will be present in the test log
                         # file if any of the tests failed.
                         if grep 'Failed' "test_log" >/dev/null 2>&1; then
                             perl_test_success="False"
                         fi
+                        rm -f "${exit_code_filename}" || :
                     fi
                     if [ "${perl_test_success}" == "False" ]; then
                         mkdir -p "$(dirname "${perl_test_log}")"
@@ -6082,19 +6115,35 @@ extra_LDFLAGS=${extra_LDFLAGS}\n\n"
     rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${top_dir}/tmp/numpy" || :
     reset_environment
     # Test NumPy
-    export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
     if [ "${do_tests}" == "True" ]; then
-        "${python}" -c "import numpy; numpy.test('full', verbose=2, \
-extra_argv=['--color=yes'])" 2>&1 | tee "${numpy_test_log}"
-        [ ${PIPESTATUS[0]} -eq 0 ] || numpy_test_success="False"
-        if [ "${numpy_test_success}" == "True" ]; then
-            if tail -n 1 "${numpy_test_log}" | grep " failed" >/dev/null 2>&1; then
+        # Kill the testing and consider it failed if any given test
+        # takes longer than numpy_test_max_time seconds.
+        numpy_test_max_time=600
+        exit_code_filename="${top_dir}/tmp/.exit_code_numpy"
+        export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
+        ("${python}" -c "import numpy; numpy.test('full', verbose=2, \
+extra_argv=['--color=yes'])" 2>&1 | tee "${numpy_test_log}"; \
+         echo "${PIPESTATUS[0]}" > "${exit_code_filename}") & numpy_test_pid=$!
+        soothe ${numpy_test_pid} ${numpy_test_max_time}
+        sleep 1
+        kill -9 ${numpy_test_pid} >/dev/null 2>&1 || :
+        wait    ${numpy_test_pid} >/dev/null 2>&1 || :
+        exit_code="$(wait ${numpy_test_pid} >/dev/null 2>&1 || echo $?)"
+        if [ -n "${exit_code}" ]; then
+            numpy_test_success="False"
+        else
+            exit_code="$(cat "${exit_code_filename}" 2>/dev/null || :)"
+            if [ "${exit_code}" != "0" ]; then
                 numpy_test_success="False"
             fi
+        fi
+        if tail -n 1 "${numpy_test_log}" | grep " failed" >/dev/null 2>&1; then
+            numpy_test_success="False"
         fi
         if [ "${numpy_test_success}" == "True" ]; then
             rm -f "${numpy_test_log}" || :
         fi
+        rm -f "${exit_code_filename}" || :
     fi
     reset_environment
 fi
@@ -6227,21 +6276,37 @@ extra_LDFLAGS=${extra_LDFLAGS}\n\n"
     rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
     reset_environment
     # Test SciPy
-    export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
     if [ "${do_tests}" == "True" ]; then
+        # Kill the testing and consider it failed if any given test
+        # takes longer than scipy_test_max_time seconds.
+        scipy_test_max_time=600
         # We skip the test_face test as this require bz2,
         # which may not be installed.
-        "${python}" -c "import scipy; scipy.test('full', verbose=2, \
-extra_argv=['--color=yes', '-k not test_face'])" 2>&1 | tee "${scipy_test_log}"
-        [ ${PIPESTATUS[0]} -eq 0 ] || scipy_test_success="False"
-        if [ "${scipy_test_success}" == "True" ]; then
-            if tail -n 1 "${scipy_test_log}" | grep " failed" >/dev/null 2>&1; then
+        exit_code_filename="${top_dir}/tmp/.exit_code_scipy"
+        export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
+        ("${python}" -c "import scipy; scipy.test('full', verbose=2, \
+extra_argv=['--color=yes', '-k not test_face'])" 2>&1 | tee "${scipy_test_log}"; \
+         echo "${PIPESTATUS[0]}" > "${exit_code_filename}") & scipy_test_pid=$!
+        soothe ${scipy_test_pid} ${scipy_test_max_time}
+        sleep 1
+        kill -9 ${scipy_test_pid} >/dev/null 2>&1 || :
+        wait    ${scipy_test_pid} >/dev/null 2>&1 || :
+        exit_code="$(wait ${scipy_test_pid} >/dev/null 2>&1 || echo $?)"
+        if [ -n "${exit_code}" ]; then
+            scipy_test_success="False"
+        else
+            exit_code="$(cat "${exit_code_filename}" 2>/dev/null || :)"
+            if [ "${exit_code}" != "0" ]; then
                 scipy_test_success="False"
             fi
+        fi
+        if tail -n 1 "${scipy_test_log}" | grep " failed" >/dev/null 2>&1; then
+                scipy_test_success="False"
         fi
         if [ "${scipy_test_success}" == "True" ]; then
             rm -f "${scipy_test_log}" || :
         fi
+        rm -f "${exit_code_filename}" || :
     fi
     reset_environment
 fi
