@@ -7719,7 +7719,7 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
                     rm -f "${concept_test_log}" || :
                     # Note that this also removes
                     # the ${top_dir}/tmp directory.
-                    (source "${concept}" && make clean_logs) || :
+                    (source "${concept}" && make distclean) || :
                 fi
             fi
         fi
