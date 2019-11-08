@@ -3113,9 +3113,10 @@ fi
 # environment variables such as CC, CXX and FC.
 # Altering PATH-like environment variables is also allowed.
 printf "\n${esc_bold}Compilers on the system${esc_normal}\n"
-compiler_possibilities=("")
 if [ "${mpi_preinstalled}" == "True" ]; then
-    compiler_possibilities=("${compiler_possibilities[@]}" "specified_mpi")
+    compiler_possibilities=("specified_mpi" "")
+else
+    compiler_possibilities=("")
 fi
 for program in "gcc" "g++" "gfortran"; do
     program_path="$(get_command "${program}")" || :
@@ -3185,9 +3186,6 @@ use__compilers(){
 }
 use_specified_mpi_compilers(){
     local program program_path bin_path include_path lib_path
-    if [ -n "${1}" ]; then
-        printf "\nInstallation of ${1} failed. Attempting with specified MPI compilers\n\n"
-    fi
     if [ -n "${mpi_dir}" ]; then
         compiler_path="${mpi_compilerdir}"
         bin_path="${mpi_bindir}"
@@ -3423,9 +3421,6 @@ int main(int argc, char *argv[]) {
 }
 use_gnu_compilers(){
     local program_path bin_path include_path lib_path
-    if [ -n "${1}" ]; then
-        printf "\nInstallation of ${1} failed. Attempting with GNU compilers\n\n"
-    fi
     program_path="$(get_command "gcc")" || :
     if [ -n "${program_path}" ]; then
         export CC="${program_path}"
@@ -3488,9 +3483,6 @@ use_gnu_compilers(){
 }
 use_clang_compilers(){
     local program_path bin_path include_path lib_path
-    if [ -n "${1}" ]; then
-        printf "\nInstallation of ${1} failed. Attempting with Clang compilers\n\n"
-    fi
     program_path="$(get_command "clang")" || :
     if [ -n "${program_path}" ]; then
         export CC="${program_path}"
@@ -3531,9 +3523,6 @@ use_clang_compilers(){
 }
 use_mpi_compilers(){
     local program program_path bin_path include_path lib_path
-    if [ -n "${1}" ]; then
-        printf "\nInstallation of ${1} failed. Attempting with MPI compilers\n\n"
-    fi
     for program in "mpicc" "mpiCC"; do
         program_path="$(get_command "${program}")" || :
         if [ -n "${program_path}" ]; then
@@ -3674,9 +3663,6 @@ use_mpi_compilers(){
 }
 use_intel_compilers(){
     local program_path bin_path include_path lib_path
-    if [ -n "${1}" ]; then
-        printf "\nInstallation of ${1} failed. Attempting with Intel compilers\n\n"
-    fi
     program_path="$(get_command "icc")" || :
     if [ -n "${program_path}" ]; then
         export CC="${program_path}"
@@ -3737,9 +3723,6 @@ use_intel_compilers(){
 }
 use_cray_compilers(){
     local program_path bin_path include_path lib_path
-    if [ -n "${1}" ]; then
-        printf "\nInstallation of ${1} failed. Attempting with Cray compilers\n\n"
-    fi
     program_path="$(get_command "craycc")" || :
     if [ -n "${program_path}" ]; then
         export CC="${program_path}"
@@ -3800,9 +3783,6 @@ use_cray_compilers(){
 }
 use_portland_compilers(){
     local program_path bin_path include_path lib_path
-    if [ -n "${1}" ]; then
-        printf "\nInstallation of ${1} failed. Attempting with Portland compilers\n\n"
-    fi
     program_path="$(get_command "pgcc")" || :
     if [ -n "${program_path}" ]; then
         export CC="${program_path}"
@@ -3881,9 +3861,6 @@ use_portland_compilers(){
 }
 use_generic_compilers(){
     local program program_path bin_path include_path lib_path
-    if [ -n "${1}" ]; then
-        printf "\nInstallation of ${1} failed. Attempting with generic compilers\n\n"
-    fi
     for program in "cc" "c89" "c99"; do
         program_path="$(get_command "${program}")" || :
         if [ -n "${program_path}" ]; then
@@ -3970,9 +3947,6 @@ use_generic_compilers(){
     done
 }
 use_unset_compilers(){
-    if [ -n "${1}" ]; then
-        printf "\nInstallation of ${1} failed. Attempting with unset compilers\n\n"
-    fi
     unset CC CXX FC F90 F9X CFLAGS CXXFLAGS CPPFLAGS FCFLAGS FFLAGS LDFLAGS
 }
 
@@ -4255,9 +4229,10 @@ extract(){
 # Function which initializes installations (extracts the pre-
 # downloaded archive and change to the extracted directory).
 init_install(){
-    # Arguments: Program name
-    progname="${1// /_}"
-    progname="$(echo "${progname}" | tr '[:upper:]' '[:lower:]')"
+    # Arguments: Program name, ["Attempting to install" text]
+    progname_formatted="$1"
+    progname="$(echo "${progname_formatted// /_}" | tr '[:upper:]' '[:lower:]')"
+    attempting_to_install_text="$2"
     eval "progversion=\"\${${progname}_version}\""
     if [ "${progname}" != "${progname_last_init_install}" ]; then
         if [ "${progname}" == "fftw_for_gadget" ]; then
@@ -4266,20 +4241,21 @@ init_install(){
             current_step="the installation of FFTW ${progversion} for GADGET"
             heading "Installing FFTW ${progversion} for GADGET"
             set_status "Installing FFTW ${progversion} for GADGET"
-        elif [ "${progname}" == "mpi" ]; then
-            if [ "${mpi}" == "mpich" ]; then
-                current_step="the installation of MPICH ${progversion}"
-                heading "Installing MPICH ${progversion}"
-                set_status "Installing MPICH ${progversion}"
-            elif [ "${mpi}" == "openmpi" ]; then
-                current_step="the installation of OpenMPI ${progversion}"
-                heading "Installing OpenMPI ${progversion}"
-                set_status "Installing OpenMPI ${progversion}"
-            fi
         else
-            current_step="the installation of ${1/CONCEPT/$esc_concept} ${progversion}"
-            heading "Installing ${1/CONCEPT/$esc_concept} ${progversion}"
-            set_status "Installing ${1/CONCEPT/${esc_concept}} ${progversion}"
+            if [ "${progname}" == "mpi" ]; then
+                if [ "${mpi}" == "mpich" ]; then
+                    progname_formatted="MPICH"
+                elif [ "${mpi}" == "openmpi" ]; then
+                    progname_formatted="OpenMPI"
+                fi
+            elif [ "${progname}" == "blas" ]; then
+                progname_formatted="OpenBLAS"
+            else
+                progname_formatted=${progname_formatted/CONCEPT/${esc_concept}}
+            fi
+            current_step="the installation of ${progname_formatted} ${progversion}"
+            heading "Installing ${progname_formatted} ${progversion}"
+            set_status "Installing ${progname_formatted} ${progversion}"
         fi
     fi
     # Extract the downloaded archive
@@ -4295,6 +4271,11 @@ init_install(){
             break
         fi
     done
+    # Print out the "Attempting to install" text
+    if [ -n "${attempting_to_install_text}" ]; then
+        printf "\nAttempting to install ${progname_formatted} \
+with ${attempting_to_install_text}\n\n"
+    fi
     # Save a copy of the program name
     progname_last_init_install="${progname}"
 }
@@ -4383,8 +4364,8 @@ if [ "${zlib_install}" == "True" ] && [ "${zlib_installed}" == "False" ]; then
     install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        eval "use_${compiler}_compilers zlib" || continue
-        init_install "zlib"
+        eval "use_${compiler}_compilers" || continue
+        init_install "zlib" "compiler=${compiler}"
         ./configure --shared --prefix="${zlib_dir}" 2>&1 || continue
         if [ "${do_tests}" == "True" ]; then
             make ${make_jobs} test 2>&1 | tee "test_log"
@@ -4414,8 +4395,8 @@ if [ "${libpng_install}" == "True" ] && [ "${libpng_installed}" == "False" ]; th
     install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        eval "use_${compiler}_compilers libpng" || continue
-        init_install "libpng"
+        eval "use_${compiler}_compilers" || continue
+        init_install "libpng" "compiler=${compiler}"
         export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
         export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
         export LDFLAGS="-L${zlib_dir}/lib ${LDFLAGS}"
@@ -4450,8 +4431,8 @@ if [ "${gsl_install}" == "True" ] && [ "${gsl_installed}" == "False" ]; then
     install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        eval "use_${compiler}_compilers GSL" || continue
-        init_install "GSL"
+        eval "use_${compiler}_compilers" || continue
+        init_install "GSL" "compiler=${compiler}"
         ./configure --prefix="${gsl_dir}" 2>&1 || continue
         make ${make_jobs} 2>&1 || continue
         if [ "${do_tests}" == "True" ]; then
@@ -4495,10 +4476,10 @@ if [ "${mpi_install}" == "True" ] && [ "${mpi_installed}" == "False" ]; then
     fi
     for compiler in "${compiler_possibilities_mpi[@]}"; do
         reset_environment
-        eval "use_${compiler}_compilers MPI" || continue
+        eval "use_${compiler}_compilers" || continue
         if [ "${mpi}" == "mpich" ]; then
             # MPICH
-            init_install "MPI"
+            init_install "MPI" "compiler=${compiler}"
             ./configure --enable-shared --prefix="${mpi_dir}" 2>&1 || continue
             make         2>&1 || continue  # Building in parallel takes up a lot of resources
             make install 2>&1 || continue  # Building in parallel takes up a lot of resources
@@ -4526,7 +4507,7 @@ if [ "${mpi_install}" == "True" ] && [ "${mpi_installed}" == "False" ]; then
             # installation fails we install such a UCX library and
             # link OpenMPI to it.
             for install_ucx in "False" "True"; do
-                init_install "MPI"
+                init_install "MPI" "compiler=${compiler}, install_ucx=${install_ucx}"
                 # Temporary OpenMPI session files can cause OpenMPI
                 # to crash. Remove any temporary directory of the form
                 # /tmp/openmpi-sessions-* which belongs to the user.
@@ -4556,9 +4537,9 @@ if [ "${mpi_install}" == "True" ] && [ "${mpi_installed}" == "False" ]; then
                     CXXFLAGS_ori="${CXXFLAGS}"
                     CPPFLAGS_ori="${CPPFLAGS}"
                     for disable_numa in "" "--disable-numa"; do
+                        extract "ucx"
                         printf "
 Attempting to install UCX for OpenMPI with disable_numa=${disable_numa}\n\n"
-                        extract "ucx"
                         cd "${top_dir}/tmp/ucx"
                         for f in *; do
                             if [ -d "${f}" ]; then
@@ -4664,7 +4645,7 @@ if [ "${hdf5_install}" == "True" ] && [ "${hdf5_installed}" == "False" ]; then
     # Attempt to configure using multiple MPI link flags
     for extra_LIBS in "" "-lmpi" "-lmpich"; do
         reset_environment
-        init_install "HDF5"
+        init_install "HDF5" "extra_LIBS=${extra_LIBS}"
         # Set environment variables and configure options used
         # when building againts MPI and zlib.
         enable_parallel=""
@@ -4689,8 +4670,6 @@ if [ "${hdf5_install}" == "True" ] && [ "${hdf5_installed}" == "False" ]; then
         export HDF5_USE_FILE_LOCKING=FALSE
         if [ -n "${enable_parallel}" ]; then
             export LIBS="${extra_LIBS} ${LIBS}"
-            printf "
-Attempting to install HDF5 with extra_LIBS=${extra_LIBS}\n\n"
         fi
         ./configure                \
             --enable-shared        \
@@ -4843,75 +4822,59 @@ if [ "${fftw_install}" == "True" ] && [ "${fftw_installed}" == "False" ]; then
                             if [ -z "${enable_mpi}" ] && [ -n "${extra_MPILIBS}" ]; then
                                 continue
                             fi
-                            for SIMD in                    \
-                                "--enable-avx512"          \
-                                "--enable-avx2"            \
-                                "--enable-avx"             \
-                                "--enable-sse2"            \
-                                "--enable-generic-simd256" \
-                                "--enable-generic-simd128" \
-                                ""                         \
-                            ; do
-                                reset_environment
-                                init_install "FFTW"
-                                printf "
-Attempting to install FFTW with extra_optimizations=${extra_optimizations}, \
+                            reset_environment
+                            init_install "FFTW" "extra_optimizations=${extra_optimizations}, \
 enable_shared=${enable_shared}, with_pic=${with_pic}, \
-PIC=${PIC}, shared=${shared}, extra_MPILIBS=${extra_MPILIBS}, SIMD=${SIMD}\n\n"
-                                if [ -n "${enable_mpi}" ]; then
-                                    use_specified_mpi_compilers
-                                    export MPICC="${CC}"
-                                    export MPILIBS="${extra_MPILIBS} ${MPILIBS}"
-                                fi
-                                export CFLAGS="-O3 ${PIC} ${CFLAGS}"
-                                export CXXFLAGS="-O3 ${PIC} ${CXXFLAGS}"
-                                export LDFLAGS="${LDFLAGS} -Wl,-O3 ${shared} ${PIC}"
-                                if [ "${extra_optimizations}" == "True" ]; then
-                                    export CFLAGS="${CFLAGS} -march=native"
-                                    info="$("${CC}" --version | head -n 1 || :)"
-                                    if echo "${info}" | grep -i icc >/dev/null; then
-                                        # icc
-                                        export CFLAGS="${CFLAGS} \
--fp-model fast=2 -inline-factor=200"
-                                    else
-                                        # Assume gcc
-                                        export CFLAGS="${CFLAGS} \
--ffast-math --param max-inline-insns-auto=100 --param early-inlining-insns=200"
-                                    fi
-                                fi
-                                # Double-precision
-                                ./configure ${enable_shared}  \
-                                            ${enable_mpi}     \
-                                            --disable-fortran \
-                                            ${with_pic}       \
-                                            ${SIMD}           \
-                                            --prefix="${fftw_dir}" 2>&1 || continue
-                                make ${make_jobs} 2>&1 || continue
-                                if [ "${extra_optimizations}" == "True" ]; then
-                                    make check || continue
-                                fi
-                                if [ "${do_tests}" == "True" ]; then
-                                    make ${make_jobs} check 2>&1 | tee "test_log"
-                                    fftw_test_success="${fftw_test_success_backup}"
-                                    [ ${PIPESTATUS[0]} -eq 0 ] || fftw_test_success="False"
-                                fi
-                                make ${make_jobs} install 2>&1 || continue
-                                # Single-precision
-                                make clean || :
-                                ./configure ${enable_shared}  \
-                                            ${enable_mpi}     \
-                                            --enable-float    \
-                                            --disable-fortran \
-                                            ${with_pic}       \
-                                            --prefix="${fftw_dir}" 2>&1 || continue
-                                make ${make_jobs}         2>&1 || continue
-                                make ${make_jobs} install 2>&1 || continue
-                                install_success="True"
-                                break
-                            done
-                            if [ "${install_success}" == "True" ]; then
-                                break
+PIC=${PIC}, shared=${shared}, extra_MPILIBS=${extra_MPILIBS}"
+                            if [ -n "${enable_mpi}" ]; then
+                                use_specified_mpi_compilers
+                                export MPICC="${CC}"
+                                export MPILIBS="${extra_MPILIBS} ${MPILIBS}"
                             fi
+                            export CFLAGS="-O3 ${PIC} ${CFLAGS}"
+                            export CXXFLAGS="-O3 ${PIC} ${CXXFLAGS}"
+                            export LDFLAGS="${LDFLAGS} -Wl,-O3 ${shared} ${PIC}"
+                            if [ "${extra_optimizations}" == "True" ]; then
+                                export CFLAGS="${CFLAGS} -march=native"
+                                info="$("${CC}" --version | head -n 1 || :)"
+                                if echo "${info}" | grep -i icc >/dev/null; then
+                                    # icc
+                                    export CFLAGS="${CFLAGS} \
+-fp-model fast=2 -inline-factor=200"
+                                else
+                                    # Assume gcc
+                                    export CFLAGS="${CFLAGS} \
+-ffast-math --param max-inline-insns-auto=100 --param early-inlining-insns=200"
+                                fi
+                            fi
+                            # Double-precision
+                            ./configure ${enable_shared}  \
+                                        ${enable_mpi}     \
+                                        --disable-fortran \
+                                        ${with_pic}       \
+                                        --prefix="${fftw_dir}" 2>&1 || continue
+                            make ${make_jobs} 2>&1 || continue
+                            if [ "${extra_optimizations}" == "True" ]; then
+                                make check || continue
+                            fi
+                            if [ "${do_tests}" == "True" ]; then
+                                make ${make_jobs} check 2>&1 | tee "test_log"
+                                fftw_test_success="${fftw_test_success_backup}"
+                                [ ${PIPESTATUS[0]} -eq 0 ] || fftw_test_success="False"
+                            fi
+                            make ${make_jobs} install 2>&1 || continue
+                            # Single-precision
+                            make clean || :
+                            ./configure ${enable_shared}  \
+                                        ${enable_mpi}     \
+                                        --enable-float    \
+                                        --disable-fortran \
+                                        ${with_pic}       \
+                                        --prefix="${fftw_dir}" 2>&1 || continue
+                            make ${make_jobs}         2>&1 || continue
+                            make ${make_jobs} install 2>&1 || continue
+                            install_success="True"
+                            break
                         done
                         if [ "${install_success}" == "True" ]; then
                             break
@@ -4953,8 +4916,8 @@ if [ "${freetype_install}" == "True" ] && [ "${freetype_installed}" == "False" ]
     install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        eval "use_${compiler}_compilers FreeType" || continue
-        init_install "FreeType"
+        eval "use_${compiler}_compilers" || continue
+        init_install "FreeType" "compiler=${compiler}"
         ./configure --prefix="${freetype_dir}" \
                     --with-zlib=no             \
                     --with-bzip2=no            \
@@ -4982,8 +4945,8 @@ if [ "${ncurses_install}" == "True" ] && [ "${ncurses_installed}" == "False" ]; 
     install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        eval "use_${compiler}_compilers ncurses" || continue
-        init_install "ncurses"
+        eval "use_${compiler}_compilers" || continue
+        init_install "ncurses" "compiler=${compiler}"
         # Due to a bug in (at least) ncurses 6.0, this is needed on
         # some systems. See https://trac.sagemath.org/ticket/19762
         export CPPFLAGS="-P ${CPPFLAGS}"
@@ -5042,10 +5005,8 @@ if [ "${perl_install}" == "True" ] && [ "${perl_installed}" == "False" ]; then
                 for perl_cflags in "" "-fPIC"; do
                     reset_environment
                     eval "use_${compiler}_compilers" || continue
-                    init_install "Perl"
-                    printf "
-Attempting to install Perl with compiler=${compiler}, dump_libimf=${dump_libimf}, \
-perl_poll_fix=${perl_poll_fix}, perl_cflags=${perl_cflags}\n\n"
+                    init_install "Perl" "compiler=${compiler}, dump_libimf=${dump_libimf}, \
+perl_poll_fix=${perl_poll_fix}, perl_cflags=${perl_cflags}"
                     # When an Intel C compiler is used, some libraries
                     # like libimf may not be found by the perl
                     # executable. We can fix this by dropping symlinks
@@ -5157,8 +5118,8 @@ if [ "${openssl_install}" == "True" ] && [ "${openssl_installed}" == "False" ]; 
     install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        eval "use_${compiler}_compilers OpenSSL" || continue
-        init_install "OpenSSL"
+        eval "use_${compiler}_compilers" || continue
+        init_install "OpenSSL" "compiler=${compiler}"
         export PATH="${perl_dir}/bin:${PATH}"
         export PERL="${perl_dir}/bin/perl"
         ./config shared --prefix="${openssl_dir}" \
@@ -5192,8 +5153,8 @@ if [ "${libffi_install}" == "True" ] && [ "${libffi_installed}" == "False" ]; th
     install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        eval "use_${compiler}_compilers libffi" || continue
-        init_install "libffi"
+        eval "use_${compiler}_compilers" || continue
+        init_install "libffi" "compiler=${compiler}"
         ./configure --prefix="${libffi_dir}" 2>&1 || continue
         make ${make_jobs} 2>&1 || continue
         if [ "${do_tests}" == "True" ]; then
@@ -5246,11 +5207,9 @@ if [ "${blas_install}" == "True" ] && [ "${blas_installed}" == "False" ]; then
                 for openblas_BINARY in "" "32"; do
                     reset_environment
                     eval "use_${compiler}_compilers" || continue
-                    init_install "BLAS"
-                    printf "
-Attempting to install OpenBLAS with mavx_C=${mavx_C}, mavx_F=${mavx_F}, \
+                    init_install "BLAS" "mavx_C=${mavx_C}, mavx_F=${mavx_F}, \
 openblas_gfortran=${openblas_gfortran}, compiler=${compiler}, \
-openblas_BINARY=${openblas_BINARY}\n\n"
+openblas_BINARY=${openblas_BINARY}"
                     openblas_make_options="USE_THREAD=0"
                     if [ "${mavx_C}" == "NO_AVX2" ]; then
                         # Disable AVX2 completely
@@ -5368,10 +5327,8 @@ if [ "${python_install}" == "True" ] && [ "${python_installed}" == "False" ]; th
             for pyoptimizations in "pgo lto" "pgo" "lto" ""; do
                 reset_environment
                 eval "use_${compiler}_compilers" || continue
-                init_install "Python"
-                printf "
-Attempting to install Python with compiler=${compiler}, \
-disable_atomic_operations=${disable_atomic_operations}, pyoptimizations=${pyoptimizations}\n\n"
+                init_install "Python" "compiler=${compiler}, \
+disable_atomic_operations=${disable_atomic_operations}, pyoptimizations=${pyoptimizations}"
                 # Set up environment variables and configure options
                 if [ "${disable_atomic_operations}" == "True" ]; then
                     sed -i '/have_stdatomic_h *= *yes/c\have_stdatomic_h=no' configure
@@ -5923,7 +5880,9 @@ fi
 if [ "${cython_install}" == "True" ] && [ "${cython_installed}" == "False" ]; then
     install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
-        eval "use_${compiler}_compilers Cython" || continue
+        eval "use_${compiler}_compilers" || continue
+        printf "
+Attempting to install Cython with compiler=${compiler}\n\n"
         pip_install_pypackage "Cython" "${cython_version}"
         if [ "$(check_pypackage_installed cython)" == "False" ]; then
             continue
@@ -5943,7 +5902,9 @@ if [ "${cythongsl_install}" == "True" ] && [ "${cythongsl_installed}" == "False"
     install_success="False"
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        eval "use_${compiler}_compilers CythonGSL" || continue
+        eval "use_${compiler}_compilers" || continue
+        printf "
+Attempting to install CythonGSL with compiler=${compiler}\n\n"
         export LD_LIBRARY_PATH="${gsl_dir}/lib:${LD_LIBRARY_PATH}"
         pip_install_pypackage "CythonGSL" "${cythongsl_version}"
         if [ "$(check_pypackage_installed cythongsl)" == "False" ]; then
@@ -6464,11 +6425,11 @@ fi
 # MPI4Py
 if [ "${mpi4py_install}" == "True" ] && [ "${mpi4py_installed}" == "False" ]; then
     install_success="False"
-    for fun in "use_specified_mpi_compilers" ""; do
+    for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        if [ -n "${fun}" ]; then
-            eval "${fun}"
-        fi
+        eval "use_${compiler}_compilers" || continue
+        printf "
+Attempting to install MPI4Py with compiler=${compiler}\n\n"
         export PATH="${mpi_bindir}:${mpi_compilerdir}:${PATH}"
         pip_install_pypackage "MPI4Py" "${mpi4py_version}" || continue
         install_success="True"
@@ -6484,18 +6445,20 @@ fi
 # H5Py
 if [ "${h5py_install}" == "True" ] && [ "${h5py_installed}" == "False" ]; then
     install_success="False"
-    for fun in "use_specified_mpi_compilers" ""; do
+    for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
-        if [ -n "${fun}" ]; then
-            eval "${fun}"
-        fi
+        eval "use_${compiler}_compilers" || continue
+        printf "
+Attempting to install H5Py with compiler=${compiler}\n\n"
         export LD_LIBRARY_PATH="${hdf5_dir}/lib:${LD_LIBRARY_PATH}"
         if [ -d "${blas_dir}/lib" ]; then
             export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
         fi
         export HDF5_DIR="${hdf5_dir}"
         export HDF5_MPI="ON"
-        export CC="${mpicc}"
+        if [ -n "${mpicc}" ]; then
+            export CC="${mpicc}"
+        fi
         pip_install_pypackage "h5py" "${h5py_version}" || continue
         install_success="True"
         break
@@ -7287,41 +7250,76 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     # Build CLASS, including the Python wrapper classy. We explicitly
     # specify Python 3 as the language level and replace -O4 with -O3
     # (which are equivalent on compilers that recognize -O4).
-    # We try with and without the -fast-math option, try different
+    # We try with and without the -ffast-math option, try different
     # commpilers and various flags for correctly linking to OpenMP.
+    # The classy Python wrapper is hardcoded to use gcc in setup.py to
+    # test for existence of the mvec library, as well as to get the
+    # compiler library directory.
     sed -i '1s/^/# cython: language_level=3\n/' "python/classy.pyx"
     sed -i 's/-O4/-O3/' "Makefile"
     cp "Makefile" "Makefile_ori"
     cp "python/setup.py" "python/setup.py_ori"
     install_success="False"
     for lgomp_in_extra_link_args in "" "-gomp"; do
-        for compiler in "${compiler_possibilities[@]}"; do
-            for OMPFLAG in "-fopenmp" "-openmp" "-qopenmp"; do
-                for fast_math in "True" "False"; do
-                    reset_environment
-                    cp "Makefile_ori" "Makefile"
-                    cp "python/setup.py_ori" "python/setup.py"
-                    make clean || :
-                    export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
-                    eval "use_${compiler}_compilers CLASS" || continue
-                    if [ "${fast_math}" == "False" ]; then
-                        sed -i '0,/-ffast-math/s/-ffast-math/#-ffast-math/' "Makefile"
-                    fi
-                    if [ -n "${CC}" ]; then
-                        sed -i "s/CC * =/CC = ${CC//\//\/}  #/" "Makefile"
-                    fi
-                    if [ -n "${OMPFLAG}" ]; then
-                        sed -i "s/OMPFLAG *=/OMPFLAG = ${OMPFLAG}  #/" "Makefile"
-                    fi
-                    sed -i "s/extra_link_args *=/extra_link_args=\
-'${lgomp_in_extra_link_args} ${OMPFLAG}'.split(),  #/" "python/setup.py"
-                    printf "
+        for hardcoded_gcc in "False" "True"; do
+            for compiler in "${compiler_possibilities[@]}"; do
+                for OMPFLAG in "-fopenmp" "-openmp" "-qopenmp"; do
+                    for fast_math in "True" "False"; do
+                        reset_environment
+                        export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
+                        eval "use_${compiler}_compilers" || continue
+                        if [ "${hardcoded_gcc}" == "False" ] && [ -z "${CC}" ]; then
+                            continue
+                        fi
+                        printf "
 Attempting to install CLASS with lgomp_in_extra_link_args=${lgomp_in_extra_link_args}, \
-compiler=${compiler}, OMPFLAG=${OMPFLAG}, fast_math=${fast_math}\n\n"
-                    PYTHON="${python}" make ${make_jobs} 2>&1 || continue
-                    "${python}" -c "import classy; classy.Class().compute()" || continue
-                    install_success="True"
-                    break
+hardcoded_gcc=${hardcoded_gcc}, compiler=${compiler}, \
+OMPFLAG=${OMPFLAG}, fast_math=${fast_math}\n\n"
+                        cp "Makefile_ori" "Makefile"
+                        cp "python/setup.py_ori" "python/setup.py"
+                        make clean || :
+                        if [ "${fast_math}" == "False" ]; then
+                            sed -i '0,/-ffast-math/s/-ffast-math/#-ffast-math/' "Makefile"
+                        fi
+                        if [ -n "${CC}" ]; then
+                            sed -i "s/CC * =/CC = ${CC//\//\\/}  #/" "Makefile"
+                        fi
+                        if [ -n "${OMPFLAG}" ]; then
+                            sed -i "s/OMPFLAG *=/OMPFLAG = ${OMPFLAG}  #/" "Makefile"
+                        fi
+                        sed -i "s/extra_link_args *=/extra_link_args=\
+'${lgomp_in_extra_link_args} ${OMPFLAG}'.split(),  #/" "python/setup.py"
+                        if [ "${hardcoded_gcc}" == "False" ]; then
+                            # Remove hardcoding of gcc
+                            linenr_1=$(awk "\$0 ~ \"gcc\" {print NR}" "python/setup.py" \
+                                | head -n 1)
+                            linenr_2=$(awk "\$0 ~ \"mvec\" {print NR}" "python/setup.py" \
+                                | tail -n 1)
+                            sed -i "${linenr_1},${linenr_2}d" "python/setup.py"
+                            sed -i "${linenr_1}iliblist = ['class']" "python/setup.py"
+                            sed -i 's/GCCPATH//g' "python/setup.py"
+                            # Check for the mvec library
+                            mkdir -p "tmp_mvec"
+                            cd "tmp_mvec"
+                            echo "int main(void){ return 0; }" > test.c
+                            mvec_warning="$("${CC}" -lmvec test.c 2>&1 | grep mvec || :)"
+                            cd ..
+                            rm -rf "tmp_mvec" || :
+                            if [ -z "${mvec_warning}" ]; then
+                                # mvec found.
+                                # Add the mvec and m library.
+                                ((linenr = linenr_1 + 1))
+                                sed -i "${linenr}iliblist += ['mvec', 'm']" "python/setup.py"
+                            fi
+                        fi
+                        PYTHON="${python}" make ${make_jobs} 2>&1 || continue
+                        "${python}" -c "import classy; classy.Class().compute()" || continue
+                        install_success="True"
+                        break
+                    done
+                    if [ "${install_success}" == "True" ]; then
+                        break
+                    fi
                 done
                 if [ "${install_success}" == "True" ]; then
                     break
@@ -7557,11 +7555,10 @@ if [ "${fftw_for_gadget_install}" == "True" ] \
                                 continue
                             fi
                             reset_environment
-                            init_install "FFTW for GADGET"
-                            printf "
-Attempting to install FFTW for GADGET with extra_optimizations=${extra_optimizations}, \
+                            init_install "FFTW for GADGET" \
+                                "extra_optimizations=${extra_optimizations}, \
 enable_shared=${enable_shared}, with_pic=${with_pic}, \
-PIC=${PIC}, shared=${shared}, extra_MPILIBS=${extra_MPILIBS}\n\n"
+PIC=${PIC}, shared=${shared}, extra_MPILIBS=${extra_MPILIBS}"
                             export CFLAGS="-O3 ${PIC} ${CFLAGS}"
                             export CXXFLAGS="-O3 ${PIC} ${CXXFLAGS}"
                             export LDFLAGS="${LDFLAGS} -Wl,-O3 ${shared} ${PIC}"
