@@ -293,6 +293,8 @@ remote job (which fails if you have not specified the ``-q``
 
 
 
+.. _specials:
+
 Specials
 --------
 The following special options are rarely used outside of development, though
