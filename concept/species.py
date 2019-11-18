@@ -4202,7 +4202,7 @@ def accept_or_reject_subtiling_refinement(
     # subtile refinement), we use mean + sigmas*std rather than just
     # the mean, where sigmas sets the number of standard deviations
     # we wish to exaggerate with.
-    sigmas = 0.3
+    sigmas = 0.25
     computation_time_total_old = 0
     for index in range(N_rungs, ℤ[2*N_rungs]):
         if computation_times_N[index] == 0 or computation_times_N[-N_rungs + index] == 0:

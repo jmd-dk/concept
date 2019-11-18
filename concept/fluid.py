@@ -219,6 +219,8 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
         ϕ = flux_limiter_vanalbada
     elif flux_limiter_name in {'vanleer', 'muscl', 'harmonic'}:
         ϕ = flux_limiter_vanleer
+    elif flux_limiter_name == 'koren':
+        ϕ = flux_limiter_koren
     else:
         abort(f'Flux limiter "{flux_limiter_name}" not implemented')
     #############################################
@@ -660,6 +662,16 @@ def flux_limiter_vanleer(r):
     if r > 0:
         return 2*r/(1 + r)
     return 0
+# The Koren flux limiter function
+@cython.header(r='double', returns='double')
+def flux_limiter_koren(r):
+    if r > 2.5:
+        return 2
+    if r > 0.25:
+        return (1 + 2*r)*ℝ[1/3]
+    if r > 0:
+        return 2*r
+    return 0
 
 # Function which evolve the fluid variables of a component
 # due to internal source terms. This function should be used
@@ -886,11 +898,18 @@ def maccormack_step(component, ᔑdt, steps, mc_step, a_next=-1):
     # The Euler equation (flux terms only).
     # ΔJⁱ = -ᔑa**(3*w_eff - 2)dt ∂ʲ(JⁱJⱼ/(ϱ + c⁻²𝒫))  (momentum flux).
     # As the pressure is not evolved by the MacCormack method,
-    # we use the unstarred grid in both MacCormack steps.
+    # we use the unstarred grid in both MacCormack steps. We could of
+    # course re-realize the pressure from ϱˣ after the first MacCormack
+    # step. It was found that this does not impact the final result,
+    # and so is off below.
     masterprint('Computing momentum fluxes in the Euler equation ...')
-    if mc_step == 0:
-        component.realize_if_linear(2, specific_multi_index='trace')
-    𝒫  = component.𝒫.grid_mv
+    if False:
+        component.realize_if_linear(2, specific_multi_index='trace', a_next=a_next, use_gridˣ=(mc_step == 1))
+        𝒫 = getattr(component.𝒫, view)
+    else:
+        if mc_step == 0:
+            component.realize_if_linear(2, specific_multi_index='trace', a_next=a_next)
+        𝒫  = component.𝒫.grid_mv
     for dim_el in range(3):  # Loop over elements of J
         J_el  = getattr(component.J[dim_el], view )
         Jˣ_el = getattr(component.J[dim_el], viewˣ)

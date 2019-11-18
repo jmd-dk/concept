@@ -2274,11 +2274,11 @@ fluid_options_defaults = {
         'vacuum_corrections_select'    : True,
         'max_vacuum_corrections_select': (1, 'gridsize'),
         'foresight_select'             : 25,
-        'smoothing_select'             : 2.0,
+        'smoothing_select'             : 1.0,
     },
     'kurganovtadmor': {
         'rungekuttaorder'    : 2,
-        'flux_limiter_select': 'minmod',
+        'flux_limiter_select': 'mc',
     },
 }
 fluid_options = dict(user_params.get('fluid_options', {}))

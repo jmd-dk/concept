@@ -70,13 +70,13 @@ cimport('from utilities import delegate')
     Δt_begin='double',
     Δt_jump_fac='double',
     Δt_increase_fac='double',
-    Δt_increase_max_fac='double',
-    Δt_increase_min_fac='double',
     Δt_initial_fac='double',
     Δt_min='double',
     Δt_max='double',
     Δt_new='double',
     Δt_period='Py_ssize_t',
+    Δt_period_increase_max_fac='double',
+    Δt_period_increase_min_fac='double',
     Δt_ratio='double',
     Δt_ratio_abort='double',
     Δt_ratio_warn='double',
@@ -128,21 +128,16 @@ def timeloop():
     Δt_initial_fac = 0.9
     # When reducing Δt, set it to the maximum allowed value
     # times this factor.
-    Δt_reduce_fac = 0.95
-    # When increasing Δt, we never increase it beyond the maximally
-    # alowed value Δt_max. In fact, we never increase Δt beyond
-    # Δt + Δt_increase_fac*(Δt_max - Δt).
-    # A value of Δt_increase_fac slightly below 1 ensures that the time
-    # step size is not set right at the boundary of what is allowed,
-    # which would be bad as the time step will then often have to be
-    # lowered right after it has been increased.
-    Δt_increase_fac = 0.95
+    Δt_reduce_fac = 0.94
+    # When increasing Δt, set it to the maximum allowed value
+    # times this factor.
+    Δt_increase_fac = 0.96
     # The maximum allowed fractional increase in Δt
     # after Δt_period time steps with constant time step size.
-    Δt_increase_max_fac = 0.33
+    Δt_period_increase_max_fac = 0.33
     # The minimum fractional increase in Δt needed before it is deemed
     # worth it to synchronize drifts/kicks and update Δt.
-    Δt_increase_min_fac = 0.01
+    Δt_period_increase_min_fac = 0.01
     # Ratios between old and new Δt, below which the program
     # will show a warning or abort, respectively.
     Δt_ratio_warn  = 0.7
@@ -380,25 +375,17 @@ def timeloop():
                         # The base time step size will be increased,
                         # and so we have no bottleneck.
                         bottleneck = ''
-                        # New, bigger base time step size,
-                        # according to Δt ∝ a.
-                        Δt_new = universals.a*ℝ[Δt_begin/a_begin]
+                        # Set new, increased base time step Δt, making
+                        # sure that its relative change is not too big.
+                        Δt_new = Δt_increase_fac*Δt_max
                         if Δt_new < Δt:
                             Δt_new = Δt
-                        # Add small, constant contribution to the new
-                        # base time step size.
-                        Δt_new += ℝ[(1 + Δt_increase_min_fac)*Δt_begin]
-                        # Make sure that the relative change
-                        # of the base time step size is not too big.
-                        Δt_tmp = Δt + Δt_increase_fac*(Δt_max - Δt)
-                        if Δt_new > Δt_tmp:
-                            Δt_new = Δt_tmp
-                        period_frac = float(time_step + 1 - time_step_last_sync)*ℝ[1/Δt_period]
+                        period_frac = (time_step + 1 - time_step_last_sync)*ℝ[1/Δt_period]
                         if period_frac > 1:
                             period_frac = 1
                         elif period_frac < 0:
                             period_frac = 0
-                        Δt_tmp = (1 + period_frac*Δt_increase_max_fac)*Δt
+                        Δt_tmp = (1 + period_frac*Δt_period_increase_max_fac)*Δt
                         if Δt_new > Δt_tmp:
                             Δt_new = Δt_tmp
                         Δt = Δt_new
@@ -457,7 +444,7 @@ def timeloop():
                     recompute_Δt_max = False
                     continue
                 # Check whether the base time step should be increased
-                if (Δt_max > ℝ[1 + Δt_increase_min_fac]*Δt
+                if (Δt_max > ℝ[1 + Δt_period_increase_min_fac]*Δt
                     and (time_step + 1 - time_step_last_sync) >= Δt_period
                 ):
                     # We should synchronize, whereafter the
@@ -488,7 +475,9 @@ def timeloop():
     component_lapse='Component',
     extreme_force=str,
     force=str,
+    key=tuple,
     lapse_gridsize='Py_ssize_t',
+    measurements=dict,
     method=str,
     resolution='Py_ssize_t',
     scale='double',
@@ -542,6 +531,8 @@ def get_base_timestep_size(components):
     H = hubble(a)
     Δt = ထ
     bottleneck = ''
+    # Local cache for calls to measure()
+    measurements = {}
     # The dynamical time scale
     ρ_bar = 0
     for component in components:
@@ -576,7 +567,10 @@ def get_base_timestep_size(components):
         if component.representation == 'particles':
             continue
         # Find maximum propagation speed of fluid
-        v_max = measure(component, 'v_max')
+        key = (component, 'v_max')
+        v_max = measurements[key] = (
+            measurements[key] if key in measurements else measure(component, 'v_max')
+        )
         # In the odd case of a completely static component,
         # set v_max to be just above 0.
         if v_max == 0:
@@ -621,7 +615,10 @@ def get_base_timestep_size(components):
         if resolution == 0:
             continue
         # Find rms bulk velocity, i.e. do not add the sound speed
-        v_rms = measure(component, 'v_rms')
+        key = (component, 'v_rms')
+        v_rms = measurements[key] = (
+            measurements[key] if key in measurements else measure(component, 'v_rms')
+        )
         if component.representation == 'fluid':
             v_rms -= light_speed*sqrt(component.w(a=a))/a
         # In the odd case of a completely static component,
@@ -651,7 +648,10 @@ def get_base_timestep_size(components):
         if scale == ထ:
             continue
         # Find rms velocity
-        v_rms = measure(component, 'v_rms')
+        key = (component, 'v_rms')
+        v_rms = measurements[key] = (
+            measurements[key] if key in measurements else measure(component, 'v_rms')
+        )
         # In the odd case of a completely static component,
         # set v_rms to be just above 0.
         if v_rms < machine_ϵ:
@@ -1697,18 +1697,18 @@ fac_ẇ = 0.0017*Δt_base_background_factor
 fac_Γ = 0.0028*Δt_base_background_factor
 # The base time step should be below that set by the 1D Courant
 # condition times this factor, for all fluid components.
-fac_courant = 0.14*Δt_base_nonlinear_factor
+fac_courant = 0.21*Δt_base_nonlinear_factor
 # The base time step should be small enough so that particles
 # participating in interactions using the PM method do not drift further
 # than the size of one PM grid cell times this factor in a single
 # time step. The same condition is applied to fluids, where the bulk
 # velocity is what counts (i.e. we ignore the sound speed).
-fac_pm = 0.032*Δt_base_nonlinear_factor
+fac_pm = 0.13*Δt_base_nonlinear_factor
 # The base time step should be small enough so that particles
 # participating in interactions using the P³M method do not drift
 # further than the long/short-range force split scale times this factor
 # in a single time step.
-fac_p3m = 0.027*Δt_base_nonlinear_factor
+fac_p3m = 0.14*Δt_base_nonlinear_factor
 # When using adaptive time stepping (N_rungs > 1), the individual time
 # step size for a given particle must not be so large that it drifts
 # further than its softening length times this factor, due to its
