@@ -887,11 +887,16 @@ export OMPI_MCA_btl_openib_allow_ib=1"
 export OMPI_MCA_hwloc_base_binding_policy=none"
 elif [ "${mpi_implementation}" == "mpich" ]; then
     # Though MPICH should not use process binding by default,
-    # it still supports a --bind-to none option. Here we check if this
-    # is really so, and apply it.
-    mpiexec_output="$("${mpiexec}" --bind-to none -n 1 echo "success" 2>&1 || :)"
+    # it still supports a -bind-to none or --bind-to none option.
+    # Here we check if this is so, and apply it.
+    mpiexec_output="$("${mpiexec}" -bind-to none -n 1 echo "success" 2>&1 || :)"
     if [ "${mpiexec_output}" == "success" ]; then
-        mpiexec_args="${mpiexec_args} --bind-to none"
+        mpiexec_args="${mpiexec_args} -bind-to none"
+    else
+        mpiexec_output="$("${mpiexec}" --bind-to none -n 1 echo "success" 2>&1 || :)"
+        if [ "${mpiexec_output}" == "success" ]; then
+            mpiexec_args="${mpiexec_args} --bind-to none"
+        fi
     fi
 elif [ "${mpi_implementation}" == "mvapich" ]; then
     # Disable automatic process binding, allowing OpenMP threads to be

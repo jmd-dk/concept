@@ -24,9 +24,11 @@
 
 # Help text which gets printed if invoked with -h or --help.
 help_text='This script downloads and installs the CO𝘕CEPT code with all its
-dependencies. You can also download and run the newest version of this script
-by executing the following command:
-  bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/master/installer)
+dependencies.
+
+Below you will find a short description of how to run this script.
+This is more thoroughly documented in the CO𝘕CEPT documentation:
+https://jmd-dk.github.io/concept/installation.html
 
 If run without an argument, this script will prompt for an
 installation directory. Alternatively, this directory can be passed as
@@ -37,11 +39,11 @@ Options taken by this script:
   -t, --tests  Test the various dependency programs after their individual
                installations. CO𝘕CEPT itself will similarly be tested.
                On failure (fatal or non-fatal) of any test, a log file of the
-               test output will be placed in the installation directory of the
-               given program. Any test failures will also be reported at the
-               end of the entire installation.
+               test output will be placed in the installation subdirectory of
+               the given program. Any test failures will be reported at the
+               end of the entire installation process.
   -y, --yes    Accept default options on future quiries. Currently these
-               include only the system-wide installations of basic system
+               include only the system-wide installations of system
                dependencies (e.g. gcc), should they be missing.
                Note that this require root access.
   --fix-ssh    Set up the ~/.ssh directory so that it allows for password-less
@@ -236,12 +238,12 @@ done
 mpi_lower="$(echo "${mpi}" | tr '[:upper:]' '[:lower:]')"
 if [ -z "${mpi}" ]; then
     # If mpi_dir is specified,
-    # try to determine whether OpenMPI or MPICH is used.
+    # try to determine whether MPICH or OpenMPI is used.
     if [ -n "${mpi_dir}" ]; then
-        if [ -f "${mpi_dir}/bin/ompi_info" ]; then
-            mpi="openmpi"
-        elif [ -f "${mpi_dir}/bin/mpichversion" ]; then
+        if [ -f "${mpi_dir}/bin/mpichversion" ]; then
             mpi="mpich"
+        elif [ -f "${mpi_dir}/bin/ompi_info" ]; then
+            mpi="openmpi"
         else
             mpi="unknown"
         fi
@@ -249,7 +251,7 @@ if [ -z "${mpi}" ]; then
         # Use MPICH by default
         mpi="mpich"
     fi
-elif [ "${mpi_lower}" != "openmpi" ] && [ "${mpi_lower}" != "mpich" ]; then
+elif [ "${mpi_lower}" != "mpich" ] && [ "${mpi_lower}" != "openmpi" ]; then
     echo "Specified MPI implementation mpi=\"${mpi}\" not recognized.
 Will use MPICH" >&2
     mpi="mpich"
@@ -356,13 +358,13 @@ set_version "hdf5"             "1.10.5" "1.10.5"
 set_version "libffi"           "3.2.1"  "3.2.1"
 set_version "libpng"           "1.6.37" "1.6.37"
 if [ "${mpi}" == "mpich" ]; then
-    set_version "mpi"          "3.3.1"  "3.3.1"
+    set_version "mpi"          "3.3.2"  "3.3.2"
 elif [ "${mpi}" == "openmpi" ]; then
     set_version "mpi"          "4.0.2"
 fi
 set_version "ncurses"          "6.1"    "6.1"
 set_version "openssl"          "1.1.1d" "1.1.1d"
-set_version "perl"             "5.30.0"
+set_version "perl"             "5.30.1"
 set_version "python"           "3.8.0"
 set_version "zlib"             "1.2.11" "1.2.11"
 # Python packages
@@ -372,10 +374,10 @@ set_version "cythongsl"        "0.2.2"
 set_version "h5py"             "2.10.0"
 set_version "matplotlib"       "3.1.1"
 set_version "mpi4py"           "3.0.3"
-set_version "numpy"            "1.17.3"
+set_version "numpy"            "1.17.4"
 set_version "pip"              "19.3.1"
-set_version "pytest"           "5.2.2"
-set_version "scipy"            "1.3.1"
+set_version "pytest"           "5.2.4"
+set_version "scipy"            "1.3.2"
 set_version "setuptools"       "41.6.0"
 set_version "sphinx"           "2.2.1"
 set_version "sphinx_rtd_theme" "0.4.3"
@@ -496,7 +498,6 @@ env_var_names=(BLAS             \
                PKG_CONFIG_PATH  \
                PNG_CFLAGS       \
                PNG_LIBS         \
-               RUNTESTS_VERBOSE \
                TMPDIR           \
                ZLIB_CFLAGS      \
                ZLIB_LIBS        \
@@ -1594,12 +1595,12 @@ if [ -z "${mpi_includedir}" ]; then
 fi
 
 # Set test_log path variables
-blas_test_log="${blas_dir}/test_log"  # No BLAS tests actually performed
+blas_test_log="${blas_dir}/test_log"
 class_test_log="${class_dir}/test_log"
 concept_test_log="${concept_dir}/test_log"
 fftw_test_log="${fftw_dir}/test_log"
 fftw_for_gadget_test_log="${fftw_for_gadget_dir}/test_log"
-freetype_test_log="${freetype_dir}/test_log"  # No FreeType tests actually performed
+freetype_test_log="${freetype_dir}/test_log"
 gadget_test_log="${gadget_dir}/test_log"
 gsl_test_log="${gsl_dir}/test_log"
 hdf5_test_log="${hdf5_dir}/test_log"
@@ -1812,6 +1813,12 @@ for pypackage in blessings        \
         fi
     fi
 done
+# Do not install pytest unless we are installing with tests
+# and either NumPy or SciPy is to be installed.
+if [ "${do_tests}" == "False" ] \
+    || ([ "${numpy_install}" == "False" ] && [ "${scipy_install}" == "False" ]); then
+    pytest_install="False"
+fi
 # FFTW (needed by CO𝘕CEPT)
 if [ -z "${fftw_install}" ]; then
     fftw_install="False"
@@ -2028,31 +2035,47 @@ validate_url(){
     filename="$(basename "${url}")"
     mkdir -p "${top_dir}/tmp"
     for n in {1..3}; do
-        for ipv in "--inet4-only" "--inet6-only" ""; do
-            wget_status="success"
-            if [[ "${url}" == "ftp://"* ]]; then
-                # wget do not always return with a non-zero status on
-                # failure when using ftp.
-                (cd "${top_dir}/tmp"
-                 wget -t 1 --timeout 30 --no-check-certificate --no-dns-cache --spider \
-                      --no-remove-listing ${ipv} "${url}" > "${top_dir}/tmp/.wget" 2>&1 || :)
-                grep "${filename}" "${top_dir}/tmp/.listing" > /dev/null 2>&1 \
-                     || wget_status="error"
-                rm -f "${top_dir}/tmp/.listing" || :
-            else
-                wget -t 1 --timeout 30 --no-check-certificate --no-dns-cache --spider ${ipv} \
-                     "${url}" > "${top_dir}/tmp/.wget" 2>&1 || wget_status="error"
-            fi
-            if [ "${wget_status}" == "error" ]; then
-                # Heavy scraping can result in bans, indicated by a
-                # "429 Too Many Requests" error. This does not mean
-                # that we cannot download the file, just that the
-                # spider has been disallowed by the server.
-                if grep "429" "${top_dir}/tmp/.wget" >/dev/null 2>&1; then
-                    wget_status="success"
+        for spider in "True" "False"; do
+            for ipv in "--inet4-only" "--inet6-only" ""; do
+                wget_status="success"
+                if [ "${spider}" == "True" ]; then
+                    if [[ "${url}" == "ftp://"* ]]; then
+                        # wget do not always return with a non-zero status on
+                        # failure when using ftp.
+                        (cd "${top_dir}/tmp"
+                         wget -t 1 --timeout 30 --no-check-certificate --no-dns-cache --spider \
+                              --no-remove-listing ${ipv} "${url}" > "${top_dir}/tmp/.wget" 2>&1 \
+                            || :)
+                        grep "${filename}" "${top_dir}/tmp/.listing" > /dev/null 2>&1 \
+                             || wget_status="error"
+                        rm -f "${top_dir}/tmp/.listing" || :
+                    else
+                        wget -t 1 --timeout 30 --no-check-certificate --no-dns-cache --spider \
+                            ${ipv} "${url}" > "${top_dir}/tmp/.wget" 2>&1 || wget_status="error"
+                    fi
+                    if [ "${wget_status}" == "error" ]; then
+                        # Heavy scraping can result in bans, indicated by a
+                        # "429 Too Many Requests" error. This does not mean
+                        # that we cannot download the file, just that the
+                        # spider has been disallowed by the server.
+                        if grep "429" "${top_dir}/tmp/.wget" >/dev/null 2>&1; then
+                            wget_status="success"
+                        fi
+                    fi
+                    rm -f "${top_dir}/tmp/.wget" || :
+                    if [ "${wget_status}" == "success" ]; then
+                        break
+                    fi
+                else
+                    # Some times --spider just does not succeed in
+                    # correctly reporting the existence of the remote
+                    # file, even though it exists. As a last resort, try
+                    # downloading the file completelte, without using
+                    # --spider (and throw away the downloaded file).
+                    wget -t 1 --timeout 30 --no-check-certificate --no-dns-cache ${ipv} -O - \
+                        "${url}" >/dev/null 2>&1 || wget_status="error"
                 fi
-            fi
-            rm -f "${top_dir}/tmp/.wget" || :
+            done
             if [ "${wget_status}" == "success" ]; then
                 break
             fi
@@ -2114,6 +2137,40 @@ check_progress(){
     # GADGET directory.
     if [ "${progname}" == "concept" ]; then
         progdir="${gadget_dir}"
+        # If ${concept_dir} is missing (e.g. manually deleted), info
+        # about CO𝘕CEPT from ${gadget_dir}/.installation_finished
+        # should not be used. Remove such info if present, and if
+        # ${concept_dir} indeed is missing.
+        if ([ ! -d "${concept_dir}" ] || [ -z "$(ls "${concept_dir}")" ]) \
+            && [ -f "${progdir}/.installation_finished" ]; then
+            linenr=$(awk "\$0 ~ \"CONCEPT\" {print NR}" \
+                "${progdir}/.installation_finished" | head -n 1)
+            if [ -n "${linenr}" ]; then
+                linenr_first=${linenr}
+                while :; do
+                    line="$(sed -n "${linenr_first}p" "${progdir}/.installation_finished")"
+                    if [ -z "${line}" ]; then
+                        ((linenr_first += 1))
+                        break
+                    fi
+                    ((linenr_first -= 1))
+                    if [ ${linenr_first} -eq 0 ]; then
+                        ((linenr_first += 1))
+                        break
+                    fi
+                done
+                linenr_last=${linenr}
+                while :; do
+                    line="$(sed -n "${linenr_last}p" "${progdir}/.installation_finished")"
+                    if [ -z "${line}" ]; then
+                        ((linenr_last -= 1))
+                        break
+                    fi
+                    ((linenr_last += 1))
+                done
+                sed -i "${linenr_first},${linenr_last}d" "${progdir}/.installation_finished"
+            fi
+        fi
     fi
     # The program version
     eval "progversion=\"\${${progname}_version}\""
@@ -2153,7 +2210,8 @@ check_progress(){
                             eval "${progname}_test_success=\"False\""
                         fi
                     fi
-                    # Installed programs should always count as downloaded
+                    # Installed programs should always count
+                    # as downloaded.
                     eval "${progname}_downloaded=\"True\""
                     return
                 fi
@@ -3300,7 +3358,7 @@ use_specified_mpi_compilers(){
             if [ -f "${mpi_symlink}" ]; then
                 any_mpi_symlinks="True"
                 if [ ! -f "${mpi_symlink_name}" ]; then
-                    ln -s "${mpi_symlink}" "${mpi_symlink_name}" || :
+                    ln -s "${mpi_symlink}" "${mpi_symlink_name}" >/dev/null 2>&1 || :
                 fi
             fi
         done
@@ -3334,7 +3392,8 @@ use_specified_mpi_compilers(){
                 done
                 cd "${current_dir}"
                 if [ -n "${f_lib}" ]; then
-                    ln -s "${mpi_symlinkdir}/${f_lib}" "${mpi_symlinkdir}/ld_preload.so"
+                    ln -s "${mpi_symlinkdir}/${f_lib}" "${mpi_symlinkdir}/ld_preload.so" \
+                        >/dev/null 2>&1 || :
                 fi
             fi
             if [ -f "${mpi_symlinkdir}/ld_preload.so" ]; then
@@ -4474,148 +4533,67 @@ if [ "${mpi_install}" == "True" ] && [ "${mpi_installed}" == "False" ]; then
         compiler_possibilities_mpi=("${compiler_possibilities_mpi[@]}" \
             "${compiler_possibilities_specified_mpi}")
     fi
-    for compiler in "${compiler_possibilities_mpi[@]}"; do
-        reset_environment
-        eval "use_${compiler}_compilers" || continue
-        if [ "${mpi}" == "mpich" ]; then
-            # MPICH
+    if [ "${mpi}" == "mpich" ]; then
+        # MPICH
+        for compiler in "${compiler_possibilities_mpi[@]}"; do
+            reset_environment
+            eval "use_${compiler}_compilers" || continue
             init_install "MPI" "compiler=${compiler}"
             ./configure --enable-shared --prefix="${mpi_dir}" 2>&1 || continue
-            make         2>&1 || continue  # Building in parallel takes up a lot of resources
-            make install 2>&1 || continue  # Building in parallel takes up a lot of resources
-            # MPICH can be tested by running the code below.
-            # Since this require several GB of memory and will occupy up
-            # to 30 MPI processes, we skip these tests.
-            run_mpi_tests="False"
-            if [ "${run_mpi_tests}" == "True" ]; then
-                if [ "${do_tests}" == "True" ]; then
-                    export RUNTESTS_VERBOSE=1
-                    make ${make_jobs} testing 2>&1 | tee "test_log"
-                    [ ${PIPESTATUS[0]} -eq 0 ] || mpi_test_success="False"
-                fi
-                if [ "${mpi_test_success}" == "False" ]; then
-                    mkdir -p "$(dirname "${mpi_test_log}")"
-                    cp "test_log" "${mpi_test_log}"
-                fi
+            if [ "${make_jobs}" == "-j" ]; then
+                # Building in parallel takes up a lot of resources
+                make -j 2 2>&1 || continue
+            else
+                make 2>&1 || continue
+            fi
+            if [ "${do_tests}" == "True" ]; then
+                make check 2>&1 | tee "test_log"
+                [ ${PIPESTATUS[0]} -eq 0 ] || mpi_test_success="False"
+            fi
+            if [ "${mpi_test_success}" == "False" ]; then
+                mkdir -p "$(dirname "${mpi_test_log}")"
+                cp "test_log" "${mpi_test_log}"
+            fi
+            if [ "${make_jobs}" == "-j" ]; then
+                # Building in parallel takes up a lot of resources
+                make -j 2 install 2>&1 || continue
+            else
+                make install 2>&1 || continue
             fi
             install_success="True"
             break
-        elif [ "${mpi}" == "openmpi" ]; then
-            # OpenMPI.
-            # On some systems the building of OpenMPI will fail unless
-            # it is configured with the UCX library. If the initial
-            # installation fails we install such a UCX library and
-            # link OpenMPI to it.
-            for install_ucx in "False" "True"; do
-                init_install "MPI" "compiler=${compiler}, install_ucx=${install_ucx}"
-                # Temporary OpenMPI session files can cause OpenMPI
-                # to crash. Remove any temporary directory of the form
-                # /tmp/openmpi-sessions-* which belongs to the user.
-                my_username="$(whoami)"
-                ls_output="$(ls -l /tmp | grep openmpi-sessions- || :)"
-                if [ -n "${ls_output}" ]; then
-                    while read -r line; do
-                        username="$(echo "${line}" | awk '{print $3}')"
-                        if [ "${username}" == "${my_username}" ]; then
-                            openmpi_session_dirname="$(echo "${line}" | awk '{print $9}')"
-                            rm -rf "/tmp/${openmpi_session_dirname}" || :
-                        fi
-                    done <<< "${ls_output}"
-                fi
-                # Install dedicated UCX for OpenMPI.
-                # This may fail if it cannot detect the NUMA library.
-                # On failure, install it without NUMA support.
-                current_dir="$(pwd)"
-                if [ "${install_ucx}" == "True" ]; then
-                    install_ucx_success="False"
-                    ucx_dir="${mpi_dir}/ucx"
-                    ucx_version="1.5.0"
-                    ucx_url="https://github.com/openucx/ucx/archive/v${ucx_version}.tar.gz"
-                    download "ucx" "False"
-                    LDFLAGS_ori="${LDFLAGS}"
-                    CFLAGS_ori="${CFLAGS}"
-                    CXXFLAGS_ori="${CXXFLAGS}"
-                    CPPFLAGS_ori="${CPPFLAGS}"
-                    for disable_numa in "" "--disable-numa"; do
-                        extract "ucx"
-                        printf "
-Attempting to install UCX for OpenMPI with disable_numa=${disable_numa}\n\n"
-                        cd "${top_dir}/tmp/ucx"
-                        for f in *; do
-                            if [ -d "${f}" ]; then
-                                cd "${f}"
-                                break
-                            fi
-                        done
-                        # The NUMA library should be placed in
-                        # /usr/lib64. Add this directory to the LDFLAGS.
-                        # Both libnuma.so and libnuma.so.1 should exist.
-                        # To be sure, we create symlinks to these in a
-                        # new directory and add this directory to
-                        # LDFLAGS as well.
-                        # Similarly, the NUMA header files are
-                        # needed and should be placed in /usr/include.
-                        if [ -z "${disable_numa}" ]; then
-                            if [ -d "/usr/lib64" ]; then
-                                export LDFLAGS="${LDFLAGS_ori} -L/usr/lib64"
-                            fi
-                            numa_symlink_dir="${ucx_dir}/numa_symlinks"
-                            rm -rf "${numa_symlink_dir}" || :
-                            mkdir -p "${numa_symlink_dir}" || :
-                            if [ -f "/usr/lib64/libnuma.so" ] && \
-                                [ ! -f "/usr/lib64/libnuma.so.1" ]; then
-                                ln -s "/usr/lib64/libnuma.so" \
-                                    "${numa_symlink_dir}/libnuma.so.1" || :
-                            fi
-                            if [ -f "/usr/lib64/libnuma.so.1" ] && \
-                                [ ! -f "/usr/lib64/libnuma.so" ]; then
-                                ln -s "/usr/lib64/libnuma.so.1" \
-                                    "${numa_symlink_dir}/libnuma.so" || :
-                            fi
-                            export LDFLAGS="${LDFLAGS} -L${numa_symlink_dir}"
-                            if [ -d "/usr/include" ]; then
-                                export CFLAGS="-I/usr/include ${CFLAGS_ori}"
-                                export CXXFLAGS="-I/usr/include ${CXXFLAGS_ori}"
-                                export CPPFLAGS="-I/usr/include ${CPPFLAGS_ori}"
-                            fi
-                        fi
-                        ./autogen.sh 2>&1 || continue
-                        ./contrib/configure-release --prefix="${ucx_dir}" \
-                            ${disable_numa} 2>&1 || continue
-                        make ${make_jobs} 2>&1 || continue
-                        make install 2>&1 || continue
-                        cp "AUTHORS" "LICENSE" "${ucx_dir}/" || :
-                        install_ucx_success="True"
-                        printf "\nInstallation of UCX for OpenMPI successful.
-Now continue with the installation of OpenMPI\n\n"
-                        break
-                    done
-                    export LDFLAGS="${LDFLAGS_ori}"
-                    export CFLAGS="${CFLAGS_ori}"
-                    export CXXFLAGS="${CXXFLAGS_ori}"
-                    export CPPFLAGS="${CPPFLAGS_ori}"
-                    if [ "${install_ucx_success}" == "False" ]; then
-                        continue
-                    fi
-                fi
-                cd "${current_dir}"
-                # Install OpenMPI
-                if [ "${install_ucx}" == "False" ]; then
-                    ./configure --prefix="${mpi_dir}" 2>&1 || continue
-                elif [ "${install_ucx}" == "True" ]; then
-                    ./configure --prefix="${mpi_dir}" --with-ucx="${ucx_dir}" 2>&1 || continue
-                fi
-                make ${make_jobs} all 2>&1 || continue
-                make ${make_jobs} install 2>&1 || continue
-                # OpenMPI does not come with a test suite
-                install_success="True"
-                break
-            done
-            if [ "${install_success}" == "True" ]; then
-                break
+        done
+    elif [ "${mpi}" == "openmpi" ]; then
+        # OpenMPI
+        for compiler in "${compiler_possibilities_mpi[@]}"; do
+            reset_environment
+            eval "use_${compiler}_compilers" || continue
+            init_install "MPI" "compiler=${compiler}"
+            ./configure --prefix="${mpi_dir}" 2>&1 || continue
+            if [ "${make_jobs}" == "-j" ]; then
+                # Building in parallel takes up a lot of resources
+                make -j 2 2>&1 || continue
+            else
+                make 2>&1 || continue
             fi
-        fi
-    done
+            if [ "${do_tests}" == "True" ]; then
+                make check 2>&1 | tee "test_log"
+                [ ${PIPESTATUS[0]} -eq 0 ] || mpi_test_success="False"
+            fi
+            if [ "${mpi_test_success}" == "False" ]; then
+                mkdir -p "$(dirname "${mpi_test_log}")"
+                cp "test_log" "${mpi_test_log}"
+            fi
+            if [ "${make_jobs}" == "-j" ]; then
+                # Building in parallel takes up a lot of resources
+                make -j 2 install 2>&1 || continue
+            else
+                make 2>&1 install || continue
+            fi
+            install_success="True"
+            break
+        done
+    fi
     if [ "${install_success}" == "False" ]; then
         if [ "${mpi}" == "mpich" ]; then
             error "Failed to install MPICH"
@@ -4632,9 +4610,6 @@ Now continue with the installation of OpenMPI\n\n"
     fi
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/mpi" || :
-    if [ "${mpi}" == "openmpi" ]; then
-        rm -rf "${top_dir}/tmp/ucx" || :
-    fi
     install_notice "MPI" "${mpi_dir}"
 fi
 
@@ -5036,7 +5011,7 @@ perl_poll_fix=${perl_poll_fix}, perl_cflags=${perl_cflags}"
                                         || [[ "${f_base}" == *.so   ]] \
                                         || [[ "${f_base}" == *.so.* ]] \
                                        ) && [ ! -f "./${f_base}" ]; then
-                                        ln -s "${f}" ./ || :
+                                        ln -s "${f}" ./ >/dev/null 2>&1 || :
                                     fi
                                 done
                             done
@@ -5621,7 +5596,12 @@ pip_install_pypackage(){
         fi
         if [ -n "${2}" ]; then
             pypackage_version="${2}"
-            command_end="==${pypackage_version}"
+            if [[ "${pypackage_version}" == *"="* ]] || [[ "${pypackage_version}" == *"<"* ]] \
+                || [[ "${pypackage_version}" == *">"* ]]; then
+                    command_end="${pypackage_version}"
+            else
+                command_end="==${pypackage_version}"
+            fi
         fi
     fi
     # Download Python package source
@@ -5825,9 +5805,14 @@ if [ "${pip_install}" == "True" ] && [ "${python_installed}" == "False" ]; then
     rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
 fi
 
-# Upgrade all packages pre-installed
-# with the newly installed Python distribution.
-if [ "${python_install}" == "True" ] && [ "${python_installed}" == "False" ]; then
+# The code below will upgrade all packages pre-installed
+# with the newly installed Python distribution,
+# if upgrade_preinstalled_pypackages is True.
+if [ -z "${upgrade_preinstalled_pypackages}" ]; then
+    upgrade_preinstalled_pypackages="False"
+fi
+if [ "${python_install}" == "True" ] && [ "${python_installed}" == "False" ] \
+    && [ "${upgrade_preinstalled_pypackages}" == "True" ]; then
     installed_packages_success="True"
     installed_packages="$("${python}" -m pip list --format=colu2mns 2>/dev/null)" \
         || installed_packages_success="False"
@@ -6001,52 +5986,58 @@ runtime_library_dirs = ${blas_dir}/lib
     for pyuser in "" "--user"; do
         for numpy_gfortran in "True" "False"; do
             for compiler in "${compiler_possibilities[@]}"; do
-                for fcompiler in "gnu95" ""; do
-                    for extra_FCFLAGS in "" "-fPIC"; do
-                        for extra_LDFLAGS in "" "-shared"; do
-                            reset_environment
-                            eval "use_${compiler}_compilers" || continue
-                            printf "
+                for cstd in "-std=c99" ""; do
+                    for fcompiler in "gnu95" ""; do
+                        for extra_FCFLAGS in "" "-fPIC"; do
+                            for extra_LDFLAGS in "" "-shared"; do
+                                reset_environment
+                                eval "use_${compiler}_compilers" || continue
+                                printf "
 Attempting to install NumPy with pyuser=${pyuser}, numpy_gfortran=${numpy_gfortran}, \
-compiler=${compiler}, fcompiler=${fcompiler}, extra_FCFLAGS=${extra_FCFLAGS}, \
+compiler=${compiler}, cstd=${cstd}, fcompiler=${fcompiler}, extra_FCFLAGS=${extra_FCFLAGS}, \
 extra_LDFLAGS=${extra_LDFLAGS}\n\n"
-                            if [ "${numpy_gfortran}" == "True" ]; then
-                                export FC="gfortran"
-                                export F77="gfortran"
-                                export F90="gfortran"
-                                export F9X="gfortran"
+                                if [ "${numpy_gfortran}" == "True" ]; then
+                                    export FC="gfortran"
+                                    export F77="gfortran"
+                                    export F90="gfortran"
+                                    export F9X="gfortran"
+                                fi
+                                export CFLAGS="${CFLAGS} ${cstd}"
+                                export TMPDIR="${tmp_pip_dir}_tmp"
+                                export BLAS="${blas_dir}/lib/libopenblas.a"
+                                export LAPACK="${blas_dir}/lib/libopenblas.a"
+                                export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
+                                export FCFLAGS="${extra_FCFLAGS} ${FCFLAGS}"
+                                export FFLAGS="${extra_FCFLAGS} ${FFLAGS}"
+                                export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS}"
+                                rm -rf "${numpy_build_dir}" || :
+                                cp -r "${numpy_build_dir}_cp" "${numpy_build_dir}"
+                                cd "${numpy_build_dir}"
+                                echo "True" > ".setuppy_success"
+                                if [ -n "${fcompiler}" ]; then
+                                    ("${python}" setup.py build --fcompiler="${fcompiler}" \
+                                        || echo "False" > ".setuppy_success") & setuppy_pid=$!
+                                else
+                                    ("${python}" setup.py build \
+                                        || echo "False" > ".setuppy_success") & setuppy_pid=$!
+                                fi
+                                soothe ${setuppy_pid}
+                                sleep 1
+                                setuppy_success="$(cat '.setuppy_success')"
+                                if [ "${setuppy_success}" != "True" ]; then
+                                    continue
+                                fi
+                                "${python}" setup.py install ${pyuser} & setuppy_pid=$!
+                                soothe ${setuppy_pid}
+                                if [ "$(check_pypackage_installed numpy)" == "False" ]; then
+                                    continue
+                                fi
+                                install_success="True"
+                                break
+                            done
+                            if [ "${install_success}" == "True" ]; then
+                                break
                             fi
-                            export TMPDIR="${tmp_pip_dir}_tmp"
-                            export BLAS="${blas_dir}/lib/libopenblas.a"
-                            export LAPACK="${blas_dir}/lib/libopenblas.a"
-                            export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
-                            export FCFLAGS="${extra_FCFLAGS} ${FCFLAGS}"
-                            export FFLAGS="${extra_FCFLAGS} ${FFLAGS}"
-                            export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS}"
-                            rm -rf "${numpy_build_dir}" || :
-                            cp -r "${numpy_build_dir}_cp" "${numpy_build_dir}"
-                            cd "${numpy_build_dir}"
-                            echo "True" > ".setuppy_success"
-                            if [ -n "${fcompiler}" ]; then
-                                ("${python}" setup.py build --fcompiler="${fcompiler}" \
-                                    || echo "False" > ".setuppy_success") & setuppy_pid=$!
-                            else
-                                ("${python}" setup.py build \
-                                    || echo "False" > ".setuppy_success") & setuppy_pid=$!
-                            fi
-                            soothe ${setuppy_pid}
-                            sleep 1
-                            setuppy_success="$(cat '.setuppy_success')"
-                            if [ "${setuppy_success}" != "True" ]; then
-                                continue
-                            fi
-                            "${python}" setup.py install ${pyuser} & setuppy_pid=$!
-                            soothe ${setuppy_pid}
-                            if [ "$(check_pypackage_installed numpy)" == "False" ]; then
-                                continue
-                            fi
-                            install_success="True"
-                            break
                         done
                         if [ "${install_success}" == "True" ]; then
                             break
@@ -6160,54 +6151,60 @@ runtime_library_dirs = ${blas_dir}/lib
     for pyuser in "" "--user"; do
         for scipy_gfortran in "True" "False"; do
             for compiler in "${compiler_possibilities[@]}"; do
-                for fcompiler in "gnu95" ""; do
-                    for extra_FCFLAGS in "" "-fPIC"; do
-                        for extra_LDFLAGS in "" "-shared"; do
-                            reset_environment
-                            eval "use_${compiler}_compilers" || continue
-                            printf "
+                for cstd in "-std=c99" ""; do
+                    for fcompiler in "gnu95" ""; do
+                        for extra_FCFLAGS in "" "-fPIC"; do
+                            for extra_LDFLAGS in "" "-shared"; do
+                                reset_environment
+                                eval "use_${compiler}_compilers" || continue
+                                printf "
 Attempting to install SciPy with pyuser=${pyuser}, scipy_gfortran=${scipy_gfortran}, \
-compiler=${compiler}, fcompiler=${fcompiler}, extra_FCFLAGS=${extra_FCFLAGS}, \
+compiler=${compiler}, cstd=${cstd}, fcompiler=${fcompiler}, extra_FCFLAGS=${extra_FCFLAGS}, \
 extra_LDFLAGS=${extra_LDFLAGS}\n\n"
-                            if [ "${scipy_gfortran}" == "True" ]; then
-                                export FC="gfortran"
-                                export F77="gfortran"
-                                export F90="gfortran"
-                                export F9X="gfortran"
+                                if [ "${scipy_gfortran}" == "True" ]; then
+                                    export FC="gfortran"
+                                    export F77="gfortran"
+                                    export F90="gfortran"
+                                    export F9X="gfortran"
+                                fi
+                                export CFLAGS="${CFLAGS} ${cstd}"
+                                export TMPDIR="${tmp_pip_dir}_tmp"
+                                export TMPDIR="${tmp_pip_dir}_tmp"
+                                export BLAS="${blas_dir}/lib/libopenblas.a"
+                                export LAPACK="${blas_dir}/lib/libopenblas.a"
+                                export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
+                                export FCFLAGS="${extra_FCFLAGS} ${FCFLAGS}"
+                                export FFLAGS="${extra_FCFLAGS} ${FFLAGS}"
+                                export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS}"
+                                cd "${top_dir}"
+                                rm -rf "${scipy_build_dir}" || :
+                                cp -r "${scipy_build_dir}_cp" "${scipy_build_dir}"
+                                cd "${scipy_build_dir}"
+                                echo "True" > ".setuppy_success"
+                                if [ -n "${fcompiler}" ]; then
+                                    ("${python}" setup.py build --fcompiler="${fcompiler}" \
+                                        || echo "False" > ".setuppy_success") & setuppy_pid=$!
+                                else
+                                    ("${python}" setup.py build \
+                                        || echo "False" > ".setuppy_success") & setuppy_pid=$!
+                                fi
+                                soothe ${setuppy_pid}
+                                sleep 1
+                                setuppy_success="$(cat '.setuppy_success')"
+                                if [ "${setuppy_success}" != "True" ]; then
+                                    continue
+                                fi
+                                "${python}" setup.py install ${pyuser} & setuppy_pid=$!
+                                soothe ${setuppy_pid}
+                                if [ "$(check_pypackage_installed scipy)" == "False" ]; then
+                                    continue
+                                fi
+                                install_success="True"
+                                break
+                            done
+                            if [ "${install_success}" == "True" ]; then
+                                break
                             fi
-                            export TMPDIR="${tmp_pip_dir}_tmp"
-                            export TMPDIR="${tmp_pip_dir}_tmp"
-                            export BLAS="${blas_dir}/lib/libopenblas.a"
-                            export LAPACK="${blas_dir}/lib/libopenblas.a"
-                            export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
-                            export FCFLAGS="${extra_FCFLAGS} ${FCFLAGS}"
-                            export FFLAGS="${extra_FCFLAGS} ${FFLAGS}"
-                            export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS}"
-                            cd "${top_dir}"
-                            rm -rf "${scipy_build_dir}" || :
-                            cp -r "${scipy_build_dir}_cp" "${scipy_build_dir}"
-                            cd "${scipy_build_dir}"
-                            echo "True" > ".setuppy_success"
-                            if [ -n "${fcompiler}" ]; then
-                                ("${python}" setup.py build --fcompiler="${fcompiler}" \
-                                    || echo "False" > ".setuppy_success") & setuppy_pid=$!
-                            else
-                                ("${python}" setup.py build \
-                                    || echo "False" > ".setuppy_success") & setuppy_pid=$!
-                            fi
-                            soothe ${setuppy_pid}
-                            sleep 1
-                            setuppy_success="$(cat '.setuppy_success')"
-                            if [ "${setuppy_success}" != "True" ]; then
-                                continue
-                            fi
-                            "${python}" setup.py install ${pyuser} & setuppy_pid=$!
-                            soothe ${setuppy_pid}
-                            if [ "$(check_pypackage_installed scipy)" == "False" ]; then
-                                continue
-                            fi
-                            install_success="True"
-                            break
                         done
                         if [ "${install_success}" == "True" ]; then
                             break
@@ -6288,23 +6285,27 @@ if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "Fals
     # by CO𝘕CEPT. Most often these dependencies are downloaded
     # automatically by the previous command. In case of failure,
     # we do it manually.
+    matplotlib_pyparsing_installed=$(check_pypackage_installed "pyparsing")
+    matplotlib_dateutil_installed=$(check_pypackage_installed "dateutil")
+    matplotlib_cycler_installed=$(check_pypackage_installed "cycler")
+    matplotlib_kiwisolver_installed=$(check_pypackage_installed "kiwisolver")
+    if [ "${pypackage_installed}" == "True" ]; then
+        break
+    fi
     if [ "${numpy_preinstalled}" == "True" ] || [ "${numpy_install}" == "True" ]; then
         # NumPy already installed
         deps=(                \
             "pyparsing"       \
             "python-dateutil" \
-            "pytz"            \
             "cycler"          \
-            "six"             \
             "kiwisolver"      \
         )
-        # From http://matplotlib.org/users/installing.html and matplotlib's setupext.py
+        # From https://matplotlib.org/3.1.1/users/installing.html and
+        # https://github.com/matplotlib/matplotlib/blob/v3.1.2/setupext.py
         dep_versions=(
             ">=2.0.1,!=2.0.4,!=2.1.2,!=2.1.6" \
             ">=2.1"                           \
-            ""                                \
             ">=0.10.0"                        \
-            ">=1.10"                          \
             ">=1.0.1"                         \
         )
     else
@@ -6313,19 +6314,15 @@ if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "Fals
             "numpy"           \
             "pyparsing"       \
             "python-dateutil" \
-            "pytz"            \
             "cycler"          \
-            "six"             \
             "kiwisolver"      \
         )
         # From http://matplotlib.org/users/installing.html and matplotlib's setupext.py
         dep_versions=(
-            ">=1.10.0"                        \
+            ">=1.11"                          \
             ">=2.0.1,!=2.0.4,!=2.1.2,!=2.1.6" \
             ">=2.1"                           \
-            ""                                \
             ">=0.10.0"                        \
-            ">=1.10"                          \
             ">=1.0.1"                         \
         )
     fi
@@ -6397,6 +6394,21 @@ ${zlib_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
     # but it will eventually get going. When this is the case,
     # write a soothing message.
     for extra_pip_arg in "" "--no-build-isolation"; do
+        # Remove matplotlib dependency packages automatically installed
+        if [ "${matplotlib_pyparsing_installed}" == "False" ]; then
+            "${python}" -m pip uninstall "pyparsing" -y >/dev/null 2>&1 || :
+        fi
+        if [ "${matplotlib_dateutil_installed}" == "False" ]; then
+            "${python}" -m pip uninstall "dateutil" -y >/dev/null 2>&1 || :
+        fi
+        if [ "${matplotlib_cycler_installed}" == "False" ]; then
+            "${python}" -m pip uninstall "cycler" -y >/dev/null 2>&1 || :
+        fi
+        if [ "${matplotlib_kiwisolver_installed}" == "False" ]; then
+            "${python}" -m pip uninstall "kiwisolver" -y >/dev/null 2>&1 || :
+        fi
+        # Install matplotlib and dependency packages
+        "${python}" -m pip uninstall "matplotlib" -y >/dev/null 2>&1 || :
         "${python}" -m pip install -v -v -v                          \
                                    ${extra_pip_arg}                  \
                                    -b "${top_dir}/tmp/pip/build"     \
@@ -6404,6 +6416,16 @@ ${zlib_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
                                    --find-links="${top_dir}/tmp/pip" \
                                    . 2>&1 & pip_install_pid=$!
         soothe ${pip_install_pid}
+        pypackage_installed=$(check_pypackage_installed matplotlib)
+        if [ "${pypackage_installed}" == "True" ]; then
+            break
+        fi
+        # Matplotlib may not seem to be installed correctly due to
+        # CXXABI_1.3.9 required by kiwisolver and not found. Before
+        # giving up on the Matplotlib installation, try reinstalling
+        # kiwisolver.
+        "${python}" -m pip uninstall "kiwisolver" -y >/dev/null 2>&1 || :
+        "${python}" -m pip install "kiwisolver>=1.0.1"
         pypackage_installed=$(check_pypackage_installed matplotlib)
         if [ "${pypackage_installed}" == "True" ]; then
             break
@@ -7407,9 +7429,9 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
     mkdir -p "${params_dir}"
     # Add PATH-like and a few PYTHON environment variables present at
     # install time (now) to the .env file.
-    current_step="addition of PATH-like and PYTHON environment variables to the .env file"
-    printf "\nAdding PATH-like and PYTHON environment variables to .env\n"
-    set_status "Adding PATH-like and PYTHON environment variables to .env"
+    current_step="setup of the .env file"
+    printf "\nSetting up the .env file\n"
+    set_status "Setting up the .env file"
     "${python}" -c "
 import os
 with open('${env_file}', 'r', encoding='utf-8') as file:
@@ -7442,6 +7464,48 @@ with open('${env_file}', 'w', encoding='utf-8') as file:
             envs_inserted = True
         print(line, end='', file=file)
 "
+    # If MPI was installed as part of this installation process, it is
+    # not set up to function with e.g. Slurm, and so we set the
+    # MPI executor to mpiexec explicitly. This should work even when
+    # running on multiple nodes, though the network performance will
+    # most likely be bad. We further add some arguments to mpiexec
+    # depending on the MPI distribution and version.
+    if [ "${mpi_preinstalled}" == "False" ]; then
+        use_specified_mpi_compilers
+        mpiexec_args=""
+        if [ "${mpi}" == "mpich" ]; then
+            # Though MPICH should not use process binding by default,
+            # it still supports a -bind-to none or --bind-to none
+            # option. Here we check if this is so, and apply it.
+            mpiexec_output="$("${mpiexec}" -bind-to none -n 1 echo "success" 2>&1 || :)"
+            if [ "${mpiexec_output}" == "success" ]; then
+                mpiexec_args="${mpiexec_args} -bind-to none"
+            else
+                mpiexec_output="$("${mpiexec}" --bind-to none -n 1 echo "success" 2>&1 || :)"
+                if [ "${mpiexec_output}" == "success" ]; then
+                    mpiexec_args="${mpiexec_args} --bind-to none"
+                fi
+            fi
+        elif [ "${mpi}" == "openmpi" ]; then
+            # In OpenMPI 3 and 4, oversubscription (having more MPI
+            # processes than physical cores) is disallowed by default.
+            mpi_version_major="${mpi_version:0:1}"
+            if [ "${mpi_version_major}" -ge 3 2>/dev/null ]; then
+                mpiexec_args="${mpiexec_args} --oversubscribe"
+            fi
+            # Disable automatic process binding/affinity, allowing
+            # OpenMP threads to be assigned to cores in a one-to-one
+            # fashion. This is off by default prior to OpenMPI version
+            # 1.7. All of 1.7 -- 4.0 supports the --bind-to none option
+            # to mpiexec. Here we add this option if it is understood.
+            mpiexec_output="$("${mpiexec}" --bind-to none -n 1 echo "success" 2>&1 || :)"
+            if [ "${mpiexec_output}" == "success" ]; then
+                mpiexec_args="${mpiexec_args} --bind-to none"
+            fi
+        fi
+        sed -i "s/mpi_executor=\"\"/mpi_executor=\"mpiexec${mpiexec_args}\"/" "${env_file}"
+        reset_environment
+    fi
     # Create the .paths file,
     # storing important paths used by CO𝘕CEPT.
     current_step="creation of the .paths file"
@@ -7591,11 +7655,15 @@ PIC=${PIC}, shared=${shared}, extra_MPILIBS=${extra_MPILIBS}"
                             numa_symlink_dir="${fftw_for_gadget_dir}/numa_symlinks"
                             rm -rf "${numa_symlink_dir}" || :
                             mkdir -p "${numa_symlink_dir}" || :
-                            if [ -f "/usr/lib64/libnuma.so" ] && [ ! -f "/usr/lib64/libnuma.so.1" ]; then
-                                ln -s "/usr/lib64/libnuma.so" "${numa_symlink_dir}/libnuma.so.1" || :
+                            if     [   -f "/usr/lib64/libnuma.so"   ] \
+                                && [ ! -f "/usr/lib64/libnuma.so.1" ]; then
+                                ln -s "/usr/lib64/libnuma.so" "${numa_symlink_dir}/libnuma.so.1" \
+                                    >/dev/null 2>&1 || :
                             fi
-                            if [ -f "/usr/lib64/libnuma.so.1" ] && [ ! -f "/usr/lib64/libnuma.so" ]; then
-                                ln -s "/usr/lib64/libnuma.so.1" "${numa_symlink_dir}/libnuma.so" || :
+                            if     [   -f "/usr/lib64/libnuma.so.1" ] \
+                                && [ ! -f "/usr/lib64/libnuma.so"   ]; then
+                                ln -s "/usr/lib64/libnuma.so.1" "${numa_symlink_dir}/libnuma.so" \
+                                    >/dev/null 2>&1 || :
                             fi
                             export LDFLAGS="${LDFLAGS} -L${numa_symlink_dir}"
                             # Double-precision
@@ -7737,17 +7805,19 @@ fi
 ###################################
 # Build the CO𝘕CEPT code and docs #
 ###################################
-current_step="building ${esc_concept}"
-heading "Building ${esc_concept}"
-set_status "Building ${esc_concept}"
-# Build the code by running it with no parameters specified
-cd "${concept_dir}"
-logo_printed=True "${concept}" --local
-# Remove log and parameter copy file generated by the above run
-(source "${concept}" && make clean_logs clean_params_cp) || :
-# Also build the documentation
-(source "${concept}" && make docs) || :
-cd "${top_dir}"
+if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; then
+    current_step="building ${esc_concept}"
+    heading "Building ${esc_concept}"
+    set_status "Building ${esc_concept}"
+    # Build the code by running it with no parameters specified
+    cd "${concept_dir}"
+    logo_printed=True "${concept}" --local 2>&1
+    # Remove log and parameter copy file generated by the above run
+    (source "${concept}" && make clean_logs clean_params_cp) || :
+    # Also build the documentation
+    (source "${concept}" && make docs 2>&1) || :
+    cd "${top_dir}"
+fi
 
 
 
