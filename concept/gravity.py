@@ -917,7 +917,7 @@ def tabulate_shortrange_gravity():
     in the global shortrange_table array. The tabulation is quadratic
     in r, which is the distance between two particles, while x = r/scale
     with scale the long/short-range force split scale.
-    We only need the tabulation for for 0 <= r <= cutoff, where cutoff
+    We only need the tabulation for 0 <= r <= cutoff, where cutoff
     is the maximum reach of the short-range force.
     """
     global shortrange_table, shortrange_table_ptr
