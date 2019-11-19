@@ -2274,11 +2274,26 @@ fluid_options_defaults = {
         'vacuum_corrections_select'    : True,
         'max_vacuum_corrections_select': (1, 'gridsize'),
         'foresight_select'             : 25,
-        'smoothing_select'             : 1.0,
+        'smoothing_select'             : {
+            'default': 1.0,
+            # Matter fluids require a lot of smoothing
+            'baryon fluid'              : 2.0,
+            'dark matter fluid'         : 2.0,
+            'decaying dark matter fluid': 2.0,
+            'matter fluid'              : 2.0,
+        },
     },
     'kurganovtadmor': {
-        'rungekuttaorder'    : 2,
-        'flux_limiter_select': 'mc',
+        'rungekuttaorder': 2,
+        'flux_limiter_select': {
+            'default': 'mc',
+            # Matter fluids require a lot
+            # of artificial viscosity (smoothing).
+            'baryon fluid'              : 'minmod',
+            'dark matter fluid'         : 'minmod',
+            'decaying dark matter fluid': 'minmod',
+            'matter fluid'              : 'minmod',
+        },
     },
 }
 fluid_options = dict(user_params.get('fluid_options', {}))
@@ -2302,7 +2317,8 @@ for scheme, d in fluid_options.items():
             }
 for scheme, d in fluid_options_defaults.items():
     for key, val in d.items():
-        fluid_options[scheme][key]['default'] = val
+        if not isinstance(val, dict):
+            fluid_options[scheme][key]['default'] = val
 fluid_options['kurganovtadmor']['flux_limiter_select'] = {
     key: val.lower().replace(' ', '').replace('-', '')
     for key, val in fluid_options['kurganovtadmor']['flux_limiter_select'].items()
