@@ -213,7 +213,7 @@ fluid_options = {  # Specifications of fluid scheme parameters
             'all': 25,
         },
         'smoothing_select': {  # Amount of smoothing to apply when doing vacuum correction
-            'all': 2.0,
+            'all': 1.0,
         },
     },
     'Kurganov-Tadmor': {
@@ -221,7 +221,7 @@ fluid_options = {  # Specifications of fluid scheme parameters
             'all': 2,
         },
         'flux_limiter_select': {  # Flux limiter function
-            'all': 'minmod',
+            'all': 'mc',
         },
     },
 }
