@@ -7851,7 +7851,7 @@ if [ "${install_anything}" == "True" ] && [ "${say_copyright}" != "False" ]; the
     if [ "${concept_install}" == "True" ]; then
         printf "${esc_concept} has been installed along with the following dependencies:\n"
     else
-        printf "The following software have been installed:\n"
+        printf "The following software has been installed:\n"
     fi
     copyright_notice "blas"             "OpenBLAS"
     copyright_notice "class"            "CLASS"
@@ -7883,11 +7883,15 @@ if [ "${install_anything}" == "True" ] && [ "${say_copyright}" != "False" ]; the
     copyright_notice "scipy"            "$(printf ${en_quad}%.s {1..4})SciPy"
     copyright_notice "sphinx"           "$(printf ${en_quad}%.s {1..4})Sphinx"
     copyright_notice "sphinx_rtd_theme" "$(printf ${en_quad}%.s {1..4})sphinx_rtd_theme"
-    printf "\nThese have been installed into separate directories in
-\"${top_dir}\"
-Any use of ${esc_concept} must conform to the license terms of the above
+    printf "\nThese have been installed into separate directories in\n\"${top_dir}\"\n"
+    if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; then
+        printf "Any use of ${esc_concept} must conform to the license terms of the above
 software in addition to its own. These can be found in the separate
 installation directories.\n"
+    else
+        printf "Any use of the above software must conform to their license terms.
+These can be found in the separate installation directories.\n"
+    fi
 fi
 # Notice about test errors
 current_step="erroneous tests notice"
@@ -8056,10 +8060,18 @@ if [ ! -s "${log}_err" ]; then
     rm -f "${log}_err" || :
 fi
 if [ "${say_goodbye}" != "False" ]; then
-    if [ "${installation_guaranteed_successful}" == "True" ]; then
-        printf "${esc_bold}${esc_green}${esc_concept} installation finished${esc_normal}\n"
+    if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; then
+        if [ "${installation_guaranteed_successful}" == "True" ]; then
+            printf "${esc_bold}${esc_green}${esc_concept} installation finished${esc_normal}\n"
+        else
+            printf "${esc_concept} installation finished\n"
+        fi
     else
-        printf "${esc_concept} installation finished${esc_normal}\n"
+        if [ "${installation_guaranteed_successful}" == "True" ]; then
+            printf "${esc_bold}${esc_green}Installation finished${esc_normal}\n"
+        else
+            printf "Installation finished\n"
+        fi
     fi
 fi
 trap : 0
