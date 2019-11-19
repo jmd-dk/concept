@@ -174,6 +174,7 @@ unwanted_warnings =            \
     missing-field-initializers \
     unused-but-set-variable    \
     implicit-fallthrough       \
+    strict-overflow            \
 
 python_cflags = $(filter-out $(addprefix -W,$(unwanted_warnings)) \
                              -g -O3 -fwrapv                       \
