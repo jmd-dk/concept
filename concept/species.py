@@ -1008,12 +1008,13 @@ class Component:
         FluidScalar ςzz
         FluidScalar 𝒫
         # Other
-        public set components_all
+        public list components_all
         """
-        # A reference to each and every Component instance ever created
-        # is stored in the global components_all set. Also store a
-        # reference to components_all on this Component instance.
-        components_all.add(self)
+        # A reference to each and every Component instance ever created,
+        # including internally defined ones, is stored in the global
+        # components_all list. We also store a reference to
+        # components_all on this Component instance.
+        components_all.append(self)
         self.components_all = components_all
         # Check that the name does not conflict with
         # one of the special names used internally,
@@ -4402,5 +4403,5 @@ cython.declare(allow_similarly_named_components='bint', component_names=set)
 allow_similarly_named_components = False
 component_names = set()
 # Set of all instantiated components
-cython.declare(components_all=set)
-components_all = set()
+cython.declare(components_all=list)
+components_all = []
