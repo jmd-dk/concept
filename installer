@@ -116,7 +116,7 @@ directory consist of the following and will be installed in order:
   - GADGET
 
 Due to the numerosity of the above list, the installation process will take
-about an hour on modern hardware. The installation time depend strongly
+about an hour or two on modern hardware. The installation time depend strongly
 on whether make is allowed to build in parallel or not. When running locally
 (i.e. not over SSH), the default is to build in parallel using all available
 CPU cores. Conversely, when running remotely the default is to build serially.
@@ -129,11 +129,6 @@ The installation time is significantly increased when invoked with -t.
 Note that the Python test suite will be run even when invoked without -t,
 as this is done as part of the profile guided optimization used to make
 the resultant Python interpreter faster.
-
-When installing in a complicated environment with several available compilers
-(typical for clusters) the installation time can be up to several times longer,
-as for each program the installer tries out different compilers
-and other options until a working configuration is found.
 
 By default, any pre-installed software on the list above will be ignored.
 No conflicts should come of this. Should you still wish CO𝘕CEPT to use one such
@@ -191,6 +186,26 @@ program, Python package or CO𝘕CEPT itself, simply set the environment
 variable `programname_version` when invoking the installer.
 E.g. to install GSL 2.4:
   gsl_version=2.4 /path/to/installer [/path/to/concept] [-t] [-y]
+
+When installing in a complicated environment with several available compilers
+(typical for clusters) the installation time can be up to several times longer,
+as for each program the installer tries out different compilers
+and other options until a working configuration is found.
+The available compilers located on the system will be printed out at the
+beginning, in the precedence (order) of which they will be tried out.
+You can choose this order yourself by setting the compiler_precedence
+variable. To e.g. first try out Intel compilers and then GNU compilers:
+  compiler_precedence="intel gnu" /path/to/installer [/path/to/concept] [-t] [-y]
+All other compilers located will then be tried out after GNU. The complete
+list of compilers in order of default precedence is "specified_mpi",
+"default", "gnu", "clang", "mpi", "intel", "cray", "portland", "generic",
+"unset". Here, "specified_mpi" means the MPI compiler provided by the MPI
+library specified via mpi_dir, "default" means that we do not explicitly
+alter the environment to specify any compiler (and so if e.g. $CC is defined,
+this will probably be used), "mpi" means any MPI compiler (e.g. mpicc)
+found on the system, "generic" refers to compilers not fitting into any
+of the other categories (e.g. cc) and "unset" means that we explicitly
+unset e.g. $CC.
 
 Logs of the installation process are written to install_log (stdout)
 and install_log_err (stderr) in the top installation directory.
@@ -1833,17 +1848,21 @@ if [ -z "${hdf5_install}" ]; then
         hdf5_install="True"
     fi
 fi
-# MPI (needed by CO𝘕CEPT)
+# MPI (needed by CO𝘕CEPT, GADGET)
 if [ -z "${mpi_install}" ]; then
     mpi_install="False"
-    if [ "${mpi_preinstalled}" == "False" ] && [ "${concept_install}" == "True" ]; then
+    if [ "${mpi_preinstalled}" == "False" ] && \
+        (   [ "${concept_install}" == "True" ] \
+         || [ "${gadget_install}"  == "True" ]); then
         mpi_install="True"
     fi
 fi
-# GSL (needed by CO𝘕CEPT)
+# GSL (needed by CO𝘕CEPT, GADGET)
 if [ -z "${gsl_install}" ]; then
     gsl_install="False"
-    if [ "${gsl_preinstalled}" == "False" ] && [ "${concept_install}" == "True" ]; then
+    if [ "${gsl_preinstalled}" == "False" ] && \
+        (   [ "${concept_install}" == "True" ] \
+         || [ "${gadget_install}"  == "True" ]); then
         gsl_install="True"
     fi
 fi
@@ -2898,6 +2917,7 @@ insert_footnote_installed(){
 }
 if [ "${install_anything}" == "True" ]; then
     disable_status
+    current_step="presentation of installation overview"
     heading "Installation overview"
 fi
 # Print out software installation overview
@@ -3170,75 +3190,118 @@ fi
 # (e.g. "use_gnu_compilers"), the job of which is to set compiler
 # environment variables such as CC, CXX and FC.
 # Altering PATH-like environment variables is also allowed.
-printf "\n${esc_bold}Compilers on the system${esc_normal}\n"
-if [ "${mpi_preinstalled}" == "True" ]; then
-    compiler_possibilities=("specified_mpi" "")
-else
-    compiler_possibilities=("")
-fi
-for program in "gcc" "g++" "gfortran"; do
-    program_path="$(get_command "${program}")" || :
-    if [ -n "${program_path}" ]; then
-        echo "GNU compiler(s) discovered"
-        compiler_possibilities=("${compiler_possibilities[@]}" "gnu")
-        break
+# The order in which the compilers appear in compiler_possibilities is
+# the order in which they will be tried out when installing programs.
+# This ordering may be set by the compiler_precedence
+# environment variable.
+compiler_precedence="$(echo "${compiler_precedence}" | tr '[:upper:]' '[:lower:]')"
+IFS=' ' read -r -a compiler_precedence_arr <<< "${compiler_precedence}"
+compiler_precedence=("${compiler_precedence_arr[@]}")
+compiler_precedence_default=( \
+    "specified_mpi" "default" "gnu" "clang" "mpi" "intel" "cray" "portland" "generic" "unset")
+for compiler in "${compiler_precedence_default[@]}"; do
+    present=False
+    for compiler_present in "${compiler_precedence[@]}"; do
+        if [ "${compiler_present}" == "${compiler}" ]; then
+            present=True
+            break
+        fi
+    done
+    if [ "${present}" == "False" ]; then
+        compiler_precedence=("${compiler_precedence[@]}" "${compiler}")
     fi
 done
-for program in "clang" "clang++"; do
-    program_path="$(get_command "${program}")" || :
-    if [ -n "${program_path}" ]; then
-        echo "Clang compiler(s) discovered"
-        compiler_possibilities=("${compiler_possibilities[@]}" "clang")
-        break
+discover_specified_mpi_compilers(){
+    if [ "${mpi_preinstalled}" == "True" ]; then
+        compiler_possibilities=("${compiler_possibilities[@]}" "specified_mpi")
     fi
+}
+discover_default_compilers(){
+    compiler_possibilities=("${compiler_possibilities[@]}" "default")
+}
+discover_gnu_compilers(){
+    for program in "gcc" "g++" "gfortran"; do
+        program_path="$(get_command "${program}")" || :
+        if [ -n "${program_path}" ]; then
+            compiler_possibilities=("${compiler_possibilities[@]}" "gnu")
+            break
+        fi
+    done
+}
+discover_clang_compilers(){
+    for program in "clang" "clang++"; do
+        program_path="$(get_command "${program}")" || :
+        if [ -n "${program_path}" ]; then
+            compiler_possibilities=("${compiler_possibilities[@]}" "clang")
+            break
+        fi
+    done
+}
+discover_mpi_compilers(){
+    for program in "mpicc" "mpiCC" "mpicxx" "mpic++" "mpifort" "mpif90"; do
+        program_path="$(get_command "${program}")" || :
+        if [ -n "${program_path}" ]; then
+            compiler_possibilities=("${compiler_possibilities[@]}" "mpi")
+            break
+        fi
+    done
+}
+discover_intel_compilers(){
+    for program in "icc" "icpc" "ifort"; do
+        program_path="$(get_command "${program}")" || :
+        if [ -n "${program_path}" ]; then
+            compiler_possibilities=("${compiler_possibilities[@]}" "intel")
+            break
+        fi
+    done
+}
+discover_cray_compilers(){
+    for program in "craycc" "crayCC" "crayftn"; do
+        program_path="$(get_command "${program}")" || :
+        if [ -n "${program_path}" ]; then
+            compiler_possibilities=("${compiler_possibilities[@]}" "cray")
+            break
+        fi
+    done
+}
+discover_portland_compilers(){
+    for program in "pgcc" "pgCC" "pgf77" "pgf90"; do
+        program_path="$(get_command "${program}")" || :
+        if [ -n "${program_path}" ]; then
+            compiler_possibilities=("${compiler_possibilities[@]}" "portland")
+            break
+        fi
+    done
+}
+discover_generic_compilers(){
+    for program in "cc" "c89" "c99" "CC" "c++" "ftn" "f77" "f90" "fortran"; do
+        program_path="$(get_command "${program}")" || :
+        if [ -n "${program_path}" ]; then
+            compiler_possibilities=("${compiler_possibilities[@]}" "generic")
+            break
+        fi
+    done
+}
+discover_unset_compilers(){
+    compiler_possibilities=("${compiler_possibilities[@]}" "unset")
+}
+compiler_possibilities=()
+for compiler in "${compiler_precedence[@]}"; do
+    eval "discover_${compiler}_compilers"
 done
-for program in "mpicc" "mpiCC" "mpicxx" "mpic++" "mpifort" "mpif90"; do
-    program_path="$(get_command "${program}")" || :
-    if [ -n "${program_path}" ]; then
-        echo "MPI compiler(s) discovered"
-        compiler_possibilities=("${compiler_possibilities[@]}" "mpi")
-        break
-    fi
+printf "\n${esc_bold}Compiler precedence${esc_normal}\n"
+printf "${compiler_possibilities[0]}"
+for ((i = 1; i < ${#compiler_possibilities[@]}; i += 1)); do
+    compiler="${compiler_possibilities[$i]}"
+    printf " > ${compiler}"
 done
-for program in "icc" "icpc" "ifort"; do
-    program_path="$(get_command "${program}")" || :
-    if [ -n "${program_path}" ]; then
-        echo "Intel compiler(s) discovered"
-        compiler_possibilities=("${compiler_possibilities[@]}" "intel")
-        break
-    fi
-done
-for program in "craycc" "crayCC" "crayftn"; do
-    program_path="$(get_command "${program}")" || :
-    if [ -n "${program_path}" ]; then
-        echo "Cray compiler(s) discovered"
-        compiler_possibilities=("${compiler_possibilities[@]}" "cray")
-        break
-    fi
-done
-for program in "pgcc" "pgCC" "pgf77" "pgf90"; do
-    program_path="$(get_command "${program}")" || :
-    if [ -n "${program_path}" ]; then
-        echo "Portland compiler(s) discovered"
-        compiler_possibilities=("${compiler_possibilities[@]}" "portland")
-        break
-    fi
-done
-for program in "cc" "c89" "c99" "CC" "c++" "ftn" "f77" "f90" "fortran"; do
-    program_path="$(get_command "${program}")" || :
-    if [ -n "${program_path}" ]; then
-        echo "Some generic compiler(s) discovered"
-        compiler_possibilities=("${compiler_possibilities[@]}" "generic")
-        break
-    fi
-done
+printf "\n"
 if [ "${install_anything}" == "True" ]; then
     echo
     sleep ${sleep_time}
     enable_status
 fi
-compiler_possibilities=("${compiler_possibilities[@]}" "unset")
-use__compilers(){
+use_default_compilers(){
     # This dummy function must exist
     :
 }
@@ -4350,11 +4413,16 @@ soothe(){
     # [time in seconds after which PID is killed].
     soothe_pid=$1
     kill_time=$2
+    if [ -z "${kill_time}" ]; then
+        # If any process appears to hang for longer than the time below,
+        # we will kill it.
+        kill_time=7200  # 2 hours
+    fi
     # A long wait is detected by repeatedly
     # checking the size of the log file generated
     # by this installation script.
     soothe_update_time=60
-    if [ -n "${kill_time}" ] && [ ${kill_time} -lt ${soothe_update_time} ]; then
+    if [ ${kill_time} -lt ${soothe_update_time} ]; then
         error "soothe() called with kill_time=${kill_time} < \
 soothe_update_time=${soothe_update_time}"
         exit 1
@@ -4374,7 +4442,7 @@ Please be patient ...\n";                                                       
                 sleep 5;                                                           \
                 log_size_new=$(du -b "${log}" | awk '{print $1}');                 \
                 log_size_last=${log_size_new};                                     \
-            elif [ -n "${kill_time}" ] && [ ${time_slept} -gt ${kill_time} ]; then \
+            elif [ ${time_slept} -gt ${kill_time} ]; then \
                 echo "Process assumed to be hanging. Killing it";                  \
                 kill -9 ${soothe_pid} >/dev/null 2>&1;                             \
                 wait    ${soothe_pid} >/dev/null 2>&1;                             \
@@ -4829,13 +4897,48 @@ PIC=${PIC}, shared=${shared}, extra_MPILIBS=${extra_MPILIBS}"
                                         ${with_pic}       \
                                         --prefix="${fftw_dir}" 2>&1 || continue
                             make ${make_jobs} 2>&1 || continue
+                            fftw_test_max_time=600
                             if [ "${extra_optimizations}" == "True" ]; then
-                                make check || continue
+                                exit_code_filename="${top_dir}/tmp/.exit_code_fftw"
+                                (make check 2>&1 | tee "test_log";                    \
+                                    echo "${PIPESTATUS[0]}" > "${exit_code_filename}" \
+                                ) & fftw_test_pid=$!
+                                soothe ${fftw_test_pid} ${fftw_test_max_time}
+                                sleep 1
+                                kill -9 ${fftw_test_pid} >/dev/null 2>&1 || :
+                                wait    ${fftw_test_pid} >/dev/null 2>&1 || :
+                                exit_code="$(wait ${fftw_test_pid} >/dev/null 2>&1 || echo $?)"
+                                if [ -n "${exit_code}" ]; then
+                                    rm -f "${exit_code_filename}" "test_log" || :
+                                    continue
+                                else
+                                    exit_code="$(cat "${exit_code_filename}" 2>/dev/null || :)"
+                                    if [ "${exit_code}" != "0" ]; then
+                                        rm -f "${exit_code_filename}" "test_log" || :
+                                        continue
+                                    fi
+                                fi
                             fi
                             if [ "${do_tests}" == "True" ]; then
-                                make ${make_jobs} check 2>&1 | tee "test_log"
                                 fftw_test_success="${fftw_test_success_backup}"
-                                [ ${PIPESTATUS[0]} -eq 0 ] || fftw_test_success="False"
+                                exit_code_filename="${top_dir}/tmp/.exit_code_fftw"
+                                (make check 2>&1 | tee "test_log";                    \
+                                    echo "${PIPESTATUS[0]}" > "${exit_code_filename}" \
+                                ) & fftw_test_pid=$!
+                                soothe ${fftw_test_pid} ${fftw_test_max_time}
+                                sleep 1
+                                kill -9 ${fftw_test_pid} >/dev/null 2>&1 || :
+                                wait    ${fftw_test_pid} >/dev/null 2>&1 || :
+                                exit_code="$(wait ${fftw_test_pid} >/dev/null 2>&1 || echo $?)"
+                                if [ -n "${exit_code}" ]; then
+                                    fftw_test_success="False"
+                                else
+                                    exit_code="$(cat "${exit_code_filename}" 2>/dev/null || :)"
+                                    if [ "${exit_code}" != "0" ]; then
+                                        fftw_test_success="False"
+                                    fi
+                                fi
+                                rm -f "${exit_code_filename}" || :
                             fi
                             make ${make_jobs} install 2>&1 || continue
                             # Single-precision
@@ -5018,7 +5121,7 @@ perl_poll_fix=${perl_poll_fix}, perl_cflags=${perl_cflags}"
                         done <<< "${LD_LIBRARY_PATH}"
                     fi
                     perl_config_options="-de -Dprefix=${perl_dir}"
-                    if [ -n "${compiler}" ] && [ -n "${CC}" ]; then
+                    if [ "${compiler}" != "default" ] && [ -n "${CC}" ]; then
                         perl_config_options="${perl_config_options} -Dcc=${CC}"
                     fi
                     if [ -n "${perl_cflags}" ]; then
@@ -5224,11 +5327,11 @@ openblas_BINARY=${openblas_BINARY}"
                         export F90="gfortran"
                         export F9X="gfortran"
                     fi
-                    if ([ -n "${compiler}" ] && [ -n "${FC}" ]) \
+                    if ([ "${compiler}" != "default" ] && [ -n "${FC}" ]) \
                         || [ "${openblas_gfortran}" == "True" ]; then
                         openblas_make_options="${openblas_make_options} FC=${FC}"
                     fi
-                    if [ -n "${compiler}" ] && [ -n "${CC}" ]; then
+                    if [ "${compiler}" != "default" ] && [ -n "${CC}" ]; then
                         openblas_make_options="${openblas_make_options} CC=${CC}"
                     fi
                     if [ -n "${openblas_BINARY}" ]; then
@@ -7674,13 +7777,50 @@ PIC=${PIC}, shared=${shared}, extra_MPILIBS=${extra_MPILIBS}"
                                         ${with_pic}          \
                                         --prefix="${fftw_for_gadget_dir}" 2>&1 || continue
                             make ${make_jobs} 2>&1 || continue
+                            fftw_for_gadget_test_max_time=600
                             if [ "${extra_optimizations}" == "True" ]; then
-                                make check || continue
+                                exit_code_filename="${top_dir}/tmp/.exit_code_fftw_for_gadget"
+                                (make check 2>&1 | tee "test_log";                    \
+                                    echo "${PIPESTATUS[0]}" > "${exit_code_filename}" \
+                                ) & fftw_for_gadget_test_pid=$!
+                                soothe ${fftw_for_gadget_test_pid} ${fftw_for_gadget_test_max_time}
+                                sleep 1
+                                kill -9 ${fftw_for_gadget_test_pid} >/dev/null 2>&1 || :
+                                wait    ${fftw_for_gadget_test_pid} >/dev/null 2>&1 || :
+                                exit_code="$(wait ${fftw_for_gadget_test_pid} >/dev/null 2>&1 \
+                                    || echo $?)"
+                                if [ -n "${exit_code}" ]; then
+                                    rm -f "${exit_code_filename}" "test_log" || :
+                                    continue
+                                else
+                                    exit_code="$(cat "${exit_code_filename}" 2>/dev/null || :)"
+                                    if [ "${exit_code}" != "0" ]; then
+                                        rm -f "${exit_code_filename}" "test_log" || :
+                                        continue
+                                    fi
+                                fi
                             fi
                             if [ "${do_tests}" == "True" ]; then
-                                make ${make_jobs} check 2>&1 | tee "test_log"
                                 fftw_for_gadget_test_success="${fftw_for_gadget_test_success_backup}"
-                                [ ${PIPESTATUS[0]} -eq 0 ] || fftw_for_gadget_test_success="False"
+                                exit_code_filename="${top_dir}/tmp/.exit_code_fftw_for_gadget"
+                                (make check 2>&1 | tee "test_log";                    \
+                                    echo "${PIPESTATUS[0]}" > "${exit_code_filename}" \
+                                ) & fftw_for_gadget_test_pid=$!
+                                soothe ${fftw_for_gadget_test_pid} ${fftw_for_gadget_test_max_time}
+                                sleep 1
+                                kill -9 ${fftw_for_gadget_test_pid} >/dev/null 2>&1 || :
+                                wait    ${fftw_for_gadget_test_pid} >/dev/null 2>&1 || :
+                                exit_code="$(wait ${fftw_for_gadget_test_pid} >/dev/null 2>&1 \
+                                    || echo $?)"
+                                if [ -n "${exit_code}" ]; then
+                                    fftw_for_gadget_test_success="False"
+                                else
+                                    exit_code="$(cat "${exit_code_filename}" 2>/dev/null || :)"
+                                    if [ "${exit_code}" != "0" ]; then
+                                        fftw_for_gadget_test_success="False"
+                                    fi
+                                fi
+                                rm -f "${exit_code_filename}" || :
                             fi
                             make ${make_jobs} install 2>&1 || continue
                             # Single-precision
