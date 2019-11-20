@@ -58,7 +58,7 @@ release versions, or use ``concept_version=master`` for the absolute newest
 (and unstable!) version.
 
 .. note::
-   The initial ``bash`` in the above commands are required regardless of your
+   The initial ``bash`` in the above commands is required regardless of your
    shell
 
 .. note::
