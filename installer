@@ -5390,131 +5390,154 @@ if [ "${python_install}" == "True" ] && [ "${python_installed}" == "False" ]; th
     if [ -n "${openssl_dir}" ] && [ -n "${zlib_dir}" ]; then
         with_ensurepip_install="--with-ensurepip=install"
     fi
-    # The configure script will check whether atomic operations may
-    # be used. Some compilers (e.g. Intel 2019) only implement a subset
-    # of the needed atomic operations, and so may falsely pass this
-    # check. If none of the other combination of options (compiler and
-    # optimization choices) work, we try everything again while claiming
-    # that we do not support atomic operations at all.
     for compiler in "${compiler_possibilities[@]}"; do
-        for disable_atomic_operations in "False" "True"; do
-            # Try building with optimizations (both profile guided
-            # compile time optimization (pgo) and link time
-            # optimization (lto)). If it fails for whatever reason,
-            # fall back to a non-optimized build.
-            for pyoptimizations in "pgo lto" "pgo" "lto" ""; do
-                reset_environment
-                eval "use_${compiler}_compilers" || continue
-                init_install "Python" "compiler=${compiler}, \
-disable_atomic_operations=${disable_atomic_operations}, pyoptimizations=${pyoptimizations}"
-                # Set up environment variables and configure options
-                if [ "${disable_atomic_operations}" == "True" ]; then
-                    sed -i '/have_stdatomic_h *= *yes/c\have_stdatomic_h=no' configure
-                fi
-                with_pgo=""
-                if [[ "${pyoptimizations}" == *"pgo"* ]]; then
-                    with_pgo="--enable-optimizations"
-                fi
-                with_lto=""
-                if [[ "${pyoptimizations}" == *"lto"* ]]; then
-                    with_lto="--with-lto"
-                fi
-                if [ -n "${ncurses_dir}" ]; then
-                    export CPPFLAGS="-I${ncurses_dir}/include \
--I${ncurses_dir}/include/ncurses ${CPPFLAGS}"
-                    export LD_LIBRARY_PATH="${ncurses_dir}/lib:${LD_LIBRARY_PATH}"
-                    export LDFLAGS="-L${ncurses_dir}/lib -Wl,-rpath=${ncurses_dir}/lib ${LDFLAGS}"
-                fi
-                with_openssl=""
-                if [ -n "${openssl_dir}" ]; then
-                    export CPPFLAGS="-I${openssl_dir}/include/openssl ${CPPFLAGS}"
-                    export LD_LIBRARY_PATH="${openssl_dir}/lib:${LD_LIBRARY_PATH}"
-                    export LDFLAGS="-L${openssl_dir}/lib -Wl,-rpath=${openssl_dir}/lib ${LDFLAGS}"
-                    with_openssl="--with-openssl=${openssl_dir}"
-                    # Modify Modules/Setup (Modules/Setup.dist in older
-                    # Python versions) in order for Python to use the
-                    # custom SSL library.
-                    modules_setup_filename=""
-                    for setup_filename in "Setup" "Setup.dist"; do
-                        if [ -f "Modules/${setup_filename}" ]; then
-                            modules_setup_filename="Modules/${setup_filename}"
-                            break
-                        fi
-                    done
-                    if [ -n "${modules_setup_filename}" ]; then
-                        first_line="$(grep -n "SSL=" "${modules_setup_filename}")"
-                        first_line=${first_line%:*}
-                        ((last_line = first_line + 3))
-                        sed -i "${first_line},${last_line}s/.//" "${modules_setup_filename}"
-                        sed -i "${first_line}s/.*/SSL=${openssl_dir//\//\\/}/" \
-                            "${modules_setup_filename}"
-                    fi
-                fi
-                if [ -n "${zlib_dir}" ]; then
-                    export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
-                    export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
-                    export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
-                fi
-                with_system_ffi=""
-                if [ -n "${libffi_dir}" ]; then
-                    current_dir="$(pwd)"
-                    for lib_dir in "lib" "lib64"; do
-                        if [ ! -d "${libffi_dir}/${lib_dir}" ]; then
+        # The -O3 (set by default by Python) and -O2 (default in icc)
+        # may produce a buggy build which segfaults when run, under the
+        # Intel compilers. If the installation fails while using the
+        # Intel compilers, we try with a low optimization level of -O1.
+        for inteloptimizations in "" "-O1"; do
+            # The configure script will check whether atomic operations
+            # may be used. Some compilers (e.g. Intel 2019) only
+            # implement a subset of the needed atomic operations, and so
+            # may falsely pass this check. On failure, we try again
+            # while claiming that we do not support atomic operations
+            # at all.
+            for disable_atomic_operations in "False" "True"; do
+                # Try building with optimizations (both profile guided
+                # compile time optimization (pgo) and link time
+                # optimization (lto)). If it fails for whatever reason,
+                # fall back to a non-optimized build.
+                for pyoptimizations in "pgo lto" "pgo" "lto" ""; do
+                    reset_environment
+                    eval "use_${compiler}_compilers" || continue
+                    # If inteloptimizations are specified, append them
+                    # to CFLAGS if we are using the Intel C compiler.
+                    # If we are not, skip this installation attempt.
+                    if [ -n "${inteloptimizations}" ]; then
+                        info="$("${CC}" --version 2>/dev/null | head -n 1 || :)"
+                        if echo "${info}" | grep -i icc >/dev/null; then
+                            export CFLAGS="${CFLAGS} ${inteloptimizations}"
+                        else
                             continue
                         fi
-                        cd "${libffi_dir}/${lib_dir}"
-                        for f in *; do
-                            if     [ -d "${f}" ] \
-                                && [[ "${f}" == "libffi"* ]] \
-                                && [ -d "${libffi_dir}/${lib_dir}/${f}/include" ]; then
-                                export CPPFLAGS="-I${libffi_dir}/${lib_dir}/${f}/include \
-${CPPFLAGS}"
+                    fi
+                    init_install "Python" "compiler=${compiler}, \
+inteloptimizations=${inteloptimizations}, disable_atomic_operations=${disable_atomic_operations}, \
+pyoptimizations=${pyoptimizations}"
+                    # Set up environment variables and configure options
+                    if [ "${disable_atomic_operations}" == "True" ]; then
+                        sed -i '/have_stdatomic_h *= *yes/c\have_stdatomic_h=no' configure
+                    fi
+                    with_pgo=""
+                    if [[ "${pyoptimizations}" == *"pgo"* ]]; then
+                        with_pgo="--enable-optimizations"
+                    fi
+                    with_lto=""
+                    if [[ "${pyoptimizations}" == *"lto"* ]]; then
+                        with_lto="--with-lto"
+                    fi
+                    if [ -n "${ncurses_dir}" ]; then
+                        export CPPFLAGS="-I${ncurses_dir}/include \
+-I${ncurses_dir}/include/ncurses ${CPPFLAGS}"
+                        export LD_LIBRARY_PATH="${ncurses_dir}/lib:${LD_LIBRARY_PATH}"
+                        export LDFLAGS="-L${ncurses_dir}/lib -Wl,-rpath=${ncurses_dir}/lib ${LDFLAGS}"
+                    fi
+                    with_openssl=""
+                    if [ -n "${openssl_dir}" ]; then
+                        export CPPFLAGS="-I${openssl_dir}/include/openssl ${CPPFLAGS}"
+                        export LD_LIBRARY_PATH="${openssl_dir}/lib:${LD_LIBRARY_PATH}"
+                        export LDFLAGS="-L${openssl_dir}/lib -Wl,-rpath=${openssl_dir}/lib ${LDFLAGS}"
+                        with_openssl="--with-openssl=${openssl_dir}"
+                        # Modify Modules/Setup (Modules/Setup.dist in older
+                        # Python versions) in order for Python to use the
+                        # custom SSL library.
+                        modules_setup_filename=""
+                        for setup_filename in "Setup" "Setup.dist"; do
+                            if [ -f "Modules/${setup_filename}" ]; then
+                                modules_setup_filename="Modules/${setup_filename}"
                                 break
                             fi
                         done
-                        export LD_LIBRARY_PATH="${libffi_dir}/${lib_dir}:${LD_LIBRARY_PATH}"
-                        export LDFLAGS="-L${libffi_dir}/${lib_dir} \
+                        if [ -n "${modules_setup_filename}" ]; then
+                            first_line="$(grep -n "SSL=" "${modules_setup_filename}")"
+                            first_line=${first_line%:*}
+                            ((last_line = first_line + 3))
+                            sed -i "${first_line},${last_line}s/.//" "${modules_setup_filename}"
+                            sed -i "${first_line}s/.*/SSL=${openssl_dir//\//\\/}/" \
+                                "${modules_setup_filename}"
+                        fi
+                    fi
+                    if [ -n "${zlib_dir}" ]; then
+                        export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
+                        export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
+                        export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
+                    fi
+                    with_system_ffi=""
+                    if [ -n "${libffi_dir}" ]; then
+                        current_dir="$(pwd)"
+                        for lib_dir in "lib" "lib64"; do
+                            if [ ! -d "${libffi_dir}/${lib_dir}" ]; then
+                                continue
+                            fi
+                            cd "${libffi_dir}/${lib_dir}"
+                            for f in *; do
+                                if     [ -d "${f}" ] \
+                                    && [[ "${f}" == "libffi"* ]] \
+                                    && [ -d "${libffi_dir}/${lib_dir}/${f}/include" ]; then
+                                    export CPPFLAGS="-I${libffi_dir}/${lib_dir}/${f}/include \
+${CPPFLAGS}"
+                                    break
+                                fi
+                            done
+                            export LD_LIBRARY_PATH="${libffi_dir}/${lib_dir}:${LD_LIBRARY_PATH}"
+                            export LDFLAGS="-L${libffi_dir}/${lib_dir} \
 -Wl,-rpath=${libffi_dir}/${lib_dir} ${LDFLAGS}"
-                    done
-                    cd "${current_dir}"
-                    with_system_ffi="--with-system-ffi"
+                        done
+                        cd "${current_dir}"
+                        with_system_ffi="--with-system-ffi"
+                    fi
+                    export LDFLAGS="-L${python_dir}/lib -Wl,--rpath=${python_dir}/lib ${LDFLAGS}"
+                    # Configure.
+                    # When pgo optimizations are enabled, some of the
+                    # tests which are performed may hang. It appears
+                    # that the configure script allows each test to take
+                    # up to an hour before they are forcefully killed.
+                    # We thus do not need to kill any such hanging
+                    # process manually. We do however write out a
+                    # soothing message in the case of such hangs,
+                    # letting the user know that everything
+                    # will be all right.
+                    pyconfigure_success="True"
+                    ./configure --enable-shared ${with_pgo} ${with_lto} --prefix="${python_dir}" \
+                        ${with_ensurepip_install}                                                \
+                        ${with_openssl}                                                          \
+                        ${with_system_ffi}                                                       \
+                        2>&1 || pyconfigure_success="False" & python_configure_pid=$!
+                    soothe ${python_configure_pid}
+                    if [ "${pyconfigure_success}" == "False" ]; then
+                        continue
+                    fi
+                    # Make
+                    make ${make_jobs} 2>&1 || continue
+                    # Test
+                    if [ "${do_tests}" == "True" ]; then
+                        make ${make_jobs} test 2>&1 | tee "test_log"
+                        [ ${PIPESTATUS[0]} -eq 0 ] || python_test_success="False"
+                    fi
+                    if [ "${python_test_success}" == "False" ]; then
+                        mkdir -p "$(dirname "${python_test_log}")"
+                        cp "test_log" "${python_test_log}"
+                    else
+                        rm -f "${python_test_log}" || :
+                    fi
+                    # Make install
+                    make install 2>&1 || continue  # Should be run serially
+                    install_success="True"
+                    break
+                done
+                if [ "${install_success}" == "True" ]; then
+                    break
                 fi
-                export LDFLAGS="-L${python_dir}/lib -Wl,--rpath=${python_dir}/lib ${LDFLAGS}"
-                # Configure.
-                # When pgo optimizations are enabled, some of the tests which
-                # are performed may hang. It appears that the configure script
-                # allows each test to take up to an hour before they are
-                # forcefully killed. We thus do not need to kill any such
-                # hanging process manually. We do however write out a soothing
-                # message in the case of such hangs, letting the user know that
-                # everything is all right.
-                pyconfigure_success="True"
-                ./configure --enable-shared ${with_pgo} ${with_lto} --prefix="${python_dir}" \
-                    ${with_ensurepip_install}                                                \
-                    ${with_openssl}                                                          \
-                    ${with_system_ffi}                                                       \
-                    2>&1 || pyconfigure_success="False" & python_configure_pid=$!
-                soothe ${python_configure_pid}
-                if [ "${pyconfigure_success}" == "False" ]; then
-                    continue
-                fi
-                # Make
-                make ${make_jobs} 2>&1 || continue
-                # Test
-                if [ "${do_tests}" == "True" ]; then
-                    make ${make_jobs} test 2>&1 | tee "test_log"
-                    [ ${PIPESTATUS[0]} -eq 0 ] || python_test_success="False"
-                fi
-                if [ "${python_test_success}" == "False" ]; then
-                    mkdir -p "$(dirname "${python_test_log}")"
-                    cp "test_log" "${python_test_log}"
-                else
-                    rm -f "${python_test_log}" || :
-                fi
-                # Make install
-                make install 2>&1 || continue  # Should be run serially
-                install_success="True"
-                break
             done
             if [ "${install_success}" == "True" ]; then
                 break
@@ -6785,7 +6808,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     ((linenr += 1))
     new_lines=(                                                                  \
         "/**"                                                                    \
-        " * Compute perturbation derivatives. This also ensure that the"         \
+        " * Compute perturbation derivatives. This also ensures that the"        \
         " * ppw (and other) structs are up-to-date. This is important"           \
         " * when using the Runge-Kutta evolver, as this is otherwise"            \
         " * not taken care off correctly."                                       \
