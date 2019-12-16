@@ -13,9 +13,9 @@ _mν = [0, 8.7e-3, 5.0e-2]  # Neutrino masses in eV
 output_dirs = {'powerspec': paths['output_dir'] + '/class'}
 
 # Numerical parameters
-boxsize = 100*Gpc
-powerspec_gridsizes = {"all": 5e+3}
-modes_per_decade = 5 #50
+boxsize = 10*Gpc
+powerspec_gridsizes = {'all': 5e+3}
+modes_per_decade = 50
 
 # Cosmology
 H0      = 67*km/(s*Mpc)
